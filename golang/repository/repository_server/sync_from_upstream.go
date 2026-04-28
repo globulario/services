@@ -43,6 +43,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/repository/upstream"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -167,12 +168,20 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 	releaseTag := strings.TrimSpace(req.GetReleaseTag())
 	dryRun := req.GetDryRun()
 
+	resolveLatest := req.GetResolveLatest()
+
 	if sourceName == "" {
 		return nil, status.Error(codes.InvalidArgument, "source_name is required")
 	}
-	// Phase 1: explicit tag is mandatory — no "latest" discovery.
-	if releaseTag == "" {
-		return nil, status.Error(codes.InvalidArgument, "release_tag is required in phase 1 — specify an explicit tag (e.g. 'v1.0.17')")
+
+	// ── Strict --latest semantics ─────────────────────────────────────────
+	// tag set + resolve_latest=true → InvalidArgument
+	if releaseTag != "" && resolveLatest {
+		return nil, status.Error(codes.InvalidArgument, "cannot use both release_tag and resolve_latest — choose one")
+	}
+	// tag empty + resolve_latest=false → InvalidArgument
+	if releaseTag == "" && !resolveLatest {
+		return nil, status.Error(codes.InvalidArgument, "release_tag is required — specify an explicit tag (e.g. 'v1.0.17') or set resolve_latest=true")
 	}
 
 	// ── Load upstream source ────────────────────────────────────────────────
@@ -194,11 +203,35 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 		authToken = tok
 	}
 
-	// ── Build index URL ────────────────────────────────────────────────────
-	indexURL := strings.ReplaceAll(src.GetIndexUrl(), "{tag}", releaseTag)
+	// ── GitHub latest-release discovery ───────────────────────────────────
+	var indexURL string
+	if resolveLatest {
+		if src.GetRepoUrl() == "" {
+			return nil, status.Errorf(codes.InvalidArgument,
+				"resolve_latest requires repo_url on upstream source %q — register with --repo-url", sourceName)
+		}
+		owner, repo, parseErr := upstream.ParseRepoURL(src.GetRepoUrl())
+		if parseErr != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid repo_url on source %q: %v", sourceName, parseErr)
+		}
+		release, fetchErr := upstream.FetchLatestRelease(owner, repo, src.GetIncludePrereleases(), authToken)
+		if fetchErr != nil {
+			return nil, status.Errorf(codes.Unavailable, "GitHub API: %v", fetchErr)
+		}
+		releaseTag = release.TagName
+		asset, assetErr := upstream.FindReleaseIndexAsset(release)
+		if assetErr != nil {
+			return nil, status.Errorf(codes.NotFound, "GitHub release %q has no release-index.json asset", releaseTag)
+		}
+		indexURL = asset.BrowserDownloadURL
+		slog.Info("upstream: resolved latest release", "source", sourceName, "tag", releaseTag,
+			"prerelease", release.Prerelease)
+	} else {
+		indexURL = strings.ReplaceAll(src.GetIndexUrl(), "{tag}", releaseTag)
+	}
 
 	slog.Info("upstream: starting sync",
-		"source", sourceName, "tag", releaseTag, "index_url", indexURL, "dry_run", dryRun)
+		"source", sourceName, "tag", releaseTag, "index_url", upstream.RedactAssetURL(indexURL), "dry_run", dryRun)
 
 	// ── Fetch release index ────────────────────────────────────────────────
 	idx, err := fetchReleaseIndex(indexURL, authToken)
@@ -277,12 +310,14 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 		"imported", imported, "skipped", skipped, "rejected", rejected, "failed", failed)
 
 	return &repopb.SyncFromUpstreamResponse{
-		Results:  results,
-		Imported: imported,
-		Skipped:  skipped,
-		Rejected: rejected,
-		Failed:   failed,
-		DryRun:   dryRun,
+		Results:     results,
+		Imported:    imported,
+		Skipped:     skipped,
+		Rejected:    rejected,
+		Failed:      failed,
+		DryRun:      dryRun,
+		ResolvedTag: releaseTag,
+		SourceName:  sourceName,
 	}, nil
 }
 
@@ -307,11 +342,31 @@ func (srv *server) processSyncEntry(
 	n := normalizeReleaseEntry(entry, src)
 
 	result := &repopb.UpstreamSyncResult{
-		Name:          n.Name,
-		Version:       n.Version,
-		BuildId:       n.BuildID,
-		Platform:      n.Platform,
-		PackageDigest: n.Digest,
+		Name:            n.Name,
+		Version:         n.Version,
+		BuildId:         n.BuildID,
+		Platform:        n.Platform,
+		PackageDigest:   n.Digest,
+		Publisher:       n.Publisher,
+		Kind:            n.Kind,
+		Channel:         n.Channel,
+		BuildNumber:     n.BuildNumber,
+		ChecksumPresent: n.Digest != "",
+	}
+
+	// Populate local version from ledger if available.
+	ledger := srv.readLedger(ctx, n.Publisher, n.Name)
+	if ledger != nil && ledger.LatestVersion != "" {
+		result.LocalVersion = ledger.LatestVersion
+		// Find the latest build_number for this version.
+		for _, r := range ledger.Releases {
+			if r.Version == ledger.LatestVersion {
+				// Parse build_number from ledger BuildID if numeric, else leave 0.
+				// The ledger stores build_id, not build_number directly.
+				result.LocalBuildNumber = 0
+				break
+			}
+		}
 	}
 
 	// ── Step 2: Policy filtering ──────────────────────────────────────────
@@ -331,11 +386,12 @@ func (srv *server) processSyncEntry(
 			})
 		}
 		result.Detail = reason
+		result.Action = "blocked"
+		result.BlockedReason = reason
 		return result
 	}
 
 	// ── Step 3: Conflict detection ────────────────────────────────────────
-	ledger := srv.readLedger(ctx, n.Publisher, n.Name)
 	if ledger != nil {
 		for _, r := range ledger.Releases {
 			if r.Version == n.Version && r.BuildID == n.BuildID && r.Platform == n.Platform {
@@ -346,6 +402,7 @@ func (srv *server) processSyncEntry(
 						result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
 					}
 					result.Detail = "already present with matching digest"
+					result.Action = "up_to_date"
 					return result
 				}
 				detail := fmt.Sprintf("digest conflict: local=%s... upstream=%s...",
@@ -364,9 +421,10 @@ func (srv *server) processSyncEntry(
 						"platform":        n.Platform,
 						"local_digest":    r.Digest,
 						"upstream_digest": n.Digest,
-						"asset_url":       n.AssetURL,
+						"asset_url":       upstream.RedactAssetURL(n.AssetURL),
 					})
 				}
+				result.Action = "conflict"
 				return result
 			}
 		}
@@ -386,13 +444,25 @@ func (srv *server) processSyncEntry(
 			result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
 		}
 		result.Detail = detail
+		result.Action = "up_to_date"
 		return result
 	}
 
 	// Not found → would import (or import).
+	// Determine if this is a new package or an update.
+	if result.LocalVersion == "" {
+		result.Action = "new"
+	} else if result.LocalVersion < n.Version {
+		result.Action = "update"
+	} else if result.LocalVersion > n.Version {
+		result.Action = "ahead"
+	} else {
+		result.Action = "new" // same version, different build
+	}
+
 	if dryRun {
 		result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_IMPORT
-		result.Detail = fmt.Sprintf("would download from %s (build_number=%d)", n.AssetURL, n.BuildNumber)
+		result.Detail = fmt.Sprintf("would download from %s (build_number=%d)", upstream.RedactAssetURL(n.AssetURL), n.BuildNumber)
 		return result
 	}
 
@@ -467,11 +537,16 @@ func (srv *server) importUpstreamArtifact(
 		Provisional:        false,
 		Channel:            channelFromString(n.Channel),
 		UpstreamImport: &repopb.UpstreamImportRecord{
-			SourceName: src.GetName(),
-			ReleaseTag: releaseTag,
-			AssetUrl:   n.AssetURL,
-			IndexUrl:   strings.ReplaceAll(src.GetIndexUrl(), "{tag}", releaseTag),
-			ImportedAt: time.Now().Unix(),
+			SourceName:  src.GetName(),
+			ReleaseTag:  releaseTag,
+			AssetUrl:    n.AssetURL,
+			IndexUrl:    strings.ReplaceAll(src.GetIndexUrl(), "{tag}", releaseTag),
+			ImportedAt:  time.Now().Unix(),
+			Publisher:   n.Publisher,
+			Kind:        n.Kind,
+			Channel:     n.Channel,
+			BuildNumber: n.BuildNumber,
+			Checksum:    digest,
 		},
 	}
 

@@ -381,3 +381,105 @@ func TestContainsFold(t *testing.T) {
 		t.Fatal("nil slice should not match")
 	}
 }
+
+// ── Strict --latest semantics tests ─────────────────────────────────────────
+
+func TestSyncFromUpstream_TagAndResolveLatest_InvalidArgument(t *testing.T) {
+	srv := newTestServer(t)
+	_, err := srv.SyncFromUpstream(context.Background(), &repopb.SyncFromUpstreamRequest{
+		SourceName:    "test",
+		ReleaseTag:    "v1.0.0",
+		ResolveLatest: true,
+	})
+	if err == nil {
+		t.Fatal("expected InvalidArgument when both tag and resolve_latest are set")
+	}
+	if !strings.Contains(err.Error(), "cannot use both") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestSyncFromUpstream_EmptyTagNoResolveLatest_InvalidArgument(t *testing.T) {
+	srv := newTestServer(t)
+	_, err := srv.SyncFromUpstream(context.Background(), &repopb.SyncFromUpstreamRequest{
+		SourceName:    "test",
+		ReleaseTag:    "",
+		ResolveLatest: false,
+	})
+	if err == nil {
+		t.Fatal("expected InvalidArgument when tag is empty and resolve_latest is false")
+	}
+	if !strings.Contains(err.Error(), "release_tag is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// ── Enriched result tests ───────────────────────────────────────────────────
+
+func TestProcessSyncEntry_PopulatesRichFields(t *testing.T) {
+	srv := newTestServer(t)
+	entry := &releaseIndexEntry{
+		Name: "echo", Kind: "SERVICE", Publisher: "core@globular.io",
+		Version: "1.0.0", BuildNumber: 42, BuildID: "42",
+		Platform: "linux_amd64", Channel: "stable",
+		PackageDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+		AssetURL:      "https://example.com/echo.tgz",
+	}
+	src := &repopb.UpstreamSource{Name: "test-source"}
+
+	result := srv.processSyncEntry(context.Background(), entry, src, "v1.0.0", true, "")
+
+	if result.Publisher != "core@globular.io" {
+		t.Fatalf("publisher: got %q", result.Publisher)
+	}
+	if result.Kind != "SERVICE" {
+		t.Fatalf("kind: got %q", result.Kind)
+	}
+	if result.Channel != "stable" {
+		t.Fatalf("channel: got %q", result.Channel)
+	}
+	if result.BuildNumber != 42 {
+		t.Fatalf("build_number: got %d", result.BuildNumber)
+	}
+	if !result.ChecksumPresent {
+		t.Fatal("checksum_present should be true")
+	}
+}
+
+func TestProcessSyncEntry_ActionBlocked(t *testing.T) {
+	srv := newTestServer(t)
+	entry := &releaseIndexEntry{
+		Name: "echo", Kind: "APPLICATION", Version: "1.0.0",
+		BuildNumber: 1, BuildID: "1", Platform: "linux_amd64",
+		PackageDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+		AssetURL:      "https://example.com/echo.tgz",
+	}
+	src := &repopb.UpstreamSource{
+		Name:         "test-source",
+		AllowedKinds: []string{"SERVICE"},
+	}
+
+	result := srv.processSyncEntry(context.Background(), entry, src, "v1.0.0", true, "")
+	if result.Action != "blocked" {
+		t.Fatalf("expected action=blocked, got %q", result.Action)
+	}
+	if result.BlockedReason == "" {
+		t.Fatal("expected blocked_reason to be set")
+	}
+}
+
+func TestProcessSyncEntry_ActionNew(t *testing.T) {
+	srv := newTestServer(t)
+	entry := &releaseIndexEntry{
+		Name: "newpkg", Kind: "SERVICE", Version: "1.0.0",
+		BuildNumber: 1, BuildID: "1", Platform: "linux_amd64",
+		PackageDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+		AssetURL:      "https://example.com/newpkg.tgz",
+	}
+	src := &repopb.UpstreamSource{Name: "test-source"}
+
+	result := srv.processSyncEntry(context.Background(), entry, src, "v1.0.0", true, "")
+	if result.Action != "new" {
+		t.Fatalf("expected action=new, got %q", result.Action)
+	}
+}
