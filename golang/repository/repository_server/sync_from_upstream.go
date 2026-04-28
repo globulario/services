@@ -120,6 +120,10 @@ func (srv *server) ListUpstreams(ctx context.Context, _ *repopb.ListUpstreamsReq
 			slog.Warn("upstream: corrupt etcd entry", "key", string(kv.Key), "err", err)
 			continue
 		}
+		// Redact credentials_ref in response — show presence but not the key path.
+		if src.CredentialsRef != "" {
+			src.CredentialsRef = "(set)"
+		}
 		sources = append(sources, &src)
 	}
 	return &repopb.ListUpstreamsResponse{Sources: sources}, nil
@@ -181,6 +185,16 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 		return nil, status.Errorf(codes.FailedPrecondition, "upstream source %q is disabled", sourceName)
 	}
 
+	// ── Resolve credentials ──────────────────────────────────────────────
+	var authToken string
+	if credRef := src.GetCredentialsRef(); credRef != "" {
+		tok, credErr := resolveCredentialFromEtcd(ctx, credRef)
+		if credErr != nil {
+			return nil, status.Errorf(codes.FailedPrecondition, "resolve credentials_ref: %v", credErr)
+		}
+		authToken = tok
+	}
+
 	// ── Build index URL ────────────────────────────────────────────────────
 	indexURL := strings.ReplaceAll(src.GetIndexUrl(), "{tag}", releaseTag)
 
@@ -188,7 +202,7 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 		"source", sourceName, "tag", releaseTag, "index_url", indexURL, "dry_run", dryRun)
 
 	// ── Fetch release index ────────────────────────────────────────────────
-	idx, err := fetchReleaseIndex(indexURL)
+	idx, err := fetchReleaseIndex(indexURL, authToken)
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "fetch release index: %v", err)
 	}
@@ -223,7 +237,7 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 			continue
 		}
 
-		result := srv.processSyncEntry(ctx, entry, src, releaseTag, dryRun)
+		result := srv.processSyncEntry(ctx, entry, src, releaseTag, dryRun, authToken)
 		results = append(results, result)
 
 		switch result.GetStatus() {
@@ -282,6 +296,7 @@ func (srv *server) processSyncEntry(
 	src *repopb.UpstreamSource,
 	releaseTag string,
 	dryRun bool,
+	authToken string,
 ) *repopb.UpstreamSyncResult {
 
 	publisher := entry.Publisher
@@ -392,7 +407,7 @@ func (srv *server) processSyncEntry(
 	}
 
 	// ── Download and verify ────────────────────────────────────────────────
-	data, digest, err := downloadAndVerify(entry.AssetURL, entry.PackageDigest)
+	data, digest, err := downloadAndVerify(entry.AssetURL, entry.PackageDigest, authToken)
 	if err != nil {
 		result.Status = repopb.UpstreamSyncStatus_SYNC_FAILED
 		result.Detail = fmt.Sprintf("download/verify failed: %v", err)
@@ -573,6 +588,30 @@ func (srv *server) updateSyncStatus(ctx context.Context, sourceName, tag, syncSt
 	return err
 }
 
+// resolveCredentialFromEtcd reads a token from an etcd key. Only accepts
+// keys under /globular/credentials/ to prevent arbitrary etcd reads.
+// The token value is never logged.
+func resolveCredentialFromEtcd(ctx context.Context, credRef string) (string, error) {
+	const allowedPrefix = "/globular/credentials/"
+	if !strings.HasPrefix(credRef, allowedPrefix) {
+		return "", fmt.Errorf("credentials_ref must start with %q (got %q)", allowedPrefix, credRef)
+	}
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return "", fmt.Errorf("etcd unavailable: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	resp, err := cli.Get(tctx, credRef)
+	if err != nil {
+		return "", fmt.Errorf("etcd get credential: %w", err)
+	}
+	if len(resp.Kvs) == 0 {
+		return "", fmt.Errorf("credential key %q not found in etcd", credRef)
+	}
+	return strings.TrimSpace(string(resp.Kvs[0].Value)), nil
+}
+
 // upstreamHTTPClient returns an http.Client with sensible timeouts for
 // upstream fetches. The 30s timeout covers connection + TLS + response.
 func upstreamHTTPClient() *http.Client {
@@ -581,10 +620,14 @@ func upstreamHTTPClient() *http.Client {
 
 // fetchReleaseIndex fetches and parses the release-index.json from indexURL.
 // Enforces a 30s timeout and 10 MiB size limit to prevent hangs and OOM.
-func fetchReleaseIndex(indexURL string) (*releaseIndex, error) {
+// authToken is applied as Bearer authorization when non-empty.
+func fetchReleaseIndex(indexURL, authToken string) (*releaseIndex, error) {
 	req, err := http.NewRequest(http.MethodGet, indexURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request %s: %w", indexURL, err)
+	}
+	if authToken != "" {
+		req.Header.Set("Authorization", "Bearer "+authToken)
 	}
 	resp, err := upstreamHTTPClient().Do(req)
 	if err != nil {
@@ -616,11 +659,15 @@ func fetchReleaseIndex(indexURL string) (*releaseIndex, error) {
 // downloadAndVerify downloads the artifact from assetURL, computes its sha256,
 // and verifies it matches expectedDigest ("sha256:<hex>").
 // Enforces a 30s timeout and 500 MiB size limit.
+// authToken is applied as Bearer authorization when non-empty.
 // Returns the raw bytes and the verified digest string.
-func downloadAndVerify(assetURL, expectedDigest string) ([]byte, string, error) {
+func downloadAndVerify(assetURL, expectedDigest, authToken string) ([]byte, string, error) {
 	req, err := http.NewRequest(http.MethodGet, assetURL, nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("build request %s: %w", assetURL, err)
+	}
+	if authToken != "" {
+		req.Header.Set("Authorization", "Bearer "+authToken)
 	}
 	resp, err := upstreamHTTPClient().Do(req)
 	if err != nil {

@@ -38,6 +38,7 @@ func TestProcessSyncEntrySkipsExistingDigestWithDifferentBuildNumber(t *testing.
 		&repopb.UpstreamSource{Name: "test-source"},
 		"v1.0.53",
 		false,
+		"", // no auth token
 	)
 
 	if result.GetStatus() != repopb.UpstreamSyncStatus_SYNC_SKIPPED {
