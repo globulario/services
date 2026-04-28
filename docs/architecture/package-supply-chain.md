@@ -3,69 +3,89 @@
 This document describes how packages flow from source code to running
 services across the Globular cluster.
 
+## Platform Release vs Package Version
+
+A **platform release** (e.g. Globular v1.0.84) is a **bill of materials** —
+a composition lockfile that references exact package artifacts. It is NOT a
+monolithic version stamp applied to every package.
+
+A **package version** represents a contract/content change to that specific
+package. If a package did not change between releases, it keeps its
+original version.
+
+```
+Platform Release v1.0.84 (bill of materials)
+├── repository   v1.0.84  build=24  CHANGED    origin=v1.0.84
+├── gateway      v1.0.82  build=9   UNCHANGED  origin=v1.0.82
+├── dns          v1.0.80  build=15  UNCHANGED  origin=v1.0.80
+├── envoy        1.35.3   build=1   UNCHANGED  origin=v1.0.70
+├── minio        RELEASE… build=1   UNCHANGED  origin=v1.0.75
+└── etcd         3.5.14   build=1   UNCHANGED  origin=v1.0.60
+```
+
+## Three-Layer Digest Model
+
+| Digest | Purpose | Changes when... |
+|--------|---------|-----------------|
+| `package_contract_digest` | Change detection | Binary, manifest, specs, systemd units, profiles, deps, or config change |
+| `artifact_sha256` | Download verification | Archive bytes differ (tar/gzip metadata may cause this) |
+| `entrypoint_checksum` | Runtime fingerprint | Binary on disk changes |
+
+Change detection uses `package_contract_digest`, NOT `artifact_sha256`. This
+ensures identical content packaged with different tar/gzip metadata is correctly
+identified as unchanged.
+
 ## The Pipeline
 
 ```
 Source Code
-    │
-    ▼
-CI Build (generateCode.sh + build-all-packages.sh)
-    │
-    ├─ Produces: .tgz archives with package.json
-    ├─ Computes: sha256 checksum, entrypoint_checksum
-    └─ Publishes: release-index.json to GitHub Release
-    │
-    ▼
-Repository Service (UploadArtifact or SyncFromUpstream)
-    │
-    ├─ Stores binary in MinIO (blob cache)
-    ├─ Stores manifest in ScyllaDB (authoritative ledger)
-    ├─ Validates checksum, assigns build_id
-    └─ Sets publish state: PUBLISHED or QUARANTINED
-    │
-    ▼
-Cluster Controller (ResolveArtifact → Desired State)
-    │
-    ├─ Queries repository for latest PUBLISHED version
-    ├─ Writes desired version + build_id to etcd
-    └─ Never resolves at execution time — build_id is in desired state
-    │
-    ▼
-Node Agent (DownloadArtifact → Install → Report)
-    │
-    ├─ Downloads from repository gRPC
-    ├─ Installs to /var/lib/globular/packages/
-    ├─ Reports installed state to etcd
-    └─ Falls back through: staged cache → local → repository
+    |
+    v
+CI Build (detect-changes.py compares contract digests BEFORE version stamping)
+    |
+    +-- Changed packages: stamp with current platform version, build, package
+    +-- Unchanged packages: keep previous version, copy artifact from origin release
+    |
+    v
+release-index.json v2 (bill of materials with per-package versions)
+    |
+    v
+GitHub Release
+    +-- Changed package .tgz files (new artifacts)
+    +-- release-index.json
+    +-- Offline installer tarball (all packages including unchanged copies)
+    |
+    v
+Repository Service (SyncFromUpstream)
+    |
+    +-- Imports each package with its own version (not platform version)
+    +-- Stores in ScyllaDB + MinIO
+    +-- Records origin_release and changed_in_release in provenance
+    |
+    v
+Cluster Controller (per-package desired state)
+    |
+    +-- Each package has independent ServiceDesiredVersion / InfrastructureRelease
+    +-- Resolves each package to its own version + build_id
+    +-- No global "platform version" in desired state
+    |
+    v
+Node Agent (DownloadArtifact -> Install -> Report)
 ```
 
-## Upstream Import Path
+## Change Detection Sequence
 
-For packages not built locally, the upstream import path provides a
-secure supply chain from external registries:
+The CI pipeline MUST detect changes BEFORE stamping versions:
 
-```
-External Registry (GitHub Releases)
-    │
-    ▼
-release-index.json (schema_version: globular.repository.index/v1)
-    │
-    ├─ Validated: schema version, required fields, digest format
-    ├─ Policy: allowed publishers/kinds/channels, require_checksum
-    └─ Trust: "import" → PUBLISHED, "quarantine" → QUARANTINED
-    │
-    ▼
-SyncFromUpstream
-    │
-    ├─ Downloads each asset
-    ├─ Verifies sha256 checksum
-    ├─ Enriches manifest from package.json
-    ├─ Preserves upstream build_id (deterministic)
-    └─ Records upstream_import provenance
-    │
-    ▼
-Normal Repository Pipeline (ScyllaDB + MinIO)
-```
+1. Build all binaries with the PREVIOUS version (from version-overrides.txt)
+2. Compute package_contract_digest for each package
+3. Compare against previous release-index.json
+4. Unchanged packages: keep previous version, skip rebuild
+5. Changed packages: rebuild with current platform version
+6. Generate release-index.json v2 with per-package versions
+
+If version is stamped before detection, all binaries appear changed because
+the embedded version string changes the entrypoint_checksum.
 
 ## Data Authority
 
@@ -77,11 +97,15 @@ Normal Repository Pipeline (ScyllaDB + MinIO)
 | Artifact resolution | ScyllaDB | ResolveArtifact |
 | Upstream sources | etcd | /globular/repository/upstreams/ |
 | Credentials | etcd | /globular/credentials/ |
+| Platform release composition | release-index.json | GitHub Release asset |
 
 ## Invariants
 
 1. **Immutable digest binding**: Once (publisher, name, version, platform) is bound to a sha256 digest, it can never change. Conflicts are rejected.
-2. **Deterministic build_id**: Upstream imports preserve the original build_id or derive one deterministically from package identity + checksum.
-3. **Scylla-first reads**: All catalog queries (List, Search, GetVersions, Resolve, GC, Reconciler) use ScyllaDB as the authoritative source.
-4. **MinIO is blob cache**: If a MinIO blob is missing but the manifest exists in Scylla with upstream_import, the blob can be refilled from upstream.
-5. **No automatic rollback**: If a package fails, create an incident. Never auto-install older versions.
+2. **Package version = content change**: A package version changes only when the package content/contract changes. Platform release version is NOT stamped on unchanged packages.
+3. **Deterministic contract digest**: Same binary + manifest + specs + systemd + deps always produces the same contract digest regardless of archive metadata.
+4. **Scylla-first reads**: All catalog queries use ScyllaDB as the authoritative source.
+5. **MinIO is blob cache**: Missing blobs can be refilled from upstream.
+6. **No automatic rollback**: If a package fails, create an incident. Never auto-install older versions.
+7. **Referenced releases must not be deleted**: A platform release may reference package artifacts from previous releases. Deleting those releases breaks the asset_url for unchanged packages.
+8. **Force full rebuild is explicit**: When previous release index is unavailable, the release fails unless FORCE_FULL_REBUILD=true is set, which records the reason in release-index metadata.

@@ -31,15 +31,27 @@ Infrastructure packages (etcd, ScyllaDB, MinIO, Prometheus, Envoy) keep their up
 
 ---
 
-## Mono-version track
+## Platform release vs package version
 
-All Globular Go services share a single version track. When any service gets a version bump, all services in the manifest are bumped together.
+A **platform release** (e.g. Globular v1.0.84) is a **bill of materials** (BOM) — a composition lockfile that lists exact package artifacts. It is NOT a monolithic version applied to every package.
 
-Why? Because services evolve as a unit. Dependency compatibility between authentication v0.1.0 and rbac v0.0.9 is not tested, not tracked, and not supported. The mono-version model makes this concrete: if the cluster is at v0.1.4, every Globular service is v0.1.4.
+A **package version** changes only when the package's content/contract changes. If `gateway` was last modified in v1.0.82, it stays at version 1.0.82 in every subsequent platform release until its content actually changes.
 
-This simplifies the operator mental model: "What version is my cluster at?" has one answer.
+```
+Platform Release v1.0.84:
+  repository   v1.0.84  (CHANGED in this release)
+  gateway      v1.0.82  (unchanged since v1.0.82)
+  dns          v1.0.80  (unchanged since v1.0.80)
+  envoy        1.35.3   (upstream version, unchanged)
+```
 
-**The exception**: Infrastructure packages keep upstream versions. etcd 3.5.15 and MinIO 7.0.11 coexist with Globular services at v0.1.4. Infrastructure versions are set in the package manifest separately.
+The `release-index.json` v2 schema records `origin_release` and `changed_in_release` for each package, making the composition explicit.
+
+**Change detection** uses `package_contract_digest` — a normalized hash of the binary, manifest, specs, systemd units, profiles, and dependencies. This is independent of tar/gzip archive metadata, so identical content always produces the same digest.
+
+**Why not mono-version?** Mono-versioning (stamping every package with the platform version) destroys version meaning. A version should represent a content/contract change. If `gateway` says v1.0.84 but nothing in gateway changed since v1.0.82, the version is lying. The BOM model preserves truthful version semantics while still grouping packages into coherent platform releases.
+
+**Infrastructure packages** keep their upstream versions as before. etcd 3.5.15, MinIO RELEASE.2025-09-07, etc.
 
 ---
 
