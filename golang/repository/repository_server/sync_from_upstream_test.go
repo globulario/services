@@ -483,3 +483,141 @@ func TestProcessSyncEntry_ActionNew(t *testing.T) {
 		t.Fatalf("expected action=new, got %q", result.Action)
 	}
 }
+
+// ── BOM composition tests ───────────────────────────────────────────────────
+
+func TestProcessSyncEntry_UnchangedPackagePreservesVersion(t *testing.T) {
+	// An unchanged package from origin release v1.0.82 referenced in platform
+	// release v1.0.84 should preserve its original version (1.0.82).
+	srv := newTestServer(t)
+	unchanged := false
+	entry := &releaseIndexEntry{
+		Name: "gateway", Kind: "SERVICE", Publisher: "core@globular.io",
+		Version: "1.0.82", BuildNumber: 9, BuildID: "9",
+		Platform:         "linux_amd64",
+		PackageDigest:    "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+		AssetURL:         "https://example.com/v1.0.82/gateway.tgz",
+		ReleaseTag:       "v1.0.84",
+		OriginRelease:    "v1.0.82",
+		ChangedInRelease: &unchanged,
+	}
+	src := &repopb.UpstreamSource{Name: "test-source"}
+
+	result := srv.processSyncEntry(context.Background(), entry, src, "v1.0.84", true, "")
+	// Version should be the package version (1.0.82), not the platform release (1.0.84).
+	if result.Version != "1.0.82" {
+		t.Fatalf("expected package version 1.0.82, got %q", result.Version)
+	}
+	if result.Action == "blocked" {
+		t.Fatalf("unchanged cross-release package should not be blocked: %s", result.BlockedReason)
+	}
+}
+
+func TestProcessSyncEntry_MixedVersionRelease(t *testing.T) {
+	// Platform release v1.0.84 contains repository@1.0.84 (changed) and
+	// gateway@1.0.82 (unchanged). Both should process without conflict.
+	srv := newTestServer(t)
+	changed := true
+	unchanged := false
+
+	entries := []*releaseIndexEntry{
+		{
+			Name: "repository", Kind: "SERVICE", Publisher: "core@globular.io",
+			Version: "1.0.84", BuildNumber: 24, BuildID: "24",
+			Platform: "linux_amd64",
+			PackageDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			AssetURL:      "https://example.com/v1.0.84/repository.tgz",
+			ReleaseTag:    "v1.0.84", OriginRelease: "v1.0.84",
+			ChangedInRelease: &changed,
+		},
+		{
+			Name: "gateway", Kind: "SERVICE", Publisher: "core@globular.io",
+			Version: "1.0.82", BuildNumber: 9, BuildID: "9",
+			Platform: "linux_amd64",
+			PackageDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			AssetURL:      "https://example.com/v1.0.82/gateway.tgz",
+			ReleaseTag:    "v1.0.84", OriginRelease: "v1.0.82",
+			ChangedInRelease: &unchanged,
+		},
+	}
+	src := &repopb.UpstreamSource{Name: "test-source"}
+
+	for _, entry := range entries {
+		result := srv.processSyncEntry(context.Background(), entry, src, "v1.0.84", true, "")
+		if result.Status == repopb.UpstreamSyncStatus_SYNC_WOULD_REJECT {
+			t.Fatalf("package %s should not be rejected: %s", entry.Name, result.Detail)
+		}
+		if result.Version != entry.Version {
+			t.Fatalf("package %s version: expected %q, got %q", entry.Name, entry.Version, result.Version)
+		}
+	}
+}
+
+func TestSameArtifactMultipleReleases_NoConflict(t *testing.T) {
+	// Same package identity + same sha256 referenced by two platform releases
+	// is valid (idempotent skip), not a conflict.
+	srv := newTestServer(t)
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "gateway",
+		Version: "1.0.82", Platform: "linux_amd64",
+		Kind: repopb.ArtifactKind_SERVICE,
+	}
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 9, BuildId: "9",
+		Checksum: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		SizeBytes: 100,
+	})
+
+	// Same artifact referenced from a new platform release v1.0.85.
+	unchanged := false
+	entry := &releaseIndexEntry{
+		Name: "gateway", Kind: "SERVICE", Publisher: "core@globular.io",
+		Version: "1.0.82", BuildNumber: 9, BuildID: "9",
+		Platform:         "linux_amd64",
+		PackageDigest:    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		AssetURL:         "https://example.com/v1.0.82/gateway.tgz",
+		ReleaseTag:       "v1.0.85",
+		OriginRelease:    "v1.0.82",
+		ChangedInRelease: &unchanged,
+	}
+	src := &repopb.UpstreamSource{Name: "test-source"}
+	result := srv.processSyncEntry(context.Background(), entry, src, "v1.0.85", false, "")
+	if result.Status == repopb.UpstreamSyncStatus_SYNC_REJECTED {
+		t.Fatalf("same artifact referenced by another release should skip, not reject: %s", result.Detail)
+	}
+	if result.Action != "up_to_date" {
+		t.Fatalf("expected up_to_date, got %q", result.Action)
+	}
+}
+
+func TestSamePackageIdentityDifferentSha256_Conflict(t *testing.T) {
+	// Same (name, version, build_id, platform) but different sha256 = conflict.
+	srv := newTestServer(t)
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "gateway",
+		Version: "1.0.82", Platform: "linux_amd64",
+		Kind: repopb.ArtifactKind_SERVICE,
+	}
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 9, BuildId: "9",
+		Checksum: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SizeBytes: 100,
+	})
+
+	entry := &releaseIndexEntry{
+		Name: "gateway", Kind: "SERVICE", Publisher: "core@globular.io",
+		Version: "1.0.82", BuildNumber: 9, BuildID: "9",
+		Platform:      "linux_amd64",
+		PackageDigest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		AssetURL:      "https://example.com/v1.0.82/gateway.tgz",
+		ReleaseTag:    "v1.0.85",
+	}
+	src := &repopb.UpstreamSource{Name: "test-source"}
+	result := srv.processSyncEntry(context.Background(), entry, src, "v1.0.85", false, "")
+	if result.Status != repopb.UpstreamSyncStatus_SYNC_REJECTED {
+		t.Fatalf("expected SYNC_REJECTED for different sha256, got %s: %s", result.Status, result.Detail)
+	}
+	if result.Action != "conflict" {
+		t.Fatalf("expected action=conflict, got %q", result.Action)
+	}
+}

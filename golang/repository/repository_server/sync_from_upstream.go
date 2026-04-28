@@ -340,6 +340,7 @@ func (srv *server) processSyncEntry(
 
 	// ── Step 1: Normalize ─────────────────────────────────────────────────
 	n := normalizeReleaseEntry(entry, src)
+	n.PlatformRelease = releaseTag // platform release = the release being synced
 
 	result := &repopb.UpstreamSyncResult{
 		Name:            n.Name,
@@ -467,6 +468,10 @@ func (srv *server) processSyncEntry(
 	}
 
 	// ── Step 4: Download and verify ───────────────────────────────────────
+	if !n.ChangedInRelease && n.OriginRelease != releaseTag {
+		slog.Info("upstream: importing unchanged package from origin release",
+			"name", n.Name, "version", n.Version, "origin", n.OriginRelease, "platform_release", releaseTag)
+	}
 	data, digest, err := downloadAndVerify(n.AssetURL, n.Digest, authToken)
 	if err != nil {
 		result.Status = repopb.UpstreamSyncStatus_SYNC_FAILED
@@ -537,16 +542,20 @@ func (srv *server) importUpstreamArtifact(
 		Provisional:        false,
 		Channel:            channelFromString(n.Channel),
 		UpstreamImport: &repopb.UpstreamImportRecord{
-			SourceName:  src.GetName(),
-			ReleaseTag:  releaseTag,
-			AssetUrl:    n.AssetURL,
-			IndexUrl:    strings.ReplaceAll(src.GetIndexUrl(), "{tag}", releaseTag),
-			ImportedAt:  time.Now().Unix(),
-			Publisher:   n.Publisher,
-			Kind:        n.Kind,
-			Channel:     n.Channel,
-			BuildNumber: n.BuildNumber,
-			Checksum:    digest,
+			SourceName:             src.GetName(),
+			ReleaseTag:             releaseTag,
+			AssetUrl:               n.AssetURL,
+			IndexUrl:               strings.ReplaceAll(src.GetIndexUrl(), "{tag}", releaseTag),
+			ImportedAt:             time.Now().Unix(),
+			Publisher:              n.Publisher,
+			Kind:                   n.Kind,
+			Channel:                n.Channel,
+			BuildNumber:            n.BuildNumber,
+			Checksum:               digest,
+			OriginRelease:          n.OriginRelease,
+			ChangedInRelease:       n.ChangedInRelease,
+			PlatformRelease:        n.PlatformRelease,
+			PackageContractDigest:  n.PackageContractDigest,
 		},
 	}
 
