@@ -140,7 +140,11 @@ func (store *LevelDB_store) getItem(key string) ([]byte, error) {
 		return out, nil
 	}
 
-	return db.Get([]byte(key), nil)
+	val, err := db.Get([]byte(key), nil)
+	if err == leveldb.ErrNotFound {
+		return nil, nil
+	}
+	return val, err
 }
 
 // removeItem deletes an exact key; if key ends with "*" it deletes all keys with that prefix.

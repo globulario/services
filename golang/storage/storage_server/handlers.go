@@ -395,6 +395,9 @@ func (srv *server) GetItem(rqst *storagepb.GetItemRequest, stream storagepb.Stor
 	if err != nil {
 		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	if len(value) == 0 {
+		return status.Errorf(codes.NotFound, "key not found: %s", rqst.GetKey())
+	}
 
 	reader := bytes.NewReader(value)
 	for {

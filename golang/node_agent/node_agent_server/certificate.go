@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/user"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -102,17 +103,43 @@ func (srv *NodeAgentServer) ensureRuntimeTLSConvergence(ctx context.Context) {
 	certPath := config.GetLocalServerCertificatePath()
 	keyPath := config.GetLocalServerKeyPath()
 	caPath := config.GetLocalCACertificate()
+
+	// Check chain validity first.
 	err := validateLeafSignedByCA(certPath, keyPath, caPath)
 	if err == nil {
-		return
+		// Chain is valid — also check IP SAN coverage so that new IPs
+		// (secondary interfaces, VIP changes) trigger cert re-issuance.
+		requiredIPs := make([]net.IP, 0)
+		for _, s := range collectNodeIPs() {
+			if ip := net.ParseIP(s); ip != nil {
+				requiredIPs = append(requiredIPs, ip)
+			}
+		}
+		if vip := srv.lookupIngressVIP(); vip != "" {
+			if ip := net.ParseIP(vip); ip != nil {
+				requiredIPs = append(requiredIPs, ip)
+			}
+		}
+		needRegen, reason := security.NeedsCertRegeneration(certPath, keyPath, caPath, nil, requiredIPs, 30*24*time.Hour)
+		if !needRegen {
+			return
+		}
+		log.Printf("tls-convergence: cert needs regeneration: %s", reason)
+	} else {
+		log.Printf("tls-convergence: runtime TLS chain invalid: %v", err)
 	}
 
-	log.Printf("tls-convergence: runtime TLS chain invalid; repairing certs from current CA: %v", err)
+	log.Printf("tls-convergence: repairing certs from current CA")
+	// Remove stale san.conf so GenerateSanConfig picks up new IPs.
+	sanConf := filepath.Join(config.GetCanonicalPKIDir(), "san.conf")
+	if rmErr := os.Remove(sanConf); rmErr != nil && !os.IsNotExist(rmErr) {
+		log.Printf("tls-convergence: remove san.conf: %v", rmErr)
+	}
 	if repairErr := srv.ensureNetworkCerts(srv.lastSpec); repairErr != nil {
 		log.Printf("tls-convergence: repair failed: %v", repairErr)
 		return
 	}
-	log.Printf("tls-convergence: repaired runtime TLS certificate chain")
+	log.Printf("tls-convergence: repaired runtime TLS certificate")
 }
 
 func (srv *NodeAgentServer) caKeySyncLoop(ctx context.Context) {

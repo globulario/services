@@ -380,6 +380,9 @@ type storedIdentity struct {
 
 // PrimaryIP returns the first routable (non-loopback) IP from the node's identity.
 // Returns "" if no routable IP is found.
+// WARNING: On the VIP holder, this may return the floating VIP (e.g. 10.0.0.100)
+// which is not in service cert SANs and MinIO doesn't bind to. Prefer StableIP()
+// for operations that need the node's real (non-VIP) address.
 func (n *nodeState) PrimaryIP() string {
 	for _, raw := range n.Identity.Ips {
 		ip := strings.TrimSpace(raw)
@@ -396,6 +399,29 @@ func (n *nodeState) PrimaryIP() string {
 		return ip
 	}
 	return ""
+}
+
+// StableIP returns the first routable IP that is NOT the cluster VIP.
+// This is the address services actually bind to (MinIO, etcd, ScyllaDB, etc.)
+// and the one present in TLS cert SANs. Falls back to PrimaryIP() if no
+// VIP is configured or all IPs are the VIP.
+func (n *nodeState) StableIP(vip string) string {
+	vip = strings.TrimSpace(vip)
+	for _, raw := range n.Identity.Ips {
+		ip := strings.TrimSpace(raw)
+		if ip == "" {
+			continue
+		}
+		parsed := net.ParseIP(ip)
+		if parsed == nil || parsed.IsLoopback() || parsed.IsLinkLocalUnicast() {
+			continue
+		}
+		if vip != "" && ip == vip {
+			continue
+		}
+		return ip
+	}
+	return n.PrimaryIP() // fallback
 }
 
 func newControllerState() *controllerState {

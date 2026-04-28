@@ -2,6 +2,8 @@ package storage_store
 
 import (
 	"errors"
+
+	"github.com/allegro/bigcache/v3"
 )
 
 // run serializes operations; exits cleanly on "Close".
@@ -27,8 +29,8 @@ func (store *BigCache_store) run() {
 				continue
 			}
 			val, err := store.cache.Get(action["key"].(string))
-			if err != nil {
-				err = errors.New("bigcache: item not found key=" + action["key"].(string) + " err=" + err.Error())
+			if errors.Is(err, bigcache.ErrEntryNotFound) {
+				val, err = nil, nil
 			}
 			action["results"].(chan map[string]interface{}) <- map[string]interface{}{"val": val, "err": err}
 

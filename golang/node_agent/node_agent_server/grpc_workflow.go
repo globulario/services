@@ -230,6 +230,26 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		log.Printf("grpc-workflow: install-package %s SUCCEEDED (%v)", pkgName, elapsed)
 		// Sync installed state after successful install.
 		srv.syncInstalledStateToEtcd(ctx)
+
+		// Restart the systemd unit so the new binary takes effect.
+		// INFRASTRUCTURE and COMMAND packages manage their own lifecycle
+		// (post-install scripts / one-shot units); only SERVICE packages
+		// need an explicit restart here.
+		if strings.ToUpper(pkgKind) == "SERVICE" {
+			if unit := packageUnit(pkgName); unit != "" {
+				restartCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				// Re-enable in case crash-loop suppression disabled the unit.
+				if enErr := supervisor.Enable(restartCtx, unit); enErr != nil {
+					log.Printf("grpc-workflow: enable %s failed (proceeding to restart): %v", unit, enErr)
+				}
+				if rsErr := supervisor.Restart(restartCtx, unit); rsErr != nil {
+					log.Printf("grpc-workflow: restart %s failed: %v", unit, rsErr)
+				} else {
+					log.Printf("grpc-workflow: restarted %s after install", unit)
+				}
+			}
+		}
 	}
 	return resp, nil
 }

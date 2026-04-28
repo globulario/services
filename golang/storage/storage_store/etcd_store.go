@@ -66,7 +66,7 @@ func (s *Etcd_store) getItem(key string) ([]byte, error) {
 		return nil, err
 	}
 	if len(rsp.Kvs) == 0 {
-		return nil, errors.New("etcd: key not found")
+		return nil, nil
 	}
 	// If multiple, return the last one (etcd returns sorted by key by default)
 	return rsp.Kvs[len(rsp.Kvs)-1].Value, nil

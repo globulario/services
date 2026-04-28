@@ -18,6 +18,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/dns/dnspb"
+	"github.com/globulario/services/golang/domain"
 	"github.com/globulario/services/golang/security"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
@@ -116,11 +117,19 @@ func discoverDNSEndpoints(srv *server) []string {
 		if !nodeHasProfile(member, profilesForDNS) {
 			continue
 		}
-		ip := node.PrimaryIP()
-		if ip == "" {
+		// Prefer the node's FQDN over PrimaryIP(). PrimaryIP() can return the
+		// floating VIP (e.g. 10.0.0.100) which is not in the service cert's
+		// SANs, causing TLS failures when the reconciler dials that endpoint.
+		// The FQDN resolves to the node's stable IP via cluster DNS and the
+		// service cert is always valid for the hostname.
+		addr := node.AdvertiseFqdn
+		if addr == "" {
+			addr = node.PrimaryIP()
+		}
+		if addr == "" {
 			continue
 		}
-		endpoints = append(endpoints, fmt.Sprintf("%s:%d", ip, dnsPort))
+		endpoints = append(endpoints, fmt.Sprintf("%s:%d", addr, dnsPort))
 	}
 	return endpoints
 }
@@ -256,14 +265,13 @@ func (r *DNSReconciler) reconcile() error {
 		return nil // No DNS config yet
 	}
 
-	// Check if generation changed. Also force a full re-apply if lastGeneration is
-	// stale (e.g., after DNS service restart wiped in-memory records).
-	if generation == r.lastGeneration {
-		// No log on unchanged generation (would spam logs every 30s)
-		return nil // No changes
+	// Always apply: writes are idempotent (SetA overwrites with the same value)
+	// and 30s is already infrequent. Generation-skip was an optimisation but it
+	// caused records to go missing whenever a DNS instance lost its in-memory
+	// state (restart, ScyllaDB race) without a cluster networking-state change.
+	if generation != r.lastGeneration {
+		log.Printf("dns reconciler: generation changed %d -> %d, reconciling...", r.lastGeneration, generation)
 	}
-
-	log.Printf("dns reconciler: generation changed %d -> %d, reconciling...", r.lastGeneration, generation)
 
 	// PR8: Configure external DNS provider (may have changed in spec)
 	if err := r.ConfigureExternalDNS(spec); err != nil {
@@ -531,8 +539,26 @@ func (r *DNSReconciler) applyToDNSInstance(ctx context.Context, endpoint string,
 	dnsClient := dnspb.NewDnsServiceClient(cc)
 	authCtx := r.buildAuthContext(ctx)
 
-	// Set domains
-	_, err = dnsClient.SetDomains(authCtx, &dnspb.SetDomainsRequest{Domains: []string{desired.Domain}})
+	// Build the authoritative zone list from etcd (source of truth).
+	// This includes the internal cluster zone plus any external domains
+	// registered via the domain reconciler (e.g. globular.io).
+	// We do NOT read from the DNS server's in-memory list — that list is derived
+	// state and can drift (e.g. if DNS restarts or SetDomains was called without
+	// the full list before).
+	mergedDomains := []string{desired.Domain}
+	if r.srv.etcdClient != nil {
+		domStore := domain.NewEtcdDomainStore(r.srv.etcdClient)
+		if specs, lErr := domStore.ListSpecs(ctx); lErr == nil {
+			want := strings.ToLower(strings.TrimSuffix(desired.Domain, "."))
+			for _, spec := range specs {
+				d := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(spec.FQDN), "."))
+				if d != "" && d != want {
+					mergedDomains = append(mergedDomains, d)
+				}
+			}
+		}
+	}
+	_, err = dnsClient.SetDomains(authCtx, &dnspb.SetDomainsRequest{Domains: mergedDomains})
 	if err != nil {
 		return fmt.Errorf("set domains on %s: %w", endpoint, err)
 	}

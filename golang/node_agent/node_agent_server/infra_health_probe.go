@@ -108,7 +108,12 @@ func (srv *NodeAgentServer) runProbeEtcdHealth(ctx context.Context, req *node_ag
 	defer cancel()
 
 	// Prefer probing the local node endpoint directly.
-	localIP := config.GetRoutableIPv4()
+	// Use interface IP (not DNS), excluding VIP which etcd doesn't bind to.
+	vip := srv.lookupIngressVIP()
+	localIP := config.GetLocalInterfaceIPv4(vip)
+	if localIP == "" {
+		localIP = config.GetRoutableIPv4()
+	}
 	if localIP != "" {
 		localEndpoint := fmt.Sprintf("https://%s:2379", localIP)
 		if _, err := cli.Maintenance.Status(probeCtx, localEndpoint); err == nil {
@@ -140,9 +145,13 @@ func (srv *NodeAgentServer) runProbeEtcdHealth(ctx context.Context, req *node_ag
 func (srv *NodeAgentServer) runProbeMinioHealth(ctx context.Context, req *node_agentpb.RunWorkflowRequest) (*node_agentpb.RunWorkflowResponse, error) {
 	start := time.Now()
 
-	// Probe MinIO on this node's routable address (cert is issued for the node IP).
-	// This is a local probe — we're checking whether MinIO is alive on *this* host.
-	nodeIP := config.GetRoutableIPv4()
+	// Probe MinIO on this node's real interface IP, excluding the floating VIP.
+	// MinIO binds to the stable node IP, not the VIP.
+	vip := srv.lookupIngressVIP()
+	nodeIP := config.GetLocalInterfaceIPv4(vip)
+	if nodeIP == "" {
+		nodeIP = config.GetRoutableIPv4()
+	}
 
 	// --- Strategy 1: HTTP liveness endpoint ---
 	client := &http.Client{

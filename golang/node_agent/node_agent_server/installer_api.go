@@ -20,6 +20,12 @@ import (
 
 const defaultPublisherID = "core@globular.io"
 
+// pinnedArtifactDir holds a copy of the last successfully installed artifact
+// for each package. This is the local resilience cache: if MinIO / the
+// repository become unreachable, the node can still reinstall or self-heal
+// from this directory without any external dependency.
+const pinnedArtifactDir = "/var/lib/globular/packages/pinned"
+
 // InstallPackage fetches a package artifact from the repository and installs
 // it locally. This is the public entry point for the workflow engine bridge.
 //
@@ -29,8 +35,10 @@ const defaultPublisherID = "core@globular.io"
 //   - repositoryAddr: gRPC address of the repository (e.g. "10.0.0.63:443")
 //
 // localPackageDirs are searched (in order) when the repository is unreachable.
-// The installer script copies .tgz packages here before starting the workflow.
+// The pinned dir holds the last installed version; the others hold packages
+// placed by the join script or manual operator action.
 var localPackageDirs = []string{
+	pinnedArtifactDir,
 	"/var/lib/globular/packages",
 	"/var/lib/globular/staging/local",
 }
@@ -122,6 +130,11 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 		}
 	}
 
+	// Pin the artifact locally before installing. This is the resilience cache:
+	// if MinIO/repository becomes unreachable later, this copy lets the node
+	// reinstall or self-heal without any external dependency.
+	pinArtifact(name, version, platform, artifactPath)
+
 	// Install.
 	switch strings.ToUpper(kind) {
 	case "INFRASTRUCTURE":
@@ -131,6 +144,48 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	default:
 		return srv.installPayload(ctx, name, version, artifactPath)
 	}
+}
+
+// pinArtifact copies the fetched artifact to the local pinned directory.
+// Best-effort: failures are logged but don't block installation.
+func pinArtifact(name, version, platform, artifactPath string) {
+	if version == "" || artifactPath == "" {
+		return
+	}
+	if err := os.MkdirAll(pinnedArtifactDir, 0o755); err != nil {
+		log.Printf("pin-artifact: create dir: %v", err)
+		return
+	}
+
+	// Target: <name>_<version>_<platform>.tgz (matches findLocalPackage search)
+	target := filepath.Join(pinnedArtifactDir, fmt.Sprintf("%s_%s_%s.tgz", name, version, platform))
+
+	src, err := os.ReadFile(artifactPath)
+	if err != nil {
+		log.Printf("pin-artifact: read %s: %v", artifactPath, err)
+		return
+	}
+	if err := os.WriteFile(target, src, 0o644); err != nil {
+		log.Printf("pin-artifact: write %s: %v", target, err)
+		return
+	}
+
+	// Remove older pinned versions of the same package to save disk.
+	prefix := name + "_"
+	entries, _ := os.ReadDir(pinnedArtifactDir)
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if strings.HasPrefix(e.Name(), prefix) && e.Name() != filepath.Base(target) {
+			old := filepath.Join(pinnedArtifactDir, e.Name())
+			if err := os.Remove(old); err == nil {
+				log.Printf("pin-artifact: removed old %s", e.Name())
+			}
+		}
+	}
+
+	log.Printf("pin-artifact: saved %s (%d bytes)", filepath.Base(target), len(src))
 }
 
 // findLocalPackage searches localPackageDirs for a .tgz matching the package.

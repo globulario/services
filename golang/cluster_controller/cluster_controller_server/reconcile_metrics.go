@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -218,3 +220,9 @@ var (
 		Help:      "Unix timestamp of the last xDS config change applied to any node.",
 	})
 )
+
+func init() {
+	// Seed the heartbeat gauge so Prometheus doesn't report a ~56-year stall
+	// between process start and the first reconcile worker iteration.
+	controllerLoopHeartbeatUnix.Set(float64(time.Now().Unix()))
+}

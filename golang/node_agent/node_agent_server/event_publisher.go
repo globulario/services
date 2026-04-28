@@ -76,7 +76,7 @@ func newEventPublisher(nodeID string) *eventPublisher {
 // route through the gateway (same host as controller, port 443).
 func (ep *eventPublisher) connect() error {
 	// Resolve event service from etcd — source of truth for address and port.
-	rawAddr := config.ResolveLocalServiceAddr("event.EventService")
+	rawAddr := config.ResolveServiceAddr("event.EventService", "")
 	dt := config.ResolveDialTarget(rawAddr)
 
 	// mTLS: client cert for authentication + CA for server verification.

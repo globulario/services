@@ -593,7 +593,19 @@ func GetRoutableIPv4() string {
 			}
 		}
 	}
-	// Fallback: scan interfaces for a non-loopback IPv4
+	return getInterfaceIPv4("")
+}
+
+// GetLocalInterfaceIPv4 returns the node's real IP by scanning network interfaces,
+// bypassing DNS (which may return a floating VIP). Optionally excludes a specific
+// IP (typically the cluster VIP). Use this for operations that need the address
+// services actually bind to (MinIO, etcd, ScyllaDB, etc.).
+func GetLocalInterfaceIPv4(excludeIP string) string {
+	return getInterfaceIPv4(excludeIP)
+}
+
+func getInterfaceIPv4(excludeIP string) string {
+	excludeIP = strings.TrimSpace(excludeIP)
 	if ifaces, err := net.Interfaces(); err == nil {
 		for _, iface := range ifaces {
 			if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
@@ -602,15 +614,20 @@ func GetRoutableIPv4() string {
 			if addrs, err := iface.Addrs(); err == nil {
 				for _, addr := range addrs {
 					if ipnet, ok := addr.(*net.IPNet); ok {
-						if ip4 := ipnet.IP.To4(); ip4 != nil && !ip4.IsLoopback() {
-							return ip4.String()
+						ip4 := ipnet.IP.To4()
+						if ip4 == nil || ip4.IsLoopback() || ip4.IsLinkLocalUnicast() {
+							continue
 						}
+						if excludeIP != "" && ip4.String() == excludeIP {
+							continue
+						}
+						return ip4.String()
 					}
 				}
 			}
 		}
 	}
-	return "127.0.0.1"
+	return ""
 }
 
 // ============================================================================

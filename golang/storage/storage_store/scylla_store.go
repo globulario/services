@@ -395,7 +395,7 @@ func (s *ScyllaStore) setItem(key string, val []byte, ttlSeconds ...int) error {
 	return q.Consistency(s.queryConsistency()).Exec()
 }
 
-// GetItem loads a value by key. Returns (nil, gocql.ErrNotFound) if missing.
+// GetItem loads a value by key. Returns (nil, nil) if the key does not exist.
 func (s *ScyllaStore) getItem(key string) ([]byte, error) {
 	if s.session == nil {
 		return nil, errors.New("scylla not open")
@@ -403,6 +403,9 @@ func (s *ScyllaStore) getItem(key string) ([]byte, error) {
 	var val []byte
 	cql := fmt.Sprintf(`SELECT v FROM "%s"."%s" WHERE k = ?`, s.keyspace, s.table)
 	if err := s.session.Query(cql, key).Consistency(s.queryConsistency()).Scan(&val); err != nil {
+		if err == gocql.ErrNotFound {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return val, nil

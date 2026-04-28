@@ -704,10 +704,13 @@ var renderers = []rendererSpec{
 		render:       renderMinioSystemdOverride,
 	},
 	{
-		name:         "xds",
-		profiles:     profilesForXDS,
-		outputs:      []string{"/var/lib/globular/xds/config.json"},
-		restartUnits: []string{"globular-xds.service"}, // XDS server consumes this config
+		name:     "xds",
+		profiles: profilesForXDS,
+		outputs:  []string{"/var/lib/globular/xds/config.json"},
+		// No restart needed: the xDS watcher polls config.json every 5s and pushes
+		// new ADS snapshots to Envoy in-place. Restarting xDS cascaded to Envoy
+		// (via PartOf) causing brief 443 blackouts on every topology change.
+		restartUnits: nil,
 		render:       renderXDSConfig,
 	},
 	{

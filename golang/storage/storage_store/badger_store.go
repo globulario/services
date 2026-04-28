@@ -128,7 +128,7 @@ func (store *Badger_store) setItem(key string, val []byte) error {
 	})
 }
 
-// getItem reads the value for a key.
+// getItem reads the value for a key. Returns (nil, nil) if the key does not exist.
 func (store *Badger_store) getItem(key string) ([]byte, error) {
 	if store.db == nil {
 		return nil, errors.New("badger: getItem: db is not open")
@@ -147,6 +147,9 @@ func (store *Badger_store) getItem(key string) ([]byte, error) {
 		out = val
 		return nil
 	})
+	if errors.Is(err, badger.ErrKeyNotFound) {
+		return nil, nil
+	}
 	return out, err
 }
 

@@ -35,7 +35,7 @@ func (eh *eventHandler) run(ctx context.Context) {
 		}
 
 		Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-		eventAddr := config.ResolveLocalServiceAddr("event.EventService")
+		eventAddr := config.ResolveServiceAddr("event.EventService", "")
 		if eventAddr == "" {
 			log.Printf("event-handler: event service not found in registry, retrying in 10s")
 			time.Sleep(10 * time.Second)
