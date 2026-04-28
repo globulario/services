@@ -33,6 +33,7 @@ import (
 
 	"github.com/gocql/gocql"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/repository/upstream"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/versionutil"
 	"github.com/google/uuid"
@@ -1819,8 +1820,15 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 				reader = refillReader
 				err = nil
 				slog.Info("download: upstream refill succeeded", "key", key)
+				// Best-effort audit: never blocks download.
+				if _, _, m, readErr := srv.readManifestAndStateByKey(stream.Context(), key); readErr == nil {
+					srv.emitRefillAudit(stream.Context(), key, m, "success", "")
+				}
 			} else {
 				slog.Warn("download: upstream refill failed", "key", key, "err", refillErr)
+				if _, _, m, readErr := srv.readManifestAndStateByKey(stream.Context(), key); readErr == nil {
+					srv.emitRefillAudit(stream.Context(), key, m, "failed", refillErr.Error())
+				}
 			}
 		}
 	}
@@ -1928,6 +1936,36 @@ func (srv *server) refillBlobFromUpstream(ctx context.Context, key string) (io.R
 	}
 
 	return io.NopCloser(bytes.NewReader(data)), nil
+}
+
+// emitRefillAudit publishes a best-effort audit event for upstream refill attempts.
+// Never blocks the download. Redacts asset_url to prevent credential leakage.
+func (srv *server) emitRefillAudit(ctx context.Context, key string, m *repopb.ArtifactManifest, result, reason string) {
+	ref := m.GetRef()
+	ui := m.GetUpstreamImport()
+	assetURLRedacted := ""
+	sourceName := ""
+	releaseTag := ""
+	if ui != nil {
+		assetURLRedacted = upstream.RedactAssetURL(ui.GetAssetUrl())
+		sourceName = ui.GetSourceName()
+		releaseTag = ui.GetReleaseTag()
+	}
+	srv.publishAuditEvent(ctx, "upstream.refill."+result, map[string]any{
+		"key":                key,
+		"name":               ref.GetName(),
+		"publisher":          ref.GetPublisherId(),
+		"kind":               ref.GetKind().String(),
+		"version":            ref.GetVersion(),
+		"build_number":       m.GetBuildNumber(),
+		"channel":            effectiveChannel(m).String(),
+		"source_name":        sourceName,
+		"release_tag":        releaseTag,
+		"checksum":           m.GetChecksum(),
+		"result":             result,
+		"reason":             reason,
+		"asset_url_redacted": assetURLRedacted,
+	})
 }
 
 // UpdateArtifactBinary implements the delta-deploy RPC. It receives a new binary

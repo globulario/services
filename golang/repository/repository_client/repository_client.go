@@ -923,6 +923,7 @@ func (client *Repository_Service_Client) RemoveUpstream(name string) error {
 
 // SyncFromUpstream fetches a release index from the named upstream source and
 // imports new artifacts. release_tag is required. Set dry_run=true to preview.
+// Preserved for backward compatibility — existing callers continue compiling.
 func (client *Repository_Service_Client) SyncFromUpstream(sourceName, releaseTag string, dryRun bool, only []string) (*repositorypb.SyncFromUpstreamResponse, error) {
 	req := &repositorypb.SyncFromUpstreamRequest{
 		SourceName: sourceName,
@@ -930,6 +931,14 @@ func (client *Repository_Service_Client) SyncFromUpstream(sourceName, releaseTag
 		DryRun:     dryRun,
 		Only:       only,
 	}
+	return client.SyncFromUpstreamWithOptions(req)
+}
+
+// SyncFromUpstreamWithOptions sends a full SyncFromUpstreamRequest, including
+// the resolve_latest field for GitHub discovery. Use this from CLI when
+// --latest is needed. The old SyncFromUpstream helper is preserved for
+// backward compatibility.
+func (client *Repository_Service_Client) SyncFromUpstreamWithOptions(req *repositorypb.SyncFromUpstreamRequest) (*repositorypb.SyncFromUpstreamResponse, error) {
 	rsp, err := client.Invoke("SyncFromUpstream", req, client.GetCtx())
 	if err != nil {
 		return nil, err
