@@ -67,23 +67,37 @@ func (srv *server) ArchiveUnreachableArtifacts(
 	dryRun := req.GetDryRun()
 
 	// Load the full catalog (all states — reachability engine needs everything).
-	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list artifacts: %v", err)
-	}
-
-	// Build (catalog, key→state) maps in one pass.
+	// Scylla-first: use ledger rows as authoritative source.
 	var all []gcArtifactEntry
-	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".manifest.json") {
-			continue
+	if srv.scylla != nil {
+		rows, scyllaErr := srv.scylla.ListManifests(ctx)
+		if scyllaErr != nil {
+			return nil, status.Errorf(codes.Unavailable, "artifact ledger unavailable: %v", scyllaErr)
 		}
-		key := strings.TrimSuffix(e.Name(), ".manifest.json")
-		_, st, m, readErr := srv.readManifestAndStateByKey(ctx, key)
-		if readErr != nil {
-			continue
+		for _, row := range rows {
+			m, st, parseErr := manifestFromRow(row)
+			if parseErr != nil {
+				continue
+			}
+			all = append(all, gcArtifactEntry{key: row.ArtifactKey, state: st, m: m})
 		}
-		all = append(all, gcArtifactEntry{key: key, state: st, m: m})
+	} else {
+		// Legacy fallback: scan MinIO directory.
+		entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "list artifacts: %v", err)
+		}
+		for _, e := range entries {
+			if !strings.HasSuffix(e.Name(), ".manifest.json") {
+				continue
+			}
+			key := strings.TrimSuffix(e.Name(), ".manifest.json")
+			_, st, m, readErr := srv.readManifestAndStateByKey(ctx, key)
+			if readErr != nil {
+				continue
+			}
+			all = append(all, gcArtifactEntry{key: key, state: st, m: m})
+		}
 	}
 
 	// Build catalog slice for the reachability engine.

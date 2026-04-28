@@ -57,33 +57,58 @@ func (pr *publishReconciler) Start(ctx context.Context) {
 }
 
 func (pr *publishReconciler) reconcileOnce(ctx context.Context) {
-	entries, err := pr.srv.Storage().ReadDir(ctx, artifactsDir)
-	if err != nil {
-		slog.Debug("publish-reconciler: ReadDir failed", "err", err)
-		return // directory may not exist yet
-	}
-
 	now := time.Now()
 	verified := 0
 
-	for _, e := range entries {
-		name := e.Name()
-		if !strings.HasSuffix(name, ".manifest.json") {
-			continue
-		}
-		key := strings.TrimSuffix(name, ".manifest.json")
+	// Scylla-first: use ledger rows to find stuck VERIFIED artifacts.
+	// Falls back to MinIO directory scan only when Scylla is nil.
+	type candidate struct {
+		key      string
+		manifest *repopb.ArtifactManifest
+	}
+	var candidates []candidate
 
-		_, state, manifest, err := pr.srv.readManifestAndStateByKey(ctx, key)
+	if pr.srv.scylla != nil {
+		rows, err := pr.srv.scylla.ListManifests(ctx)
 		if err != nil {
-			continue
+			slog.Debug("publish-reconciler: Scylla list failed", "err", err)
+			return
 		}
-		if state != repopb.PublishState_VERIFIED {
-			continue
+		for _, row := range rows {
+			if row.PublishState != repopb.PublishState_VERIFIED.String() {
+				continue
+			}
+			m, _, parseErr := manifestFromRow(row)
+			if parseErr != nil {
+				continue
+			}
+			candidates = append(candidates, candidate{key: row.ArtifactKey, manifest: m})
 		}
+	} else {
+		entries, err := pr.srv.Storage().ReadDir(ctx, artifactsDir)
+		if err != nil {
+			slog.Debug("publish-reconciler: ReadDir failed", "err", err)
+			return
+		}
+		for _, e := range entries {
+			name := e.Name()
+			if !strings.HasSuffix(name, ".manifest.json") {
+				continue
+			}
+			key := strings.TrimSuffix(name, ".manifest.json")
+			_, state, manifest, err := pr.srv.readManifestAndStateByKey(ctx, key)
+			if err != nil || state != repopb.PublishState_VERIFIED {
+				continue
+			}
+			candidates = append(candidates, candidate{key: key, manifest: manifest})
+		}
+	}
+
+	for _, c := range candidates {
 		verified++
+		manifest := c.manifest
 
 		// Only retry artifacts that have been stuck for longer than the threshold.
-		// Use ModifiedUnix as a proxy for when the artifact was last written.
 		modifiedAt := time.Unix(manifest.GetModifiedUnix(), 0)
 		if modifiedAt.IsZero() || now.Sub(modifiedAt) < publishRetryThreshold {
 			continue
@@ -91,26 +116,26 @@ func (pr *publishReconciler) reconcileOnce(ctx context.Context) {
 
 		// Check retry limit.
 		pr.mu.Lock()
-		count := pr.retries[key]
+		count := pr.retries[c.key]
 		if count >= publishMaxRetries {
 			pr.mu.Unlock()
 			continue
 		}
-		pr.retries[key] = count + 1
+		pr.retries[c.key] = count + 1
 		pr.mu.Unlock()
 
 		ref := manifest.GetRef()
 		slog.Info("publish-reconciler: retrying stuck VERIFIED artifact",
-			"key", key,
+			"key", c.key,
 			"publisher", ref.GetPublisherId(),
 			"name", ref.GetName(),
 			"version", ref.GetVersion(),
 			"attempt", count+1,
 		)
 
-		if err := pr.srv.completePublish(ctx, manifest, key, nil); err != nil {
+		if err := pr.srv.completePublish(ctx, manifest, c.key, nil); err != nil {
 			slog.Error("publish-reconciler: retry failed",
-				"key", key,
+				"key", c.key,
 				"publisher", ref.GetPublisherId(),
 				"name", ref.GetName(),
 				"version", ref.GetVersion(),
@@ -119,18 +144,17 @@ func (pr *publishReconciler) reconcileOnce(ctx context.Context) {
 			)
 		} else {
 			slog.Info("publish-reconciler: artifact promoted to PUBLISHED",
-				"key", key,
+				"key", c.key,
 				"name", ref.GetName(),
 				"version", ref.GetVersion(),
 			)
-			// Clear retry count on success.
 			pr.mu.Lock()
-			delete(pr.retries, key)
+			delete(pr.retries, c.key)
 			pr.mu.Unlock()
 		}
 	}
 
 	if verified > 0 {
-		slog.Info("publish-reconciler: scan complete", "manifests", len(entries), "verified", verified)
+		slog.Info("publish-reconciler: scan complete", "verified", verified)
 	}
 }
