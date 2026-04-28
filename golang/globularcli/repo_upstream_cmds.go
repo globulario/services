@@ -46,6 +46,15 @@ var (
 	upstreamCredentialsRef  string
 	upstreamRepoURL         string
 
+	// Provider-specific flags
+	upstreamType            string
+	upstreamOwner           string
+	upstreamRepo            string
+	upstreamBranch          string
+	upstreamIndexPath       string
+	upstreamArtifactBaseURL string
+	upstreamLocalRoot       string
+
 	syncSource string
 	syncTag    string
 	syncDryRun bool
@@ -60,13 +69,13 @@ var repoRegisterUpstreamCmd = &cobra.Command{
 	Short: "Register or update an upstream package source",
 	Long: `Register a named upstream source so the cluster can sync new releases.
 
-The --url flag must contain a {tag} placeholder that the sync command
-will substitute with the requested release tag:
+Supported types: github, http, local-dir, git (Phase 2).
 
-  https://github.com/globulario/services/releases/download/{tag}/release-index.json
-
-Only GITHUB_RELEASE type is supported in v1 (HTTP_INDEX is reserved).`,
-	Example: `  # Register the default globulario upstream
+The type is inferred from flags when --type is omitted:
+  --repo-url or --owner → GITHUB_RELEASE
+  --local-root          → LOCAL_DIR
+  --index-url           → HTTP_INDEX`,
+	Example: `  # Register the default globulario upstream (GitHub)
   globular repo register-upstream \
     --name globulario-github \
     --url "https://github.com/globulario/services/releases/download/{tag}/release-index.json"
@@ -165,20 +174,40 @@ func runRepoRegisterUpstream(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--name is required")
 	}
 
-	// When --repo-url is set, derive index_url if not explicit.
-	if upstreamRepoURL != "" && upstreamURL == "" {
-		owner, repo, err := upstream.ParseRepoURL(upstreamRepoURL)
-		if err != nil {
-			return fmt.Errorf("invalid --repo-url: %w", err)
+	// ── Infer provider type ──────────────────────────────────────────────
+	sourceType := inferSourceType(cmd)
+
+	// When GitHub: derive index_url from repo-url/owner/repo if not explicit.
+	if sourceType == repopb.UpstreamSourceType_GITHUB_RELEASE {
+		if upstreamURL == "" {
+			owner := upstreamOwner
+			repo := upstreamRepo
+			if owner == "" && repo == "" && upstreamRepoURL != "" {
+				var err error
+				owner, repo, err = upstream.ParseRepoURL(upstreamRepoURL)
+				if err != nil {
+					return fmt.Errorf("invalid --repo-url: %w", err)
+				}
+			}
+			if owner != "" && repo != "" {
+				upstreamURL = upstream.DeriveIndexURL(owner, repo)
+			}
 		}
-		upstreamURL = upstream.DeriveIndexURL(owner, repo)
 	}
 
-	if upstreamURL == "" {
-		return fmt.Errorf("--url or --repo-url is required")
-	}
-	if !strings.Contains(upstreamURL, "{tag}") {
-		return fmt.Errorf("--url must contain a {tag} placeholder (e.g. .../download/{tag}/release-index.json)")
+	// Validate that we have enough to find an index.
+	switch sourceType {
+	case repopb.UpstreamSourceType_LOCAL_DIR:
+		if upstreamLocalRoot == "" {
+			return fmt.Errorf("--local-root is required for LOCAL_DIR sources")
+		}
+	default:
+		if upstreamURL == "" && upstreamRepoURL == "" {
+			return fmt.Errorf("--url, --repo-url, or --local-root is required")
+		}
+		if upstreamURL != "" && !strings.Contains(upstreamURL, "{tag}") {
+			return fmt.Errorf("--url must contain a {tag} placeholder")
+		}
 	}
 
 	platform := upstreamPlatform
@@ -190,16 +219,14 @@ func runRepoRegisterUpstream(cmd *cobra.Command, args []string) error {
 		channel = "stable"
 	}
 
-	// Safe defaults when --repo-url is set (user-provided upstream).
+	// Safe defaults for non-official sources.
 	trustPolicy := upstreamTrustPolicy
 	requireChecksum := upstreamRequireChecksum
-	if upstreamRepoURL != "" {
-		if !cmd.Flags().Changed("trust-policy") {
-			trustPolicy = "quarantine"
-		}
-		if !cmd.Flags().Changed("require-checksum") {
-			requireChecksum = true
-		}
+	if !cmd.Flags().Changed("trust-policy") {
+		trustPolicy = "quarantine"
+	}
+	if !cmd.Flags().Changed("require-checksum") {
+		requireChecksum = true
 	}
 
 	if trustPolicy == "import" {
@@ -209,7 +236,7 @@ func runRepoRegisterUpstream(cmd *cobra.Command, args []string) error {
 
 	src := &repopb.UpstreamSource{
 		Name:               upstreamName,
-		Type:               repopb.UpstreamSourceType_GITHUB_RELEASE,
+		Type:               sourceType,
 		IndexUrl:           upstreamURL,
 		Channel:            channel,
 		Platform:           platform,
@@ -219,6 +246,12 @@ func runRepoRegisterUpstream(cmd *cobra.Command, args []string) error {
 		TrustPolicy:        trustPolicy,
 		CredentialsRef:     upstreamCredentialsRef,
 		RepoUrl:            upstreamRepoURL,
+		Owner:              upstreamOwner,
+		Repo:               upstreamRepo,
+		Branch:             upstreamBranch,
+		IndexPathTemplate:  upstreamIndexPath,
+		ArtifactBaseUrl:    upstreamArtifactBaseURL,
+		LocalRoot:          upstreamLocalRoot,
 	}
 	if upstreamAllowedKinds != "" {
 		for _, k := range strings.Split(upstreamAllowedKinds, ",") {
@@ -235,8 +268,8 @@ func runRepoRegisterUpstream(cmd *cobra.Command, args []string) error {
 				src.AllowedChannels = append(src.AllowedChannels, c)
 			}
 		}
-	} else if upstreamRepoURL != "" {
-		// Safe default: restrict to stable channel for user-provided upstreams.
+	} else {
+		// Safe default: restrict to stable channel.
 		src.AllowedChannels = []string{"stable"}
 	}
 
@@ -252,7 +285,7 @@ func runRepoRegisterUpstream(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Upstream %q registered\n", upstreamName)
-	fmt.Printf("  type:     GITHUB_RELEASE\n")
+	fmt.Printf("  type:     %s\n", sourceType.String())
 	fmt.Printf("  url:      %s\n", upstreamURL)
 	fmt.Printf("  channel:  %s\n", channel)
 	fmt.Printf("  platform: %s\n", platform)
@@ -524,23 +557,61 @@ func statusLabel(s repopb.UpstreamSyncStatus) string {
 	}
 }
 
+// inferSourceType determines the UpstreamSourceType from flags.
+// Explicit --type wins; otherwise inferred from provider-specific flags.
+func inferSourceType(cmd *cobra.Command) repopb.UpstreamSourceType {
+	if cmd.Flags().Changed("type") {
+		switch strings.ToLower(upstreamType) {
+		case "github", "github_release":
+			return repopb.UpstreamSourceType_GITHUB_RELEASE
+		case "http", "http_index":
+			return repopb.UpstreamSourceType_HTTP_INDEX
+		case "local-dir", "local_dir":
+			return repopb.UpstreamSourceType_LOCAL_DIR
+		case "git", "git_index":
+			return repopb.UpstreamSourceType_GIT_INDEX
+		default:
+			return repopb.UpstreamSourceType_UPSTREAM_TYPE_UNSPECIFIED
+		}
+	}
+	// Infer from flags.
+	if upstreamLocalRoot != "" {
+		return repopb.UpstreamSourceType_LOCAL_DIR
+	}
+	if upstreamRepoURL != "" || upstreamOwner != "" {
+		return repopb.UpstreamSourceType_GITHUB_RELEASE
+	}
+	if upstreamURL != "" {
+		return repopb.UpstreamSourceType_HTTP_INDEX
+	}
+	return repopb.UpstreamSourceType_GITHUB_RELEASE // default
+}
+
 // ── init ──────────────────────────────────────────────────────────────────────
 
 func init() {
 	// register-upstream flags
 	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamName, "name", "", "Upstream source name (required)")
-	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamURL, "url", "", "Index URL with {tag} placeholder (required)")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamType, "type", "", "Provider type: github, http, local-dir, git")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamURL, "url", "", "Index URL with {tag} placeholder")
 	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamChannel, "channel", "stable", "Release channel")
 	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamPlatform, "platform", "linux_amd64", "Target platform")
 	repoRegisterUpstreamCmd.Flags().BoolVar(&upstreamDisabled, "disabled", false, "Register but do not enable")
 	// Policy flags
 	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamPublisher, "publisher", "", "Default publisher ID for entries without one")
-	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamAllowedKinds, "allowed-kinds", "", "Comma-separated allowed kinds (SERVICE,INFRASTRUCTURE,...)")
-	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamAllowedChannels, "allowed-channels", "", "Comma-separated allowed channels (stable,candidate,...)")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamAllowedKinds, "allowed-kinds", "", "Comma-separated allowed kinds")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamAllowedChannels, "allowed-channels", "", "Comma-separated allowed channels")
 	repoRegisterUpstreamCmd.Flags().BoolVar(&upstreamRequireChecksum, "require-checksum", false, "Reject entries without sha256 digest")
-	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamTrustPolicy, "trust-policy", "import", "Trust policy: import (default) or quarantine")
-	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamCredentialsRef, "credentials-ref", "", "etcd key under /globular/credentials/ for auth token")
-	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamRepoURL, "repo-url", "", "GitHub owner/repo for latest-release discovery")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamTrustPolicy, "trust-policy", "import", "Trust policy: import or quarantine")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamCredentialsRef, "credentials-ref", "", "etcd key under /globular/credentials/ for auth")
+	// Provider-specific flags
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamRepoURL, "repo-url", "", "Git repo URL or GitHub owner/repo")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamOwner, "owner", "", "GitHub owner (GITHUB_RELEASE)")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamRepo, "repo", "", "GitHub repo name (GITHUB_RELEASE)")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamBranch, "branch", "", "Git branch (GIT_INDEX)")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamIndexPath, "index-path", "", "Index path template: releases/{tag}/release-index.json")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamArtifactBaseURL, "artifact-base-url", "", "Base URL for artifact downloads")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamLocalRoot, "local-root", "", "Filesystem root for LOCAL_DIR sources")
 
 	// sync-upstream flags
 	pkgSyncUpstreamCmd.Flags().StringVar(&syncSource, "source", "", "Registered upstream source name (required)")
