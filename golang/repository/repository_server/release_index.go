@@ -93,6 +93,7 @@ type releaseIndexEntry struct {
 	PackageManifestSha256 string `json:"package_manifest_sha256,omitempty"`
 
 	AssetURL    string `json:"asset_url"`
+	AssetPath   string `json:"asset_path,omitempty"` // relative path for LOCAL_DIR/GIT_INDEX providers
 	ReleaseTag  string `json:"release_tag"`
 	PublishedAt string `json:"published_at"`
 
