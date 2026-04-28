@@ -23,6 +23,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/repository/repository_client"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/repository/upstream"
 	workflowpb "github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/spf13/cobra"
 )
@@ -43,11 +44,13 @@ var (
 	upstreamRequireChecksum bool
 	upstreamTrustPolicy     string
 	upstreamCredentialsRef  string
+	upstreamRepoURL         string
 
 	syncSource string
 	syncTag    string
 	syncDryRun bool
 	syncOnly   string
+	syncLatest bool
 )
 
 // ── Commands ──────────────────────────────────────────────────────────────────
@@ -161,8 +164,18 @@ func runRepoRegisterUpstream(cmd *cobra.Command, args []string) error {
 	if upstreamName == "" {
 		return fmt.Errorf("--name is required")
 	}
+
+	// When --repo-url is set, derive index_url if not explicit.
+	if upstreamRepoURL != "" && upstreamURL == "" {
+		owner, repo, err := upstream.ParseRepoURL(upstreamRepoURL)
+		if err != nil {
+			return fmt.Errorf("invalid --repo-url: %w", err)
+		}
+		upstreamURL = upstream.DeriveIndexURL(owner, repo)
+	}
+
 	if upstreamURL == "" {
-		return fmt.Errorf("--url is required")
+		return fmt.Errorf("--url or --repo-url is required")
 	}
 	if !strings.Contains(upstreamURL, "{tag}") {
 		return fmt.Errorf("--url must contain a {tag} placeholder (e.g. .../download/{tag}/release-index.json)")
@@ -177,6 +190,23 @@ func runRepoRegisterUpstream(cmd *cobra.Command, args []string) error {
 		channel = "stable"
 	}
 
+	// Safe defaults when --repo-url is set (user-provided upstream).
+	trustPolicy := upstreamTrustPolicy
+	requireChecksum := upstreamRequireChecksum
+	if upstreamRepoURL != "" {
+		if !cmd.Flags().Changed("trust-policy") {
+			trustPolicy = "quarantine"
+		}
+		if !cmd.Flags().Changed("require-checksum") {
+			requireChecksum = true
+		}
+	}
+
+	if trustPolicy == "import" {
+		fmt.Println("WARNING: trust_policy=import means imported packages are PUBLISHED immediately.")
+		fmt.Println("         Use --trust-policy quarantine for untrusted sources.")
+	}
+
 	src := &repopb.UpstreamSource{
 		Name:               upstreamName,
 		Type:               repopb.UpstreamSourceType_GITHUB_RELEASE,
@@ -185,9 +215,10 @@ func runRepoRegisterUpstream(cmd *cobra.Command, args []string) error {
 		Platform:           platform,
 		Enabled:            !upstreamDisabled,
 		DefaultPublisherId: upstreamPublisher,
-		RequireChecksum:    upstreamRequireChecksum,
-		TrustPolicy:        upstreamTrustPolicy,
+		RequireChecksum:    requireChecksum,
+		TrustPolicy:        trustPolicy,
 		CredentialsRef:     upstreamCredentialsRef,
+		RepoUrl:            upstreamRepoURL,
 	}
 	if upstreamAllowedKinds != "" {
 		for _, k := range strings.Split(upstreamAllowedKinds, ",") {
@@ -204,6 +235,9 @@ func runRepoRegisterUpstream(cmd *cobra.Command, args []string) error {
 				src.AllowedChannels = append(src.AllowedChannels, c)
 			}
 		}
+	} else if upstreamRepoURL != "" {
+		// Safe default: restrict to stable channel for user-provided upstreams.
+		src.AllowedChannels = []string{"stable"}
 	}
 
 	rc, err := repoClient()
@@ -381,8 +415,11 @@ func runRepoSync(cmd *cobra.Command, args []string) error {
 	if syncSource == "" {
 		return fmt.Errorf("--source is required")
 	}
-	if syncTag == "" {
-		return fmt.Errorf("--tag is required")
+	if syncTag != "" && syncLatest {
+		return fmt.Errorf("cannot use both --tag and --latest")
+	}
+	if syncTag == "" && !syncLatest {
+		return fmt.Errorf("--tag or --latest is required")
 	}
 
 	var only []string
@@ -401,15 +438,29 @@ func runRepoSync(cmd *cobra.Command, args []string) error {
 	}
 	defer rc.Close()
 
+	tagDisplay := syncTag
+	if syncLatest {
+		tagDisplay = "(latest)"
+	}
 	if syncDryRun {
-		fmt.Printf("Dry-run: previewing sync from %q @ %s\n\n", syncSource, syncTag)
+		fmt.Printf("Dry-run: previewing sync from %q @ %s\n\n", syncSource, tagDisplay)
 	} else {
-		fmt.Printf("Syncing from %q @ %s (direct)...\n\n", syncSource, syncTag)
+		fmt.Printf("Syncing from %q @ %s (direct)...\n\n", syncSource, tagDisplay)
 	}
 
-	resp, err := rc.SyncFromUpstream(syncSource, syncTag, syncDryRun, only)
+	resp, err := rc.SyncFromUpstreamWithOptions(&repopb.SyncFromUpstreamRequest{
+		SourceName:    syncSource,
+		ReleaseTag:    syncTag,
+		DryRun:        syncDryRun,
+		Only:          only,
+		ResolveLatest: syncLatest,
+	})
 	if err != nil {
 		return fmt.Errorf("sync: %w", err)
+	}
+
+	if resp.ResolvedTag != "" {
+		fmt.Printf("Resolved tag: %s\n\n", resp.ResolvedTag)
 	}
 
 	summary := map[string]any{
@@ -489,16 +540,19 @@ func init() {
 	repoRegisterUpstreamCmd.Flags().BoolVar(&upstreamRequireChecksum, "require-checksum", false, "Reject entries without sha256 digest")
 	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamTrustPolicy, "trust-policy", "import", "Trust policy: import (default) or quarantine")
 	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamCredentialsRef, "credentials-ref", "", "etcd key under /globular/credentials/ for auth token")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamRepoURL, "repo-url", "", "GitHub owner/repo for latest-release discovery")
 
 	// sync-upstream flags
 	pkgSyncUpstreamCmd.Flags().StringVar(&syncSource, "source", "", "Registered upstream source name (required)")
-	pkgSyncUpstreamCmd.Flags().StringVar(&syncTag, "tag", "", "Release tag to sync (required)")
+	pkgSyncUpstreamCmd.Flags().StringVar(&syncTag, "tag", "", "Release tag to sync")
+	pkgSyncUpstreamCmd.Flags().BoolVar(&syncLatest, "latest", false, "Discover and sync latest release from repo_url")
 	pkgSyncUpstreamCmd.Flags().BoolVar(&syncDryRun, "dry-run", false, "Preview only — no artifacts are written")
 	pkgSyncUpstreamCmd.Flags().StringVar(&syncOnly, "only", "", "Comma-separated list of package names to import")
 
-	// repo sync flags (shared with pkg sync-upstream where applicable)
+	// repo sync flags
 	repoSyncCmd.Flags().StringVar(&syncSource, "source", "", "Registered upstream source name (required)")
-	repoSyncCmd.Flags().StringVar(&syncTag, "tag", "", "Release tag to sync (required)")
+	repoSyncCmd.Flags().StringVar(&syncTag, "tag", "", "Release tag to sync")
+	repoSyncCmd.Flags().BoolVar(&syncLatest, "latest", false, "Discover and sync latest release from repo_url")
 	repoSyncCmd.Flags().BoolVar(&syncDryRun, "dry-run", false, "Preview only — no artifacts are written")
 	repoSyncCmd.Flags().StringVar(&syncOnly, "only", "", "Comma-separated list of package names to import")
 

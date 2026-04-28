@@ -1,17 +1,13 @@
 // repo_update_check_cmds.go — Check for available upstream updates.
 //
-// For each registered upstream, fetches the release-index.json from the
-// latest (or specified) tag and compares against the local catalog.
-// Prints a table of packages with available updates.
+// Uses server-side dry-run sync to get policy-checked results.
+// The CLI only formats the response — all policy logic lives on the server.
 package main
 
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
-	"time"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/spf13/cobra"
@@ -20,21 +16,26 @@ import (
 var (
 	updateCheckSource string
 	updateCheckTag    string
+	updateCheckLatest bool
+	updateCheckJSON   bool
 )
 
 var repoUpdateCheckCmd = &cobra.Command{
 	Use:   "update-check",
 	Short: "Check for available upstream package updates",
 	Long: `Fetch the release index from a registered upstream source and compare
-against locally published packages. Shows which packages have newer
-versions available upstream.
+against locally published packages. Uses server-side dry-run sync to
+show policy-checked results including blocked updates and reasons.
 
 This is a read-only operation — no packages are imported.`,
-	Example: `  # Check for updates from the default upstream
-  globular repo update-check --source globulario-github --tag v1.0.30
+	Example: `  # Check latest available updates
+  globular repo update-check --source globulario --latest
 
-  # Compare specific tag against local catalog
-  globular repo update-check --source my-upstream --tag v2.0.0`,
+  # Check specific tag
+  globular repo update-check --source globulario --tag v1.0.30
+
+  # JSON output for admin UI
+  globular repo update-check --source globulario --latest --json`,
 	RunE: runRepoUpdateCheck,
 }
 
@@ -42,164 +43,167 @@ func runRepoUpdateCheck(cmd *cobra.Command, args []string) error {
 	if updateCheckSource == "" {
 		return fmt.Errorf("--source is required")
 	}
-	if updateCheckTag == "" {
-		return fmt.Errorf("--tag is required")
+	if updateCheckTag != "" && updateCheckLatest {
+		return fmt.Errorf("cannot use both --tag and --latest")
+	}
+	if updateCheckTag == "" && !updateCheckLatest {
+		return fmt.Errorf("--tag or --latest is required")
 	}
 
-	// Get repository client for local catalog.
 	rc, err := repoClient()
 	if err != nil {
 		return err
 	}
 	defer rc.Close()
 
-	// List all registered upstreams to find the source.
-	listResp, err := rc.ListUpstreams()
+	// Use server-side dry-run sync for policy-checked results.
+	resp, err := rc.SyncFromUpstreamWithOptions(&repopb.SyncFromUpstreamRequest{
+		SourceName:    updateCheckSource,
+		ReleaseTag:    updateCheckTag,
+		DryRun:        true,
+		ResolveLatest: updateCheckLatest,
+	})
 	if err != nil {
-		return fmt.Errorf("list upstreams: %w", err)
+		return fmt.Errorf("update-check: %w", err)
 	}
 
-	var src *repopb.UpstreamSource
-	for _, s := range listResp.Sources {
-		if s.Name == updateCheckSource {
-			src = s
-			break
-		}
+	if updateCheckJSON {
+		return printUpdateCheckJSON(resp)
 	}
-	if src == nil {
-		return fmt.Errorf("upstream source %q not found", updateCheckSource)
+	return printUpdateCheckTable(resp)
+}
+
+func printUpdateCheckTable(resp *repopb.SyncFromUpstreamResponse) error {
+	tagDisplay := resp.ResolvedTag
+	if tagDisplay == "" {
+		tagDisplay = "(unknown)"
 	}
+	fmt.Printf("SOURCE: %s  TAG: %s\n\n", resp.SourceName, tagDisplay)
 
-	// Build index URL and fetch.
-	indexURL := strings.ReplaceAll(src.IndexUrl, "{tag}", updateCheckTag)
-	fmt.Printf("Fetching release index from %s...\n\n", indexURL)
-
-	idx, err := fetchUpdateCheckIndex(indexURL)
-	if err != nil {
-		return fmt.Errorf("fetch index: %w", err)
-	}
-
-	// Get local catalog.
-	localArtifacts, err := rc.ListArtifacts()
-	if err != nil {
-		return fmt.Errorf("list local artifacts: %w", err)
-	}
-
-	// Build local version map: (name, platform) → latest version.
-	type localKey struct{ name, platform string }
-	localVersions := make(map[localKey]string)
-	for _, m := range localArtifacts {
-		ref := m.GetRef()
-		k := localKey{ref.GetName(), ref.GetPlatform()}
-		existing := localVersions[k]
-		if existing == "" || ref.GetVersion() > existing {
-			localVersions[k] = ref.GetVersion()
-		}
-	}
-
-	// Compare.
-	type updateRow struct {
-		name         string
-		platform     string
-		localVer     string
-		upstreamVer  string
-		status       string
-	}
-
-	var rows []updateRow
-	for _, entry := range idx.Packages {
-		k := localKey{entry.Name, entry.Platform}
-		localVer := localVersions[k]
-
-		var st string
-		switch {
-		case localVer == "":
-			st = "NEW"
-		case localVer == entry.Version:
-			st = "UP-TO-DATE"
-		case localVer < entry.Version:
-			st = "UPDATE"
-		default:
-			st = "AHEAD"
-		}
-
-		rows = append(rows, updateRow{
-			name:        entry.Name,
-			platform:    entry.Platform,
-			localVer:    localVer,
-			upstreamVer: entry.Version,
-			status:      st,
-		})
-	}
-
-	if len(rows) == 0 {
+	if len(resp.Results) == 0 {
 		fmt.Println("No packages in upstream index.")
 		return nil
 	}
 
-	// Print table.
-	fmt.Printf("%-30s  %-14s  %-14s  %-14s  %s\n",
-		"PACKAGE", "PLATFORM", "LOCAL", "UPSTREAM", "STATUS")
-	fmt.Println(strings.Repeat("-", 90))
+	fmt.Printf("%-28s  %-12s  %-12s  %-10s  %-12s  %-10s  %s\n",
+		"PACKAGE", "LOCAL", "UPSTREAM", "CHANNEL", "BUILD", "ACTION", "POLICY")
+	fmt.Println(strings.Repeat("-", 110))
 
-	updates := 0
-	newPkgs := 0
-	for _, r := range rows {
-		local := r.localVer
+	var updates, newPkgs, blocked int
+	for _, r := range resp.Results {
+		local := r.LocalVersion
 		if local == "" {
 			local = "-"
 		}
-		fmt.Printf("%-30s  %-14s  %-14s  %-14s  %s\n",
-			r.name, r.platform, local, r.upstreamVer, r.status)
-		switch r.status {
-		case "UPDATE":
+		action := strings.ToUpper(r.Action)
+		policy := "allowed"
+		if r.BlockedReason != "" {
+			policy = r.BlockedReason
+			blocked++
+		}
+		buildStr := fmt.Sprintf("%d", r.BuildNumber)
+		if r.BuildNumber == 0 {
+			buildStr = "-"
+		}
+
+		fmt.Printf("%-28s  %-12s  %-12s  %-10s  %-12s  %-10s  %s\n",
+			r.Name, local, r.Version, r.Channel, buildStr, action, policy)
+
+		switch r.Action {
+		case "update":
 			updates++
-		case "NEW":
+		case "new":
 			newPkgs++
 		}
 	}
 
-	fmt.Printf("\n%d updates available, %d new packages\n", updates, newPkgs)
+	fmt.Printf("\n%d updates, %d new, %d blocked\n", updates, newPkgs, blocked)
 	if updates > 0 || newPkgs > 0 {
-		fmt.Printf("\nTo import: globular repo sync --source %s --tag %s\n", updateCheckSource, updateCheckTag)
+		syncCmd := fmt.Sprintf("globular repo sync --source %s", resp.SourceName)
+		if resp.ResolvedTag != "" {
+			syncCmd += " --tag " + resp.ResolvedTag
+		}
+		fmt.Printf("\nTo import: %s\n", syncCmd)
 	}
 	return nil
 }
 
-// updateCheckIndex mirrors the release-index.json structure for update-check.
-type updateCheckIndex struct {
-	Packages []updateCheckEntry `json:"packages"`
-}
+func printUpdateCheckJSON(resp *repopb.SyncFromUpstreamResponse) error {
+	type jsonResult struct {
+		Name             string `json:"name"`
+		Platform         string `json:"platform"`
+		Publisher        string `json:"publisher"`
+		Kind             string `json:"kind"`
+		LocalVersion     string `json:"local_version"`
+		UpstreamVersion  string `json:"upstream_version"`
+		Channel          string `json:"channel"`
+		BuildNumber      int64  `json:"build_number"`
+		ChecksumPresent  bool   `json:"checksum_present"`
+		Action           string `json:"action"`
+		PolicyStatus     string `json:"policy_status"`
+		BlockedReason    string `json:"blocked_reason,omitempty"`
+	}
+	type jsonOutput struct {
+		SourceName  string       `json:"source_name"`
+		ResolvedTag string       `json:"resolved_tag"`
+		Packages    []jsonResult `json:"packages"`
+		Summary     struct {
+			Updates   int `json:"updates"`
+			New       int `json:"new"`
+			Blocked   int `json:"blocked"`
+			UpToDate  int `json:"up_to_date"`
+		} `json:"summary"`
+	}
 
-type updateCheckEntry struct {
-	Name     string `json:"name"`
-	Version  string `json:"version"`
-	Platform string `json:"platform"`
-}
+	out := jsonOutput{
+		SourceName:  resp.SourceName,
+		ResolvedTag: resp.ResolvedTag,
+	}
 
-func fetchUpdateCheckIndex(indexURL string) (*updateCheckIndex, error) {
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Get(indexURL)
+	for _, r := range resp.Results {
+		policyStatus := "allowed"
+		if r.BlockedReason != "" {
+			policyStatus = "blocked"
+		}
+		out.Packages = append(out.Packages, jsonResult{
+			Name:            r.Name,
+			Platform:        r.Platform,
+			Publisher:       r.Publisher,
+			Kind:            r.Kind,
+			LocalVersion:    r.LocalVersion,
+			UpstreamVersion: r.Version,
+			Channel:         r.Channel,
+			BuildNumber:     r.BuildNumber,
+			ChecksumPresent: r.ChecksumPresent,
+			Action:          r.Action,
+			PolicyStatus:    policyStatus,
+			BlockedReason:   r.BlockedReason,
+		})
+
+		switch r.Action {
+		case "update":
+			out.Summary.Updates++
+		case "new":
+			out.Summary.New++
+		case "blocked":
+			out.Summary.Blocked++
+		case "up_to_date":
+			out.Summary.UpToDate++
+		}
+	}
+
+	data, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("GET %s: %w", indexURL, err)
+		return fmt.Errorf("marshal JSON: %w", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GET %s returned %d", indexURL, resp.StatusCode)
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
-	if err != nil {
-		return nil, fmt.Errorf("read body: %w", err)
-	}
-	var idx updateCheckIndex
-	if err := json.Unmarshal(data, &idx); err != nil {
-		return nil, fmt.Errorf("decode index: %w", err)
-	}
-	return &idx, nil
+	fmt.Println(string(data))
+	return nil
 }
 
 func init() {
 	repoUpdateCheckCmd.Flags().StringVar(&updateCheckSource, "source", "", "Registered upstream source name (required)")
-	repoUpdateCheckCmd.Flags().StringVar(&updateCheckTag, "tag", "", "Release tag to check against (required)")
+	repoUpdateCheckCmd.Flags().StringVar(&updateCheckTag, "tag", "", "Release tag to check against")
+	repoUpdateCheckCmd.Flags().BoolVar(&updateCheckLatest, "latest", false, "Discover latest release from repo_url")
+	repoUpdateCheckCmd.Flags().BoolVar(&updateCheckJSON, "json", false, "Output as JSON")
 	repoCmd.AddCommand(repoUpdateCheckCmd)
 }
