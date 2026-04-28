@@ -1805,13 +1805,23 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 
 	// Upstream refill: if local blob is missing but manifest has upstream_import,
 	// re-download from upstream, verify checksum, refill MinIO cache.
-	if err != nil && req.GetAllowUpstreamFallback() {
-		if refillReader, refillErr := srv.refillBlobFromUpstream(stream.Context(), key); refillErr == nil {
-			reader = refillReader
-			err = nil
-			slog.Info("download: upstream refill succeeded", "key", key)
-		} else {
-			slog.Warn("download: upstream refill failed", "key", key, "err", refillErr)
+	// Server-policy driven: old clients benefit without setting allow_upstream_fallback.
+	if err != nil {
+		shouldRefill := req.GetAllowUpstreamFallback() // explicit request override
+		if !shouldRefill {
+			// Server-policy: check if fallback is allowed for this manifest.
+			if _, _, manifest, readErr := srv.readManifestAndStateByKey(stream.Context(), key); readErr == nil {
+				shouldRefill = srv.upstreamFallbackAllowed(stream.Context(), manifest)
+			}
+		}
+		if shouldRefill {
+			if refillReader, refillErr := srv.refillBlobFromUpstream(stream.Context(), key); refillErr == nil {
+				reader = refillReader
+				err = nil
+				slog.Info("download: upstream refill succeeded", "key", key)
+			} else {
+				slog.Warn("download: upstream refill failed", "key", key, "err", refillErr)
+			}
 		}
 	}
 
@@ -1840,17 +1850,18 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 }
 
 // refillBlobFromUpstream re-downloads an artifact from its upstream source
-// when the local MinIO blob is missing. It reads the manifest from Scylla/MinIO,
-// checks for upstream_import provenance, downloads, verifies checksum, writes to
-// MinIO, and returns an io.ReadCloser for the binary. If any step fails, returns
-// an error and the caller falls through to NotFound.
+// when the local MinIO blob is missing. Performs full trust verification:
+// source must exist, be enabled, have compatible policy, and checksum must
+// match. Fails closed on any policy violation.
 func (srv *server) refillBlobFromUpstream(ctx context.Context, key string) (io.ReadCloser, error) {
 	// Read manifest to get upstream_import and checksum.
 	_, state, manifest, err := srv.readManifestAndStateByKey(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("no manifest for key %q: %w", key, err)
 	}
-	_ = state // state already checked by caller
+	if repopb.IsDownloadBlocked(state) {
+		return nil, fmt.Errorf("artifact %q is in %s state — refill blocked", key, state)
+	}
 
 	ui := manifest.GetUpstreamImport()
 	if ui == nil || ui.GetAssetUrl() == "" {
@@ -1861,19 +1872,51 @@ func (srv *server) refillBlobFromUpstream(ctx context.Context, key string) (io.R
 		return nil, fmt.Errorf("artifact %q has no checksum for verification", key)
 	}
 
-	// Resolve credentials if the upstream source has credentials_ref.
-	var authToken string
-	if ui.GetSourceName() != "" {
-		if src, loadErr := srv.loadUpstreamSource(ctx, ui.GetSourceName()); loadErr == nil {
-			if credRef := src.GetCredentialsRef(); credRef != "" {
-				if tok, credErr := resolveCredentialFromEtcd(ctx, credRef); credErr == nil {
-					authToken = tok
-				}
-			}
+	// ── Source trust verification ─────────────────────────────────────────
+	// Fail closed: if source is missing, disabled, or policy mismatches, reject.
+	sourceName := ui.GetSourceName()
+	if sourceName == "" {
+		return nil, fmt.Errorf("artifact %q has upstream_import but no source_name", key)
+	}
+	src, loadErr := srv.loadUpstreamSource(ctx, sourceName)
+	if loadErr != nil {
+		return nil, fmt.Errorf("upstream source %q not found — refill rejected (fail closed): %w", sourceName, loadErr)
+	}
+	if !src.GetEnabled() {
+		return nil, fmt.Errorf("upstream source %q is disabled — refill rejected", sourceName)
+	}
+	if strings.EqualFold(src.GetTrustPolicy(), "quarantine") {
+		return nil, fmt.Errorf("upstream source %q has quarantine trust policy — auto-refill blocked", sourceName)
+	}
+
+	// Validate manifest identity against source policy.
+	ref := manifest.GetRef()
+	if pubs := src.GetAllowedPublishers(); len(pubs) > 0 {
+		if !containsFold(pubs, ref.GetPublisherId()) {
+			return nil, fmt.Errorf("publisher %q not in source %q allowed_publishers", ref.GetPublisherId(), sourceName)
+		}
+	}
+	if kinds := src.GetAllowedKinds(); len(kinds) > 0 {
+		if !containsFold(kinds, ref.GetKind().String()) {
+			return nil, fmt.Errorf("kind %q not in source %q allowed_kinds", ref.GetKind(), sourceName)
+		}
+	}
+	if channels := src.GetAllowedChannels(); len(channels) > 0 {
+		ch := effectiveChannel(manifest).String()
+		if !containsFold(channels, ch) {
+			return nil, fmt.Errorf("channel %q not in source %q allowed_channels", ch, sourceName)
 		}
 	}
 
-	// Download and verify.
+	// ── Resolve credentials ──────────────────────────────────────────────
+	var authToken string
+	if credRef := src.GetCredentialsRef(); credRef != "" {
+		if tok, credErr := resolveCredentialFromEtcd(ctx, credRef); credErr == nil {
+			authToken = tok
+		}
+	}
+
+	// ── Download and verify ──────────────────────────────────────────────
 	data, _, err := downloadAndVerify(ui.GetAssetUrl(), expectedDigest, authToken)
 	if err != nil {
 		return nil, fmt.Errorf("upstream refill download: %w", err)

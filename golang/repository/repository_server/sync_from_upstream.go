@@ -20,8 +20,8 @@ package main
 //
 // Phase 1 constraints:
 //   - release_tag is REQUIRED (empty tag returns InvalidArgument)
-//   - "latest" discovery is not implemented
-//   - quarantine = audit event only (no quarantine storage tier)
+//   - "latest" discovery is not implemented (Phase 2)
+//   - quarantine = QUARANTINED state (not installable)
 //   - last_synced_tag advances only on a fully clean run (no rejected/failed)
 //
 // Dry-run invariant: dry_run=true NEVER writes to ScyllaDB, MinIO, or etcd.
@@ -38,7 +38,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -290,6 +289,11 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 // processSyncEntry evaluates one release index entry and either imports it or
 // produces a preview/skip/reject result. Never panics — all errors become
 // SYNC_FAILED or SYNC_WOULD_FAIL results.
+//
+// Step 1: Normalize entry (resolve publisher, channel, build_number, build_id).
+// Step 2: Check import policy against normalized identity.
+// Step 3: Conflict detection using normalized identity.
+// Step 4: Download, verify, import.
 func (srv *server) processSyncEntry(
 	ctx context.Context,
 	entry *releaseIndexEntry,
@@ -299,82 +303,68 @@ func (srv *server) processSyncEntry(
 	authToken string,
 ) *repopb.UpstreamSyncResult {
 
-	publisher := entry.Publisher
-	if publisher == "" {
-		if dp := src.GetDefaultPublisherId(); dp != "" {
-			publisher = dp
-		} else {
-			publisher = "core@globular.io"
-		}
-	}
+	// ── Step 1: Normalize ─────────────────────────────────────────────────
+	n := normalizeReleaseEntry(entry, src)
 
 	result := &repopb.UpstreamSyncResult{
-		Name:          entry.Name,
-		Version:       entry.Version,
-		BuildId:       entry.BuildID,
-		Platform:      entry.Platform,
-		PackageDigest: entry.PackageDigest,
+		Name:          n.Name,
+		Version:       n.Version,
+		BuildId:       n.BuildID,
+		Platform:      n.Platform,
+		PackageDigest: n.Digest,
 	}
 
-	// ── Policy filtering ──────────────────────────────────────────────────
-	if reason, rejected := checkImportPolicy(entry, publisher, src); rejected {
+	// ── Step 2: Policy filtering ──────────────────────────────────────────
+	if reason, rej := checkImportPolicy(n, src); rej {
 		if dryRun {
 			result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_REJECT
 		} else {
 			result.Status = repopb.UpstreamSyncStatus_SYNC_REJECTED
 			srv.publishAuditEvent(ctx, "upstream.policy_rejected", map[string]any{
-				"source":     src.GetName(),
-				"package":    entry.Name,
-				"version":    entry.Version,
-				"publisher":  publisher,
-				"kind":       entry.Kind,
-				"reason":     reason,
+				"source":    src.GetName(),
+				"package":   n.Name,
+				"version":   n.Version,
+				"publisher": n.Publisher,
+				"kind":      n.Kind,
+				"channel":   n.Channel,
+				"reason":    reason,
 			})
 		}
 		result.Detail = reason
 		return result
 	}
 
-	// ── Check local ledger ─────────────────────────────────────────────────
-	ledger := srv.readLedger(ctx, publisher, entry.Name)
+	// ── Step 3: Conflict detection ────────────────────────────────────────
+	ledger := srv.readLedger(ctx, n.Publisher, n.Name)
 	if ledger != nil {
 		for _, r := range ledger.Releases {
-			// Artifact key = (name, version, build_id, platform). All four must
-			// match to be the same artifact. Different build_id → distinct artifact.
-			if r.Version == entry.Version && r.BuildID == entry.BuildID && r.Platform == entry.Platform {
-				// Same key — compare digest (the content binding).
-				if r.Digest == entry.PackageDigest {
-					// Same key + same digest → idempotent skip.
+			if r.Version == n.Version && r.BuildID == n.BuildID && r.Platform == n.Platform {
+				if r.Digest == n.Digest {
 					if dryRun {
 						result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
-						result.Detail = "already present with matching digest"
 					} else {
 						result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
-						result.Detail = "already present with matching digest"
 					}
+					result.Detail = "already present with matching digest"
 					return result
 				}
-				// Same key + different digest → reject.
-				detail := fmt.Sprintf(
-					"digest conflict: local=%s... upstream=%s...",
-					truncDigest(r.Digest), truncDigest(entry.PackageDigest),
-				)
+				detail := fmt.Sprintf("digest conflict: local=%s... upstream=%s...",
+					truncDigest(r.Digest), truncDigest(n.Digest))
 				if dryRun {
 					result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_REJECT
 					result.Detail = detail
 				} else {
 					result.Status = repopb.UpstreamSyncStatus_SYNC_REJECTED
 					result.Detail = detail
-					// Quarantine = audit event only (phase 1).
 					srv.publishAuditEvent(ctx, "upstream.digest_conflict", map[string]any{
 						"source":          src.GetName(),
 						"release_tag":     releaseTag,
-						"package_name":    entry.Name,
-						"version":         entry.Version,
-						"platform":        entry.Platform,
+						"package_name":    n.Name,
+						"version":         n.Version,
+						"platform":        n.Platform,
 						"local_digest":    r.Digest,
-						"upstream_digest": entry.PackageDigest,
-						"asset_url":       entry.AssetURL,
+						"upstream_digest": n.Digest,
+						"asset_url":       n.AssetURL,
 					})
 				}
 				return result
@@ -383,12 +373,12 @@ func (srv *server) processSyncEntry(
 	}
 
 	ref := &repopb.ArtifactRef{
-		PublisherId: publisher,
-		Name:        entry.Name,
-		Version:     entry.Version,
-		Platform:    entry.Platform,
+		PublisherId: n.Publisher,
+		Name:        n.Name,
+		Version:     n.Version,
+		Platform:    n.Platform,
 	}
-	if existing, state, _, ok := srv.findExistingArtifactByDigest(ctx, ref, entry.PackageDigest); ok {
+	if existing, state, _, ok := srv.findExistingArtifactByDigest(ctx, ref, n.Digest); ok {
 		detail := fmt.Sprintf("already present with matching digest at build %d (%s)", existing.GetBuildNumber(), state.String())
 		if dryRun {
 			result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
@@ -402,30 +392,23 @@ func (srv *server) processSyncEntry(
 	// Not found → would import (or import).
 	if dryRun {
 		result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_IMPORT
-		result.Detail = fmt.Sprintf("would download from %s", entry.AssetURL)
+		result.Detail = fmt.Sprintf("would download from %s (build_number=%d)", n.AssetURL, n.BuildNumber)
 		return result
 	}
 
-	// ── Download and verify ────────────────────────────────────────────────
-	data, digest, err := downloadAndVerify(entry.AssetURL, entry.PackageDigest, authToken)
+	// ── Step 4: Download and verify ───────────────────────────────────────
+	data, digest, err := downloadAndVerify(n.AssetURL, n.Digest, authToken)
 	if err != nil {
 		result.Status = repopb.UpstreamSyncStatus_SYNC_FAILED
 		result.Detail = fmt.Sprintf("download/verify failed: %v", err)
-		slog.Warn("upstream: download failed", "name", entry.Name, "url", entry.AssetURL, "err", err)
+		slog.Warn("upstream: download failed", "name", n.Name, "url", n.AssetURL, "err", err)
 		return result
 	}
 
-	// ── Parse build_number from release index build_id ────────────────────
-	var buildNumber int64
-	if n, parseErr := strconv.ParseInt(entry.BuildID, 10, 64); parseErr == nil {
-		buildNumber = n
-	}
-
-	// ── Store artifact ─────────────────────────────────────────────────────
-	if importErr := srv.importUpstreamArtifact(ctx, entry, publisher, data, digest, buildNumber, src, releaseTag); importErr != nil {
+	if importErr := srv.importUpstreamArtifact(ctx, n, data, digest, src, releaseTag); importErr != nil {
 		result.Status = repopb.UpstreamSyncStatus_SYNC_FAILED
 		result.Detail = fmt.Sprintf("import failed: %v", importErr)
-		slog.Error("upstream: import failed", "name", entry.Name, "version", entry.Version, "err", importErr)
+		slog.Error("upstream: import failed", "name", n.Name, "version", n.Version, "err", importErr)
 		return result
 	}
 
@@ -435,42 +418,37 @@ func (srv *server) processSyncEntry(
 	} else {
 		result.Detail = fmt.Sprintf("imported from %s", src.GetName())
 	}
-	slog.Info("upstream: imported", "name", entry.Name, "version", entry.Version, "platform", entry.Platform, "digest", truncDigest(digest))
+	slog.Info("upstream: imported", "name", n.Name, "version", n.Version, "platform", n.Platform,
+		"build_number", n.BuildNumber, "build_id", n.BuildID, "digest", truncDigest(digest))
 	return result
 }
 
 // importUpstreamArtifact stores the downloaded artifact binary + manifest and
-// appends it to the release ledger. Mirrors the ImportProvisionalArtifact path
-// but also sets upstream_import provenance on the manifest.
+// appends it to the release ledger. Uses normalizedEntry for all identity fields.
 func (srv *server) importUpstreamArtifact(
 	ctx context.Context,
-	entry *releaseIndexEntry,
-	publisher string,
+	n *normalizedEntry,
 	data []byte,
 	digest string,
-	buildNumber int64,
 	src *repopb.UpstreamSource,
 	releaseTag string,
 ) error {
 	ref := &repopb.ArtifactRef{
-		PublisherId: publisher,
-		Name:        entry.Name,
-		Version:     entry.Version,
-		Platform:    entry.Platform,
+		PublisherId: n.Publisher,
+		Name:        n.Name,
+		Version:     n.Version,
+		Platform:    n.Platform,
 	}
 
 	if existing, state, _, ok := srv.findExistingArtifactByDigest(ctx, ref, digest); ok {
 		slog.Info("upstream: identical artifact already exists, skipping import",
-			"name", entry.Name,
-			"version", entry.Version,
-			"build", existing.GetBuildNumber(),
-			"build_id", existing.GetBuildId(),
-			"publish_state", state.String(),
-		)
+			"name", n.Name, "version", n.Version,
+			"build", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),
+			"publish_state", state.String())
 		return nil
 	}
 
-	key := artifactKeyWithBuild(ref, buildNumber)
+	key := artifactKeyWithBuild(ref, n.BuildNumber)
 
 	if err := srv.Storage().MkdirAll(ctx, artifactsDir, 0o755); err != nil {
 		return fmt.Errorf("create artifacts dir: %w", err)
@@ -479,37 +457,29 @@ func (srv *server) importUpstreamArtifact(
 		return fmt.Errorf("write binary: %w", err)
 	}
 
-	// Deterministic build identity: preserve upstream build_id if present.
-	// Otherwise derive from (publisher, name, version, platform, sha256).
-	// Never generate random UUIDv7 for imported artifacts.
-	confirmedBuildID := entry.BuildID
-	if confirmedBuildID == "" {
-		confirmedBuildID = deriveUpstreamBuildID(publisher, entry.Name, entry.Version, entry.Platform, digest)
-	}
 	manifest := &repopb.ArtifactManifest{
 		Ref:                ref,
-		BuildNumber:        buildNumber,
-		BuildId:            confirmedBuildID,
+		BuildNumber:        n.BuildNumber,
+		BuildId:            n.BuildID,
 		Checksum:           digest,
 		SizeBytes:          int64(len(data)),
-		EntrypointChecksum: entry.EntrypointChecksum,
+		EntrypointChecksum: n.EntrypointChecksum,
 		Provisional:        false,
+		Channel:            channelFromString(n.Channel),
 		UpstreamImport: &repopb.UpstreamImportRecord{
 			SourceName: src.GetName(),
 			ReleaseTag: releaseTag,
-			AssetUrl:   entry.AssetURL,
+			AssetUrl:   n.AssetURL,
 			IndexUrl:   strings.ReplaceAll(src.GetIndexUrl(), "{tag}", releaseTag),
 			ImportedAt: time.Now().Unix(),
 		},
 	}
 
-	// Attempt to extract kind from the release index.
-	if kind, ok := kindFromArtifactKindString(entry.Kind); ok {
+	if kind, ok := kindFromArtifactKindString(n.Kind); ok {
 		manifest.Ref.Kind = kind
 	}
 
 	// Enrich manifest from package.json inside the archive.
-	// Populates profiles, deps, provides/requires, health config, etc.
 	if pkg := extractPackageManifest(data); pkg != nil {
 		enrichManifestFromPackageJSON(manifest, pkg)
 	}
@@ -524,11 +494,9 @@ func (srv *server) importUpstreamArtifact(
 	}
 	srv.syncManifestToScylla(ctx, key, manifest, targetState, mjson)
 
-	// Append to release ledger using confirmedBuildID (same as manifest).
-	// With deterministic build identity, manifest and ledger are now in sync.
-	if ledgerErr := srv.appendToLedger(ctx, publisher, entry.Name, entry.Version,
-		confirmedBuildID, digest, entry.Platform, int64(len(data))); ledgerErr != nil {
-		slog.Warn("upstream: ledger append failed (non-fatal)", "name", entry.Name, "err", ledgerErr)
+	if ledgerErr := srv.appendToLedger(ctx, n.Publisher, n.Name, n.Version,
+		n.BuildID, digest, n.Platform, int64(len(data))); ledgerErr != nil {
+		slog.Warn("upstream: ledger append failed (non-fatal)", "name", n.Name, "err", ledgerErr)
 	}
 	return nil
 }
@@ -558,18 +526,14 @@ func (srv *server) loadUpstreamSource(ctx context.Context, name string) (*repopb
 }
 
 // updateSyncStatus updates the upstream source record in etcd with sync results.
-// Advances last_synced_tag only on fully clean runs (status == "succeeded").
 func (srv *server) updateSyncStatus(ctx context.Context, sourceName, tag, syncStatus, syncError string) error {
 	src, err := srv.loadUpstreamSource(ctx, sourceName)
 	if err != nil {
 		return err
 	}
-
-	// Only advance last_synced_tag on a fully clean run.
 	if syncStatus == "succeeded" {
 		src.LastSyncedTag = tag
 	}
-
 	src.LastSyncUnix = time.Now().Unix()
 	src.LastSyncStatus = syncStatus
 	src.LastSyncError = syncError
@@ -590,7 +554,6 @@ func (srv *server) updateSyncStatus(ctx context.Context, sourceName, tag, syncSt
 
 // resolveCredentialFromEtcd reads a token from an etcd key. Only accepts
 // keys under /globular/credentials/ to prevent arbitrary etcd reads.
-// The token value is never logged.
 func resolveCredentialFromEtcd(ctx context.Context, credRef string) (string, error) {
 	const allowedPrefix = "/globular/credentials/"
 	if !strings.HasPrefix(credRef, allowedPrefix) {
@@ -612,15 +575,12 @@ func resolveCredentialFromEtcd(ctx context.Context, credRef string) (string, err
 	return strings.TrimSpace(string(resp.Kvs[0].Value)), nil
 }
 
-// upstreamHTTPClient returns an http.Client with sensible timeouts for
-// upstream fetches. The 30s timeout covers connection + TLS + response.
+// upstreamHTTPClient returns an http.Client with sensible timeouts.
 func upstreamHTTPClient() *http.Client {
 	return &http.Client{Timeout: 30 * time.Second}
 }
 
 // fetchReleaseIndex fetches and parses the release-index.json from indexURL.
-// Enforces a 30s timeout and 10 MiB size limit to prevent hangs and OOM.
-// authToken is applied as Bearer authorization when non-empty.
 func fetchReleaseIndex(indexURL, authToken string) (*releaseIndex, error) {
 	req, err := http.NewRequest(http.MethodGet, indexURL, nil)
 	if err != nil {
@@ -637,7 +597,6 @@ func fetchReleaseIndex(indexURL, authToken string) (*releaseIndex, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GET %s returned %d", indexURL, resp.StatusCode)
 	}
-	// Content-Length pre-check when available.
 	if resp.ContentLength > int64(maxReleaseIndexBytes) {
 		return nil, fmt.Errorf("release index too large: %d bytes (max %d)", resp.ContentLength, maxReleaseIndexBytes)
 	}
@@ -656,11 +615,8 @@ func fetchReleaseIndex(indexURL, authToken string) (*releaseIndex, error) {
 	return &idx, nil
 }
 
-// downloadAndVerify downloads the artifact from assetURL, computes its sha256,
-// and verifies it matches expectedDigest ("sha256:<hex>").
-// Enforces a 30s timeout and 500 MiB size limit.
-// authToken is applied as Bearer authorization when non-empty.
-// Returns the raw bytes and the verified digest string.
+// downloadAndVerify downloads the artifact, computes sha256, verifies.
+// Streams through a temp file to avoid holding full artifact in memory.
 func downloadAndVerify(assetURL, expectedDigest, authToken string) ([]byte, string, error) {
 	req, err := http.NewRequest(http.MethodGet, assetURL, nil)
 	if err != nil {
@@ -677,7 +633,6 @@ func downloadAndVerify(assetURL, expectedDigest, authToken string) ([]byte, stri
 	if resp.StatusCode != http.StatusOK {
 		return nil, "", fmt.Errorf("GET %s returned %d", assetURL, resp.StatusCode)
 	}
-	// Content-Length pre-check when available.
 	if resp.ContentLength > int64(maxArtifactBytes) {
 		return nil, "", fmt.Errorf("artifact too large: %d bytes (max %d)", resp.ContentLength, maxArtifactBytes)
 	}
@@ -700,7 +655,6 @@ func downloadAndVerify(assetURL, expectedDigest, authToken string) ([]byte, stri
 }
 
 // extractPackageJSON reads ./package.json from a .tgz archive.
-// Returns nil if not present (non-fatal for sync — the index provides metadata).
 func extractPackageJSON(data []byte) map[string]any {
 	gr, err := gzip.NewReader(strings.NewReader(string(data)))
 	if err != nil {
@@ -746,40 +700,28 @@ func kindFromArtifactKindString(s string) (repopb.ArtifactKind, bool) {
 	}
 }
 
-// checkImportPolicy validates a release index entry against the upstream source's
+// checkImportPolicy validates a normalized entry against the upstream source's
 // import policy. Returns (reason, true) if rejected, ("", false) if allowed.
-func checkImportPolicy(entry *releaseIndexEntry, publisher string, src *repopb.UpstreamSource) (string, bool) {
-	// allowed_publishers: if set, reject publishers not in the list.
+func checkImportPolicy(n *normalizedEntry, src *repopb.UpstreamSource) (string, bool) {
 	if pubs := src.GetAllowedPublishers(); len(pubs) > 0 {
-		if !containsFold(pubs, publisher) {
-			return fmt.Sprintf("publisher %q not in allowed_publishers", publisher), true
+		if !containsFold(pubs, n.Publisher) {
+			return fmt.Sprintf("publisher %q not in allowed_publishers", n.Publisher), true
 		}
 	}
-
-	// allowed_kinds: if set, reject kinds not in the list.
 	if kinds := src.GetAllowedKinds(); len(kinds) > 0 {
-		if entry.Kind != "" && !containsFold(kinds, entry.Kind) {
-			return fmt.Sprintf("kind %q not in allowed_kinds", entry.Kind), true
+		if n.Kind != "" && !containsFold(kinds, n.Kind) {
+			return fmt.Sprintf("kind %q not in allowed_kinds", n.Kind), true
 		}
 	}
-
-	// allowed_channels: if set, reject channels not in the list.
+	// Channel policy: check the normalized entry channel, not source channel.
 	if channels := src.GetAllowedChannels(); len(channels) > 0 {
-		// Entries without a channel field default to "stable".
-		ch := src.GetChannel()
-		if ch == "" {
-			ch = "stable"
-		}
-		if !containsFold(channels, ch) {
-			return fmt.Sprintf("channel %q not in allowed_channels", ch), true
+		if !containsFold(channels, n.Channel) {
+			return fmt.Sprintf("channel %q not in allowed_channels", n.Channel), true
 		}
 	}
-
-	// require_checksum: reject entries with empty sha256.
-	if src.GetRequireChecksum() && entry.PackageDigest == "" {
+	if src.GetRequireChecksum() && n.Digest == "" {
 		return "require_checksum is set but entry has no package_digest", true
 	}
-
 	return "", false
 }
 
@@ -793,25 +735,59 @@ func containsFold(list []string, s string) bool {
 	return false
 }
 
-// deriveUpstreamBuildID produces a deterministic build_id from the package
-// identity and content hash. Used only when the upstream release index has no
-// build_id. The result is a sha256-based string (not a UUIDv7) that is stable
-// across repeated imports of the same artifact.
-func deriveUpstreamBuildID(publisher, name, version, platform, digest string) string {
-	h := sha256.New()
-	for _, s := range []string{publisher, name, version, platform, digest} {
-		h.Write([]byte(s))
-		h.Write([]byte{0}) // separator
-	}
-	return "upstream:" + hex.EncodeToString(h.Sum(nil))[:32]
-}
-
 // importTargetState returns the publish state to use when importing.
-// "quarantine" trust_policy → QUARANTINED (recorded but not installable).
-// Default ("import" or empty) → PUBLISHED.
 func importTargetState(src *repopb.UpstreamSource) repopb.PublishState {
 	if strings.EqualFold(src.GetTrustPolicy(), "quarantine") {
 		return repopb.PublishState_QUARANTINED
 	}
 	return repopb.PublishState_PUBLISHED
+}
+
+// ── Upstream fallback policy ────────────────────────────────────────────────
+
+// upstreamFallbackAllowed checks whether DownloadArtifact should attempt
+// upstream refill for a given manifest+source. This is server-policy driven —
+// old clients benefit without setting allow_upstream_fallback.
+func (srv *server) upstreamFallbackAllowed(ctx context.Context, manifest *repopb.ArtifactManifest) bool {
+	ui := manifest.GetUpstreamImport()
+	if ui == nil || ui.GetAssetUrl() == "" {
+		return false
+	}
+	if manifest.GetChecksum() == "" {
+		return false
+	}
+
+	// Source must exist, be enabled, and have a compatible trust policy.
+	src, err := srv.loadUpstreamSource(ctx, ui.GetSourceName())
+	if err != nil {
+		return false
+	}
+	if !src.GetEnabled() {
+		return false
+	}
+	// Quarantine-only sources should not auto-refill (would bypass quarantine intent).
+	if strings.EqualFold(src.GetTrustPolicy(), "quarantine") {
+		return false
+	}
+
+	// Validate publisher/kind/channel against source policy.
+	ref := manifest.GetRef()
+	if pubs := src.GetAllowedPublishers(); len(pubs) > 0 {
+		if !containsFold(pubs, ref.GetPublisherId()) {
+			return false
+		}
+	}
+	if kinds := src.GetAllowedKinds(); len(kinds) > 0 {
+		if !containsFold(kinds, ref.GetKind().String()) {
+			return false
+		}
+	}
+	if channels := src.GetAllowedChannels(); len(channels) > 0 {
+		ch := effectiveChannel(manifest).String()
+		if !containsFold(channels, ch) {
+			return false
+		}
+	}
+
+	return true
 }

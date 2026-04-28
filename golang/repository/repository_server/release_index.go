@@ -11,8 +11,13 @@ package main
 // GenerateReleaseIndex to produce them.
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"strings"
+
+	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
 // SchemaVersionV1 is the required schema_version for release index v1.
@@ -42,7 +47,9 @@ type releaseIndexEntry struct {
 	Kind               string `json:"kind"`
 	Publisher          string `json:"publisher"`
 	Version            string `json:"version"`
-	BuildID            string `json:"build_id"`
+	BuildNumber        int64  `json:"build_number"`         // explicit numeric build number
+	BuildID            string `json:"build_id"`             // string build identity
+	Channel            string `json:"channel"`              // "stable", "candidate", etc.
 	Platform           string `json:"platform"`
 	Filename           string `json:"filename"`
 	PackageDigest      string `json:"package_digest"`
@@ -50,6 +57,106 @@ type releaseIndexEntry struct {
 	AssetURL           string `json:"asset_url"`
 	ReleaseTag         string `json:"release_tag"`
 	PublishedAt        string `json:"published_at"`
+}
+
+// normalizedEntry holds the fully resolved identity of a release index entry.
+// Computed once by normalizeReleaseEntry, then used for policy, conflict
+// detection, import, and ledger operations.
+type normalizedEntry struct {
+	Publisher   string
+	Name        string
+	Version     string
+	Platform    string
+	Kind        string
+	Channel     string
+	BuildNumber int64
+	BuildID     string
+	Digest      string
+	AssetURL    string
+
+	EntrypointChecksum string
+	ReleaseTag         string
+}
+
+// normalizeReleaseEntry resolves all identity fields from the raw entry + source.
+// This is the single place where defaults are applied.
+func normalizeReleaseEntry(entry *releaseIndexEntry, src *repopb.UpstreamSource) *normalizedEntry {
+	n := &normalizedEntry{
+		Publisher:          entry.Publisher,
+		Name:               entry.Name,
+		Version:            entry.Version,
+		Platform:           entry.Platform,
+		Kind:               entry.Kind,
+		Digest:             entry.PackageDigest,
+		AssetURL:           entry.AssetURL,
+		EntrypointChecksum: entry.EntrypointChecksum,
+		ReleaseTag:         entry.ReleaseTag,
+	}
+
+	// Publisher fallback chain: entry → source.default_publisher_id → "core@globular.io"
+	if n.Publisher == "" {
+		if dp := src.GetDefaultPublisherId(); dp != "" {
+			n.Publisher = dp
+		} else {
+			n.Publisher = "core@globular.io"
+		}
+	}
+
+	// Channel fallback chain: entry → source.channel → "stable"
+	n.Channel = entry.Channel
+	if n.Channel == "" {
+		n.Channel = src.GetChannel()
+	}
+	if n.Channel == "" {
+		n.Channel = "stable"
+	}
+
+	// build_number: prefer explicit from entry.
+	n.BuildNumber = entry.BuildNumber
+
+	// build_id: preserve upstream, derive if missing.
+	n.BuildID = entry.BuildID
+	if n.BuildID == "" {
+		n.BuildID = deriveUpstreamBuildID(n.Publisher, n.Name, n.Version, n.Platform, n.Digest)
+	}
+
+	// If build_number is 0 (missing/default), derive deterministically from build_id
+	// to avoid collisions when multiple entries lack build_number.
+	if n.BuildNumber == 0 {
+		n.BuildNumber = deriveBuildNumber(n.BuildID, n.Digest)
+	}
+
+	return n
+}
+
+// deriveBuildNumber produces a deterministic positive build_number from a
+// build_id and digest. Uses hash to avoid collisions. Result is always >= 1.
+func deriveBuildNumber(buildID, digest string) int64 {
+	h := sha256.New()
+	h.Write([]byte(buildID))
+	h.Write([]byte{0})
+	h.Write([]byte(digest))
+	sum := h.Sum(nil)
+	// Take first 7 bytes → positive int64 in range [1, 2^56).
+	// Shift right one bit to stay safely positive.
+	v := int64(binary.BigEndian.Uint64(append([]byte{0}, sum[:7]...)))
+	if v <= 0 {
+		v = 1
+	}
+	return v
+}
+
+// deriveUpstreamBuildID produces a deterministic build_id from the package
+// identity and content hash. Used only when the upstream release index has no
+// build_id. The result is a sha256-based string (not a UUIDv7) that is stable
+// across repeated imports of the same artifact.
+func deriveUpstreamBuildID(publisher, name, version, platform, digest string) string {
+	h := sha256.New()
+	for _, s := range []string{publisher, name, version, platform, digest} {
+		h.Write([]byte(s))
+		h.Write([]byte{0})
+	}
+	return "upstream:" + hex.EncodeToString(h.Sum(nil))[:32]
 }
 
 // ValidateReleaseIndex checks the index for structural correctness.
