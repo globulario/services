@@ -238,11 +238,20 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 		}
 	}
 
-	// ── Advance last_synced_tag only on a fully clean run ─────────────────
-	// Rule: advance only when dry_run=false AND rejected==0 AND failed==0.
-	if !dryRun && rejected == 0 && failed == 0 {
-		if updateErr := srv.updateLastSyncedTag(ctx, sourceName, releaseTag); updateErr != nil {
-			slog.Warn("upstream: failed to update last_synced_tag (non-fatal)", "source", sourceName, "err", updateErr)
+	// ── Update sync status on the upstream source record ──────────────────
+	if !dryRun {
+		syncStatus := "succeeded"
+		var syncError string
+		if rejected > 0 || failed > 0 {
+			if imported > 0 {
+				syncStatus = "partial"
+			} else {
+				syncStatus = "failed"
+			}
+			syncError = fmt.Sprintf("rejected=%d failed=%d", rejected, failed)
+		}
+		if updateErr := srv.updateSyncStatus(ctx, sourceName, releaseTag, syncStatus, syncError); updateErr != nil {
+			slog.Warn("upstream: failed to update sync status (non-fatal)", "source", sourceName, "err", updateErr)
 		}
 	}
 
@@ -533,13 +542,22 @@ func (srv *server) loadUpstreamSource(ctx context.Context, name string) (*repopb
 	return &src, nil
 }
 
-// updateLastSyncedTag writes the new last_synced_tag back to etcd.
-func (srv *server) updateLastSyncedTag(ctx context.Context, sourceName, tag string) error {
+// updateSyncStatus updates the upstream source record in etcd with sync results.
+// Advances last_synced_tag only on fully clean runs (status == "succeeded").
+func (srv *server) updateSyncStatus(ctx context.Context, sourceName, tag, syncStatus, syncError string) error {
 	src, err := srv.loadUpstreamSource(ctx, sourceName)
 	if err != nil {
 		return err
 	}
-	src.LastSyncedTag = tag
+
+	// Only advance last_synced_tag on a fully clean run.
+	if syncStatus == "succeeded" {
+		src.LastSyncedTag = tag
+	}
+
+	src.LastSyncUnix = time.Now().Unix()
+	src.LastSyncStatus = syncStatus
+	src.LastSyncError = syncError
 
 	cli, err := config.GetEtcdClient()
 	if err != nil {
