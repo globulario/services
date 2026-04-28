@@ -1168,10 +1168,6 @@ func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifa
 	if err := srv.requireHealthy(); err != nil {
 		return nil, err
 	}
-	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
-	if err != nil {
-		return &repopb.SearchArtifactsResponse{}, nil
-	}
 
 	query := strings.ToLower(strings.TrimSpace(req.GetQuery()))
 	filterKind := req.GetKind()
@@ -1189,58 +1185,76 @@ func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifa
 	authCtx := security.FromContext(ctx)
 	isAdmin := authCtx != nil && authCtx.Subject == "sa"
 
-	var all []*repopb.ArtifactManifest
-	for _, e := range entries {
-		name := e.Name()
-		if !strings.HasSuffix(name, ".manifest.json") {
-			continue
-		}
-		key := strings.TrimSuffix(name, ".manifest.json")
-		_, state, m, err := srv.readManifestAndStateByKey(ctx, key)
-		if err != nil {
-			continue
-		}
-
-		// Hide YANKED/QUARANTINED/REVOKED from non-owners/non-admins.
+	// searchFilter applies all SearchArtifacts filters to a single manifest.
+	searchFilter := func(m *repopb.ArtifactManifest, state repopb.PublishState) bool {
 		if repopb.IsDiscoveryHidden(state) && !isAdmin {
 			if authCtx == nil || !srv.isNamespaceOwner(ctx, m.GetRef().GetPublisherId(), authCtx.Subject) {
-				continue
+				return false
 			}
 		}
-
-		// Channel filtering:
-		//   - include_all_channels: skip channel check (admin/operator UX only)
-		//   - filterChannel set: must match exactly
-		//   - default (no filter): only return reconciler-safe channels (STABLE, BOOTSTRAP)
-		//     DEV and CANDIDATE are never returned unless explicitly requested.
 		if !includeAllChannels {
 			ch := effectiveChannel(m)
 			if filterChannel != repopb.ArtifactChannel_CHANNEL_UNSET {
 				if ch != filterChannel {
-					continue
+					return false
 				}
 			} else if !isReconcilerSafeChannel(ch) {
-				continue
+				return false
 			}
 		}
-
-		// Filter by kind.
 		if filterKind != repopb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED && m.GetRef().GetKind() != filterKind {
-			continue
+			return false
 		}
-		// Filter by publisher.
 		if filterPub != "" && !strings.EqualFold(m.GetRef().GetPublisherId(), filterPub) {
-			continue
+			return false
 		}
-		// Filter by platform.
 		if filterPlat != "" && !strings.EqualFold(m.GetRef().GetPlatform(), filterPlat) {
-			continue
+			return false
 		}
-		// Free-text search across name, description, keywords.
 		if query != "" && !matchesQuery(m, query) {
-			continue
+			return false
 		}
-		all = append(all, m)
+		return true
+	}
+
+	var all []*repopb.ArtifactManifest
+
+	// Scylla-first: use ledger as authoritative source for search.
+	if srv.scylla != nil {
+		rows, scyllaErr := srv.listCache.Get(ctx, "all")
+		if scyllaErr != nil {
+			return nil, status.Errorf(codes.Unavailable, "artifact ledger unavailable: %v", scyllaErr)
+		}
+		for _, row := range rows {
+			m, state, parseErr := manifestFromRow(row)
+			if parseErr != nil {
+				slog.Warn("skipping unreadable ledger row in SearchArtifacts", "key", row.ArtifactKey, "err", parseErr)
+				continue
+			}
+			if searchFilter(m, state) {
+				all = append(all, m)
+			}
+		}
+	} else {
+		// Legacy / single-node fallback: scan MinIO directory.
+		entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
+		if err != nil {
+			return &repopb.SearchArtifactsResponse{}, nil
+		}
+		for _, e := range entries {
+			name := e.Name()
+			if !strings.HasSuffix(name, ".manifest.json") {
+				continue
+			}
+			key := strings.TrimSuffix(name, ".manifest.json")
+			_, state, m, err := srv.readManifestAndStateByKey(ctx, key)
+			if err != nil {
+				continue
+			}
+			if searchFilter(m, state) {
+				all = append(all, m)
+			}
+		}
 	}
 
 	// Sort by semver desc, build_number desc, then name asc for ties.
