@@ -211,7 +211,7 @@ func (srv *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.Se
 	values := make([]string, 0)
 
 	// Merge new value with existing list (if any).
-	if data, err := srv.store.GetItem(uuid); err == nil {
+	if data, err := srv.store.GetItem(uuid); err == nil && len(data) > 0 {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetA unmarshal", "domain", domain, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -419,7 +419,7 @@ func (srv *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dn
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
 
 	values := make([]string, 0)
-	if data, err := srv.store.GetItem(uuid); err == nil {
+	if data, err := srv.store.GetItem(uuid); err == nil && len(data) > 0 {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetAAAA unmarshal", "domain", domain, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -756,7 +756,7 @@ func (srv *server) SetTXT(ctx context.Context, rqst *dnspb.SetTXTRequest) (*dnsp
 	values := make([]string, 0)
 
 	// Merge new value with existing list (if any).
-	if data, err := srv.store.GetItem(uuid); err == nil {
+	if data, err := srv.store.GetItem(uuid); err == nil && len(data) > 0 {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetTXT unmarshal", "domain", domainKey, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -947,7 +947,7 @@ func (srv *server) SetNs(ctx context.Context, rqst *dnspb.SetNsRequest) (*dnspb.
 	uuid := Utility.GenerateUUID("NS:" + id)
 
 	values := make([]string, 0)
-	if data, err := srv.store.GetItem(uuid); err == nil {
+	if data, err := srv.store.GetItem(uuid); err == nil && len(data) > 0 {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetNs unmarshal", "id", id, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1232,7 +1232,7 @@ func (srv *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.
 	uuid := Utility.GenerateUUID("MX:" + id)
 	values := make([]*dnspb.MX, 0)
 
-	if data, err := srv.store.GetItem(uuid); err == nil {
+	if data, err := srv.store.GetItem(uuid); err == nil && len(data) > 0 {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetMx unmarshal", "id", id, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1431,7 +1431,7 @@ func (srv *server) SetSrv(ctx context.Context, rqst *dnspb.SetSrvRequest) (*dnsp
 	uuid := Utility.GenerateUUID("SRV:" + id)
 	values := make([]*dnspb.SRV, 0)
 
-	if data, err := srv.store.GetItem(uuid); err == nil {
+	if data, err := srv.store.GetItem(uuid); err == nil && len(data) > 0 {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetSrv unmarshal", "id", id, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1610,7 +1610,7 @@ func (srv *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*dnsp
 	uuid := Utility.GenerateUUID("SOA:" + id)
 
 	values := make([]*dnspb.SOA, 0)
-	if data, err := srv.store.GetItem(uuid); err == nil {
+	if data, err := srv.store.GetItem(uuid); err == nil && len(data) > 0 {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetSoa unmarshal", "id", id, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1806,7 +1806,7 @@ func (srv *server) SetUri(ctx context.Context, rqst *dnspb.SetUriRequest) (*dnsp
 	uuid := Utility.GenerateUUID("URI:" + id)
 
 	values := make([]*dnspb.URI, 0)
-	if data, err := srv.store.GetItem(uuid); err == nil {
+	if data, err := srv.store.GetItem(uuid); err == nil && len(data) > 0 {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetUri unmarshal", "id", id, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -2094,7 +2094,7 @@ func (srv *server) SetCaa(ctx context.Context, rqst *dnspb.SetCaaRequest) (*dnsp
 	uuid := Utility.GenerateUUID("CAA:" + id)
 
 	values := make([]*dnspb.CAA, 0)
-	if data, err := srv.store.GetItem(uuid); err == nil {
+	if data, err := srv.store.GetItem(uuid); err == nil && len(data) > 0 {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetCaa unmarshal", "id", id, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
