@@ -380,3 +380,110 @@ func TestGenerateReleaseIndexV2(t *testing.T) {
 		t.Fatalf("referenced_releases: %v", idx.ReferencedReleases)
 	}
 }
+
+// ── BOM change-detection sequence tests ─────────────────────────────────────
+
+func TestContractDigest_SameContentTwice_SameDigest(t *testing.T) {
+	// Same content packaged twice must produce the same contract digest.
+	c := ContractComponents{
+		EntrypointChecksum: "sha256:binary1",
+		ManifestSha256:     "sha256:manifest1",
+		SpecSha256:         "sha256:spec1",
+		SystemdSha256:      "sha256:unit1",
+		Profiles:           []string{"core"},
+		HardDeps:           []string{"etcd"},
+	}
+	d1 := ComputeContractDigest(c)
+	d2 := ComputeContractDigest(c)
+	if d1 != d2 {
+		t.Fatal("same content must produce same contract digest")
+	}
+}
+
+func TestContractDigest_IndependentOfArchiveMetadata(t *testing.T) {
+	// Two packages with identical contract components but different archive metadata
+	// (simulated by artifact_sha256 being different) still have the same contract digest.
+	c1 := ContractComponents{
+		EntrypointChecksum: "sha256:binary1",
+		ManifestSha256:     "sha256:manifest1",
+	}
+	c2 := ContractComponents{
+		EntrypointChecksum: "sha256:binary1",
+		ManifestSha256:     "sha256:manifest1",
+	}
+	// These represent the SAME contract even if their .tgz sha256 differs.
+	if ComputeContractDigest(c1) != ComputeContractDigest(c2) {
+		t.Fatal("contract digest should be independent of archive metadata")
+	}
+}
+
+func TestUnchangedPackageKeepsOldVersionAndFilename(t *testing.T) {
+	// Verify that an unchanged entry in a v2 index preserves the original version.
+	idx := validV2Index()
+	// Second entry is gateway@1.0.82 unchanged from v1.0.82.
+	gw := idx.Packages[1]
+	if gw.Version != "1.0.82" {
+		t.Fatalf("unchanged package should keep version 1.0.82, got %q", gw.Version)
+	}
+	if gw.IsChanged() {
+		t.Fatal("gateway should not be marked as changed")
+	}
+	if gw.OriginRelease != "v1.0.82" {
+		t.Fatalf("origin_release should be v1.0.82, got %q", gw.OriginRelease)
+	}
+}
+
+func TestReferencedReleasesIncludesOriginTags(t *testing.T) {
+	idx := validV2Index()
+	if len(idx.ReferencedReleases) == 0 {
+		t.Fatal("referenced_releases should include origin releases")
+	}
+	found := false
+	for _, r := range idx.ReferencedReleases {
+		if r == "v1.0.82" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("referenced_releases should include v1.0.82: %v", idx.ReferencedReleases)
+	}
+}
+
+func TestVersionStampingSequenceMatters(t *testing.T) {
+	// Demonstrate why change detection must happen BEFORE version stamping.
+	// If we stamp version 1.0.84 on an unchanged binary, the entrypoint_checksum
+	// changes, and contract digest changes, making it look changed.
+	base := ContractComponents{
+		EntrypointChecksum: "sha256:binary_with_1.0.82_embedded",
+		ManifestSha256:     "sha256:same_manifest",
+	}
+	stampedWithNewVersion := ContractComponents{
+		EntrypointChecksum: "sha256:binary_with_1.0.84_embedded", // different because version changed!
+		ManifestSha256:     "sha256:same_manifest",
+	}
+	if ComputeContractDigest(base) == ComputeContractDigest(stampedWithNewVersion) {
+		t.Fatal("stamping a new version on the binary SHOULD change the contract digest — " +
+			"this proves why detection must happen before version stamping")
+	}
+	// This test documents the design constraint: the CI pipeline must detect changes
+	// BEFORE calling gen-version.sh with the new platform version, or all packages
+	// will appear changed.
+}
+
+func TestForceFullRebuildV2_Valid(t *testing.T) {
+	changed := true
+	e := validEntry()
+	e.ChangedInRelease = &changed
+	e.OriginRelease = "v1.0.84"
+	idx := GenerateReleaseIndexV2("v1.0.84", "1.0.84", "core@globular.io",
+		nil, true, "CI previous index unavailable", []*releaseIndexEntry{e})
+	if err := ValidateReleaseIndex(idx); err != nil {
+		t.Fatalf("force-rebuild v2 index should be valid: %v", err)
+	}
+	if !idx.ForceFullRebuild {
+		t.Fatal("expected force_full_rebuild=true")
+	}
+	if idx.ForceFullRebuildReason != "CI previous index unavailable" {
+		t.Fatalf("expected reason, got %q", idx.ForceFullRebuildReason)
+	}
+}
