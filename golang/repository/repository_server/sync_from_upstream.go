@@ -152,30 +152,9 @@ func (srv *server) RemoveUpstream(ctx context.Context, req *repopb.RemoveUpstrea
 }
 
 // ── SyncFromUpstream ──────────────────────────────────────────────────────────
-
-// releaseIndexEntry mirrors the release-index.json package entry schema.
-type releaseIndexEntry struct {
-	Name               string `json:"name"`
-	Kind               string `json:"kind"`
-	Publisher          string `json:"publisher"`
-	Version            string `json:"version"`
-	BuildID            string `json:"build_id"`
-	Platform           string `json:"platform"`
-	Filename           string `json:"filename"`
-	PackageDigest      string `json:"package_digest"`
-	EntrypointChecksum string `json:"entrypoint_checksum"`
-	AssetURL           string `json:"asset_url"`
-	ReleaseTag         string `json:"release_tag"`
-	PublishedAt        string `json:"published_at"`
-}
-
-type releaseIndex struct {
-	SchemaVersion   int                  `json:"schema_version"`
-	ReleaseTag      string               `json:"release_tag"`
-	GlobularVersion string               `json:"globular_version"`
-	Publisher       string               `json:"publisher"`
-	Packages        []*releaseIndexEntry `json:"packages"`
-}
+//
+// The releaseIndex / releaseIndexEntry structs live in release_index.go —
+// the canonical schema definition for release-index.json.
 
 func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUpstreamRequest) (*repopb.SyncFromUpstreamResponse, error) {
 	if err := srv.requireHealthy(); err != nil {
@@ -213,6 +192,11 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 	idx, err := fetchReleaseIndex(indexURL)
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "fetch release index: %v", err)
+	}
+
+	// ── Validate schema ───────────────────────────────────────────────────
+	if err := ValidateReleaseIndex(idx); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid release index: %v", err)
 	}
 
 	// ── Filter by requested platform ───────────────────────────────────────
