@@ -56,8 +56,9 @@ type SourceOpts struct {
 	IncludePrereleases bool
 
 	// Git-specific
-	RepoURL string
-	Branch  string
+	RepoURL  string
+	Branch   string
+	CacheDir string // per-source cache directory for Git clones
 
 	// HTTP-specific
 	ArtifactBaseURL string
@@ -114,7 +115,7 @@ func NewSource(sourceType string) (ReleaseSource, error) {
 	case TypeLocalDir:
 		return &LocalDirSource{}, nil
 	case TypeGitIndex:
-		return nil, fmt.Errorf("%w: GIT_INDEX is planned for Phase 2", ErrProviderUnimplemented)
+		return &GitIndexSource{}, nil
 	case "", "UPSTREAM_TYPE_UNSPECIFIED":
 		return nil, fmt.Errorf("upstream source type is not set — specify a provider type")
 	default:

@@ -41,13 +41,13 @@ func TestNewSource_LocalDir(t *testing.T) {
 	}
 }
 
-func TestNewSource_GitIndex_Unimplemented(t *testing.T) {
-	_, err := NewSource(TypeGitIndex)
-	if err == nil {
-		t.Fatal("expected error for unimplemented GIT_INDEX")
+func TestNewSource_GitIndex(t *testing.T) {
+	src, err := NewSource(TypeGitIndex)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if !errors.Is(err, ErrProviderUnimplemented) {
-		t.Fatalf("expected ErrProviderUnimplemented, got: %v", err)
+	if src.Type() != TypeGitIndex {
+		t.Fatalf("expected %s, got %s", TypeGitIndex, src.Type())
 	}
 }
 

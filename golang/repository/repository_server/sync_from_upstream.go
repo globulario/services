@@ -598,6 +598,14 @@ func sourceOptsFromProto(src *repopb.UpstreamSource, authToken string) upstream.
 			repo = r
 		}
 	}
+	// GIT_INDEX cache directory: deterministic per-source path under repository data dir.
+	cacheDir := ""
+	if src.GetType() == repopb.UpstreamSourceType_GIT_INDEX {
+		dataDir := config.GetDataDir()
+		if dataDir != "" && src.GetName() != "" {
+			cacheDir = dataDir + "/upstream-cache/" + src.GetName()
+		}
+	}
 	return upstream.SourceOpts{
 		IndexURL:           src.GetIndexUrl(),
 		IndexPathTemplate:  src.GetIndexPathTemplate(),
@@ -609,6 +617,7 @@ func sourceOptsFromProto(src *repopb.UpstreamSource, authToken string) upstream.
 		IncludePrereleases: src.GetIncludePrereleases(),
 		RepoURL:            src.GetRepoUrl(),
 		Branch:             src.GetBranch(),
+		CacheDir:           cacheDir,
 		ArtifactBaseURL:    src.GetArtifactBaseUrl(),
 		LocalRoot:          src.GetLocalRoot(),
 	}
