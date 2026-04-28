@@ -24,7 +24,7 @@ func (srv *server) cacheKey(path string) string {
 }
 
 func (srv *server) cacheGet(path string) ([]byte, error) {
-	if data, err := cache.GetItem(srv.cacheKey(path)); err == nil {
+	if data, err := cache.GetItem(srv.cacheKey(path)); err == nil && len(data) > 0 {
 		return data, nil
 	}
 	return cache.GetItem(path)

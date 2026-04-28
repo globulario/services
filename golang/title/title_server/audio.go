@@ -129,7 +129,7 @@ func (srv *server) GetAudioById(ctx context.Context, rqst *titlepb.GetAudioByIdR
 
 	paths := []string{}
 	if store := srv.getAssociations(resolved); store != nil {
-		if data, err := store.GetItem(rqst.AudioId); err == nil {
+		if data, err := store.GetItem(rqst.AudioId); err == nil && len(data) > 0 {
 			a := new(fileTileAssociation)
 			if err := json.Unmarshal(data, a); err == nil {
 				paths = a.Paths

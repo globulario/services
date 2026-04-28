@@ -608,7 +608,7 @@ func (srv *server) getPublicDirs() ([]string, error) {
 }
 
 func (srv *server) getFileInfo(token, path string) (*filepb.FileInfo, error) {
-	if data_, err := cache.GetItem(path); err == nil {
+	if data_, err := cache.GetItem(path); err == nil && len(data_) > 0 {
 		fi := new(filepb.FileInfo)
 		if err := protojson.Unmarshal(data_, fi); err == nil {
 			return fi, nil

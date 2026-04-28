@@ -33,7 +33,7 @@ func (s *server) getThumbnail(path string, h, w int) (string, error) {
 	}
 	id := fmt.Sprintf("%s_%s_%dx%d@%s", path, checksum, h, w, s.Domain)
 
-	if data, err := cache.GetItem(id); err == nil {
+	if data, err := cache.GetItem(id); err == nil && len(data) > 0 {
 		return string(data), nil
 	}
 

@@ -270,7 +270,7 @@ func (srv *server) setItem(key string, val []byte) error {
 }
 
 func (srv *server) getItem(key string) ([]byte, error) {
-	if val, err := srv.cache.GetItem(key); err == nil {
+	if val, err := srv.cache.GetItem(key); err == nil && len(val) > 0 {
 		return val, nil
 	}
 	p, err := srv.getPermissionsStore()
@@ -416,7 +416,7 @@ func (srv *server) getResourceClient(address string) (*resource_client.Resource_
 // account/group/app/node identity/org lookup helpers (cache first)
 
 func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
-	if data, err := srv.cache.GetItem(accountId); err == nil {
+	if data, err := srv.cache.GetItem(accountId); err == nil && len(data) > 0 {
 		acc := new(resourcepb.Account)
 		if err := protojson.Unmarshal(data, acc); err == nil {
 			return acc, nil
@@ -475,7 +475,7 @@ func (srv *server) accountExist(id string) (bool, string) {
 }
 
 func (srv *server) getGroup(groupId string) (*resourcepb.Group, error) {
-	if data, err := srv.cache.GetItem(groupId); err == nil {
+	if data, err := srv.cache.GetItem(groupId); err == nil && len(data) > 0 {
 		g := new(resourcepb.Group)
 		if err := protojson.Unmarshal(data, g); err == nil {
 			return g, nil

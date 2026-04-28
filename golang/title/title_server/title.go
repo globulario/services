@@ -140,7 +140,7 @@ func (srv *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdR
 	}
 	paths := []string{}
 	if assoc := srv.getAssociations(resolved); assoc != nil {
-		if data, err := assoc.GetItem(rqst.TitleId); err == nil {
+		if data, err := assoc.GetItem(rqst.TitleId); err == nil && len(data) > 0 {
 			a := new(fileTileAssociation)
 			if err := json.Unmarshal(data, a); err == nil {
 				paths = a.Paths
@@ -886,7 +886,7 @@ func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 	}
 	paths := []string{}
 	if assoc := srv.getAssociations(resolved); assoc != nil {
-		if data, err := assoc.GetItem(rqst.VideoId); err == nil {
+		if data, err := assoc.GetItem(rqst.VideoId); err == nil && len(data) > 0 {
 			a := new(fileTileAssociation)
 			if err := json.Unmarshal(data, a); err == nil {
 				paths = a.Paths
