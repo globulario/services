@@ -980,6 +980,11 @@ message UpstreamImportRecord {
   string channel      = 8;  // normalized channel at import time
   int64  build_number = 9;  // from release index
   string checksum     = 10; // sha256 digest at import time
+  // BOM composition provenance (Phase 3)
+  string origin_release        = 11;  // release where this artifact was originally built
+  bool   changed_in_release    = 12;  // true if built in the importing platform release
+  string platform_release      = 13;  // platform release version (e.g. "1.0.84")
+  string package_contract_digest = 14; // normalized content identity for change detection
 }
 
 // ── GC / Archive ────────────────────────────────────────────────────────────

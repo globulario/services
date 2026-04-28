@@ -4893,13 +4893,18 @@ type UpstreamImportRecord struct {
 	IndexUrl   string                 `protobuf:"bytes,4,opt,name=index_url,json=indexUrl,proto3" json:"index_url,omitempty"`        // URL of the release index used
 	ImportedAt int64                  `protobuf:"varint,5,opt,name=imported_at,json=importedAt,proto3" json:"imported_at,omitempty"` // unix timestamp of import
 	// Supply-chain provenance (Phase 2)
-	Publisher     string `protobuf:"bytes,6,opt,name=publisher,proto3" json:"publisher,omitempty"`                         // normalized publisher at import time
-	Kind          string `protobuf:"bytes,7,opt,name=kind,proto3" json:"kind,omitempty"`                                   // normalized kind at import time
-	Channel       string `protobuf:"bytes,8,opt,name=channel,proto3" json:"channel,omitempty"`                             // normalized channel at import time
-	BuildNumber   int64  `protobuf:"varint,9,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"` // from release index
-	Checksum      string `protobuf:"bytes,10,opt,name=checksum,proto3" json:"checksum,omitempty"`                          // sha256 digest at import time
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Publisher   string `protobuf:"bytes,6,opt,name=publisher,proto3" json:"publisher,omitempty"`                         // normalized publisher at import time
+	Kind        string `protobuf:"bytes,7,opt,name=kind,proto3" json:"kind,omitempty"`                                   // normalized kind at import time
+	Channel     string `protobuf:"bytes,8,opt,name=channel,proto3" json:"channel,omitempty"`                             // normalized channel at import time
+	BuildNumber int64  `protobuf:"varint,9,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"` // from release index
+	Checksum    string `protobuf:"bytes,10,opt,name=checksum,proto3" json:"checksum,omitempty"`                          // sha256 digest at import time
+	// BOM composition provenance (Phase 3)
+	OriginRelease         string `protobuf:"bytes,11,opt,name=origin_release,json=originRelease,proto3" json:"origin_release,omitempty"`                           // release where this artifact was originally built
+	ChangedInRelease      bool   `protobuf:"varint,12,opt,name=changed_in_release,json=changedInRelease,proto3" json:"changed_in_release,omitempty"`               // true if built in the importing platform release
+	PlatformRelease       string `protobuf:"bytes,13,opt,name=platform_release,json=platformRelease,proto3" json:"platform_release,omitempty"`                     // platform release version (e.g. "1.0.84")
+	PackageContractDigest string `protobuf:"bytes,14,opt,name=package_contract_digest,json=packageContractDigest,proto3" json:"package_contract_digest,omitempty"` // normalized content identity for change detection
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *UpstreamImportRecord) Reset() {
@@ -4998,6 +5003,34 @@ func (x *UpstreamImportRecord) GetBuildNumber() int64 {
 func (x *UpstreamImportRecord) GetChecksum() string {
 	if x != nil {
 		return x.Checksum
+	}
+	return ""
+}
+
+func (x *UpstreamImportRecord) GetOriginRelease() string {
+	if x != nil {
+		return x.OriginRelease
+	}
+	return ""
+}
+
+func (x *UpstreamImportRecord) GetChangedInRelease() bool {
+	if x != nil {
+		return x.ChangedInRelease
+	}
+	return false
+}
+
+func (x *UpstreamImportRecord) GetPlatformRelease() string {
+	if x != nil {
+		return x.PlatformRelease
+	}
+	return ""
+}
+
+func (x *UpstreamImportRecord) GetPackageContractDigest() string {
+	if x != nil {
+		return x.PackageContractDigest
 	}
 	return ""
 }
@@ -5581,7 +5614,7 @@ const file_repository_proto_rawDesc = "" +
 	"\adry_run\x18\x06 \x01(\bR\x06dryRun\x12!\n" +
 	"\fresolved_tag\x18\a \x01(\tR\vresolvedTag\x12\x1f\n" +
 	"\vsource_name\x18\b \x01(\tR\n" +
-	"sourceName\"\xbe\x02\n" +
+	"sourceName\"\xf6\x03\n" +
 	"\x14UpstreamImportRecord\x12\x1f\n" +
 	"\vsource_name\x18\x01 \x01(\tR\n" +
 	"sourceName\x12\x1f\n" +
@@ -5596,7 +5629,11 @@ const file_repository_proto_rawDesc = "" +
 	"\achannel\x18\b \x01(\tR\achannel\x12!\n" +
 	"\fbuild_number\x18\t \x01(\x03R\vbuildNumber\x12\x1a\n" +
 	"\bchecksum\x18\n" +
-	" \x01(\tR\bchecksum\"=\n" +
+	" \x01(\tR\bchecksum\x12%\n" +
+	"\x0eorigin_release\x18\v \x01(\tR\roriginRelease\x12,\n" +
+	"\x12changed_in_release\x18\f \x01(\bR\x10changedInRelease\x12)\n" +
+	"\x10platform_release\x18\r \x01(\tR\x0fplatformRelease\x126\n" +
+	"\x17package_contract_digest\x18\x0e \x01(\tR\x15packageContractDigest\"=\n" +
 	"\"ArchiveUnreachableArtifactsRequest\x12\x17\n" +
 	"\adry_run\x18\x01 \x01(\bR\x06dryRun\"\xa9\x01\n" +
 	"\x16ArchivedArtifactRecord\x12\x10\n" +
