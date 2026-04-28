@@ -98,6 +98,48 @@ func (srv *server) dispatchEtcdWipeAndRejoin(ctx context.Context, nodes []*nodeS
 	}
 }
 
+// dispatchWebrootSync triggers webroot-sync on all gateway nodes.
+// Best-effort: failures are logged but don't block reconciliation.
+func (srv *server) dispatchWebrootSync(ctx context.Context) {
+	srv.lock("webroot-sync")
+	nodes := srv.gatewayNodes()
+	srv.unlock()
+
+	for _, node := range nodes {
+		if node.AgentEndpoint == "" {
+			continue
+		}
+		go func(ep, hostname string) {
+			syncCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+			defer cancel()
+			ok := srv.probeInfraHealth(syncCtx, ep, "webroot-sync")
+			if !ok {
+				log.Printf("webroot-sync: %s failed", hostname)
+			}
+		}(node.AgentEndpoint, node.Identity.Hostname)
+	}
+}
+
+// gatewayNodes returns nodes that have the gateway profile.
+func (srv *server) gatewayNodes() []*nodeState {
+	var out []*nodeState
+	if srv.state == nil {
+		return out
+	}
+	for _, node := range srv.state.Nodes {
+		if node == nil || node.Status == "unreachable" {
+			continue
+		}
+		for _, p := range node.Profiles {
+			if strings.EqualFold(p, "gateway") {
+				out = append(out, node)
+				break
+			}
+		}
+	}
+	return out
+}
+
 // isActiveInfraMember returns true if the node is an active member of the
 // infrastructure cluster identified by pkgName. Active members must NOT be
 // reinstalled or disrupted by the release pipeline — doing so would cause

@@ -50,6 +50,8 @@ func (srv *NodeAgentServer) RunWorkflow(ctx context.Context, req *node_agentpb.R
 		return srv.runWipeEtcdAndRejoin(ctx, req)
 	case "probe-minio-health":
 		return srv.runProbeMinioHealth(ctx, req)
+	case "webroot-sync":
+		return srv.runWebrootSync(ctx, req)
 	case "day0.bootstrap":
 		return srv.runDay0Bootstrap(ctx, req)
 	}

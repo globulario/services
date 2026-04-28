@@ -211,6 +211,31 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 		queue.Enqueue(networkReconcileKey)
 	}
 
+	// Periodic webroot sync: mirror MinIO webroot to local disk on gateway nodes
+	// so the gateway can serve static content when MinIO is unreachable.
+	safeGo("webroot-sync-periodic", func() {
+		// Initial delay: let the cluster settle after startup.
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(2 * time.Minute):
+		}
+		srv.dispatchWebrootSync(ctx)
+
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if srv.isLeader() {
+					srv.dispatchWebrootSync(ctx)
+				}
+			}
+		}
+	})
+
 	// workers
 	for i := 0; i < workers; i++ {
 		safeGo(fmt.Sprintf("reconcile-worker-%d", i), func() {
