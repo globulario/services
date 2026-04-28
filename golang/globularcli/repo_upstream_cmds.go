@@ -36,6 +36,14 @@ var (
 	upstreamPlatform string
 	upstreamDisabled bool
 
+	// Policy flags for register-upstream
+	upstreamPublisher       string
+	upstreamAllowedKinds    string
+	upstreamAllowedChannels string
+	upstreamRequireChecksum bool
+	upstreamTrustPolicy     string
+	upstreamCredentialsRef  string
+
 	syncSource string
 	syncTag    string
 	syncDryRun bool
@@ -170,12 +178,32 @@ func runRepoRegisterUpstream(cmd *cobra.Command, args []string) error {
 	}
 
 	src := &repopb.UpstreamSource{
-		Name:     upstreamName,
-		Type:     repopb.UpstreamSourceType_GITHUB_RELEASE,
-		IndexUrl: upstreamURL,
-		Channel:  channel,
-		Platform: platform,
-		Enabled:  !upstreamDisabled,
+		Name:               upstreamName,
+		Type:               repopb.UpstreamSourceType_GITHUB_RELEASE,
+		IndexUrl:           upstreamURL,
+		Channel:            channel,
+		Platform:           platform,
+		Enabled:            !upstreamDisabled,
+		DefaultPublisherId: upstreamPublisher,
+		RequireChecksum:    upstreamRequireChecksum,
+		TrustPolicy:        upstreamTrustPolicy,
+		CredentialsRef:     upstreamCredentialsRef,
+	}
+	if upstreamAllowedKinds != "" {
+		for _, k := range strings.Split(upstreamAllowedKinds, ",") {
+			k = strings.TrimSpace(k)
+			if k != "" {
+				src.AllowedKinds = append(src.AllowedKinds, k)
+			}
+		}
+	}
+	if upstreamAllowedChannels != "" {
+		for _, c := range strings.Split(upstreamAllowedChannels, ",") {
+			c = strings.TrimSpace(c)
+			if c != "" {
+				src.AllowedChannels = append(src.AllowedChannels, c)
+			}
+		}
 	}
 
 	rc, err := repoClient()
@@ -454,6 +482,13 @@ func init() {
 	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamChannel, "channel", "stable", "Release channel")
 	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamPlatform, "platform", "linux_amd64", "Target platform")
 	repoRegisterUpstreamCmd.Flags().BoolVar(&upstreamDisabled, "disabled", false, "Register but do not enable")
+	// Policy flags
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamPublisher, "publisher", "", "Default publisher ID for entries without one")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamAllowedKinds, "allowed-kinds", "", "Comma-separated allowed kinds (SERVICE,INFRASTRUCTURE,...)")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamAllowedChannels, "allowed-channels", "", "Comma-separated allowed channels (stable,candidate,...)")
+	repoRegisterUpstreamCmd.Flags().BoolVar(&upstreamRequireChecksum, "require-checksum", false, "Reject entries without sha256 digest")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamTrustPolicy, "trust-policy", "import", "Trust policy: import (default) or quarantine")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamCredentialsRef, "credentials-ref", "", "etcd key under /globular/credentials/ for auth token")
 
 	// sync-upstream flags
 	pkgSyncUpstreamCmd.Flags().StringVar(&syncSource, "source", "", "Registered upstream source name (required)")
