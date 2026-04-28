@@ -203,40 +203,39 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 		authToken = tok
 	}
 
-	// ── GitHub latest-release discovery ───────────────────────────────────
-	var indexURL string
+	// ── Create provider via ReleaseSource abstraction ────────────────────
+	sourceType := upstream.MapProtoType(int32(src.GetType()))
+	provider, provErr := upstream.NewSource(sourceType)
+	if provErr != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "upstream source %q: %v", sourceName, provErr)
+	}
+	opts := sourceOptsFromProto(src, authToken)
+
+	// ── Discover latest release if requested ─────────────────────────────
 	if resolveLatest {
-		if src.GetRepoUrl() == "" {
-			return nil, status.Errorf(codes.InvalidArgument,
-				"resolve_latest requires repo_url on upstream source %q — register with --repo-url", sourceName)
+		refs, listErr := provider.ListReleases(ctx, opts)
+		if listErr != nil {
+			return nil, status.Errorf(codes.Unavailable, "list releases from %q: %v", sourceName, listErr)
 		}
-		owner, repo, parseErr := upstream.ParseRepoURL(src.GetRepoUrl())
-		if parseErr != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid repo_url on source %q: %v", sourceName, parseErr)
+		if len(refs) == 0 {
+			return nil, status.Errorf(codes.NotFound, "no releases found in source %q", sourceName)
 		}
-		release, fetchErr := upstream.FetchLatestRelease(owner, repo, src.GetIncludePrereleases(), authToken)
-		if fetchErr != nil {
-			return nil, status.Errorf(codes.Unavailable, "GitHub API: %v", fetchErr)
-		}
-		releaseTag = release.TagName
-		asset, assetErr := upstream.FindReleaseIndexAsset(release)
-		if assetErr != nil {
-			return nil, status.Errorf(codes.NotFound, "GitHub release %q has no release-index.json asset", releaseTag)
-		}
-		indexURL = asset.BrowserDownloadURL
+		releaseTag = refs[0].Tag
 		slog.Info("upstream: resolved latest release", "source", sourceName, "tag", releaseTag,
-			"prerelease", release.Prerelease)
-	} else {
-		indexURL = strings.ReplaceAll(src.GetIndexUrl(), "{tag}", releaseTag)
+			"provider", provider.Type())
 	}
 
 	slog.Info("upstream: starting sync",
-		"source", sourceName, "tag", releaseTag, "index_url", upstream.RedactAssetURL(indexURL), "dry_run", dryRun)
+		"source", sourceName, "tag", releaseTag, "provider", provider.Type(), "dry_run", dryRun)
 
-	// ── Fetch release index ────────────────────────────────────────────────
-	idx, err := fetchReleaseIndex(indexURL, authToken)
+	// ── Fetch release index via provider ─────────────────────────────────
+	indexData, fetchErr := provider.GetReleaseIndex(ctx, opts, releaseTag)
+	if fetchErr != nil {
+		return nil, status.Errorf(codes.Unavailable, "fetch release index from %q: %v", sourceName, fetchErr)
+	}
+	idx, err := parseReleaseIndex(indexData)
 	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "fetch release index: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "parse release index: %v", err)
 	}
 
 	// ── Validate schema ───────────────────────────────────────────────────
@@ -586,6 +585,46 @@ func (srv *server) importUpstreamArtifact(
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// sourceOptsFromProto maps a proto UpstreamSource to a provider-neutral SourceOpts.
+// This is the single place where proto fields are mapped to provider config.
+func sourceOptsFromProto(src *repopb.UpstreamSource, authToken string) upstream.SourceOpts {
+	owner := src.GetOwner()
+	repo := src.GetRepo()
+	// Backward compat: if owner/repo are empty but repo_url is set, parse it.
+	if owner == "" && repo == "" && src.GetRepoUrl() != "" {
+		if o, r, err := upstream.ParseRepoURL(src.GetRepoUrl()); err == nil {
+			owner = o
+			repo = r
+		}
+	}
+	return upstream.SourceOpts{
+		IndexURL:           src.GetIndexUrl(),
+		IndexPathTemplate:  src.GetIndexPathTemplate(),
+		Platform:           src.GetPlatform(),
+		AuthToken:          authToken,
+		CredentialsRef:     src.GetCredentialsRef(),
+		Owner:              owner,
+		Repo:               repo,
+		IncludePrereleases: src.GetIncludePrereleases(),
+		RepoURL:            src.GetRepoUrl(),
+		Branch:             src.GetBranch(),
+		ArtifactBaseURL:    src.GetArtifactBaseUrl(),
+		LocalRoot:          src.GetLocalRoot(),
+	}
+}
+
+// parseReleaseIndex unmarshals and validates a release index from raw bytes.
+func parseReleaseIndex(data []byte) (*releaseIndex, error) {
+	var idx releaseIndex
+	if err := json.Unmarshal(data, &idx); err != nil {
+		return nil, fmt.Errorf("decode index JSON: %w", err)
+	}
+	if err := ValidateReleaseIndex(&idx); err != nil {
+		return nil, err
+	}
+	return &idx, nil
+}
 
 // loadUpstreamSource reads a registered UpstreamSource from etcd.
 func (srv *server) loadUpstreamSource(ctx context.Context, name string) (*repopb.UpstreamSource, error) {
