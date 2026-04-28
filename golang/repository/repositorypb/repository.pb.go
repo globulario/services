@@ -4124,8 +4124,11 @@ type UpstreamSource struct {
 	LastSyncUnix   int64  `protobuf:"varint,16,opt,name=last_sync_unix,json=lastSyncUnix,proto3" json:"last_sync_unix,omitempty"`      // unix timestamp of last sync attempt
 	LastSyncStatus string `protobuf:"bytes,17,opt,name=last_sync_status,json=lastSyncStatus,proto3" json:"last_sync_status,omitempty"` // "succeeded" | "failed" | "partial"
 	LastSyncError  string `protobuf:"bytes,18,opt,name=last_sync_error,json=lastSyncError,proto3" json:"last_sync_error,omitempty"`    // error message from last failed sync
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// ── GitHub discovery (Phase 2) ────────────────────────────────────────
+	RepoUrl            string `protobuf:"bytes,20,opt,name=repo_url,json=repoUrl,proto3" json:"repo_url,omitempty"`                                   // "owner/repo" for GITHUB_RELEASE discovery
+	IncludePrereleases bool   `protobuf:"varint,21,opt,name=include_prereleases,json=includePrereleases,proto3" json:"include_prereleases,omitempty"` // include GitHub prerelease tags in --latest
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *UpstreamSource) Reset() {
@@ -4275,6 +4278,20 @@ func (x *UpstreamSource) GetLastSyncError() string {
 		return x.LastSyncError
 	}
 	return ""
+}
+
+func (x *UpstreamSource) GetRepoUrl() string {
+	if x != nil {
+		return x.RepoUrl
+	}
+	return ""
+}
+
+func (x *UpstreamSource) GetIncludePrereleases() bool {
+	if x != nil {
+		return x.IncludePrereleases
+	}
+	return false
 }
 
 type RegisterUpstreamRequest struct {
@@ -4529,13 +4546,23 @@ type UpstreamSyncResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	BuildId       string                 `protobuf:"bytes,3,opt,name=build_id,json=buildId,proto3" json:"build_id,omitempty"` // from release index (run number as string)
+	BuildId       string                 `protobuf:"bytes,3,opt,name=build_id,json=buildId,proto3" json:"build_id,omitempty"`
 	Platform      string                 `protobuf:"bytes,4,opt,name=platform,proto3" json:"platform,omitempty"`
 	PackageDigest string                 `protobuf:"bytes,5,opt,name=package_digest,json=packageDigest,proto3" json:"package_digest,omitempty"`
 	Status        UpstreamSyncStatus     `protobuf:"varint,6,opt,name=status,proto3,enum=repository.UpstreamSyncStatus" json:"status,omitempty"`
 	Detail        string                 `protobuf:"bytes,7,opt,name=detail,proto3" json:"detail,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Rich fields for update-check display (populated by server)
+	Publisher        string `protobuf:"bytes,10,opt,name=publisher,proto3" json:"publisher,omitempty"`
+	Kind             string `protobuf:"bytes,11,opt,name=kind,proto3" json:"kind,omitempty"`
+	Channel          string `protobuf:"bytes,12,opt,name=channel,proto3" json:"channel,omitempty"`
+	BuildNumber      int64  `protobuf:"varint,13,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
+	ChecksumPresent  bool   `protobuf:"varint,14,opt,name=checksum_present,json=checksumPresent,proto3" json:"checksum_present,omitempty"`
+	LocalVersion     string `protobuf:"bytes,15,opt,name=local_version,json=localVersion,proto3" json:"local_version,omitempty"`
+	LocalBuildNumber int64  `protobuf:"varint,16,opt,name=local_build_number,json=localBuildNumber,proto3" json:"local_build_number,omitempty"`
+	Action           string `protobuf:"bytes,17,opt,name=action,proto3" json:"action,omitempty"` // "new" | "update" | "up_to_date" | "ahead" | "blocked" | "conflict"
+	BlockedReason    string `protobuf:"bytes,18,opt,name=blocked_reason,json=blockedReason,proto3" json:"blocked_reason,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *UpstreamSyncResult) Reset() {
@@ -4617,12 +4644,76 @@ func (x *UpstreamSyncResult) GetDetail() string {
 	return ""
 }
 
+func (x *UpstreamSyncResult) GetPublisher() string {
+	if x != nil {
+		return x.Publisher
+	}
+	return ""
+}
+
+func (x *UpstreamSyncResult) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *UpstreamSyncResult) GetChannel() string {
+	if x != nil {
+		return x.Channel
+	}
+	return ""
+}
+
+func (x *UpstreamSyncResult) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
+}
+
+func (x *UpstreamSyncResult) GetChecksumPresent() bool {
+	if x != nil {
+		return x.ChecksumPresent
+	}
+	return false
+}
+
+func (x *UpstreamSyncResult) GetLocalVersion() string {
+	if x != nil {
+		return x.LocalVersion
+	}
+	return ""
+}
+
+func (x *UpstreamSyncResult) GetLocalBuildNumber() int64 {
+	if x != nil {
+		return x.LocalBuildNumber
+	}
+	return 0
+}
+
+func (x *UpstreamSyncResult) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *UpstreamSyncResult) GetBlockedReason() string {
+	if x != nil {
+		return x.BlockedReason
+	}
+	return ""
+}
+
 type SyncFromUpstreamRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SourceName    string                 `protobuf:"bytes,1,opt,name=source_name,json=sourceName,proto3" json:"source_name,omitempty"` // references a registered UpstreamSource
-	ReleaseTag    string                 `protobuf:"bytes,2,opt,name=release_tag,json=releaseTag,proto3" json:"release_tag,omitempty"` // REQUIRED: explicit release tag (e.g. "v1.0.17")
+	ReleaseTag    string                 `protobuf:"bytes,2,opt,name=release_tag,json=releaseTag,proto3" json:"release_tag,omitempty"` // Explicit tag. Optional when resolve_latest=true + source has repo_url.
 	DryRun        bool                   `protobuf:"varint,3,opt,name=dry_run,json=dryRun,proto3" json:"dry_run,omitempty"`
-	Only          []string               `protobuf:"bytes,4,rep,name=only,proto3" json:"only,omitempty"` // optional: restrict to these package names
+	Only          []string               `protobuf:"bytes,4,rep,name=only,proto3" json:"only,omitempty"`                                         // optional: restrict to these package names
+	ResolveLatest bool                   `protobuf:"varint,5,opt,name=resolve_latest,json=resolveLatest,proto3" json:"resolve_latest,omitempty"` // When true, discover latest release from source.repo_url
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4685,6 +4776,13 @@ func (x *SyncFromUpstreamRequest) GetOnly() []string {
 	return nil
 }
 
+func (x *SyncFromUpstreamRequest) GetResolveLatest() bool {
+	if x != nil {
+		return x.ResolveLatest
+	}
+	return false
+}
+
 type SyncFromUpstreamResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Results       []*UpstreamSyncResult  `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
@@ -4692,7 +4790,9 @@ type SyncFromUpstreamResponse struct {
 	Skipped       int32                  `protobuf:"varint,3,opt,name=skipped,proto3" json:"skipped,omitempty"`
 	Rejected      int32                  `protobuf:"varint,4,opt,name=rejected,proto3" json:"rejected,omitempty"`
 	Failed        int32                  `protobuf:"varint,5,opt,name=failed,proto3" json:"failed,omitempty"`
-	DryRun        bool                   `protobuf:"varint,6,opt,name=dry_run,json=dryRun,proto3" json:"dry_run,omitempty"` // echoes request mode — callers can always verify
+	DryRun        bool                   `protobuf:"varint,6,opt,name=dry_run,json=dryRun,proto3" json:"dry_run,omitempty"`
+	ResolvedTag   string                 `protobuf:"bytes,7,opt,name=resolved_tag,json=resolvedTag,proto3" json:"resolved_tag,omitempty"` // actual release tag used (explicit or discovered)
+	SourceName    string                 `protobuf:"bytes,8,opt,name=source_name,json=sourceName,proto3" json:"source_name,omitempty"`    // echoes source for display
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4769,15 +4869,35 @@ func (x *SyncFromUpstreamResponse) GetDryRun() bool {
 	return false
 }
 
+func (x *SyncFromUpstreamResponse) GetResolvedTag() string {
+	if x != nil {
+		return x.ResolvedTag
+	}
+	return ""
+}
+
+func (x *SyncFromUpstreamResponse) GetSourceName() string {
+	if x != nil {
+		return x.SourceName
+	}
+	return ""
+}
+
 // UpstreamImportRecord is written once at import time and never modified.
 // Attached to ArtifactManifest for artifacts sourced from upstream.
 type UpstreamImportRecord struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SourceName    string                 `protobuf:"bytes,1,opt,name=source_name,json=sourceName,proto3" json:"source_name,omitempty"`  // references UpstreamSource.name
-	ReleaseTag    string                 `protobuf:"bytes,2,opt,name=release_tag,json=releaseTag,proto3" json:"release_tag,omitempty"`  // e.g. "v1.0.17"
-	AssetUrl      string                 `protobuf:"bytes,3,opt,name=asset_url,json=assetUrl,proto3" json:"asset_url,omitempty"`        // direct URL the binary was downloaded from
-	IndexUrl      string                 `protobuf:"bytes,4,opt,name=index_url,json=indexUrl,proto3" json:"index_url,omitempty"`        // URL of the release index used
-	ImportedAt    int64                  `protobuf:"varint,5,opt,name=imported_at,json=importedAt,proto3" json:"imported_at,omitempty"` // unix timestamp of import
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	SourceName string                 `protobuf:"bytes,1,opt,name=source_name,json=sourceName,proto3" json:"source_name,omitempty"`  // references UpstreamSource.name
+	ReleaseTag string                 `protobuf:"bytes,2,opt,name=release_tag,json=releaseTag,proto3" json:"release_tag,omitempty"`  // e.g. "v1.0.17"
+	AssetUrl   string                 `protobuf:"bytes,3,opt,name=asset_url,json=assetUrl,proto3" json:"asset_url,omitempty"`        // direct URL the binary was downloaded from
+	IndexUrl   string                 `protobuf:"bytes,4,opt,name=index_url,json=indexUrl,proto3" json:"index_url,omitempty"`        // URL of the release index used
+	ImportedAt int64                  `protobuf:"varint,5,opt,name=imported_at,json=importedAt,proto3" json:"imported_at,omitempty"` // unix timestamp of import
+	// Supply-chain provenance (Phase 2)
+	Publisher     string `protobuf:"bytes,6,opt,name=publisher,proto3" json:"publisher,omitempty"`                         // normalized publisher at import time
+	Kind          string `protobuf:"bytes,7,opt,name=kind,proto3" json:"kind,omitempty"`                                   // normalized kind at import time
+	Channel       string `protobuf:"bytes,8,opt,name=channel,proto3" json:"channel,omitempty"`                             // normalized channel at import time
+	BuildNumber   int64  `protobuf:"varint,9,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"` // from release index
+	Checksum      string `protobuf:"bytes,10,opt,name=checksum,proto3" json:"checksum,omitempty"`                          // sha256 digest at import time
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4845,6 +4965,41 @@ func (x *UpstreamImportRecord) GetImportedAt() int64 {
 		return x.ImportedAt
 	}
 	return 0
+}
+
+func (x *UpstreamImportRecord) GetPublisher() string {
+	if x != nil {
+		return x.Publisher
+	}
+	return ""
+}
+
+func (x *UpstreamImportRecord) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *UpstreamImportRecord) GetChannel() string {
+	if x != nil {
+		return x.Channel
+	}
+	return ""
+}
+
+func (x *UpstreamImportRecord) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
+}
+
+func (x *UpstreamImportRecord) GetChecksum() string {
+	if x != nil {
+		return x.Checksum
+	}
+	return ""
 }
 
 type ArchiveUnreachableArtifactsRequest struct {
@@ -5359,7 +5514,7 @@ const file_repository_proto_rawDesc = "" +
 	"\x12confirmed_build_id\x18\x02 \x01(\tR\x10confirmedBuildId\x12+\n" +
 	"\x11confirmed_version\x18\x03 \x01(\tR\x10confirmedVersion\x12\x14\n" +
 	"\x05state\x18\x04 \x01(\tR\x05state\x12\x18\n" +
-	"\amessage\x18\x05 \x01(\tR\amessage\"\x8d\x05\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\"\xd9\x05\n" +
 	"\x0eUpstreamSource\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x122\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x1e.repository.UpstreamSourceTypeR\x04type\x12\x1b\n" +
@@ -5378,7 +5533,9 @@ const file_repository_proto_rawDesc = "" +
 	"\ftrust_policy\x18\x0f \x01(\tR\vtrustPolicy\x12$\n" +
 	"\x0elast_sync_unix\x18\x10 \x01(\x03R\flastSyncUnix\x12(\n" +
 	"\x10last_sync_status\x18\x11 \x01(\tR\x0elastSyncStatus\x12&\n" +
-	"\x0flast_sync_error\x18\x12 \x01(\tR\rlastSyncError\"M\n" +
+	"\x0flast_sync_error\x18\x12 \x01(\tR\rlastSyncError\x12\x19\n" +
+	"\brepo_url\x18\x14 \x01(\tR\arepoUrl\x12/\n" +
+	"\x13include_prereleases\x18\x15 \x01(\bR\x12includePrereleases\"M\n" +
 	"\x17RegisterUpstreamRequest\x122\n" +
 	"\x06source\x18\x01 \x01(\v2\x1a.repository.UpstreamSourceR\x06source\"N\n" +
 	"\x18RegisterUpstreamResponse\x122\n" +
@@ -5388,7 +5545,7 @@ const file_repository_proto_rawDesc = "" +
 	"\asources\x18\x01 \x03(\v2\x1a.repository.UpstreamSourceR\asources\"+\n" +
 	"\x15RemoveUpstreamRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"\x18\n" +
-	"\x16RemoveUpstreamResponse\"\xf0\x01\n" +
+	"\x16RemoveUpstreamResponse\"\x9c\x04\n" +
 	"\x12UpstreamSyncResult\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x19\n" +
@@ -5396,21 +5553,35 @@ const file_repository_proto_rawDesc = "" +
 	"\bplatform\x18\x04 \x01(\tR\bplatform\x12%\n" +
 	"\x0epackage_digest\x18\x05 \x01(\tR\rpackageDigest\x126\n" +
 	"\x06status\x18\x06 \x01(\x0e2\x1e.repository.UpstreamSyncStatusR\x06status\x12\x16\n" +
-	"\x06detail\x18\a \x01(\tR\x06detail\"\x88\x01\n" +
+	"\x06detail\x18\a \x01(\tR\x06detail\x12\x1c\n" +
+	"\tpublisher\x18\n" +
+	" \x01(\tR\tpublisher\x12\x12\n" +
+	"\x04kind\x18\v \x01(\tR\x04kind\x12\x18\n" +
+	"\achannel\x18\f \x01(\tR\achannel\x12!\n" +
+	"\fbuild_number\x18\r \x01(\x03R\vbuildNumber\x12)\n" +
+	"\x10checksum_present\x18\x0e \x01(\bR\x0fchecksumPresent\x12#\n" +
+	"\rlocal_version\x18\x0f \x01(\tR\flocalVersion\x12,\n" +
+	"\x12local_build_number\x18\x10 \x01(\x03R\x10localBuildNumber\x12\x16\n" +
+	"\x06action\x18\x11 \x01(\tR\x06action\x12%\n" +
+	"\x0eblocked_reason\x18\x12 \x01(\tR\rblockedReason\"\xaf\x01\n" +
 	"\x17SyncFromUpstreamRequest\x12\x1f\n" +
 	"\vsource_name\x18\x01 \x01(\tR\n" +
 	"sourceName\x12\x1f\n" +
 	"\vrelease_tag\x18\x02 \x01(\tR\n" +
 	"releaseTag\x12\x17\n" +
 	"\adry_run\x18\x03 \x01(\bR\x06dryRun\x12\x12\n" +
-	"\x04only\x18\x04 \x03(\tR\x04only\"\xd7\x01\n" +
+	"\x04only\x18\x04 \x03(\tR\x04only\x12%\n" +
+	"\x0eresolve_latest\x18\x05 \x01(\bR\rresolveLatest\"\x9b\x02\n" +
 	"\x18SyncFromUpstreamResponse\x128\n" +
 	"\aresults\x18\x01 \x03(\v2\x1e.repository.UpstreamSyncResultR\aresults\x12\x1a\n" +
 	"\bimported\x18\x02 \x01(\x05R\bimported\x12\x18\n" +
 	"\askipped\x18\x03 \x01(\x05R\askipped\x12\x1a\n" +
 	"\brejected\x18\x04 \x01(\x05R\brejected\x12\x16\n" +
 	"\x06failed\x18\x05 \x01(\x05R\x06failed\x12\x17\n" +
-	"\adry_run\x18\x06 \x01(\bR\x06dryRun\"\xb3\x01\n" +
+	"\adry_run\x18\x06 \x01(\bR\x06dryRun\x12!\n" +
+	"\fresolved_tag\x18\a \x01(\tR\vresolvedTag\x12\x1f\n" +
+	"\vsource_name\x18\b \x01(\tR\n" +
+	"sourceName\"\xbe\x02\n" +
 	"\x14UpstreamImportRecord\x12\x1f\n" +
 	"\vsource_name\x18\x01 \x01(\tR\n" +
 	"sourceName\x12\x1f\n" +
@@ -5419,7 +5590,13 @@ const file_repository_proto_rawDesc = "" +
 	"\tasset_url\x18\x03 \x01(\tR\bassetUrl\x12\x1b\n" +
 	"\tindex_url\x18\x04 \x01(\tR\bindexUrl\x12\x1f\n" +
 	"\vimported_at\x18\x05 \x01(\x03R\n" +
-	"importedAt\"=\n" +
+	"importedAt\x12\x1c\n" +
+	"\tpublisher\x18\x06 \x01(\tR\tpublisher\x12\x12\n" +
+	"\x04kind\x18\a \x01(\tR\x04kind\x12\x18\n" +
+	"\achannel\x18\b \x01(\tR\achannel\x12!\n" +
+	"\fbuild_number\x18\t \x01(\x03R\vbuildNumber\x12\x1a\n" +
+	"\bchecksum\x18\n" +
+	" \x01(\tR\bchecksum\"=\n" +
 	"\"ArchiveUnreachableArtifactsRequest\x12\x17\n" +
 	"\adry_run\x18\x01 \x01(\bR\x06dryRun\"\xa9\x01\n" +
 	"\x16ArchivedArtifactRecord\x12\x10\n" +

@@ -885,6 +885,10 @@ message UpstreamSource {
   int64  last_sync_unix   = 16;  // unix timestamp of last sync attempt
   string last_sync_status = 17;  // "succeeded" | "failed" | "partial"
   string last_sync_error  = 18;  // error message from last failed sync
+
+  // ── GitHub discovery (Phase 2) ────────────────────────────────────────
+  string repo_url            = 20;  // "owner/repo" for GITHUB_RELEASE discovery
+  bool   include_prereleases = 21;  // include GitHub prerelease tags in --latest
 }
 
 message RegisterUpstreamRequest  { UpstreamSource source = 1; }
@@ -926,27 +930,40 @@ enum UpstreamSyncStatus {
 message UpstreamSyncResult {
   string name           = 1;
   string version        = 2;
-  string build_id       = 3;   // from release index (run number as string)
+  string build_id       = 3;
   string platform       = 4;
   string package_digest = 5;
   UpstreamSyncStatus status = 6;
   string detail         = 7;
+  // Rich fields for update-check display (populated by server)
+  string publisher          = 10;
+  string kind               = 11;
+  string channel            = 12;
+  int64  build_number       = 13;
+  bool   checksum_present   = 14;
+  string local_version      = 15;
+  int64  local_build_number = 16;
+  string action             = 17;  // "new" | "update" | "up_to_date" | "ahead" | "blocked" | "conflict"
+  string blocked_reason     = 18;
 }
 
 message SyncFromUpstreamRequest {
-  string source_name   = 1;  // references a registered UpstreamSource
-  string release_tag   = 2;  // REQUIRED: explicit release tag (e.g. "v1.0.17")
-  bool   dry_run       = 3;
-  repeated string only = 4;  // optional: restrict to these package names
+  string source_name    = 1;  // references a registered UpstreamSource
+  string release_tag    = 2;  // Explicit tag. Optional when resolve_latest=true + source has repo_url.
+  bool   dry_run        = 3;
+  repeated string only  = 4;  // optional: restrict to these package names
+  bool   resolve_latest = 5;  // When true, discover latest release from source.repo_url
 }
 
 message SyncFromUpstreamResponse {
   repeated UpstreamSyncResult results = 1;
-  int32 imported  = 2;
-  int32 skipped   = 3;
-  int32 rejected  = 4;
-  int32 failed    = 5;
-  bool  dry_run   = 6;  // echoes request mode — callers can always verify
+  int32 imported     = 2;
+  int32 skipped      = 3;
+  int32 rejected     = 4;
+  int32 failed       = 5;
+  bool  dry_run      = 6;
+  string resolved_tag = 7;   // actual release tag used (explicit or discovered)
+  string source_name  = 8;   // echoes source for display
 }
 
 // UpstreamImportRecord is written once at import time and never modified.
@@ -957,6 +974,12 @@ message UpstreamImportRecord {
   string asset_url    = 3;  // direct URL the binary was downloaded from
   string index_url    = 4;  // URL of the release index used
   int64  imported_at  = 5;  // unix timestamp of import
+  // Supply-chain provenance (Phase 2)
+  string publisher    = 6;  // normalized publisher at import time
+  string kind         = 7;  // normalized kind at import time
+  string channel      = 8;  // normalized channel at import time
+  int64  build_number = 9;  // from release index
+  string checksum     = 10; // sha256 digest at import time
 }
 
 // ── GC / Archive ────────────────────────────────────────────────────────────
