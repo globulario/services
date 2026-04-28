@@ -278,7 +278,11 @@ func (srv *server) processSyncEntry(
 
 	publisher := entry.Publisher
 	if publisher == "" {
-		publisher = "core@globular.io"
+		if dp := src.GetDefaultPublisherId(); dp != "" {
+			publisher = dp
+		} else {
+			publisher = "core@globular.io"
+		}
 	}
 
 	result := &repopb.UpstreamSyncResult{
@@ -287,6 +291,25 @@ func (srv *server) processSyncEntry(
 		BuildId:       entry.BuildID,
 		Platform:      entry.Platform,
 		PackageDigest: entry.PackageDigest,
+	}
+
+	// ── Policy filtering ──────────────────────────────────────────────────
+	if reason, rejected := checkImportPolicy(entry, publisher, src); rejected {
+		if dryRun {
+			result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_REJECT
+		} else {
+			result.Status = repopb.UpstreamSyncStatus_SYNC_REJECTED
+			srv.publishAuditEvent(ctx, "upstream.policy_rejected", map[string]any{
+				"source":     src.GetName(),
+				"package":    entry.Name,
+				"version":    entry.Version,
+				"publisher":  publisher,
+				"kind":       entry.Kind,
+				"reason":     reason,
+			})
+		}
+		result.Detail = reason
+		return result
 	}
 
 	// ── Check local ledger ─────────────────────────────────────────────────
@@ -384,7 +407,11 @@ func (srv *server) processSyncEntry(
 	}
 
 	result.Status = repopb.UpstreamSyncStatus_SYNC_IMPORTED
-	result.Detail = fmt.Sprintf("imported from %s", src.GetName())
+	if strings.EqualFold(src.GetTrustPolicy(), "quarantine") {
+		result.Detail = fmt.Sprintf("imported from %s (quarantined — requires manual promotion)", src.GetName())
+	} else {
+		result.Detail = fmt.Sprintf("imported from %s", src.GetName())
+	}
 	slog.Info("upstream: imported", "name", entry.Name, "version", entry.Version, "platform", entry.Platform, "digest", truncDigest(digest))
 	return result
 }
@@ -452,14 +479,15 @@ func (srv *server) importUpstreamArtifact(
 		manifest.Ref.Kind = kind
 	}
 
-	mjson, err := marshalManifestWithState(manifest, repopb.PublishState_PUBLISHED)
+	targetState := importTargetState(src)
+	mjson, err := marshalManifestWithState(manifest, targetState)
 	if err != nil {
 		return fmt.Errorf("marshal manifest: %w", err)
 	}
 	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
 		return fmt.Errorf("write manifest: %w", err)
 	}
-	srv.syncManifestToScylla(ctx, key, manifest, repopb.PublishState_PUBLISHED, mjson)
+	srv.syncManifestToScylla(ctx, key, manifest, targetState, mjson)
 
 	// Append to release ledger using the original CI build_id from the release
 	// index (not confirmedBuildID which is the internal UUIDv7). The ledger
@@ -641,4 +669,61 @@ func kindFromArtifactKindString(s string) (repopb.ArtifactKind, bool) {
 	default:
 		return repopb.ArtifactKind_SERVICE, false
 	}
+}
+
+// checkImportPolicy validates a release index entry against the upstream source's
+// import policy. Returns (reason, true) if rejected, ("", false) if allowed.
+func checkImportPolicy(entry *releaseIndexEntry, publisher string, src *repopb.UpstreamSource) (string, bool) {
+	// allowed_publishers: if set, reject publishers not in the list.
+	if pubs := src.GetAllowedPublishers(); len(pubs) > 0 {
+		if !containsFold(pubs, publisher) {
+			return fmt.Sprintf("publisher %q not in allowed_publishers", publisher), true
+		}
+	}
+
+	// allowed_kinds: if set, reject kinds not in the list.
+	if kinds := src.GetAllowedKinds(); len(kinds) > 0 {
+		if entry.Kind != "" && !containsFold(kinds, entry.Kind) {
+			return fmt.Sprintf("kind %q not in allowed_kinds", entry.Kind), true
+		}
+	}
+
+	// allowed_channels: if set, reject channels not in the list.
+	if channels := src.GetAllowedChannels(); len(channels) > 0 {
+		// Entries without a channel field default to "stable".
+		ch := src.GetChannel()
+		if ch == "" {
+			ch = "stable"
+		}
+		if !containsFold(channels, ch) {
+			return fmt.Sprintf("channel %q not in allowed_channels", ch), true
+		}
+	}
+
+	// require_checksum: reject entries with empty sha256.
+	if src.GetRequireChecksum() && entry.PackageDigest == "" {
+		return "require_checksum is set but entry has no package_digest", true
+	}
+
+	return "", false
+}
+
+// containsFold checks if any element in the slice matches s (case-insensitive).
+func containsFold(list []string, s string) bool {
+	for _, v := range list {
+		if strings.EqualFold(v, s) {
+			return true
+		}
+	}
+	return false
+}
+
+// importTargetState returns the publish state to use when importing.
+// "quarantine" trust_policy → QUARANTINED (recorded but not installable).
+// Default ("import" or empty) → PUBLISHED.
+func importTargetState(src *repopb.UpstreamSource) repopb.PublishState {
+	if strings.EqualFold(src.GetTrustPolicy(), "quarantine") {
+		return repopb.PublishState_QUARANTINED
+	}
+	return repopb.PublishState_PUBLISHED
 }
