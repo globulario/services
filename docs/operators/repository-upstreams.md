@@ -24,13 +24,17 @@ globular repo sync --source globulario-github --tag v1.0.30
 
 ## Concepts
 
-### Release Index
+### Release Index Schema
 
-Every release tag publishes a `release-index.json` that lists all packages
-in the release. Schema version: `globular.repository.index/v1`.
+Every release tag publishes a `release-index.json` (schema: `globular.repository.index/v1`).
 
-Required fields per entry: `name`, `version`, `platform`, `asset_url`,
-`package_digest` (sha256:hex64).
+Required per entry: `name`, `version`, `platform`, `asset_url`, `package_digest`.
+
+Optional: `build_number` (int64), `build_id` (string), `channel`, `kind`, `publisher`.
+
+When `build_number` is missing, the repository derives a deterministic positive
+value from `build_id + digest` to avoid collisions. When `build_id` is missing,
+it is derived from `(publisher, name, version, platform, digest)`.
 
 ### Sync Identity Model
 
@@ -56,6 +60,15 @@ Required fields per entry: `name`, `version`, `platform`, `asset_url`,
 | `--require-checksum` | Reject entries without sha256 digest |
 | `--trust-policy` | "import" or "quarantine" |
 | `--credentials-ref` | etcd key under /globular/credentials/ for auth token |
+
+### Channel Handling
+
+Each release-index entry may include a `channel` field. The normalization chain:
+1. Entry `channel` (highest priority)
+2. Source `channel` (from register-upstream)
+3. `"stable"` (default)
+
+The `allowed_channels` policy validates the **normalized** entry channel.
 
 ## Commands
 
@@ -85,11 +98,22 @@ Read-only comparison of upstream release index against local catalog.
 
 ## Upstream Refill (DownloadArtifact)
 
-When `allow_upstream_fallback` is set on DownloadArtifactRequest and the
-local MinIO blob is missing, the repository server checks the manifest's
-`upstream_import` record. If present, it re-downloads from the original
-`asset_url`, verifies the sha256 checksum, refills the MinIO cache, and
-streams to the caller. This is transparent to the node-agent.
+When a MinIO blob is missing, DownloadArtifact automatically attempts upstream
+refill using **server policy** — no client changes required. Old node-agent
+callers benefit transparently.
+
+Server-policy refill is allowed when ALL conditions hold:
+- Manifest exists with `upstream_import` record
+- Manifest has a checksum for verification
+- Publish state is downloadable (not YANKED/QUARANTINED/REVOKED)
+- The named upstream source exists and is enabled in etcd
+- Source `trust_policy` is not `"quarantine"` (quarantine blocks auto-refill)
+- Manifest publisher/kind/channel pass the source's `allowed_*` policy
+
+The `allow_upstream_fallback` request field still works as an explicit override.
+
+If any trust check fails, refill is rejected (fail closed) and the download
+returns NotFound as before.
 
 ## Sync Status Tracking
 
@@ -106,3 +130,35 @@ After each sync, the upstream source record in etcd is updated with:
 - ListUpstreams redacts credential references in responses
 - All sync RPCs require cluster-admin authorization
 - Downloaded artifacts are verified against sha256 checksums before storage
+- Upstream refill verifies source trust before downloading (fail closed)
+
+## Phase 2 Roadmap
+
+### GitHub Latest-Release Discovery
+
+Phase 1 requires an explicit `release_tag` for all sync and update-check
+operations. Phase 2 will add automatic latest-release discovery:
+
+- Add `repo_url` field to `UpstreamSource` for `GITHUB_RELEASE` sources
+  (e.g. `"globulario/services"`)
+- `repo update-check --source <name> --latest` fetches the latest GitHub
+  Release via the GitHub API, extracts the `release-index.json` asset, and
+  compares against the local catalog
+- `repo sync --source <name> --latest` imports from the latest release
+- For private repos, `credentials_ref` provides the GitHub API token
+- No auto-sync in Phase 2 — operator must initiate
+
+### PublishToUpstream
+
+Phase 1 is pull-only. Phase 2 will add the ability to push artifacts to
+upstream registries:
+
+- `GenerateReleaseIndex()` already exists for building release-index.json
+  from locally published packages
+- New RPC: `PublishToUpstream` — creates/updates a GitHub Release, uploads
+  `.tgz`, `.sha256`, and `release-index.json` assets
+- RBAC action: `repository.upstream.publish`
+- Uses `credentials_ref` for write access (separate key from read token)
+- Never triggered automatically by `UploadArtifact` — explicit operator action
+- Workflow-tracked via `repository.publish.upstream` workflow
+- Phase 2 will also support HTTP PUT endpoints for non-GitHub registries
