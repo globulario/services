@@ -44,7 +44,6 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
-	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -456,7 +455,13 @@ func (srv *server) importUpstreamArtifact(
 		return fmt.Errorf("write binary: %w", err)
 	}
 
-	confirmedBuildID := uuid.Must(uuid.NewV7()).String()
+	// Deterministic build identity: preserve upstream build_id if present.
+	// Otherwise derive from (publisher, name, version, platform, sha256).
+	// Never generate random UUIDv7 for imported artifacts.
+	confirmedBuildID := entry.BuildID
+	if confirmedBuildID == "" {
+		confirmedBuildID = deriveUpstreamBuildID(publisher, entry.Name, entry.Version, entry.Platform, digest)
+	}
 	manifest := &repopb.ArtifactManifest{
 		Ref:                ref,
 		BuildNumber:        buildNumber,
@@ -489,11 +494,10 @@ func (srv *server) importUpstreamArtifact(
 	}
 	srv.syncManifestToScylla(ctx, key, manifest, targetState, mjson)
 
-	// Append to release ledger using the original CI build_id from the release
-	// index (not confirmedBuildID which is the internal UUIDv7). The ledger
-	// tracks the CI build_id so future syncs can look up the exact artifact key.
+	// Append to release ledger using confirmedBuildID (same as manifest).
+	// With deterministic build identity, manifest and ledger are now in sync.
 	if ledgerErr := srv.appendToLedger(ctx, publisher, entry.Name, entry.Version,
-		entry.BuildID, digest, entry.Platform, int64(len(data))); ledgerErr != nil {
+		confirmedBuildID, digest, entry.Platform, int64(len(data))); ledgerErr != nil {
 		slog.Warn("upstream: ledger append failed (non-fatal)", "name", entry.Name, "err", ledgerErr)
 	}
 	return nil
@@ -716,6 +720,19 @@ func containsFold(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// deriveUpstreamBuildID produces a deterministic build_id from the package
+// identity and content hash. Used only when the upstream release index has no
+// build_id. The result is a sha256-based string (not a UUIDv7) that is stable
+// across repeated imports of the same artifact.
+func deriveUpstreamBuildID(publisher, name, version, platform, digest string) string {
+	h := sha256.New()
+	for _, s := range []string{publisher, name, version, platform, digest} {
+		h.Write([]byte(s))
+		h.Write([]byte{0}) // separator
+	}
+	return "upstream:" + hex.EncodeToString(h.Sum(nil))[:32]
 }
 
 // importTargetState returns the publish state to use when importing.
