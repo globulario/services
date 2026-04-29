@@ -20,8 +20,8 @@ var platformUpgradeCmd = &cobra.Command{
 	Use:   "platform-upgrade <release-tag>",
 	Short: "Apply a platform release BOM to update desired state",
 	Long: `Reads the release-index.json for the given platform release tag and
-updates the cluster's desired state so every service version matches
-the BOM.
+updates the cluster's desired state so every package version matches
+the BOM — both services and infrastructure.
 
 This bridges Layer 1 (repository) and Layer 2 (desired state). The
 reconciler handles Layer 3 (install) and Layer 4 (runtime) automatically.
@@ -62,8 +62,6 @@ func runPlatformUpgrade(cmd *cobra.Command, args []string) error {
 
 	autoDiscoverController(cmd)
 
-	// Load the release-index.json from the local file written at Day-0,
-	// or fall back to the synced copy in etcd.
 	idx, err := loadBOMIndex(tag)
 	if err != nil {
 		return err
@@ -79,8 +77,9 @@ func runPlatformUpgrade(cmd *cobra.Command, args []string) error {
 	defer conn.Close()
 
 	cc := cluster_controllerpb.NewClusterControllerServiceClient(conn)
+	rc := cluster_controllerpb.NewResourcesServiceClient(conn)
 
-	var updated, skipped, failed int
+	var svcUpdated, infraUpdated, failed int
 
 	for _, pkg := range idx.Packages {
 		if pkg.Name == "" || pkg.Version == "" {
@@ -88,58 +87,83 @@ func runPlatformUpgrade(cmd *cobra.Command, args []string) error {
 		}
 
 		kind := strings.ToLower(pkg.Kind)
+		label := "service"
 
-		// Infrastructure and command packages are managed by
-		// InfrastructureRelease resources. UpsertDesiredService only
-		// handles SERVICE kind. Skip infra — their versions are set
-		// by the release pipeline reconciler from the repository catalog.
 		if kind == "infrastructure" || kind == "command" {
-			skipped++
-			continue
-		}
+			label = kind
+			if platformUpgradeDryRun {
+				fmt.Printf("  would   %-25s -> v%-25s (%s)\n", pkg.Name, pkg.Version, label)
+				infraUpdated++
+				continue
+			}
 
-		if platformUpgradeDryRun {
-			fmt.Printf("  would   %-25s -> v%s\n", pkg.Name, pkg.Version)
-			updated++
-			continue
-		}
+			// Update InfrastructureRelease via ResourcesService.
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			_, err := rc.ApplyInfrastructureRelease(ctx,
+				&cluster_controllerpb.ApplyInfrastructureReleaseRequest{
+					Object: &cluster_controllerpb.InfrastructureRelease{
+						Meta: &cluster_controllerpb.ObjectMeta{
+							Name: "core@globular.io/" + pkg.Name,
+						},
+						Spec: &cluster_controllerpb.InfrastructureReleaseSpec{
+							PublisherID: "core@globular.io",
+							Component:   pkg.Name,
+							Version:     pkg.Version,
+						},
+					},
+				})
+			cancel()
+			if err != nil {
+				fmt.Printf("  FAIL   %-25s v%-25s (%s: %v)\n", pkg.Name, pkg.Version, label, err)
+				failed++
+				continue
+			}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		_, err := cc.UpsertDesiredService(ctx, &cluster_controllerpb.UpsertDesiredServiceRequest{
-			Service: &cluster_controllerpb.DesiredService{
-				ServiceId: pkg.Name,
-				Version:   pkg.Version,
-			},
-		})
-		cancel()
-		if err != nil {
-			fmt.Printf("  FAIL   %-25s v%s  (%v)\n", pkg.Name, pkg.Version, err)
-			failed++
-			continue
-		}
+			fmt.Printf("  update  %-25s -> v%-25s (%s)\n", pkg.Name, pkg.Version, label)
+			infraUpdated++
+		} else {
+			// Service packages — update via UpsertDesiredService.
+			if platformUpgradeDryRun {
+				fmt.Printf("  would   %-25s -> v%-25s (%s)\n", pkg.Name, pkg.Version, label)
+				svcUpdated++
+				continue
+			}
 
-		fmt.Printf("  update  %-25s -> v%s\n", pkg.Name, pkg.Version)
-		updated++
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			_, err := cc.UpsertDesiredService(ctx,
+				&cluster_controllerpb.UpsertDesiredServiceRequest{
+					Service: &cluster_controllerpb.DesiredService{
+						ServiceId: pkg.Name,
+						Version:   pkg.Version,
+					},
+				})
+			cancel()
+			if err != nil {
+				fmt.Printf("  FAIL   %-25s v%-25s (%s: %v)\n", pkg.Name, pkg.Version, label, err)
+				failed++
+				continue
+			}
+
+			fmt.Printf("  update  %-25s -> v%-25s (%s)\n", pkg.Name, pkg.Version, label)
+			svcUpdated++
+		}
 	}
 
-	fmt.Printf("\n%s: %d services updated, %d infra/command skipped, %d failed\n",
-		idx.ReleaseTag, updated, skipped, failed)
+	fmt.Printf("\n%s: %d services + %d infra/command updated, %d failed\n",
+		idx.ReleaseTag, svcUpdated, infraUpdated, failed)
 
 	if platformUpgradeDryRun {
 		fmt.Println("(dry-run — no changes applied)")
 	}
 
 	if failed > 0 {
-		return fmt.Errorf("%d service(s) failed to update", failed)
+		return fmt.Errorf("%d package(s) failed to update", failed)
 	}
 	return nil
 }
 
 // loadBOMIndex loads the release-index.json for a given tag.
-// Tries the local file first (written by Day-0), then falls back to
-// reading from etcd where the repository sync stores the last synced index.
 func loadBOMIndex(tag string) (*bomIndex, error) {
-	// Try local file (written by Day-0 installer or offline tarball)
 	for _, path := range []string{
 		"/var/lib/globular/release-index.json",
 		"release-index.json",

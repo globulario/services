@@ -33,7 +33,7 @@
   "ai-router":            {"binary": "ai_router_server",            "go_target": "ai_router/ai_router_server",                       "kind": "service",        "platform_version": true},
   "xds":                  {"binary": "xds",                         "go_target": "",                                                 "kind": "infrastructure", "platform_version": true},
   "gateway":              {"binary": "gateway",                     "go_target": "",                                                 "kind": "infrastructure", "platform_version": true},
-  "mcp":                  {"binary": "mcp",                         "go_target": "mcp",                                              "kind": "infrastructure", "platform_version": true},
+  "mcp":                  {"binary": "mcp",                         "go_target": "mcp",                                              "kind": "service",        "platform_version": true},
   "globular-cli":         {"binary": "globularcli",                 "go_target": "globularcli",                                      "kind": "command",        "platform_version": true},
 
   "scylladb":             {"binary": "noop",                        "go_target": "",                                                 "kind": "infrastructure", "platform_version": false},
