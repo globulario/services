@@ -550,7 +550,7 @@ jobs:
               pj_out["version"] = pkg_version
               pj_out["entrypoint_checksum"] = checksum
               pj_out["build_id"] = build_id
-              pj_out["build_number"] = build_number
+              pj_out["build_number"] = int(build_number)
               with open(f"{tmpdir}/package.json", "w") as f:
                   json.dump(pj_out, f, indent=2)
 
