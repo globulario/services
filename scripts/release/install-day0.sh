@@ -1588,6 +1588,26 @@ fi
 # ── Publish bootstrap artifacts to repository (Layer 1) ──────────────────────
 # Populates the Repository catalog so the cluster can manage upgrades,
 # new-node joins, and desired-state resolution. Idempotent — skips packages
+# ── Copy release-index.json to state directory ────────────────────────────────
+# The release-index.json is the authoritative BOM for this platform release.
+# It is read by:
+#   - ensure-bootstrap-artifacts.sh to determine SYNC_TAG
+#   - gateway join_binaries.go to serve exact BOM package versions to joining nodes
+# Without it, these paths fall back to legacy (latest published) behavior.
+for _ri in \
+    "$INSTALLER_ROOT/release-index.json" \
+    "$INSTALLER_ROOT/internal/assets/release-index.json" \
+    "$PKG_DIR/../release-index.json"; do
+  if [[ -f "$_ri" ]]; then
+    cp "$_ri" "${STATE_DIR}/release-index.json"
+    log_success "Installed release-index.json to ${STATE_DIR}/"
+    break
+  fi
+done
+if [[ ! -f "${STATE_DIR}/release-index.json" ]]; then
+  log_warn "release-index.json not found in installer bundle — legacy mode (join binaries will use latest published)"
+fi
+
 # already present. Non-fatal: install completes even if some packages fail.
 log_step "Publishing Bootstrap Artifacts to Repository"
 if [[ -x "$SCRIPT_DIR/ensure-bootstrap-artifacts.sh" ]]; then
