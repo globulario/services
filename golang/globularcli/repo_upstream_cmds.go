@@ -219,19 +219,12 @@ func runRepoRegisterUpstream(cmd *cobra.Command, args []string) error {
 		channel = "stable"
 	}
 
-	// Safe defaults for non-official sources.
+	// Default trust policy: imported packages are published immediately.
+	// Use --trust-policy quarantine for untrusted third-party sources.
 	trustPolicy := upstreamTrustPolicy
 	requireChecksum := upstreamRequireChecksum
-	if !cmd.Flags().Changed("trust-policy") {
-		trustPolicy = "quarantine"
-	}
 	if !cmd.Flags().Changed("require-checksum") {
 		requireChecksum = true
-	}
-
-	if trustPolicy == "import" {
-		fmt.Println("WARNING: trust_policy=import means imported packages are PUBLISHED immediately.")
-		fmt.Println("         Use --trust-policy quarantine for untrusted sources.")
 	}
 
 	src := &repopb.UpstreamSource{
@@ -602,7 +595,7 @@ func init() {
 	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamAllowedKinds, "allowed-kinds", "", "Comma-separated allowed kinds")
 	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamAllowedChannels, "allowed-channels", "", "Comma-separated allowed channels")
 	repoRegisterUpstreamCmd.Flags().BoolVar(&upstreamRequireChecksum, "require-checksum", false, "Reject entries without sha256 digest")
-	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamTrustPolicy, "trust-policy", "import", "Trust policy: import or quarantine")
+	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamTrustPolicy, "trust-policy", "publish", "Trust policy: publish (default) or quarantine (for untrusted sources)")
 	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamCredentialsRef, "credentials-ref", "", "etcd key under /globular/credentials/ for auth")
 	// Provider-specific flags
 	repoRegisterUpstreamCmd.Flags().StringVar(&upstreamRepoURL, "repo-url", "", "Git repo URL or GitHub owner/repo")
