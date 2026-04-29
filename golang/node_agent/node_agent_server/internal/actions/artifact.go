@@ -474,6 +474,14 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 			wroteUnit = true
 		case strings.HasPrefix(name, "config/"):
 			dest = filepath.Join(configDir, service, strings.TrimPrefix(name, "config/"))
+			// Seed-only: config files from packages are defaults. If a live
+			// config already exists (rendered by controller, join script, or
+			// workflow), preserve it — package reinstall must never overwrite
+			// cluster-owned configuration.
+			if _, err := os.Stat(dest); err == nil {
+				log.Printf("install_payload: preserving existing config %s (seed-only)", dest)
+				continue
+			}
 		case strings.HasPrefix(name, "scripts/"):
 			dest = filepath.Join(scriptsDir, filepath.Base(name))
 		case strings.HasPrefix(name, "data/"):

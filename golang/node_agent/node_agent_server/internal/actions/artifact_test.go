@@ -276,6 +276,81 @@ func TestServiceInstallPayloadPromotesFiles(t *testing.T) {
 	// Port config should be generated for known services (none for generic svc)
 }
 
+// TestServiceInstallPayloadReinstallPreservesConfig verifies Guardrail 1:
+// package reinstall must never overwrite existing config files (seed-only).
+func TestServiceInstallPayloadReinstallPreservesConfig(t *testing.T) {
+	binDir := filepath.Join(t.TempDir(), "bin")
+	systemdDir := filepath.Join(t.TempDir(), "systemd")
+	configDir := filepath.Join(t.TempDir(), "config")
+	stagingRoot := t.TempDir()
+	sr := t.TempDir()
+
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
+	ActionSystemdDir = systemdDir
+	t.Cleanup(func() { ActionSystemdDir = "/etc/systemd/system" })
+	ActionConfigDir = configDir
+	t.Cleanup(func() { ActionConfigDir = "/etc/globular" })
+	ActionSkipSystemd = true
+	t.Cleanup(func() { ActionSkipSystemd = false })
+	ActionStagingRoot = stagingRoot
+	t.Cleanup(func() { ActionStagingRoot = "" })
+	ActionStateDir = sr
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
+	serviceports.PortRange = "62001-62005"
+	t.Cleanup(func() { serviceports.PortRange = "" })
+	serviceports.BinDir = binDir
+	t.Cleanup(func() { serviceports.BinDir = "/usr/lib/globular/bin" })
+	serviceports.StateDir = sr
+	t.Cleanup(func() { serviceports.StateDir = "/var/lib/globular" })
+
+	// First install — seeds the config file.
+	artifactPath := filepath.Join(t.TempDir(), "svc.tgz")
+	createTestArchive(t, artifactPath)
+
+	args, _ := structpb.NewStruct(map[string]interface{}{
+		"service":       "svc",
+		"version":       "1.0.0",
+		"artifact_path": artifactPath,
+	})
+	a := serviceInstallPayloadAction{}
+	if _, err := a.Apply(context.Background(), args); err != nil {
+		t.Fatalf("first install: %v", err)
+	}
+
+	// Simulate live cluster config: overwrite the seed with cluster-owned content.
+	liveConfig := filepath.Join(configDir, "svc", "app.yaml")
+	if err := os.WriteFile(liveConfig, []byte("cluster-owned-config"), 0o644); err != nil {
+		t.Fatalf("write live config: %v", err)
+	}
+
+	// Reinstall (same package version) — must preserve the live config.
+	artifactPath2 := filepath.Join(t.TempDir(), "svc2.tgz")
+	createTestArchive(t, artifactPath2)
+	args2, _ := structpb.NewStruct(map[string]interface{}{
+		"service":       "svc",
+		"version":       "1.0.1",
+		"artifact_path": artifactPath2,
+	})
+	if _, err := a.Apply(context.Background(), args2); err != nil {
+		t.Fatalf("reinstall: %v", err)
+	}
+
+	// Config must still contain the cluster-owned content, NOT the package seed.
+	b, err := os.ReadFile(liveConfig)
+	if err != nil {
+		t.Fatalf("read config after reinstall: %v", err)
+	}
+	if string(b) != "cluster-owned-config" {
+		t.Fatalf("reinstall overwrote live config: got %q, want %q", string(b), "cluster-owned-config")
+	}
+
+	// Binary should still be updated (binaries are NOT seed-only).
+	if _, err := os.Stat(filepath.Join(binDir, "svc_server")); err != nil {
+		t.Fatalf("binary not present after reinstall: %v", err)
+	}
+}
+
 func TestServiceInstallPayloadExtractsPolicyFiles(t *testing.T) {
 	binDir := t.TempDir()
 	policyDir := t.TempDir()

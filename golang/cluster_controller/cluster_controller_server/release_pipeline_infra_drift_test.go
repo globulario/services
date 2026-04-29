@@ -231,6 +231,84 @@ func TestDetectInfraDrift_MinioMember_InactiveTriggersDrift(t *testing.T) {
 	}
 }
 
+// TestDetectInfraDrift_ServiceLikeComponents_InactiveIsDrift verifies that all
+// service-like infrastructure components are detected as drifted when their
+// systemd unit is inactive. Guardrail 3 coverage for repository, workflow, envoy, etcd.
+func TestDetectInfraDrift_ServiceLikeComponents_InactiveIsDrift(t *testing.T) {
+	components := []struct {
+		name string
+		unit string
+	}{
+		{"repository", "globular-repository.service"},
+		{"workflow", "globular-workflow.service"},
+		{"envoy", "globular-envoy.service"},
+		{"etcd", "globular-etcd.service"},
+		{"prometheus", "globular-prometheus.service"},
+		{"alertmanager", "globular-alertmanager.service"},
+		{"cluster-controller", "globular-cluster-controller.service"},
+		{"cluster-doctor", "globular-cluster-doctor.service"},
+	}
+
+	for _, c := range components {
+		t.Run(c.name+"_inactive", func(t *testing.T) {
+			state := &controllerState{
+				Nodes: map[string]*nodeState{
+					"n1": {
+						NodeID:   "n1",
+						LastSeen: time.Now(),
+						Units: []unitStatusRecord{
+							{Name: c.unit, State: "inactive"},
+						},
+					},
+				},
+			}
+			srv := newTestServer(t, state)
+			rel := infraRelWithNode(c.name, "n1")
+			cap := &patchCapture{}
+			h := handleWithCapture(rel, cap)
+
+			detected := srv.detectInfraDrift(context.Background(), rel, h)
+
+			if !detected {
+				t.Fatalf("expected drift for %s with inactive %s", c.name, c.unit)
+			}
+			if cap.patch.Phase != cluster_controllerpb.ReleasePhaseDegraded {
+				t.Errorf("expected DEGRADED, got %q", cap.patch.Phase)
+			}
+		})
+	}
+}
+
+// TestDetectInfraDrift_CommandLikeComponents_NoDrift verifies that command-like
+// infrastructure packages are never flagged as drifted regardless of unit state.
+func TestDetectInfraDrift_CommandLikeComponents_NoDrift(t *testing.T) {
+	commands := []string{"restic", "rclone", "ffmpeg", "sctool", "mc", "etcdctl", "sha256sum", "yt-dlp"}
+
+	for _, name := range commands {
+		t.Run(name, func(t *testing.T) {
+			state := &controllerState{
+				Nodes: map[string]*nodeState{
+					"n1": {
+						NodeID:   "n1",
+						LastSeen: time.Now(),
+						Units:    []unitStatusRecord{}, // no units
+					},
+				},
+			}
+			srv := newTestServer(t, state)
+			rel := infraRelWithNode(name, "n1")
+			cap := &patchCapture{}
+			h := handleWithCapture(rel, cap)
+
+			detected := srv.detectInfraDrift(context.Background(), rel, h)
+
+			if detected {
+				t.Fatalf("expected no drift for command-like %s", name)
+			}
+		})
+	}
+}
+
 // TestHasUnservedNodes_DegradedNode_IsUnserved verifies that a node whose
 // per-node release status is DEGRADED (after detectInfraDrift downgrades it)
 // is treated as unserved on the next cycle, triggering a re-dispatch.

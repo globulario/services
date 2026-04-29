@@ -149,6 +149,8 @@ func TestSkipRuntimeCheck_DaemonServices(t *testing.T) {
 	daemons := []string{
 		"cluster-controller", "cluster-doctor", "workflow",
 		"xds", "envoy", "minio", "scylladb", "prometheus",
+		"alertmanager", "repository", "etcd", "node-agent",
+		"keepalived", "sidekick", "node_exporter",
 	}
 	for _, name := range daemons {
 		if skipRuntimeCheck(name) {
