@@ -239,11 +239,30 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 			if info.Version == "unknown" || info.Version == "" {
 				continue
 			}
-			kind := "SERVICE"
-			if isDay0JoinInfra(name) {
-				kind = "INFRASTRUCTURE"
+			// Resolve the package kind. The authoritative kind lives in the
+			// repository (package.json "type" field). Phase 2 writes records
+			// with the correct kind. Phase 1 discovers services from systemd
+			// but cannot distinguish SERVICE from INFRASTRUCTURE without the
+			// repository. To avoid creating a record under the wrong kind
+			// (which Phase 2 then cleans up, wiping build_id each cycle):
+			//   1. Check all kinds for an existing record — use that kind.
+			//   2. Fall back to the isDay0JoinInfra list for first-boot.
+			//   3. Default to SERVICE only if nothing else matches.
+			kind := ""
+			var existing *node_agentpb.InstalledPackage
+			for _, k := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
+				if rec, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, k, name); rec != nil {
+					existing = rec
+					kind = k
+					break
+				}
 			}
-			existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
+			if kind == "" {
+				kind = "SERVICE"
+				if isDay0JoinInfra(name) {
+					kind = "INFRASTRUCTURE"
+				}
+			}
 			if existing != nil {
 				// Update existing record if version changed (e.g. after apply-desired).
 				if info.Version != "" && info.Version != existing.GetVersion() {
@@ -745,6 +764,10 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 		if existing != nil {
 			// Preserve original install timestamp when updating.
 			pkg.InstalledUnix = existing.GetInstalledUnix()
+			// Preserve build_id if previously stamped by the workflow engine.
+			if existing.GetBuildId() != "" {
+				pkg.BuildId = existing.GetBuildId()
+			}
 		}
 		if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
 			log.Printf("nodeagent: sync installed-state %s/%s: %v", kind, name, err)
