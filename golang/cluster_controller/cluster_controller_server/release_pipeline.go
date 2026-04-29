@@ -448,7 +448,7 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 		// The release stays RESOLVED and retries on the next reconcile cycle.
 		if catalogEntry != nil && len(catalogEntry.RuntimeLocalDependencies) > 0 {
 			healthy := buildHealthySet(node.Units)
-			missing := checkRuntimeDeps(catalogEntry, healthy, node.InstalledVersions)
+			missing := checkRuntimeDeps(catalogEntry, healthy, node.InstalledVersions, node)
 			if len(missing) > 0 {
 				log.Printf("%s %s: skipping node %s — deps not ready: %v",
 					h.ResourceType, h.Name, node.Identity.Hostname, missing)

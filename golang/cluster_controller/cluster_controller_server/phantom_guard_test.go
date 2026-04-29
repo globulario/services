@@ -200,7 +200,7 @@ func TestCheckRuntimeDeps_CatalogMissTreatedAsMissing(t *testing.T) {
 	// Healthy units and installed versions are both empty — the dep is not
 	// installed and not running, which is fine: the important thing is that
 	// CatalogByName("nonexistent-ghost-dep-zzz") returns nil.
-	missing := checkRuntimeDeps(synthetic, map[string]bool{}, map[string]string{})
+	missing := checkRuntimeDeps(synthetic, map[string]bool{}, map[string]string{}, nil)
 
 	if len(missing) == 0 {
 		t.Fatal("checkRuntimeDeps should return 'nonexistent-ghost-dep-zzz' as missing, but returned empty slice")
@@ -237,7 +237,7 @@ func TestCheckRuntimeDeps_CommandDepPublisherKey(t *testing.T) {
 	installed := map[string]string{
 		"core@globular.io/rclone": "1.73.1",
 	}
-	missing := checkRuntimeDeps(synthetic, map[string]bool{}, installed)
+	missing := checkRuntimeDeps(synthetic, map[string]bool{}, installed, nil)
 	for _, m := range missing {
 		if normalizeComponentName(m) == "rclone" {
 			t.Errorf("checkRuntimeDeps reported rclone missing even though it is in InstalledVersions under publisher key")

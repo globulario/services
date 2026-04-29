@@ -195,7 +195,7 @@ func ResolveNodeIntent(nodeID string, profiles []string, units []unitStatusRecor
 	healthyUnits := buildHealthySet(units)
 	var readyWorkloads []*Component
 	for _, w := range workloads {
-		missing := checkRuntimeDeps(w, healthyUnits, installedVersions)
+		missing := checkRuntimeDeps(w, healthyUnits, installedVersions, nil)
 		if len(missing) > 0 {
 			intent.BlockedWorkloads = append(intent.BlockedWorkloads, BlockedWorkload{
 				Name:        w.Name,
@@ -350,7 +350,7 @@ func GateDependencies(desired map[string]string, units []unitStatusRecord, insta
 			filtered[svc] = ver
 			continue
 		}
-		missing := checkRuntimeDeps(comp, healthyUnits, installedVersions)
+		missing := checkRuntimeDeps(comp, healthyUnits, installedVersions, nil)
 		if len(missing) > 0 {
 			blocked = append(blocked, BlockedWorkload{
 				Name:        svc,
@@ -425,7 +425,7 @@ func buildHealthySet(units []unitStatusRecord) map[string]bool {
 	return healthy
 }
 
-func checkRuntimeDeps(c *Component, healthyUnits map[string]bool, installedVersions map[string]string) []string {
+func checkRuntimeDeps(c *Component, healthyUnits map[string]bool, installedVersions map[string]string, node *nodeState) []string {
 	var missing []string
 	for _, dep := range c.RuntimeLocalDependencies {
 		depComp := CatalogByName(dep)
@@ -448,6 +448,27 @@ func checkRuntimeDeps(c *Component, healthyUnits map[string]bool, installedVersi
 		}
 		if !healthyUnits[strings.ToLower(depComp.Unit)] {
 			missing = append(missing, dep)
+			continue
+		}
+		// Stateful infrastructure (scylladb, etcd, minio) can be "active" in
+		// systemd but not yet usable — the Raft/ring join hasn't completed.
+		// Gate dependents on join_phase == verified, not just unit active.
+		if node != nil {
+			depName := strings.ToLower(dep)
+			switch depName {
+			case "scylladb":
+				if node.ScyllaJoinPhase != ScyllaJoinVerified {
+					missing = append(missing, dep+" (join not verified)")
+				}
+			case "minio":
+				if node.MinioJoinPhase != MinioJoinVerified && node.MinioJoinPhase != MinioJoinNonMember {
+					missing = append(missing, dep+" (join not verified)")
+				}
+			case "etcd":
+				if node.EtcdJoinPhase != EtcdJoinVerified {
+					missing = append(missing, dep+" (join not verified)")
+				}
+			}
 		}
 	}
 	return missing
