@@ -44,7 +44,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GOLANG_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Load overrides if provided.
-declare -A VERSION_OVERRIDES
+declare -A VERSION_OVERRIDES=()
 if [[ -n "$OVERRIDES_FILE" && -f "$OVERRIDES_FILE" ]]; then
   while IFS='=' read -r pkg_suffix pkg_version; do
     pkg_suffix="$(echo "$pkg_suffix" | tr -d ' ')"
@@ -72,7 +72,7 @@ for pkg_dir in "${PKGS[@]}"; do
   pkg_version="$VERSION"
   # Check for override: match against the relative path suffix.
   rel_path="${pkg_dir#$GOLANG_ROOT/}"
-  if [[ -n "${VERSION_OVERRIDES[$rel_path]+x}" ]]; then
+  if [[ ${#VERSION_OVERRIDES[@]} -gt 0 && -n "${VERSION_OVERRIDES[$rel_path]+x}" ]]; then
     pkg_version="${VERSION_OVERRIDES[$rel_path]}"
     OVERRIDDEN=$((OVERRIDDEN + 1))
   fi
