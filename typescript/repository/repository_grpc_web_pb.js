@@ -1104,5 +1104,249 @@ proto.repository.PackageRepositoryPromiseClient.prototype.archiveUnreachableArti
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.RegisterUpstreamRequest,
+ *   !proto.repository.RegisterUpstreamResponse>}
+ */
+const methodDescriptor_PackageRepository_RegisterUpstream = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/RegisterUpstream',
+  grpc.web.MethodType.UNARY,
+  proto.repository.RegisterUpstreamRequest,
+  proto.repository.RegisterUpstreamResponse,
+  /**
+   * @param {!proto.repository.RegisterUpstreamRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.RegisterUpstreamResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.RegisterUpstreamRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.RegisterUpstreamResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.RegisterUpstreamResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.registerUpstream =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/RegisterUpstream',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_RegisterUpstream,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.RegisterUpstreamRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.RegisterUpstreamResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.registerUpstream =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/RegisterUpstream',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_RegisterUpstream);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.ListUpstreamsRequest,
+ *   !proto.repository.ListUpstreamsResponse>}
+ */
+const methodDescriptor_PackageRepository_ListUpstreams = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/ListUpstreams',
+  grpc.web.MethodType.UNARY,
+  proto.repository.ListUpstreamsRequest,
+  proto.repository.ListUpstreamsResponse,
+  /**
+   * @param {!proto.repository.ListUpstreamsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.ListUpstreamsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.ListUpstreamsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.ListUpstreamsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.ListUpstreamsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.listUpstreams =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/ListUpstreams',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListUpstreams,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.ListUpstreamsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.ListUpstreamsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.listUpstreams =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/ListUpstreams',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListUpstreams);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.RemoveUpstreamRequest,
+ *   !proto.repository.RemoveUpstreamResponse>}
+ */
+const methodDescriptor_PackageRepository_RemoveUpstream = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/RemoveUpstream',
+  grpc.web.MethodType.UNARY,
+  proto.repository.RemoveUpstreamRequest,
+  proto.repository.RemoveUpstreamResponse,
+  /**
+   * @param {!proto.repository.RemoveUpstreamRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.RemoveUpstreamResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.RemoveUpstreamRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.RemoveUpstreamResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.RemoveUpstreamResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.removeUpstream =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/RemoveUpstream',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_RemoveUpstream,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.RemoveUpstreamRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.RemoveUpstreamResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.removeUpstream =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/RemoveUpstream',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_RemoveUpstream);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.SyncFromUpstreamRequest,
+ *   !proto.repository.SyncFromUpstreamResponse>}
+ */
+const methodDescriptor_PackageRepository_SyncFromUpstream = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/SyncFromUpstream',
+  grpc.web.MethodType.UNARY,
+  proto.repository.SyncFromUpstreamRequest,
+  proto.repository.SyncFromUpstreamResponse,
+  /**
+   * @param {!proto.repository.SyncFromUpstreamRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.SyncFromUpstreamResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.SyncFromUpstreamRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.SyncFromUpstreamResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.SyncFromUpstreamResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.syncFromUpstream =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/SyncFromUpstream',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_SyncFromUpstream,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.SyncFromUpstreamRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.SyncFromUpstreamResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.syncFromUpstream =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/SyncFromUpstream',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_SyncFromUpstream);
+};
+
+
 module.exports = proto.repository;
 

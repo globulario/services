@@ -19,7 +19,7 @@ require (
 	github.com/emersion/go-imap v1.2.1
 	github.com/emersion/go-message v0.18.1
 	github.com/emicklei/proto v1.13.2
-	github.com/globulario/globular-installer v0.0.0-20260413200737-a8ca92f13618
+	github.com/globulario/globular-installer v0.0.0-20260424185449-efbef16ba1bb
 	github.com/globulario/utility v0.1.9
 	github.com/go-ldap/ldap/v3 v3.4.8
 	github.com/go-sql-driver/mysql v1.8.1
@@ -223,7 +223,7 @@ require (
 	golang.org/x/exp v0.0.0-20241210194714-1829a127f884 // indirect
 	golang.org/x/image v0.0.0-20211028202545-6944b10bf410
 	golang.org/x/mod v0.29.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/sync v0.18.0
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/time v0.12.0 // indirect

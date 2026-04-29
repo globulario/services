@@ -1355,5 +1355,66 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.deleteCacheArtifact =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.CleanupDiskJournalRequest,
+ *   !proto.node_agent.CleanupDiskJournalResponse>}
+ */
+const methodDescriptor_NodeAgentService_CleanupDiskJournal = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/CleanupDiskJournal',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.CleanupDiskJournalRequest,
+  proto.node_agent.CleanupDiskJournalResponse,
+  /**
+   * @param {!proto.node_agent.CleanupDiskJournalRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.CleanupDiskJournalResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.CleanupDiskJournalRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.CleanupDiskJournalResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.CleanupDiskJournalResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.cleanupDiskJournal =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/CleanupDiskJournal',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_CleanupDiskJournal,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.CleanupDiskJournalRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.CleanupDiskJournalResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.cleanupDiskJournal =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/CleanupDiskJournal',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_CleanupDiskJournal);
+};
+
+
 module.exports = proto.node_agent;
 

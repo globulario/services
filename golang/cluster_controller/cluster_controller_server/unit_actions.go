@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"sort"
 	"strings"
 
@@ -54,21 +54,20 @@ func buildPlanActions(profiles []string) ([]*cluster_controllerpb.UnitAction, er
 		normalized = []string{"core"}
 	}
 
-	// Compute desired unit set and collect errors for unknown profiles.
+	// Compute desired unit set. Unknown profiles are tolerated — they are
+	// extension labels with no managed systemd units in the current catalog
+	// (e.g. "ai", "gpu"). Blocking the entire node for an unknown profile is
+	// too aggressive; log and skip instead.
 	desiredSet := make(map[string]struct{})
-	var errs []string
 	for _, profile := range normalized {
 		units, ok := profileUnitMap[profile]
 		if !ok {
-			errs = append(errs, fmt.Sprintf("unknown profile: %q", profile))
+			log.Printf("buildPlanActions: unknown profile %q — skipping (no managed units)", profile)
 			continue
 		}
 		for _, u := range units {
 			desiredSet[strings.ToLower(u)] = struct{}{}
 		}
-	}
-	if len(errs) > 0 {
-		return nil, fmt.Errorf("%s", strings.Join(errs, "; "))
 	}
 
 	// Desired units slice (for ordering).

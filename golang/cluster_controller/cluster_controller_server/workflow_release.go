@@ -516,7 +516,10 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 	srv.unlock()
 
 	// Phase 2: check installed state via etcd WITHOUT holding srv.mu.
-	var targets []any
+	// Initialize to empty slice (not nil) so that len(selected_targets)==0
+	// evaluates correctly in the workflow engine's condition evaluator,
+	// which treats nil as -1 (fail-closed) rather than 0.
+	targets := []any{}
 	for _, ec := range eligible {
 		pkg, err := installed_state.GetInstalledPackage(ctx, ec.nodeID, ec.installedKind, pkgName)
 		if err != nil {

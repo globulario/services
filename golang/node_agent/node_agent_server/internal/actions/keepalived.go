@@ -151,13 +151,17 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 		return "", fmt.Errorf("render config: %w", err)
 	}
 
-	// Render health script (if TCP ports are configured)
+	// Render health script. Always write it — the keepalived config always
+	// references it, so if the file is absent keepalived faults and drops the VIP.
+	// When no TCP ports are configured, fall back to a service-liveness check.
 	var healthScriptContent string
 	if len(effectiveSpec.CheckTCPPorts) > 0 {
 		healthScriptContent, err = keepalived.RenderHealthScriptTCP(effectiveSpec.CheckTCPPorts)
 		if err != nil {
 			return "", fmt.Errorf("render health script: %w", err)
 		}
+	} else {
+		healthScriptContent = keepalived.FallbackHealthScript()
 	}
 
 	if dryRun {
@@ -170,16 +174,12 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 		return "", fmt.Errorf("write keepalived config: %w", err)
 	}
 
-	// Write health script (if configured)
-	if healthScriptContent != "" {
-		// Ensure directory exists
-		if err := os.MkdirAll(filepath.Dir(healthScriptPath), 0755); err != nil {
-			return "", fmt.Errorf("create health script dir: %w", err)
-		}
-
-		if _, err := writeFileIfChanged(healthScriptPath, healthScriptContent, 0755); err != nil {
-			return "", fmt.Errorf("write health script: %w", err)
-		}
+	// Write health script (always — config always references it)
+	if err := os.MkdirAll(filepath.Dir(healthScriptPath), 0755); err != nil {
+		return "", fmt.Errorf("create health script dir: %w", err)
+	}
+	if _, err := writeFileIfChanged(healthScriptPath, healthScriptContent, 0755); err != nil {
+		return "", fmt.Errorf("write health script: %w", err)
 	}
 
 	// Ensure keepalived is installed (check for binary, don't install)

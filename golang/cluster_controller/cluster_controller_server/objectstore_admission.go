@@ -218,11 +218,18 @@ func (srv *server) applyObjectStoreTopologyRequest(ctx context.Context, req *con
 	}
 
 	// ── Step 4: Validate node IPs are known cluster members ──────────────────
+	// Use ALL node IPs (not just nodeRoutableIP) so nodes with a floating VIP
+	// as their primary IP (e.g. keepalived) can still match by their stable NIC IP.
 	srv.lock("applyObjectStoreTopology:snapshot")
 	knownIPs := make(map[string]bool, len(srv.state.Nodes))
 	for _, n := range srv.state.Nodes {
-		if ip := nodeRoutableIP(n); ip != "" {
-			knownIPs[ip] = true
+		if n == nil {
+			continue
+		}
+		for _, ip := range n.Identity.Ips {
+			if ip != "" && ip != "127.0.0.1" && ip != "::1" {
+				knownIPs[ip] = true
+			}
 		}
 	}
 	currentGen := srv.state.ObjectStoreGeneration

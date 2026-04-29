@@ -57,6 +57,7 @@ func TestDefaultEvalCond_Len(t *testing.T) {
 	outputs := map[string]any{
 		"selected_targets": []any{"node-1", "node-2", "node-3"},
 		"empty_list":       []any{},
+		"nil_list":         nil, // key present but nil — must NOT equal 0 (fail-closed)
 	}
 
 	tests := []struct {
@@ -78,6 +79,12 @@ func TestDefaultEvalCond_Len(t *testing.T) {
 		// This prevents accidental short-circuit when a prior step was skipped.
 		{"len(missing_var) == 0", false},
 		{"len(missing_var) == -1", true},
+		// Key present with nil value must also be treated as -1, not 0.
+		// This guards against the release workflow short-circuit bug where
+		// selectReleaseTargets returned nil instead of []any{} when all
+		// nodes were converged, causing finalize_noop to never execute.
+		{"len(nil_list) == 0", false},
+		{"len(nil_list) == -1", true},
 	}
 
 	for _, tt := range tests {

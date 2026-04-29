@@ -295,6 +295,30 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 
 	// Bridge: ensure a corresponding ServiceRelease exists so the release
 	// reconciler can track per-service lifecycle phases.
+	// Exception: if the service is managed by InfrastructureRelease, bump its
+	// spec.version instead of creating a ghost ServiceRelease. Without this,
+	// deploy would update ServiceDesiredVersion but leave InfrastructureRelease
+	// at the old version, causing the infra reconciler to never re-deploy.
+	infraManagedKey := defaultPublisherID() + "/" + canon
+	if infraObj, _, infraErr := srv.resources.Get(ctx, "InfrastructureRelease", infraManagedKey); infraErr == nil && infraObj != nil {
+		if infraRel, ok := infraObj.(*cluster_controllerpb.InfrastructureRelease); ok && infraRel.Spec != nil && infraRel.Spec.Version != version {
+			infraCopy := *infraRel
+			specCopy := *infraRel.Spec
+			specCopy.Version = version
+			specCopy.BuildNumber = svc.BuildNumber
+			infraCopy.Spec = &specCopy
+			if _, applyErr := srv.resources.Apply(ctx, "InfrastructureRelease", &infraCopy); applyErr != nil {
+				log.Printf("upsertOne: failed to bump InfrastructureRelease %s to %s: %v", canon, version, applyErr)
+			} else {
+				log.Printf("upsertOne: bumped InfrastructureRelease %s spec.version %s → %s", canon, infraRel.Spec.Version, version)
+			}
+			return nil // infra release owns this, no ServiceRelease needed
+		}
+		// Already at the right version — no-op.
+		if infraRel, ok := infraObj.(*cluster_controllerpb.InfrastructureRelease); ok && infraRel.Spec != nil && infraRel.Spec.Version == version {
+			return nil
+		}
+	}
 	srv.ensureServiceRelease(ctx, canon, version, svc.BuildNumber)
 
 	return nil

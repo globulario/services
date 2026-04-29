@@ -123,24 +123,10 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		if !bootstrapPhaseReady(node.BootstrapPhase) {
 			infraOnly = true
 		}
-		// Validate profiles before any dispatch — unknown profiles block the node.
-		actions, profileErr := buildPlanActions(node.Profiles)
-		if profileErr != nil {
-			node.Status = "blocked"
-			node.BlockedReason = "unknown_profile"
-			node.BlockedDetails = profileErr.Error()
-			stateDirty = true
-			log.Printf("reconcile: node %s blocked: %v", node.NodeID, profileErr)
-			srv.emitClusterEvent("plan_blocked", map[string]interface{}{
-				"severity":       "WARN",
-				"node_id":        node.NodeID,
-				"hostname":       node.Identity.Hostname,
-				"message":        fmt.Sprintf("Node %s blocked: unknown profile", node.Identity.Hostname),
-				"correlation_id": fmt.Sprintf("plan:%s:gen:0", node.NodeID),
-			})
-			continue
-		}
-		// Clear stale unknown_profile block now that profiles are valid.
+		// Build plan actions. Unknown profiles are now tolerated (they have no
+		// managed units in the catalog and are silently skipped, not errors).
+		actions, _ := buildPlanActions(node.Profiles)
+		// Clear stale unknown_profile block from previous versions of the controller.
 		if node.BlockedReason == "unknown_profile" {
 			node.BlockedReason = ""
 			node.BlockedDetails = ""

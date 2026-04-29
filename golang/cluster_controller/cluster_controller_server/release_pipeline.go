@@ -688,7 +688,8 @@ func (srv *server) hasUnservedNodes(h *releaseHandle) bool {
 				continue
 			}
 		}
-		if node.Status == "unreachable" || node.Status == "removed" {
+		if node.Status == "unreachable" || node.Status == "removed" ||
+			node.Status == "blocked" || node.Status == "draining" {
 			continue
 		}
 		// Convergence signal #2: node reports the right version installed.

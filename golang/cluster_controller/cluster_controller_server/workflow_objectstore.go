@@ -60,11 +60,18 @@ func (srv *server) RunObjectStoreTopologyWorkflow(ctx context.Context, targetGen
 
 	// Build pool from desired.Nodes: resolve each IP to a live node-agent endpoint.
 	// Fail fast if any desired node has no live endpoint — don't silently skip.
+	// Index by ALL node IPs so nodes with a floating VIP as their primary IP
+	// (e.g. keepalived) still match by their stable NIC IP.
 	srv.lock("RunObjectStoreTopologyWorkflow:snapshot")
 	ipToNode := make(map[string]*nodeState, len(srv.state.Nodes))
 	for _, node := range srv.state.Nodes {
-		if ip := nodeRoutableIP(node); ip != "" {
-			ipToNode[ip] = node
+		if node == nil {
+			continue
+		}
+		for _, ip := range node.Identity.Ips {
+			if ip != "" && ip != "127.0.0.1" && ip != "::1" {
+				ipToNode[ip] = node
+			}
 		}
 	}
 	clusterID := srv.cfg.ClusterDomain
