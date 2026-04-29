@@ -15,6 +15,7 @@ func registerAllTools(s *server) {
 	}
 	if g.Repository {
 		registerRepositoryTools(s)
+		registerUpstreamTools(s)
 	}
 	if g.Backup {
 		registerBackupTools(s)

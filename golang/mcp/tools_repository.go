@@ -66,8 +66,19 @@ func normalizeArtifactManifest(m *repositorypb.ArtifactManifest) map[string]inte
 		"kind":          artifactKindStr(ref.GetKind()),
 		"size":          fmtBytes(uint64(m.GetSizeBytes())),
 		"build_number":  m.GetBuildNumber(),
+		"build_id":      m.GetBuildId(),
 		"publish_state": publishStateStr(m.GetPublishState()),
+		"channel":       m.GetChannel().String(),
 		"description":   m.GetDescription(),
+	}
+	if ui := m.GetUpstreamImport(); ui != nil && ui.GetSourceName() != "" {
+		result["upstream_source"] = ui.GetSourceName()
+		result["origin_release"] = ui.GetOriginRelease()
+		if ui.GetChangedInRelease() {
+			result["changed_in_release"] = true
+		} else if ui.GetPlatformRelease() != "" {
+			result["changed_in_release"] = false
+		}
 	}
 	return result
 }
@@ -100,8 +111,37 @@ func normalizeArtifactManifestFull(m *repositorypb.ArtifactManifest) map[string]
 		"build_timestamp":      fmtTime(m.GetBuildTimestampUnix()),
 		"build_source":         m.GetBuildSource(),
 		"build_notes":          m.GetBuildNotes(),
+		"build_id":             m.GetBuildId(),
+		"entrypoint_checksum":  m.GetEntrypointChecksum(),
+		"channel":              m.GetChannel().String(),
+		"profiles":             m.GetProfiles(),
+		"hard_deps":            formatDeps(m.GetHardDeps()),
+	}
+	// Upstream provenance.
+	if ui := m.GetUpstreamImport(); ui != nil && ui.GetSourceName() != "" {
+		result["upstream_import"] = map[string]interface{}{
+			"source_name":             ui.GetSourceName(),
+			"release_tag":             ui.GetReleaseTag(),
+			"origin_release":          ui.GetOriginRelease(),
+			"platform_release":        ui.GetPlatformRelease(),
+			"changed_in_release":      ui.GetChangedInRelease(),
+			"imported_at":             fmtTime(ui.GetImportedAt()),
+			"package_contract_digest": ui.GetPackageContractDigest(),
+		}
 	}
 	return result
+}
+
+// formatDeps converts ArtifactDependencyRef slice to string slice for display.
+func formatDeps(deps []*repositorypb.ArtifactDependencyRef) []string {
+	if len(deps) == 0 {
+		return nil
+	}
+	out := make([]string, len(deps))
+	for i, d := range deps {
+		out[i] = d.GetName()
+	}
+	return out
 }
 
 func registerRepositoryTools(s *server) {
