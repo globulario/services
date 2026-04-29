@@ -408,9 +408,23 @@ jobs:
       # BOM: Package only changed packages. Unchanged packages are NOT
       # repackaged — they are referenced from their origin release.
       # ═══════════════════════════════════════════════════════════════════════
+      - name: Generate build identity
+        id: build_identity
+        run: |
+          # build_number = sequential CI run counter (integer)
+          # build_id     = unique artifact identity (UUIDv7, time-sortable)
+          BUILD_NUMBER="${{ github.run_number }}"
+          BUILD_ID=$(python3 -c "import uuid; print(uuid.uuid7())" 2>/dev/null \
+            || python3 -c "import uuid, time; t=int(time.time()*1000); tb=t.to_bytes(6,'big'); rb=uuid.uuid4().bytes[6:]; print(str(uuid.UUID(bytes=tb+rb, version=7)))")
+          echo "build_number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "build_id=${BUILD_ID}" >> "$GITHUB_OUTPUT"
+          echo "Build number: ${BUILD_NUMBER}"
+          echo "Build ID:     ${BUILD_ID}"
+
       - name: Package changed packages
         env:
-          BUILD_ID: ${{ github.run_number }}
+          BUILD_NUMBER: ${{ steps.build_identity.outputs.build_number }}
+          BUILD_ID: ${{ steps.build_identity.outputs.build_id }}
           VERSION: ${{ steps.version.outputs.version }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
@@ -423,6 +437,7 @@ jobs:
           manifest = json.load(open("dist/change-manifest.json"))
           pkg_map  = json.load(open("services/golang/build/pkg-map.json"))
           version  = os.environ["VERSION"]
+          build_number = os.environ["BUILD_NUMBER"]
           build_id = os.environ["BUILD_ID"]
 
           def detect_infra_version(name, bin_path, meta_version):
@@ -519,6 +534,7 @@ jobs:
               pj_out["version"] = pkg_version
               pj_out["entrypoint_checksum"] = checksum
               pj_out["build_id"] = build_id
+              pj_out["build_number"] = build_number
               with open(f"{tmpdir}/package.json", "w") as f:
                   json.dump(pj_out, f, indent=2)
 
@@ -609,16 +625,18 @@ jobs:
       - name: Generate release index (v2 BOM)
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
-          BUILD_ID: ${{ github.run_number }}
+          BUILD_NUMBER: ${{ steps.build_identity.outputs.build_number }}
+          BUILD_ID: ${{ steps.build_identity.outputs.build_id }}
         run: |
           python3 <<'PYEOF'
           import json, hashlib, tarfile, glob, os, sys
           from datetime import datetime, timezone
 
-          version  = os.environ["RELEASE_VERSION"]
-          tag      = os.environ["GITHUB_REF_NAME"]
-          repo     = os.environ["GITHUB_REPOSITORY"]
-          build_id = os.environ["BUILD_ID"]
+          version      = os.environ["RELEASE_VERSION"]
+          tag          = os.environ["GITHUB_REF_NAME"]
+          repo         = os.environ["GITHUB_REPOSITORY"]
+          build_number = os.environ["BUILD_NUMBER"]
+          build_id     = os.environ["BUILD_ID"]
           base_url = f"https://github.com/{repo}/releases/download/{tag}"
           platform = "linux_amd64"
 
@@ -649,7 +667,7 @@ jobs:
                       "name":                     name,
                       "kind":                     pj.get("kind", pj.get("type", pkg.get("kind", "service"))).lower(),
                       "version":                  pj["version"],
-                      "build_number":             int(pj.get("build_number", build_id)),
+                      "build_number":             int(pj.get("build_number", build_number)),
                       "build_id":                 str(pj.get("build_id", build_id)),
                       "platform":                 platform,
                       "publisher":                pj.get("publisher", "core@globular.io"),
