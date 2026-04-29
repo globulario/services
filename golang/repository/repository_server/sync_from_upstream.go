@@ -661,6 +661,16 @@ func resolveProvenanceAssetURL(n *normalizedEntry) string {
 // downloadAndVerifyFromProvider uses the provider.OpenArtifact interface to
 // download an artifact, compute sha256, and verify it matches the expected digest.
 // Works with all providers: HTTP, LOCAL_DIR, GIT_INDEX, GitHub.
+//
+// TODO(streaming): This function reads the full artifact into memory (up to
+// maxArtifactBytes = 500 MiB). For large packages this causes memory pressure.
+// Refactor to stream through a temp file:
+//   1. provider.OpenArtifact → stream to os.CreateTemp while hashing
+//   2. Verify sha256 after complete write
+//   3. Pass temp file path to importUpstreamArtifact (which writes to MinIO)
+//   4. Delete temp file after MinIO write
+// This avoids holding 500 MiB in memory during import.
+// Tracked as: https://github.com/globulario/services/issues/TBD
 func downloadAndVerifyFromProvider(
 	ctx context.Context,
 	provider upstream.ReleaseSource,

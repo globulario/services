@@ -1928,6 +1928,8 @@ func (srv *server) refillBlobFromUpstream(ctx context.Context, key string) (io.R
 	}
 
 	// ── Download and verify via provider ─────────────────────────────────
+	// TODO(streaming): refill reads full artifact into memory. Refactor to
+	// stream through temp file (same as downloadAndVerifyFromProvider TODO).
 	sourceType := upstream.MapProtoType(int32(src.GetType()))
 	provider, provErr := upstream.NewSource(sourceType)
 	if provErr != nil {

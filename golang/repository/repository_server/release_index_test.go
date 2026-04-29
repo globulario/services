@@ -172,12 +172,23 @@ func TestValidateReleaseIndex_EntryBadDigestLength(t *testing.T) {
 	}
 }
 
-func TestValidateReleaseIndex_EntryMissingAssetURL(t *testing.T) {
+func TestValidateReleaseIndex_EntryMissingAllLocators(t *testing.T) {
 	idx := validIndex()
 	idx.Packages[0].AssetURL = ""
+	idx.Packages[0].AssetPath = ""
+	idx.Packages[0].Filename = ""
 	err := ValidateReleaseIndex(idx)
 	if err == nil || !strings.Contains(err.Error(), "asset_url") {
-		t.Fatalf("expected asset_url error, got: %v", err)
+		t.Fatalf("expected locator error, got: %v", err)
+	}
+}
+
+func TestValidateReleaseIndex_EntryAssetPathSuffices(t *testing.T) {
+	idx := validIndex()
+	idx.Packages[0].AssetURL = ""
+	idx.Packages[0].AssetPath = "packages/echo.tgz"
+	if err := ValidateReleaseIndex(idx); err != nil {
+		t.Fatalf("asset_path alone should be valid: %v", err)
 	}
 }
 

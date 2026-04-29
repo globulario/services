@@ -305,8 +305,9 @@ func validateReleaseIndexEntry(e *releaseIndexEntry, idx int, isV2 bool) error {
 	if e.Platform == "" {
 		return fmt.Errorf("packages[%d] (%s): platform is required", idx, e.Name)
 	}
-	if e.AssetURL == "" {
-		return fmt.Errorf("packages[%d] (%s): asset_url is required", idx, e.Name)
+	// At least one artifact locator must be present.
+	if e.AssetURL == "" && e.AssetPath == "" && e.Filename == "" {
+		return fmt.Errorf("packages[%d] (%s): asset_url, asset_path, or filename is required", idx, e.Name)
 	}
 
 	// Digest: at least one of package_digest or artifact_sha256 must be present.
