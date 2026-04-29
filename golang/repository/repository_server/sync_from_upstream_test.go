@@ -6,7 +6,15 @@ import (
 	"testing"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/repository/upstream"
 )
+
+// testProvider returns a no-op provider and empty opts for unit tests that
+// exercise policy/conflict/skip paths and never reach actual artifact download.
+func testProvider() (upstream.ReleaseSource, upstream.SourceOpts) {
+	src, _ := upstream.NewSource(upstream.TypeHTTPIndex)
+	return src, upstream.SourceOpts{}
+}
 
 func TestProcessSyncEntrySkipsExistingDigestWithDifferentBuildNumber(t *testing.T) {
 	srv := newTestServer(t)
@@ -25,6 +33,7 @@ func TestProcessSyncEntrySkipsExistingDigestWithDifferentBuildNumber(t *testing.
 		SizeBytes:   100,
 	})
 
+	prov, pOpts := testProvider()
 	result := srv.processSyncEntry(
 		context.Background(),
 		&releaseIndexEntry{
@@ -38,9 +47,9 @@ func TestProcessSyncEntrySkipsExistingDigestWithDifferentBuildNumber(t *testing.
 			AssetURL:      "https://example.invalid/workflow.tgz",
 		},
 		&repopb.UpstreamSource{Name: "test-source"},
+		prov, pOpts,
 		"v1.0.53",
 		false,
-		"",
 	)
 
 	if result.GetStatus() != repopb.UpstreamSyncStatus_SYNC_SKIPPED {
@@ -427,7 +436,8 @@ func TestProcessSyncEntry_PopulatesRichFields(t *testing.T) {
 	}
 	src := &repopb.UpstreamSource{Name: "test-source"}
 
-	result := srv.processSyncEntry(context.Background(), entry, src, "v1.0.0", true, "")
+	prov, pOpts := testProvider()
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.0", true)
 
 	if result.Publisher != "core@globular.io" {
 		t.Fatalf("publisher: got %q", result.Publisher)
@@ -459,7 +469,8 @@ func TestProcessSyncEntry_ActionBlocked(t *testing.T) {
 		AllowedKinds: []string{"SERVICE"},
 	}
 
-	result := srv.processSyncEntry(context.Background(), entry, src, "v1.0.0", true, "")
+	prov, pOpts := testProvider()
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.0", true)
 	if result.Action != "blocked" {
 		t.Fatalf("expected action=blocked, got %q", result.Action)
 	}
@@ -478,7 +489,8 @@ func TestProcessSyncEntry_ActionNew(t *testing.T) {
 	}
 	src := &repopb.UpstreamSource{Name: "test-source"}
 
-	result := srv.processSyncEntry(context.Background(), entry, src, "v1.0.0", true, "")
+	prov, pOpts := testProvider()
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.0", true)
 	if result.Action != "new" {
 		t.Fatalf("expected action=new, got %q", result.Action)
 	}
@@ -503,7 +515,8 @@ func TestProcessSyncEntry_UnchangedPackagePreservesVersion(t *testing.T) {
 	}
 	src := &repopb.UpstreamSource{Name: "test-source"}
 
-	result := srv.processSyncEntry(context.Background(), entry, src, "v1.0.84", true, "")
+	prov, pOpts := testProvider()
+		result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.84", true)
 	// Version should be the package version (1.0.82), not the platform release (1.0.84).
 	if result.Version != "1.0.82" {
 		t.Fatalf("expected package version 1.0.82, got %q", result.Version)
@@ -543,7 +556,8 @@ func TestProcessSyncEntry_MixedVersionRelease(t *testing.T) {
 	src := &repopb.UpstreamSource{Name: "test-source"}
 
 	for _, entry := range entries {
-		result := srv.processSyncEntry(context.Background(), entry, src, "v1.0.84", true, "")
+		prov, pOpts := testProvider()
+		result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.84", true)
 		if result.Status == repopb.UpstreamSyncStatus_SYNC_WOULD_REJECT {
 			t.Fatalf("package %s should not be rejected: %s", entry.Name, result.Detail)
 		}
@@ -581,7 +595,8 @@ func TestSameArtifactMultipleReleases_NoConflict(t *testing.T) {
 		ChangedInRelease: &unchanged,
 	}
 	src := &repopb.UpstreamSource{Name: "test-source"}
-	result := srv.processSyncEntry(context.Background(), entry, src, "v1.0.85", false, "")
+	prov, pOpts := testProvider()
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.85", false)
 	if result.Status == repopb.UpstreamSyncStatus_SYNC_REJECTED {
 		t.Fatalf("same artifact referenced by another release should skip, not reject: %s", result.Detail)
 	}
@@ -613,11 +628,97 @@ func TestSamePackageIdentityDifferentSha256_Conflict(t *testing.T) {
 		ReleaseTag:    "v1.0.85",
 	}
 	src := &repopb.UpstreamSource{Name: "test-source"}
-	result := srv.processSyncEntry(context.Background(), entry, src, "v1.0.85", false, "")
+	prov, pOpts := testProvider()
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.85", false)
 	if result.Status != repopb.UpstreamSyncStatus_SYNC_REJECTED {
 		t.Fatalf("expected SYNC_REJECTED for different sha256, got %s: %s", result.Status, result.Detail)
 	}
 	if result.Action != "conflict" {
 		t.Fatalf("expected action=conflict, got %q", result.Action)
+	}
+}
+
+// ── Provider-neutral import path tests ──────────────────────────────────────
+
+func TestProcessSyncEntry_AssetPathOnly_DryRun(t *testing.T) {
+	// An entry with only asset_path (no asset_url) should produce a valid
+	// dry-run result showing the asset_path in the detail message.
+	srv := newTestServer(t)
+	entry := &releaseIndexEntry{
+		Name: "echo", Kind: "SERVICE", Publisher: "core@globular.io",
+		Version: "1.0.84", BuildNumber: 24, BuildID: "24",
+		Platform:      "linux_amd64",
+		PackageDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+		AssetPath:     "packages/echo_1.0.84_linux_amd64.tgz",
+		Filename:      "echo_1.0.84_linux_amd64.tgz",
+		ReleaseTag:    "v1.0.84",
+		// AssetURL intentionally empty — LOCAL_DIR/GIT_INDEX mode
+	}
+	src := &repopb.UpstreamSource{Name: "test-source"}
+	prov, pOpts := testProvider()
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.84", true)
+	if result.Status != repopb.UpstreamSyncStatus_SYNC_WOULD_IMPORT {
+		t.Fatalf("expected WOULD_IMPORT, got %s: %s", result.Status, result.Detail)
+	}
+	// The detail should show the asset_path since there's no asset_url.
+	if !strings.Contains(result.Detail, "packages/echo") {
+		t.Fatalf("expected asset_path in detail, got: %s", result.Detail)
+	}
+}
+
+func TestProcessSyncEntry_NoAssetURLNoAssetPath_DryRun(t *testing.T) {
+	// Entry with neither asset_url nor asset_path should still produce a
+	// dry-run result (it will fail on actual import but dry-run is safe).
+	srv := newTestServer(t)
+	entry := &releaseIndexEntry{
+		Name: "echo", Kind: "SERVICE", Publisher: "core@globular.io",
+		Version: "1.0.84", BuildNumber: 24, BuildID: "24",
+		Platform:      "linux_amd64",
+		PackageDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+		Filename:      "echo_1.0.84_linux_amd64.tgz",
+		ReleaseTag:    "v1.0.84",
+		// Both AssetURL and AssetPath empty
+	}
+	src := &repopb.UpstreamSource{Name: "test-source"}
+	prov, pOpts := testProvider()
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.84", true)
+	if result.Status != repopb.UpstreamSyncStatus_SYNC_WOULD_IMPORT {
+		t.Fatalf("expected WOULD_IMPORT for dry-run, got %s", result.Status)
+	}
+}
+
+func TestNormalizedEntry_PopulatesAssetPathAndFilename(t *testing.T) {
+	entry := &releaseIndexEntry{
+		Name: "echo", Version: "1.0.84", Platform: "linux_amd64",
+		AssetPath: "packages/echo.tgz",
+		Filename:  "echo_1.0.84.tgz",
+		PackageDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+		AssetURL:  "", // intentionally empty
+	}
+	n := normalizeReleaseEntry(entry, &repopb.UpstreamSource{})
+	if n.AssetPath != "packages/echo.tgz" {
+		t.Fatalf("expected asset_path propagated, got %q", n.AssetPath)
+	}
+	if n.Filename != "echo_1.0.84.tgz" {
+		t.Fatalf("expected filename propagated, got %q", n.Filename)
+	}
+}
+
+func TestResolveProvenanceAssetURL_Variants(t *testing.T) {
+	tests := []struct {
+		name string
+		n    *normalizedEntry
+		want string
+	}{
+		{"asset_url wins", &normalizedEntry{AssetURL: "https://example.com/echo.tgz"}, "https://example.com/echo.tgz"},
+		{"falls back to path:", &normalizedEntry{AssetPath: "packages/echo.tgz"}, "path:packages/echo.tgz"},
+		{"falls back to file:", &normalizedEntry{Filename: "echo.tgz"}, "file:echo.tgz"},
+		{"empty", &normalizedEntry{}, ""},
+	}
+	for _, tt := range tests {
+		got := resolveProvenanceAssetURL(tt.n)
+		if got != tt.want {
+			t.Errorf("%s: got %q, want %q", tt.name, got, tt.want)
+		}
 	}
 }

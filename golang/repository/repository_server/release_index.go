@@ -133,6 +133,8 @@ type normalizedEntry struct {
 	BuildID     string
 	Digest      string // canonical digest for download verification (artifact_sha256 or package_digest)
 	AssetURL    string
+	AssetPath   string // relative path for LOCAL_DIR/GIT_INDEX providers
+	Filename    string // archive filename
 
 	EntrypointChecksum    string
 	ReleaseTag            string
@@ -151,6 +153,8 @@ func normalizeReleaseEntry(entry *releaseIndexEntry, src *repopb.UpstreamSource)
 		Platform:              entry.Platform,
 		Kind:                  entry.Kind,
 		AssetURL:              entry.AssetURL,
+		AssetPath:             entry.AssetPath,
+		Filename:              entry.Filename,
 		EntrypointChecksum:    entry.EntrypointChecksum,
 		ReleaseTag:            entry.ReleaseTag,
 		PackageContractDigest: entry.PackageContractDigest,

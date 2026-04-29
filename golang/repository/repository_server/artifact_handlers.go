@@ -1872,8 +1872,11 @@ func (srv *server) refillBlobFromUpstream(ctx context.Context, key string) (io.R
 	}
 
 	ui := manifest.GetUpstreamImport()
-	if ui == nil || ui.GetAssetUrl() == "" {
+	if ui == nil {
 		return nil, fmt.Errorf("artifact %q has no upstream_import record", key)
+	}
+	if ui.GetAssetUrl() == "" {
+		return nil, fmt.Errorf("artifact %q has no asset_url for refill", key)
 	}
 	expectedDigest := manifest.GetChecksum()
 	if expectedDigest == "" {
@@ -1924,10 +1927,55 @@ func (srv *server) refillBlobFromUpstream(ctx context.Context, key string) (io.R
 		}
 	}
 
-	// ── Download and verify ──────────────────────────────────────────────
-	data, _, err := downloadAndVerify(ui.GetAssetUrl(), expectedDigest, authToken)
-	if err != nil {
-		return nil, fmt.Errorf("upstream refill download: %w", err)
+	// ── Download and verify via provider ─────────────────────────────────
+	sourceType := upstream.MapProtoType(int32(src.GetType()))
+	provider, provErr := upstream.NewSource(sourceType)
+	if provErr != nil {
+		return nil, fmt.Errorf("upstream refill: unsupported source type: %w", provErr)
+	}
+	opts := sourceOptsFromProto(src, authToken)
+
+	assetURL := ui.GetAssetUrl()
+	assetPath := ""
+	filename := ""
+	// Parse path: or file: prefixed locators from provenance.
+	if strings.HasPrefix(assetURL, "path:") {
+		assetPath = strings.TrimPrefix(assetURL, "path:")
+		assetURL = ""
+	} else if strings.HasPrefix(assetURL, "file:") {
+		filename = strings.TrimPrefix(assetURL, "file:")
+		assetURL = ""
+	}
+
+	artifactRef := upstream.ArtifactRef{
+		AssetURL:      assetURL,
+		AssetPath:     assetPath,
+		Filename:      filename,
+		ReleaseTag:    ui.GetReleaseTag(),
+		OriginRelease: ui.GetOriginRelease(),
+		Name:          ref.GetName(),
+		Version:       ref.GetVersion(),
+		Platform:      ref.GetPlatform(),
+		Sha256:        expectedDigest,
+	}
+
+	rc, _, openErr := provider.OpenArtifact(ctx, opts, artifactRef)
+	if openErr != nil {
+		return nil, fmt.Errorf("upstream refill open: %w", openErr)
+	}
+	defer rc.Close()
+
+	h := sha256.New()
+	data, readErr := io.ReadAll(io.TeeReader(io.LimitReader(rc, int64(maxArtifactBytes)+1), h))
+	if readErr != nil {
+		return nil, fmt.Errorf("upstream refill read: %w", readErr)
+	}
+	if len(data) > maxArtifactBytes {
+		return nil, fmt.Errorf("upstream refill: artifact exceeds %d bytes", maxArtifactBytes)
+	}
+	actualDigest := "sha256:" + hex.EncodeToString(h.Sum(nil))
+	if actualDigest != expectedDigest {
+		return nil, fmt.Errorf("upstream refill: digest mismatch: expected %s, got %s", expectedDigest, actualDigest)
 	}
 
 	// Refill MinIO cache.

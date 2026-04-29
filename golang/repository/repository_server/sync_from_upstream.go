@@ -268,7 +268,7 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 			continue
 		}
 
-		result := srv.processSyncEntry(ctx, entry, src, releaseTag, dryRun, authToken)
+		result := srv.processSyncEntry(ctx, entry, src, provider, opts, releaseTag, dryRun)
 		results = append(results, result)
 
 		switch result.GetStatus() {
@@ -332,9 +332,10 @@ func (srv *server) processSyncEntry(
 	ctx context.Context,
 	entry *releaseIndexEntry,
 	src *repopb.UpstreamSource,
+	provider upstream.ReleaseSource,
+	opts upstream.SourceOpts,
 	releaseTag string,
 	dryRun bool,
-	authToken string,
 ) *repopb.UpstreamSyncResult {
 
 	// ── Step 1: Normalize ─────────────────────────────────────────────────
@@ -462,20 +463,27 @@ func (srv *server) processSyncEntry(
 
 	if dryRun {
 		result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_IMPORT
-		result.Detail = fmt.Sprintf("would download from %s (build_number=%d)", upstream.RedactAssetURL(n.AssetURL), n.BuildNumber)
+		loc := n.AssetURL
+		if loc == "" {
+			loc = n.AssetPath
+		}
+		if loc == "" {
+			loc = n.Filename
+		}
+		result.Detail = fmt.Sprintf("would download from %s (build_number=%d)", upstream.RedactAssetURL(loc), n.BuildNumber)
 		return result
 	}
 
-	// ── Step 4: Download and verify ───────────────────────────────────────
+	// ── Step 4: Download and verify via provider ─────────────────────────
 	if !n.ChangedInRelease && n.OriginRelease != releaseTag {
 		slog.Info("upstream: importing unchanged package from origin release",
 			"name", n.Name, "version", n.Version, "origin", n.OriginRelease, "platform_release", releaseTag)
 	}
-	data, digest, err := downloadAndVerify(n.AssetURL, n.Digest, authToken)
+	data, digest, err := downloadAndVerifyFromProvider(ctx, provider, opts, n)
 	if err != nil {
 		result.Status = repopb.UpstreamSyncStatus_SYNC_FAILED
 		result.Detail = fmt.Sprintf("download/verify failed: %v", err)
-		slog.Warn("upstream: download failed", "name", n.Name, "url", n.AssetURL, "err", err)
+		slog.Warn("upstream: download failed", "name", n.Name, "err", err)
 		return result
 	}
 
@@ -543,7 +551,7 @@ func (srv *server) importUpstreamArtifact(
 		UpstreamImport: &repopb.UpstreamImportRecord{
 			SourceName:             src.GetName(),
 			ReleaseTag:             releaseTag,
-			AssetUrl:               n.AssetURL,
+			AssetUrl:               resolveProvenanceAssetURL(n),
 			IndexUrl:               strings.ReplaceAll(src.GetIndexUrl(), "{tag}", releaseTag),
 			ImportedAt:             time.Now().Unix(),
 			Publisher:              n.Publisher,
@@ -633,6 +641,66 @@ func parseReleaseIndex(data []byte) (*releaseIndex, error) {
 		return nil, err
 	}
 	return &idx, nil
+}
+
+// resolveProvenanceAssetURL returns the best locator for provenance records.
+// Prefers asset_url, falls back to "path:" + asset_path or filename.
+func resolveProvenanceAssetURL(n *normalizedEntry) string {
+	if n.AssetURL != "" {
+		return n.AssetURL
+	}
+	if n.AssetPath != "" {
+		return "path:" + n.AssetPath
+	}
+	if n.Filename != "" {
+		return "file:" + n.Filename
+	}
+	return ""
+}
+
+// downloadAndVerifyFromProvider uses the provider.OpenArtifact interface to
+// download an artifact, compute sha256, and verify it matches the expected digest.
+// Works with all providers: HTTP, LOCAL_DIR, GIT_INDEX, GitHub.
+func downloadAndVerifyFromProvider(
+	ctx context.Context,
+	provider upstream.ReleaseSource,
+	opts upstream.SourceOpts,
+	n *normalizedEntry,
+) ([]byte, string, error) {
+	ref := upstream.ArtifactRef{
+		AssetURL:      n.AssetURL,
+		AssetPath:     n.AssetPath,
+		Filename:      n.Filename,
+		ReleaseTag:    n.ReleaseTag,
+		OriginRelease: n.OriginRelease,
+		Name:          n.Name,
+		Version:       n.Version,
+		Platform:      n.Platform,
+		Sha256:        n.Digest,
+	}
+
+	rc, _, err := provider.OpenArtifact(ctx, opts, ref)
+	if err != nil {
+		return nil, "", fmt.Errorf("open artifact %s: %w", n.Name, err)
+	}
+	defer rc.Close()
+
+	// Stream through sha256 with size limit.
+	limited := io.LimitReader(rc, int64(maxArtifactBytes)+1)
+	h := sha256.New()
+	data, err := io.ReadAll(io.TeeReader(limited, h))
+	if err != nil {
+		return nil, "", fmt.Errorf("read artifact %s: %w", n.Name, err)
+	}
+	if len(data) > maxArtifactBytes {
+		return nil, "", fmt.Errorf("artifact %s exceeds %d bytes", n.Name, maxArtifactBytes)
+	}
+
+	actual := "sha256:" + hex.EncodeToString(h.Sum(nil))
+	if n.Digest != "" && actual != n.Digest {
+		return nil, "", fmt.Errorf("digest mismatch for %s: expected %s, got %s", n.Name, n.Digest, actual)
+	}
+	return data, actual, nil
 }
 
 // loadUpstreamSource reads a registered UpstreamSource from etcd.
