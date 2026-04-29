@@ -4,6 +4,16 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      force_full_rebuild:
+        description: 'Force full rebuild — treat all packages as changed'
+        type: boolean
+        default: false
+      force_reason:
+        description: 'Reason for forced rebuild'
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -13,6 +23,10 @@ env:
   GOOS: linux
   GOARCH: amd64
   CGO_ENABLED: "1"
+  # Fixed version used for change detection builds. Go services are compiled
+  # with this version first so that binary checksums are version-independent.
+  # Only changed services are rebuilt with the real platform version.
+  SENTINEL_VERSION: "0.0.0-detect"
 
 jobs:
   release:
@@ -60,98 +74,112 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y libsqlite3-dev libwebp-dev unixodbc-dev bzip2 unzip
 
-      # ── Go setup ──────────────────────────────────────────────────────────
+      # ── Go setup ─────────────────────────────────────────────────────────
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
           cache-dependency-path: services/golang/go.sum
 
-      # ── Version ───────────────────────────────────────────────────────────
+      # ── Version ──────────────────────────────────────────────────────────
       - name: Extract version
         id: version
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          echo "Building release: ${VERSION}"
+          echo "Building platform release: ${VERSION} (${GITHUB_REF_NAME})"
 
-      # ── Build all Go services ─────────────────────────────────────────────
-      - name: Build all Go services
-        working-directory: services/golang
+      # ═══════════════════════════════════════════════════════════════════════
+      # BOM: Fetch previous release index for change detection
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Fetch previous release index
+        id: prev_index
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          INPUT_FORCE: ${{ inputs.force_full_rebuild || 'false' }}
+          INPUT_REASON: ${{ inputs.force_reason || '' }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          CURRENT_TAG="${{ steps.version.outputs.tag }}"
+          FORCE="${INPUT_FORCE}"
+          FORCE_REASON="${INPUT_REASON}"
+
+          # Find most recent non-draft release (excluding current tag)
+          PREV_TAG=$(gh release list --repo "${{ github.repository }}" \
+            --exclude-drafts --exclude-pre-releases --limit 5 \
+            --json tagName --jq "[.[] | select(.tagName != \"${CURRENT_TAG}\")][0].tagName // \"\"")
+
+          HAS_PREV="false"
+          if [[ -n "$PREV_TAG" ]]; then
+            echo "Previous release: ${PREV_TAG}"
+            if gh release download "$PREV_TAG" --repo "${{ github.repository }}" \
+                 --pattern "release-index.json" --dir dist/ 2>/dev/null; then
+              mv dist/release-index.json dist/prev-release-index.json
+              HAS_PREV="true"
+              echo "Downloaded previous release-index.json from ${PREV_TAG}"
+            else
+              echo "WARNING: ${PREV_TAG} has no release-index.json"
+            fi
+          else
+            echo "No previous release found"
+          fi
+
+          # Auto-force if no previous index (first BOM release / transitional)
+          if [[ "$HAS_PREV" != "true" && "$FORCE" != "true" ]]; then
+            FORCE="true"
+            FORCE_REASON="No previous release-index.json available (transitional release)"
+            echo "Auto-forcing full rebuild: no previous index"
+          fi
+
+          # Ensure file exists (empty JSON if no previous)
+          [[ ! -f dist/prev-release-index.json ]] && echo '{}' > dist/prev-release-index.json
+
+          echo "has_prev=${HAS_PREV}" >> "$GITHUB_OUTPUT"
+          echo "prev_tag=${PREV_TAG:-none}" >> "$GITHUB_OUTPUT"
+          echo "force_rebuild=${FORCE}" >> "$GITHUB_OUTPUT"
+          {
+            echo "force_reason<<EOFR"
+            echo "${FORCE_REASON}"
+            echo "EOFR"
+          } >> "$GITHUB_OUTPUT"
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # Phase 1: Sentinel build — compile everything with a fixed version
+      # so that binary checksums are version-independent for change detection.
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Build all Go services (sentinel version for change detection)
+        working-directory: services/golang
         run: |
           set -euo pipefail
           mkdir -p ../../dist/bin
 
-          # Write Version as a compile-time constant into every service package.
-          # This guarantees the version is set at compile time — the build will
-          # fail if gen-version.sh is not run or the version is empty.
-          bash build/gen-version.sh "${VERSION}"
+          bash build/gen-version.sh "${SENTINEL_VERSION}"
 
-          # ldflags kept for any remaining packages not covered by gen-version.sh
           LDFLAGS="-s -w"
-
-          echo "Building all services with version=${VERSION}..."
-
-          # Read services.list and build each target
           while IFS='|' read -r target output; do
-            target="${target%%#*}"
-            target="${target// /}"
-            output="${output// /}"
-            [[ -z "${target}" ]] && continue
-
+            target="${target%%#*}"; target="${target// /}"
+            output="${output// /}"; [[ -z "${target}" ]] && continue
             bin_name=$(basename "${output}")
-            # compute_server is not yet ready for release
             [[ "${bin_name}" == "compute_server" ]] && continue
-
-            echo "  → Building ${bin_name}..."
+            echo "  -> ${bin_name} (sentinel)"
             go build -ldflags "${LDFLAGS}" -o "../../dist/bin/${bin_name}" "${target}"
           done < build/services.list
 
-          # Keep globularcli for the service package; also expose as 'globular' for CLI install
           cp ../../dist/bin/globularcli ../../dist/bin/globular
+          echo "Sentinel build complete: $(ls ../../dist/bin/ | wc -l) binaries"
 
-          echo "Build complete:"
-          ls -lh ../../dist/bin/
-
-      # ── Build xds + gateway (from Globular repo) ──────────────────────────
-      - name: Build xds and gateway
+      - name: Build xds and gateway (sentinel version)
         working-directory: Globular
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          set -euo pipefail
-          LDFLAGS="-X main.Version=${VERSION} -X main.BuildVersion=${VERSION} -s -w"
+          LDFLAGS="-X main.Version=${SENTINEL_VERSION} -X main.BuildVersion=${SENTINEL_VERSION} -s -w"
           go build -ldflags "${LDFLAGS}" -o ../dist/bin/xds ./cmd/xds
           go build -ldflags "${LDFLAGS}" -o ../dist/bin/gateway ./cmd/gateway
-          echo "xds:     $(ls -lh ../dist/bin/xds | awk '{print $5}')"
-          echo "gateway: $(ls -lh ../dist/bin/gateway | awk '{print $5}')"
+          echo "xds + gateway sentinel build complete"
 
-      # ── Run tests ─────────────────────────────────────────────────────────
-      - name: Run tests
-        working-directory: services/golang
-        run: go test ./... -race -short -timeout 120s
-
-      # ── Build globular-installer ───────────────────────────────────────────
-      - name: Build globular-installer
-        working-directory: globular-installer
-        env:
-          GOWORK: "off"
-          CGO_ENABLED: "0"
-        run: |
-          go build -o ../dist/bin/globular-installer ./cmd/globular-installer
-          chmod +x ../dist/bin/globular-installer
-          echo "globular-installer: $(ls -lh ../dist/bin/globular-installer | awk '{print $5}')"
-
-      # ── Create noop binary for scylladb ───────────────────────────────────
-      - name: Create noop binary
-        run: |
-          printf '#!/bin/sh\n# Scylladb is installed via .deb packages.\nexit 0\n' > dist/bin/noop
-          chmod +x dist/bin/noop
-
-      # ── Download third-party infra binaries ───────────────────────────────
+      # ── Download third-party infra binaries ─────────────────────────────
       - name: Download infra binaries
         run: |
           set -euo pipefail
@@ -167,72 +195,72 @@ jobs:
           RCLONE_VERSION="1.73.1"
           YTDLP_VERSION="2026.02.21"
 
-          echo "→ etcd ${ETCD_VERSION}..."
+          echo "-> etcd ${ETCD_VERSION}..."
           curl -fsSL "https://github.com/etcd-io/etcd/releases/download/v${ETCD_VERSION}/etcd-v${ETCD_VERSION}-linux-amd64.tar.gz" \
             | tar xzf - --strip-components=1 \
                 --wildcards "*/etcd" "*/etcdctl"
           chmod +x etcd etcdctl
 
-          echo "→ envoy ${ENVOY_VERSION}..."
+          echo "-> envoy ${ENVOY_VERSION}..."
           curl -fsSL "https://github.com/envoyproxy/envoy/releases/download/v${ENVOY_VERSION}/envoy-${ENVOY_VERSION}-linux-x86_64" -o envoy
           chmod +x envoy
 
-          echo "→ minio (latest stable)..."
+          echo "-> minio (latest stable)..."
           curl -fsSL "https://dl.min.io/server/minio/release/linux-amd64/minio" -o minio
           chmod +x minio
 
-          echo "→ mc (latest stable)..."
+          echo "-> mc (latest stable)..."
           curl -fsSL "https://dl.min.io/client/mc/release/linux-amd64/mc" -o mc
           chmod +x mc
 
-          echo "→ prometheus ${PROMETHEUS_VERSION}..."
+          echo "-> prometheus ${PROMETHEUS_VERSION}..."
           curl -fsSL "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz" \
             | tar xzf - --strip-components=1 \
                 --wildcards "*/prometheus"
           chmod +x prometheus
 
-          echo "→ alertmanager ${ALERTMANAGER_VERSION}..."
+          echo "-> alertmanager ${ALERTMANAGER_VERSION}..."
           curl -fsSL "https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz" \
             | tar xzf - --strip-components=1 \
                 --wildcards "*/alertmanager"
           chmod +x alertmanager
 
-          echo "→ node_exporter ${NODE_EXPORTER_VERSION}..."
+          echo "-> node_exporter ${NODE_EXPORTER_VERSION}..."
           curl -fsSL "https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz" \
             | tar xzf - --strip-components=1 \
                 --wildcards "*/node_exporter"
           chmod +x node_exporter
 
-          echo "→ sidekick ${SIDEKICK_VERSION}..."
+          echo "-> sidekick ${SIDEKICK_VERSION}..."
           curl -fsSL "https://github.com/minio/sidekick/releases/download/v${SIDEKICK_VERSION}/sidekick-linux-amd64" -o sidekick
           chmod +x sidekick
 
-          echo "→ restic ${RESTIC_VERSION}..."
+          echo "-> restic ${RESTIC_VERSION}..."
           curl -fsSL "https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_amd64.bz2" \
             | bunzip2 > restic
           chmod +x restic
 
-          echo "→ rclone ${RCLONE_VERSION}..."
+          echo "-> rclone ${RCLONE_VERSION}..."
           curl -fsSL "https://github.com/rclone/rclone/releases/download/v${RCLONE_VERSION}/rclone-v${RCLONE_VERSION}-linux-amd64.zip" \
             -o /tmp/rclone.zip
           unzip -j /tmp/rclone.zip "rclone-v${RCLONE_VERSION}-linux-amd64/rclone" -d .
           chmod +x rclone
 
-          echo "→ sha256sum (coreutils, from system)..."
+          echo "-> sha256sum (coreutils, from system)..."
           cp /usr/bin/sha256sum sha256sum
           chmod +x sha256sum
 
-          echo "→ yt-dlp ${YTDLP_VERSION}..."
+          echo "-> yt-dlp ${YTDLP_VERSION}..."
           curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/yt-dlp_linux" -o yt-dlp
           chmod +x yt-dlp
 
-          echo "→ ffmpeg (stable static build via BtbN)..."
+          echo "-> ffmpeg (stable static build via BtbN)..."
           FFMPEG_URL=$(curl -fsSL "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest" \
             | python3 -c "import json,sys; d=json.load(sys.stdin); assets=sorted(a['browser_download_url'] for a in d['assets'] if 'linux64-gpl' in a['name'] and 'shared' not in a['name'] and a['name'].endswith('.tar.xz') and not a['name'].startswith('ffmpeg-N-')); print(assets[-1])")
           curl -fsSL "${FFMPEG_URL}" | tar xJf - --strip-components=2 --wildcards "*/bin/ffmpeg"
           chmod +x ffmpeg
 
-          echo "→ scylla-manager + agent + sctool (latest stable from GitHub)..."
+          echo "-> scylla-manager + agent + sctool (latest stable from GitHub)..."
           SCYLLA_MGR_VERSION=$(curl -fsSL "https://api.github.com/repos/scylladb/scylla-manager/releases" \
             | python3 -c "import json,sys; releases=[r for r in json.load(sys.stdin) if r['assets'] and not r['prerelease']]; print(releases[0]['tag_name'].lstrip('v'))")
           echo "  version: ${SCYLLA_MGR_VERSION}"
@@ -247,7 +275,7 @@ jobs:
           chmod +x scylla_manager scylla_manager_agent sctool
           rm -rf "${tmpd}" /tmp/scylla-manager.tar.gz
 
-          echo "→ claude (Anthropic Claude Code CLI via npm)..."
+          echo "-> claude (Anthropic Claude Code CLI via npm)..."
           CLAUDE_VERSION=$(python3 -c "import json; print(json.load(open('../../packages/metadata/claude/package.json'))['version'])")
           echo "  version: ${CLAUDE_VERSION}"
           echo "CLAUDE_VERSION=${CLAUDE_VERSION}" >> "$GITHUB_ENV"
@@ -256,364 +284,443 @@ jobs:
           chmod +x claude
 
           echo ""
-          echo "Infra binaries:"
+          echo "Infra binaries downloaded:"
           ls -lh etcd etcdctl envoy minio mc prometheus alertmanager node_exporter sidekick restic rclone noop \
-                 sha256sum yt-dlp ffmpeg scylla_manager scylla_manager_agent sctool claude
+                 sha256sum yt-dlp ffmpeg scylla_manager scylla_manager_agent sctool claude 2>/dev/null || true
 
-      # ── Create infra packages ─────────────────────────────────────────────
-      - name: Create infra packages
+      # ── Create noop binary for scylladb/keepalived ──────────────────────
+      - name: Create noop binary
+        run: |
+          printf '#!/bin/sh\n# Managed via OS packages, not a standalone binary.\nexit 0\n' > dist/bin/noop
+          chmod +x dist/bin/noop
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # BOM: Change detection — compare binary checksums + package contracts
+      # against the previous release index. Unchanged packages keep their
+      # original version and are referenced from their origin release.
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Run BOM change detection
+        id: changes
         env:
-          BUILD_ID: ${{ github.run_number }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          FORCE: ${{ steps.prev_index.outputs.force_rebuild }}
+          FORCE_REASON: ${{ steps.prev_index.outputs.force_reason }}
         run: |
           set -euo pipefail
-          mkdir -p dist/packages
 
-          PACKAGES_META="packages/metadata"
-          DIST_BIN="dist/bin"
+          EXTRA_ARGS=()
+          if [[ "${FORCE}" == "true" ]]; then
+            EXTRA_ARGS+=(--force-full-rebuild)
+            [[ -n "${FORCE_REASON}" ]] && EXTRA_ARGS+=(--force-reason "${FORCE_REASON}")
+          fi
 
-          # Map: package-name → binary-filename-in-dist-bin
-          declare -A INFRA_BIN_MAP=(
-            [scylladb]=noop
-            [keepalived]=noop
-            [etcd]=etcd
-            [etcdctl]=etcdctl
-            [envoy]=envoy
-            [minio]=minio
-            [mc]=mc
-            [prometheus]=prometheus
-            [alertmanager]=alertmanager
-            [node-exporter]=node_exporter
-            [sidekick]=sidekick
-            [restic]=restic
-            [rclone]=rclone
-            [sha256sum]=sha256sum
-            [yt-dlp]=yt-dlp
-            [ffmpeg]=ffmpeg
-            [scylla-manager]=scylla_manager
-            [scylla-manager-agent]=scylla_manager_agent
-            [sctool]=sctool
-            [claude]=claude
-          )
-
-          for pkg_name in "${!INFRA_BIN_MAP[@]}"; do
-            bin_name="${INFRA_BIN_MAP[${pkg_name}]}"
-            bin_path="${DIST_BIN}/${bin_name}"
-
-            if [[ ! -f "${bin_path}" ]]; then
-              echo "  ⚠ Skipping ${pkg_name} (${bin_name} not found)"
-              continue
-            fi
-
-            meta_dir="${PACKAGES_META}/${pkg_name}"
-            if [[ ! -d "${meta_dir}" ]]; then
-              echo "  ⚠ Skipping ${pkg_name} (no metadata at ${meta_dir})"
-              continue
-            fi
-
-            # Read version and entrypoint from existing package.json
-            PKG_VERSION=$(python3 -c "import json; print(json.load(open('${meta_dir}/package.json'))['version'])")
-            PKG_ENTRYPOINT=$(python3 -c "import json; print(json.load(open('${meta_dir}/package.json'))['entrypoint'].split('/')[-1])")
-
-            # minio and mc are downloaded as "latest stable" (no pinned version in download URL).
-            # Detect the real version from the binary so the repository record matches reality.
-            if [[ "${pkg_name}" == "minio" ]]; then
-              DETECTED=$("${bin_path}" --version 2>/dev/null | awk '/^minio version/{print $3}' || echo "")
-              [[ -n "${DETECTED}" ]] && PKG_VERSION="${DETECTED}"
-            elif [[ "${pkg_name}" == "mc" ]]; then
-              DETECTED=$("${bin_path}" --version 2>/dev/null | awk '/^mc version/{print $3}' || echo "")
-              [[ -n "${DETECTED}" ]] && PKG_VERSION="${DETECTED}"
-            elif [[ "${pkg_name}" == "ffmpeg" ]]; then
-              DETECTED=$("${bin_path}" -version 2>/dev/null | awk 'NR==1{print $3}' || echo "")
-              [[ -n "${DETECTED}" ]] && PKG_VERSION="${DETECTED}"
-            elif [[ "${pkg_name}" == "scylla-manager" || "${pkg_name}" == "scylla-manager-agent" || "${pkg_name}" == "sctool" ]]; then
-              [[ -n "${SCYLLA_MGR_VERSION:-}" ]] && PKG_VERSION="${SCYLLA_MGR_VERSION}"
-            elif [[ "${pkg_name}" == "claude" ]]; then
-              # Use the pinned version from npm install (CLAUDE_VERSION env var set during download)
-              [[ -n "${CLAUDE_VERSION:-}" ]] && PKG_VERSION="${CLAUDE_VERSION}"
-            fi
-
-            echo "  → Packaging ${pkg_name} v${PKG_VERSION}..."
-
-            tmpdir=$(mktemp -d)
-
-            # Copy all metadata (package.json, specs/, systemd/, scripts/, debs/)
-            cp -r "${meta_dir}/." "${tmpdir}/"
-
-            # Place binary using the entrypoint name from package.json
-            mkdir -p "${tmpdir}/bin"
-            cp "${bin_path}" "${tmpdir}/bin/${PKG_ENTRYPOINT}"
-            chmod 755 "${tmpdir}/bin/${PKG_ENTRYPOINT}"
-
-            # Compute SHA256 of binary
-            CHECKSUM="sha256:$(sha256sum "${bin_path}" | awk '{print $1}')"
-
-            # Update package.json: version + entrypoint_checksum + build_id (mandatory for release)
-            python3 - "${tmpdir}/package.json" "${PKG_VERSION}" "${CHECKSUM}" "${BUILD_ID}" <<'PYEOF'
-          import json, sys, os
-          path, version, checksum, build_id = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-          if not build_id:
-              print(f"ERROR: BUILD_ID is empty for {path}", file=sys.stderr)
-              sys.exit(1)
-          with open(path) as f:
-              d = json.load(f)
-          d['version'] = version
-          d['entrypoint_checksum'] = checksum
-          d['build_id'] = build_id
-          with open(path, 'w') as f:
-              json.dump(d, f, indent=2)
-          PYEOF
-
-            out_file="dist/packages/${pkg_name}_${PKG_VERSION}_linux_amd64.tgz"
-            tar -C "${tmpdir}" -czf "${out_file}" .
-            rm -rf "${tmpdir}"
-
-            echo "    ✓ $(basename "${out_file}") ($(du -sh "${out_file}" | cut -f1))"
-          done
+          python3 services/golang/build/detect-changes.py \
+            --prev-index dist/prev-release-index.json \
+            --metadata-dir packages/metadata \
+            --bin-dir dist/bin \
+            --pkg-map-json services/golang/build/pkg-map.json \
+            --version "${VERSION}" \
+            --tag "${TAG}" \
+            --output-overrides dist/version-overrides.txt \
+            --output-manifest dist/change-manifest.json \
+            "${EXTRA_ARGS[@]}"
 
           echo ""
-          echo "Infra packages built: $(ls dist/packages/*.tgz | wc -l)"
+          echo "=== Version Overrides ==="
+          cat dist/version-overrides.txt
 
-      # ── Create service packages ───────────────────────────────────────────
-      - name: Create service packages
+      # ═══════════════════════════════════════════════════════════════════════
+      # Phase 2: Rebuild only changed services with the real platform version.
+      # Unchanged services are NOT rebuilt — their packages are downloaded
+      # from the origin release for the offline bundle.
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Rebuild changed Go services with real version
+        working-directory: services/golang
         env:
-          BUILD_ID: ${{ github.run_number }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
 
-          PACKAGES_META="packages/metadata"
-          DIST_BIN="dist/bin"
+          # Re-generate version files: changed services get platform version,
+          # unchanged services get their previous version via overrides.
+          bash build/gen-version.sh "${VERSION}" ../../dist/version-overrides.txt
 
-          # Map: package-name → binary filename in dist/bin
-          declare -A BIN_MAP=(
-            [authentication]=authentication_server
-            [backup-manager]=backup_manager_server
-            [blog]=blog_server
-            [catalog]=catalog_server
-            [cluster-controller]=cluster_controller_server
-            [cluster-doctor]=cluster_doctor_server
-            [conversation]=conversation_server
-            [discovery]=discovery_server
-            [dns]=dns_server
-            [echo]=echo_server
-            [event]=event_server
-            [file]=file_server
-            [ldap]=ldap_server
-            [log]=log_server
-            [mail]=mail_server
-            [media]=media_server
-            [monitoring]=monitoring_server
-            [node-agent]=node_agent_server
-            [persistence]=persistence_server
-            [rbac]=rbac_server
-            [repository]=repository_server
-            [resource]=resource_server
-            [search]=search_server
-            [sql]=sql_server
-            [storage]=storage_server
-            [title]=title_server
-            [torrent]=torrent_server
-            [workflow]=workflow_server
-            [compute]=compute_server
-            [ai-memory]=ai_memory_server
-            [ai-executor]=ai_executor_server
-            [ai-watcher]=ai_watcher_server
-            [ai-router]=ai_router_server
-            [xds]=xds
-            [gateway]=gateway
-            [mcp]=mcp
-            [globular-cli]=globularcli
-          )
+          LDFLAGS="-s -w"
 
-          for pkg_name in "${!BIN_MAP[@]}"; do
-            bin_name="${BIN_MAP[${pkg_name}]}"
-            bin_path="${DIST_BIN}/${bin_name}"
-
-            if [[ ! -f "${bin_path}" ]]; then
-              echo "  ⚠ Skipping ${pkg_name} (${bin_name} not built)"
-              continue
-            fi
-
-            # Use pre-committed metadata directory (package.json, specs/, systemd/)
-            meta_dir="${PACKAGES_META}/${pkg_name}"
-            if [[ ! -d "${meta_dir}" ]]; then
-              echo "  ⚠ Skipping ${pkg_name} (no metadata at ${meta_dir})"
-              continue
-            fi
-
-            # Service packages use the release tag as their version so that the
-            # repository record matches what the binary reports at runtime (injected
-            # via ldflags: -X main.version=${VERSION}).
-            PKG_VERSION="${VERSION}"
-            if [[ -z "${PKG_VERSION}" ]]; then
-              echo "  ✗ ${pkg_name}: VERSION env var is empty" >&2
-              exit 1
-            fi
-
-            echo "  → Packaging ${pkg_name} v${PKG_VERSION}..."
-
-            tmpdir=$(mktemp -d)
-
-            # Copy metadata (package.json, specs/, systemd/) into tmpdir
-            cp -r "${meta_dir}/." "${tmpdir}/"
-
-            # Place freshly built binary
-            mkdir -p "${tmpdir}/bin"
-            cp "${bin_path}" "${tmpdir}/bin/${bin_name}"
-            chmod 755 "${tmpdir}/bin/${bin_name}"
-
-            # Compute SHA256 of the binary
-            CHECKSUM="sha256:$(sha256sum "${bin_path}" | awk '{print $1}')"
-
-            # Stamp package.json: version (per-package) + entrypoint_checksum + build_id (mandatory)
-            python3 - "${tmpdir}/package.json" "${PKG_VERSION}" "${CHECKSUM}" "${BUILD_ID}" <<'PYEOF'
-          import json, sys
-          path, version, checksum, build_id = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-          if not build_id:
-              print(f"ERROR: BUILD_ID is empty for {path}", file=sys.stderr)
-              sys.exit(1)
-          with open(path) as f:
-              d = json.load(f)
-          d['version'] = version
-          d['entrypoint_checksum'] = checksum
-          d['build_id'] = build_id
-          with open(path, 'w') as f:
-              json.dump(d, f, indent=2)
-          PYEOF
-
-            out_file="dist/packages/${pkg_name}_${PKG_VERSION}_linux_amd64.tgz"
-            tar -C "${tmpdir}" -czf "${out_file}" .
-            rm -rf "${tmpdir}"
-
-            echo "    ✓ $(basename "${out_file}") ($(du -sh "${out_file}" | cut -f1))"
+          # Read changed Go services from manifest and rebuild only those.
+          python3 -c "
+          import json
+          m = json.load(open('../../dist/change-manifest.json'))
+          for p in m['packages']:
+              if p['changed'] and p.get('go_target'):
+                  print(f\"{p['go_target']}|{p['name']}\")
+          " | while IFS='|' read -r target pkg_name; do
+            bin_name=$(python3 -c "import json; print(json.load(open('build/pkg-map.json'))['${pkg_name}']['binary'])")
+            echo "  -> Rebuilding ${bin_name} (v${VERSION})"
+            go build -ldflags "${LDFLAGS}" -o "../../dist/bin/${bin_name}" "./${target}"
           done
 
-          echo ""
-          echo "Packages:"
-          ls dist/packages/*.tgz | wc -l
-          du -sh dist/packages/
+          # Update globular CLI copy if it changed
+          python3 -c "
+          import json
+          m = json.load(open('../../dist/change-manifest.json'))
+          changed = [p['name'] for p in m['packages'] if p['changed']]
+          if 'globular-cli' in changed:
+              print('yes')
+          " | grep -q yes && cp ../../dist/bin/globularcli ../../dist/bin/globular || true
+
+      - name: Rebuild xds/gateway if changed
+        working-directory: Globular
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          LDFLAGS="-X main.Version=${VERSION} -X main.BuildVersion=${VERSION} -s -w"
+
+          python3 -c "
+          import json
+          m = json.load(open('../dist/change-manifest.json'))
+          for p in m['packages']:
+              if p['changed'] and p['name'] in ('xds', 'gateway'):
+                  print(p['name'])
+          " | while read -r name; do
+            echo "  -> Rebuilding ${name} (v${VERSION})"
+            go build -ldflags "${LDFLAGS}" -o "../dist/bin/${name}" "./cmd/${name}"
+          done
+
+      # ── Run tests ────────────────────────────────────────────────────────
+      - name: Run tests
+        working-directory: services/golang
+        run: go test ./... -race -short -timeout 120s
+
+      # ── Build globular-installer ─────────────────────────────────────────
+      - name: Build globular-installer
+        working-directory: globular-installer
+        env:
+          GOWORK: "off"
+          CGO_ENABLED: "0"
+        run: |
+          go build -o ../dist/bin/globular-installer ./cmd/globular-installer
+          chmod +x ../dist/bin/globular-installer
+          echo "globular-installer: $(ls -lh ../dist/bin/globular-installer | awk '{print $5}')"
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # BOM: Package only changed packages. Unchanged packages are NOT
+      # repackaged — they are referenced from their origin release.
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Package changed packages
+        env:
+          BUILD_ID: ${{ github.run_number }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/packages
+
+          python3 <<'PYEOF'
+          import json, os, subprocess, sys, shutil, hashlib, tempfile
+
+          manifest = json.load(open("dist/change-manifest.json"))
+          pkg_map  = json.load(open("services/golang/build/pkg-map.json"))
+          version  = os.environ["VERSION"]
+          build_id = os.environ["BUILD_ID"]
+
+          def detect_infra_version(name, bin_path, meta_version):
+              """Resolve real version for infrastructure/command packages."""
+              v = meta_version
+              try:
+                  if name == "minio":
+                      out = subprocess.check_output([bin_path, "--version"],
+                                stderr=subprocess.DEVNULL, timeout=10).decode()
+                      for line in out.splitlines():
+                          if "minio version" in line:
+                              v = line.split()[2]; break
+                  elif name == "mc":
+                      out = subprocess.check_output([bin_path, "--version"],
+                                stderr=subprocess.DEVNULL, timeout=10).decode()
+                      for line in out.splitlines():
+                          if "mc version" in line:
+                              v = line.split()[2]; break
+                  elif name == "ffmpeg":
+                      out = subprocess.check_output([bin_path, "-version"],
+                                stderr=subprocess.DEVNULL, timeout=10).decode()
+                      parts = out.splitlines()[0].split()
+                      if len(parts) >= 3:
+                          v = parts[2]
+                  elif name in ("scylla-manager", "scylla-manager-agent", "sctool"):
+                      env_ver = os.environ.get("SCYLLA_MGR_VERSION", "")
+                      if env_ver: v = env_ver
+                  elif name == "claude":
+                      env_ver = os.environ.get("CLAUDE_VERSION", "")
+                      if env_ver: v = env_ver
+              except Exception:
+                  pass
+              return v
+
+          changed_count = 0
+
+          for pkg in manifest["packages"]:
+              if not pkg["changed"]:
+                  continue
+
+              name = pkg["name"]
+              info = pkg_map.get(name)
+              if not info:
+                  print(f"  SKIP {name}: not in pkg-map")
+                  continue
+
+              binary   = info["binary"]
+              plat_ver = info.get("platform_version", True)
+              bin_path = f"dist/bin/{binary}"
+              meta_dir = f"packages/metadata/{name}"
+
+              if not os.path.isfile(bin_path):
+                  print(f"  SKIP {name}: binary {binary} not found")
+                  continue
+              if not os.path.isdir(meta_dir):
+                  print(f"  SKIP {name}: no metadata dir")
+                  continue
+
+              # Load metadata
+              pj_path = f"{meta_dir}/package.json"
+              pj = json.load(open(pj_path))
+
+              # Determine version
+              if plat_ver:
+                  pkg_version = version
+              else:
+                  pkg_version = detect_infra_version(name, bin_path, pj.get("version", ""))
+
+              if not pkg_version:
+                  print(f"  ERROR: {name} has empty version", file=sys.stderr)
+                  sys.exit(1)
+
+              # Determine entrypoint binary name
+              entrypoint = pj.get("entrypoint", "").split("/")[-1]
+              if not entrypoint:
+                  entrypoint = binary
+
+              # Compute binary SHA256
+              h = hashlib.sha256()
+              with open(bin_path, "rb") as f:
+                  for chunk in iter(lambda: f.read(8192), b""):
+                      h.update(chunk)
+              checksum = f"sha256:{h.hexdigest()}"
+
+              # Assemble package directory
+              tmpdir = tempfile.mkdtemp()
+              shutil.copytree(meta_dir, tmpdir, dirs_exist_ok=True)
+              os.makedirs(f"{tmpdir}/bin", exist_ok=True)
+              shutil.copy2(bin_path, f"{tmpdir}/bin/{entrypoint}")
+              os.chmod(f"{tmpdir}/bin/{entrypoint}", 0o755)
+
+              # Stamp package.json with real version, checksum, build_id
+              pj_out = json.load(open(f"{tmpdir}/package.json"))
+              pj_out["version"] = pkg_version
+              pj_out["entrypoint_checksum"] = checksum
+              pj_out["build_id"] = build_id
+              with open(f"{tmpdir}/package.json", "w") as f:
+                  json.dump(pj_out, f, indent=2)
+
+              platform = pj.get("platform", "linux_amd64")
+              out_file = f"dist/packages/{name}_{pkg_version}_{platform}.tgz"
+              subprocess.run(["tar", "-C", tmpdir, "-czf", out_file, "."], check=True)
+              shutil.rmtree(tmpdir)
+
+              size = os.path.getsize(out_file)
+              size_str = f"{size / 1024 / 1024:.1f} MB" if size > 1024*1024 else f"{size / 1024:.0f} KB"
+              print(f"  + {name} v{pkg_version} ({size_str})")
+              changed_count += 1
+
+          print(f"\nPackaged {changed_count} changed packages")
+          PYEOF
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # BOM: Download unchanged packages from their origin releases for the
+      # offline installer bundle. Verify SHA256 against the previous index.
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Download unchanged packages from origin releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/unchanged
+
+          python3 -c "
+          import json
+          m = json.load(open('dist/change-manifest.json'))
+          for p in m['packages']:
+              if not p['changed'] and p.get('filename') and p.get('origin_release'):
+                  digest = p.get('package_digest', '')
+                  print(f\"{p['origin_release']}|{p['filename']}|{digest}\")
+          " | while IFS='|' read -r origin filename digest; do
+            [[ -z "$filename" || -z "$origin" ]] && continue
+            echo "  <- ${filename} (from ${origin})"
+            gh release download "${origin}" --repo "${{ github.repository }}" \
+              --pattern "${filename}" --dir dist/unchanged/ || {
+              echo "ERROR: Failed to download ${filename} from release ${origin}."
+              echo "Referenced origin releases must be preserved while part of the active BOM."
+              exit 1
+            }
+            # Verify SHA256 if digest is available
+            if [[ -n "$digest" && "$digest" != "" ]]; then
+              expected="${digest#sha256:}"
+              actual=$(sha256sum "dist/unchanged/${filename}" | awk '{print $1}')
+              if [[ "$expected" != "$actual" ]]; then
+                echo "ERROR: SHA256 mismatch for ${filename}"
+                echo "  Expected: ${expected}"
+                echo "  Got:      ${actual}"
+                exit 1
+              fi
+            fi
+          done
+
+          UNCHANGED_COUNT=$(ls dist/unchanged/*.tgz 2>/dev/null | wc -l || echo 0)
+          echo "Downloaded ${UNCHANGED_COUNT} unchanged packages from origin releases"
 
       # ── Clean intermediate build artifacts to reclaim disk space ─────────
       - name: Clean build artifacts
         run: |
-          # Preserve the two binaries needed for the release tarball,
-          # then wipe the rest of dist/bin (service binaries, xds, gateway, etc.)
           mkdir -p dist/release-bin
-          mv dist/bin/globular dist/release-bin/globular
-          mv dist/bin/globular-installer dist/release-bin/globular-installer
+          [[ -f dist/bin/globular ]] && mv dist/bin/globular dist/release-bin/globular
+          [[ -f dist/bin/globular-installer ]] && mv dist/bin/globular-installer dist/release-bin/globular-installer
           rm -rf dist/bin
           df -h /
 
-      # ── Generate release index (Phase 2) ─────────────────────────────────
-      # Reads every .tgz in dist/packages/, validates required fields and
-      # uniqueness, then writes dist/release-index.json.
-      # Fails the release job loudly if any validation rule is violated.
-      - name: Generate release index
+      # ═══════════════════════════════════════════════════════════════════════
+      # BOM: Generate release-index.json v2
+      #
+      # The release index is the BOM / composition lockfile for this platform
+      # release. It is NOT a monolithic version stamp — each package keeps
+      # its own version independently:
+      #
+      #   - Changed packages get the current platform version (e.g. 1.0.85)
+      #     and are uploaded to this GitHub release.
+      #   - Unchanged packages keep their PREVIOUS package version (e.g. 1.0.82)
+      #     and reference their origin_release asset_url. They are NOT uploaded
+      #     to this release — their .tgz lives in the origin release.
+      #   - The platform release version (e.g. v1.0.85) identifies the BOM
+      #     snapshot, not the individual package versions.
+      #
+      # This is intentional: a package version means "this content changed."
+      # If gateway hasn't changed since v1.0.82, it stays at v1.0.82 in every
+      # subsequent platform release until its content actually changes.
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Generate release index (v2 BOM)
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          BUILD_ID: ${{ github.run_number }}
         run: |
-          python3 - <<'PYEOF'
-          import json, hashlib, tarfile, glob, sys
-          from pathlib import Path
+          python3 <<'PYEOF'
+          import json, hashlib, tarfile, glob, os, sys
           from datetime import datetime, timezone
-          import os
 
           version  = os.environ["RELEASE_VERSION"]
           tag      = os.environ["GITHUB_REF_NAME"]
           repo     = os.environ["GITHUB_REPOSITORY"]
+          build_id = os.environ["BUILD_ID"]
           base_url = f"https://github.com/{repo}/releases/download/{tag}"
           platform = "linux_amd64"
 
-          seen_keys  = {}   # (name, version, build_id, platform) → filename
-          seen_files = set()
-          entries    = []
-          errors     = []
+          manifest = json.load(open("dist/change-manifest.json"))
+          entries  = []
+          errors   = []
 
-          for f in sorted(glob.glob("dist/packages/*.tgz")):
-              path       = Path(f)
-              raw        = path.read_bytes()
-              pkg_digest = "sha256:" + hashlib.sha256(raw).hexdigest()
-              file_errors = []
-              pkg = {}
+          for pkg in manifest["packages"]:
+              name = pkg["name"]
 
-              # Package format invariant: every archive must contain ./package.json
-              try:
-                  with tarfile.open(path) as tf:
-                      try:
-                          member = tf.getmember("./package.json")
-                          pkg = json.loads(tf.extractfile(member).read())
-                      except KeyError:
-                          file_errors.append("missing ./package.json")
-              except Exception as e:
-                  file_errors.append(f"failed to read archive: {e}")
+              if pkg["changed"]:
+                  # ── Changed: read from packaged .tgz ──
+                  matches = glob.glob(f"dist/packages/{name}_*_{platform}.tgz")
+                  if not matches:
+                      errors.append(f"{name}: changed but no .tgz found in dist/packages/")
+                      continue
 
-              if not file_errors:
-                  # Required release fields — no silent defaults allowed
-                  for field in ("name", "version", "build_id"):
-                      if not pkg.get(field):
-                          file_errors.append(f"package.json missing required field '{field}'")
+                  tgz_path = matches[0]
+                  filename = os.path.basename(tgz_path)
 
-                  # Platform consistency (if declared in manifest)
-                  pkg_platform = pkg.get("platform", "")
-                  if pkg_platform and pkg_platform != platform:
-                      file_errors.append(
-                          f"platform '{pkg_platform}' != release platform '{platform}'"
-                      )
+                  with tarfile.open(tgz_path) as tf:
+                      pj = json.loads(tf.extractfile("./package.json").read())
 
-                  # Duplicate artifact key check
-                  key = (pkg.get("name",""), pkg.get("version",""), pkg.get("build_id",""), platform)
-                  if key in seen_keys:
-                      file_errors.append(
-                          f"duplicate artifact key {key} — also in {seen_keys[key]}"
-                      )
-                  else:
-                      seen_keys[key] = path.name
+                  raw = open(tgz_path, "rb").read()
+                  pkg_digest = f"sha256:{hashlib.sha256(raw).hexdigest()}"
 
-                  # Duplicate filename check
-                  if path.name in seen_files:
-                      file_errors.append("duplicate filename in release set")
-                  seen_files.add(path.name)
-
-              if file_errors:
-                  for e in file_errors:
-                      errors.append(f"  {path.name}: {e}")
-                  continue
-
-              entries.append({
-                  "name":                pkg["name"],
-                  "kind":                pkg.get("kind", "service"),
-                  "publisher":           pkg.get("publisher", "globulario"),
-                  "version":             pkg["version"],
-                  "build_id":            pkg["build_id"],
-                  "platform":            platform,
-                  "filename":            path.name,
-                  "package_digest":      pkg_digest,
-                  "manifest_digest":     "",
-                  "entrypoint_checksum": pkg.get("entrypoint_checksum", ""),
-                  "asset_url":           f"{base_url}/{path.name}",
-                  "release_tag":         tag,
-                  "published_at":        datetime.now(timezone.utc).isoformat(),
-              })
+                  entries.append({
+                      "name":                     name,
+                      "kind":                     pj.get("kind", pj.get("type", pkg.get("kind", "service"))).lower(),
+                      "version":                  pj["version"],
+                      "build_number":             int(pj.get("build_number", build_id)),
+                      "build_id":                 str(pj.get("build_id", build_id)),
+                      "platform":                 platform,
+                      "publisher":                pj.get("publisher", "core@globular.io"),
+                      "channel":                  "stable",
+                      "package_contract_digest":  pkg["package_contract_digest"],
+                      "package_digest":           pkg_digest,
+                      "entrypoint_checksum":      pj.get("entrypoint_checksum", ""),
+                      "asset_url":                f"{base_url}/{filename}",
+                      "filename":                 filename,
+                      "origin_release":           tag,
+                      "changed_in_release":       True,
+                      "profiles":                 pj.get("profiles", []),
+                      "provides":                 pj.get("provides_capabilities", []),
+                      "requires":                 pj.get("requires", []),
+                      "hard_deps":                pj.get("hard_deps", []),
+                      "defaults":                 pj.get("defaults", {}),
+                  })
+              else:
+                  # ── Unchanged: reference from origin release ──
+                  entries.append({
+                      "name":                     name,
+                      "kind":                     pkg.get("kind", "service"),
+                      "version":                  pkg["version"],
+                      "build_number":             pkg.get("build_number", 0),
+                      "build_id":                 str(pkg.get("build_id", "")),
+                      "platform":                 platform,
+                      "publisher":                pkg.get("publisher", "core@globular.io"),
+                      "channel":                  "stable",
+                      "package_contract_digest":  pkg["package_contract_digest"],
+                      "package_digest":           pkg.get("package_digest", ""),
+                      "entrypoint_checksum":      pkg.get("entrypoint_checksum", ""),
+                      "asset_url":                pkg["asset_url"],
+                      "filename":                 pkg.get("filename", ""),
+                      "origin_release":           pkg["origin_release"],
+                      "changed_in_release":       False,
+                      "profiles":                 pkg.get("profiles", []),
+                  })
 
           if errors:
-              print("ERROR: Release index generation failed:", file=sys.stderr)
               for e in errors:
-                  print(e, file=sys.stderr)
+                  print(f"ERROR: {e}", file=sys.stderr)
               sys.exit(1)
 
           index = {
-              "schema_version":   1,
-              "release_tag":      tag,
-              "globular_version": version,
-              "publisher":        "globulario",
-              "packages":         entries,
+              "schema_version":            "globular.repository.index/v2",
+              "platform_release":          version,
+              "release_tag":               tag,
+              "publisher":                 "globulario",
+              "generated_at":              datetime.now(timezone.utc).isoformat(),
+              "package_digest_algorithm":  "sha256",
+              "referenced_releases":       manifest.get("referenced_releases", []),
+              "force_full_rebuild":        manifest.get("force_full_rebuild", False),
+              "force_full_rebuild_reason": manifest.get("force_full_rebuild_reason", ""),
+              "packages":                  entries,
           }
-          out = Path("dist/release-index.json")
-          out.write_text(json.dumps(index, indent=2))
-          print(f"Generated release index: {len(entries)} packages → {out}")
+
+          with open("dist/release-index.json", "w") as f:
+              json.dump(index, f, indent=2)
+
+          changed_n = sum(1 for e in entries if e["changed_in_release"])
+          unchanged_n = len(entries) - changed_n
+          print(f"\nGenerated v2 release index: {len(entries)} packages")
+          print(f"  Changed:    {changed_n}")
+          print(f"  Unchanged:  {unchanged_n}")
+          print(f"  Referenced: {manifest.get('referenced_releases', [])}")
           PYEOF
 
-      # ── Assemble release tarball ───────────────────────────────────────────
+      # ── Assemble offline release tarball ─────────────────────────────────
+      # The tarball materializes the FULL BOM: all packages needed by this
+      # platform release, regardless of whether they changed. Unchanged
+      # packages keep their original filenames (no renaming to current ver).
       - name: Assemble release tarball
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -634,36 +741,39 @@ jobs:
           cp dist/release-bin/globular-installer "${RELEASE_DIR}/globular-installer"
           chmod 755 "${RELEASE_DIR}/globular-installer"
 
-          # Scripts from globular-installer (setup-tls.sh, install-day0.sh, etc.)
+          # Scripts from globular-installer
           cp -r globular-installer/scripts "${RELEASE_DIR}/scripts"
           chmod +x "${RELEASE_DIR}/scripts"/*.sh 2>/dev/null || true
 
-          # Workflow YAML definitions — installed to /var/lib/globular/workflows/
-          # by install-day0.sh. The controller reads them at startup to seed etcd.
-          # Without these files on disk the cluster cannot reconcile or deploy.
+          # Workflow YAML definitions
           mkdir -p "${RELEASE_DIR}/workflows"
           cp services/golang/workflow/definitions/*.yaml "${RELEASE_DIR}/workflows/"
 
-          # Welcome page assets — seeded into MinIO webroot on first install
+          # Welcome page assets
           if [[ -d globular-installer/internal/assets/webroot ]]; then
             cp -r globular-installer/internal/assets/webroot "${RELEASE_DIR}/webroot"
           fi
 
-          # All packages (infra + service) — move to avoid doubling disk usage
-          mv dist/packages/*.tgz "${RELEASE_DIR}/packages/"
+          # ALL packages: changed + unchanged (full BOM materialization)
+          # Filenames keep their original package versions — no renaming.
+          cp dist/packages/*.tgz "${RELEASE_DIR}/packages/" 2>/dev/null || true
+          cp dist/unchanged/*.tgz "${RELEASE_DIR}/packages/" 2>/dev/null || true
 
-          # Release index — included in tarball and uploaded as a standalone asset
+          # Release index (the BOM itself)
           cp dist/release-index.json "${RELEASE_DIR}/release-index.json"
 
-          # Installer script (installs node_agent, caches packages, creates systemd unit)
+          # Installer script
           cp services/scripts/install.sh "${RELEASE_DIR}/install.sh"
           chmod +x "${RELEASE_DIR}/install.sh"
 
-          # Checksums for individual packages
+          # Checksums for all packages in the bundle
           (cd "${RELEASE_DIR}/packages" && sha256sum *.tgz > SHA256SUMS)
 
-          # README
+          # BOM summary
+          CHANGED_N=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['changed_count'])")
+          UNCHANGED_N=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['unchanged_count'])")
           PKG_COUNT=$(ls "${RELEASE_DIR}/packages/"*.tgz | wc -l)
+
           cat > "${RELEASE_DIR}/README.md" <<HEREDOC
           # Globular ${VERSION}
 
@@ -681,21 +791,15 @@ jobs:
           - \`globular\` — CLI tool
           - \`globular-installer\` — Day-0 package installer
           - \`scripts/\` — Bootstrap scripts (TLS, minio contract, DNS, etc.)
-          - \`packages/\` — ${PKG_COUNT} packages (Globular services + infrastructure)
+          - \`packages/\` — ${PKG_COUNT} packages (${CHANGED_N} changed, ${UNCHANGED_N} unchanged)
+          - \`release-index.json\` — BOM (Bill of Materials) for this platform release
           - \`install.sh\` — Installer entry point
 
-          Infrastructure (etcd, MinIO, Envoy, ScyllaDB, Prometheus, etc.) is bundled in packages/.
+          ## BOM Release Model
 
-          ## Next Steps
-
-          After install.sh completes:
-
-          \`\`\`bash
-          sudo systemctl start globular-node-agent
-          globular cluster bootstrap --domain <your-domain> --profile core --profile gateway
-          \`\`\`
-
-          Full guide: https://globular.io/docs/operators/installation
+          This release is a **composition lockfile**. Each package keeps its own version.
+          Only packages whose content changed are rebuilt for this release. Unchanged
+          packages reference their origin release via release-index.json.
 
           ## Built From
 
@@ -710,10 +814,11 @@ jobs:
           sha256sum "${RELEASE_NAME}.tar.gz" > "${RELEASE_NAME}.tar.gz.sha256"
 
           echo "Release tarball: $(du -sh "${RELEASE_NAME}.tar.gz" | cut -f1)"
-          echo "Contents:"
-          tar tzf "${RELEASE_NAME}.tar.gz" | head -50 || true
 
-      # ── Publish ───────────────────────────────────────────────────────────
+      # ── Publish GitHub Release ───────────────────────────────────────────
+      # Only CHANGED package .tgz files are uploaded as individual assets.
+      # Unchanged packages are NOT uploaded — they remain in their origin
+      # release. The complete platform truth is release-index.json.
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -721,7 +826,7 @@ jobs:
           files: |
             dist/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
             dist/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz.sha256
-            dist/globular-${{ steps.version.outputs.version }}-linux-amd64/packages/*.tgz
+            dist/packages/*.tgz
             dist/release-index.json
           generate_release_notes: true
           body: |
@@ -729,7 +834,14 @@ jobs:
 
             An open-source microservices platform for self-hosted distributed systems — native Linux binaries, systemd supervision, etcd as the single source of truth.
 
-            ### Install
+            ### BOM Release
+
+            This release uses the **Bill of Materials** model:
+            - Only **changed** packages are uploaded as individual assets
+            - **Unchanged** packages are referenced from their origin release
+            - `release-index.json` is the complete platform truth
+
+            ### Install (offline bundle)
 
             ```bash
             VERSION="${{ steps.version.outputs.version }}"
