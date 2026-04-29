@@ -247,6 +247,7 @@ func TestDetectInfraDrift_ServiceLikeComponents_InactiveIsDrift(t *testing.T) {
 		{"alertmanager", "globular-alertmanager.service"},
 		{"cluster-controller", "globular-cluster-controller.service"},
 		{"cluster-doctor", "globular-cluster-doctor.service"},
+		{"scylladb", "scylla-server.service"}, // packageUnitOverrides
 	}
 
 	for _, c := range components {
