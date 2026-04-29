@@ -9,6 +9,7 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/spf13/cobra"
 )
 
@@ -77,7 +78,6 @@ func runPlatformUpgrade(cmd *cobra.Command, args []string) error {
 	defer conn.Close()
 
 	cc := cluster_controllerpb.NewClusterControllerServiceClient(conn)
-	rc := cluster_controllerpb.NewResourcesServiceClient(conn)
 
 	var svcUpdated, infraUpdated, failed int
 
@@ -97,22 +97,10 @@ func runPlatformUpgrade(cmd *cobra.Command, args []string) error {
 				continue
 			}
 
-			// Update InfrastructureRelease via ResourcesService.
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			_, err := rc.ApplyInfrastructureRelease(ctx,
-				&cluster_controllerpb.ApplyInfrastructureReleaseRequest{
-					Object: &cluster_controllerpb.InfrastructureRelease{
-						Meta: &cluster_controllerpb.ObjectMeta{
-							Name: "core@globular.io/" + pkg.Name,
-						},
-						Spec: &cluster_controllerpb.InfrastructureReleaseSpec{
-							PublisherID: "core@globular.io",
-							Component:   pkg.Name,
-							Version:     pkg.Version,
-						},
-					},
-				})
-			cancel()
+			// Update InfrastructureRelease directly in etcd.
+			// The ResourcesService RPC is not exposed through the mesh,
+			// so we write the spec.version update directly.
+			err := updateInfraReleaseVersion("core@globular.io", pkg.Name, pkg.Version)
 			if err != nil {
 				fmt.Printf("  FAIL   %-25s v%-25s (%s: %v)\n", pkg.Name, pkg.Version, label, err)
 				failed++
@@ -187,4 +175,63 @@ func loadBOMIndex(tag string) (*bomIndex, error) {
 			"Download it first:\n"+
 			"  curl -LO https://github.com/globulario/services/releases/download/%s/release-index.json\n"+
 			"  globular platform-upgrade %s", tag, tag, tag)
+}
+
+// updateInfraReleaseVersion updates the spec.version of an InfrastructureRelease
+// record in etcd. This is used instead of the gRPC RPC because the
+// ResourcesService ApplyInfrastructureRelease is not exposed through the mesh.
+func updateInfraReleaseVersion(publisher, component, version string) error {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return fmt.Errorf("etcd client: %w", err)
+	}
+
+	key := "/globular/resources/InfrastructureRelease/" + publisher + "/" + component
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := cli.Get(ctx, key)
+	if err != nil {
+		return fmt.Errorf("etcd get %s: %w", key, err)
+	}
+
+	var rel map[string]interface{}
+	if len(resp.Kvs) > 0 {
+		if err := json.Unmarshal(resp.Kvs[0].Value, &rel); err != nil {
+			return fmt.Errorf("unmarshal: %w", err)
+		}
+	} else {
+		// Create new record.
+		rel = map[string]interface{}{
+			"meta": map[string]interface{}{
+				"name":       publisher + "/" + component,
+				"generation": float64(1),
+			},
+			"spec": map[string]interface{}{
+				"publisher_id": publisher,
+				"component":    component,
+				"version":      version,
+			},
+			"status": map[string]interface{}{},
+		}
+	}
+
+	// Update spec.version.
+	spec, ok := rel["spec"].(map[string]interface{})
+	if !ok {
+		spec = map[string]interface{}{}
+		rel["spec"] = spec
+	}
+	spec["version"] = version
+
+	data, err := json.Marshal(rel)
+	if err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+
+	_, err = cli.Put(ctx, key, string(data))
+	if err != nil {
+		return fmt.Errorf("etcd put %s: %w", key, err)
+	}
+	return nil
 }
