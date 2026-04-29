@@ -414,8 +414,24 @@ jobs:
           # build_number = sequential CI run counter (integer)
           # build_id     = unique artifact identity (UUIDv7, time-sortable)
           BUILD_NUMBER="${{ github.run_number }}"
-          BUILD_ID=$(python3 -c "import uuid; print(uuid.uuid7())" 2>/dev/null \
-            || python3 -c "import uuid, time; t=int(time.time()*1000); tb=t.to_bytes(6,'big'); rb=uuid.uuid4().bytes[6:]; print(str(uuid.UUID(bytes=tb+rb, version=7)))")
+          BUILD_ID=$(python3 -c "
+          import uuid, time, os
+          try:
+              # Python 3.14+ has native uuid7
+              print(uuid.uuid7())
+          except AttributeError:
+              # Manual UUIDv7: 48-bit ms timestamp + 4-bit version + 12-bit rand + 62-bit rand
+              t = int(time.time() * 1000)
+              r = int.from_bytes(os.urandom(10), 'big')
+              # Pack: 48 bits timestamp | 4 bits version (0x7) | 12 bits rand_a | 2 bits variant (0b10) | 62 bits rand_b
+              u = (t & 0xFFFFFFFFFFFF) << 80
+              u |= 0x7 << 76                         # version 7
+              u |= (r >> 62) & 0xFFF                  # rand_a (12 bits)
+              u = u << 0  # no-op, clarity
+              mid = (0b10 << 62) | (r & 0x3FFFFFFFFFFFFFFF)  # variant + rand_b
+              u = ((t & 0xFFFFFFFFFFFF) << 80) | (0x7 << 76) | (((r >> 62) & 0xFFF) << 64) | mid
+              print(f'{(u >> 96) & 0xFFFFFFFF:08x}-{(u >> 80) & 0xFFFF:04x}-{(u >> 64) & 0xFFFF:04x}-{(u >> 48) & 0xFFFF:04x}-{u & 0xFFFFFFFFFFFF:012x}')
+          ")
           echo "build_number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "build_id=${BUILD_ID}" >> "$GITHUB_OUTPUT"
           echo "Build number: ${BUILD_NUMBER}"
