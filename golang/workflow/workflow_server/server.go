@@ -481,6 +481,9 @@ func (srv *server) scanTelemetryAndEmit() {
 	ticker := time.NewTicker(scanInterval)
 	defer ticker.Stop()
 	for range ticker.C {
+		if srv.getSession() == nil {
+			continue
+		}
 		// We need a cluster_id. Lift it from any existing summary row.
 		var clusterID string
 		if err := srv.session.Query(
@@ -585,8 +588,9 @@ func (srv *server) reapStaleRuns() {
 	const sweepInterval = 5 * time.Minute
 
 	for {
-		if srv.session == nil {
-			return
+		if srv.getSession() == nil {
+			time.Sleep(sweepInterval)
+			continue
 		}
 
 		iter := srv.session.Query(`

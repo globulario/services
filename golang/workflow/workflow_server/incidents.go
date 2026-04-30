@@ -71,9 +71,13 @@ func (srv *server) runIncidentScanner() {
 }
 
 func (srv *server) scanOnce() {
+	sess := srv.getSession()
+	if sess == nil {
+		return
+	}
 	// Get any cluster_id present in the telemetry tables.
 	var clusterID string
-	if err := srv.session.Query(
+	if err := sess.Query(
 		`SELECT cluster_id FROM workflow_run_summaries LIMIT 1`,
 	).Scan(&clusterID); err != nil || clusterID == "" {
 		return
