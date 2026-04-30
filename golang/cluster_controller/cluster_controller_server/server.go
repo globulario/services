@@ -1440,9 +1440,13 @@ func requiredUnitsFromPlan(plan *NodeUnitPlan) map[string]struct{} {
 		if action == nil {
 			continue
 		}
+		name := action.GetUnitName()
+		if name == "" {
+			continue
+		}
 		switch strings.ToLower(action.GetAction()) {
 		case "start", "restart":
-			req[action.GetUnitName()] = struct{}{}
+			req[name] = struct{}{}
 		}
 	}
 	return req
