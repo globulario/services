@@ -20,6 +20,7 @@ import (
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/internal/recovery"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	Utility "github.com/globulario/utility"
 	"github.com/globulario/services/golang/domain"
 	globular_service "github.com/globulario/services/golang/globular_service"
@@ -251,6 +252,27 @@ func main() {
 	srv.scyllaMembers = newScyllaClusterManager()
 	srv.scyllaMembers.probeNodeHealth = func(ctx context.Context, endpoint string) bool {
 		return srv.probeScyllaHealth(ctx, endpoint)
+	}
+	srv.scyllaMembers.restartService = func(ctx context.Context, endpoint, unit string) error {
+		conn, err := srv.dialNodeAgent(endpoint)
+		if err != nil {
+			return fmt.Errorf("connect to node agent %s: %w", endpoint, err)
+		}
+		defer conn.Close()
+		client := node_agentpb.NewNodeAgentServiceClient(conn)
+		rctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+		resp, err := client.ControlService(rctx, &node_agentpb.ControlServiceRequest{
+			Unit:   unit,
+			Action: "restart",
+		})
+		if err != nil {
+			return fmt.Errorf("ControlService restart: %w", err)
+		}
+		if !resp.GetOk() {
+			return fmt.Errorf("restart rejected: %s", resp.GetMessage())
+		}
+		return nil
 	}
 	srv.minioPoolMgr = newMinioPoolManager()
 

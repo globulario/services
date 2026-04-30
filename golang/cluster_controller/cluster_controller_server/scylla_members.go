@@ -86,6 +86,11 @@ type scyllaClusterManager struct {
 	// agent endpoint via gRPC. Set by the server at startup.
 	// Returns true if the probe reports the node is healthy.
 	probeNodeHealth func(ctx context.Context, endpoint string) bool
+
+	// restartService restarts a systemd unit on a node via the node-agent
+	// ControlService RPC. Used to unstick ScyllaDB when it's stuck in
+	// "join cluster" Raft state (CQL never comes up without a restart).
+	restartService func(ctx context.Context, endpoint, unit string) error
 }
 
 func newScyllaClusterManager() *scyllaClusterManager {
@@ -186,10 +191,24 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, no
 				continue
 			}
 			if now.Sub(node.ScyllaJoinStartedAt) > scyllaJoinTimeout {
-				log.Printf("scylla join: node %s timed out waiting for ring join", node.NodeID)
-				node.ScyllaJoinPhase = ScyllaJoinFailed
-				node.ScyllaJoinError = "timeout waiting for ScyllaDB to join gossip ring"
-				dirty = true
+				// ScyllaDB may be stuck in Raft "join cluster" state — CQL
+				// never comes up without a restart. Restart and re-enter
+				// Started so the probe can verify on the next cycle.
+				if m.restartService != nil && node.AgentEndpoint != "" {
+					log.Printf("scylla join: node %s timed out — restarting scylla-server to unstick Raft join", node.NodeID)
+					if err := m.restartService(ctx, node.AgentEndpoint, "scylla-server.service"); err != nil {
+						log.Printf("scylla join: node %s restart failed: %v", node.NodeID, err)
+					}
+					// Reset the timer to give the restarted ScyllaDB a fresh window.
+					node.ScyllaJoinStartedAt = now
+					node.ScyllaJoinError = "restarted scylla-server (Raft join stuck)"
+					dirty = true
+				} else {
+					log.Printf("scylla join: node %s timed out waiting for ring join", node.NodeID)
+					node.ScyllaJoinPhase = ScyllaJoinFailed
+					node.ScyllaJoinError = "timeout waiting for ScyllaDB to join gossip ring"
+					dirty = true
+				}
 			}
 
 		case ScyllaJoinVerified:
