@@ -81,12 +81,21 @@ type scyllaSessionMgr struct {
 
 	logger    *slog.Logger
 	connectFn func() (*gocql.Session, error)
+
+	// ctx/cancel are the manager's own lifecycle context. The reconnect loop
+	// uses this instead of the caller's context (which is a short-lived
+	// watchdog ping timeout). Cancelled by close().
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func newScyllaSessionMgr(logger *slog.Logger, connectFn func() (*gocql.Session, error)) *scyllaSessionMgr {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &scyllaSessionMgr{
 		logger:    logger,
 		connectFn: connectFn,
+		ctx:       ctx,
+		cancel:    cancel,
 	}
 }
 
@@ -126,11 +135,11 @@ func (m *scyllaSessionMgr) onPingFailure(ctx context.Context) {
 		return
 	}
 	if m.reconnecting.CompareAndSwap(false, true) {
-		// Use a detached context: the caller's ctx is the watchdog ping
-		// context (5 s timeout) which expires long before reconnect
-		// completes. The reconnect loop must run until it succeeds or
-		// the process exits.
-		go m.reconnectLoop(context.Background())
+		// Use the manager's own lifecycle context, NOT the caller's ctx.
+		// The caller's ctx is the watchdog ping context (5 s timeout)
+		// which expires long before reconnect completes. The manager's
+		// ctx lives until close() is called (server shutdown).
+		go m.reconnectLoop(m.ctx)
 	}
 }
 
@@ -205,8 +214,10 @@ func (m *scyllaSessionMgr) reconnectLoop(ctx context.Context) {
 	}
 }
 
-// close closes the current session if any. Called on server shutdown.
+// close closes the current session and cancels the reconnect loop.
+// Called on server shutdown.
 func (m *scyllaSessionMgr) close() {
+	m.cancel() // stop any running reconnect loop
 	m.mu.Lock()
 	s := m.session
 	m.session = nil

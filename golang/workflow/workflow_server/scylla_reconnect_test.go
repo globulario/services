@@ -12,6 +12,7 @@ package main
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -31,21 +32,18 @@ import (
 
 func TestWorkflowScyllaReconnectAfterPingFailure(t *testing.T) {
 	var connectCalls atomic.Int32
+	var once sync.Once
 	connectDone := make(chan struct{})
 
 	mgr := newScyllaSessionMgr(logger, func() (*gocql.Session, error) {
 		connectCalls.Add(1)
-		close(connectDone) // signal first call
-		// Return a nil *gocql.Session — we only test the manager's state machine.
+		once.Do(func() { close(connectDone) }) // signal first call (safe for retries)
 		return nil, errors.New("simulated connect error — session not returned in unit test")
 	})
+	defer mgr.close() // cancel the reconnect loop's context
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	ctx := context.Background()
 
-	// Install a non-nil placeholder so the mgr thinks there's a live session.
-	// (We can't create a real *gocql.Session, so we leave session nil and verify
-	// the reconnect goroutine is triggered.)
 	mgr.consecutiveFails.Store(0)
 
 	// Simulate threshold consecutive ping failures.
@@ -57,7 +55,7 @@ func TestWorkflowScyllaReconnectAfterPingFailure(t *testing.T) {
 	select {
 	case <-connectDone:
 		// connectFn was called — reconnect loop is running.
-	case <-ctx.Done():
+	case <-time.After(5 * time.Second):
 		t.Fatal("reconnect loop was not triggered within timeout")
 	}
 
