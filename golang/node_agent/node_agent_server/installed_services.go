@@ -353,7 +353,9 @@ func detectScyllaVersion(ctx context.Context) string {
 // scylladb: OS package (apt install), joined via gossip/seed state machine
 func isDay0JoinInfra(name string) bool {
 	switch name {
-	case "etcd", "scylladb":
+	case "etcd", "scylladb", "minio", "envoy", "xds", "gateway",
+		"prometheus", "alertmanager", "node-exporter", "sidekick",
+		"keepalived", "scylla-manager", "scylla-manager-agent":
 		return true
 	}
 	return false

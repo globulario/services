@@ -610,6 +610,33 @@ jobs:
           UNCHANGED_COUNT=$(ls dist/unchanged/*.tgz 2>/dev/null | wc -l || echo 0)
           echo "Downloaded ${UNCHANGED_COUNT} unchanged packages from origin releases"
 
+          # Normalize build_number to int in all unchanged packages.
+          # Origin releases before v1.0.99 wrote build_number as a string.
+          # The repository rejects string build_number on publish.
+          FIXED=0
+          for pkg in dist/unchanged/*.tgz; do
+            [ -f "$pkg" ] || continue
+            tmpd=$(mktemp -d)
+            tar xzf "$pkg" -C "$tmpd" 2>/dev/null || { rm -rf "$tmpd"; continue; }
+            if [ -f "$tmpd/package.json" ]; then
+              if python3 -c "
+          import json, sys
+          d = json.load(open('$tmpd/package.json'))
+          bn = d.get('build_number')
+          if isinstance(bn, str) and bn.isdigit():
+              d['build_number'] = int(bn)
+              json.dump(d, open('$tmpd/package.json','w'), indent=2)
+              sys.exit(0)
+          sys.exit(1)
+          " 2>/dev/null; then
+                tar czf "$pkg" -C "$tmpd" .
+                FIXED=$((FIXED + 1))
+              fi
+            fi
+            rm -rf "$tmpd"
+          done
+          [ "$FIXED" -gt 0 ] && echo "Normalized build_number in ${FIXED} unchanged package(s)"
+
       # ── Clean intermediate build artifacts to reclaim disk space ─────────
       - name: Clean build artifacts
         run: |
