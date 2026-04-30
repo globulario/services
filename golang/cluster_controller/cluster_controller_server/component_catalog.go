@@ -257,7 +257,6 @@ func buildCatalog() []*Component {
 			Priority:             6,
 			Profiles:             []string{"control-plane", "storage", "scylla", "database"},
 			ProvidesCapabilities: []Capability{CapLocalDB},
-			InstallMode:          InstallModeDay0Join, // OS package (apt install), not a repo artifact
 			HealthCheck:          &HealthCheckHintC{Unit: "scylla-server.service", Port: 9042},
 		},
 		{
