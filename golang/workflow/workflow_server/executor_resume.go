@@ -16,7 +16,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/workflow/engine"
@@ -153,18 +152,15 @@ func (srv *server) ResumeRun(ctx context.Context, clusterID, runID string, actor
 	_, execErr := eng.Execute(ctx, def, inputs)
 
 	if execErr != nil {
-		// If the error is a preflight/infrastructure failure (no handlers,
-		// controller not ready), return it to the orphan scanner so it
-		// retries later. Never mark a run FAILED from startup timing alone.
-		errMsg := execErr.Error()
-		if strings.Contains(errMsg, "preflight") ||
-			strings.Contains(errMsg, "no registered handler") ||
-			strings.Contains(errMsg, "handler not found") {
-			slog.Info("resume: deferring — infrastructure not ready",
-				"run_id", runID, "err", execErr)
-			return execErr // orphan scanner will retry next cycle
-		}
-		slog.Warn("resume: re-execution failed",
+		// If the error is a handler-not-found, the workflow was dispatched by
+		// the controller (actors live in a different process). Retrying here
+		// is futile — the workflow service will never have the right handlers.
+		// Fail the run immediately so the controller can re-dispatch.
+		//
+		// For other infrastructure errors (ScyllaDB, TLS), also fail — the
+		// orphan scanner keeps the lease alive while retrying, which blocks
+		// the controller from re-dispatching with a fresh correlation ID.
+		slog.Warn("resume: re-execution failed, releasing run",
 			"run_id", runID, "err", execErr)
 		srv.FinishRun(ctx, &workflowpb.FinishRunRequest{
 			Id:           runID,
