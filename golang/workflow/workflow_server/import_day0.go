@@ -25,13 +25,17 @@ func (srv *server) importDay0Trace() {
 	defer f.Close()
 
 	// Check if already imported.
+	sess := srv.getSession()
+	if sess == nil {
+		return
+	}
 	clusterID := srv.Domain
 	if clusterID == "" {
 		clusterID = "globular.internal"
 	}
 	corrID := "day0-install"
 	var existing int
-	if err := srv.session.Query(
+	if err := sess.Query(
 		`SELECT COUNT(*) FROM workflow_runs WHERE cluster_id=? AND correlation_id=? ALLOW FILTERING`,
 		clusterID, corrID,
 	).Scan(&existing); err == nil && existing > 0 {

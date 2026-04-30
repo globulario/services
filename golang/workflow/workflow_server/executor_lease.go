@@ -55,14 +55,15 @@ func newExecutorLeaseManager(srv *server) *executorLeaseManager {
 // Returns true if the claim succeeded (this executor now owns the run).
 // Returns false if another executor already owns it.
 func (m *executorLeaseManager) ClaimRun(ctx context.Context, runID string) (bool, error) {
-	if m.srv.session == nil {
+	sess := m.srv.getSession()
+	if sess == nil {
 		return true, nil // no ScyllaDB = single-node mode, always succeed
 	}
 
 	now := time.Now().UnixMilli()
 
 	// LWT: INSERT IF NOT EXISTS — only succeeds if no current owner.
-	applied, err := m.srv.session.Query(`
+	applied, err := sess.Query(`
 		INSERT INTO workflow.executor_leases (run_id, executor_id, heartbeat_at, started_at)
 		VALUES (?, ?, ?, ?)
 		IF NOT EXISTS`,
@@ -91,7 +92,7 @@ func (m *executorLeaseManager) ClaimRun(ctx context.Context, runID string) (bool
 	var existingHeartbeat int64
 	readCtx, readCancel := context.WithTimeout(ctx, 3*time.Second)
 	defer readCancel()
-	if err := m.srv.session.Query(`
+	if err := sess.Query(`
 		SELECT executor_id, heartbeat_at FROM workflow.executor_leases WHERE run_id = ?`,
 		runID,
 	).WithContext(readCtx).Scan(&existingExecutor, &existingHeartbeat); err != nil {
@@ -124,13 +125,14 @@ func (m *executorLeaseManager) ReleaseRun(runID string) {
 	}
 	m.mu.Unlock()
 
-	if m.srv.session == nil {
+	sess := m.srv.getSession()
+	if sess == nil {
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	applied, err := m.srv.session.Query(`
+	applied, err := sess.Query(`
 		DELETE FROM workflow.executor_leases
 		WHERE run_id = ?
 		IF executor_id = ?`,
@@ -156,11 +158,12 @@ func (m *executorLeaseManager) heartbeatLoop(ctx context.Context, runID string) 
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if m.srv.session == nil {
+			sess := m.srv.getSession()
+			if sess == nil {
 				continue
 			}
 			now := time.Now().UnixMilli()
-			applied, err := m.srv.session.Query(`
+			applied, err := sess.Query(`
 				UPDATE workflow.executor_leases SET heartbeat_at = ?
 				WHERE run_id = ?
 				IF executor_id = ?`,
@@ -197,7 +200,7 @@ const (
 // for orphaned runs (heartbeat older than orphanHeartbeatTimeout) and
 // attempts to claim them for resumption.
 func (m *executorLeaseManager) StartOrphanScanner(ctx context.Context) {
-	if m.srv.session == nil {
+	if m.srv.getSession() == nil {
 		return // no ScyllaDB = single-node mode
 	}
 
@@ -227,7 +230,8 @@ func (m *executorLeaseManager) scanAndClaimOrphans(ctx context.Context) {
 		return
 	}
 	// Session may be nil if ScyllaDB was closed during shutdown.
-	if m.srv.session == nil {
+	sess := m.srv.getSession()
+	if sess == nil {
 		return
 	}
 
@@ -236,7 +240,7 @@ func (m *executorLeaseManager) scanAndClaimOrphans(ctx context.Context) {
 
 	cutoff := time.Now().Add(-orphanHeartbeatTimeout).UnixMilli()
 
-	iter := m.srv.session.Query(`
+	iter := sess.Query(`
 		SELECT run_id, executor_id, heartbeat_at FROM workflow.executor_leases`,
 	).WithContext(scanCtx).Iter()
 
@@ -319,10 +323,14 @@ func (m *executorLeaseManager) scanAndClaimOrphans(ctx context.Context) {
 }
 
 func (m *executorLeaseManager) claimOrphan(ctx context.Context, runID string, staleHeartbeat int64) (bool, error) {
+	sess := m.srv.getSession()
+	if sess == nil {
+		return false, fmt.Errorf("scylla session unavailable")
+	}
 	now := time.Now().UnixMilli()
 
 	// LWT: only succeed if heartbeat hasn't changed (no one else claimed it).
-	applied, err := m.srv.session.Query(`
+	applied, err := sess.Query(`
 		UPDATE workflow.executor_leases
 		SET executor_id = ?, heartbeat_at = ?
 		WHERE run_id = ?

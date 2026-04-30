@@ -334,6 +334,17 @@ func (srv *server) getSession() *gocql.Session {
 	return srv.scyllaMgr.get()
 }
 
+// getSessionOrError returns the current live Scylla session or a gRPC
+// Unavailable error. Use this in RPC handlers to return a structured error
+// instead of panicking on a nil session.
+func (srv *server) getSessionOrError() (*gocql.Session, error) {
+	s := srv.getSession()
+	if s == nil {
+		return nil, fmt.Errorf("WORKFLOW_DEPENDENCY_UNAVAILABLE: dependency=scylla session=nil")
+	}
+	return s, nil
+}
+
 func (srv *server) closeScylla() {
 	if srv.scyllaMgr != nil {
 		srv.scyllaMgr.close()
@@ -485,15 +496,19 @@ func (srv *server) scanTelemetryAndEmit() {
 			continue
 		}
 		// We need a cluster_id. Lift it from any existing summary row.
+		sess := srv.getSession()
+		if sess == nil {
+			continue
+		}
 		var clusterID string
-		if err := srv.session.Query(
+		if err := sess.Query(
 			`SELECT cluster_id FROM workflow_run_summaries LIMIT 1`,
 		).Scan(&clusterID); err != nil || clusterID == "" {
 			continue
 		}
 
 		// Step failure rates.
-		iter := srv.session.Query(
+		iter := sess.Query(
 			`SELECT workflow_name, step_id, total_executions, failure_count, last_error_message
 			 FROM workflow_step_outcomes WHERE cluster_id=?`, clusterID,
 		).Iter()
@@ -526,7 +541,7 @@ func (srv *server) scanTelemetryAndEmit() {
 		_ = iter.Close()
 
 		// Drift stuck.
-		iter2 := srv.session.Query(
+		iter2 := sess.Query(
 			`SELECT drift_type, entity_ref, consecutive_cycles, chosen_workflow
 			 FROM drift_unresolved WHERE cluster_id=?`, clusterID,
 		).Iter()
@@ -555,7 +570,7 @@ func (srv *server) scanTelemetryAndEmit() {
 		// No activity on periodic workflows.
 		for wfName, threshold := range noActivity {
 			var lastFinished time.Time
-			if err := srv.session.Query(
+			if err := sess.Query(
 				`SELECT last_finished_at FROM workflow_run_summaries WHERE cluster_id=? AND workflow_name=?`,
 				clusterID, wfName,
 			).Scan(&lastFinished); err != nil {
@@ -588,12 +603,13 @@ func (srv *server) reapStaleRuns() {
 	const sweepInterval = 5 * time.Minute
 
 	for {
-		if srv.getSession() == nil {
+		sess := srv.getSession()
+		if sess == nil {
 			time.Sleep(sweepInterval)
 			continue
 		}
 
-		iter := srv.session.Query(`
+		iter := sess.Query(`
 			SELECT id, cluster_id, started_at, status, updated_at
 			FROM workflow_runs LIMIT 500 ALLOW FILTERING`,
 		).Iter()
@@ -619,7 +635,7 @@ func (srv *server) reapStaleRuns() {
 				continue
 			}
 			// Mark as FAILED with timeout reason.
-			srv.session.Query(`
+			sess.Query(`
 				UPDATE workflow_runs SET status=?, failure_class=?, error_message=?, summary=?, finished_at=?, updated_at=?
 				WHERE cluster_id=? AND started_at=? AND id=?`,
 				int(workflowpb.RunStatus_RUN_STATUS_FAILED),
@@ -670,13 +686,17 @@ func isTerminalStepStatus(s workflowpb.StepStatus) bool {
 // as the new run and marks them SUPERSEDED with superseded_by=newRunID.
 // Called from StartRun so each correlation_id has at most one active run.
 func (srv *server) supersedePriorRuns(clusterID, correlationID, newRunID string) {
-	if srv.session == nil || correlationID == "" {
+	if correlationID == "" {
+		return
+	}
+	sess := srv.getSession()
+	if sess == nil {
 		return
 	}
 	// PageSize limits the scan to avoid O(N²) degradation after many retries.
 	// Most runs will be terminal (SUPERSEDED/SUCCEEDED/FAILED); we only need
 	// to find and mark the few non-terminal ones.
-	iter := srv.session.Query(`
+	iter := sess.Query(`
 		SELECT id, started_at, status FROM workflow_runs
 		WHERE cluster_id=? AND correlation_id=? ALLOW FILTERING`,
 		clusterID, correlationID,
@@ -697,7 +717,7 @@ func (srv *server) supersedePriorRuns(clusterID, correlationID, newRunID string)
 			continue
 		}
 		// Mark prior run as SUPERSEDED.
-		srv.session.Query(`
+		sess.Query(`
 			UPDATE workflow_runs SET status=?, superseded_by=?, finished_at=?, updated_at=?
 			WHERE cluster_id=? AND started_at=? AND id=?`,
 			int(workflowpb.RunStatus_RUN_STATUS_SUPERSEDED),
@@ -744,7 +764,12 @@ func (srv *server) StartRun(_ context.Context, req *workflowpb.StartRunRequest) 
 		srv.supersedePriorRuns(ctx.ClusterId, run.CorrelationId, run.Id)
 	}
 
-	if err := srv.session.Query(`
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := sess.Query(`
 		INSERT INTO workflow_runs (
 			cluster_id, id, correlation_id, parent_run_id,
 			node_id, node_hostname, component_name, component_kind, component_version,
@@ -766,13 +791,13 @@ func (srv *server) StartRun(_ context.Context, req *workflowpb.StartRunRequest) 
 	}
 
 	// Write to secondary index tables.
-	srv.session.Query(`
+	sess.Query(`
 		INSERT INTO workflow_runs_by_node (cluster_id, node_id, started_at, run_id, component_name, status, summary)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		ctx.ClusterId, ctx.NodeId, tsToTime(run.StartedAt), run.Id, ctx.ComponentName, int(run.Status), run.Summary,
 	).Exec()
 
-	srv.session.Query(`
+	sess.Query(`
 		INSERT INTO workflow_runs_by_component (cluster_id, component_name, started_at, run_id, node_id, status, summary)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		ctx.ClusterId, ctx.ComponentName, tsToTime(run.StartedAt), run.Id, ctx.NodeId, int(run.Status), run.Summary,
@@ -795,10 +820,14 @@ func (srv *server) UpdateRun(_ context.Context, req *workflowpb.UpdateRunRequest
 	if err := srv.requireHealthy(); err != nil {
 		return nil, err
 	}
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	// ScyllaDB doesn't support subqueries in UPDATE WHERE. Use two-step approach.
-	return nil, srv.updateRunByID(req.ClusterId, req.Id, func(startedAt time.Time) error {
-		return srv.session.Query(`
+	return nil, srv.updateRunByID(sess, req.ClusterId, req.Id, func(startedAt time.Time) error {
+		return sess.Query(`
 			UPDATE workflow_runs SET status=?, summary=?, current_actor=?, updated_at=?
 			WHERE cluster_id=? AND started_at=? AND id=?`,
 			int(req.Status), req.Summary, int(req.CurrentActor), now,
@@ -811,12 +840,16 @@ func (srv *server) FinishRun(_ context.Context, req *workflowpb.FinishRunRequest
 	if err := srv.requireHealthy(); err != nil {
 		return nil, err
 	}
+	sess, sessErr := srv.getSessionOrError()
+	if sessErr != nil {
+		return nil, sessErr
+	}
 	now := time.Now()
 	var (
 		runStartedAt time.Time
 		workflowName string
 	)
-	err := srv.updateRunByID(req.ClusterId, req.Id, func(startedAt time.Time) error {
+	err := srv.updateRunByID(sess, req.ClusterId, req.Id, func(startedAt time.Time) error {
 		runStartedAt = startedAt
 
 		// ── Protect terminal runs from stale overwrites ─────────────
@@ -824,7 +857,7 @@ func (srv *server) FinishRun(_ context.Context, req *workflowpb.FinishRunRequest
 		// never be overwritten by a stale callback. This prevents out-of-
 		// order FinishRun calls from corrupting truth.
 		var currentStatus int
-		if scanErr := srv.session.Query(`
+		if scanErr := sess.Query(`
 			SELECT status FROM workflow_runs
 			WHERE cluster_id=? AND started_at=? AND id=? LIMIT 1`,
 			req.ClusterId, startedAt, req.Id,
@@ -840,12 +873,12 @@ func (srv *server) FinishRun(_ context.Context, req *workflowpb.FinishRunRequest
 		}
 
 		// Load workflow_name to update the summary table after the run row is updated.
-		_ = srv.session.Query(`
+		_ = sess.Query(`
 			SELECT workflow_name FROM workflow_runs
 			WHERE cluster_id=? AND started_at=? AND id=? LIMIT 1`,
 			req.ClusterId, startedAt, req.Id,
 		).Scan(&workflowName)
-		return srv.session.Query(`
+		return sess.Query(`
 			UPDATE workflow_runs SET status=?, failure_class=?, summary=?, error_message=?, updated_at=?, finished_at=?
 			WHERE cluster_id=? AND started_at=? AND id=?`,
 			int(req.Status), int(req.FailureClass), req.Summary, req.ErrorMessage, now, now,
@@ -882,12 +915,16 @@ func (srv *server) RecordStep(_ context.Context, req *workflowpb.RecordStepReque
 	if step == nil {
 		return nil, fmt.Errorf("step is required")
 	}
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	if step.CreatedAt == nil {
 		step.CreatedAt = timestamppb.New(now)
 	}
 
-	if err := srv.session.Query(`
+	if err := sess.Query(`
 		INSERT INTO workflow_steps (
 			cluster_id, run_id, seq, step_key, title,
 			actor, phase, status, attempt, source_actor, target_actor,
@@ -911,25 +948,27 @@ func (srv *server) UpdateStep(_ context.Context, req *workflowpb.UpdateStepReque
 	if err := srv.requireHealthy(); err != nil {
 		return nil, err
 	}
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
 	// Guard: never overwrite a terminal step status (SUCCEEDED/FAILED) with a
 	// stale result. Out-of-order or retried callbacks must not corrupt truth.
-	if srv.session != nil {
-		var currentStatus int
-		if err := srv.session.Query(`
-			SELECT status FROM workflow_steps
-			WHERE cluster_id=? AND run_id=? AND seq=? LIMIT 1`,
-			req.ClusterId, req.RunId, req.Seq,
-		).Scan(&currentStatus); err == nil {
-			if isTerminalStepStatus(workflowpb.StepStatus(currentStatus)) {
-				slog.Warn("UpdateStep: refusing to overwrite terminal step",
-					"run_id", req.RunId, "seq", req.Seq,
-					"current", workflowpb.StepStatus(currentStatus).String(),
-					"requested", req.Status.String())
-				return &emptypb.Empty{}, nil
-			}
+	var currentStatus int
+	if err := sess.Query(`
+		SELECT status FROM workflow_steps
+		WHERE cluster_id=? AND run_id=? AND seq=? LIMIT 1`,
+		req.ClusterId, req.RunId, req.Seq,
+	).Scan(&currentStatus); err == nil {
+		if isTerminalStepStatus(workflowpb.StepStatus(currentStatus)) {
+			slog.Warn("UpdateStep: refusing to overwrite terminal step",
+				"run_id", req.RunId, "seq", req.Seq,
+				"current", workflowpb.StepStatus(currentStatus).String(),
+				"requested", req.Status.String())
+			return &emptypb.Empty{}, nil
 		}
 	}
-	if err := srv.session.Query(`
+	if err := sess.Query(`
 		UPDATE workflow_steps SET status=?, message=?, duration_ms=?, finished_at=?
 		WHERE cluster_id=? AND run_id=? AND seq=?`,
 		int(req.Status), req.Message, req.DurationMs, time.Now(),
@@ -944,25 +983,27 @@ func (srv *server) FailStep(_ context.Context, req *workflowpb.FailStepRequest) 
 	if err := srv.requireHealthy(); err != nil {
 		return nil, err
 	}
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
 	// Guard: never overwrite a SUCCEEDED step with FAILED. A stale failure
 	// from an earlier attempt or network retry must not corrupt truth.
-	if srv.session != nil {
-		var currentStatus int
-		if err := srv.session.Query(`
-			SELECT status FROM workflow_steps
-			WHERE cluster_id=? AND run_id=? AND seq=? LIMIT 1`,
-			req.ClusterId, req.RunId, req.Seq,
-		).Scan(&currentStatus); err == nil {
-			cs := workflowpb.StepStatus(currentStatus)
-			if cs == workflowpb.StepStatus_STEP_STATUS_SUCCEEDED {
-				slog.Warn("FailStep: refusing to downgrade SUCCEEDED step to FAILED",
-					"run_id", req.RunId, "seq", req.Seq)
-				return &emptypb.Empty{}, nil
-			}
+	var currentStatus int
+	if err := sess.Query(`
+		SELECT status FROM workflow_steps
+		WHERE cluster_id=? AND run_id=? AND seq=? LIMIT 1`,
+		req.ClusterId, req.RunId, req.Seq,
+	).Scan(&currentStatus); err == nil {
+		cs := workflowpb.StepStatus(currentStatus)
+		if cs == workflowpb.StepStatus_STEP_STATUS_SUCCEEDED {
+			slog.Warn("FailStep: refusing to downgrade SUCCEEDED step to FAILED",
+				"run_id", req.RunId, "seq", req.Seq)
+			return &emptypb.Empty{}, nil
 		}
 	}
 	now := time.Now()
-	if err := srv.session.Query(`
+	if err := sess.Query(`
 		UPDATE workflow_steps SET status=?, error_code=?, error_message=?, action_hint=?,
 		retryable=?, operator_action_required=?, finished_at=?
 		WHERE cluster_id=? AND run_id=? AND seq=?`,
@@ -993,12 +1034,16 @@ func (srv *server) AddArtifactRef(_ context.Context, req *workflowpb.AddArtifact
 	if a.Id == "" {
 		a.Id = gocql.TimeUUID().String()
 	}
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	if a.CreatedAt == nil {
 		a.CreatedAt = timestamppb.New(now)
 	}
 
-	if err := srv.session.Query(`
+	if err := sess.Query(`
 		INSERT INTO workflow_artifact_refs (
 			cluster_id, run_id, id, step_seq, kind,
 			name, version, digest, node_id,
@@ -1028,12 +1073,16 @@ func (srv *server) AppendEvent(_ context.Context, req *workflowpb.AppendEventReq
 	if ev.EventId == "" {
 		ev.EventId = gocql.TimeUUID().String()
 	}
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	if ev.CreatedAt == nil {
 		ev.CreatedAt = timestamppb.New(now)
 	}
 
-	if err := srv.session.Query(`
+	if err := sess.Query(`
 		INSERT INTO workflow_events (
 			cluster_id, run_id, event_at, event_id, step_seq,
 			event_type, actor, old_value, new_value, message
@@ -1132,7 +1181,11 @@ func (srv *server) GetRunEvents(_ context.Context, req *workflowpb.GetRunEventsR
 	if err := srv.requireHealthy(); err != nil {
 		return nil, err
 	}
-	iter := srv.session.Query(`
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
+	iter := sess.Query(`
 		SELECT run_id, event_id, step_seq, event_type, actor, old_value, new_value, message, event_at
 		FROM workflow_events WHERE cluster_id=? AND run_id=?`,
 		req.ClusterId, req.RunId,
@@ -1360,9 +1413,13 @@ func (srv *server) CancelRun(_ context.Context, req *workflowpb.CancelRunRequest
 		return nil, fmt.Errorf("cannot cancel run %s: already terminal (status=%s)", req.RunId, run.Status)
 	}
 
+	sess, sessErr := srv.getSessionOrError()
+	if sessErr != nil {
+		return nil, sessErr
+	}
 	now := time.Now()
-	if err := srv.updateRunByID(req.ClusterId, req.RunId, func(startedAt time.Time) error {
-		return srv.session.Query(`
+	if err := srv.updateRunByID(sess, req.ClusterId, req.RunId, func(startedAt time.Time) error {
+		return sess.Query(`
 			UPDATE workflow_runs SET status=?, summary=?, error_message=?, finished_at=?, updated_at=?
 			WHERE cluster_id=? AND started_at=? AND id=?`,
 			int(workflowpb.RunStatus_RUN_STATUS_CANCELED),
@@ -1383,9 +1440,13 @@ func (srv *server) AcknowledgeRun(_ context.Context, req *workflowpb.Acknowledge
 	if err := srv.requireHealthy(); err != nil {
 		return nil, err
 	}
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now()
-	return &emptypb.Empty{}, srv.updateRunByID(req.ClusterId, req.RunId, func(startedAt time.Time) error {
-		return srv.session.Query(`
+	return &emptypb.Empty{}, srv.updateRunByID(sess, req.ClusterId, req.RunId, func(startedAt time.Time) error {
+		return sess.Query(`
 			UPDATE workflow_runs SET acknowledged=?, acknowledged_by=?, acknowledged_at=?, updated_at=?
 			WHERE cluster_id=? AND started_at=? AND id=?`,
 			true, req.AcknowledgedBy, now, now,
@@ -1634,13 +1695,18 @@ func (srv *server) upsertWorkflowSummary(clusterID, workflowName, runID string,
 		return
 	}
 
+	sess := srv.getSession()
+	if sess == nil {
+		return
+	}
+
 	// Read existing summary (ignore error: missing row → zeroed fields).
 	var (
 		total, succ, fail                               int64
 		lastSuccessID, lastFailureID, lastFailureReason string
 		lastSuccessAt, lastFailureAt                    time.Time
 	)
-	_ = srv.session.Query(`
+	_ = sess.Query(`
 		SELECT total_runs, success_runs, failure_runs,
 			last_success_id, last_success_at,
 			last_failure_id, last_failure_at, last_failure_reason
@@ -1663,7 +1729,7 @@ func (srv *server) upsertWorkflowSummary(clusterID, workflowName, runID string,
 		}
 	}
 
-	if err := srv.session.Query(`
+	if err := sess.Query(`
 		INSERT INTO workflow_run_summaries (
 			cluster_id, workflow_name,
 			total_runs, success_runs, failure_runs,
@@ -1722,6 +1788,10 @@ func (srv *server) ListWorkflowSummaries(_ context.Context, req *workflowpb.List
 		return nil, fmt.Errorf("cluster_id is required")
 	}
 
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
 	query := `SELECT cluster_id, workflow_name, total_runs, success_runs, failure_runs,
 		last_run_id, last_run_status,
 		last_started_at, last_finished_at, last_duration_ms,
@@ -1735,7 +1805,7 @@ func (srv *server) ListWorkflowSummaries(_ context.Context, req *workflowpb.List
 		args = append(args, req.WorkflowName)
 	}
 
-	iter := srv.session.Query(query, args...).Iter()
+	iter := sess.Query(query, args...).Iter()
 	defer iter.Close()
 
 	var summaries []*workflowpb.WorkflowRunSummary
@@ -1793,11 +1863,16 @@ func (srv *server) RecordStepOutcome(_ context.Context, req *workflowpb.RecordSt
 		return &emptypb.Empty{}, nil
 	}
 
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
+
 	var (
 		total, succ, fail, skip int64
 		firstSeen               time.Time
 	)
-	_ = srv.session.Query(`
+	_ = sess.Query(`
 		SELECT total_executions, success_count, failure_count, skipped_count, first_seen_at
 		FROM workflow_step_outcomes WHERE cluster_id=? AND workflow_name=? AND step_id=?`,
 		req.ClusterId, req.WorkflowName, req.StepId,
@@ -1816,7 +1891,7 @@ func (srv *server) RecordStepOutcome(_ context.Context, req *workflowpb.RecordSt
 		firstSeen = time.Now()
 	}
 
-	if err := srv.session.Query(`
+	if err := sess.Query(`
 		INSERT INTO workflow_step_outcomes (
 			cluster_id, workflow_name, step_id,
 			total_executions, success_count, failure_count, skipped_count,
@@ -1847,6 +1922,10 @@ func (srv *server) ListStepOutcomes(_ context.Context, req *workflowpb.ListStepO
 	if req == nil || req.ClusterId == "" {
 		return nil, fmt.Errorf("cluster_id is required")
 	}
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
 	query := `SELECT cluster_id, workflow_name, step_id,
 		total_executions, success_count, failure_count, skipped_count,
 		last_status, last_started_at, last_finished_at, last_duration_ms,
@@ -1857,7 +1936,7 @@ func (srv *server) ListStepOutcomes(_ context.Context, req *workflowpb.ListStepO
 		query += ` AND workflow_name=?`
 		args = append(args, req.WorkflowName)
 	}
-	iter := srv.session.Query(query, args...).Iter()
+	iter := sess.Query(query, args...).Iter()
 	defer iter.Close()
 
 	var out []*workflowpb.WorkflowStepOutcome
@@ -1906,9 +1985,13 @@ func (srv *server) RecordPhaseTransition(_ context.Context, req *workflowpb.Reco
 	if req == nil || req.ClusterId == "" || req.ResourceType == "" || req.ResourceName == "" {
 		return &emptypb.Empty{}, nil
 	}
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	eventID := uuid.NewString()
-	if err := srv.session.Query(`
+	if err := sess.Query(`
 		INSERT INTO phase_transition_log (
 			cluster_id, resource_type, resource_name, event_at, event_id,
 			from_phase, to_phase, reason, caller, blocked
@@ -1929,11 +2012,15 @@ func (srv *server) ListPhaseTransitions(_ context.Context, req *workflowpb.ListP
 	if req == nil || req.ClusterId == "" || req.ResourceType == "" || req.ResourceName == "" {
 		return nil, fmt.Errorf("cluster_id, resource_type, resource_name are required")
 	}
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
 	limit := int(req.Limit)
 	if limit <= 0 || limit > 1000 {
 		limit = 100
 	}
-	iter := srv.session.Query(`
+	iter := sess.Query(`
 		SELECT event_at, event_id, from_phase, to_phase, reason, caller, blocked
 		FROM phase_transition_log
 		WHERE cluster_id=? AND resource_type=? AND resource_name=?
@@ -1979,11 +2066,16 @@ func (srv *server) RecordDriftObservation(_ context.Context, req *workflowpb.Rec
 		return &emptypb.Empty{}, nil
 	}
 
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
+
 	var (
 		cycles        int
 		firstObserved time.Time
 	)
-	_ = srv.session.Query(`
+	_ = sess.Query(`
 		SELECT consecutive_cycles, first_observed_at
 		FROM drift_unresolved WHERE cluster_id=? AND drift_type=? AND entity_ref=?`,
 		req.ClusterId, req.DriftType, req.EntityRef,
@@ -1995,7 +2087,7 @@ func (srv *server) RecordDriftObservation(_ context.Context, req *workflowpb.Rec
 		firstObserved = now
 	}
 
-	if err := srv.session.Query(`
+	if err := sess.Query(`
 		INSERT INTO drift_unresolved (
 			cluster_id, drift_type, entity_ref,
 			consecutive_cycles, first_observed_at, last_observed_at,
@@ -2017,7 +2109,11 @@ func (srv *server) ClearDriftObservation(_ context.Context, req *workflowpb.Clea
 	if req == nil || req.ClusterId == "" || req.DriftType == "" || req.EntityRef == "" {
 		return &emptypb.Empty{}, nil
 	}
-	if err := srv.session.Query(`
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
+	if err := sess.Query(`
 		DELETE FROM drift_unresolved WHERE cluster_id=? AND drift_type=? AND entity_ref=?`,
 		req.ClusterId, req.DriftType, req.EntityRef,
 	).Exec(); err != nil {
@@ -2035,6 +2131,10 @@ func (srv *server) ListDriftUnresolved(_ context.Context, req *workflowpb.ListDr
 	if req == nil || req.ClusterId == "" {
 		return nil, fmt.Errorf("cluster_id is required")
 	}
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
 	query := `SELECT cluster_id, drift_type, entity_ref, consecutive_cycles,
 		first_observed_at, last_observed_at, chosen_workflow, last_remediation_id
 		FROM drift_unresolved WHERE cluster_id=?`
@@ -2043,7 +2143,7 @@ func (srv *server) ListDriftUnresolved(_ context.Context, req *workflowpb.ListDr
 		query += ` AND drift_type=?`
 		args = append(args, req.DriftType)
 	}
-	iter := srv.session.Query(query, args...).Iter()
+	iter := sess.Query(query, args...).Iter()
 	defer iter.Close()
 
 	minCycles := int(req.MinCycles)
@@ -2078,9 +2178,9 @@ func (srv *server) ListDriftUnresolved(_ context.Context, req *workflowpb.ListDr
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-func (srv *server) updateRunByID(clusterID, runID string, fn func(startedAt time.Time) error) error {
+func (srv *server) updateRunByID(sess *gocql.Session, clusterID, runID string, fn func(startedAt time.Time) error) error {
 	var startedAt time.Time
-	if err := srv.session.Query(`
+	if err := sess.Query(`
 		SELECT started_at FROM workflow_runs WHERE cluster_id=? AND id=? LIMIT 1 ALLOW FILTERING`,
 		clusterID, runID,
 	).Scan(&startedAt); err != nil {
@@ -2090,6 +2190,10 @@ func (srv *server) updateRunByID(clusterID, runID string, fn func(startedAt time
 }
 
 func (srv *server) loadRunByID(clusterID, runID string) (*workflowpb.WorkflowRun, error) {
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
 	var (
 		id, corrID, parentID                                        string
 		nodeID, nodeHostname, compName, compVersion                 string
@@ -2100,7 +2204,7 @@ func (srv *server) loadRunByID(clusterID, runID string) (*workflowpb.WorkflowRun
 		startedAt, updatedAt, finishedAt, ackAt                     time.Time
 	)
 
-	if err := srv.session.Query(`
+	if err := sess.Query(`
 		SELECT id, correlation_id, parent_run_id,
 			node_id, node_hostname, component_name, component_kind, component_version,
 			release_kind, release_object_id, desired_object_id,
@@ -2155,7 +2259,11 @@ func (srv *server) loadRunByID(clusterID, runID string) (*workflowpb.WorkflowRun
 }
 
 func (srv *server) loadSteps(clusterID, runID string) ([]*workflowpb.WorkflowStep, error) {
-	iter := srv.session.Query(`
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
+	iter := sess.Query(`
 		SELECT run_id, seq, step_key, title, actor, phase, status, attempt,
 			source_actor, target_actor, created_at, started_at, finished_at, duration_ms,
 			message, error_code, error_message, retryable, operator_action_required, action_hint, details_json
@@ -2191,7 +2299,11 @@ func (srv *server) loadSteps(clusterID, runID string) ([]*workflowpb.WorkflowSte
 }
 
 func (srv *server) loadArtifacts(clusterID, runID string) ([]*workflowpb.WorkflowArtifactRef, error) {
-	iter := srv.session.Query(`
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
+	iter := sess.Query(`
 		SELECT id, run_id, step_seq, kind, name, version, digest, node_id,
 			path, etcd_key, unit_name, config_path, package_name, package_version, spec_path, script_path,
 			metadata_json, created_at
@@ -2229,8 +2341,12 @@ func (srv *server) listRunsAll(clusterID string, limit int) []*workflowpb.Workfl
 }
 
 func (srv *server) listRunsByNode(clusterID, nodeID string, limit int) []*workflowpb.WorkflowRun {
+	sess := srv.getSession()
+	if sess == nil {
+		return nil
+	}
 	var runs []*workflowpb.WorkflowRun
-	iter := srv.session.Query(`
+	iter := sess.Query(`
 		SELECT run_id FROM workflow_runs_by_node WHERE cluster_id=? AND node_id=? LIMIT ?`,
 		clusterID, nodeID, limit,
 	).Iter()
@@ -2245,8 +2361,12 @@ func (srv *server) listRunsByNode(clusterID, nodeID string, limit int) []*workfl
 }
 
 func (srv *server) listRunsByComponent(clusterID, component string, limit int) []*workflowpb.WorkflowRun {
+	sess := srv.getSession()
+	if sess == nil {
+		return nil
+	}
 	var runs []*workflowpb.WorkflowRun
-	iter := srv.session.Query(`
+	iter := sess.Query(`
 		SELECT run_id FROM workflow_runs_by_component WHERE cluster_id=? AND component_name=? LIMIT ?`,
 		clusterID, component, limit,
 	).Iter()
@@ -2261,7 +2381,11 @@ func (srv *server) listRunsByComponent(clusterID, component string, limit int) [
 }
 
 func (srv *server) scanRunsSummary(query string, args ...interface{}) []*workflowpb.WorkflowRun {
-	iter := srv.session.Query(query, args...).Iter()
+	sess := srv.getSession()
+	if sess == nil {
+		return nil
+	}
+	iter := sess.Query(query, args...).Iter()
 	var runs []*workflowpb.WorkflowRun
 	var id string
 	var startedAt time.Time

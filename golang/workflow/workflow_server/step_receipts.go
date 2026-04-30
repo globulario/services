@@ -36,7 +36,11 @@ CREATE TABLE IF NOT EXISTS workflow.step_receipts (
 // Called by the executor's OnStepDone callback when the step has a receipt_key.
 // Fire-and-forget: errors are logged but never block execution.
 func (srv *server) writeStepReceipt(runID, stepID, receiptKey string, result map[string]any) {
-	if srv.session == nil || receiptKey == "" {
+	if receiptKey == "" {
+		return
+	}
+	sess := srv.getSession()
+	if sess == nil {
 		return
 	}
 
@@ -50,7 +54,7 @@ func (srv *server) writeStepReceipt(runID, stepID, receiptKey string, result map
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	if err := srv.session.Query(`
+	if err := sess.Query(`
 		INSERT INTO workflow.step_receipts (run_id, step_id, receipt_key, result_json, created_at)
 		VALUES (?, ?, ?, ?, ?)`,
 		runID, stepID, receiptKey, resultJSON, time.Now().UnixMilli(),
@@ -65,7 +69,8 @@ func (srv *server) writeStepReceipt(runID, stepID, receiptKey string, result map
 // readStepReceipt checks if a receipt exists for the given run/step.
 // Returns the result JSON and true if found, or empty string and false.
 func (srv *server) readStepReceipt(runID, stepID string) (string, bool) {
-	if srv.session == nil {
+	sess := srv.getSession()
+	if sess == nil {
 		return "", false
 	}
 
@@ -73,7 +78,7 @@ func (srv *server) readStepReceipt(runID, stepID string) (string, bool) {
 	defer cancel()
 
 	var resultJSON string
-	if err := srv.session.Query(`
+	if err := sess.Query(`
 		SELECT result_json FROM workflow.step_receipts
 		WHERE run_id = ? AND step_id = ? LIMIT 1`,
 		runID, stepID,

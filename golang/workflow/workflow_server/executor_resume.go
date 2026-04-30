@@ -27,8 +27,12 @@ import (
 // whose executor died. It looks up the cluster_id from the run record.
 func (srv *server) resumeOrphanedRun(ctx context.Context, runID string) error {
 	// Find the cluster_id for this run by scanning workflow_runs.
+	sess := srv.getSession()
+	if sess == nil {
+		return fmt.Errorf("ScyllaDB not available for orphan run lookup")
+	}
 	var clusterID string
-	if err := srv.session.Query(`
+	if err := sess.Query(`
 		SELECT cluster_id FROM workflow.workflow_runs
 		WHERE id = ? LIMIT 1 ALLOW FILTERING`, runID,
 	).Scan(&clusterID); err != nil {
@@ -50,7 +54,7 @@ func (srv *server) resumeOrphanedRun(ctx context.Context, runID string) error {
 //
 // This is called by the orphan scanner after claiming a stale lease.
 func (srv *server) ResumeRun(ctx context.Context, clusterID, runID string, actorEndpoints map[string]string) error {
-	if srv.session == nil {
+	if srv.getSession() == nil {
 		return fmt.Errorf("ScyllaDB not available for run state loading")
 	}
 

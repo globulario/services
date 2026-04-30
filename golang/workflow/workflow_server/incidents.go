@@ -97,7 +97,11 @@ func (srv *server) scanOnce() {
 
 // scanWorkflowFailures opens/updates incidents for steps with failures.
 func (srv *server) scanWorkflowFailures(clusterID string, present map[string]bool) {
-	iter := srv.session.Query(
+	sess := srv.getSession()
+	if sess == nil {
+		return
+	}
+	iter := sess.Query(
 		`SELECT workflow_name, step_id, total_executions, failure_count,
 			success_count, last_error_message, last_finished_at
 		 FROM workflow_step_outcomes WHERE cluster_id=?`, clusterID,
@@ -148,7 +152,11 @@ func (srv *server) scanWorkflowFailures(clusterID string, present map[string]boo
 
 // scanDriftStuck opens/updates incidents for drift items observed ≥3 cycles.
 func (srv *server) scanDriftStuck(clusterID string, present map[string]bool) {
-	iter := srv.session.Query(
+	sess := srv.getSession()
+	if sess == nil {
+		return
+	}
+	iter := sess.Query(
 		`SELECT drift_type, entity_ref, consecutive_cycles, first_observed_at,
 			last_observed_at, chosen_workflow
 		 FROM drift_unresolved WHERE cluster_id=?`, clusterID,
@@ -256,7 +264,11 @@ func (srv *server) upsertIncident(clusterID, id, category, signature, entityRef,
 // resolveAbsent increments absent_scans for incidents NOT in the present set.
 // Transitions OPEN → RESOLVED when absent_scans >= N for the category.
 func (srv *server) resolveAbsent(clusterID string, present map[string]bool) {
-	iter := srv.session.Query(
+	sess := srv.getSession()
+	if sess == nil {
+		return
+	}
+	iter := sess.Query(
 		`SELECT id, category, absent_scans, status FROM incidents WHERE cluster_id=?`,
 		clusterID,
 	).Iter()
@@ -297,12 +309,12 @@ func (srv *server) resolveAbsent(clusterID string, present map[string]bool) {
 		}
 		if newAbsent >= threshold {
 			// Transition to RESOLVED.
-			srv.session.Query(
+			sess.Query(
 				`UPDATE incidents SET status=?, absent_scans=? WHERE cluster_id=? AND id=?`,
 				int(workflowpb.IncidentStatus_INCIDENT_STATUS_RESOLVED), newAbsent, clusterID, t.id,
 			).Exec()
 		} else {
-			srv.session.Query(
+			sess.Query(
 				`UPDATE incidents SET absent_scans=? WHERE cluster_id=? AND id=?`,
 				newAbsent, clusterID, t.id,
 			).Exec()
@@ -356,6 +368,10 @@ func clampHeadline(s string) string {
 // ---------------------------------------------------------------------------
 
 func (srv *server) loadIncident(clusterID, id string) (*workflowpb.Incident, error) {
+	sess := srv.getSession()
+	if sess == nil {
+		return nil, fmt.Errorf("scylla session unavailable")
+	}
 	var (
 		category, signature, headline, entityRef, entityType string
 		acknowledgedBy, assignedTo                           string
@@ -365,7 +381,7 @@ func (srv *server) loadIncident(clusterID, id string) (*workflowpb.Incident, err
 		acknowledged                                         bool
 		evidenceJSON, diagnosesJSON, fixesJSON               string
 	)
-	err := srv.session.Query(
+	err := sess.Query(
 		`SELECT category, signature, status, severity, headline,
 			occurrence_count, first_seen_at, last_seen_at,
 			entity_ref, entity_type,
@@ -412,11 +428,15 @@ func (srv *server) loadIncident(clusterID, id string) (*workflowpb.Incident, err
 }
 
 func (srv *server) saveIncident(inc *workflowpb.Incident, absentScans int) {
+	sess := srv.getSession()
+	if sess == nil {
+		return
+	}
 	evidenceJSON, _ := json.Marshal(inc.Evidence)
 	diagnosesJSON, _ := json.Marshal(inc.Diagnoses)
 	fixesJSON, _ := json.Marshal(inc.ProposedFixes)
 
-	srv.session.Query(
+	sess.Query(
 		`INSERT INTO incidents (
 			cluster_id, id, category, signature, status, severity, headline,
 			occurrence_count, first_seen_at, last_seen_at,
@@ -446,7 +466,11 @@ func (srv *server) ListIncidents(_ context.Context, req *workflowpb.ListIncident
 	if req == nil || req.ClusterId == "" {
 		return nil, fmt.Errorf("cluster_id is required")
 	}
-	iter := srv.session.Query(
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
+	iter := sess.Query(
 		`SELECT id FROM incidents WHERE cluster_id=?`, req.ClusterId,
 	).Iter()
 	var ids []string
@@ -516,9 +540,13 @@ func (srv *server) ApplyIncidentAction(_ context.Context, req *workflowpb.Incide
 	if req == nil || req.IncidentId == "" || req.Action == "" {
 		return &emptypb.Empty{}, fmt.Errorf("incident_id and action are required")
 	}
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return nil, err
+	}
 	// We need cluster_id; caller may not have it. Look up the incident.
 	var clusterID string
-	if err := srv.session.Query(
+	if err := sess.Query(
 		`SELECT cluster_id FROM incidents WHERE id=? LIMIT 1 ALLOW FILTERING`,
 		req.IncidentId,
 	).Scan(&clusterID); err != nil {
@@ -528,7 +556,7 @@ func (srv *server) ApplyIncidentAction(_ context.Context, req *workflowpb.Incide
 	// Append to action log.
 	now := time.Now()
 	actionID := uuid.NewString()
-	srv.session.Query(
+	sess.Query(
 		`INSERT INTO incident_actions (
 			cluster_id, incident_id, action_at, action_id, action, actor, fix_id, comment
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -539,14 +567,14 @@ func (srv *server) ApplyIncidentAction(_ context.Context, req *workflowpb.Incide
 	// Update incident state based on action.
 	switch req.Action {
 	case "ack":
-		srv.session.Query(
+		sess.Query(
 			`UPDATE incidents SET status=?, acknowledged=true, acknowledged_by=?, acknowledged_at=?
 			 WHERE cluster_id=? AND id=?`,
 			int(workflowpb.IncidentStatus_INCIDENT_STATUS_ACKED),
 			req.Actor, now, clusterID, req.IncidentId,
 		).Exec()
 	case "apply_fix":
-		srv.session.Query(
+		sess.Query(
 			`UPDATE incidents SET status=? WHERE cluster_id=? AND id=?`,
 			int(workflowpb.IncidentStatus_INCIDENT_STATUS_RESOLVING),
 			clusterID, req.IncidentId,
