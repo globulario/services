@@ -312,9 +312,21 @@ func InitService(s Service) error {
 				s.SetAddress(addr)
 			}
 		}
-		// No existing desired; set conservative defaults if missing.
-		if s.GetPort() == 0 {
-			// leave 0 = caller decides; supervisor usually injects.
+		// No existing desired config in etcd — this is Day-0 first boot.
+		// Allocate a stable port via the port allocator and persist it so
+		// all subsequent lookups (controller, xDS, CLI) find the correct port.
+		// Without this, services use hardcoded defaultPort values which
+		// conflict and get silently reallocated at bind time, causing
+		// controller→service connection failures.
+		if s.GetPort() != 0 {
+			allocator, allocErr := config.NewDefaultPortAllocator()
+			if allocErr == nil {
+				if p, pErr := allocator.Next(s.GetId()); pErr == nil {
+					slog.Info("InitService: allocated port (no etcd config, Day-0)",
+						"service", s.GetName(), "default_port", s.GetPort(), "allocated_port", p)
+					s.SetPort(p)
+				}
+			}
 		}
 		if s.GetProxy() == 0 && s.GetPort() != 0 {
 			s.SetProxy(s.GetPort() + 1)
