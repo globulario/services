@@ -313,21 +313,8 @@ func InitService(s Service) error {
 			}
 		}
 		// No existing desired config in etcd — this is Day-0 first boot.
-		// Allocate a stable port via the port allocator and persist it so
-		// all subsequent lookups (controller, xDS, CLI) find the correct port.
-		// Without this, services use hardcoded defaultPort values which
-		// conflict and get silently reallocated at bind time, causing
-		// controller→service connection failures.
-		if s.GetPort() != 0 {
-			allocator, allocErr := config.NewDefaultPortAllocator()
-			if allocErr == nil {
-				if p, pErr := allocator.Next(s.GetId()); pErr == nil {
-					slog.Info("InitService: allocated port (no etcd config, Day-0)",
-						"service", s.GetName(), "default_port", s.GetPort(), "allocated_port", p)
-					s.SetPort(p)
-				}
-			}
-		}
+		// Don't allocate here (multiple services race for the same port).
+		// StartService will bind-test and reallocate if needed.
 		if s.GetProxy() == 0 && s.GetPort() != 0 {
 			s.SetProxy(s.GetPort() + 1)
 		}
@@ -792,6 +779,14 @@ func StartService(s Service, srv *grpc.Server) error {
 			srv.Stop()
 		}
 		return err_
+	}
+
+	// Persist the final bound port to etcd so controller/xDS/CLI resolve
+	// the correct address. On Day-0 first boot, this is the first config
+	// write — without it, the controller connects to the wrong port.
+	if saveErr := SaveService(s); saveErr != nil {
+		slog.Warn("StartService: failed to persist port config (non-fatal, runtime will retry)",
+			"service", s.GetName(), "port", s.GetPort(), "err", saveErr)
 	}
 
 	// Serve gRPC in background.
