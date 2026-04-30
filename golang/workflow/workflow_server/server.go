@@ -258,6 +258,7 @@ func (srv *server) buildScyllaSession() (*gocql.Session, error) {
 	cluster.ConnectTimeout = 15 * time.Second
 	cluster.ProtoVersion = 4
 	cluster.DisableInitialHostLookup = true
+	cluster.HostFilter = gocql.WhiteListHostFilter(hosts...)
 
 	// Try connecting directly to the keyspace first (fast path for existing installs).
 	cluster.Keyspace = workflowKeyspace

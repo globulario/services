@@ -126,7 +126,11 @@ func (m *scyllaSessionMgr) onPingFailure(ctx context.Context) {
 		return
 	}
 	if m.reconnecting.CompareAndSwap(false, true) {
-		go m.reconnectLoop(ctx)
+		// Use a detached context: the caller's ctx is the watchdog ping
+		// context (5 s timeout) which expires long before reconnect
+		// completes. The reconnect loop must run until it succeeds or
+		// the process exits.
+		go m.reconnectLoop(context.Background())
 	}
 }
 
