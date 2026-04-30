@@ -660,8 +660,40 @@ func (m *etcdMemberManager) reconcileEtcdAutoRejoin(ctx context.Context, nodes [
 	if m == nil || m.client == nil {
 		return false
 	}
+
+	// Safety: identify the current etcd leader. NEVER auto-rejoin the leader —
+	// wiping its data directory destroys cluster quorum with no recovery path.
+	var leaderNodeID string
+	statusCtx, statusCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer statusCancel()
+	if resp, err := m.client.Status(statusCtx, m.client.Endpoints()[0]); err == nil {
+		leaderMemberID := resp.Leader
+		// Map leader member ID back to a node.
+		if membResp, err := m.client.MemberList(statusCtx); err == nil {
+			for _, mem := range membResp.Members {
+				if mem.ID == leaderMemberID && len(mem.PeerURLs) > 0 {
+					urlSet := map[string]bool{mem.PeerURLs[0]: true}
+					for _, n := range nodes {
+						if n != nil && nodeAnyIPIsEtcdMember(n, urlSet) {
+							leaderNodeID = n.NodeID
+						}
+					}
+				}
+			}
+		}
+	}
+
 	for _, node := range nodes {
 		if node == nil || node.EtcdJoinPhase != EtcdJoinRejoinRequired {
+			continue
+		}
+		// Never wipe the etcd leader.
+		if leaderNodeID != "" && node.NodeID == leaderNodeID {
+			log.Printf("etcd auto-rejoin: REFUSING to rejoin node %s (%s) — it is the current etcd leader",
+				node.NodeID, node.Identity.Hostname)
+			node.EtcdJoinPhase = EtcdJoinVerified
+			node.EtcdJoinError = ""
+			dirty = true
 			continue
 		}
 		ip := node.PrimaryIP()
