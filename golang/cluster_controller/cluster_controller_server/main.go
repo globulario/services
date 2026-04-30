@@ -274,6 +274,26 @@ func main() {
 		}
 		return nil
 	}
+	srv.scyllaMembers.wipeScyllaData = func(ctx context.Context, endpoint string) error {
+		conn, err := srv.dialNodeAgent(endpoint)
+		if err != nil {
+			return fmt.Errorf("connect to node agent %s: %w", endpoint, err)
+		}
+		defer conn.Close()
+		client := node_agentpb.NewNodeAgentServiceClient(conn)
+		rctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+		defer cancel()
+		resp, err := client.RunWorkflow(rctx, &node_agentpb.RunWorkflowRequest{
+			WorkflowName: "wipe-scylla-data",
+		})
+		if err != nil {
+			return fmt.Errorf("RunWorkflow wipe-scylla-data: %w", err)
+		}
+		if resp.GetStatus() != "SUCCEEDED" {
+			return fmt.Errorf("wipe-scylla-data failed: %s", resp.GetError())
+		}
+		return nil
+	}
 	srv.minioPoolMgr = newMinioPoolManager()
 
 	// Ensure cluster-roles.json is deployed on disk before checking roles.

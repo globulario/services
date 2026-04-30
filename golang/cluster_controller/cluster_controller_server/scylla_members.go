@@ -91,6 +91,11 @@ type scyllaClusterManager struct {
 	// ControlService RPC. Used to unstick ScyllaDB when it's stuck in
 	// "join cluster" Raft state (CQL never comes up without a restart).
 	restartService func(ctx context.Context, endpoint, unit string) error
+
+	// wipeScyllaData stops ScyllaDB, wipes /var/lib/scylla/data, and restarts.
+	// Used as escalation when restart alone doesn't unstick the Raft join —
+	// stale Raft group state from a failed first boot prevents re-joining.
+	wipeScyllaData func(ctx context.Context, endpoint string) error
 }
 
 func newScyllaClusterManager() *scyllaClusterManager {
@@ -146,6 +151,7 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, no
 			node.ScyllaJoinPhase = ScyllaJoinConfigured
 			node.ScyllaJoinStartedAt = now
 			node.ScyllaJoinError = ""
+			node.ScyllaJoinRestarts = 0
 			dirty = true
 
 		case ScyllaJoinConfigured:
@@ -191,17 +197,33 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, no
 				continue
 			}
 			if now.Sub(node.ScyllaJoinStartedAt) > scyllaJoinTimeout {
-				// ScyllaDB may be stuck in Raft "join cluster" state — CQL
-				// never comes up without a restart. Restart and re-enter
-				// Started so the probe can verify on the next cycle.
-				if m.restartService != nil && node.AgentEndpoint != "" {
-					log.Printf("scylla join: node %s timed out — restarting scylla-server to unstick Raft join", node.NodeID)
+				if node.AgentEndpoint == "" {
+					log.Printf("scylla join: node %s timed out waiting for ring join (no agent endpoint)", node.NodeID)
+					node.ScyllaJoinPhase = ScyllaJoinFailed
+					node.ScyllaJoinError = "timeout waiting for ScyllaDB to join gossip ring"
+					dirty = true
+				} else if node.ScyllaJoinRestarts == 0 && m.restartService != nil {
+					// First timeout: simple restart to unstick Raft join.
+					log.Printf("scylla join: node %s timed out — restarting scylla-server (attempt 1)", node.NodeID)
 					if err := m.restartService(ctx, node.AgentEndpoint, "scylla-server.service"); err != nil {
 						log.Printf("scylla join: node %s restart failed: %v", node.NodeID, err)
 					}
-					// Reset the timer to give the restarted ScyllaDB a fresh window.
+					node.ScyllaJoinRestarts = 1
 					node.ScyllaJoinStartedAt = now
 					node.ScyllaJoinError = "restarted scylla-server (Raft join stuck)"
+					dirty = true
+				} else if node.ScyllaJoinRestarts >= 1 && m.wipeScyllaData != nil {
+					// Second timeout: restart didn't help. The stale Raft group
+					// state from a failed first boot prevents re-joining. Wipe
+					// data and restart for a clean Raft bootstrap.
+					log.Printf("scylla join: node %s timed out again — wiping stale Raft data and restarting (attempt %d)",
+						node.NodeID, node.ScyllaJoinRestarts+1)
+					if err := m.wipeScyllaData(ctx, node.AgentEndpoint); err != nil {
+						log.Printf("scylla join: node %s wipe+restart failed: %v", node.NodeID, err)
+					}
+					node.ScyllaJoinRestarts++
+					node.ScyllaJoinStartedAt = now
+					node.ScyllaJoinError = "wiped stale Raft data and restarted scylla-server"
 					dirty = true
 				} else {
 					log.Printf("scylla join: node %s timed out waiting for ring join", node.NodeID)

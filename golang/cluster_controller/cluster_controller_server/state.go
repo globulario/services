@@ -296,6 +296,7 @@ type nodeState struct {
 	ScyllaJoinPhase     ScyllaJoinPhase `json:"scylla_join_phase,omitempty"`
 	ScyllaJoinStartedAt time.Time       `json:"scylla_join_started_at,omitempty"`
 	ScyllaJoinError     string          `json:"scylla_join_error,omitempty"`
+	ScyllaJoinRestarts  int             `json:"scylla_join_restarts,omitempty"`
 	// Bootstrap phase state machine (phased node initialization)
 	BootstrapPhase     BootstrapPhase `json:"bootstrap_phase,omitempty"`
 	BootstrapStartedAt time.Time      `json:"bootstrap_started_at,omitempty"`
