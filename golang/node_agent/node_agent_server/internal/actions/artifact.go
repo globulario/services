@@ -1218,9 +1218,16 @@ func normalizeUnitWorkingDirectory(path string) error {
 
 // ensureServiceStateDir creates the given directory with the correct ownership
 // (globular:globular) and permissions (0750) if it does not already exist.
+// The shared state root (/var/lib/globular) is always kept at 0755 so
+// non-root CLI can traverse it to read the CA cert.
 func ensureServiceStateDir(dir string) error {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
+	}
+	// Guard: MkdirAll may have created the shared state root with 0750.
+	// Restore 0755 on the root so non-root users can traverse it.
+	if ActionStateDir != "" && dir != ActionStateDir {
+		_ = os.Chmod(ActionStateDir, 0o755)
 	}
 	// Best-effort chown — may fail in test environments or when running as
 	// non-root. Production node-agent runs as root.
