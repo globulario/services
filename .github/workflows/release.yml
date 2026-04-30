@@ -320,6 +320,7 @@ jobs:
             --metadata-dir packages/metadata \
             --bin-dir dist/bin \
             --pkg-map-json services/golang/build/pkg-map.json \
+            --go-src-dir services/golang \
             --version "${VERSION}" \
             --tag "${TAG}" \
             --output-overrides dist/version-overrides.txt \
@@ -875,6 +876,44 @@ jobs:
           sha256sum "${RELEASE_NAME}.tar.gz" > "${RELEASE_NAME}.tar.gz.sha256"
 
           echo "Release tarball: $(du -sh "${RELEASE_NAME}.tar.gz" | cut -f1)"
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # BOM Verification: ensure asset count matches changed_in_release count.
+      # Fail the release if unchanged packages are being uploaded.
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Verify BOM delta integrity
+        run: |
+          set -euo pipefail
+
+          CHANGED_COUNT=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['changed_count'])")
+          ASSET_COUNT=$(ls dist/packages/*.tgz 2>/dev/null | wc -l)
+          UNCHANGED_COUNT=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['unchanged_count'])")
+
+          echo "BOM Delta Verification"
+          echo "  Changed packages (release-index):  ${CHANGED_COUNT}"
+          echo "  Package assets to upload:           ${ASSET_COUNT}"
+          echo "  Unchanged packages (from origin):   ${UNCHANGED_COUNT}"
+
+          if [[ "${ASSET_COUNT}" -ne "${CHANGED_COUNT}" ]]; then
+            echo ""
+            echo "ERROR: Asset count (${ASSET_COUNT}) != changed count (${CHANGED_COUNT})"
+            echo "Unchanged packages must NOT be uploaded as current-version assets."
+            echo ""
+            echo "Changed packages:"
+            python3 -c "
+          import json
+          m = json.load(open('dist/change-manifest.json'))
+          for p in m['packages']:
+              if p['changed']:
+                  print(f'  + {p[\"name\"]}')
+          "
+            echo ""
+            echo "Uploaded assets:"
+            ls dist/packages/*.tgz | sed 's|dist/packages/|  |'
+            exit 1
+          fi
+
+          echo "✓ BOM delta integrity verified: ${CHANGED_COUNT} changed = ${ASSET_COUNT} assets"
 
       # ── Publish GitHub Release ───────────────────────────────────────────
       # Only CHANGED package .tgz files are uploaded as individual assets.

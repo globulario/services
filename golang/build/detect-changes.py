@@ -76,6 +76,47 @@ def sha256_dir(dirpath):
     return f"sha256:{h.hexdigest()}" if found else ""
 
 
+def sha256_source_tree(dirpath, extensions=(".go",)):
+    """Combined SHA256 of all source files in a directory tree (recursive).
+
+    Used for Go services instead of binary checksums: CGO makes binaries
+    non-reproducible across CI runs (different linker, glibc, runner image).
+    Source hashing is deterministic regardless of build environment.
+
+    Returns '' if no matching files found.
+    """
+    if not os.path.isdir(dirpath):
+        return ""
+    h = hashlib.sha256()
+    found = False
+    for root, _dirs, files in sorted(os.walk(dirpath)):
+        for fname in sorted(files):
+            if not any(fname.endswith(ext) for ext in extensions):
+                continue
+            fpath = os.path.join(root, fname)
+            relpath = os.path.relpath(fpath, dirpath)
+            found = True
+            h.update(relpath.encode())
+            h.update(b"\x00")
+            with open(fpath, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
+                    h.update(chunk)
+            h.update(b"\x00")
+    return f"sha256:{h.hexdigest()}" if found else ""
+
+
+# Shared Go packages that affect all consumers. Changes here mark ALL
+# Go services as changed.
+SHARED_GO_PACKAGES = [
+    "globular_service",
+    "interceptors",
+    "config",
+    "security",
+    "dephealth",
+    "subsystem",
+]
+
+
 def normalized_manifest_sha256(pkg_json_path):
     """Hash package.json excluding fields overwritten at package time.
 
@@ -140,6 +181,7 @@ def main():
     ap.add_argument("--metadata-dir",      required=True, help="Path to packages/metadata/")
     ap.add_argument("--bin-dir",           required=True, help="Path to dist/bin/")
     ap.add_argument("--pkg-map-json",      required=True, help="Path to pkg-map.json")
+    ap.add_argument("--go-src-dir",       default="",    help="Path to golang/ source root (for source-based change detection)")
     ap.add_argument("--version",           required=True, help="Current platform version (e.g. 1.0.85)")
     ap.add_argument("--tag",               required=True, help="Current release tag (e.g. v1.0.85)")
     ap.add_argument("--output-overrides",  required=True, help="Output: version-overrides.txt")
@@ -158,6 +200,21 @@ def main():
         sys.exit(1)
 
     results = []
+
+    # Precompute shared Go package hashes. Changes to these mark ALL Go
+    # services as changed (they're imported by most/all services).
+    go_src = args.go_src_dir
+    shared_hash = ""
+    if go_src:
+        sh = hashlib.sha256()
+        for pkg in sorted(SHARED_GO_PACKAGES):
+            pkg_dir = os.path.join(go_src, pkg)
+            h = sha256_source_tree(pkg_dir)
+            sh.update(f"{pkg}\x00{h}\x00".encode())
+        # Also include go.sum — dependency changes affect all binaries.
+        gosum = sha256_file(os.path.join(go_src, "go.sum"))
+        sh.update(f"go.sum\x00{gosum}\x00".encode())
+        shared_hash = f"sha256:{sh.hexdigest()}"
 
     for name, info in sorted(pkg_map.items()):
         binary     = info["binary"]
@@ -184,7 +241,25 @@ def main():
             manifest = {}
 
         # Compute contract components.
-        cksum = sha256_file(bin_path)
+        #
+        # For Go services (go_target set): use SOURCE file hashing instead of
+        # binary checksums. CGO_ENABLED=1 makes Go binaries non-reproducible
+        # across CI runs (different linker, glibc, runner image). Source hashing
+        # is deterministic regardless of build environment.
+        #
+        # For third-party packages (no go_target): use binary hash as before.
+        # Downloaded binaries are reproducible (same URL = same file).
+        if go_target and go_src:
+            src_dir = os.path.join(go_src, go_target)
+            src_hash = sha256_source_tree(src_dir)
+            # Combine service source + shared packages + go.sum
+            combined = hashlib.sha256()
+            combined.update(f"src\x00{src_hash}\x00".encode())
+            combined.update(f"shared\x00{shared_hash}\x00".encode())
+            cksum = f"sha256:{combined.hexdigest()}"
+        else:
+            cksum = sha256_file(bin_path)
+
         mhash = normalized_manifest_sha256(pj_path)
         shash = sha256_dir(os.path.join(meta, "specs"))
         uhash = sha256_dir(os.path.join(meta, "systemd"))
