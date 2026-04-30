@@ -609,12 +609,11 @@ func buildCatalog() []*Component {
 		},
 		{
 			Name:                     "sidekick",
-			Unit:                     "globular-sidekick.service",
+			Unit:                     "", // no systemd unit — MinIO companion binary
 			Kind:                     KindInfrastructure,
 			Priority:                 11,
 			Profiles:                 []string{"core", "compute", "storage"},
 			RuntimeLocalDependencies: []string{"minio"},
-			HealthCheck:              &HealthCheckHintC{Unit: "globular-sidekick.service"},
 		},
 	}
 }

@@ -338,7 +338,6 @@ func TestBootstrapDoesNotAdvanceOnInstalledOnly(t *testing.T) {
 		Units: []unitStatusRecord{
 			{Name: "globular-envoy.service", State: "active"},
 			{Name: "globular-minio.service", State: "inactive"},
-			{Name: "globular-sidekick.service", State: "active"},
 			{Name: "globular-node-exporter.service", State: "active"},
 			{Name: "globular-prometheus.service", State: "active"},
 			{Name: "globular-alertmanager.service", State: "active"},
