@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/user"
+	"strconv"
 	"time"
 
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
@@ -78,9 +80,12 @@ func (srv *NodeAgentServer) runWipeScyllaData(ctx context.Context, req *node_age
 
 // chownToUser sets ownership of a path to the given user (best-effort).
 func chownToUser(path, username string) {
-	// Lookup user by name. If not found, skip.
-	if fi, err := os.Stat(path); err == nil && fi.IsDir() {
-		// Use os/user would add a dependency; just set 110:110 (scylla default).
-		os.Chown(path, 110, 110)
+	u, err := user.Lookup(username)
+	if err != nil {
+		log.Printf("wipe-scylla-data: user %q not found, skipping chown: %v", username, err)
+		return
 	}
+	uid, _ := strconv.Atoi(u.Uid)
+	gid, _ := strconv.Atoi(u.Gid)
+	os.Chown(path, uid, gid)
 }
