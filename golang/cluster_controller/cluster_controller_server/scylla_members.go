@@ -6,9 +6,19 @@ import (
 	"time"
 )
 
-// scyllaJoinTimeout is the maximum time between config render and the new
-// ScyllaDB node becoming healthy in the gossip ring.
+// scyllaJoinTimeout is the maximum time between config render and
+// scylla-server.service becoming active. Used in the ScyllaJoinConfigured
+// case where we're waiting for systemd to start the unit. 5 minutes covers
+// slow apt installs and disk-heavy first starts.
 const scyllaJoinTimeout = 5 * time.Minute
+
+// scyllaRaftRestartTimeout is the maximum time scylla-server can be active
+// without joining the gossip ring before the first restart fires. Set lower
+// than scyllaJoinTimeout because at this stage the symptom is specific
+// (Raft group 0 join hung, process alive but silent). A clean Scylla join
+// takes 60–90s on healthy hardware; 2 min gives ample slack without leaving
+// the operator waiting 10+ min on the documented v1.x raft hang.
+const scyllaRaftRestartTimeout = 2 * time.Minute
 
 // nodeHasScyllaUnit returns true if the node reports a scylla-server.service
 // unit file (any state).
@@ -196,7 +206,7 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, no
 				log.Printf("scylla join: node %s verified in gossip ring (heuristic)", node.NodeID)
 				continue
 			}
-			if now.Sub(node.ScyllaJoinStartedAt) > scyllaJoinTimeout {
+			if now.Sub(node.ScyllaJoinStartedAt) > scyllaRaftRestartTimeout {
 				if node.AgentEndpoint == "" {
 					log.Printf("scylla join: node %s timed out waiting for ring join (no agent endpoint)", node.NodeID)
 					node.ScyllaJoinPhase = ScyllaJoinFailed
