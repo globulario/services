@@ -8,7 +8,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/globulario/services/golang/config"
@@ -44,7 +46,30 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 		log.Printf("nodeagent: scylla-manager-agent auth_token write failed (%s): %v", cfgPath, err)
 		return
 	}
+	// scylla-manager-agent.service runs as User=scylla; without chgrp the
+	// scylla user can't read this file and the unit crash-loops with
+	// "permission denied". Mode 0640 only helps if the group is scylla.
+	chgrpScyllaAgentConfig(cfgPath)
 	log.Printf("nodeagent: ensured scylla-manager-agent auth_token in %s", cfgPath)
+}
+
+// chgrpScyllaAgentConfig sets the file's group to "scylla" so the
+// scylla-manager-agent unit (User=scylla, Group=scylla) can read its config.
+// Per CLAUDE.md: never hardcode UIDs/GIDs — always resolve via user.Lookup.
+func chgrpScyllaAgentConfig(path string) {
+	u, err := user.Lookup("scylla")
+	if err != nil {
+		log.Printf("nodeagent: scylla user not found — cannot chgrp %s: %v", path, err)
+		return
+	}
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		log.Printf("nodeagent: invalid scylla GID %q: %v", u.Gid, err)
+		return
+	}
+	if err := os.Chown(path, -1, gid); err != nil {
+		log.Printf("nodeagent: cannot chgrp scylla group on %s: %v", path, err)
+	}
 }
 
 func scyllaManagerAgentUnitExists(ctx context.Context) bool {

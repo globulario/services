@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/globulario/services/golang/backup_manager/backup_managerpb"
@@ -268,6 +270,25 @@ func (srv *server) addMinioDestination(bucket string) {
 
 const scyllaAgentConfigPath = "/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml"
 
+// chgrpScyllaAgentConfig sets the file's group to "scylla" so the
+// scylla-manager-agent unit (User=scylla, Group=scylla) can read its config.
+// Per CLAUDE.md: never hardcode UIDs/GIDs — always resolve via user.Lookup.
+func chgrpScyllaAgentConfig(path string) {
+	u, err := user.Lookup("scylla")
+	if err != nil {
+		slog.Warn("scylla user not found — cannot chgrp scylla-manager-agent config", "path", path, "error", err)
+		return
+	}
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		slog.Warn("invalid scylla GID", "gid", u.Gid, "error", err)
+		return
+	}
+	if err := os.Chown(path, -1, gid); err != nil {
+		slog.Warn("cannot chgrp scylla-manager-agent config", "path", path, "gid", gid, "error", err)
+	}
+}
+
 // ensureScyllaAgentS3Config ensures the scylla-manager-agent YAML has S3
 // credentials pointing at the configured MinIO instance. Called during Init
 // and when creating a bucket with SetAsScyllaLocation.
@@ -369,10 +390,15 @@ s3:
 
 	content = strings.TrimRight(content, "\n") + "\n" + s3Block + rcloneBlock
 
-	if err := os.WriteFile(scyllaAgentConfigPath, []byte(content), 0600); err != nil {
+	if err := os.WriteFile(scyllaAgentConfigPath, []byte(content), 0o640); err != nil {
 		slog.Warn("cannot write scylla-manager-agent config", "path", scyllaAgentConfigPath, "error", err)
 		return
 	}
+	// scylla-manager-agent.service runs as User=scylla; without chgrp the
+	// scylla user can't read this file and the unit crash-loops with
+	// "permission denied". Mode 0640 + group=scylla keeps secrets off the
+	// world while letting the daemon read its config.
+	chgrpScyllaAgentConfig(scyllaAgentConfigPath)
 	slog.Info("updated scylla-manager-agent S3 config", "endpoint", srv.MinioEndpoint)
 
 	// Restart the agent so it picks up the new S3 config.
