@@ -376,8 +376,14 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 		if sdv := desiredFull[svc]; sdv != nil && sdv.Spec != nil {
 			desiredBID = sdv.Spec.BuildID
 		}
-		installedVer, hasInstalled := node.InstalledVersions[svc]
-		ok, reason := versionCheckDecision(desiredVer, desiredBID, installedVer, node.InstalledBuildIDs[svc], hasInstalled)
+		// Use lookupInstalledVersionFromMap (and its build-id sibling) so we
+		// match publisher-prefixed keys like "core@globular.io/sql" against
+		// the desired short name "sql". Direct map access misses those and
+		// reports "not installed" for services that are actually installed.
+		installedVer := lookupInstalledVersionFromMap(node.InstalledVersions, svc)
+		hasInstalled := installedVer != ""
+		installedBID := lookupInstalledVersionFromMap(node.InstalledBuildIDs, svc)
+		ok, reason := versionCheckDecision(desiredVer, desiredBID, installedVer, installedBID, hasInstalled)
 		checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
 			Subsystem: "version:" + svc,
 			Ok:        ok,
