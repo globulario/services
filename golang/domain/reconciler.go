@@ -409,8 +409,10 @@ func (r *Reconciler) ensureDNSRecord(ctx context.Context, spec *ExternalDomainSp
 		}
 	}
 
-	// Create standard service records: api.<zone> and <node_id>.<zone>
-	for _, sub := range []string{"api", spec.NodeID} {
+	// Create standard service records: api.<zone>, dns.<zone>, and <node_id>.<zone>
+	// dns.<zone> uses the public IP so Let's Encrypt can reach the NS during
+	// ACME DNS-01 challenges (the registrar's NS glue record points here).
+	for _, sub := range []string{"api", "dns", spec.NodeID} {
 		if sub == "" {
 			continue
 		}

@@ -1,117 +1,146 @@
-# TODO — Remaining Work (v1.1.2 session)
-# Date: 2026-04-30
+# TODO — Remaining Work after v1.1.7 session
+# Date: 2026-05-01
 
-## Problem Summary
+## What was fixed and shipped
 
-Day-0 works cleanly. Day-1 join stalls at `storage_joining` because:
+### v1.1.5
+11. Workflow nil session panic — eliminated ~65 direct srv.session.Query()
+    calls across 6 files. RPC handlers return WORKFLOW_DEPENDENCY_UNAVAILABLE
+    instead of panicking.
 
-1. ScyllaDB on joining nodes (nuc/dell) starts but never joins the Raft ring.
-   - The G5 guard (post-install.sh) correctly protects existing scylla.yaml
-   - BUT on a fresh Day-1 node, scylla.yaml was written by a previous
-     post-install with seeds pointing only to the local node, not the cluster
-   - Result: ScyllaDB starts isolated, never discovers other members
-   - CQL port 9042 unreachable on joining nodes
+### v1.1.6
+12. Controller day0_join skip for ScyllaDB — removed InstallModeDay0Join
+    from scylladb component. Nodes 4+ now get ScyllaDB via release pipeline.
 
-2. gocql driver on ryzen auto-discovers the new (broken) ScyllaDB nodes
-   via gossip, adds them to connection pool, then fails when routing
-   queries to them. Session closes. Workflow service goes NOT_SERVING.
-   Controller can't dispatch reconcile workflows. Bootstrap stalls.
+### v1.1.7
+13. ACME cert distribution via etcd — after cert obtain/renew, reconciler
+    publishes to etcd. Node-agent syncs to local disk on all nodes. xDS
+    watches etcd and rebuilds SDS secrets on cert change. Certs survive
+    VIP failover.
+14. xDS cert search path — added /var/lib/globular/pki/acme/<fqdn>/ as
+    primary search path (Globular repo: xds/watchers/watcher.go).
+15. Admin DNS drift suppression — per-node records covered by wildcard
+    no longer shown as MISSING (globular-admin repo).
 
-3. Workflow reconnect logic cancels its own context, never recovers.
-   Manual `systemctl restart globular-workflow` fixes it temporarily.
+### Also fixed this session (manual/config)
+- Upstream URL template typo: {tag/release-index.json} → {tag}/release-index.json
+- MinIO buckets created after distributed pool formation
+- DNS dns.globular.io record fixed to point to nuc (10.0.0.8) not hp-01
+- DNS zones registered on all instances (not just leader-local)
+- File permissions on token, signing keys, scylla-manager-agent config
 
-## Root Cause
+## Current cluster state (5 nodes, v1.1.7)
 
-The ScyllaDB post-install script writes scylla.yaml with seeds from
-the etcd_endpoints file. On Day-1, this resolves to the bootstrap node
-+ local node. BUT the G5 seed-only guard sees an existing scylla.yaml
-with `cluster_name: 'globular.internal'` and exits early, preserving
-seeds that may be wrong for the new cluster.
+| Node           | IP         | Status | Profiles                                    |
+|----------------|------------|--------|---------------------------------------------|
+| globule-ryzen  | 10.0.0.63  | ready  | core, control-plane, storage, compute       |
+| globule-nuc    | 10.0.0.8   | ready  | core, control-plane, storage, gateway       |
+| globule-dell   | 10.0.0.20  | ready  | core, control-plane, storage, gateway       |
+| globule-lenovo | 10.0.0.102 | ready  | core, control-plane, storage, gateway       |
+| globule-hp-01  | 10.0.0.9   | ready  | core, control-plane, storage, gateway       |
 
-The guard is correct for REINSTALL (protect live Raft state).
-The guard is WRONG for first Day-1 join (needs fresh config with
-correct seeds from the controller).
+- Let's Encrypt certs: globular.io + globular.cloud (wildcard, expires 2026-07-30)
+- MinIO: 5-node distributed pool
+- etcd: 5 members, healthy
+- Platform version: v1.1.7 (repo synced from GitHub upstream)
 
-Dave's rule: target the ScyllaDB running on the node we're joining
-EXPLICITLY instead of going through the service mesh. The workflow
-service should connect to the local/seed ScyllaDB directly, not
-discover nodes via gossip that aren't ready.
+## What still needs to be done
 
-## Required Fixes
+### P0 — Blocking production stability
 
-### Fix 1: ScyllaDB post-install — cluster-aware seed guard
-The G5 guard should check:
-- Does scylla.yaml exist? YES
-- Is ScyllaDB running AND healthy (CQL on 9042)? → SKIP (protect Raft)
-- Is ScyllaDB NOT running AND seeds match current cluster? → SKIP (config OK)
-- Is ScyllaDB NOT running AND seeds DON'T match? → REWRITE with correct seeds
+#### 1. MinIO topology workflow must create data dirs and buckets
+The topology workflow renders configs and restarts MinIO, but does NOT:
+  - Create the data subdirectory on each node's mount point
+  - Create the MinIO buckets (globular, globular-config) after pool formation
+Without these, MinIO reports "drive not found" and the repository can't
+serve packages. Currently requires manual `mkdir` and `mc mb`.
 
-The current guard only checks if cluster_name != "Test Cluster". It should
-also verify seeds match the current etcd membership.
+Fix: the topology workflow's post-apply step should:
+  - SSH to each node and create <mount>/<data-subdir> with globular ownership
+  - After all nodes are healthy, create buckets via mc or MinIO API
+  - Verify bucket accessibility before marking topology converged
 
-Don't break the guardrail — REFINE the context where it applies.
+#### 2. Node-agent ScyllaDB post-install must configure scylla.yaml
+The infrastructure installer for ScyllaDB installs apt packages but does
+NOT configure scylla.yaml. Without seeds, cluster_name, dev mode, and
+io_properties, ScyllaDB starts with defaults and fails to join Raft.
 
-### Fix 2: Workflow gocql — target ScyllaDB explicitly, not via discovery
-The workflow service should connect to ScyllaDB hosts from etcd config
-(the KNOWN healthy hosts), not auto-discover via gossip. Options:
-a) Configure gocql with HostFilter that rejects hosts not in etcd config
-b) Disable gocql auto-discovery during bootstrap (pin to seed hosts)
-c) Use DCAwareRoundRobinPolicy with local-only fallback
-d) When session breaks, reconnect to ORIGINAL seed hosts from etcd,
-   not to all gossip-discovered hosts
+Fix: node-agent post-install for scylladb must:
+  - Set listen_address/rpc_address to node's routable IP
+  - Set seeds from etcd or controller
+  - Set cluster_name to match cluster domain (globular.internal)
+  - Set endpoint_snitch to SimpleSnitch
+  - Enable developer_mode on small nodes (< 16GB RAM)
+  - Write io_properties.yaml with reasonable defaults
+  - Ensure data dirs exist with scylla ownership
 
-### Fix 3: Workflow reconnect — retry with original seeds
-The `scylla_reconnect: context cancelled, aborting reconnect` means the
-reconnect goroutine gives up. It should retry with the ORIGINAL seed
-hosts (from etcd), not cancel. The dep health watchdog should create a
-NEW session from scratch if the old one is dead.
+#### 3. DNS reconciler must use public IP for external NS records
+The DNS reconciler sets dns.<external-domain> A records to the node's
+private IP (e.g. 10.0.0.9). For ACME DNS-01 to work, Let's Encrypt
+must reach the DNS server from the internet, so the A record must be
+the public IP (96.20.133.54).
 
-### Fix 4: Controller scylla join — don't depend on workflow
-The scyllaClusterManager state machine should advance scylla_join_phase
-using direct node-agent probes (runProbeScyllaHealth), not through
-workflow dispatch. Bootstrap phase advancement must continue even when
-workflow is unavailable.
+Fix: when publishing dns.<zone> for external domains (publish_external=true),
+use the discovered public IP instead of the node's internal IP.
 
-Rule: bootstrap phases must not depend on workflow for storage join
-detection. Workflow depends on storage. Storage join depends on
-bootstrap. Circular dependency must be broken.
+#### 4. DNS zones must be loaded on all DNS instances after restart
+DNS zones are in-memory. When a DNS service restarts, it loses external
+zones (globular.io, globular.cloud). The DNS reconciler re-pushes records
+but only to instances that already have the zone registered. New/restarted
+instances get A records but not the zone registration.
 
-## What Works (don't break these)
+Fix: the DNS reconciler should call SetDomains on every DNS instance,
+not just the one the local provider happened to connect to. Or: persist
+managed domain list in etcd and load on DNS service startup.
 
-- G5 seed-only guard on REINSTALL (ScyllaDB running + healthy → skip)
-- Day-0 founding node ScyllaDB (single-node Raft bootstrap)
-- Infrastructure classification (isDay0JoinInfra: all 13 packages)
-- Port persistence (bound port → etcd after bind)
-- PKI directory permissions (0755 on state root + pki)
-- Package publish during Day-0 (root client certs generated)
-- All 17 InfrastructureRelease entries created (including xds/gateway)
-- 36 services running on Day-0 node
-- Webroot installed
-- Install script completes with exit 0
+#### 5. etcd auto-rejoin too aggressive
+The reconciler marks nodes RejoinRequired on transient etcd unavailability.
+Needs cooldown/retry (N consecutive failures before triggering).
 
-## Priority
+### P1 — Operational improvements
 
-Fix 1 (seed guard) unblocks Day-1 ScyllaDB join entirely.
-Fix 2+3 (gocql resilience) prevents workflow from dying during expansion.
-Fix 4 (decouple bootstrap from workflow) prevents circular dependency.
+#### 6. MinIO topology workflow auto-retry
+Topology workflow doesn't auto-retry on transient failure. Operator must
+re-run `objectstore topology apply` manually. Controller should retry
+when applied_generation < desired_generation and no workflow in-flight.
 
-## Session Summary (v1.0.90 → v1.1.1)
+#### 7. Sequential ScyllaDB Raft join
+Two simultaneous joins stall the second node's Raft. Auto-recovery handles
+it (~10 min) but sequencing would be faster.
 
-Bugs fixed this session:
-- G1: seed-only config protection on package reinstall (artifact.go)
-- G5: ScyllaDB post-install reinstall guard (post-install.sh)
-- UUIDv7 generation for Python <3.14 (release.yml)
-- build_number string→int in CI pipeline (release.yml)
-- build_number normalization for unchanged origin packages (release.yml)
-- NODE_IP unbound variable in install-day0.sh
-- Upstream source enum corruption GIT_INDEXHUB_RELEASE (ensure-bootstrap-artifacts.sh)
-- /var/lib/globular 0750→0755 in all 45 specs + platform guard + linter
-- /var/lib/globular/pki 0750→0755 in all 37 specs + shared roots guard
-- Port persistence to etcd after bind (services.go)
-- generate-user-client-cert.sh ignoring "root" argument
-- isDay0JoinInfra missing 11 of 13 infrastructure packages
-- scylla-manager dependency gate on scylla_join_phase verified
-- 3 join script safety tests (Globular repo)
-- 21 drift detection subtests
-- Package registry (packages/registry.yaml)
-- Build identity docs + RPC routing docs + BOM test scripts
+#### 8. VIP/ingress spec should survive cluster wipe
+Keepalived VIP config is etcd-only. Consider persisting as a file alongside
+etcd for re-seeding on recovery.
+
+#### 9. clean-node.sh must flush iptables rules
+Found iptables DROP rules blocking etcd ports from previous stale-node
+mitigation. clean-node.sh should:
+  - Flush all iptables rules referencing the node's IP on ports 2379/2380
+  - Remove the node from any other cluster member's iptables
+  - Also clean up on the bootstrap node (flush rules for the joining IP)
+
+#### 10. Service registration uses UUIDs instead of canonical names
+After fresh install, services register with UUID-based IDs instead of
+canonical names. xDS can't route gRPC-Web by service name. The service
+startup logic prefers UUID config files over named ones.
+
+#### 11. Upstream source URL template seeded with typo
+The Day-0 installer seeds /globular/repository/upstreams/globulario-github
+with indexUrl containing {tag/release-index.json} instead of {tag}/release-index.json.
+Fix the seed template in the installer code.
+
+### P2 — Release pipeline
+
+#### 12. BOM delta verification — VERIFIED
+v1.1.7 sync: 4 imported, 52 skipped, 0 rejected. Delta detection works.
+The source-based change detection correctly identified only the packages
+whose Go source changed between releases.
+
+## Session stats
+- v1.1.4 → v1.1.7: 3 releases shipped, 5-node cluster deployed
+- Fixes: nil session panic, day0_join skip, ACME cert distribution,
+  xDS cert path, admin drift suppression
+- Upstream sync pipeline: WORKING (repo sync + platform-upgrade)
+- ACME DNS-01 with local provider: WORKING (Let's Encrypt certs live)
+- MinIO distributed: WORKING (5-node pool, but required manual bucket creation)
+- Key manual operations that should be automated: 8 items (P0 #1-4)

@@ -8,9 +8,13 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	configpkg "github.com/globulario/services/golang/config"
@@ -432,7 +436,73 @@ func (srv *server) recordObjectStoreAppliedGeneration(ctx context.Context, gen i
 	if _, err := cli.Put(ctx, configpkg.EtcdKeyObjectStoreLastRestartResult, string(summary)); err != nil {
 		log.Printf("objectstore: WARNING: failed to write restart result summary: %v", err)
 	}
+
+	// Ensure required MinIO buckets exist after topology apply.
+	// Fire-and-forget: if bucket creation fails, the next reconcile cycle
+	// or manual intervention can fix it. The topology is already applied.
+	go srv.ensureMinioBuckets(desired)
+
 	return nil
+}
+
+// ensureMinioBuckets creates the required MinIO buckets if they don't exist.
+// Called after a successful topology apply. Best-effort — logs errors but
+// doesn't fail the workflow.
+func (srv *server) ensureMinioBuckets(desired *configpkg.ObjectStoreDesiredState) {
+	if desired == nil || desired.Endpoint == "" {
+		return
+	}
+
+	// Read credentials from the desired state or local file.
+	accessKey := desired.AccessKey
+	secretKey := desired.SecretKey
+	if accessKey == "" || secretKey == "" {
+		if data, err := os.ReadFile("/var/lib/globular/minio/credentials"); err == nil {
+			parts := strings.SplitN(strings.TrimSpace(string(data)), ":", 2)
+			if len(parts) == 2 {
+				accessKey = parts[0]
+				secretKey = parts[1]
+			}
+		}
+	}
+	if accessKey == "" {
+		log.Printf("objectstore-buckets: no credentials available, skipping bucket creation")
+		return
+	}
+
+	// Connect to MinIO with cluster TLS.
+	opts := &minio.Options{
+		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
+		Secure: true,
+	}
+	tlsCfg := &tls.Config{InsecureSkipVerify: true} // cluster-internal, CA trusted
+	opts.Transport = &http.Transport{TLSClientConfig: tlsCfg}
+
+	client, err := minio.New(desired.Endpoint, opts)
+	if err != nil {
+		log.Printf("objectstore-buckets: connect failed: %v", err)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	buckets := []string{"globular", "globular-config"}
+	for _, bucket := range buckets {
+		exists, err := client.BucketExists(ctx, bucket)
+		if err != nil {
+			log.Printf("objectstore-buckets: check %q failed: %v", bucket, err)
+			continue
+		}
+		if exists {
+			continue
+		}
+		if err := client.MakeBucket(ctx, bucket, minio.MakeBucketOptions{}); err != nil {
+			log.Printf("objectstore-buckets: create %q failed: %v", bucket, err)
+		} else {
+			log.Printf("objectstore-buckets: created bucket %q", bucket)
+		}
+	}
 }
 
 // verifyMinioClusterHealthy checks that all pool nodes are running MinIO in the
