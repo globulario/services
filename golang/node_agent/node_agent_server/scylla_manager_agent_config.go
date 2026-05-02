@@ -21,13 +21,14 @@ const (
 	scyllaAgentConfigEtc     = "/etc/scylla-manager-agent/scylla-manager-agent.yaml"
 )
 
-// scyllaAgentHTTPSPort and scyllaAgentPrometheusPort are fixed non-conflicting
-// ports for scylla-manager-agent. The agent defaults to :10001 (HTTPS) and
-// :5090 (Prometheus), both of which conflict with Globular's dynamic service
-// port allocation (starting at 10000) and scylla-manager itself (port 5090).
+// scyllaAgent* constants define non-conflicting ports for scylla-manager-agent.
+// The agent defaults to :10001 (HTTPS), :5090 (Prometheus), 127.0.0.1:5112
+// (debug), all of which conflict with Globular's dynamic service port
+// allocation (10000+), scylla-manager itself (5090), or other agents (5112).
 const (
 	scyllaAgentHTTPSPort      = "56001"
 	scyllaAgentPrometheusPort = "56002"
+	scyllaAgentDebugPort      = "56003"
 )
 
 // ensureScyllaManagerAgentAuthToken guarantees scylla-manager-agent has an
@@ -187,43 +188,42 @@ func upsertScyllaAPIURL(content, nodeIP string) string {
 	return result
 }
 
-// hasScyllaAgentPorts returns true if the config has non-default https and
-// prometheus ports that match the expected node IP.
+// hasScyllaAgentPorts returns true if the config has non-default https,
+// prometheus, and debug ports that match the expected node IP.
 func hasScyllaAgentPorts(content, nodeIP string) bool {
 	wantHTTPS := nodeIP + ":" + scyllaAgentHTTPSPort
 	wantProm := ":" + scyllaAgentPrometheusPort
-	hasHTTPS := false
-	hasProm := false
+	wantDebug := "127.0.0.1:" + scyllaAgentDebugPort
+	hasHTTPS, hasProm, hasDebug := false, false, false
 	for _, raw := range strings.Split(content, "\n") {
 		trimmed := strings.TrimSpace(raw)
-		if strings.HasPrefix(trimmed, "https:") {
-			v := strings.TrimSpace(strings.TrimPrefix(trimmed, "https:"))
-			v = strings.Trim(v, `"'`)
-			if v == wantHTTPS {
-				hasHTTPS = true
+		check := func(prefix, want string, flag *bool) {
+			if strings.HasPrefix(trimmed, prefix) {
+				v := strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
+				v = strings.Trim(v, `"'`)
+				if v == want {
+					*flag = true
+				}
 			}
 		}
-		if strings.HasPrefix(trimmed, "prometheus:") {
-			v := strings.TrimSpace(strings.TrimPrefix(trimmed, "prometheus:"))
-			v = strings.Trim(v, `"'`)
-			if v == wantProm {
-				hasProm = true
-			}
-		}
+		check("https:", wantHTTPS, &hasHTTPS)
+		check("prometheus:", wantProm, &hasProm)
+		check("debug:", wantDebug, &hasDebug)
 	}
-	return hasHTTPS && hasProm
+	return hasHTTPS && hasProm && hasDebug
 }
 
-// upsertScyllaAgentPorts replaces or inserts the https: and prometheus: lines
-// to avoid conflicts with Globular's dynamic port allocation (10000+) and the
-// scylla-manager server (port 5090).
+// upsertScyllaAgentPorts replaces or inserts https:, prometheus:, and debug:
+// lines to avoid conflicts with Globular's dynamic port allocation (10000+),
+// scylla-manager itself (5090), and other concurrent agents (5112).
 func upsertScyllaAgentPorts(content, nodeIP string) string {
 	httpsLine := "https: " + nodeIP + ":" + scyllaAgentHTTPSPort
 	promLine := "prometheus: :" + scyllaAgentPrometheusPort
+	debugLine := "debug: 127.0.0.1:" + scyllaAgentDebugPort
 
 	lines := strings.Split(content, "\n")
 	var out []string
-	replacedHTTPS, replacedProm := false, false
+	replacedHTTPS, replacedProm, replacedDebug := false, false, false
 	for _, l := range lines {
 		trimmed := strings.TrimSpace(l)
 		if strings.HasPrefix(trimmed, "https:") {
@@ -234,6 +234,11 @@ func upsertScyllaAgentPorts(content, nodeIP string) string {
 		if strings.HasPrefix(trimmed, "prometheus:") {
 			out = append(out, promLine)
 			replacedProm = true
+			continue
+		}
+		if strings.HasPrefix(trimmed, "debug:") {
+			out = append(out, debugLine)
+			replacedDebug = true
 			continue
 		}
 		out = append(out, l)
@@ -247,6 +252,9 @@ func upsertScyllaAgentPorts(content, nodeIP string) string {
 	}
 	if !replacedProm {
 		result += promLine + "\n"
+	}
+	if !replacedDebug {
+		result += debugLine + "\n"
 	}
 	return result
 }

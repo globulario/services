@@ -70,22 +70,23 @@ func TestHasScyllaAgentPorts(t *testing.T) {
 	const ip = "10.0.0.8"
 	wantHTTPS := "https: 10.0.0.8:56001"
 	wantProm := "prometheus: :56002"
-	full := wantHTTPS + "\n" + wantProm + "\n"
+	wantDebug := "debug: 127.0.0.1:56003"
+	full := wantHTTPS + "\n" + wantProm + "\n" + wantDebug + "\n"
 
 	if !hasScyllaAgentPorts(full, ip) {
-		t.Fatal("expected true when both ports present")
+		t.Fatal("expected true when all ports present")
 	}
 	if hasScyllaAgentPorts("auth_token: abc\n", ip) {
 		t.Fatal("expected false when ports absent")
 	}
-	if hasScyllaAgentPorts(wantHTTPS+"\n", ip) {
-		t.Fatal("expected false when only https present")
+	if hasScyllaAgentPorts(wantHTTPS+"\n"+wantProm+"\n", ip) {
+		t.Fatal("expected false when debug missing")
 	}
-	if hasScyllaAgentPorts(wantProm+"\n", ip) {
-		t.Fatal("expected false when only prometheus present")
+	if hasScyllaAgentPorts(wantHTTPS+"\n"+wantDebug+"\n", ip) {
+		t.Fatal("expected false when prometheus missing")
 	}
 	// wrong IP
-	if hasScyllaAgentPorts("https: 10.0.0.63:56001\nprometheus: :56002\n", ip) {
+	if hasScyllaAgentPorts("https: 10.0.0.63:56001\nprometheus: :56002\ndebug: 127.0.0.1:56003\n", ip) {
 		t.Fatal("expected false for wrong IP")
 	}
 }
@@ -93,14 +94,14 @@ func TestHasScyllaAgentPorts(t *testing.T) {
 func TestUpsertScyllaAgentPorts(t *testing.T) {
 	const ip = "10.0.0.8"
 
-	// Fresh config — ports appended
+	// Fresh config — all ports appended
 	got := upsertScyllaAgentPorts("auth_token: abc\n", ip)
 	if !hasScyllaAgentPorts(got, ip) {
-		t.Fatalf("expected ports in output, got:\n%s", got)
+		t.Fatalf("expected all ports in output, got:\n%s", got)
 	}
 
-	// Replace existing wrong ports
-	existing := "https: 10.0.0.8:10001\nprometheus: :5090\nauth_token: abc\n"
+	// Replace existing conflicting ports
+	existing := "https: 10.0.0.8:10001\nprometheus: :5090\ndebug: 127.0.0.1:5112\nauth_token: abc\n"
 	got = upsertScyllaAgentPorts(existing, ip)
 	if !hasScyllaAgentPorts(got, ip) {
 		t.Fatalf("expected corrected ports, got:\n%s", got)
@@ -110,6 +111,9 @@ func TestUpsertScyllaAgentPorts(t *testing.T) {
 	}
 	if contains(got, ":5090") {
 		t.Fatalf("old prometheus port still present:\n%s", got)
+	}
+	if contains(got, ":5112") {
+		t.Fatalf("old debug port still present:\n%s", got)
 	}
 }
 
