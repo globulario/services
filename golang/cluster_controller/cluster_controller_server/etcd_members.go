@@ -455,7 +455,18 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 			// Detect if the member has disappeared (node removal).
 			// Must check ALL IPs to avoid false resets on multi-IP nodes.
 			if !nodeAnyIPIsEtcdMember(node, existingURLs) && !nodeHasEtcdRunning(node) {
-				// Member disappeared from the live cluster and etcd is not running.
+				// Cooldown: require 3 consecutive cycles of "missing + not running"
+				// before triggering rejoin. This prevents false positives from
+				// transient etcd restarts or brief network partitions.
+				node.EtcdMissingCycles++
+				dirty = true
+				if node.EtcdMissingCycles < 3 {
+					log.Printf("etcd join: node %s (%s) member missing, cycle %d/3 (cooldown)",
+						node.NodeID, node.Identity.Hostname, node.EtcdMissingCycles)
+					continue
+				}
+
+				// Member disappeared for 3+ consecutive cycles.
 				// Count remaining healthy peers to decide the recovery path.
 				healthyPeers := 0
 				for _, n := range nodes {
@@ -469,16 +480,20 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 				if healthyPeers > 0 {
 					// Other healthy members remain — safe to auto-rejoin.
 					node.EtcdJoinPhase = EtcdJoinRejoinRequired
-					node.EtcdJoinError = "member disappeared from live cluster while etcd was not running; auto-rejoin triggered"
+					node.EtcdJoinError = fmt.Sprintf("member disappeared from live cluster for %d consecutive cycles while etcd was not running; auto-rejoin triggered", node.EtcdMissingCycles)
 				} else {
 					// Sole surviving member or unknown state — reset to None
 					// to allow the normal join flow without risking quorum loss.
 					node.EtcdJoinPhase = EtcdJoinNone
 					node.EtcdJoinError = ""
 				}
+				node.EtcdMissingCycles = 0
+				log.Printf("etcd join: node %s (%s) member disappeared after %d cycles, transitioning to %s",
+					node.NodeID, node.Identity.Hostname, 3, node.EtcdJoinPhase)
+			} else if node.EtcdMissingCycles > 0 {
+				// Node is back — reset the cooldown counter.
+				node.EtcdMissingCycles = 0
 				dirty = true
-				log.Printf("etcd join: node %s (%s) member disappeared, transitioning to %s",
-					node.NodeID, node.Identity.Hostname, node.EtcdJoinPhase)
 			}
 		}
 	}

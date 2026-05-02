@@ -284,10 +284,11 @@ type nodeState struct {
 	RecoveryAttempts     int       `json:"recovery_attempts,omitempty"`
 	MarkedUnhealthySince time.Time `json:"marked_unhealthy_since,omitempty"`
 	// etcd join state machine (Phase-based expansion)
-	EtcdJoinPhase     EtcdJoinPhase `json:"etcd_join_phase,omitempty"`
-	EtcdJoinStartedAt time.Time     `json:"etcd_join_started_at,omitempty"`
-	EtcdJoinError     string        `json:"etcd_join_error,omitempty"`
-	EtcdMemberID      uint64        `json:"etcd_member_id,omitempty"` // for rollback via MemberRemove
+	EtcdJoinPhase      EtcdJoinPhase `json:"etcd_join_phase,omitempty"`
+	EtcdJoinStartedAt  time.Time     `json:"etcd_join_started_at,omitempty"`
+	EtcdJoinError      string        `json:"etcd_join_error,omitempty"`
+	EtcdMemberID       uint64        `json:"etcd_member_id,omitempty"`        // for rollback via MemberRemove
+	EtcdMissingCycles  int           `json:"etcd_missing_cycles,omitempty"`   // consecutive cycles where member missing + etcd not running
 	// MinIO pool join state machine (erasure-coded expansion)
 	MinioJoinPhase     MinioJoinPhase `json:"minio_join_phase,omitempty"`
 	MinioJoinStartedAt time.Time      `json:"minio_join_started_at,omitempty"`
