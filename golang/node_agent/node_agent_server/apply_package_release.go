@@ -55,16 +55,17 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 
 	// Idempotency check: skip if already installed at this exact version+build.
 	// Downgrade guard: NEVER install an older version than what is currently
-	// installed, unless Force=true. This is an absolute rule — automatic rollback
-	// is forbidden. If a service needs rollback, a human must decide via the CLI
-	// with an explicit --force flag.
+	// installed, unless Force=true OR rollback_mode=true. This is an absolute
+	// rule — automatic rollback is forbidden. If a service needs rollback, a
+	// human must decide via `globular pkg rollback` (which sets rollback_mode)
+	// or `--force`.
 	//
 	// Rationale: the reconciler can dispatch stale install workflows (e.g. after
 	// power loss, ScyllaDB recovery, or repository returning ancient artifacts).
 	// Without this guard, the cluster silently reverts to version 0.0.1.
 	// Services killed by external events are NOT faulty — they just need time
 	// to recover. Rolling them back makes everything worse.
-	if !req.GetForce() {
+	if !req.GetForce() && !req.GetRollbackMode() {
 		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
 		if existing != nil {
 			isPartialApply := existing.Status == "partial_apply"
@@ -117,6 +118,11 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		}
 	}
 
+	// Capture the previously-installed revision before mutation so the
+	// post-success hook can pick the right action label (install / upgrade /
+	// rollback) for the InstalledPackageRevision row.
+	previousInstalled, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
+
 	// Serialize concurrent applies to prevent conflicts.
 	applyMu.Lock()
 	defer applyMu.Unlock()
@@ -142,6 +148,39 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 
 	log.Printf("apply-package: starting %s/%s@%s (build %d, repo=%s, op=%s)",
 		kind, name, version, req.GetBuildNumber(), repoAddr, operationID)
+
+	// Phase F-final pre-install config policy gate. Runs BEFORE InstallPackage
+	// mutates anything. Returns a snapshot of declared-config file state so
+	// the post-success hook can emit accurate PRESERVED/REPLACED receipts;
+	// returns an error when a FAIL_ON_LOCAL_MODIFICATION conflict is detected
+	// (a CONFLICT receipt has already been recorded). In that case we abort.
+	publisherID := strings.TrimSpace(req.GetPublisher())
+	if publisherID == "" {
+		publisherID = defaultPublisherID
+	}
+	preInstallPkg := &node_agentpb.InstalledPackage{
+		Name: name, Version: version, Kind: kind, Platform: platform,
+		BuildNumber: req.GetBuildNumber(), BuildId: buildID,
+	}
+	configSnap, configErr := srv.applyConfigPolicyPreInstall(ctx, repoAddr, publisherID, preInstallPkg, req.GetWorkflowRunId())
+	if configErr != nil {
+		log.Printf("apply-package: BLOCKED by config policy: %v", configErr)
+		_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
+			NodeId: srv.nodeID, Name: name, Version: version, Kind: kind,
+			Status: "blocked_config_conflict", UpdatedUnix: time.Now().Unix(),
+			OperationId: operationID, BuildNumber: req.GetBuildNumber(),
+			Metadata: map[string]string{"error": configErr.Error()},
+		})
+		return &node_agentpb.ApplyPackageReleaseResponse{
+			Ok:          false,
+			Message:     fmt.Sprintf("config policy blocked apply: %v", configErr),
+			PackageName: name,
+			Version:     version,
+			Status:      "blocked_config_conflict",
+			ErrorDetail: configErr.Error(),
+			OperationId: operationID,
+		}, nil
+	}
 
 	// Mark as updating in installed-state.
 	now := time.Now().Unix()
@@ -387,6 +426,13 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		log.Printf("apply-package: stored entrypoint_checksum for %s: %s", name, cksum[:16])
 	}
 	_ = installed_state.WriteInstalledPackage(ctx, pkg)
+
+	// Phase F post-success hook: record the installed revision in the
+	// repository's history table and emit one config-receipt per declared
+	// config file. Both calls are best-effort and never block the apply
+	// response. The rollback workflow consumes RecordInstalledRevision; the
+	// `pkg config conflicts` CLI consumes RecordConfigReceipt.
+	srv.recordRevisionAndReceipts(ctx, repoAddr, req, pkg, previousInstalled, configSnap)
 
 	// Tombstone any stale INFRASTRUCTURE record when the package is installed as
 	// SERVICE. Services that were originally deployed via Day-0 bootstrap carry a

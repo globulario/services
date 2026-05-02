@@ -3020,8 +3020,35 @@ type ApplyPackageReleaseRequest struct {
 	RepositoryAddr string                 `protobuf:"bytes,9,opt,name=repository_addr,json=repositoryAddr,proto3" json:"repository_addr,omitempty"` // gRPC address of repository (auto-discovered if empty)
 	BuildNumber    int64                  `protobuf:"varint,10,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`        // build iteration within version
 	BuildId        string                 `protobuf:"bytes,11,opt,name=build_id,json=buildId,proto3" json:"build_id,omitempty"`                     // Phase 2: exact artifact identity (takes precedence over version+build_number)
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// ── Phase F rollback execution ──────────────────────────────────────────
+	// Set rollback_mode=true to apply a TARGET revision that may be older than
+	// the currently installed one. Bypasses the automatic-downgrade guard.
+	// Required from the package.rollback workflow's install_target_package step;
+	// the node-agent records action="rollback" in the resulting installed
+	// revision row.
+	RollbackMode     bool   `protobuf:"varint,12,opt,name=rollback_mode,json=rollbackMode,proto3" json:"rollback_mode,omitempty"`
+	RollbackReason   string `protobuf:"bytes,13,opt,name=rollback_reason,json=rollbackReason,proto3" json:"rollback_reason,omitempty"`         // recorded in the revision row + audit
+	WorkflowRunId    string `protobuf:"bytes,14,opt,name=workflow_run_id,json=workflowRunId,proto3" json:"workflow_run_id,omitempty"`          // links the install to the orchestrating run
+	TargetRevisionId string `protobuf:"bytes,15,opt,name=target_revision_id,json=targetRevisionId,proto3" json:"target_revision_id,omitempty"` // optional pointer to the InstalledPackageRevision being rolled back to
+	// preserve_configs: when true, OPERATOR_OVERRIDE / locally-modified DEFAULT
+	// configs are kept on disk; the package's new defaults are written to a
+	// ".pkg-new" sibling file and a PRESERVED receipt is emitted. Defaults to
+	// true when rollback_mode is set.
+	PreserveConfigs bool `protobuf:"varint,16,opt,name=preserve_configs,json=preserveConfigs,proto3" json:"preserve_configs,omitempty"`
+	// restore_config_snapshot: when true, restore configs marked
+	// restore_on_rollback=true from the snapshot identified by the prior
+	// installed revision. Off by default — the rollback workflow must opt in.
+	RestoreConfigSnapshot bool `protobuf:"varint,17,opt,name=restore_config_snapshot,json=restoreConfigSnapshot,proto3" json:"restore_config_snapshot,omitempty"`
+	// allow_downgrade: explicit operator opt-in for downgrade. Required when
+	// rollback_mode=false but the target version is older than current. The
+	// rollback workflow always sets this true alongside rollback_mode.
+	AllowDowngrade bool `protobuf:"varint,18,opt,name=allow_downgrade,json=allowDowngrade,proto3" json:"allow_downgrade,omitempty"`
+	// previous_revision_id: caller-supplied hint for the InstalledPackageRevision
+	// row we are replacing. Recorded into the new revision's previous_revision_id
+	// so the history table forms a linked list.
+	PreviousRevisionId string `protobuf:"bytes,19,opt,name=previous_revision_id,json=previousRevisionId,proto3" json:"previous_revision_id,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *ApplyPackageReleaseRequest) Reset() {
@@ -3127,6 +3154,62 @@ func (x *ApplyPackageReleaseRequest) GetBuildNumber() int64 {
 func (x *ApplyPackageReleaseRequest) GetBuildId() string {
 	if x != nil {
 		return x.BuildId
+	}
+	return ""
+}
+
+func (x *ApplyPackageReleaseRequest) GetRollbackMode() bool {
+	if x != nil {
+		return x.RollbackMode
+	}
+	return false
+}
+
+func (x *ApplyPackageReleaseRequest) GetRollbackReason() string {
+	if x != nil {
+		return x.RollbackReason
+	}
+	return ""
+}
+
+func (x *ApplyPackageReleaseRequest) GetWorkflowRunId() string {
+	if x != nil {
+		return x.WorkflowRunId
+	}
+	return ""
+}
+
+func (x *ApplyPackageReleaseRequest) GetTargetRevisionId() string {
+	if x != nil {
+		return x.TargetRevisionId
+	}
+	return ""
+}
+
+func (x *ApplyPackageReleaseRequest) GetPreserveConfigs() bool {
+	if x != nil {
+		return x.PreserveConfigs
+	}
+	return false
+}
+
+func (x *ApplyPackageReleaseRequest) GetRestoreConfigSnapshot() bool {
+	if x != nil {
+		return x.RestoreConfigSnapshot
+	}
+	return false
+}
+
+func (x *ApplyPackageReleaseRequest) GetAllowDowngrade() bool {
+	if x != nil {
+		return x.AllowDowngrade
+	}
+	return false
+}
+
+func (x *ApplyPackageReleaseRequest) GetPreviousRevisionId() string {
+	if x != nil {
+		return x.PreviousRevisionId
 	}
 	return ""
 }
@@ -3750,7 +3833,7 @@ const file_node_agent_proto_rawDesc = "" +
 	"stepsTotal\x12\x14\n" +
 	"\x05error\x18\x06 \x01(\tR\x05error\x12\x1f\n" +
 	"\vduration_ms\x18\a \x01(\x03R\n" +
-	"durationMs\"\xff\x02\n" +
+	"durationMs\"\xe1\x05\n" +
 	"\x1aApplyPackageReleaseRequest\x12!\n" +
 	"\fpackage_name\x18\x01 \x01(\tR\vpackageName\x12!\n" +
 	"\fpackage_kind\x18\x02 \x01(\tR\vpackageKind\x12\x18\n" +
@@ -3763,7 +3846,15 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x0frepository_addr\x18\t \x01(\tR\x0erepositoryAddr\x12!\n" +
 	"\fbuild_number\x18\n" +
 	" \x01(\x03R\vbuildNumber\x12\x19\n" +
-	"\bbuild_id\x18\v \x01(\tR\abuildId\"\x99\x02\n" +
+	"\bbuild_id\x18\v \x01(\tR\abuildId\x12#\n" +
+	"\rrollback_mode\x18\f \x01(\bR\frollbackMode\x12'\n" +
+	"\x0frollback_reason\x18\r \x01(\tR\x0erollbackReason\x12&\n" +
+	"\x0fworkflow_run_id\x18\x0e \x01(\tR\rworkflowRunId\x12,\n" +
+	"\x12target_revision_id\x18\x0f \x01(\tR\x10targetRevisionId\x12)\n" +
+	"\x10preserve_configs\x18\x10 \x01(\bR\x0fpreserveConfigs\x126\n" +
+	"\x17restore_config_snapshot\x18\x11 \x01(\bR\x15restoreConfigSnapshot\x12'\n" +
+	"\x0fallow_downgrade\x18\x12 \x01(\bR\x0eallowDowngrade\x120\n" +
+	"\x14previous_revision_id\x18\x13 \x01(\tR\x12previousRevisionId\"\x99\x02\n" +
 	"\x1bApplyPackageReleaseResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12!\n" +

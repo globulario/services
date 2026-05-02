@@ -28,6 +28,35 @@ Every repository-managed artifact has:
 
 ## Diagnostic Commands
 
+### Per-artifact verify / explain
+
+For one specific artifact, prefer the read-only RPCs the repository service
+exposes — they consult the same gates that the resolver and download path
+use, so an `OK` from `verify` means installable and an `installable=false`
+from `explain` means *every* install gate would refuse it.
+
+```bash
+# Read-only integrity probe. Returns OK or a concrete BROKEN_X / QUARANTINED /
+# REVOKED / INCONCLUSIVE classification.
+globular repository verify  core@globular.io/echo 1.0.84
+
+# Full operator-readable answer: manifest + ledger + blob + signature + state +
+# installable=true|false + recommended_action.
+globular repository explain core@globular.io/echo 1.0.84
+
+# Re-import the binary from upstream when verify reports BROKEN_MISSING_BLOB
+# or BROKEN_CHECKSUM_MISMATCH. Refuses REVOKED unconditionally.
+globular repository repair  core@globular.io/echo 1.0.84
+globular repository repair  core@globular.io/echo 1.0.84 --dry-run
+
+# Signature checks (Phase F).
+globular repository signature verify core@globular.io/echo 1.0.84
+globular repository trusted-publishers
+```
+
+All four accept `--platform`, `--build-number`, `--kind`, `--json`. See
+[`package-lifecycle.md`](package-lifecycle.md) for the full reference.
+
 ### Scan cluster state
 
 ```bash

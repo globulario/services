@@ -11,11 +11,22 @@ import (
 )
 
 // newTestServer returns a server with local OS storage rooted in a temp dir.
+//
+// Phase F: tests get a permissive signature policy by default so unsigned
+// fixtures continue to work. Tests that exercise signature-policy gates
+// explicitly call srv.signaturePolicy.SetPolicyForTest with stricter rules.
 func newTestServer(t *testing.T) *server {
 	t.Helper()
 	dir := t.TempDir()
 	srv := &server{Root: dir}
 	srv.storage = storage_backend.NewOSStorage(dir)
+	srv.ensureSignaturePolicy().SetPolicyForTest(&repopb.SignaturePolicy{
+		RequireSignaturesForCore:        false,
+		RequireSignaturesForAll:         false,
+		AllowUnsignedLocalDevelopment:   true,
+		TrustedCorePublishers:           []string{"core@globular.io"},
+		QuarantineOnInvalidSignature:    false,
+	})
 	return srv
 }
 
@@ -33,7 +44,11 @@ func seedArtifact(t *testing.T, srv *server, m *repopb.ArtifactManifest) {
 	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
-	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(key), []byte("fake-binary"), 0o644); err != nil {
+	binaryContent := []byte("fake-binary")
+	if sz := m.GetSizeBytes(); sz > 0 {
+		binaryContent = make([]byte, sz)
+	}
+	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(key), binaryContent, 0o644); err != nil {
 		t.Fatalf("write binary: %v", err)
 	}
 }
@@ -52,7 +67,11 @@ func seedArtifactLegacy(t *testing.T, srv *server, m *repopb.ArtifactManifest) {
 	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
-	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(key), []byte("fake-binary"), 0o644); err != nil {
+	binaryContent := []byte("fake-binary")
+	if sz := m.GetSizeBytes(); sz > 0 {
+		binaryContent = make([]byte, sz)
+	}
+	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(key), binaryContent, 0o644); err != nil {
 		t.Fatalf("write binary: %v", err)
 	}
 }

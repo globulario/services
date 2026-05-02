@@ -50,6 +50,16 @@ type Snapshot struct {
 	// node's running binary, etc).
 	IntegrityReports map[string]*IntegrityReport
 
+	// Repository-level findings, populated from the repository service's
+	// ListRepositoryFindings RPC. Cluster-scoped (not per-node). Consumed
+	// by the "repository.*" invariant family in rules/ to surface broken
+	// blob, checksum mismatch, missing required signature, REVOKED /
+	// QUARANTINED-but-installable artifacts, and rollback failures.
+	//
+	// Nil / empty when the repository service is unreachable OR when the
+	// rpc returns no findings (the healthy-cluster steady state).
+	RepositoryFindings []*RepositoryFindingSnapshot
+
 	// Workflow convergence telemetry — see WI17/WI18.
 	StepOutcomes      []*workflowpb.WorkflowStepOutcome
 	WorkflowSummaries []*workflowpb.WorkflowRunSummary

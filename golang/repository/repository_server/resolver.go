@@ -69,7 +69,10 @@ func (srv *server) ResolveArtifact(ctx context.Context, req *repopb.ResolveArtif
 		var candidates []*repopb.ArtifactManifest
 		for _, row := range rows {
 			// Column-level filters — fast, no JSON parsing.
-			if row.PublishState != repopb.PublishState_PUBLISHED.String() {
+			// isRowInstallable enforces BOTH publish_state==PUBLISHED AND
+			// artifact_state ∈ {PUBLISHED, ""}. Non-empty intermediate or
+			// broken pipeline states exclude the row from resolution.
+			if !isRowInstallable(&row) {
 				continue
 			}
 			if publisher != "" && !strings.EqualFold(row.PublisherID, publisher) {
@@ -141,8 +144,8 @@ func (srv *server) ResolveArtifact(ctx context.Context, req *repopb.ResolveArtif
 			continue
 		}
 
-		// Only PUBLISHED artifacts are eligible.
-		if state != repopb.PublishState_PUBLISHED {
+		// Only PUBLISHED artifacts with a coherent pipeline state are eligible.
+		if !srv.isInstallableForRef(ctx, m.GetRef(), m.GetBuildNumber(), state) {
 			continue
 		}
 
@@ -248,7 +251,7 @@ func (srv *server) resolveByBuildID(ctx context.Context, buildID, publisher, nam
 			return nil, status.Errorf(codes.Unavailable, "artifact ledger unavailable: %v", scyllaErr)
 		}
 		for _, row := range rows {
-			if row.PublishState != repopb.PublishState_PUBLISHED.String() {
+			if !isRowInstallable(&row) {
 				continue
 			}
 			m, _, parseErr := manifestFromRow(row)
@@ -276,6 +279,10 @@ func (srv *server) resolveByBuildID(ctx context.Context, buildID, publisher, nam
 		key := strings.TrimSuffix(fname, ".manifest.json")
 		_, state, m, readErr := srv.readManifestAndStateByKey(ctx, key)
 		if readErr != nil || state != repopb.PublishState_PUBLISHED {
+			continue
+		}
+		// Pipeline state gate: same install rule as the Scylla path above.
+		if !srv.isInstallableForRef(ctx, m.GetRef(), m.GetBuildNumber(), state) {
 			continue
 		}
 		if m.GetBuildId() != buildID {

@@ -45,6 +45,10 @@ func NewRegistry(cfg Config) *Registry {
 		// desired/installed build drift). Consumes per-node reports from
 		// VerifyPackageIntegrity collected in Snapshot.IntegrityReports.
 		artifactIntegrity{},
+		// Phase F repository-level invariants. Consumes
+		// Snapshot.RepositoryFindings (populated by the collector calling
+		// repository.PackageRepository.ListRepositoryFindings).
+		repositoryFindings{},
 		// Certificate health invariants: expiry, SAN coverage, chain validity.
 		// Consumes per-node GetCertificateStatus collected in Snapshot.CertificateStatus.
 		certificateExpiry{},

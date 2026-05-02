@@ -31,7 +31,13 @@ func seedPublishedArtifact(t *testing.T, srv *server, m *repopb.ArtifactManifest
 	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
-	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(key), []byte("fake-binary"), 0o644); err != nil {
+	// Write a binary whose length matches manifest.SizeBytes so size-integrity
+	// checks (artifactBlobStatus, consistency scan) see a coherent record.
+	binaryContent := []byte("fake-binary")
+	if sz := m.GetSizeBytes(); sz > 0 {
+		binaryContent = make([]byte, sz)
+	}
+	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(key), binaryContent, 0o644); err != nil {
 		t.Fatalf("write binary: %v", err)
 	}
 

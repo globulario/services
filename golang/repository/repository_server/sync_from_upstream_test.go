@@ -50,6 +50,7 @@ func TestProcessSyncEntrySkipsExistingDigestWithDifferentBuildNumber(t *testing.
 		prov, pOpts,
 		"v1.0.53",
 		false,
+		"",
 	)
 
 	if result.GetStatus() != repopb.UpstreamSyncStatus_SYNC_SKIPPED {
@@ -437,7 +438,7 @@ func TestProcessSyncEntry_PopulatesRichFields(t *testing.T) {
 	src := &repopb.UpstreamSource{Name: "test-source"}
 
 	prov, pOpts := testProvider()
-	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.0", true)
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.0", true, "")
 
 	if result.Publisher != "core@globular.io" {
 		t.Fatalf("publisher: got %q", result.Publisher)
@@ -470,7 +471,7 @@ func TestProcessSyncEntry_ActionBlocked(t *testing.T) {
 	}
 
 	prov, pOpts := testProvider()
-	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.0", true)
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.0", true, "")
 	if result.Action != "blocked" {
 		t.Fatalf("expected action=blocked, got %q", result.Action)
 	}
@@ -490,7 +491,7 @@ func TestProcessSyncEntry_ActionNew(t *testing.T) {
 	src := &repopb.UpstreamSource{Name: "test-source"}
 
 	prov, pOpts := testProvider()
-	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.0", true)
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.0", true, "")
 	if result.Action != "new" {
 		t.Fatalf("expected action=new, got %q", result.Action)
 	}
@@ -516,7 +517,7 @@ func TestProcessSyncEntry_UnchangedPackagePreservesVersion(t *testing.T) {
 	src := &repopb.UpstreamSource{Name: "test-source"}
 
 	prov, pOpts := testProvider()
-		result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.84", true)
+		result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.84", true, "")
 	// Version should be the package version (1.0.82), not the platform release (1.0.84).
 	if result.Version != "1.0.82" {
 		t.Fatalf("expected package version 1.0.82, got %q", result.Version)
@@ -557,7 +558,7 @@ func TestProcessSyncEntry_MixedVersionRelease(t *testing.T) {
 
 	for _, entry := range entries {
 		prov, pOpts := testProvider()
-		result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.84", true)
+		result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.84", true, "")
 		if result.Status == repopb.UpstreamSyncStatus_SYNC_WOULD_REJECT {
 			t.Fatalf("package %s should not be rejected: %s", entry.Name, result.Detail)
 		}
@@ -596,7 +597,7 @@ func TestSameArtifactMultipleReleases_NoConflict(t *testing.T) {
 	}
 	src := &repopb.UpstreamSource{Name: "test-source"}
 	prov, pOpts := testProvider()
-	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.85", false)
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.85", false, "")
 	if result.Status == repopb.UpstreamSyncStatus_SYNC_REJECTED {
 		t.Fatalf("same artifact referenced by another release should skip, not reject: %s", result.Detail)
 	}
@@ -629,7 +630,7 @@ func TestSamePackageIdentityDifferentSha256_Conflict(t *testing.T) {
 	}
 	src := &repopb.UpstreamSource{Name: "test-source"}
 	prov, pOpts := testProvider()
-	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.85", false)
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.85", false, "")
 	if result.Status != repopb.UpstreamSyncStatus_SYNC_REJECTED {
 		t.Fatalf("expected SYNC_REJECTED for different sha256, got %s: %s", result.Status, result.Detail)
 	}
@@ -656,7 +657,7 @@ func TestProcessSyncEntry_AssetPathOnly_DryRun(t *testing.T) {
 	}
 	src := &repopb.UpstreamSource{Name: "test-source"}
 	prov, pOpts := testProvider()
-	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.84", true)
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.84", true, "")
 	if result.Status != repopb.UpstreamSyncStatus_SYNC_WOULD_IMPORT {
 		t.Fatalf("expected WOULD_IMPORT, got %s: %s", result.Status, result.Detail)
 	}
@@ -681,7 +682,7 @@ func TestProcessSyncEntry_NoAssetURLNoAssetPath_DryRun(t *testing.T) {
 	}
 	src := &repopb.UpstreamSource{Name: "test-source"}
 	prov, pOpts := testProvider()
-	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.84", true)
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.84", true, "")
 	if result.Status != repopb.UpstreamSyncStatus_SYNC_WOULD_IMPORT {
 		t.Fatalf("expected WOULD_IMPORT for dry-run, got %s", result.Status)
 	}
@@ -701,6 +702,278 @@ func TestNormalizedEntry_PopulatesAssetPathAndFilename(t *testing.T) {
 	}
 	if n.Filename != "echo_1.0.84.tgz" {
 		t.Fatalf("expected filename propagated, got %q", n.Filename)
+	}
+}
+
+// ── Missing-blob repair regression tests ────────────────────────────────────
+//
+// The bug these tests exist to prevent: ScyllaDB / release-ledger metadata
+// said an artifact was PUBLISHED, but MinIO had been recreated empty after a
+// migration to distributed mode. Repo sync skipped the artifact because its
+// digest matched, then DownloadArtifact failed with "specified key does not
+// exist". After the fix, every skip path requires the exact binary blob to
+// exist in object storage; missing or wrong-size blobs trigger a re-import.
+
+// TestSyncFromUpstream_LedgerMatchButBlobMissing_Reimports is the
+// release-blocking regression test for the missing-blob bug. Metadata,
+// ledger row, and digest all match — but the binary blob has been deleted
+// from object storage. Sync MUST re-import, not skip.
+func TestSyncFromUpstream_LedgerMatchButBlobMissing_Reimports(t *testing.T) {
+	root, expectedDigest := createLocalDirSource(t, "v1.0.84", "echo", "1.0.84")
+	pkgContent := []byte("fake-package-binary-content-for-echo")
+
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "echo",
+		Version:     "1.0.84",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+	// Seed the repository as if the artifact had previously been published:
+	// manifest exists, ledger exists, blob exists. Same publisher/name/
+	// version/build_id/digest as the upstream entry that is about to be
+	// synced.
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 1,
+		BuildId:     "e2e-1",
+		Checksum:    expectedDigest,
+		SizeBytes:   int64(len(pkgContent)),
+	})
+
+	// Simulate the production incident: MinIO was recreated empty after the
+	// move to distributed mode, so the metadata lingers but the .bin object
+	// is gone. We delete the seeded blob to reproduce that exact state.
+	key := artifactKeyWithBuild(ref, 1)
+	binKey := binaryStorageKey(key)
+	if err := srv.Storage().Remove(ctx, binKey); err != nil {
+		t.Fatalf("simulate missing blob: %v", err)
+	}
+	if _, err := srv.Storage().Stat(ctx, binKey); err == nil {
+		t.Fatal("setup invariant: blob should be absent after Remove")
+	}
+
+	provider, err := upstream.NewSource(upstream.TypeLocalDir)
+	if err != nil {
+		t.Fatalf("create provider: %v", err)
+	}
+	opts := upstream.SourceOpts{
+		LocalRoot:         root,
+		IndexPathTemplate: "releases/{tag}/release-index.json",
+	}
+	indexData, err := provider.GetReleaseIndex(ctx, opts, "v1.0.84")
+	if err != nil {
+		t.Fatalf("get release index: %v", err)
+	}
+	idx, err := parseReleaseIndex(indexData)
+	if err != nil {
+		t.Fatalf("parse release index: %v", err)
+	}
+	if len(idx.Packages) != 1 {
+		t.Fatalf("expected 1 package in index, got %d", len(idx.Packages))
+	}
+
+	src := &repopb.UpstreamSource{Name: "test-source", Enabled: true}
+	result := srv.processSyncEntry(ctx, idx.Packages[0], src, provider, opts, "v1.0.84", false, "")
+
+	// Must NOT be reported as skipped — that was the original bug.
+	if result.Status == repopb.UpstreamSyncStatus_SYNC_SKIPPED ||
+		result.Status == repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP {
+		t.Fatalf("missing blob must not be reported as skipped; got %s: %s",
+			result.Status, result.Detail)
+	}
+	if result.Status != repopb.UpstreamSyncStatus_SYNC_IMPORTED {
+		t.Fatalf("expected SYNC_IMPORTED, got %s: %s", result.Status, result.Detail)
+	}
+	if result.Action != "repair_blob" {
+		t.Fatalf("expected action=repair_blob, got %q (detail=%q)", result.Action, result.Detail)
+	}
+	if !strings.Contains(result.Detail, "blob") {
+		t.Fatalf("repair detail should mention the blob, got %q", result.Detail)
+	}
+
+	// Storage now contains the exact binary blob the import was supposed to
+	// create — and DownloadArtifact (which Stats this same key) would
+	// succeed against it.
+	fi, statErr := srv.Storage().Stat(ctx, binKey)
+	if statErr != nil {
+		t.Fatalf("blob should be present after repair: %v", statErr)
+	}
+	if fi.Size() != int64(len(pkgContent)) {
+		t.Fatalf("blob size mismatch after repair: got %d, want %d", fi.Size(), len(pkgContent))
+	}
+	got, err := srv.Storage().ReadFile(ctx, binKey)
+	if err != nil {
+		t.Fatalf("read repaired blob: %v", err)
+	}
+	if string(got) != string(pkgContent) {
+		t.Fatal("repaired blob content does not match upstream package content")
+	}
+}
+
+// TestSyncFromUpstream_LedgerMatchAndBlobPresent_Skips proves the inverse
+// of the golden test: when metadata, ledger, digest, AND the blob are all
+// present and consistent, sync correctly skips with up_to_date.
+func TestSyncFromUpstream_LedgerMatchAndBlobPresent_Skips(t *testing.T) {
+	root, expectedDigest := createLocalDirSource(t, "v1.0.84", "echo", "1.0.84")
+	pkgContent := []byte("fake-package-binary-content-for-echo")
+
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "echo",
+		Version:     "1.0.84",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 1,
+		BuildId:     "e2e-1",
+		Checksum:    expectedDigest,
+		SizeBytes:   int64(len(pkgContent)),
+	})
+
+	// Ensure the seeded blob's content actually matches the digest the
+	// release index claims, so the ledger/blob state is fully consistent.
+	key := artifactKeyWithBuild(ref, 1)
+	binKey := binaryStorageKey(key)
+	if err := srv.Storage().WriteFile(ctx, binKey, pkgContent, 0o644); err != nil {
+		t.Fatalf("rewrite blob with matching content: %v", err)
+	}
+
+	provider, _ := upstream.NewSource(upstream.TypeLocalDir)
+	opts := upstream.SourceOpts{
+		LocalRoot:         root,
+		IndexPathTemplate: "releases/{tag}/release-index.json",
+	}
+	indexData, err := provider.GetReleaseIndex(ctx, opts, "v1.0.84")
+	if err != nil {
+		t.Fatalf("get release index: %v", err)
+	}
+	idx, err := parseReleaseIndex(indexData)
+	if err != nil {
+		t.Fatalf("parse release index: %v", err)
+	}
+
+	src := &repopb.UpstreamSource{Name: "test-source", Enabled: true}
+	result := srv.processSyncEntry(ctx, idx.Packages[0], src, provider, opts, "v1.0.84", false, "")
+
+	if result.Status != repopb.UpstreamSyncStatus_SYNC_SKIPPED {
+		t.Fatalf("expected SYNC_SKIPPED, got %s: %s", result.Status, result.Detail)
+	}
+	if result.Action != "up_to_date" {
+		t.Fatalf("expected action=up_to_date, got %q", result.Action)
+	}
+	if !strings.Contains(result.Detail, "blob verified") {
+		t.Fatalf("skip detail should include 'blob verified', got %q", result.Detail)
+	}
+}
+
+// TestSyncFromUpstream_MetadataExistsButBlobSizeMismatch_Reimports covers
+// the corruption case: metadata, ledger, and the binary all exist, but the
+// binary has the wrong size (truncated upload, partial recovery, etc.).
+// The size_mismatch must be treated as a damaged blob and re-imported.
+func TestSyncFromUpstream_MetadataExistsButBlobSizeMismatch_Reimports(t *testing.T) {
+	root, expectedDigest := createLocalDirSource(t, "v1.0.84", "echo", "1.0.84")
+	pkgContent := []byte("fake-package-binary-content-for-echo")
+
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "echo",
+		Version:     "1.0.84",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 1,
+		BuildId:     "e2e-1",
+		Checksum:    expectedDigest,
+		SizeBytes:   int64(len(pkgContent)),
+	})
+
+	// Replace the blob with content of a different size — the ledger says N
+	// bytes, but the blob is now M != N bytes. Mimics a partial restore.
+	key := artifactKeyWithBuild(ref, 1)
+	binKey := binaryStorageKey(key)
+	corrupt := []byte("short")
+	if int64(len(corrupt)) == int64(len(pkgContent)) {
+		t.Fatal("test setup: corrupt content must differ in size from real content")
+	}
+	if err := srv.Storage().WriteFile(ctx, binKey, corrupt, 0o644); err != nil {
+		t.Fatalf("write corrupt blob: %v", err)
+	}
+
+	provider, _ := upstream.NewSource(upstream.TypeLocalDir)
+	opts := upstream.SourceOpts{
+		LocalRoot:         root,
+		IndexPathTemplate: "releases/{tag}/release-index.json",
+	}
+	indexData, err := provider.GetReleaseIndex(ctx, opts, "v1.0.84")
+	if err != nil {
+		t.Fatalf("get release index: %v", err)
+	}
+	idx, err := parseReleaseIndex(indexData)
+	if err != nil {
+		t.Fatalf("parse release index: %v", err)
+	}
+
+	src := &repopb.UpstreamSource{Name: "test-source", Enabled: true}
+	result := srv.processSyncEntry(ctx, idx.Packages[0], src, provider, opts, "v1.0.84", false, "")
+
+	if result.Status == repopb.UpstreamSyncStatus_SYNC_SKIPPED {
+		t.Fatalf("size-mismatched blob must not be skipped; detail=%q", result.Detail)
+	}
+	if result.Status != repopb.UpstreamSyncStatus_SYNC_IMPORTED {
+		t.Fatalf("expected SYNC_IMPORTED, got %s: %s", result.Status, result.Detail)
+	}
+	if result.Action != "repair_blob" {
+		t.Fatalf("expected action=repair_blob, got %q", result.Action)
+	}
+
+	// After repair the blob's size matches the upstream content again.
+	fi, statErr := srv.Storage().Stat(ctx, binKey)
+	if statErr != nil {
+		t.Fatalf("blob should be present after repair: %v", statErr)
+	}
+	if fi.Size() != int64(len(pkgContent)) {
+		t.Fatalf("blob size after repair: got %d, want %d", fi.Size(), len(pkgContent))
+	}
+}
+
+// TestDigestEqual_NormalizesSha256Prefix verifies the canonical digest
+// comparison helper across mixed-case, whitespace, and prefix variations.
+func TestDigestEqual_NormalizesSha256Prefix(t *testing.T) {
+	cases := []struct {
+		name string
+		a, b string
+		want bool
+	}{
+		{"upper-prefixed equals lower-bare", "sha256:ABC", "abc", true},
+		{"whitespace and prefix", " abc ", "sha256:abc", true},
+		{"prefix on both sides", "sha256:abc", "SHA256:ABC", true},
+		{"empty a", "", "abc", false},
+		{"empty b", "abc", "", false},
+		{"both empty", "", "", false},
+		{"prefix-only is empty", "sha256:", "abc", false},
+		{"different hex", "sha256:abc", "sha256:def", false},
+		{"raw vs prefixed different", "abc", "sha256:def", false},
+	}
+	for _, tc := range cases {
+		got := digestEqual(tc.a, tc.b)
+		if got != tc.want {
+			t.Errorf("%s: digestEqual(%q, %q) = %v, want %v",
+				tc.name, tc.a, tc.b, got, tc.want)
+		}
 	}
 }
 

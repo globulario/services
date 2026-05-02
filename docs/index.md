@@ -55,6 +55,7 @@ Day-0 through Day-2 operational guides.
 - [Adding Nodes (Day-1)](operators/adding-nodes.md) — Join tokens, approval, profile assignment
 - [Deploying Applications](operators/deploying-applications.md) — Desired-state model, monitoring, repair
 - [Repository Overview](operators/repository-overview.md) — Philosophy, identity model, state machine, GC, invariants
+- [Package Lifecycle](operators/package-lifecycle.md) — Verify / repair / explain, signing policy, rollback workflow, config receipts, doctor invariants
 - [Publishing Services](operators/publishing-services.md) — Build and publish packages, artifact lifecycle
 - [Updating the Cluster](operators/updating-the-cluster.md) — Service upgrades, infrastructure upgrades, rollback
 - [Debugging Failures](operators/debugging-failures.md) — Workflow diagnostics, service logs, common patterns

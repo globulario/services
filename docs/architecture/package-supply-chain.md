@@ -106,6 +106,14 @@ the embedded version string changes the entrypoint_checksum.
 3. **Deterministic contract digest**: Same binary + manifest + specs + systemd + deps always produces the same contract digest regardless of archive metadata.
 4. **Scylla-first reads**: All catalog queries use ScyllaDB as the authoritative source.
 5. **MinIO is blob cache**: Missing blobs can be refilled from upstream.
-6. **No automatic rollback**: If a package fails, create an incident. Never auto-install older versions.
+6. **No automatic rollback**: If a package fails, create an incident. Operator-driven rollback goes through `globular pkg rollback` (workflow-orchestrated, signature-gated). Automatic version reversion is never allowed.
 7. **Referenced releases must not be deleted**: A platform release may reference package artifacts from previous releases. Deleting those releases breaks the asset_url for unchanged packages.
 8. **Force full rebuild is explicit**: When previous release index is unavailable, the release fails unless FORCE_FULL_REBUILD=true is set, which records the reason in release-index metadata.
+9. **Two state machines are coherent**: Every artifact carries `publish_state` (public lifecycle gate) AND `artifact_state` (durable repository pipeline tracker — `DISCOVERED → … → PUBLISHED`, plus `BROKEN_*`). Admin actions dual-stamp both columns. The `cluster-doctor` invariants `repository.revoked_installable` / `repository.quarantined_installable` fire on divergence.
+10. **Installability requires every gate**: An artifact is installable only when `publish_state==PUBLISHED`, `artifact_state==PUBLISHED`, blob exists at `binaryStorageKey(...)`, size matches, sha256 matches, and signature policy passes. Bypassing any gate would silently degrade the cluster, so the same `signaturePolicyDecision` helper is reused at every install path (sync skip, resolver, DownloadArtifact, rollback eligibility).
+11. **Signature policy is etcd-driven**: `/globular/repository/security/policy` controls require_signatures_for_core / _for_all / allow_unsigned_local_development. Strict mode QUARANTINES unsigned core artifacts on import; revoked publisher keys ALWAYS block, regardless of policy.
+12. **Rollback is workflow-orchestrated**: `globular pkg rollback` triggers the `package.rollback` workflow definition. Repository owns target verification + signature gate + install-history. Node-agent owns drain → install (with `rollback_mode=true`) → restart → health-probe. Installed-revision row is written ONLY after `WaitActive(unit, 30s)` — failed rollbacks never claim success.
+13. **Config ownership is enforced pre-mutation**: Manifests declare `configs[]` with `MergeStrategy`. Node-agent's `applyConfigPolicyPreInstall` blocks the apply (`Status=blocked_config_conflict`) when `FAIL_ON_LOCAL_MODIFICATION` triggers, BEFORE any binary is touched. SECRET paths are never read; their receipts ship with `path="[REDACTED]"`.
+
+The operator-facing reference for invariants 9–13 lives in
+[`docs/operators/package-lifecycle.md`](../operators/package-lifecycle.md).

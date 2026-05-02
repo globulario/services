@@ -800,6 +800,14 @@ func CheckArtifactPublished(ctx context.Context, repoAddr, publisherID, name, ve
 }
 
 // dialRepository creates a gRPC connection to the repository service.
+// DialRepository is the exported variant of dialRepository for cross-package
+// node-agent code (e.g. the Phase F post-apply hook in package_revision_post.go).
+// Same TLS material as the package-internal callers. Returns the connection
+// and the resolved address.
+func DialRepository(ctx context.Context, addr string) (*grpc.ClientConn, string, error) {
+	return dialRepository(ctx, addr)
+}
+
 // Returns the connection and the resolved address.
 func dialRepository(ctx context.Context, addr string) (*grpc.ClientConn, string, error) {
 	var opts []grpc.DialOption

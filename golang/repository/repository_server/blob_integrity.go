@@ -20,14 +20,19 @@ import (
 )
 
 // artifactBlobStatus checks whether the binary blob for a given artifact
-// exists in object storage. Returns (present, reason).
+// exists in object storage AND, when expectedSize > 0, that its size matches.
+// Returns (present, reason) where reason is a stable token suitable for logs:
 //
-// present=true:  blob exists and size matches (if expectedSize > 0).
-// present=false: blob missing or size mismatch.
+//	"ok"             — blob exists (and size matches expectedSize if provided)
+//	"missing_blob"   — Stat returned an error (object not in storage)
+//	"size_mismatch"  — Stat succeeded but fi.Size() != expectedSize
+//	"nil_ref"        — ref was nil (programmer error)
 //
 // This is the ONLY function that should be used to decide whether an
-// artifact can be skipped during import. Never trust metadata alone.
-func (srv *server) artifactBlobStatus(ctx context.Context, ref *repopb.ArtifactRef, buildNumber int64, _ int64) (present bool, reason string) {
+// artifact can be skipped during import or sync. Never trust metadata alone.
+// Bucket listing or cached directory state must NOT be used here — only an
+// exact object Stat against binaryStorageKey(artifactKeyWithBuild(...)).
+func (srv *server) artifactBlobStatus(ctx context.Context, ref *repopb.ArtifactRef, buildNumber int64, expectedSize int64) (present bool, reason string) {
 	if ref == nil {
 		return false, "nil_ref"
 	}
@@ -35,11 +40,13 @@ func (srv *server) artifactBlobStatus(ctx context.Context, ref *repopb.ArtifactR
 	key := artifactKeyWithBuild(ref, buildNumber)
 	blobKey := binaryStorageKey(key)
 
-	_, err := srv.Storage().Stat(ctx, blobKey)
+	fi, err := srv.Storage().Stat(ctx, blobKey)
 	if err != nil {
 		return false, "missing_blob"
 	}
-
+	if expectedSize > 0 && fi.Size() != expectedSize {
+		return false, "size_mismatch"
+	}
 	return true, "ok"
 }
 
@@ -81,9 +88,13 @@ func (srv *server) artifactBlobPresent(ctx context.Context, ref *repopb.Artifact
 	return present
 }
 
-// logBlobSkipDecision logs the fields needed to audit a skip decision.
-func logBlobSkipDecision(name, version, platform, buildID string, buildNumber int64, digest, blobKey, decision, reason string) {
+// logBlobSkipDecision logs the full fingerprint of a skip / repair decision.
+// Decision is one of "skip" | "reimport" | "repair_blob"; reason is the value
+// returned by artifactBlobStatus (e.g. "ok", "missing_blob", "size_mismatch").
+func logBlobSkipDecision(source, publisher, name, version, platform, buildID string, buildNumber int64, digest, blobKey, decision, reason string) {
 	slog.Info("blob-integrity: skip decision",
+		"source", source,
+		"publisher", publisher,
 		"name", name,
 		"version", version,
 		"platform", platform,

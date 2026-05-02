@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -122,6 +123,31 @@ type server struct {
 	scylla      manifestLedger                          // ScyllaDB manifest metadata store (nil until connected)
 	listCache   *depcache.Cache[string, []manifestRow]  // display-path Scylla list cache (PolicyRepositoryListView)
 	depHealth   *depHealthWatchdog                      // dependency health monitor
+
+	// --- Repository artifact pipeline state cache ---
+	// Mirrors the durable Scylla artifact_state column. Always written on
+	// every transition; doubles as the test-mode source of truth when
+	// srv.scylla is nil.
+	artifactStateMu    sync.Mutex
+	artifactStateCache map[string]artifactStateRecord
+
+	// --- Phase CLI-B trust / signature in-memory cache (also serves as
+	//     fallback when scylla is nil for tests). Guarded by artifactStateMu.
+	trust *trustCache
+
+	// --- Phase CLI-C installed-revision in-memory cache.
+	revisions *revisionCache
+
+	// --- Phase F signature policy (cached etcd read with TTL).
+	signaturePolicy *signaturePolicyCache
+
+	// --- Phase F config receipts (in-memory mirror of scylla table).
+	receipts *receiptCache
+	// artifactStateHook is called after every successful transition. Used
+	// by tests to assert exact transition sequences. Nil in production.
+	// workflowRunID carries the run that owns this transition (empty when
+	// no workflow run is active).
+	artifactStateHook func(artifactKey string, from, to ArtifactPipelineState, reason, workflowRunID string)
 
 	// --- Workflow tracing ---
 	workflowRec *workflow.Recorder

@@ -840,6 +840,229 @@ func (client *Repository_Service_Client) SetArtifactState(ref *repositorypb.Arti
 	return &repositorypb.SetArtifactStateResponse{CurrentState: targetState}, nil
 }
 
+// VerifyArtifact runs a read-only integrity probe against a single artifact.
+// Used by `globular repository verify`. Never mutates state.
+func (client *Repository_Service_Client) VerifyArtifact(req *repositorypb.VerifyArtifactRequest) (*repositorypb.VerifyArtifactResponse, error) {
+	if req == nil || req.GetRef() == nil {
+		return nil, errors.New("verify: ref required")
+	}
+	rsp, err := client.Invoke("VerifyArtifact", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if resp, ok := rsp.(*repositorypb.VerifyArtifactResponse); ok {
+		return resp, nil
+	}
+	return nil, errors.New("verify: unexpected response type")
+}
+
+// RepairArtifact attempts to repair a broken artifact via re-import from the
+// upstream source recorded in its manifest. Used by `globular repository repair`.
+func (client *Repository_Service_Client) RepairArtifact(req *repositorypb.RepairArtifactRequest) (*repositorypb.RepairArtifactResponse, error) {
+	if req == nil || req.GetRef() == nil {
+		return nil, errors.New("repair: ref required")
+	}
+	rsp, err := client.Invoke("RepairArtifact", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if resp, ok := rsp.(*repositorypb.RepairArtifactResponse); ok {
+		return resp, nil
+	}
+	return nil, errors.New("repair: unexpected response type")
+}
+
+// ExplainArtifact composes manifest + ledger + blob + signature + pipeline
+// state into a single operator-readable answer. Used by
+// `globular repository explain` — the AI / operator cockpit command.
+func (client *Repository_Service_Client) ExplainArtifact(req *repositorypb.ExplainArtifactRequest) (*repositorypb.ExplainArtifactResponse, error) {
+	if req == nil || req.GetRef() == nil {
+		return nil, errors.New("explain: ref required")
+	}
+	rsp, err := client.Invoke("ExplainArtifact", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if resp, ok := rsp.(*repositorypb.ExplainArtifactResponse); ok {
+		return resp, nil
+	}
+	return nil, errors.New("explain: unexpected response type")
+}
+
+// ── Phase CLI-B: signing + trusted publishers ────────────────────────────
+
+func (client *Repository_Service_Client) TrustPublisher(req *repositorypb.TrustPublisherRequest) (*repositorypb.TrustPublisherResponse, error) {
+	if req == nil {
+		return nil, errors.New("trust-publisher: request required")
+	}
+	rsp, err := client.Invoke("TrustPublisher", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := rsp.(*repositorypb.TrustPublisherResponse); ok {
+		return r, nil
+	}
+	return nil, errors.New("trust-publisher: unexpected response type")
+}
+
+func (client *Repository_Service_Client) RevokePublisherKey(req *repositorypb.RevokePublisherKeyRequest) (*repositorypb.RevokePublisherKeyResponse, error) {
+	if req == nil {
+		return nil, errors.New("revoke-publisher-key: request required")
+	}
+	rsp, err := client.Invoke("RevokePublisherKey", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := rsp.(*repositorypb.RevokePublisherKeyResponse); ok {
+		return r, nil
+	}
+	return nil, errors.New("revoke-publisher-key: unexpected response type")
+}
+
+func (client *Repository_Service_Client) ListTrustedPublishers(req *repositorypb.ListTrustedPublishersRequest) (*repositorypb.ListTrustedPublishersResponse, error) {
+	if req == nil {
+		req = &repositorypb.ListTrustedPublishersRequest{}
+	}
+	rsp, err := client.Invoke("ListTrustedPublishers", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := rsp.(*repositorypb.ListTrustedPublishersResponse); ok {
+		return r, nil
+	}
+	return nil, errors.New("list-trusted-publishers: unexpected response type")
+}
+
+func (client *Repository_Service_Client) RegisterArtifactSignature(req *repositorypb.RegisterArtifactSignatureRequest) (*repositorypb.RegisterArtifactSignatureResponse, error) {
+	if req == nil || req.GetRef() == nil {
+		return nil, errors.New("register-signature: ref required")
+	}
+	rsp, err := client.Invoke("RegisterArtifactSignature", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := rsp.(*repositorypb.RegisterArtifactSignatureResponse); ok {
+		return r, nil
+	}
+	return nil, errors.New("register-signature: unexpected response type")
+}
+
+func (client *Repository_Service_Client) VerifyArtifactSignature(req *repositorypb.VerifyArtifactSignatureRequest) (*repositorypb.VerifyArtifactSignatureResponse, error) {
+	if req == nil || req.GetRef() == nil {
+		return nil, errors.New("verify-signature: ref required")
+	}
+	rsp, err := client.Invoke("VerifyArtifactSignature", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := rsp.(*repositorypb.VerifyArtifactSignatureResponse); ok {
+		return r, nil
+	}
+	return nil, errors.New("verify-signature: unexpected response type")
+}
+
+func (client *Repository_Service_Client) ListArtifactSignatures(req *repositorypb.ListArtifactSignaturesRequest) (*repositorypb.ListArtifactSignaturesResponse, error) {
+	if req == nil || req.GetRef() == nil {
+		return nil, errors.New("list-signatures: ref required")
+	}
+	rsp, err := client.Invoke("ListArtifactSignatures", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := rsp.(*repositorypb.ListArtifactSignaturesResponse); ok {
+		return r, nil
+	}
+	return nil, errors.New("list-signatures: unexpected response type")
+}
+
+// ── Phase CLI-C: installed revisions + rollback ──────────────────────────
+
+func (client *Repository_Service_Client) RecordInstalledRevision(req *repositorypb.RecordInstalledRevisionRequest) (*repositorypb.RecordInstalledRevisionResponse, error) {
+	if req == nil || req.GetRevision() == nil {
+		return nil, errors.New("record-revision: revision required")
+	}
+	rsp, err := client.Invoke("RecordInstalledRevision", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := rsp.(*repositorypb.RecordInstalledRevisionResponse); ok {
+		return r, nil
+	}
+	return nil, errors.New("record-revision: unexpected response type")
+}
+
+func (client *Repository_Service_Client) ListInstalledRevisions(req *repositorypb.ListInstalledRevisionsRequest) (*repositorypb.ListInstalledRevisionsResponse, error) {
+	if req == nil {
+		return nil, errors.New("list-revisions: request required")
+	}
+	rsp, err := client.Invoke("ListInstalledRevisions", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := rsp.(*repositorypb.ListInstalledRevisionsResponse); ok {
+		return r, nil
+	}
+	return nil, errors.New("list-revisions: unexpected response type")
+}
+
+func (client *Repository_Service_Client) ListRollbackCandidates(req *repositorypb.ListRollbackCandidatesRequest) (*repositorypb.ListRollbackCandidatesResponse, error) {
+	if req == nil {
+		return nil, errors.New("rollback-candidates: request required")
+	}
+	rsp, err := client.Invoke("ListRollbackCandidates", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := rsp.(*repositorypb.ListRollbackCandidatesResponse); ok {
+		return r, nil
+	}
+	return nil, errors.New("rollback-candidates: unexpected response type")
+}
+
+// ── Phase F: config receipts + repository findings ──────────────────────
+
+func (client *Repository_Service_Client) RecordConfigReceipt(req *repositorypb.RecordConfigReceiptRequest) (*repositorypb.RecordConfigReceiptResponse, error) {
+	if req == nil || req.GetReceipt() == nil {
+		return nil, errors.New("record-receipt: receipt required")
+	}
+	rsp, err := client.Invoke("RecordConfigReceipt", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := rsp.(*repositorypb.RecordConfigReceiptResponse); ok {
+		return r, nil
+	}
+	return nil, errors.New("record-receipt: unexpected response type")
+}
+
+func (client *Repository_Service_Client) ListConfigReceipts(req *repositorypb.ListConfigReceiptsRequest) (*repositorypb.ListConfigReceiptsResponse, error) {
+	if req == nil {
+		return nil, errors.New("list-receipts: request required")
+	}
+	rsp, err := client.Invoke("ListConfigReceipts", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := rsp.(*repositorypb.ListConfigReceiptsResponse); ok {
+		return r, nil
+	}
+	return nil, errors.New("list-receipts: unexpected response type")
+}
+
+func (client *Repository_Service_Client) ListRepositoryFindings(req *repositorypb.ListRepositoryFindingsRequest) (*repositorypb.ListRepositoryFindingsResponse, error) {
+	if req == nil {
+		req = &repositorypb.ListRepositoryFindingsRequest{}
+	}
+	rsp, err := client.Invoke("ListRepositoryFindings", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := rsp.(*repositorypb.ListRepositoryFindingsResponse); ok {
+		return r, nil
+	}
+	return nil, errors.New("list-repository-findings: unexpected response type")
+}
+
 // ResolveByEntrypointChecksum performs a reverse lookup from a binary's SHA256
 // checksum to the artifact manifest that produced it. The checksum should be a
 // bare hex string (no "sha256:" prefix). Returns nil manifest if not found.

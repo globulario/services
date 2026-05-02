@@ -44,6 +44,8 @@ import (
 	"github.com/globulario/services/golang/config"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/repository/upstream"
+	"github.com/globulario/services/golang/workflow"
+	workflowpb "github.com/globulario/services/golang/workflow/workflowpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -228,6 +230,24 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 	slog.Info("upstream: starting sync",
 		"source", sourceName, "tag", releaseTag, "provider", provider.Type(), "dry_run", dryRun)
 
+	// ── Start a workflow run for this sync (Phase B) ──────────────────────
+	// The recorder is fire-and-forget. When the workflow service is not
+	// reachable, RecordStep no-ops. Per-artifact transitions emit one
+	// step each so the run history shows the full pipeline progression.
+	var workflowRunID string
+	if srv.workflowRec != nil && !dryRun {
+		workflowRunID = srv.workflowRec.StartRun(ctx, &workflow.RunParams{
+			ComponentName:    sourceName,
+			ComponentKind:    workflow.KindService,
+			ComponentVersion: releaseTag,
+			ReleaseKind:      "RepositorySync",
+			ReleaseObjectID:  fmt.Sprintf("%s/%s", sourceName, releaseTag),
+			TriggerReason:    workflowpb.TriggerReason_TRIGGER_REASON_MANUAL,
+			CorrelationID:    fmt.Sprintf("Sync/%s/%s", sourceName, releaseTag),
+			WorkflowName:     "repository.sync.upstream",
+		})
+	}
+
 	// ── Fetch release index via provider ─────────────────────────────────
 	indexData, fetchErr := provider.GetReleaseIndex(ctx, opts, releaseTag)
 	if fetchErr != nil {
@@ -268,7 +288,7 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 			continue
 		}
 
-		result := srv.processSyncEntry(ctx, entry, src, provider, opts, releaseTag, dryRun)
+		result := srv.processSyncEntry(ctx, entry, src, provider, opts, releaseTag, dryRun, workflowRunID)
 		results = append(results, result)
 
 		switch result.GetStatus() {
@@ -308,6 +328,23 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 		"source", sourceName, "tag", releaseTag, "mode", mode,
 		"imported", imported, "skipped", skipped, "rejected", rejected, "failed", failed)
 
+	if workflowRunID != "" && srv.workflowRec != nil {
+		runStatus := workflow.Succeeded
+		fc := workflow.NoFailure
+		if failed > 0 || rejected > 0 {
+			runStatus = workflow.Failed
+			fc = workflowpb.FailureClass_FAILURE_CLASS_REPOSITORY
+		}
+		summary := fmt.Sprintf(
+			"sync %s tag=%s imported=%d skipped=%d rejected=%d failed=%d",
+			sourceName, releaseTag, imported, skipped, rejected, failed)
+		var errMsg string
+		if runStatus == workflow.Failed {
+			errMsg = fmt.Sprintf("rejected=%d failed=%d", rejected, failed)
+		}
+		srv.workflowRec.FinishRun(ctx, workflowRunID, runStatus, summary, errMsg, fc)
+	}
+
 	return &repopb.SyncFromUpstreamResponse{
 		Results:     results,
 		Imported:    imported,
@@ -336,6 +373,7 @@ func (srv *server) processSyncEntry(
 	opts upstream.SourceOpts,
 	releaseTag string,
 	dryRun bool,
+	workflowRunID string,
 ) *repopb.UpstreamSyncResult {
 
 	// ── Step 1: Normalize ─────────────────────────────────────────────────
@@ -394,11 +432,34 @@ func (srv *server) processSyncEntry(
 
 	// ── Step 3: Conflict detection + blob verification ────────────────────
 	//
-	// INVARIANT: An artifact is "up_to_date" only if BOTH metadata AND blob
-	// exist. Metadata alone (ledger row, ScyllaDB manifest) is NOT sufficient.
-	// MinIO blob at binaryStorageKey(...) is authority for blob existence.
+	// INVARIANT: An artifact is "up_to_date" only if ALL hold:
+	//   - metadata exists (ledger row OR Scylla manifest)
+	//   - the exact binary blob exists at binaryStorageKey(artifactKeyWithBuild(...))
+	//   - the blob size matches the recorded size_bytes
+	//   - the artifact_state is PUBLISHED (or empty for legacy rows)
+	//
+	// Metadata alone — even with matching digest — is NOT sufficient. No
+	// skip path may bypass any of these checks.
 	ref := &repopb.ArtifactRef{
 		PublisherId: n.Publisher,
+		Name:        n.Name,
+		Version:     n.Version,
+		Platform:    n.Platform,
+	}
+	artifactKey := artifactKeyWithBuild(ref, n.BuildNumber)
+
+	// repairReason carries why we are reimporting despite metadata being present:
+	// e.g. "missing_blob" or "size_mismatch". Empty when the artifact is genuinely
+	// new/updated. Distinguishes "repair an existing record" from "first import".
+	var repairReason string
+
+	stateFields := ArtifactStateFields{
+		BlobKey:     binaryStorageKey(artifactKey),
+		Checksum:    n.Digest,
+		SizeBytes:   0, // populated post-download with actual size
+		BuildID:     n.BuildID,
+		BuildNumber: n.BuildNumber,
+		PublisherID: n.Publisher,
 		Name:        n.Name,
 		Version:     n.Version,
 		Platform:    n.Platform,
@@ -408,28 +469,57 @@ func (srv *server) processSyncEntry(
 		for _, r := range ledger.Releases {
 			if r.Version == n.Version && r.BuildID == n.BuildID && r.Platform == n.Platform {
 				if digestEqual(r.Digest, n.Digest) {
-					// Digest matches — verify the blob actually exists in storage.
-					blobPresent := srv.artifactBlobPresent(ctx, ref, n.BuildNumber, r.SizeBytes)
+					// Digest matches — verify the exact binary blob exists AND
+					// matches the recorded size. Stat-only check using the same
+					// key DownloadArtifact uses; never trust manifest/ledger alone.
 					blobKey := blobKeyForRef(ref, n.BuildNumber)
+					blobPresent, blobReason := srv.artifactBlobStatus(ctx, ref, n.BuildNumber, r.SizeBytes)
 
 					if blobPresent {
-						logBlobSkipDecision(n.Name, n.Version, n.Platform, n.BuildID, n.BuildNumber, n.Digest, blobKey, "skip", "blob_present")
+						// Skip is only legal when artifact_state is also coherent.
+						stateOK, currentState := srv.canSkipDueToExistingState(ctx, artifactKey)
+						if !stateOK {
+							logBlobSkipDecision(src.GetName(), n.Publisher, n.Name, n.Version, n.Platform,
+								n.BuildID, n.BuildNumber, n.Digest, blobKey,
+								"reprocess", "pipeline_state_not_publishable:"+string(currentState))
+							slog.Info("repository sync: blob present but artifact_state not publishable; reprocessing",
+								"source", src.GetName(), "artifact_key", artifactKey,
+								"artifact_state", string(currentState))
+							// Carry forward through the import path so the
+							// state machine resumes from the right place.
+							repairReason = "pipeline_state:" + string(currentState)
+							break
+						}
+						logBlobSkipDecision(src.GetName(), n.Publisher, n.Name, n.Version, n.Platform,
+							n.BuildID, n.BuildNumber, n.Digest, blobKey, "skip", "ledger_match_blob_verified")
+						// Idempotent state stamp — Unspecified/PUBLISHED → PUBLISHED is allowed.
+						stateFields.SizeBytes = r.SizeBytes
+						_ = srv.transitionArtifactState(ctx, artifactKey, PipelinePublished,
+							"sync_skip_idempotent", workflowRunID, stateFields)
 						if dryRun {
 							result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
 						} else {
 							result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
 						}
-						result.Detail = "already present with matching digest and blob verified"
+						result.Detail = "already present with matching digest; blob verified"
 						result.Action = "up_to_date"
 						return result
 					}
 
-					// Metadata exists but blob missing — fall through to re-import.
-					logBlobSkipDecision(n.Name, n.Version, n.Platform, n.BuildID, n.BuildNumber, n.Digest, blobKey, "reimport", "metadata_exists_blob_missing")
-					slog.Info("upstream: ledger metadata exists but binary blob missing; forcing re-import",
-						"source", src.GetName(), "name", n.Name, "version", n.Version,
-						"platform", n.Platform, "build_id", n.BuildID, "build_number", n.BuildNumber,
-						"digest", truncDigest(n.Digest), "blob_key", blobKey)
+					// Metadata + digest matched but the binary is missing or
+					// corrupted (size mismatch). Mark broken state, then force
+					// re-import to repair.
+					repairReason = blobReason
+					stateFields.SizeBytes = r.SizeBytes
+					srv.markBrokenForReason(ctx, artifactKey, blobReason, workflowRunID, stateFields)
+					logBlobSkipDecision(src.GetName(), n.Publisher, n.Name, n.Version, n.Platform,
+						n.BuildID, n.BuildNumber, n.Digest, blobKey, "repair_blob", blobReason)
+					slog.Info("repository sync: metadata exists but blob missing; re-importing",
+						"source", src.GetName(), "publisher", n.Publisher,
+						"name", n.Name, "version", n.Version, "platform", n.Platform,
+						"build_id", n.BuildID, "build_number", n.BuildNumber,
+						"digest", truncDigest(n.Digest), "blob_key", blobKey,
+						"blob_status", blobReason)
 					// Don't return — fall through to download/import path.
 					break
 				}
@@ -458,37 +548,84 @@ func (srv *server) processSyncEntry(
 		}
 	}
 
-	// Check ScyllaDB manifests as a second metadata source.
+	// Second metadata source: ScyllaDB manifest rows (or cached MinIO scan
+	// when Scylla is unavailable). A digest match here also requires the exact
+	// blob to be present at the matching build_number AND the artifact_state
+	// to be PUBLISHED (or legacy-empty).
 	if existing, state, _, ok := srv.findExistingArtifactByDigest(ctx, ref, n.Digest); ok {
 		blobKey := blobKeyForRef(ref, existing.GetBuildNumber())
-		blobPresent := srv.artifactBlobPresent(ctx, ref, existing.GetBuildNumber(), existing.GetSizeBytes())
+		blobPresent, blobReason := srv.artifactBlobStatus(ctx, ref, existing.GetBuildNumber(), existing.GetSizeBytes())
+		// The Scylla branch may resolve a different build_number than n —
+		// rebuild the artifact key for the state record at that build.
+		existingKey := artifactKeyWithBuild(ref, existing.GetBuildNumber())
 		if blobPresent {
-			logBlobSkipDecision(n.Name, n.Version, n.Platform, n.BuildID, existing.GetBuildNumber(), n.Digest, blobKey, "skip", "scylla_match_blob_present")
-			detail := fmt.Sprintf("already present with matching digest at build %d (%s)", existing.GetBuildNumber(), state.String())
-			if dryRun {
-				result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
+			stateOK, currentState := srv.canSkipDueToExistingState(ctx, existingKey)
+			if !stateOK {
+				logBlobSkipDecision(src.GetName(), n.Publisher, n.Name, n.Version, n.Platform,
+					n.BuildID, existing.GetBuildNumber(), n.Digest, blobKey,
+					"reprocess", "pipeline_state_not_publishable:"+string(currentState))
+				slog.Info("repository sync: scylla blob present but artifact_state not publishable; reprocessing",
+					"source", src.GetName(), "artifact_key", existingKey,
+					"artifact_state", string(currentState))
+				if repairReason == "" {
+					repairReason = "pipeline_state:" + string(currentState)
+				}
 			} else {
-				result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
+				logBlobSkipDecision(src.GetName(), n.Publisher, n.Name, n.Version, n.Platform,
+					n.BuildID, existing.GetBuildNumber(), n.Digest, blobKey, "skip", "scylla_match_blob_verified")
+				skipFields := stateFields
+				skipFields.BlobKey = blobKey
+				skipFields.SizeBytes = existing.GetSizeBytes()
+				skipFields.BuildNumber = existing.GetBuildNumber()
+				_ = srv.transitionArtifactState(ctx, existingKey, PipelinePublished,
+					"sync_skip_idempotent", workflowRunID, skipFields)
+				detail := fmt.Sprintf("already present with matching digest at build %d (%s); blob verified",
+					existing.GetBuildNumber(), state.String())
+				if dryRun {
+					result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
+				} else {
+					result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
+				}
+				result.Detail = detail
+				result.Action = "up_to_date"
+				return result
 			}
-			result.Detail = detail
-			result.Action = "up_to_date"
-			return result
+		} else {
+			// Scylla/manifest record found but the blob is missing or wrong
+			// size. Mark broken (publish_state→CORRUPTED if size mismatch and
+			// row was PUBLISHED), then fall through to repair.
+			if repairReason == "" {
+				repairReason = blobReason
+			}
+			brokenFields := stateFields
+			brokenFields.BlobKey = blobKey
+			brokenFields.SizeBytes = existing.GetSizeBytes()
+			brokenFields.BuildNumber = existing.GetBuildNumber()
+			srv.markBrokenForReason(ctx, existingKey, blobReason, workflowRunID, brokenFields)
+			logBlobSkipDecision(src.GetName(), n.Publisher, n.Name, n.Version, n.Platform,
+				n.BuildID, existing.GetBuildNumber(), n.Digest, blobKey, "repair_blob", blobReason)
+			slog.Info("repository sync: metadata exists but blob missing; re-importing",
+				"source", src.GetName(), "publisher", n.Publisher,
+				"name", n.Name, "version", n.Version, "platform", n.Platform,
+				"build_id", n.BuildID, "build_number", existing.GetBuildNumber(),
+				"digest", truncDigest(n.Digest), "blob_key", blobKey,
+				"blob_status", blobReason, "match_source", "scylla")
 		}
-		logBlobSkipDecision(n.Name, n.Version, n.Platform, n.BuildID, existing.GetBuildNumber(), n.Digest, blobKey, "reimport", "scylla_match_blob_missing")
 	}
 
 	// Not found or blob missing → would import (or import).
-	// Determine action: repair_blob if metadata existed, else new/update.
-	metadataExisted := (ledger != nil && result.Action == "") // ledger matched but blob missing
-	if metadataExisted {
+	// Determine action: repair_blob when metadata existed but the binary did
+	// not (or was corrupted). Otherwise classify as new/update/ahead.
+	switch {
+	case repairReason != "":
 		result.Action = "repair_blob"
-	} else if result.LocalVersion == "" {
+	case result.LocalVersion == "":
 		result.Action = "new"
-	} else if result.LocalVersion < n.Version {
+	case result.LocalVersion < n.Version:
 		result.Action = "update"
-	} else if result.LocalVersion > n.Version {
+	case result.LocalVersion > n.Version:
 		result.Action = "ahead"
-	} else {
+	default:
 		result.Action = "new" // same version, different build
 	}
 
@@ -501,24 +638,44 @@ func (srv *server) processSyncEntry(
 		if loc == "" {
 			loc = n.Filename
 		}
-		result.Detail = fmt.Sprintf("would download from %s (build_number=%d)", upstream.RedactAssetURL(loc), n.BuildNumber)
+		if repairReason != "" {
+			result.Detail = fmt.Sprintf("would re-import from %s to repair %s (build_number=%d)",
+				upstream.RedactAssetURL(loc), repairReason, n.BuildNumber)
+		} else {
+			result.Detail = fmt.Sprintf("would download from %s (build_number=%d)",
+				upstream.RedactAssetURL(loc), n.BuildNumber)
+		}
 		return result
 	}
 
-	// ── Step 4: Download and verify via provider ─────────────────────────
+	// ── Step 4: Pipeline state transitions for the import path ───────────
+	// DISCOVERED first if and only if the row is currently empty (legal
+	// transitions ban PUBLISHED → DISCOVERED, and repair from BROKEN_X
+	// transitions directly to DOWNLOADING).
+	if curr := srv.readArtifactState(ctx, artifactKey); curr == PipelineUnspecified {
+		_ = srv.transitionArtifactState(ctx, artifactKey, PipelineDiscovered,
+			"observed_in_release_index:"+releaseTag, workflowRunID, stateFields)
+	}
+	_ = srv.transitionArtifactState(ctx, artifactKey, PipelineDownloading,
+		"download_started", workflowRunID, stateFields)
+
+	// ── Step 5: Download and verify via provider ─────────────────────────
 	if !n.ChangedInRelease && n.OriginRelease != releaseTag {
 		slog.Info("upstream: importing unchanged package from origin release",
 			"name", n.Name, "version", n.Version, "origin", n.OriginRelease, "platform_release", releaseTag)
 	}
 	data, digest, err := downloadAndVerifyFromProvider(ctx, provider, opts, n)
 	if err != nil {
+		// State stays at DOWNLOADING with the error reason; sync surfaces SYNC_FAILED.
 		result.Status = repopb.UpstreamSyncStatus_SYNC_FAILED
 		result.Detail = fmt.Sprintf("download/verify failed: %v", err)
 		slog.Warn("upstream: download failed", "name", n.Name, "err", err)
 		return result
 	}
+	stateFields.Checksum = digest
+	stateFields.SizeBytes = int64(len(data))
 
-	if importErr := srv.importUpstreamArtifact(ctx, n, data, digest, src, releaseTag); importErr != nil {
+	if importErr := srv.importUpstreamArtifact(ctx, n, data, digest, src, releaseTag, stateFields, workflowRunID); importErr != nil {
 		result.Status = repopb.UpstreamSyncStatus_SYNC_FAILED
 		result.Detail = fmt.Sprintf("import failed: %v", importErr)
 		slog.Error("upstream: import failed", "name", n.Name, "version", n.Version, "err", importErr)
@@ -526,18 +683,34 @@ func (srv *server) processSyncEntry(
 	}
 
 	result.Status = repopb.UpstreamSyncStatus_SYNC_IMPORTED
-	if strings.EqualFold(src.GetTrustPolicy(), "quarantine") {
+	switch {
+	case repairReason != "":
+		result.Action = "repair_blob"
+		result.Detail = fmt.Sprintf(
+			"metadata existed but binary blob was %s; re-imported from %s",
+			repairReason, src.GetName())
+	case strings.EqualFold(src.GetTrustPolicy(), "quarantine"):
 		result.Detail = fmt.Sprintf("imported from %s (quarantined — requires manual promotion)", src.GetName())
-	} else {
+	default:
 		result.Detail = fmt.Sprintf("imported from %s", src.GetName())
 	}
-	slog.Info("upstream: imported", "name", n.Name, "version", n.Version, "platform", n.Platform,
-		"build_number", n.BuildNumber, "build_id", n.BuildID, "digest", truncDigest(digest))
+	slog.Info("upstream: imported",
+		"source", src.GetName(), "publisher", n.Publisher,
+		"name", n.Name, "version", n.Version, "platform", n.Platform,
+		"build_number", n.BuildNumber, "build_id", n.BuildID,
+		"digest", truncDigest(digest), "action", result.Action,
+		"repair_reason", repairReason)
 	return result
 }
 
 // importUpstreamArtifact stores the downloaded artifact binary + manifest and
-// appends it to the release ledger. Uses normalizedEntry for all identity fields.
+// appends it to the release ledger. Uses normalizedEntry for all identity
+// fields and emits the BLOB_WRITTEN → BLOB_VERIFIED → MANIFEST_WRITTEN →
+// LEDGER_WRITTEN → PUBLISHED pipeline transitions.
+//
+// Phase A contract change: ledger append is REQUIRED before PUBLISHED. If
+// appendToLedger fails, the artifact is left in MANIFEST_WRITTEN with a
+// reason and the function returns an error — the resolver will not see it.
 func (srv *server) importUpstreamArtifact(
 	ctx context.Context,
 	n *normalizedEntry,
@@ -545,6 +718,8 @@ func (srv *server) importUpstreamArtifact(
 	digest string,
 	src *repopb.UpstreamSource,
 	releaseTag string,
+	stateFields ArtifactStateFields,
+	workflowRunID string,
 ) error {
 	ref := &repopb.ArtifactRef{
 		PublisherId: n.Publisher,
@@ -552,29 +727,61 @@ func (srv *server) importUpstreamArtifact(
 		Version:     n.Version,
 		Platform:    n.Platform,
 	}
+	key := artifactKeyWithBuild(ref, n.BuildNumber)
 
 	if existing, state, _, ok := srv.findExistingArtifactByDigest(ctx, ref, digest); ok {
-		// Verify blob exists — if missing, fall through to re-create it.
-		if srv.artifactBlobPresent(ctx, ref, existing.GetBuildNumber(), existing.GetSizeBytes()) {
+		// Verify the exact binary blob exists at the matching build_number AND
+		// matches the recorded size. Otherwise fall through to re-create it.
+		blobPresent, blobReason := srv.artifactBlobStatus(ctx, ref, existing.GetBuildNumber(), existing.GetSizeBytes())
+		if blobPresent {
+			// Already-published idempotent case. If the existing row's
+			// pipeline state isn't PUBLISHED yet, lift it now.
+			existingKey := artifactKeyWithBuild(ref, existing.GetBuildNumber())
+			if curr := srv.readArtifactState(ctx, existingKey); curr == PipelineUnspecified || curr == PipelinePublished {
+				idemFields := stateFields
+				idemFields.BuildNumber = existing.GetBuildNumber()
+				idemFields.SizeBytes = existing.GetSizeBytes()
+				_ = srv.transitionArtifactState(ctx, existingKey, PipelinePublished,
+					"import_idempotent_skip", workflowRunID, idemFields)
+			}
 			slog.Info("upstream: identical artifact already exists (blob verified), skipping import",
-				"name", n.Name, "version", n.Version,
-				"build", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),
+				"source", src.GetName(), "publisher", n.Publisher,
+				"name", n.Name, "version", n.Version, "platform", n.Platform,
+				"build_number", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),
+				"digest", truncDigest(digest),
+				"blob_key", blobKeyForRef(ref, existing.GetBuildNumber()),
 				"publish_state", state.String())
 			return nil
 		}
-		slog.Info("upstream: artifact metadata exists but blob missing — re-creating",
-			"name", n.Name, "version", n.Version,
-			"blob_key", blobKeyForRef(ref, existing.GetBuildNumber()))
+		slog.Info("repository sync: metadata exists but blob missing; re-importing",
+			"source", src.GetName(), "publisher", n.Publisher,
+			"name", n.Name, "version", n.Version, "platform", n.Platform,
+			"build_number", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),
+			"digest", truncDigest(digest),
+			"blob_key", blobKeyForRef(ref, existing.GetBuildNumber()),
+			"blob_status", blobReason,
+			"context", "importUpstreamArtifact")
 	}
-
-	key := artifactKeyWithBuild(ref, n.BuildNumber)
 
 	if err := srv.Storage().MkdirAll(ctx, artifactsDir, 0o755); err != nil {
 		return fmt.Errorf("create artifacts dir: %w", err)
 	}
 	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(key), data, 0o644); err != nil {
+		// Stay in DOWNLOADING with reason — caller surfaces SYNC_FAILED.
 		return fmt.Errorf("write binary: %w", err)
 	}
+	_ = srv.transitionArtifactState(ctx, key, PipelineBlobWritten,
+		"binary_persisted", workflowRunID, stateFields)
+
+	// Verify what we just wrote — defends against silent backend failures
+	// where WriteFile returns nil but the object isn't actually durable.
+	blobPresent, blobReason := srv.artifactBlobStatus(ctx, ref, n.BuildNumber, int64(len(data)))
+	if !blobPresent {
+		srv.markBrokenForReason(ctx, key, blobReason, workflowRunID, stateFields)
+		return fmt.Errorf("post-write blob verification failed: %s", blobReason)
+	}
+	_ = srv.transitionArtifactState(ctx, key, PipelineBlobVerified,
+		"blob_stat_size_match", workflowRunID, stateFields)
 
 	manifest := &repopb.ArtifactManifest{
 		Ref:                ref,
@@ -621,11 +828,59 @@ func (srv *server) importUpstreamArtifact(
 		return fmt.Errorf("write manifest: %w", err)
 	}
 	srv.syncManifestToScylla(ctx, key, manifest, targetState, mjson)
+	_ = srv.transitionArtifactState(ctx, key, PipelineManifestWritten,
+		"manifest_persisted", workflowRunID, stateFields)
 
+	// Phase A: ledger write is REQUIRED before PUBLISHED. If it fails, the
+	// artifact stays at MANIFEST_WRITTEN — resolver will not return it.
 	if ledgerErr := srv.appendToLedger(ctx, n.Publisher, n.Name, n.Version,
 		n.BuildID, digest, n.Platform, int64(len(data))); ledgerErr != nil {
-		slog.Warn("upstream: ledger append failed (non-fatal)", "name", n.Name, "err", ledgerErr)
+		slog.Error("upstream: ledger append failed — leaving artifact at MANIFEST_WRITTEN",
+			"name", n.Name, "err", ledgerErr)
+		return fmt.Errorf("append to ledger: %w", ledgerErr)
 	}
+	_ = srv.transitionArtifactState(ctx, key, PipelineLedgerWritten,
+		"ledger_persisted", workflowRunID, stateFields)
+
+	// Phase F signature policy: if the source provider reports a non-LOCAL
+	// origin AND policy requires a trusted signature for this publisher,
+	// AND no valid signature is registered yet, transition to QUARANTINED
+	// rather than PUBLISHED. Operators must register a trusted publisher
+	// key + sign before the artifact becomes installable.
+	providerType := ""
+	if provType := src.GetType(); provType != repopb.UpstreamSourceType_UPSTREAM_TYPE_UNSPECIFIED {
+		providerType = provType.String()
+	}
+	sigDec := srv.signaturePolicyDecision(ctx, ref, key, digest, providerType)
+	if sigDec.Required && !sigDec.Allowed {
+		quarantineReason := fmt.Sprintf("signature_policy:required+missing_or_invalid:%s", sigDec.Reason)
+		// Don't go through transitionArtifactState directly — the artifact
+		// is currently at LEDGER_WRITTEN; LEDGER_WRITTEN→QUARANTINED is not
+		// a legal edge. Lift to PUBLISHED first (ledger is real), then
+		// degrade to QUARANTINED via the dedicated helper that also stamps
+		// publish_state=QUARANTINED.
+		_ = srv.transitionArtifactState(ctx, key, PipelinePublished,
+			"publish_pipeline_complete:awaiting_signature_quarantine", workflowRunID, stateFields)
+		srv.markBrokenForReason(ctx, key, quarantineReason, workflowRunID, stateFields) // no-op if not size/checksum reason
+		// Force QUARANTINED via the dedicated path so publish_state also moves.
+		if err := srv.transitionArtifactState(ctx, key, PipelineQuarantined,
+			quarantineReason, workflowRunID, stateFields); err == nil {
+			if srv.scylla != nil {
+				_ = srv.scylla.UpdatePublishState(ctx, key, repopb.PublishState_QUARANTINED.String())
+			}
+		}
+		return nil
+	}
+
+	// Quarantine policy preserves PUBLISHED in the pipeline-state machine
+	// (the artifact is fully present); QUARANTINED is a public-lifecycle
+	// admin state captured by repopb.PublishState_QUARANTINED in the manifest.
+	publishReason := "publish_pipeline_complete"
+	if strings.EqualFold(src.GetTrustPolicy(), "quarantine") {
+		publishReason = "publish_pipeline_complete:source_trust_policy=quarantine"
+	}
+	_ = srv.transitionArtifactState(ctx, key, PipelinePublished,
+		publishReason, workflowRunID, stateFields)
 	return nil
 }
 

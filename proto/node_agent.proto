@@ -574,6 +574,38 @@ message ApplyPackageReleaseRequest {
   string repository_addr = 9;    // gRPC address of repository (auto-discovered if empty)
   int64 build_number = 10;       // build iteration within version
   string build_id = 11;          // Phase 2: exact artifact identity (takes precedence over version+build_number)
+
+  // ── Phase F rollback execution ──────────────────────────────────────────
+  // Set rollback_mode=true to apply a TARGET revision that may be older than
+  // the currently installed one. Bypasses the automatic-downgrade guard.
+  // Required from the package.rollback workflow's install_target_package step;
+  // the node-agent records action="rollback" in the resulting installed
+  // revision row.
+  bool   rollback_mode      = 12;
+  string rollback_reason    = 13;  // recorded in the revision row + audit
+  string workflow_run_id    = 14;  // links the install to the orchestrating run
+  string target_revision_id = 15;  // optional pointer to the InstalledPackageRevision being rolled back to
+
+  // preserve_configs: when true, OPERATOR_OVERRIDE / locally-modified DEFAULT
+  // configs are kept on disk; the package's new defaults are written to a
+  // ".pkg-new" sibling file and a PRESERVED receipt is emitted. Defaults to
+  // true when rollback_mode is set.
+  bool   preserve_configs        = 16;
+
+  // restore_config_snapshot: when true, restore configs marked
+  // restore_on_rollback=true from the snapshot identified by the prior
+  // installed revision. Off by default — the rollback workflow must opt in.
+  bool   restore_config_snapshot = 17;
+
+  // allow_downgrade: explicit operator opt-in for downgrade. Required when
+  // rollback_mode=false but the target version is older than current. The
+  // rollback workflow always sets this true alongside rollback_mode.
+  bool   allow_downgrade         = 18;
+
+  // previous_revision_id: caller-supplied hint for the InstalledPackageRevision
+  // row we are replacing. Recorded into the new revision's previous_revision_id
+  // so the history table forms a linked list.
+  string previous_revision_id    = 19;
 }
 
 message ApplyPackageReleaseResponse {

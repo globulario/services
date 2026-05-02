@@ -28,6 +28,12 @@ func (s *stubLedger) DeleteManifest(_ context.Context, _ string) error          
 func (s *stubLedger) FindByEntrypointChecksum(_ context.Context, _ string) ([]manifestRow, error) {
 	return nil, nil
 }
+func (s *stubLedger) UpdateArtifactState(_ context.Context, _ string, _ scyllaArtifactState) error {
+	return nil
+}
+func (s *stubLedger) GetArtifactState(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
 
 // minimalManifestJSON returns just enough proto-JSON for unmarshalManifestWithState
 // to produce a valid manifest with the given publishState string.

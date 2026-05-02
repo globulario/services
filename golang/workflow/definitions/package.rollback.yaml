@@ -1,0 +1,201 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: package.rollback
+  displayName: Roll a package back to a previous verified revision
+  description: >-
+    Returns a package / service / application from its currently installed
+    revision to a previous verified revision recorded in the repository's
+    installed_revisions table.
+
+    Rollback is NOT "install older package". Rollback must be safe, verified,
+    and recorded. The target artifact must be PUBLISHED, blob-verified,
+    signature-policy-passed, and not REVOKED / QUARANTINED. The workflow
+    snapshots current state, applies the target package via the node-agent,
+    verifies runtime health, and writes a new installed_revisions row with
+    action=rollback before reporting success.
+
+    Failure handling:
+      - If install fails BEFORE the running service is stopped, leave the
+        current version running and mark the run FAILED.
+      - If install fails AFTER service stop, attempt forward recovery to the
+        previous current revision; on second failure, mark ROLLBACK_FAILED
+        and emit a doctor finding (cluster_doctor.package_rollback_failed).
+
+    Prerequisites:
+      - target revision exists in repository installed_revisions
+      - target artifact is PUBLISHED + blob verified + signature policy ok
+      - controller is healthy + node-agent reachable on the target nodes
+      - operator is admin OR namespace owner
+
+spec:
+  inputSchema:
+    type: object
+    required:
+      - publisher_id
+      - name
+      - platform
+      - target_revision_id
+    properties:
+      publisher_id:        { type: string }
+      name:                { type: string }
+      platform:            { type: string, default: "linux_amd64" }
+      kind:                { type: string, enum: [SERVICE, APPLICATION, INFRASTRUCTURE, COMMAND, AGENT], default: "SERVICE" }
+      target_revision_id:  { type: string, description: "InstalledPackageRevision.revision_id of the target" }
+      target_version:      { type: string, description: "Optional — used to disambiguate when revision_id alone resolves multiple nodes" }
+      nodes:
+        type: array
+        items: { type: string }
+        description: "Empty = every node currently running this package"
+      preserve_configs:        { type: boolean, default: true }
+      restore_config_snapshot: { type: boolean, default: false }
+      allow_downgrade:         { type: boolean, default: false, description: "Required when target version < current version" }
+      reason:                  { type: string, description: "Audit reason" }
+      operator:                { type: string, description: "Subject performing rollback (filled in by gateway)" }
+  defaults:
+    preserve_configs: true
+    restore_config_snapshot: false
+    allow_downgrade: false
+  strategy:
+    mode: single
+
+  steps:
+    - id: resolve_current_revision
+      title: Identify currently installed revision per affected node
+      actor: repository
+      action: repository.rollback.resolve_current
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: resolve_target_revision
+      title: Resolve target revision_id → ArtifactRef
+      dependsOn: [resolve_current_revision]
+      actor: repository
+      action: repository.rollback.resolve_target
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: verify_target_artifact
+      title: Verify target artifact (blob, size, ledger, manifest)
+      dependsOn: [resolve_target_revision]
+      actor: repository
+      action: repository.artifact.verify
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: verify_target_signature
+      title: Verify target signature against trusted-publishers policy
+      dependsOn: [verify_target_artifact]
+      actor: repository
+      action: repository.signature.verify
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: snapshot_current_state
+      title: Snapshot current node state (service status + installed revision)
+      dependsOn: [verify_target_signature]
+      actor: cluster_controller
+      action: package.rollback.snapshot_state
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: snapshot_or_classify_configs
+      title: Classify or snapshot package config files
+      dependsOn: [snapshot_current_state]
+      actor: node_agent
+      action: package.config.classify
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: drain_service
+      title: Drain / stop service if needed
+      dependsOn: [snapshot_or_classify_configs]
+      actor: node_agent
+      action: service.drain
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: install_target_package
+      title: Install target package on each affected node
+      dependsOn: [drain_service]
+      actor: node_agent
+      action: package.apply
+      with:
+        rollback_mode: true
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+      onFailure:
+        action: package.rollback.forward_recover
+
+    - id: verify_installed_files
+      title: Verify installed files match target artifact's checksum
+      dependsOn: [install_target_package]
+      actor: node_agent
+      action: services.verify_integrity
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: restore_configs
+      title: Apply config policy (preserve / restore / merge)
+      dependsOn: [verify_installed_files]
+      actor: node_agent
+      action: package.config.apply_policy
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: start_service
+      title: Start service on each affected node
+      dependsOn: [restore_configs]
+      actor: node_agent
+      action: service.start
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: verify_runtime_health
+      title: Verify runtime health before declaring rollback successful
+      dependsOn: [start_service]
+      actor: node_agent
+      action: service.health_probe
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+      onFailure:
+        action: package.rollback.forward_recover
+
+    - id: record_installed_revision
+      title: Record the new installed revision (action=rollback)
+      dependsOn: [verify_runtime_health]
+      actor: repository
+      action: repository.revision.record
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+  failureMapping:
+    - condition: target_not_published
+      reason: "rollback target is not PUBLISHED"
+      remediation: "operator must publish target before rolling back"
+    - condition: target_revoked
+      reason: "rollback target is REVOKED — terminal"
+      remediation: "REVOKED targets cannot be rolled back to"
+    - condition: signature_invalid
+      reason: "rollback target signature does not validate"
+      remediation: "operator must un-revoke or re-sign the target"
+    - condition: post_install_health_failed
+      reason: "service unhealthy after rollback install"
+      remediation: "forward-recover to previous current revision"
+    - condition: forward_recover_failed
+      reason: "forward recovery also failed"
+      remediation: "mark ROLLBACK_FAILED; emit cluster_doctor.package_rollback_failed"
+      terminal: true

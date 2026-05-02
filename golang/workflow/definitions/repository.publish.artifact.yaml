@@ -1,0 +1,174 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: repository.publish.artifact
+  displayName: Publish a single artifact through the repository pipeline
+  description: >-
+    Drives one artifact through the full repository pipeline state machine:
+    DISCOVERED → DOWNLOADING → BLOB_WRITTEN → BLOB_VERIFIED →
+    MANIFEST_WRITTEN → LEDGER_WRITTEN → PUBLISHED.
+
+    The repository service is the actor for every step. Steps are emitted
+    one-per-state-transition by the service itself (see
+    artifact_state.transitionArtifactState); this YAML defines the canonical
+    schema and step keys so admin UI / AI executor can render the timeline.
+
+    Failure mapping (terminal at the indicated step):
+      - missing blob after expected write    → BROKEN_MISSING_BLOB
+      - checksum mismatch / size mismatch    → BROKEN_CHECKSUM_MISMATCH
+      - upstream policy violation             → QUARANTINED
+      - explicit operator revocation          → REVOKED
+
+    Step keys emitted at runtime are repository.artifact.<state>, e.g.
+    repository.artifact.discovered, repository.artifact.downloading, etc.
+    The transition's StepParams.DetailsJSON carries the artifact identity
+    (publisher, name, version, platform, build_id, build_number, digest,
+    blob_key, size) so per-artifact filters work.
+
+    Prerequisites:
+      - Repository service is healthy
+      - For sync-driven publish: source exists, is enabled, policy permits
+      - For repair-driven publish: manifest carries an UpstreamImport record
+
+spec:
+  inputSchema:
+    type: object
+    required:
+      - publisher_id
+      - name
+      - version
+      - platform
+      - build_id
+      - build_number
+      - blob_source
+      - checksum
+      - size_bytes
+      - kind
+    properties:
+      publisher_id: { type: string, description: "Owner namespace, e.g. core@globular.io" }
+      name:         { type: string, description: "Package name" }
+      version:      { type: string, description: "Semver version" }
+      platform:     { type: string, description: "linux_amd64, linux_arm64, ..." }
+      build_id:     { type: string, description: "CI build identifier" }
+      build_number: { type: integer, description: "CI build sequence" }
+      blob_source:  { type: string, description: "asset_url, asset_path, or upstream:<source>" }
+      checksum:     { type: string, description: "sha256:<hex>" }
+      size_bytes:   { type: integer, description: "expected blob size" }
+      kind:         { type: string, description: "SERVICE | APPLICATION | INFRASTRUCTURE | COMMAND | AGENT" }
+      workflow_run_id:
+        type: string
+        description: "Optional run ID — when provided, transitions emit step receipts on this run"
+  defaults: {}
+  strategy:
+    mode: single
+
+  # Steps are documentation-only — the repository service emits them at runtime
+  # via workflow.Recorder.RecordStep. The execution.idempotency hint applies to
+  # downstream replays; the state machine itself enforces idempotency via
+  # allowed-transitions including X→X self-edges.
+  steps:
+    - id: discover_artifact
+      title: Observe artifact in upstream release index
+      actor: repository
+      action: repository.artifact.discover
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+      out:
+        artifact_state: DISCOVERED
+
+    - id: download_blob
+      title: Begin download from upstream
+      dependsOn: [discover_artifact]
+      actor: repository
+      action: repository.artifact.download
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+      out:
+        artifact_state: DOWNLOADING
+
+    - id: write_blob
+      title: Persist binary to object storage
+      dependsOn: [download_blob]
+      actor: repository
+      action: repository.artifact.write_blob
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+      out:
+        artifact_state: BLOB_WRITTEN
+      onFailure:
+        artifact_state: BROKEN_MISSING_BLOB
+
+    - id: verify_blob
+      title: Stat + size verify the persisted blob
+      dependsOn: [write_blob]
+      actor: repository
+      action: repository.artifact.verify_blob
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+      out:
+        artifact_state: BLOB_VERIFIED
+      onFailure:
+        artifact_state: BROKEN_CHECKSUM_MISMATCH
+
+    - id: write_manifest
+      title: Persist artifact manifest
+      dependsOn: [verify_blob]
+      actor: repository
+      action: repository.artifact.write_manifest
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+      out:
+        artifact_state: MANIFEST_WRITTEN
+
+    - id: write_ledger
+      title: Append to release ledger
+      dependsOn: [write_manifest]
+      actor: repository
+      action: repository.artifact.write_ledger
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+      out:
+        artifact_state: LEDGER_WRITTEN
+
+    - id: publish
+      title: Mark artifact PUBLISHED (installable)
+      dependsOn: [write_ledger]
+      actor: repository
+      action: repository.artifact.publish
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+      out:
+        artifact_state: PUBLISHED
+
+  # Failure-state mapping — applied by the state machine, surfaced by the
+  # workflow recorder when a step fails. These are NOT separate workflow
+  # branches; they are pipeline-state transitions out of any preceding step.
+  failureMapping:
+    - condition: post_write_blob_missing
+      pipelineState: BROKEN_MISSING_BLOB
+      installable: false
+      autoRepairable: true
+    - condition: post_verify_size_mismatch
+      pipelineState: BROKEN_CHECKSUM_MISMATCH
+      installable: false
+      autoRepairable: true
+    - condition: post_verify_sha256_mismatch
+      pipelineState: BROKEN_CHECKSUM_MISMATCH
+      installable: false
+      autoRepairable: true
+    - condition: source_trust_policy_quarantine
+      pipelineState: QUARANTINED
+      installable: false
+      autoRepairable: false
+    - condition: operator_revocation
+      pipelineState: REVOKED
+      installable: false
+      autoRepairable: false
+      terminal: true

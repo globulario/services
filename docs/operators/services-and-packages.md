@@ -2,6 +2,14 @@
 
 Globular services are native Linux binaries distributed as versioned packages. This page explains how services are structured, how packages are built, how the repository manages artifact lifecycle, and how packages move through the four truth layers from source code to running service.
 
+> **Operator-grade lifecycle reference:** for the day-to-day commands —
+> `repository verify` / `repair` / `explain`, signing + trusted publishers,
+> `pkg rollback`, `pkg config conflicts`, doctor invariants — see
+> [`package-lifecycle.md`](package-lifecycle.md). This page covers the
+> *static* model (what a package is, how it gets built and published);
+> `package-lifecycle.md` covers the *dynamic* contract (what happens
+> between publish and PUBLISHED, what can break, how to fix each break).
+
 ## What is a Service
 
 A Globular service is a gRPC server that implements one or more RPC methods defined in a Protocol Buffer (`.proto`) file. Each service runs as a systemd unit on one or more cluster nodes. Services communicate with each other exclusively through gRPC, discover each other through etcd, and are managed by the Globular control plane.

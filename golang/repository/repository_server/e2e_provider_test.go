@@ -125,7 +125,7 @@ func TestE2E_LocalDir_AssetPathImport(t *testing.T) {
 		Name:    "e2e-local",
 		Enabled: true,
 	}
-	result := srv.processSyncEntry(ctx, entry, src, provider, opts, "v1.0.84", false)
+	result := srv.processSyncEntry(ctx, entry, src, provider, opts, "v1.0.84", false, "")
 
 	if result.Status != repopb.UpstreamSyncStatus_SYNC_IMPORTED {
 		t.Fatalf("expected SYNC_IMPORTED, got %s: %s", result.Status, result.Detail)
@@ -222,13 +222,13 @@ func TestE2E_LocalDir_AssetPathImport_IdempotentReimport(t *testing.T) {
 	src := &repopb.UpstreamSource{Name: "e2e-local", Enabled: true}
 
 	// First import.
-	r1 := srv.processSyncEntry(ctx, idx.Packages[0], src, provider, opts, "v1.0.84", false)
+	r1 := srv.processSyncEntry(ctx, idx.Packages[0], src, provider, opts, "v1.0.84", false, "")
 	if r1.Status != repopb.UpstreamSyncStatus_SYNC_IMPORTED {
 		t.Fatalf("first import: expected IMPORTED, got %s: %s", r1.Status, r1.Detail)
 	}
 
 	// Second import — should be SKIPPED.
-	r2 := srv.processSyncEntry(ctx, idx.Packages[0], src, provider, opts, "v1.0.84", false)
+	r2 := srv.processSyncEntry(ctx, idx.Packages[0], src, provider, opts, "v1.0.84", false, "")
 	if r2.Status != repopb.UpstreamSyncStatus_SYNC_SKIPPED {
 		t.Fatalf("second import: expected SKIPPED, got %s: %s", r2.Status, r2.Detail)
 	}

@@ -101,6 +101,18 @@ func (f *fakeLedger) FindByEntrypointChecksum(_ context.Context, checksum string
 	}
 	return out, nil
 }
+func (f *fakeLedger) UpdateArtifactState(_ context.Context, key string, s scyllaArtifactState) error {
+	if r, ok := f.rows[key]; ok && r != nil {
+		r.ArtifactState = s.State
+	}
+	return nil
+}
+func (f *fakeLedger) GetArtifactState(_ context.Context, key string) (string, error) {
+	if r, ok := f.rows[key]; ok && r != nil {
+		return r.ArtifactState, nil
+	}
+	return "", nil
+}
 
 // errLedger always returns the given error from GetManifest.
 // Used to simulate a Scylla outage.
@@ -115,6 +127,12 @@ func (e errLedger) UpdatePublishState(_ context.Context, _, _ string) error   { 
 func (e errLedger) DeleteManifest(_ context.Context, _ string) error          { return e.err }
 func (e errLedger) FindByEntrypointChecksum(_ context.Context, _ string) ([]manifestRow, error) {
 	return nil, e.err
+}
+func (e errLedger) UpdateArtifactState(_ context.Context, _ string, _ scyllaArtifactState) error {
+	return e.err
+}
+func (e errLedger) GetArtifactState(_ context.Context, _ string) (string, error) {
+	return "", e.err
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────

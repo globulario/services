@@ -43,6 +43,21 @@ const (
 	PackageRepository_ListUpstreams_FullMethodName               = "/repository.PackageRepository/ListUpstreams"
 	PackageRepository_RemoveUpstream_FullMethodName              = "/repository.PackageRepository/RemoveUpstream"
 	PackageRepository_SyncFromUpstream_FullMethodName            = "/repository.PackageRepository/SyncFromUpstream"
+	PackageRepository_VerifyArtifact_FullMethodName              = "/repository.PackageRepository/VerifyArtifact"
+	PackageRepository_RepairArtifact_FullMethodName              = "/repository.PackageRepository/RepairArtifact"
+	PackageRepository_ExplainArtifact_FullMethodName             = "/repository.PackageRepository/ExplainArtifact"
+	PackageRepository_TrustPublisher_FullMethodName              = "/repository.PackageRepository/TrustPublisher"
+	PackageRepository_RevokePublisherKey_FullMethodName          = "/repository.PackageRepository/RevokePublisherKey"
+	PackageRepository_ListTrustedPublishers_FullMethodName       = "/repository.PackageRepository/ListTrustedPublishers"
+	PackageRepository_RegisterArtifactSignature_FullMethodName   = "/repository.PackageRepository/RegisterArtifactSignature"
+	PackageRepository_VerifyArtifactSignature_FullMethodName     = "/repository.PackageRepository/VerifyArtifactSignature"
+	PackageRepository_ListArtifactSignatures_FullMethodName      = "/repository.PackageRepository/ListArtifactSignatures"
+	PackageRepository_RecordInstalledRevision_FullMethodName     = "/repository.PackageRepository/RecordInstalledRevision"
+	PackageRepository_ListInstalledRevisions_FullMethodName      = "/repository.PackageRepository/ListInstalledRevisions"
+	PackageRepository_ListRollbackCandidates_FullMethodName      = "/repository.PackageRepository/ListRollbackCandidates"
+	PackageRepository_RecordConfigReceipt_FullMethodName         = "/repository.PackageRepository/RecordConfigReceipt"
+	PackageRepository_ListConfigReceipts_FullMethodName          = "/repository.PackageRepository/ListConfigReceipts"
+	PackageRepository_ListRepositoryFindings_FullMethodName      = "/repository.PackageRepository/ListRepositoryFindings"
 )
 
 // PackageRepositoryClient is the client API for PackageRepository service.
@@ -128,6 +143,48 @@ type PackageRepositoryClient interface {
 	// release_tag is REQUIRED in phase 1 — empty tag returns InvalidArgument.
 	// dry_run=true previews without writing anything.
 	SyncFromUpstream(ctx context.Context, in *SyncFromUpstreamRequest, opts ...grpc.CallOption) (*SyncFromUpstreamResponse, error)
+	// ── Operator verify / repair / explain (Phase CLI-A) ────────────────────
+	//
+	// VerifyArtifact runs a read-only integrity probe against a single
+	// artifact. Never mutates state. Read by `globular repository verify`.
+	VerifyArtifact(ctx context.Context, in *VerifyArtifactRequest, opts ...grpc.CallOption) (*VerifyArtifactResponse, error)
+	// RepairArtifact attempts to repair a broken artifact by re-importing
+	// from the upstream source recorded in its manifest. Refuses REVOKED
+	// unconditionally; refuses QUARANTINED unless allow_quarantine_override.
+	// Used by `globular repository repair`.
+	RepairArtifact(ctx context.Context, in *RepairArtifactRequest, opts ...grpc.CallOption) (*RepairArtifactResponse, error)
+	// ExplainArtifact composes manifest, ledger, blob, signature, and pipeline
+	// state into a single operator-readable answer. Read-only. Used by
+	// `globular repository explain` — the AI/operator cockpit command.
+	ExplainArtifact(ctx context.Context, in *ExplainArtifactRequest, opts ...grpc.CallOption) (*ExplainArtifactResponse, error)
+	// TrustPublisher registers a trusted publisher key. Admin-only.
+	TrustPublisher(ctx context.Context, in *TrustPublisherRequest, opts ...grpc.CallOption) (*TrustPublisherResponse, error)
+	// RevokePublisherKey marks a trusted publisher key as REVOKED. Terminal.
+	RevokePublisherKey(ctx context.Context, in *RevokePublisherKeyRequest, opts ...grpc.CallOption) (*RevokePublisherKeyResponse, error)
+	// ListTrustedPublishers enumerates publisher keys and their trust state.
+	ListTrustedPublishers(ctx context.Context, in *ListTrustedPublishersRequest, opts ...grpc.CallOption) (*ListTrustedPublishersResponse, error)
+	// RegisterArtifactSignature stores a detached signature for an artifact.
+	// Used by signing tools after they sign an artifact's digest with a
+	// trusted private key. The repository never stores the private key.
+	RegisterArtifactSignature(ctx context.Context, in *RegisterArtifactSignatureRequest, opts ...grpc.CallOption) (*RegisterArtifactSignatureResponse, error)
+	// VerifyArtifactSignature returns the trust outcome for the most recent
+	// signature on an artifact. Read-only.
+	VerifyArtifactSignature(ctx context.Context, in *VerifyArtifactSignatureRequest, opts ...grpc.CallOption) (*VerifyArtifactSignatureResponse, error)
+	// ListArtifactSignatures returns every signature recorded for an artifact.
+	ListArtifactSignatures(ctx context.Context, in *ListArtifactSignaturesRequest, opts ...grpc.CallOption) (*ListArtifactSignaturesResponse, error)
+	// RecordInstalledRevision is called by the node-agent (or the controller
+	// on its behalf) after an install/upgrade/rollback succeeds. The repository
+	// owns the installed-revision history table; rollback selection reads it.
+	RecordInstalledRevision(ctx context.Context, in *RecordInstalledRevisionRequest, opts ...grpc.CallOption) (*RecordInstalledRevisionResponse, error)
+	// ListInstalledRevisions returns the install history for a package.
+	ListInstalledRevisions(ctx context.Context, in *ListInstalledRevisionsRequest, opts ...grpc.CallOption) (*ListInstalledRevisionsResponse, error)
+	// ListRollbackCandidates returns the previous installable revisions for a
+	// package, with eligibility flags (target must be PUBLISHED, signature must
+	// pass policy, target must not be REVOKED, etc.).
+	ListRollbackCandidates(ctx context.Context, in *ListRollbackCandidatesRequest, opts ...grpc.CallOption) (*ListRollbackCandidatesResponse, error)
+	RecordConfigReceipt(ctx context.Context, in *RecordConfigReceiptRequest, opts ...grpc.CallOption) (*RecordConfigReceiptResponse, error)
+	ListConfigReceipts(ctx context.Context, in *ListConfigReceiptsRequest, opts ...grpc.CallOption) (*ListConfigReceiptsResponse, error)
+	ListRepositoryFindings(ctx context.Context, in *ListRepositoryFindingsRequest, opts ...grpc.CallOption) (*ListRepositoryFindingsResponse, error)
 }
 
 type packageRepositoryClient struct {
@@ -405,6 +462,156 @@ func (c *packageRepositoryClient) SyncFromUpstream(ctx context.Context, in *Sync
 	return out, nil
 }
 
+func (c *packageRepositoryClient) VerifyArtifact(ctx context.Context, in *VerifyArtifactRequest, opts ...grpc.CallOption) (*VerifyArtifactResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyArtifactResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_VerifyArtifact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) RepairArtifact(ctx context.Context, in *RepairArtifactRequest, opts ...grpc.CallOption) (*RepairArtifactResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RepairArtifactResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_RepairArtifact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) ExplainArtifact(ctx context.Context, in *ExplainArtifactRequest, opts ...grpc.CallOption) (*ExplainArtifactResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExplainArtifactResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_ExplainArtifact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) TrustPublisher(ctx context.Context, in *TrustPublisherRequest, opts ...grpc.CallOption) (*TrustPublisherResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TrustPublisherResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_TrustPublisher_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) RevokePublisherKey(ctx context.Context, in *RevokePublisherKeyRequest, opts ...grpc.CallOption) (*RevokePublisherKeyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokePublisherKeyResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_RevokePublisherKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) ListTrustedPublishers(ctx context.Context, in *ListTrustedPublishersRequest, opts ...grpc.CallOption) (*ListTrustedPublishersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListTrustedPublishersResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_ListTrustedPublishers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) RegisterArtifactSignature(ctx context.Context, in *RegisterArtifactSignatureRequest, opts ...grpc.CallOption) (*RegisterArtifactSignatureResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RegisterArtifactSignatureResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_RegisterArtifactSignature_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) VerifyArtifactSignature(ctx context.Context, in *VerifyArtifactSignatureRequest, opts ...grpc.CallOption) (*VerifyArtifactSignatureResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyArtifactSignatureResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_VerifyArtifactSignature_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) ListArtifactSignatures(ctx context.Context, in *ListArtifactSignaturesRequest, opts ...grpc.CallOption) (*ListArtifactSignaturesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListArtifactSignaturesResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_ListArtifactSignatures_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) RecordInstalledRevision(ctx context.Context, in *RecordInstalledRevisionRequest, opts ...grpc.CallOption) (*RecordInstalledRevisionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordInstalledRevisionResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_RecordInstalledRevision_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) ListInstalledRevisions(ctx context.Context, in *ListInstalledRevisionsRequest, opts ...grpc.CallOption) (*ListInstalledRevisionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListInstalledRevisionsResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_ListInstalledRevisions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) ListRollbackCandidates(ctx context.Context, in *ListRollbackCandidatesRequest, opts ...grpc.CallOption) (*ListRollbackCandidatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRollbackCandidatesResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_ListRollbackCandidates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) RecordConfigReceipt(ctx context.Context, in *RecordConfigReceiptRequest, opts ...grpc.CallOption) (*RecordConfigReceiptResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordConfigReceiptResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_RecordConfigReceipt_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) ListConfigReceipts(ctx context.Context, in *ListConfigReceiptsRequest, opts ...grpc.CallOption) (*ListConfigReceiptsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListConfigReceiptsResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_ListConfigReceipts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) ListRepositoryFindings(ctx context.Context, in *ListRepositoryFindingsRequest, opts ...grpc.CallOption) (*ListRepositoryFindingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRepositoryFindingsResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_ListRepositoryFindings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PackageRepositoryServer is the server API for PackageRepository service.
 // All implementations should embed UnimplementedPackageRepositoryServer
 // for forward compatibility.
@@ -488,6 +695,48 @@ type PackageRepositoryServer interface {
 	// release_tag is REQUIRED in phase 1 — empty tag returns InvalidArgument.
 	// dry_run=true previews without writing anything.
 	SyncFromUpstream(context.Context, *SyncFromUpstreamRequest) (*SyncFromUpstreamResponse, error)
+	// ── Operator verify / repair / explain (Phase CLI-A) ────────────────────
+	//
+	// VerifyArtifact runs a read-only integrity probe against a single
+	// artifact. Never mutates state. Read by `globular repository verify`.
+	VerifyArtifact(context.Context, *VerifyArtifactRequest) (*VerifyArtifactResponse, error)
+	// RepairArtifact attempts to repair a broken artifact by re-importing
+	// from the upstream source recorded in its manifest. Refuses REVOKED
+	// unconditionally; refuses QUARANTINED unless allow_quarantine_override.
+	// Used by `globular repository repair`.
+	RepairArtifact(context.Context, *RepairArtifactRequest) (*RepairArtifactResponse, error)
+	// ExplainArtifact composes manifest, ledger, blob, signature, and pipeline
+	// state into a single operator-readable answer. Read-only. Used by
+	// `globular repository explain` — the AI/operator cockpit command.
+	ExplainArtifact(context.Context, *ExplainArtifactRequest) (*ExplainArtifactResponse, error)
+	// TrustPublisher registers a trusted publisher key. Admin-only.
+	TrustPublisher(context.Context, *TrustPublisherRequest) (*TrustPublisherResponse, error)
+	// RevokePublisherKey marks a trusted publisher key as REVOKED. Terminal.
+	RevokePublisherKey(context.Context, *RevokePublisherKeyRequest) (*RevokePublisherKeyResponse, error)
+	// ListTrustedPublishers enumerates publisher keys and their trust state.
+	ListTrustedPublishers(context.Context, *ListTrustedPublishersRequest) (*ListTrustedPublishersResponse, error)
+	// RegisterArtifactSignature stores a detached signature for an artifact.
+	// Used by signing tools after they sign an artifact's digest with a
+	// trusted private key. The repository never stores the private key.
+	RegisterArtifactSignature(context.Context, *RegisterArtifactSignatureRequest) (*RegisterArtifactSignatureResponse, error)
+	// VerifyArtifactSignature returns the trust outcome for the most recent
+	// signature on an artifact. Read-only.
+	VerifyArtifactSignature(context.Context, *VerifyArtifactSignatureRequest) (*VerifyArtifactSignatureResponse, error)
+	// ListArtifactSignatures returns every signature recorded for an artifact.
+	ListArtifactSignatures(context.Context, *ListArtifactSignaturesRequest) (*ListArtifactSignaturesResponse, error)
+	// RecordInstalledRevision is called by the node-agent (or the controller
+	// on its behalf) after an install/upgrade/rollback succeeds. The repository
+	// owns the installed-revision history table; rollback selection reads it.
+	RecordInstalledRevision(context.Context, *RecordInstalledRevisionRequest) (*RecordInstalledRevisionResponse, error)
+	// ListInstalledRevisions returns the install history for a package.
+	ListInstalledRevisions(context.Context, *ListInstalledRevisionsRequest) (*ListInstalledRevisionsResponse, error)
+	// ListRollbackCandidates returns the previous installable revisions for a
+	// package, with eligibility flags (target must be PUBLISHED, signature must
+	// pass policy, target must not be REVOKED, etc.).
+	ListRollbackCandidates(context.Context, *ListRollbackCandidatesRequest) (*ListRollbackCandidatesResponse, error)
+	RecordConfigReceipt(context.Context, *RecordConfigReceiptRequest) (*RecordConfigReceiptResponse, error)
+	ListConfigReceipts(context.Context, *ListConfigReceiptsRequest) (*ListConfigReceiptsResponse, error)
+	ListRepositoryFindings(context.Context, *ListRepositoryFindingsRequest) (*ListRepositoryFindingsResponse, error)
 }
 
 // UnimplementedPackageRepositoryServer should be embedded to have
@@ -568,6 +817,51 @@ func (UnimplementedPackageRepositoryServer) RemoveUpstream(context.Context, *Rem
 }
 func (UnimplementedPackageRepositoryServer) SyncFromUpstream(context.Context, *SyncFromUpstreamRequest) (*SyncFromUpstreamResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SyncFromUpstream not implemented")
+}
+func (UnimplementedPackageRepositoryServer) VerifyArtifact(context.Context, *VerifyArtifactRequest) (*VerifyArtifactResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VerifyArtifact not implemented")
+}
+func (UnimplementedPackageRepositoryServer) RepairArtifact(context.Context, *RepairArtifactRequest) (*RepairArtifactResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RepairArtifact not implemented")
+}
+func (UnimplementedPackageRepositoryServer) ExplainArtifact(context.Context, *ExplainArtifactRequest) (*ExplainArtifactResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExplainArtifact not implemented")
+}
+func (UnimplementedPackageRepositoryServer) TrustPublisher(context.Context, *TrustPublisherRequest) (*TrustPublisherResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TrustPublisher not implemented")
+}
+func (UnimplementedPackageRepositoryServer) RevokePublisherKey(context.Context, *RevokePublisherKeyRequest) (*RevokePublisherKeyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokePublisherKey not implemented")
+}
+func (UnimplementedPackageRepositoryServer) ListTrustedPublishers(context.Context, *ListTrustedPublishersRequest) (*ListTrustedPublishersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListTrustedPublishers not implemented")
+}
+func (UnimplementedPackageRepositoryServer) RegisterArtifactSignature(context.Context, *RegisterArtifactSignatureRequest) (*RegisterArtifactSignatureResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RegisterArtifactSignature not implemented")
+}
+func (UnimplementedPackageRepositoryServer) VerifyArtifactSignature(context.Context, *VerifyArtifactSignatureRequest) (*VerifyArtifactSignatureResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VerifyArtifactSignature not implemented")
+}
+func (UnimplementedPackageRepositoryServer) ListArtifactSignatures(context.Context, *ListArtifactSignaturesRequest) (*ListArtifactSignaturesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListArtifactSignatures not implemented")
+}
+func (UnimplementedPackageRepositoryServer) RecordInstalledRevision(context.Context, *RecordInstalledRevisionRequest) (*RecordInstalledRevisionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordInstalledRevision not implemented")
+}
+func (UnimplementedPackageRepositoryServer) ListInstalledRevisions(context.Context, *ListInstalledRevisionsRequest) (*ListInstalledRevisionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListInstalledRevisions not implemented")
+}
+func (UnimplementedPackageRepositoryServer) ListRollbackCandidates(context.Context, *ListRollbackCandidatesRequest) (*ListRollbackCandidatesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRollbackCandidates not implemented")
+}
+func (UnimplementedPackageRepositoryServer) RecordConfigReceipt(context.Context, *RecordConfigReceiptRequest) (*RecordConfigReceiptResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordConfigReceipt not implemented")
+}
+func (UnimplementedPackageRepositoryServer) ListConfigReceipts(context.Context, *ListConfigReceiptsRequest) (*ListConfigReceiptsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListConfigReceipts not implemented")
+}
+func (UnimplementedPackageRepositoryServer) ListRepositoryFindings(context.Context, *ListRepositoryFindingsRequest) (*ListRepositoryFindingsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRepositoryFindings not implemented")
 }
 func (UnimplementedPackageRepositoryServer) testEmbeddedByValue() {}
 
@@ -974,6 +1268,276 @@ func _PackageRepository_SyncFromUpstream_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PackageRepository_VerifyArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyArtifactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).VerifyArtifact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_VerifyArtifact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).VerifyArtifact(ctx, req.(*VerifyArtifactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_RepairArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RepairArtifactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).RepairArtifact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_RepairArtifact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).RepairArtifact(ctx, req.(*RepairArtifactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_ExplainArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExplainArtifactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).ExplainArtifact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_ExplainArtifact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).ExplainArtifact(ctx, req.(*ExplainArtifactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_TrustPublisher_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TrustPublisherRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).TrustPublisher(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_TrustPublisher_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).TrustPublisher(ctx, req.(*TrustPublisherRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_RevokePublisherKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokePublisherKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).RevokePublisherKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_RevokePublisherKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).RevokePublisherKey(ctx, req.(*RevokePublisherKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_ListTrustedPublishers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTrustedPublishersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).ListTrustedPublishers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_ListTrustedPublishers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).ListTrustedPublishers(ctx, req.(*ListTrustedPublishersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_RegisterArtifactSignature_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterArtifactSignatureRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).RegisterArtifactSignature(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_RegisterArtifactSignature_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).RegisterArtifactSignature(ctx, req.(*RegisterArtifactSignatureRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_VerifyArtifactSignature_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyArtifactSignatureRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).VerifyArtifactSignature(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_VerifyArtifactSignature_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).VerifyArtifactSignature(ctx, req.(*VerifyArtifactSignatureRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_ListArtifactSignatures_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListArtifactSignaturesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).ListArtifactSignatures(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_ListArtifactSignatures_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).ListArtifactSignatures(ctx, req.(*ListArtifactSignaturesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_RecordInstalledRevision_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordInstalledRevisionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).RecordInstalledRevision(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_RecordInstalledRevision_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).RecordInstalledRevision(ctx, req.(*RecordInstalledRevisionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_ListInstalledRevisions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListInstalledRevisionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).ListInstalledRevisions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_ListInstalledRevisions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).ListInstalledRevisions(ctx, req.(*ListInstalledRevisionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_ListRollbackCandidates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRollbackCandidatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).ListRollbackCandidates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_ListRollbackCandidates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).ListRollbackCandidates(ctx, req.(*ListRollbackCandidatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_RecordConfigReceipt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordConfigReceiptRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).RecordConfigReceipt(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_RecordConfigReceipt_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).RecordConfigReceipt(ctx, req.(*RecordConfigReceiptRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_ListConfigReceipts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListConfigReceiptsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).ListConfigReceipts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_ListConfigReceipts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).ListConfigReceipts(ctx, req.(*ListConfigReceiptsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_ListRepositoryFindings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRepositoryFindingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).ListRepositoryFindings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_ListRepositoryFindings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).ListRepositoryFindings(ctx, req.(*ListRepositoryFindingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PackageRepository_ServiceDesc is the grpc.ServiceDesc for PackageRepository service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1056,6 +1620,66 @@ var PackageRepository_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SyncFromUpstream",
 			Handler:    _PackageRepository_SyncFromUpstream_Handler,
+		},
+		{
+			MethodName: "VerifyArtifact",
+			Handler:    _PackageRepository_VerifyArtifact_Handler,
+		},
+		{
+			MethodName: "RepairArtifact",
+			Handler:    _PackageRepository_RepairArtifact_Handler,
+		},
+		{
+			MethodName: "ExplainArtifact",
+			Handler:    _PackageRepository_ExplainArtifact_Handler,
+		},
+		{
+			MethodName: "TrustPublisher",
+			Handler:    _PackageRepository_TrustPublisher_Handler,
+		},
+		{
+			MethodName: "RevokePublisherKey",
+			Handler:    _PackageRepository_RevokePublisherKey_Handler,
+		},
+		{
+			MethodName: "ListTrustedPublishers",
+			Handler:    _PackageRepository_ListTrustedPublishers_Handler,
+		},
+		{
+			MethodName: "RegisterArtifactSignature",
+			Handler:    _PackageRepository_RegisterArtifactSignature_Handler,
+		},
+		{
+			MethodName: "VerifyArtifactSignature",
+			Handler:    _PackageRepository_VerifyArtifactSignature_Handler,
+		},
+		{
+			MethodName: "ListArtifactSignatures",
+			Handler:    _PackageRepository_ListArtifactSignatures_Handler,
+		},
+		{
+			MethodName: "RecordInstalledRevision",
+			Handler:    _PackageRepository_RecordInstalledRevision_Handler,
+		},
+		{
+			MethodName: "ListInstalledRevisions",
+			Handler:    _PackageRepository_ListInstalledRevisions_Handler,
+		},
+		{
+			MethodName: "ListRollbackCandidates",
+			Handler:    _PackageRepository_ListRollbackCandidates_Handler,
+		},
+		{
+			MethodName: "RecordConfigReceipt",
+			Handler:    _PackageRepository_RecordConfigReceipt_Handler,
+		},
+		{
+			MethodName: "ListConfigReceipts",
+			Handler:    _PackageRepository_ListConfigReceipts_Handler,
+		},
+		{
+			MethodName: "ListRepositoryFindings",
+			Handler:    _PackageRepository_ListRepositoryFindings_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

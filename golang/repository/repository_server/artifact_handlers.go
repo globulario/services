@@ -505,7 +505,7 @@ func (srv *server) resolveLatestBuildNumber(ctx context.Context, ref *repopb.Art
 				if !strings.HasPrefix(row.ArtifactKey, prefix) {
 					continue
 				}
-				if row.PublishState != repopb.PublishState_PUBLISHED.String() {
+				if !isRowInstallable(&row) {
 					continue
 				}
 				if row.BuildNumber > best {
@@ -534,8 +534,12 @@ func (srv *server) resolveLatestBuildNumber(ctx context.Context, ref *repopb.Art
 			continue
 		}
 		key := strings.TrimSuffix(name, suffix)
-		if _, state, _, readErr := srv.readManifestAndStateByKey(ctx, key); readErr == nil {
+		if _, state, m, readErr := srv.readManifestAndStateByKey(ctx, key); readErr == nil {
 			if state != repopb.PublishState_PUBLISHED {
+				continue
+			}
+			// Pipeline gate: don't pick build_number from broken rows.
+			if !srv.isInstallableForRef(ctx, m.GetRef(), m.GetBuildNumber(), state) {
 				continue
 			}
 		}
@@ -606,7 +610,7 @@ func (srv *server) findExistingArtifactByDigest(ctx context.Context, ref *repopb
 		}
 		key := strings.TrimSuffix(name, suffix)
 		_, state, m, err := srv.readManifestAndStateByKey(ctx, key)
-		if err != nil || m == nil || m.GetChecksum() != checksum {
+		if err != nil || m == nil || !digestEqual(m.GetChecksum(), checksum) {
 			continue
 		}
 		if best == nil || m.GetBuildNumber() > best.GetBuildNumber() {
@@ -649,6 +653,9 @@ func (srv *server) cachedDirNames(ctx context.Context) []string {
 // rules still run; cross-artifact rules become best-effort).
 //
 // Scylla-first: when Scylla is available it uses the ledger directly.
+// Filters out non-installable artifacts (broken / quarantined / revoked /
+// mid-pipeline / signature policy violation). The "published catalog" is
+// the install-eligible set.
 func (srv *server) loadPublishedCatalog(ctx context.Context) []*repopb.ArtifactManifest {
 	if srv.scylla != nil {
 		rows, err := srv.scylla.ListManifests(ctx)
@@ -658,8 +665,11 @@ func (srv *server) loadPublishedCatalog(ctx context.Context) []*repopb.ArtifactM
 		}
 		var out []*repopb.ArtifactManifest
 		for _, row := range rows {
-			m, state, parseErr := manifestFromRow(row)
-			if parseErr != nil || state != repopb.PublishState_PUBLISHED {
+			if !srv.isRowInstallableWithSignaturePolicy(ctx, &row) {
+				continue
+			}
+			m, _, parseErr := manifestFromRow(row)
+			if parseErr != nil {
 				continue
 			}
 			out = append(out, m)
@@ -681,6 +691,10 @@ func (srv *server) loadPublishedCatalog(ctx context.Context) []*repopb.ArtifactM
 		key := strings.TrimSuffix(fname, ".manifest.json")
 		_, state, m, readErr := srv.readManifestAndStateByKey(ctx, key)
 		if readErr != nil || state != repopb.PublishState_PUBLISHED {
+			continue
+		}
+		// Pipeline gate: same install rule as the Scylla path above.
+		if !srv.isInstallableForRef(ctx, m.GetRef(), m.GetBuildNumber(), state) {
 			continue
 		}
 		out = append(out, m)
@@ -1748,6 +1762,47 @@ func (srv *server) SetArtifactState(ctx context.Context, req *repopb.SetArtifact
 		"authority":      authorityMode,
 	})
 
+	// Dual-stamp the ArtifactPipelineState so the resolver / DownloadArtifact
+	// gate / catalog filter all agree with the public lifecycle change. The
+	// pipeline state is independent of publish_state but admin transitions
+	// (QUARANTINE / REVOKE / un-quarantine) MUST stay coherent.
+	pipelineFields := ArtifactStateFields{
+		BlobKey:     binaryStorageKey(key),
+		Checksum:    m.GetChecksum(),
+		SizeBytes:   m.GetSizeBytes(),
+		BuildID:     m.GetBuildId(),
+		BuildNumber: m.GetBuildNumber(),
+		PublisherID: ref.GetPublisherId(),
+		Name:        ref.GetName(),
+		Version:     ref.GetVersion(),
+		Platform:    ref.GetPlatform(),
+	}
+	subject := ""
+	if authCtx != nil {
+		subject = authCtx.Subject
+	}
+	pipelineReason := fmt.Sprintf("set_artifact_state:%s:operator=%s:reason=%s",
+		targetState.String(), subject, req.GetReason())
+	switch targetState {
+	case repopb.PublishState_QUARANTINED:
+		if err := srv.transitionArtifactState(ctx, key, PipelineQuarantined, pipelineReason, "", pipelineFields); err != nil {
+			slog.Warn("set-artifact-state: pipeline_state→QUARANTINED failed", "key", key, "err", err)
+		}
+	case repopb.PublishState_REVOKED:
+		if err := srv.transitionArtifactState(ctx, key, PipelineRevoked, pipelineReason, "", pipelineFields); err != nil {
+			slog.Warn("set-artifact-state: pipeline_state→REVOKED failed", "key", key, "err", err)
+		}
+	case repopb.PublishState_PUBLISHED:
+		// Un-quarantine: lift pipeline_state back to PUBLISHED only when the
+		// transition is allowed (QUARANTINED → PUBLISHED is the legal repair
+		// edge). Other PUBLISHED targets are no-ops at the pipeline level.
+		if currentState == repopb.PublishState_QUARANTINED {
+			if err := srv.transitionArtifactState(ctx, key, PipelinePublished, pipelineReason, "", pipelineFields); err != nil {
+				slog.Warn("set-artifact-state: pipeline_state→PUBLISHED (un-quarantine) failed", "key", key, "err", err)
+			}
+		}
+	}
+
 	return &repopb.SetArtifactStateResponse{
 		PreviousState: currentState,
 		CurrentState:  targetState,
@@ -1789,6 +1844,41 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 					"artifact %q is %s — download blocked", ref.GetName(), state)
 			}
 		}
+	}
+
+	// Phase A pipeline-state gate. Independent of the public PublishState
+	// check above. Refuses to serve known-broken artifacts even if the
+	// public lifecycle gate happens to still say PUBLISHED (e.g. a row
+	// where the blob was deleted from storage but publish_state hadn't yet
+	// been downgraded). Legacy rows (state empty) fall back to current
+	// behavior — sync/backfill will lift them out of legacy state.
+	switch pipelineState := srv.readArtifactState(stream.Context(), key); pipelineState {
+	case PipelineUnspecified:
+		// Legacy artifact — log and fall through. The blob/manifest checks
+		// below remain authoritative for legacy rows.
+		slog.Info("download: legacy artifact_state missing — falling back to legacy behavior",
+			"artifact_key", key, "publisher", ref.GetPublisherId(),
+			"name", ref.GetName(), "version", ref.GetVersion())
+	case PipelinePublished:
+		// Allowed. Cheap blob Stat below catches any drift since the row
+		// was published.
+	default:
+		// Any other pipeline state is a hard refuse — broken / quarantined
+		// / revoked / mid-pipeline. Resolver and downloader must agree.
+		return status.Errorf(codes.FailedPrecondition,
+			"artifact %q is in pipeline state %s — not installable", ref.GetName(), pipelineState)
+	}
+
+	// Phase F signature policy gate. Refuses to serve when policy requires
+	// a trusted signature and one is missing / invalid / from a revoked key.
+	expectedDigest := ""
+	if _, _, m, _ := srv.readManifestAndStateByKey(stream.Context(), key); m != nil {
+		expectedDigest = m.GetChecksum()
+	}
+	sigDec := srv.signaturePolicyDecision(stream.Context(), ref, key, expectedDigest, "")
+	if !sigDec.Allowed {
+		return status.Errorf(codes.FailedPrecondition,
+			"artifact %q signature policy: %s — download blocked", ref.GetName(), sigDec.Reason)
 	}
 
 	// Try new 5-field key, then legacy 4-field key.
@@ -2307,7 +2397,7 @@ func (srv *server) ResolveByEntrypointChecksum(ctx context.Context, req *repopb.
 func (srv *server) pickBestCandidate(ctx context.Context, rows []manifestRow, platform, prefixed, checksum string) *repopb.ArtifactManifest {
 	var best *repopb.ArtifactManifest
 	for _, row := range rows {
-		if row.PublishState != repopb.PublishState_PUBLISHED.String() {
+		if !srv.isRowInstallableWithSignaturePolicy(ctx, &row) {
 			continue
 		}
 		if !strings.EqualFold(row.Platform, platform) {

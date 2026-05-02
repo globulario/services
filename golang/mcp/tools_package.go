@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
 func registerPackageTools(s *server) {
@@ -126,6 +127,139 @@ If you get AlreadyExists error, rebuild with a higher build_number using package
 
 		return runGlobularCommand(ctx, cmdArgs)
 	})
+
+	// ── Phase F lifecycle tools ────────────────────────────────────────────
+	registerPackageLifecycleTools(s)
+}
+
+// registerPackageLifecycleTools — Phase F additions for the AI/MCP surface:
+//   package_config_conflicts, package_config_list.
+// Both call into the repository service (single source of truth) — no CLI
+// subprocess.
+func registerPackageLifecycleTools(s *server) {
+	s.register(toolDef{
+		Name: "package_config_conflicts",
+		Description: "List unresolved config-file CONFLICT receipts (FAIL_ON_LOCAL_MODIFICATION " +
+			"hits, three-way merge gaps, and similar). Each receipt names the node, the path " +
+			"(redacted for SECRET configs), and the merge strategy that fired. Surface these " +
+			"BEFORE recommending an upgrade or rollback — they will block the apply.",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"publisher_id": {Type: "string"},
+				"name":         {Type: "string"},
+				"platform":     {Type: "string", Description: "Default linux_amd64."},
+				"node_id":      {Type: "string", Description: "Optional: limit to one node."},
+				"limit":        {Type: "integer", Description: "Max receipts (default 100)."},
+			},
+			Required: []string{"publisher_id", "name"},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		conn, err := s.clients.get(ctx, repositoryEndpoint())
+		if err != nil {
+			return nil, err
+		}
+		client := repositorypb.NewPackageRepositoryClient(conn)
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 15*time.Second)
+		defer cancel()
+		platform := getStr(args, "platform")
+		if platform == "" {
+			platform = "linux_amd64"
+		}
+		resp, err := client.ListConfigReceipts(callCtx, &repositorypb.ListConfigReceiptsRequest{
+			PublisherId:  getStr(args, "publisher_id"),
+			Name:         getStr(args, "name"),
+			Platform:     platform,
+			NodeId:       getStr(args, "node_id"),
+			ActionFilter: repositorypb.ConfigReceiptAction_CONFIG_RECEIPT_CONFLICT,
+			Limit:        int32(getInt(args, "limit", 100)),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("ListConfigReceipts: %w", err)
+		}
+		rows := make([]map[string]interface{}, 0, len(resp.GetReceipts()))
+		for _, r := range resp.GetReceipts() {
+			rows = append(rows, configReceiptToMap(r))
+		}
+		return map[string]interface{}{
+			"count":    len(rows),
+			"receipts": rows,
+		}, nil
+	})
+
+	s.register(toolDef{
+		Name: "package_config_list",
+		Description: "List ALL config receipts for a package (every action, not just CONFLICT). " +
+			"Useful for audit trails: 'what did the last install / upgrade / rollback do to " +
+			"each config file?'.",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"publisher_id": {Type: "string"},
+				"name":         {Type: "string"},
+				"platform":     {Type: "string"},
+				"node_id":      {Type: "string"},
+				"limit":        {Type: "integer", Description: "Max receipts (default 100)."},
+			},
+			Required: []string{"publisher_id", "name"},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		conn, err := s.clients.get(ctx, repositoryEndpoint())
+		if err != nil {
+			return nil, err
+		}
+		client := repositorypb.NewPackageRepositoryClient(conn)
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 15*time.Second)
+		defer cancel()
+		platform := getStr(args, "platform")
+		if platform == "" {
+			platform = "linux_amd64"
+		}
+		resp, err := client.ListConfigReceipts(callCtx, &repositorypb.ListConfigReceiptsRequest{
+			PublisherId: getStr(args, "publisher_id"),
+			Name:        getStr(args, "name"),
+			Platform:    platform,
+			NodeId:      getStr(args, "node_id"),
+			Limit:       int32(getInt(args, "limit", 100)),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("ListConfigReceipts: %w", err)
+		}
+		rows := make([]map[string]interface{}, 0, len(resp.GetReceipts()))
+		for _, r := range resp.GetReceipts() {
+			rows = append(rows, configReceiptToMap(r))
+		}
+		return map[string]interface{}{
+			"count":    len(rows),
+			"receipts": rows,
+		}, nil
+	})
+}
+
+// configReceiptToMap normalizes a PackageConfigReceipt for MCP / JSON output.
+// Path is already redacted by the repository for SECRET / sensitive entries.
+func configReceiptToMap(r *repositorypb.PackageConfigReceipt) map[string]interface{} {
+	if r == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"node_id":         r.GetNodeId(),
+		"publisher_id":    r.GetPublisherId(),
+		"name":            r.GetName(),
+		"platform":        r.GetPlatform(),
+		"build_number":    r.GetBuildNumber(),
+		"path":            r.GetPath(),
+		"config_kind":     strings.TrimPrefix(r.GetConfigKind().String(), "CONFIG_"),
+		"merge_strategy":  strings.TrimPrefix(r.GetMergeStrategy().String(), "MERGE_"),
+		"checksum_before": r.GetChecksumBefore(),
+		"checksum_after":  r.GetChecksumAfter(),
+		"action":          strings.TrimPrefix(r.GetAction().String(), "CONFIG_RECEIPT_"),
+		"snapshot_id":     r.GetSnapshotId(),
+		"workflow_run_id": r.GetWorkflowRunId(),
+		"timestamp_unix":  r.GetTimestampUnix(),
+		"reason":          r.GetReason(),
+		"sensitive":       r.GetSensitive(),
+	}
 }
 
 // runGlobularCommand executes 'globular <args>' and returns structured output.

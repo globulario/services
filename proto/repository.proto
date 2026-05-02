@@ -167,6 +167,18 @@ message ArtifactManifest {
   // purposes. DEV and CANDIDATE are never returned to the cluster reconciler
   // unless the caller explicitly requests them. See ArtifactChannel enum.
   ArtifactChannel channel = 45;
+
+  // Phase CLI-D — package config ownership declarations. Each entry tells
+  // the node-agent how to treat one config file path during install /
+  // upgrade / rollback (preserve, replace, three-way merge, etc.). When
+  // empty (legacy artifacts), all paths default to MERGE_REPLACE.
+  repeated PackageConfigFile configs = 70;
+
+  // Phase CLI-B — signature / provenance reference. Detached signatures live
+  // in the trusted_signatures Scylla table (one row per (artifact_key, key_id)).
+  // This field carries the key_id of the most recent signature so clients
+  // can fetch the full record via ListArtifactSignatures.
+  string signature_key_id = 71;
 }
 
 // ServiceDetail contains fields specific to SERVICE packages.
@@ -733,6 +745,272 @@ service PackageRepository {
       default_role_hint: "admin"
     };
   };
+
+  // ── Operator verify / repair / explain (Phase CLI-A) ────────────────────
+  //
+  // VerifyArtifact runs a read-only integrity probe against a single
+  // artifact. Never mutates state. Read by `globular repository verify`.
+  rpc VerifyArtifact(VerifyArtifactRequest) returns(VerifyArtifactResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.verify"
+      permission: "read"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // RepairArtifact attempts to repair a broken artifact by re-importing
+  // from the upstream source recorded in its manifest. Refuses REVOKED
+  // unconditionally; refuses QUARANTINED unless allow_quarantine_override.
+  // Used by `globular repository repair`.
+  rpc RepairArtifact(RepairArtifactRequest) returns(RepairArtifactResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.repair"
+      permission: "admin"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "admin"
+    };
+  };
+
+  // ExplainArtifact composes manifest, ledger, blob, signature, and pipeline
+  // state into a single operator-readable answer. Read-only. Used by
+  // `globular repository explain` — the AI/operator cockpit command.
+  rpc ExplainArtifact(ExplainArtifactRequest) returns(ExplainArtifactResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.explain"
+      permission: "read"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // ── Phase CLI-B: signing + trusted publishers ───────────────────────────
+
+  // TrustPublisher registers a trusted publisher key. Admin-only.
+  rpc TrustPublisher(TrustPublisherRequest) returns(TrustPublisherResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.trust.publisher"
+      permission: "admin"
+      collection_template: "/repository/trust"
+      default_role_hint: "admin"
+    };
+  };
+
+  // RevokePublisherKey marks a trusted publisher key as REVOKED. Terminal.
+  rpc RevokePublisherKey(RevokePublisherKeyRequest) returns(RevokePublisherKeyResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.trust.revoke"
+      permission: "admin"
+      collection_template: "/repository/trust"
+      default_role_hint: "admin"
+    };
+  };
+
+  // ListTrustedPublishers enumerates publisher keys and their trust state.
+  rpc ListTrustedPublishers(ListTrustedPublishersRequest) returns(ListTrustedPublishersResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.trust.list"
+      permission: "read"
+      collection_template: "/repository/trust"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // RegisterArtifactSignature stores a detached signature for an artifact.
+  // Used by signing tools after they sign an artifact's digest with a
+  // trusted private key. The repository never stores the private key.
+  rpc RegisterArtifactSignature(RegisterArtifactSignatureRequest) returns(RegisterArtifactSignatureResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.signature.register"
+      permission: "write"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "editor"
+    };
+  };
+
+  // VerifyArtifactSignature returns the trust outcome for the most recent
+  // signature on an artifact. Read-only.
+  rpc VerifyArtifactSignature(VerifyArtifactSignatureRequest) returns(VerifyArtifactSignatureResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.signature.verify"
+      permission: "read"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // ListArtifactSignatures returns every signature recorded for an artifact.
+  rpc ListArtifactSignatures(ListArtifactSignaturesRequest) returns(ListArtifactSignaturesResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.signature.list"
+      permission: "read"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // ── Phase CLI-C: rollback ───────────────────────────────────────────────
+
+  // RecordInstalledRevision is called by the node-agent (or the controller
+  // on its behalf) after an install/upgrade/rollback succeeds. The repository
+  // owns the installed-revision history table; rollback selection reads it.
+  rpc RecordInstalledRevision(RecordInstalledRevisionRequest) returns(RecordInstalledRevisionResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.revision.record"
+      permission: "write"
+      collection_template: "/repository/revisions"
+      default_role_hint: "editor"
+    };
+  };
+
+  // ListInstalledRevisions returns the install history for a package.
+  rpc ListInstalledRevisions(ListInstalledRevisionsRequest) returns(ListInstalledRevisionsResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.revision.list"
+      permission: "read"
+      collection_template: "/repository/revisions"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // ListRollbackCandidates returns the previous installable revisions for a
+  // package, with eligibility flags (target must be PUBLISHED, signature must
+  // pass policy, target must not be REVOKED, etc.).
+  rpc ListRollbackCandidates(ListRollbackCandidatesRequest) returns(ListRollbackCandidatesResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.rollback.candidates"
+      permission: "read"
+      collection_template: "/repository/revisions"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // ── Phase F: config receipts + repository findings ─────────────────────
+
+  rpc RecordConfigReceipt(RecordConfigReceiptRequest) returns(RecordConfigReceiptResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.config.receipt.record"
+      permission: "write"
+      collection_template: "/repository/config_receipts"
+      default_role_hint: "editor"
+    };
+  };
+
+  rpc ListConfigReceipts(ListConfigReceiptsRequest) returns(ListConfigReceiptsResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.config.receipt.list"
+      permission: "read"
+      collection_template: "/repository/config_receipts"
+      default_role_hint: "viewer"
+    };
+  };
+
+  rpc ListRepositoryFindings(ListRepositoryFindingsRequest) returns(ListRepositoryFindingsResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.findings.list"
+      permission: "read"
+      collection_template: "/repository/findings"
+      default_role_hint: "viewer"
+    };
+  };
+}
+
+// ── Operator verify / repair / explain messages ─────────────────────────────
+
+// ArtifactVerifyStatus is the outcome of an integrity probe (VerifyArtifact).
+// PUBLISHED + blob_present + size_match + digest_match maps to OK; every
+// other status carries a specific reason for the operator / AI executor.
+enum ArtifactVerifyStatus {
+  ARTIFACT_VERIFY_STATUS_UNSPECIFIED = 0;
+  ARTIFACT_VERIFY_OK                       = 1;
+  ARTIFACT_VERIFY_BROKEN_MISSING_BLOB      = 2;
+  ARTIFACT_VERIFY_BROKEN_CHECKSUM_MISMATCH = 3;
+  ARTIFACT_VERIFY_BROKEN_LEDGER_MISSING    = 4;
+  ARTIFACT_VERIFY_BROKEN_MANIFEST_MISSING  = 5;
+  ARTIFACT_VERIFY_BROKEN_SIGNATURE_MISSING = 6;
+  ARTIFACT_VERIFY_BROKEN_SIGNATURE_INVALID = 7;
+  ARTIFACT_VERIFY_BROKEN_PROVENANCE_INVALID = 8;
+  ARTIFACT_VERIFY_QUARANTINED              = 9;
+  ARTIFACT_VERIFY_REVOKED                  = 10;
+  ARTIFACT_VERIFY_INCONCLUSIVE             = 11;
+}
+
+message VerifyArtifactRequest {
+  ArtifactRef ref = 1 [(globular.auth.resource) = { kind: "artifact", scope_anchor: true }];
+  int64  build_number       = 2;  // 0 = resolve latest
+  string build_id           = 3;  // optional exact build_id
+  bool   verify_digest      = 4;  // if true, recompute sha256 over the blob
+  bool   verify_signature   = 5;  // reserved — Phase CLI-B
+  bool   include_ledger     = 6;  // include ledger row presence in response
+  bool   include_manifest   = 7;  // include manifest fields in response
+  bool   include_blob       = 8;  // include blob_key + size details
+}
+
+message VerifyArtifactResponse {
+  ArtifactRef ref          = 1;
+  string artifact_key      = 2;
+  string artifact_state    = 3;   // ArtifactPipelineState as string
+  PublishState publish_state = 4;
+  bool   installable       = 5;
+  ArtifactVerifyStatus status = 6;
+  string reason            = 7;
+  string blob_key          = 8;
+  int64  expected_size     = 9;
+  int64  actual_size       = 10;
+  string expected_digest   = 11;
+  string actual_digest     = 12;
+  string signature_status  = 13; // reserved — Phase CLI-B
+  string provenance_status = 14; // reserved — Phase CLI-B
+  bool   repairable        = 15;
+  string recommended_action = 16;
+}
+
+// RepairArtifactRequest asks the repository to repair a broken artifact by
+// re-importing it from the upstream source recorded in its manifest.
+message RepairArtifactRequest {
+  ArtifactRef ref = 1 [(globular.auth.resource) = { kind: "artifact", scope_anchor: true }];
+  int64  build_number = 2;  // 0 = resolve latest
+  bool   dry_run      = 3;  // preview only
+  bool   force        = 4;  // allow repair from any non-REVOKED state
+  bool   allow_quarantine_override = 5;  // permit repair of QUARANTINED rows
+  string operator_subject = 6;  // for audit; usually filled in by the server from auth context
+}
+
+message RepairArtifactResponse {
+  ArtifactRef ref       = 1;
+  string artifact_key   = 2;
+  string action         = 3;   // repair_blob | repair_checksum_mismatch | skipped_ok | blocked_revoked | blocked_quarantined | failed
+  string detail         = 4;
+  string artifact_state_before = 5;
+  string artifact_state_after  = 6;
+  string workflow_run_id = 7;  // when repair started a workflow run; empty otherwise
+}
+
+// ExplainArtifactRequest asks for one operator-readable answer about an artifact.
+message ExplainArtifactRequest {
+  ArtifactRef ref = 1 [(globular.auth.resource) = { kind: "artifact", scope_anchor: true }];
+  int64  build_number = 2;
+}
+
+message ExplainArtifactResponse {
+  ArtifactRef ref      = 1;
+  string artifact_key  = 2;
+  string artifact_state = 3;
+  PublishState publish_state = 4;
+  string blob_key      = 5;
+  bool   blob_present  = 6;
+  int64  expected_size = 7;
+  int64  actual_size   = 8;
+  string expected_digest = 9;
+  string actual_digest   = 10;
+  bool   ledger_present  = 11;
+  bool   manifest_present = 12;
+  string signature_status = 13;
+  bool   installable     = 14;
+  string recommended_action = 15;
+  string related_workflow_run_id = 16;
+  ArtifactVerifyStatus verify_status = 17;
+  string detail        = 18;
 }
 
 // ── ResolveArtifact (deterministic resolver) ────────────────────────────────
@@ -1017,4 +1295,378 @@ message ArchiveUnreachableArtifactsResponse {
   int32                        skipped_count   = 2; // already archived / terminal
   int32                        protected_count = 3; // reachable (retention or deployed)
   repeated ArchivedArtifactRecord archived     = 4;
+}
+
+// ── Phase CLI-D: package config ownership ─────────────────────────────────
+
+// MergeStrategy declares how a given config file should be handled during
+// install / upgrade / rollback. The node-agent honors this when applying a
+// new package over an existing installed revision.
+enum MergeStrategy {
+  MERGE_STRATEGY_UNSPECIFIED = 0;
+  MERGE_REPLACE                  = 1;  // overwrite unconditionally
+  MERGE_PRESERVE                 = 2;  // keep operator copy; new pkg writes .pkg-new
+  MERGE_THREE_WAY                = 3;  // base/current/new merge; record conflicts
+  MERGE_TEMPLATE_RENDER          = 4;  // regenerate from desired state template
+  MERGE_APPEND_ONLY              = 5;  // append new lines; never delete
+  MERGE_FAIL_ON_LOCAL_MODIFICATION = 6; // upgrade blocks if file changed locally
+  MERGE_SECRET_EXTERNAL          = 7;  // file is a secret; managed outside pkg
+}
+
+// ConfigKind classifies a config file. Drives logging, redaction, and
+// install/upgrade/rollback policy.
+enum ConfigKind {
+  CONFIG_KIND_UNSPECIFIED = 0;
+  CONFIG_DEFAULT             = 1;  // shipped default; replaceable on upgrade if unmodified
+  CONFIG_OPERATOR_OVERRIDE   = 2;  // operator-edited; never overwritten silently
+  CONFIG_GENERATED           = 3;  // generated from desired state; regenerable
+  CONFIG_SECRET              = 4;  // sensitive; never logged, never in plain manifest output
+  CONFIG_RUNTIME_STATE       = 5;  // not desired config; not packaged
+}
+
+// PackageConfigFile is one config file declared by a package manifest.
+// The node-agent uses this list to drive install / upgrade / rollback safely.
+message PackageConfigFile {
+  string path                  = 1;   // absolute path on the target node
+  ConfigKind config_kind       = 2;
+  string owner_package         = 3;   // "publisher/name" — the package that owns this file
+  string checksum_at_install   = 4;   // sha256 captured at install time (filled in by node-agent)
+  string current_checksum      = 5;   // sha256 currently on disk (filled in by node-agent on read)
+  int64  last_modified_unix    = 6;   // file mtime
+  MergeStrategy merge_strategy = 7;
+  bool   preserve_on_upgrade   = 8;
+  bool   restore_on_rollback   = 9;
+  bool   sensitive             = 10;  // SECRET or otherwise redaction-required
+}
+
+// ── Phase CLI-B: signing + trusted publishers ─────────────────────────────
+
+// TrustState tracks the lifecycle of a registered publisher key.
+enum TrustState {
+  TRUST_STATE_UNSPECIFIED = 0;
+  TRUST_TRUSTED   = 1;
+  TRUST_UNTRUSTED = 2;
+  TRUST_REVOKED   = 3;  // terminal — key is permanently invalid for verification
+  TRUST_EXPIRED   = 4;  // valid_until passed
+}
+
+// TrustedPublisher is one (publisher_id, public_key_id) entry in the
+// trusted-publishers table. The repository stores public keys only.
+message TrustedPublisher {
+  string publisher_id    = 1;  // e.g. "core@globular.io"
+  string public_key_id   = 2;  // operator-supplied identifier (often a thumbprint)
+  bytes  public_key_pem  = 3;  // PEM-encoded ed25519 public key
+  TrustState trust_state = 4;
+  int64  valid_from_unix = 5;
+  int64  valid_until_unix = 6; // 0 = no expiry
+  string created_by      = 7;  // operator subject who registered
+  int64  created_unix    = 8;
+  string algorithm       = 9;  // e.g. "ed25519"
+  string notes           = 10; // optional free-form note
+}
+
+// SignatureStatus is the outcome of VerifyArtifactSignature.
+enum SignatureStatus {
+  SIGNATURE_STATUS_UNSPECIFIED = 0;
+  SIGNATURE_OK                 = 1;
+  SIGNATURE_MISSING            = 2;
+  SIGNATURE_INVALID            = 3;
+  SIGNATURE_UNTRUSTED_PUBLISHER = 4;
+  SIGNATURE_REVOKED_KEY        = 5;
+  SIGNATURE_EXPIRED_KEY        = 6;
+  SIGNATURE_DIGEST_MISMATCH    = 7;
+  SIGNATURE_INCONCLUSIVE       = 8;
+}
+
+// ArtifactSignature is one detached signature record.
+message ArtifactSignature {
+  string artifact_key    = 1;
+  string digest          = 2;  // the digest that was signed (sha256:<hex>)
+  string algorithm       = 3;  // e.g. "ed25519"
+  bytes  signature_bytes = 4;  // raw signature bytes
+  string public_key_id   = 5;  // matches TrustedPublisher.public_key_id
+  string signed_by       = 6;  // signer subject
+  int64  signed_at_unix  = 7;
+  string provenance_ref  = 8;  // optional pointer to provenance record
+}
+
+// TrustPublisherRequest registers a publisher's public key.
+message TrustPublisherRequest {
+  string publisher_id     = 1 [(globular.auth.resource) = { kind: "namespace", scope_anchor: true }];
+  string public_key_id    = 2;
+  bytes  public_key_pem   = 3;
+  string algorithm        = 4;  // default "ed25519"
+  int64  valid_until_unix = 5;  // 0 = no expiry
+  string notes            = 6;
+}
+
+message TrustPublisherResponse {
+  TrustedPublisher publisher = 1;
+}
+
+message RevokePublisherKeyRequest {
+  string publisher_id  = 1 [(globular.auth.resource) = { kind: "namespace", scope_anchor: true }];
+  string public_key_id = 2;
+  string reason        = 3;
+}
+
+message RevokePublisherKeyResponse {
+  TrustedPublisher publisher = 1;
+}
+
+message ListTrustedPublishersRequest {
+  string publisher_id = 1; // empty = all
+}
+
+message ListTrustedPublishersResponse {
+  repeated TrustedPublisher publishers = 1;
+}
+
+message RegisterArtifactSignatureRequest {
+  ArtifactRef ref = 1 [(globular.auth.resource) = { kind: "artifact", scope_anchor: true }];
+  int64  build_number    = 2;
+  string algorithm       = 3;  // default "ed25519"
+  string public_key_id   = 4;
+  bytes  signature_bytes = 5;
+  string provenance_ref  = 6;
+}
+
+message RegisterArtifactSignatureResponse {
+  ArtifactSignature signature = 1;
+  SignatureStatus   status    = 2;  // verification result against the trusted-publishers table
+}
+
+message VerifyArtifactSignatureRequest {
+  ArtifactRef ref = 1 [(globular.auth.resource) = { kind: "artifact", scope_anchor: true }];
+  int64 build_number = 2;
+}
+
+message VerifyArtifactSignatureResponse {
+  SignatureStatus   status    = 1;
+  string            reason    = 2;
+  ArtifactSignature signature = 3;  // most recent signature on the artifact
+  TrustedPublisher  publisher = 4;  // matched publisher key (if any)
+}
+
+message ListArtifactSignaturesRequest {
+  ArtifactRef ref = 1 [(globular.auth.resource) = { kind: "artifact", scope_anchor: true }];
+  int64 build_number = 2;
+}
+
+message ListArtifactSignaturesResponse {
+  repeated ArtifactSignature signatures = 1;
+}
+
+// ── Phase CLI-C: installed revisions + rollback ───────────────────────────
+
+// InstalledPackageRevision is one row of install history. Written by the
+// node-agent (or the controller) after every successful install / upgrade /
+// rollback so that ListRollbackCandidates can show "previous verified versions".
+message InstalledPackageRevision {
+  string publisher_id    = 1;
+  string name            = 2;
+  ArtifactKind kind      = 3;
+  string version         = 4;
+  string build_id        = 5;
+  int64  build_number    = 6;
+  string platform        = 7;
+  string checksum        = 8;
+  int64  installed_at_unix = 9;
+  string installed_by_workflow_run_id = 10;
+  string node_id         = 11;
+  string previous_revision_id = 12;  // points to the prior row's revision_id
+  string config_snapshot_id = 13;    // optional pointer to a config snapshot blob
+  string service_status_before = 14;
+  string service_status_after  = 15;
+  string revision_id     = 16;       // unique id for this revision row (UUID)
+  string action          = 17;       // "install" | "upgrade" | "rollback"
+}
+
+message RecordInstalledRevisionRequest {
+  InstalledPackageRevision revision = 1;
+}
+
+message RecordInstalledRevisionResponse {
+  string revision_id = 1;
+}
+
+message ListInstalledRevisionsRequest {
+  string publisher_id = 1;
+  string name         = 2;
+  ArtifactKind kind   = 3;
+  string platform     = 4;
+  string node_id      = 5;  // empty = all nodes
+  int32  limit        = 6;  // 0 = default
+}
+
+message ListInstalledRevisionsResponse {
+  repeated InstalledPackageRevision revisions = 1;
+}
+
+// RollbackEligibility holds why a candidate is or isn't a viable rollback target.
+message RollbackEligibility {
+  bool eligible           = 1;
+  string reason           = 2;
+  ArtifactVerifyStatus verify_status = 3;
+  SignatureStatus signature_status = 4;
+}
+
+message RollbackCandidate {
+  InstalledPackageRevision revision = 1;
+  ArtifactRef target_ref            = 2;
+  RollbackEligibility eligibility   = 3;
+}
+
+message ListRollbackCandidatesRequest {
+  string publisher_id = 1;
+  string name         = 2;
+  ArtifactKind kind   = 3;
+  string platform     = 4;
+  string node_id      = 5;
+  int32  limit        = 6;  // 0 = default (5)
+}
+
+message ListRollbackCandidatesResponse {
+  ArtifactRef current_ref           = 1;  // currently installed
+  repeated RollbackCandidate candidates = 2;
+}
+
+// ── Phase F: signature policy ─────────────────────────────────────────────
+
+// SignaturePolicy controls when missing/invalid signatures block installability.
+// The repository reads it from etcd at /globular/repository/security/policy.
+// Defaults are conservative: core packages require signatures, third-party do
+// not, dev mode is OFF in production, ON in dev/test.
+message SignaturePolicy {
+  // require_signatures_for_core: when true, an artifact whose publisher_id
+  // matches one of trusted_core_publishers MUST carry a valid trusted
+  // signature to become / remain PUBLISHED.
+  bool require_signatures_for_core = 1;
+
+  // require_signatures_for_all: strict mode — every artifact requires a
+  // valid trusted signature regardless of publisher.
+  bool require_signatures_for_all = 2;
+
+  // allow_unsigned_local_development: when true, the LOCAL_DIR upstream
+  // source provider is allowed to skip signature checks. Off by default
+  // in production. Useful for `globular pkg build` / dev.
+  bool allow_unsigned_local_development = 3;
+
+  // trusted_core_publishers: list of publisher_ids that count as "core" for
+  // require_signatures_for_core. Default ["core@globular.io"].
+  repeated string trusted_core_publishers = 4;
+
+  // quarantine_on_invalid_signature: when true, an artifact found to have
+  // an invalid (forged or wrong-key) signature is moved to QUARANTINED on
+  // detection. When false, the artifact is left in its current state but
+  // resolver/download still refuse it.
+  bool quarantine_on_invalid_signature = 5;
+}
+
+// ── Phase F: package config receipts ──────────────────────────────────────
+
+// ConfigReceiptAction is what the node-agent did to a single config file
+// during install / upgrade / rollback.
+enum ConfigReceiptAction {
+  CONFIG_RECEIPT_ACTION_UNSPECIFIED = 0;
+  CONFIG_RECEIPT_PRESERVED      = 1;  // local copy kept (operator edits intact)
+  CONFIG_RECEIPT_REPLACED       = 2;  // file overwritten with package new default
+  CONFIG_RECEIPT_GENERATED      = 3;  // re-rendered from desired state
+  CONFIG_RECEIPT_MERGED         = 4;  // three-way merge succeeded
+  CONFIG_RECEIPT_CONFLICT       = 5;  // merge / replace blocked by local changes
+  CONFIG_RECEIPT_RESTORED       = 6;  // restored from rollback snapshot
+  CONFIG_RECEIPT_SKIPPED_SECRET = 7;  // SECRET file — never read or write
+  CONFIG_RECEIPT_FAILED         = 8;  // exec error
+}
+
+// PackageConfigReceipt is one node-agent receipt for one config file.
+// Repository accepts these via RecordConfigReceipt; doctor + CLI consume
+// them to surface conflicts and post-install audit trails.
+message PackageConfigReceipt {
+  string node_id            = 1;
+  string publisher_id       = 2;  // package owner
+  string name               = 3;  // package name
+  string platform           = 4;
+  int64  build_number       = 5;
+  string path               = 6;  // redacted to "[REDACTED]" when sensitive=true
+  ConfigKind config_kind    = 7;
+  MergeStrategy merge_strategy = 8;
+  string checksum_before    = 9;
+  string checksum_after     = 10;
+  ConfigReceiptAction action = 11;
+  string snapshot_id        = 12; // pointer to a config snapshot blob (when applicable)
+  string workflow_run_id    = 13;
+  int64  timestamp_unix     = 14;
+  string reason             = 15;
+  bool   sensitive          = 16;
+}
+
+message RecordConfigReceiptRequest {
+  PackageConfigReceipt receipt = 1;
+}
+
+message RecordConfigReceiptResponse {}
+
+message ListConfigReceiptsRequest {
+  string publisher_id  = 1;
+  string name          = 2;
+  string platform      = 3;
+  string node_id       = 4;       // empty = all nodes
+  ConfigReceiptAction action_filter = 5;  // 0 = no filter
+  int32  limit         = 6;
+}
+
+message ListConfigReceiptsResponse {
+  repeated PackageConfigReceipt receipts = 1;
+}
+
+// ── Phase F: repository findings (doctor pull-source) ─────────────────────
+
+// RepositoryFindingKind enumerates the integrity findings the repository
+// service can self-report.
+enum RepositoryFindingKind {
+  REPOSITORY_FINDING_UNSPECIFIED = 0;
+  REPO_FIND_PUBLISHED_MISSING_BLOB        = 1;
+  REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH   = 2;
+  REPO_FIND_PUBLISHED_UNSIGNED_REQUIRED   = 3;
+  REPO_FIND_REVOKED_INSTALLABLE           = 4;
+  REPO_FIND_QUARANTINED_INSTALLABLE       = 5;
+  REPO_FIND_CONFIG_CONFLICT               = 6;
+  REPO_FIND_ROLLBACK_FAILED               = 7;
+}
+
+// RepositoryFindingSeverity mirrors the doctor's severity scale.
+enum RepositoryFindingSeverity {
+  REPO_FIND_SEVERITY_UNSPECIFIED = 0;
+  REPO_FIND_INFO     = 1;
+  REPO_FIND_WARN     = 2;
+  REPO_FIND_ERROR    = 3;
+  REPO_FIND_CRITICAL = 4;
+}
+
+// RepositoryFinding is one self-reported integrity issue. The doctor pulls
+// these via ListRepositoryFindings and surfaces them as Findings.
+message RepositoryFinding {
+  RepositoryFindingKind kind     = 1;
+  RepositoryFindingSeverity severity = 2;
+  string artifact_key           = 3;
+  ArtifactRef ref               = 4;
+  string node_id                = 5;
+  string current_state          = 6;
+  string expected_state         = 7;
+  string reason                 = 8;
+  string recommended_command    = 9;  // operator action to remediate
+  map<string, string> evidence  = 10; // free-form key-values (digest, size, key_id, …)
+  int64  observed_at_unix       = 11;
+}
+
+message ListRepositoryFindingsRequest {
+  // kind_filter: 0 = all kinds.
+  RepositoryFindingKind kind_filter = 1;
+  int32 limit = 2;
+}
+
+message ListRepositoryFindingsResponse {
+  repeated RepositoryFinding findings = 1;
+  int64 generated_at_unix             = 2;
 }

@@ -232,6 +232,85 @@ func (PublishState) EnumDescriptor() ([]byte, []int) {
 	return file_repository_proto_rawDescGZIP(), []int{2}
 }
 
+// ArtifactVerifyStatus is the outcome of an integrity probe (VerifyArtifact).
+// PUBLISHED + blob_present + size_match + digest_match maps to OK; every
+// other status carries a specific reason for the operator / AI executor.
+type ArtifactVerifyStatus int32
+
+const (
+	ArtifactVerifyStatus_ARTIFACT_VERIFY_STATUS_UNSPECIFIED        ArtifactVerifyStatus = 0
+	ArtifactVerifyStatus_ARTIFACT_VERIFY_OK                        ArtifactVerifyStatus = 1
+	ArtifactVerifyStatus_ARTIFACT_VERIFY_BROKEN_MISSING_BLOB       ArtifactVerifyStatus = 2
+	ArtifactVerifyStatus_ARTIFACT_VERIFY_BROKEN_CHECKSUM_MISMATCH  ArtifactVerifyStatus = 3
+	ArtifactVerifyStatus_ARTIFACT_VERIFY_BROKEN_LEDGER_MISSING     ArtifactVerifyStatus = 4
+	ArtifactVerifyStatus_ARTIFACT_VERIFY_BROKEN_MANIFEST_MISSING   ArtifactVerifyStatus = 5
+	ArtifactVerifyStatus_ARTIFACT_VERIFY_BROKEN_SIGNATURE_MISSING  ArtifactVerifyStatus = 6
+	ArtifactVerifyStatus_ARTIFACT_VERIFY_BROKEN_SIGNATURE_INVALID  ArtifactVerifyStatus = 7
+	ArtifactVerifyStatus_ARTIFACT_VERIFY_BROKEN_PROVENANCE_INVALID ArtifactVerifyStatus = 8
+	ArtifactVerifyStatus_ARTIFACT_VERIFY_QUARANTINED               ArtifactVerifyStatus = 9
+	ArtifactVerifyStatus_ARTIFACT_VERIFY_REVOKED                   ArtifactVerifyStatus = 10
+	ArtifactVerifyStatus_ARTIFACT_VERIFY_INCONCLUSIVE              ArtifactVerifyStatus = 11
+)
+
+// Enum value maps for ArtifactVerifyStatus.
+var (
+	ArtifactVerifyStatus_name = map[int32]string{
+		0:  "ARTIFACT_VERIFY_STATUS_UNSPECIFIED",
+		1:  "ARTIFACT_VERIFY_OK",
+		2:  "ARTIFACT_VERIFY_BROKEN_MISSING_BLOB",
+		3:  "ARTIFACT_VERIFY_BROKEN_CHECKSUM_MISMATCH",
+		4:  "ARTIFACT_VERIFY_BROKEN_LEDGER_MISSING",
+		5:  "ARTIFACT_VERIFY_BROKEN_MANIFEST_MISSING",
+		6:  "ARTIFACT_VERIFY_BROKEN_SIGNATURE_MISSING",
+		7:  "ARTIFACT_VERIFY_BROKEN_SIGNATURE_INVALID",
+		8:  "ARTIFACT_VERIFY_BROKEN_PROVENANCE_INVALID",
+		9:  "ARTIFACT_VERIFY_QUARANTINED",
+		10: "ARTIFACT_VERIFY_REVOKED",
+		11: "ARTIFACT_VERIFY_INCONCLUSIVE",
+	}
+	ArtifactVerifyStatus_value = map[string]int32{
+		"ARTIFACT_VERIFY_STATUS_UNSPECIFIED":        0,
+		"ARTIFACT_VERIFY_OK":                        1,
+		"ARTIFACT_VERIFY_BROKEN_MISSING_BLOB":       2,
+		"ARTIFACT_VERIFY_BROKEN_CHECKSUM_MISMATCH":  3,
+		"ARTIFACT_VERIFY_BROKEN_LEDGER_MISSING":     4,
+		"ARTIFACT_VERIFY_BROKEN_MANIFEST_MISSING":   5,
+		"ARTIFACT_VERIFY_BROKEN_SIGNATURE_MISSING":  6,
+		"ARTIFACT_VERIFY_BROKEN_SIGNATURE_INVALID":  7,
+		"ARTIFACT_VERIFY_BROKEN_PROVENANCE_INVALID": 8,
+		"ARTIFACT_VERIFY_QUARANTINED":               9,
+		"ARTIFACT_VERIFY_REVOKED":                   10,
+		"ARTIFACT_VERIFY_INCONCLUSIVE":              11,
+	}
+)
+
+func (x ArtifactVerifyStatus) Enum() *ArtifactVerifyStatus {
+	p := new(ArtifactVerifyStatus)
+	*p = x
+	return p
+}
+
+func (x ArtifactVerifyStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ArtifactVerifyStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_repository_proto_enumTypes[3].Descriptor()
+}
+
+func (ArtifactVerifyStatus) Type() protoreflect.EnumType {
+	return &file_repository_proto_enumTypes[3]
+}
+
+func (x ArtifactVerifyStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ArtifactVerifyStatus.Descriptor instead.
+func (ArtifactVerifyStatus) EnumDescriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{3}
+}
+
 // VersionIntent specifies how the repository should allocate a version.
 type VersionIntent int32
 
@@ -272,11 +351,11 @@ func (x VersionIntent) String() string {
 }
 
 func (VersionIntent) Descriptor() protoreflect.EnumDescriptor {
-	return file_repository_proto_enumTypes[3].Descriptor()
+	return file_repository_proto_enumTypes[4].Descriptor()
 }
 
 func (VersionIntent) Type() protoreflect.EnumType {
-	return &file_repository_proto_enumTypes[3]
+	return &file_repository_proto_enumTypes[4]
 }
 
 func (x VersionIntent) Number() protoreflect.EnumNumber {
@@ -285,7 +364,7 @@ func (x VersionIntent) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use VersionIntent.Descriptor instead.
 func (VersionIntent) EnumDescriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{3}
+	return file_repository_proto_rawDescGZIP(), []int{4}
 }
 
 type UpstreamSourceType int32
@@ -327,11 +406,11 @@ func (x UpstreamSourceType) String() string {
 }
 
 func (UpstreamSourceType) Descriptor() protoreflect.EnumDescriptor {
-	return file_repository_proto_enumTypes[4].Descriptor()
+	return file_repository_proto_enumTypes[5].Descriptor()
 }
 
 func (UpstreamSourceType) Type() protoreflect.EnumType {
-	return &file_repository_proto_enumTypes[4]
+	return &file_repository_proto_enumTypes[5]
 }
 
 func (x UpstreamSourceType) Number() protoreflect.EnumNumber {
@@ -340,7 +419,7 @@ func (x UpstreamSourceType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use UpstreamSourceType.Descriptor instead.
 func (UpstreamSourceType) EnumDescriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{4}
+	return file_repository_proto_rawDescGZIP(), []int{5}
 }
 
 type UpstreamSyncStatus int32
@@ -393,11 +472,11 @@ func (x UpstreamSyncStatus) String() string {
 }
 
 func (UpstreamSyncStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_repository_proto_enumTypes[5].Descriptor()
+	return file_repository_proto_enumTypes[6].Descriptor()
 }
 
 func (UpstreamSyncStatus) Type() protoreflect.EnumType {
-	return &file_repository_proto_enumTypes[5]
+	return &file_repository_proto_enumTypes[6]
 }
 
 func (x UpstreamSyncStatus) Number() protoreflect.EnumNumber {
@@ -406,7 +485,449 @@ func (x UpstreamSyncStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use UpstreamSyncStatus.Descriptor instead.
 func (UpstreamSyncStatus) EnumDescriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{5}
+	return file_repository_proto_rawDescGZIP(), []int{6}
+}
+
+// MergeStrategy declares how a given config file should be handled during
+// install / upgrade / rollback. The node-agent honors this when applying a
+// new package over an existing installed revision.
+type MergeStrategy int32
+
+const (
+	MergeStrategy_MERGE_STRATEGY_UNSPECIFIED       MergeStrategy = 0
+	MergeStrategy_MERGE_REPLACE                    MergeStrategy = 1 // overwrite unconditionally
+	MergeStrategy_MERGE_PRESERVE                   MergeStrategy = 2 // keep operator copy; new pkg writes .pkg-new
+	MergeStrategy_MERGE_THREE_WAY                  MergeStrategy = 3 // base/current/new merge; record conflicts
+	MergeStrategy_MERGE_TEMPLATE_RENDER            MergeStrategy = 4 // regenerate from desired state template
+	MergeStrategy_MERGE_APPEND_ONLY                MergeStrategy = 5 // append new lines; never delete
+	MergeStrategy_MERGE_FAIL_ON_LOCAL_MODIFICATION MergeStrategy = 6 // upgrade blocks if file changed locally
+	MergeStrategy_MERGE_SECRET_EXTERNAL            MergeStrategy = 7 // file is a secret; managed outside pkg
+)
+
+// Enum value maps for MergeStrategy.
+var (
+	MergeStrategy_name = map[int32]string{
+		0: "MERGE_STRATEGY_UNSPECIFIED",
+		1: "MERGE_REPLACE",
+		2: "MERGE_PRESERVE",
+		3: "MERGE_THREE_WAY",
+		4: "MERGE_TEMPLATE_RENDER",
+		5: "MERGE_APPEND_ONLY",
+		6: "MERGE_FAIL_ON_LOCAL_MODIFICATION",
+		7: "MERGE_SECRET_EXTERNAL",
+	}
+	MergeStrategy_value = map[string]int32{
+		"MERGE_STRATEGY_UNSPECIFIED":       0,
+		"MERGE_REPLACE":                    1,
+		"MERGE_PRESERVE":                   2,
+		"MERGE_THREE_WAY":                  3,
+		"MERGE_TEMPLATE_RENDER":            4,
+		"MERGE_APPEND_ONLY":                5,
+		"MERGE_FAIL_ON_LOCAL_MODIFICATION": 6,
+		"MERGE_SECRET_EXTERNAL":            7,
+	}
+)
+
+func (x MergeStrategy) Enum() *MergeStrategy {
+	p := new(MergeStrategy)
+	*p = x
+	return p
+}
+
+func (x MergeStrategy) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MergeStrategy) Descriptor() protoreflect.EnumDescriptor {
+	return file_repository_proto_enumTypes[7].Descriptor()
+}
+
+func (MergeStrategy) Type() protoreflect.EnumType {
+	return &file_repository_proto_enumTypes[7]
+}
+
+func (x MergeStrategy) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use MergeStrategy.Descriptor instead.
+func (MergeStrategy) EnumDescriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{7}
+}
+
+// ConfigKind classifies a config file. Drives logging, redaction, and
+// install/upgrade/rollback policy.
+type ConfigKind int32
+
+const (
+	ConfigKind_CONFIG_KIND_UNSPECIFIED  ConfigKind = 0
+	ConfigKind_CONFIG_DEFAULT           ConfigKind = 1 // shipped default; replaceable on upgrade if unmodified
+	ConfigKind_CONFIG_OPERATOR_OVERRIDE ConfigKind = 2 // operator-edited; never overwritten silently
+	ConfigKind_CONFIG_GENERATED         ConfigKind = 3 // generated from desired state; regenerable
+	ConfigKind_CONFIG_SECRET            ConfigKind = 4 // sensitive; never logged, never in plain manifest output
+	ConfigKind_CONFIG_RUNTIME_STATE     ConfigKind = 5 // not desired config; not packaged
+)
+
+// Enum value maps for ConfigKind.
+var (
+	ConfigKind_name = map[int32]string{
+		0: "CONFIG_KIND_UNSPECIFIED",
+		1: "CONFIG_DEFAULT",
+		2: "CONFIG_OPERATOR_OVERRIDE",
+		3: "CONFIG_GENERATED",
+		4: "CONFIG_SECRET",
+		5: "CONFIG_RUNTIME_STATE",
+	}
+	ConfigKind_value = map[string]int32{
+		"CONFIG_KIND_UNSPECIFIED":  0,
+		"CONFIG_DEFAULT":           1,
+		"CONFIG_OPERATOR_OVERRIDE": 2,
+		"CONFIG_GENERATED":         3,
+		"CONFIG_SECRET":            4,
+		"CONFIG_RUNTIME_STATE":     5,
+	}
+)
+
+func (x ConfigKind) Enum() *ConfigKind {
+	p := new(ConfigKind)
+	*p = x
+	return p
+}
+
+func (x ConfigKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ConfigKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_repository_proto_enumTypes[8].Descriptor()
+}
+
+func (ConfigKind) Type() protoreflect.EnumType {
+	return &file_repository_proto_enumTypes[8]
+}
+
+func (x ConfigKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ConfigKind.Descriptor instead.
+func (ConfigKind) EnumDescriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{8}
+}
+
+// TrustState tracks the lifecycle of a registered publisher key.
+type TrustState int32
+
+const (
+	TrustState_TRUST_STATE_UNSPECIFIED TrustState = 0
+	TrustState_TRUST_TRUSTED           TrustState = 1
+	TrustState_TRUST_UNTRUSTED         TrustState = 2
+	TrustState_TRUST_REVOKED           TrustState = 3 // terminal — key is permanently invalid for verification
+	TrustState_TRUST_EXPIRED           TrustState = 4 // valid_until passed
+)
+
+// Enum value maps for TrustState.
+var (
+	TrustState_name = map[int32]string{
+		0: "TRUST_STATE_UNSPECIFIED",
+		1: "TRUST_TRUSTED",
+		2: "TRUST_UNTRUSTED",
+		3: "TRUST_REVOKED",
+		4: "TRUST_EXPIRED",
+	}
+	TrustState_value = map[string]int32{
+		"TRUST_STATE_UNSPECIFIED": 0,
+		"TRUST_TRUSTED":           1,
+		"TRUST_UNTRUSTED":         2,
+		"TRUST_REVOKED":           3,
+		"TRUST_EXPIRED":           4,
+	}
+)
+
+func (x TrustState) Enum() *TrustState {
+	p := new(TrustState)
+	*p = x
+	return p
+}
+
+func (x TrustState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TrustState) Descriptor() protoreflect.EnumDescriptor {
+	return file_repository_proto_enumTypes[9].Descriptor()
+}
+
+func (TrustState) Type() protoreflect.EnumType {
+	return &file_repository_proto_enumTypes[9]
+}
+
+func (x TrustState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TrustState.Descriptor instead.
+func (TrustState) EnumDescriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{9}
+}
+
+// SignatureStatus is the outcome of VerifyArtifactSignature.
+type SignatureStatus int32
+
+const (
+	SignatureStatus_SIGNATURE_STATUS_UNSPECIFIED  SignatureStatus = 0
+	SignatureStatus_SIGNATURE_OK                  SignatureStatus = 1
+	SignatureStatus_SIGNATURE_MISSING             SignatureStatus = 2
+	SignatureStatus_SIGNATURE_INVALID             SignatureStatus = 3
+	SignatureStatus_SIGNATURE_UNTRUSTED_PUBLISHER SignatureStatus = 4
+	SignatureStatus_SIGNATURE_REVOKED_KEY         SignatureStatus = 5
+	SignatureStatus_SIGNATURE_EXPIRED_KEY         SignatureStatus = 6
+	SignatureStatus_SIGNATURE_DIGEST_MISMATCH     SignatureStatus = 7
+	SignatureStatus_SIGNATURE_INCONCLUSIVE        SignatureStatus = 8
+)
+
+// Enum value maps for SignatureStatus.
+var (
+	SignatureStatus_name = map[int32]string{
+		0: "SIGNATURE_STATUS_UNSPECIFIED",
+		1: "SIGNATURE_OK",
+		2: "SIGNATURE_MISSING",
+		3: "SIGNATURE_INVALID",
+		4: "SIGNATURE_UNTRUSTED_PUBLISHER",
+		5: "SIGNATURE_REVOKED_KEY",
+		6: "SIGNATURE_EXPIRED_KEY",
+		7: "SIGNATURE_DIGEST_MISMATCH",
+		8: "SIGNATURE_INCONCLUSIVE",
+	}
+	SignatureStatus_value = map[string]int32{
+		"SIGNATURE_STATUS_UNSPECIFIED":  0,
+		"SIGNATURE_OK":                  1,
+		"SIGNATURE_MISSING":             2,
+		"SIGNATURE_INVALID":             3,
+		"SIGNATURE_UNTRUSTED_PUBLISHER": 4,
+		"SIGNATURE_REVOKED_KEY":         5,
+		"SIGNATURE_EXPIRED_KEY":         6,
+		"SIGNATURE_DIGEST_MISMATCH":     7,
+		"SIGNATURE_INCONCLUSIVE":        8,
+	}
+)
+
+func (x SignatureStatus) Enum() *SignatureStatus {
+	p := new(SignatureStatus)
+	*p = x
+	return p
+}
+
+func (x SignatureStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SignatureStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_repository_proto_enumTypes[10].Descriptor()
+}
+
+func (SignatureStatus) Type() protoreflect.EnumType {
+	return &file_repository_proto_enumTypes[10]
+}
+
+func (x SignatureStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SignatureStatus.Descriptor instead.
+func (SignatureStatus) EnumDescriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{10}
+}
+
+// ConfigReceiptAction is what the node-agent did to a single config file
+// during install / upgrade / rollback.
+type ConfigReceiptAction int32
+
+const (
+	ConfigReceiptAction_CONFIG_RECEIPT_ACTION_UNSPECIFIED ConfigReceiptAction = 0
+	ConfigReceiptAction_CONFIG_RECEIPT_PRESERVED          ConfigReceiptAction = 1 // local copy kept (operator edits intact)
+	ConfigReceiptAction_CONFIG_RECEIPT_REPLACED           ConfigReceiptAction = 2 // file overwritten with package new default
+	ConfigReceiptAction_CONFIG_RECEIPT_GENERATED          ConfigReceiptAction = 3 // re-rendered from desired state
+	ConfigReceiptAction_CONFIG_RECEIPT_MERGED             ConfigReceiptAction = 4 // three-way merge succeeded
+	ConfigReceiptAction_CONFIG_RECEIPT_CONFLICT           ConfigReceiptAction = 5 // merge / replace blocked by local changes
+	ConfigReceiptAction_CONFIG_RECEIPT_RESTORED           ConfigReceiptAction = 6 // restored from rollback snapshot
+	ConfigReceiptAction_CONFIG_RECEIPT_SKIPPED_SECRET     ConfigReceiptAction = 7 // SECRET file — never read or write
+	ConfigReceiptAction_CONFIG_RECEIPT_FAILED             ConfigReceiptAction = 8 // exec error
+)
+
+// Enum value maps for ConfigReceiptAction.
+var (
+	ConfigReceiptAction_name = map[int32]string{
+		0: "CONFIG_RECEIPT_ACTION_UNSPECIFIED",
+		1: "CONFIG_RECEIPT_PRESERVED",
+		2: "CONFIG_RECEIPT_REPLACED",
+		3: "CONFIG_RECEIPT_GENERATED",
+		4: "CONFIG_RECEIPT_MERGED",
+		5: "CONFIG_RECEIPT_CONFLICT",
+		6: "CONFIG_RECEIPT_RESTORED",
+		7: "CONFIG_RECEIPT_SKIPPED_SECRET",
+		8: "CONFIG_RECEIPT_FAILED",
+	}
+	ConfigReceiptAction_value = map[string]int32{
+		"CONFIG_RECEIPT_ACTION_UNSPECIFIED": 0,
+		"CONFIG_RECEIPT_PRESERVED":          1,
+		"CONFIG_RECEIPT_REPLACED":           2,
+		"CONFIG_RECEIPT_GENERATED":          3,
+		"CONFIG_RECEIPT_MERGED":             4,
+		"CONFIG_RECEIPT_CONFLICT":           5,
+		"CONFIG_RECEIPT_RESTORED":           6,
+		"CONFIG_RECEIPT_SKIPPED_SECRET":     7,
+		"CONFIG_RECEIPT_FAILED":             8,
+	}
+)
+
+func (x ConfigReceiptAction) Enum() *ConfigReceiptAction {
+	p := new(ConfigReceiptAction)
+	*p = x
+	return p
+}
+
+func (x ConfigReceiptAction) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ConfigReceiptAction) Descriptor() protoreflect.EnumDescriptor {
+	return file_repository_proto_enumTypes[11].Descriptor()
+}
+
+func (ConfigReceiptAction) Type() protoreflect.EnumType {
+	return &file_repository_proto_enumTypes[11]
+}
+
+func (x ConfigReceiptAction) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ConfigReceiptAction.Descriptor instead.
+func (ConfigReceiptAction) EnumDescriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{11}
+}
+
+// RepositoryFindingKind enumerates the integrity findings the repository
+// service can self-report.
+type RepositoryFindingKind int32
+
+const (
+	RepositoryFindingKind_REPOSITORY_FINDING_UNSPECIFIED        RepositoryFindingKind = 0
+	RepositoryFindingKind_REPO_FIND_PUBLISHED_MISSING_BLOB      RepositoryFindingKind = 1
+	RepositoryFindingKind_REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH RepositoryFindingKind = 2
+	RepositoryFindingKind_REPO_FIND_PUBLISHED_UNSIGNED_REQUIRED RepositoryFindingKind = 3
+	RepositoryFindingKind_REPO_FIND_REVOKED_INSTALLABLE         RepositoryFindingKind = 4
+	RepositoryFindingKind_REPO_FIND_QUARANTINED_INSTALLABLE     RepositoryFindingKind = 5
+	RepositoryFindingKind_REPO_FIND_CONFIG_CONFLICT             RepositoryFindingKind = 6
+	RepositoryFindingKind_REPO_FIND_ROLLBACK_FAILED             RepositoryFindingKind = 7
+)
+
+// Enum value maps for RepositoryFindingKind.
+var (
+	RepositoryFindingKind_name = map[int32]string{
+		0: "REPOSITORY_FINDING_UNSPECIFIED",
+		1: "REPO_FIND_PUBLISHED_MISSING_BLOB",
+		2: "REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH",
+		3: "REPO_FIND_PUBLISHED_UNSIGNED_REQUIRED",
+		4: "REPO_FIND_REVOKED_INSTALLABLE",
+		5: "REPO_FIND_QUARANTINED_INSTALLABLE",
+		6: "REPO_FIND_CONFIG_CONFLICT",
+		7: "REPO_FIND_ROLLBACK_FAILED",
+	}
+	RepositoryFindingKind_value = map[string]int32{
+		"REPOSITORY_FINDING_UNSPECIFIED":        0,
+		"REPO_FIND_PUBLISHED_MISSING_BLOB":      1,
+		"REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH": 2,
+		"REPO_FIND_PUBLISHED_UNSIGNED_REQUIRED": 3,
+		"REPO_FIND_REVOKED_INSTALLABLE":         4,
+		"REPO_FIND_QUARANTINED_INSTALLABLE":     5,
+		"REPO_FIND_CONFIG_CONFLICT":             6,
+		"REPO_FIND_ROLLBACK_FAILED":             7,
+	}
+)
+
+func (x RepositoryFindingKind) Enum() *RepositoryFindingKind {
+	p := new(RepositoryFindingKind)
+	*p = x
+	return p
+}
+
+func (x RepositoryFindingKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RepositoryFindingKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_repository_proto_enumTypes[12].Descriptor()
+}
+
+func (RepositoryFindingKind) Type() protoreflect.EnumType {
+	return &file_repository_proto_enumTypes[12]
+}
+
+func (x RepositoryFindingKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RepositoryFindingKind.Descriptor instead.
+func (RepositoryFindingKind) EnumDescriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{12}
+}
+
+// RepositoryFindingSeverity mirrors the doctor's severity scale.
+type RepositoryFindingSeverity int32
+
+const (
+	RepositoryFindingSeverity_REPO_FIND_SEVERITY_UNSPECIFIED RepositoryFindingSeverity = 0
+	RepositoryFindingSeverity_REPO_FIND_INFO                 RepositoryFindingSeverity = 1
+	RepositoryFindingSeverity_REPO_FIND_WARN                 RepositoryFindingSeverity = 2
+	RepositoryFindingSeverity_REPO_FIND_ERROR                RepositoryFindingSeverity = 3
+	RepositoryFindingSeverity_REPO_FIND_CRITICAL             RepositoryFindingSeverity = 4
+)
+
+// Enum value maps for RepositoryFindingSeverity.
+var (
+	RepositoryFindingSeverity_name = map[int32]string{
+		0: "REPO_FIND_SEVERITY_UNSPECIFIED",
+		1: "REPO_FIND_INFO",
+		2: "REPO_FIND_WARN",
+		3: "REPO_FIND_ERROR",
+		4: "REPO_FIND_CRITICAL",
+	}
+	RepositoryFindingSeverity_value = map[string]int32{
+		"REPO_FIND_SEVERITY_UNSPECIFIED": 0,
+		"REPO_FIND_INFO":                 1,
+		"REPO_FIND_WARN":                 2,
+		"REPO_FIND_ERROR":                3,
+		"REPO_FIND_CRITICAL":             4,
+	}
+)
+
+func (x RepositoryFindingSeverity) Enum() *RepositoryFindingSeverity {
+	p := new(RepositoryFindingSeverity)
+	*p = x
+	return p
+}
+
+func (x RepositoryFindingSeverity) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RepositoryFindingSeverity) Descriptor() protoreflect.EnumDescriptor {
+	return file_repository_proto_enumTypes[13].Descriptor()
+}
+
+func (RepositoryFindingSeverity) Type() protoreflect.EnumType {
+	return &file_repository_proto_enumTypes[13]
+}
+
+func (x RepositoryFindingSeverity) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RepositoryFindingSeverity.Descriptor instead.
+func (RepositoryFindingSeverity) EnumDescriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{13}
 }
 
 type ArtifactRef struct {
@@ -625,9 +1146,19 @@ type ArtifactManifest struct {
 	// visibility. CHANNEL_UNSET and STABLE are equivalent for all resolution
 	// purposes. DEV and CANDIDATE are never returned to the cluster reconciler
 	// unless the caller explicitly requests them. See ArtifactChannel enum.
-	Channel       ArtifactChannel `protobuf:"varint,45,opt,name=channel,proto3,enum=repository.ArtifactChannel" json:"channel,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Channel ArtifactChannel `protobuf:"varint,45,opt,name=channel,proto3,enum=repository.ArtifactChannel" json:"channel,omitempty"`
+	// Phase CLI-D — package config ownership declarations. Each entry tells
+	// the node-agent how to treat one config file path during install /
+	// upgrade / rollback (preserve, replace, three-way merge, etc.). When
+	// empty (legacy artifacts), all paths default to MERGE_REPLACE.
+	Configs []*PackageConfigFile `protobuf:"bytes,70,rep,name=configs,proto3" json:"configs,omitempty"`
+	// Phase CLI-B — signature / provenance reference. Detached signatures live
+	// in the trusted_signatures Scylla table (one row per (artifact_key, key_id)).
+	// This field carries the key_id of the most recent signature so clients
+	// can fetch the full record via ListArtifactSignatures.
+	SignatureKeyId string `protobuf:"bytes,71,opt,name=signature_key_id,json=signatureKeyId,proto3" json:"signature_key_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ArtifactManifest) Reset() {
@@ -958,6 +1489,20 @@ func (x *ArtifactManifest) GetChannel() ArtifactChannel {
 		return x.Channel
 	}
 	return ArtifactChannel_CHANNEL_UNSET
+}
+
+func (x *ArtifactManifest) GetConfigs() []*PackageConfigFile {
+	if x != nil {
+		return x.Configs
+	}
+	return nil
+}
+
+func (x *ArtifactManifest) GetSignatureKeyId() string {
+	if x != nil {
+		return x.SignatureKeyId
+	}
+	return ""
 }
 
 type isArtifactManifest_TypeDetail interface {
@@ -3316,6 +3861,681 @@ func (x *DescribePackageResponse) GetInfo() *PackageInfo {
 	return nil
 }
 
+type VerifyArtifactRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Ref             *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	BuildNumber     int64                  `protobuf:"varint,2,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`             // 0 = resolve latest
+	BuildId         string                 `protobuf:"bytes,3,opt,name=build_id,json=buildId,proto3" json:"build_id,omitempty"`                          // optional exact build_id
+	VerifyDigest    bool                   `protobuf:"varint,4,opt,name=verify_digest,json=verifyDigest,proto3" json:"verify_digest,omitempty"`          // if true, recompute sha256 over the blob
+	VerifySignature bool                   `protobuf:"varint,5,opt,name=verify_signature,json=verifySignature,proto3" json:"verify_signature,omitempty"` // reserved — Phase CLI-B
+	IncludeLedger   bool                   `protobuf:"varint,6,opt,name=include_ledger,json=includeLedger,proto3" json:"include_ledger,omitempty"`       // include ledger row presence in response
+	IncludeManifest bool                   `protobuf:"varint,7,opt,name=include_manifest,json=includeManifest,proto3" json:"include_manifest,omitempty"` // include manifest fields in response
+	IncludeBlob     bool                   `protobuf:"varint,8,opt,name=include_blob,json=includeBlob,proto3" json:"include_blob,omitempty"`             // include blob_key + size details
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *VerifyArtifactRequest) Reset() {
+	*x = VerifyArtifactRequest{}
+	mi := &file_repository_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyArtifactRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyArtifactRequest) ProtoMessage() {}
+
+func (x *VerifyArtifactRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyArtifactRequest.ProtoReflect.Descriptor instead.
+func (*VerifyArtifactRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *VerifyArtifactRequest) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *VerifyArtifactRequest) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
+}
+
+func (x *VerifyArtifactRequest) GetBuildId() string {
+	if x != nil {
+		return x.BuildId
+	}
+	return ""
+}
+
+func (x *VerifyArtifactRequest) GetVerifyDigest() bool {
+	if x != nil {
+		return x.VerifyDigest
+	}
+	return false
+}
+
+func (x *VerifyArtifactRequest) GetVerifySignature() bool {
+	if x != nil {
+		return x.VerifySignature
+	}
+	return false
+}
+
+func (x *VerifyArtifactRequest) GetIncludeLedger() bool {
+	if x != nil {
+		return x.IncludeLedger
+	}
+	return false
+}
+
+func (x *VerifyArtifactRequest) GetIncludeManifest() bool {
+	if x != nil {
+		return x.IncludeManifest
+	}
+	return false
+}
+
+func (x *VerifyArtifactRequest) GetIncludeBlob() bool {
+	if x != nil {
+		return x.IncludeBlob
+	}
+	return false
+}
+
+type VerifyArtifactResponse struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Ref               *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	ArtifactKey       string                 `protobuf:"bytes,2,opt,name=artifact_key,json=artifactKey,proto3" json:"artifact_key,omitempty"`
+	ArtifactState     string                 `protobuf:"bytes,3,opt,name=artifact_state,json=artifactState,proto3" json:"artifact_state,omitempty"` // ArtifactPipelineState as string
+	PublishState      PublishState           `protobuf:"varint,4,opt,name=publish_state,json=publishState,proto3,enum=repository.PublishState" json:"publish_state,omitempty"`
+	Installable       bool                   `protobuf:"varint,5,opt,name=installable,proto3" json:"installable,omitempty"`
+	Status            ArtifactVerifyStatus   `protobuf:"varint,6,opt,name=status,proto3,enum=repository.ArtifactVerifyStatus" json:"status,omitempty"`
+	Reason            string                 `protobuf:"bytes,7,opt,name=reason,proto3" json:"reason,omitempty"`
+	BlobKey           string                 `protobuf:"bytes,8,opt,name=blob_key,json=blobKey,proto3" json:"blob_key,omitempty"`
+	ExpectedSize      int64                  `protobuf:"varint,9,opt,name=expected_size,json=expectedSize,proto3" json:"expected_size,omitempty"`
+	ActualSize        int64                  `protobuf:"varint,10,opt,name=actual_size,json=actualSize,proto3" json:"actual_size,omitempty"`
+	ExpectedDigest    string                 `protobuf:"bytes,11,opt,name=expected_digest,json=expectedDigest,proto3" json:"expected_digest,omitempty"`
+	ActualDigest      string                 `protobuf:"bytes,12,opt,name=actual_digest,json=actualDigest,proto3" json:"actual_digest,omitempty"`
+	SignatureStatus   string                 `protobuf:"bytes,13,opt,name=signature_status,json=signatureStatus,proto3" json:"signature_status,omitempty"`    // reserved — Phase CLI-B
+	ProvenanceStatus  string                 `protobuf:"bytes,14,opt,name=provenance_status,json=provenanceStatus,proto3" json:"provenance_status,omitempty"` // reserved — Phase CLI-B
+	Repairable        bool                   `protobuf:"varint,15,opt,name=repairable,proto3" json:"repairable,omitempty"`
+	RecommendedAction string                 `protobuf:"bytes,16,opt,name=recommended_action,json=recommendedAction,proto3" json:"recommended_action,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *VerifyArtifactResponse) Reset() {
+	*x = VerifyArtifactResponse{}
+	mi := &file_repository_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyArtifactResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyArtifactResponse) ProtoMessage() {}
+
+func (x *VerifyArtifactResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyArtifactResponse.ProtoReflect.Descriptor instead.
+func (*VerifyArtifactResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *VerifyArtifactResponse) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *VerifyArtifactResponse) GetArtifactKey() string {
+	if x != nil {
+		return x.ArtifactKey
+	}
+	return ""
+}
+
+func (x *VerifyArtifactResponse) GetArtifactState() string {
+	if x != nil {
+		return x.ArtifactState
+	}
+	return ""
+}
+
+func (x *VerifyArtifactResponse) GetPublishState() PublishState {
+	if x != nil {
+		return x.PublishState
+	}
+	return PublishState_PUBLISH_STATE_UNSPECIFIED
+}
+
+func (x *VerifyArtifactResponse) GetInstallable() bool {
+	if x != nil {
+		return x.Installable
+	}
+	return false
+}
+
+func (x *VerifyArtifactResponse) GetStatus() ArtifactVerifyStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ArtifactVerifyStatus_ARTIFACT_VERIFY_STATUS_UNSPECIFIED
+}
+
+func (x *VerifyArtifactResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *VerifyArtifactResponse) GetBlobKey() string {
+	if x != nil {
+		return x.BlobKey
+	}
+	return ""
+}
+
+func (x *VerifyArtifactResponse) GetExpectedSize() int64 {
+	if x != nil {
+		return x.ExpectedSize
+	}
+	return 0
+}
+
+func (x *VerifyArtifactResponse) GetActualSize() int64 {
+	if x != nil {
+		return x.ActualSize
+	}
+	return 0
+}
+
+func (x *VerifyArtifactResponse) GetExpectedDigest() string {
+	if x != nil {
+		return x.ExpectedDigest
+	}
+	return ""
+}
+
+func (x *VerifyArtifactResponse) GetActualDigest() string {
+	if x != nil {
+		return x.ActualDigest
+	}
+	return ""
+}
+
+func (x *VerifyArtifactResponse) GetSignatureStatus() string {
+	if x != nil {
+		return x.SignatureStatus
+	}
+	return ""
+}
+
+func (x *VerifyArtifactResponse) GetProvenanceStatus() string {
+	if x != nil {
+		return x.ProvenanceStatus
+	}
+	return ""
+}
+
+func (x *VerifyArtifactResponse) GetRepairable() bool {
+	if x != nil {
+		return x.Repairable
+	}
+	return false
+}
+
+func (x *VerifyArtifactResponse) GetRecommendedAction() string {
+	if x != nil {
+		return x.RecommendedAction
+	}
+	return ""
+}
+
+// RepairArtifactRequest asks the repository to repair a broken artifact by
+// re-importing it from the upstream source recorded in its manifest.
+type RepairArtifactRequest struct {
+	state                   protoimpl.MessageState `protogen:"open.v1"`
+	Ref                     *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	BuildNumber             int64                  `protobuf:"varint,2,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`                                       // 0 = resolve latest
+	DryRun                  bool                   `protobuf:"varint,3,opt,name=dry_run,json=dryRun,proto3" json:"dry_run,omitempty"`                                                      // preview only
+	Force                   bool                   `protobuf:"varint,4,opt,name=force,proto3" json:"force,omitempty"`                                                                      // allow repair from any non-REVOKED state
+	AllowQuarantineOverride bool                   `protobuf:"varint,5,opt,name=allow_quarantine_override,json=allowQuarantineOverride,proto3" json:"allow_quarantine_override,omitempty"` // permit repair of QUARANTINED rows
+	OperatorSubject         string                 `protobuf:"bytes,6,opt,name=operator_subject,json=operatorSubject,proto3" json:"operator_subject,omitempty"`                            // for audit; usually filled in by the server from auth context
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *RepairArtifactRequest) Reset() {
+	*x = RepairArtifactRequest{}
+	mi := &file_repository_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RepairArtifactRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RepairArtifactRequest) ProtoMessage() {}
+
+func (x *RepairArtifactRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RepairArtifactRequest.ProtoReflect.Descriptor instead.
+func (*RepairArtifactRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *RepairArtifactRequest) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *RepairArtifactRequest) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
+}
+
+func (x *RepairArtifactRequest) GetDryRun() bool {
+	if x != nil {
+		return x.DryRun
+	}
+	return false
+}
+
+func (x *RepairArtifactRequest) GetForce() bool {
+	if x != nil {
+		return x.Force
+	}
+	return false
+}
+
+func (x *RepairArtifactRequest) GetAllowQuarantineOverride() bool {
+	if x != nil {
+		return x.AllowQuarantineOverride
+	}
+	return false
+}
+
+func (x *RepairArtifactRequest) GetOperatorSubject() string {
+	if x != nil {
+		return x.OperatorSubject
+	}
+	return ""
+}
+
+type RepairArtifactResponse struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Ref                 *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	ArtifactKey         string                 `protobuf:"bytes,2,opt,name=artifact_key,json=artifactKey,proto3" json:"artifact_key,omitempty"`
+	Action              string                 `protobuf:"bytes,3,opt,name=action,proto3" json:"action,omitempty"` // repair_blob | repair_checksum_mismatch | skipped_ok | blocked_revoked | blocked_quarantined | failed
+	Detail              string                 `protobuf:"bytes,4,opt,name=detail,proto3" json:"detail,omitempty"`
+	ArtifactStateBefore string                 `protobuf:"bytes,5,opt,name=artifact_state_before,json=artifactStateBefore,proto3" json:"artifact_state_before,omitempty"`
+	ArtifactStateAfter  string                 `protobuf:"bytes,6,opt,name=artifact_state_after,json=artifactStateAfter,proto3" json:"artifact_state_after,omitempty"`
+	WorkflowRunId       string                 `protobuf:"bytes,7,opt,name=workflow_run_id,json=workflowRunId,proto3" json:"workflow_run_id,omitempty"` // when repair started a workflow run; empty otherwise
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *RepairArtifactResponse) Reset() {
+	*x = RepairArtifactResponse{}
+	mi := &file_repository_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RepairArtifactResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RepairArtifactResponse) ProtoMessage() {}
+
+func (x *RepairArtifactResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RepairArtifactResponse.ProtoReflect.Descriptor instead.
+func (*RepairArtifactResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *RepairArtifactResponse) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *RepairArtifactResponse) GetArtifactKey() string {
+	if x != nil {
+		return x.ArtifactKey
+	}
+	return ""
+}
+
+func (x *RepairArtifactResponse) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *RepairArtifactResponse) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
+func (x *RepairArtifactResponse) GetArtifactStateBefore() string {
+	if x != nil {
+		return x.ArtifactStateBefore
+	}
+	return ""
+}
+
+func (x *RepairArtifactResponse) GetArtifactStateAfter() string {
+	if x != nil {
+		return x.ArtifactStateAfter
+	}
+	return ""
+}
+
+func (x *RepairArtifactResponse) GetWorkflowRunId() string {
+	if x != nil {
+		return x.WorkflowRunId
+	}
+	return ""
+}
+
+// ExplainArtifactRequest asks for one operator-readable answer about an artifact.
+type ExplainArtifactRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ref           *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	BuildNumber   int64                  `protobuf:"varint,2,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExplainArtifactRequest) Reset() {
+	*x = ExplainArtifactRequest{}
+	mi := &file_repository_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExplainArtifactRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExplainArtifactRequest) ProtoMessage() {}
+
+func (x *ExplainArtifactRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExplainArtifactRequest.ProtoReflect.Descriptor instead.
+func (*ExplainArtifactRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *ExplainArtifactRequest) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *ExplainArtifactRequest) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
+}
+
+type ExplainArtifactResponse struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Ref                  *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	ArtifactKey          string                 `protobuf:"bytes,2,opt,name=artifact_key,json=artifactKey,proto3" json:"artifact_key,omitempty"`
+	ArtifactState        string                 `protobuf:"bytes,3,opt,name=artifact_state,json=artifactState,proto3" json:"artifact_state,omitempty"`
+	PublishState         PublishState           `protobuf:"varint,4,opt,name=publish_state,json=publishState,proto3,enum=repository.PublishState" json:"publish_state,omitempty"`
+	BlobKey              string                 `protobuf:"bytes,5,opt,name=blob_key,json=blobKey,proto3" json:"blob_key,omitempty"`
+	BlobPresent          bool                   `protobuf:"varint,6,opt,name=blob_present,json=blobPresent,proto3" json:"blob_present,omitempty"`
+	ExpectedSize         int64                  `protobuf:"varint,7,opt,name=expected_size,json=expectedSize,proto3" json:"expected_size,omitempty"`
+	ActualSize           int64                  `protobuf:"varint,8,opt,name=actual_size,json=actualSize,proto3" json:"actual_size,omitempty"`
+	ExpectedDigest       string                 `protobuf:"bytes,9,opt,name=expected_digest,json=expectedDigest,proto3" json:"expected_digest,omitempty"`
+	ActualDigest         string                 `protobuf:"bytes,10,opt,name=actual_digest,json=actualDigest,proto3" json:"actual_digest,omitempty"`
+	LedgerPresent        bool                   `protobuf:"varint,11,opt,name=ledger_present,json=ledgerPresent,proto3" json:"ledger_present,omitempty"`
+	ManifestPresent      bool                   `protobuf:"varint,12,opt,name=manifest_present,json=manifestPresent,proto3" json:"manifest_present,omitempty"`
+	SignatureStatus      string                 `protobuf:"bytes,13,opt,name=signature_status,json=signatureStatus,proto3" json:"signature_status,omitempty"`
+	Installable          bool                   `protobuf:"varint,14,opt,name=installable,proto3" json:"installable,omitempty"`
+	RecommendedAction    string                 `protobuf:"bytes,15,opt,name=recommended_action,json=recommendedAction,proto3" json:"recommended_action,omitempty"`
+	RelatedWorkflowRunId string                 `protobuf:"bytes,16,opt,name=related_workflow_run_id,json=relatedWorkflowRunId,proto3" json:"related_workflow_run_id,omitempty"`
+	VerifyStatus         ArtifactVerifyStatus   `protobuf:"varint,17,opt,name=verify_status,json=verifyStatus,proto3,enum=repository.ArtifactVerifyStatus" json:"verify_status,omitempty"`
+	Detail               string                 `protobuf:"bytes,18,opt,name=detail,proto3" json:"detail,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *ExplainArtifactResponse) Reset() {
+	*x = ExplainArtifactResponse{}
+	mi := &file_repository_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExplainArtifactResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExplainArtifactResponse) ProtoMessage() {}
+
+func (x *ExplainArtifactResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExplainArtifactResponse.ProtoReflect.Descriptor instead.
+func (*ExplainArtifactResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *ExplainArtifactResponse) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *ExplainArtifactResponse) GetArtifactKey() string {
+	if x != nil {
+		return x.ArtifactKey
+	}
+	return ""
+}
+
+func (x *ExplainArtifactResponse) GetArtifactState() string {
+	if x != nil {
+		return x.ArtifactState
+	}
+	return ""
+}
+
+func (x *ExplainArtifactResponse) GetPublishState() PublishState {
+	if x != nil {
+		return x.PublishState
+	}
+	return PublishState_PUBLISH_STATE_UNSPECIFIED
+}
+
+func (x *ExplainArtifactResponse) GetBlobKey() string {
+	if x != nil {
+		return x.BlobKey
+	}
+	return ""
+}
+
+func (x *ExplainArtifactResponse) GetBlobPresent() bool {
+	if x != nil {
+		return x.BlobPresent
+	}
+	return false
+}
+
+func (x *ExplainArtifactResponse) GetExpectedSize() int64 {
+	if x != nil {
+		return x.ExpectedSize
+	}
+	return 0
+}
+
+func (x *ExplainArtifactResponse) GetActualSize() int64 {
+	if x != nil {
+		return x.ActualSize
+	}
+	return 0
+}
+
+func (x *ExplainArtifactResponse) GetExpectedDigest() string {
+	if x != nil {
+		return x.ExpectedDigest
+	}
+	return ""
+}
+
+func (x *ExplainArtifactResponse) GetActualDigest() string {
+	if x != nil {
+		return x.ActualDigest
+	}
+	return ""
+}
+
+func (x *ExplainArtifactResponse) GetLedgerPresent() bool {
+	if x != nil {
+		return x.LedgerPresent
+	}
+	return false
+}
+
+func (x *ExplainArtifactResponse) GetManifestPresent() bool {
+	if x != nil {
+		return x.ManifestPresent
+	}
+	return false
+}
+
+func (x *ExplainArtifactResponse) GetSignatureStatus() string {
+	if x != nil {
+		return x.SignatureStatus
+	}
+	return ""
+}
+
+func (x *ExplainArtifactResponse) GetInstallable() bool {
+	if x != nil {
+		return x.Installable
+	}
+	return false
+}
+
+func (x *ExplainArtifactResponse) GetRecommendedAction() string {
+	if x != nil {
+		return x.RecommendedAction
+	}
+	return ""
+}
+
+func (x *ExplainArtifactResponse) GetRelatedWorkflowRunId() string {
+	if x != nil {
+		return x.RelatedWorkflowRunId
+	}
+	return ""
+}
+
+func (x *ExplainArtifactResponse) GetVerifyStatus() ArtifactVerifyStatus {
+	if x != nil {
+		return x.VerifyStatus
+	}
+	return ArtifactVerifyStatus_ARTIFACT_VERIFY_STATUS_UNSPECIFIED
+}
+
+func (x *ExplainArtifactResponse) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
 // ── ResolveArtifact (deterministic resolver) ────────────────────────────────
 //
 // ResolveArtifact resolves a package reference to exactly one concrete build_id
@@ -3350,7 +4570,7 @@ type ResolveArtifactRequest struct {
 
 func (x *ResolveArtifactRequest) Reset() {
 	*x = ResolveArtifactRequest{}
-	mi := &file_repository_proto_msgTypes[40]
+	mi := &file_repository_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3362,7 +4582,7 @@ func (x *ResolveArtifactRequest) String() string {
 func (*ResolveArtifactRequest) ProtoMessage() {}
 
 func (x *ResolveArtifactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[40]
+	mi := &file_repository_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3375,7 +4595,7 @@ func (x *ResolveArtifactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveArtifactRequest.ProtoReflect.Descriptor instead.
 func (*ResolveArtifactRequest) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{40}
+	return file_repository_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ResolveArtifactRequest) GetPublisherId() string {
@@ -3439,7 +4659,7 @@ type ResolveArtifactResponse struct {
 
 func (x *ResolveArtifactResponse) Reset() {
 	*x = ResolveArtifactResponse{}
-	mi := &file_repository_proto_msgTypes[41]
+	mi := &file_repository_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3451,7 +4671,7 @@ func (x *ResolveArtifactResponse) String() string {
 func (*ResolveArtifactResponse) ProtoMessage() {}
 
 func (x *ResolveArtifactResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[41]
+	mi := &file_repository_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3464,7 +4684,7 @@ func (x *ResolveArtifactResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveArtifactResponse.ProtoReflect.Descriptor instead.
 func (*ResolveArtifactResponse) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{41}
+	return file_repository_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *ResolveArtifactResponse) GetManifest() *ArtifactManifest {
@@ -3492,7 +4712,7 @@ type ResolveByEntrypointChecksumRequest struct {
 
 func (x *ResolveByEntrypointChecksumRequest) Reset() {
 	*x = ResolveByEntrypointChecksumRequest{}
-	mi := &file_repository_proto_msgTypes[42]
+	mi := &file_repository_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3504,7 +4724,7 @@ func (x *ResolveByEntrypointChecksumRequest) String() string {
 func (*ResolveByEntrypointChecksumRequest) ProtoMessage() {}
 
 func (x *ResolveByEntrypointChecksumRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[42]
+	mi := &file_repository_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3517,7 +4737,7 @@ func (x *ResolveByEntrypointChecksumRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use ResolveByEntrypointChecksumRequest.ProtoReflect.Descriptor instead.
 func (*ResolveByEntrypointChecksumRequest) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{42}
+	return file_repository_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *ResolveByEntrypointChecksumRequest) GetChecksum() string {
@@ -3543,7 +4763,7 @@ type ResolveByEntrypointChecksumResponse struct {
 
 func (x *ResolveByEntrypointChecksumResponse) Reset() {
 	*x = ResolveByEntrypointChecksumResponse{}
-	mi := &file_repository_proto_msgTypes[43]
+	mi := &file_repository_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3555,7 +4775,7 @@ func (x *ResolveByEntrypointChecksumResponse) String() string {
 func (*ResolveByEntrypointChecksumResponse) ProtoMessage() {}
 
 func (x *ResolveByEntrypointChecksumResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[43]
+	mi := &file_repository_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3568,7 +4788,7 @@ func (x *ResolveByEntrypointChecksumResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use ResolveByEntrypointChecksumResponse.ProtoReflect.Descriptor instead.
 func (*ResolveByEntrypointChecksumResponse) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{43}
+	return file_repository_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *ResolveByEntrypointChecksumResponse) GetManifest() *ArtifactManifest {
@@ -3591,7 +4811,7 @@ type UpdateArtifactBinaryRequest struct {
 
 func (x *UpdateArtifactBinaryRequest) Reset() {
 	*x = UpdateArtifactBinaryRequest{}
-	mi := &file_repository_proto_msgTypes[44]
+	mi := &file_repository_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3603,7 +4823,7 @@ func (x *UpdateArtifactBinaryRequest) String() string {
 func (*UpdateArtifactBinaryRequest) ProtoMessage() {}
 
 func (x *UpdateArtifactBinaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[44]
+	mi := &file_repository_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3616,7 +4836,7 @@ func (x *UpdateArtifactBinaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateArtifactBinaryRequest.ProtoReflect.Descriptor instead.
 func (*UpdateArtifactBinaryRequest) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{44}
+	return file_repository_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *UpdateArtifactBinaryRequest) GetPayload() isUpdateArtifactBinaryRequest_Payload {
@@ -3671,7 +4891,7 @@ type UpdateArtifactBinaryHeader struct {
 
 func (x *UpdateArtifactBinaryHeader) Reset() {
 	*x = UpdateArtifactBinaryHeader{}
-	mi := &file_repository_proto_msgTypes[45]
+	mi := &file_repository_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3683,7 +4903,7 @@ func (x *UpdateArtifactBinaryHeader) String() string {
 func (*UpdateArtifactBinaryHeader) ProtoMessage() {}
 
 func (x *UpdateArtifactBinaryHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[45]
+	mi := &file_repository_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3696,7 +4916,7 @@ func (x *UpdateArtifactBinaryHeader) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateArtifactBinaryHeader.ProtoReflect.Descriptor instead.
 func (*UpdateArtifactBinaryHeader) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{45}
+	return file_repository_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *UpdateArtifactBinaryHeader) GetRef() *ArtifactRef {
@@ -3731,7 +4951,7 @@ type UpdateArtifactBinaryResponse struct {
 
 func (x *UpdateArtifactBinaryResponse) Reset() {
 	*x = UpdateArtifactBinaryResponse{}
-	mi := &file_repository_proto_msgTypes[46]
+	mi := &file_repository_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3743,7 +4963,7 @@ func (x *UpdateArtifactBinaryResponse) String() string {
 func (*UpdateArtifactBinaryResponse) ProtoMessage() {}
 
 func (x *UpdateArtifactBinaryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[46]
+	mi := &file_repository_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3756,7 +4976,7 @@ func (x *UpdateArtifactBinaryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateArtifactBinaryResponse.ProtoReflect.Descriptor instead.
 func (*UpdateArtifactBinaryResponse) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{46}
+	return file_repository_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *UpdateArtifactBinaryResponse) GetBuildNumber() int64 {
@@ -3795,7 +5015,7 @@ type AllocateUploadRequest struct {
 
 func (x *AllocateUploadRequest) Reset() {
 	*x = AllocateUploadRequest{}
-	mi := &file_repository_proto_msgTypes[47]
+	mi := &file_repository_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3807,7 +5027,7 @@ func (x *AllocateUploadRequest) String() string {
 func (*AllocateUploadRequest) ProtoMessage() {}
 
 func (x *AllocateUploadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[47]
+	mi := &file_repository_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3820,7 +5040,7 @@ func (x *AllocateUploadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocateUploadRequest.ProtoReflect.Descriptor instead.
 func (*AllocateUploadRequest) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{47}
+	return file_repository_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *AllocateUploadRequest) GetPublisherId() string {
@@ -3877,7 +5097,7 @@ type AllocateUploadResponse struct {
 
 func (x *AllocateUploadResponse) Reset() {
 	*x = AllocateUploadResponse{}
-	mi := &file_repository_proto_msgTypes[48]
+	mi := &file_repository_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3889,7 +5109,7 @@ func (x *AllocateUploadResponse) String() string {
 func (*AllocateUploadResponse) ProtoMessage() {}
 
 func (x *AllocateUploadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[48]
+	mi := &file_repository_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3902,7 +5122,7 @@ func (x *AllocateUploadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocateUploadResponse.ProtoReflect.Descriptor instead.
 func (*AllocateUploadResponse) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{48}
+	return file_repository_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *AllocateUploadResponse) GetVersion() string {
@@ -3949,7 +5169,7 @@ type ImportProvisionalRequest struct {
 
 func (x *ImportProvisionalRequest) Reset() {
 	*x = ImportProvisionalRequest{}
-	mi := &file_repository_proto_msgTypes[49]
+	mi := &file_repository_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3961,7 +5181,7 @@ func (x *ImportProvisionalRequest) String() string {
 func (*ImportProvisionalRequest) ProtoMessage() {}
 
 func (x *ImportProvisionalRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[49]
+	mi := &file_repository_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3974,7 +5194,7 @@ func (x *ImportProvisionalRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportProvisionalRequest.ProtoReflect.Descriptor instead.
 func (*ImportProvisionalRequest) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{49}
+	return file_repository_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *ImportProvisionalRequest) GetPublisherId() string {
@@ -4046,7 +5266,7 @@ type ImportProvisionalResponse struct {
 
 func (x *ImportProvisionalResponse) Reset() {
 	*x = ImportProvisionalResponse{}
-	mi := &file_repository_proto_msgTypes[50]
+	mi := &file_repository_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4058,7 +5278,7 @@ func (x *ImportProvisionalResponse) String() string {
 func (*ImportProvisionalResponse) ProtoMessage() {}
 
 func (x *ImportProvisionalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[50]
+	mi := &file_repository_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4071,7 +5291,7 @@ func (x *ImportProvisionalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportProvisionalResponse.ProtoReflect.Descriptor instead.
 func (*ImportProvisionalResponse) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{50}
+	return file_repository_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *ImportProvisionalResponse) GetOk() bool {
@@ -4146,7 +5366,7 @@ type UpstreamSource struct {
 
 func (x *UpstreamSource) Reset() {
 	*x = UpstreamSource{}
-	mi := &file_repository_proto_msgTypes[51]
+	mi := &file_repository_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4158,7 +5378,7 @@ func (x *UpstreamSource) String() string {
 func (*UpstreamSource) ProtoMessage() {}
 
 func (x *UpstreamSource) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[51]
+	mi := &file_repository_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4171,7 +5391,7 @@ func (x *UpstreamSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpstreamSource.ProtoReflect.Descriptor instead.
 func (*UpstreamSource) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{51}
+	return file_repository_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *UpstreamSource) GetName() string {
@@ -4358,7 +5578,7 @@ type RegisterUpstreamRequest struct {
 
 func (x *RegisterUpstreamRequest) Reset() {
 	*x = RegisterUpstreamRequest{}
-	mi := &file_repository_proto_msgTypes[52]
+	mi := &file_repository_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4370,7 +5590,7 @@ func (x *RegisterUpstreamRequest) String() string {
 func (*RegisterUpstreamRequest) ProtoMessage() {}
 
 func (x *RegisterUpstreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[52]
+	mi := &file_repository_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4383,7 +5603,7 @@ func (x *RegisterUpstreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterUpstreamRequest.ProtoReflect.Descriptor instead.
 func (*RegisterUpstreamRequest) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{52}
+	return file_repository_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *RegisterUpstreamRequest) GetSource() *UpstreamSource {
@@ -4402,7 +5622,7 @@ type RegisterUpstreamResponse struct {
 
 func (x *RegisterUpstreamResponse) Reset() {
 	*x = RegisterUpstreamResponse{}
-	mi := &file_repository_proto_msgTypes[53]
+	mi := &file_repository_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4414,7 +5634,7 @@ func (x *RegisterUpstreamResponse) String() string {
 func (*RegisterUpstreamResponse) ProtoMessage() {}
 
 func (x *RegisterUpstreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[53]
+	mi := &file_repository_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4427,7 +5647,7 @@ func (x *RegisterUpstreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterUpstreamResponse.ProtoReflect.Descriptor instead.
 func (*RegisterUpstreamResponse) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{53}
+	return file_repository_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *RegisterUpstreamResponse) GetSource() *UpstreamSource {
@@ -4445,7 +5665,7 @@ type ListUpstreamsRequest struct {
 
 func (x *ListUpstreamsRequest) Reset() {
 	*x = ListUpstreamsRequest{}
-	mi := &file_repository_proto_msgTypes[54]
+	mi := &file_repository_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4457,7 +5677,7 @@ func (x *ListUpstreamsRequest) String() string {
 func (*ListUpstreamsRequest) ProtoMessage() {}
 
 func (x *ListUpstreamsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[54]
+	mi := &file_repository_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4470,7 +5690,7 @@ func (x *ListUpstreamsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUpstreamsRequest.ProtoReflect.Descriptor instead.
 func (*ListUpstreamsRequest) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{54}
+	return file_repository_proto_rawDescGZIP(), []int{60}
 }
 
 type ListUpstreamsResponse struct {
@@ -4482,7 +5702,7 @@ type ListUpstreamsResponse struct {
 
 func (x *ListUpstreamsResponse) Reset() {
 	*x = ListUpstreamsResponse{}
-	mi := &file_repository_proto_msgTypes[55]
+	mi := &file_repository_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4494,7 +5714,7 @@ func (x *ListUpstreamsResponse) String() string {
 func (*ListUpstreamsResponse) ProtoMessage() {}
 
 func (x *ListUpstreamsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[55]
+	mi := &file_repository_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4507,7 +5727,7 @@ func (x *ListUpstreamsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUpstreamsResponse.ProtoReflect.Descriptor instead.
 func (*ListUpstreamsResponse) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{55}
+	return file_repository_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *ListUpstreamsResponse) GetSources() []*UpstreamSource {
@@ -4526,7 +5746,7 @@ type RemoveUpstreamRequest struct {
 
 func (x *RemoveUpstreamRequest) Reset() {
 	*x = RemoveUpstreamRequest{}
-	mi := &file_repository_proto_msgTypes[56]
+	mi := &file_repository_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4538,7 +5758,7 @@ func (x *RemoveUpstreamRequest) String() string {
 func (*RemoveUpstreamRequest) ProtoMessage() {}
 
 func (x *RemoveUpstreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[56]
+	mi := &file_repository_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4551,7 +5771,7 @@ func (x *RemoveUpstreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveUpstreamRequest.ProtoReflect.Descriptor instead.
 func (*RemoveUpstreamRequest) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{56}
+	return file_repository_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *RemoveUpstreamRequest) GetName() string {
@@ -4569,7 +5789,7 @@ type RemoveUpstreamResponse struct {
 
 func (x *RemoveUpstreamResponse) Reset() {
 	*x = RemoveUpstreamResponse{}
-	mi := &file_repository_proto_msgTypes[57]
+	mi := &file_repository_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4581,7 +5801,7 @@ func (x *RemoveUpstreamResponse) String() string {
 func (*RemoveUpstreamResponse) ProtoMessage() {}
 
 func (x *RemoveUpstreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[57]
+	mi := &file_repository_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4594,7 +5814,7 @@ func (x *RemoveUpstreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveUpstreamResponse.ProtoReflect.Descriptor instead.
 func (*RemoveUpstreamResponse) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{57}
+	return file_repository_proto_rawDescGZIP(), []int{63}
 }
 
 type UpstreamSyncResult struct {
@@ -4622,7 +5842,7 @@ type UpstreamSyncResult struct {
 
 func (x *UpstreamSyncResult) Reset() {
 	*x = UpstreamSyncResult{}
-	mi := &file_repository_proto_msgTypes[58]
+	mi := &file_repository_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4634,7 +5854,7 @@ func (x *UpstreamSyncResult) String() string {
 func (*UpstreamSyncResult) ProtoMessage() {}
 
 func (x *UpstreamSyncResult) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[58]
+	mi := &file_repository_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4647,7 +5867,7 @@ func (x *UpstreamSyncResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpstreamSyncResult.ProtoReflect.Descriptor instead.
 func (*UpstreamSyncResult) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{58}
+	return file_repository_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *UpstreamSyncResult) GetName() string {
@@ -4775,7 +5995,7 @@ type SyncFromUpstreamRequest struct {
 
 func (x *SyncFromUpstreamRequest) Reset() {
 	*x = SyncFromUpstreamRequest{}
-	mi := &file_repository_proto_msgTypes[59]
+	mi := &file_repository_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4787,7 +6007,7 @@ func (x *SyncFromUpstreamRequest) String() string {
 func (*SyncFromUpstreamRequest) ProtoMessage() {}
 
 func (x *SyncFromUpstreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[59]
+	mi := &file_repository_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4800,7 +6020,7 @@ func (x *SyncFromUpstreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncFromUpstreamRequest.ProtoReflect.Descriptor instead.
 func (*SyncFromUpstreamRequest) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{59}
+	return file_repository_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *SyncFromUpstreamRequest) GetSourceName() string {
@@ -4854,7 +6074,7 @@ type SyncFromUpstreamResponse struct {
 
 func (x *SyncFromUpstreamResponse) Reset() {
 	*x = SyncFromUpstreamResponse{}
-	mi := &file_repository_proto_msgTypes[60]
+	mi := &file_repository_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4866,7 +6086,7 @@ func (x *SyncFromUpstreamResponse) String() string {
 func (*SyncFromUpstreamResponse) ProtoMessage() {}
 
 func (x *SyncFromUpstreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[60]
+	mi := &file_repository_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4879,7 +6099,7 @@ func (x *SyncFromUpstreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncFromUpstreamResponse.ProtoReflect.Descriptor instead.
 func (*SyncFromUpstreamResponse) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{60}
+	return file_repository_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *SyncFromUpstreamResponse) GetResults() []*UpstreamSyncResult {
@@ -4964,7 +6184,7 @@ type UpstreamImportRecord struct {
 
 func (x *UpstreamImportRecord) Reset() {
 	*x = UpstreamImportRecord{}
-	mi := &file_repository_proto_msgTypes[61]
+	mi := &file_repository_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4976,7 +6196,7 @@ func (x *UpstreamImportRecord) String() string {
 func (*UpstreamImportRecord) ProtoMessage() {}
 
 func (x *UpstreamImportRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[61]
+	mi := &file_repository_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4989,7 +6209,7 @@ func (x *UpstreamImportRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpstreamImportRecord.ProtoReflect.Descriptor instead.
 func (*UpstreamImportRecord) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{61}
+	return file_repository_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *UpstreamImportRecord) GetSourceName() string {
@@ -5100,7 +6320,7 @@ type ArchiveUnreachableArtifactsRequest struct {
 
 func (x *ArchiveUnreachableArtifactsRequest) Reset() {
 	*x = ArchiveUnreachableArtifactsRequest{}
-	mi := &file_repository_proto_msgTypes[62]
+	mi := &file_repository_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5112,7 +6332,7 @@ func (x *ArchiveUnreachableArtifactsRequest) String() string {
 func (*ArchiveUnreachableArtifactsRequest) ProtoMessage() {}
 
 func (x *ArchiveUnreachableArtifactsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[62]
+	mi := &file_repository_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5125,7 +6345,7 @@ func (x *ArchiveUnreachableArtifactsRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use ArchiveUnreachableArtifactsRequest.ProtoReflect.Descriptor instead.
 func (*ArchiveUnreachableArtifactsRequest) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{62}
+	return file_repository_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *ArchiveUnreachableArtifactsRequest) GetDryRun() bool {
@@ -5149,7 +6369,7 @@ type ArchivedArtifactRecord struct {
 
 func (x *ArchivedArtifactRecord) Reset() {
 	*x = ArchivedArtifactRecord{}
-	mi := &file_repository_proto_msgTypes[63]
+	mi := &file_repository_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5161,7 +6381,7 @@ func (x *ArchivedArtifactRecord) String() string {
 func (*ArchivedArtifactRecord) ProtoMessage() {}
 
 func (x *ArchivedArtifactRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[63]
+	mi := &file_repository_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5174,7 +6394,7 @@ func (x *ArchivedArtifactRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArchivedArtifactRecord.ProtoReflect.Descriptor instead.
 func (*ArchivedArtifactRecord) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{63}
+	return file_repository_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *ArchivedArtifactRecord) GetKey() string {
@@ -5231,7 +6451,7 @@ type ArchiveUnreachableArtifactsResponse struct {
 
 func (x *ArchiveUnreachableArtifactsResponse) Reset() {
 	*x = ArchiveUnreachableArtifactsResponse{}
-	mi := &file_repository_proto_msgTypes[64]
+	mi := &file_repository_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5243,7 +6463,7 @@ func (x *ArchiveUnreachableArtifactsResponse) String() string {
 func (*ArchiveUnreachableArtifactsResponse) ProtoMessage() {}
 
 func (x *ArchiveUnreachableArtifactsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[64]
+	mi := &file_repository_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5256,7 +6476,7 @@ func (x *ArchiveUnreachableArtifactsResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use ArchiveUnreachableArtifactsResponse.ProtoReflect.Descriptor instead.
 func (*ArchiveUnreachableArtifactsResponse) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{64}
+	return file_repository_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *ArchiveUnreachableArtifactsResponse) GetArchivedCount() int32 {
@@ -5287,6 +6507,2372 @@ func (x *ArchiveUnreachableArtifactsResponse) GetArchived() []*ArchivedArtifactR
 	return nil
 }
 
+// PackageConfigFile is one config file declared by a package manifest.
+// The node-agent uses this list to drive install / upgrade / rollback safely.
+type PackageConfigFile struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Path              string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"` // absolute path on the target node
+	ConfigKind        ConfigKind             `protobuf:"varint,2,opt,name=config_kind,json=configKind,proto3,enum=repository.ConfigKind" json:"config_kind,omitempty"`
+	OwnerPackage      string                 `protobuf:"bytes,3,opt,name=owner_package,json=ownerPackage,proto3" json:"owner_package,omitempty"`                  // "publisher/name" — the package that owns this file
+	ChecksumAtInstall string                 `protobuf:"bytes,4,opt,name=checksum_at_install,json=checksumAtInstall,proto3" json:"checksum_at_install,omitempty"` // sha256 captured at install time (filled in by node-agent)
+	CurrentChecksum   string                 `protobuf:"bytes,5,opt,name=current_checksum,json=currentChecksum,proto3" json:"current_checksum,omitempty"`         // sha256 currently on disk (filled in by node-agent on read)
+	LastModifiedUnix  int64                  `protobuf:"varint,6,opt,name=last_modified_unix,json=lastModifiedUnix,proto3" json:"last_modified_unix,omitempty"`   // file mtime
+	MergeStrategy     MergeStrategy          `protobuf:"varint,7,opt,name=merge_strategy,json=mergeStrategy,proto3,enum=repository.MergeStrategy" json:"merge_strategy,omitempty"`
+	PreserveOnUpgrade bool                   `protobuf:"varint,8,opt,name=preserve_on_upgrade,json=preserveOnUpgrade,proto3" json:"preserve_on_upgrade,omitempty"`
+	RestoreOnRollback bool                   `protobuf:"varint,9,opt,name=restore_on_rollback,json=restoreOnRollback,proto3" json:"restore_on_rollback,omitempty"`
+	Sensitive         bool                   `protobuf:"varint,10,opt,name=sensitive,proto3" json:"sensitive,omitempty"` // SECRET or otherwise redaction-required
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *PackageConfigFile) Reset() {
+	*x = PackageConfigFile{}
+	mi := &file_repository_proto_msgTypes[71]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PackageConfigFile) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PackageConfigFile) ProtoMessage() {}
+
+func (x *PackageConfigFile) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[71]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PackageConfigFile.ProtoReflect.Descriptor instead.
+func (*PackageConfigFile) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{71}
+}
+
+func (x *PackageConfigFile) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *PackageConfigFile) GetConfigKind() ConfigKind {
+	if x != nil {
+		return x.ConfigKind
+	}
+	return ConfigKind_CONFIG_KIND_UNSPECIFIED
+}
+
+func (x *PackageConfigFile) GetOwnerPackage() string {
+	if x != nil {
+		return x.OwnerPackage
+	}
+	return ""
+}
+
+func (x *PackageConfigFile) GetChecksumAtInstall() string {
+	if x != nil {
+		return x.ChecksumAtInstall
+	}
+	return ""
+}
+
+func (x *PackageConfigFile) GetCurrentChecksum() string {
+	if x != nil {
+		return x.CurrentChecksum
+	}
+	return ""
+}
+
+func (x *PackageConfigFile) GetLastModifiedUnix() int64 {
+	if x != nil {
+		return x.LastModifiedUnix
+	}
+	return 0
+}
+
+func (x *PackageConfigFile) GetMergeStrategy() MergeStrategy {
+	if x != nil {
+		return x.MergeStrategy
+	}
+	return MergeStrategy_MERGE_STRATEGY_UNSPECIFIED
+}
+
+func (x *PackageConfigFile) GetPreserveOnUpgrade() bool {
+	if x != nil {
+		return x.PreserveOnUpgrade
+	}
+	return false
+}
+
+func (x *PackageConfigFile) GetRestoreOnRollback() bool {
+	if x != nil {
+		return x.RestoreOnRollback
+	}
+	return false
+}
+
+func (x *PackageConfigFile) GetSensitive() bool {
+	if x != nil {
+		return x.Sensitive
+	}
+	return false
+}
+
+// TrustedPublisher is one (publisher_id, public_key_id) entry in the
+// trusted-publishers table. The repository stores public keys only.
+type TrustedPublisher struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	PublisherId    string                 `protobuf:"bytes,1,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"`      // e.g. "core@globular.io"
+	PublicKeyId    string                 `protobuf:"bytes,2,opt,name=public_key_id,json=publicKeyId,proto3" json:"public_key_id,omitempty"`    // operator-supplied identifier (often a thumbprint)
+	PublicKeyPem   []byte                 `protobuf:"bytes,3,opt,name=public_key_pem,json=publicKeyPem,proto3" json:"public_key_pem,omitempty"` // PEM-encoded ed25519 public key
+	TrustState     TrustState             `protobuf:"varint,4,opt,name=trust_state,json=trustState,proto3,enum=repository.TrustState" json:"trust_state,omitempty"`
+	ValidFromUnix  int64                  `protobuf:"varint,5,opt,name=valid_from_unix,json=validFromUnix,proto3" json:"valid_from_unix,omitempty"`
+	ValidUntilUnix int64                  `protobuf:"varint,6,opt,name=valid_until_unix,json=validUntilUnix,proto3" json:"valid_until_unix,omitempty"` // 0 = no expiry
+	CreatedBy      string                 `protobuf:"bytes,7,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`                   // operator subject who registered
+	CreatedUnix    int64                  `protobuf:"varint,8,opt,name=created_unix,json=createdUnix,proto3" json:"created_unix,omitempty"`
+	Algorithm      string                 `protobuf:"bytes,9,opt,name=algorithm,proto3" json:"algorithm,omitempty"` // e.g. "ed25519"
+	Notes          string                 `protobuf:"bytes,10,opt,name=notes,proto3" json:"notes,omitempty"`        // optional free-form note
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *TrustedPublisher) Reset() {
+	*x = TrustedPublisher{}
+	mi := &file_repository_proto_msgTypes[72]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TrustedPublisher) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TrustedPublisher) ProtoMessage() {}
+
+func (x *TrustedPublisher) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[72]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TrustedPublisher.ProtoReflect.Descriptor instead.
+func (*TrustedPublisher) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{72}
+}
+
+func (x *TrustedPublisher) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+func (x *TrustedPublisher) GetPublicKeyId() string {
+	if x != nil {
+		return x.PublicKeyId
+	}
+	return ""
+}
+
+func (x *TrustedPublisher) GetPublicKeyPem() []byte {
+	if x != nil {
+		return x.PublicKeyPem
+	}
+	return nil
+}
+
+func (x *TrustedPublisher) GetTrustState() TrustState {
+	if x != nil {
+		return x.TrustState
+	}
+	return TrustState_TRUST_STATE_UNSPECIFIED
+}
+
+func (x *TrustedPublisher) GetValidFromUnix() int64 {
+	if x != nil {
+		return x.ValidFromUnix
+	}
+	return 0
+}
+
+func (x *TrustedPublisher) GetValidUntilUnix() int64 {
+	if x != nil {
+		return x.ValidUntilUnix
+	}
+	return 0
+}
+
+func (x *TrustedPublisher) GetCreatedBy() string {
+	if x != nil {
+		return x.CreatedBy
+	}
+	return ""
+}
+
+func (x *TrustedPublisher) GetCreatedUnix() int64 {
+	if x != nil {
+		return x.CreatedUnix
+	}
+	return 0
+}
+
+func (x *TrustedPublisher) GetAlgorithm() string {
+	if x != nil {
+		return x.Algorithm
+	}
+	return ""
+}
+
+func (x *TrustedPublisher) GetNotes() string {
+	if x != nil {
+		return x.Notes
+	}
+	return ""
+}
+
+// ArtifactSignature is one detached signature record.
+type ArtifactSignature struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ArtifactKey    string                 `protobuf:"bytes,1,opt,name=artifact_key,json=artifactKey,proto3" json:"artifact_key,omitempty"`
+	Digest         string                 `protobuf:"bytes,2,opt,name=digest,proto3" json:"digest,omitempty"`                                       // the digest that was signed (sha256:<hex>)
+	Algorithm      string                 `protobuf:"bytes,3,opt,name=algorithm,proto3" json:"algorithm,omitempty"`                                 // e.g. "ed25519"
+	SignatureBytes []byte                 `protobuf:"bytes,4,opt,name=signature_bytes,json=signatureBytes,proto3" json:"signature_bytes,omitempty"` // raw signature bytes
+	PublicKeyId    string                 `protobuf:"bytes,5,opt,name=public_key_id,json=publicKeyId,proto3" json:"public_key_id,omitempty"`        // matches TrustedPublisher.public_key_id
+	SignedBy       string                 `protobuf:"bytes,6,opt,name=signed_by,json=signedBy,proto3" json:"signed_by,omitempty"`                   // signer subject
+	SignedAtUnix   int64                  `protobuf:"varint,7,opt,name=signed_at_unix,json=signedAtUnix,proto3" json:"signed_at_unix,omitempty"`
+	ProvenanceRef  string                 `protobuf:"bytes,8,opt,name=provenance_ref,json=provenanceRef,proto3" json:"provenance_ref,omitempty"` // optional pointer to provenance record
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ArtifactSignature) Reset() {
+	*x = ArtifactSignature{}
+	mi := &file_repository_proto_msgTypes[73]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtifactSignature) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtifactSignature) ProtoMessage() {}
+
+func (x *ArtifactSignature) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[73]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtifactSignature.ProtoReflect.Descriptor instead.
+func (*ArtifactSignature) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{73}
+}
+
+func (x *ArtifactSignature) GetArtifactKey() string {
+	if x != nil {
+		return x.ArtifactKey
+	}
+	return ""
+}
+
+func (x *ArtifactSignature) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+func (x *ArtifactSignature) GetAlgorithm() string {
+	if x != nil {
+		return x.Algorithm
+	}
+	return ""
+}
+
+func (x *ArtifactSignature) GetSignatureBytes() []byte {
+	if x != nil {
+		return x.SignatureBytes
+	}
+	return nil
+}
+
+func (x *ArtifactSignature) GetPublicKeyId() string {
+	if x != nil {
+		return x.PublicKeyId
+	}
+	return ""
+}
+
+func (x *ArtifactSignature) GetSignedBy() string {
+	if x != nil {
+		return x.SignedBy
+	}
+	return ""
+}
+
+func (x *ArtifactSignature) GetSignedAtUnix() int64 {
+	if x != nil {
+		return x.SignedAtUnix
+	}
+	return 0
+}
+
+func (x *ArtifactSignature) GetProvenanceRef() string {
+	if x != nil {
+		return x.ProvenanceRef
+	}
+	return ""
+}
+
+// TrustPublisherRequest registers a publisher's public key.
+type TrustPublisherRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	PublisherId    string                 `protobuf:"bytes,1,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"`
+	PublicKeyId    string                 `protobuf:"bytes,2,opt,name=public_key_id,json=publicKeyId,proto3" json:"public_key_id,omitempty"`
+	PublicKeyPem   []byte                 `protobuf:"bytes,3,opt,name=public_key_pem,json=publicKeyPem,proto3" json:"public_key_pem,omitempty"`
+	Algorithm      string                 `protobuf:"bytes,4,opt,name=algorithm,proto3" json:"algorithm,omitempty"`                                    // default "ed25519"
+	ValidUntilUnix int64                  `protobuf:"varint,5,opt,name=valid_until_unix,json=validUntilUnix,proto3" json:"valid_until_unix,omitempty"` // 0 = no expiry
+	Notes          string                 `protobuf:"bytes,6,opt,name=notes,proto3" json:"notes,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *TrustPublisherRequest) Reset() {
+	*x = TrustPublisherRequest{}
+	mi := &file_repository_proto_msgTypes[74]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TrustPublisherRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TrustPublisherRequest) ProtoMessage() {}
+
+func (x *TrustPublisherRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[74]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TrustPublisherRequest.ProtoReflect.Descriptor instead.
+func (*TrustPublisherRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{74}
+}
+
+func (x *TrustPublisherRequest) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+func (x *TrustPublisherRequest) GetPublicKeyId() string {
+	if x != nil {
+		return x.PublicKeyId
+	}
+	return ""
+}
+
+func (x *TrustPublisherRequest) GetPublicKeyPem() []byte {
+	if x != nil {
+		return x.PublicKeyPem
+	}
+	return nil
+}
+
+func (x *TrustPublisherRequest) GetAlgorithm() string {
+	if x != nil {
+		return x.Algorithm
+	}
+	return ""
+}
+
+func (x *TrustPublisherRequest) GetValidUntilUnix() int64 {
+	if x != nil {
+		return x.ValidUntilUnix
+	}
+	return 0
+}
+
+func (x *TrustPublisherRequest) GetNotes() string {
+	if x != nil {
+		return x.Notes
+	}
+	return ""
+}
+
+type TrustPublisherResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Publisher     *TrustedPublisher      `protobuf:"bytes,1,opt,name=publisher,proto3" json:"publisher,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TrustPublisherResponse) Reset() {
+	*x = TrustPublisherResponse{}
+	mi := &file_repository_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TrustPublisherResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TrustPublisherResponse) ProtoMessage() {}
+
+func (x *TrustPublisherResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TrustPublisherResponse.ProtoReflect.Descriptor instead.
+func (*TrustPublisherResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *TrustPublisherResponse) GetPublisher() *TrustedPublisher {
+	if x != nil {
+		return x.Publisher
+	}
+	return nil
+}
+
+type RevokePublisherKeyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PublisherId   string                 `protobuf:"bytes,1,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"`
+	PublicKeyId   string                 `protobuf:"bytes,2,opt,name=public_key_id,json=publicKeyId,proto3" json:"public_key_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokePublisherKeyRequest) Reset() {
+	*x = RevokePublisherKeyRequest{}
+	mi := &file_repository_proto_msgTypes[76]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokePublisherKeyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokePublisherKeyRequest) ProtoMessage() {}
+
+func (x *RevokePublisherKeyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[76]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokePublisherKeyRequest.ProtoReflect.Descriptor instead.
+func (*RevokePublisherKeyRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{76}
+}
+
+func (x *RevokePublisherKeyRequest) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+func (x *RevokePublisherKeyRequest) GetPublicKeyId() string {
+	if x != nil {
+		return x.PublicKeyId
+	}
+	return ""
+}
+
+func (x *RevokePublisherKeyRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type RevokePublisherKeyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Publisher     *TrustedPublisher      `protobuf:"bytes,1,opt,name=publisher,proto3" json:"publisher,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokePublisherKeyResponse) Reset() {
+	*x = RevokePublisherKeyResponse{}
+	mi := &file_repository_proto_msgTypes[77]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokePublisherKeyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokePublisherKeyResponse) ProtoMessage() {}
+
+func (x *RevokePublisherKeyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[77]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokePublisherKeyResponse.ProtoReflect.Descriptor instead.
+func (*RevokePublisherKeyResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{77}
+}
+
+func (x *RevokePublisherKeyResponse) GetPublisher() *TrustedPublisher {
+	if x != nil {
+		return x.Publisher
+	}
+	return nil
+}
+
+type ListTrustedPublishersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PublisherId   string                 `protobuf:"bytes,1,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"` // empty = all
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListTrustedPublishersRequest) Reset() {
+	*x = ListTrustedPublishersRequest{}
+	mi := &file_repository_proto_msgTypes[78]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTrustedPublishersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTrustedPublishersRequest) ProtoMessage() {}
+
+func (x *ListTrustedPublishersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[78]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListTrustedPublishersRequest.ProtoReflect.Descriptor instead.
+func (*ListTrustedPublishersRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{78}
+}
+
+func (x *ListTrustedPublishersRequest) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+type ListTrustedPublishersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Publishers    []*TrustedPublisher    `protobuf:"bytes,1,rep,name=publishers,proto3" json:"publishers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListTrustedPublishersResponse) Reset() {
+	*x = ListTrustedPublishersResponse{}
+	mi := &file_repository_proto_msgTypes[79]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTrustedPublishersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTrustedPublishersResponse) ProtoMessage() {}
+
+func (x *ListTrustedPublishersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[79]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListTrustedPublishersResponse.ProtoReflect.Descriptor instead.
+func (*ListTrustedPublishersResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{79}
+}
+
+func (x *ListTrustedPublishersResponse) GetPublishers() []*TrustedPublisher {
+	if x != nil {
+		return x.Publishers
+	}
+	return nil
+}
+
+type RegisterArtifactSignatureRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Ref            *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	BuildNumber    int64                  `protobuf:"varint,2,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
+	Algorithm      string                 `protobuf:"bytes,3,opt,name=algorithm,proto3" json:"algorithm,omitempty"` // default "ed25519"
+	PublicKeyId    string                 `protobuf:"bytes,4,opt,name=public_key_id,json=publicKeyId,proto3" json:"public_key_id,omitempty"`
+	SignatureBytes []byte                 `protobuf:"bytes,5,opt,name=signature_bytes,json=signatureBytes,proto3" json:"signature_bytes,omitempty"`
+	ProvenanceRef  string                 `protobuf:"bytes,6,opt,name=provenance_ref,json=provenanceRef,proto3" json:"provenance_ref,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *RegisterArtifactSignatureRequest) Reset() {
+	*x = RegisterArtifactSignatureRequest{}
+	mi := &file_repository_proto_msgTypes[80]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterArtifactSignatureRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterArtifactSignatureRequest) ProtoMessage() {}
+
+func (x *RegisterArtifactSignatureRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[80]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterArtifactSignatureRequest.ProtoReflect.Descriptor instead.
+func (*RegisterArtifactSignatureRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{80}
+}
+
+func (x *RegisterArtifactSignatureRequest) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *RegisterArtifactSignatureRequest) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
+}
+
+func (x *RegisterArtifactSignatureRequest) GetAlgorithm() string {
+	if x != nil {
+		return x.Algorithm
+	}
+	return ""
+}
+
+func (x *RegisterArtifactSignatureRequest) GetPublicKeyId() string {
+	if x != nil {
+		return x.PublicKeyId
+	}
+	return ""
+}
+
+func (x *RegisterArtifactSignatureRequest) GetSignatureBytes() []byte {
+	if x != nil {
+		return x.SignatureBytes
+	}
+	return nil
+}
+
+func (x *RegisterArtifactSignatureRequest) GetProvenanceRef() string {
+	if x != nil {
+		return x.ProvenanceRef
+	}
+	return ""
+}
+
+type RegisterArtifactSignatureResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Signature     *ArtifactSignature     `protobuf:"bytes,1,opt,name=signature,proto3" json:"signature,omitempty"`
+	Status        SignatureStatus        `protobuf:"varint,2,opt,name=status,proto3,enum=repository.SignatureStatus" json:"status,omitempty"` // verification result against the trusted-publishers table
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegisterArtifactSignatureResponse) Reset() {
+	*x = RegisterArtifactSignatureResponse{}
+	mi := &file_repository_proto_msgTypes[81]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterArtifactSignatureResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterArtifactSignatureResponse) ProtoMessage() {}
+
+func (x *RegisterArtifactSignatureResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[81]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterArtifactSignatureResponse.ProtoReflect.Descriptor instead.
+func (*RegisterArtifactSignatureResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{81}
+}
+
+func (x *RegisterArtifactSignatureResponse) GetSignature() *ArtifactSignature {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
+func (x *RegisterArtifactSignatureResponse) GetStatus() SignatureStatus {
+	if x != nil {
+		return x.Status
+	}
+	return SignatureStatus_SIGNATURE_STATUS_UNSPECIFIED
+}
+
+type VerifyArtifactSignatureRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ref           *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	BuildNumber   int64                  `protobuf:"varint,2,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyArtifactSignatureRequest) Reset() {
+	*x = VerifyArtifactSignatureRequest{}
+	mi := &file_repository_proto_msgTypes[82]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyArtifactSignatureRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyArtifactSignatureRequest) ProtoMessage() {}
+
+func (x *VerifyArtifactSignatureRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[82]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyArtifactSignatureRequest.ProtoReflect.Descriptor instead.
+func (*VerifyArtifactSignatureRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{82}
+}
+
+func (x *VerifyArtifactSignatureRequest) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *VerifyArtifactSignatureRequest) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
+}
+
+type VerifyArtifactSignatureResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        SignatureStatus        `protobuf:"varint,1,opt,name=status,proto3,enum=repository.SignatureStatus" json:"status,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	Signature     *ArtifactSignature     `protobuf:"bytes,3,opt,name=signature,proto3" json:"signature,omitempty"` // most recent signature on the artifact
+	Publisher     *TrustedPublisher      `protobuf:"bytes,4,opt,name=publisher,proto3" json:"publisher,omitempty"` // matched publisher key (if any)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyArtifactSignatureResponse) Reset() {
+	*x = VerifyArtifactSignatureResponse{}
+	mi := &file_repository_proto_msgTypes[83]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyArtifactSignatureResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyArtifactSignatureResponse) ProtoMessage() {}
+
+func (x *VerifyArtifactSignatureResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[83]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyArtifactSignatureResponse.ProtoReflect.Descriptor instead.
+func (*VerifyArtifactSignatureResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{83}
+}
+
+func (x *VerifyArtifactSignatureResponse) GetStatus() SignatureStatus {
+	if x != nil {
+		return x.Status
+	}
+	return SignatureStatus_SIGNATURE_STATUS_UNSPECIFIED
+}
+
+func (x *VerifyArtifactSignatureResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *VerifyArtifactSignatureResponse) GetSignature() *ArtifactSignature {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
+func (x *VerifyArtifactSignatureResponse) GetPublisher() *TrustedPublisher {
+	if x != nil {
+		return x.Publisher
+	}
+	return nil
+}
+
+type ListArtifactSignaturesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ref           *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	BuildNumber   int64                  `protobuf:"varint,2,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListArtifactSignaturesRequest) Reset() {
+	*x = ListArtifactSignaturesRequest{}
+	mi := &file_repository_proto_msgTypes[84]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListArtifactSignaturesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListArtifactSignaturesRequest) ProtoMessage() {}
+
+func (x *ListArtifactSignaturesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[84]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListArtifactSignaturesRequest.ProtoReflect.Descriptor instead.
+func (*ListArtifactSignaturesRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{84}
+}
+
+func (x *ListArtifactSignaturesRequest) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *ListArtifactSignaturesRequest) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
+}
+
+type ListArtifactSignaturesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Signatures    []*ArtifactSignature   `protobuf:"bytes,1,rep,name=signatures,proto3" json:"signatures,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListArtifactSignaturesResponse) Reset() {
+	*x = ListArtifactSignaturesResponse{}
+	mi := &file_repository_proto_msgTypes[85]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListArtifactSignaturesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListArtifactSignaturesResponse) ProtoMessage() {}
+
+func (x *ListArtifactSignaturesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[85]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListArtifactSignaturesResponse.ProtoReflect.Descriptor instead.
+func (*ListArtifactSignaturesResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{85}
+}
+
+func (x *ListArtifactSignaturesResponse) GetSignatures() []*ArtifactSignature {
+	if x != nil {
+		return x.Signatures
+	}
+	return nil
+}
+
+// InstalledPackageRevision is one row of install history. Written by the
+// node-agent (or the controller) after every successful install / upgrade /
+// rollback so that ListRollbackCandidates can show "previous verified versions".
+type InstalledPackageRevision struct {
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	PublisherId              string                 `protobuf:"bytes,1,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"`
+	Name                     string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Kind                     ArtifactKind           `protobuf:"varint,3,opt,name=kind,proto3,enum=repository.ArtifactKind" json:"kind,omitempty"`
+	Version                  string                 `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
+	BuildId                  string                 `protobuf:"bytes,5,opt,name=build_id,json=buildId,proto3" json:"build_id,omitempty"`
+	BuildNumber              int64                  `protobuf:"varint,6,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
+	Platform                 string                 `protobuf:"bytes,7,opt,name=platform,proto3" json:"platform,omitempty"`
+	Checksum                 string                 `protobuf:"bytes,8,opt,name=checksum,proto3" json:"checksum,omitempty"`
+	InstalledAtUnix          int64                  `protobuf:"varint,9,opt,name=installed_at_unix,json=installedAtUnix,proto3" json:"installed_at_unix,omitempty"`
+	InstalledByWorkflowRunId string                 `protobuf:"bytes,10,opt,name=installed_by_workflow_run_id,json=installedByWorkflowRunId,proto3" json:"installed_by_workflow_run_id,omitempty"`
+	NodeId                   string                 `protobuf:"bytes,11,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	PreviousRevisionId       string                 `protobuf:"bytes,12,opt,name=previous_revision_id,json=previousRevisionId,proto3" json:"previous_revision_id,omitempty"` // points to the prior row's revision_id
+	ConfigSnapshotId         string                 `protobuf:"bytes,13,opt,name=config_snapshot_id,json=configSnapshotId,proto3" json:"config_snapshot_id,omitempty"`       // optional pointer to a config snapshot blob
+	ServiceStatusBefore      string                 `protobuf:"bytes,14,opt,name=service_status_before,json=serviceStatusBefore,proto3" json:"service_status_before,omitempty"`
+	ServiceStatusAfter       string                 `protobuf:"bytes,15,opt,name=service_status_after,json=serviceStatusAfter,proto3" json:"service_status_after,omitempty"`
+	RevisionId               string                 `protobuf:"bytes,16,opt,name=revision_id,json=revisionId,proto3" json:"revision_id,omitempty"` // unique id for this revision row (UUID)
+	Action                   string                 `protobuf:"bytes,17,opt,name=action,proto3" json:"action,omitempty"`                           // "install" | "upgrade" | "rollback"
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *InstalledPackageRevision) Reset() {
+	*x = InstalledPackageRevision{}
+	mi := &file_repository_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InstalledPackageRevision) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InstalledPackageRevision) ProtoMessage() {}
+
+func (x *InstalledPackageRevision) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InstalledPackageRevision.ProtoReflect.Descriptor instead.
+func (*InstalledPackageRevision) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *InstalledPackageRevision) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+func (x *InstalledPackageRevision) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *InstalledPackageRevision) GetKind() ArtifactKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
+}
+
+func (x *InstalledPackageRevision) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *InstalledPackageRevision) GetBuildId() string {
+	if x != nil {
+		return x.BuildId
+	}
+	return ""
+}
+
+func (x *InstalledPackageRevision) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
+}
+
+func (x *InstalledPackageRevision) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *InstalledPackageRevision) GetChecksum() string {
+	if x != nil {
+		return x.Checksum
+	}
+	return ""
+}
+
+func (x *InstalledPackageRevision) GetInstalledAtUnix() int64 {
+	if x != nil {
+		return x.InstalledAtUnix
+	}
+	return 0
+}
+
+func (x *InstalledPackageRevision) GetInstalledByWorkflowRunId() string {
+	if x != nil {
+		return x.InstalledByWorkflowRunId
+	}
+	return ""
+}
+
+func (x *InstalledPackageRevision) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *InstalledPackageRevision) GetPreviousRevisionId() string {
+	if x != nil {
+		return x.PreviousRevisionId
+	}
+	return ""
+}
+
+func (x *InstalledPackageRevision) GetConfigSnapshotId() string {
+	if x != nil {
+		return x.ConfigSnapshotId
+	}
+	return ""
+}
+
+func (x *InstalledPackageRevision) GetServiceStatusBefore() string {
+	if x != nil {
+		return x.ServiceStatusBefore
+	}
+	return ""
+}
+
+func (x *InstalledPackageRevision) GetServiceStatusAfter() string {
+	if x != nil {
+		return x.ServiceStatusAfter
+	}
+	return ""
+}
+
+func (x *InstalledPackageRevision) GetRevisionId() string {
+	if x != nil {
+		return x.RevisionId
+	}
+	return ""
+}
+
+func (x *InstalledPackageRevision) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+type RecordInstalledRevisionRequest struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Revision      *InstalledPackageRevision `protobuf:"bytes,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordInstalledRevisionRequest) Reset() {
+	*x = RecordInstalledRevisionRequest{}
+	mi := &file_repository_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordInstalledRevisionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordInstalledRevisionRequest) ProtoMessage() {}
+
+func (x *RecordInstalledRevisionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordInstalledRevisionRequest.ProtoReflect.Descriptor instead.
+func (*RecordInstalledRevisionRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *RecordInstalledRevisionRequest) GetRevision() *InstalledPackageRevision {
+	if x != nil {
+		return x.Revision
+	}
+	return nil
+}
+
+type RecordInstalledRevisionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RevisionId    string                 `protobuf:"bytes,1,opt,name=revision_id,json=revisionId,proto3" json:"revision_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordInstalledRevisionResponse) Reset() {
+	*x = RecordInstalledRevisionResponse{}
+	mi := &file_repository_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordInstalledRevisionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordInstalledRevisionResponse) ProtoMessage() {}
+
+func (x *RecordInstalledRevisionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordInstalledRevisionResponse.ProtoReflect.Descriptor instead.
+func (*RecordInstalledRevisionResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *RecordInstalledRevisionResponse) GetRevisionId() string {
+	if x != nil {
+		return x.RevisionId
+	}
+	return ""
+}
+
+type ListInstalledRevisionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PublisherId   string                 `protobuf:"bytes,1,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Kind          ArtifactKind           `protobuf:"varint,3,opt,name=kind,proto3,enum=repository.ArtifactKind" json:"kind,omitempty"`
+	Platform      string                 `protobuf:"bytes,4,opt,name=platform,proto3" json:"platform,omitempty"`
+	NodeId        string                 `protobuf:"bytes,5,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"` // empty = all nodes
+	Limit         int32                  `protobuf:"varint,6,opt,name=limit,proto3" json:"limit,omitempty"`                // 0 = default
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListInstalledRevisionsRequest) Reset() {
+	*x = ListInstalledRevisionsRequest{}
+	mi := &file_repository_proto_msgTypes[89]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListInstalledRevisionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListInstalledRevisionsRequest) ProtoMessage() {}
+
+func (x *ListInstalledRevisionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[89]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListInstalledRevisionsRequest.ProtoReflect.Descriptor instead.
+func (*ListInstalledRevisionsRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *ListInstalledRevisionsRequest) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+func (x *ListInstalledRevisionsRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ListInstalledRevisionsRequest) GetKind() ArtifactKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
+}
+
+func (x *ListInstalledRevisionsRequest) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *ListInstalledRevisionsRequest) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *ListInstalledRevisionsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type ListInstalledRevisionsResponse struct {
+	state         protoimpl.MessageState      `protogen:"open.v1"`
+	Revisions     []*InstalledPackageRevision `protobuf:"bytes,1,rep,name=revisions,proto3" json:"revisions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListInstalledRevisionsResponse) Reset() {
+	*x = ListInstalledRevisionsResponse{}
+	mi := &file_repository_proto_msgTypes[90]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListInstalledRevisionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListInstalledRevisionsResponse) ProtoMessage() {}
+
+func (x *ListInstalledRevisionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[90]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListInstalledRevisionsResponse.ProtoReflect.Descriptor instead.
+func (*ListInstalledRevisionsResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{90}
+}
+
+func (x *ListInstalledRevisionsResponse) GetRevisions() []*InstalledPackageRevision {
+	if x != nil {
+		return x.Revisions
+	}
+	return nil
+}
+
+// RollbackEligibility holds why a candidate is or isn't a viable rollback target.
+type RollbackEligibility struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Eligible        bool                   `protobuf:"varint,1,opt,name=eligible,proto3" json:"eligible,omitempty"`
+	Reason          string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	VerifyStatus    ArtifactVerifyStatus   `protobuf:"varint,3,opt,name=verify_status,json=verifyStatus,proto3,enum=repository.ArtifactVerifyStatus" json:"verify_status,omitempty"`
+	SignatureStatus SignatureStatus        `protobuf:"varint,4,opt,name=signature_status,json=signatureStatus,proto3,enum=repository.SignatureStatus" json:"signature_status,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *RollbackEligibility) Reset() {
+	*x = RollbackEligibility{}
+	mi := &file_repository_proto_msgTypes[91]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RollbackEligibility) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RollbackEligibility) ProtoMessage() {}
+
+func (x *RollbackEligibility) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[91]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RollbackEligibility.ProtoReflect.Descriptor instead.
+func (*RollbackEligibility) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{91}
+}
+
+func (x *RollbackEligibility) GetEligible() bool {
+	if x != nil {
+		return x.Eligible
+	}
+	return false
+}
+
+func (x *RollbackEligibility) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *RollbackEligibility) GetVerifyStatus() ArtifactVerifyStatus {
+	if x != nil {
+		return x.VerifyStatus
+	}
+	return ArtifactVerifyStatus_ARTIFACT_VERIFY_STATUS_UNSPECIFIED
+}
+
+func (x *RollbackEligibility) GetSignatureStatus() SignatureStatus {
+	if x != nil {
+		return x.SignatureStatus
+	}
+	return SignatureStatus_SIGNATURE_STATUS_UNSPECIFIED
+}
+
+type RollbackCandidate struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Revision      *InstalledPackageRevision `protobuf:"bytes,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	TargetRef     *ArtifactRef              `protobuf:"bytes,2,opt,name=target_ref,json=targetRef,proto3" json:"target_ref,omitempty"`
+	Eligibility   *RollbackEligibility      `protobuf:"bytes,3,opt,name=eligibility,proto3" json:"eligibility,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RollbackCandidate) Reset() {
+	*x = RollbackCandidate{}
+	mi := &file_repository_proto_msgTypes[92]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RollbackCandidate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RollbackCandidate) ProtoMessage() {}
+
+func (x *RollbackCandidate) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[92]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RollbackCandidate.ProtoReflect.Descriptor instead.
+func (*RollbackCandidate) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{92}
+}
+
+func (x *RollbackCandidate) GetRevision() *InstalledPackageRevision {
+	if x != nil {
+		return x.Revision
+	}
+	return nil
+}
+
+func (x *RollbackCandidate) GetTargetRef() *ArtifactRef {
+	if x != nil {
+		return x.TargetRef
+	}
+	return nil
+}
+
+func (x *RollbackCandidate) GetEligibility() *RollbackEligibility {
+	if x != nil {
+		return x.Eligibility
+	}
+	return nil
+}
+
+type ListRollbackCandidatesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PublisherId   string                 `protobuf:"bytes,1,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Kind          ArtifactKind           `protobuf:"varint,3,opt,name=kind,proto3,enum=repository.ArtifactKind" json:"kind,omitempty"`
+	Platform      string                 `protobuf:"bytes,4,opt,name=platform,proto3" json:"platform,omitempty"`
+	NodeId        string                 `protobuf:"bytes,5,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Limit         int32                  `protobuf:"varint,6,opt,name=limit,proto3" json:"limit,omitempty"` // 0 = default (5)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRollbackCandidatesRequest) Reset() {
+	*x = ListRollbackCandidatesRequest{}
+	mi := &file_repository_proto_msgTypes[93]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRollbackCandidatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRollbackCandidatesRequest) ProtoMessage() {}
+
+func (x *ListRollbackCandidatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[93]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRollbackCandidatesRequest.ProtoReflect.Descriptor instead.
+func (*ListRollbackCandidatesRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{93}
+}
+
+func (x *ListRollbackCandidatesRequest) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+func (x *ListRollbackCandidatesRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ListRollbackCandidatesRequest) GetKind() ArtifactKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
+}
+
+func (x *ListRollbackCandidatesRequest) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *ListRollbackCandidatesRequest) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *ListRollbackCandidatesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type ListRollbackCandidatesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CurrentRef    *ArtifactRef           `protobuf:"bytes,1,opt,name=current_ref,json=currentRef,proto3" json:"current_ref,omitempty"` // currently installed
+	Candidates    []*RollbackCandidate   `protobuf:"bytes,2,rep,name=candidates,proto3" json:"candidates,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRollbackCandidatesResponse) Reset() {
+	*x = ListRollbackCandidatesResponse{}
+	mi := &file_repository_proto_msgTypes[94]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRollbackCandidatesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRollbackCandidatesResponse) ProtoMessage() {}
+
+func (x *ListRollbackCandidatesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[94]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRollbackCandidatesResponse.ProtoReflect.Descriptor instead.
+func (*ListRollbackCandidatesResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{94}
+}
+
+func (x *ListRollbackCandidatesResponse) GetCurrentRef() *ArtifactRef {
+	if x != nil {
+		return x.CurrentRef
+	}
+	return nil
+}
+
+func (x *ListRollbackCandidatesResponse) GetCandidates() []*RollbackCandidate {
+	if x != nil {
+		return x.Candidates
+	}
+	return nil
+}
+
+// SignaturePolicy controls when missing/invalid signatures block installability.
+// The repository reads it from etcd at /globular/repository/security/policy.
+// Defaults are conservative: core packages require signatures, third-party do
+// not, dev mode is OFF in production, ON in dev/test.
+type SignaturePolicy struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// require_signatures_for_core: when true, an artifact whose publisher_id
+	// matches one of trusted_core_publishers MUST carry a valid trusted
+	// signature to become / remain PUBLISHED.
+	RequireSignaturesForCore bool `protobuf:"varint,1,opt,name=require_signatures_for_core,json=requireSignaturesForCore,proto3" json:"require_signatures_for_core,omitempty"`
+	// require_signatures_for_all: strict mode — every artifact requires a
+	// valid trusted signature regardless of publisher.
+	RequireSignaturesForAll bool `protobuf:"varint,2,opt,name=require_signatures_for_all,json=requireSignaturesForAll,proto3" json:"require_signatures_for_all,omitempty"`
+	// allow_unsigned_local_development: when true, the LOCAL_DIR upstream
+	// source provider is allowed to skip signature checks. Off by default
+	// in production. Useful for `globular pkg build` / dev.
+	AllowUnsignedLocalDevelopment bool `protobuf:"varint,3,opt,name=allow_unsigned_local_development,json=allowUnsignedLocalDevelopment,proto3" json:"allow_unsigned_local_development,omitempty"`
+	// trusted_core_publishers: list of publisher_ids that count as "core" for
+	// require_signatures_for_core. Default ["core@globular.io"].
+	TrustedCorePublishers []string `protobuf:"bytes,4,rep,name=trusted_core_publishers,json=trustedCorePublishers,proto3" json:"trusted_core_publishers,omitempty"`
+	// quarantine_on_invalid_signature: when true, an artifact found to have
+	// an invalid (forged or wrong-key) signature is moved to QUARANTINED on
+	// detection. When false, the artifact is left in its current state but
+	// resolver/download still refuse it.
+	QuarantineOnInvalidSignature bool `protobuf:"varint,5,opt,name=quarantine_on_invalid_signature,json=quarantineOnInvalidSignature,proto3" json:"quarantine_on_invalid_signature,omitempty"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
+}
+
+func (x *SignaturePolicy) Reset() {
+	*x = SignaturePolicy{}
+	mi := &file_repository_proto_msgTypes[95]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignaturePolicy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignaturePolicy) ProtoMessage() {}
+
+func (x *SignaturePolicy) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[95]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignaturePolicy.ProtoReflect.Descriptor instead.
+func (*SignaturePolicy) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{95}
+}
+
+func (x *SignaturePolicy) GetRequireSignaturesForCore() bool {
+	if x != nil {
+		return x.RequireSignaturesForCore
+	}
+	return false
+}
+
+func (x *SignaturePolicy) GetRequireSignaturesForAll() bool {
+	if x != nil {
+		return x.RequireSignaturesForAll
+	}
+	return false
+}
+
+func (x *SignaturePolicy) GetAllowUnsignedLocalDevelopment() bool {
+	if x != nil {
+		return x.AllowUnsignedLocalDevelopment
+	}
+	return false
+}
+
+func (x *SignaturePolicy) GetTrustedCorePublishers() []string {
+	if x != nil {
+		return x.TrustedCorePublishers
+	}
+	return nil
+}
+
+func (x *SignaturePolicy) GetQuarantineOnInvalidSignature() bool {
+	if x != nil {
+		return x.QuarantineOnInvalidSignature
+	}
+	return false
+}
+
+// PackageConfigReceipt is one node-agent receipt for one config file.
+// Repository accepts these via RecordConfigReceipt; doctor + CLI consume
+// them to surface conflicts and post-install audit trails.
+type PackageConfigReceipt struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	NodeId         string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	PublisherId    string                 `protobuf:"bytes,2,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"` // package owner
+	Name           string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`                                  // package name
+	Platform       string                 `protobuf:"bytes,4,opt,name=platform,proto3" json:"platform,omitempty"`
+	BuildNumber    int64                  `protobuf:"varint,5,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
+	Path           string                 `protobuf:"bytes,6,opt,name=path,proto3" json:"path,omitempty"` // redacted to "[REDACTED]" when sensitive=true
+	ConfigKind     ConfigKind             `protobuf:"varint,7,opt,name=config_kind,json=configKind,proto3,enum=repository.ConfigKind" json:"config_kind,omitempty"`
+	MergeStrategy  MergeStrategy          `protobuf:"varint,8,opt,name=merge_strategy,json=mergeStrategy,proto3,enum=repository.MergeStrategy" json:"merge_strategy,omitempty"`
+	ChecksumBefore string                 `protobuf:"bytes,9,opt,name=checksum_before,json=checksumBefore,proto3" json:"checksum_before,omitempty"`
+	ChecksumAfter  string                 `protobuf:"bytes,10,opt,name=checksum_after,json=checksumAfter,proto3" json:"checksum_after,omitempty"`
+	Action         ConfigReceiptAction    `protobuf:"varint,11,opt,name=action,proto3,enum=repository.ConfigReceiptAction" json:"action,omitempty"`
+	SnapshotId     string                 `protobuf:"bytes,12,opt,name=snapshot_id,json=snapshotId,proto3" json:"snapshot_id,omitempty"` // pointer to a config snapshot blob (when applicable)
+	WorkflowRunId  string                 `protobuf:"bytes,13,opt,name=workflow_run_id,json=workflowRunId,proto3" json:"workflow_run_id,omitempty"`
+	TimestampUnix  int64                  `protobuf:"varint,14,opt,name=timestamp_unix,json=timestampUnix,proto3" json:"timestamp_unix,omitempty"`
+	Reason         string                 `protobuf:"bytes,15,opt,name=reason,proto3" json:"reason,omitempty"`
+	Sensitive      bool                   `protobuf:"varint,16,opt,name=sensitive,proto3" json:"sensitive,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *PackageConfigReceipt) Reset() {
+	*x = PackageConfigReceipt{}
+	mi := &file_repository_proto_msgTypes[96]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PackageConfigReceipt) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PackageConfigReceipt) ProtoMessage() {}
+
+func (x *PackageConfigReceipt) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[96]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PackageConfigReceipt.ProtoReflect.Descriptor instead.
+func (*PackageConfigReceipt) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{96}
+}
+
+func (x *PackageConfigReceipt) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *PackageConfigReceipt) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+func (x *PackageConfigReceipt) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PackageConfigReceipt) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *PackageConfigReceipt) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
+}
+
+func (x *PackageConfigReceipt) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *PackageConfigReceipt) GetConfigKind() ConfigKind {
+	if x != nil {
+		return x.ConfigKind
+	}
+	return ConfigKind_CONFIG_KIND_UNSPECIFIED
+}
+
+func (x *PackageConfigReceipt) GetMergeStrategy() MergeStrategy {
+	if x != nil {
+		return x.MergeStrategy
+	}
+	return MergeStrategy_MERGE_STRATEGY_UNSPECIFIED
+}
+
+func (x *PackageConfigReceipt) GetChecksumBefore() string {
+	if x != nil {
+		return x.ChecksumBefore
+	}
+	return ""
+}
+
+func (x *PackageConfigReceipt) GetChecksumAfter() string {
+	if x != nil {
+		return x.ChecksumAfter
+	}
+	return ""
+}
+
+func (x *PackageConfigReceipt) GetAction() ConfigReceiptAction {
+	if x != nil {
+		return x.Action
+	}
+	return ConfigReceiptAction_CONFIG_RECEIPT_ACTION_UNSPECIFIED
+}
+
+func (x *PackageConfigReceipt) GetSnapshotId() string {
+	if x != nil {
+		return x.SnapshotId
+	}
+	return ""
+}
+
+func (x *PackageConfigReceipt) GetWorkflowRunId() string {
+	if x != nil {
+		return x.WorkflowRunId
+	}
+	return ""
+}
+
+func (x *PackageConfigReceipt) GetTimestampUnix() int64 {
+	if x != nil {
+		return x.TimestampUnix
+	}
+	return 0
+}
+
+func (x *PackageConfigReceipt) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *PackageConfigReceipt) GetSensitive() bool {
+	if x != nil {
+		return x.Sensitive
+	}
+	return false
+}
+
+type RecordConfigReceiptRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Receipt       *PackageConfigReceipt  `protobuf:"bytes,1,opt,name=receipt,proto3" json:"receipt,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordConfigReceiptRequest) Reset() {
+	*x = RecordConfigReceiptRequest{}
+	mi := &file_repository_proto_msgTypes[97]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordConfigReceiptRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordConfigReceiptRequest) ProtoMessage() {}
+
+func (x *RecordConfigReceiptRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[97]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordConfigReceiptRequest.ProtoReflect.Descriptor instead.
+func (*RecordConfigReceiptRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{97}
+}
+
+func (x *RecordConfigReceiptRequest) GetReceipt() *PackageConfigReceipt {
+	if x != nil {
+		return x.Receipt
+	}
+	return nil
+}
+
+type RecordConfigReceiptResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordConfigReceiptResponse) Reset() {
+	*x = RecordConfigReceiptResponse{}
+	mi := &file_repository_proto_msgTypes[98]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordConfigReceiptResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordConfigReceiptResponse) ProtoMessage() {}
+
+func (x *RecordConfigReceiptResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[98]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordConfigReceiptResponse.ProtoReflect.Descriptor instead.
+func (*RecordConfigReceiptResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{98}
+}
+
+type ListConfigReceiptsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PublisherId   string                 `protobuf:"bytes,1,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Platform      string                 `protobuf:"bytes,3,opt,name=platform,proto3" json:"platform,omitempty"`
+	NodeId        string                 `protobuf:"bytes,4,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`                                                        // empty = all nodes
+	ActionFilter  ConfigReceiptAction    `protobuf:"varint,5,opt,name=action_filter,json=actionFilter,proto3,enum=repository.ConfigReceiptAction" json:"action_filter,omitempty"` // 0 = no filter
+	Limit         int32                  `protobuf:"varint,6,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListConfigReceiptsRequest) Reset() {
+	*x = ListConfigReceiptsRequest{}
+	mi := &file_repository_proto_msgTypes[99]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListConfigReceiptsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListConfigReceiptsRequest) ProtoMessage() {}
+
+func (x *ListConfigReceiptsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[99]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListConfigReceiptsRequest.ProtoReflect.Descriptor instead.
+func (*ListConfigReceiptsRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{99}
+}
+
+func (x *ListConfigReceiptsRequest) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+func (x *ListConfigReceiptsRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ListConfigReceiptsRequest) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *ListConfigReceiptsRequest) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *ListConfigReceiptsRequest) GetActionFilter() ConfigReceiptAction {
+	if x != nil {
+		return x.ActionFilter
+	}
+	return ConfigReceiptAction_CONFIG_RECEIPT_ACTION_UNSPECIFIED
+}
+
+func (x *ListConfigReceiptsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type ListConfigReceiptsResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Receipts      []*PackageConfigReceipt `protobuf:"bytes,1,rep,name=receipts,proto3" json:"receipts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListConfigReceiptsResponse) Reset() {
+	*x = ListConfigReceiptsResponse{}
+	mi := &file_repository_proto_msgTypes[100]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListConfigReceiptsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListConfigReceiptsResponse) ProtoMessage() {}
+
+func (x *ListConfigReceiptsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[100]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListConfigReceiptsResponse.ProtoReflect.Descriptor instead.
+func (*ListConfigReceiptsResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{100}
+}
+
+func (x *ListConfigReceiptsResponse) GetReceipts() []*PackageConfigReceipt {
+	if x != nil {
+		return x.Receipts
+	}
+	return nil
+}
+
+// RepositoryFinding is one self-reported integrity issue. The doctor pulls
+// these via ListRepositoryFindings and surfaces them as Findings.
+type RepositoryFinding struct {
+	state              protoimpl.MessageState    `protogen:"open.v1"`
+	Kind               RepositoryFindingKind     `protobuf:"varint,1,opt,name=kind,proto3,enum=repository.RepositoryFindingKind" json:"kind,omitempty"`
+	Severity           RepositoryFindingSeverity `protobuf:"varint,2,opt,name=severity,proto3,enum=repository.RepositoryFindingSeverity" json:"severity,omitempty"`
+	ArtifactKey        string                    `protobuf:"bytes,3,opt,name=artifact_key,json=artifactKey,proto3" json:"artifact_key,omitempty"`
+	Ref                *ArtifactRef              `protobuf:"bytes,4,opt,name=ref,proto3" json:"ref,omitempty"`
+	NodeId             string                    `protobuf:"bytes,5,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	CurrentState       string                    `protobuf:"bytes,6,opt,name=current_state,json=currentState,proto3" json:"current_state,omitempty"`
+	ExpectedState      string                    `protobuf:"bytes,7,opt,name=expected_state,json=expectedState,proto3" json:"expected_state,omitempty"`
+	Reason             string                    `protobuf:"bytes,8,opt,name=reason,proto3" json:"reason,omitempty"`
+	RecommendedCommand string                    `protobuf:"bytes,9,opt,name=recommended_command,json=recommendedCommand,proto3" json:"recommended_command,omitempty"`                              // operator action to remediate
+	Evidence           map[string]string         `protobuf:"bytes,10,rep,name=evidence,proto3" json:"evidence,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // free-form key-values (digest, size, key_id, …)
+	ObservedAtUnix     int64                     `protobuf:"varint,11,opt,name=observed_at_unix,json=observedAtUnix,proto3" json:"observed_at_unix,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *RepositoryFinding) Reset() {
+	*x = RepositoryFinding{}
+	mi := &file_repository_proto_msgTypes[101]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RepositoryFinding) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RepositoryFinding) ProtoMessage() {}
+
+func (x *RepositoryFinding) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[101]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RepositoryFinding.ProtoReflect.Descriptor instead.
+func (*RepositoryFinding) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{101}
+}
+
+func (x *RepositoryFinding) GetKind() RepositoryFindingKind {
+	if x != nil {
+		return x.Kind
+	}
+	return RepositoryFindingKind_REPOSITORY_FINDING_UNSPECIFIED
+}
+
+func (x *RepositoryFinding) GetSeverity() RepositoryFindingSeverity {
+	if x != nil {
+		return x.Severity
+	}
+	return RepositoryFindingSeverity_REPO_FIND_SEVERITY_UNSPECIFIED
+}
+
+func (x *RepositoryFinding) GetArtifactKey() string {
+	if x != nil {
+		return x.ArtifactKey
+	}
+	return ""
+}
+
+func (x *RepositoryFinding) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *RepositoryFinding) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *RepositoryFinding) GetCurrentState() string {
+	if x != nil {
+		return x.CurrentState
+	}
+	return ""
+}
+
+func (x *RepositoryFinding) GetExpectedState() string {
+	if x != nil {
+		return x.ExpectedState
+	}
+	return ""
+}
+
+func (x *RepositoryFinding) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *RepositoryFinding) GetRecommendedCommand() string {
+	if x != nil {
+		return x.RecommendedCommand
+	}
+	return ""
+}
+
+func (x *RepositoryFinding) GetEvidence() map[string]string {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
+func (x *RepositoryFinding) GetObservedAtUnix() int64 {
+	if x != nil {
+		return x.ObservedAtUnix
+	}
+	return 0
+}
+
+type ListRepositoryFindingsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// kind_filter: 0 = all kinds.
+	KindFilter    RepositoryFindingKind `protobuf:"varint,1,opt,name=kind_filter,json=kindFilter,proto3,enum=repository.RepositoryFindingKind" json:"kind_filter,omitempty"`
+	Limit         int32                 `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRepositoryFindingsRequest) Reset() {
+	*x = ListRepositoryFindingsRequest{}
+	mi := &file_repository_proto_msgTypes[102]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRepositoryFindingsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRepositoryFindingsRequest) ProtoMessage() {}
+
+func (x *ListRepositoryFindingsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[102]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRepositoryFindingsRequest.ProtoReflect.Descriptor instead.
+func (*ListRepositoryFindingsRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{102}
+}
+
+func (x *ListRepositoryFindingsRequest) GetKindFilter() RepositoryFindingKind {
+	if x != nil {
+		return x.KindFilter
+	}
+	return RepositoryFindingKind_REPOSITORY_FINDING_UNSPECIFIED
+}
+
+func (x *ListRepositoryFindingsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type ListRepositoryFindingsResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Findings        []*RepositoryFinding   `protobuf:"bytes,1,rep,name=findings,proto3" json:"findings,omitempty"`
+	GeneratedAtUnix int64                  `protobuf:"varint,2,opt,name=generated_at_unix,json=generatedAtUnix,proto3" json:"generated_at_unix,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ListRepositoryFindingsResponse) Reset() {
+	*x = ListRepositoryFindingsResponse{}
+	mi := &file_repository_proto_msgTypes[103]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRepositoryFindingsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRepositoryFindingsResponse) ProtoMessage() {}
+
+func (x *ListRepositoryFindingsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[103]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRepositoryFindingsResponse.ProtoReflect.Descriptor instead.
+func (*ListRepositoryFindingsResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{103}
+}
+
+func (x *ListRepositoryFindingsResponse) GetFindings() []*RepositoryFinding {
+	if x != nil {
+		return x.Findings
+	}
+	return nil
+}
+
+func (x *ListRepositoryFindingsResponse) GetGeneratedAtUnix() int64 {
+	if x != nil {
+		return x.GeneratedAtUnix
+	}
+	return 0
+}
+
 var File_repository_proto protoreflect.FileDescriptor
 
 const file_repository_proto_rawDesc = "" +
@@ -5301,7 +8887,7 @@ const file_repository_proto_rawDesc = "" +
 	"\x04kind\x18\x05 \x01(\x0e2\x18.repository.ArtifactKindR\x04kind\"N\n" +
 	"\x15ArtifactDependencyRef\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
-	"\fpublisher_id\x18\x02 \x01(\tR\vpublisherId\"\xc9\x0e\n" +
+	"\fpublisher_id\x18\x02 \x01(\tR\vpublisherId\"\xac\x0f\n" +
 	"\x10ArtifactManifest\x12)\n" +
 	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12\x1a\n" +
 	"\bchecksum\x18\x02 \x01(\tR\bchecksum\x12\x1d\n" +
@@ -5348,7 +8934,9 @@ const file_repository_proto_rawDesc = "" +
 	"\vprovisional\x18+ \x01(\bR\vprovisional\x12I\n" +
 	"\x0fupstream_import\x18= \x01(\v2 .repository.UpstreamImportRecordR\x0eupstreamImport\x12/\n" +
 	"\x13entrypoint_checksum\x18, \x01(\tR\x12entrypointChecksum\x125\n" +
-	"\achannel\x18- \x01(\x0e2\x1b.repository.ArtifactChannelR\achannel\x1a;\n" +
+	"\achannel\x18- \x01(\x0e2\x1b.repository.ArtifactChannelR\achannel\x127\n" +
+	"\aconfigs\x18F \x03(\v2\x1d.repository.PackageConfigFileR\aconfigs\x12(\n" +
+	"\x10signature_key_id\x18G \x01(\tR\x0esignatureKeyId\x1a;\n" +
 	"\rDefaultsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\r\n" +
@@ -5546,7 +9134,79 @@ const file_repository_proto_rawDesc = "" +
 	" \x01(\x03R\n" +
 	"observedAt\"F\n" +
 	"\x17DescribePackageResponse\x12+\n" +
-	"\x04info\x18\x01 \x01(\v2\x17.repository.PackageInfoR\x04info\"\x85\x02\n" +
+	"\x04info\x18\x01 \x01(\v2\x17.repository.PackageInfoR\x04info\"\xd7\x02\n" +
+	"\x15VerifyArtifactRequest\x12;\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefB\x10\x8a\xb5\x18\f\n" +
+	"\bartifact\x10\x01R\x03ref\x12!\n" +
+	"\fbuild_number\x18\x02 \x01(\x03R\vbuildNumber\x12\x19\n" +
+	"\bbuild_id\x18\x03 \x01(\tR\abuildId\x12#\n" +
+	"\rverify_digest\x18\x04 \x01(\bR\fverifyDigest\x12)\n" +
+	"\x10verify_signature\x18\x05 \x01(\bR\x0fverifySignature\x12%\n" +
+	"\x0einclude_ledger\x18\x06 \x01(\bR\rincludeLedger\x12)\n" +
+	"\x10include_manifest\x18\a \x01(\bR\x0fincludeManifest\x12!\n" +
+	"\finclude_blob\x18\b \x01(\bR\vincludeBlob\"\x96\x05\n" +
+	"\x16VerifyArtifactResponse\x12)\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12!\n" +
+	"\fartifact_key\x18\x02 \x01(\tR\vartifactKey\x12%\n" +
+	"\x0eartifact_state\x18\x03 \x01(\tR\rartifactState\x12=\n" +
+	"\rpublish_state\x18\x04 \x01(\x0e2\x18.repository.PublishStateR\fpublishState\x12 \n" +
+	"\vinstallable\x18\x05 \x01(\bR\vinstallable\x128\n" +
+	"\x06status\x18\x06 \x01(\x0e2 .repository.ArtifactVerifyStatusR\x06status\x12\x16\n" +
+	"\x06reason\x18\a \x01(\tR\x06reason\x12\x19\n" +
+	"\bblob_key\x18\b \x01(\tR\ablobKey\x12#\n" +
+	"\rexpected_size\x18\t \x01(\x03R\fexpectedSize\x12\x1f\n" +
+	"\vactual_size\x18\n" +
+	" \x01(\x03R\n" +
+	"actualSize\x12'\n" +
+	"\x0fexpected_digest\x18\v \x01(\tR\x0eexpectedDigest\x12#\n" +
+	"\ractual_digest\x18\f \x01(\tR\factualDigest\x12)\n" +
+	"\x10signature_status\x18\r \x01(\tR\x0fsignatureStatus\x12+\n" +
+	"\x11provenance_status\x18\x0e \x01(\tR\x10provenanceStatus\x12\x1e\n" +
+	"\n" +
+	"repairable\x18\x0f \x01(\bR\n" +
+	"repairable\x12-\n" +
+	"\x12recommended_action\x18\x10 \x01(\tR\x11recommendedAction\"\x8d\x02\n" +
+	"\x15RepairArtifactRequest\x12;\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefB\x10\x8a\xb5\x18\f\n" +
+	"\bartifact\x10\x01R\x03ref\x12!\n" +
+	"\fbuild_number\x18\x02 \x01(\x03R\vbuildNumber\x12\x17\n" +
+	"\adry_run\x18\x03 \x01(\bR\x06dryRun\x12\x14\n" +
+	"\x05force\x18\x04 \x01(\bR\x05force\x12:\n" +
+	"\x19allow_quarantine_override\x18\x05 \x01(\bR\x17allowQuarantineOverride\x12)\n" +
+	"\x10operator_subject\x18\x06 \x01(\tR\x0foperatorSubject\"\xa4\x02\n" +
+	"\x16RepairArtifactResponse\x12)\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12!\n" +
+	"\fartifact_key\x18\x02 \x01(\tR\vartifactKey\x12\x16\n" +
+	"\x06action\x18\x03 \x01(\tR\x06action\x12\x16\n" +
+	"\x06detail\x18\x04 \x01(\tR\x06detail\x122\n" +
+	"\x15artifact_state_before\x18\x05 \x01(\tR\x13artifactStateBefore\x120\n" +
+	"\x14artifact_state_after\x18\x06 \x01(\tR\x12artifactStateAfter\x12&\n" +
+	"\x0fworkflow_run_id\x18\a \x01(\tR\rworkflowRunId\"x\n" +
+	"\x16ExplainArtifactRequest\x12;\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefB\x10\x8a\xb5\x18\f\n" +
+	"\bartifact\x10\x01R\x03ref\x12!\n" +
+	"\fbuild_number\x18\x02 \x01(\x03R\vbuildNumber\"\x83\x06\n" +
+	"\x17ExplainArtifactResponse\x12)\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12!\n" +
+	"\fartifact_key\x18\x02 \x01(\tR\vartifactKey\x12%\n" +
+	"\x0eartifact_state\x18\x03 \x01(\tR\rartifactState\x12=\n" +
+	"\rpublish_state\x18\x04 \x01(\x0e2\x18.repository.PublishStateR\fpublishState\x12\x19\n" +
+	"\bblob_key\x18\x05 \x01(\tR\ablobKey\x12!\n" +
+	"\fblob_present\x18\x06 \x01(\bR\vblobPresent\x12#\n" +
+	"\rexpected_size\x18\a \x01(\x03R\fexpectedSize\x12\x1f\n" +
+	"\vactual_size\x18\b \x01(\x03R\n" +
+	"actualSize\x12'\n" +
+	"\x0fexpected_digest\x18\t \x01(\tR\x0eexpectedDigest\x12#\n" +
+	"\ractual_digest\x18\n" +
+	" \x01(\tR\factualDigest\x12%\n" +
+	"\x0eledger_present\x18\v \x01(\bR\rledgerPresent\x12)\n" +
+	"\x10manifest_present\x18\f \x01(\bR\x0fmanifestPresent\x12)\n" +
+	"\x10signature_status\x18\r \x01(\tR\x0fsignatureStatus\x12 \n" +
+	"\vinstallable\x18\x0e \x01(\bR\vinstallable\x12-\n" +
+	"\x12recommended_action\x18\x0f \x01(\tR\x11recommendedAction\x125\n" +
+	"\x17related_workflow_run_id\x18\x10 \x01(\tR\x14relatedWorkflowRunId\x12E\n" +
+	"\rverify_status\x18\x11 \x01(\x0e2 .repository.ArtifactVerifyStatusR\fverifyStatus\x12\x16\n" +
+	"\x06detail\x18\x12 \x01(\tR\x06detail\"\x85\x02\n" +
 	"\x16ResolveArtifactRequest\x12!\n" +
 	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12,\n" +
@@ -5709,7 +9369,212 @@ const file_repository_proto_rawDesc = "" +
 	"\x0earchived_count\x18\x01 \x01(\x05R\rarchivedCount\x12#\n" +
 	"\rskipped_count\x18\x02 \x01(\x05R\fskippedCount\x12'\n" +
 	"\x0fprotected_count\x18\x03 \x01(\x05R\x0eprotectedCount\x12>\n" +
-	"\barchived\x18\x04 \x03(\v2\".repository.ArchivedArtifactRecordR\barchived*\x86\x01\n" +
+	"\barchived\x18\x04 \x03(\v2\".repository.ArchivedArtifactRecordR\barchived\"\xce\x03\n" +
+	"\x11PackageConfigFile\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x127\n" +
+	"\vconfig_kind\x18\x02 \x01(\x0e2\x16.repository.ConfigKindR\n" +
+	"configKind\x12#\n" +
+	"\rowner_package\x18\x03 \x01(\tR\fownerPackage\x12.\n" +
+	"\x13checksum_at_install\x18\x04 \x01(\tR\x11checksumAtInstall\x12)\n" +
+	"\x10current_checksum\x18\x05 \x01(\tR\x0fcurrentChecksum\x12,\n" +
+	"\x12last_modified_unix\x18\x06 \x01(\x03R\x10lastModifiedUnix\x12@\n" +
+	"\x0emerge_strategy\x18\a \x01(\x0e2\x19.repository.MergeStrategyR\rmergeStrategy\x12.\n" +
+	"\x13preserve_on_upgrade\x18\b \x01(\bR\x11preserveOnUpgrade\x12.\n" +
+	"\x13restore_on_rollback\x18\t \x01(\bR\x11restoreOnRollback\x12\x1c\n" +
+	"\tsensitive\x18\n" +
+	" \x01(\bR\tsensitive\"\x80\x03\n" +
+	"\x10TrustedPublisher\x12!\n" +
+	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\x12\"\n" +
+	"\rpublic_key_id\x18\x02 \x01(\tR\vpublicKeyId\x12$\n" +
+	"\x0epublic_key_pem\x18\x03 \x01(\fR\fpublicKeyPem\x127\n" +
+	"\vtrust_state\x18\x04 \x01(\x0e2\x16.repository.TrustStateR\n" +
+	"trustState\x12&\n" +
+	"\x0fvalid_from_unix\x18\x05 \x01(\x03R\rvalidFromUnix\x12(\n" +
+	"\x10valid_until_unix\x18\x06 \x01(\x03R\x0evalidUntilUnix\x12\x1d\n" +
+	"\n" +
+	"created_by\x18\a \x01(\tR\tcreatedBy\x12!\n" +
+	"\fcreated_unix\x18\b \x01(\x03R\vcreatedUnix\x12\x1c\n" +
+	"\talgorithm\x18\t \x01(\tR\talgorithm\x12\x14\n" +
+	"\x05notes\x18\n" +
+	" \x01(\tR\x05notes\"\xa3\x02\n" +
+	"\x11ArtifactSignature\x12!\n" +
+	"\fartifact_key\x18\x01 \x01(\tR\vartifactKey\x12\x16\n" +
+	"\x06digest\x18\x02 \x01(\tR\x06digest\x12\x1c\n" +
+	"\talgorithm\x18\x03 \x01(\tR\talgorithm\x12'\n" +
+	"\x0fsignature_bytes\x18\x04 \x01(\fR\x0esignatureBytes\x12\"\n" +
+	"\rpublic_key_id\x18\x05 \x01(\tR\vpublicKeyId\x12\x1b\n" +
+	"\tsigned_by\x18\x06 \x01(\tR\bsignedBy\x12$\n" +
+	"\x0esigned_at_unix\x18\a \x01(\x03R\fsignedAtUnix\x12%\n" +
+	"\x0eprovenance_ref\x18\b \x01(\tR\rprovenanceRef\"\xf5\x01\n" +
+	"\x15TrustPublisherRequest\x124\n" +
+	"\fpublisher_id\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tnamespace\x10\x01R\vpublisherId\x12\"\n" +
+	"\rpublic_key_id\x18\x02 \x01(\tR\vpublicKeyId\x12$\n" +
+	"\x0epublic_key_pem\x18\x03 \x01(\fR\fpublicKeyPem\x12\x1c\n" +
+	"\talgorithm\x18\x04 \x01(\tR\talgorithm\x12(\n" +
+	"\x10valid_until_unix\x18\x05 \x01(\x03R\x0evalidUntilUnix\x12\x14\n" +
+	"\x05notes\x18\x06 \x01(\tR\x05notes\"T\n" +
+	"\x16TrustPublisherResponse\x12:\n" +
+	"\tpublisher\x18\x01 \x01(\v2\x1c.repository.TrustedPublisherR\tpublisher\"\x8d\x01\n" +
+	"\x19RevokePublisherKeyRequest\x124\n" +
+	"\fpublisher_id\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tnamespace\x10\x01R\vpublisherId\x12\"\n" +
+	"\rpublic_key_id\x18\x02 \x01(\tR\vpublicKeyId\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"X\n" +
+	"\x1aRevokePublisherKeyResponse\x12:\n" +
+	"\tpublisher\x18\x01 \x01(\v2\x1c.repository.TrustedPublisherR\tpublisher\"A\n" +
+	"\x1cListTrustedPublishersRequest\x12!\n" +
+	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\"]\n" +
+	"\x1dListTrustedPublishersResponse\x12<\n" +
+	"\n" +
+	"publishers\x18\x01 \x03(\v2\x1c.repository.TrustedPublisherR\n" +
+	"publishers\"\x94\x02\n" +
+	" RegisterArtifactSignatureRequest\x12;\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefB\x10\x8a\xb5\x18\f\n" +
+	"\bartifact\x10\x01R\x03ref\x12!\n" +
+	"\fbuild_number\x18\x02 \x01(\x03R\vbuildNumber\x12\x1c\n" +
+	"\talgorithm\x18\x03 \x01(\tR\talgorithm\x12\"\n" +
+	"\rpublic_key_id\x18\x04 \x01(\tR\vpublicKeyId\x12'\n" +
+	"\x0fsignature_bytes\x18\x05 \x01(\fR\x0esignatureBytes\x12%\n" +
+	"\x0eprovenance_ref\x18\x06 \x01(\tR\rprovenanceRef\"\x95\x01\n" +
+	"!RegisterArtifactSignatureResponse\x12;\n" +
+	"\tsignature\x18\x01 \x01(\v2\x1d.repository.ArtifactSignatureR\tsignature\x123\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x1b.repository.SignatureStatusR\x06status\"\x80\x01\n" +
+	"\x1eVerifyArtifactSignatureRequest\x12;\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefB\x10\x8a\xb5\x18\f\n" +
+	"\bartifact\x10\x01R\x03ref\x12!\n" +
+	"\fbuild_number\x18\x02 \x01(\x03R\vbuildNumber\"\xe7\x01\n" +
+	"\x1fVerifyArtifactSignatureResponse\x123\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x1b.repository.SignatureStatusR\x06status\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x12;\n" +
+	"\tsignature\x18\x03 \x01(\v2\x1d.repository.ArtifactSignatureR\tsignature\x12:\n" +
+	"\tpublisher\x18\x04 \x01(\v2\x1c.repository.TrustedPublisherR\tpublisher\"\x7f\n" +
+	"\x1dListArtifactSignaturesRequest\x12;\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefB\x10\x8a\xb5\x18\f\n" +
+	"\bartifact\x10\x01R\x03ref\x12!\n" +
+	"\fbuild_number\x18\x02 \x01(\x03R\vbuildNumber\"_\n" +
+	"\x1eListArtifactSignaturesResponse\x12=\n" +
+	"\n" +
+	"signatures\x18\x01 \x03(\v2\x1d.repository.ArtifactSignatureR\n" +
+	"signatures\"\x93\x05\n" +
+	"\x18InstalledPackageRevision\x12!\n" +
+	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12,\n" +
+	"\x04kind\x18\x03 \x01(\x0e2\x18.repository.ArtifactKindR\x04kind\x12\x18\n" +
+	"\aversion\x18\x04 \x01(\tR\aversion\x12\x19\n" +
+	"\bbuild_id\x18\x05 \x01(\tR\abuildId\x12!\n" +
+	"\fbuild_number\x18\x06 \x01(\x03R\vbuildNumber\x12\x1a\n" +
+	"\bplatform\x18\a \x01(\tR\bplatform\x12\x1a\n" +
+	"\bchecksum\x18\b \x01(\tR\bchecksum\x12*\n" +
+	"\x11installed_at_unix\x18\t \x01(\x03R\x0finstalledAtUnix\x12>\n" +
+	"\x1cinstalled_by_workflow_run_id\x18\n" +
+	" \x01(\tR\x18installedByWorkflowRunId\x12\x17\n" +
+	"\anode_id\x18\v \x01(\tR\x06nodeId\x120\n" +
+	"\x14previous_revision_id\x18\f \x01(\tR\x12previousRevisionId\x12,\n" +
+	"\x12config_snapshot_id\x18\r \x01(\tR\x10configSnapshotId\x122\n" +
+	"\x15service_status_before\x18\x0e \x01(\tR\x13serviceStatusBefore\x120\n" +
+	"\x14service_status_after\x18\x0f \x01(\tR\x12serviceStatusAfter\x12\x1f\n" +
+	"\vrevision_id\x18\x10 \x01(\tR\n" +
+	"revisionId\x12\x16\n" +
+	"\x06action\x18\x11 \x01(\tR\x06action\"b\n" +
+	"\x1eRecordInstalledRevisionRequest\x12@\n" +
+	"\brevision\x18\x01 \x01(\v2$.repository.InstalledPackageRevisionR\brevision\"B\n" +
+	"\x1fRecordInstalledRevisionResponse\x12\x1f\n" +
+	"\vrevision_id\x18\x01 \x01(\tR\n" +
+	"revisionId\"\xcf\x01\n" +
+	"\x1dListInstalledRevisionsRequest\x12!\n" +
+	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12,\n" +
+	"\x04kind\x18\x03 \x01(\x0e2\x18.repository.ArtifactKindR\x04kind\x12\x1a\n" +
+	"\bplatform\x18\x04 \x01(\tR\bplatform\x12\x17\n" +
+	"\anode_id\x18\x05 \x01(\tR\x06nodeId\x12\x14\n" +
+	"\x05limit\x18\x06 \x01(\x05R\x05limit\"d\n" +
+	"\x1eListInstalledRevisionsResponse\x12B\n" +
+	"\trevisions\x18\x01 \x03(\v2$.repository.InstalledPackageRevisionR\trevisions\"\xd8\x01\n" +
+	"\x13RollbackEligibility\x12\x1a\n" +
+	"\beligible\x18\x01 \x01(\bR\beligible\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x12E\n" +
+	"\rverify_status\x18\x03 \x01(\x0e2 .repository.ArtifactVerifyStatusR\fverifyStatus\x12F\n" +
+	"\x10signature_status\x18\x04 \x01(\x0e2\x1b.repository.SignatureStatusR\x0fsignatureStatus\"\xd0\x01\n" +
+	"\x11RollbackCandidate\x12@\n" +
+	"\brevision\x18\x01 \x01(\v2$.repository.InstalledPackageRevisionR\brevision\x126\n" +
+	"\n" +
+	"target_ref\x18\x02 \x01(\v2\x17.repository.ArtifactRefR\ttargetRef\x12A\n" +
+	"\veligibility\x18\x03 \x01(\v2\x1f.repository.RollbackEligibilityR\veligibility\"\xcf\x01\n" +
+	"\x1dListRollbackCandidatesRequest\x12!\n" +
+	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12,\n" +
+	"\x04kind\x18\x03 \x01(\x0e2\x18.repository.ArtifactKindR\x04kind\x12\x1a\n" +
+	"\bplatform\x18\x04 \x01(\tR\bplatform\x12\x17\n" +
+	"\anode_id\x18\x05 \x01(\tR\x06nodeId\x12\x14\n" +
+	"\x05limit\x18\x06 \x01(\x05R\x05limit\"\x99\x01\n" +
+	"\x1eListRollbackCandidatesResponse\x128\n" +
+	"\vcurrent_ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\n" +
+	"currentRef\x12=\n" +
+	"\n" +
+	"candidates\x18\x02 \x03(\v2\x1d.repository.RollbackCandidateR\n" +
+	"candidates\"\xd5\x02\n" +
+	"\x0fSignaturePolicy\x12=\n" +
+	"\x1brequire_signatures_for_core\x18\x01 \x01(\bR\x18requireSignaturesForCore\x12;\n" +
+	"\x1arequire_signatures_for_all\x18\x02 \x01(\bR\x17requireSignaturesForAll\x12G\n" +
+	" allow_unsigned_local_development\x18\x03 \x01(\bR\x1dallowUnsignedLocalDevelopment\x126\n" +
+	"\x17trusted_core_publishers\x18\x04 \x03(\tR\x15trustedCorePublishers\x12E\n" +
+	"\x1fquarantine_on_invalid_signature\x18\x05 \x01(\bR\x1cquarantineOnInvalidSignature\"\xe3\x04\n" +
+	"\x14PackageConfigReceipt\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12!\n" +
+	"\fpublisher_id\x18\x02 \x01(\tR\vpublisherId\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x1a\n" +
+	"\bplatform\x18\x04 \x01(\tR\bplatform\x12!\n" +
+	"\fbuild_number\x18\x05 \x01(\x03R\vbuildNumber\x12\x12\n" +
+	"\x04path\x18\x06 \x01(\tR\x04path\x127\n" +
+	"\vconfig_kind\x18\a \x01(\x0e2\x16.repository.ConfigKindR\n" +
+	"configKind\x12@\n" +
+	"\x0emerge_strategy\x18\b \x01(\x0e2\x19.repository.MergeStrategyR\rmergeStrategy\x12'\n" +
+	"\x0fchecksum_before\x18\t \x01(\tR\x0echecksumBefore\x12%\n" +
+	"\x0echecksum_after\x18\n" +
+	" \x01(\tR\rchecksumAfter\x127\n" +
+	"\x06action\x18\v \x01(\x0e2\x1f.repository.ConfigReceiptActionR\x06action\x12\x1f\n" +
+	"\vsnapshot_id\x18\f \x01(\tR\n" +
+	"snapshotId\x12&\n" +
+	"\x0fworkflow_run_id\x18\r \x01(\tR\rworkflowRunId\x12%\n" +
+	"\x0etimestamp_unix\x18\x0e \x01(\x03R\rtimestampUnix\x12\x16\n" +
+	"\x06reason\x18\x0f \x01(\tR\x06reason\x12\x1c\n" +
+	"\tsensitive\x18\x10 \x01(\bR\tsensitive\"X\n" +
+	"\x1aRecordConfigReceiptRequest\x12:\n" +
+	"\areceipt\x18\x01 \x01(\v2 .repository.PackageConfigReceiptR\areceipt\"\x1d\n" +
+	"\x1bRecordConfigReceiptResponse\"\xe3\x01\n" +
+	"\x19ListConfigReceiptsRequest\x12!\n" +
+	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
+	"\bplatform\x18\x03 \x01(\tR\bplatform\x12\x17\n" +
+	"\anode_id\x18\x04 \x01(\tR\x06nodeId\x12D\n" +
+	"\raction_filter\x18\x05 \x01(\x0e2\x1f.repository.ConfigReceiptActionR\factionFilter\x12\x14\n" +
+	"\x05limit\x18\x06 \x01(\x05R\x05limit\"Z\n" +
+	"\x1aListConfigReceiptsResponse\x12<\n" +
+	"\breceipts\x18\x01 \x03(\v2 .repository.PackageConfigReceiptR\breceipts\"\xb9\x04\n" +
+	"\x11RepositoryFinding\x125\n" +
+	"\x04kind\x18\x01 \x01(\x0e2!.repository.RepositoryFindingKindR\x04kind\x12A\n" +
+	"\bseverity\x18\x02 \x01(\x0e2%.repository.RepositoryFindingSeverityR\bseverity\x12!\n" +
+	"\fartifact_key\x18\x03 \x01(\tR\vartifactKey\x12)\n" +
+	"\x03ref\x18\x04 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12\x17\n" +
+	"\anode_id\x18\x05 \x01(\tR\x06nodeId\x12#\n" +
+	"\rcurrent_state\x18\x06 \x01(\tR\fcurrentState\x12%\n" +
+	"\x0eexpected_state\x18\a \x01(\tR\rexpectedState\x12\x16\n" +
+	"\x06reason\x18\b \x01(\tR\x06reason\x12/\n" +
+	"\x13recommended_command\x18\t \x01(\tR\x12recommendedCommand\x12G\n" +
+	"\bevidence\x18\n" +
+	" \x03(\v2+.repository.RepositoryFinding.EvidenceEntryR\bevidence\x12(\n" +
+	"\x10observed_at_unix\x18\v \x01(\x03R\x0eobservedAtUnix\x1a;\n" +
+	"\rEvidenceEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"y\n" +
+	"\x1dListRepositoryFindingsRequest\x12B\n" +
+	"\vkind_filter\x18\x01 \x01(\x0e2!.repository.RepositoryFindingKindR\n" +
+	"kindFilter\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\"\x87\x01\n" +
+	"\x1eListRepositoryFindingsResponse\x129\n" +
+	"\bfindings\x18\x01 \x03(\v2\x1d.repository.RepositoryFindingR\bfindings\x12*\n" +
+	"\x11generated_at_unix\x18\x02 \x01(\x03R\x0fgeneratedAtUnix*\x86\x01\n" +
 	"\fArtifactKind\x12\x1d\n" +
 	"\x19ARTIFACT_KIND_UNSPECIFIED\x10\x00\x12\v\n" +
 	"\aSERVICE\x10\x01\x12\x0f\n" +
@@ -5743,7 +9608,21 @@ const file_repository_proto_rawDesc = "" +
 	"\aREVOKED\x10\t\x12\r\n" +
 	"\tCORRUPTED\x10\n" +
 	"\x12\f\n" +
-	"\bARCHIVED\x10\v*j\n" +
+	"\bARCHIVED\x10\v*\xf0\x03\n" +
+	"\x14ArtifactVerifyStatus\x12&\n" +
+	"\"ARTIFACT_VERIFY_STATUS_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12ARTIFACT_VERIFY_OK\x10\x01\x12'\n" +
+	"#ARTIFACT_VERIFY_BROKEN_MISSING_BLOB\x10\x02\x12,\n" +
+	"(ARTIFACT_VERIFY_BROKEN_CHECKSUM_MISMATCH\x10\x03\x12)\n" +
+	"%ARTIFACT_VERIFY_BROKEN_LEDGER_MISSING\x10\x04\x12+\n" +
+	"'ARTIFACT_VERIFY_BROKEN_MANIFEST_MISSING\x10\x05\x12,\n" +
+	"(ARTIFACT_VERIFY_BROKEN_SIGNATURE_MISSING\x10\x06\x12,\n" +
+	"(ARTIFACT_VERIFY_BROKEN_SIGNATURE_INVALID\x10\a\x12-\n" +
+	")ARTIFACT_VERIFY_BROKEN_PROVENANCE_INVALID\x10\b\x12\x1f\n" +
+	"\x1bARTIFACT_VERIFY_QUARANTINED\x10\t\x12\x1b\n" +
+	"\x17ARTIFACT_VERIFY_REVOKED\x10\n" +
+	"\x12 \n" +
+	"\x1cARTIFACT_VERIFY_INCONCLUSIVE\x10\v*j\n" +
 	"\rVersionIntent\x12\x1e\n" +
 	"\x1aVERSION_INTENT_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -5768,7 +9647,66 @@ const file_repository_proto_rawDesc = "" +
 	"\x11SYNC_WOULD_IMPORT\x10\x04\x12\x13\n" +
 	"\x0fSYNC_WOULD_SKIP\x10\x05\x12\x15\n" +
 	"\x11SYNC_WOULD_REJECT\x10\x06\x12\x13\n" +
-	"\x0fSYNC_WOULD_FAIL\x10\a2\xa8!\n" +
+	"\x0fSYNC_WOULD_FAIL\x10\a*\xde\x01\n" +
+	"\rMergeStrategy\x12\x1e\n" +
+	"\x1aMERGE_STRATEGY_UNSPECIFIED\x10\x00\x12\x11\n" +
+	"\rMERGE_REPLACE\x10\x01\x12\x12\n" +
+	"\x0eMERGE_PRESERVE\x10\x02\x12\x13\n" +
+	"\x0fMERGE_THREE_WAY\x10\x03\x12\x19\n" +
+	"\x15MERGE_TEMPLATE_RENDER\x10\x04\x12\x15\n" +
+	"\x11MERGE_APPEND_ONLY\x10\x05\x12$\n" +
+	" MERGE_FAIL_ON_LOCAL_MODIFICATION\x10\x06\x12\x19\n" +
+	"\x15MERGE_SECRET_EXTERNAL\x10\a*\x9e\x01\n" +
+	"\n" +
+	"ConfigKind\x12\x1b\n" +
+	"\x17CONFIG_KIND_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eCONFIG_DEFAULT\x10\x01\x12\x1c\n" +
+	"\x18CONFIG_OPERATOR_OVERRIDE\x10\x02\x12\x14\n" +
+	"\x10CONFIG_GENERATED\x10\x03\x12\x11\n" +
+	"\rCONFIG_SECRET\x10\x04\x12\x18\n" +
+	"\x14CONFIG_RUNTIME_STATE\x10\x05*w\n" +
+	"\n" +
+	"TrustState\x12\x1b\n" +
+	"\x17TRUST_STATE_UNSPECIFIED\x10\x00\x12\x11\n" +
+	"\rTRUST_TRUSTED\x10\x01\x12\x13\n" +
+	"\x0fTRUST_UNTRUSTED\x10\x02\x12\x11\n" +
+	"\rTRUST_REVOKED\x10\x03\x12\x11\n" +
+	"\rTRUST_EXPIRED\x10\x04*\x87\x02\n" +
+	"\x0fSignatureStatus\x12 \n" +
+	"\x1cSIGNATURE_STATUS_UNSPECIFIED\x10\x00\x12\x10\n" +
+	"\fSIGNATURE_OK\x10\x01\x12\x15\n" +
+	"\x11SIGNATURE_MISSING\x10\x02\x12\x15\n" +
+	"\x11SIGNATURE_INVALID\x10\x03\x12!\n" +
+	"\x1dSIGNATURE_UNTRUSTED_PUBLISHER\x10\x04\x12\x19\n" +
+	"\x15SIGNATURE_REVOKED_KEY\x10\x05\x12\x19\n" +
+	"\x15SIGNATURE_EXPIRED_KEY\x10\x06\x12\x1d\n" +
+	"\x19SIGNATURE_DIGEST_MISMATCH\x10\a\x12\x1a\n" +
+	"\x16SIGNATURE_INCONCLUSIVE\x10\b*\xa8\x02\n" +
+	"\x13ConfigReceiptAction\x12%\n" +
+	"!CONFIG_RECEIPT_ACTION_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18CONFIG_RECEIPT_PRESERVED\x10\x01\x12\x1b\n" +
+	"\x17CONFIG_RECEIPT_REPLACED\x10\x02\x12\x1c\n" +
+	"\x18CONFIG_RECEIPT_GENERATED\x10\x03\x12\x19\n" +
+	"\x15CONFIG_RECEIPT_MERGED\x10\x04\x12\x1b\n" +
+	"\x17CONFIG_RECEIPT_CONFLICT\x10\x05\x12\x1b\n" +
+	"\x17CONFIG_RECEIPT_RESTORED\x10\x06\x12!\n" +
+	"\x1dCONFIG_RECEIPT_SKIPPED_SECRET\x10\a\x12\x19\n" +
+	"\x15CONFIG_RECEIPT_FAILED\x10\b*\xbf\x02\n" +
+	"\x15RepositoryFindingKind\x12\"\n" +
+	"\x1eREPOSITORY_FINDING_UNSPECIFIED\x10\x00\x12$\n" +
+	" REPO_FIND_PUBLISHED_MISSING_BLOB\x10\x01\x12)\n" +
+	"%REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH\x10\x02\x12)\n" +
+	"%REPO_FIND_PUBLISHED_UNSIGNED_REQUIRED\x10\x03\x12!\n" +
+	"\x1dREPO_FIND_REVOKED_INSTALLABLE\x10\x04\x12%\n" +
+	"!REPO_FIND_QUARANTINED_INSTALLABLE\x10\x05\x12\x1d\n" +
+	"\x19REPO_FIND_CONFIG_CONFLICT\x10\x06\x12\x1d\n" +
+	"\x19REPO_FIND_ROLLBACK_FAILED\x10\a*\x94\x01\n" +
+	"\x19RepositoryFindingSeverity\x12\"\n" +
+	"\x1eREPO_FIND_SEVERITY_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eREPO_FIND_INFO\x10\x01\x12\x12\n" +
+	"\x0eREPO_FIND_WARN\x10\x02\x12\x13\n" +
+	"\x0fREPO_FIND_ERROR\x10\x03\x12\x16\n" +
+	"\x12REPO_FIND_CRITICAL\x10\x042\xb96\n" +
 	"\x11PackageRepository\x12\xa7\x01\n" +
 	"\x0eDownloadBundle\x12!.repository.DownloadBundleRequest\x1a\".repository.DownloadBundleResponse\"L\x82\xb5\x18H\n" +
 	"\x16repository.bundle.read\x12\x04read\x1a /repository/bundles/{descriptor}*\x06viewer0\x01\x12\xb0\x01\n" +
@@ -5817,7 +9755,37 @@ const file_repository_proto_rawDesc = "" +
 	"\x0eRemoveUpstream\x12!.repository.RemoveUpstreamRequest\x1a\".repository.RemoveUpstreamResponse\"D\x82\xb5\x18@\n" +
 	"\x19repository.upstream.write\x12\x05admin\"\x15/repository/upstreams*\x05admin\x12\xa2\x01\n" +
 	"\x10SyncFromUpstream\x12#.repository.SyncFromUpstreamRequest\x1a$.repository.SyncFromUpstreamResponse\"C\x82\xb5\x18?\n" +
-	"\x18repository.upstream.sync\x12\x05admin\"\x15/repository/upstreams*\x05adminB?Z=github.com/globulario/services/golang/repository/repositorypbb\x06proto3"
+	"\x18repository.upstream.sync\x12\x05admin\"\x15/repository/upstreams*\x05admin\x12\xa4\x01\n" +
+	"\x0eVerifyArtifact\x12!.repository.VerifyArtifactRequest\x1a\".repository.VerifyArtifactResponse\"K\x82\xb5\x18G\n" +
+	"\x1arepository.artifact.verify\x12\x04read\x1a\x1b/repository/artifacts/{ref}*\x06viewer\x12\xa4\x01\n" +
+	"\x0eRepairArtifact\x12!.repository.RepairArtifactRequest\x1a\".repository.RepairArtifactResponse\"K\x82\xb5\x18G\n" +
+	"\x1arepository.artifact.repair\x12\x05admin\x1a\x1b/repository/artifacts/{ref}*\x05admin\x12\xa8\x01\n" +
+	"\x0fExplainArtifact\x12\".repository.ExplainArtifactRequest\x1a#.repository.ExplainArtifactResponse\"L\x82\xb5\x18H\n" +
+	"\x1brepository.artifact.explain\x12\x04read\x1a\x1b/repository/artifacts/{ref}*\x06viewer\x12\x9a\x01\n" +
+	"\x0eTrustPublisher\x12!.repository.TrustPublisherRequest\x1a\".repository.TrustPublisherResponse\"A\x82\xb5\x18=\n" +
+	"\x1arepository.trust.publisher\x12\x05admin\"\x11/repository/trust*\x05admin\x12\xa3\x01\n" +
+	"\x12RevokePublisherKey\x12%.repository.RevokePublisherKeyRequest\x1a&.repository.RevokePublisherKeyResponse\">\x82\xb5\x18:\n" +
+	"\x17repository.trust.revoke\x12\x05admin\"\x11/repository/trust*\x05admin\x12\xaa\x01\n" +
+	"\x15ListTrustedPublishers\x12(.repository.ListTrustedPublishersRequest\x1a).repository.ListTrustedPublishersResponse\"<\x82\xb5\x188\n" +
+	"\x15repository.trust.list\x12\x04read\"\x11/repository/trust*\x06viewer\x12\xc9\x01\n" +
+	"\x19RegisterArtifactSignature\x12,.repository.RegisterArtifactSignatureRequest\x1a-.repository.RegisterArtifactSignatureResponse\"O\x82\xb5\x18K\n" +
+	"\x1drepository.signature.register\x12\x05write\x1a\x1b/repository/artifacts/{ref}*\x06editor\x12\xc0\x01\n" +
+	"\x17VerifyArtifactSignature\x12*.repository.VerifyArtifactSignatureRequest\x1a+.repository.VerifyArtifactSignatureResponse\"L\x82\xb5\x18H\n" +
+	"\x1brepository.signature.verify\x12\x04read\x1a\x1b/repository/artifacts/{ref}*\x06viewer\x12\xbb\x01\n" +
+	"\x16ListArtifactSignatures\x12).repository.ListArtifactSignaturesRequest\x1a*.repository.ListArtifactSignaturesResponse\"J\x82\xb5\x18F\n" +
+	"\x19repository.signature.list\x12\x04read\x1a\x1b/repository/artifacts/{ref}*\x06viewer\x12\xba\x01\n" +
+	"\x17RecordInstalledRevision\x12*.repository.RecordInstalledRevisionRequest\x1a+.repository.RecordInstalledRevisionResponse\"F\x82\xb5\x18B\n" +
+	"\x1arepository.revision.record\x12\x05write\"\x15/repository/revisions*\x06editor\x12\xb4\x01\n" +
+	"\x16ListInstalledRevisions\x12).repository.ListInstalledRevisionsRequest\x1a*.repository.ListInstalledRevisionsResponse\"C\x82\xb5\x18?\n" +
+	"\x18repository.revision.list\x12\x04read\"\x15/repository/revisions*\x06viewer\x12\xba\x01\n" +
+	"\x16ListRollbackCandidates\x12).repository.ListRollbackCandidatesRequest\x1a*.repository.ListRollbackCandidatesResponse\"I\x82\xb5\x18E\n" +
+	"\x1erepository.rollback.candidates\x12\x04read\"\x15/repository/revisions*\x06viewer\x12\xba\x01\n" +
+	"\x13RecordConfigReceipt\x12&.repository.RecordConfigReceiptRequest\x1a'.repository.RecordConfigReceiptResponse\"R\x82\xb5\x18N\n" +
+	" repository.config.receipt.record\x12\x05write\"\x1b/repository/config_receipts*\x06editor\x12\xb4\x01\n" +
+	"\x12ListConfigReceipts\x12%.repository.ListConfigReceiptsRequest\x1a&.repository.ListConfigReceiptsResponse\"O\x82\xb5\x18K\n" +
+	"\x1erepository.config.receipt.list\x12\x04read\"\x1b/repository/config_receipts*\x06viewer\x12\xb3\x01\n" +
+	"\x16ListRepositoryFindings\x12).repository.ListRepositoryFindingsRequest\x1a*.repository.ListRepositoryFindingsResponse\"B\x82\xb5\x18>\n" +
+	"\x18repository.findings.list\x12\x04read\"\x14/repository/findings*\x06viewerB?Z=github.com/globulario/services/golang/repository/repositorypbb\x06proto3"
 
 var (
 	file_repository_proto_rawDescOnce sync.Once
@@ -5831,191 +9799,319 @@ func file_repository_proto_rawDescGZIP() []byte {
 	return file_repository_proto_rawDescData
 }
 
-var file_repository_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_repository_proto_msgTypes = make([]protoimpl.MessageInfo, 67)
+var file_repository_proto_enumTypes = make([]protoimpl.EnumInfo, 14)
+var file_repository_proto_msgTypes = make([]protoimpl.MessageInfo, 107)
 var file_repository_proto_goTypes = []any{
 	(ArtifactKind)(0),                           // 0: repository.ArtifactKind
 	(ArtifactChannel)(0),                        // 1: repository.ArtifactChannel
 	(PublishState)(0),                           // 2: repository.PublishState
-	(VersionIntent)(0),                          // 3: repository.VersionIntent
-	(UpstreamSourceType)(0),                     // 4: repository.UpstreamSourceType
-	(UpstreamSyncStatus)(0),                     // 5: repository.UpstreamSyncStatus
-	(*ArtifactRef)(nil),                         // 6: repository.ArtifactRef
-	(*ArtifactDependencyRef)(nil),               // 7: repository.ArtifactDependencyRef
-	(*ArtifactManifest)(nil),                    // 8: repository.ArtifactManifest
-	(*ServiceDetail)(nil),                       // 9: repository.ServiceDetail
-	(*ApplicationDetail)(nil),                   // 10: repository.ApplicationDetail
-	(*InfrastructureDetail)(nil),                // 11: repository.InfrastructureDetail
-	(*ProvenanceRecord)(nil),                    // 12: repository.ProvenanceRecord
-	(*SetArtifactStateRequest)(nil),             // 13: repository.SetArtifactStateRequest
-	(*SetArtifactStateResponse)(nil),            // 14: repository.SetArtifactStateResponse
-	(*GetNamespaceRequest)(nil),                 // 15: repository.GetNamespaceRequest
-	(*NamespaceInfo)(nil),                       // 16: repository.NamespaceInfo
-	(*GetNamespaceResponse)(nil),                // 17: repository.GetNamespaceResponse
-	(*ListArtifactsRequest)(nil),                // 18: repository.ListArtifactsRequest
-	(*ListArtifactsResponse)(nil),               // 19: repository.ListArtifactsResponse
-	(*UploadArtifactRequest)(nil),               // 20: repository.UploadArtifactRequest
-	(*UploadArtifactResponse)(nil),              // 21: repository.UploadArtifactResponse
-	(*DownloadArtifactRequest)(nil),             // 22: repository.DownloadArtifactRequest
-	(*DownloadArtifactResponse)(nil),            // 23: repository.DownloadArtifactResponse
-	(*GetArtifactManifestRequest)(nil),          // 24: repository.GetArtifactManifestRequest
-	(*GetArtifactManifestResponse)(nil),         // 25: repository.GetArtifactManifestResponse
-	(*UploadBundleRequest)(nil),                 // 26: repository.UploadBundleRequest
-	(*UploadBundleResponse)(nil),                // 27: repository.UploadBundleResponse
-	(*DownloadBundleRequest)(nil),               // 28: repository.DownloadBundleRequest
-	(*DownloadBundleResponse)(nil),              // 29: repository.DownloadBundleResponse
-	(*BundleSummary)(nil),                       // 30: repository.BundleSummary
-	(*ListBundlesRequest)(nil),                  // 31: repository.ListBundlesRequest
-	(*ListBundlesResponse)(nil),                 // 32: repository.ListBundlesResponse
-	(*SearchArtifactsRequest)(nil),              // 33: repository.SearchArtifactsRequest
-	(*SearchArtifactsResponse)(nil),             // 34: repository.SearchArtifactsResponse
-	(*GetArtifactVersionsRequest)(nil),          // 35: repository.GetArtifactVersionsRequest
-	(*GetArtifactVersionsResponse)(nil),         // 36: repository.GetArtifactVersionsResponse
-	(*DeleteArtifactRequest)(nil),               // 37: repository.DeleteArtifactRequest
-	(*DeleteArtifactResponse)(nil),              // 38: repository.DeleteArtifactResponse
-	(*PromoteArtifactRequest)(nil),              // 39: repository.PromoteArtifactRequest
-	(*PromoteArtifactResponse)(nil),             // 40: repository.PromoteArtifactResponse
-	(*DescribePackageRequest)(nil),              // 41: repository.DescribePackageRequest
-	(*NodeInstallation)(nil),                    // 42: repository.NodeInstallation
-	(*DesiredInfo)(nil),                         // 43: repository.DesiredInfo
-	(*PackageInfo)(nil),                         // 44: repository.PackageInfo
-	(*DescribePackageResponse)(nil),             // 45: repository.DescribePackageResponse
-	(*ResolveArtifactRequest)(nil),              // 46: repository.ResolveArtifactRequest
-	(*ResolveArtifactResponse)(nil),             // 47: repository.ResolveArtifactResponse
-	(*ResolveByEntrypointChecksumRequest)(nil),  // 48: repository.ResolveByEntrypointChecksumRequest
-	(*ResolveByEntrypointChecksumResponse)(nil), // 49: repository.ResolveByEntrypointChecksumResponse
-	(*UpdateArtifactBinaryRequest)(nil),         // 50: repository.UpdateArtifactBinaryRequest
-	(*UpdateArtifactBinaryHeader)(nil),          // 51: repository.UpdateArtifactBinaryHeader
-	(*UpdateArtifactBinaryResponse)(nil),        // 52: repository.UpdateArtifactBinaryResponse
-	(*AllocateUploadRequest)(nil),               // 53: repository.AllocateUploadRequest
-	(*AllocateUploadResponse)(nil),              // 54: repository.AllocateUploadResponse
-	(*ImportProvisionalRequest)(nil),            // 55: repository.ImportProvisionalRequest
-	(*ImportProvisionalResponse)(nil),           // 56: repository.ImportProvisionalResponse
-	(*UpstreamSource)(nil),                      // 57: repository.UpstreamSource
-	(*RegisterUpstreamRequest)(nil),             // 58: repository.RegisterUpstreamRequest
-	(*RegisterUpstreamResponse)(nil),            // 59: repository.RegisterUpstreamResponse
-	(*ListUpstreamsRequest)(nil),                // 60: repository.ListUpstreamsRequest
-	(*ListUpstreamsResponse)(nil),               // 61: repository.ListUpstreamsResponse
-	(*RemoveUpstreamRequest)(nil),               // 62: repository.RemoveUpstreamRequest
-	(*RemoveUpstreamResponse)(nil),              // 63: repository.RemoveUpstreamResponse
-	(*UpstreamSyncResult)(nil),                  // 64: repository.UpstreamSyncResult
-	(*SyncFromUpstreamRequest)(nil),             // 65: repository.SyncFromUpstreamRequest
-	(*SyncFromUpstreamResponse)(nil),            // 66: repository.SyncFromUpstreamResponse
-	(*UpstreamImportRecord)(nil),                // 67: repository.UpstreamImportRecord
-	(*ArchiveUnreachableArtifactsRequest)(nil),  // 68: repository.ArchiveUnreachableArtifactsRequest
-	(*ArchivedArtifactRecord)(nil),              // 69: repository.ArchivedArtifactRecord
-	(*ArchiveUnreachableArtifactsResponse)(nil), // 70: repository.ArchiveUnreachableArtifactsResponse
-	nil,                                  // 71: repository.ArtifactManifest.DefaultsEntry
-	nil,                                  // 72: repository.ApplicationDetail.AppConfigEntry
-	(*resourcepb.PackageDescriptor)(nil), // 73: resource.PackageDescriptor
+	(ArtifactVerifyStatus)(0),                   // 3: repository.ArtifactVerifyStatus
+	(VersionIntent)(0),                          // 4: repository.VersionIntent
+	(UpstreamSourceType)(0),                     // 5: repository.UpstreamSourceType
+	(UpstreamSyncStatus)(0),                     // 6: repository.UpstreamSyncStatus
+	(MergeStrategy)(0),                          // 7: repository.MergeStrategy
+	(ConfigKind)(0),                             // 8: repository.ConfigKind
+	(TrustState)(0),                             // 9: repository.TrustState
+	(SignatureStatus)(0),                        // 10: repository.SignatureStatus
+	(ConfigReceiptAction)(0),                    // 11: repository.ConfigReceiptAction
+	(RepositoryFindingKind)(0),                  // 12: repository.RepositoryFindingKind
+	(RepositoryFindingSeverity)(0),              // 13: repository.RepositoryFindingSeverity
+	(*ArtifactRef)(nil),                         // 14: repository.ArtifactRef
+	(*ArtifactDependencyRef)(nil),               // 15: repository.ArtifactDependencyRef
+	(*ArtifactManifest)(nil),                    // 16: repository.ArtifactManifest
+	(*ServiceDetail)(nil),                       // 17: repository.ServiceDetail
+	(*ApplicationDetail)(nil),                   // 18: repository.ApplicationDetail
+	(*InfrastructureDetail)(nil),                // 19: repository.InfrastructureDetail
+	(*ProvenanceRecord)(nil),                    // 20: repository.ProvenanceRecord
+	(*SetArtifactStateRequest)(nil),             // 21: repository.SetArtifactStateRequest
+	(*SetArtifactStateResponse)(nil),            // 22: repository.SetArtifactStateResponse
+	(*GetNamespaceRequest)(nil),                 // 23: repository.GetNamespaceRequest
+	(*NamespaceInfo)(nil),                       // 24: repository.NamespaceInfo
+	(*GetNamespaceResponse)(nil),                // 25: repository.GetNamespaceResponse
+	(*ListArtifactsRequest)(nil),                // 26: repository.ListArtifactsRequest
+	(*ListArtifactsResponse)(nil),               // 27: repository.ListArtifactsResponse
+	(*UploadArtifactRequest)(nil),               // 28: repository.UploadArtifactRequest
+	(*UploadArtifactResponse)(nil),              // 29: repository.UploadArtifactResponse
+	(*DownloadArtifactRequest)(nil),             // 30: repository.DownloadArtifactRequest
+	(*DownloadArtifactResponse)(nil),            // 31: repository.DownloadArtifactResponse
+	(*GetArtifactManifestRequest)(nil),          // 32: repository.GetArtifactManifestRequest
+	(*GetArtifactManifestResponse)(nil),         // 33: repository.GetArtifactManifestResponse
+	(*UploadBundleRequest)(nil),                 // 34: repository.UploadBundleRequest
+	(*UploadBundleResponse)(nil),                // 35: repository.UploadBundleResponse
+	(*DownloadBundleRequest)(nil),               // 36: repository.DownloadBundleRequest
+	(*DownloadBundleResponse)(nil),              // 37: repository.DownloadBundleResponse
+	(*BundleSummary)(nil),                       // 38: repository.BundleSummary
+	(*ListBundlesRequest)(nil),                  // 39: repository.ListBundlesRequest
+	(*ListBundlesResponse)(nil),                 // 40: repository.ListBundlesResponse
+	(*SearchArtifactsRequest)(nil),              // 41: repository.SearchArtifactsRequest
+	(*SearchArtifactsResponse)(nil),             // 42: repository.SearchArtifactsResponse
+	(*GetArtifactVersionsRequest)(nil),          // 43: repository.GetArtifactVersionsRequest
+	(*GetArtifactVersionsResponse)(nil),         // 44: repository.GetArtifactVersionsResponse
+	(*DeleteArtifactRequest)(nil),               // 45: repository.DeleteArtifactRequest
+	(*DeleteArtifactResponse)(nil),              // 46: repository.DeleteArtifactResponse
+	(*PromoteArtifactRequest)(nil),              // 47: repository.PromoteArtifactRequest
+	(*PromoteArtifactResponse)(nil),             // 48: repository.PromoteArtifactResponse
+	(*DescribePackageRequest)(nil),              // 49: repository.DescribePackageRequest
+	(*NodeInstallation)(nil),                    // 50: repository.NodeInstallation
+	(*DesiredInfo)(nil),                         // 51: repository.DesiredInfo
+	(*PackageInfo)(nil),                         // 52: repository.PackageInfo
+	(*DescribePackageResponse)(nil),             // 53: repository.DescribePackageResponse
+	(*VerifyArtifactRequest)(nil),               // 54: repository.VerifyArtifactRequest
+	(*VerifyArtifactResponse)(nil),              // 55: repository.VerifyArtifactResponse
+	(*RepairArtifactRequest)(nil),               // 56: repository.RepairArtifactRequest
+	(*RepairArtifactResponse)(nil),              // 57: repository.RepairArtifactResponse
+	(*ExplainArtifactRequest)(nil),              // 58: repository.ExplainArtifactRequest
+	(*ExplainArtifactResponse)(nil),             // 59: repository.ExplainArtifactResponse
+	(*ResolveArtifactRequest)(nil),              // 60: repository.ResolveArtifactRequest
+	(*ResolveArtifactResponse)(nil),             // 61: repository.ResolveArtifactResponse
+	(*ResolveByEntrypointChecksumRequest)(nil),  // 62: repository.ResolveByEntrypointChecksumRequest
+	(*ResolveByEntrypointChecksumResponse)(nil), // 63: repository.ResolveByEntrypointChecksumResponse
+	(*UpdateArtifactBinaryRequest)(nil),         // 64: repository.UpdateArtifactBinaryRequest
+	(*UpdateArtifactBinaryHeader)(nil),          // 65: repository.UpdateArtifactBinaryHeader
+	(*UpdateArtifactBinaryResponse)(nil),        // 66: repository.UpdateArtifactBinaryResponse
+	(*AllocateUploadRequest)(nil),               // 67: repository.AllocateUploadRequest
+	(*AllocateUploadResponse)(nil),              // 68: repository.AllocateUploadResponse
+	(*ImportProvisionalRequest)(nil),            // 69: repository.ImportProvisionalRequest
+	(*ImportProvisionalResponse)(nil),           // 70: repository.ImportProvisionalResponse
+	(*UpstreamSource)(nil),                      // 71: repository.UpstreamSource
+	(*RegisterUpstreamRequest)(nil),             // 72: repository.RegisterUpstreamRequest
+	(*RegisterUpstreamResponse)(nil),            // 73: repository.RegisterUpstreamResponse
+	(*ListUpstreamsRequest)(nil),                // 74: repository.ListUpstreamsRequest
+	(*ListUpstreamsResponse)(nil),               // 75: repository.ListUpstreamsResponse
+	(*RemoveUpstreamRequest)(nil),               // 76: repository.RemoveUpstreamRequest
+	(*RemoveUpstreamResponse)(nil),              // 77: repository.RemoveUpstreamResponse
+	(*UpstreamSyncResult)(nil),                  // 78: repository.UpstreamSyncResult
+	(*SyncFromUpstreamRequest)(nil),             // 79: repository.SyncFromUpstreamRequest
+	(*SyncFromUpstreamResponse)(nil),            // 80: repository.SyncFromUpstreamResponse
+	(*UpstreamImportRecord)(nil),                // 81: repository.UpstreamImportRecord
+	(*ArchiveUnreachableArtifactsRequest)(nil),  // 82: repository.ArchiveUnreachableArtifactsRequest
+	(*ArchivedArtifactRecord)(nil),              // 83: repository.ArchivedArtifactRecord
+	(*ArchiveUnreachableArtifactsResponse)(nil), // 84: repository.ArchiveUnreachableArtifactsResponse
+	(*PackageConfigFile)(nil),                   // 85: repository.PackageConfigFile
+	(*TrustedPublisher)(nil),                    // 86: repository.TrustedPublisher
+	(*ArtifactSignature)(nil),                   // 87: repository.ArtifactSignature
+	(*TrustPublisherRequest)(nil),               // 88: repository.TrustPublisherRequest
+	(*TrustPublisherResponse)(nil),              // 89: repository.TrustPublisherResponse
+	(*RevokePublisherKeyRequest)(nil),           // 90: repository.RevokePublisherKeyRequest
+	(*RevokePublisherKeyResponse)(nil),          // 91: repository.RevokePublisherKeyResponse
+	(*ListTrustedPublishersRequest)(nil),        // 92: repository.ListTrustedPublishersRequest
+	(*ListTrustedPublishersResponse)(nil),       // 93: repository.ListTrustedPublishersResponse
+	(*RegisterArtifactSignatureRequest)(nil),    // 94: repository.RegisterArtifactSignatureRequest
+	(*RegisterArtifactSignatureResponse)(nil),   // 95: repository.RegisterArtifactSignatureResponse
+	(*VerifyArtifactSignatureRequest)(nil),      // 96: repository.VerifyArtifactSignatureRequest
+	(*VerifyArtifactSignatureResponse)(nil),     // 97: repository.VerifyArtifactSignatureResponse
+	(*ListArtifactSignaturesRequest)(nil),       // 98: repository.ListArtifactSignaturesRequest
+	(*ListArtifactSignaturesResponse)(nil),      // 99: repository.ListArtifactSignaturesResponse
+	(*InstalledPackageRevision)(nil),            // 100: repository.InstalledPackageRevision
+	(*RecordInstalledRevisionRequest)(nil),      // 101: repository.RecordInstalledRevisionRequest
+	(*RecordInstalledRevisionResponse)(nil),     // 102: repository.RecordInstalledRevisionResponse
+	(*ListInstalledRevisionsRequest)(nil),       // 103: repository.ListInstalledRevisionsRequest
+	(*ListInstalledRevisionsResponse)(nil),      // 104: repository.ListInstalledRevisionsResponse
+	(*RollbackEligibility)(nil),                 // 105: repository.RollbackEligibility
+	(*RollbackCandidate)(nil),                   // 106: repository.RollbackCandidate
+	(*ListRollbackCandidatesRequest)(nil),       // 107: repository.ListRollbackCandidatesRequest
+	(*ListRollbackCandidatesResponse)(nil),      // 108: repository.ListRollbackCandidatesResponse
+	(*SignaturePolicy)(nil),                     // 109: repository.SignaturePolicy
+	(*PackageConfigReceipt)(nil),                // 110: repository.PackageConfigReceipt
+	(*RecordConfigReceiptRequest)(nil),          // 111: repository.RecordConfigReceiptRequest
+	(*RecordConfigReceiptResponse)(nil),         // 112: repository.RecordConfigReceiptResponse
+	(*ListConfigReceiptsRequest)(nil),           // 113: repository.ListConfigReceiptsRequest
+	(*ListConfigReceiptsResponse)(nil),          // 114: repository.ListConfigReceiptsResponse
+	(*RepositoryFinding)(nil),                   // 115: repository.RepositoryFinding
+	(*ListRepositoryFindingsRequest)(nil),       // 116: repository.ListRepositoryFindingsRequest
+	(*ListRepositoryFindingsResponse)(nil),      // 117: repository.ListRepositoryFindingsResponse
+	nil,                                         // 118: repository.ArtifactManifest.DefaultsEntry
+	nil,                                         // 119: repository.ApplicationDetail.AppConfigEntry
+	nil,                                         // 120: repository.RepositoryFinding.EvidenceEntry
+	(*resourcepb.PackageDescriptor)(nil),        // 121: resource.PackageDescriptor
 }
 var file_repository_proto_depIdxs = []int32{
-	0,  // 0: repository.ArtifactRef.kind:type_name -> repository.ArtifactKind
-	6,  // 1: repository.ArtifactManifest.ref:type_name -> repository.ArtifactRef
-	71, // 2: repository.ArtifactManifest.defaults:type_name -> repository.ArtifactManifest.DefaultsEntry
-	9,  // 3: repository.ArtifactManifest.service_detail:type_name -> repository.ServiceDetail
-	10, // 4: repository.ArtifactManifest.application_detail:type_name -> repository.ApplicationDetail
-	11, // 5: repository.ArtifactManifest.infrastructure_detail:type_name -> repository.InfrastructureDetail
-	7,  // 6: repository.ArtifactManifest.hard_deps:type_name -> repository.ArtifactDependencyRef
-	2,  // 7: repository.ArtifactManifest.publish_state:type_name -> repository.PublishState
-	12, // 8: repository.ArtifactManifest.provenance:type_name -> repository.ProvenanceRecord
-	67, // 9: repository.ArtifactManifest.upstream_import:type_name -> repository.UpstreamImportRecord
-	1,  // 10: repository.ArtifactManifest.channel:type_name -> repository.ArtifactChannel
-	72, // 11: repository.ApplicationDetail.app_config:type_name -> repository.ApplicationDetail.AppConfigEntry
-	6,  // 12: repository.SetArtifactStateRequest.ref:type_name -> repository.ArtifactRef
-	2,  // 13: repository.SetArtifactStateRequest.target_state:type_name -> repository.PublishState
-	2,  // 14: repository.SetArtifactStateResponse.previous_state:type_name -> repository.PublishState
-	2,  // 15: repository.SetArtifactStateResponse.current_state:type_name -> repository.PublishState
-	16, // 16: repository.GetNamespaceResponse.namespace:type_name -> repository.NamespaceInfo
-	8,  // 17: repository.ListArtifactsResponse.artifacts:type_name -> repository.ArtifactManifest
-	6,  // 18: repository.UploadArtifactRequest.ref:type_name -> repository.ArtifactRef
-	6,  // 19: repository.DownloadArtifactRequest.ref:type_name -> repository.ArtifactRef
-	6,  // 20: repository.GetArtifactManifestRequest.ref:type_name -> repository.ArtifactRef
-	8,  // 21: repository.GetArtifactManifestResponse.manifest:type_name -> repository.ArtifactManifest
-	73, // 22: repository.DownloadBundleRequest.descriptor:type_name -> resource.PackageDescriptor
-	30, // 23: repository.ListBundlesResponse.bundles:type_name -> repository.BundleSummary
-	0,  // 24: repository.SearchArtifactsRequest.kind:type_name -> repository.ArtifactKind
-	1,  // 25: repository.SearchArtifactsRequest.channel:type_name -> repository.ArtifactChannel
-	8,  // 26: repository.SearchArtifactsResponse.artifacts:type_name -> repository.ArtifactManifest
-	8,  // 27: repository.GetArtifactVersionsResponse.versions:type_name -> repository.ArtifactManifest
-	6,  // 28: repository.DeleteArtifactRequest.ref:type_name -> repository.ArtifactRef
-	6,  // 29: repository.PromoteArtifactRequest.ref:type_name -> repository.ArtifactRef
-	2,  // 30: repository.PromoteArtifactRequest.target_state:type_name -> repository.PublishState
-	2,  // 31: repository.PromoteArtifactResponse.previous_state:type_name -> repository.PublishState
-	2,  // 32: repository.PromoteArtifactResponse.current_state:type_name -> repository.PublishState
-	0,  // 33: repository.PackageInfo.kind:type_name -> repository.ArtifactKind
-	43, // 34: repository.PackageInfo.desired:type_name -> repository.DesiredInfo
-	42, // 35: repository.PackageInfo.installed_on:type_name -> repository.NodeInstallation
-	42, // 36: repository.PackageInfo.failing_on:type_name -> repository.NodeInstallation
-	44, // 37: repository.DescribePackageResponse.info:type_name -> repository.PackageInfo
-	0,  // 38: repository.ResolveArtifactRequest.kind:type_name -> repository.ArtifactKind
-	1,  // 39: repository.ResolveArtifactRequest.channel:type_name -> repository.ArtifactChannel
-	8,  // 40: repository.ResolveArtifactResponse.manifest:type_name -> repository.ArtifactManifest
-	8,  // 41: repository.ResolveByEntrypointChecksumResponse.manifest:type_name -> repository.ArtifactManifest
-	51, // 42: repository.UpdateArtifactBinaryRequest.header:type_name -> repository.UpdateArtifactBinaryHeader
-	6,  // 43: repository.UpdateArtifactBinaryHeader.ref:type_name -> repository.ArtifactRef
-	3,  // 44: repository.AllocateUploadRequest.intent:type_name -> repository.VersionIntent
-	1,  // 45: repository.AllocateUploadRequest.channel:type_name -> repository.ArtifactChannel
-	4,  // 46: repository.UpstreamSource.type:type_name -> repository.UpstreamSourceType
-	57, // 47: repository.RegisterUpstreamRequest.source:type_name -> repository.UpstreamSource
-	57, // 48: repository.RegisterUpstreamResponse.source:type_name -> repository.UpstreamSource
-	57, // 49: repository.ListUpstreamsResponse.sources:type_name -> repository.UpstreamSource
-	5,  // 50: repository.UpstreamSyncResult.status:type_name -> repository.UpstreamSyncStatus
-	64, // 51: repository.SyncFromUpstreamResponse.results:type_name -> repository.UpstreamSyncResult
-	69, // 52: repository.ArchiveUnreachableArtifactsResponse.archived:type_name -> repository.ArchivedArtifactRecord
-	28, // 53: repository.PackageRepository.DownloadBundle:input_type -> repository.DownloadBundleRequest
-	26, // 54: repository.PackageRepository.UploadBundle:input_type -> repository.UploadBundleRequest
-	18, // 55: repository.PackageRepository.ListArtifacts:input_type -> repository.ListArtifactsRequest
-	20, // 56: repository.PackageRepository.UploadArtifact:input_type -> repository.UploadArtifactRequest
-	22, // 57: repository.PackageRepository.DownloadArtifact:input_type -> repository.DownloadArtifactRequest
-	24, // 58: repository.PackageRepository.GetArtifactManifest:input_type -> repository.GetArtifactManifestRequest
-	31, // 59: repository.PackageRepository.ListBundles:input_type -> repository.ListBundlesRequest
-	33, // 60: repository.PackageRepository.SearchArtifacts:input_type -> repository.SearchArtifactsRequest
-	35, // 61: repository.PackageRepository.GetArtifactVersions:input_type -> repository.GetArtifactVersionsRequest
-	41, // 62: repository.PackageRepository.DescribePackage:input_type -> repository.DescribePackageRequest
-	37, // 63: repository.PackageRepository.DeleteArtifact:input_type -> repository.DeleteArtifactRequest
-	39, // 64: repository.PackageRepository.PromoteArtifact:input_type -> repository.PromoteArtifactRequest
-	13, // 65: repository.PackageRepository.SetArtifactState:input_type -> repository.SetArtifactStateRequest
-	15, // 66: repository.PackageRepository.GetNamespace:input_type -> repository.GetNamespaceRequest
-	50, // 67: repository.PackageRepository.UpdateArtifactBinary:input_type -> repository.UpdateArtifactBinaryRequest
-	55, // 68: repository.PackageRepository.ImportProvisionalArtifact:input_type -> repository.ImportProvisionalRequest
-	53, // 69: repository.PackageRepository.AllocateUpload:input_type -> repository.AllocateUploadRequest
-	46, // 70: repository.PackageRepository.ResolveArtifact:input_type -> repository.ResolveArtifactRequest
-	48, // 71: repository.PackageRepository.ResolveByEntrypointChecksum:input_type -> repository.ResolveByEntrypointChecksumRequest
-	68, // 72: repository.PackageRepository.ArchiveUnreachableArtifacts:input_type -> repository.ArchiveUnreachableArtifactsRequest
-	58, // 73: repository.PackageRepository.RegisterUpstream:input_type -> repository.RegisterUpstreamRequest
-	60, // 74: repository.PackageRepository.ListUpstreams:input_type -> repository.ListUpstreamsRequest
-	62, // 75: repository.PackageRepository.RemoveUpstream:input_type -> repository.RemoveUpstreamRequest
-	65, // 76: repository.PackageRepository.SyncFromUpstream:input_type -> repository.SyncFromUpstreamRequest
-	29, // 77: repository.PackageRepository.DownloadBundle:output_type -> repository.DownloadBundleResponse
-	27, // 78: repository.PackageRepository.UploadBundle:output_type -> repository.UploadBundleResponse
-	19, // 79: repository.PackageRepository.ListArtifacts:output_type -> repository.ListArtifactsResponse
-	21, // 80: repository.PackageRepository.UploadArtifact:output_type -> repository.UploadArtifactResponse
-	23, // 81: repository.PackageRepository.DownloadArtifact:output_type -> repository.DownloadArtifactResponse
-	25, // 82: repository.PackageRepository.GetArtifactManifest:output_type -> repository.GetArtifactManifestResponse
-	32, // 83: repository.PackageRepository.ListBundles:output_type -> repository.ListBundlesResponse
-	34, // 84: repository.PackageRepository.SearchArtifacts:output_type -> repository.SearchArtifactsResponse
-	36, // 85: repository.PackageRepository.GetArtifactVersions:output_type -> repository.GetArtifactVersionsResponse
-	45, // 86: repository.PackageRepository.DescribePackage:output_type -> repository.DescribePackageResponse
-	38, // 87: repository.PackageRepository.DeleteArtifact:output_type -> repository.DeleteArtifactResponse
-	40, // 88: repository.PackageRepository.PromoteArtifact:output_type -> repository.PromoteArtifactResponse
-	14, // 89: repository.PackageRepository.SetArtifactState:output_type -> repository.SetArtifactStateResponse
-	17, // 90: repository.PackageRepository.GetNamespace:output_type -> repository.GetNamespaceResponse
-	52, // 91: repository.PackageRepository.UpdateArtifactBinary:output_type -> repository.UpdateArtifactBinaryResponse
-	56, // 92: repository.PackageRepository.ImportProvisionalArtifact:output_type -> repository.ImportProvisionalResponse
-	54, // 93: repository.PackageRepository.AllocateUpload:output_type -> repository.AllocateUploadResponse
-	47, // 94: repository.PackageRepository.ResolveArtifact:output_type -> repository.ResolveArtifactResponse
-	49, // 95: repository.PackageRepository.ResolveByEntrypointChecksum:output_type -> repository.ResolveByEntrypointChecksumResponse
-	70, // 96: repository.PackageRepository.ArchiveUnreachableArtifacts:output_type -> repository.ArchiveUnreachableArtifactsResponse
-	59, // 97: repository.PackageRepository.RegisterUpstream:output_type -> repository.RegisterUpstreamResponse
-	61, // 98: repository.PackageRepository.ListUpstreams:output_type -> repository.ListUpstreamsResponse
-	63, // 99: repository.PackageRepository.RemoveUpstream:output_type -> repository.RemoveUpstreamResponse
-	66, // 100: repository.PackageRepository.SyncFromUpstream:output_type -> repository.SyncFromUpstreamResponse
-	77, // [77:101] is the sub-list for method output_type
-	53, // [53:77] is the sub-list for method input_type
-	53, // [53:53] is the sub-list for extension type_name
-	53, // [53:53] is the sub-list for extension extendee
-	0,  // [0:53] is the sub-list for field type_name
+	0,   // 0: repository.ArtifactRef.kind:type_name -> repository.ArtifactKind
+	14,  // 1: repository.ArtifactManifest.ref:type_name -> repository.ArtifactRef
+	118, // 2: repository.ArtifactManifest.defaults:type_name -> repository.ArtifactManifest.DefaultsEntry
+	17,  // 3: repository.ArtifactManifest.service_detail:type_name -> repository.ServiceDetail
+	18,  // 4: repository.ArtifactManifest.application_detail:type_name -> repository.ApplicationDetail
+	19,  // 5: repository.ArtifactManifest.infrastructure_detail:type_name -> repository.InfrastructureDetail
+	15,  // 6: repository.ArtifactManifest.hard_deps:type_name -> repository.ArtifactDependencyRef
+	2,   // 7: repository.ArtifactManifest.publish_state:type_name -> repository.PublishState
+	20,  // 8: repository.ArtifactManifest.provenance:type_name -> repository.ProvenanceRecord
+	81,  // 9: repository.ArtifactManifest.upstream_import:type_name -> repository.UpstreamImportRecord
+	1,   // 10: repository.ArtifactManifest.channel:type_name -> repository.ArtifactChannel
+	85,  // 11: repository.ArtifactManifest.configs:type_name -> repository.PackageConfigFile
+	119, // 12: repository.ApplicationDetail.app_config:type_name -> repository.ApplicationDetail.AppConfigEntry
+	14,  // 13: repository.SetArtifactStateRequest.ref:type_name -> repository.ArtifactRef
+	2,   // 14: repository.SetArtifactStateRequest.target_state:type_name -> repository.PublishState
+	2,   // 15: repository.SetArtifactStateResponse.previous_state:type_name -> repository.PublishState
+	2,   // 16: repository.SetArtifactStateResponse.current_state:type_name -> repository.PublishState
+	24,  // 17: repository.GetNamespaceResponse.namespace:type_name -> repository.NamespaceInfo
+	16,  // 18: repository.ListArtifactsResponse.artifacts:type_name -> repository.ArtifactManifest
+	14,  // 19: repository.UploadArtifactRequest.ref:type_name -> repository.ArtifactRef
+	14,  // 20: repository.DownloadArtifactRequest.ref:type_name -> repository.ArtifactRef
+	14,  // 21: repository.GetArtifactManifestRequest.ref:type_name -> repository.ArtifactRef
+	16,  // 22: repository.GetArtifactManifestResponse.manifest:type_name -> repository.ArtifactManifest
+	121, // 23: repository.DownloadBundleRequest.descriptor:type_name -> resource.PackageDescriptor
+	38,  // 24: repository.ListBundlesResponse.bundles:type_name -> repository.BundleSummary
+	0,   // 25: repository.SearchArtifactsRequest.kind:type_name -> repository.ArtifactKind
+	1,   // 26: repository.SearchArtifactsRequest.channel:type_name -> repository.ArtifactChannel
+	16,  // 27: repository.SearchArtifactsResponse.artifacts:type_name -> repository.ArtifactManifest
+	16,  // 28: repository.GetArtifactVersionsResponse.versions:type_name -> repository.ArtifactManifest
+	14,  // 29: repository.DeleteArtifactRequest.ref:type_name -> repository.ArtifactRef
+	14,  // 30: repository.PromoteArtifactRequest.ref:type_name -> repository.ArtifactRef
+	2,   // 31: repository.PromoteArtifactRequest.target_state:type_name -> repository.PublishState
+	2,   // 32: repository.PromoteArtifactResponse.previous_state:type_name -> repository.PublishState
+	2,   // 33: repository.PromoteArtifactResponse.current_state:type_name -> repository.PublishState
+	0,   // 34: repository.PackageInfo.kind:type_name -> repository.ArtifactKind
+	51,  // 35: repository.PackageInfo.desired:type_name -> repository.DesiredInfo
+	50,  // 36: repository.PackageInfo.installed_on:type_name -> repository.NodeInstallation
+	50,  // 37: repository.PackageInfo.failing_on:type_name -> repository.NodeInstallation
+	52,  // 38: repository.DescribePackageResponse.info:type_name -> repository.PackageInfo
+	14,  // 39: repository.VerifyArtifactRequest.ref:type_name -> repository.ArtifactRef
+	14,  // 40: repository.VerifyArtifactResponse.ref:type_name -> repository.ArtifactRef
+	2,   // 41: repository.VerifyArtifactResponse.publish_state:type_name -> repository.PublishState
+	3,   // 42: repository.VerifyArtifactResponse.status:type_name -> repository.ArtifactVerifyStatus
+	14,  // 43: repository.RepairArtifactRequest.ref:type_name -> repository.ArtifactRef
+	14,  // 44: repository.RepairArtifactResponse.ref:type_name -> repository.ArtifactRef
+	14,  // 45: repository.ExplainArtifactRequest.ref:type_name -> repository.ArtifactRef
+	14,  // 46: repository.ExplainArtifactResponse.ref:type_name -> repository.ArtifactRef
+	2,   // 47: repository.ExplainArtifactResponse.publish_state:type_name -> repository.PublishState
+	3,   // 48: repository.ExplainArtifactResponse.verify_status:type_name -> repository.ArtifactVerifyStatus
+	0,   // 49: repository.ResolveArtifactRequest.kind:type_name -> repository.ArtifactKind
+	1,   // 50: repository.ResolveArtifactRequest.channel:type_name -> repository.ArtifactChannel
+	16,  // 51: repository.ResolveArtifactResponse.manifest:type_name -> repository.ArtifactManifest
+	16,  // 52: repository.ResolveByEntrypointChecksumResponse.manifest:type_name -> repository.ArtifactManifest
+	65,  // 53: repository.UpdateArtifactBinaryRequest.header:type_name -> repository.UpdateArtifactBinaryHeader
+	14,  // 54: repository.UpdateArtifactBinaryHeader.ref:type_name -> repository.ArtifactRef
+	4,   // 55: repository.AllocateUploadRequest.intent:type_name -> repository.VersionIntent
+	1,   // 56: repository.AllocateUploadRequest.channel:type_name -> repository.ArtifactChannel
+	5,   // 57: repository.UpstreamSource.type:type_name -> repository.UpstreamSourceType
+	71,  // 58: repository.RegisterUpstreamRequest.source:type_name -> repository.UpstreamSource
+	71,  // 59: repository.RegisterUpstreamResponse.source:type_name -> repository.UpstreamSource
+	71,  // 60: repository.ListUpstreamsResponse.sources:type_name -> repository.UpstreamSource
+	6,   // 61: repository.UpstreamSyncResult.status:type_name -> repository.UpstreamSyncStatus
+	78,  // 62: repository.SyncFromUpstreamResponse.results:type_name -> repository.UpstreamSyncResult
+	83,  // 63: repository.ArchiveUnreachableArtifactsResponse.archived:type_name -> repository.ArchivedArtifactRecord
+	8,   // 64: repository.PackageConfigFile.config_kind:type_name -> repository.ConfigKind
+	7,   // 65: repository.PackageConfigFile.merge_strategy:type_name -> repository.MergeStrategy
+	9,   // 66: repository.TrustedPublisher.trust_state:type_name -> repository.TrustState
+	86,  // 67: repository.TrustPublisherResponse.publisher:type_name -> repository.TrustedPublisher
+	86,  // 68: repository.RevokePublisherKeyResponse.publisher:type_name -> repository.TrustedPublisher
+	86,  // 69: repository.ListTrustedPublishersResponse.publishers:type_name -> repository.TrustedPublisher
+	14,  // 70: repository.RegisterArtifactSignatureRequest.ref:type_name -> repository.ArtifactRef
+	87,  // 71: repository.RegisterArtifactSignatureResponse.signature:type_name -> repository.ArtifactSignature
+	10,  // 72: repository.RegisterArtifactSignatureResponse.status:type_name -> repository.SignatureStatus
+	14,  // 73: repository.VerifyArtifactSignatureRequest.ref:type_name -> repository.ArtifactRef
+	10,  // 74: repository.VerifyArtifactSignatureResponse.status:type_name -> repository.SignatureStatus
+	87,  // 75: repository.VerifyArtifactSignatureResponse.signature:type_name -> repository.ArtifactSignature
+	86,  // 76: repository.VerifyArtifactSignatureResponse.publisher:type_name -> repository.TrustedPublisher
+	14,  // 77: repository.ListArtifactSignaturesRequest.ref:type_name -> repository.ArtifactRef
+	87,  // 78: repository.ListArtifactSignaturesResponse.signatures:type_name -> repository.ArtifactSignature
+	0,   // 79: repository.InstalledPackageRevision.kind:type_name -> repository.ArtifactKind
+	100, // 80: repository.RecordInstalledRevisionRequest.revision:type_name -> repository.InstalledPackageRevision
+	0,   // 81: repository.ListInstalledRevisionsRequest.kind:type_name -> repository.ArtifactKind
+	100, // 82: repository.ListInstalledRevisionsResponse.revisions:type_name -> repository.InstalledPackageRevision
+	3,   // 83: repository.RollbackEligibility.verify_status:type_name -> repository.ArtifactVerifyStatus
+	10,  // 84: repository.RollbackEligibility.signature_status:type_name -> repository.SignatureStatus
+	100, // 85: repository.RollbackCandidate.revision:type_name -> repository.InstalledPackageRevision
+	14,  // 86: repository.RollbackCandidate.target_ref:type_name -> repository.ArtifactRef
+	105, // 87: repository.RollbackCandidate.eligibility:type_name -> repository.RollbackEligibility
+	0,   // 88: repository.ListRollbackCandidatesRequest.kind:type_name -> repository.ArtifactKind
+	14,  // 89: repository.ListRollbackCandidatesResponse.current_ref:type_name -> repository.ArtifactRef
+	106, // 90: repository.ListRollbackCandidatesResponse.candidates:type_name -> repository.RollbackCandidate
+	8,   // 91: repository.PackageConfigReceipt.config_kind:type_name -> repository.ConfigKind
+	7,   // 92: repository.PackageConfigReceipt.merge_strategy:type_name -> repository.MergeStrategy
+	11,  // 93: repository.PackageConfigReceipt.action:type_name -> repository.ConfigReceiptAction
+	110, // 94: repository.RecordConfigReceiptRequest.receipt:type_name -> repository.PackageConfigReceipt
+	11,  // 95: repository.ListConfigReceiptsRequest.action_filter:type_name -> repository.ConfigReceiptAction
+	110, // 96: repository.ListConfigReceiptsResponse.receipts:type_name -> repository.PackageConfigReceipt
+	12,  // 97: repository.RepositoryFinding.kind:type_name -> repository.RepositoryFindingKind
+	13,  // 98: repository.RepositoryFinding.severity:type_name -> repository.RepositoryFindingSeverity
+	14,  // 99: repository.RepositoryFinding.ref:type_name -> repository.ArtifactRef
+	120, // 100: repository.RepositoryFinding.evidence:type_name -> repository.RepositoryFinding.EvidenceEntry
+	12,  // 101: repository.ListRepositoryFindingsRequest.kind_filter:type_name -> repository.RepositoryFindingKind
+	115, // 102: repository.ListRepositoryFindingsResponse.findings:type_name -> repository.RepositoryFinding
+	36,  // 103: repository.PackageRepository.DownloadBundle:input_type -> repository.DownloadBundleRequest
+	34,  // 104: repository.PackageRepository.UploadBundle:input_type -> repository.UploadBundleRequest
+	26,  // 105: repository.PackageRepository.ListArtifacts:input_type -> repository.ListArtifactsRequest
+	28,  // 106: repository.PackageRepository.UploadArtifact:input_type -> repository.UploadArtifactRequest
+	30,  // 107: repository.PackageRepository.DownloadArtifact:input_type -> repository.DownloadArtifactRequest
+	32,  // 108: repository.PackageRepository.GetArtifactManifest:input_type -> repository.GetArtifactManifestRequest
+	39,  // 109: repository.PackageRepository.ListBundles:input_type -> repository.ListBundlesRequest
+	41,  // 110: repository.PackageRepository.SearchArtifacts:input_type -> repository.SearchArtifactsRequest
+	43,  // 111: repository.PackageRepository.GetArtifactVersions:input_type -> repository.GetArtifactVersionsRequest
+	49,  // 112: repository.PackageRepository.DescribePackage:input_type -> repository.DescribePackageRequest
+	45,  // 113: repository.PackageRepository.DeleteArtifact:input_type -> repository.DeleteArtifactRequest
+	47,  // 114: repository.PackageRepository.PromoteArtifact:input_type -> repository.PromoteArtifactRequest
+	21,  // 115: repository.PackageRepository.SetArtifactState:input_type -> repository.SetArtifactStateRequest
+	23,  // 116: repository.PackageRepository.GetNamespace:input_type -> repository.GetNamespaceRequest
+	64,  // 117: repository.PackageRepository.UpdateArtifactBinary:input_type -> repository.UpdateArtifactBinaryRequest
+	69,  // 118: repository.PackageRepository.ImportProvisionalArtifact:input_type -> repository.ImportProvisionalRequest
+	67,  // 119: repository.PackageRepository.AllocateUpload:input_type -> repository.AllocateUploadRequest
+	60,  // 120: repository.PackageRepository.ResolveArtifact:input_type -> repository.ResolveArtifactRequest
+	62,  // 121: repository.PackageRepository.ResolveByEntrypointChecksum:input_type -> repository.ResolveByEntrypointChecksumRequest
+	82,  // 122: repository.PackageRepository.ArchiveUnreachableArtifacts:input_type -> repository.ArchiveUnreachableArtifactsRequest
+	72,  // 123: repository.PackageRepository.RegisterUpstream:input_type -> repository.RegisterUpstreamRequest
+	74,  // 124: repository.PackageRepository.ListUpstreams:input_type -> repository.ListUpstreamsRequest
+	76,  // 125: repository.PackageRepository.RemoveUpstream:input_type -> repository.RemoveUpstreamRequest
+	79,  // 126: repository.PackageRepository.SyncFromUpstream:input_type -> repository.SyncFromUpstreamRequest
+	54,  // 127: repository.PackageRepository.VerifyArtifact:input_type -> repository.VerifyArtifactRequest
+	56,  // 128: repository.PackageRepository.RepairArtifact:input_type -> repository.RepairArtifactRequest
+	58,  // 129: repository.PackageRepository.ExplainArtifact:input_type -> repository.ExplainArtifactRequest
+	88,  // 130: repository.PackageRepository.TrustPublisher:input_type -> repository.TrustPublisherRequest
+	90,  // 131: repository.PackageRepository.RevokePublisherKey:input_type -> repository.RevokePublisherKeyRequest
+	92,  // 132: repository.PackageRepository.ListTrustedPublishers:input_type -> repository.ListTrustedPublishersRequest
+	94,  // 133: repository.PackageRepository.RegisterArtifactSignature:input_type -> repository.RegisterArtifactSignatureRequest
+	96,  // 134: repository.PackageRepository.VerifyArtifactSignature:input_type -> repository.VerifyArtifactSignatureRequest
+	98,  // 135: repository.PackageRepository.ListArtifactSignatures:input_type -> repository.ListArtifactSignaturesRequest
+	101, // 136: repository.PackageRepository.RecordInstalledRevision:input_type -> repository.RecordInstalledRevisionRequest
+	103, // 137: repository.PackageRepository.ListInstalledRevisions:input_type -> repository.ListInstalledRevisionsRequest
+	107, // 138: repository.PackageRepository.ListRollbackCandidates:input_type -> repository.ListRollbackCandidatesRequest
+	111, // 139: repository.PackageRepository.RecordConfigReceipt:input_type -> repository.RecordConfigReceiptRequest
+	113, // 140: repository.PackageRepository.ListConfigReceipts:input_type -> repository.ListConfigReceiptsRequest
+	116, // 141: repository.PackageRepository.ListRepositoryFindings:input_type -> repository.ListRepositoryFindingsRequest
+	37,  // 142: repository.PackageRepository.DownloadBundle:output_type -> repository.DownloadBundleResponse
+	35,  // 143: repository.PackageRepository.UploadBundle:output_type -> repository.UploadBundleResponse
+	27,  // 144: repository.PackageRepository.ListArtifacts:output_type -> repository.ListArtifactsResponse
+	29,  // 145: repository.PackageRepository.UploadArtifact:output_type -> repository.UploadArtifactResponse
+	31,  // 146: repository.PackageRepository.DownloadArtifact:output_type -> repository.DownloadArtifactResponse
+	33,  // 147: repository.PackageRepository.GetArtifactManifest:output_type -> repository.GetArtifactManifestResponse
+	40,  // 148: repository.PackageRepository.ListBundles:output_type -> repository.ListBundlesResponse
+	42,  // 149: repository.PackageRepository.SearchArtifacts:output_type -> repository.SearchArtifactsResponse
+	44,  // 150: repository.PackageRepository.GetArtifactVersions:output_type -> repository.GetArtifactVersionsResponse
+	53,  // 151: repository.PackageRepository.DescribePackage:output_type -> repository.DescribePackageResponse
+	46,  // 152: repository.PackageRepository.DeleteArtifact:output_type -> repository.DeleteArtifactResponse
+	48,  // 153: repository.PackageRepository.PromoteArtifact:output_type -> repository.PromoteArtifactResponse
+	22,  // 154: repository.PackageRepository.SetArtifactState:output_type -> repository.SetArtifactStateResponse
+	25,  // 155: repository.PackageRepository.GetNamespace:output_type -> repository.GetNamespaceResponse
+	66,  // 156: repository.PackageRepository.UpdateArtifactBinary:output_type -> repository.UpdateArtifactBinaryResponse
+	70,  // 157: repository.PackageRepository.ImportProvisionalArtifact:output_type -> repository.ImportProvisionalResponse
+	68,  // 158: repository.PackageRepository.AllocateUpload:output_type -> repository.AllocateUploadResponse
+	61,  // 159: repository.PackageRepository.ResolveArtifact:output_type -> repository.ResolveArtifactResponse
+	63,  // 160: repository.PackageRepository.ResolveByEntrypointChecksum:output_type -> repository.ResolveByEntrypointChecksumResponse
+	84,  // 161: repository.PackageRepository.ArchiveUnreachableArtifacts:output_type -> repository.ArchiveUnreachableArtifactsResponse
+	73,  // 162: repository.PackageRepository.RegisterUpstream:output_type -> repository.RegisterUpstreamResponse
+	75,  // 163: repository.PackageRepository.ListUpstreams:output_type -> repository.ListUpstreamsResponse
+	77,  // 164: repository.PackageRepository.RemoveUpstream:output_type -> repository.RemoveUpstreamResponse
+	80,  // 165: repository.PackageRepository.SyncFromUpstream:output_type -> repository.SyncFromUpstreamResponse
+	55,  // 166: repository.PackageRepository.VerifyArtifact:output_type -> repository.VerifyArtifactResponse
+	57,  // 167: repository.PackageRepository.RepairArtifact:output_type -> repository.RepairArtifactResponse
+	59,  // 168: repository.PackageRepository.ExplainArtifact:output_type -> repository.ExplainArtifactResponse
+	89,  // 169: repository.PackageRepository.TrustPublisher:output_type -> repository.TrustPublisherResponse
+	91,  // 170: repository.PackageRepository.RevokePublisherKey:output_type -> repository.RevokePublisherKeyResponse
+	93,  // 171: repository.PackageRepository.ListTrustedPublishers:output_type -> repository.ListTrustedPublishersResponse
+	95,  // 172: repository.PackageRepository.RegisterArtifactSignature:output_type -> repository.RegisterArtifactSignatureResponse
+	97,  // 173: repository.PackageRepository.VerifyArtifactSignature:output_type -> repository.VerifyArtifactSignatureResponse
+	99,  // 174: repository.PackageRepository.ListArtifactSignatures:output_type -> repository.ListArtifactSignaturesResponse
+	102, // 175: repository.PackageRepository.RecordInstalledRevision:output_type -> repository.RecordInstalledRevisionResponse
+	104, // 176: repository.PackageRepository.ListInstalledRevisions:output_type -> repository.ListInstalledRevisionsResponse
+	108, // 177: repository.PackageRepository.ListRollbackCandidates:output_type -> repository.ListRollbackCandidatesResponse
+	112, // 178: repository.PackageRepository.RecordConfigReceipt:output_type -> repository.RecordConfigReceiptResponse
+	114, // 179: repository.PackageRepository.ListConfigReceipts:output_type -> repository.ListConfigReceiptsResponse
+	117, // 180: repository.PackageRepository.ListRepositoryFindings:output_type -> repository.ListRepositoryFindingsResponse
+	142, // [142:181] is the sub-list for method output_type
+	103, // [103:142] is the sub-list for method input_type
+	103, // [103:103] is the sub-list for extension type_name
+	103, // [103:103] is the sub-list for extension extendee
+	0,   // [0:103] is the sub-list for field type_name
 }
 
 func init() { file_repository_proto_init() }
@@ -6028,7 +10124,7 @@ func file_repository_proto_init() {
 		(*ArtifactManifest_ApplicationDetail)(nil),
 		(*ArtifactManifest_InfrastructureDetail)(nil),
 	}
-	file_repository_proto_msgTypes[44].OneofWrappers = []any{
+	file_repository_proto_msgTypes[50].OneofWrappers = []any{
 		(*UpdateArtifactBinaryRequest_Header)(nil),
 		(*UpdateArtifactBinaryRequest_Chunk)(nil),
 	}
@@ -6037,8 +10133,8 @@ func file_repository_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_repository_proto_rawDesc), len(file_repository_proto_rawDesc)),
-			NumEnums:      6,
-			NumMessages:   67,
+			NumEnums:      14,
+			NumMessages:   107,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

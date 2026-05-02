@@ -84,6 +84,23 @@ Every artifact moves through a defined set of states. The states are not cosmeti
 | ARCHIVED | no | no | owner/admin | **no** | **no** |
 | CORRUPTED | no | no | **no** | **no** | **no** |
 
+### Two state machines, one invariant
+
+`publish_state` (above) is the **public lifecycle gate** — what resolvers,
+RBAC, and the catalog have always read. A second column, `artifact_state`
+(`ArtifactPipelineState` in code), is the **durable repository pipeline
+tracker**: `DISCOVERED → DOWNLOADING → BLOB_WRITTEN → BLOB_VERIFIED →
+MANIFEST_WRITTEN → LEDGER_WRITTEN → PUBLISHED`, plus `QUARANTINED`,
+`REVOKED`, `BROKEN_MISSING_BLOB`, `BROKEN_CHECKSUM_MISMATCH`. Admin actions
+dual-stamp both columns; the `cluster-doctor` invariants
+`repository.revoked_installable` / `repository.quarantined_installable`
+fire when they diverge.
+
+An artifact is *installable* only when both columns say PUBLISHED, the
+exact binary blob exists, the size + sha256 match, and the signature
+policy passes. The full operator-grade reference is in
+[`package-lifecycle.md`](package-lifecycle.md).
+
 ---
 
 ## Version Allocation

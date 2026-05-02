@@ -26,6 +26,7 @@ import (
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
+	workflowpb "github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -212,6 +213,14 @@ func main() {
 	srv.StartCACertDriftCheck(ctx)
 	srv.StartIngressReconciliation(ctx)
 	node_agentpb.RegisterNodeAgentServiceServer(grpcServer, srv)
+
+	// Phase F-final — register WorkflowActorService so the workflow
+	// service's executor can dispatch package.rollback (and any future
+	// node-agent-actor workflow) steps to this node. Without this,
+	// install_target_package and friends block forever waiting on a
+	// node-agent that never receives the call.
+	workflowpb.RegisterWorkflowActorServiceServer(grpcServer, NewNodeAgentActorServer(srv))
+
 	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
 	reflection.Register(grpcServer)
 
