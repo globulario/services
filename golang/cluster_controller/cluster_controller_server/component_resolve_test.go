@@ -533,7 +533,7 @@ func TestDay1Phase_JoinedNotReady(t *testing.T) {
 // Invariant: a desired workload with an unseeded dep must produce
 // Day1WorkloadsPlanned (transient), never Day1WorkloadBlocked (terminal).
 func TestDay1WorkloadDepSeeding_MCPEventChain(t *testing.T) {
-	intent, err := ResolveNodeIntent("joining-node", []string{"compute"}, nil, nil)
+	intent, err := ResolveNodeIntent("joining-node", []string{"control-plane"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -674,7 +674,7 @@ func TestDay1Phase_SeedingIsNotTerminal(t *testing.T) {
 //   - GateDependencies must classify the block as missing_desired_dependency_unresolvable
 //   - ComputeDay1Phase must return Day1WorkloadBlocked
 func TestDay1Phase_UnresolvableDep(t *testing.T) {
-	intent, err := ResolveNodeIntent("n1", []string{"compute"}, nil, nil)
+	intent, err := ResolveNodeIntent("n1", []string{"control-plane"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -703,7 +703,7 @@ func TestDay1Phase_UnresolvableDep(t *testing.T) {
 	node := &nodeState{
 		NodeID:         "n1",
 		BootstrapPhase: BootstrapWorkloadReady,
-		Profiles:       []string{"compute"},
+		Profiles:       []string{"control-plane"},
 		ResolvedIntent: filtered,
 	}
 	phase, reason := ComputeDay1Phase(node)

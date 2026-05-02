@@ -341,7 +341,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-sql.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute"},
+			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event"},
 		},
 		{
@@ -349,7 +349,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-storage.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute", "storage"},
+			Profiles:                 []string{"storage"},
 			RuntimeLocalDependencies: []string{"event"},
 		},
 		{
@@ -365,7 +365,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-catalog.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute"},
+			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event", "persistence"},
 		},
 		{
@@ -389,7 +389,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-ldap.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute"},
+			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event"},
 		},
 		{
@@ -397,7 +397,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-mail.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute"},
+			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event"},
 		},
 		{
@@ -405,7 +405,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-blog.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute"},
+			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event"},
 		},
 		{
@@ -413,7 +413,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-conversation.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute"},
+			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event"},
 		},
 		{
@@ -437,7 +437,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-torrent.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute"},
+			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event"},
 		},
 		{
@@ -445,7 +445,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-echo.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute"},
+			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event"},
 		},
 		{
@@ -522,7 +522,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-mcp.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute"},
+			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event"},
 		},
 
