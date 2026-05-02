@@ -438,15 +438,23 @@ func (srv *server) processSyncEntry(
 		Platform:    n.Platform,
 	}
 	if existing, state, _, ok := srv.findExistingArtifactByDigest(ctx, ref, n.Digest); ok {
-		detail := fmt.Sprintf("already present with matching digest at build %d (%s)", existing.GetBuildNumber(), state.String())
-		if dryRun {
-			result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
-		} else {
-			result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
+		// Verify the blob still exists in storage — if lost (e.g. MinIO data
+		// wipe), fall through to re-import instead of skipping.
+		blobKey := binaryStorageKey(artifactKeyWithBuild(ref, existing.GetBuildNumber()))
+		blobExists := srv.Storage().Exists(ctx, blobKey)
+		if blobExists {
+			detail := fmt.Sprintf("already present with matching digest at build %d (%s)", existing.GetBuildNumber(), state.String())
+			if dryRun {
+				result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
+			} else {
+				result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
+			}
+			result.Detail = detail
+			result.Action = "up_to_date"
+			return result
 		}
-		result.Detail = detail
-		result.Action = "up_to_date"
-		return result
+		slog.Info("upstream: artifact metadata exists but blob missing — re-importing",
+			"name", n.Name, "version", n.Version, "key", blobKey)
 	}
 
 	// Not found → would import (or import).
@@ -523,11 +531,17 @@ func (srv *server) importUpstreamArtifact(
 	}
 
 	if existing, state, _, ok := srv.findExistingArtifactByDigest(ctx, ref, digest); ok {
-		slog.Info("upstream: identical artifact already exists, skipping import",
-			"name", n.Name, "version", n.Version,
-			"build", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),
-			"publish_state", state.String())
-		return nil
+		// Verify blob exists — if missing, fall through to re-create it.
+		blobKey := binaryStorageKey(artifactKeyWithBuild(ref, existing.GetBuildNumber()))
+		if srv.Storage().Exists(ctx, blobKey) {
+			slog.Info("upstream: identical artifact already exists, skipping import",
+				"name", n.Name, "version", n.Version,
+				"build", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),
+				"publish_state", state.String())
+			return nil
+		}
+		slog.Info("upstream: artifact metadata exists but blob missing — re-importing",
+			"name", n.Name, "version", n.Version, "key", blobKey)
 	}
 
 	key := artifactKeyWithBuild(ref, n.BuildNumber)
