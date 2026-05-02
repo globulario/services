@@ -24,8 +24,8 @@ import (
 
 // objectStoreLockLeaseTTL is the etcd lease TTL for the topology lock.
 // If the controller process dies while holding the lock, etcd automatically
-// deletes it after this many seconds. Must be >> the expected workflow duration
-// but short enough that a genuine crash doesn't block the cluster for hours.
+// deletes it after this many seconds. Must be longer than the expected workflow
+// duration but short enough that a genuine crash doesn't block the cluster.
 const objectStoreLockLeaseTTL = 1800 // 30 minutes
 
 // objectStoreLockStaleDur is the age threshold beyond which a lock written
