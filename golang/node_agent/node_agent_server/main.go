@@ -18,7 +18,10 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"log/slog"
+
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/domain"
 	globular_service "github.com/globulario/services/golang/globular_service"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow"
@@ -239,6 +242,24 @@ func main() {
 	// when possible so Prometheus file_sd and xDS routing don't flap every
 	// time the process restarts (see startMetricsServer for details).
 	go startMetricsServer(srv.nodeID)
+
+	// Sync ACME certificates from etcd to local disk so every gateway node
+	// can serve Let's Encrypt certs via Envoy, regardless of which node
+	// obtained them. Initial sync + continuous watch.
+	go func() {
+		acmeLogger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+		cli, err := config.GetEtcdClient()
+		if err != nil || cli == nil {
+			log.Printf("acme-sync: etcd unavailable, skipping cert sync: %v", err)
+			return
+		}
+		// Initial sync — pull any existing certs.
+		if err := domain.SyncACMECertsFromEtcd(cli, acmeLogger); err != nil {
+			log.Printf("acme-sync: initial sync failed (will retry via watch): %v", err)
+		}
+		// Watch for updates — blocks until ctx is cancelled.
+		domain.WatchACMECerts(ctx, cli, acmeLogger)
+	}()
 
 	log.Printf("node agent listening on %s", address)
 	go func() {

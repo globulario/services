@@ -455,6 +455,10 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 	// Check if certificate exists and is still valid (skip if forced)
 	if !forceRenew && r.isCertificateValid(certFile, spec.FQDN, spec.UseWildcardCert, spec.Zone) {
 		r.logger.Debug("certificate still valid", "fqdn", spec.FQDN)
+		// Ensure cert is also in etcd (idempotent — may already be there).
+		// This covers the case where the cert was obtained before the etcd
+		// distribution was implemented, or if etcd was wiped.
+		r.publishCertToEtcd(spec.FQDN, domainDir)
 		return nil
 	}
 
@@ -727,6 +731,208 @@ func (r *Reconciler) stageThenSwapCertificate(domainDir, fqdn string, useWildcar
 
 	// Clean up staging directory
 	_ = os.RemoveAll(stagingDir)
+
+	// Publish certificate to etcd so all gateway nodes can access it.
+	// Fire-and-forget: if etcd write fails, the local cert is still valid
+	// and the next reconcile cycle will retry.
+	r.publishCertToEtcd(fqdn, domainDir)
+
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// etcd cert distribution
+// ---------------------------------------------------------------------------
+
+const acmeCertEtcdPrefix = "/globular/acme/certs/"
+
+// acmeCertBundle holds the PEM-encoded cert files for etcd storage.
+type acmeCertBundle struct {
+	Fullchain string `json:"fullchain"`
+	Privkey   string `json:"privkey"`
+	Chain     string `json:"chain"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+// publishCertToEtcd writes the ACME certificate to etcd so every node in
+// the cluster can sync it locally. The key is /globular/acme/certs/<fqdn>.
+func (r *Reconciler) publishCertToEtcd(fqdn, domainDir string) {
+	fullchain, err := os.ReadFile(filepath.Join(domainDir, "fullchain.pem"))
+	if err != nil {
+		r.logger.Warn("acme-etcd: failed to read fullchain.pem", "fqdn", fqdn, "error", err)
+		return
+	}
+	privkey, err := os.ReadFile(filepath.Join(domainDir, "privkey.pem"))
+	if err != nil {
+		r.logger.Warn("acme-etcd: failed to read privkey.pem", "fqdn", fqdn, "error", err)
+		return
+	}
+	chain, _ := os.ReadFile(filepath.Join(domainDir, "chain.pem")) // optional
+
+	bundle := acmeCertBundle{
+		Fullchain: string(fullchain),
+		Privkey:   string(privkey),
+		Chain:     string(chain),
+		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	data, err := json.Marshal(bundle)
+	if err != nil {
+		r.logger.Warn("acme-etcd: marshal failed", "fqdn", fqdn, "error", err)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	key := acmeCertEtcdPrefix + fqdn
+	if _, err := r.etcdClient.Put(ctx, key, string(data)); err != nil {
+		r.logger.Warn("acme-etcd: failed to publish cert", "fqdn", fqdn, "error", err)
+		return
+	}
+	r.logger.Info("acme-etcd: certificate published to etcd", "fqdn", fqdn)
+}
+
+// SyncACMECertsFromEtcd reads all ACME certificates from etcd and writes
+// them to local disk. Call this on startup on every gateway node.
+//
+// Certs are written to:
+//   - /var/lib/globular/pki/acme/<fqdn>/fullchain.pem
+//   - /var/lib/globular/pki/acme/<fqdn>/privkey.pem
+//   - /var/lib/globular/pki/acme/<fqdn>/chain.pem
+//
+// Additionally creates the xDS symlink at:
+//   - /var/lib/globular/config/tls/acme/<fqdn>/ → pki/acme/<fqdn>/
+//
+// Also writes a backup copy to /var/lib/globular/domains/<fqdn>/ so the
+// domain reconciler's cert-valid check works on non-leader nodes.
+func SyncACMECertsFromEtcd(etcdClient *clientv3.Client, logger *slog.Logger) error {
+	if etcdClient == nil {
+		return fmt.Errorf("no etcd client")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := etcdClient.Get(ctx, acmeCertEtcdPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return fmt.Errorf("acme-sync: etcd get failed: %w", err)
+	}
+
+	for _, kv := range resp.Kvs {
+		fqdn := strings.TrimPrefix(string(kv.Key), acmeCertEtcdPrefix)
+		if fqdn == "" {
+			continue
+		}
+
+		var bundle acmeCertBundle
+		if err := json.Unmarshal(kv.Value, &bundle); err != nil {
+			logger.Warn("acme-sync: bad cert bundle", "fqdn", fqdn, "error", err)
+			continue
+		}
+
+		if err := writeACMECertLocally(fqdn, &bundle, logger); err != nil {
+			logger.Warn("acme-sync: write failed", "fqdn", fqdn, "error", err)
+			continue
+		}
+		logger.Info("acme-sync: cert synced", "fqdn", fqdn, "updated_at", bundle.UpdatedAt)
+	}
+
+	return nil
+}
+
+// WatchACMECerts watches etcd for ACME cert changes and syncs them locally.
+// Blocks until ctx is cancelled. Run as a goroutine on each gateway node.
+func WatchACMECerts(ctx context.Context, etcdClient *clientv3.Client, logger *slog.Logger) {
+	if etcdClient == nil {
+		return
+	}
+
+	wch := etcdClient.Watch(ctx, acmeCertEtcdPrefix, clientv3.WithPrefix())
+	for wresp := range wch {
+		for _, ev := range wresp.Events {
+			if ev.Type != clientv3.EventTypePut {
+				continue
+			}
+			fqdn := strings.TrimPrefix(string(ev.Kv.Key), acmeCertEtcdPrefix)
+			if fqdn == "" {
+				continue
+			}
+
+			var bundle acmeCertBundle
+			if err := json.Unmarshal(ev.Kv.Value, &bundle); err != nil {
+				logger.Warn("acme-watch: bad cert bundle", "fqdn", fqdn, "error", err)
+				continue
+			}
+
+			if err := writeACMECertLocally(fqdn, &bundle, logger); err != nil {
+				logger.Warn("acme-watch: write failed", "fqdn", fqdn, "error", err)
+				continue
+			}
+			logger.Info("acme-watch: cert updated", "fqdn", fqdn)
+		}
+	}
+}
+
+// writeACMECertLocally writes the cert bundle to local disk paths.
+func writeACMECertLocally(fqdn string, bundle *acmeCertBundle, logger *slog.Logger) error {
+	// Primary path: /var/lib/globular/pki/acme/<fqdn>/
+	pkiDir := filepath.Join("/var/lib/globular/pki/acme", fqdn)
+	if err := os.MkdirAll(pkiDir, 0755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", pkiDir, err)
+	}
+
+	// Backup path: /var/lib/globular/domains/<fqdn>/
+	domainsDir := filepath.Join("/var/lib/globular/domains", fqdn)
+	if err := os.MkdirAll(domainsDir, 0755); err != nil {
+		logger.Warn("acme-sync: backup dir creation failed", "path", domainsDir, "error", err)
+		// Continue — primary path is more important
+	}
+
+	// Write cert files to both paths
+	files := []struct {
+		name string
+		data string
+		perm os.FileMode
+	}{
+		{"fullchain.pem", bundle.Fullchain, 0644},
+		{"privkey.pem", bundle.Privkey, 0600},
+		{"chain.pem", bundle.Chain, 0644},
+	}
+
+	for _, f := range files {
+		if f.data == "" {
+			continue
+		}
+		// Primary
+		if err := writeFileAtomic(filepath.Join(pkiDir, f.name), []byte(f.data), f.perm); err != nil {
+			return fmt.Errorf("write %s/%s: %w", pkiDir, f.name, err)
+		}
+		// Backup
+		_ = writeFileAtomic(filepath.Join(domainsDir, f.name), []byte(f.data), f.perm)
+	}
+
+	// Set ownership to globular user if possible
+	if info, err := os.Stat("/var/lib/globular"); err == nil {
+		if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+			uid, gid := int(stat.Uid), int(stat.Gid)
+			for _, dir := range []string{pkiDir, domainsDir} {
+				filepath.Walk(dir, func(path string, _ os.FileInfo, _ error) error {
+					_ = os.Chown(path, uid, gid)
+					return nil
+				})
+			}
+		}
+	}
+
+	// Create xDS symlink: /var/lib/globular/config/tls/acme/<fqdn> → pki/acme/<fqdn>
+	xdsDir := "/var/lib/globular/config/tls/acme"
+	if err := os.MkdirAll(xdsDir, 0755); err == nil {
+		link := filepath.Join(xdsDir, fqdn)
+		existing, err := os.Readlink(link)
+		if err != nil || existing != pkiDir {
+			_ = os.Remove(link)
+			_ = os.Symlink(pkiDir, link)
+		}
+	}
 
 	return nil
 }
