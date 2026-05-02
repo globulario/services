@@ -21,9 +21,10 @@ const (
 	scyllaAgentConfigEtc     = "/etc/scylla-manager-agent/scylla-manager-agent.yaml"
 )
 
-// ensureScyllaManagerAgentAuthToken guarantees scylla-manager-agent has an
-// auth_token in its YAML config. This keeps Day-0 and join installs convergent
-// even when package defaults omit auth_token.
+// ensureScyllaManagerAgentAuthToken guarantees scylla-manager-agent has both
+// an auth_token and the correct api_url in its YAML config. Scylla binds its
+// REST API to the node's advertise IP (not 0.0.0.0), so the agent must be
+// told the actual IP or it will keep retrying 0.0.0.0:10000 and failing.
 func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Context) {
 	if !scyllaManagerAgentUnitExists(ctx) {
 		return
@@ -31,26 +32,36 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 
 	cfgPath := selectScyllaManagerAgentConfigPath()
 	current, _ := os.ReadFile(cfgPath)
-	if hasNonEmptyAuthToken(string(current)) {
+	content := string(current)
+
+	nodeIP := nodeRoutableIP()
+	hasToken := hasNonEmptyAuthToken(content)
+	hasURL := hasScyllaAPIURL(content, nodeIP)
+	if hasToken && hasURL {
 		return
 	}
 
-	token := deriveClusterScopedScyllaAuthToken()
-	updated := upsertAuthToken(string(current), token)
+	updated := content
+	if !hasToken {
+		updated = upsertAuthToken(updated, deriveClusterScopedScyllaAuthToken())
+	}
+	if !hasURL && nodeIP != "" {
+		updated = upsertScyllaAPIURL(updated, nodeIP)
+	}
 
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o750); err != nil {
-		log.Printf("nodeagent: scylla-manager-agent auth_token mkdir failed: %v", err)
+		log.Printf("nodeagent: scylla-manager-agent config mkdir failed: %v", err)
 		return
 	}
 	if err := os.WriteFile(cfgPath, []byte(updated), 0o640); err != nil {
-		log.Printf("nodeagent: scylla-manager-agent auth_token write failed (%s): %v", cfgPath, err)
+		log.Printf("nodeagent: scylla-manager-agent config write failed (%s): %v", cfgPath, err)
 		return
 	}
 	// scylla-manager-agent.service runs as User=scylla; without chgrp the
 	// scylla user can't read this file and the unit crash-loops with
 	// "permission denied". Mode 0640 only helps if the group is scylla.
 	chgrpScyllaAgentConfig(cfgPath)
-	log.Printf("nodeagent: ensured scylla-manager-agent auth_token in %s", cfgPath)
+	log.Printf("nodeagent: ensured scylla-manager-agent config in %s (token=%v api_url=%v)", cfgPath, !hasToken, !hasURL)
 }
 
 // chgrpScyllaAgentConfig sets the file's group to "scylla" so the
@@ -104,6 +115,63 @@ func deriveClusterScopedScyllaAuthToken() string {
 	sum := sha256.Sum256([]byte(seed))
 	// 48 hex chars (24 bytes) keeps token reasonably compact but strong.
 	return hex.EncodeToString(sum[:24])
+}
+
+// hasScyllaAPIURL returns true if the config already has scylla.api_address
+// pointing at the expected node IP. An empty expectedIP means any non-empty
+// value is fine.
+//
+// Scylla Manager Agent uses a nested block:
+//
+//	scylla:
+//	  api_address: NODE_IP
+//	  api_port: 10000
+func hasScyllaAPIURL(content, expectedIP string) bool {
+	inScyllaBlock := false
+	for _, raw := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "scylla:" || strings.HasPrefix(trimmed, "scylla:") {
+			inScyllaBlock = true
+			continue
+		}
+		if inScyllaBlock {
+			if trimmed == "" || (len(raw) > 0 && raw[0] != ' ' && raw[0] != '\t') {
+				inScyllaBlock = false
+				continue
+			}
+			if strings.HasPrefix(trimmed, "api_address:") {
+				v := strings.TrimSpace(strings.TrimPrefix(trimmed, "api_address:"))
+				v = strings.Trim(v, `"'`)
+				if v == "" {
+					return false
+				}
+				return expectedIP == "" || v == expectedIP
+			}
+		}
+	}
+	return false
+}
+
+// upsertScyllaAPIURL appends a scylla: block with api_address/api_port if one
+// doesn't already exist. Scylla's REST API port is always 10000.
+// The config key is nested (not top-level) — top-level api_url is rejected by
+// the agent with "field api_url not found in type agent.Config".
+func upsertScyllaAPIURL(content, nodeIP string) string {
+	// Strip any legacy top-level api_url we may have written by mistake.
+	lines := strings.Split(content, "\n")
+	var filtered []string
+	for _, l := range lines {
+		if strings.HasPrefix(strings.TrimSpace(l), "api_url:") {
+			continue
+		}
+		filtered = append(filtered, l)
+	}
+	result := strings.Join(filtered, "\n")
+	if !strings.HasSuffix(result, "\n") {
+		result += "\n"
+	}
+	result += fmt.Sprintf("\nscylla:\n  api_address: %s\n  api_port: 10000\n", nodeIP)
+	return result
 }
 
 func hasNonEmptyAuthToken(content string) bool {

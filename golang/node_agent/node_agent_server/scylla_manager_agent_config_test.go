@@ -27,3 +27,54 @@ func TestUpsertAuthToken(t *testing.T) {
 		t.Fatalf("upsert should replace existing token, got:\n%s", got)
 	}
 }
+
+func TestHasScyllaAPIURL(t *testing.T) {
+	cases := []struct {
+		content    string
+		expectedIP string
+		want       bool
+	}{
+		{"scylla:\n  api_address: 10.0.0.20\n  api_port: 10000\n", "10.0.0.20", true},
+		{"scylla:\n  api_address: 10.0.0.20\n  api_port: 10000\n", "10.0.0.8", false},
+		{"scylla:\n  api_address: 10.0.0.20\n  api_port: 10000\n", "", true},
+		{"scylla:\n  api_address: \n", "10.0.0.20", false},
+		{"auth_token: abc\n", "10.0.0.20", false},
+	}
+	for _, tc := range cases {
+		if got := hasScyllaAPIURL(tc.content, tc.expectedIP); got != tc.want {
+			t.Errorf("hasScyllaAPIURL(%q, %q) = %v, want %v", tc.content, tc.expectedIP, got, tc.want)
+		}
+	}
+}
+
+func TestUpsertScyllaAPIURL(t *testing.T) {
+	const ip = "10.0.0.20"
+	const wantBlock = "scylla:\n  api_address: 10.0.0.20\n  api_port: 10000"
+
+	got := upsertScyllaAPIURL("auth_token: abc\n", ip)
+	if !contains(got, wantBlock) {
+		t.Fatalf("expected scylla block in output, got:\n%s", got)
+	}
+
+	// Legacy top-level api_url should be stripped
+	got = upsertScyllaAPIURL("api_url: http://0.0.0.0:10000\nauth_token: abc\n", ip)
+	if !contains(got, wantBlock) {
+		t.Fatalf("expected scylla block in output, got:\n%s", got)
+	}
+	if contains(got, "api_url:") {
+		t.Fatalf("legacy api_url still present in output:\n%s", got)
+	}
+}
+
+func contains(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(s) > 0 && containsStr(s, sub))
+}
+
+func containsStr(s, sub string) bool {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
