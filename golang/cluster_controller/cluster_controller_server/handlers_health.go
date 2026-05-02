@@ -218,6 +218,40 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 	}, nil
 }
 
+// shortBuildID returns the first 8 characters of a build_id UUID for display.
+func shortBuildID(bid string) string {
+	if len(bid) <= 8 {
+		return bid
+	}
+	return bid[:8]
+}
+
+// versionCheckDecision returns (ok, reason) for a single service's version
+// health check. build_id is the canonical artifact identity: when both sides
+// have build_ids and they match, the service is at the desired build. When
+// build_ids differ but the semantic version strings match, that's build-
+// identity drift (same version, different build) — health is still OK and
+// the drift is surfaced in the reason. A version-string mismatch (or no
+// installed record at all) is a real FAIL.
+func versionCheckDecision(desiredVer, desiredBID, installedVer, installedBID string, hasInstalled bool) (bool, string) {
+	if desiredBID != "" && installedBID != "" {
+		if desiredBID == installedBID {
+			return true, ""
+		}
+		if installedVer == desiredVer {
+			return true, fmt.Sprintf("build drift: %s installed %s, desired %s", desiredVer, shortBuildID(installedBID), shortBuildID(desiredBID))
+		}
+		return false, fmt.Sprintf("installed %s, desired %s", installedVer, desiredVer)
+	}
+	if !hasInstalled {
+		return false, fmt.Sprintf("not installed (desired %s)", desiredVer)
+	}
+	if installedVer != desiredVer {
+		return false, fmt.Sprintf("installed %s, desired %s", installedVer, desiredVer)
+	}
+	return true, ""
+}
+
 func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_controllerpb.GetNodeHealthDetailV1Request) (*cluster_controllerpb.GetNodeHealthDetailV1Response, error) {
 	if req == nil || req.GetNodeId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "node_id is required")
@@ -338,34 +372,12 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 			continue
 		}
 
-		// Prefer build_id comparison — immune to version string confusion.
 		var desiredBID string
 		if sdv := desiredFull[svc]; sdv != nil && sdv.Spec != nil {
 			desiredBID = sdv.Spec.BuildID
 		}
-		installedBID := node.InstalledBuildIDs[svc]
-		if desiredBID != "" && installedBID != "" {
-			ok := desiredBID == installedBID
-			reason := ""
-			if !ok {
-				reason = fmt.Sprintf("installed %s, desired %s", node.InstalledVersions[svc], desiredVer)
-			}
-			checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
-				Subsystem: "version:" + svc,
-				Ok:        ok,
-				Reason:    reason,
-			})
-			continue
-		}
-		// Fallback to version comparison when build_id not available.
-		installedVer, found := node.InstalledVersions[svc]
-		ok := found && installedVer == desiredVer
-		reason := ""
-		if !found {
-			reason = fmt.Sprintf("not installed (desired %s)", desiredVer)
-		} else if installedVer != desiredVer {
-			reason = fmt.Sprintf("installed %s, desired %s", installedVer, desiredVer)
-		}
+		installedVer, hasInstalled := node.InstalledVersions[svc]
+		ok, reason := versionCheckDecision(desiredVer, desiredBID, installedVer, node.InstalledBuildIDs[svc], hasInstalled)
 		checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
 			Subsystem: "version:" + svc,
 			Ok:        ok,
