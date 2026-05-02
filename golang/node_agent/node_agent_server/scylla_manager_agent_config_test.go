@@ -66,6 +66,53 @@ func TestUpsertScyllaAPIURL(t *testing.T) {
 	}
 }
 
+func TestHasScyllaAgentPorts(t *testing.T) {
+	const ip = "10.0.0.8"
+	wantHTTPS := "https: 10.0.0.8:56001"
+	wantProm := "prometheus: :56002"
+	full := wantHTTPS + "\n" + wantProm + "\n"
+
+	if !hasScyllaAgentPorts(full, ip) {
+		t.Fatal("expected true when both ports present")
+	}
+	if hasScyllaAgentPorts("auth_token: abc\n", ip) {
+		t.Fatal("expected false when ports absent")
+	}
+	if hasScyllaAgentPorts(wantHTTPS+"\n", ip) {
+		t.Fatal("expected false when only https present")
+	}
+	if hasScyllaAgentPorts(wantProm+"\n", ip) {
+		t.Fatal("expected false when only prometheus present")
+	}
+	// wrong IP
+	if hasScyllaAgentPorts("https: 10.0.0.63:56001\nprometheus: :56002\n", ip) {
+		t.Fatal("expected false for wrong IP")
+	}
+}
+
+func TestUpsertScyllaAgentPorts(t *testing.T) {
+	const ip = "10.0.0.8"
+
+	// Fresh config — ports appended
+	got := upsertScyllaAgentPorts("auth_token: abc\n", ip)
+	if !hasScyllaAgentPorts(got, ip) {
+		t.Fatalf("expected ports in output, got:\n%s", got)
+	}
+
+	// Replace existing wrong ports
+	existing := "https: 10.0.0.8:10001\nprometheus: :5090\nauth_token: abc\n"
+	got = upsertScyllaAgentPorts(existing, ip)
+	if !hasScyllaAgentPorts(got, ip) {
+		t.Fatalf("expected corrected ports, got:\n%s", got)
+	}
+	if contains(got, ":10001") {
+		t.Fatalf("old https port still present:\n%s", got)
+	}
+	if contains(got, ":5090") {
+		t.Fatalf("old prometheus port still present:\n%s", got)
+	}
+}
+
 func contains(s, sub string) bool {
 	return len(s) >= len(sub) && (s == sub || len(s) > 0 && containsStr(s, sub))
 }

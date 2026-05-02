@@ -21,10 +21,18 @@ const (
 	scyllaAgentConfigEtc     = "/etc/scylla-manager-agent/scylla-manager-agent.yaml"
 )
 
-// ensureScyllaManagerAgentAuthToken guarantees scylla-manager-agent has both
-// an auth_token and the correct api_url in its YAML config. Scylla binds its
-// REST API to the node's advertise IP (not 0.0.0.0), so the agent must be
-// told the actual IP or it will keep retrying 0.0.0.0:10000 and failing.
+// scyllaAgentHTTPSPort and scyllaAgentPrometheusPort are fixed non-conflicting
+// ports for scylla-manager-agent. The agent defaults to :10001 (HTTPS) and
+// :5090 (Prometheus), both of which conflict with Globular's dynamic service
+// port allocation (starting at 10000) and scylla-manager itself (port 5090).
+const (
+	scyllaAgentHTTPSPort      = "56001"
+	scyllaAgentPrometheusPort = "56002"
+)
+
+// ensureScyllaManagerAgentAuthToken guarantees scylla-manager-agent has an
+// auth_token, the correct scylla.api_address, and non-conflicting HTTPS /
+// Prometheus ports in its YAML config.
 func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Context) {
 	if !scyllaManagerAgentUnitExists(ctx) {
 		return
@@ -37,7 +45,8 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 	nodeIP := nodeRoutableIP()
 	hasToken := hasNonEmptyAuthToken(content)
 	hasURL := hasScyllaAPIURL(content, nodeIP)
-	if hasToken && hasURL {
+	hasPorts := hasScyllaAgentPorts(content, nodeIP)
+	if hasToken && hasURL && hasPorts {
 		return
 	}
 
@@ -47,6 +56,9 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 	}
 	if !hasURL && nodeIP != "" {
 		updated = upsertScyllaAPIURL(updated, nodeIP)
+	}
+	if !hasPorts && nodeIP != "" {
+		updated = upsertScyllaAgentPorts(updated, nodeIP)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o750); err != nil {
@@ -61,7 +73,8 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 	// scylla user can't read this file and the unit crash-loops with
 	// "permission denied". Mode 0640 only helps if the group is scylla.
 	chgrpScyllaAgentConfig(cfgPath)
-	log.Printf("nodeagent: ensured scylla-manager-agent config in %s (token=%v api_url=%v)", cfgPath, !hasToken, !hasURL)
+	log.Printf("nodeagent: ensured scylla-manager-agent config in %s (token=%v api_url=%v ports=%v)",
+		cfgPath, !hasToken, !hasURL, !hasPorts)
 }
 
 // chgrpScyllaAgentConfig sets the file's group to "scylla" so the
@@ -171,6 +184,70 @@ func upsertScyllaAPIURL(content, nodeIP string) string {
 		result += "\n"
 	}
 	result += fmt.Sprintf("\nscylla:\n  api_address: %s\n  api_port: 10000\n", nodeIP)
+	return result
+}
+
+// hasScyllaAgentPorts returns true if the config has non-default https and
+// prometheus ports that match the expected node IP.
+func hasScyllaAgentPorts(content, nodeIP string) bool {
+	wantHTTPS := nodeIP + ":" + scyllaAgentHTTPSPort
+	wantProm := ":" + scyllaAgentPrometheusPort
+	hasHTTPS := false
+	hasProm := false
+	for _, raw := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(raw)
+		if strings.HasPrefix(trimmed, "https:") {
+			v := strings.TrimSpace(strings.TrimPrefix(trimmed, "https:"))
+			v = strings.Trim(v, `"'`)
+			if v == wantHTTPS {
+				hasHTTPS = true
+			}
+		}
+		if strings.HasPrefix(trimmed, "prometheus:") {
+			v := strings.TrimSpace(strings.TrimPrefix(trimmed, "prometheus:"))
+			v = strings.Trim(v, `"'`)
+			if v == wantProm {
+				hasProm = true
+			}
+		}
+	}
+	return hasHTTPS && hasProm
+}
+
+// upsertScyllaAgentPorts replaces or inserts the https: and prometheus: lines
+// to avoid conflicts with Globular's dynamic port allocation (10000+) and the
+// scylla-manager server (port 5090).
+func upsertScyllaAgentPorts(content, nodeIP string) string {
+	httpsLine := "https: " + nodeIP + ":" + scyllaAgentHTTPSPort
+	promLine := "prometheus: :" + scyllaAgentPrometheusPort
+
+	lines := strings.Split(content, "\n")
+	var out []string
+	replacedHTTPS, replacedProm := false, false
+	for _, l := range lines {
+		trimmed := strings.TrimSpace(l)
+		if strings.HasPrefix(trimmed, "https:") {
+			out = append(out, httpsLine)
+			replacedHTTPS = true
+			continue
+		}
+		if strings.HasPrefix(trimmed, "prometheus:") {
+			out = append(out, promLine)
+			replacedProm = true
+			continue
+		}
+		out = append(out, l)
+	}
+	result := strings.Join(out, "\n")
+	if !strings.HasSuffix(result, "\n") {
+		result += "\n"
+	}
+	if !replacedHTTPS {
+		result += httpsLine + "\n"
+	}
+	if !replacedProm {
+		result += promLine + "\n"
+	}
 	return result
 }
 
