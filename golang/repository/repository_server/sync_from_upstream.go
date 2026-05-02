@@ -392,19 +392,46 @@ func (srv *server) processSyncEntry(
 		return result
 	}
 
-	// ── Step 3: Conflict detection ────────────────────────────────────────
+	// ── Step 3: Conflict detection + blob verification ────────────────────
+	//
+	// INVARIANT: An artifact is "up_to_date" only if BOTH metadata AND blob
+	// exist. Metadata alone (ledger row, ScyllaDB manifest) is NOT sufficient.
+	// MinIO blob at binaryStorageKey(...) is authority for blob existence.
+	ref := &repopb.ArtifactRef{
+		PublisherId: n.Publisher,
+		Name:        n.Name,
+		Version:     n.Version,
+		Platform:    n.Platform,
+	}
+
 	if ledger != nil {
 		for _, r := range ledger.Releases {
 			if r.Version == n.Version && r.BuildID == n.BuildID && r.Platform == n.Platform {
-				if r.Digest == n.Digest {
-					if dryRun {
-						result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
-					} else {
-						result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
+				if digestEqual(r.Digest, n.Digest) {
+					// Digest matches — verify the blob actually exists in storage.
+					blobPresent := srv.artifactBlobPresent(ctx, ref, n.BuildNumber, r.SizeBytes)
+					blobKey := blobKeyForRef(ref, n.BuildNumber)
+
+					if blobPresent {
+						logBlobSkipDecision(n.Name, n.Version, n.Platform, n.BuildID, n.BuildNumber, n.Digest, blobKey, "skip", "blob_present")
+						if dryRun {
+							result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
+						} else {
+							result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
+						}
+						result.Detail = "already present with matching digest and blob verified"
+						result.Action = "up_to_date"
+						return result
 					}
-					result.Detail = "already present with matching digest"
-					result.Action = "up_to_date"
-					return result
+
+					// Metadata exists but blob missing — fall through to re-import.
+					logBlobSkipDecision(n.Name, n.Version, n.Platform, n.BuildID, n.BuildNumber, n.Digest, blobKey, "reimport", "metadata_exists_blob_missing")
+					slog.Info("upstream: ledger metadata exists but binary blob missing; forcing re-import",
+						"source", src.GetName(), "name", n.Name, "version", n.Version,
+						"platform", n.Platform, "build_id", n.BuildID, "build_number", n.BuildNumber,
+						"digest", truncDigest(n.Digest), "blob_key", blobKey)
+					// Don't return — fall through to download/import path.
+					break
 				}
 				detail := fmt.Sprintf("digest conflict: local=%s... upstream=%s...",
 					truncDigest(r.Digest), truncDigest(n.Digest))
@@ -431,18 +458,12 @@ func (srv *server) processSyncEntry(
 		}
 	}
 
-	ref := &repopb.ArtifactRef{
-		PublisherId: n.Publisher,
-		Name:        n.Name,
-		Version:     n.Version,
-		Platform:    n.Platform,
-	}
+	// Check ScyllaDB manifests as a second metadata source.
 	if existing, state, _, ok := srv.findExistingArtifactByDigest(ctx, ref, n.Digest); ok {
-		// Verify the blob still exists in storage — if lost (e.g. MinIO data
-		// wipe), fall through to re-import instead of skipping.
-		blobKey := binaryStorageKey(artifactKeyWithBuild(ref, existing.GetBuildNumber()))
-		blobExists := srv.Storage().Exists(ctx, blobKey)
-		if blobExists {
+		blobKey := blobKeyForRef(ref, existing.GetBuildNumber())
+		blobPresent := srv.artifactBlobPresent(ctx, ref, existing.GetBuildNumber(), existing.GetSizeBytes())
+		if blobPresent {
+			logBlobSkipDecision(n.Name, n.Version, n.Platform, n.BuildID, existing.GetBuildNumber(), n.Digest, blobKey, "skip", "scylla_match_blob_present")
 			detail := fmt.Sprintf("already present with matching digest at build %d (%s)", existing.GetBuildNumber(), state.String())
 			if dryRun {
 				result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
@@ -453,13 +474,15 @@ func (srv *server) processSyncEntry(
 			result.Action = "up_to_date"
 			return result
 		}
-		slog.Info("upstream: artifact metadata exists but blob missing — re-importing",
-			"name", n.Name, "version", n.Version, "key", blobKey)
+		logBlobSkipDecision(n.Name, n.Version, n.Platform, n.BuildID, existing.GetBuildNumber(), n.Digest, blobKey, "reimport", "scylla_match_blob_missing")
 	}
 
-	// Not found → would import (or import).
-	// Determine if this is a new package or an update.
-	if result.LocalVersion == "" {
+	// Not found or blob missing → would import (or import).
+	// Determine action: repair_blob if metadata existed, else new/update.
+	metadataExisted := (ledger != nil && result.Action == "") // ledger matched but blob missing
+	if metadataExisted {
+		result.Action = "repair_blob"
+	} else if result.LocalVersion == "" {
 		result.Action = "new"
 	} else if result.LocalVersion < n.Version {
 		result.Action = "update"
@@ -532,16 +555,16 @@ func (srv *server) importUpstreamArtifact(
 
 	if existing, state, _, ok := srv.findExistingArtifactByDigest(ctx, ref, digest); ok {
 		// Verify blob exists — if missing, fall through to re-create it.
-		blobKey := binaryStorageKey(artifactKeyWithBuild(ref, existing.GetBuildNumber()))
-		if srv.Storage().Exists(ctx, blobKey) {
-			slog.Info("upstream: identical artifact already exists, skipping import",
+		if srv.artifactBlobPresent(ctx, ref, existing.GetBuildNumber(), existing.GetSizeBytes()) {
+			slog.Info("upstream: identical artifact already exists (blob verified), skipping import",
 				"name", n.Name, "version", n.Version,
 				"build", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),
 				"publish_state", state.String())
 			return nil
 		}
-		slog.Info("upstream: artifact metadata exists but blob missing — re-importing",
-			"name", n.Name, "version", n.Version, "key", blobKey)
+		slog.Info("upstream: artifact metadata exists but blob missing — re-creating",
+			"name", n.Name, "version", n.Version,
+			"blob_key", blobKeyForRef(ref, existing.GetBuildNumber()))
 	}
 
 	key := artifactKeyWithBuild(ref, n.BuildNumber)

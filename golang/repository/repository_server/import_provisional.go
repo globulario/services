@@ -90,14 +90,24 @@ func (srv *server) ImportProvisionalArtifact(ctx context.Context, req *repopb.Im
 		for _, entry := range ledger.Releases {
 			if entry.Version == version && entry.Platform == platform {
 				// Same version exists — check digest.
-				if entry.Digest == digest {
+				if digestEqual(entry.Digest, digest) {
 					// Same digest in ledger — verify the blob still exists in
-					// object storage before declaring idempotent. If the blob was
-					// lost (e.g. MinIO standalone→distributed transition), allow
-					// re-import so the blob is recreated.
-					if blobMissing := srv.isArtifactBlobMissing(ctx, entry.BuildID); blobMissing {
+					// object storage before declaring idempotent.
+					ref := &repopb.ArtifactRef{
+						PublisherId: publisher,
+						Name:        name,
+						Version:     version,
+						Platform:    platform,
+					}
+					// Resolve build_number from ScyllaDB manifest for this build_id.
+					var buildNum int64
+					if m, _, _, ok := srv.findExistingArtifactByDigest(ctx, ref, digest); ok {
+						buildNum = m.GetBuildNumber()
+					}
+					if !srv.artifactBlobPresent(ctx, ref, buildNum, entry.SizeBytes) {
 						slog.Info("import-provisional: blob missing from object store — allowing re-import",
-							"name", name, "version", version, "build_id", entry.BuildID)
+							"name", name, "version", version, "build_id", entry.BuildID,
+							"blob_key", blobKeyForRef(ref, buildNum))
 						// Fall through to normal import path — blob will be recreated.
 						break
 					}
@@ -201,39 +211,3 @@ func (srv *server) ImportProvisionalArtifact(ctx context.Context, req *repopb.Im
 	}, nil
 }
 
-// isArtifactBlobMissing checks whether the binary blob for a given build_id
-// exists in object storage. Returns true when the blob is confirmed missing.
-// Returns false when the blob exists or when the check cannot be performed
-// (MinIO unavailable, ScyllaDB unavailable — assume blob exists to be safe).
-func (srv *server) isArtifactBlobMissing(ctx context.Context, buildID string) bool {
-	if srv.scylla == nil {
-		return false // can't check without ScyllaDB
-	}
-
-	// Find the storage key for this build_id from ScyllaDB manifest.
-	rows, err := srv.scylla.ListManifests(ctx)
-	if err != nil {
-		return false // can't verify, assume exists
-	}
-
-	for _, row := range rows {
-		m, _, parseErr := manifestFromRow(row)
-		if parseErr != nil || m.GetBuildId() != buildID {
-			continue
-		}
-		// Found the manifest — check if the binary blob exists in storage.
-		ref := m.GetRef()
-		if ref == nil {
-			continue
-		}
-		blobKey := binaryStorageKey(artifactKeyWithBuild(ref, m.GetBuildNumber()))
-
-		_, readErr := srv.Storage().Stat(ctx, blobKey)
-		if readErr != nil {
-			return true // blob missing
-		}
-		return false // blob exists
-	}
-
-	return false // build_id not found in manifests, can't determine
-}

@@ -290,8 +290,8 @@ func (srv *server) runStorageConsistencyScan(ctx context.Context, verifyChecksum
 				continue
 			}
 			h := sha256.Sum256(blobData)
-			actual := hex.EncodeToString(h[:])
-			if actual != row.Checksum {
+			actual := "sha256:" + hex.EncodeToString(h[:])
+			if !digestEqual(actual, row.Checksum) {
 				report.ChecksumMismatch++
 				report.MismatchKeys = append(report.MismatchKeys, row.ArtifactKey)
 				slog.Warn("consistency scan: checksum mismatch",

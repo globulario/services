@@ -570,7 +570,7 @@ func (srv *server) findExistingArtifactByDigest(ctx context.Context, ref *repopb
 			var bestState repopb.PublishState
 			var bestKey string
 			for _, row := range rows {
-				if !strings.HasPrefix(row.ArtifactKey, prefix) || row.Checksum != checksum {
+				if !strings.HasPrefix(row.ArtifactKey, prefix) || !digestEqual(row.Checksum, checksum) {
 					continue
 				}
 				m, state, parseErr := manifestFromRow(row)
