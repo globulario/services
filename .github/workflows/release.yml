@@ -546,11 +546,15 @@ jobs:
               shutil.copy2(bin_path, f"{tmpdir}/bin/{entrypoint}")
               os.chmod(f"{tmpdir}/bin/{entrypoint}", 0o755)
 
-              # Stamp package.json with real version, checksum, build_id
+              # Stamp package.json with real version, checksum, build_id.
+              # Each package gets its own unique build_id (UUIDv4) so the
+              # repository can distinguish artifacts that share a release.
+              import uuid as _uuid
+              per_pkg_build_id = str(_uuid.uuid4())
               pj_out = json.load(open(f"{tmpdir}/package.json"))
               pj_out["version"] = pkg_version
               pj_out["entrypoint_checksum"] = checksum
-              pj_out["build_id"] = build_id
+              pj_out["build_id"] = per_pkg_build_id
               pj_out["build_number"] = int(build_number)
               with open(f"{tmpdir}/package.json", "w") as f:
                   json.dump(pj_out, f, indent=2)
