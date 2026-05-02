@@ -636,7 +636,7 @@ jobs:
             fi
             rm -rf "$tmpd"
           done
-          [ "$FIXED" -gt 0 ] && echo "Normalized build_number in ${FIXED} unchanged package(s)"
+          if [ "$FIXED" -gt 0 ]; then echo "Normalized build_number in ${FIXED} unchanged package(s)"; fi
 
       # ── Clean intermediate build artifacts to reclaim disk space ─────────
       - name: Clean build artifacts
