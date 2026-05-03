@@ -122,7 +122,19 @@ func infoToJSON(info *repopb.PackageInfo) map[string]interface{} {
 
 func printPkgInfo(info *repopb.PackageInfo) {
 	fmt.Printf("name:            %s\n", info.GetName())
-	fmt.Printf("kind:            %s\n", info.GetKind().String())
+	// Kind source: INFRASTRUCTURE/COMMAND are determined by the package.json
+	// "type" field (spec.metadata.kind → build pipeline → artifact manifest).
+	// SERVICE is the default for gRPC workload services managed by desired state.
+	// Source of truth: packages/specs/<name>.yaml metadata.kind, validated by
+	// scripts/validate-package-metadata.sh in the packages repo.
+	kindStr := info.GetKind().String()
+	switch info.GetKind() {
+	case repopb.ArtifactKind_INFRASTRUCTURE:
+		kindStr += "  (infra daemon — not a gRPC service)"
+	case repopb.ArtifactKind_COMMAND:
+		kindStr += "  (CLI tool)"
+	}
+	fmt.Printf("kind:            %s\n", kindStr)
 	fmt.Printf("publisher:       %s\n", info.GetPublisher())
 	fmt.Printf("versions (repo): %s\n", strings.Join(info.GetVersions(), ", "))
 	if info.GetLatestVersion() != "" {

@@ -522,3 +522,77 @@ func TestMatchesQuery(t *testing.T) {
 		}
 	}
 }
+
+func TestInferCorrectKind(t *testing.T) {
+	tests := []struct {
+		name    string
+		current repopb.ArtifactKind
+		want    repopb.ArtifactKind
+	}{
+		// Infrastructure daemons — must return INFRASTRUCTURE regardless of current kind.
+		{"xds", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_INFRASTRUCTURE},
+		{"gateway", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_INFRASTRUCTURE},
+		{"envoy", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_INFRASTRUCTURE},
+		{"etcd", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_INFRASTRUCTURE},
+		{"minio", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_INFRASTRUCTURE},
+		{"scylladb", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_INFRASTRUCTURE},
+		{"prometheus", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_INFRASTRUCTURE},
+		{"alertmanager", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_INFRASTRUCTURE},
+		{"node-exporter", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_INFRASTRUCTURE},
+		{"scylla-manager", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_INFRASTRUCTURE},
+		{"scylla-manager-agent", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_INFRASTRUCTURE},
+		{"keepalived", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_INFRASTRUCTURE},
+		{"sidekick", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_INFRASTRUCTURE},
+		// Correctly typed infra — unchanged when already INFRASTRUCTURE.
+		{"xds", repopb.ArtifactKind_INFRASTRUCTURE, repopb.ArtifactKind_INFRASTRUCTURE},
+		{"gateway", repopb.ArtifactKind_INFRASTRUCTURE, repopb.ArtifactKind_INFRASTRUCTURE},
+		// CLI tools — -cmd suffix forces COMMAND.
+		{"rclone-cmd", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_COMMAND},
+		{"etcdctl-cmd", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_COMMAND},
+		{"ffmpeg-cmd", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_COMMAND},
+		// Workload services — inferCorrectKind must NOT reclassify them.
+		{"dns", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_SERVICE},
+		{"mcp", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_SERVICE},
+		{"authentication", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_SERVICE},
+		{"cluster-controller", repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_SERVICE},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name+"_from_"+tt.current.String(), func(t *testing.T) {
+			got := inferCorrectKind(tt.name, tt.current)
+			if got != tt.want {
+				t.Errorf("inferCorrectKind(%q, %v) = %v, want %v", tt.name, tt.current, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestXDSGatewayClassifiedAsInfrastructure verifies xds and gateway are
+// NEVER returned as SERVICE from the repository layer, even when old
+// artifacts carry the wrong kind in their manifest.
+func TestXDSGatewayClassifiedAsInfrastructure(t *testing.T) {
+	infra := []string{"xds", "gateway"}
+	for _, name := range infra {
+		t.Run(name, func(t *testing.T) {
+			// Simulate artifact published before v1.2.7 fix (kind=SERVICE).
+			got := inferCorrectKind(name, repopb.ArtifactKind_SERVICE)
+			if got != repopb.ArtifactKind_INFRASTRUCTURE {
+				t.Errorf("%s: inferCorrectKind with old SERVICE artifact returned %v, want INFRASTRUCTURE", name, got)
+			}
+			// Simulate correctly-typed artifact (kind=INFRASTRUCTURE).
+			got = inferCorrectKind(name, repopb.ArtifactKind_INFRASTRUCTURE)
+			if got != repopb.ArtifactKind_INFRASTRUCTURE {
+				t.Errorf("%s: inferCorrectKind with INFRASTRUCTURE artifact returned %v, want INFRASTRUCTURE", name, got)
+			}
+		})
+	}
+}
+
+// TestMCPNotReclassifiedAsInfrastructure verifies mcp stays SERVICE —
+// it is a KindWorkload managed by desired state, not an infra daemon.
+func TestMCPNotReclassifiedAsInfrastructure(t *testing.T) {
+	got := inferCorrectKind("mcp", repopb.ArtifactKind_SERVICE)
+	if got != repopb.ArtifactKind_SERVICE {
+		t.Errorf("mcp: inferCorrectKind returned %v, want SERVICE (mcp is KindWorkload)", got)
+	}
+}

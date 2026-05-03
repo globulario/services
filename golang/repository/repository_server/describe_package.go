@@ -204,7 +204,12 @@ func (srv *server) walkCatalogFor(ctx context.Context, candidates []string, publ
 			r.versions = append(r.versions, v)
 		}
 		if r.kind == repopb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
-			r.kind = ref.GetKind()
+			// Apply kind inference to correct artifacts published before the kind
+			// classification was standardised (e.g. xds/gateway had "type":"service"
+			// before v1.2.7). inferCorrectKind is authoritative for all known infra
+			// and command packages; it returns the current value unchanged for
+			// packages whose kind is unambiguous from the manifest alone.
+			r.kind = inferCorrectKind(ref.GetName(), ref.GetKind())
 		}
 		if r.publisher == "" {
 			r.publisher = ref.GetPublisherId()

@@ -856,6 +856,16 @@ func (srv *server) resolveInfraVersion(componentName string) (version, source st
 				if v == "" || v == "unknown" {
 					continue
 				}
+				if kind == "SERVICE" {
+					// SERVICE fallback: this node-agent published the artifact under
+					// the wrong kind (package.json had "type":"service" for an infra
+					// package before the v1.2.7 fix). Log so operators can tell when
+					// all nodes have re-synced and the fallback can be removed.
+					log.Printf("WARN resolveInfraVersion: %s resolved via SERVICE fallback on node %s "+
+						"(expected INFRASTRUCTURE — node may be running pre-v1.2.7 artifacts; "+
+						"re-publish with correct kind to clear this warning)",
+						componentName, pkg.GetNodeId())
+				}
 				return v, "installed_state:" + strings.TrimSpace(pkg.GetNodeId())
 			}
 		}
