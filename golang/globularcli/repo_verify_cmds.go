@@ -308,6 +308,16 @@ func runRepoExplain(cmd *cobra.Command, args []string) error {
 	fmt.Printf("signature:      %s\n", resp.GetSignatureStatus())
 	fmt.Printf("verify_status:  %s\n", shortStatus(resp.GetVerifyStatus()))
 	fmt.Printf("installable:    %s\n", yesNo(resp.GetInstallable()))
+	if avail := resp.GetSourceAvailability(); len(avail) > 0 {
+		fmt.Printf("sources:\n")
+		for _, entry := range avail {
+			fmt.Printf("  %s\n", entry)
+		}
+	}
+	if resp.GetRepairable() {
+		fmt.Printf("repairable:     yes  (run: globular repository repair %s/%s %s)\n",
+			resp.GetRef().GetPublisherId(), resp.GetRef().GetName(), resp.GetRef().GetVersion())
+	}
 	if resp.GetRecommendedAction() != "" {
 		fmt.Printf("recommended:    %s\n", resp.GetRecommendedAction())
 	}

@@ -7,12 +7,16 @@ package main
 // as Findings with operator-readable remediation hints. The scan logic lives
 // here in the repository service so the service that owns the truth also
 // owns the integrity checks; the doctor never re-implements verification.
+//
+// Also contains GetRepositoryStatus — the operational mode RPC that must
+// answer even when ScyllaDB is down (never calls requireHealthy).
 
 import (
 	"context"
 	"fmt"
 	"time"
 
+	"github.com/globulario/services/golang/operational"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
@@ -20,9 +24,6 @@ import (
 // per integrity issue. Heavy hashing is deliberately avoided — only Stat-only
 // checks plus signature lookups (which are O(1) per artifact).
 func (srv *server) ListRepositoryFindings(ctx context.Context, req *repopb.ListRepositoryFindingsRequest) (*repopb.ListRepositoryFindingsResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
-		return nil, err
-	}
 	limit := int(req.GetLimit())
 	if limit == 0 {
 		limit = 200
@@ -105,6 +106,17 @@ func (srv *server) ListRepositoryFindings(ctx context.Context, req *repopb.ListR
 		}
 		_ = policy // currently unused; reserved for future per-publisher rules
 	}
+
+	// Emit meta-invariant findings about watchdog/mode coherence.
+	for _, f := range srv.evalDependencyModeCoherence(now) {
+		if len(resp.Findings) >= limit {
+			break
+		}
+		if matchKindFilter(kindFilter, f.GetKind()) {
+			resp.Findings = append(resp.Findings, f)
+		}
+	}
+
 	return resp, nil
 }
 
@@ -125,21 +137,37 @@ func matchKindFilter(filter, k repopb.RepositoryFindingKind) bool {
 	return filter == repopb.RepositoryFindingKind_REPOSITORY_FINDING_UNSPECIFIED || filter == k
 }
 
+// blobFindingSeverity returns WARNING when an upstream repair source is known,
+// CRITICAL when no source can provide the blob (unrecoverable without manual intervention).
+// This implements the repository.metadata_without_verified_artifact invariant:
+//   - WARNING → "repair source exists, run globular repository repair"
+//   - CRITICAL → "no source, manual re-import or re-publish required"
+func (srv *server) blobFindingSeverity(row *manifestRow) repopb.RepositoryFindingSeverity {
+	manifest, _, parseErr := manifestFromRow(*row)
+	if parseErr == nil && manifest != nil {
+		if ui := manifest.GetUpstreamImport(); ui != nil && ui.GetSourceName() != "" {
+			return repopb.RepositoryFindingSeverity_REPO_FIND_WARN
+		}
+	}
+	return repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL
+}
+
 func (srv *server) buildBlobFinding(row *manifestRow, ref *repopb.ArtifactRef, kind repopb.RepositoryFindingKind, reason string, now int64) *repopb.RepositoryFinding {
 	return &repopb.RepositoryFinding{
 		Kind:               kind,
-		Severity:           repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL,
+		Severity:           srv.blobFindingSeverity(row),
 		ArtifactKey:        row.ArtifactKey,
 		Ref:                ref,
 		CurrentState:       string(srv.readArtifactState(context.Background(), row.ArtifactKey)),
-		ExpectedState:      string(PipelinePublished) + " + blob present",
-		Reason:             fmt.Sprintf("PUBLISHED row but %s", reason),
+		ExpectedState:      string(PipelinePublished) + " + local blob present + checksum verified",
+		Reason:             fmt.Sprintf("PUBLISHED row but local POSIX blob %s (Scylla alone is not proof of installability)", reason),
 		RecommendedCommand: fmt.Sprintf("globular repository repair %s/%s %s --platform %s",
 			ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform()),
 		Evidence: map[string]string{
 			"checksum":    row.Checksum,
 			"size_bytes":  fmt.Sprintf("%d", row.SizeBytes),
 			"blob_status": reason,
+			"invariant":   "repository.metadata_without_verified_artifact",
 		},
 		ObservedAtUnix: now,
 	}
@@ -224,4 +252,118 @@ func (srv *server) evalLifecycleCoherence(ctx context.Context, row *manifestRow,
 		}
 	}
 	return nil
+}
+
+// GetRepositoryStatus returns the live operational mode and per-capability
+// status of this repository instance. It intentionally never calls
+// requireHealthy or requireCapability — it must answer even when Scylla is
+// down, because its primary use is to diagnose degraded states.
+func (srv *server) GetRepositoryStatus(_ context.Context, _ *repopb.GetRepositoryStatusRequest) (*repopb.GetRepositoryStatusResponse, error) {
+	if srv.depHealth == nil {
+		// No watchdog — cannot prove dependency state; report DEGRADED with UNKNOWN capabilities.
+		return &repopb.GetRepositoryStatusResponse{
+			Service: "repository.PackageRepository",
+			Mode:    string(operational.ModeDegraded),
+			Reason:  "dependency_watchdog_not_initialized",
+			Capabilities: []*repopb.CapabilityHealthProto{
+				{Name: CapRepoWrite, Status: string(operational.CapUnknown)},
+				{Name: CapRepoQuery, Status: string(operational.CapUnknown)},
+				{Name: CapRepoRead, Status: string(operational.CapUnknown)},
+				{Name: CapRepoMirror, Status: string(operational.CapUnknown)},
+			},
+			ObservedAtUnix: time.Now().Unix(),
+		}, nil
+	}
+	s := srv.depHealth.OperationalStatus()
+
+	resp := &repopb.GetRepositoryStatusResponse{
+		Service:        s.Service,
+		Mode:           string(s.Mode),
+		Reason:         s.Reason,
+		ObservedAtUnix: s.ObservedAtUnix,
+	}
+	for _, d := range s.Dependencies {
+		resp.Dependencies = append(resp.Dependencies, &repopb.DependencyHealthProto{
+			Name:                d.Name,
+			Kind:                string(d.Kind),
+			Status:              string(d.Status),
+			Reason:              d.Reason,
+			AffectsCapabilities: d.AffectsCapabilities,
+		})
+	}
+	for _, c := range s.Capabilities {
+		resp.Capabilities = append(resp.Capabilities, &repopb.CapabilityHealthProto{
+			Name:   c.Name,
+			Status: string(c.Status),
+			Mode:   string(c.Mode),
+			Reason: c.Reason,
+		})
+	}
+	return resp, nil
+}
+
+// evalDependencyModeCoherence emits a finding when the reported service mode
+// is inconsistent with the actual dependency state. This is a meta-invariant:
+// it detects bugs in the watchdog itself, not in artifact state.
+//
+//   - REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT: Scylla is down but service
+//     reports mode=FULL (should be READ_ONLY or LOCAL_ONLY).
+//   - REPO_FIND_MINIO_BLOCKS_REPOSITORY: MinIO is unavailable and the service
+//     is reporting a non-mirror capability as blocked by the mirror (optional
+//     deps must never block required capabilities).
+func (srv *server) evalDependencyModeCoherence(now int64) []*repopb.RepositoryFinding {
+	if srv.depHealth == nil {
+		return nil
+	}
+	s := srv.depHealth.OperationalStatus()
+	var findings []*repopb.RepositoryFinding
+
+	// Invariant 1: if Scylla is reported unavailable, mode must not be FULL.
+	scyllaDown := false
+	for _, d := range s.Dependencies {
+		if d.Name == "scylladb" && d.Status == operational.DepUnavailable {
+			scyllaDown = true
+			break
+		}
+	}
+	if scyllaDown && s.Mode == operational.ModeFull {
+		findings = append(findings, &repopb.RepositoryFinding{
+			Kind:           repopb.RepositoryFindingKind_REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT,
+			Severity:       repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL,
+			Reason:         "scylladb dependency is UNAVAILABLE but service mode is FULL — watchdog inconsistency",
+			ExpectedState:  "mode=READ_ONLY or mode=LOCAL_ONLY when scylladb is unavailable",
+			CurrentState:   fmt.Sprintf("mode=%s, scylladb=UNAVAILABLE", s.Mode),
+			ObservedAtUnix: now,
+		})
+	}
+
+	// Invariant 2: MinIO mirror unavailability must only block CapRepoMirror,
+	// never CapRepoWrite, CapRepoQuery, or CapRepoRead.
+	minioDown := false
+	for _, d := range s.Dependencies {
+		if d.Name == "minio_mirror" && d.Status == operational.DepUnavailable {
+			minioDown = true
+			break
+		}
+	}
+	if minioDown {
+		for _, c := range s.Capabilities {
+			if c.Name == CapRepoMirror {
+				continue // mirror being blocked by mirror-down is correct
+			}
+			if c.Status == operational.CapBlocked {
+				findings = append(findings, &repopb.RepositoryFinding{
+					Kind:     repopb.RepositoryFindingKind_REPO_FIND_MINIO_BLOCKS_REPOSITORY,
+					Severity: repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL,
+					Reason: fmt.Sprintf(
+						"optional MinIO mirror is blocking capability %q — mirror must never block non-mirror capabilities",
+						c.Name),
+					ExpectedState:  fmt.Sprintf("capability %s=AVAILABLE when only mirror is down", c.Name),
+					CurrentState:   fmt.Sprintf("capability %s=BLOCKED, minio_mirror=UNAVAILABLE", c.Name),
+					ObservedAtUnix: now,
+				})
+			}
+		}
+	}
+	return findings
 }

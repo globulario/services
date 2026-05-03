@@ -48,14 +48,9 @@ func (p pendingInvariant) Evaluate(_ *collector.Snapshot, _ Config) []Finding {
 // pendingInvariants returns the set of invariants that require upstream RPC additions.
 func pendingInvariants() []Invariant {
 	return []Invariant{
-		pendingInvariant{
-			id:              "cluster.repo.reachable",
-			category:        "repository",
-			scope:           "cluster",
-			summary:         "Repository reachability check pending: GetRepositoryStatus() not yet available in ClusterControllerService",
-			proposedRPC:     "GetRepositoryStatus()",
-			proposedService: "ClusterControllerService",
-		},
+		// cluster.repo.reachable — RESOLVED. GetRepositoryStatus() is now live
+		// on repository.PackageRepository. Replaced by repositoryOperationalMode
+		// in repository_status.go and wired into the collector via WithRepositoryClient.
 		pendingInvariant{
 			id:              "cluster.discovery.consistent",
 			category:        "discovery",

@@ -547,6 +547,18 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 			os.Remove(tmp)
 			return "", fmt.Errorf("rename %s: %w", dest, err)
 		}
+		// Write a SHA-256 sidecar for systemd unit files so the heartbeat can
+		// detect unit definition drift after installation.
+		if strings.HasSuffix(dest, ".service") {
+			if data, err := os.ReadFile(dest); err == nil {
+				sum := sha256.Sum256(data)
+				sidecar := dest + ".sha256"
+				tmp2 := sidecar + ".tmp"
+				if err := os.WriteFile(tmp2, []byte(hex.EncodeToString(sum[:])), 0o644); err == nil {
+					_ = os.Rename(tmp2, sidecar)
+				}
+			}
+		}
 	}
 
 	// Ensure the service working directory exists.  Even though we normalize

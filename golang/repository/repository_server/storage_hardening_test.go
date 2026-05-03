@@ -142,7 +142,9 @@ func newLedgerTestServer(t *testing.T) (*server, *fakeLedger) {
 	t.Helper()
 	dir := t.TempDir()
 	srv := &server{Root: dir}
-	srv.storage = storage_backend.NewOSStorage(dir)
+	local := storage_backend.NewOSStorage(dir)
+	srv.storage = local
+	srv.localStorage = local
 	ledger := newFakeLedger()
 	srv.scylla = ledger
 	return srv, ledger
@@ -247,7 +249,9 @@ func TestLedgerMissReturnsNotFound(t *testing.T) {
 func TestScyllaFallbackToMinioWhenNil(t *testing.T) {
 	dir := t.TempDir()
 	srv := &server{Root: dir}
-	srv.storage = storage_backend.NewOSStorage(dir)
+	local := storage_backend.NewOSStorage(dir)
+	srv.storage = local
+	srv.localStorage = local
 	srv.scylla = nil // explicitly nil — single-node / no Scylla
 	ctx := context.Background()
 
@@ -284,7 +288,9 @@ func TestScyllaFallbackToMinioWhenNil(t *testing.T) {
 func TestScylla_TemporaryFailure_FallsBackToMinio(t *testing.T) {
 	dir := t.TempDir()
 	srv := &server{Root: dir}
-	srv.storage = storage_backend.NewOSStorage(dir)
+	local := storage_backend.NewOSStorage(dir)
+	srv.storage = local
+	srv.localStorage = local
 	// Inject an error ledger (simulates Scylla being temporarily unreachable).
 	srv.scylla = errLedger{err: errors.New("connection refused")}
 	ctx := context.Background()
@@ -354,7 +360,9 @@ func TestStandaloneRoundRobinEndpointRejected(t *testing.T) {
 func TestPublishedRequiresVerifiedAuthorityBlob_BlobMissing(t *testing.T) {
 	dir := t.TempDir()
 	srv := &server{Root: dir}
-	srv.storage = storage_backend.NewOSStorage(dir)
+	local := storage_backend.NewOSStorage(dir)
+	srv.storage = local
+	srv.localStorage = local
 	ctx := context.Background()
 
 	m := &repopb.ArtifactManifest{
@@ -387,7 +395,9 @@ func TestPublishedRequiresVerifiedAuthorityBlob_BlobMissing(t *testing.T) {
 func TestPublishedRequiresVerifiedAuthorityBlob_SizeMismatch(t *testing.T) {
 	dir := t.TempDir()
 	srv := &server{Root: dir}
-	srv.storage = storage_backend.NewOSStorage(dir)
+	local := storage_backend.NewOSStorage(dir)
+	srv.storage = local
+	srv.localStorage = local
 	ctx := context.Background()
 
 	blobContent := []byte("this is the binary")
@@ -421,7 +431,9 @@ func TestPublishedRequiresVerifiedAuthorityBlob_SizeMismatch(t *testing.T) {
 func TestPublishedRequiresVerifiedAuthorityBlob_Success(t *testing.T) {
 	dir := t.TempDir()
 	srv := &server{Root: dir}
-	srv.storage = storage_backend.NewOSStorage(dir)
+	local := storage_backend.NewOSStorage(dir)
+	srv.storage = local
+	srv.localStorage = local
 	// No Scylla in this test — promoteToPublished skips Scylla sync when nil.
 	ctx := context.Background()
 

@@ -72,6 +72,16 @@ func mapInvariantID(kind string) string {
 		return "package.config_conflict"
 	case "REPO_FIND_ROLLBACK_FAILED":
 		return "package.rollback_failed"
+	// Phase 1 hardening: dependency-mode coherence kinds emitted by
+	// evalDependencyModeCoherence in repository_findings.go.
+	case "REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT":
+		return "repository.watchdog_inconsistency"
+	case "REPO_FIND_MINIO_BLOCKS_REPOSITORY":
+		return "repository.watchdog_inconsistency"
+	case "REPO_FIND_SOURCE_CHAIN_UNAVAILABLE":
+		return "repository.source_chain_unavailable"
+	case "REPO_FIND_LOCAL_CACHE_CORRUPTION":
+		return "repository.local_cache_corruption"
 	}
 	return "repository.finding"
 }

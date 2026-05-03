@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"path"
 	"sort"
 	"strconv"
@@ -413,53 +414,6 @@ func (srv *server) readManifestWithFallback(ctx context.Context, ref *repopb.Art
 	return m, err
 }
 
-// readBinaryWithFallback resolves the binary for the given ref.
-// When buildNumber=0, resolves latest published build first, then literal %0, then legacy key.
-func (srv *server) readBinaryWithFallback(ctx context.Context, ref *repopb.ArtifactRef, buildNumber int64) ([]byte, error) {
-	if buildNumber == 0 {
-		if latest := srv.resolveLatestBuildNumber(ctx, ref); latest > 0 {
-			latestKey := artifactKeyWithBuild(ref, latest)
-			if ld, lerr := srv.Storage().ReadFile(ctx, binaryStorageKey(latestKey)); lerr == nil {
-				return ld, nil
-			}
-		}
-		key := artifactKeyWithBuild(ref, 0)
-		if data, err := srv.Storage().ReadFile(ctx, binaryStorageKey(key)); err == nil {
-			return data, nil
-		}
-		legacyKey := artifactKeyLegacy(ref)
-		if ld, lerr := srv.Storage().ReadFile(ctx, binaryStorageKey(legacyKey)); lerr == nil {
-			return ld, nil
-		}
-		return nil, fmt.Errorf("binary not found for %s", artifactKeyWithBuild(ref, 0))
-	}
-	key := artifactKeyWithBuild(ref, buildNumber)
-	return srv.Storage().ReadFile(ctx, binaryStorageKey(key))
-}
-
-// openBinaryWithFallback returns a streaming reader for the artifact binary.
-// When buildNumber=0, resolves latest published build first, then literal %0, then legacy key.
-func (srv *server) openBinaryWithFallback(ctx context.Context, ref *repopb.ArtifactRef, buildNumber int64) (io.ReadCloser, error) {
-	if buildNumber == 0 {
-		if latest := srv.resolveLatestBuildNumber(ctx, ref); latest > 0 {
-			latestKey := artifactKeyWithBuild(ref, latest)
-			if lrc, lerr := srv.Storage().Open(ctx, binaryStorageKey(latestKey)); lerr == nil {
-				return lrc, nil
-			}
-		}
-		key := artifactKeyWithBuild(ref, 0)
-		if rc, err := srv.Storage().Open(ctx, binaryStorageKey(key)); err == nil {
-			return rc, nil
-		}
-		legacyKey := artifactKeyLegacy(ref)
-		if lrc, lerr := srv.Storage().Open(ctx, binaryStorageKey(legacyKey)); lerr == nil {
-			return lrc, nil
-		}
-		return nil, fmt.Errorf("binary not found for %s", artifactKeyWithBuild(ref, 0))
-	}
-	key := artifactKeyWithBuild(ref, buildNumber)
-	return srv.Storage().Open(ctx, binaryStorageKey(key))
-}
 
 // ── sorting helpers ──────────────────────────────────────────────────────
 
@@ -879,7 +833,7 @@ func recvArtifactStream(stream repopb.PackageRepository_UploadArtifactServer) (*
 // rather than an empty list — callers must not mistake a query failure for
 // an empty catalog.
 func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsRequest) (*repopb.ListArtifactsResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoQuery); err != nil {
 		return nil, err
 	}
 
@@ -946,7 +900,7 @@ func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsReq
 // The build_number is read from the manifest's build_number field in the request.
 // When build_number is 0, also tries legacy 4-field key for backward compat.
 func (srv *server) GetArtifactManifest(ctx context.Context, req *repopb.GetArtifactManifestRequest) (*repopb.GetArtifactManifestResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoQuery); err != nil {
 		return nil, err
 	}
 	ref := req.GetRef()
@@ -1006,7 +960,7 @@ func (srv *server) GetArtifactManifest(ctx context.Context, req *repopb.GetArtif
 // the upload is treated as idempotent (success, no overwrite). If the checksum
 // differs, the upload is rejected with AlreadyExists.
 func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifactServer) error {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return err
 	}
 	ref, data, buildNumber, reservationID, err := recvArtifactStream(stream)
@@ -1067,14 +1021,20 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 
 	key := artifactKeyWithBuild(ref, buildNumber)
 
-	// Ensure artifacts directory exists.
-	if err := srv.Storage().MkdirAll(ctx, artifactsDir, 0o755); err != nil {
-		return status.Errorf(codes.Internal, "create artifacts dir: %v", err)
+	// Persist binary to local POSIX CAS atomically with checksum verification.
+	// Local CAS is the authority for installability; MinIO mirror is best-effort.
+	if srv.localStorage == nil {
+		return status.Errorf(codes.Internal, "local storage not initialized — cannot accept artifact")
 	}
-
-	// Persist binary.
-	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(key), data, 0o644); err != nil {
-		return status.Errorf(codes.Internal, "write artifact binary: %v", err)
+	if _, writeErr := srv.localStorage.WriteFileAtomic(ctx, binaryStorageKey(key),
+		bytes.NewReader(data), newChecksum, int64(len(data))); writeErr != nil {
+		return status.Errorf(codes.Internal, "write artifact binary: %v", writeErr)
+	}
+	// Best-effort mirror write — never blocks the upload.
+	if srv.mirrorStorage != nil {
+		if mirrorErr := srv.mirrorStorage.WriteFile(ctx, binaryStorageKey(key), data, 0o644); mirrorErr != nil {
+			slog.Warn("upload: mirror write failed (local CAS intact)", "key", key, "err", mirrorErr)
+		}
 	}
 
 	// Build and persist manifest with VERIFIED state.
@@ -1180,7 +1140,7 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 // It scans all manifests and applies in-memory filtering. For the expected catalog
 // sizes (hundreds, not millions) this is efficient and avoids a secondary index.
 func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifactsRequest) (*repopb.SearchArtifactsResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoQuery); err != nil {
 		return nil, err
 	}
 
@@ -1313,7 +1273,7 @@ func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifa
 // codes.Unavailable so the release resolver can distinguish a transient failure
 // from a genuinely empty catalog.
 func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtifactVersionsRequest) (*repopb.GetArtifactVersionsResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoQuery); err != nil {
 		return nil, err
 	}
 	pub := strings.TrimSpace(req.GetPublisherId())
@@ -1389,7 +1349,7 @@ func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtif
 // this artifact installed. Set force=true to remove repository availability
 // while leaving installed instances in place.
 func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifactRequest) (*repopb.DeleteArtifactResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 	ref := req.GetRef()
@@ -1546,7 +1506,7 @@ func parseInt32(s string) (int32, error) {
 
 // PromoteArtifact implements the gRPC PromoteArtifact RPC.
 func (srv *server) PromoteArtifact(ctx context.Context, req *repopb.PromoteArtifactRequest) (*repopb.PromoteArtifactResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 	return srv.promoteArtifactInternal(ctx, req.GetRef(), req.GetBuildNumber(), req.GetTargetState())
@@ -1643,7 +1603,7 @@ func (srv *server) promoteArtifactInternal(ctx context.Context, ref *repopb.Arti
 
 // SetArtifactState transitions an artifact's lifecycle state (deprecate, yank, quarantine, revoke).
 func (srv *server) SetArtifactState(ctx context.Context, req *repopb.SetArtifactStateRequest) (*repopb.SetArtifactStateResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 	ref := req.GetRef()
@@ -1813,9 +1773,6 @@ func (srv *server) SetArtifactState(ctx context.Context, req *repopb.SetArtifact
 
 // DownloadArtifact streams the binary for a stored artifact.
 func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream repopb.PackageRepository_DownloadArtifactServer) error {
-	if err := srv.requireHealthy(); err != nil {
-		return err
-	}
 	ref := req.GetRef()
 	if ref == nil {
 		return status.Error(codes.InvalidArgument, "ref is required")
@@ -1837,7 +1794,11 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 	}
 
 	key := artifactKeyWithBuild(ref, buildNumber)
-	if _, state, _, readErr := srv.readManifestAndStateByKey(stream.Context(), key); readErr == nil {
+
+	// Read manifest once — used for state/signature checks and resolver request.
+	var downloadManifest *repopb.ArtifactManifest
+	if _, state, m, readErr := srv.readManifestAndStateByKey(stream.Context(), key); readErr == nil {
+		downloadManifest = m
 		if repopb.IsDownloadBlocked(state) {
 			// Check if caller is namespace owner (allowed to download their own blocked artifacts).
 			authCtx := security.FromContext(stream.Context())
@@ -1874,8 +1835,8 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 	// Phase F signature policy gate. Refuses to serve when policy requires
 	// a trusted signature and one is missing / invalid / from a revoked key.
 	expectedDigest := ""
-	if _, _, m, _ := srv.readManifestAndStateByKey(stream.Context(), key); m != nil {
-		expectedDigest = m.GetChecksum()
+	if downloadManifest != nil {
+		expectedDigest = downloadManifest.GetChecksum()
 	}
 	sigDec := srv.signaturePolicyDecision(stream.Context(), ref, key, expectedDigest, "")
 	if !sigDec.Allowed {
@@ -1883,57 +1844,48 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 			"artifact %q signature policy: %s — download blocked", ref.GetName(), sigDec.Reason)
 	}
 
-	// Try new 5-field key, then legacy 4-field key.
-	// Stream directly from storage to avoid buffering the entire artifact in memory.
-	reader, err := srv.openBinaryWithFallback(stream.Context(), ref, buildNumber)
-	if err != nil {
-		// Fallback: try v-prefixed key for backward compat with existing storage.
-		ref.Version = "v" + canonVer
-		if fr, ferr := srv.openBinaryWithFallback(stream.Context(), ref, buildNumber); ferr == nil {
-			reader = fr
-			err = nil
-		}
-		ref.Version = canonVer // restore
-	}
-
-	// Upstream refill: if local blob is missing but manifest has upstream_import,
-	// re-download from upstream, verify checksum, refill MinIO cache.
-	// Server-policy driven: old clients benefit without setting allow_upstream_fallback.
-	if err != nil {
-		shouldRefill := req.GetAllowUpstreamFallback() // explicit request override
-		if !shouldRefill {
-			// Server-policy: check if fallback is allowed for this manifest.
-			if _, _, manifest, readErr := srv.readManifestAndStateByKey(stream.Context(), key); readErr == nil {
-				shouldRefill = srv.upstreamFallbackAllowed(stream.Context(), manifest)
-			}
-		}
-		if shouldRefill {
-			if refillReader, refillErr := srv.refillBlobFromUpstream(stream.Context(), key); refillErr == nil {
-				reader = refillReader
-				err = nil
-				slog.Info("download: upstream refill succeeded", "key", key)
-				// Best-effort audit: never blocks download.
-				if _, _, m, readErr := srv.readManifestAndStateByKey(stream.Context(), key); readErr == nil {
-					srv.emitRefillAudit(stream.Context(), key, m, "success", "")
-				}
-			} else {
-				slog.Warn("download: upstream refill failed", "key", key, "err", refillErr)
-				if _, _, m, readErr := srv.readManifestAndStateByKey(stream.Context(), key); readErr == nil {
-					srv.emitRefillAudit(stream.Context(), key, m, "failed", refillErr.Error())
-				}
-			}
+	// Resolve to local POSIX CAS.
+	// ResolveArtifactToLocal guarantees the blob is present and verified locally
+	// before returning. It handles the full source chain: LOCAL_POSIX → UPSTREAM →
+	// MINIO_MIRROR, materializing the blob if needed.
+	var resolveReq ArtifactRequest
+	if downloadManifest != nil {
+		resolveReq = artifactRequestFromManifest(downloadManifest, buildNumber)
+	} else {
+		resolveReq = ArtifactRequest{
+			PublisherID: ref.GetPublisherId(),
+			Name:        ref.GetName(),
+			Version:     ref.GetVersion(),
+			Platform:    ref.GetPlatform(),
+			BuildNumber: buildNumber,
 		}
 	}
 
-	if err != nil {
-		key := artifactKeyWithBuild(ref, buildNumber)
-		return status.Errorf(codes.NotFound, "artifact %q not found: %v", key, err)
+	result, resolveErr := srv.ResolveArtifactToLocal(stream.Context(), resolveReq)
+	if resolveErr != nil {
+		// v-prefix backward compat — some artifacts were stored before canonical normalization.
+		resolveReq.Version = "v" + canonVer
+		result, resolveErr = srv.ResolveArtifactToLocal(stream.Context(), resolveReq)
 	}
-	defer reader.Close()
+	if resolveErr != nil {
+		return status.Errorf(codes.NotFound, "artifact %q not found: %v", key, resolveErr)
+	}
 
-	buf := make([]byte, 256*1024) // 256KB chunks (larger = fewer round-trips)
+	// Emit audit event when blob came from a non-local source (upstream refill).
+	if result.SourceType != "LOCAL_POSIX" && downloadManifest != nil {
+		slog.Info("download: upstream refill succeeded", "key", key, "source", result.SourceName)
+		srv.emitRefillAudit(stream.Context(), key, downloadManifest, "success", "")
+	}
+
+	f, openErr := os.Open(result.LocalPath)
+	if openErr != nil {
+		return status.Errorf(codes.Internal, "open local artifact blob: %v", openErr)
+	}
+	defer f.Close()
+
+	buf := make([]byte, 256*1024) // 256KB chunks
 	for {
-		n, readErr := reader.Read(buf)
+		n, readErr := f.Read(buf)
 		if n > 0 {
 			if err := stream.Send(&repopb.DownloadArtifactResponse{Data: buf[:n]}); err != nil {
 				return fmt.Errorf("send artifact chunk: %w", err)
@@ -1949,12 +1901,12 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 	return nil
 }
 
-// refillBlobFromUpstream re-downloads an artifact from its upstream source
-// when the local MinIO blob is missing. Performs full trust verification:
-// source must exist, be enabled, have compatible policy, and checksum must
-// match. Fails closed on any policy violation.
+// refillBlobFromUpstream re-downloads an artifact from the source chain when
+// the local blob is missing. Delegates to ResolveArtifactToLocal which handles
+// streaming, sha256 verification, atomic write to local POSIX CAS, and state
+// transitions. Fails closed if the manifest's upstream source has quarantine
+// trust policy (belt-and-suspenders — upstreamFallbackAllowed is the primary gate).
 func (srv *server) refillBlobFromUpstream(ctx context.Context, key string) (io.ReadCloser, error) {
-	// Read manifest to get upstream_import and checksum.
 	_, state, manifest, err := srv.readManifestAndStateByKey(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("no manifest for key %q: %w", key, err)
@@ -1963,121 +1915,28 @@ func (srv *server) refillBlobFromUpstream(ctx context.Context, key string) (io.R
 		return nil, fmt.Errorf("artifact %q is in %s state — refill blocked", key, state)
 	}
 
-	ui := manifest.GetUpstreamImport()
-	if ui == nil {
-		return nil, fmt.Errorf("artifact %q has no upstream_import record", key)
-	}
-	if ui.GetAssetUrl() == "" {
-		return nil, fmt.Errorf("artifact %q has no asset_url for refill", key)
-	}
-	expectedDigest := manifest.GetChecksum()
-	if expectedDigest == "" {
-		return nil, fmt.Errorf("artifact %q has no checksum for verification", key)
-	}
-
-	// ── Source trust verification ─────────────────────────────────────────
-	// Fail closed: if source is missing, disabled, or policy mismatches, reject.
-	sourceName := ui.GetSourceName()
-	if sourceName == "" {
-		return nil, fmt.Errorf("artifact %q has upstream_import but no source_name", key)
-	}
-	src, loadErr := srv.loadUpstreamSource(ctx, sourceName)
-	if loadErr != nil {
-		return nil, fmt.Errorf("upstream source %q not found — refill rejected (fail closed): %w", sourceName, loadErr)
-	}
-	if !src.GetEnabled() {
-		return nil, fmt.Errorf("upstream source %q is disabled — refill rejected", sourceName)
-	}
-	if strings.EqualFold(src.GetTrustPolicy(), "quarantine") {
-		return nil, fmt.Errorf("upstream source %q has quarantine trust policy — auto-refill blocked", sourceName)
-	}
-
-	// Validate manifest identity against source policy.
-	ref := manifest.GetRef()
-	if pubs := src.GetAllowedPublishers(); len(pubs) > 0 {
-		if !containsFold(pubs, ref.GetPublisherId()) {
-			return nil, fmt.Errorf("publisher %q not in source %q allowed_publishers", ref.GetPublisherId(), sourceName)
-		}
-	}
-	if kinds := src.GetAllowedKinds(); len(kinds) > 0 {
-		if !containsFold(kinds, ref.GetKind().String()) {
-			return nil, fmt.Errorf("kind %q not in source %q allowed_kinds", ref.GetKind(), sourceName)
-		}
-	}
-	if channels := src.GetAllowedChannels(); len(channels) > 0 {
-		ch := effectiveChannel(manifest).String()
-		if !containsFold(channels, ch) {
-			return nil, fmt.Errorf("channel %q not in source %q allowed_channels", ch, sourceName)
+	// Belt-and-suspenders quarantine check. upstreamFallbackAllowed() is the
+	// primary gate; this guards direct callers that skip that check.
+	if ui := manifest.GetUpstreamImport(); ui != nil && ui.GetSourceName() != "" {
+		if src, loadErr := srv.loadUpstreamSource(ctx, ui.GetSourceName()); loadErr == nil {
+			if strings.EqualFold(src.GetTrustPolicy(), "quarantine") {
+				return nil, fmt.Errorf("upstream source %q has quarantine trust policy — auto-refill blocked",
+					ui.GetSourceName())
+			}
 		}
 	}
 
-	// ── Resolve credentials ──────────────────────────────────────────────
-	var authToken string
-	if credRef := src.GetCredentialsRef(); credRef != "" {
-		if tok, credErr := resolveCredentialFromEtcd(ctx, credRef); credErr == nil {
-			authToken = tok
-		}
+	req := artifactRequestFromManifest(manifest, manifest.GetBuildNumber())
+	result, resolveErr := srv.ResolveArtifactToLocal(ctx, req)
+	if resolveErr != nil {
+		return nil, fmt.Errorf("upstream refill: %w", resolveErr)
 	}
 
-	// ── Download and verify via provider ─────────────────────────────────
-	// TODO(streaming): refill reads full artifact into memory. Refactor to
-	// stream through temp file (same as downloadAndVerifyFromProvider TODO).
-	sourceType := upstream.MapProtoType(int32(src.GetType()))
-	provider, provErr := upstream.NewSource(sourceType)
-	if provErr != nil {
-		return nil, fmt.Errorf("upstream refill: unsupported source type: %w", provErr)
-	}
-	opts := sourceOptsFromProto(src, authToken)
-
-	assetURL := ui.GetAssetUrl()
-	assetPath := ""
-	filename := ""
-	// Parse path: or file: prefixed locators from provenance.
-	if strings.HasPrefix(assetURL, "path:") {
-		assetPath = strings.TrimPrefix(assetURL, "path:")
-		assetURL = ""
-	} else if strings.HasPrefix(assetURL, "file:") {
-		filename = strings.TrimPrefix(assetURL, "file:")
-		assetURL = ""
-	}
-
-	artifactRef := upstream.ArtifactRef{
-		AssetURL:      assetURL,
-		AssetPath:     assetPath,
-		Filename:      filename,
-		ReleaseTag:    ui.GetReleaseTag(),
-		OriginRelease: ui.GetOriginRelease(),
-		Name:          ref.GetName(),
-		Version:       ref.GetVersion(),
-		Platform:      ref.GetPlatform(),
-		Sha256:        expectedDigest,
-	}
-
-	rc, _, openErr := provider.OpenArtifact(ctx, opts, artifactRef)
+	f, openErr := os.Open(result.LocalPath)
 	if openErr != nil {
-		return nil, fmt.Errorf("upstream refill open: %w", openErr)
+		return nil, fmt.Errorf("upstream refill: open materialized blob: %w", openErr)
 	}
-	defer rc.Close()
-
-	h := sha256.New()
-	data, readErr := io.ReadAll(io.TeeReader(io.LimitReader(rc, int64(maxArtifactBytes)+1), h))
-	if readErr != nil {
-		return nil, fmt.Errorf("upstream refill read: %w", readErr)
-	}
-	if len(data) > maxArtifactBytes {
-		return nil, fmt.Errorf("upstream refill: artifact exceeds %d bytes", maxArtifactBytes)
-	}
-	actualDigest := "sha256:" + hex.EncodeToString(h.Sum(nil))
-	if actualDigest != expectedDigest {
-		return nil, fmt.Errorf("upstream refill: digest mismatch: expected %s, got %s", expectedDigest, actualDigest)
-	}
-
-	// Refill MinIO cache.
-	if writeErr := srv.Storage().WriteFile(ctx, binaryStorageKey(key), data, 0o644); writeErr != nil {
-		slog.Warn("upstream refill: MinIO write failed (serving from memory)", "key", key, "err", writeErr)
-	}
-
-	return io.NopCloser(bytes.NewReader(data)), nil
+	return f, nil
 }
 
 // emitRefillAudit publishes a best-effort audit event for upstream refill attempts.
@@ -2123,7 +1982,7 @@ func (srv *server) emitRefillAudit(ctx context.Context, key string, m *repopb.Ar
 //  6. Complete publish pipeline (register descriptor + promote)
 //  7. Return new build_number
 func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateArtifactBinaryServer) error {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return err
 	}
 	// ── Receive header ──────────────────────────────────────────────────
@@ -2194,14 +2053,20 @@ func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateAr
 	newBuild := latestBuild + 1
 	newKey := artifactKeyWithBuild(ref, newBuild)
 
-	// ── Ensure artifacts directory ──────────────────────────────────────
-	if err := srv.Storage().MkdirAll(ctx, artifactsDir, 0o755); err != nil {
-		return status.Errorf(codes.Internal, "create artifacts dir: %v", err)
+	// ── Store new binary to local POSIX CAS atomically ─────────────────
+	// Local CAS is the authority. MinIO mirror is best-effort.
+	if srv.localStorage == nil {
+		return status.Errorf(codes.Internal, "local storage not initialized")
 	}
-
-	// ── Store new binary ────────────────────────────────────────────────
-	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(newKey), data, 0o644); err != nil {
-		return status.Errorf(codes.Internal, "write binary: %v", err)
+	if _, writeErr := srv.localStorage.WriteFileAtomic(ctx, binaryStorageKey(newKey),
+		bytes.NewReader(data), actualChecksum, int64(len(data))); writeErr != nil {
+		return status.Errorf(codes.Internal, "write binary: %v", writeErr)
+	}
+	// Best-effort mirror write.
+	if srv.mirrorStorage != nil {
+		if mirrorErr := srv.mirrorStorage.WriteFile(ctx, binaryStorageKey(newKey), data, 0o644); mirrorErr != nil {
+			slog.Warn("delta-deploy: mirror write failed (local CAS intact)", "key", newKey, "err", mirrorErr)
+		}
 	}
 
 	// ── Create new manifest (clone from latest, update binary fields) ──
@@ -2303,7 +2168,7 @@ func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateAr
 // Falls back to MinIO full scan if ScyllaDB is unavailable or has no match
 // (handles packages published before entrypoint_checksum was indexed).
 func (srv *server) ResolveByEntrypointChecksum(ctx context.Context, req *repopb.ResolveByEntrypointChecksumRequest) (*repopb.ResolveByEntrypointChecksumResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoQuery); err != nil {
 		return nil, err
 	}
 	checksum := strings.TrimSpace(req.GetChecksum())
@@ -2355,7 +2220,7 @@ func (srv *server) ResolveByEntrypointChecksum(ctx context.Context, req *repopb.
 		}
 
 		// Read .tgz and extract package.json for ground truth.
-		binData, binErr := srv.Storage().ReadFile(ctx, binaryStorageKey(key))
+		binData, binErr := srv.localStorage.ReadFile(ctx, binaryStorageKey(key))
 		if binErr != nil {
 			continue
 		}
@@ -2412,8 +2277,8 @@ func (srv *server) pickBestCandidate(ctx context.Context, rows []manifestRow, pl
 			continue
 		}
 
-		// Validate from MinIO: crack open .tgz and verify binary integrity.
-		binData, binErr := srv.Storage().ReadFile(ctx, binaryStorageKey(row.ArtifactKey))
+		// Validate from local POSIX CAS: crack open .tgz and verify binary integrity.
+		binData, binErr := srv.localStorage.ReadFile(ctx, binaryStorageKey(row.ArtifactKey))
 		if binErr != nil {
 			continue
 		}

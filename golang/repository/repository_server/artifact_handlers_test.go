@@ -19,7 +19,9 @@ func newTestServer(t *testing.T) *server {
 	t.Helper()
 	dir := t.TempDir()
 	srv := &server{Root: dir}
-	srv.storage = storage_backend.NewOSStorage(dir)
+	local := storage_backend.NewOSStorage(dir)
+	srv.storage = local
+	srv.localStorage = local
 	srv.ensureSignaturePolicy().SetPolicyForTest(&repopb.SignaturePolicy{
 		RequireSignaturesForCore:        false,
 		RequireSignaturesForAll:         false,

@@ -58,6 +58,7 @@ const (
 	PackageRepository_RecordConfigReceipt_FullMethodName         = "/repository.PackageRepository/RecordConfigReceipt"
 	PackageRepository_ListConfigReceipts_FullMethodName          = "/repository.PackageRepository/ListConfigReceipts"
 	PackageRepository_ListRepositoryFindings_FullMethodName      = "/repository.PackageRepository/ListRepositoryFindings"
+	PackageRepository_GetRepositoryStatus_FullMethodName         = "/repository.PackageRepository/GetRepositoryStatus"
 )
 
 // PackageRepositoryClient is the client API for PackageRepository service.
@@ -185,6 +186,10 @@ type PackageRepositoryClient interface {
 	RecordConfigReceipt(ctx context.Context, in *RecordConfigReceiptRequest, opts ...grpc.CallOption) (*RecordConfigReceiptResponse, error)
 	ListConfigReceipts(ctx context.Context, in *ListConfigReceiptsRequest, opts ...grpc.CallOption) (*ListConfigReceiptsResponse, error)
 	ListRepositoryFindings(ctx context.Context, in *ListRepositoryFindingsRequest, opts ...grpc.CallOption) (*ListRepositoryFindingsResponse, error)
+	// GetRepositoryStatus returns the live operational mode and capability status.
+	// This RPC NEVER calls requireHealthy() — it must answer even when ScyllaDB
+	// is down. Use it to determine repository health before making capability decisions.
+	GetRepositoryStatus(ctx context.Context, in *GetRepositoryStatusRequest, opts ...grpc.CallOption) (*GetRepositoryStatusResponse, error)
 }
 
 type packageRepositoryClient struct {
@@ -612,6 +617,16 @@ func (c *packageRepositoryClient) ListRepositoryFindings(ctx context.Context, in
 	return out, nil
 }
 
+func (c *packageRepositoryClient) GetRepositoryStatus(ctx context.Context, in *GetRepositoryStatusRequest, opts ...grpc.CallOption) (*GetRepositoryStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRepositoryStatusResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_GetRepositoryStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PackageRepositoryServer is the server API for PackageRepository service.
 // All implementations should embed UnimplementedPackageRepositoryServer
 // for forward compatibility.
@@ -737,6 +752,10 @@ type PackageRepositoryServer interface {
 	RecordConfigReceipt(context.Context, *RecordConfigReceiptRequest) (*RecordConfigReceiptResponse, error)
 	ListConfigReceipts(context.Context, *ListConfigReceiptsRequest) (*ListConfigReceiptsResponse, error)
 	ListRepositoryFindings(context.Context, *ListRepositoryFindingsRequest) (*ListRepositoryFindingsResponse, error)
+	// GetRepositoryStatus returns the live operational mode and capability status.
+	// This RPC NEVER calls requireHealthy() — it must answer even when ScyllaDB
+	// is down. Use it to determine repository health before making capability decisions.
+	GetRepositoryStatus(context.Context, *GetRepositoryStatusRequest) (*GetRepositoryStatusResponse, error)
 }
 
 // UnimplementedPackageRepositoryServer should be embedded to have
@@ -862,6 +881,9 @@ func (UnimplementedPackageRepositoryServer) ListConfigReceipts(context.Context, 
 }
 func (UnimplementedPackageRepositoryServer) ListRepositoryFindings(context.Context, *ListRepositoryFindingsRequest) (*ListRepositoryFindingsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRepositoryFindings not implemented")
+}
+func (UnimplementedPackageRepositoryServer) GetRepositoryStatus(context.Context, *GetRepositoryStatusRequest) (*GetRepositoryStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRepositoryStatus not implemented")
 }
 func (UnimplementedPackageRepositoryServer) testEmbeddedByValue() {}
 
@@ -1538,6 +1560,24 @@ func _PackageRepository_ListRepositoryFindings_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PackageRepository_GetRepositoryStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRepositoryStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).GetRepositoryStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_GetRepositoryStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).GetRepositoryStatus(ctx, req.(*GetRepositoryStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PackageRepository_ServiceDesc is the grpc.ServiceDesc for PackageRepository service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1680,6 +1720,10 @@ var PackageRepository_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListRepositoryFindings",
 			Handler:    _PackageRepository_ListRepositoryFindings_Handler,
+		},
+		{
+			MethodName: "GetRepositoryStatus",
+			Handler:    _PackageRepository_GetRepositoryStatus_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

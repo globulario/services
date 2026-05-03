@@ -30,28 +30,8 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	if srv.kv == nil {
 		return
 	}
-	desiredNetworkObj, err := srv.loadDesiredNetwork(ctx)
-	if err != nil {
-		log.Printf("reconcile: load desired network failed: %v", err)
-	}
-	var desiredNet *cluster_controllerpb.DesiredNetwork
-	specHash := ""
-	if desiredNetworkObj != nil {
-		desiredNet = &cluster_controllerpb.DesiredNetwork{
-			Domain:           desiredNetworkObj.Spec.GetClusterDomain(),
-			Protocol:         desiredNetworkObj.Spec.GetProtocol(),
-			PortHttp:         desiredNetworkObj.Spec.GetPortHttp(),
-			PortHttps:        desiredNetworkObj.Spec.GetPortHttps(),
-			AlternateDomains: append([]string(nil), desiredNetworkObj.Spec.GetAlternateDomains()...),
-			AcmeEnabled:      desiredNetworkObj.Spec.GetAcmeEnabled(),
-			AdminEmail:       desiredNetworkObj.Spec.GetAdminEmail(),
-		}
-		if h, herr := hashDesiredNetwork(desiredNet); herr == nil {
-			specHash = h
-		} else {
-			log.Printf("reconcile: hash desired network: %v", herr)
-		}
-	}
+	// Network reconciliation is workflow-native after Day-0; legacy plan-slot
+	// applied hash is no longer used.
 	srv.lock("reconcile:snapshot")
 	nodes := make([]*nodeState, 0, len(srv.state.Nodes))
 	for _, node := range srv.state.Nodes {
@@ -184,19 +164,6 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		canPriv := node.Capabilities != nil && node.Capabilities.CanApplyPrivileged
 		if !canPriv {
 			log.Printf("reconcile: node %s lacks privileged-apply capability", node.NodeID)
-		}
-
-		appliedHash, err := srv.getNodeAppliedHash(ctx, node.NodeID)
-		if err != nil {
-			log.Printf("reconcile: read applied hash for %s: %v", node.NodeID, err)
-			continue
-		}
-		// Network reconciliation is now workflow-native; the legacy plan-slot
-		// comparison branches have been removed. Drift detection happens in
-		// reconcile workflows, not in controller-side imperative logic.
-		if specHash != "" && appliedHash != specHash {
-			log.Printf("reconcile: network config drift for %s — workflow will converge", node.NodeID)
-			continue
 		}
 
 		// Day 1 intent resolution: resolve the node's desired component set

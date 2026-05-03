@@ -261,14 +261,14 @@ func TestPublishReconciler_PromotesStuckVerified(t *testing.T) {
 	}
 
 	// Seed a VERIFIED artifact with ModifiedUnix in the past (older than threshold).
-	// Phase 6 requires the binary blob to be present for promotion to succeed.
+	// Phase 6 requires the binary blob to be present and checksum-matching for promotion.
 	ctx := context.Background()
 	key := artifactKeyWithBuild(ref, 0)
 	_ = srv.Storage().MkdirAll(ctx, artifactsDir, 0o755)
 	blobContent := []byte("fake-binary-for-reconciler-test")
 	m := &repopb.ArtifactManifest{
 		Ref:          ref,
-		Checksum:     "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+		Checksum:     checksumBytes(blobContent), // must match actual blob
 		ModifiedUnix: time.Now().Add(-2 * time.Minute).Unix(), // well past threshold
 		SizeBytes:    int64(len(blobContent)),
 	}

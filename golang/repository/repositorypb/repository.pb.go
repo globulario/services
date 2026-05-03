@@ -821,29 +821,42 @@ const (
 	RepositoryFindingKind_REPO_FIND_QUARANTINED_INSTALLABLE     RepositoryFindingKind = 5
 	RepositoryFindingKind_REPO_FIND_CONFIG_CONFLICT             RepositoryFindingKind = 6
 	RepositoryFindingKind_REPO_FIND_ROLLBACK_FAILED             RepositoryFindingKind = 7
+	// Phase 1 operational-mode invariants:
+	RepositoryFindingKind_REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT RepositoryFindingKind = 10 // service reports FULL mode but ScyllaDB is unavailable
+	RepositoryFindingKind_REPO_FIND_MINIO_BLOCKS_REPOSITORY       RepositoryFindingKind = 11 // optional MinIO dep is blocking a non-mirror capability
+	RepositoryFindingKind_REPO_FIND_SOURCE_CHAIN_UNAVAILABLE      RepositoryFindingKind = 12 // no source can provide any artifact
+	RepositoryFindingKind_REPO_FIND_LOCAL_CACHE_CORRUPTION        RepositoryFindingKind = 13 // receipt exists but local blob is missing or corrupt
 )
 
 // Enum value maps for RepositoryFindingKind.
 var (
 	RepositoryFindingKind_name = map[int32]string{
-		0: "REPOSITORY_FINDING_UNSPECIFIED",
-		1: "REPO_FIND_PUBLISHED_MISSING_BLOB",
-		2: "REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH",
-		3: "REPO_FIND_PUBLISHED_UNSIGNED_REQUIRED",
-		4: "REPO_FIND_REVOKED_INSTALLABLE",
-		5: "REPO_FIND_QUARANTINED_INSTALLABLE",
-		6: "REPO_FIND_CONFIG_CONFLICT",
-		7: "REPO_FIND_ROLLBACK_FAILED",
+		0:  "REPOSITORY_FINDING_UNSPECIFIED",
+		1:  "REPO_FIND_PUBLISHED_MISSING_BLOB",
+		2:  "REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH",
+		3:  "REPO_FIND_PUBLISHED_UNSIGNED_REQUIRED",
+		4:  "REPO_FIND_REVOKED_INSTALLABLE",
+		5:  "REPO_FIND_QUARANTINED_INSTALLABLE",
+		6:  "REPO_FIND_CONFIG_CONFLICT",
+		7:  "REPO_FIND_ROLLBACK_FAILED",
+		10: "REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT",
+		11: "REPO_FIND_MINIO_BLOCKS_REPOSITORY",
+		12: "REPO_FIND_SOURCE_CHAIN_UNAVAILABLE",
+		13: "REPO_FIND_LOCAL_CACHE_CORRUPTION",
 	}
 	RepositoryFindingKind_value = map[string]int32{
-		"REPOSITORY_FINDING_UNSPECIFIED":        0,
-		"REPO_FIND_PUBLISHED_MISSING_BLOB":      1,
-		"REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH": 2,
-		"REPO_FIND_PUBLISHED_UNSIGNED_REQUIRED": 3,
-		"REPO_FIND_REVOKED_INSTALLABLE":         4,
-		"REPO_FIND_QUARANTINED_INSTALLABLE":     5,
-		"REPO_FIND_CONFIG_CONFLICT":             6,
-		"REPO_FIND_ROLLBACK_FAILED":             7,
+		"REPOSITORY_FINDING_UNSPECIFIED":          0,
+		"REPO_FIND_PUBLISHED_MISSING_BLOB":        1,
+		"REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH":   2,
+		"REPO_FIND_PUBLISHED_UNSIGNED_REQUIRED":   3,
+		"REPO_FIND_REVOKED_INSTALLABLE":           4,
+		"REPO_FIND_QUARANTINED_INSTALLABLE":       5,
+		"REPO_FIND_CONFIG_CONFLICT":               6,
+		"REPO_FIND_ROLLBACK_FAILED":               7,
+		"REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT": 10,
+		"REPO_FIND_MINIO_BLOCKS_REPOSITORY":       11,
+		"REPO_FIND_SOURCE_CHAIN_UNAVAILABLE":      12,
+		"REPO_FIND_LOCAL_CACHE_CORRUPTION":        13,
 	}
 )
 
@@ -4376,8 +4389,13 @@ type ExplainArtifactResponse struct {
 	RelatedWorkflowRunId string                 `protobuf:"bytes,16,opt,name=related_workflow_run_id,json=relatedWorkflowRunId,proto3" json:"related_workflow_run_id,omitempty"`
 	VerifyStatus         ArtifactVerifyStatus   `protobuf:"varint,17,opt,name=verify_status,json=verifyStatus,proto3,enum=repository.ArtifactVerifyStatus" json:"verify_status,omitempty"`
 	Detail               string                 `protobuf:"bytes,18,opt,name=detail,proto3" json:"detail,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Source availability — populated when blob is missing locally.
+	// Each entry is "name:type:status:reason" (status: PRESENT|ABSENT|REACHABLE|UNREACHABLE|UNCONFIGURED).
+	SourceAvailability []string `protobuf:"bytes,19,rep,name=source_availability,json=sourceAvailability,proto3" json:"source_availability,omitempty"`
+	// True when blob is absent locally but at least one source can provide it.
+	Repairable    bool `protobuf:"varint,20,opt,name=repairable,proto3" json:"repairable,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ExplainArtifactResponse) Reset() {
@@ -4534,6 +4552,20 @@ func (x *ExplainArtifactResponse) GetDetail() string {
 		return x.Detail
 	}
 	return ""
+}
+
+func (x *ExplainArtifactResponse) GetSourceAvailability() []string {
+	if x != nil {
+		return x.SourceAvailability
+	}
+	return nil
+}
+
+func (x *ExplainArtifactResponse) GetRepairable() bool {
+	if x != nil {
+		return x.Repairable
+	}
+	return false
 }
 
 // ── ResolveArtifact (deterministic resolver) ────────────────────────────────
@@ -8873,6 +8905,283 @@ func (x *ListRepositoryFindingsResponse) GetGeneratedAtUnix() int64 {
 	return 0
 }
 
+// DependencyHealthProto describes one dependency's live state and which
+// capabilities are affected when it is unhealthy. "Proto" suffix avoids
+// collision with the Go operational.DependencyHealth type.
+type DependencyHealthProto struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Name                string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`     // e.g. "scylladb", "minio_mirror"
+	Kind                string                 `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`     // REQUIRED, OPTIONAL, MIRROR, INDEX, CACHE, …
+	Status              string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"` // HEALTHY, DEGRADED, UNAVAILABLE, UNSAFE
+	Reason              string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	AffectsCapabilities []string               `protobuf:"bytes,5,rep,name=affects_capabilities,json=affectsCapabilities,proto3" json:"affects_capabilities,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *DependencyHealthProto) Reset() {
+	*x = DependencyHealthProto{}
+	mi := &file_repository_proto_msgTypes[104]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DependencyHealthProto) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DependencyHealthProto) ProtoMessage() {}
+
+func (x *DependencyHealthProto) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[104]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DependencyHealthProto.ProtoReflect.Descriptor instead.
+func (*DependencyHealthProto) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{104}
+}
+
+func (x *DependencyHealthProto) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *DependencyHealthProto) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *DependencyHealthProto) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *DependencyHealthProto) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *DependencyHealthProto) GetAffectsCapabilities() []string {
+	if x != nil {
+		return x.AffectsCapabilities
+	}
+	return nil
+}
+
+// CapabilityHealthProto describes the live status of one named capability.
+type CapabilityHealthProto struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`     // e.g. "repository.write", "repository.read"
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"` // AVAILABLE, DEGRADED, BLOCKED, DISABLED
+	Mode          string                 `protobuf:"bytes,3,opt,name=mode,proto3" json:"mode,omitempty"`     // FULL, DEGRADED, READ_ONLY, LOCAL_ONLY, UNAVAILABLE
+	Reason        string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CapabilityHealthProto) Reset() {
+	*x = CapabilityHealthProto{}
+	mi := &file_repository_proto_msgTypes[105]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CapabilityHealthProto) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CapabilityHealthProto) ProtoMessage() {}
+
+func (x *CapabilityHealthProto) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[105]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CapabilityHealthProto.ProtoReflect.Descriptor instead.
+func (*CapabilityHealthProto) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{105}
+}
+
+func (x *CapabilityHealthProto) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CapabilityHealthProto) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *CapabilityHealthProto) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *CapabilityHealthProto) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type GetRepositoryStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRepositoryStatusRequest) Reset() {
+	*x = GetRepositoryStatusRequest{}
+	mi := &file_repository_proto_msgTypes[106]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRepositoryStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRepositoryStatusRequest) ProtoMessage() {}
+
+func (x *GetRepositoryStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[106]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRepositoryStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetRepositoryStatusRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{106}
+}
+
+// GetRepositoryStatusResponse is the live operational picture of this
+// repository instance. The gRPC SERVING state is orthogonal: a service may
+// be SERVING with mode DEGRADED or READ_ONLY.
+//
+//	mode = FULL        → all capabilities available
+//	mode = DEGRADED    → MinIO mirror unavailable; core capabilities work
+//	mode = READ_ONLY   → ScyllaDB unavailable; writes blocked; local reads work
+//	mode = LOCAL_ONLY  → ScyllaDB + MinIO unavailable; only local POSIX CAS
+//	mode = UNAVAILABLE → service cannot serve any capability
+type GetRepositoryStatusResponse struct {
+	state          protoimpl.MessageState   `protogen:"open.v1"`
+	Service        string                   `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	Mode           string                   `protobuf:"bytes,2,opt,name=mode,proto3" json:"mode,omitempty"`
+	Reason         string                   `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	Dependencies   []*DependencyHealthProto `protobuf:"bytes,4,rep,name=dependencies,proto3" json:"dependencies,omitempty"`
+	Capabilities   []*CapabilityHealthProto `protobuf:"bytes,5,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
+	ObservedAtUnix int64                    `protobuf:"varint,6,opt,name=observed_at_unix,json=observedAtUnix,proto3" json:"observed_at_unix,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetRepositoryStatusResponse) Reset() {
+	*x = GetRepositoryStatusResponse{}
+	mi := &file_repository_proto_msgTypes[107]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRepositoryStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRepositoryStatusResponse) ProtoMessage() {}
+
+func (x *GetRepositoryStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[107]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRepositoryStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetRepositoryStatusResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{107}
+}
+
+func (x *GetRepositoryStatusResponse) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *GetRepositoryStatusResponse) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *GetRepositoryStatusResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *GetRepositoryStatusResponse) GetDependencies() []*DependencyHealthProto {
+	if x != nil {
+		return x.Dependencies
+	}
+	return nil
+}
+
+func (x *GetRepositoryStatusResponse) GetCapabilities() []*CapabilityHealthProto {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
+func (x *GetRepositoryStatusResponse) GetObservedAtUnix() int64 {
+	if x != nil {
+		return x.ObservedAtUnix
+	}
+	return 0
+}
+
 var File_repository_proto protoreflect.FileDescriptor
 
 const file_repository_proto_rawDesc = "" +
@@ -9185,7 +9494,7 @@ const file_repository_proto_rawDesc = "" +
 	"\x16ExplainArtifactRequest\x12;\n" +
 	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefB\x10\x8a\xb5\x18\f\n" +
 	"\bartifact\x10\x01R\x03ref\x12!\n" +
-	"\fbuild_number\x18\x02 \x01(\x03R\vbuildNumber\"\x83\x06\n" +
+	"\fbuild_number\x18\x02 \x01(\x03R\vbuildNumber\"\xd4\x06\n" +
 	"\x17ExplainArtifactResponse\x12)\n" +
 	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12!\n" +
 	"\fartifact_key\x18\x02 \x01(\tR\vartifactKey\x12%\n" +
@@ -9206,7 +9515,11 @@ const file_repository_proto_rawDesc = "" +
 	"\x12recommended_action\x18\x0f \x01(\tR\x11recommendedAction\x125\n" +
 	"\x17related_workflow_run_id\x18\x10 \x01(\tR\x14relatedWorkflowRunId\x12E\n" +
 	"\rverify_status\x18\x11 \x01(\x0e2 .repository.ArtifactVerifyStatusR\fverifyStatus\x12\x16\n" +
-	"\x06detail\x18\x12 \x01(\tR\x06detail\"\x85\x02\n" +
+	"\x06detail\x18\x12 \x01(\tR\x06detail\x12/\n" +
+	"\x13source_availability\x18\x13 \x03(\tR\x12sourceAvailability\x12\x1e\n" +
+	"\n" +
+	"repairable\x18\x14 \x01(\bR\n" +
+	"repairable\"\x85\x02\n" +
 	"\x16ResolveArtifactRequest\x12!\n" +
 	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12,\n" +
@@ -9574,7 +9887,26 @@ const file_repository_proto_rawDesc = "" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\"\x87\x01\n" +
 	"\x1eListRepositoryFindingsResponse\x129\n" +
 	"\bfindings\x18\x01 \x03(\v2\x1d.repository.RepositoryFindingR\bfindings\x12*\n" +
-	"\x11generated_at_unix\x18\x02 \x01(\x03R\x0fgeneratedAtUnix*\x86\x01\n" +
+	"\x11generated_at_unix\x18\x02 \x01(\x03R\x0fgeneratedAtUnix\"\xa2\x01\n" +
+	"\x15DependencyHealthProto\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\x121\n" +
+	"\x14affects_capabilities\x18\x05 \x03(\tR\x13affectsCapabilities\"o\n" +
+	"\x15CapabilityHealthProto\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12\x12\n" +
+	"\x04mode\x18\x03 \x01(\tR\x04mode\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\"\x1c\n" +
+	"\x1aGetRepositoryStatusRequest\"\x9b\x02\n" +
+	"\x1bGetRepositoryStatusResponse\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\x12\x12\n" +
+	"\x04mode\x18\x02 \x01(\tR\x04mode\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12E\n" +
+	"\fdependencies\x18\x04 \x03(\v2!.repository.DependencyHealthProtoR\fdependencies\x12E\n" +
+	"\fcapabilities\x18\x05 \x03(\v2!.repository.CapabilityHealthProtoR\fcapabilities\x12(\n" +
+	"\x10observed_at_unix\x18\x06 \x01(\x03R\x0eobservedAtUnix*\x86\x01\n" +
 	"\fArtifactKind\x12\x1d\n" +
 	"\x19ARTIFACT_KIND_UNSPECIFIED\x10\x00\x12\v\n" +
 	"\aSERVICE\x10\x01\x12\x0f\n" +
@@ -9691,7 +10023,7 @@ const file_repository_proto_rawDesc = "" +
 	"\x17CONFIG_RECEIPT_CONFLICT\x10\x05\x12\x1b\n" +
 	"\x17CONFIG_RECEIPT_RESTORED\x10\x06\x12!\n" +
 	"\x1dCONFIG_RECEIPT_SKIPPED_SECRET\x10\a\x12\x19\n" +
-	"\x15CONFIG_RECEIPT_FAILED\x10\b*\xbf\x02\n" +
+	"\x15CONFIG_RECEIPT_FAILED\x10\b*\xe1\x03\n" +
 	"\x15RepositoryFindingKind\x12\"\n" +
 	"\x1eREPOSITORY_FINDING_UNSPECIFIED\x10\x00\x12$\n" +
 	" REPO_FIND_PUBLISHED_MISSING_BLOB\x10\x01\x12)\n" +
@@ -9700,13 +10032,18 @@ const file_repository_proto_rawDesc = "" +
 	"\x1dREPO_FIND_REVOKED_INSTALLABLE\x10\x04\x12%\n" +
 	"!REPO_FIND_QUARANTINED_INSTALLABLE\x10\x05\x12\x1d\n" +
 	"\x19REPO_FIND_CONFIG_CONFLICT\x10\x06\x12\x1d\n" +
-	"\x19REPO_FIND_ROLLBACK_FAILED\x10\a*\x94\x01\n" +
+	"\x19REPO_FIND_ROLLBACK_FAILED\x10\a\x12+\n" +
+	"'REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT\x10\n" +
+	"\x12%\n" +
+	"!REPO_FIND_MINIO_BLOCKS_REPOSITORY\x10\v\x12&\n" +
+	"\"REPO_FIND_SOURCE_CHAIN_UNAVAILABLE\x10\f\x12$\n" +
+	" REPO_FIND_LOCAL_CACHE_CORRUPTION\x10\r*\x94\x01\n" +
 	"\x19RepositoryFindingSeverity\x12\"\n" +
 	"\x1eREPO_FIND_SEVERITY_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eREPO_FIND_INFO\x10\x01\x12\x12\n" +
 	"\x0eREPO_FIND_WARN\x10\x02\x12\x13\n" +
 	"\x0fREPO_FIND_ERROR\x10\x03\x12\x16\n" +
-	"\x12REPO_FIND_CRITICAL\x10\x042\xb96\n" +
+	"\x12REPO_FIND_CRITICAL\x10\x042\xe27\n" +
 	"\x11PackageRepository\x12\xa7\x01\n" +
 	"\x0eDownloadBundle\x12!.repository.DownloadBundleRequest\x1a\".repository.DownloadBundleResponse\"L\x82\xb5\x18H\n" +
 	"\x16repository.bundle.read\x12\x04read\x1a /repository/bundles/{descriptor}*\x06viewer0\x01\x12\xb0\x01\n" +
@@ -9785,7 +10122,9 @@ const file_repository_proto_rawDesc = "" +
 	"\x12ListConfigReceipts\x12%.repository.ListConfigReceiptsRequest\x1a&.repository.ListConfigReceiptsResponse\"O\x82\xb5\x18K\n" +
 	"\x1erepository.config.receipt.list\x12\x04read\"\x1b/repository/config_receipts*\x06viewer\x12\xb3\x01\n" +
 	"\x16ListRepositoryFindings\x12).repository.ListRepositoryFindingsRequest\x1a*.repository.ListRepositoryFindingsResponse\"B\x82\xb5\x18>\n" +
-	"\x18repository.findings.list\x12\x04read\"\x14/repository/findings*\x06viewerB?Z=github.com/globulario/services/golang/repository/repositorypbb\x06proto3"
+	"\x18repository.findings.list\x12\x04read\"\x14/repository/findings*\x06viewer\x12\xa6\x01\n" +
+	"\x13GetRepositoryStatus\x12&.repository.GetRepositoryStatusRequest\x1a'.repository.GetRepositoryStatusResponse\">\x82\xb5\x18:\n" +
+	"\x16repository.status.read\x12\x04read\"\x12/repository/status*\x06viewerB?Z=github.com/globulario/services/golang/repository/repositorypbb\x06proto3"
 
 var (
 	file_repository_proto_rawDescOnce sync.Once
@@ -9800,7 +10139,7 @@ func file_repository_proto_rawDescGZIP() []byte {
 }
 
 var file_repository_proto_enumTypes = make([]protoimpl.EnumInfo, 14)
-var file_repository_proto_msgTypes = make([]protoimpl.MessageInfo, 107)
+var file_repository_proto_msgTypes = make([]protoimpl.MessageInfo, 111)
 var file_repository_proto_goTypes = []any{
 	(ArtifactKind)(0),                           // 0: repository.ArtifactKind
 	(ArtifactChannel)(0),                        // 1: repository.ArtifactChannel
@@ -9920,15 +10259,19 @@ var file_repository_proto_goTypes = []any{
 	(*RepositoryFinding)(nil),                   // 115: repository.RepositoryFinding
 	(*ListRepositoryFindingsRequest)(nil),       // 116: repository.ListRepositoryFindingsRequest
 	(*ListRepositoryFindingsResponse)(nil),      // 117: repository.ListRepositoryFindingsResponse
-	nil,                                         // 118: repository.ArtifactManifest.DefaultsEntry
-	nil,                                         // 119: repository.ApplicationDetail.AppConfigEntry
-	nil,                                         // 120: repository.RepositoryFinding.EvidenceEntry
-	(*resourcepb.PackageDescriptor)(nil),        // 121: resource.PackageDescriptor
+	(*DependencyHealthProto)(nil),               // 118: repository.DependencyHealthProto
+	(*CapabilityHealthProto)(nil),               // 119: repository.CapabilityHealthProto
+	(*GetRepositoryStatusRequest)(nil),          // 120: repository.GetRepositoryStatusRequest
+	(*GetRepositoryStatusResponse)(nil),         // 121: repository.GetRepositoryStatusResponse
+	nil,                                         // 122: repository.ArtifactManifest.DefaultsEntry
+	nil,                                         // 123: repository.ApplicationDetail.AppConfigEntry
+	nil,                                         // 124: repository.RepositoryFinding.EvidenceEntry
+	(*resourcepb.PackageDescriptor)(nil),        // 125: resource.PackageDescriptor
 }
 var file_repository_proto_depIdxs = []int32{
 	0,   // 0: repository.ArtifactRef.kind:type_name -> repository.ArtifactKind
 	14,  // 1: repository.ArtifactManifest.ref:type_name -> repository.ArtifactRef
-	118, // 2: repository.ArtifactManifest.defaults:type_name -> repository.ArtifactManifest.DefaultsEntry
+	122, // 2: repository.ArtifactManifest.defaults:type_name -> repository.ArtifactManifest.DefaultsEntry
 	17,  // 3: repository.ArtifactManifest.service_detail:type_name -> repository.ServiceDetail
 	18,  // 4: repository.ArtifactManifest.application_detail:type_name -> repository.ApplicationDetail
 	19,  // 5: repository.ArtifactManifest.infrastructure_detail:type_name -> repository.InfrastructureDetail
@@ -9938,7 +10281,7 @@ var file_repository_proto_depIdxs = []int32{
 	81,  // 9: repository.ArtifactManifest.upstream_import:type_name -> repository.UpstreamImportRecord
 	1,   // 10: repository.ArtifactManifest.channel:type_name -> repository.ArtifactChannel
 	85,  // 11: repository.ArtifactManifest.configs:type_name -> repository.PackageConfigFile
-	119, // 12: repository.ApplicationDetail.app_config:type_name -> repository.ApplicationDetail.AppConfigEntry
+	123, // 12: repository.ApplicationDetail.app_config:type_name -> repository.ApplicationDetail.AppConfigEntry
 	14,  // 13: repository.SetArtifactStateRequest.ref:type_name -> repository.ArtifactRef
 	2,   // 14: repository.SetArtifactStateRequest.target_state:type_name -> repository.PublishState
 	2,   // 15: repository.SetArtifactStateResponse.previous_state:type_name -> repository.PublishState
@@ -9949,7 +10292,7 @@ var file_repository_proto_depIdxs = []int32{
 	14,  // 20: repository.DownloadArtifactRequest.ref:type_name -> repository.ArtifactRef
 	14,  // 21: repository.GetArtifactManifestRequest.ref:type_name -> repository.ArtifactRef
 	16,  // 22: repository.GetArtifactManifestResponse.manifest:type_name -> repository.ArtifactManifest
-	121, // 23: repository.DownloadBundleRequest.descriptor:type_name -> resource.PackageDescriptor
+	125, // 23: repository.DownloadBundleRequest.descriptor:type_name -> resource.PackageDescriptor
 	38,  // 24: repository.ListBundlesResponse.bundles:type_name -> repository.BundleSummary
 	0,   // 25: repository.SearchArtifactsRequest.kind:type_name -> repository.ArtifactKind
 	1,   // 26: repository.SearchArtifactsRequest.channel:type_name -> repository.ArtifactChannel
@@ -10026,92 +10369,96 @@ var file_repository_proto_depIdxs = []int32{
 	12,  // 97: repository.RepositoryFinding.kind:type_name -> repository.RepositoryFindingKind
 	13,  // 98: repository.RepositoryFinding.severity:type_name -> repository.RepositoryFindingSeverity
 	14,  // 99: repository.RepositoryFinding.ref:type_name -> repository.ArtifactRef
-	120, // 100: repository.RepositoryFinding.evidence:type_name -> repository.RepositoryFinding.EvidenceEntry
+	124, // 100: repository.RepositoryFinding.evidence:type_name -> repository.RepositoryFinding.EvidenceEntry
 	12,  // 101: repository.ListRepositoryFindingsRequest.kind_filter:type_name -> repository.RepositoryFindingKind
 	115, // 102: repository.ListRepositoryFindingsResponse.findings:type_name -> repository.RepositoryFinding
-	36,  // 103: repository.PackageRepository.DownloadBundle:input_type -> repository.DownloadBundleRequest
-	34,  // 104: repository.PackageRepository.UploadBundle:input_type -> repository.UploadBundleRequest
-	26,  // 105: repository.PackageRepository.ListArtifacts:input_type -> repository.ListArtifactsRequest
-	28,  // 106: repository.PackageRepository.UploadArtifact:input_type -> repository.UploadArtifactRequest
-	30,  // 107: repository.PackageRepository.DownloadArtifact:input_type -> repository.DownloadArtifactRequest
-	32,  // 108: repository.PackageRepository.GetArtifactManifest:input_type -> repository.GetArtifactManifestRequest
-	39,  // 109: repository.PackageRepository.ListBundles:input_type -> repository.ListBundlesRequest
-	41,  // 110: repository.PackageRepository.SearchArtifacts:input_type -> repository.SearchArtifactsRequest
-	43,  // 111: repository.PackageRepository.GetArtifactVersions:input_type -> repository.GetArtifactVersionsRequest
-	49,  // 112: repository.PackageRepository.DescribePackage:input_type -> repository.DescribePackageRequest
-	45,  // 113: repository.PackageRepository.DeleteArtifact:input_type -> repository.DeleteArtifactRequest
-	47,  // 114: repository.PackageRepository.PromoteArtifact:input_type -> repository.PromoteArtifactRequest
-	21,  // 115: repository.PackageRepository.SetArtifactState:input_type -> repository.SetArtifactStateRequest
-	23,  // 116: repository.PackageRepository.GetNamespace:input_type -> repository.GetNamespaceRequest
-	64,  // 117: repository.PackageRepository.UpdateArtifactBinary:input_type -> repository.UpdateArtifactBinaryRequest
-	69,  // 118: repository.PackageRepository.ImportProvisionalArtifact:input_type -> repository.ImportProvisionalRequest
-	67,  // 119: repository.PackageRepository.AllocateUpload:input_type -> repository.AllocateUploadRequest
-	60,  // 120: repository.PackageRepository.ResolveArtifact:input_type -> repository.ResolveArtifactRequest
-	62,  // 121: repository.PackageRepository.ResolveByEntrypointChecksum:input_type -> repository.ResolveByEntrypointChecksumRequest
-	82,  // 122: repository.PackageRepository.ArchiveUnreachableArtifacts:input_type -> repository.ArchiveUnreachableArtifactsRequest
-	72,  // 123: repository.PackageRepository.RegisterUpstream:input_type -> repository.RegisterUpstreamRequest
-	74,  // 124: repository.PackageRepository.ListUpstreams:input_type -> repository.ListUpstreamsRequest
-	76,  // 125: repository.PackageRepository.RemoveUpstream:input_type -> repository.RemoveUpstreamRequest
-	79,  // 126: repository.PackageRepository.SyncFromUpstream:input_type -> repository.SyncFromUpstreamRequest
-	54,  // 127: repository.PackageRepository.VerifyArtifact:input_type -> repository.VerifyArtifactRequest
-	56,  // 128: repository.PackageRepository.RepairArtifact:input_type -> repository.RepairArtifactRequest
-	58,  // 129: repository.PackageRepository.ExplainArtifact:input_type -> repository.ExplainArtifactRequest
-	88,  // 130: repository.PackageRepository.TrustPublisher:input_type -> repository.TrustPublisherRequest
-	90,  // 131: repository.PackageRepository.RevokePublisherKey:input_type -> repository.RevokePublisherKeyRequest
-	92,  // 132: repository.PackageRepository.ListTrustedPublishers:input_type -> repository.ListTrustedPublishersRequest
-	94,  // 133: repository.PackageRepository.RegisterArtifactSignature:input_type -> repository.RegisterArtifactSignatureRequest
-	96,  // 134: repository.PackageRepository.VerifyArtifactSignature:input_type -> repository.VerifyArtifactSignatureRequest
-	98,  // 135: repository.PackageRepository.ListArtifactSignatures:input_type -> repository.ListArtifactSignaturesRequest
-	101, // 136: repository.PackageRepository.RecordInstalledRevision:input_type -> repository.RecordInstalledRevisionRequest
-	103, // 137: repository.PackageRepository.ListInstalledRevisions:input_type -> repository.ListInstalledRevisionsRequest
-	107, // 138: repository.PackageRepository.ListRollbackCandidates:input_type -> repository.ListRollbackCandidatesRequest
-	111, // 139: repository.PackageRepository.RecordConfigReceipt:input_type -> repository.RecordConfigReceiptRequest
-	113, // 140: repository.PackageRepository.ListConfigReceipts:input_type -> repository.ListConfigReceiptsRequest
-	116, // 141: repository.PackageRepository.ListRepositoryFindings:input_type -> repository.ListRepositoryFindingsRequest
-	37,  // 142: repository.PackageRepository.DownloadBundle:output_type -> repository.DownloadBundleResponse
-	35,  // 143: repository.PackageRepository.UploadBundle:output_type -> repository.UploadBundleResponse
-	27,  // 144: repository.PackageRepository.ListArtifacts:output_type -> repository.ListArtifactsResponse
-	29,  // 145: repository.PackageRepository.UploadArtifact:output_type -> repository.UploadArtifactResponse
-	31,  // 146: repository.PackageRepository.DownloadArtifact:output_type -> repository.DownloadArtifactResponse
-	33,  // 147: repository.PackageRepository.GetArtifactManifest:output_type -> repository.GetArtifactManifestResponse
-	40,  // 148: repository.PackageRepository.ListBundles:output_type -> repository.ListBundlesResponse
-	42,  // 149: repository.PackageRepository.SearchArtifacts:output_type -> repository.SearchArtifactsResponse
-	44,  // 150: repository.PackageRepository.GetArtifactVersions:output_type -> repository.GetArtifactVersionsResponse
-	53,  // 151: repository.PackageRepository.DescribePackage:output_type -> repository.DescribePackageResponse
-	46,  // 152: repository.PackageRepository.DeleteArtifact:output_type -> repository.DeleteArtifactResponse
-	48,  // 153: repository.PackageRepository.PromoteArtifact:output_type -> repository.PromoteArtifactResponse
-	22,  // 154: repository.PackageRepository.SetArtifactState:output_type -> repository.SetArtifactStateResponse
-	25,  // 155: repository.PackageRepository.GetNamespace:output_type -> repository.GetNamespaceResponse
-	66,  // 156: repository.PackageRepository.UpdateArtifactBinary:output_type -> repository.UpdateArtifactBinaryResponse
-	70,  // 157: repository.PackageRepository.ImportProvisionalArtifact:output_type -> repository.ImportProvisionalResponse
-	68,  // 158: repository.PackageRepository.AllocateUpload:output_type -> repository.AllocateUploadResponse
-	61,  // 159: repository.PackageRepository.ResolveArtifact:output_type -> repository.ResolveArtifactResponse
-	63,  // 160: repository.PackageRepository.ResolveByEntrypointChecksum:output_type -> repository.ResolveByEntrypointChecksumResponse
-	84,  // 161: repository.PackageRepository.ArchiveUnreachableArtifacts:output_type -> repository.ArchiveUnreachableArtifactsResponse
-	73,  // 162: repository.PackageRepository.RegisterUpstream:output_type -> repository.RegisterUpstreamResponse
-	75,  // 163: repository.PackageRepository.ListUpstreams:output_type -> repository.ListUpstreamsResponse
-	77,  // 164: repository.PackageRepository.RemoveUpstream:output_type -> repository.RemoveUpstreamResponse
-	80,  // 165: repository.PackageRepository.SyncFromUpstream:output_type -> repository.SyncFromUpstreamResponse
-	55,  // 166: repository.PackageRepository.VerifyArtifact:output_type -> repository.VerifyArtifactResponse
-	57,  // 167: repository.PackageRepository.RepairArtifact:output_type -> repository.RepairArtifactResponse
-	59,  // 168: repository.PackageRepository.ExplainArtifact:output_type -> repository.ExplainArtifactResponse
-	89,  // 169: repository.PackageRepository.TrustPublisher:output_type -> repository.TrustPublisherResponse
-	91,  // 170: repository.PackageRepository.RevokePublisherKey:output_type -> repository.RevokePublisherKeyResponse
-	93,  // 171: repository.PackageRepository.ListTrustedPublishers:output_type -> repository.ListTrustedPublishersResponse
-	95,  // 172: repository.PackageRepository.RegisterArtifactSignature:output_type -> repository.RegisterArtifactSignatureResponse
-	97,  // 173: repository.PackageRepository.VerifyArtifactSignature:output_type -> repository.VerifyArtifactSignatureResponse
-	99,  // 174: repository.PackageRepository.ListArtifactSignatures:output_type -> repository.ListArtifactSignaturesResponse
-	102, // 175: repository.PackageRepository.RecordInstalledRevision:output_type -> repository.RecordInstalledRevisionResponse
-	104, // 176: repository.PackageRepository.ListInstalledRevisions:output_type -> repository.ListInstalledRevisionsResponse
-	108, // 177: repository.PackageRepository.ListRollbackCandidates:output_type -> repository.ListRollbackCandidatesResponse
-	112, // 178: repository.PackageRepository.RecordConfigReceipt:output_type -> repository.RecordConfigReceiptResponse
-	114, // 179: repository.PackageRepository.ListConfigReceipts:output_type -> repository.ListConfigReceiptsResponse
-	117, // 180: repository.PackageRepository.ListRepositoryFindings:output_type -> repository.ListRepositoryFindingsResponse
-	142, // [142:181] is the sub-list for method output_type
-	103, // [103:142] is the sub-list for method input_type
-	103, // [103:103] is the sub-list for extension type_name
-	103, // [103:103] is the sub-list for extension extendee
-	0,   // [0:103] is the sub-list for field type_name
+	118, // 103: repository.GetRepositoryStatusResponse.dependencies:type_name -> repository.DependencyHealthProto
+	119, // 104: repository.GetRepositoryStatusResponse.capabilities:type_name -> repository.CapabilityHealthProto
+	36,  // 105: repository.PackageRepository.DownloadBundle:input_type -> repository.DownloadBundleRequest
+	34,  // 106: repository.PackageRepository.UploadBundle:input_type -> repository.UploadBundleRequest
+	26,  // 107: repository.PackageRepository.ListArtifacts:input_type -> repository.ListArtifactsRequest
+	28,  // 108: repository.PackageRepository.UploadArtifact:input_type -> repository.UploadArtifactRequest
+	30,  // 109: repository.PackageRepository.DownloadArtifact:input_type -> repository.DownloadArtifactRequest
+	32,  // 110: repository.PackageRepository.GetArtifactManifest:input_type -> repository.GetArtifactManifestRequest
+	39,  // 111: repository.PackageRepository.ListBundles:input_type -> repository.ListBundlesRequest
+	41,  // 112: repository.PackageRepository.SearchArtifacts:input_type -> repository.SearchArtifactsRequest
+	43,  // 113: repository.PackageRepository.GetArtifactVersions:input_type -> repository.GetArtifactVersionsRequest
+	49,  // 114: repository.PackageRepository.DescribePackage:input_type -> repository.DescribePackageRequest
+	45,  // 115: repository.PackageRepository.DeleteArtifact:input_type -> repository.DeleteArtifactRequest
+	47,  // 116: repository.PackageRepository.PromoteArtifact:input_type -> repository.PromoteArtifactRequest
+	21,  // 117: repository.PackageRepository.SetArtifactState:input_type -> repository.SetArtifactStateRequest
+	23,  // 118: repository.PackageRepository.GetNamespace:input_type -> repository.GetNamespaceRequest
+	64,  // 119: repository.PackageRepository.UpdateArtifactBinary:input_type -> repository.UpdateArtifactBinaryRequest
+	69,  // 120: repository.PackageRepository.ImportProvisionalArtifact:input_type -> repository.ImportProvisionalRequest
+	67,  // 121: repository.PackageRepository.AllocateUpload:input_type -> repository.AllocateUploadRequest
+	60,  // 122: repository.PackageRepository.ResolveArtifact:input_type -> repository.ResolveArtifactRequest
+	62,  // 123: repository.PackageRepository.ResolveByEntrypointChecksum:input_type -> repository.ResolveByEntrypointChecksumRequest
+	82,  // 124: repository.PackageRepository.ArchiveUnreachableArtifacts:input_type -> repository.ArchiveUnreachableArtifactsRequest
+	72,  // 125: repository.PackageRepository.RegisterUpstream:input_type -> repository.RegisterUpstreamRequest
+	74,  // 126: repository.PackageRepository.ListUpstreams:input_type -> repository.ListUpstreamsRequest
+	76,  // 127: repository.PackageRepository.RemoveUpstream:input_type -> repository.RemoveUpstreamRequest
+	79,  // 128: repository.PackageRepository.SyncFromUpstream:input_type -> repository.SyncFromUpstreamRequest
+	54,  // 129: repository.PackageRepository.VerifyArtifact:input_type -> repository.VerifyArtifactRequest
+	56,  // 130: repository.PackageRepository.RepairArtifact:input_type -> repository.RepairArtifactRequest
+	58,  // 131: repository.PackageRepository.ExplainArtifact:input_type -> repository.ExplainArtifactRequest
+	88,  // 132: repository.PackageRepository.TrustPublisher:input_type -> repository.TrustPublisherRequest
+	90,  // 133: repository.PackageRepository.RevokePublisherKey:input_type -> repository.RevokePublisherKeyRequest
+	92,  // 134: repository.PackageRepository.ListTrustedPublishers:input_type -> repository.ListTrustedPublishersRequest
+	94,  // 135: repository.PackageRepository.RegisterArtifactSignature:input_type -> repository.RegisterArtifactSignatureRequest
+	96,  // 136: repository.PackageRepository.VerifyArtifactSignature:input_type -> repository.VerifyArtifactSignatureRequest
+	98,  // 137: repository.PackageRepository.ListArtifactSignatures:input_type -> repository.ListArtifactSignaturesRequest
+	101, // 138: repository.PackageRepository.RecordInstalledRevision:input_type -> repository.RecordInstalledRevisionRequest
+	103, // 139: repository.PackageRepository.ListInstalledRevisions:input_type -> repository.ListInstalledRevisionsRequest
+	107, // 140: repository.PackageRepository.ListRollbackCandidates:input_type -> repository.ListRollbackCandidatesRequest
+	111, // 141: repository.PackageRepository.RecordConfigReceipt:input_type -> repository.RecordConfigReceiptRequest
+	113, // 142: repository.PackageRepository.ListConfigReceipts:input_type -> repository.ListConfigReceiptsRequest
+	116, // 143: repository.PackageRepository.ListRepositoryFindings:input_type -> repository.ListRepositoryFindingsRequest
+	120, // 144: repository.PackageRepository.GetRepositoryStatus:input_type -> repository.GetRepositoryStatusRequest
+	37,  // 145: repository.PackageRepository.DownloadBundle:output_type -> repository.DownloadBundleResponse
+	35,  // 146: repository.PackageRepository.UploadBundle:output_type -> repository.UploadBundleResponse
+	27,  // 147: repository.PackageRepository.ListArtifacts:output_type -> repository.ListArtifactsResponse
+	29,  // 148: repository.PackageRepository.UploadArtifact:output_type -> repository.UploadArtifactResponse
+	31,  // 149: repository.PackageRepository.DownloadArtifact:output_type -> repository.DownloadArtifactResponse
+	33,  // 150: repository.PackageRepository.GetArtifactManifest:output_type -> repository.GetArtifactManifestResponse
+	40,  // 151: repository.PackageRepository.ListBundles:output_type -> repository.ListBundlesResponse
+	42,  // 152: repository.PackageRepository.SearchArtifacts:output_type -> repository.SearchArtifactsResponse
+	44,  // 153: repository.PackageRepository.GetArtifactVersions:output_type -> repository.GetArtifactVersionsResponse
+	53,  // 154: repository.PackageRepository.DescribePackage:output_type -> repository.DescribePackageResponse
+	46,  // 155: repository.PackageRepository.DeleteArtifact:output_type -> repository.DeleteArtifactResponse
+	48,  // 156: repository.PackageRepository.PromoteArtifact:output_type -> repository.PromoteArtifactResponse
+	22,  // 157: repository.PackageRepository.SetArtifactState:output_type -> repository.SetArtifactStateResponse
+	25,  // 158: repository.PackageRepository.GetNamespace:output_type -> repository.GetNamespaceResponse
+	66,  // 159: repository.PackageRepository.UpdateArtifactBinary:output_type -> repository.UpdateArtifactBinaryResponse
+	70,  // 160: repository.PackageRepository.ImportProvisionalArtifact:output_type -> repository.ImportProvisionalResponse
+	68,  // 161: repository.PackageRepository.AllocateUpload:output_type -> repository.AllocateUploadResponse
+	61,  // 162: repository.PackageRepository.ResolveArtifact:output_type -> repository.ResolveArtifactResponse
+	63,  // 163: repository.PackageRepository.ResolveByEntrypointChecksum:output_type -> repository.ResolveByEntrypointChecksumResponse
+	84,  // 164: repository.PackageRepository.ArchiveUnreachableArtifacts:output_type -> repository.ArchiveUnreachableArtifactsResponse
+	73,  // 165: repository.PackageRepository.RegisterUpstream:output_type -> repository.RegisterUpstreamResponse
+	75,  // 166: repository.PackageRepository.ListUpstreams:output_type -> repository.ListUpstreamsResponse
+	77,  // 167: repository.PackageRepository.RemoveUpstream:output_type -> repository.RemoveUpstreamResponse
+	80,  // 168: repository.PackageRepository.SyncFromUpstream:output_type -> repository.SyncFromUpstreamResponse
+	55,  // 169: repository.PackageRepository.VerifyArtifact:output_type -> repository.VerifyArtifactResponse
+	57,  // 170: repository.PackageRepository.RepairArtifact:output_type -> repository.RepairArtifactResponse
+	59,  // 171: repository.PackageRepository.ExplainArtifact:output_type -> repository.ExplainArtifactResponse
+	89,  // 172: repository.PackageRepository.TrustPublisher:output_type -> repository.TrustPublisherResponse
+	91,  // 173: repository.PackageRepository.RevokePublisherKey:output_type -> repository.RevokePublisherKeyResponse
+	93,  // 174: repository.PackageRepository.ListTrustedPublishers:output_type -> repository.ListTrustedPublishersResponse
+	95,  // 175: repository.PackageRepository.RegisterArtifactSignature:output_type -> repository.RegisterArtifactSignatureResponse
+	97,  // 176: repository.PackageRepository.VerifyArtifactSignature:output_type -> repository.VerifyArtifactSignatureResponse
+	99,  // 177: repository.PackageRepository.ListArtifactSignatures:output_type -> repository.ListArtifactSignaturesResponse
+	102, // 178: repository.PackageRepository.RecordInstalledRevision:output_type -> repository.RecordInstalledRevisionResponse
+	104, // 179: repository.PackageRepository.ListInstalledRevisions:output_type -> repository.ListInstalledRevisionsResponse
+	108, // 180: repository.PackageRepository.ListRollbackCandidates:output_type -> repository.ListRollbackCandidatesResponse
+	112, // 181: repository.PackageRepository.RecordConfigReceipt:output_type -> repository.RecordConfigReceiptResponse
+	114, // 182: repository.PackageRepository.ListConfigReceipts:output_type -> repository.ListConfigReceiptsResponse
+	117, // 183: repository.PackageRepository.ListRepositoryFindings:output_type -> repository.ListRepositoryFindingsResponse
+	121, // 184: repository.PackageRepository.GetRepositoryStatus:output_type -> repository.GetRepositoryStatusResponse
+	145, // [145:185] is the sub-list for method output_type
+	105, // [105:145] is the sub-list for method input_type
+	105, // [105:105] is the sub-list for extension type_name
+	105, // [105:105] is the sub-list for extension extendee
+	0,   // [0:105] is the sub-list for field type_name
 }
 
 func init() { file_repository_proto_init() }
@@ -10134,7 +10481,7 @@ func file_repository_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_repository_proto_rawDesc), len(file_repository_proto_rawDesc)),
 			NumEnums:      14,
-			NumMessages:   107,
+			NumMessages:   111,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

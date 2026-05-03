@@ -102,7 +102,7 @@ func redactReceipt(r *repopb.PackageConfigReceipt) *repopb.PackageConfigReceipt 
 // ── RPC handlers ───────────────────────────────────────────────────────────
 
 func (srv *server) RecordConfigReceipt(ctx context.Context, req *repopb.RecordConfigReceiptRequest) (*repopb.RecordConfigReceiptResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 	rec := req.GetReceipt()
@@ -139,7 +139,7 @@ func (srv *server) RecordConfigReceipt(ctx context.Context, req *repopb.RecordCo
 }
 
 func (srv *server) ListConfigReceipts(ctx context.Context, req *repopb.ListConfigReceiptsRequest) (*repopb.ListConfigReceiptsResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoQuery); err != nil {
 		return nil, err
 	}
 	pubID := strings.TrimSpace(req.GetPublisherId())

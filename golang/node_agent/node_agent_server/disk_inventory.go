@@ -171,8 +171,18 @@ func buildCandidate(nodeID string, m mountEntry) *config.DiskCandidate {
 		ReportedAt: time.Now().UTC(),
 	}
 
+	// Detect network-mounted filesystems (NFS, CIFS, SMB, etc.).
+	// For NFS the device field in /proc/mounts is "host:export" (e.g., "10.0.0.20:/mnt/data").
+	dc.IsNetworkMount = isNetworkFS(m.fsType)
+	if dc.IsNetworkMount {
+		dc.MountSource = m.device // "host:export" for NFS, UNC path for CIFS
+	}
+
 	// Stable ID: try blkid UUID via symlink, fall back to hash.
-	dc.StableID = resolveStableID(m.device)
+	// Skip UUID lookup for network mounts — they have no local block device.
+	if !dc.IsNetworkMount {
+		dc.StableID = resolveStableID(m.device)
+	}
 	if dc.StableID != "" {
 		dc.DiskID = dc.StableID
 	} else {
@@ -318,6 +328,25 @@ func stripPartitionSuffix(dev string) string {
 		return dev[:i]
 	}
 	return dev
+}
+
+// isNetworkFS returns true for filesystem types that are network-backed.
+// These mounts must never be shared between MinIO pool members.
+func isNetworkFS(fsType string) bool {
+	switch {
+	case strings.HasPrefix(fsType, "nfs"): // nfs, nfs4, nfs3
+		return true
+	case fsType == "cifs", fsType == "smbfs", fsType == "smb2":
+		return true
+	case strings.HasPrefix(fsType, "glusterfs"):
+		return true
+	case strings.HasPrefix(fsType, "ceph"):
+		return true
+	case fsType == "9p": // Plan 9 / virtio-fs (often network/hypervisor-backed)
+		return true
+	default:
+		return false
+	}
 }
 
 // resolveStableID attempts to find the blkid UUID for a device by scanning

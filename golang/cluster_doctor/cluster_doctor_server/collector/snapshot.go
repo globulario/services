@@ -60,6 +60,19 @@ type Snapshot struct {
 	// rpc returns no findings (the healthy-cluster steady state).
 	RepositoryFindings []*RepositoryFindingSnapshot
 
+	// RepositoryOperationalStatus is the live mode of the repository service,
+	// populated from GetRepositoryStatus. Nil when the collector has no
+	// repository client configured; ReachError non-nil when the RPC failed.
+	// Consumed by the "repository.operational_mode" invariant family.
+	RepositoryOperationalStatus *RepositoryOperationalStatus
+
+	// RepositoryEndpointMissing is true when the collector could not find
+	// a "repository.PackageRepository" registration in etcd and the cluster
+	// has at least one node registered (i.e. we are past bootstrap). During
+	// pre-bootstrap the flag is never set. Consumed by the
+	// "repository.endpoint_missing" invariant in repository_status.go.
+	RepositoryEndpointMissing bool
+
 	// Workflow convergence telemetry — see WI17/WI18.
 	StepOutcomes      []*workflowpb.WorkflowStepOutcome
 	WorkflowSummaries []*workflowpb.WorkflowRunSummary

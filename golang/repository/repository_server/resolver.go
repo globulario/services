@@ -29,7 +29,7 @@ import (
 
 // ResolveArtifact implements the deterministic resolver contract.
 func (srv *server) ResolveArtifact(ctx context.Context, req *repopb.ResolveArtifactRequest) (*repopb.ResolveArtifactResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoQuery); err != nil {
 		return nil, err
 	}
 

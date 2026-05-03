@@ -127,3 +127,10 @@ func (s *OSStorage) TempDir() string {
 func (s *OSStorage) Getwd() (string, error) {
 	return os.Getwd()
 }
+
+// LocalPath returns the absolute filesystem path for the given storage key.
+// Safe to use only for keys produced by canonical storage key helpers
+// (binaryStorageKey, manifestStorageKey) — never use with user-supplied strings.
+func (s *OSStorage) LocalPath(key string) string {
+	return s.resolve(key)
+}

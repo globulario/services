@@ -12,8 +12,12 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
 	"io/fs"
 	"log/slog"
+	"os"
 	"strings"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
@@ -32,15 +36,29 @@ import (
 // artifact can be skipped during import or sync. Never trust metadata alone.
 // Bucket listing or cached directory state must NOT be used here — only an
 // exact object Stat against binaryStorageKey(artifactKeyWithBuild(...)).
+// artifactBlobStatus checks whether the binary blob for a given artifact exists in
+// LOCAL POSIX CAS only. MinIO mirror presence is NOT sufficient — the blob must be
+// locally verified before an artifact can be considered installable.
+//
+// Returns (present, reason):
+//
+//	"ok"            — local blob exists (and size matches expectedSize if provided)
+//	"missing_blob"  — blob absent from local POSIX CAS
+//	"size_mismatch" — blob exists but fi.Size() != expectedSize
+//	"nil_ref"       — ref was nil (programmer error)
+//	"no_local_store" — localStorage not initialised (configuration error)
 func (srv *server) artifactBlobStatus(ctx context.Context, ref *repopb.ArtifactRef, buildNumber int64, expectedSize int64) (present bool, reason string) {
 	if ref == nil {
 		return false, "nil_ref"
+	}
+	if srv.localStorage == nil {
+		return false, "no_local_store"
 	}
 
 	key := artifactKeyWithBuild(ref, buildNumber)
 	blobKey := binaryStorageKey(key)
 
-	fi, err := srv.Storage().Stat(ctx, blobKey)
+	fi, err := srv.localStorage.Stat(ctx, blobKey)
 	if err != nil {
 		return false, "missing_blob"
 	}
@@ -48,6 +66,21 @@ func (srv *server) artifactBlobStatus(ctx context.Context, ref *repopb.ArtifactR
 		return false, "size_mismatch"
 	}
 	return true, "ok"
+}
+
+// checksumLocalFile computes the sha256 digest of a local file.
+// Returns "sha256:<hex>" or an error.
+func checksumLocalFile(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return "sha256:" + hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // digestEqual compares two digest strings, normalizing the "sha256:" prefix.

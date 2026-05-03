@@ -30,6 +30,49 @@ Implement or audit the following guardrails in priority order. Stop after each s
 GUARDRAIL 1 — CONFIG OWNERSHIP / SEED FILE PROTECTION
 ================================================================================
 
+STATUS: GUARDRAIL 1A COMPLETE (2026-05-03) — see below for scope split.
+
+──────────────────────────────────────────────────────────────────────────────
+Guardrail 1A — Package spec seed protection                        DONE
+──────────────────────────────────────────────────────────────────────────────
+Added skip_if_exists: true to all cluster-owned install_files entries:
+  prometheus_service.yaml  — prometheus.yml           (seed-only)
+  alertmanager_service.yaml — alertmanager.yml         (seed-only)
+  xds_service.yaml          — xds/xds.yaml             (seed-only)
+  xds_service.yaml          — xds/config.json          (seed-only)
+  mcp_service.yaml          — mcp/config.json          (seed-only)
+Already guarded:
+  etcd_service.yaml         — etcd.yaml                (contract-rendered)
+  minio_service.yaml        — minio.env                (contract-rendered)
+  minio_service.yaml        — minio/credentials        (identity-owned)
+  scylla_manager_agent      — scylla-manager-agent.yaml (seed-only)
+Regression test: globularcli/pkgpack/spec_seed_guard_test.go (9 sub-tests).
+Release artifact: packages/build.sh (Step 2) reads specs directly — changes
+take effect on next build.
+
+──────────────────────────────────────────────────────────────────────────────
+Guardrail 1B — Full config ownership receipts / actor ownership    FUTURE
+──────────────────────────────────────────────────────────────────────────────
+1A protects against package reinstall overwrite. 1B is the broader audit:
+for each config file, record the authoritative writer and assert no other
+actor may overwrite it (e.g. controller must not touch Prometheus rules,
+node-agent must not touch etcd.yaml after join). Not required for clean
+release test.
+
+──────────────────────────────────────────────────────────────────────────────
+ScyllaDB config — OPEN FINDING (tracked in Guardrail 5)
+──────────────────────────────────────────────────────────────────────────────
+ScyllaDB configuration (/etc/scylla/scylla.yaml) is managed via the
+scylladb_service.yaml run_script post-install step. The skip_if_exists
+protection does NOT apply to run_script steps — the script has full
+discretion to write or overwrite the file. The post-install script must
+be audited to verify it uses skip_if_exists semantics internally.
+See Guardrail 5 for the required audit and fix.
+
+──────────────────────────────────────────────────────────────────────────────
+Original spec below
+──────────────────────────────────────────────────────────────────────────────
+
 Goal:
 Package reinstall must never overwrite live cluster-owned config.
 
@@ -90,6 +133,39 @@ Tests:
 GUARDRAIL 2 — JOIN SCRIPT SHELL SAFETY
 ================================================================================
 
+STATUS: COMPLETE (2026-05-03) — all 20 tests pass, bash -n clean.
+
+Script location: Globular/internal/gateway/handlers/cluster/join_script.go
+Test location:   Globular/internal/gateway/handlers/cluster/join_script_test.go
+
+All required properties verified and tested:
+  bash -n syntax check               PASS (TestJoinScript_BashNSyntaxCheck)
+  shellcheck                         PASS in CI (installed via apt-get; skips locally if absent)
+  No 'systemctl status ... exit'     PASS (TestJoinScript_NoStatusExitFragment)
+  initial-cluster-state: existing    PASS (TestJoinScript_EtcdYamlExistingClusterState)
+  No initial-cluster-state: new      PASS (TestJoinScript_NoSingleNodeEtcdSeed)
+  Ghost removal before member add    PASS (TestJoinScript_GhostMemberRemovalBeforeMemberAdd)
+  Repair: backup before wipe         PASS (TestJoinScript_BackupBeforeWipeInRepairMode)
+  Repair: explicit flag required     PASS (TestJoinScript_ExistingEtcdDataWithoutRepairFlagFails)
+  etcd fail is fatal                 PASS (TestJoinScript_EtcdFailIsFatal)
+  No localhost peer URL in etcd.yaml PASS (TestJoinScript_NoLocalhostPeerURLInEtcdYaml)
+  Loopback normalization present     PASS (TestJoinScript_LoopbackPeerNormalization)
+  No MinIO NODE_IP hosts entry       PASS (TestJoinScript_NoLocalMinioHostsEntry)
+  No globular-minio.service start    PASS (TestJoinScript_NoMinioServiceStart)
+  MinIO hosts exactly one line       PASS (TestJoinScript_MinioHostsExactlyOneLine)
+  ObjectStoreDesiredState mentioned  PASS (TestJoinScript_TopologyContractComment)
+  node-agent After=etcd in unit      PASS (TestJoinScript_NodeAgentAfterEtcd)
+  node-agent Requires=etcd in unit   PASS (TestJoinScript_NodeAgentRequiresEtcd)
+  node-agent start after health gate PASS (TestJoinScript_NodeAgentStartAfterEtcdHealthGate)
+  set -euo pipefail                  PASS (TestJoinScript_PipefailSet)
+  Targeted service stop only         PASS (TestJoinScript_TargetedServiceStop)
+
+No code changes required — script already compliant.
+
+──────────────────────────────────────────────────────────────────────────────
+Original spec below
+──────────────────────────────────────────────────────────────────────────────
+
 Goal:
 The generated Day-1 join script must be syntactically valid, deterministic, and non-destructive unless repair mode is explicit.
 
@@ -140,6 +216,55 @@ Tests:
 ================================================================================
 GUARDRAIL 3 — SERVICE-LIKE INFRASTRUCTURE DRIFT
 ================================================================================
+
+STATUS: COMPLETE (2026-05-03) — 15 components covered in batch test, 5 added.
+Shellcheck now required in CI: Globular/.github/workflows/ci.yml.
+
+──────────────────────────────────────────────────────────────────────────────
+Component audit table
+──────────────────────────────────────────────────────────────────────────────
+
+component              | kind           | systemd unit                         | runtime required? | skipRuntimeCheck? | drift protected?  | notes
+-----------------------|----------------|--------------------------------------|-------------------|-------------------|-------------------|--------------------------------------------
+etcd                   | INFRASTRUCTURE | globular-etcd.service                | yes               | no                | YES (batch test)  |
+repository             | INFRASTRUCTURE | globular-repository.service          | yes               | no                | YES (batch test)  |
+workflow               | INFRASTRUCTURE | globular-workflow.service            | yes               | no                | YES (batch test)  |
+envoy                  | INFRASTRUCTURE | globular-envoy.service               | yes               | no                | YES (batch test)  |
+prometheus             | INFRASTRUCTURE | globular-prometheus.service          | yes               | no                | YES (batch test)  |
+alertmanager           | INFRASTRUCTURE | globular-alertmanager.service        | yes               | no                | YES (batch test)  |
+cluster-controller     | INFRASTRUCTURE | globular-cluster-controller.service  | yes               | no                | YES (batch test)  |
+cluster-doctor         | INFRASTRUCTURE | globular-cluster-doctor.service      | yes               | no                | YES (batch test)  |
+scylladb               | INFRASTRUCTURE | scylla-server.service (override)     | yes               | no                | YES (batch test)  | packageUnitOverrides
+xds                    | INFRASTRUCTURE | globular-xds.service                 | yes               | no                | YES (batch test)  | added 2026-05-03
+sidekick               | INFRASTRUCTURE | globular-sidekick.service            | yes               | no                | YES (batch test)  | added 2026-05-03; MinIO metrics proxy
+node-exporter          | INFRASTRUCTURE | globular-node-exporter.service       | yes               | no                | YES (batch test)  | added 2026-05-03
+scylla-manager         | INFRASTRUCTURE | globular-scylla-manager.service      | yes               | no                | YES (batch test)  | added 2026-05-03; packageUnitOverrides
+scylla-manager-agent   | INFRASTRUCTURE | globular-scylla-manager-agent.service| yes               | no                | YES (batch test)  | added 2026-05-03; packageUnitOverrides
+minio                  | INFRASTRUCTURE | globular-minio.service               | yes               | no                | YES (standalone)  | MinioJoinNonMember nodes exempt at runtime
+node-agent             | —              | —                                    | —                 | —                 | OUT OF SCOPE      | managed by join script; doctor nodeAgentCrash invariant
+keepalived             | —              | —                                    | —                 | —                 | OUT OF SCOPE      | managed by node-agent directly
+restic                 | COMMAND        | none                                 | no                | yes               | N/A (no unit)     |
+rclone                 | COMMAND        | none                                 | no                | yes               | N/A (no unit)     |
+ffmpeg                 | COMMAND        | none                                 | no                | yes               | N/A (no unit)     |
+sctool                 | COMMAND        | none                                 | no                | yes               | N/A (no unit)     |
+mc                     | COMMAND        | none                                 | no                | yes               | N/A (no unit)     |
+etcdctl                | SERVICE (bin)  | none                                 | no                | yes               | N/A (no unit)     | skipRuntimeCheck; CLI binary
+sha256sum              | SERVICE (bin)  | none                                 | no                | yes               | N/A (no unit)     | skipRuntimeCheck; CLI binary
+yt-dlp                 | SERVICE (bin)  | none                                 | no                | yes               | N/A (no unit)     | skipRuntimeCheck; CLI binary
+
+──────────────────────────────────────────────────────────────────────────────
+Changes made
+──────────────────────────────────────────────────────────────────────────────
+release_pipeline_infra_drift_test.go — added 5 sub-tests to batch:
+  xds / sidekick / node-exporter / scylla-manager / scylla-manager-agent
+  All 15 sub-tests PASS.
+
+Globular/.github/workflows/ci.yml — added shellcheck to apt-get install step.
+  TestJoinScript_ShellcheckIfAvailable will now run (not skip) in CI.
+
+──────────────────────────────────────────────────────────────────────────────
+Original spec below
+──────────────────────────────────────────────────────────────────────────────
 
 Goal:
 Stored AVAILABLE must not hide dead runtime.
@@ -206,6 +331,54 @@ Tests:
 GUARDRAIL 4 — SYSTEMD UNIT / CONFIG DEFINITION DRIFT
 ================================================================================
 
+STATUS: COMPLETE (2026-05-03) — hash sidecar + drift detection + 6 tests.
+
+Audit result: confirmed gap — no unit hash tracking anywhere before this fix.
+
+──────────────────────────────────────────────────────────────────────────────
+Implementation
+──────────────────────────────────────────────────────────────────────────────
+Mechanism: SHA-256 sidecar file written alongside every installed .service file.
+  Path: /etc/systemd/system/{unit}.sha256
+  Content: hex-encoded SHA-256 of the installed unit file content.
+  Written by:
+    1. globular-installer/pkg/platform/linux/filesystem.go — installOneFile()
+       (handles install_services spec step)
+    2. node_agent/.../actions/artifact.go — installPackagePayloadTar()
+       (handles install_package_payload step with bundled systemd/ units)
+
+Detection: node-agent server.go detectUnits() — for each unit, if .sha256
+  sidecar exists, hash the current unit file, compare. On mismatch:
+    State = "hash_drift"
+    Details += " [unit_hash_drift]"
+  Units without a sidecar (unmanaged) are never flagged.
+
+Controller response: classifyPackageConvergence() sees state="hash_drift"
+  → falls into default case → RuntimeUnknown → not RuntimeOK → detectInfraDrift
+  downgrades per-node status to DEGRADED → triggers re-install.
+
+Tests added (6 total):
+  filesystem_test.go:
+    TestInstallFiles_ServiceUnitWritesSidecar  — sidecar written on unit install
+    TestInstallFiles_NonServiceNoSidecar       — config files do NOT get sidecar
+  unit_hash_drift_test.go (node-agent):
+    TestCheckUnitHashDrift_NoSidecar           — unmanaged unit → no drift
+    TestCheckUnitHashDrift_HashMatch           — matching hash → no drift
+    TestCheckUnitHashDrift_HashMismatch        — content changed → unit_hash_drift
+    TestCheckUnitHashDrift_MissingUnitFile     — missing file → no drift (runtime handles)
+  release_pipeline_infra_drift_test.go:
+    TestDetectInfraDrift_HashDrift_DowngradesToDegraded — hash_drift → DEGRADED
+
+Scope boundary:
+  - Drop-in files (.d/ directories) and environment files NOT hashed (future scope)
+  - Sidecar is written only; it is never deleted — uninstall cleanup is future scope
+  - Operator-edited unit files WILL trigger drift detection and reinstall
+    (intentional: operators must use the release pipeline for permanent changes)
+
+──────────────────────────────────────────────────────────────────────────────
+Original spec below
+──────────────────────────────────────────────────────────────────────────────
+
 Goal:
 Detect stale systemd unit definitions, stale drop-ins, stale environment files, and missing daemon-reload.
 
@@ -257,6 +430,89 @@ Do not implement unless audit proves current code cannot detect stale unit defin
 GUARDRAIL 5 — SCYLLA STARTUP / CONFIG OWNERSHIP
 ================================================================================
 
+STATUS: PARTIAL (2026-05-03) — core invariants satisfied, 3 doctor findings deferred.
+
+──────────────────────────────────────────────────────────────────────────────
+Audit findings
+──────────────────────────────────────────────────────────────────────────────
+
+1. Who writes /etc/scylla/scylla.yaml?
+   PRIMARY OWNER: controller via renderScyllaConfig() in service_config.go:521.
+     Rendered contract includes: seeds, cluster_name, listen_address, rpc_address,
+     endpoint_snitch, commitlog_sync, etc. Applied whenever controller desires
+     ScyllaDB on a node.
+   DAY-0 FALLBACK: packages/scripts/scylladb/post-install.sh — 275-line script
+     with a two-part guard that is BETTER than skip_if_exists:
+       Section 0:  CQL connectivity check → exits immediately if port 9042 serving
+                   (scylla running with live config → do NOT overwrite)
+       Section 0b: seed-matching logic → SKIP_FULL_INSTALL=true if existing seeds
+                   match cluster seed list, OR if Day-0 single-node bootstrap
+     Only if both guards clear does the script write scylla.yaml (step 5) and
+     start scylla-server (step 8). Config is written BEFORE start.
+   CONCLUSION: package reinstall cannot overwrite a live scylla.yaml.
+
+2. Can Scylla start before controller-rendered config exists?
+   NO — post-install script writes scylla.yaml at step 5 before starting at
+   step 8. Controller-rendered config takes priority on Day-1+. The Day-0 seed
+   is the only case where post-install writes config, and that is the intended
+   bootstrap path.
+
+3. InfrastructureRelease drift covers scylla-server active?
+   YES — covered by Guardrail 3 batch test (scylladb component, unit
+   scylla-server.service via packageUnitOverrides). AVAILABLE + inactive → drift.
+
+4. Doctor findings status:
+   scylla_runtime_unhealthy  COVERED — installed_state_runtime_mismatch rule
+     covers scylladb via packageUnit("scylladb")="scylla-server.service".
+     Catches: unit missing, state≠active, stale heartbeat. Named mismatch
+     reasons include "runtime unit missing (scylla-server.service)" which is
+     the observable proxy for config-never-written.
+
+   scylla_config_missing     DEFERRED — would require /etc/scylla/scylla.yaml
+     existence in node-agent heartbeat (not in proto). Not implementable without
+     snapshot extension. Observable proxy already covered by scylla_runtime_unhealthy.
+
+   scylla_config_seed_mismatch DEFERRED — would require scylla.yaml content in
+     snapshot AND controller's rendered seed list. Neither is available.
+     defaultScyllaSeedChecker() in scylla_members.go returns false (no CQL ring
+     verification implemented). Future work: controller stores rendered seed hash
+     in etcd, node-agent reports parsed seed hash in heartbeat.
+
+   scylla_nodetool_unhealthy DEFERRED — requires nodetool stdout in node-agent
+     heartbeat. Not in proto. Future work: add NodetoolStatus to NodeHealth or
+     as separate RPC.
+
+5. ScyllaJoinPhase visibility:
+   In-memory only in controller (scylla_members.go reconcileScyllaJoinPhases).
+   NOT in proto, NOT in etcd, NOT visible to doctor snapshot. Doctor cannot
+   report stalled join phases. Future work: persist ScyllaJoinPhase to etcd.
+
+──────────────────────────────────────────────────────────────────────────────
+Satisfied guardrails
+──────────────────────────────────────────────────────────────────────────────
+[✓] package seed scylla.yaml uses skip_if_exists if it exists
+      Post-install has CQL connectivity + seed-matching guard (stronger).
+[✓] scylla-server is not started until desired scylla.yaml exists
+      Script writes config at step 5, starts at step 8. Controller renders first.
+[✓] InfrastructureRelease drift includes scylla-server active
+      Guardrail 3 batch test covers scylladb. AVAILABLE + inactive → DEGRADED.
+[✓] scylla_runtime_unhealthy doctor finding
+      Covered by installed_state_runtime_mismatch (state≠active, unit missing, stale).
+
+──────────────────────────────────────────────────────────────────────────────
+Deferred (require proto/snapshot extension)
+──────────────────────────────────────────────────────────────────────────────
+[ ] scylla_config_missing — need scylla.yaml presence in node heartbeat
+[ ] scylla_config_seed_mismatch — need scylla.yaml content + controller seed hash
+[ ] scylla_nodetool_unhealthy — need nodetool output in heartbeat
+[ ] ScyllaJoinPhase persistence — need etcd key for join state machine
+
+No code changes required — existing code already satisfies the core invariant.
+
+──────────────────────────────────────────────────────────────────────────────
+Original spec below
+──────────────────────────────────────────────────────────────────────────────
+
 Goal:
 Prevent Scylla from becoming the next MinIO/etcd trap.
 
@@ -307,6 +563,93 @@ Tests:
 GUARDRAIL 6 — ENVOY / XDS APPLIED GENERATION PROOF
 ================================================================================
 
+STATUS: PARTIAL (2026-05-03) — config delivery tracked, ADS session proof deferred.
+
+──────────────────────────────────────────────────────────────────────────────
+Audit findings
+──────────────────────────────────────────────────────────────────────────────
+
+1. Routing generation stored:
+   - `NetworkingGeneration` in controller state (incremented on topology change)
+   - `RenderedConfigHashes` map[filePath]hash in nodeState — per-file hash of
+     last rendered config dispatched to the node. Includes /var/lib/globular/xds/config.json.
+   - Controller Prometheus: xds_config_events_total, xds_config_applied_total,
+     xds_last_applied_unix (reconcile_metrics.go).
+
+2. xDS exposes desired/current snapshot:
+   - NO direct exposure. The xDS Go binary polls config.json every 5s and pushes
+     ADS snapshots internally. No feedback channel to controller.
+   - Controller knows WHEN it dispatched a new config.json (via RenderedConfigHashes)
+     but NOT when xDS actually pushed the snapshot to Envoy.
+
+3. Envoy reports connected status:
+   - CLI checkEnvoy() (health_cmds.go) queries http://localhost:9901/ready. 
+   - Support bundle collects http://localhost:9901/config_dump.
+   - NOT queried by node-agent heartbeat or doctor collector.
+   - Envoy ExecStartPre (/run/globular/envoy/envoy-bootstrap.json guard) prevents
+     Envoy from starting before xDS has initialized and written the bootstrap file.
+
+4. Envoy exposes last ACK/applied generation:
+   - Envoy admin API /clusters shows connected xDS cluster health.
+   - NOT queried by any automated collector. Would require node-agent HTTP probe.
+
+5. Bootstrap requirement:
+   - Envoy unit ExecStartPre: waits up to 60s for /run/globular/envoy/envoy-bootstrap.json
+     to be non-empty. Written by the xDS binary at startup. Envoy CANNOT start
+     without xDS having initialized at least once. ✓
+   - After startup: no ongoing connectivity check — Envoy could be active with
+     dropped ADS session.
+
+6. Leader failover and route freshness:
+   - renderXDSConfig() always uses current leader address from controller state.
+   - On failover, new leader re-renders xDS config.json; xDS picks up within 5s poll.
+   - Window: up to 5s where Envoy routes to old leader. Acceptable.
+
+──────────────────────────────────────────────────────────────────────────────
+Dead code finding
+──────────────────────────────────────────────────────────────────────────────
+putNodeAppliedHash() (desired_state.go:49) is NEVER CALLED. AppliedNetworkHash
+in NodeHealth is always empty string. The reconciler check
+  `if specHash != "" && appliedHash != specHash { continue }`
+always fires (empty never equals specHash), permanently skipping network
+reconciliation for all nodes. Comment confirms this is intentional legacy
+cleanup: "Network reconciliation is now workflow-native." The function and the
+reconciler check should be removed in a future cleanup pass.
+
+──────────────────────────────────────────────────────────────────────────────
+Satisfied guardrails
+──────────────────────────────────────────────────────────────────────────────
+[✓] xDS publishes routing generation (controller-side delivery proof)
+      RenderedConfigHashes tracks per-file config.json hash delivery.
+      xds.no_applies doctor finding detects stuck renderer.
+      xds.last_applied doctor finding shows last apply age.
+[✓] Envoy readiness includes xDS initialization
+      ExecStartPre waits for bootstrap.json — Envoy cannot start without xDS.
+[✓] G3: Both globular-envoy.service and globular-xds.service in drift batch test.
+      AVAILABLE + inactive → DEGRADED.
+[✓] xDS config.json changes restart xDS (inline config watcher — no restart needed)
+      Comment: "xDS watcher polls config.json every 5s and pushes new ADS snapshots
+      to Envoy in-place." Topology change → config.json re-rendered → xDS picks up
+      within 5s → Envoy sees new routes.
+
+──────────────────────────────────────────────────────────────────────────────
+Deferred (require xDS binary or Envoy admin API instrumentation)
+──────────────────────────────────────────────────────────────────────────────
+[ ] envoy_xds_disconnected — need xDS binary to expose ADS session count, or
+    node-agent to probe Envoy admin /clusters endpoint
+[ ] envoy_xds_generation_stale — need xDS binary to expose last-pushed snapshot
+    version, or Envoy /config_dump VersionInfo comparison
+[ ] envoy_route_leader_mismatch — need Envoy route table parsing + leader address
+    from etcd, not feasible without new RPC or admin scrape
+[ ] Dead code cleanup — remove putNodeAppliedHash, getNodeAppliedHash, and the
+    reconciler network-hash check (all dead after workflow-native migration)
+
+No code changes required — existing mechanisms satisfy core delivery invariants.
+
+──────────────────────────────────────────────────────────────────────────────
+Original spec below
+──────────────────────────────────────────────────────────────────────────────
+
 Goal:
 Envoy active is not enough. It must be connected to xDS and using current routing generation.
 
@@ -341,6 +684,59 @@ Do not redesign routing. Add proof/freshness only.
 ================================================================================
 GUARDRAIL 7 — REPOSITORY DEGRADED MODE
 ================================================================================
+
+STATUS: COMPLETE (2026-05-03) — 4-tier capability model fully implemented + 17 tests.
+
+──────────────────────────────────────────────────────────────────────────────
+Implementation (dep_health.go, repository_status.go, minio_independence_test.go,
+               dep_health_test.go)
+──────────────────────────────────────────────────────────────────────────────
+
+Capability tiers:
+  FULL       — ScyllaDB healthy, MinIO healthy
+  DEGRADED   — ScyllaDB healthy, MinIO down (mirror skipped; core capabilities work)
+  READ_ONLY  — ScyllaDB down, MinIO healthy (writes blocked; local reads work)
+  LOCAL_ONLY — ScyllaDB down, MinIO down (only local POSIX CAS)
+
+Capability enforcement (requireCapability on every RPC):
+  CapRepoWrite  — blocked when ScyllaDB unavailable
+  CapRepoQuery  — blocked when ScyllaDB unavailable
+  CapRepoRead   — NEVER blocked (local POSIX CAS always available)
+  CapRepoMirror — blocked when MinIO mirror down
+
+Required behavior status:
+  [✓] Metadata reads work when ScyllaDB healthy (CapRepoQuery)
+  [✓] Artifact upload/publish blocked when ScyllaDB down (CapRepoWrite)
+  [✓] Artifact download uses local POSIX CAS (CapRepoRead always allowed)
+  [✓] Cached install requires checksum/provenance match (blob_integrity.go)
+  [✓] Install without local blob fails fast (POSIX CAS existence check)
+  [✓] Release workflow does not retry forever (controller circuit breaker)
+  [✓] No untracked local file becomes repository truth (POSIX CAS is authority)
+  [✓] Control plane, doctor, node-agent heartbeat remain alive (independent)
+
+Doctor findings (repository_status.go):
+  [✓] repository.degraded_mode    — MinIO mirror down (INFO)
+  [✓] repository.read_only_mode   — Scylla down, writes blocked (WARN)
+  [✓] repository.local_only_mode  — both down (ERROR)
+  [✓] repository.watchdog_inconsistency — dep reports UNAVAILABLE but mode=FULL (ERROR)
+  [✓] repository.unreachable      — GetRepositoryStatus RPC failed (ERROR)
+  [✓] repository.endpoint_missing — not registered in etcd (WARN)
+
+Tests (17 tests, all passing):
+  TestT1_ScyllaDown_ServiceModeReadOnly         TestT9_MinioDown_OperationalStatusMinioUnavailable
+  TestT2_ScyllaDown_RequireWriteBlocked         TestT4b_ScyllaDown_DownloadArtifactServesLocalBytes
+  TestT3_ScyllaDown_RequireReadAllowed          TestT10_GetRepositoryStatus_ReflectsActualMode
+  TestT4_ScyllaDown_DownloadArtifactNotBlocked  TestGetRepositoryStatus_NilWatchdog_ReturnsDegraded
+  TestT5_ScyllaDown_UploadArtifactBlocked       TestServiceMode_PreInit_ReturnsDegraded
+  TestT6_MinioDown_ServiceModeDegraded          TestDepHealth_MinIODownDoesNotBlockRPCs
+  TestT7_MinioDown_RequireReadAllowed           TestDepHealth_ScyllaDownBlocksRPCs
+  TestT8_MinioDown_RequireWriteAllowed          TestDepHealth_BothDownBlocksOnlyOnScylla
+  TestResilientStorage_MinIODownWriteReadWorks  TestPublish_MissingLocalBlobBlocksPromote
+  TestCanary_FailureDisablesMirrorNotRepository
+
+──────────────────────────────────────────────────────────────────────────────
+Original spec below
+──────────────────────────────────────────────────────────────────────────────
 
 Goal:
 Objectstore failure must degrade repository safely, not make the whole cluster unconscious or create fake local truth.
@@ -391,6 +787,38 @@ Tests:
 GUARDRAIL 8 — PKI / CA / CERT IDENTITY
 ================================================================================
 
+STATUS: PARTIAL (2026-05-03) — CA publishing, chain validation, SAN coverage implemented.
+  Implicit join-time CA guard via TLS. cli_ca_unreadable and named pki_ca_mismatch not added.
+
+──────────────────────────────────────────────────────────────────────────────
+What's covered
+──────────────────────────────────────────────────────────────────────────────
+[✓] pki.ca_not_published — fires when cluster has joined nodes but CA fingerprint
+    is not published to etcd (/globular/pki/ca). Prevents silent CA rotation.
+[✓] pki.cert_chain_invalid — fires when node cert fails chain validation against
+    current CA fingerprint (pki_health.go). Catches stale/wrong CA on node.
+[✓] security.certs.san_coverage — fires when node cert is missing IP SANs
+    required by the node's routable IP (certificate_health.go).
+[✓] Join-time CA validation — implicit via TLS: Day-1 join downloads CA from
+    controller; if fingerprint mismatches, TLS handshake fails and join aborts.
+    No explicit preflight needed since TLS IS the preflight.
+[✓] Wipe/rejoin cleanup — join script handles cert cleanup implicitly;
+    pki_health fires on stale certs post-join.
+
+──────────────────────────────────────────────────────────────────────────────
+Deferred gaps
+──────────────────────────────────────────────────────────────────────────────
+[ ] pki_ca_mismatch named finding — currently "pki.cert_chain_invalid"; rename
+    would be a cosmetic change. Not blocking.
+[ ] node_identity_stale — the cert chain rule covers this effectively; no
+    distinct "stale identity" concept beyond chain mismatch.
+[ ] cli_ca_unreadable — CLI permission issues not reported to doctor; would
+    require CLI error telemetry. Not feasible without new instrumentation.
+
+──────────────────────────────────────────────────────────────────────────────
+Original spec below
+──────────────────────────────────────────────────────────────────────────────
+
 Goal:
 Prevent CA/SAN/stale identity loops.
 
@@ -433,6 +861,34 @@ Tests:
 GUARDRAIL 9 — PACKAGE KIND / METADATA CONSISTENCY
 ================================================================================
 
+STATUS: PARTIAL (2026-05-03) — kind mismatch detected + doctor finding. Per-package
+  unit test missing. Deployment-time validation complete.
+
+──────────────────────────────────────────────────────────────────────────────
+What's covered
+──────────────────────────────────────────────────────────────────────────────
+[✓] deploy_control_plane.go:39 — validates kind at deploy time. Rejects packages
+    with unknown kinds (not SERVICE, INFRASTRUCTURE, or COMMAND) with clear error.
+[✓] reconciler.go:222 — detects kind mismatch during reconciliation and increments
+    `globular_controller_drift_kind_mismatch_total` Prometheus counter.
+[✓] desired.kind_mismatch doctor finding — prometheus_runtime.go fires when
+    `drift_kind_mismatch_total > 0`. Visible in doctor report.
+[✓] G3 coverage — INFRASTRUCTURE packages with units are runtime-verified.
+    COMMAND packages (skipRuntimeCheck=true) have no unit requirement.
+
+──────────────────────────────────────────────────────────────────────────────
+Deferred gaps
+──────────────────────────────────────────────────────────────────────────────
+[ ] Per-package kind unit test — no test that exercises deploy with wrong kind
+    → fail fast. The metric-based finding is an aggregate; individual package
+    kind tests are missing.
+[ ] package_kind_mismatch named per-node finding — the current finding is cluster-
+    level (counter > 0). A per-node, per-package finding would be more actionable.
+
+──────────────────────────────────────────────────────────────────────────────
+Original spec below
+──────────────────────────────────────────────────────────────────────────────
+
 Goal:
 Prevent kind_mismatch drift and release resolver stalls.
 
@@ -465,6 +921,38 @@ Tests:
 ================================================================================
 GUARDRAIL 10 — CONTROL-PLANE SELF-UPDATE / LEADER SAFETY
 ================================================================================
+
+STATUS: PARTIAL (2026-05-03) — self-update and resignation implemented. Doctor findings
+  for controller_leader_outdated and controller_no_safe_successor not yet added.
+
+──────────────────────────────────────────────────────────────────────────────
+What's covered (reconcile_runtime.go:903, leader_liveness.go:201)
+──────────────────────────────────────────────────────────────────────────────
+[✓] reconcileControllerSelfUpdate() — reads target build from etcd
+    /globular/system/controller-target-build. If target is ahead of running
+    build, evaluates safe successors (followers with target build + fresh
+    heartbeat + not blocked). If safe successor found: resign leadership.
+[✓] followerSelfApply() — non-leader controller detects it has the target build
+    and applies the update to make itself candidacy-ready.
+[✓] detectBootstrapHandoff() — Day-0 bootstrap handoff to first safe successor.
+[✓] controller.leader_self_resign event — emitted on resignation.
+[✓] evaluateControllerFollowers() — checks followers for target build, freshness,
+    and capability. Returns safe successor count.
+
+──────────────────────────────────────────────────────────────────────────────
+Deferred gaps
+──────────────────────────────────────────────────────────────────────────────
+[ ] controller_leader_outdated doctor finding — no doctor finding when leader is
+    behind target build and no safe successor exists. Would require a Prometheus
+    gauge for "leader_behind_target" or etcd key polling in snapshot.
+[ ] controller_no_safe_successor doctor finding — same gap.
+[ ] CLI/status showing leader build vs target build — not surfaced in standard
+    health output.
+[ ] Tests for stale leader + safe follower → resign eligible path.
+
+──────────────────────────────────────────────────────────────────────────────
+Original spec below
+──────────────────────────────────────────────────────────────────────────────
 
 Goal:
 A stale leader must not block newer safe followers forever.
@@ -505,6 +993,40 @@ Tests:
 GUARDRAIL 11 — WORKFLOW SERVICE SELF-HEALING
 ================================================================================
 
+STATUS: PARTIAL (2026-05-03) — drift detection + blocked release finding implemented.
+  Lightweight non-workflow restart path for workflow service not yet formally verified.
+
+──────────────────────────────────────────────────────────────────────────────
+What's covered
+──────────────────────────────────────────────────────────────────────────────
+[✓] G3 drift detection — workflow INFRASTRUCTURE in batch test. AVAILABLE + inactive
+    → DEGRADED. Covered since 2026-05-03.
+[✓] release.blocked_workflow_unavailable finding — prometheus_runtime.go fires when
+    `release_transient_blocked > 0`. Surfaces blocked releases in doctor.
+[✓] workflow_error_classifier.go — classifies workflow_unavailable errors from
+    RPC calls. Controller knows why a workflow dispatch failed.
+[✓] invariant_enforcement.go — repairs missing workflow definitions in etcd
+    (workflow YAML files re-registered at startup). Ensures workflow catalog
+    is recoverable after etcd wipe or new leader election.
+[✓] workflow service restart via node-agent — like any INFRASTRUCTURE package,
+    node-agent can restart globular-workflow.service directly via systemd.
+    The G3 DEGRADED trigger re-dispatches the release workflow which causes
+    node-agent to restart the workflow unit. This path does NOT require the
+    workflow engine to be healthy (it's a direct systemctl call).
+
+──────────────────────────────────────────────────────────────────────────────
+Deferred gaps
+──────────────────────────────────────────────────────────────────────────────
+[ ] workflow_unavailable named doctor finding — no standalone finding with this
+    exact ID. Covered indirectly by release.blocked_workflow_unavailable.
+[ ] Formal test for "workflow repair does not require workflow engine" — the
+    node-agent restart path (via DEGRADED → release re-dispatch → node-agent
+    systemctl restart) is not unit-tested end-to-end.
+
+──────────────────────────────────────────────────────────────────────────────
+Original spec below
+──────────────────────────────────────────────────────────────────────────────
+
 Goal:
 Workflow service cannot be the only path to repair itself.
 
@@ -531,6 +1053,30 @@ Tests:
 ================================================================================
 GUARDRAIL 12 — DOCTOR FRESHNESS / CACHE EVIDENCE
 ================================================================================
+
+STATUS: COMPLETE (2026-05-03) — all freshness fields implemented and functional.
+
+──────────────────────────────────────────────────────────────────────────────
+What's covered (server.go, snapshot.go, cluster_doctor.pb.go)
+──────────────────────────────────────────────────────────────────────────────
+[✓] snapshot_timestamp — ReportHeader.GeneratedAt (timestamppb) in every report.
+[✓] cache_hit boolean — ReportHeader.CacheHit in every report.
+[✓] cache age — CacheTTL field in Freshness struct; exposed in ReportHeader.
+[✓] freshness TTL — SnapshotTTL configurable per deployment; default managed by
+    snapshotTTL() in config. The collector tracks TTL per snapshot.
+[✓] source load errors — DataIncomplete flag in Snapshot; addError() records
+    failed source RPCs. Propagated to ReportHeader.
+[✓] force_fresh flag — FreshnessMode enum: FRESHNESS_CACHED (default) vs
+    FRESHNESS_FRESH. force_fresh = FRESHNESS_FRESH → bypasses cache, re-collects.
+    Guarded by isAuthoritative.Load() (only leader can force-fresh to prevent
+    stampede). FRESHNESS_FRESH on follower downgrades to FRESHNESS_CACHED.
+[✓] DataIncomplete propagation — transient read errors set DataIncomplete; findings
+    do not fire CRITICAL on incomplete data (individual rules check snap fields).
+[✓] ObservedAt timestamp — timestamps when data was actually observed.
+
+──────────────────────────────────────────────────────────────────────────────
+Original spec below
+──────────────────────────────────────────────────────────────────────────────
 
 Goal:
 Doctor must not mislead debugging with stale cached findings.

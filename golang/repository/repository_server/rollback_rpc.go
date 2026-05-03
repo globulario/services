@@ -18,7 +18,7 @@ import (
 )
 
 func (srv *server) RecordInstalledRevision(ctx context.Context, req *repopb.RecordInstalledRevisionRequest) (*repopb.RecordInstalledRevisionResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 	rev := req.GetRevision()
@@ -45,7 +45,7 @@ func (srv *server) RecordInstalledRevision(ctx context.Context, req *repopb.Reco
 }
 
 func (srv *server) ListInstalledRevisions(ctx context.Context, req *repopb.ListInstalledRevisionsRequest) (*repopb.ListInstalledRevisionsResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoQuery); err != nil {
 		return nil, err
 	}
 	pubID := strings.TrimSpace(req.GetPublisherId())
@@ -63,7 +63,7 @@ func (srv *server) ListInstalledRevisions(ctx context.Context, req *repopb.ListI
 }
 
 func (srv *server) ListRollbackCandidates(ctx context.Context, req *repopb.ListRollbackCandidatesRequest) (*repopb.ListRollbackCandidatesResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoQuery); err != nil {
 		return nil, err
 	}
 	pubID := strings.TrimSpace(req.GetPublisherId())

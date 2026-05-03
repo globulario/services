@@ -49,6 +49,11 @@ func NewRegistry(cfg Config) *Registry {
 		// Snapshot.RepositoryFindings (populated by the collector calling
 		// repository.PackageRepository.ListRepositoryFindings).
 		repositoryFindings{},
+		// Phase 2 hardening: operational mode invariant. Consumes
+		// Snapshot.RepositoryOperationalStatus (from GetRepositoryStatus).
+		// Fires when the repository is in DEGRADED/READ_ONLY/LOCAL_ONLY mode
+		// or is unreachable. Replaces the "cluster.repo.reachable" pending stub.
+		repositoryOperationalMode{},
 		// Certificate health invariants: expiry, SAN coverage, chain validity.
 		// Consumes per-node GetCertificateStatus collected in Snapshot.CertificateStatus.
 		certificateExpiry{},
@@ -91,6 +96,16 @@ func NewRegistry(cfg Config) *Registry {
 		objectstoreMinioUnapprovedPath{},
 		objectstoreMinioQuorumShape{},
 		objectstoreMinioExistingDataGuard{},
+		// Physical overlap and write-quorum invariants.
+		// Detect NFS/CIFS path sharing between pool nodes (root cause of the
+		// ryzen NFS overlap heal deadlock), network mount usage, EC:1 marginal
+		// fault tolerance, live write-quorum loss, and format heal deadlock.
+		// Consume DiskCandidates + ObjectStoreDesired + unit_state.
+		objectstoreDuplicatePhysicalPath{},
+		objectstoreNetworkMountUsed{},
+		objectstoreZeroWriteFaultTolerance{},
+		objectstoreWriteQuorumLost{},
+		objectstoreFormatHealDeadlock{},
 		// Topology contract invariants:
 		//   contract_missing       — MinIO running but no desired state in etcd.
 		//   credentials_missing    — contract present but credentials_ready=false.

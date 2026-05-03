@@ -108,6 +108,17 @@ type DiskCandidate struct {
 	Eligible        bool      `json:"eligible"`
 	Reasons         []string  `json:"reasons,omitempty"`
 	ReportedAt      time.Time `json:"reported_at"`
+
+	// MountSource is the remote export path for network-mounted filesystems.
+	// For NFS this is "host:export" (e.g., "10.0.0.20:/mnt/data"), matching
+	// field[0] in /proc/mounts. Empty for local block devices.
+	MountSource string `json:"mount_source,omitempty"`
+
+	// IsNetworkMount is true when the filesystem is served over the network
+	// (NFS, CIFS, SMB, GlusterFS, CephFS, etc.). Network-mounted paths must
+	// never be shared between MinIO pool nodes — two nodes pointing at the
+	// same NFS export will corrupt each other's format.json.
+	IsNetworkMount bool `json:"is_network_mount,omitempty"`
 }
 
 // DiskIDFromPath returns a stable 12-hex-char ID from device+mountPath.

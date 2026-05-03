@@ -1,0 +1,118 @@
+version: 1
+
+# Remediation runbook: replace an NFS-backed MinIO drive with a local path.
+#
+# Root cause this remediates:
+#   A MinIO pool node was configured with a network-mounted (NFS/CIFS) path as
+#   its data directory. If two pool nodes point to the same NFS export, they
+#   share physical bytes and corrupt each other's format.json, causing a heal
+#   deadlock on the next power cycle.
+#
+# Trigger conditions (cluster_doctor findings):
+#   objectstore.duplicate_physical_path  — two nodes share the same NFS export
+#   objectstore.network_mount_used       — any pool node uses NFS/CIFS/SMB
+#   objectstore.format_heal_deadlock     — all nodes down after power outage
+#
+# Prerequisites:
+#   - Operator must identify which node uses an NFS path (see Step 1).
+#   - A locally-attached drive must be available on that node (see Step 2).
+#   - This runbook causes DATA LOSS on the affected node's MinIO drive.
+#     Objects are NOT replicated back automatically; they must be re-synced
+#     from the repository upstream after MinIO is re-initialized.
+
+metadata:
+  name: objectstore-nfs-remediation
+  kind: runbook
+  description: "Reconfigure a MinIO pool node from an NFS path to a locally-attached drive."
+  applies_to: [objectstore.duplicate_physical_path, objectstore.network_mount_used, objectstore.format_heal_deadlock]
+
+steps:
+  - id: diagnose
+    phase: observe
+    description: "Identify the node and path using the NFS-backed drive."
+    cli_commands:
+      - cmd: "globular doctor"
+        purpose: "Read objectstore.duplicate_physical_path and objectstore.network_mount_used findings."
+      - cmd: "globular objectstore disk scan"
+        purpose: "List disk candidates across all nodes; look for fs_type=nfs4 or is_network_mount=true."
+
+  - id: scan-local-disk
+    phase: observe
+    description: "Verify a local block device is available on the affected node."
+    cli_commands:
+      - cmd: "globular objectstore disk scan --node <affected_node_id>"
+        purpose: "List eligible local block devices. Look for fs_type=ext4/xfs/btrfs with eligible=true."
+
+  - id: stop-minio-on-affected-node
+    phase: remediate
+    description: "Stop MinIO on the affected node to prevent further format.json corruption."
+    manual_steps:
+      - "SSH to the affected node."
+      - "Run: sudo systemctl stop globular-minio"
+      - "Verify: sudo systemctl status globular-minio (must show 'inactive')"
+
+  - id: stop-minio-cluster
+    phase: remediate
+    description: >
+      If a heal deadlock is active (format_heal_deadlock finding present),
+      stop MinIO on ALL pool nodes before proceeding.
+    condition: "objectstore.format_heal_deadlock is present"
+    manual_steps:
+      - "SSH to each pool node."
+      - "Run: sudo systemctl stop globular-minio"
+      - "Verify: sudo systemctl status globular-minio (must show 'inactive' on all nodes)"
+
+  - id: admit-local-disk
+    phase: plan
+    description: "Approve the local drive as a replacement for the NFS path."
+    cli_commands:
+      - cmd: "globular objectstore disk approve --node <affected_node_id> --path <local_mount_path> --node-ip <node_ip>"
+        purpose: "Registers the local drive in etcd as an approved MinIO path."
+        note: >
+          Use --force-existing-data if the local path already has data.
+          Use --force-root only if the path is on the root filesystem (not recommended).
+
+  - id: plan-topology
+    phase: plan
+    description: "Generate a new topology proposal that uses the local path."
+    cli_commands:
+      - cmd: "globular objectstore topology plan"
+        purpose: "Computes a new proposal replacing the NFS path with the newly-admitted local path."
+      - cmd: "globular objectstore topology list"
+        purpose: "Review proposals. Verify the new proposal shows the corrected node_paths."
+
+  - id: apply-topology
+    phase: execute
+    description: >
+      Apply the new topology. This is a DESTRUCTIVE operation — it will wipe .minio.sys
+      on nodes that are being reconfigured and re-initialize MinIO with the new path.
+      All objects on those drives will be lost and must be re-synced.
+    cli_commands:
+      - cmd: "globular objectstore topology apply --proposal <proposal_id> --i-understand-data-reset"
+        purpose: "Writes the new ObjectStoreDesiredState to etcd and triggers topology convergence."
+    warning: "DATA LOSS — MinIO on the reconfigured node will be re-initialized. Sync packages after completion."
+
+  - id: verify-convergence
+    phase: verify
+    description: "Confirm all pool nodes have converged to the new topology."
+    cli_commands:
+      - cmd: "globular objectstore status"
+        purpose: "Shows per-node rendered generation and MinIO service state."
+      - cmd: "globular doctor"
+        purpose: "objectstore.duplicate_physical_path and objectstore.format_heal_deadlock should be resolved."
+    success_criteria:
+      - "All pool nodes show rendered_generation == desired_generation."
+      - "globular-minio.service is 'active' on all pool nodes."
+      - "objectstore.duplicate_physical_path finding is absent."
+      - "objectstore.network_mount_used finding is absent."
+
+  - id: resync-packages
+    phase: restore
+    description: "Re-sync all platform packages from GitHub into the repository (MinIO data was wiped)."
+    cli_commands:
+      - cmd: "globular repo sync --all"
+        purpose: "Downloads all packages listed in release-index.json from GitHub and re-populates MinIO."
+    note: >
+      The repository local CAS (/var/lib/globular/repository) retains blobs — only the MinIO mirror
+      was wiped. Packages are re-mirrored from the local CAS on the next publish cycle, so full
+      re-sync may not be necessary if the local CAS is intact.

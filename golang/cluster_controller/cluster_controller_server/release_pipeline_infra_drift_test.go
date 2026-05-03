@@ -247,7 +247,12 @@ func TestDetectInfraDrift_ServiceLikeComponents_InactiveIsDrift(t *testing.T) {
 		{"alertmanager", "globular-alertmanager.service"},
 		{"cluster-controller", "globular-cluster-controller.service"},
 		{"cluster-doctor", "globular-cluster-doctor.service"},
-		{"scylladb", "scylla-server.service"}, // packageUnitOverrides
+		{"scylladb", "scylla-server.service"},             // packageUnitOverrides
+		{"xds", "globular-xds.service"},                  // control-plane mesh layer
+		{"sidekick", "globular-sidekick.service"},         // MinIO metrics proxy
+		{"node-exporter", "globular-node-exporter.service"}, // host metrics
+		{"scylla-manager", "globular-scylla-manager.service"},             // packageUnitOverrides
+		{"scylla-manager-agent", "globular-scylla-manager-agent.service"}, // packageUnitOverrides
 	}
 
 	for _, c := range components {
@@ -307,6 +312,37 @@ func TestDetectInfraDrift_CommandLikeComponents_NoDrift(t *testing.T) {
 				t.Fatalf("expected no drift for command-like %s", name)
 			}
 		})
+	}
+}
+
+// TestDetectInfraDrift_HashDrift_DowngradesToDegraded verifies that a node
+// reporting unit state "hash_drift" (unit file content changed outside the
+// package pipeline) is downgraded to DEGRADED. Guardrail 4: unit definition drift.
+func TestDetectInfraDrift_HashDrift_DowngradesToDegraded(t *testing.T) {
+	state := &controllerState{
+		Nodes: map[string]*nodeState{
+			"n1": {
+				NodeID:   "n1",
+				LastSeen: time.Now(),
+				Units: []unitStatusRecord{
+					// heartbeat reports hash_drift (computed by checkUnitHashDrift)
+					{Name: "globular-xds.service", State: "hash_drift", Details: "running (load=loaded) [unit_hash_drift]"},
+				},
+			},
+		},
+	}
+	srv := newTestServer(t, state)
+	rel := infraRelWithNode("xds", "n1")
+	cap := &patchCapture{}
+	h := handleWithCapture(rel, cap)
+
+	detected := srv.detectInfraDrift(context.Background(), rel, h)
+
+	if !detected {
+		t.Fatalf("expected drift for unit with hash_drift state")
+	}
+	if cap.patch.Phase != cluster_controllerpb.ReleasePhaseDegraded {
+		t.Errorf("expected DEGRADED, got %q", cap.patch.Phase)
 	}
 }
 

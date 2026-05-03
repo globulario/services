@@ -206,16 +206,34 @@ func (srv *server) registerDescriptor(ctx context.Context, manifest *repopb.Arti
 // If step 2 fails the manifest stays in VERIFIED state — invisible to the
 // release resolver until the Scylla write succeeds.
 func (srv *server) promoteToPublished(ctx context.Context, key string, manifest *repopb.ArtifactManifest) error {
-	// Step 1: Verify the binary blob is present in local store or mirror.
+	// Step 1: Verify the binary blob is present in LOCAL POSIX CAS and checksum matches.
+	// MinIO mirror presence alone is NOT sufficient — the blob must be locally verified
+	// before PUBLISHED state is written. All install/download paths read from local POSIX.
+	if srv.localStorage == nil {
+		return fmt.Errorf("promote to PUBLISHED blocked: local storage not initialized")
+	}
 	binKey := binaryStorageKey(key)
-	fi, statErr := srv.Storage().Stat(ctx, binKey)
+	fi, statErr := srv.localStorage.Stat(ctx, binKey)
 	if statErr != nil {
-		return fmt.Errorf("promote to PUBLISHED blocked: binary %q not found in local store or mirror — artifact cannot be PUBLISHED without its blob: %w",
+		return fmt.Errorf("promote to PUBLISHED blocked: binary %q not in local POSIX CAS — artifact cannot be PUBLISHED without a locally-verified blob: %w",
 			binKey, statErr)
 	}
 	if declared := manifest.GetSizeBytes(); declared > 0 && fi.Size() != declared {
-		return fmt.Errorf("promote to PUBLISHED blocked: binary %q size mismatch — manifest declares %d bytes but store reports %d bytes",
+		return fmt.Errorf("promote to PUBLISHED blocked: binary %q size mismatch — manifest declares %d bytes but local CAS reports %d bytes",
 			binKey, declared, fi.Size())
+	}
+	// Verify checksum against local POSIX blob — catches corruption before the state
+	// transition irrevocably marks the artifact as PUBLISHED.
+	if expectedDigest := manifest.GetChecksum(); expectedDigest != "" {
+		localPath := srv.localStorage.LocalPath(binKey)
+		actualDigest, verErr := checksumLocalFile(localPath)
+		if verErr != nil {
+			return fmt.Errorf("promote to PUBLISHED blocked: local blob checksum read failed: %w", verErr)
+		}
+		if !digestEqual(actualDigest, expectedDigest) {
+			return fmt.Errorf("promote to PUBLISHED blocked: local blob checksum mismatch — expected %s, actual %s",
+				expectedDigest, actualDigest)
+		}
 	}
 
 	manifest.PublishedUnix = time.Now().Unix()

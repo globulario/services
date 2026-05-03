@@ -119,6 +119,8 @@ type server struct {
 	MinioConfig    *config.MinioProxyConfig  // MinIO config from etcd (optional mirror)
 	minioClient    *minio.Client
 	storage        storage_backend.Storage
+	localStorage   *storage_backend.OSStorage // local POSIX CAS — never nil after initStorage
+	mirrorStorage  storage_backend.Storage    // optional MinIO mirror — nil when unavailable
 	localStorePath string // POSIX CAS root — /var/lib/globular/repository
 	cache       *manifestCache                          // in-memory TTL cache for manifest reads
 	scylla      manifestLedger                          // ScyllaDB manifest metadata store (nil until connected)
@@ -649,20 +651,31 @@ func (srv *server) initStorage() error {
 	}
 	localStore := storage_backend.NewOSStorage(localRoot)
 
-	// MinIO is optional — it becomes a best-effort mirror.
+	// MinIO is optional — it becomes a best-effort mirror only when topology is safe.
 	var mirror storage_backend.Storage
 	if srv.minioEnabled() {
-		if err := srv.ensureMinioClient(); err != nil {
-			logger.Warn("MinIO client init failed — operating with local store only", "err", err)
+		// Topology pre-flight: refuse mirror if NFS/network mount detected on this node.
+		admCtx, admCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		admStatus, admReason := checkMinioTopologySafe(admCtx, srv.Id, srv.Mac)
+		admCancel()
+		if admStatus == MirrorAdmissionInvalid {
+			logger.Error("MinIO mirror BLOCKED by topology check — local POSIX store only",
+				"reason", admReason,
+				"doctor", "objectstore.duplicate_physical_path / objectstore.network_mount_used",
+			)
 		} else {
-			m, err := storage_backend.NewMinioStorage(srv.minioClient, srv.MinioConfig.Bucket, srv.MinioConfig.Prefix)
-			if err != nil {
-				logger.Warn("MinIO storage init failed — operating with local store only", "err", err)
+			if err := srv.ensureMinioClient(); err != nil {
+				logger.Warn("MinIO client init failed — operating with local store only", "err", err)
 			} else {
-				mirror = m
-				logger.Info("minio storage initialized as mirror",
-					"endpoint", srv.MinioConfig.Endpoint,
-					"bucket", srv.MinioConfig.Bucket)
+				m, err := storage_backend.NewMinioStorage(srv.minioClient, srv.MinioConfig.Bucket, srv.MinioConfig.Prefix)
+				if err != nil {
+					logger.Warn("MinIO storage init failed — operating with local store only", "err", err)
+				} else {
+					mirror = m
+					logger.Info("minio storage initialized as mirror",
+						"endpoint", srv.MinioConfig.Endpoint,
+						"bucket", srv.MinioConfig.Bucket)
+				}
 			}
 		}
 	} else {
@@ -670,17 +683,33 @@ func (srv *server) initStorage() error {
 	}
 
 	srv.storage = storage_backend.NewResilientStorage(localStore, mirror)
+	srv.localStorage = localStore
+	srv.mirrorStorage = mirror
 	logger.Info("repository storage initialized", "local", localRoot, "mirror_available", mirror != nil)
 	return nil
 }
 
-// requireHealthy gates RPCs behind the dependency health check.
-// Returns a gRPC UNAVAILABLE error if MinIO or ScyllaDB is down.
+// requireHealthy is retained for backward compatibility.
+// It gates on CapRepoWrite — the strictest capability (requires ScyllaDB).
+// Deprecated: use requireCapability(cap) for capability-specific gating.
 func (srv *server) requireHealthy() error {
+	return srv.requireCapability(CapRepoWrite)
+}
+
+// requireCapability gates an RPC behind a named capability check.
+//
+//   - CapRepoWrite  — blocked when ScyllaDB is down
+//   - CapRepoQuery  — blocked when ScyllaDB is down
+//   - CapRepoRead   — never blocked (local POSIX CAS is always available)
+//   - CapRepoMirror — blocked when MinIO mirror is down
+//
+// Returns nil during startup (before watchdog initialises) to avoid blocking
+// health checks and status RPCs that fire before the dependency loop starts.
+func (srv *server) requireCapability(cap string) error {
 	if srv.depHealth == nil {
-		return nil // watchdog not yet started (startup)
+		return nil
 	}
-	return srv.depHealth.RequireHealthy()
+	return srv.depHealth.RequireCapability(cap)
 }
 
 // Storage returns the configured backend.

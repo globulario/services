@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/security"
@@ -25,9 +26,6 @@ import (
 // VerifyArtifact runs a read-only integrity probe against a single artifact.
 // Never mutates state. Mirrors the operator command `globular repository verify`.
 func (srv *server) VerifyArtifact(ctx context.Context, req *repopb.VerifyArtifactRequest) (*repopb.VerifyArtifactResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
-		return nil, err
-	}
 	ref := req.GetRef()
 	if ref == nil {
 		return nil, status.Error(codes.InvalidArgument, "ref is required")
@@ -143,9 +141,6 @@ func repairAdvice(p ArtifactPipelineState, vs ArtifactVerificationStatus) (bool,
 // RepairArtifact attempts to repair a broken artifact by re-importing from
 // the upstream source recorded in its manifest.
 func (srv *server) RepairArtifact(ctx context.Context, req *repopb.RepairArtifactRequest) (*repopb.RepairArtifactResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
-		return nil, err
-	}
 	ref := req.GetRef()
 	if ref == nil {
 		return nil, status.Error(codes.InvalidArgument, "ref is required")
@@ -261,9 +256,6 @@ func containsAny(s, needle string) bool {
 // ExplainArtifact composes manifest, ledger, blob, signature, and pipeline
 // state into one operator-readable response. Read-only.
 func (srv *server) ExplainArtifact(ctx context.Context, req *repopb.ExplainArtifactRequest) (*repopb.ExplainArtifactResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
-		return nil, err
-	}
 	ref := req.GetRef()
 	if ref == nil {
 		return nil, status.Error(codes.InvalidArgument, "ref is required")
@@ -304,13 +296,16 @@ func (srv *server) ExplainArtifact(ctx context.Context, req *repopb.ExplainArtif
 		}
 	}
 
+	blobPresent := v.Status != VerifyBrokenMissingBlob
+	sourceAvail, repairable := srv.probeSourceAvailability(ctx, ref, buildNumber, m, blobPresent)
+
 	resp := &repopb.ExplainArtifactResponse{
 		Ref:                ref,
 		ArtifactKey:        key,
 		ArtifactState:      string(pipelineState),
 		PublishState:       publishState,
 		BlobKey:            v.BlobKey,
-		BlobPresent:        v.Status != VerifyBrokenMissingBlob,
+		BlobPresent:        blobPresent,
 		ExpectedSize:       v.ExpectedSiz,
 		ActualSize:         v.ActualSize,
 		ExpectedDigest:     v.ExpectedSHA,
@@ -321,6 +316,8 @@ func (srv *server) ExplainArtifact(ctx context.Context, req *repopb.ExplainArtif
 		Installable:        pipelineState == PipelinePublished && publishState == repopb.PublishState_PUBLISHED && v.Status == VerifyOK,
 		VerifyStatus:       mapVerifyStatus(v.Status),
 		Detail:             v.Reason,
+		SourceAvailability: sourceAvail,
+		Repairable:         repairable,
 	}
 	_, resp.RecommendedAction = repairAdvice(pipelineState, v.Status)
 
@@ -330,4 +327,73 @@ func (srv *server) ExplainArtifact(ctx context.Context, req *repopb.ExplainArtif
 		resp.RelatedWorkflowRunId = rec.WorkflowRunID
 	}
 	return resp, nil
+}
+
+// probeSourceAvailability checks each layer in the source chain and reports
+// whether the artifact is accessible from each. Only meaningful when the blob
+// is absent locally — when present the local layer is authoritative.
+//
+// Returns a slice of "name:type:status:reason" entries (e.g.
+// "local-posix:LOCAL_POSIX:PRESENT:") and a repairable flag that is true
+// when at least one non-local source can provide the missing blob.
+// All probes are read-only and best-effort; failures are noted, not fatal.
+func (srv *server) probeSourceAvailability(
+	ctx context.Context,
+	ref *repopb.ArtifactRef,
+	buildNumber int64,
+	manifest *repopb.ArtifactManifest,
+	localPresent bool,
+) ([]string, bool) {
+	var entries []string
+	repairable := false
+
+	// ── Local POSIX ───────────────────────────────────────────────────────
+	if localPresent {
+		entries = append(entries, "local-posix:LOCAL_POSIX:PRESENT:")
+	} else {
+		entries = append(entries, "local-posix:LOCAL_POSIX:ABSENT:blob missing from local CAS")
+	}
+
+	// ── MinIO mirror ──────────────────────────────────────────────────────
+	if srv.mirrorStorage != nil {
+		key := artifactKeyWithBuild(ref, buildNumber)
+		binKey := binaryStorageKey(key)
+		statCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		_, statErr := srv.mirrorStorage.Stat(statCtx, binKey)
+		cancel()
+		if statErr == nil {
+			entries = append(entries, "minio-mirror:MINIO_MIRROR:PRESENT:")
+			if !localPresent {
+				repairable = true
+			}
+		} else {
+			entries = append(entries, fmt.Sprintf("minio-mirror:MINIO_MIRROR:ABSENT:%v", statErr))
+		}
+	} else {
+		entries = append(entries, "minio-mirror:MINIO_MIRROR:UNCONFIGURED:no mirror storage")
+	}
+
+	// ── Upstream sources ──────────────────────────────────────────────────
+	upstreams := srv.loadUpstreamSources(ctx)
+	if len(upstreams) == 0 {
+		entries = append(entries, "upstream:UPSTREAM:UNCONFIGURED:no upstream sources registered")
+	}
+	for _, us := range upstreams {
+		h := us.Health(ctx)
+		if !h.Available {
+			entries = append(entries, fmt.Sprintf("%s:%s:UNREACHABLE:%s", us.Name(), us.Type(), h.Reason))
+			continue
+		}
+		// Reachable — check whether this source has context to repair the blob.
+		reason := ""
+		if !localPresent && manifest != nil {
+			if ui := manifest.GetUpstreamImport(); ui != nil && ui.GetSourceName() == us.Name() {
+				reason = "can repair from upstream_import"
+				repairable = true
+			}
+		}
+		entries = append(entries, fmt.Sprintf("%s:%s:REACHABLE:%s", us.Name(), us.Type(), reason))
+	}
+
+	return entries, repairable
 }

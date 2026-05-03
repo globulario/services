@@ -913,6 +913,18 @@ service PackageRepository {
       default_role_hint: "viewer"
     };
   };
+
+  // GetRepositoryStatus returns the live operational mode and capability status.
+  // This RPC NEVER calls requireHealthy() — it must answer even when ScyllaDB
+  // is down. Use it to determine repository health before making capability decisions.
+  rpc GetRepositoryStatus(GetRepositoryStatusRequest) returns(GetRepositoryStatusResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.status.read"
+      permission: "read"
+      collection_template: "/repository/status"
+      default_role_hint: "viewer"
+    };
+  };
 }
 
 // ── Operator verify / repair / explain messages ─────────────────────────────
@@ -1011,6 +1023,11 @@ message ExplainArtifactResponse {
   string related_workflow_run_id = 16;
   ArtifactVerifyStatus verify_status = 17;
   string detail        = 18;
+  // Source availability — populated when blob is missing locally.
+  // Each entry is "name:type:status:reason" (status: PRESENT|ABSENT|REACHABLE|UNREACHABLE|UNCONFIGURED).
+  repeated string source_availability = 19;
+  // True when blob is absent locally but at least one source can provide it.
+  bool repairable = 20;
 }
 
 // ── ResolveArtifact (deterministic resolver) ────────────────────────────────
@@ -1633,6 +1650,11 @@ enum RepositoryFindingKind {
   REPO_FIND_QUARANTINED_INSTALLABLE       = 5;
   REPO_FIND_CONFIG_CONFLICT               = 6;
   REPO_FIND_ROLLBACK_FAILED               = 7;
+  // Phase 1 operational-mode invariants:
+  REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT = 10; // service reports FULL mode but ScyllaDB is unavailable
+  REPO_FIND_MINIO_BLOCKS_REPOSITORY       = 11; // optional MinIO dep is blocking a non-mirror capability
+  REPO_FIND_SOURCE_CHAIN_UNAVAILABLE      = 12; // no source can provide any artifact
+  REPO_FIND_LOCAL_CACHE_CORRUPTION        = 13; // receipt exists but local blob is missing or corrupt
 }
 
 // RepositoryFindingSeverity mirrors the doctor's severity scale.
@@ -1669,4 +1691,45 @@ message ListRepositoryFindingsRequest {
 message ListRepositoryFindingsResponse {
   repeated RepositoryFinding findings = 1;
   int64 generated_at_unix             = 2;
+}
+
+// ── Phase 1: operational status ───────────────────────────────────────────────
+
+// DependencyHealthProto describes one dependency's live state and which
+// capabilities are affected when it is unhealthy. "Proto" suffix avoids
+// collision with the Go operational.DependencyHealth type.
+message DependencyHealthProto {
+  string name   = 1;  // e.g. "scylladb", "minio_mirror"
+  string kind   = 2;  // REQUIRED, OPTIONAL, MIRROR, INDEX, CACHE, …
+  string status = 3;  // HEALTHY, DEGRADED, UNAVAILABLE, UNSAFE
+  string reason = 4;
+  repeated string affects_capabilities = 5;
+}
+
+// CapabilityHealthProto describes the live status of one named capability.
+message CapabilityHealthProto {
+  string name   = 1;  // e.g. "repository.write", "repository.read"
+  string status = 2;  // AVAILABLE, DEGRADED, BLOCKED, DISABLED
+  string mode   = 3;  // FULL, DEGRADED, READ_ONLY, LOCAL_ONLY, UNAVAILABLE
+  string reason = 4;
+}
+
+message GetRepositoryStatusRequest {}
+
+// GetRepositoryStatusResponse is the live operational picture of this
+// repository instance. The gRPC SERVING state is orthogonal: a service may
+// be SERVING with mode DEGRADED or READ_ONLY.
+//
+//   mode = FULL        → all capabilities available
+//   mode = DEGRADED    → MinIO mirror unavailable; core capabilities work
+//   mode = READ_ONLY   → ScyllaDB unavailable; writes blocked; local reads work
+//   mode = LOCAL_ONLY  → ScyllaDB + MinIO unavailable; only local POSIX CAS
+//   mode = UNAVAILABLE → service cannot serve any capability
+message GetRepositoryStatusResponse {
+  string service                               = 1;
+  string mode                                  = 2;
+  string reason                                = 3;
+  repeated DependencyHealthProto dependencies  = 4;
+  repeated CapabilityHealthProto capabilities  = 5;
+  int64  observed_at_unix                      = 6;
 }

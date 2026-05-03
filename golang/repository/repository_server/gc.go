@@ -60,7 +60,7 @@ func (srv *server) ArchiveUnreachableArtifacts(
 	ctx context.Context,
 	req *repopb.ArchiveUnreachableArtifactsRequest,
 ) (*repopb.ArchiveUnreachableArtifactsResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 

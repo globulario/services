@@ -20,6 +20,7 @@ package main
 // INV-10: Repair never silently rewrites history.
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -42,7 +43,7 @@ func truncDigest(d string) string {
 // ImportProvisionalArtifact handles the day-0 → day-1 transition for a
 // provisionally installed package.
 func (srv *server) ImportProvisionalArtifact(ctx context.Context, req *repopb.ImportProvisionalRequest) (*repopb.ImportProvisionalResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 
@@ -165,30 +166,29 @@ func (srv *server) ImportProvisionalArtifact(ctx context.Context, req *repopb.Im
 		}
 		key := artifactKeyWithBuild(ref, buildNumber)
 
-		if err := srv.Storage().MkdirAll(ctx, artifactsDir, 0o755); err != nil {
-			return nil, status.Errorf(codes.Internal, "create artifacts dir: %v", err)
+		// Write binary to local POSIX CAS first — local CAS is the installability authority.
+		binKey := binaryStorageKey(key)
+		if _, err := srv.localStorage.WriteFileAtomic(ctx, binKey,
+			bytes.NewReader(req.GetData()), digest, int64(len(req.GetData()))); err != nil {
+			return nil, status.Errorf(codes.Internal, "write binary to local CAS: %v", err)
 		}
-		if err := srv.Storage().WriteFile(ctx, binaryStorageKey(key), req.GetData(), 0o644); err != nil {
-			return nil, status.Errorf(codes.Internal, "write binary: %v", err)
+		// Best-effort mirror write — local success is sufficient.
+		if srv.mirrorStorage != nil {
+			_ = srv.mirrorStorage.WriteFile(ctx, binKey, req.GetData(), 0o644)
 		}
 
-		// Build and store manifest.
+		// Build manifest and promote to PUBLISHED (verifies local CAS + writes Scylla + manifest).
 		manifest := &repopb.ArtifactManifest{
-			Ref:          ref,
-			BuildNumber:  buildNumber,
-			BuildId:      confirmedBuildID,
-			Checksum:     digest,
-			SizeBytes:    int64(len(req.GetData())),
-			Provisional:  false, // imported = no longer provisional
+			Ref:         ref,
+			BuildNumber: buildNumber,
+			BuildId:     confirmedBuildID,
+			Checksum:    digest,
+			SizeBytes:   int64(len(req.GetData())),
+			Provisional: false, // imported = no longer provisional
 		}
-		mjson, err := marshalManifestWithState(manifest, repopb.PublishState_PUBLISHED)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "marshal manifest: %v", err)
+		if err := srv.promoteToPublished(ctx, key, manifest); err != nil {
+			return nil, status.Errorf(codes.Internal, "promote to PUBLISHED: %v", err)
 		}
-		if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
-			return nil, status.Errorf(codes.Internal, "write manifest: %v", err)
-		}
-		srv.syncManifestToScylla(ctx, key, manifest, repopb.PublishState_PUBLISHED, mjson)
 	}
 
 	// Add to release ledger.

@@ -16,7 +16,7 @@ import (
 // ── TrustPublisher ────────────────────────────────────────────────────────
 
 func (srv *server) TrustPublisher(ctx context.Context, req *repopb.TrustPublisherRequest) (*repopb.TrustPublisherResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 	pubID := strings.TrimSpace(req.GetPublisherId())
@@ -72,7 +72,7 @@ func (srv *server) TrustPublisher(ctx context.Context, req *repopb.TrustPublishe
 // ── RevokePublisherKey ────────────────────────────────────────────────────
 
 func (srv *server) RevokePublisherKey(ctx context.Context, req *repopb.RevokePublisherKeyRequest) (*repopb.RevokePublisherKeyResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 	pubID := strings.TrimSpace(req.GetPublisherId())
@@ -100,7 +100,7 @@ func (srv *server) RevokePublisherKey(ctx context.Context, req *repopb.RevokePub
 // ── ListTrustedPublishers ─────────────────────────────────────────────────
 
 func (srv *server) ListTrustedPublishers(ctx context.Context, req *repopb.ListTrustedPublishersRequest) (*repopb.ListTrustedPublishersResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoQuery); err != nil {
 		return nil, err
 	}
 	rows := srv.loadAllTrustedPublishers(ctx, strings.TrimSpace(req.GetPublisherId()))
@@ -110,7 +110,7 @@ func (srv *server) ListTrustedPublishers(ctx context.Context, req *repopb.ListTr
 // ── RegisterArtifactSignature ─────────────────────────────────────────────
 
 func (srv *server) RegisterArtifactSignature(ctx context.Context, req *repopb.RegisterArtifactSignatureRequest) (*repopb.RegisterArtifactSignatureResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 	ref := req.GetRef()
@@ -185,7 +185,7 @@ func (srv *server) RegisterArtifactSignature(ctx context.Context, req *repopb.Re
 // ── VerifyArtifactSignature ───────────────────────────────────────────────
 
 func (srv *server) VerifyArtifactSignature(ctx context.Context, req *repopb.VerifyArtifactSignatureRequest) (*repopb.VerifyArtifactSignatureResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoQuery); err != nil {
 		return nil, err
 	}
 	ref := req.GetRef()
@@ -219,7 +219,7 @@ func (srv *server) VerifyArtifactSignature(ctx context.Context, req *repopb.Veri
 // ── ListArtifactSignatures ────────────────────────────────────────────────
 
 func (srv *server) ListArtifactSignatures(ctx context.Context, req *repopb.ListArtifactSignaturesRequest) (*repopb.ListArtifactSignaturesResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoQuery); err != nil {
 		return nil, err
 	}
 	ref := req.GetRef()

@@ -19,6 +19,7 @@ import (
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
+	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -176,6 +177,22 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 			wfClient = workflowpb.NewWorkflowServiceClient(wfConn)
 			col.WithWorkflowClient(wfClient, clusterID)
 		}
+	}
+
+	// Attach repository-service client for ListRepositoryFindings + GetRepositoryStatus.
+	// Resolved from etcd; optional — if unreachable, repository invariants degrade gracefully.
+	repoEndpoint := config.ResolveServiceAddr("repository.PackageRepository", "")
+	if repoEndpoint != "" {
+		repoTarget := config.ResolveDialTarget(repoEndpoint)
+		if repoConn, repoErr := grpc.NewClient(repoTarget.Address,
+			grpc.WithTransportCredentials(buildClientTLSCreds(repoTarget.ServerName))); repoErr == nil {
+			col.WithRepositoryClient(repopb.NewPackageRepositoryClient(repoConn))
+		} else {
+			logger.Warn("repository client init failed — repository invariants disabled", "err", repoErr)
+		}
+	} else {
+		logger.Info("repository endpoint not in etcd — repository invariants disabled (pre-bootstrap)")
+		col.SetRepositoryEndpointMissing()
 	}
 
 	reg := rules.NewRegistry(rules.Config{

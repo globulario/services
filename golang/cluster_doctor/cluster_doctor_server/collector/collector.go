@@ -16,6 +16,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -36,6 +37,8 @@ type Collector struct {
 	cfg              CollectorConfig
 	controllerClient cluster_controllerpb.ClusterControllerServiceClient
 	workflowClient   workflowpb.WorkflowServiceClient
+	repoClient              repopb.PackageRepositoryClient // optional; nil until WithRepositoryClient
+	repoEndpointMissing     bool                           // true when etcd has no entry for repository.PackageRepository
 	clusterID        string
 	cache            *SnapshotCache
 
@@ -67,6 +70,22 @@ func (c *Collector) WithWorkflowClient(wf workflowpb.WorkflowServiceClient, clus
 	c.workflowClient = wf
 	c.clusterID = clusterID
 	return c
+}
+
+// WithRepositoryClient attaches a repository-service client so the collector
+// can pull ListRepositoryFindings and GetRepositoryStatus into the snapshot.
+// Optional — if nil, repository invariants produce no findings.
+func (c *Collector) WithRepositoryClient(repo repopb.PackageRepositoryClient) *Collector {
+	c.repoClient = repo
+	return c
+}
+
+// SetRepositoryEndpointMissing records that the repository service endpoint
+// was not found in etcd at startup. The flag is propagated into each Snapshot
+// so the repositoryOperationalMode invariant can emit a repository.endpoint_missing
+// finding once the cluster is past bootstrap (nodes visible in controller).
+func (c *Collector) SetRepositoryEndpointMissing() {
+	c.repoEndpointMissing = true
 }
 
 // SnapshotResult carries the snapshot plus provenance telemetry the
@@ -143,6 +162,7 @@ func (c *Collector) GetSnapshotWithFreshness(ctx context.Context, forceFresh boo
 // fetch does the actual upstream calls.
 func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 	snap := newSnapshot(uuid.New().String())
+	snap.RepositoryEndpointMissing = c.repoEndpointMissing
 
 	// ── 1. ListNodes ──────────────────────────────────────────────────────────
 	listCtx, cancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
@@ -289,7 +309,12 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 		c.fetchWorkflowTelemetry(ctx, snap)
 	}
 
-	// ── 6. Prometheus control-plane signals (best-effort) ───────────────────
+	// ── 6. Repository findings + operational status (optional) ───────────────
+	if c.repoClient != nil {
+		c.fetchRepositoryData(ctx, snap)
+	}
+
+	// ── 7. Prometheus control-plane signals (best-effort) ───────────────────
 	c.fetchPrometheus(ctx, snap)
 
 	return snap, nil
@@ -492,6 +517,87 @@ func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {
 	}
 
 	wg.Wait()
+}
+
+// fetchRepositoryData pulls ListRepositoryFindings and GetRepositoryStatus from
+// the repository service. Both are best-effort: a failure populates the
+// RepositoryOperationalStatus.ReachError so the invariant can emit a
+// "repository.unreachable" finding without marking the whole snapshot incomplete.
+func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot) {
+	repoCtx, cancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+	defer cancel()
+
+	// GetRepositoryStatus — must answer even when Scylla is down.
+	statusResp, statusErr := c.repoClient.GetRepositoryStatus(repoCtx, &repopb.GetRepositoryStatusRequest{})
+	opStatus := &RepositoryOperationalStatus{ReachError: statusErr}
+	if statusErr == nil && statusResp != nil {
+		opStatus.Service = statusResp.GetService()
+		opStatus.Mode = statusResp.GetMode()
+		opStatus.Reason = statusResp.GetReason()
+		opStatus.ObservedAtUnix = statusResp.GetObservedAtUnix()
+		for _, d := range statusResp.GetDependencies() {
+			opStatus.Dependencies = append(opStatus.Dependencies, RepoDependencyHealth{
+				Name:                d.GetName(),
+				Kind:                d.GetKind(),
+				Status:              d.GetStatus(),
+				Reason:              d.GetReason(),
+				AffectsCapabilities: d.GetAffectsCapabilities(),
+			})
+		}
+		for _, c := range statusResp.GetCapabilities() {
+			opStatus.Capabilities = append(opStatus.Capabilities, RepoCapabilityHealth{
+				Name:   c.GetName(),
+				Status: c.GetStatus(),
+				Mode:   c.GetMode(),
+				Reason: c.GetReason(),
+			})
+		}
+		snap.addSource("repository.GetRepositoryStatus")
+	} else if statusErr != nil {
+		snap.addError("repository", "GetRepositoryStatus", statusErr)
+	}
+	snap.mu.Lock()
+	snap.RepositoryOperationalStatus = opStatus
+	snap.mu.Unlock()
+
+	// ListRepositoryFindings — integrity findings from the repository catalog.
+	findCtx, findCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+	defer findCancel()
+
+	findResp, findErr := c.repoClient.ListRepositoryFindings(findCtx, &repopb.ListRepositoryFindingsRequest{})
+	if findErr != nil {
+		snap.addError("repository", "ListRepositoryFindings", findErr)
+		return
+	}
+	var findings []*RepositoryFindingSnapshot
+	for _, f := range findResp.GetFindings() {
+		if f == nil {
+			continue
+		}
+		ev := make(map[string]string, len(f.GetEvidence()))
+		for k, v := range f.GetEvidence() {
+			ev[k] = v
+		}
+		findings = append(findings, &RepositoryFindingSnapshot{
+			Kind:               f.GetKind().String(),
+			Severity:           f.GetSeverity().String(),
+			ArtifactKey:        f.GetArtifactKey(),
+			PublisherID:        f.GetRef().GetPublisherId(),
+			Name:               f.GetRef().GetName(),
+			Version:            f.GetRef().GetVersion(),
+			Platform:           f.GetRef().GetPlatform(),
+			CurrentState:       f.GetCurrentState(),
+			ExpectedState:      f.GetExpectedState(),
+			Reason:             f.GetReason(),
+			RecommendedCommand: f.GetRecommendedCommand(),
+			Evidence:           ev,
+			ObservedAtUnix:     f.GetObservedAtUnix(),
+		})
+	}
+	snap.mu.Lock()
+	snap.RepositoryFindings = findings
+	snap.mu.Unlock()
+	snap.addSource("repository.ListRepositoryFindings")
 }
 
 // agentClient returns a cached or new NodeAgent gRPC client for the given endpoint.

@@ -136,7 +136,7 @@ func (srv *server) DownloadBundle(
 		PublisherId: bundle.PackageDescriptor.GetPublisherID(),
 	}
 	aKey := artifactKeyWithBuild(aRef, 0)
-	data, err := srv.Storage().ReadFile(stream.Context(), binaryStorageKey(aKey))
+	data, err := srv.localStorage.ReadFile(stream.Context(), binaryStorageKey(aKey))
 	if err != nil {
 		return fmt.Errorf("read bundle artifact %q: %w", aKey, err)
 	}
@@ -212,16 +212,21 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 	}
 	aKey := artifactKeyWithBuild(aRef, 0)
 
-	_ = srv.Storage().MkdirAll(stream.Context(), artifactsDir, 0o755)
-	if err := srv.Storage().WriteFile(stream.Context(), binaryStorageKey(aKey), bundle.Binairies, 0o644); err != nil {
-		_ = stream.SendAndClose(&repopb.UploadBundleResponse{}) // best-effort close
-		return fmt.Errorf("write artifact %q: %w", aKey, err)
-	}
-
-	// Fill metadata and persist it via existing server method.
+	// Write binary to local POSIX CAS first — local CAS is the installability authority.
 	bundle.Checksum = checksumBytes(bundle.Binairies)
 	bundle.Size = int32(len(bundle.Binairies))
 	bundle.Modified = time.Now().Unix()
+
+	binKey := binaryStorageKey(aKey)
+	if _, err := srv.localStorage.WriteFileAtomic(stream.Context(), binKey,
+		bytes.NewReader(bundle.Binairies), bundle.Checksum, int64(bundle.Size)); err != nil {
+		_ = stream.SendAndClose(&repopb.UploadBundleResponse{}) // best-effort close
+		return fmt.Errorf("write artifact %q to local CAS: %w", aKey, err)
+	}
+	// Best-effort mirror write — local success is sufficient.
+	if srv.mirrorStorage != nil {
+		_ = srv.mirrorStorage.WriteFile(stream.Context(), binKey, bundle.Binairies, 0o644)
+	}
 
 	if err := srv.setPackageBundle(
 		bundle.Checksum,
@@ -234,13 +239,12 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 		return fmt.Errorf("persist bundle metadata: %w", err)
 	}
 
-	// Write artifact manifest with PUBLISHED state.
+	// Build manifest and promote to PUBLISHED (verifies local CAS + writes Scylla + manifest).
 	manifest := &repopb.ArtifactManifest{
-		Ref:           aRef,
-		Checksum:      bundle.Checksum,
-		SizeBytes:     int64(bundle.Size),
-		ModifiedUnix:  bundle.Modified,
-		PublishedUnix: time.Now().Unix(),
+		Ref:          aRef,
+		Checksum:     bundle.Checksum,
+		SizeBytes:    int64(bundle.Size),
+		ModifiedUnix: bundle.Modified,
 	}
 
 	// Enrich manifest from embedded manifest.json in the .tgz archive.
@@ -254,9 +258,11 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 		manifest.Keywords = d.Keywords
 	}
 
-	// Marshal with PUBLISHED state since UploadBundle is a complete publish.
-	if mjson, merr := marshalManifestWithState(manifest, repopb.PublishState_PUBLISHED); merr == nil {
-		_ = srv.Storage().WriteFile(stream.Context(), manifestStorageKey(aKey), mjson, 0o644)
+	if err := srv.promoteToPublished(stream.Context(), aKey, manifest); err != nil {
+		slog.Warn("UploadBundle: promoteToPublished failed — artifact written to local CAS but not marked PUBLISHED",
+			"key", aKey, "err", err)
+		_ = stream.SendAndClose(&repopb.UploadBundleResponse{}) // best-effort close
+		return fmt.Errorf("promote to PUBLISHED: %w", err)
 	}
 	slog.Info("artifact uploaded via UploadBundle", "key", aKey, "publish_state", "PUBLISHED")
 

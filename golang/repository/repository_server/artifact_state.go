@@ -595,7 +595,15 @@ func (srv *server) verifyArtifactIntegrity(ctx context.Context, ref *repopb.Arti
 	res.ExpectedSHA = manifest.GetChecksum()
 	res.ExpectedSiz = manifest.GetSizeBytes()
 
-	fi, statErr := srv.Storage().Stat(ctx, blobKey)
+	// Blob presence check: local POSIX CAS only.
+	// MinIO mirror presence must NOT make integrity verification pass — if the
+	// blob is absent from local POSIX CAS the artifact is not installable.
+	if srv.localStorage == nil {
+		res.Status = VerifyInconclusive
+		res.Reason = "local_storage_not_initialized"
+		return res, nil
+	}
+	fi, statErr := srv.localStorage.Stat(ctx, blobKey)
 	if statErr != nil {
 		res.Status = VerifyBrokenMissingBlob
 		res.Reason = "stat: " + statErr.Error()
@@ -603,20 +611,19 @@ func (srv *server) verifyArtifactIntegrity(ctx context.Context, ref *repopb.Arti
 	}
 	res.ActualSize = fi.Size()
 	if res.ExpectedSiz > 0 && res.ActualSize != res.ExpectedSiz {
-		// Size mismatch is a checksum-class failure.
 		res.Status = VerifyBrokenChecksumMismatch
 		res.Reason = "size_mismatch"
 		return res, nil
 	}
 
 	if res.ExpectedSHA != "" {
-		data, readErr := srv.Storage().ReadFile(ctx, blobKey)
+		localPath := srv.localStorage.LocalPath(blobKey)
+		actual, readErr := checksumLocalFile(localPath)
 		if readErr != nil {
 			res.Status = VerifyBrokenMissingBlob
 			res.Reason = "read: " + readErr.Error()
 			return res, nil
 		}
-		actual := computeSHA256(data)
 		res.ActualSHA = actual
 		if !digestEqual(actual, res.ExpectedSHA) {
 			res.Status = VerifyBrokenChecksumMismatch

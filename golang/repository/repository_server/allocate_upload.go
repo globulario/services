@@ -123,7 +123,7 @@ func (rs *reservationStore) cleanup() {
 
 // AllocateUpload implements the Phase 4 allocation protocol.
 func (srv *server) AllocateUpload(ctx context.Context, req *repopb.AllocateUploadRequest) (*repopb.AllocateUploadResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 

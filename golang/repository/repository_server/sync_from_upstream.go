@@ -29,6 +29,7 @@ package main
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -61,7 +62,7 @@ func upstreamEtcdKey(name string) string { return upstreamEtcdPrefix + name }
 // ── RegisterUpstream ─────────────────────────────────────────────────────────
 
 func (srv *server) RegisterUpstream(ctx context.Context, req *repopb.RegisterUpstreamRequest) (*repopb.RegisterUpstreamResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 	src := req.GetSource()
@@ -99,7 +100,7 @@ func (srv *server) RegisterUpstream(ctx context.Context, req *repopb.RegisterUps
 // ── ListUpstreams ─────────────────────────────────────────────────────────────
 
 func (srv *server) ListUpstreams(ctx context.Context, _ *repopb.ListUpstreamsRequest) (*repopb.ListUpstreamsResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoQuery); err != nil {
 		return nil, err
 	}
 
@@ -134,7 +135,7 @@ func (srv *server) ListUpstreams(ctx context.Context, _ *repopb.ListUpstreamsReq
 // ── RemoveUpstream ────────────────────────────────────────────────────────────
 
 func (srv *server) RemoveUpstream(ctx context.Context, req *repopb.RemoveUpstreamRequest) (*repopb.RemoveUpstreamResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 	name := strings.TrimSpace(req.GetName())
@@ -162,7 +163,7 @@ func (srv *server) RemoveUpstream(ctx context.Context, req *repopb.RemoveUpstrea
 // the canonical schema definition for release-index.json.
 
 func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUpstreamRequest) (*repopb.SyncFromUpstreamResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
+	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 
@@ -763,25 +764,40 @@ func (srv *server) importUpstreamArtifact(
 			"context", "importUpstreamArtifact")
 	}
 
-	if err := srv.Storage().MkdirAll(ctx, artifactsDir, 0o755); err != nil {
-		return fmt.Errorf("create artifacts dir: %w", err)
+	// Write binary atomically to the local POSIX CAS.
+	// MaterializeArtifactToLocal: streams through sha256 verify, atomic rename,
+	// and drives DOWNLOADING → BLOB_WRITTEN → BLOB_VERIFIED state transitions.
+	matReq := ArtifactRequest{
+		PublisherID:   n.Publisher,
+		Name:          n.Name,
+		Version:       n.Version,
+		Platform:      n.Platform,
+		BuildNumber:   n.BuildNumber,
+		BuildID:       n.BuildID,
+		Sha256:        digest,
+		SizeBytes:     int64(len(data)),
+		WorkflowRunID: workflowRunID,
 	}
-	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(key), data, 0o644); err != nil {
-		// Stay in DOWNLOADING with reason — caller surfaces SYNC_FAILED.
-		return fmt.Errorf("write binary: %w", err)
+	matCandidate := &ArtifactCandidate{
+		SourceName: src.GetName(),
+		SourceType: upstream.MapProtoType(int32(src.GetType())),
+		Reader:     io.NopCloser(bytes.NewReader(data)),
+		SizeBytes:  int64(len(data)),
+		Sha256:     digest,
 	}
-	_ = srv.transitionArtifactState(ctx, key, PipelineBlobWritten,
-		"binary_persisted", workflowRunID, stateFields)
+	if _, matErr := srv.MaterializeArtifactToLocal(ctx, matReq, matCandidate); matErr != nil {
+		return fmt.Errorf("write binary: %w", matErr)
+	}
 
-	// Verify what we just wrote — defends against silent backend failures
-	// where WriteFile returns nil but the object isn't actually durable.
-	blobPresent, blobReason := srv.artifactBlobStatus(ctx, ref, n.BuildNumber, int64(len(data)))
-	if !blobPresent {
-		srv.markBrokenForReason(ctx, key, blobReason, workflowRunID, stateFields)
-		return fmt.Errorf("post-write blob verification failed: %s", blobReason)
+	// Best-effort mirror write: populate MinIO so other nodes can read from the
+	// mirror tier. Local POSIX CAS is already authoritative; mirror failure is
+	// non-fatal and does not affect pipeline state.
+	if srv.mirrorStorage != nil {
+		if mirrorErr := srv.mirrorStorage.WriteFile(ctx, binaryStorageKey(key), data, 0o644); mirrorErr != nil {
+			slog.Warn("upstream sync: mirror write failed — local CAS intact",
+				"key", key, "err", mirrorErr)
+		}
 	}
-	_ = srv.transitionArtifactState(ctx, key, PipelineBlobVerified,
-		"blob_stat_size_match", workflowRunID, stateFields)
 
 	manifest := &repopb.ArtifactManifest{
 		Ref:                ref,

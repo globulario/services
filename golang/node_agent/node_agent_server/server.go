@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -844,13 +846,48 @@ func detectUnits(ctx context.Context) []*node_agentpb.UnitStatus {
 		if loadState != "" {
 			details += " (load=" + loadState + ")"
 		}
+		// Unit definition drift detection: compare the installed unit file against
+		// the SHA-256 sidecar written by the installer. If they differ, the unit
+		// definition has changed outside the package pipeline (manual edit, partial
+		// upgrade, OS overlay). Report as "hash_drift" so detectInfraDrift
+		// downgrades the per-node status to DEGRADED and triggers a re-install.
+		state := activeState
+		if d := checkUnitHashDrift(unit); d != "" {
+			details += " [" + d + "]"
+			state = "hash_drift"
+		}
 		statuses = append(statuses, &node_agentpb.UnitStatus{
 			Name:    unit,
-			State:   activeState,
+			State:   state,
 			Details: details,
 		})
 	}
 	return statuses
+}
+
+// checkUnitHashDrift returns a non-empty reason string if the systemd unit file
+// on disk no longer matches the SHA-256 sidecar written at install time. Returns
+// "" when the sidecar is absent (unmanaged unit) or when hashes match.
+func checkUnitHashDrift(unitName string) string {
+	unitPath := filepath.Join("/etc/systemd/system", unitName)
+	sidecarPath := unitPath + ".sha256"
+
+	expected, err := os.ReadFile(sidecarPath)
+	if err != nil {
+		return "" // no sidecar → unmanaged unit, no drift check
+	}
+
+	current, err := os.ReadFile(unitPath)
+	if err != nil {
+		return "" // unit file missing; runtime state handles this
+	}
+
+	sum := sha256.Sum256(current)
+	got := hex.EncodeToString(sum[:])
+	if got != strings.TrimSpace(string(expected)) {
+		return "unit_hash_drift"
+	}
+	return ""
 }
 
 // queryUnitState returns the ActiveState, SubState, and LoadState of a systemd unit.

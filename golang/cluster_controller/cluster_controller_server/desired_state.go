@@ -46,15 +46,6 @@ func (srv *server) getNodeAppliedHash(ctx context.Context, nodeID string) (strin
 	return string(resp.Kvs[0].Value), nil
 }
 
-func (srv *server) putNodeAppliedHash(ctx context.Context, nodeID, hash string) error {
-	if srv.kv == nil {
-		return fmt.Errorf("etcd client unavailable")
-	}
-	key := fmt.Sprintf("%s/%s", appliedHashPrefix, nodeID)
-	_, err := srv.kv.Put(ctx, key, hash)
-	return err
-}
-
 func (srv *server) getNodeFailureCount(ctx context.Context, nodeID string) (int, error) {
 	if srv.kv == nil {
 		return 0, fmt.Errorf("etcd client unavailable")

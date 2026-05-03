@@ -197,6 +197,34 @@ func (r *ResilientStorage) PingMirror(ctx context.Context) error {
 	return r.mirror.Ping(ctx)
 }
 
+// WriteMirrorFile writes directly to the mirror, bypassing local.
+// Used for canary writes to verify mirror write capability.
+// Returns an error if mirror is nil.
+func (r *ResilientStorage) WriteMirrorFile(ctx context.Context, path string, data []byte, perm fs.FileMode) error {
+	if r.mirror == nil {
+		return fmt.Errorf("no mirror configured")
+	}
+	return r.mirror.WriteFile(ctx, path, data, perm)
+}
+
+// ReadMirrorFile reads directly from the mirror, bypassing local.
+// Used for canary verification.
+func (r *ResilientStorage) ReadMirrorFile(ctx context.Context, path string) ([]byte, error) {
+	if r.mirror == nil {
+		return nil, fmt.Errorf("no mirror configured")
+	}
+	return r.mirror.ReadFile(ctx, path)
+}
+
+// RemoveMirrorFile removes a file from the mirror only.
+// Used for canary cleanup.
+func (r *ResilientStorage) RemoveMirrorFile(ctx context.Context, path string) error {
+	if r.mirror == nil {
+		return fmt.Errorf("no mirror configured")
+	}
+	return r.mirror.Remove(ctx, path)
+}
+
 // -----------------------------------------------------------------------------
 // Internal helpers
 // -----------------------------------------------------------------------------
