@@ -670,13 +670,13 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 
 		name := ref.GetName()
 
-		// Kind override: packages in skipSystemd are infrastructure daemons.
-		// If the repository stored them with kind=SERVICE (e.g. xds/gateway
-		// had "type":"service" in package.json before the v1.2.7 fix), they
-		// would never get an etcd record because syncRepoArtifactsToEtcd skips
-		// SERVICE packages not discovered by Phase 1. Override to INFRASTRUCTURE
-		// for any package whose unit is in the known-infra list.
-		if kind == "SERVICE" && skipSystemdUnits[name] {
+		// Migration guard: xds and gateway had "type":"service" in package.json
+		// before the v1.2.7 fix. Artifacts published before that fix carry
+		// kind=SERVICE in the repo manifest; fix them to INFRASTRUCTURE so they
+		// get an etcd record and resolveInfraVersion can find them.
+		// Scope is deliberately narrow — mcp is also in skipSystemdUnits but is
+		// KindWorkload and correctly carries kind=SERVICE in the repo.
+		if kind == "SERVICE" && (name == "xds" || name == "gateway") {
 			kind = "INFRASTRUCTURE"
 		}
 
