@@ -2,23 +2,31 @@ package main
 
 // dep_health.go — dependency health watchdog for the repository service.
 //
-// The repository is the heart of the cluster. If its distributed dependencies
-// (MinIO for artifact storage, ScyllaDB for manifest metadata) are down, the
-// service MUST mark itself as broken — not silently degrade.
+// The repository is the heart of the cluster. If its distributed metadata store
+// (ScyllaDB) is down, the service MUST mark itself as broken — not silently degrade.
 //
-// The watchdog runs every 15 seconds. It pings both MinIO and ScyllaDB. If
-// either is unreachable, the service transitions to NOT_SERVING:
-//   - New RPCs receive codes.Unavailable with a clear dependency-failure message
-//   - Subsystem registry reflects the failure (visible to cluster_doctor)
-//   - Logs record every transition
+// MinIO is now a best-effort mirror only. If MinIO is unreachable, the service
+// continues operating from the local POSIX store and logs a warning. MinIO
+// unavailability does NOT cause NOT_SERVING.
 //
-// Recovery is automatic: once both dependencies respond to pings, the service
-// transitions back to SERVING.
+// The watchdog runs every 15 seconds. It pings both ScyllaDB and the MinIO mirror.
+//
+// ScyllaDB (required):
+//   - Service transitions to NOT_SERVING when ScyllaDB is unreachable.
+//   - New RPCs receive codes.Unavailable with a clear dependency-failure message.
+//   - Subsystem registry reflects the failure (visible to cluster_doctor).
+//   - Recovery is automatic.
+//
+// MinIO mirror (optional / informational):
+//   - Unavailability is logged as a warning.
+//   - Does NOT affect service health or RPC gating.
+//   - mirrorOK tracks mirror reachability for observability.
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -37,22 +45,28 @@ const (
 type depHealthWatchdog struct {
 	storage       storage_backend.Storage
 	scylla        *scyllaStore
-	healthy       *atomic.Bool
+	healthy       *atomic.Bool // true = ScyllaDB is OK (service can serve)
+	mirrorOK      *atomic.Bool // true = MinIO mirror is reachable (informational only)
 	minioSub      *subsystem.SubsystemHandle
 	scyllaSub     *subsystem.SubsystemHandle
 	logger        *slog.Logger
 	onScyllaReady func(*scyllaStore) // called when late-connect succeeds
 }
 
-// newDepHealthWatchdog creates a watchdog that monitors MinIO and ScyllaDB.
+// newDepHealthWatchdog creates a watchdog that monitors MinIO mirror and ScyllaDB.
+// storage is the mirror storage (used only for mirror ping); it may be nil.
 func newDepHealthWatchdog(storage storage_backend.Storage, scylla *scyllaStore, logger *slog.Logger) *depHealthWatchdog {
 	healthy := &atomic.Bool{}
 	healthy.Store(true) // optimistic at start — first check runs immediately
+
+	mirrorOK := &atomic.Bool{}
+	mirrorOK.Store(true) // optimistic — first check runs immediately
 
 	return &depHealthWatchdog{
 		storage:   storage,
 		scylla:    scylla,
 		healthy:   healthy,
+		mirrorOK:  mirrorOK,
 		minioSub:  subsystem.RegisterSubsystem("dep:minio", healthCheckInterval),
 		scyllaSub: subsystem.RegisterSubsystem("dep:scylladb", healthCheckInterval),
 		logger:    logger,
@@ -77,7 +91,7 @@ func (w *depHealthWatchdog) Start(ctx context.Context) {
 	}
 }
 
-// check pings both dependencies and updates health state.
+// check pings ScyllaDB (required) and the MinIO mirror (informational).
 func (w *depHealthWatchdog) check(ctx context.Context) {
 	checkCtx, cancel := context.WithTimeout(ctx, healthCheckTimeout)
 	defer cancel()
@@ -85,26 +99,49 @@ func (w *depHealthWatchdog) check(ctx context.Context) {
 	minioOK := w.pingMinio(checkCtx)
 	scyllaOK := w.pingScylla()
 
+	// MinIO mirror is informational — doesn't affect service health.
+	w.mirrorOK.Store(minioOK)
+
 	wasHealthy := w.healthy.Load()
-	nowHealthy := minioOK && scyllaOK
+	// Service is healthy as long as ScyllaDB is OK.
+	// Local storage is always available — no need to gate on it.
+	nowHealthy := scyllaOK
 	w.healthy.Store(nowHealthy)
 
 	// Log transitions.
 	if wasHealthy && !nowHealthy {
-		w.logger.Error("repository dependencies UNHEALTHY — service is NOT_SERVING",
-			"minio", minioOK, "scylladb", scyllaOK)
+		w.logger.Error("repository metadata (ScyllaDB) UNHEALTHY — service is NOT_SERVING",
+			"scylladb", scyllaOK)
 	} else if !wasHealthy && nowHealthy {
-		w.logger.Info("repository dependencies recovered — service is SERVING")
+		w.logger.Info("repository metadata recovered — service is SERVING")
+	}
+	if !minioOK {
+		w.logger.Warn("MinIO mirror unavailable — serving from local POSIX store")
 	}
 }
 
-// pingMinio checks MinIO storage reachability.
+// pingMinio checks mirror (MinIO) reachability — informational only.
 func (w *depHealthWatchdog) pingMinio(ctx context.Context) bool {
 	if w.storage == nil {
-		w.minioSub.TickError(fmt.Errorf("storage backend not initialized"))
-		return false
+		// No mirror configured — that's fine.
+		w.minioSub.Tick()
+		return true
 	}
-	if err := w.storage.Ping(ctx); err != nil {
+	// For a ResilientStorage, ping only the mirror component.
+	var pingTarget storage_backend.Storage
+	if rs, ok := w.storage.(*storage_backend.ResilientStorage); ok {
+		// Use PingMirror to avoid pinging the local (always-OK) store.
+		if err := rs.PingMirror(ctx); err != nil {
+			w.minioSub.TickError(err)
+			w.logger.Warn("minio mirror health check failed", "err", err)
+			return false
+		}
+		w.minioSub.Tick()
+		return true
+	}
+	// Plain storage (non-resilient) — ping directly.
+	pingTarget = w.storage
+	if err := pingTarget.Ping(ctx); err != nil {
 		w.minioSub.TickError(err)
 		w.logger.Warn("minio health check failed", "err", err)
 		return false
@@ -149,13 +186,19 @@ func (w *depHealthWatchdog) pingScylla() bool {
 	return true
 }
 
-// IsHealthy returns true if all distributed dependencies are reachable.
+// IsHealthy returns true if the metadata store (ScyllaDB) is reachable.
 func (w *depHealthWatchdog) IsHealthy() bool {
 	return w.healthy.Load()
 }
 
-// RequireHealthy returns a gRPC UNAVAILABLE error if dependencies are down.
-// Call this at the top of RPC handlers that require distributed storage.
+// IsMirrorHealthy returns true if the optional MinIO mirror is reachable.
+// Mirror availability does not affect service health.
+func (w *depHealthWatchdog) IsMirrorHealthy() bool {
+	return w.mirrorOK.Load()
+}
+
+// RequireHealthy returns a gRPC UNAVAILABLE error if ScyllaDB is down.
+// MinIO mirror unavailability does NOT trigger this error.
 func (w *depHealthWatchdog) RequireHealthy() error {
 	if w.healthy.Load() {
 		return nil
@@ -165,23 +208,14 @@ func (w *depHealthWatchdog) RequireHealthy() error {
 	var problems []string
 	snap := subsystem.SubsystemSnapshot()
 	for _, s := range snap {
-		if s.Name == "dep:minio" && s.State >= subsystem.SubsystemDegraded {
-			problems = append(problems, fmt.Sprintf("minio: %s (%s)", s.State, s.LastError))
-		}
 		if s.Name == "dep:scylladb" && s.State >= subsystem.SubsystemDegraded {
 			problems = append(problems, fmt.Sprintf("scylladb: %s (%s)", s.State, s.LastError))
 		}
 	}
 
-	msg := "repository service unavailable: distributed dependencies are down"
+	msg := "repository service unavailable: metadata store (ScyllaDB) is down"
 	if len(problems) > 0 {
-		msg += " — "
-		for i, p := range problems {
-			if i > 0 {
-				msg += "; "
-			}
-			msg += p
-		}
+		msg += " — " + strings.Join(problems, "; ")
 	}
 	return status.Error(codes.Unavailable, msg)
 }

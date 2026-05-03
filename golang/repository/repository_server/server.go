@@ -116,9 +116,10 @@ type server struct {
 	// --- Repository-Specific Fields ---
 	Root              string                   // Base data directory (artifacts/ lives under this)
 	GCRetentionWindow int                      // Number of PUBLISHED builds per series kept from GC (default 3)
-	MinioConfig *config.MinioProxyConfig  // MinIO config from etcd (required in multi-node)
-	minioClient *minio.Client
-	storage     storage_backend.Storage
+	MinioConfig    *config.MinioProxyConfig  // MinIO config from etcd (optional mirror)
+	minioClient    *minio.Client
+	storage        storage_backend.Storage
+	localStorePath string // POSIX CAS root — /var/lib/globular/repository
 	cache       *manifestCache                          // in-memory TTL cache for manifest reads
 	scylla      manifestLedger                          // ScyllaDB manifest metadata store (nil until connected)
 	listCache   *depcache.Cache[string, []manifestRow]  // display-path Scylla list cache (PolicyRepositoryListView)
@@ -631,23 +632,45 @@ func parseMinioConfigFromMap(m map[string]interface{}) *config.MinioProxyConfig 
 	return cfg
 }
 
+// localStoreRoot returns the POSIX root for the local CAS.
+func (srv *server) localStoreRoot() string {
+	if srv.localStorePath != "" {
+		return srv.localStorePath
+	}
+	return "/var/lib/globular/repository"
+}
+
 func (srv *server) initStorage() error {
-	if !srv.minioEnabled() {
-		return fmt.Errorf("MinIO configuration missing — the repository requires distributed " +
-			"object storage (etcd key %s must be set by the cluster controller)",
-			config.EtcdKeyMinioConfig)
+	// Always initialize the local POSIX store first.
+	// This is the primary authority — it works even when MinIO is down.
+	localRoot := srv.localStoreRoot()
+	if err := os.MkdirAll(localRoot, 0o750); err != nil {
+		return fmt.Errorf("local repository store: mkdir %s: %w", localRoot, err)
 	}
-	if err := srv.ensureMinioClient(); err != nil {
-		return fmt.Errorf("MinIO client init: %w", err)
+	localStore := storage_backend.NewOSStorage(localRoot)
+
+	// MinIO is optional — it becomes a best-effort mirror.
+	var mirror storage_backend.Storage
+	if srv.minioEnabled() {
+		if err := srv.ensureMinioClient(); err != nil {
+			logger.Warn("MinIO client init failed — operating with local store only", "err", err)
+		} else {
+			m, err := storage_backend.NewMinioStorage(srv.minioClient, srv.MinioConfig.Bucket, srv.MinioConfig.Prefix)
+			if err != nil {
+				logger.Warn("MinIO storage init failed — operating with local store only", "err", err)
+			} else {
+				mirror = m
+				logger.Info("minio storage initialized as mirror",
+					"endpoint", srv.MinioConfig.Endpoint,
+					"bucket", srv.MinioConfig.Bucket)
+			}
+		}
+	} else {
+		logger.Info("MinIO not configured — running with local POSIX store only")
 	}
-	m, err := storage_backend.NewMinioStorage(srv.minioClient, srv.MinioConfig.Bucket, srv.MinioConfig.Prefix)
-	if err != nil {
-		return fmt.Errorf("MinIO storage init: %w", err)
-	}
-	srv.storage = m
-	logger.Info("minio storage initialized",
-		"endpoint", srv.MinioConfig.Endpoint,
-		"bucket", srv.MinioConfig.Bucket)
+
+	srv.storage = storage_backend.NewResilientStorage(localStore, mirror)
+	logger.Info("repository storage initialized", "local", localRoot, "mirror_available", mirror != nil)
 	return nil
 }
 
@@ -660,12 +683,13 @@ func (srv *server) requireHealthy() error {
 	return srv.depHealth.RequireHealthy()
 }
 
-// Storage returns the configured backend. MinIO is required — there is no
-// local filesystem fallback. If storage was not initialized, the service is
-// broken and RPCs should not reach this point (dep_health gates them).
+// Storage returns the configured backend.
+// The local POSIX store is always available; MinIO is a best-effort mirror.
+// If storage was not initialized, the service is broken and RPCs should not
+// reach this point (dep_health gates them).
 func (srv *server) Storage() storage_backend.Storage {
 	if srv.storage == nil {
-		logger.Error("BUG: Storage() called but storage backend is nil — MinIO not initialized")
+		logger.Error("BUG: Storage() called but storage backend is nil — not initialized")
 	}
 	return srv.storage
 }
@@ -893,9 +917,8 @@ func main() {
 			"prefix", s.MinioConfig.Prefix)
 	}
 	if err := s.initStorage(); err != nil {
-		logger.Error("minio storage init failed — service will start degraded", "err", err)
-		// Do NOT fall back to local filesystem. The repository requires distributed
-		// storage. The health watchdog will mark us NOT_SERVING.
+		logger.Error("storage init failed — service will start degraded", "err", err)
+		// The health watchdog will mark us NOT_SERVING if ScyllaDB is also down.
 	}
 
 	// 7c. Start dependency health watchdog.

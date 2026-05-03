@@ -194,7 +194,7 @@ func (srv *server) registerDescriptor(ctx context.Context, manifest *repopb.Arti
 // promoteToPublished marks an artifact PUBLISHED.
 //
 // Write order (Scylla-first):
-//  1. Verify binary present in authority MinIO (Stat check).
+//  1. Verify binary present in local store (CAS) or mirror.
 //  2. Write PUBLISHED state to Scylla ledger — REQUIRED. If this fails, the
 //     artifact stays VERIFIED and promotion fails. Scylla is the sole authority
 //     for publish state; all discovery paths read from Scylla first.
@@ -206,15 +206,15 @@ func (srv *server) registerDescriptor(ctx context.Context, manifest *repopb.Arti
 // If step 2 fails the manifest stays in VERIFIED state — invisible to the
 // release resolver until the Scylla write succeeds.
 func (srv *server) promoteToPublished(ctx context.Context, key string, manifest *repopb.ArtifactManifest) error {
-	// Step 1: Verify the binary blob is present in authority MinIO.
+	// Step 1: Verify the binary blob is present in local store or mirror.
 	binKey := binaryStorageKey(key)
 	fi, statErr := srv.Storage().Stat(ctx, binKey)
 	if statErr != nil {
-		return fmt.Errorf("promote to PUBLISHED blocked: binary %q not found in authority MinIO — artifact cannot be PUBLISHED without its blob: %w",
+		return fmt.Errorf("promote to PUBLISHED blocked: binary %q not found in local store or mirror — artifact cannot be PUBLISHED without its blob: %w",
 			binKey, statErr)
 	}
 	if declared := manifest.GetSizeBytes(); declared > 0 && fi.Size() != declared {
-		return fmt.Errorf("promote to PUBLISHED blocked: binary %q size mismatch — manifest declares %d bytes but authority MinIO reports %d bytes",
+		return fmt.Errorf("promote to PUBLISHED blocked: binary %q size mismatch — manifest declares %d bytes but store reports %d bytes",
 			binKey, declared, fi.Size())
 	}
 
@@ -231,9 +231,9 @@ func (srv *server) promoteToPublished(ctx context.Context, key string, manifest 
 		}
 	}
 
-	// Step 3: Write PUBLISHED manifest_json to MinIO (compatibility layer).
-	// Scylla is already authoritative; this write keeps the MinIO copy consistent
-	// for degraded-mode reads and tooling that inspects manifest files directly.
+	// Step 3: Write PUBLISHED manifest_json to storage (mirror is best-effort).
+	// Scylla is already authoritative; this write keeps the local store and mirror
+	// consistent for tooling that inspects manifest files directly.
 	mjson, err := marshalManifestWithState(manifest, repopb.PublishState_PUBLISHED)
 	if err != nil {
 		return fmt.Errorf("marshal manifest: %w", err)
