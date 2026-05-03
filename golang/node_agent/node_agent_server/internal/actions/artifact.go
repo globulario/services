@@ -592,7 +592,7 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		}
 	}
 
-	if wroteUnit && !skipSystemd {
+	if wroteUnit && !skipSystemd && !ActionSkipDaemonReload {
 		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		cmd := exec.CommandContext(cctx, "systemctl", "daemon-reload")

@@ -93,6 +93,11 @@ var (
 	// ActionSkipSystemd skips systemd unit installation when true.
 	ActionSkipSystemd bool
 
+	// ActionSkipDaemonReload skips the "systemctl daemon-reload" call after
+	// writing a unit file. Unit files are still written; only the reload is
+	// suppressed. Tests set this to avoid requiring root/systemd on CI runners.
+	ActionSkipDaemonReload bool
+
 	// ActionConfigDir is the base directory for service configuration files.
 	ActionConfigDir = "/etc/globular"
 

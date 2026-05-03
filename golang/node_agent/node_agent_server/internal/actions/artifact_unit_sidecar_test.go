@@ -30,6 +30,7 @@ func TestInstallPayload_BundledServiceUnit_WritesSidecar(t *testing.T) {
 	origBin := ActionBinDir
 	origStaging := ActionStagingRoot
 	origAllowMissing := AllowMissingSHA256
+	origSkipDaemonReload := ActionSkipDaemonReload
 
 	systemdDir := filepath.Join(dir, "systemd")
 	stateDir := filepath.Join(dir, "state")
@@ -51,12 +52,14 @@ func TestInstallPayload_BundledServiceUnit_WritesSidecar(t *testing.T) {
 	ActionBinDir = binDir
 	ActionStagingRoot = stagingDir
 	AllowMissingSHA256 = true
+	ActionSkipDaemonReload = true
 	t.Cleanup(func() {
 		ActionSystemdDir = origSystemd
 		ActionStateDir = origState
 		ActionBinDir = origBin
 		ActionStagingRoot = origStaging
 		AllowMissingSHA256 = origAllowMissing
+		ActionSkipDaemonReload = origSkipDaemonReload
 	})
 
 	// Unit content — no template variables so rendered == raw.
@@ -114,6 +117,7 @@ func TestInstallPayload_BundledServiceUnit_SidecarMatchesRendered(t *testing.T) 
 	origBin := ActionBinDir
 	origStaging := ActionStagingRoot
 	origAllowMissing := AllowMissingSHA256
+	origSkipDaemonReload := ActionSkipDaemonReload
 
 	systemdDir := filepath.Join(dir, "systemd")
 	stateDir := filepath.Join(dir, "state")
@@ -130,12 +134,14 @@ func TestInstallPayload_BundledServiceUnit_SidecarMatchesRendered(t *testing.T) 
 	ActionBinDir = binDir
 	ActionStagingRoot = filepath.Join(dir, "staging")
 	AllowMissingSHA256 = true
+	ActionSkipDaemonReload = true
 	t.Cleanup(func() {
 		ActionSystemdDir = origSystemd
 		ActionStateDir = origState
 		ActionBinDir = origBin
 		ActionStagingRoot = origStaging
 		AllowMissingSHA256 = origAllowMissing
+		ActionSkipDaemonReload = origSkipDaemonReload
 	})
 
 	// Unit with a template variable — renderTemplateVars will expand {{.StateDir}}.
