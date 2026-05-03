@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
+	"strings"
 	"testing"
+
+	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
 // Tests for the pure-function parts of DescribePackage: key parsing,
@@ -150,4 +154,84 @@ func slicesEqual(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// TestWalkCatalogForKindNormalization is a regression guard for the xds/gateway
+// pre-v1.2.7 mismatch. Old artifacts had kind=SERVICE in the manifest; walkCatalogFor
+// must report storedKind=SERVICE and effectiveKind=INFRASTRUCTURE so DescribePackage
+// can surface the operator-visible warning.
+func TestWalkCatalogForKindNormalization(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	// Seed xds with the old (wrong) SERVICE kind — simulates pre-v1.2.7 artifacts.
+	seedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref: &repopb.ArtifactRef{
+			Name:        "xds",
+			Version:     "1.0.0",
+			PublisherId: "core@globular.io",
+			Kind:        repopb.ArtifactKind_SERVICE,
+		},
+	})
+
+	cat := srv.walkCatalogFor(ctx, []string{"xds"}, "")
+
+	if cat.storedKind != repopb.ArtifactKind_SERVICE {
+		t.Errorf("storedKind = %v, want SERVICE", cat.storedKind)
+	}
+	if cat.kind != repopb.ArtifactKind_INFRASTRUCTURE {
+		t.Errorf("effectiveKind = %v, want INFRASTRUCTURE", cat.kind)
+	}
+}
+
+// TestWalkCatalogForNoNormalizationForCorrectArtifact verifies that a correctly
+// published artifact (kind already=INFRASTRUCTURE) does not trigger normalization.
+func TestWalkCatalogForNoNormalizationForCorrectArtifact(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	seedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref: &repopb.ArtifactRef{
+			Name:        "xds",
+			Version:     "1.2.7",
+			PublisherId: "core@globular.io",
+			Kind:        repopb.ArtifactKind_INFRASTRUCTURE,
+		},
+	})
+
+	cat := srv.walkCatalogFor(ctx, []string{"xds"}, "")
+
+	if cat.kind != repopb.ArtifactKind_INFRASTRUCTURE {
+		t.Errorf("effectiveKind = %v, want INFRASTRUCTURE", cat.kind)
+	}
+	// storedKind should equal effectiveKind — no normalization occurred.
+	if cat.storedKind != cat.kind {
+		t.Errorf("storedKind %v != effectiveKind %v for correctly-published artifact", cat.storedKind, cat.kind)
+	}
+}
+
+// TestBuildSourceKindNormalized verifies that buildSource encodes the
+// kind normalization marker when stored and effective differ.
+func TestBuildSourceKindNormalized(t *testing.T) {
+	src := buildSource(repopb.ArtifactKind_SERVICE, repopb.ArtifactKind_INFRASTRUCTURE)
+	if !strings.Contains(src, "; kind-normalized: ") {
+		t.Errorf("expected kind-normalized marker, got %q", src)
+	}
+	if !strings.Contains(src, "SERVICE") || !strings.Contains(src, "INFRASTRUCTURE") {
+		t.Errorf("expected stored and effective kind in source, got %q", src)
+	}
+}
+
+// TestBuildSourceCleanWhenKindMatches verifies that buildSource returns the
+// plain "live-aggregator" string when no normalization occurred.
+func TestBuildSourceCleanWhenKindMatches(t *testing.T) {
+	src := buildSource(repopb.ArtifactKind_INFRASTRUCTURE, repopb.ArtifactKind_INFRASTRUCTURE)
+	if src != "live-aggregator" {
+		t.Errorf("expected clean source, got %q", src)
+	}
+	// UNSPECIFIED stored kind (catalog miss) → also clean.
+	src2 := buildSource(repopb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED, repopb.ArtifactKind_INFRASTRUCTURE)
+	if src2 != "live-aggregator" {
+		t.Errorf("expected clean source for unspecified stored, got %q", src2)
+	}
 }

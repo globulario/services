@@ -106,7 +106,7 @@ func infoToJSON(info *repopb.PackageInfo) map[string]interface{} {
 			"status":  n.GetStatus(),
 		})
 	}
-	return map[string]interface{}{
+	out := map[string]interface{}{
 		"name":           info.GetName(),
 		"kind":           info.GetKind().String(),
 		"publisher":      info.GetPublisher(),
@@ -118,6 +118,13 @@ func infoToJSON(info *repopb.PackageInfo) map[string]interface{} {
 		"source":         info.GetSource(),
 		"observed_at":    info.GetObservedAt(),
 	}
+	if stored, effective, ok := parseKindNormalization(info.GetSource()); ok {
+		out["kind_normalized"] = true
+		out["stored_kind"] = stored
+		out["effective_kind"] = effective
+		out["kind_warning"] = "artifact metadata was normalized by repository compatibility guard"
+	}
+	return out
 }
 
 func printPkgInfo(info *repopb.PackageInfo) {
@@ -134,7 +141,14 @@ func printPkgInfo(info *repopb.PackageInfo) {
 	case repopb.ArtifactKind_COMMAND:
 		kindStr += "  (CLI tool)"
 	}
-	fmt.Printf("kind:            %s\n", kindStr)
+	if stored, effective, ok := parseKindNormalization(info.GetSource()); ok {
+		fmt.Printf("kind:            %s  (corrected from legacy %s metadata)\n", kindStr, stored)
+		fmt.Printf("stored_kind:     %s\n", stored)
+		fmt.Printf("effective_kind:  %s\n", effective)
+		fmt.Printf("warning:         artifact metadata was normalized by repository compatibility guard\n")
+	} else {
+		fmt.Printf("kind:            %s\n", kindStr)
+	}
 	fmt.Printf("publisher:       %s\n", info.GetPublisher())
 	fmt.Printf("versions (repo): %s\n", strings.Join(info.GetVersions(), ", "))
 	if info.GetLatestVersion() != "" {
@@ -179,6 +193,24 @@ func printPkgInfo(info *repopb.PackageInfo) {
 	}
 
 	fmt.Printf("source:          %s\n", info.GetSource())
+}
+
+// parseKindNormalization extracts stored/effective kind strings from the Source
+// field when the repository compatibility guard changed the kind. Returns
+// (stored, effective, true) if normalization occurred, ("", "", false) otherwise.
+// Source format: "live-aggregator; kind-normalized: SERVICE→INFRASTRUCTURE"
+func parseKindNormalization(source string) (stored, effective string, ok bool) {
+	const marker = "; kind-normalized: "
+	idx := strings.Index(source, marker)
+	if idx < 0 {
+		return "", "", false
+	}
+	norm := source[idx+len(marker):]
+	parts := strings.SplitN(norm, "→", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
 }
 
 // shortNode abbreviates a UUID-ish node_id to its first 8 chars. Node IDs

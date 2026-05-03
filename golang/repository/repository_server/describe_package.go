@@ -10,6 +10,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/storage_backend"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -53,10 +54,11 @@ func (srv *server) DescribePackage(ctx context.Context, req *repopb.DescribePack
 
 	// Fan out catalog + etcd scans concurrently.
 	type catalogResult struct {
-		versions  []string
-		latest    string
-		kind      repopb.ArtifactKind
-		publisher string
+		versions   []string
+		latest     string
+		kind       repopb.ArtifactKind
+		storedKind repopb.ArtifactKind // kind as recorded in the artifact manifest (before inferCorrectKind)
+		publisher  string
 	}
 	catalogCh := make(chan catalogResult, 1)
 	installedCh := make(chan map[string][]installedRow, 1)
@@ -103,7 +105,7 @@ func (srv *server) DescribePackage(ctx context.Context, req *repopb.DescribePack
 		Versions:      cat.versions,
 		LatestVersion: cat.latest,
 		Desired:       desired,
-		Source:        "live-aggregator",
+		Source:        buildSource(cat.storedKind, cat.kind),
 		ObservedAt:    time.Now().Unix(),
 	}
 	if publisher != "" && info.Publisher == "" {
@@ -168,10 +170,11 @@ type installedRow struct {
 // If multiple publishers publish the same name, the first one observed wins
 // (catalog conflicts are a separate problem).
 func (srv *server) walkCatalogFor(ctx context.Context, candidates []string, publisherFilter string) (r struct {
-	versions  []string
-	latest    string
-	kind      repopb.ArtifactKind
-	publisher string
+	versions   []string
+	latest     string
+	kind       repopb.ArtifactKind
+	storedKind repopb.ArtifactKind // kind as recorded in the artifact manifest (before inferCorrectKind)
+	publisher  string
 }) {
 	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
 	if err != nil {
@@ -209,7 +212,13 @@ func (srv *server) walkCatalogFor(ctx context.Context, candidates []string, publ
 			// before v1.2.7). inferCorrectKind is authoritative for all known infra
 			// and command packages; it returns the current value unchanged for
 			// packages whose kind is unambiguous from the manifest alone.
-			r.kind = inferCorrectKind(ref.GetName(), ref.GetKind())
+			//
+			// readManifestByKey already applies inferCorrectKind in-place on the
+			// proto (so ref.GetKind() is already the corrected value). To capture
+			// the pre-normalization stored kind we re-read the raw bytes here —
+			// this is a diagnostic-only path, not a hot path.
+			r.storedKind = rawManifestKind(ctx, srv.Storage(), manifestStorageKey(key))
+			r.kind = inferCorrectKind(ref.GetName(), r.storedKind)
 		}
 		if r.publisher == "" {
 			r.publisher = ref.GetPublisherId()
@@ -409,6 +418,43 @@ func sortSemverDesc(vs []string) {
 			vs[j], vs[j-1] = vs[j-1], vs[j]
 		}
 	}
+}
+
+// rawManifestKind reads the raw manifest JSON bytes directly from storage and
+// extracts the ref.kind field WITHOUT applying inferCorrectKind. This captures
+// the kind as it was recorded at publish time ("stored kind"). Used only by
+// walkCatalogFor to detect when inferCorrectKind changed the kind, so the
+// operator-visible explain output can show both stored and effective values.
+func rawManifestKind(ctx context.Context, st storage_backend.Storage, storageKey string) repopb.ArtifactKind {
+	data, err := st.ReadFile(ctx, storageKey)
+	if err != nil {
+		return repopb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
+	}
+	var raw struct {
+		Ref struct {
+			Kind string `json:"kind"`
+		} `json:"ref"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return repopb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
+	}
+	if v, ok := repopb.ArtifactKind_value[raw.Ref.Kind]; ok {
+		return repopb.ArtifactKind(v)
+	}
+	return repopb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
+}
+
+// buildSource constructs the Source field for PackageInfo. When inferCorrectKind
+// changed the kind (storedKind != effectiveKind and stored is not UNSPECIFIED),
+// it appends a "; kind-normalized: STORED→EFFECTIVE" suffix so CLI can surface
+// the warning without proto changes.
+func buildSource(stored, effective repopb.ArtifactKind) string {
+	const base = "live-aggregator"
+	unspecified := repopb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
+	if stored != unspecified && stored != effective {
+		return base + "; kind-normalized: " + stored.String() + "→" + effective.String()
+	}
+	return base
 }
 
 func compareVersions(a, b string) int {
