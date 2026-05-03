@@ -1497,10 +1497,12 @@ func inferCorrectKind(name string, current repopb.ArtifactKind) repopb.ArtifactK
 		return repopb.ArtifactKind_COMMAND
 	}
 
-	// Infrastructure daemons (not Go gRPC services)
+	// Infrastructure daemons (not Go gRPC services).
+	// Source of truth: packages/specs/*.yaml — only names classified as
+	// kind: infrastructure there belong here.
 	infraNames := map[string]bool{
-		"etcd": true, "minio": true, "envoy": true, "xds": true,
-		"gateway": true, "prometheus": true, "node-exporter": true,
+		"etcd": true, "minio": true, "envoy": true,
+		"prometheus": true, "node-exporter": true,
 		"alertmanager": true,
 		"scylladb":     true, "scylla-manager": true, "scylla-manager-agent": true,
 		"keepalived": true, "sidekick": true,
