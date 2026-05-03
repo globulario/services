@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/versionutil"
@@ -193,6 +195,29 @@ func loadMarkers(ctx context.Context, byService map[string]*InstalledServiceInfo
 	}
 }
 
+// skipSystemdUnits lists packages whose kind and version come from the
+// repository artifact catalog (Phase 2 of syncInstalledStateToEtcd), NOT from
+// systemd unit scanning. loadSystemdUnits skips these to prevent Phase 1 from
+// creating SERVICE/unknown records that mask the correct INFRASTRUCTURE/COMMAND
+// records with real versions. All infrastructure packages use systemd units —
+// skipping them here is about preventing version-unknown phantoms, NOT about
+// them not having units.
+// syncRepoArtifactsToEtcd uses this list to override kind=SERVICE to
+// kind=INFRASTRUCTURE for packages wrongly classified by a stale package.json.
+var skipSystemdUnits = map[string]bool{
+	// Infrastructure daemons — versions come from repo artifact or binary probe
+	"etcd": true, "minio": true, "envoy": true,
+	"xds": true, "gateway": true, "mcp": true,
+	// Monitoring / ops infrastructure
+	"node-exporter": true, "prometheus": true, "alertmanager": true,
+	"scylla-manager": true, "scylla-manager-agent": true,
+	"scylladb": true, "keepalived": true, "sidekick": true,
+	// CLI tools — not daemons (from /packages/specs/*_cmd.yaml)
+	"etcdctl-cmd": true, "ffmpeg-cmd": true, "globular-cli-cmd": true,
+	"mc-cmd": true, "rclone-cmd": true, "restic-cmd": true,
+	"sctool-cmd": true, "sha256sum-cmd": true, "yt-dlp-cmd": true,
+}
+
 // loadSystemdUnits discovers loaded globular-*.service systemd units and adds
 // them as installed services when they were not already found by markers or
 // config files. This ensures services installed by the installer (which does
@@ -207,26 +232,7 @@ func loadSystemdUnits(ctx context.Context, byService map[string]*InstalledServic
 		return
 	}
 
-	// Packages whose kind and version come from the repository artifact
-	// catalog (Phase 2 of syncInstalledStateToEtcd), NOT from systemd
-	// unit scanning. Without this, Phase 1 creates SERVICE/0.0.1 records
-	// that mask the correct INFRASTRUCTURE/COMMAND records with real
-	// versions from the repo.
-	// Control-plane services (node-agent, cluster-controller, cluster-doctor)
-	// ARE managed — they participate in desired state and reconciliation.
-	skipSystemd := map[string]bool{
-		// Core infrastructure (no desired-state model)
-		"etcd": true, "minio": true, "envoy": true,
-		"xds": true, "gateway": true, "mcp": true,
-		// Infrastructure services (from /packages/specs/*_service.yaml)
-		"node-exporter": true, "prometheus": true, "alertmanager": true,
-		"scylla-manager": true, "scylla-manager-agent": true,
-		"scylladb": true, "keepalived": true, "sidekick": true,
-		// CLI tools — not services (from /packages/specs/*_cmd.yaml)
-		"etcdctl-cmd": true, "ffmpeg-cmd": true, "globular-cli-cmd": true,
-		"mc-cmd": true, "rclone-cmd": true, "restic-cmd": true,
-		"sctool-cmd": true, "sha256sum-cmd": true, "yt-dlp-cmd": true,
-	}
+	skipSystemd := skipSystemdUnits
 
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		line = strings.TrimSpace(line)
@@ -307,6 +313,68 @@ func loadDay0JoinInfra(ctx context.Context, byService map[string]*InstalledServi
 			}
 		}
 	}
+
+	// Generic probe for all infrastructure daemons in skipSystemdUnits that
+	// have active globular-*.service units. loadSystemdUnits skips all of
+	// them to prevent phantom SERVICE/unknown records; this loop provides
+	// version detection for Globular-built binaries (those that respond to
+	// --describe). Third-party binaries (minio, envoy, prometheus, etc.) that
+	// don't support --describe return "unknown" here — they are covered by
+	// syncRepoArtifactsToEtcd Phase 2 which reads their version from the repo.
+	for name := range skipSystemdUnits {
+		// CLI tools have no systemd unit — skip.
+		if strings.HasSuffix(name, "-cmd") {
+			continue
+		}
+		// Already handled above with dedicated version detection.
+		if name == "etcd" || name == "scylladb" {
+			continue
+		}
+		unitName := "globular-" + name + ".service"
+		if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", unitName).Run(); err != nil {
+			continue // unit not running on this node
+		}
+		if entry := byService[name]; entry != nil && entry.Version != "" && entry.Version != "unknown" {
+			continue // already have a good version from markers or previous probes
+		}
+		version := detectGlobularBinaryVersion(ctx, filepath.Join(globularBinDir, name))
+		if version == "" {
+			version = "unknown"
+		}
+		e := ensureServiceEntry(byService, name)
+		e.ServiceName = name
+		e.Version = version
+		if version != "unknown" {
+			e.Source = ManagedInstalled
+		} else {
+			e.Source = RuntimeUnmanaged
+		}
+	}
+}
+
+// detectGlobularBinaryVersion probes a Globular service binary with --describe
+// and returns the Version field from the JSON output. Returns "" on failure.
+func detectGlobularBinaryVersion(ctx context.Context, binPath string) string {
+	probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(probeCtx, binPath, "--describe").Output()
+	if err != nil {
+		return ""
+	}
+	var payload struct {
+		Version string `json:"Version"`
+	}
+	if err := json.Unmarshal(out, &payload); err != nil {
+		return ""
+	}
+	ver := strings.TrimSpace(payload.Version)
+	if ver == "" {
+		return ""
+	}
+	if cv, err := versionutil.Canonical(ver); err == nil {
+		return cv
+	}
+	return ver
 }
 
 // detectEtcdVersion runs "etcdctl version" and parses the etcd server version.

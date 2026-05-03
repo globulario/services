@@ -833,11 +833,13 @@ func (srv *server) resolveInfraVersion(componentName string) (version, source st
 	// node has already confirmed the component (even with a bad version) —
 	// in that case the heartbeat is authoritative and etcd would add nothing.
 	if !seenOnReadyNode {
-		// Query both INFRASTRUCTURE and COMMAND kinds — resolveInfraVersion is
-		// called for both KindInfrastructure and KindCommand components (e.g.
-		// rclone, restic, sctool, mc). Querying only INFRASTRUCTURE would silently
-		// fail to resolve command packages stored under the COMMAND kind.
-		for _, kind := range []string{"INFRASTRUCTURE", "COMMAND"} {
+		// Query INFRASTRUCTURE, COMMAND, and SERVICE kinds. SERVICE is included
+		// as a fallback for packages historically published with the wrong type
+		// in package.json (xds/gateway had "type":"service" before v1.2.7).
+		// The node-agent's syncRepoArtifactsToEtcd now overrides SERVICE→
+		// INFRASTRUCTURE for known infra units, but older published artifacts
+		// may still produce SERVICE records on nodes that haven't re-synced.
+		for _, kind := range []string{"INFRASTRUCTURE", "COMMAND", "SERVICE"} {
 			pkgs, err := installed_state.ListAllNodes(context.Background(), kind, componentName)
 			if err != nil {
 				continue
