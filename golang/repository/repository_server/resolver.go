@@ -261,9 +261,15 @@ func (srv *server) resolveByBuildID(ctx context.Context, buildID, publisher, nam
 			if m.GetBuildId() != buildID {
 				continue
 			}
-			return srv.validateBuildIDMatch(m, buildID, publisher, name, targetChannel)
+			if !matchesResolveIdentity(m, publisher, name, platform, targetChannel) {
+				continue
+			}
+			return &repopb.ResolveArtifactResponse{
+				Manifest:         m,
+				ResolutionSource: "exact-build_id",
+			}, nil
 		}
-		return nil, status.Errorf(codes.NotFound, "build_id %q not found or not PUBLISHED", buildID)
+		return nil, status.Errorf(codes.NotFound, "build_id %q not found for name=%q publisher=%q platform=%q channel=%s", buildID, name, publisher, platform, targetChannel.String())
 	}
 
 	// Legacy / single-node fallback: scan MinIO directory.
@@ -288,30 +294,32 @@ func (srv *server) resolveByBuildID(ctx context.Context, buildID, publisher, nam
 		if m.GetBuildId() != buildID {
 			continue
 		}
-		return srv.validateBuildIDMatch(m, buildID, publisher, name, targetChannel)
+		if !matchesResolveIdentity(m, publisher, name, platform, targetChannel) {
+			continue
+		}
+		return &repopb.ResolveArtifactResponse{
+			Manifest:         m,
+			ResolutionSource: "exact-build_id",
+		}, nil
 	}
-	return nil, status.Errorf(codes.NotFound, "build_id %q not found or not PUBLISHED", buildID)
+	return nil, status.Errorf(codes.NotFound, "build_id %q not found for name=%q publisher=%q platform=%q channel=%s", buildID, name, publisher, platform, targetChannel.String())
 }
 
-// validateBuildIDMatch checks publisher/name/channel constraints for a resolved build_id match.
-func (srv *server) validateBuildIDMatch(m *repopb.ArtifactManifest, buildID, publisher, name string, targetChannel repopb.ArtifactChannel) (*repopb.ResolveArtifactResponse, error) {
+func matchesResolveIdentity(m *repopb.ArtifactManifest, publisher, name, platform string, targetChannel repopb.ArtifactChannel) bool {
 	ref := m.GetRef()
+	if ref == nil {
+		return false
+	}
 	if publisher != "" && !strings.EqualFold(ref.GetPublisherId(), publisher) {
-		return nil, status.Errorf(codes.FailedPrecondition,
-			"build_id %s belongs to publisher %q, not %q", buildID, ref.GetPublisherId(), publisher)
+		return false
 	}
-	if !strings.EqualFold(ref.GetName(), name) {
-		return nil, status.Errorf(codes.FailedPrecondition,
-			"build_id %s belongs to artifact %q, not %q", buildID, ref.GetName(), name)
+	if name != "" && !strings.EqualFold(ref.GetName(), name) {
+		return false
 	}
-	if effectiveChannel(m) != targetChannel {
-		return nil, status.Errorf(codes.FailedPrecondition,
-			"build_id %s is on channel %s, not %s", buildID, effectiveChannel(m).String(), targetChannel.String())
+	if platform != "" && !strings.EqualFold(ref.GetPlatform(), platform) {
+		return false
 	}
-	return &repopb.ResolveArtifactResponse{
-		Manifest:         m,
-		ResolutionSource: "exact-build_id",
-	}, nil
+	return effectiveChannel(m) == targetChannel
 }
 
 // pickHighestBuild returns the manifest with the highest build_number among candidates.

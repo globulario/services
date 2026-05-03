@@ -267,6 +267,22 @@ func TestNormalizeReleaseEntry_NonNumericBuildID(t *testing.T) {
 	}
 }
 
+func TestNormalizeReleaseEntry_NumericBuildIDReplaced(t *testing.T) {
+	entry := &releaseIndexEntry{
+		Name: "sidekick", Version: "1.1.0", Platform: "linux_amd64",
+		BuildID: "105",
+		PackageDigest: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+		AssetURL: "https://example.com/sidekick.tgz",
+	}
+	n := normalizeReleaseEntry(entry, &repopb.UpstreamSource{})
+	if n.BuildID == "105" {
+		t.Fatal("numeric build_id must be replaced to avoid cross-package collisions")
+	}
+	if !strings.HasPrefix(n.BuildID, "upstream:") {
+		t.Fatalf("expected derived upstream build_id, got %q", n.BuildID)
+	}
+}
+
 func TestDeriveBuildNumber_AlwaysPositive(t *testing.T) {
 	for _, input := range []string{"a", "b", "c", "build-100", "upstream:abc123"} {
 		bn := deriveBuildNumber(input, "sha256:test")
@@ -506,7 +522,7 @@ func TestProcessSyncEntry_UnchangedPackagePreservesVersion(t *testing.T) {
 	unchanged := false
 	entry := &releaseIndexEntry{
 		Name: "gateway", Kind: "SERVICE", Publisher: "core@globular.io",
-		Version: "1.0.82", BuildNumber: 9, BuildID: "9",
+		Version: "1.0.82", BuildNumber: 9, BuildID: "bid-9",
 		Platform:         "linux_amd64",
 		PackageDigest:    "sha256:0000000000000000000000000000000000000000000000000000000000000000",
 		AssetURL:         "https://example.com/v1.0.82/gateway.tgz",
@@ -615,14 +631,14 @@ func TestSamePackageIdentityDifferentSha256_Conflict(t *testing.T) {
 		Kind: repopb.ArtifactKind_SERVICE,
 	}
 	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
-		Ref: ref, BuildNumber: 9, BuildId: "9",
+		Ref: ref, BuildNumber: 9, BuildId: "bid-9",
 		Checksum: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		SizeBytes: 100,
 	})
 
 	entry := &releaseIndexEntry{
 		Name: "gateway", Kind: "SERVICE", Publisher: "core@globular.io",
-		Version: "1.0.82", BuildNumber: 9, BuildID: "9",
+		Version: "1.0.82", BuildNumber: 9, BuildID: "bid-9",
 		Platform:      "linux_amd64",
 		PackageDigest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 		AssetURL:      "https://example.com/v1.0.82/gateway.tgz",

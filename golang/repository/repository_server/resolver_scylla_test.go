@@ -129,6 +129,30 @@ func TestResolveByBuildIDScyllaFirst(t *testing.T) {
 	}
 }
 
+// TestResolveByBuildIDScyllaFirst_CollisionByName verifies that identical
+// build_id values across different package names are disambiguated by request name.
+func TestResolveByBuildIDScyllaFirst_CollisionByName(t *testing.T) {
+	const collidingBuildID = "105"
+	rows := []manifestRow{
+		publishedRow("glob", "scylla-manager", "1.0.0", "linux_amd64", 105, collidingBuildID),
+		publishedRow("glob", "sidekick", "1.0.0", "linux_amd64", 105, collidingBuildID),
+	}
+	srv := buildResolverServer(t, rows)
+
+	resp, err := srv.ResolveArtifact(context.Background(), &repopb.ResolveArtifactRequest{
+		Name:      "sidekick",
+		PublisherId: "glob",
+		Platform:  "linux_amd64",
+		BuildId:   collidingBuildID,
+	})
+	if err != nil {
+		t.Fatalf("ResolveArtifact by colliding build_id: %v", err)
+	}
+	if got := resp.GetManifest().GetRef().GetName(); got != "sidekick" {
+		t.Fatalf("expected sidekick, got %q", got)
+	}
+}
+
 // TestResolveByBuildIDYankedNotReturned verifies that a YANKED build_id is
 // never returned by the resolver even when explicitly requested.
 func TestResolveByBuildIDYankedNotReturned(t *testing.T) {

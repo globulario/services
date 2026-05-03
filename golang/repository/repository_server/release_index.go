@@ -192,8 +192,8 @@ func normalizeReleaseEntry(entry *releaseIndexEntry, src *repopb.UpstreamSource)
 	}
 
 	n.BuildNumber = entry.BuildNumber
-	n.BuildID = entry.BuildID
-	if n.BuildID == "" {
+	n.BuildID = strings.TrimSpace(entry.BuildID)
+	if shouldDeriveUpstreamBuildID(n.BuildID) {
 		n.BuildID = deriveUpstreamBuildID(n.Publisher, n.Name, n.Version, n.Platform, n.Digest)
 	}
 	if n.BuildNumber == 0 {
@@ -201,6 +201,21 @@ func normalizeReleaseEntry(entry *releaseIndexEntry, src *repopb.UpstreamSource)
 	}
 
 	return n
+}
+
+// shouldDeriveUpstreamBuildID returns true when an incoming build_id should be
+// replaced by a deterministic upstream-derived identity. Numeric-only IDs are
+// unsafe because they often mirror build_number and can collide across packages.
+func shouldDeriveUpstreamBuildID(buildID string) bool {
+	if buildID == "" {
+		return true
+	}
+	for _, r := range buildID {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // deriveBuildNumber produces a deterministic positive build_number from a
