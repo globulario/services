@@ -7,6 +7,7 @@ on:
 
 env:
   GOWORK: "off"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build-test:
@@ -58,14 +59,6 @@ jobs:
         run: go test ./... -race -short -coverprofile=coverage.out
         continue-on-error: true  # Some tests need infrastructure (etcd, ScyllaDB) not available in CI
 
-      - name: Lint
-        uses: golangci/golangci-lint-action@v6
-        continue-on-error: true
-        with:
-          version: latest
-          working-directory: services/golang
-          args: --timeout=5m
-
   proto-check:
     runs-on: ubuntu-latest
     steps:
@@ -99,3 +92,45 @@ jobs:
           cd services/golang
           bash build/gen-version.sh 0.0.0-ci
           go build ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    continue-on-error: true   # lint failures are advisory — never block CI
+    steps:
+      - name: Checkout services
+        uses: actions/checkout@v4
+        with:
+          path: services
+
+      - name: Checkout utility
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/utility
+          path: utility
+
+      - name: Checkout globular-installer
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/globular-installer
+          path: globular-installer
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache-dependency-path: services/golang/go.sum
+
+      - name: Install system dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y unixodbc-dev
+
+      - name: Generate version stub
+        run: |
+          cd services/golang
+          bash build/gen-version.sh 0.0.0-ci
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: services/golang
+          args: --timeout=5m
