@@ -43,9 +43,10 @@ func init() {
 
 // bomEntry matches a v2 release-index.json package entry.
 type bomEntry struct {
-	Name    string `json:"name"`
-	Kind    string `json:"kind"`
-	Version string `json:"version"`
+	Name        string `json:"name"`
+	Kind        string `json:"kind"`
+	Version     string `json:"version"`
+	BuildNumber int64  `json:"build_number,omitempty"`
 }
 
 type bomIndex struct {
@@ -121,8 +122,9 @@ func runPlatformUpgrade(cmd *cobra.Command, args []string) error {
 			_, err := cc.UpsertDesiredService(ctx,
 				&cluster_controllerpb.UpsertDesiredServiceRequest{
 					Service: &cluster_controllerpb.DesiredService{
-						ServiceId: pkg.Name,
-						Version:   pkg.Version,
+						ServiceId:   pkg.Name,
+						Version:     pkg.Version,
+						BuildNumber: pkg.BuildNumber,
 					},
 				})
 			cancel()
