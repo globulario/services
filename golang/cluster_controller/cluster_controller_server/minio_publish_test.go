@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/globulario/services/golang/config"
 )
@@ -205,5 +206,89 @@ func TestBuildObjectStore_GenerationNonZeroEmptyPool(t *testing.T) {
 	}
 	if desired.Generation != 1 {
 		t.Errorf("expected generation=1, got %d", desired.Generation)
+	}
+}
+
+// TestBuildObjectStore_FiltersStalePoolIPs verifies that desired-state publish
+// excludes stale pool entries that no longer belong to eligible cluster nodes.
+func TestBuildObjectStore_FiltersStalePoolIPs(t *testing.T) {
+	srv := &server{
+		state: &controllerState{
+			MinioPoolNodes:        []string{"10.0.0.63", "10.0.0.9", "10.0.0.20"},
+			ObjectStoreGeneration: 7,
+			MinioCredentials:      &minioCredentials{RootUser: "ak", RootPassword: "sk"},
+			Nodes: map[string]*nodeState{
+				"ryzen": {NodeID: "ryzen", Status: "healthy", Identity: storedIdentity{Ips: []string{"10.0.0.63"}}},
+				"dell":  {NodeID: "dell", Status: "active", Identity: storedIdentity{Ips: []string{"10.0.0.20"}}},
+			},
+		},
+	}
+	now := time.Now()
+	srv.state.Nodes["ryzen"].LastSeen = now
+	srv.state.Nodes["dell"].LastSeen = now
+	desired, skip := srv.buildObjectStoreDesiredStateLocked()
+	if skip {
+		t.Fatal("expected contract to be built")
+	}
+	if got, want := len(desired.Nodes), 2; got != want {
+		t.Fatalf("expected %d pool nodes after filtering, got %d: %v", want, got, desired.Nodes)
+	}
+	if desired.Nodes[0] != "10.0.0.63" || desired.Nodes[1] != "10.0.0.20" {
+		t.Fatalf("unexpected filtered pool order/content: %v", desired.Nodes)
+	}
+	if desired.Endpoint != "10.0.0.63:9000" {
+		t.Fatalf("expected endpoint to use first remaining pool node, got %q", desired.Endpoint)
+	}
+}
+
+func TestBuildObjectStore_ExcludesStaleAndNonMemberPoolIPs(t *testing.T) {
+	now := time.Now()
+	srv := &server{
+		state: &controllerState{
+			MinioPoolNodes:        []string{"10.0.0.63", "10.0.0.9", "10.0.0.102", "10.0.0.20"},
+			ObjectStoreGeneration: 11,
+			MinioCredentials:      &minioCredentials{RootUser: "ak", RootPassword: "sk"},
+			Nodes: map[string]*nodeState{
+				"ryzen": {
+					NodeID:         "ryzen",
+					Status:         "healthy",
+					LastSeen:       now,
+					MinioJoinPhase: MinioJoinVerified,
+					Identity:       storedIdentity{Ips: []string{"10.0.0.63"}},
+				},
+				"dell": {
+					NodeID:         "dell",
+					Status:         "active",
+					LastSeen:       now,
+					MinioJoinPhase: MinioJoinVerified,
+					Identity:       storedIdentity{Ips: []string{"10.0.0.20"}},
+				},
+				"old-non-member": {
+					NodeID:         "old-non-member",
+					Status:         "active",
+					LastSeen:       now,
+					MinioJoinPhase: MinioJoinNonMember,
+					Identity:       storedIdentity{Ips: []string{"10.0.0.9"}},
+				},
+				"old-stale": {
+					NodeID:         "old-stale",
+					Status:         "active",
+					LastSeen:       now.Add(-(heartbeatStaleThreshold + time.Minute)),
+					MinioJoinPhase: MinioJoinVerified,
+					Identity:       storedIdentity{Ips: []string{"10.0.0.102"}},
+				},
+			},
+		},
+	}
+
+	desired, skip := srv.buildObjectStoreDesiredStateLocked()
+	if skip {
+		t.Fatal("expected contract to be built")
+	}
+	if got, want := len(desired.Nodes), 2; got != want {
+		t.Fatalf("expected %d pool nodes after filtering, got %d: %v", want, got, desired.Nodes)
+	}
+	if desired.Nodes[0] != "10.0.0.63" || desired.Nodes[1] != "10.0.0.20" {
+		t.Fatalf("unexpected filtered pool order/content: %v", desired.Nodes)
 	}
 }

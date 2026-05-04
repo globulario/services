@@ -81,7 +81,6 @@ func TestDerivedProfileUnitMap(t *testing.T) {
 	coreUnits := []string{
 		"globular-etcd.service",
 		"globular-dns.service",
-		"globular-discovery.service",
 		"globular-event.service",
 		"globular-rbac.service",
 		"globular-file.service",
@@ -343,14 +342,14 @@ func TestDerivedProfileCapabilities(t *testing.T) {
 	// Rebuild to ensure current state.
 	rebuildProfileCapabilities()
 
-	// "core" profile should include config-store (from etcd), dns, service-discovery,
+	// "core" profile should include config-store (from etcd), dns,
 	// event-bus, object-store (minio), monitoring.
 	// Note: local-db (scylladb) is NOT in "core" — it is in "storage", "control-plane", "scylla", "database".
 	coreCaps := ProfileCapabilities["core"]
 	if coreCaps == nil {
 		t.Fatal("core profile missing from ProfileCapabilities")
 	}
-	required := []Capability{CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore}
+	required := []Capability{CapConfigStore, CapDNS, CapEventBus, CapObjectStore}
 	capSet := make(map[Capability]bool)
 	for _, c := range coreCaps {
 		capSet[c] = true

@@ -21,6 +21,16 @@ import (
 // applyMu prevents concurrent ApplyPackageRelease calls for the same package.
 var applyMu sync.Mutex
 
+// installedBinaryPath returns the expected deployed executable path for a package.
+// SERVICE packages use "<name>_server" binaries; INFRASTRUCTURE/COMMAND packages
+// use "<name>" binaries.
+func installedBinaryPath(name, kind string) string {
+	if strings.EqualFold(kind, "SERVICE") {
+		return filepath.Join(globularBinDir, strings.ReplaceAll(name, "-", "_")+"_server")
+	}
+	return filepath.Join(globularBinDir, name)
+}
+
 // ApplyPackageRelease fetches a package from the repository, installs it,
 // restarts the targeted service, and updates the installed-state registry.
 // This is the reusable primitive for leader-aware control-plane deployments.
@@ -414,11 +424,11 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		Platform:    platform,
 		Checksum:    req.GetExpectedSha256(),
 	}
-	// Best-effort: compute the deployed binary's SHA256 so peer nodes can
-	// identify manually-copied binaries by checksum lookup.
-	binName := strings.ReplaceAll(name, "-", "_") + "_server"
-	binPath := filepath.Join(globularBinDir, binName)
-	if cksum, err := cachedSha256(binPath); err == nil {
+	// Best-effort: compute the deployed binary's SHA256 from the actual runtime
+	// binary path. This digest is the authoritative entrypoint checksum and is
+	// what integrity checks should compare against repository entrypoint_checksum.
+	if cksum, err := cachedSha256(installedBinaryPath(name, kind)); err == nil {
+		pkg.Checksum = cksum
 		if pkg.Metadata == nil {
 			pkg.Metadata = make(map[string]string)
 		}

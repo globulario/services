@@ -25,9 +25,9 @@ func TestResolveIntent_CoreProfile(t *testing.T) {
 		}
 	}
 
-	// dns, discovery, monitoring, event, rbac, file are KindWorkload (ManagedUnit=true)
+	// dns, monitoring, event, rbac, file are KindWorkload (ManagedUnit=true)
 	// — they appear in ResolvedComponents but NOT in DesiredInfraNames.
-	for _, wl := range []string{"event", "rbac", "file", "dns", "discovery", "monitoring"} {
+	for _, wl := range []string{"event", "rbac", "file", "dns", "monitoring"} {
 		if contains(infraNames, wl) {
 			t.Errorf("%q should not be in infra (it's KindWorkload), got %v", wl, infraNames)
 		}
@@ -314,9 +314,9 @@ func TestResolveIntent_RequiredCapabilities(t *testing.T) {
 	}
 	sort.Strings(caps)
 
-	// Core profile requires: config-store, dns, event-bus, monitoring, object-store, service-discovery
+	// Core profile requires: config-store, dns, event-bus, monitoring, object-store
 	// Note: local-db (ScyllaDB) is NOT in "core" — it is in control-plane/storage/scylla/database.
-	want := []string{"config-store", "dns", "event-bus", "monitoring", "object-store", "service-discovery"}
+	want := []string{"config-store", "dns", "event-bus", "monitoring", "object-store"}
 	if len(caps) != len(want) {
 		t.Fatalf("core caps: got %v want %v", caps, want)
 	}

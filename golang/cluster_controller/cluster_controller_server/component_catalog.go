@@ -36,8 +36,8 @@ const (
 var ProfileCapabilities = map[string][]Capability{
 	// core provides foundational infra: etcd, dns, event, file, minio, monitoring.
 	// ScyllaDB (local-db) is NOT in "core" — it lives in control-plane/storage/scylla/database.
-	"core":          {CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapMonitoring},
-	"compute":       {CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapMonitoring},
+	"core":          {CapConfigStore, CapDNS, CapEventBus, CapObjectStore, CapMonitoring},
+	"compute":       {CapConfigStore, CapDNS, CapEventBus, CapObjectStore, CapMonitoring},
 	// control-plane extends core and adds xds/envoy/gateway + local-db (ScyllaDB).
 	"control-plane": {CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapMonitoring, CapLocalDB, CapHTTPProxy, CapServiceMesh, CapGateway},
 	"gateway":       {CapHTTPProxy, CapServiceMesh, CapGateway},
@@ -216,7 +216,7 @@ func buildCatalog() []*Component {
 			Unit:                 "globular-discovery.service",
 			Kind:                 KindWorkload,
 			Priority:             3,
-			Profiles:             []string{"core", "compute", "control-plane"},
+			Profiles:             []string{"control-plane"},
 			ProvidesCapabilities: []Capability{CapServiceDiscovery},
 			ManagedUnit:          true,
 			HealthCheck:          &HealthCheckHintC{Unit: "globular-discovery.service"},
@@ -325,7 +325,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-resource.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute"},
+			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event"},
 		},
 		{
@@ -453,7 +453,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-backup-manager.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute", "storage"},
+			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event", "rclone", "restic", "sctool"},
 		},
 		{

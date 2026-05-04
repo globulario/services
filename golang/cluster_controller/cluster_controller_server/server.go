@@ -1130,8 +1130,9 @@ func (srv *server) buildObjectStoreDesiredStateLocked() (*config.ObjectStoreDesi
 	if srv.state == nil {
 		return nil, true
 	}
+	allowedPool := srv.filterEligiblePoolIPsLocked(srv.state.MinioPoolNodes)
 	// Pre-formation: pool empty and no generation written — nothing to publish.
-	if len(srv.state.MinioPoolNodes) == 0 && srv.state.ObjectStoreGeneration == 0 {
+	if len(allowedPool) == 0 && srv.state.ObjectStoreGeneration == 0 {
 		return nil, true
 	}
 
@@ -1139,7 +1140,10 @@ func (srv *server) buildObjectStoreDesiredStateLocked() (*config.ObjectStoreDesi
 		srv.state.MinioCredentials.RootUser != "" &&
 		srv.state.MinioCredentials.RootPassword != ""
 
-	endpoint := srv.resolveMinioEndpointLocked()
+	endpoint := ""
+	if len(allowedPool) > 0 {
+		endpoint = net.JoinHostPort(allowedPool[0], "9000")
+	}
 	endpointReady := endpoint != ""
 
 	if !credentialsReady {
@@ -1163,13 +1167,13 @@ func (srv *server) buildObjectStoreDesiredStateLocked() (*config.ObjectStoreDesi
 	}
 
 	mode := config.ObjectStoreModeStandalone
-	if len(srv.state.MinioPoolNodes) >= 2 {
+	if len(allowedPool) >= 2 {
 		mode = config.ObjectStoreModeDistributed
 	}
 
 	// Build volumes map for hash computation.
-	nodeVolumes := make(map[string]string, len(srv.state.MinioPoolNodes))
-	for _, ip := range srv.state.MinioPoolNodes {
+	nodeVolumes := make(map[string]string, len(allowedPool))
+	for _, ip := range allowedPool {
 		path := "/var/lib/globular/minio"
 		if srv.state.MinioNodePaths != nil {
 			if p, ok := srv.state.MinioNodePaths[ip]; ok && p != "" {
@@ -1194,13 +1198,80 @@ func (srv *server) buildObjectStoreDesiredStateLocked() (*config.ObjectStoreDesi
 		SecretKey:        secretKey,
 		Bucket:           "globular",
 		Prefix:           domain,
-		Nodes:            append([]string(nil), srv.state.MinioPoolNodes...),
+		Nodes:            append([]string(nil), allowedPool...),
 		DrivesPerNode:    srv.state.MinioDrivesPerNode,
 		VolumesHash:      config.ComputeVolumesHash(nodeVolumes),
 		NodePaths:        nodePaths,
 		CredentialsReady: credentialsReady,
 		EndpointReady:    endpointReady,
 	}, false
+}
+
+// filterEligiblePoolIPsLocked removes stale/non-member entries from the stored
+// MinIO pool while preserving order.
+func (srv *server) filterEligiblePoolIPsLocked(pool []string) []string {
+	if len(pool) == 0 {
+		return nil
+	}
+	fallbackFromPool := func() []string {
+		out := make([]string, 0, len(pool))
+		seen := make(map[string]struct{}, len(pool))
+		for _, ip := range pool {
+			if net.ParseIP(ip) == nil {
+				continue
+			}
+			if _, dup := seen[ip]; dup {
+				continue
+			}
+			seen[ip] = struct{}{}
+			out = append(out, ip)
+		}
+		return out
+	}
+	if len(srv.state.Nodes) == 0 {
+		return fallbackFromPool()
+	}
+
+	allowed := make(map[string]struct{}, len(srv.state.Nodes))
+	now := time.Now()
+	for _, n := range srv.state.Nodes {
+		if n == nil {
+			continue
+		}
+		// Exclude nodes explicitly marked out of the MinIO pool.
+		if n.MinioJoinPhase == MinioJoinNonMember {
+			continue
+		}
+		// Exclude stale nodes so legacy/offline members cannot keep stale pool IPs alive.
+		if n.LastSeen.IsZero() || now.Sub(n.LastSeen) >= heartbeatStaleThreshold {
+			continue
+		}
+		switch n.Status {
+		case "removed", "unreachable", "blocked":
+			continue
+		}
+		for _, ip := range n.Identity.Ips {
+			if ip != "" && ip != "127.0.0.1" && ip != "::1" {
+				allowed[ip] = struct{}{}
+			}
+		}
+	}
+	if len(allowed) == 0 {
+		return fallbackFromPool()
+	}
+	out := make([]string, 0, len(pool))
+	seen := make(map[string]struct{}, len(pool))
+	for _, ip := range pool {
+		if _, ok := allowed[ip]; !ok {
+			continue
+		}
+		if _, dup := seen[ip]; dup {
+			continue
+		}
+		seen[ip] = struct{}{}
+		out = append(out, ip)
+	}
+	return out
 }
 
 // publishObjectStoreDesiredStateLocked writes /globular/objectstore/config to etcd.

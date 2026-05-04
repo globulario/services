@@ -18,6 +18,7 @@ import (
 	"text/tabwriter"
 	"time"
 	"os"
+	"net"
 
 	"github.com/spf13/cobra"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -38,6 +39,7 @@ var objectstoreTopologyCmd = &cobra.Command{
 
 var (
 	topoStatusJSON bool
+	topoSanitizeDryRun bool
 )
 
 var objectstoreTopologyStatusCmd = &cobra.Command{
@@ -63,7 +65,194 @@ Exit codes:
 func init() {
 	objectstoreTopologyStatusCmd.Flags().BoolVar(&topoStatusJSON, "json", false, "Output as JSON")
 	objectstoreTopologyCmd.AddCommand(objectstoreTopologyStatusCmd)
+	objectstoreTopologySanitizePoolCmd.Flags().BoolVar(&topoSanitizeDryRun, "dry-run", true, "Preview changes without writing etcd")
+	objectstoreTopologyCmd.AddCommand(objectstoreTopologySanitizePoolCmd)
 	objectstoreCmd.AddCommand(objectstoreTopologyCmd)
+}
+
+var objectstoreTopologySanitizePoolCmd = &cobra.Command{
+	Use:   "sanitize-pool",
+	Short: "Remove stale MinIO pool peers from persisted etcd state",
+	Long: `Sanitizes stale MinIO pool IPs in persisted etcd state.
+
+It compares MinIO pool entries against current eligible cluster nodes
+(excluding removed/unreachable/blocked nodes), then removes stale peers while
+preserving order.
+
+Writes (when --dry-run=false):
+  - /globular/clustercontroller/state (minio_pool_nodes + objectstore_generation++)
+  - /globular/objectstore/config (nodes + endpoint + volumes_hash, generation aligned)
+`,
+	RunE: runObjectstoreTopologySanitizePool,
+}
+
+const etcdClusterControllerStateKey = "/globular/clustercontroller/state"
+
+type ccStateLite struct {
+	Nodes                 map[string]ccNodeLite `json:"nodes"`
+	MinioPoolNodes        []string              `json:"minio_pool_nodes,omitempty"`
+	MinioNodePaths        map[string]string     `json:"minio_node_paths,omitempty"`
+	ObjectStoreGeneration int64                 `json:"objectstore_generation,omitempty"`
+}
+
+type ccNodeLite struct {
+	Status   string `json:"status"`
+	Identity struct {
+		Ips []string `json:"ips"`
+	} `json:"identity"`
+}
+
+func runObjectstoreTopologySanitizePool(cmd *cobra.Command, args []string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return fmt.Errorf("etcd unavailable: %w", err)
+	}
+	resp, err := cli.Get(ctx, etcdClusterControllerStateKey)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", etcdClusterControllerStateKey, err)
+	}
+	if len(resp.Kvs) == 0 {
+		return fmt.Errorf("%s not found", etcdClusterControllerStateKey)
+	}
+
+	var cc ccStateLite
+	if err := json.Unmarshal(resp.Kvs[0].Value, &cc); err != nil {
+		return fmt.Errorf("parse %s: %w", etcdClusterControllerStateKey, err)
+	}
+	before := append([]string(nil), cc.MinioPoolNodes...)
+	after := sanitizePoolNodes(before, cc.Nodes)
+	removed := diffRemoved(before, after)
+
+	if len(removed) == 0 {
+		fmt.Printf("No stale MinIO pool peers found. Pool unchanged: %v\n", after)
+		return nil
+	}
+
+	fmt.Printf("Sanitize MinIO pool peers:\n")
+	fmt.Printf("  before:  %v\n", before)
+	fmt.Printf("  after:   %v\n", after)
+	fmt.Printf("  removed: %v\n", removed)
+
+	if topoSanitizeDryRun {
+		fmt.Println("Dry-run only. Re-run with --dry-run=false to apply.")
+		return nil
+	}
+
+	cc.MinioPoolNodes = after
+	cc.ObjectStoreGeneration++
+
+	raw, err := json.Marshal(cc)
+	if err != nil {
+		return fmt.Errorf("marshal sanitized controller state: %w", err)
+	}
+	if _, err := cli.Put(ctx, etcdClusterControllerStateKey, string(raw)); err != nil {
+		return fmt.Errorf("write %s: %w", etcdClusterControllerStateKey, err)
+	}
+
+	desired, err := config.LoadObjectStoreDesiredState(ctx)
+	if err != nil {
+		return fmt.Errorf("read objectstore desired state: %w", err)
+	}
+	if desired != nil {
+		desired.Generation = cc.ObjectStoreGeneration
+		desired.Nodes = append([]string(nil), after...)
+		desired.Endpoint = ""
+		desired.EndpointReady = false
+		if len(after) > 0 {
+			desired.Endpoint = net.JoinHostPort(after[0], "9000")
+			desired.EndpointReady = true
+		}
+		nodeVolumes := make(map[string]string, len(after))
+		for _, ip := range after {
+			path := "/var/lib/globular/minio"
+			if p, ok := cc.MinioNodePaths[ip]; ok && p != "" {
+				path = p
+			}
+			nodeVolumes[ip] = path
+		}
+		desired.NodePaths = nodeVolumes
+		desired.VolumesHash = config.ComputeVolumesHash(nodeVolumes)
+		if len(after) >= 2 {
+			desired.Mode = config.ObjectStoreModeDistributed
+		} else {
+			desired.Mode = config.ObjectStoreModeStandalone
+		}
+		if err := config.SaveObjectStoreDesiredState(ctx, desired); err != nil {
+			return fmt.Errorf("write /globular/objectstore/config: %w", err)
+		}
+	}
+
+	fmt.Printf("Applied. New objectstore generation: %d\n", cc.ObjectStoreGeneration)
+	return nil
+}
+
+func sanitizePoolNodes(pool []string, nodes map[string]ccNodeLite) []string {
+	if len(pool) == 0 {
+		return nil
+	}
+	if len(nodes) == 0 {
+		seen := make(map[string]struct{}, len(pool))
+		out := make([]string, 0, len(pool))
+		for _, ip := range pool {
+			if net.ParseIP(ip) == nil {
+				continue
+			}
+			if _, dup := seen[ip]; dup {
+				continue
+			}
+			seen[ip] = struct{}{}
+			out = append(out, ip)
+		}
+		return out
+	}
+	allowed := make(map[string]struct{}, len(nodes))
+	for _, n := range nodes {
+		switch n.Status {
+		case "removed", "unreachable", "blocked":
+			continue
+		}
+		for _, ip := range n.Identity.Ips {
+			if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+				continue
+			}
+			allowed[ip] = struct{}{}
+		}
+	}
+	seen := make(map[string]struct{}, len(pool))
+	out := make([]string, 0, len(pool))
+	for _, ip := range pool {
+		if _, ok := allowed[ip]; !ok {
+			continue
+		}
+		if _, dup := seen[ip]; dup {
+			continue
+		}
+		seen[ip] = struct{}{}
+		out = append(out, ip)
+	}
+	return out
+}
+
+func diffRemoved(before, after []string) []string {
+	afterSet := make(map[string]struct{}, len(after))
+	for _, ip := range after {
+		afterSet[ip] = struct{}{}
+	}
+	removed := make([]string, 0)
+	seen := make(map[string]struct{}, len(before))
+	for _, ip := range before {
+		if _, dup := seen[ip]; dup {
+			continue
+		}
+		seen[ip] = struct{}{}
+		if _, ok := afterSet[ip]; !ok {
+			removed = append(removed, ip)
+		}
+	}
+	return removed
 }
 
 // ── status command ────────────────────────────────────────────────────────────

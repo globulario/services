@@ -1056,6 +1056,19 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 
 	// Enrich manifest with catalog metadata from package.json inside the tgz.
 	if pkg := extractPackageManifest(data); pkg != nil {
+		// Hard integrity gate: compute checksum from the uploaded artifact bytes.
+		// If package.json declares entrypoint_checksum, it must match the binary
+		// that is actually inside the uploaded archive.
+		actualEntryCS := computeBinaryChecksumFromArchive(data)
+		if actualEntryCS != "" {
+			if declared := normalizeDigest(pkg.EntrypointChecksum); declared != "" && declared != actualEntryCS {
+				return status.Errorf(codes.InvalidArgument,
+					"entrypoint_checksum mismatch: package.json=%s archive=%s",
+					canonicalDigest(pkg.EntrypointChecksum), canonicalDigest(actualEntryCS))
+			}
+			// Repository truth comes from uploaded bytes, not client-declared JSON.
+			pkg.EntrypointChecksum = canonicalDigest(actualEntryCS)
+		}
 		enrichManifestFromPackageJSON(manifest, pkg)
 	}
 

@@ -26,6 +26,7 @@ import (
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/repository/repository_client"
+	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -765,7 +766,7 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 			PublisherId:   ref.GetPublisherId(),
 			Platform:      platform,
 			Kind:          kind,
-			Checksum:      m.GetChecksum(),
+			Checksum:      runtimeChecksumFromManifest(m),
 			BuildNumber:   m.GetBuildNumber(),
 			InstalledUnix: now,
 			UpdatedUnix:   now,
@@ -779,12 +780,38 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 				pkg.BuildId = existing.GetBuildId()
 			}
 		}
+		// Store the runtime identity in metadata as well so partial-apply and
+		// peer-checksum reconciliation can reason over a stable field.
+		if ep := normalizeSHA256Digest(m.GetEntrypointChecksum()); ep != "" {
+			if pkg.Metadata == nil {
+				pkg.Metadata = make(map[string]string)
+			}
+			pkg.Metadata["entrypoint_checksum"] = ep
+		}
 		if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
 			log.Printf("nodeagent: sync installed-state %s/%s: %v", kind, name, err)
 			continue
 		}
 		*synced++
 	}
+}
+
+// runtimeChecksumFromManifest returns the checksum that should represent the
+// deployed runtime identity in installed_state. Prefer entrypoint checksum and
+// fall back to archive checksum for legacy manifests.
+func runtimeChecksumFromManifest(m *repositorypb.ArtifactManifest) string {
+	if m == nil {
+		return ""
+	}
+	if ep := normalizeSHA256Digest(m.GetEntrypointChecksum()); ep != "" {
+		return ep
+	}
+	return normalizeSHA256Digest(m.GetChecksum())
+}
+
+func normalizeSHA256Digest(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	return strings.TrimPrefix(s, "sha256:")
 }
 
 // commandBinaryExists checks whether a COMMAND package's binary is installed

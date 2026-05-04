@@ -307,6 +307,66 @@ func resolveArtifactDigest(ctx context.Context, repoAddr, publisherID, service, 
 	return digest, nil
 }
 
+// resolveArtifactEntrypointDigest fetches the expected runtime-binary checksum
+// (entrypoint_checksum) for an artifact from the repository manifest.
+// Returns lowercase hex digest without "sha256:" prefix.
+// Falls back to archive checksum for legacy manifests missing entrypoint checksum.
+func resolveArtifactEntrypointDigest(ctx context.Context, repoAddr, publisherID, service, version, platform, kindStr string, buildNumber int64) (string, error) {
+	if repoAddr == "" {
+		return "", fmt.Errorf("repository address not set")
+	}
+	conn, _, err := dialRepository(ctx, repoAddr)
+	if err != nil {
+		return "", fmt.Errorf("dial repository: %w", err)
+	}
+	defer conn.Close()
+
+	authCtx := ctx
+	if clusterID, cerr := security.GetLocalClusterID(); cerr == nil && clusterID != "" {
+		md := metadata.Pairs("cluster_id", clusterID)
+		authCtx = metadata.NewOutgoingContext(ctx, md)
+	}
+
+	kind := repositorypb.ArtifactKind_SERVICE
+	switch strings.ToUpper(kindStr) {
+	case "INFRASTRUCTURE":
+		kind = repositorypb.ArtifactKind_INFRASTRUCTURE
+	case "APPLICATION":
+		kind = repositorypb.ArtifactKind_APPLICATION
+	case "COMMAND":
+		kind = repositorypb.ArtifactKind_COMMAND
+	}
+	ref := &repositorypb.ArtifactRef{
+		PublisherId: publisherID,
+		Name:        service,
+		Version:     version,
+		Platform:    platform,
+		Kind:        kind,
+	}
+	client := repositorypb.NewPackageRepositoryClient(conn)
+	resp, err := client.GetArtifactManifest(authCtx, &repositorypb.GetArtifactManifestRequest{
+		Ref:         ref,
+		BuildNumber: buildNumber,
+	})
+	if err != nil {
+		return "", fmt.Errorf("get manifest: %w", err)
+	}
+	manifest := resp.GetManifest()
+	if manifest == nil {
+		return "", fmt.Errorf("no manifest returned")
+	}
+
+	digest := strings.ToLower(strings.TrimSpace(manifest.GetEntrypointChecksum()))
+	if digest == "" {
+		digest = strings.ToLower(strings.TrimSpace(manifest.GetChecksum()))
+	}
+	digest = strings.TrimPrefix(digest, "sha256:")
+	if len(digest) != 64 {
+		return "", fmt.Errorf("manifest entrypoint checksum is not a sha256 hex (len=%d)", len(digest))
+	}
+	return digest, nil
+}
+
 // resolveArtifactByBuildID resolves the exact build_number and checksum for a
 // given build_id by calling ResolveArtifact on the repository. This is the
 // correct path for controllers that dispatch workflows with a known build_id

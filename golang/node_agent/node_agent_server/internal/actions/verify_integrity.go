@@ -151,16 +151,18 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 	// ~48 packages, which blows past the doctor collector's NodeTimeout.
 	// A small worker pool keeps the total wall time under 1 second for
 	// typical clusters without hammering the repository.
-	manifestDigests := make(map[string]string) // key: kind/name → expected sha256
+	manifestArchiveDigests := make(map[string]string)    // key: kind/name → archive sha256
+	manifestEntrypointDigests := make(map[string]string) // key: kind/name → entrypoint sha256
 	if repoAddr != "" && len(installedMap) > 0 {
 		type resolveResult struct {
-			key    string
-			digest string
-			err    error
-			pubID  string
-			name   string
-			ver    string
-			build  int64
+			key              string
+			archiveDigest    string
+			entrypointDigest string
+			err              error
+			pubID            string
+			name             string
+			ver              string
+			build            int64
 		}
 		workerCount := 8
 		if n := len(installedMap); n < workerCount {
@@ -178,18 +180,27 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 			go func() {
 				defer wg.Done()
 				for j := range jobs {
-					digest, err := resolveArtifactDigest(ctx, repoAddr,
+					archiveDigest, aErr := resolveArtifactDigest(ctx, repoAddr,
 						j.inst.ref.GetPublisherId(), j.inst.ref.GetName(),
 						j.inst.ref.GetVersion(), j.inst.ref.GetPlatform(),
 						strings.ToUpper(j.inst.kind), j.inst.build)
+					entryDigest, eErr := resolveArtifactEntrypointDigest(ctx, repoAddr,
+						j.inst.ref.GetPublisherId(), j.inst.ref.GetName(),
+						j.inst.ref.GetVersion(), j.inst.ref.GetPlatform(),
+						strings.ToUpper(j.inst.kind), j.inst.build)
+					err := aErr
+					if err == nil {
+						err = eErr
+					}
 					results <- resolveResult{
-						key:    j.key,
-						digest: digest,
-						err:    err,
-						pubID:  j.inst.ref.GetPublisherId(),
-						name:   j.inst.ref.GetName(),
-						ver:    j.inst.ref.GetVersion(),
-						build:  j.inst.build,
+						key:              j.key,
+						archiveDigest:    archiveDigest,
+						entrypointDigest: entryDigest,
+						err:              err,
+						pubID:            j.inst.ref.GetPublisherId(),
+						name:             j.inst.ref.GetName(),
+						ver:              j.inst.ref.GetVersion(),
+						build:            j.inst.build,
 					}
 				}
 			}()
@@ -210,7 +221,8 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 						r.pubID, r.name, r.ver, r.build, r.err))
 				continue
 			}
-			manifestDigests[r.key] = r.digest
+			manifestArchiveDigests[r.key] = r.archiveDigest
+			manifestEntrypointDigests[r.key] = r.entrypointDigest
 		}
 	}
 
@@ -258,7 +270,7 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 		cachePath := filepath.Join("/var/lib/globular/staging",
 			inst.ref.GetPublisherId(), inst.ref.GetName(), "latest.artifact")
 		if fi, err := os.Stat(cachePath); err == nil && !fi.IsDir() {
-			if expected, ok := manifestDigests[key]; ok && expected != "" {
+			if expected, ok := manifestArchiveDigests[key]; ok && expected != "" {
 				actual, herr := sha256OfFile(cachePath)
 				if herr != nil {
 					report.Errors = append(report.Errors, fmt.Sprintf("hash %s: %v", cachePath, herr))
@@ -282,7 +294,7 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 		}
 
 		// I3: installed record checksum vs manifest digest
-		if expected, ok := manifestDigests[key]; ok && expected != "" && inst.checksum != "" {
+		if expected, ok := manifestEntrypointDigests[key]; ok && expected != "" && inst.checksum != "" {
 			if inst.checksum != expected {
 				report.Findings = append(report.Findings, integrityFinding{
 					Invariant: "artifact.installed_digest_mismatch",
@@ -301,7 +313,7 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 		}
 
 		// I4: release resolved a digest but no cache present
-		if expected, ok := manifestDigests[key]; ok && expected != "" {
+		if expected, ok := manifestArchiveDigests[key]; ok && expected != "" {
 			if _, err := os.Stat(cachePath); os.IsNotExist(err) {
 				report.Findings = append(report.Findings, integrityFinding{
 					Invariant: "artifact.cache_missing",
