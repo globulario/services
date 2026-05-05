@@ -26,11 +26,11 @@ func TestReconcileControllerSelfUpdate_NoSafeSuccessorWritesPendingRecord(t *tes
 	})
 
 	readControllerTargetBuildFn = func(_ *server, _ context.Context) (*controllerTargetBuild, error) {
-		return &controllerTargetBuild{Version: "1.0.99", BuildNumber: 7}, nil
+		return &controllerTargetBuild{Version: "99.99.99", BuildNumber: 99999}, nil
 	}
 	findSelfNodeIDFn = func(_ *server) string { return "node-leader" }
 	evaluateControllerFollowersFn = func(_ *server, _ context.Context, _ string, _ *controllerTargetBuild) (int, int, map[string]string) {
-		return 0, 2, map[string]string{"node-f1": "installed 1.0.98+1, target 1.0.99+7"}
+		return 0, 2, map[string]string{"node-f1": "installed 1.0.98+1, target 99.99.99+99999"}
 	}
 
 	var wrote bool
@@ -75,7 +75,7 @@ func TestReconcileControllerSelfUpdate_SafeSuccessorClearsPendingAndResigns(t *t
 	})
 
 	readControllerTargetBuildFn = func(_ *server, _ context.Context) (*controllerTargetBuild, error) {
-		return &controllerTargetBuild{Version: "1.0.99", BuildNumber: 7}, nil
+		return &controllerTargetBuild{Version: "99.99.99", BuildNumber: 99999}, nil
 	}
 	findSelfNodeIDFn = func(_ *server) string { return "node-leader" }
 	evaluateControllerFollowersFn = func(_ *server, _ context.Context, _ string, _ *controllerTargetBuild) (int, int, map[string]string) {
