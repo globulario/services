@@ -8,8 +8,8 @@
 // Values are protojson-encoded node_agent.InstalledPackage records.
 //
 // This package is used by:
-//   - Node Agent: writes records after successful lifecycle execution
-//   - Cluster Controller: reads records for drift detection
+//   - Cluster Controller: authoritative writer via CommitInstalledPackage
+//   - Node Agent: reads state and emits convergence evidence (no direct authoritative writes)
 //   - Gateway: reads records for admin UI queries
 package installed_state
 
@@ -81,49 +81,17 @@ func CommitInstalledPackage(ctx context.Context, pkg *node_agentpb.InstalledPack
 	return config.PutRuntimeWithClass(ctx, key, data, config.StateCommitWrite)
 }
 
-// WriteInstalledPackage writes (or overwrites) an installed package record in etcd.
-// The record's UpdatedUnix is set to now if zero.
+// WriteInstalledPackage is disabled for authoritative writes.
+//
+// Architecture invariant: only the cluster-controller commit path may write
+// /globular/nodes/{node}/packages/{kind}/{name}. Node-agent and heartbeat
+// must emit convergence evidence and let the controller commit.
+//
+// Kept as a hard-fail shim to surface legacy call sites during migration.
 func WriteInstalledPackage(ctx context.Context, pkg *node_agentpb.InstalledPackage) error {
-	if pkg.GetNodeId() == "" {
-		return fmt.Errorf("installed_state: node_id is required")
-	}
-	if pkg.GetName() == "" {
-		return fmt.Errorf("installed_state: name is required")
-	}
-	if pkg.GetKind() == "" {
-		return fmt.Errorf("installed_state: kind is required")
-	}
-
-	if pkg.UpdatedUnix == 0 {
-		pkg.UpdatedUnix = time.Now().Unix()
-	}
-	if pkg.InstalledUnix == 0 {
-		pkg.InstalledUnix = pkg.UpdatedUnix
-	}
-	if pkg.Status == "" {
-		pkg.Status = "installed"
-	}
-
-	data, err := protojson.Marshal(pkg)
-	if err != nil {
-		return fmt.Errorf("installed_state: marshal: %w", err)
-	}
-
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		return fmt.Errorf("installed_state: etcd client: %w", err)
-	}
-	// Do NOT close the shared singleton — it is reused across the process.
-
-	key := packageKey(pkg.GetNodeId(), pkg.GetKind(), pkg.GetName())
-	tctx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
-
-	_, err = cli.Put(tctx, key, string(data))
-	if err != nil {
-		return fmt.Errorf("installed_state: put %q: %w", key, err)
-	}
-	return nil
+	_ = ctx
+	_ = pkg
+	return fmt.Errorf("installed_state: authoritative writes are controller-only; use CommitInstalledPackage via convergence commit path")
 }
 
 // GetInstalledPackage reads a single installed package record from etcd.

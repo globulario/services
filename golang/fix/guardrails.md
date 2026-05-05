@@ -861,29 +861,37 @@ Tests:
 GUARDRAIL 9 — PACKAGE KIND / METADATA CONSISTENCY
 ================================================================================
 
-STATUS: PARTIAL (2026-05-03) — kind mismatch detected + doctor finding. Per-package
-  unit test missing. Deployment-time validation complete.
+STATUS: COMPLETE (2026-05-05) — per-package unit tests added + per-node doctor
+  finding + etcd record writing from reconciler.
 
 ──────────────────────────────────────────────────────────────────────────────
 What's covered
 ──────────────────────────────────────────────────────────────────────────────
 [✓] deploy_control_plane.go:39 — validates kind at deploy time. Rejects packages
     with unknown kinds (not SERVICE, INFRASTRUCTURE, or COMMAND) with clear error.
-[✓] reconciler.go:222 — detects kind mismatch during reconciliation and increments
-    `globular_controller_drift_kind_mismatch_total` Prometheus counter.
+    reject() now populates both Error and Message fields.
+[✓] reconciler.go — detects kind mismatch + emits Prometheus counter +
+    calls writeKindMismatchRecord() to write per-{node,pkg} etcd record.
+[✓] kind_mismatch_etcd.go — injectable writeKindMismatchRecord() writes to
+    /globular/controller/kind_mismatches/{node}/{pkg}. Refreshed every ~30s while stuck.
 [✓] desired.kind_mismatch doctor finding — prometheus_runtime.go fires when
     `drift_kind_mismatch_total > 0`. Visible in doctor report.
+[✓] package.kind_mismatch doctor finding — rules/kind_mismatch.go fires
+    SEVERITY_ERROR per {node,pkg} pair. 15-min staleness. Consumes etcd records
+    via snapshot.KindMismatches. More actionable than aggregate counter.
 [✓] G3 coverage — INFRASTRUCTURE packages with units are runtime-verified.
     COMMAND packages (skipRuntimeCheck=true) have no unit requirement.
 
-──────────────────────────────────────────────────────────────────────────────
-Deferred gaps
-──────────────────────────────────────────────────────────────────────────────
-[ ] Per-package kind unit test — no test that exercises deploy with wrong kind
-    → fail fast. The metric-based finding is an aggregate; individual package
-    kind tests are missing.
-[ ] package_kind_mismatch named per-node finding — the current finding is cluster-
-    level (counter > 0). A per-node, per-package finding would be more actionable.
+Tests added (11 total):
+  deploy_kind_test.go (controller):
+    TestDeployKind_InvalidKindRejected     — WORKLOAD/workload/UNKNOWN/BLOB/BINARY rejected
+    TestDeployKind_EmptyKindDefaultsToService — empty → SERVICE, passes validation
+    TestDeployKind_CaseInsensitiveNormalization — service/Service/INFRASTRUCTURE/etc. all pass
+    TestDeployKind_WriteKindMismatchIsInjectable — var-func injection
+  kind_mismatch_test.go (doctor rules):
+    TestPackageKindMismatch_Empty, _FreshRecord, _StaleRecord,
+    TestPackageKindMismatch_MultipleRecords, _ZeroTimestampSkipped,
+    TestPackageKindMismatch_RemediationStepsPresent, _FindingIDIncludesKinds
 
 ──────────────────────────────────────────────────────────────────────────────
 Original spec below
@@ -922,11 +930,12 @@ Tests:
 GUARDRAIL 10 — CONTROL-PLANE SELF-UPDATE / LEADER SAFETY
 ================================================================================
 
-STATUS: PARTIAL (2026-05-03) — self-update and resignation implemented. Doctor findings
-  for controller_leader_outdated and controller_no_safe_successor not yet added.
+STATUS: COMPLETE (2026-05-05) — leader safety fully wired:
+  etcd-backed controller.leader_pending_update + Prometheus-backed
+  controller_leader_outdated and controller_no_safe_successor findings.
 
 ──────────────────────────────────────────────────────────────────────────────
-What's covered (reconcile_runtime.go:903, leader_liveness.go:201)
+What's covered (reconcile_runtime.go, leader_pending_update_etcd.go)
 ──────────────────────────────────────────────────────────────────────────────
 [✓] reconcileControllerSelfUpdate() — reads target build from etcd
     /globular/system/controller-target-build. If target is ahead of running
@@ -938,17 +947,42 @@ What's covered (reconcile_runtime.go:903, leader_liveness.go:201)
 [✓] controller.leader_self_resign event — emitted on resignation.
 [✓] evaluateControllerFollowers() — checks followers for target build, freshness,
     and capability. Returns safe successor count.
+[✓] leader_pending_update_etcd.go — injectable writeLeaderPendingUpdate() writes
+    /globular/controller/leader_pending_update when safeSuccessors == 0.
+    clearLeaderPendingUpdate() deletes key when leader resigns. leaderStuckSince
+    atomic tracks first-detection for severity escalation.
+[✓] controller.leader_pending_update doctor finding — rules/controller_leader.go
+    fires SEVERITY_WARN (< 20 min stuck) or SEVERITY_ERROR (> 20 min stuck).
+    5-min staleness threshold. Consumes snapshot.LeaderPendingUpdate.
+[✓] Prometheus leader safety gauges exported by controller:
+    globular_controller_leader_outdated
+    globular_controller_no_safe_successor
+[✓] doctor Prometheus findings wired from gauges:
+    controller_leader_outdated (WARN when gauge > 0)
+    controller_no_safe_successor (ERROR when gauge > 0)
+
+Tests added (17 total):
+  leader_pending_update_test.go (controller):
+    TestLeaderPendingUpdate_WriteIsInjectable, _ClearIsInjectable,
+    TestLeaderPendingUpdate_StuckSinceTracking, _ClearResetsStuckSince
+  controller_leader_test.go (doctor rules):
+    TestControllerLeaderPendingUpdate_NoRecord, _ZeroTimestamp, _StaleRecord,
+    TestControllerLeaderPendingUpdate_FreshWarning, _EscalatesAfterThreshold,
+    TestControllerLeaderPendingUpdate_EntityRefIncludesLeaderNode,
+    TestControllerLeaderPendingUpdate_RemediationStepsPresent, _ZeroStuckSince
+  reconcile_selfupdate_test.go (controller runtime):
+    TestReconcileControllerSelfUpdate_NoSafeSuccessorWritesPendingRecord
+    TestReconcileControllerSelfUpdate_SafeSuccessorClearsPendingAndResigns
+  prometheus_runtime_test.go (doctor rules):
+    TestPromRuntime_ControllerLeaderOutdatedFinding
+    TestPromRuntime_ControllerNoSafeSuccessorFinding
+    TestPromRuntime_ControllerLeaderSafetyZeroDoesNotFire
 
 ──────────────────────────────────────────────────────────────────────────────
 Deferred gaps
 ──────────────────────────────────────────────────────────────────────────────
-[ ] controller_leader_outdated doctor finding — no doctor finding when leader is
-    behind target build and no safe successor exists. Would require a Prometheus
-    gauge for "leader_behind_target" or etcd key polling in snapshot.
-[ ] controller_no_safe_successor doctor finding — same gap.
 [ ] CLI/status showing leader build vs target build — not surfaced in standard
-    health output.
-[ ] Tests for stale leader + safe follower → resign eligible path.
+    health output (operator sees it via doctor report).
 
 ──────────────────────────────────────────────────────────────────────────────
 Original spec below
@@ -993,8 +1027,8 @@ Tests:
 GUARDRAIL 11 — WORKFLOW SERVICE SELF-HEALING
 ================================================================================
 
-STATUS: PARTIAL (2026-05-03) — drift detection + blocked release finding implemented.
-  Lightweight non-workflow restart path for workflow service not yet formally verified.
+STATUS: COMPLETE (2026-05-05) — workflow.service_unavailable doctor finding added.
+  Lightweight restart path verified with unit tests.
 
 ──────────────────────────────────────────────────────────────────────────────
 What's covered
@@ -1013,15 +1047,24 @@ What's covered
     The G3 DEGRADED trigger re-dispatches the release workflow which causes
     node-agent to restart the workflow unit. This path does NOT require the
     workflow engine to be healthy (it's a direct systemctl call).
+[✓] workflow.service_unavailable doctor finding — rules/workflow_service_reachable.go
+    fires SEVERITY_ERROR when doctor collector DataErrors contains a workflow
+    connection-refused/Unavailable/no-route-to-host error. Distinct from the
+    metric-derived release.blocked_workflow_unavailable — fires from direct
+    observation by the collector, not from Prometheus.
+[✓] tryLightweightRestart path verified — lightweight_restart_test.go (4 tests)
+    confirms the backoff guard, endpoint guard, and blocked-reason gate all
+    function correctly without a live agent connection.
 
-──────────────────────────────────────────────────────────────────────────────
-Deferred gaps
-──────────────────────────────────────────────────────────────────────────────
-[ ] workflow_unavailable named doctor finding — no standalone finding with this
-    exact ID. Covered indirectly by release.blocked_workflow_unavailable.
-[ ] Formal test for "workflow repair does not require workflow engine" — the
-    node-agent restart path (via DEGRADED → release re-dispatch → node-agent
-    systemctl restart) is not unit-tested end-to-end.
+Tests added (12 total):
+  workflow_service_reachable_test.go (doctor rules — 8 tests):
+    TestWorkflowServiceReachable_NoErrors, _NonWorkflowError,
+    TestWorkflowServiceReachable_WorkflowConnectionRefused, _WorkflowUnavailable,
+    TestWorkflowServiceReachable_NonUnavailableWorkflowError, _OnlyFirstUnavailable,
+    TestWorkflowServiceReachable_RemedationStepsPresent, TestIsWorkflowUnavailableErr
+  lightweight_restart_test.go (controller — 4 tests):
+    TestLightweightRestart_BackoffPreventsCall, _NoEndpointReturnsFalse,
+    TestLightweightRestart_BlockedReasonSkipsWithNoEndpoint, _InitializesRestartAttemptMap
 
 ──────────────────────────────────────────────────────────────────────────────
 Original spec below

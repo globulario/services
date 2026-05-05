@@ -468,6 +468,38 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 		newConvergenceCommitter(srv).Start(ctx)
 	})
 
+	// MinIO topology reconciler: leader-only periodic repair lane.
+	// Retries topology apply when desired generation drifts from applied
+	// generation or when MinIO stays inactive on storage nodes beyond the
+	// tolerance window.
+	safeGo("minio-topology-reconciler-gated", func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(30 * time.Second):
+		}
+		if !srv.waitForReadiness(ctx) {
+			return
+		}
+		newMinioTopologyReconciler(srv).Start(ctx)
+	})
+
+	// etcd endpoint reconciler: leader-only periodic lane that keeps the
+	// authoritative endpoint list in etcd aligned with live cluster membership.
+	// Detects drift and corrects the /globular/system/etcd_endpoints key so
+	// node-agents can refresh their local endpoint file after topology changes.
+	safeGo("etcd-endpoint-reconciler-gated", func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(30 * time.Second):
+		}
+		if !srv.waitForReadiness(ctx) {
+			return
+		}
+		newEtcdEndpointReconciler(srv).Start(ctx)
+	})
+
 	// Trigger A: Auto-import desired state from installed services at startup.
 	// Waits for at least one node to report installed versions, then checks if
 	// desired state is empty. If so, runs importInstalledToDesired to backfill.
@@ -1013,8 +1045,10 @@ func (srv *server) reconcileControllerSelfUpdate(ctx context.Context) {
 		return
 	}
 
-	target, err := srv.readControllerTargetBuild(ctx)
+	target, err := readControllerTargetBuildFn(srv, ctx)
 	if err != nil || target == nil || target.Version == "" {
+		controllerLeaderOutdated.Set(0)
+		controllerNoSafeSuccessor.Set(0)
 		return
 	}
 
@@ -1039,6 +1073,8 @@ func (srv *server) reconcileControllerSelfUpdate(ctx context.Context) {
 	// If we're a follower, check whether the leader is still old — that's
 	// the bootstrap deadlock: new follower ready, old leader holding lease.
 	if cmp >= 0 {
+		controllerLeaderOutdated.Set(0)
+		controllerNoSafeSuccessor.Set(0)
 		if !srv.isLeader() {
 			srv.detectBootstrapHandoff(ctx, target, targetLabel)
 		}
@@ -1047,20 +1083,25 @@ func (srv *server) reconcileControllerSelfUpdate(ctx context.Context) {
 
 	// ── Follower path: explicitly apply the target package locally ──
 	if !srv.isLeader() {
+		controllerLeaderOutdated.Set(0)
+		controllerNoSafeSuccessor.Set(0)
 		srv.followerSelfApply(ctx, target)
 		return
 	}
+	controllerLeaderOutdated.Set(1)
 
 	// ── Leader path: verify safe successor before resigning ──
-	selfNodeID := srv.findSelfNodeID()
-	safeSuccessors, totalFollowers, blockedReasons := srv.evaluateControllerFollowers(ctx, selfNodeID, target)
+	selfNodeID := findSelfNodeIDFn(srv)
+	safeSuccessors, totalFollowers, blockedReasons := evaluateControllerFollowersFn(srv, ctx, selfNodeID, target)
 
 	if totalFollowers == 0 {
 		logger.Info("controller-self-update: single-node cluster, skipping (release reconciler handles)")
+		controllerNoSafeSuccessor.Set(0)
 		return
 	}
 
 	if safeSuccessors == 0 {
+		controllerNoSafeSuccessor.Set(1)
 		// Log the specific blocking reasons for each follower.
 		for id, reason := range blockedReasons {
 			logger.Info("controller-self-update: follower not ready",
@@ -1074,12 +1115,31 @@ func (srv *server) reconcileControllerSelfUpdate(ctx context.Context) {
 			"followers_total": totalFollowers,
 			"blocked_reasons": blockedReasons,
 		})
+		// Record stuck state in etcd for the doctor to observe. Set
+		// StuckSinceUnix on first detection; refresh DetectedAtUnix each pass.
+		if leaderStuckSince.Load() == 0 {
+			leaderStuckSince.Store(time.Now().Unix())
+		}
+		writeLeaderPendingUpdate(ctx, LeaderPendingUpdateRecord{
+			LeaderNodeID:   selfNodeID,
+			CurrentVersion: currentVer,
+			TargetVersion:  targetLabel,
+			FollowersTotal: totalFollowers,
+			BlockedReasons: blockedReasons,
+			StuckSinceUnix: leaderStuckSince.Load(),
+			DetectedAtUnix: time.Now().Unix(),
+		})
 		return
 	}
 
 	// At least one safe successor confirmed — resign leadership.
+	controllerNoSafeSuccessor.Set(0)
 	logger.Info("controller-self-update: safe successor confirmed, resigning",
 		"safe_successors", safeSuccessors, "target", targetLabel)
+
+	// Clear the stuck record now that we are about to resign.
+	leaderStuckSince.Store(0)
+	clearLeaderPendingUpdate(ctx)
 
 	srv.emitClusterEvent("controller.self_update", map[string]interface{}{
 		"severity":        "INFO",
@@ -1093,6 +1153,18 @@ func (srv *server) reconcileControllerSelfUpdate(ctx context.Context) {
 	case srv.resignCh <- struct{}{}:
 	default:
 	}
+}
+
+var readControllerTargetBuildFn = func(srv *server, ctx context.Context) (*controllerTargetBuild, error) {
+	return srv.readControllerTargetBuild(ctx)
+}
+
+var findSelfNodeIDFn = func(srv *server) string {
+	return srv.findSelfNodeID()
+}
+
+var evaluateControllerFollowersFn = func(srv *server, ctx context.Context, selfNodeID string, target *controllerTargetBuild) (safeSuccessors, totalFollowers int, blockedReasons map[string]string) {
+	return srv.evaluateControllerFollowers(ctx, selfNodeID, target)
 }
 
 // detectBootstrapHandoff checks whether the current leader is running an old

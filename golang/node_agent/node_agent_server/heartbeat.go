@@ -35,6 +35,27 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+const etcdEndpointsSystemKey = "/globular/system/etcd_endpoints"
+
+var (
+	readEtcdEndpointsFile  = os.ReadFile
+	writeEtcdEndpointsFile = os.WriteFile
+	resetSharedEtcdClient   = config.ResetEtcdClient
+	fetchSystemEtcdEndpoints = func(ctx context.Context) (string, error) {
+		cli, err := config.GetEtcdClient()
+		if err != nil || cli == nil {
+			return "", err
+		}
+		tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		resp, err := cli.Get(tctx, etcdEndpointsSystemKey)
+		if err != nil || len(resp.Kvs) == 0 {
+			return "", err
+		}
+		return string(resp.Kvs[0].Value), nil
+	}
+)
+
 func (srv *NodeAgentServer) StartHeartbeat(ctx context.Context) {
 	go srv.heartbeatLoop(ctx)
 
@@ -105,6 +126,7 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			// but the underlying service comes back.
 			if srv.consecutiveHeartbeatFail >= 3 {
 				srv.resetControllerClient()
+				srv.refreshEtcdEndpointsFromSystemKey(ctx)
 			}
 			switch {
 			case srv.controllerEndpoint == "":
@@ -175,6 +197,28 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	}
 }
 
+// refreshEtcdEndpointsFromSystemKey refreshes the local etcd endpoint file from
+// /globular/system/etcd_endpoints when available, then resets the shared etcd
+// client so future config.GetEtcdClient() calls use the new endpoints.
+func (srv *NodeAgentServer) refreshEtcdEndpointsFromSystemKey(ctx context.Context) {
+	raw, err := fetchSystemEtcdEndpoints(ctx)
+	if err != nil || strings.TrimSpace(raw) == "" {
+		return
+	}
+	endpoints := parseEtcdEndpointsPayload(raw)
+	if len(endpoints) == 0 {
+		return
+	}
+	path := "/var/lib/globular/config/etcd_endpoints"
+	content := strings.Join(endpoints, "\n") + "\n"
+	if err := writeEtcdEndpointsFile(path, []byte(content), 0o644); err != nil {
+		log.Printf("nodeagent: failed to write refreshed etcd endpoints: %v", err)
+		return
+	}
+	resetSharedEtcdClient()
+	log.Printf("nodeagent: refreshed etcd endpoint list from %s (%d endpoint(s))", etcdEndpointsSystemKey, len(endpoints))
+}
+
 // syncInstalledStateToEtcd writes installed-state records to etcd for every
 // locally-installed package that doesn't already have a record. This bridges
 // the gap between packages installed by the Day-0 installer (which bypasses
@@ -187,6 +231,12 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 //  2. Repository catalog — discovers APPLICATION and INFRASTRUCTURE packages
 //     that were published and are assumed installed on this (bootstrap) node.
 func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
+	// Architecture invariant (controller-authoritative installed state):
+	// node-agent and heartbeat must not write authoritative installed-state keys.
+	// The controller commits installed state after validating convergence evidence.
+	log.Printf("nodeagent: sync installed-state skipped — controller owns authoritative installed-state commits")
+	return
+
 	if !isAnyEtcdEndpointReachable(300 * time.Millisecond) {
 		log.Printf("nodeagent: sync installed-state skipped — no reachable etcd endpoint")
 		return
@@ -1115,22 +1165,9 @@ func isAnyEtcdEndpointReachable(timeout time.Duration) bool {
 
 func configuredEtcdEndpoints() []string {
 	path := "/var/lib/globular/config/etcd_endpoints"
-	if b, err := os.ReadFile(path); err == nil {
-		raw := strings.TrimSpace(string(b))
-		if raw != "" {
-			parts := strings.FieldsFunc(raw, func(r rune) bool {
-				return r == ',' || r == '\n' || r == '\r' || r == '\t' || r == ' '
-			})
-			out := make([]string, 0, len(parts))
-			for _, p := range parts {
-				p = strings.TrimSpace(p)
-				if p != "" {
-					out = append(out, p)
-				}
-			}
-			if len(out) > 0 {
-				return out
-			}
+	if b, err := readEtcdEndpointsFile(path); err == nil {
+		if out := parseEtcdEndpointsPayload(string(b)); len(out) > 0 {
+			return out
 		}
 	}
 	if cli, err := config.GetEtcdClient(); err == nil && cli != nil {
@@ -1139,6 +1176,41 @@ func configuredEtcdEndpoints() []string {
 		}
 	}
 	return nil
+}
+
+func parseEtcdEndpointsPayload(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	// Preferred format: JSON array written by controller reconciler.
+	var asJSON []string
+	if strings.HasPrefix(raw, "[") && strings.HasSuffix(raw, "]") {
+		if err := json.Unmarshal([]byte(raw), &asJSON); err == nil {
+			out := make([]string, 0, len(asJSON))
+			for _, ep := range asJSON {
+				ep = strings.TrimSpace(ep)
+				if ep != "" {
+					out = append(out, ep)
+				}
+			}
+			if len(out) > 0 {
+				return out
+			}
+		}
+	}
+	// Backward compatibility: newline/comma/space-delimited list.
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == '\n' || r == '\r' || r == '\t' || r == ' '
+	})
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func (srv *NodeAgentServer) ensureControllerClient(ctx context.Context) error {

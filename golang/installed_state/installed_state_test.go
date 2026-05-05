@@ -1,7 +1,10 @@
 package installed_state
 
 import (
+	"context"
 	"testing"
+
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 )
 
 func TestPackageKey(t *testing.T) {
@@ -61,5 +64,17 @@ func TestUnmarshalPackage_Invalid(t *testing.T) {
 	_, err := unmarshalPackage([]byte("not json"))
 	if err == nil {
 		t.Error("expected error for invalid JSON")
+	}
+}
+
+func TestWriteInstalledPackage_ControllerOnlyGuard(t *testing.T) {
+	err := WriteInstalledPackage(context.Background(), &node_agentpb.InstalledPackage{
+		NodeId:  "n1",
+		Name:    "workflow",
+		Kind:    "SERVICE",
+		Version: "1.0.0",
+	})
+	if err == nil {
+		t.Fatal("expected controller-only guard error")
 	}
 }

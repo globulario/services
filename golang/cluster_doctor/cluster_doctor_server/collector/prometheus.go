@@ -56,8 +56,10 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		"reconcile_circuit_open":     "globular_controller_reconcile_circuit_open_total",
 		"workflow_dispatch_rejected": "globular_controller_workflow_dispatch_rejected_total",
 		// Day-1 resilience signals (Phase 2-4).
-		"workflow_circuit_open":     "globular_controller_workflow_circuit_open",
-		"release_transient_blocked": "globular_controller_release_transient_blocked",
+		"workflow_circuit_open":        "globular_controller_workflow_circuit_open",
+		"release_transient_blocked":    "globular_controller_release_transient_blocked",
+		"controller_leader_outdated":   "globular_controller_leader_outdated",
+		"controller_no_safe_successor": "globular_controller_no_safe_successor",
 		// Dependency cache watch health (Phase A-C depcache).
 		"depcache_watch_inactive":  "sum(globular_depcache_watch_active == 0)",
 		"depcache_watch_errors_5m": "sum(increase(globular_depcache_watch_errors_total[5m]))",

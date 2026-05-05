@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
-	"github.com/globulario/services/golang/config"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -62,16 +61,9 @@ func runDoctorRemediate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("finding-id required")
 	}
 	endpoint := doctorRemediateEndpoint
-	if endpoint == "" {
-		endpoint = config.ResolveServiceAddr("cluster_doctor.ClusterDoctorService", "")
-	}
-	if endpoint == "" {
-		return fmt.Errorf("cluster-doctor service not found in etcd — is the cluster-doctor running?")
-	}
-
-	resolvedEndpoint, resolveErr := resolveGRPCAddr(endpoint)
+	resolvedEndpoint, resolveErr := resolveDoctorEndpoint(endpoint)
 	if resolveErr != nil {
-		return fmt.Errorf("invalid --endpoint %q: %w", endpoint, resolveErr)
+		return resolveErr
 	}
 
 	conn, err := grpc.NewClient(

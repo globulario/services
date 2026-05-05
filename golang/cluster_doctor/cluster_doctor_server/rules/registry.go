@@ -42,6 +42,18 @@ func NewRegistry(cfg Config) *Registry {
 		workflowNoActivity{},
 		// MC-4: Blocked workflow runs requiring operator approval
 		workflowBlockedRuns{},
+		// G9: Per-node, per-package kind mismatch. Fires when the controller's
+		// desired kind differs from the repository artifact kind, blocking
+		// dispatch indefinitely. Companion to desired.kind_mismatch (aggregate).
+		packageKindMismatch{},
+		// G10: Controller leader pending self-update. Fires when the leader
+		// cannot resign because no follower has reached the target build.
+		// Escalates from WARNING to ERROR after pendingUpdateEscalateAfter.
+		controllerLeaderPendingUpdate{},
+		// G11: Direct observation that the workflow service is unreachable.
+		// Distinct from release.blocked_workflow_unavailable (which is metric-
+		// derived) — this fires when the doctor collector itself cannot connect.
+		workflowServiceReachable{},
 		// Artifact identity invariants (cache digest, installed digest,
 		// desired/installed build drift). Consumes per-node reports from
 		// VerifyPackageIntegrity collected in Snapshot.IntegrityReports.

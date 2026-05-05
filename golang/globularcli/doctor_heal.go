@@ -7,7 +7,6 @@ import (
 	"time"
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
-	"github.com/globulario/services/golang/config"
 	"github.com/spf13/cobra"
 )
 
@@ -44,17 +43,9 @@ Examples:
 }
 
 func runDoctorHeal(cmd *cobra.Command, args []string) error {
-	// Resolve doctor endpoint directly from etcd (no mesh rewrite).
-	// Doctor is a control-plane service that should be called directly,
-	// not through the Envoy mesh (which may not have a route for it).
-	// Prefer the local instance; fall back to any reachable instance from etcd.
-	// Port comes from etcd — never hardcoded. (CLAUDE.md rule 1 & 4)
-	doctorAddr := config.ResolveLocalServiceAddr("cluster_doctor.ClusterDoctorService")
-	if doctorAddr == "" {
-		doctorAddr = config.ResolveServiceAddr("cluster_doctor.ClusterDoctorService", "")
-	}
-	if doctorAddr == "" {
-		return fmt.Errorf("cluster-doctor not found in etcd service registry — is it running?")
+	doctorAddr, err := resolveDoctorEndpoint("")
+	if err != nil {
+		return err
 	}
 
 	cc, err := dialGRPC(doctorAddr)

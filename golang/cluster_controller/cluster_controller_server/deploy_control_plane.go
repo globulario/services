@@ -142,5 +142,6 @@ func reject(reason string) *cluster_controllerpb.DeployControlPlanePackageRespon
 		Accepted: false,
 		Status:   "REJECTED",
 		Error:    reason,
+		Message:  reason,
 	}
 }

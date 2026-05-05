@@ -92,6 +92,17 @@ func GetEtcdClient() (*clientv3.Client, error) {
 	return etcdClient()
 }
 
+// ResetEtcdClient closes and clears the shared etcd client singleton.
+// The next GetEtcdClient call will rebuild using current endpoint config.
+func ResetEtcdClient() {
+	cliMu.Lock()
+	defer cliMu.Unlock()
+	if cliShared != nil {
+		_ = cliShared.Close()
+		cliShared = nil
+	}
+}
+
 // NewEtcdClient creates a brand-new, independent etcd client with the same
 // TLS configuration and endpoints as the shared client.  The caller owns the
 // returned client and must Close() it when done.  Use this when you need a

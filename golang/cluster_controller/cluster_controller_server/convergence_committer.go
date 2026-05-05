@@ -24,12 +24,26 @@ import (
 type convergenceCommitter struct {
 	srv      *server
 	interval time.Duration
+	commitSem chan struct{}
 }
+
+var (
+	convergenceListNodeIDs       = installed_state.ListNodeIDs
+	convergenceListResults       = installed_state.ListConvergenceResults
+	convergenceWriteResult       = installed_state.WriteConvergenceResult
+	convergenceCommitWithInstall = installed_state.CommitConvergenceWithInstall
+	convergenceDeleteResult      = installed_state.DeleteConvergenceResult
+)
+
+const (
+	defaultMaxParallelPackageCommits = 2
+)
 
 func newConvergenceCommitter(srv *server) *convergenceCommitter {
 	return &convergenceCommitter{
-		srv:      srv,
-		interval: 15 * time.Second,
+		srv:       srv,
+		interval:  15 * time.Second,
+		commitSem: make(chan struct{}, defaultMaxParallelPackageCommits),
 	}
 }
 
@@ -60,7 +74,7 @@ const (
 )
 
 func (c *convergenceCommitter) runOnce(ctx context.Context) {
-	nodeIDs, err := installed_state.ListNodeIDs(ctx)
+	nodeIDs, err := convergenceListNodeIDs(ctx)
 	if err != nil {
 		log.Printf("convergence-committer: list node IDs: %v", err)
 		return
@@ -71,7 +85,7 @@ func (c *convergenceCommitter) runOnce(ctx context.Context) {
 	staleThreshold := time.Now().Add(-pendingSyncStaleAfter).Unix()
 
 	for _, nodeID := range nodeIDs {
-		results, err := installed_state.ListConvergenceResults(ctx, nodeID)
+		results, err := convergenceListResults(ctx, nodeID)
 		if err != nil {
 			log.Printf("convergence-committer: list results node=%s: %v", nodeID, err)
 			continue
@@ -86,7 +100,7 @@ func (c *convergenceCommitter) runOnce(ctx context.Context) {
 					stale.Outcome = installed_state.OutcomeStaleInstalledState
 					stale.SourceComponent = "cluster-controller"
 					stale.ReasonCode = "PENDING_SYNC_STALE"
-					if err := installed_state.WriteConvergenceResult(ctx, &stale); err != nil {
+					if err := convergenceWriteResult(ctx, &stale); err != nil {
 						log.Printf("convergence-committer: promote stale pending-sync node=%s pkg=%s: %v", r.NodeID, r.Package, err)
 					}
 				case r.LastAttemptAt < warnThreshold:
@@ -102,6 +116,9 @@ func (c *convergenceCommitter) runOnce(ctx context.Context) {
 func (c *convergenceCommitter) processResult(ctx context.Context, r *installed_state.ConvergenceResultV1, desired map[string]desiredVersionInfo) {
 	switch r.Outcome {
 	case installed_state.OutcomeSuccessLocalPendingSync:
+		c.commitSem <- struct{}{}
+		defer func() { <-c.commitSem }()
+
 		kind := strings.ToUpper(strings.TrimSpace(r.Evidence["kind"]))
 		if kind == "" {
 			kind = "SERVICE"
@@ -136,7 +153,7 @@ func (c *convergenceCommitter) processResult(ctx context.Context, r *installed_s
 		// OutcomeSuccessCommitted + delete convergence action key — all in one
 		// etcd operation. If the controller crashes between any of the previous
 		// separate writes the next leader will retry from OutcomeSuccessLocalPendingSync.
-		if err := installed_state.CommitConvergenceWithInstall(ctx, pkg, r); err != nil {
+		if err := convergenceCommitWithInstall(ctx, pkg, r); err != nil {
 			log.Printf("convergence-committer: atomic commit node=%s %s/%s: %v",
 				r.NodeID, kind, r.Package, err)
 			return
@@ -147,7 +164,7 @@ func (c *convergenceCommitter) processResult(ctx context.Context, r *installed_s
 	case installed_state.OutcomeSuccessCommitted:
 		// Committed by a previous controller pass; action key may linger if the
 		// delete lost a race. Clean it up now.
-		if err := installed_state.DeleteConvergenceResult(ctx, r.ActionID); err != nil {
+		if err := convergenceDeleteResult(ctx, r.ActionID); err != nil {
 			log.Printf("convergence-committer: delete committed result %s: %v", r.ActionID, err)
 		}
 

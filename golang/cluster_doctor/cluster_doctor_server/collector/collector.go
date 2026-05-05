@@ -401,6 +401,39 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 		}
 	}
 
+	// ── 3k-2. Per-package kind mismatch records ──────────────────────────────
+	if etcdCli, err := config.GetEtcdClient(); err == nil {
+		kmCtx, kmCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+		defer kmCancel()
+		if resp, err := etcdCli.Get(kmCtx, "/globular/controller/kind_mismatches/", clientv3.WithPrefix()); err == nil {
+			for _, kv := range resp.Kvs {
+				var rec KindMismatchRecord
+				if err := json.Unmarshal(kv.Value, &rec); err != nil {
+					continue
+				}
+				snap.mu.Lock()
+				snap.KindMismatches = append(snap.KindMismatches, rec)
+				snap.mu.Unlock()
+			}
+			snap.addSource("etcd.kind_mismatches")
+		}
+	}
+
+	// ── 3k-3. Controller leader pending-update record ────────────────────────
+	if etcdCli, err := config.GetEtcdClient(); err == nil {
+		lpCtx, lpCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+		defer lpCancel()
+		if resp, err := etcdCli.Get(lpCtx, "/globular/controller/leader_pending_update"); err == nil && len(resp.Kvs) > 0 {
+			var rec LeaderPendingUpdateRecord
+			if err := json.Unmarshal(resp.Kvs[0].Value, &rec); err == nil {
+				snap.mu.Lock()
+				snap.LeaderPendingUpdate = &rec
+				snap.mu.Unlock()
+				snap.addSource("etcd.leader_pending_update")
+			}
+		}
+	}
+
 	// ── 3l. Critical key presence checks (Case 05 doctor wiring) ─────────────
 	if etcdCli, err := config.GetEtcdClient(); err == nil {
 		keyCtx, keyCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)

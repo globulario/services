@@ -306,6 +306,7 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 							"repo_kind":    repoKindStr,
 							"message":      fmt.Sprintf("desired kind %s does not match repo artifact kind %s — dispatch blocked", kind, repoKindStr),
 						})
+						writeKindMismatchRecord(ctx, nodeID, name, kind, repoKindStr)
 						continue
 					}
 				}

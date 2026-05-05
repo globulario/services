@@ -17,8 +17,8 @@ import (
 // so the pragma parser has a Go type to attach the schema metadata to.
 //
 // +globular:schema:key="/globular/nodes/{node_id}/packages/{kind}/{name}"
-// +globular:schema:writer="globular-node-agent"
+// +globular:schema:writer="globular-cluster-controller"
 // +globular:schema:readers="globular-cluster-controller,globular-gateway,globular-cluster-doctor,globular-repository"
-// +globular:schema:description="Per-node installed-package record — one entry per (node, kind, name) tuple."
-// +globular:schema:invariants="Written only after a successful install/upgrade/remove lifecycle transition; deleted by DeleteInstalledPackage or node cleanup; kind MUST be one of SERVICE|INFRASTRUCTURE|COMMAND."
+// +globular:schema:description="Per-node authoritative installed-package record — one entry per (node, kind, name) tuple."
+// +globular:schema:invariants="Written only by cluster-controller commit path after convergence evidence validation; kind MUST be one of SERVICE|INFRASTRUCTURE|COMMAND."
 type InstalledPackageRecord = node_agentpb.InstalledPackage

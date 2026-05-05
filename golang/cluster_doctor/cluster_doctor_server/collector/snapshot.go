@@ -189,7 +189,45 @@ type Snapshot struct {
 	// has been written. Consumed by "objectstore.minio.destructive_guard".
 	DesiredTopologyTransition *config.TopologyTransition
 
+	// KindMismatches is the set of per-node, per-package kind mismatch records
+	// read from /globular/controller/kind_mismatches/**. Each entry represents
+	// a package whose desired kind (in the controller's desired state) does not
+	// match the artifact kind published in the repository. The drift reconciler
+	// blocks dispatch for these packages and writes a fresh record on each pass.
+	// Records older than kindMismatchStaleness are considered resolved and
+	// ignored by the "package.kind_mismatch" rule.
+	KindMismatches []KindMismatchRecord
+
+	// LeaderPendingUpdate is the optional record written to
+	// /globular/controller/leader_pending_update when the controller leader
+	// cannot resign because no follower has reached the target build. Nil when
+	// no record exists (condition is resolved or has never occurred).
+	LeaderPendingUpdate *LeaderPendingUpdateRecord
+
 	mu sync.Mutex
+}
+
+// KindMismatchRecord mirrors the JSON written by the controller to
+// /globular/controller/kind_mismatches/{nodeID}/{pkgName}.
+type KindMismatchRecord struct {
+	NodeID         string `json:"node_id"`
+	PkgName        string `json:"pkg_name"`
+	DesiredKind    string `json:"desired_kind"`
+	RepoKind       string `json:"repo_kind"`
+	DetectedAtUnix int64  `json:"detected_at_unix"`
+}
+
+// LeaderPendingUpdateRecord mirrors the JSON written to
+// /globular/controller/leader_pending_update when the controller leader is
+// waiting for a safe successor before it can resign and self-update.
+type LeaderPendingUpdateRecord struct {
+	LeaderNodeID   string            `json:"leader_node_id"`
+	CurrentVersion string            `json:"current_version"`
+	TargetVersion  string            `json:"target_version"`
+	FollowersTotal int               `json:"followers_total"`
+	BlockedReasons map[string]string `json:"blocked_reasons"`
+	StuckSinceUnix int64             `json:"stuck_since_unix"`
+	DetectedAtUnix int64             `json:"detected_at_unix"`
 }
 
 // IntegrityReport is the internal representation of the JSON report returned

@@ -25,6 +25,10 @@ func (criticalKeyRegistryPresence) Evaluate(snap *collector.Snapshot, _ Config) 
 
 	for _, key := range config.CriticalEtcdKeys {
 		if queryErr, failed := snap.CriticalKeyQueryError[key]; failed {
+			if mapCheckErr(queryErr) != InvariantStateCheckError {
+				// Defensive fallback: non-nil query errors must always map to CHECK_ERROR.
+				queryErr = fmt.Errorf("unexpected check-state mapping for key %s: %w", key, queryErr)
+			}
 			findings = append(findings, checkErrorFinding(key, queryErr))
 			continue
 		}
@@ -52,6 +56,10 @@ func (criticalKeyRegistryPresence) Evaluate(snap *collector.Snapshot, _ Config) 
 
 	for _, prefix := range config.CriticalEtcdPrefixes {
 		if queryErr, failed := snap.CriticalKeyQueryError[prefix]; failed {
+			if mapCheckErr(queryErr) != InvariantStateCheckError {
+				// Defensive fallback: non-nil query errors must always map to CHECK_ERROR.
+				queryErr = fmt.Errorf("unexpected check-state mapping for prefix %s: %w", prefix, queryErr)
+			}
 			findings = append(findings, checkErrorFinding(prefix, queryErr))
 			continue
 		}
@@ -127,4 +135,3 @@ func keyToInvariantID(key string) string {
 	}
 	return strings.Join(kept, ".") + "_missing"
 }
-

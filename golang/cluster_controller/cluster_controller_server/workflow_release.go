@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"strings"
 	"time"
 
@@ -14,6 +15,13 @@ import (
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
+)
+
+const (
+	waveStatePending   = "WAVE_PENDING"
+	waveStateRunning   = "WAVE_RUNNING"
+	waveStateCommitted = "WAVE_COMMITTED"
+	waveStateBlocked   = "WAVE_BLOCKED"
 )
 
 // RunPackageReleaseWorkflow delegates execution of the release.apply.package
@@ -50,6 +58,13 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 
 	log.Printf("release-workflow: starting release.apply.package for %s (%s:%s@%s) across %d nodes",
 		releaseName, pkgKind, pkgName, version, len(candidateNodes))
+	parallel := maxParallelNodesForKind(pkgKind)
+	if parallel < 1 {
+		parallel = 1
+	}
+	totalWaves := int(math.Ceil(float64(len(candidateNodes)) / float64(parallel)))
+	_ = srv.publishWaveState(ctx, releaseName, pkgKind, waveStatePending, parallel, len(candidateNodes), totalWaves, "")
+	_ = srv.publishWaveState(ctx, releaseName, pkgKind, waveStateRunning, parallel, len(candidateNodes), totalWaves, "")
 
 	// Publish legacy event for ai-watcher compatibility.
 	srv.reportRunStart(pkgName, pkgKind, version, releaseID, len(candidateNodes))
@@ -59,6 +74,7 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	elapsed := time.Since(start)
 
 	if err != nil {
+		_ = srv.publishWaveState(ctx, releaseName, pkgKind, waveStateBlocked, parallel, len(candidateNodes), totalWaves, err.Error())
 		log.Printf("release-workflow: %s FAILED after %s: %v",
 			releaseName, elapsed.Round(time.Millisecond), err)
 		srv.reportRunDone("", pkgName, true,
@@ -67,12 +83,54 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	}
 
 	failed := resp.Status != "SUCCEEDED"
+	if failed {
+		_ = srv.publishWaveState(ctx, releaseName, pkgKind, waveStateBlocked, parallel, len(candidateNodes), totalWaves, resp.Status)
+	} else {
+		_ = srv.publishWaveState(ctx, releaseName, pkgKind, waveStateCommitted, parallel, len(candidateNodes), totalWaves, "")
+	}
 	log.Printf("release-workflow: %s finished in %s: %s",
 		releaseName, elapsed.Round(time.Millisecond), resp.Status)
 	srv.reportRunDone(resp.RunId, pkgName, failed,
 		fmt.Sprintf("%s@%s %s in %s", pkgName, version, resp.Status, elapsed.Round(time.Millisecond)))
 
 	return resp, nil
+}
+
+func (srv *server) publishWaveState(ctx context.Context, releaseName, pkgKind, state string, maxParallelNodes, totalNodes, totalWaves int, note string) error {
+	if isSyntheticReleaseName(releaseName) {
+		return nil
+	}
+	resourceType := releaseResourceType(pkgKind)
+	obj, _, err := srv.resources.Get(ctx, resourceType, releaseName)
+	if err != nil || obj == nil {
+		return err
+	}
+	nowMs := time.Now().UnixMilli()
+	baseMsg := fmt.Sprintf("%s max_parallel_nodes=%d total_nodes=%d total_waves=%d", state, maxParallelNodes, totalNodes, totalWaves)
+	if note != "" {
+		baseMsg += " note=" + note
+	}
+	switch rel := obj.(type) {
+	case *cluster_controllerpb.ServiceRelease:
+		if rel.Status == nil {
+			rel.Status = &cluster_controllerpb.ServiceReleaseStatus{}
+		}
+		rel.Status.Message = baseMsg
+		rel.Status.TransitionReason = state
+		rel.Status.LastTransitionUnixMs = nowMs
+		_, err = srv.resources.Apply(ctx, resourceType, rel)
+		return err
+	case *cluster_controllerpb.InfrastructureRelease:
+		if rel.Status == nil {
+			rel.Status = &cluster_controllerpb.InfrastructureReleaseStatus{}
+		}
+		rel.Status.Message = baseMsg
+		rel.Status.LastTransitionUnixMs = nowMs
+		_, err = srv.resources.Apply(ctx, resourceType, rel)
+		return err
+	default:
+		return fmt.Errorf("unexpected release type %T", obj)
+	}
 }
 
 // RunInfraReleaseWorkflow executes the infrastructure-specific release workflow.

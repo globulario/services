@@ -187,6 +187,24 @@ var (
 		Help:      "Number of ServiceRelease objects currently blocked in transient retry backoff.",
 	})
 
+	// controllerLeaderOutdated is 1 when this controller leader is behind the
+	// target controller build, 0 otherwise.
+	controllerLeaderOutdated = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "leader_outdated",
+		Help:      "1 when the controller leader is behind target build and requires self-update, 0 otherwise.",
+	})
+
+	// controllerNoSafeSuccessor is 1 when the controller leader is outdated and
+	// no follower is eligible to inherit leadership, 0 otherwise.
+	controllerNoSafeSuccessor = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "no_safe_successor",
+		Help:      "1 when the outdated controller leader has no safe successor, 0 otherwise.",
+	})
+
 	// ── xDS generation tracking (Phase F) ──────────────────────────────
 	//
 	// xdsConfigEventsTotal counts reconcile events (network or service desired

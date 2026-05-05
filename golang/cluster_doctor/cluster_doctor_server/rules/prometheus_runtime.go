@@ -205,6 +205,38 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 		})
 	}
 
+	if outdated, ok := snap.PromMetrics["controller_leader_outdated"]; ok && outdated > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("controller_leader_outdated", "cluster", "controller"),
+			InvariantID: "controller_leader_outdated",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:    "control_plane",
+			EntityRef:   "controller",
+			Summary:     "Controller leader is behind the target build and must hand off leadership to self-update",
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "controller_leader_outdated", map[string]string{
+				"value":     fmt.Sprintf("%.0f", outdated),
+				"timestamp": snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
+	if noSafe, ok := snap.PromMetrics["controller_no_safe_successor"]; ok && noSafe > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("controller_no_safe_successor", "cluster", "controller"),
+			InvariantID: "controller_no_safe_successor",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_ERROR,
+			Category:    "control_plane",
+			EntityRef:   "controller",
+			Summary:     "Controller leader cannot resign: no follower is currently a safe successor at target build",
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "controller_no_safe_successor", map[string]string{
+				"value":     fmt.Sprintf("%.0f", noSafe),
+				"timestamp": snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
 	// ── Reconcile lane isolation signals (Phase: starvation prevention) ──────
 
 	if timeouts, ok := snap.PromMetrics["reconcile_lane_timeouts_cluster"]; ok && timeouts > 0 {

@@ -1008,6 +1008,7 @@ func (t tokenCredentials) RequireTransportSecurity() bool {
 
 func dialGRPC(addr string) (*grpc.ClientConn, error) {
 	var err error
+	originalAddr := strings.TrimSpace(addr)
 	addr, err = resolveGRPCAddr(addr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid address: %w", err)
@@ -1059,9 +1060,17 @@ func dialGRPC(addr string) (*grpc.ClientConn, error) {
 	defer cancel()
 	conn, err := grpc.DialContext(ctx, addr, opts...)
 	if err != nil {
-		return nil, err
+		return nil, rewriteDialInvariantError(originalAddr, addr, err)
 	}
 	return conn, nil
+}
+
+func rewriteDialInvariantError(originalAddr, resolvedAddr string, err error) error {
+	msg := err.Error()
+	if strings.Contains(msg, "first record does not look like a TLS handshake") {
+		return fmt.Errorf("endpoint protocol invariant violation: tried TLS gRPC against a non-TLS endpoint (%s -> %s): %w\nhint: use a TLS-routable endpoint (mesh/discovery, typically :443) and do not target internal plaintext service ports", originalAddr, resolvedAddr, err)
+	}
+	return err
 }
 
 func pick(override, fallback string) string {
