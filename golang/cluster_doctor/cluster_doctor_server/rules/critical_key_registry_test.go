@@ -1,10 +1,12 @@
 package rules
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/config"
 )
 
@@ -61,3 +63,118 @@ func TestKeyToInvariantID(t *testing.T) {
 	}
 }
 
+// ── PR-2: CHECK_ERROR tests ───────────────────────────────────────────────────
+
+// TestInvariantReturnsCheckErrorOnTLSFailure verifies that a TLS / connection
+// error on the etcd Get causes the invariant to emit a CHECK_ERROR finding
+// (InvariantStatus INVARIANT_UNKNOWN) rather than a FAIL finding, so operators
+// are not paged for indeterminate results.
+func TestInvariantReturnsCheckErrorOnTLSFailure(t *testing.T) {
+	inv := criticalKeyRegistryPresence{}
+	tlsErr := errors.New("tls: certificate verify failed")
+
+	failedKey := config.CriticalEtcdKeys[0]
+	snap := &collector.Snapshot{
+		CriticalKeyPresent:    map[string]bool{},
+		CriticalKeyQueryError: map[string]error{failedKey: tlsErr},
+	}
+	findings := inv.Evaluate(snap, Config{})
+
+	if len(findings) == 0 {
+		t.Fatal("expected at least one finding for query error, got none")
+	}
+
+	var checkErrFindings []Finding
+	for _, f := range findings {
+		if f.InvariantStatus == cluster_doctorpb.InvariantStatus_INVARIANT_UNKNOWN && f.CheckError != "" {
+			checkErrFindings = append(checkErrFindings, f)
+		}
+	}
+	if len(checkErrFindings) == 0 {
+		t.Errorf("expected a CHECK_ERROR finding for key %s; got: %+v", failedKey, findings)
+	}
+
+	// The remaining keys (no error, not present) must still produce FAIL findings.
+	var failCount int
+	for _, f := range findings {
+		if f.InvariantStatus == cluster_doctorpb.InvariantStatus_INVARIANT_FAIL {
+			failCount++
+		}
+	}
+	remainingKeys := len(config.CriticalEtcdKeys) - 1 + len(config.CriticalEtcdPrefixes)
+	if failCount != remainingKeys {
+		t.Errorf("expected %d FAIL findings for absent keys (excluding failed key), got %d",
+			remainingKeys, failCount)
+	}
+}
+
+// TestInvariantUsesPrefixScanForNodesMissing verifies that when the snapshot
+// carries a query error for the /globular/nodes/ prefix, the invariant emits
+// CHECK_ERROR rather than FAIL.
+func TestInvariantUsesPrefixScanForNodesMissing(t *testing.T) {
+	inv := criticalKeyRegistryPresence{}
+	const nodesPrefix = "/globular/nodes/"
+	connErr := errors.New("connection reset by peer")
+
+	present := map[string]bool{}
+	for _, k := range config.CriticalEtcdKeys {
+		present[k] = true
+	}
+	for _, p := range config.CriticalEtcdPrefixes {
+		if p != nodesPrefix {
+			present[p] = true
+		}
+	}
+	snap := &collector.Snapshot{
+		CriticalKeyPresent:    present,
+		CriticalKeyQueryError: map[string]error{nodesPrefix: connErr},
+	}
+
+	findings := inv.Evaluate(snap, Config{})
+	if len(findings) != 1 {
+		t.Fatalf("expected exactly 1 finding (for nodes prefix query error), got %d: %+v",
+			len(findings), findings)
+	}
+	f := findings[0]
+	if f.InvariantStatus != cluster_doctorpb.InvariantStatus_INVARIANT_UNKNOWN {
+		t.Errorf("nodes prefix query error must produce CHECK_ERROR (INVARIANT_UNKNOWN), got %v", f.InvariantStatus)
+	}
+	if f.CheckError == "" {
+		t.Errorf("CheckError field must carry the error string")
+	}
+}
+
+// TestInvariantUsesPrefixScanForResourcesMissing verifies CHECK_ERROR behaviour
+// for the /globular/resources/ prefix.
+func TestInvariantUsesPrefixScanForResourcesMissing(t *testing.T) {
+	inv := criticalKeyRegistryPresence{}
+	const resourcesPrefix = "/globular/resources/"
+	connErr := errors.New("context deadline exceeded")
+
+	present := map[string]bool{}
+	for _, k := range config.CriticalEtcdKeys {
+		present[k] = true
+	}
+	for _, p := range config.CriticalEtcdPrefixes {
+		if p != resourcesPrefix {
+			present[p] = true
+		}
+	}
+	snap := &collector.Snapshot{
+		CriticalKeyPresent:    present,
+		CriticalKeyQueryError: map[string]error{resourcesPrefix: connErr},
+	}
+
+	findings := inv.Evaluate(snap, Config{})
+	if len(findings) != 1 {
+		t.Fatalf("expected exactly 1 finding (for resources prefix query error), got %d: %+v",
+			len(findings), findings)
+	}
+	f := findings[0]
+	if f.InvariantStatus != cluster_doctorpb.InvariantStatus_INVARIANT_UNKNOWN {
+		t.Errorf("resources prefix query error must produce CHECK_ERROR (INVARIANT_UNKNOWN), got %v", f.InvariantStatus)
+	}
+	if f.CheckError == "" {
+		t.Errorf("CheckError field must carry the error string")
+	}
+}

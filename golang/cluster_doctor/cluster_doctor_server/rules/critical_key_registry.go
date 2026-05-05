@@ -18,15 +18,20 @@ func (criticalKeyRegistryPresence) Scope() string    { return "cluster" }
 // Evaluate checks all keys from config.CriticalEtcdKeys and
 // config.CriticalEtcdPrefixes against the collected snapshot.
 // Any missing key emits an ERROR finding (Case 05: CRITICAL_STATE_REGISTRY_AND_OWNERSHIP).
+// A query error (TLS failure, connection reset) emits a CHECK_ERROR finding instead of
+// FAIL — the verdict is indeterminate and must not page the on-call operator.
 func (criticalKeyRegistryPresence) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 	var findings []Finding
 
 	for _, key := range config.CriticalEtcdKeys {
+		if queryErr, failed := snap.CriticalKeyQueryError[key]; failed {
+			findings = append(findings, checkErrorFinding(key, queryErr))
+			continue
+		}
 		present, ok := snap.CriticalKeyPresent[key]
 		if ok && present {
 			continue
 		}
-		// Derive a stable invariant ID from the key path.
 		invariant := keyToInvariantID(key)
 		findings = append(findings, Finding{
 			FindingID:   FindingID(invariant, "cluster", key),
@@ -46,6 +51,10 @@ func (criticalKeyRegistryPresence) Evaluate(snap *collector.Snapshot, _ Config) 
 	}
 
 	for _, prefix := range config.CriticalEtcdPrefixes {
+		if queryErr, failed := snap.CriticalKeyQueryError[prefix]; failed {
+			findings = append(findings, checkErrorFinding(prefix, queryErr))
+			continue
+		}
 		present, ok := snap.CriticalKeyPresent[prefix]
 		if ok && present {
 			continue
@@ -69,6 +78,31 @@ func (criticalKeyRegistryPresence) Evaluate(snap *collector.Snapshot, _ Config) 
 	}
 
 	return findings
+}
+
+// checkErrorFinding builds a CHECK_ERROR finding for a key whose etcd query
+// failed. The InvariantStatus is INVARIANT_UNKNOWN so aggregators know the
+// verdict is indeterminate — neither PASS nor FAIL.
+func checkErrorFinding(key string, queryErr error) Finding {
+	invariant := keyToInvariantID(key)
+	return Finding{
+		FindingID:   FindingID(invariant+"_check_error", "cluster", key),
+		InvariantID: invariant,
+		Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+		Category:    "control_plane",
+		EntityRef:   "cluster",
+		Summary: fmt.Sprintf(
+			"Critical key/prefix %s: etcd query failed — verdict is indeterminate (check_error).", key),
+		Evidence: []*cluster_doctorpb.Evidence{
+			kvEvidence("etcd", fmt.Sprintf("Get(%s)", key), map[string]string{
+				"key":         key,
+				"error":       queryErr.Error(),
+				"check_state": string(InvariantStateCheckError),
+			}),
+		},
+		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_UNKNOWN,
+		CheckError:      queryErr.Error(),
+	}
 }
 
 // keyToInvariantID converts an etcd key path to a stable dot-separated invariant ID.

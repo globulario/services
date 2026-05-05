@@ -406,12 +406,16 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 		keyCtx, keyCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 		defer keyCancel()
 		for _, key := range config.CriticalEtcdKeys {
-			if resp, err := etcdCli.Get(keyCtx, key); err == nil {
+			if resp, err := etcdCli.Get(keyCtx, key); err != nil {
+				snap.CriticalKeyQueryError[key] = err
+			} else {
 				snap.CriticalKeyPresent[key] = len(resp.Kvs) > 0
 			}
 		}
 		for _, prefix := range config.CriticalEtcdPrefixes {
-			if resp, err := etcdCli.Get(keyCtx, prefix, clientv3.WithPrefix(), clientv3.WithKeysOnly(), clientv3.WithLimit(1)); err == nil {
+			if resp, err := etcdCli.Get(keyCtx, prefix, clientv3.WithPrefix(), clientv3.WithKeysOnly(), clientv3.WithLimit(1)); err != nil {
+				snap.CriticalKeyQueryError[prefix] = err
+			} else {
 				snap.CriticalKeyPresent[prefix] = len(resp.Kvs) > 0
 			}
 		}

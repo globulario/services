@@ -134,6 +134,13 @@ type Snapshot struct {
 	// control-plane guardians. Value is true when the key exists.
 	CriticalKeyPresent map[string]bool
 
+	// CriticalKeyQueryError records a failed etcd Get for a key or prefix in
+	// the critical-key registry. A non-nil error means the check could not run —
+	// the key's absence from CriticalKeyPresent is NOT a confirmed absence.
+	// Rules must check this field before emitting FAIL findings; emit CHECK_ERROR
+	// instead so the operator sees "query failed" rather than "key missing".
+	CriticalKeyQueryError map[string]error
+
 	// NodeDriftAge records how long each node has had a services-hash mismatch
 	// (desired ≠ applied). Populated by the collector's driftSince tracker.
 	// Missing entries mean the node is currently converged. Used by the
@@ -226,6 +233,7 @@ func newSnapshot(id string) *Snapshot {
 		DNSZoneReloadStatus:      make(map[string]interface{}),
 		ReconcileLaneStatus:      make(map[string]map[string]interface{}),
 		CriticalKeyPresent:       make(map[string]bool),
+		CriticalKeyQueryError:    make(map[string]error),
 	}
 }
 

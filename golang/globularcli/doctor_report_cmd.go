@@ -21,7 +21,6 @@ import (
 	"time"
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
-	"github.com/globulario/services/golang/config"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -91,16 +90,9 @@ func init() {
 // dialer used in doctor_remediate_cmd.go so the two share the same
 // trust policy.
 func dialDoctor() (*grpc.ClientConn, error) {
-	endpoint := doctorReportEndpoint
-	if endpoint == "" {
-		endpoint = config.ResolveServiceAddr("cluster_doctor.ClusterDoctorService", "")
-	}
-	if endpoint == "" {
-		return nil, fmt.Errorf("cluster-doctor endpoint not found (use --endpoint or check service registration)")
-	}
-	resolved, err := resolveGRPCAddr(endpoint)
+	resolved, err := resolveDoctorEndpoint(doctorReportEndpoint)
 	if err != nil {
-		return nil, fmt.Errorf("invalid --endpoint %q: %w", endpoint, err)
+		return nil, err
 	}
 	return grpc.NewClient(
 		resolved,
@@ -139,6 +131,17 @@ func runDoctorReportCluster(cmd *cobra.Command, _ []string) error {
 	fmt.Printf("findings:       %d\n", len(rsp.GetFindings()))
 	for cat, n := range rsp.GetCountsByCategory() {
 		fmt.Printf("  %-16s %d\n", cat+":", n)
+	}
+	// CHECK_ERROR findings (INVARIANT_UNKNOWN) mean a query could not execute;
+	// they are indeterminate and must not be treated as FAILs by the operator.
+	var checkErrCount int
+	for _, f := range rsp.GetFindings() {
+		if f.GetInvariantStatus() == cluster_doctorpb.InvariantStatus_INVARIANT_UNKNOWN {
+			checkErrCount++
+		}
+	}
+	if checkErrCount > 0 {
+		fmt.Printf("  (check_error:   %d — query could not execute, verdict indeterminate)\n", checkErrCount)
 	}
 	if len(rsp.GetTopIssueIds()) > 0 {
 		fmt.Printf("top_issues: %s\n", strings.Join(rsp.GetTopIssueIds(), ", "))

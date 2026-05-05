@@ -17,6 +17,18 @@ type Config struct {
 	EmitAuditEvents bool
 }
 
+// InvariantState is the Go-level verdict for a single invariant check.
+// CHECK_ERROR means the underlying query could not execute — the verdict is
+// indeterminate and must not be reported as FAIL to the operator.
+type InvariantState string
+
+const (
+	InvariantStatePass          InvariantState = "PASS"
+	InvariantStateFail          InvariantState = "FAIL"
+	InvariantStateCheckError    InvariantState = "CHECK_ERROR"
+	InvariantStateNotApplicable InvariantState = "NOT_APPLICABLE"
+)
+
 // Finding is the internal (pre-proto) representation of a single invariant result.
 type Finding struct {
 	FindingID       string
@@ -28,6 +40,11 @@ type Finding struct {
 	Evidence        []*cluster_doctorpb.Evidence
 	Remediation     []*cluster_doctorpb.RemediationStep
 	InvariantStatus cluster_doctorpb.InvariantStatus
+
+	// CheckError, when non-empty, signals that the check query failed and the
+	// verdict is indeterminate. The proto InvariantStatus is INVARIANT_UNKNOWN.
+	// CLI and aggregators must not count CHECK_ERROR findings as FAILs.
+	CheckError string
 
 	// HealDecisionProto is populated by the healer after invariant evaluation.
 	// Nil when the healer is not running (heal_mode=OBSERVE).
