@@ -293,8 +293,9 @@ func TestReconcile_MixedDrift(t *testing.T) {
 		startChild: func(ctx context.Context, name string, inputs map[string]any) (string, error) {
 			mu.Lock()
 			childWorkflows = append(childWorkflows, name)
+			n := len(childWorkflows)
 			mu.Unlock()
-			return fmt.Sprintf("child-%d", len(childWorkflows)), nil
+			return fmt.Sprintf("child-%d", n), nil
 		},
 		waitChild: func(ctx context.Context, runID string) (map[string]any, error) {
 			return map[string]any{"status": "SUCCEEDED"}, nil
