@@ -173,9 +173,26 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 			ctx, pkgName, pkgKind, desiredVersion, desiredHash, buildID, existing,
 			supervisor.IsActive, supervisor.IsLoaded,
 		)
+		wfID := inputs["workflow_id"]
+		if wfID == "" {
+			wfID = "install-package"
+		}
 		switch skipResult {
 		case installSkipAllowed:
 			log.Printf("grpc-workflow: %s", reason)
+			srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
+				ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
+				WorkflowID:      wfID,
+				Package:         pkgName,
+				NodeID:          srv.nodeID,
+				DesiredVersion:  desiredVersion,
+				DesiredBuildID:  buildID,
+				LocalVersion:    existing.GetVersion(),
+				LocalBuildID:    existing.GetBuildId(),
+				Outcome:         installed_state.OutcomeSuccessCommitted,
+				SourceComponent: "node-agent",
+				Evidence:        map[string]string{"kind": pkgKind, "skip_reason": "already_converged"},
+			})
 			return &node_agentpb.RunWorkflowResponse{
 				Status:         "SUCCEEDED",
 				StepsTotal:     1,
@@ -190,6 +207,19 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 				if waitErr := supervisor.WaitActive(ctx, unit, 30*time.Second); waitErr == nil {
 					log.Printf("grpc-workflow: install-package %s: repair via Start succeeded", pkgName)
 					srv.syncInstalledStateToEtcd(ctx)
+					srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
+						ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
+						WorkflowID:      wfID,
+						Package:         pkgName,
+						NodeID:          srv.nodeID,
+						DesiredVersion:  desiredVersion,
+						DesiredBuildID:  buildID,
+						LocalVersion:    existing.GetVersion(),
+						LocalBuildID:    existing.GetBuildId(),
+						Outcome:         installed_state.OutcomeSuccessCommitted,
+						SourceComponent: "node-agent",
+						Evidence:        map[string]string{"kind": pkgKind, "skip_reason": "repaired_via_start"},
+					})
 					return &node_agentpb.RunWorkflowResponse{
 						Status:         "SUCCEEDED",
 						StepsTotal:     1,
@@ -219,6 +249,11 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 	err := srv.InstallPackage(ctx, pkgName, pkgKind, "", desiredVersion, buildID, desiredHash)
 	elapsed := time.Since(start)
 
+	wfIDFull := inputs["workflow_id"]
+	if wfIDFull == "" {
+		wfIDFull = "install-package"
+	}
+
 	resp := &node_agentpb.RunWorkflowResponse{
 		DurationMs: elapsed.Milliseconds(),
 		StepsTotal: 1,
@@ -228,10 +263,24 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		resp.Error = err.Error()
 		resp.StepsFailed = 1
 		log.Printf("grpc-workflow: install-package %s FAILED (%v): %v", pkgName, elapsed, err)
+		srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
+			ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
+			WorkflowID:      wfIDFull,
+			Package:         pkgName,
+			NodeID:          srv.nodeID,
+			DesiredVersion:  desiredVersion,
+			DesiredBuildID:  buildID,
+			Outcome:         installed_state.OutcomeFailedTransient,
+			SourceComponent: "node-agent",
+			Evidence:        map[string]string{"kind": pkgKind, "error": err.Error()},
+		})
 	} else {
 		resp.Status = "SUCCEEDED"
 		resp.StepsSucceeded = 1
 		log.Printf("grpc-workflow: install-package %s SUCCEEDED (%v)", pkgName, elapsed)
+		// Targeted write: ensure this package's etcd record reflects the new
+		// version and build_id immediately — don't rely solely on the batch sync.
+		srv.writeInstalledRecord(ctx, pkgName, pkgKind, desiredVersion, buildID)
 		// Sync installed state after successful install.
 		srv.syncInstalledStateToEtcd(ctx)
 		// Stamp build_id on the installed-state record so the controller
@@ -240,6 +289,19 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		if buildID != "" {
 			srv.stampBuildID(ctx, pkgName, pkgKind, buildID)
 		}
+		srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
+			ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
+			WorkflowID:      wfIDFull,
+			Package:         pkgName,
+			NodeID:          srv.nodeID,
+			DesiredVersion:  desiredVersion,
+			DesiredBuildID:  buildID,
+			LocalVersion:    desiredVersion,
+			LocalBuildID:    buildID,
+			Outcome:         installed_state.OutcomeSuccessCommitted,
+			SourceComponent: "node-agent",
+			Evidence:        map[string]string{"kind": pkgKind},
+		})
 
 		// Restart the systemd unit so the new binary takes effect.
 		// INFRASTRUCTURE and COMMAND packages manage their own lifecycle
@@ -281,6 +343,62 @@ func (srv *NodeAgentServer) stampBuildID(ctx context.Context, pkgName, pkgKind, 
 	} else {
 		log.Printf("grpc-workflow: stamped build_id=%s on %s", buildID, pkgName)
 	}
+}
+
+// writeInstalledRecord does a targeted, single-package etcd write so the
+// controller sees the new version/build_id immediately after a successful
+// install — without waiting for the batch syncInstalledStateToEtcd round.
+// It preserves InstalledUnix, Checksum, Platform, and Metadata from any
+// pre-existing record.
+func (srv *NodeAgentServer) writeInstalledRecord(ctx context.Context, pkgName, pkgKind, version, buildID string) {
+	pkg := &node_agentpb.InstalledPackage{
+		NodeId:      srv.nodeID,
+		Name:        pkgName,
+		Kind:        pkgKind,
+		Version:     version,
+		BuildId:     buildID,
+		Status:      "installed",
+		UpdatedUnix: time.Now().Unix(),
+	}
+	if existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, pkgKind, pkgName); existing != nil {
+		if existing.InstalledUnix > 0 {
+			pkg.InstalledUnix = existing.InstalledUnix
+		}
+		if existing.Checksum != "" {
+			pkg.Checksum = existing.Checksum
+		}
+		if existing.Platform != "" {
+			pkg.Platform = existing.Platform
+		}
+		if existing.PublisherId != "" {
+			pkg.PublisherId = existing.PublisherId
+		}
+		if len(existing.Metadata) > 0 {
+			pkg.Metadata = existing.Metadata
+		}
+	}
+	if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
+		log.Printf("grpc-workflow: write installed-record %s/%s@%s: %v", pkgKind, pkgName, version, err)
+	}
+}
+
+// emitConvergenceResult writes a ConvergenceResultV1 to etcd asynchronously.
+// Failures are logged but never surface to the caller.
+func (srv *NodeAgentServer) emitConvergenceResult(r *installed_state.ConvergenceResultV1) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+		defer cancel()
+		if err := installed_state.WriteConvergenceResult(ctx, r); err != nil {
+			log.Printf("grpc-workflow: convergence-result %s/%s: %v", r.NodeID, r.Package, err)
+		}
+	}()
+}
+
+// convergenceActionID returns a deterministic etcd action key for a package
+// install outcome. This key is stable across retries so the latest result
+// always overwrites older attempts for the same version.
+func convergenceActionID(nodeID, kind, name, version string) string {
+	return nodeID + "/" + strings.ToUpper(kind) + "/" + name + "/" + version
 }
 
 // runUninstallPackage handles the synthetic "uninstall-package" workflow.

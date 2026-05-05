@@ -452,6 +452,22 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 		driftRec.Start(ctx)
 	})
 
+	// Convergence committer: reads ConvergenceResultV1 records written by
+	// node-agents after install attempts and commits authoritative installed-
+	// state (with build_number) so the drift reconciler sees EqualFull() match
+	// and stops re-dispatching. Leader-only, starts after readiness gate.
+	safeGo("convergence-committer-gated", func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(20 * time.Second):
+		}
+		if !srv.waitForReadiness(ctx) {
+			return
+		}
+		newConvergenceCommitter(srv).Start(ctx)
+	})
+
 	// Trigger A: Auto-import desired state from installed services at startup.
 	// Waits for at least one node to report installed versions, then checks if
 	// desired state is empty. If so, runs importInstalledToDesired to backfill.

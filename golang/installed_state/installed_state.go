@@ -49,6 +49,38 @@ func nodeKindPrefix(nodeID, kind string) string {
 	return keyPrefix + nodeID + "/packages/" + strings.ToUpper(kind) + "/"
 }
 
+// CommitInstalledPackage is the controller-side counterpart to WriteInstalledPackage.
+// It writes (or overwrites) the authoritative installed-package record using
+// StateCommitWrite (30 s timeout, 6 retries, jittered backoff). Call this from
+// the convergence committer after reading a ConvergenceResultV1; never call it
+// from the node-agent.
+func CommitInstalledPackage(ctx context.Context, pkg *node_agentpb.InstalledPackage) error {
+	if pkg.GetNodeId() == "" {
+		return fmt.Errorf("installed_state: node_id is required")
+	}
+	if pkg.GetName() == "" {
+		return fmt.Errorf("installed_state: name is required")
+	}
+	if pkg.GetKind() == "" {
+		return fmt.Errorf("installed_state: kind is required")
+	}
+	if pkg.UpdatedUnix == 0 {
+		pkg.UpdatedUnix = time.Now().Unix()
+	}
+	if pkg.InstalledUnix == 0 {
+		pkg.InstalledUnix = pkg.UpdatedUnix
+	}
+	if pkg.Status == "" {
+		pkg.Status = "installed"
+	}
+	data, err := protojson.Marshal(pkg)
+	if err != nil {
+		return fmt.Errorf("installed_state: marshal: %w", err)
+	}
+	key := packageKey(pkg.GetNodeId(), pkg.GetKind(), pkg.GetName())
+	return config.PutRuntimeWithClass(ctx, key, data, config.StateCommitWrite)
+}
+
 // WriteInstalledPackage writes (or overwrites) an installed package record in etcd.
 // The record's UpdatedUnix is set to now if zero.
 func WriteInstalledPackage(ctx context.Context, pkg *node_agentpb.InstalledPackage) error {
