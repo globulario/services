@@ -483,14 +483,18 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 		pkgKind = "COMMAND"
 	}
 
-	// Critical key preflight: if a required etcd key is absent, block dispatch
-	// and write OutcomeBlockedCriticalKeyMissing for each eligible node. The
-	// block persists for 5 minutes (driftSuppressed backoff); reconcileResolved
-	// re-checks the key on the next reconcile cycle automatically.
-	if missingKey := criticalKeyPrereqsMissing(ctx, h.InstalledStateName, pkgKind); missingKey != "" {
-		log.Printf("%s %s: critical key %q absent — blocking dispatch on %d node(s)",
-			h.ResourceType, h.Name, missingKey, len(nodeIDs))
-		writeCriticalKeyBlock(ctx, nodeIDs, h.InstalledStateName, pkgKind, missingKey)
+	// Critical key preflight: if required key is missing OR key check fails,
+	// block dispatch and write OutcomeBlockedCriticalKeyMissing for each eligible node.
+	// A check error is treated as indeterminate state, not fail-open dispatch.
+	if missingKey, checkErr := criticalKeyPrereqStatus(ctx, h.InstalledStateName, pkgKind); missingKey != "" || checkErr != nil {
+		if checkErr != nil {
+			log.Printf("%s %s: critical key preflight check error for %s/%s: %v — blocking dispatch on %d node(s)",
+				h.ResourceType, h.Name, pkgKind, h.InstalledStateName, checkErr, len(nodeIDs))
+		} else {
+			log.Printf("%s %s: critical key %q absent — blocking dispatch on %d node(s)",
+				h.ResourceType, h.Name, missingKey, len(nodeIDs))
+		}
+		writeCriticalKeyBlock(ctx, nodeIDs, h.InstalledStateName, pkgKind, missingKey, checkErr)
 		return
 	}
 

@@ -1,7 +1,13 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"testing"
+
+	clientv3 "go.etcd.io/etcd/client/v3"
+
+	"github.com/globulario/services/golang/installed_state"
 )
 
 func TestKindCriticalKeyPrereqsService(t *testing.T) {
@@ -77,8 +83,55 @@ func TestCriticalKeyBlockActionID(t *testing.T) {
 
 func TestCriticalKeyPrereqsMissingNoPrereqs(t *testing.T) {
 	// INFRASTRUCTURE packages have no prereqs — returns "" without hitting etcd.
-	result := criticalKeyPrereqsMissing(nil, "etcd", "INFRASTRUCTURE")
-	if result != "" {
-		t.Errorf("INFRASTRUCTURE pkg should have no prereqs, got %q", result)
+	missing, checkErr := criticalKeyPrereqStatus(nil, "etcd", "INFRASTRUCTURE")
+	if missing != "" {
+		t.Errorf("INFRASTRUCTURE pkg should have no prereqs, got missing=%q", missing)
+	}
+	if checkErr != nil {
+		t.Errorf("INFRASTRUCTURE pkg should not check etcd, got checkErr=%v", checkErr)
+	}
+}
+
+func TestCriticalKeyPrereqStatus_EtcdClientError(t *testing.T) {
+	orig := criticalKeyGetEtcdClient
+	t.Cleanup(func() { criticalKeyGetEtcdClient = orig })
+	criticalKeyGetEtcdClient = func() (*clientv3.Client, error) {
+		return nil, errors.New("dial etcd: timeout")
+	}
+
+	missing, checkErr := criticalKeyPrereqStatus(context.Background(), "rbac", "SERVICE")
+	if missing != "" {
+		t.Fatalf("expected no missing key when client creation fails, got %q", missing)
+	}
+	if checkErr == nil {
+		t.Fatal("expected checkErr on etcd client error")
+	}
+}
+
+func TestWriteCriticalKeyBlock_CheckErrorPayload(t *testing.T) {
+	orig := criticalKeyWriteResult
+	t.Cleanup(func() { criticalKeyWriteResult = orig })
+
+	var captured *installed_state.ConvergenceResultV1
+	criticalKeyWriteResult = func(ctx context.Context, r *installed_state.ConvergenceResultV1) error {
+		captured = r
+		return nil
+	}
+
+	writeCriticalKeyBlock(context.Background(), []string{"node-1"}, "rbac", "SERVICE", "", errors.New("tls: bad certificate"))
+	if captured == nil {
+		t.Fatal("expected convergence result to be written")
+	}
+	if captured.Outcome != installed_state.OutcomeBlockedCriticalKeyMissing {
+		t.Fatalf("outcome=%s, want %s", captured.Outcome, installed_state.OutcomeBlockedCriticalKeyMissing)
+	}
+	if captured.ReasonCode != "critical_key_check_error" {
+		t.Fatalf("reason_code=%q, want critical_key_check_error", captured.ReasonCode)
+	}
+	if captured.UnblockPolicy != "check_error_retry_after_backoff" {
+		t.Fatalf("unblock_policy=%q, want check_error_retry_after_backoff", captured.UnblockPolicy)
+	}
+	if captured.Evidence["check_error"] == "" {
+		t.Fatal("expected check_error evidence")
 	}
 }
