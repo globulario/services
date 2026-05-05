@@ -236,7 +236,7 @@ type statusPatch struct {
 }
 
 // computeWorkflowKind determines whether this is an install, upgrade, or remove workflow.
-func computeWorkflowKind(h *releaseHandle) string {
+func computeWorkflowKind(ctx context.Context, h *releaseHandle) string {
 	if h.Removing {
 		return "remove"
 	}
@@ -248,7 +248,10 @@ func computeWorkflowKind(h *releaseHandle) string {
 	}
 	// Check installed-state registry.
 	if h.InstalledStateKind != "" && h.InstalledStateName != "" {
-		if pkg, err := installed_state.GetInstalledPackage(context.Background(), "", h.InstalledStateKind, h.InstalledStateName); err == nil && pkg != nil {
+		qCtx, qCancel := withBounded(boundedShort)
+		pkg, err := installed_state.GetInstalledPackage(qCtx, "", h.InstalledStateKind, h.InstalledStateName)
+		qCancel()
+		if err == nil && pkg != nil {
 			if v := strings.TrimSpace(pkg.GetVersion()); v != "" {
 				return "upgrade"
 			}
@@ -264,7 +267,7 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 		return
 	}
 	nowMs := time.Now().UnixMilli()
-	wfKind := computeWorkflowKind(h)
+	wfKind := computeWorkflowKind(ctx, h)
 
 	// Idempotency guard: skip re-resolution if already resolved for this generation.
 	if h.ObservedGeneration == h.Generation &&
@@ -504,7 +507,7 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	// Execute the release workflow asynchronously so the work queue worker
 	// is not blocked. This prevents gRPC server deadlocks when multiple
 	// workflows try to acquire srv.lock concurrently with gRPC handlers.
-	workflowDispatchTotal.WithLabelValues(computeWorkflowKind(h)).Inc()
+	workflowDispatchTotal.WithLabelValues(computeWorkflowKind(ctx, h)).Inc()
 	log.Printf("%s %s: dispatching release workflow across %d nodes (v=%s)",
 		h.ResourceType, h.Name, len(nodeIDs), h.ResolvedVersion)
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -91,7 +92,7 @@ func TestTerminalPhases_NoOutgoing(t *testing.T) {
 
 func TestWorkflowKindInstall(t *testing.T) {
 	h := &releaseHandle{Removing: false, Nodes: nil}
-	if k := computeWorkflowKind(h); k != "install" {
+	if k := computeWorkflowKind(context.Background(), h); k != "install" {
 		t.Fatalf("expected install, got %s", k)
 	}
 }
@@ -101,14 +102,14 @@ func TestWorkflowKindUpgrade(t *testing.T) {
 		Removing: false,
 		Nodes:    []*cluster_controllerpb.NodeReleaseStatus{{NodeID: "n1", InstalledVersion: "0.9.0"}},
 	}
-	if k := computeWorkflowKind(h); k != "upgrade" {
+	if k := computeWorkflowKind(context.Background(), h); k != "upgrade" {
 		t.Fatalf("expected upgrade, got %s", k)
 	}
 }
 
 func TestWorkflowKindRemove(t *testing.T) {
 	h := &releaseHandle{Removing: true}
-	if k := computeWorkflowKind(h); k != "remove" {
+	if k := computeWorkflowKind(context.Background(), h); k != "remove" {
 		t.Fatalf("expected remove, got %s", k)
 	}
 }

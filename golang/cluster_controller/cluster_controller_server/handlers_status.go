@@ -375,7 +375,9 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 			nID := nodeID
 			isBootstrapReady := bootstrapPhaseReady(node.BootstrapPhase)
 			go func() {
-				items, _, err := resources.List(context.Background(), "ServiceRelease", "")
+				listCtx, listCancel := withBounded(boundedShort)
+				defer listCancel()
+				items, _, err := resources.List(listCtx, "ServiceRelease", "")
 				if err != nil {
 					return
 				}

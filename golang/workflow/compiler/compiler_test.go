@@ -203,6 +203,60 @@ func TestCompileReleaseInfra(t *testing.T) {
 		cw.Name, len(cw.Steps), len(apn.SubSteps.Steps))
 }
 
+func TestCompileSubSteps_PreservesStrategy(t *testing.T) {
+	parallel := v1alpha1.StrategyMode("parallel")
+	concurrency := 3
+
+	def := &v1alpha1.WorkflowDefinition{
+		APIVersion: v1alpha1.APIVersion,
+		Kind:       v1alpha1.Kind,
+		Metadata:   v1alpha1.WorkflowMetadata{Name: "substeps-strategy"},
+		Spec: v1alpha1.WorkflowDefinitionSpec{
+			Steps: []v1alpha1.WorkflowStepSpec{
+				{
+					ID:      "outer",
+					Foreach: &v1alpha1.ScalarString{Raw: "$.items"},
+					Steps: []v1alpha1.WorkflowStepSpec{
+						{
+							ID:      "inner",
+							Foreach: &v1alpha1.ScalarString{Raw: "$.nodes"},
+							Strategy: &v1alpha1.ExecutionStrategy{
+								Mode:        parallel,
+								Concurrency: &v1alpha1.ScalarInt{Value: &concurrency},
+							},
+							Actor:  "node-agent",
+							Action: "node.apply",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cw, diags, err := Compile(context.Background(), def)
+	if err != nil {
+		t.Fatalf("compile: %v (diags: %v)", err, diags)
+	}
+
+	outer := cw.Steps["outer"]
+	if outer == nil || outer.SubSteps == nil {
+		t.Fatal("expected compiled sub-steps on outer")
+	}
+	inner := outer.SubSteps.Steps["inner"]
+	if inner == nil {
+		t.Fatal("expected inner sub-step")
+	}
+	if inner.Strategy.Mode != "parallel" {
+		t.Fatalf("inner strategy mode = %q, want parallel", inner.Strategy.Mode)
+	}
+	if inner.Strategy.Concurrency == nil {
+		t.Fatal("inner strategy concurrency missing")
+	}
+	if got, ok := inner.Strategy.Concurrency.Static.(int); !ok || got != 3 {
+		t.Fatalf("inner strategy concurrency = %#v, want 3", inner.Strategy.Concurrency.Static)
+	}
+}
+
 func TestCompileValidationErrors(t *testing.T) {
 	// Missing name.
 	def := &v1alpha1.WorkflowDefinition{

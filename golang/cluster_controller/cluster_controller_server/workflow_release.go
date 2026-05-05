@@ -588,7 +588,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			}
 
 			log.Printf("release-workflow: installing %s@%s (%s) build_id=%s on node %s via %s", name, version, kind, buildID, nodeID, endpoint)
-			conn, err := srv.dialNodeAgent(endpoint)
+			conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
 			if err != nil {
 				return fmt.Errorf("connect to node %s: %w", nodeID, err)
 			}
@@ -620,7 +620,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 				return fmt.Errorf("no agent endpoint for node %s", nodeID)
 			}
 
-			conn, err := srv.dialNodeAgent(endpoint)
+			conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
 			if err != nil {
 				return fmt.Errorf("connect to node %s: %w", nodeID, err)
 			}
@@ -702,7 +702,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 				return fmt.Errorf("no agent endpoint for node %s", nodeID)
 			}
 
-			conn, err := srv.dialNodeAgent(endpoint)
+			conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
 			if err != nil {
 				return fmt.Errorf("connect to node %s: %w", nodeID, err)
 			}
@@ -730,7 +730,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 				return fmt.Errorf("no agent endpoint for node %s", nodeID)
 			}
 
-			conn, err := srv.dialNodeAgent(endpoint)
+			conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
 			if err != nil {
 				return fmt.Errorf("connect to node %s: %w", nodeID, err)
 			}
@@ -759,7 +759,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			if endpoint == "" {
 				return fmt.Errorf("no agent endpoint for node %s", nodeID)
 			}
-			conn, err := srv.dialNodeAgent(endpoint)
+			conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
 			if err != nil {
 				return fmt.Errorf("connect to node %s: %w", nodeID, err)
 			}
@@ -782,7 +782,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			if endpoint == "" {
 				return fmt.Errorf("no agent endpoint for node %s", nodeID)
 			}
-			conn, err := srv.dialNodeAgent(endpoint)
+			conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
 			if err != nil {
 				return fmt.Errorf("connect to node %s: %w", nodeID, err)
 			}
@@ -805,7 +805,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			if endpoint == "" {
 				return fmt.Errorf("no agent endpoint for node %s", nodeID)
 			}
-			conn, err := srv.dialNodeAgent(endpoint)
+			conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
 			if err != nil {
 				return fmt.Errorf("connect to node %s: %w", nodeID, err)
 			}
@@ -834,7 +834,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			if endpoint == "" {
 				return fmt.Errorf("no agent endpoint for node %s", nodeID)
 			}
-			conn, err := srv.dialNodeAgent(endpoint)
+			conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
 			if err != nil {
 				return fmt.Errorf("connect to node %s: %w", nodeID, err)
 			}
@@ -970,7 +970,7 @@ func (srv *server) dedupRestart(ctx context.Context, nodeID, endpoint, unit stri
 		srv.inflightRestarts.Delete(key)
 	}()
 
-	conn, err := srv.dialNodeAgent(endpoint)
+	conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
 	if err != nil {
 		return fmt.Errorf("connect to node %s: %w", nodeID, err)
 	}

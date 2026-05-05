@@ -13,8 +13,8 @@ import (
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/repository/repository_client"
-	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/versionutil"
+	"github.com/globulario/services/golang/workflow/engine"
 )
 
 // Leader-only mutation rule:
@@ -288,6 +288,13 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 		if !srv.clusterReconcileRunning.CompareAndSwap(false, true) {
 			srv.clusterReconcilePending.Store(true)
 			clusterReconcileSkippedTotal.WithLabelValues(source).Inc()
+			reconcilePreviousRunActiveTotal.WithLabelValues("cluster_reconcile").Inc()
+			srv.publishReconcileLaneStatus(parentCtx, "cluster_reconcile", reconcileLaneStatus{
+				Phase:            "BLOCKED",
+				Running:          true,
+				PreviousRunAlive: true,
+				LastError:        "previous run still active",
+			})
 			logger.Info("reconcile skipped: previous run still active", "source", source)
 			return
 		}
@@ -298,16 +305,26 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 				// set it again, guaranteeing exactly one follow-up pass.
 				srv.clusterReconcilePending.Store(false)
 
+				start := time.Now()
+				reconcileLaneRunning.WithLabelValues("cluster_reconcile").Set(1)
 				rctx, cancel := context.WithTimeout(parentCtx, 10*time.Minute)
 				_, err := srv.RunClusterReconcileWorkflow(rctx)
 				cancel()
+				reconcileLaneRunning.WithLabelValues("cluster_reconcile").Set(0)
+				reconcileLaneDurationSeconds.WithLabelValues("cluster_reconcile").Observe(time.Since(start).Seconds())
 
 				if err != nil {
 					logger.Debug("periodic cluster.reconcile failed", "error", err)
+					srv.recordClusterReconcileOutcome(parentCtx, err, rctx.Err())
 					if srv.reconcileBreaker != nil {
 						srv.reconcileBreaker.RecordTimeout()
 					}
 				} else {
+					reconcileBlockedPhase.WithLabelValues("cluster_reconcile").Set(0)
+					srv.publishReconcileLaneStatus(parentCtx, "cluster_reconcile", reconcileLaneStatus{
+						Phase:   "OK",
+						Running: false,
+					})
 					if srv.reconcileBreaker != nil {
 						srv.reconcileBreaker.RecordSuccess()
 					}
@@ -376,8 +393,39 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 				return
 			case <-ticker.C:
 				if srv.isLeader() {
-					srv.ensureServiceReleasesFromDesired(ctx)
-					srv.requeueFailedReleases(ctx) // re-enqueue FAILED releases past retry backoff
+					if !srv.releaseBridgeRunning.CompareAndSwap(false, true) {
+						srv.releaseBridgePending.Store(true)
+						reconcilePreviousRunActiveTotal.WithLabelValues("release_bridge").Inc()
+						srv.publishReconcileLaneStatus(ctx, "release_bridge", reconcileLaneStatus{
+							Phase:            "BLOCKED",
+							Running:          true,
+							PreviousRunAlive: true,
+							LastError:        "previous run still active",
+						})
+						h.Tick()
+						continue
+					}
+					go func() {
+						defer srv.releaseBridgeRunning.Store(false)
+						for {
+							srv.releaseBridgePending.Store(false)
+							start := time.Now()
+							reconcileLaneRunning.WithLabelValues("release_bridge").Set(1)
+							rctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+							srv.ensureServiceReleasesFromDesired(rctx)
+							srv.requeueFailedReleases(rctx) // re-enqueue FAILED releases past retry backoff
+							cancel()
+							reconcileLaneRunning.WithLabelValues("release_bridge").Set(0)
+							reconcileLaneDurationSeconds.WithLabelValues("release_bridge").Observe(time.Since(start).Seconds())
+							srv.recordReleaseBridgeOutcome(ctx, rctx.Err())
+							if ctx.Err() != nil {
+								return
+							}
+							if !srv.releaseBridgePending.CompareAndSwap(true, false) {
+								return
+							}
+						}
+					}()
 				}
 				h.Tick()
 			}
@@ -445,6 +493,50 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 				h.Tick()
 			}
 		}
+	})
+}
+
+func (srv *server) recordClusterReconcileOutcome(ctx context.Context, runErr error, runCtxErr error) {
+	if runErr == nil {
+		reconcileBlockedPhase.WithLabelValues("cluster_reconcile").Set(0)
+		srv.publishReconcileLaneStatus(ctx, "cluster_reconcile", reconcileLaneStatus{
+			Phase:   "OK",
+			Running: false,
+		})
+		return
+	}
+	if runCtxErr == context.DeadlineExceeded {
+		reconcileLaneTimeoutsTotal.WithLabelValues("cluster_reconcile").Inc()
+		reconcileBlockedPhase.WithLabelValues("cluster_reconcile").Set(1)
+		srv.publishReconcileLaneStatus(ctx, "cluster_reconcile", reconcileLaneStatus{
+			Phase:     "TIMEOUT",
+			Running:   false,
+			LastError: runErr.Error(),
+		})
+		return
+	}
+	srv.publishReconcileLaneStatus(ctx, "cluster_reconcile", reconcileLaneStatus{
+		Phase:     "DEGRADED",
+		Running:   false,
+		LastError: runErr.Error(),
+	})
+}
+
+func (srv *server) recordReleaseBridgeOutcome(ctx context.Context, runCtxErr error) {
+	if runCtxErr == context.DeadlineExceeded {
+		reconcileLaneTimeoutsTotal.WithLabelValues("release_bridge").Inc()
+		reconcileBlockedPhase.WithLabelValues("release_bridge").Set(1)
+		srv.publishReconcileLaneStatus(ctx, "release_bridge", reconcileLaneStatus{
+			Phase:     "TIMEOUT",
+			Running:   false,
+			LastError: "release bridge timed out",
+		})
+		return
+	}
+	reconcileBlockedPhase.WithLabelValues("release_bridge").Set(0)
+	srv.publishReconcileLaneStatus(ctx, "release_bridge", reconcileLaneStatus{
+		Phase:   "OK",
+		Running: false,
 	})
 }
 

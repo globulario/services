@@ -16,6 +16,10 @@ import (
 //
 // Returns true if the probe reports Status == "SUCCEEDED".
 func (srv *server) probeInfraHealth(ctx context.Context, endpoint, probeName string) bool {
+	return srv.probeInfraHealthForNode(ctx, "", endpoint, probeName)
+}
+
+func (srv *server) probeInfraHealthForNode(ctx context.Context, nodeID, endpoint, probeName string) bool {
 	if endpoint == "" {
 		return false
 	}
@@ -23,7 +27,7 @@ func (srv *server) probeInfraHealth(ctx context.Context, endpoint, probeName str
 	probeCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	conn, err := srv.dialNodeAgent(endpoint)
+	conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
 	if err != nil {
 		log.Printf("infra-probe: failed to connect to %s for probe %s: %v", endpoint, probeName, err)
 		return false
@@ -78,7 +82,7 @@ func (srv *server) dispatchEtcdWipeAndRejoin(ctx context.Context, nodes []*nodeS
 		wCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		go func(ep, nodeID, hostname string) {
 			defer cancel()
-			conn, err := srv.dialNodeAgent(ep)
+			conn, _, err := srv.dialNodeAgentForNode(nodeID, ep)
 			if err != nil {
 				log.Printf("etcd auto-rejoin: cannot dial agent %s (%s): %v", nodeID, hostname, err)
 				return

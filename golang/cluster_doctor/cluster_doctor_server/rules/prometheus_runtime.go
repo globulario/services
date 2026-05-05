@@ -117,7 +117,7 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 			Summary:     fmt.Sprintf("Apply-loop detection triggered %d time(s) — packages quarantined from auto-dispatch", int(loops)),
 			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "apply_loop", map[string]string{
 				"total_quarantines": fmt.Sprintf("%.0f", loops),
-				"timestamp":        snap.PromTS.UTC().Format(time.RFC3339),
+				"timestamp":         snap.PromTS.UTC().Format(time.RFC3339),
 			})},
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		})
@@ -133,7 +133,7 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 			Summary:     fmt.Sprintf("Desired-state kind mismatch blocked %d dispatch(es) — SERVICE desired but INFRASTRUCTURE in repo", int(mismatches)),
 			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "kind_mismatch", map[string]string{
 				"total_blocked": fmt.Sprintf("%.0f", mismatches),
-				"timestamp":    snap.PromTS.UTC().Format(time.RFC3339),
+				"timestamp":     snap.PromTS.UTC().Format(time.RFC3339),
 			})},
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		})
@@ -149,7 +149,7 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 			Summary:     fmt.Sprintf("Reconcile circuit breaker opened %d time(s) — periodic reconcile suspended due to repeated failures", int(opens)),
 			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "circuit_breaker", map[string]string{
 				"total_opens": fmt.Sprintf("%.0f", opens),
-				"timestamp":  snap.PromTS.UTC().Format(time.RFC3339),
+				"timestamp":   snap.PromTS.UTC().Format(time.RFC3339),
 			})},
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		})
@@ -165,7 +165,7 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 			Summary:     fmt.Sprintf("Workflow health gate rejected %d dispatch(es) — backend under pressure", int(rejected)),
 			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "backend_pressure", map[string]string{
 				"total_rejected": fmt.Sprintf("%.0f", rejected),
-				"timestamp":     snap.PromTS.UTC().Format(time.RFC3339),
+				"timestamp":      snap.PromTS.UTC().Format(time.RFC3339),
 			})},
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		})
@@ -183,7 +183,7 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 			Summary:     "Workflow dispatch circuit breaker is OPEN — all workflow dispatches are blocked until backend recovers",
 			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "circuit_open", map[string]string{
 				"circuit_open": fmt.Sprintf("%.0f", open),
-				"timestamp":   snap.PromTS.UTC().Format(time.RFC3339),
+				"timestamp":    snap.PromTS.UTC().Format(time.RFC3339),
 			})},
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		})
@@ -199,7 +199,94 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 			Summary:     fmt.Sprintf("%.0f release(s) blocked in transient retry backoff — workflow service was unreachable during last dispatch attempt", blocked),
 			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "release_transient_blocked", map[string]string{
 				"blocked_releases": fmt.Sprintf("%.0f", blocked),
-				"timestamp":       snap.PromTS.UTC().Format(time.RFC3339),
+				"timestamp":        snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
+	// ── Reconcile lane isolation signals (Phase: starvation prevention) ──────
+
+	if timeouts, ok := snap.PromMetrics["reconcile_lane_timeouts_cluster"]; ok && timeouts > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("reconcile.lane_timeout", "cluster", "cluster_reconcile"),
+			InvariantID: "reconcile.lane_timeout",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_ERROR,
+			Category:    "control_plane",
+			EntityRef:   "cluster_reconcile",
+			Summary:     fmt.Sprintf("Reconcile lane cluster_reconcile timed out %.0f time(s) — lane execution exceeded timeout and was marked degraded", timeouts),
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "reconcile_lane_timeouts_total", map[string]string{
+				"lane":      "cluster_reconcile",
+				"timeouts":  fmt.Sprintf("%.0f", timeouts),
+				"timestamp": snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
+	if blocked, ok := snap.PromMetrics["reconcile_lane_blocked_cluster"]; ok && blocked > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("reconcile.critical_lane_blocked", "cluster", "cluster_reconcile"),
+			InvariantID: "reconcile.critical_lane_blocked",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_CRITICAL,
+			Category:    "control_plane",
+			EntityRef:   "cluster_reconcile",
+			Summary:     "Critical reconcile lane cluster_reconcile is currently blocked/degraded",
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "reconcile_blocked_phase", map[string]string{
+				"phase":     "cluster_reconcile",
+				"blocked":   fmt.Sprintf("%.0f", blocked),
+				"timestamp": snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
+	if blocked, ok := snap.PromMetrics["reconcile_lane_blocked_projections"]; ok && blocked > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("reconcile.lane_blocked", "cluster", "projections"),
+			InvariantID: "reconcile.lane_blocked",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:    "control_plane",
+			EntityRef:   "projections",
+			Summary:     "Projection reconcile lane is currently blocked/degraded (isolated lane; other lanes should remain healthy)",
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "reconcile_blocked_phase", map[string]string{
+				"phase":     "projections",
+				"blocked":   fmt.Sprintf("%.0f", blocked),
+				"timestamp": snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
+	if blocked, ok := snap.PromMetrics["reconcile_lane_blocked_release_bridge"]; ok && blocked > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("reconcile.lane_blocked", "cluster", "release_bridge"),
+			InvariantID: "reconcile.lane_blocked",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:    "control_plane",
+			EntityRef:   "release_bridge",
+			Summary:     "Release bridge lane is currently blocked/degraded",
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "reconcile_blocked_phase", map[string]string{
+				"phase":     "release_bridge",
+				"blocked":   fmt.Sprintf("%.0f", blocked),
+				"timestamp": snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
+	if blocked, ok := snap.PromMetrics["reconcile_lane_blocked_drift"]; ok && blocked > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("reconcile.lane_blocked", "cluster", "drift_reconcile"),
+			InvariantID: "reconcile.lane_blocked",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:    "control_plane",
+			EntityRef:   "drift_reconcile",
+			Summary:     "Drift reconcile lane is currently blocked/degraded",
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "reconcile_blocked_phase", map[string]string{
+				"phase":     "drift_reconcile",
+				"blocked":   fmt.Sprintf("%.0f", blocked),
+				"timestamp": snap.PromTS.UTC().Format(time.RFC3339),
 			})},
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		})

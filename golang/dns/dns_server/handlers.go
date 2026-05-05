@@ -57,6 +57,7 @@ func (srv *server) SetDomains(ctx context.Context, rqst *dnspb.SetDomainsRequest
 	}
 
 	srv.Domains = normalized
+	srv.lastKnownGoodDomains = append([]string(nil), normalized...)
 
 	srv.Logger.Info("Domains set", "domains", strings.Join(srv.Domains, ", "))
 
@@ -82,6 +83,7 @@ func (srv *server) SetDomains(ctx context.Context, rqst *dnspb.SetDomainsRequest
 	for _, domain := range normalized {
 		srv.ensureZoneAuthority(domain)
 	}
+	srv.setReloadStatus("ACTIVE", false, nil)
 
 	return &dnspb.SetDomainsResponse{Result: true}, nil
 }

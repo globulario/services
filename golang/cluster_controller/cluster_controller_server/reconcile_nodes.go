@@ -728,7 +728,9 @@ func (srv *server) resolveWorkloadVersion(componentName string) (version, source
 	srv.unlock()
 
 	// Source of truth: installed_state registry in etcd.
-	pkgs, err := installed_state.ListAllNodes(context.Background(), "SERVICE", componentName)
+	qctx1, qcancel1 := withBounded(boundedMedium)
+	defer qcancel1()
+	pkgs, err := installed_state.ListAllNodes(qctx1, "SERVICE", componentName)
 	if err == nil && len(pkgs) > 0 {
 		bestRank := 99
 		bestVersion := ""
@@ -772,7 +774,9 @@ func (srv *server) resolveWorkloadVersion(componentName string) (version, source
 	// Fallback to existing desired state for this workload.
 	if srv.resources != nil {
 		canon := canonicalServiceName(componentName)
-		obj, _, err := srv.resources.Get(context.Background(), "ServiceDesiredVersion", canon)
+		qctx2, qcancel2 := withBounded(boundedShort)
+		defer qcancel2()
+		obj, _, err := srv.resources.Get(qctx2, "ServiceDesiredVersion", canon)
 		if err == nil {
 			if sdv, ok := obj.(*cluster_controllerpb.ServiceDesiredVersion); ok && sdv.Spec != nil && sdv.Spec.Version != "" {
 				return sdv.Spec.Version, "desired:" + canon
@@ -839,8 +843,10 @@ func (srv *server) resolveInfraVersion(componentName string) (version, source st
 		// The node-agent's syncRepoArtifactsToEtcd now overrides SERVICE→
 		// INFRASTRUCTURE for known infra units, but older published artifacts
 		// may still produce SERVICE records on nodes that haven't re-synced.
+		infraQCtx, infraQCancel := withBounded(boundedMedium)
+		defer infraQCancel()
 		for _, kind := range []string{"INFRASTRUCTURE", "COMMAND", "SERVICE"} {
-			pkgs, err := installed_state.ListAllNodes(context.Background(), kind, componentName)
+			pkgs, err := installed_state.ListAllNodes(infraQCtx, kind, componentName)
 			if err != nil {
 				continue
 			}
@@ -873,12 +879,14 @@ func (srv *server) resolveInfraVersion(componentName string) (version, source st
 
 	// Step 2: Check existing InfrastructureRelease desired state.
 	if srv.resources != nil {
+		irQCtx, irQCancel := withBounded(boundedShort)
+		defer irQCancel()
 		// Try both key formats: bare name and publisher/name.
 		for _, relName := range []string{
 			componentName,
 			defaultPublisherID() + "/" + componentName,
 		} {
-			obj, _, err := srv.resources.Get(context.Background(), "InfrastructureRelease", relName)
+			obj, _, err := srv.resources.Get(irQCtx, "InfrastructureRelease", relName)
 			if err != nil || obj == nil {
 				continue
 			}
@@ -966,7 +974,9 @@ func (srv *server) enqueueInfraReleases() {
 	if srv.resources == nil || srv.infraReleaseEnqueue == nil {
 		return
 	}
-	items, _, err := srv.resources.List(context.Background(), "InfrastructureRelease", "")
+	lctx, lcancel := withBounded(boundedLong)
+	defer lcancel()
+	items, _, err := srv.resources.List(lctx, "InfrastructureRelease", "")
 	if err != nil {
 		return
 	}
@@ -1274,9 +1284,11 @@ func (srv *server) renderedConfigForNode(node *nodeState) map[string]string {
 	// Query live etcd cluster to determine member state for correct initial-cluster-state.
 	var etcdState *etcdMemberState
 	if srv.etcdMembers != nil {
-		if st, err := srv.etcdMembers.snapshotEtcdMembers(context.Background()); err == nil {
+		snapCtx, snapCancel := withBounded(boundedShort)
+		if st, err := srv.etcdMembers.snapshotEtcdMembers(snapCtx); err == nil {
 			etcdState = st
 		}
+		snapCancel()
 	}
 
 	// Snapshot MinIO pool state under lock.
@@ -1338,9 +1350,11 @@ func (srv *server) renderServiceConfigsForNodeInMembership(node *nodeState, memb
 	}
 	var etcdState *etcdMemberState
 	if srv.etcdMembers != nil {
-		if st, err := srv.etcdMembers.snapshotEtcdMembers(context.Background()); err == nil {
+		snapCtx2, snapCancel2 := withBounded(boundedShort)
+		if st, err := srv.etcdMembers.snapshotEtcdMembers(snapCtx2); err == nil {
 			etcdState = st
 		}
+		snapCancel2()
 	}
 	srv.lock("minio-pool-snapshot-preview")
 	minioPool := append([]string(nil), srv.state.MinioPoolNodes...)

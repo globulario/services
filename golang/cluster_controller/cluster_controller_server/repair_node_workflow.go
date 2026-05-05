@@ -351,7 +351,9 @@ func (srv *server) repairMarkStarted(ctx context.Context, nodeID, reason string)
 
 func (srv *server) repairClassify(ctx context.Context, nodeID string, diagnosis map[string]any) (map[string]any, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		var cancel context.CancelFunc
+		ctx, cancel = withBounded(boundedLong)
+		defer cancel()
 	}
 	if err := ValidateRepairPlan(diagnosis); err != nil {
 		return nil, err
@@ -596,10 +598,10 @@ func (srv *server) validateReferenceNode(ctx context.Context, referenceNodeID st
 	srv.unlock()
 
 	// Compute desired hash for this node's service set.
-	desiredCanon, _, _ := srv.loadDesiredServices(context.Background())
+	desiredCanon, _, _ := srv.loadDesiredServices(ctx)
 	// Also include InfrastructureRelease components.
 	if srv.resources != nil {
-		if items, _, err := srv.resources.List(context.Background(), "InfrastructureRelease", ""); err == nil {
+		if items, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
 			for _, obj := range items {
 				if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Spec != nil {
 					canon := canonicalServiceName(rel.Spec.Component)

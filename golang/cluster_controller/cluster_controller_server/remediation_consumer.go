@@ -160,7 +160,7 @@ func (rc *remediationConsumer) handleRestartRequested(evt *eventpb.Event) {
 		})
 	}
 
-	restartErr := rc.restartUnit(ctx, agentEndpoint, unit)
+	restartErr := rc.restartUnit(ctx, nodeID, agentEndpoint, unit)
 
 	if restartErr != nil {
 		log.Printf("remediation-consumer: FAILED — restart %s on %s: %v", unit, hostname, restartErr)
@@ -184,7 +184,7 @@ func (rc *remediationConsumer) handleRestartRequested(evt *eventpb.Event) {
 
 	time.Sleep(remediationVerifyWait)
 
-	verified, detail := rc.verifyUnit(ctx, agentEndpoint, unit)
+	verified, detail := rc.verifyUnit(ctx, nodeID, agentEndpoint, unit)
 
 	if runID != "" && rc.srv.workflowRec != nil {
 		verifyStatus := workflowpb.StepStatus_STEP_STATUS_SUCCEEDED
@@ -301,8 +301,8 @@ func (rc *remediationConsumer) findNodeForUnit(unit string) (nodeID, agentEndpoi
 }
 
 // restartUnit calls the node agent's ControlService RPC to restart a unit.
-func (rc *remediationConsumer) restartUnit(ctx context.Context, agentEndpoint, unit string) error {
-	conn, err := rc.srv.dialNodeAgent(agentEndpoint)
+func (rc *remediationConsumer) restartUnit(ctx context.Context, nodeID, agentEndpoint, unit string) error {
+	conn, _, err := rc.srv.dialNodeAgentForNode(nodeID, agentEndpoint)
 	if err != nil {
 		return fmt.Errorf("connect to node agent %s: %w", agentEndpoint, err)
 	}
@@ -326,8 +326,8 @@ func (rc *remediationConsumer) restartUnit(ctx context.Context, agentEndpoint, u
 }
 
 // verifyUnit checks if the unit is active after restart.
-func (rc *remediationConsumer) verifyUnit(ctx context.Context, agentEndpoint, unit string) (bool, string) {
-	conn, err := rc.srv.dialNodeAgent(agentEndpoint)
+func (rc *remediationConsumer) verifyUnit(ctx context.Context, nodeID, agentEndpoint, unit string) (bool, string) {
+	conn, _, err := rc.srv.dialNodeAgentForNode(nodeID, agentEndpoint)
 	if err != nil {
 		return false, fmt.Sprintf("verify connect failed: %v", err)
 	}

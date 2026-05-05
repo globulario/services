@@ -129,33 +129,80 @@ func TestKeepalivedAction_Apply_DryRun(t *testing.T) {
 	}
 }
 
-func TestKeepalivedAction_Apply_ModeDisabled(t *testing.T) {
+// TestKeepalivedAction_Apply_AmbiguousDisable_HoldsSafe verifies Case 11:
+// mode=disabled without explicit_disabled=true/reason/generation must NOT stop
+// keepalived — the runtime holds its last-known-good state.
+func TestKeepalivedAction_Apply_AmbiguousDisable_HoldsSafe(t *testing.T) {
 	action := &keepalivedReconcileAction{}
 
+	// Ambiguous: mode=disabled but not IsExplicitDisable() — missing fields.
 	spec := ingress.Spec{
-		Version: "v1",
-		Mode:    ingress.ModeDisabled,
+		Version:         "v1",
+		Mode:            ingress.ModeDisabled,
+		ExplicitDisabled: false, // not set
+		Reason:          "",     // missing
+		Generation:      0,      // zero
 	}
-
 	specJSON, _ := json.Marshal(spec)
 
 	args := &structpb.Struct{
 		Fields: map[string]*structpb.Value{
 			"spec_json": structpb.NewStringValue(string(specJSON)),
 			"node_id":   structpb.NewStringValue("n1"),
-			"dry_run":   structpb.NewBoolValue(true), // Use dry-run to avoid touching real system
+			"dry_run":   structpb.NewBoolValue(true),
 		},
 	}
 
-	ctx := context.Background()
-	result, err := action.Apply(ctx, args)
+	result, err := action.Apply(context.Background(), args)
 	if err != nil {
-		t.Fatalf("Apply() with ModeDisabled failed: %v", err)
+		t.Fatalf("Apply() with ambiguous disable failed: %v", err)
+	}
+	if !contains(result, "hold-safe") {
+		t.Errorf("expected hold-safe result for ambiguous disable, got: %q", result)
+	}
+	if contains(result, "dry-run: would disable") {
+		t.Errorf("ambiguous disable must not stop keepalived, got: %q", result)
+	}
+}
+
+// TestKeepalivedAction_Apply_ExplicitDisable_StopsRuntime verifies Case 11:
+// a fully-qualified explicit disable (mode=disabled, explicit_disabled=true,
+// non-empty reason, generation>0) must stop keepalived.
+func TestKeepalivedAction_Apply_ExplicitDisable_StopsRuntime(t *testing.T) {
+	action := &keepalivedReconcileAction{}
+
+	spec := ingress.Spec{
+		Version:          "v1",
+		Mode:             ingress.ModeDisabled,
+		ExplicitDisabled: true,
+		Reason:           "scheduled maintenance",
+		Generation:       5,
+	}
+	specJSON, _ := json.Marshal(spec)
+
+	args := &structpb.Struct{
+		Fields: map[string]*structpb.Value{
+			"spec_json": structpb.NewStringValue(string(specJSON)),
+			"node_id":   structpb.NewStringValue("n1"),
+			"dry_run":   structpb.NewBoolValue(true),
+		},
 	}
 
-	if !contains(result, "disable") {
-		t.Errorf("Expected disable result, got: %s", result)
+	result, err := action.Apply(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Apply() with explicit disable failed: %v", err)
 	}
+	if !contains(result, "dry-run: would disable") {
+		t.Errorf("explicit disable must stop keepalived, got: %q", result)
+	}
+}
+
+// TestKeepalivedAction_Apply_ModeDisabled is kept as a legacy name but now
+// correctly asserts the ambiguous-disable hold-safe path.
+func TestKeepalivedAction_Apply_ModeDisabled(t *testing.T) {
+	// Re-run the ambiguous path: same inputs as the old test but now we
+	// verify the hold-safe invariant, not the disable one.
+	TestKeepalivedAction_Apply_AmbiguousDisable_HoldsSafe(t)
 }
 
 func TestKeepalivedAction_Apply_NodeNotInParticipants(t *testing.T) {
@@ -230,6 +277,48 @@ func TestKeepalivedAction_Apply_DefaultPriority(t *testing.T) {
 	if !contains(result, "priority 100") && !contains(result, "priority=100") {
 		t.Logf("Result: %s", result)
 		// Note: dry-run may not include priority in result, so this is informational
+	}
+}
+
+// TestKeepalivedAction_Apply_NonAuthoritative_ContinuesApplying verifies Case 02:
+// a non-authoritative spec (bootstrap default) must not be treated as final —
+// the action applies it but emits a warning so operators can identify unpromotd defaults.
+func TestKeepalivedAction_Apply_NonAuthoritative_ContinuesApplying(t *testing.T) {
+	action := &keepalivedReconcileAction{}
+
+	spec := ingress.Spec{
+		Version:       "v1",
+		Mode:          ingress.ModeVIPFailover,
+		Authoritative: false, // not yet promoted by controller leader
+		Source:        "bootstrap",
+		Generation:    1,
+		VIPFailover: &ingress.VIPFailoverSpec{
+			VIP:             "10.0.0.250/24",
+			Interface:       "lo",
+			VirtualRouterID: 51,
+			Participants:    []string{"n1"},
+		},
+	}
+	specJSON, _ := json.Marshal(spec)
+
+	args := &structpb.Struct{
+		Fields: map[string]*structpb.Value{
+			"spec_json": structpb.NewStringValue(string(specJSON)),
+			"node_id":   structpb.NewStringValue("n1"),
+			"dry_run":   structpb.NewBoolValue(true),
+		},
+	}
+
+	result, err := action.Apply(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Apply() with non-authoritative spec failed: %v", err)
+	}
+	// Must still apply (dry-run configure), not abort or return error.
+	if !contains(result, "dry-run") {
+		t.Errorf("non-authoritative spec should still apply; got: %q", result)
+	}
+	if contains(result, "dry-run: would disable") {
+		t.Errorf("non-authoritative spec must not trigger disable; got: %q", result)
 	}
 }
 

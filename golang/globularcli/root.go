@@ -92,4 +92,6 @@ func init() {
 	rootCmd.AddCommand(stateCmd)
 	rootCmd.AddCommand(repoCmd)
 	rootCmd.AddCommand(objectstoreCmd)
+	rootCmd.AddCommand(scyllaCmd)
+	rootCmd.AddCommand(ingressCmd)
 }

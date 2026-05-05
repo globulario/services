@@ -344,7 +344,7 @@ func (r *DNSReconciler) reconcile() error {
 	}
 
 	// Apply desired state to DNS service for each domain
-	ctx, cancel := context.WithTimeout(context.Background(), dnsReconcileTimeout)
+	ctx, cancel := withBounded(dnsReconcileTimeout)
 	defer cancel()
 
 	// Gather pool memberships from controller state so DNS exposes <role>.<domain>
@@ -766,7 +766,7 @@ func (r *DNSReconciler) checkAllEndpoints() {
 // Returns (healthy, zoneLoaded): healthy=true means the service is reachable;
 // zoneLoaded=true means the expected cluster zone is present in memory.
 func (r *DNSReconciler) checkEndpointHealth(endpoint, clusterDomain string) (bool, bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := withBounded(3 * time.Second)
 	defer cancel()
 
 	cc, err := r.dialDNSDirect(ctx, endpoint)

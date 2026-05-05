@@ -20,6 +20,7 @@ func NewRegistry(cfg Config) *Registry {
 		nodeUnitFilesPresent{},
 		nodeUnitsRunning{},
 		installedStateRuntimeMismatch{},
+		nativeDependencyMissing{},
 		clusterServicesDrift{},
 		clusterNetworkDrift{},
 		promRuntime{},
@@ -117,6 +118,17 @@ func NewRegistry(cfg Config) *Registry {
 		objectstoreCredentialsMissing{},
 		objectstoreEndpointUnresolved{},
 		objectstoreDestructiveGuard{},
+		// Critical-state guardians for ingress/scylla control-plane durability.
+		ingressSpecMissing{},
+		ingressNodeHoldingLastKnownGood{},
+		ingressAmbiguousDisableRejected{},
+		scyllaKeyspaceRFPolicyViolation{},
+		criticalKeyRegistryPresence{},
+		// DNS degraded-mode visibility from /globular/dns/v1/status.
+		dnsZoneReloadFailed{},
+		dnsServingLastKnownGood{},
+		// Reconcile lane status fallback from etcd (when Prometheus unavailable).
+		reconcileLaneStatusEtcd{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)

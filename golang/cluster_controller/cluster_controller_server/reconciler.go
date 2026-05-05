@@ -57,16 +57,83 @@ func (r *driftReconciler) Start(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if r.srv.isLeader() {
-					r.reconcileOnce(ctx)
+				if !r.srv.isLeader() {
+					continue
 				}
+				if !r.srv.driftReconcileRunning.CompareAndSwap(false, true) {
+					r.srv.driftReconcilePending.Store(true)
+					reconcilePreviousRunActiveTotal.WithLabelValues("drift_reconcile").Inc()
+					r.srv.publishReconcileLaneStatus(ctx, "drift_reconcile", reconcileLaneStatus{
+						Phase:            "BLOCKED",
+						Running:          true,
+						PreviousRunAlive: true,
+						LastError:        "previous run still active",
+					})
+					continue
+				}
+				go func() {
+					defer r.srv.driftReconcileRunning.Store(false)
+					for {
+						r.srv.driftReconcilePending.Store(false)
+						start := time.Now()
+						reconcileLaneRunning.WithLabelValues("drift_reconcile").Set(1)
+						rctx, cancel := context.WithTimeout(ctx, r.timeout)
+						r.reconcileOnce(rctx)
+						cancel()
+						reconcileLaneRunning.WithLabelValues("drift_reconcile").Set(0)
+						reconcileLaneDurationSeconds.WithLabelValues("drift_reconcile").Observe(time.Since(start).Seconds())
+						r.srv.recordDriftReconcileOutcome(ctx, rctx.Err())
+						if ctx.Err() != nil {
+							return
+						}
+						if !r.srv.driftReconcilePending.CompareAndSwap(true, false) {
+							return
+						}
+					}
+				}()
 			}
 		}
 	})
 }
 
+func (srv *server) recordDriftReconcileOutcome(ctx context.Context, runCtxErr error) {
+	if runCtxErr == context.DeadlineExceeded {
+		reconcileLaneTimeoutsTotal.WithLabelValues("drift_reconcile").Inc()
+		reconcileBlockedPhase.WithLabelValues("drift_reconcile").Set(1)
+		srv.publishReconcileLaneStatus(ctx, "drift_reconcile", reconcileLaneStatus{
+			Phase:     "TIMEOUT",
+			Running:   false,
+			LastError: "drift reconcile timed out",
+		})
+		return
+	}
+	reconcileBlockedPhase.WithLabelValues("drift_reconcile").Set(0)
+	srv.publishReconcileLaneStatus(ctx, "drift_reconcile", reconcileLaneStatus{
+		Phase:   "OK",
+		Running: false,
+	})
+}
+
 func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 	r.expireStale()
+	if violations := r.srv.driftTopologyPreflight(ctx); len(violations) > 0 {
+		kinds := make([]string, 0, len(violations))
+		for _, v := range violations {
+			log.Printf("CRITICAL: drift-reconciler topology preflight blocked: %s", v.Error())
+			kinds = append(kinds, v.Kind)
+		}
+		reconcileBlockedPhase.WithLabelValues("drift_reconcile").Set(1)
+		r.srv.publishReconcileLaneStatus(ctx, "drift_reconcile", reconcileLaneStatus{
+			Phase:     "DEGRADED",
+			Running:   false,
+			LastError: fmt.Sprintf("topology preflight blocked drift reconcile: %s", strings.Join(kinds, ",")),
+		})
+		r.srv.emitClusterEvent("cluster.reconcile.topology_blocked", map[string]interface{}{
+			"lane":       "drift_reconcile",
+			"violations": kinds,
+		})
+		return
+	}
 
 	desired := r.srv.collectDesiredVersions(ctx)
 	if len(desired) == 0 {

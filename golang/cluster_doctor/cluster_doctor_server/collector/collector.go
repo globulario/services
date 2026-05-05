@@ -19,6 +19,7 @@ import (
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -34,13 +35,13 @@ type CollectorConfig struct {
 
 // Collector gathers upstream state and maintains a SnapshotCache.
 type Collector struct {
-	cfg              CollectorConfig
-	controllerClient cluster_controllerpb.ClusterControllerServiceClient
-	workflowClient   workflowpb.WorkflowServiceClient
-	repoClient              repopb.PackageRepositoryClient // optional; nil until WithRepositoryClient
-	repoEndpointMissing     bool                           // true when etcd has no entry for repository.PackageRepository
-	clusterID        string
-	cache            *SnapshotCache
+	cfg                 CollectorConfig
+	controllerClient    cluster_controllerpb.ClusterControllerServiceClient
+	workflowClient      workflowpb.WorkflowServiceClient
+	repoClient          repopb.PackageRepositoryClient // optional; nil until WithRepositoryClient
+	repoEndpointMissing bool                           // true when etcd has no entry for repository.PackageRepository
+	clusterID           string
+	cache               *SnapshotCache
 
 	connMu     sync.Mutex
 	agentConns map[string]*grpc.ClientConn // keyed by AgentEndpoint
@@ -49,6 +50,11 @@ type Collector struct {
 	promEndpoint  string
 	promTokenFile string
 	promInsecure  bool
+
+	// driftSince tracks when each node's services hash drift was first observed.
+	// Used to compute NodeDriftAge in each Snapshot for severity escalation.
+	driftMu    sync.Mutex
+	driftSince map[string]time.Time // keyed by nodeID
 }
 
 func New(cfg CollectorConfig, cc cluster_controllerpb.ClusterControllerServiceClient) *Collector {
@@ -57,6 +63,7 @@ func New(cfg CollectorConfig, cc cluster_controllerpb.ClusterControllerServiceCl
 		controllerClient: cc,
 		cache:            NewSnapshotCache(cfg.SnapshotTTL),
 		agentConns:       make(map[string]*grpc.ClientConn),
+		driftSince:       make(map[string]time.Time),
 		promEndpoint:     defaultPromEndpoint(),
 		promTokenFile:    os.Getenv("PROMETHEUS_BEARER_FILE"),
 		promInsecure:     os.Getenv("PROMETHEUS_INSECURE") == "1",
@@ -190,6 +197,10 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 		snap.addSource("cluster_controller.GetClusterHealthV1")
 	}
 
+	// Track how long each node has been in a services-hash drift state.
+	// First observation records the start time; cleared when drift resolves.
+	snap.NodeDriftAge = c.updateDriftSince(snap.NodeHealths)
+
 	// ── 3. ObjectStoreDesiredState — objectstore topology from etcd ──────────
 	osCtx, osCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 	defer osCancel()
@@ -256,6 +267,38 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 		snap.addSource("etcd.pki_ca_metadata")
 	}
 
+	// ── 3d2. Ingress desired-state + node ingress status ─────────────────────
+	if etcdCli, err := config.GetEtcdClient(); err == nil {
+		ingCtx, ingCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+		defer ingCancel()
+		if resp, err := etcdCli.Get(ingCtx, "/globular/ingress/v1/spec"); err != nil {
+			snap.addError("etcd", "Get(/globular/ingress/v1/spec)", err)
+			snap.IngressSpecLoadError = err
+		} else if len(resp.Kvs) > 0 {
+			snap.IngressSpecPresent = true
+			snap.IngressSpecRaw = string(resp.Kvs[0].Value)
+			snap.addSource("etcd.ingress_spec")
+		}
+
+		if resp, err := etcdCli.Get(ingCtx, "/globular/ingress/v1/status/", clientv3.WithPrefix()); err == nil {
+			for _, kv := range resp.Kvs {
+				key := string(kv.Key)
+				nodeID := strings.TrimPrefix(key, "/globular/ingress/v1/status/")
+				if nodeID == "" {
+					continue
+				}
+				var payload map[string]interface{}
+				if err := json.Unmarshal(kv.Value, &payload); err != nil {
+					continue
+				}
+				snap.mu.Lock()
+				snap.IngressNodeStatus[nodeID] = payload
+				snap.mu.Unlock()
+			}
+			snap.addSource("etcd.ingress_status")
+		}
+	}
+
 	// ── 3e. Admitted disks — operator-approved disk records from etcd ────────
 	admitCtx, admitCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 	defer admitCancel()
@@ -297,6 +340,82 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 			snap.DesiredTopologyTransition = transition
 			snap.addSource("etcd.topology_transition")
 		}
+	}
+
+	// ── 3i. Scylla schema-guard status from controller ───────────────────────
+	if etcdCli, err := config.GetEtcdClient(); err == nil {
+		sgCtx, sgCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+		defer sgCancel()
+		if resp, err := etcdCli.Get(sgCtx, "/globular/scylla/schema_guard/", clientv3.WithPrefix()); err == nil {
+			for _, kv := range resp.Kvs {
+				key := string(kv.Key)
+				keyspace := strings.TrimPrefix(key, "/globular/scylla/schema_guard/")
+				if keyspace == "" {
+					continue
+				}
+				var payload map[string]interface{}
+				if err := json.Unmarshal(kv.Value, &payload); err != nil {
+					continue
+				}
+				snap.mu.Lock()
+				snap.ScyllaSchemaGuardStatus[keyspace] = payload
+				snap.mu.Unlock()
+			}
+			snap.addSource("etcd.scylla_schema_guard")
+		}
+	}
+
+	// ── 3j. DNS zone reload status ────────────────────────────────────────────
+	if etcdCli, err := config.GetEtcdClient(); err == nil {
+		dnsCtx, dnsCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+		defer dnsCancel()
+		if resp, err := etcdCli.Get(dnsCtx, "/globular/dns/v1/status"); err == nil && len(resp.Kvs) > 0 {
+			var payload map[string]interface{}
+			if err := json.Unmarshal(resp.Kvs[0].Value, &payload); err == nil {
+				snap.DNSZoneReloadStatus = payload
+				snap.addSource("etcd.dns_zone_reload_status")
+			}
+		}
+	}
+
+	// ── 3k. Controller reconcile lane statuses ────────────────────────────────
+	if etcdCli, err := config.GetEtcdClient(); err == nil {
+		laneCtx, laneCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+		defer laneCancel()
+		if resp, err := etcdCli.Get(laneCtx, "/globular/controller/reconcile/lanes/", clientv3.WithPrefix()); err == nil {
+			for _, kv := range resp.Kvs {
+				key := string(kv.Key)
+				lane := strings.TrimPrefix(key, "/globular/controller/reconcile/lanes/")
+				if lane == "" {
+					continue
+				}
+				var payload map[string]interface{}
+				if err := json.Unmarshal(kv.Value, &payload); err != nil {
+					continue
+				}
+				snap.mu.Lock()
+				snap.ReconcileLaneStatus[lane] = payload
+				snap.mu.Unlock()
+			}
+			snap.addSource("etcd.controller_reconcile_lanes")
+		}
+	}
+
+	// ── 3l. Critical key presence checks (Case 05 doctor wiring) ─────────────
+	if etcdCli, err := config.GetEtcdClient(); err == nil {
+		keyCtx, keyCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+		defer keyCancel()
+		for _, key := range config.CriticalEtcdKeys {
+			if resp, err := etcdCli.Get(keyCtx, key); err == nil {
+				snap.CriticalKeyPresent[key] = len(resp.Kvs) > 0
+			}
+		}
+		for _, prefix := range config.CriticalEtcdPrefixes {
+			if resp, err := etcdCli.Get(keyCtx, prefix, clientv3.WithPrefix(), clientv3.WithKeysOnly(), clientv3.WithLimit(1)); err == nil {
+				snap.CriticalKeyPresent[prefix] = len(resp.Kvs) > 0
+			}
+		}
+		snap.addSource("etcd.critical_key_presence")
 	}
 
 	// ── 4. Per-node calls (concurrent, capped) ────────────────────────────────
@@ -649,6 +768,42 @@ func agentClientTLSCreds(serverName string) credentials.TransportCredentials {
 }
 
 // Close releases all agent connections.
+// updateDriftSince updates the in-memory drift-start map and returns a
+// NodeDriftAge map suitable for inclusion in a Snapshot.
+// Nodes with matching desired/applied hashes have their entry cleared.
+// Nodes with mismatching hashes get their first-seen timestamp recorded (or preserved).
+func (c *Collector) updateDriftSince(healths map[string]*cluster_controllerpb.NodeHealth) map[string]time.Duration {
+	now := time.Now()
+	ages := make(map[string]time.Duration)
+
+	c.driftMu.Lock()
+	defer c.driftMu.Unlock()
+
+	// Collect set of node IDs currently in drift.
+	inDrift := make(map[string]bool)
+	for nodeID, nh := range healths {
+		desired := nh.GetDesiredServicesHash()
+		applied := nh.GetAppliedServicesHash()
+		if desired == "" || desired == "services:none" || desired == applied {
+			continue
+		}
+		inDrift[nodeID] = true
+		if _, seen := c.driftSince[nodeID]; !seen {
+			c.driftSince[nodeID] = now
+		}
+		ages[nodeID] = now.Sub(c.driftSince[nodeID])
+	}
+
+	// Clear nodes that have converged.
+	for nodeID := range c.driftSince {
+		if !inDrift[nodeID] {
+			delete(c.driftSince, nodeID)
+		}
+	}
+
+	return ages
+}
+
 func (c *Collector) Close() {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()

@@ -86,9 +86,35 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 		return "", fmt.Errorf("parse spec: %w", err)
 	}
 
-	// Handle ModeDisabled or non-vip_failover modes
-	if spec.Mode != ingress.ModeVIPFailover {
+	// Warn when consuming a non-authoritative spec (Case 02:
+	// BOOTSTRAP_STATE_ESCAPED_TO_PRODUCTION). Destructive actions are still
+	// guarded by IsExplicitDisable below; this log helps operators identify
+	// specs that were not written by a leader-validated reconcile cycle.
+	if !spec.Authoritative && spec.Source != "cluster-controller" {
+		fmt.Printf("ingress: WARNING: applying non-authoritative spec (source=%q generation=%d) — spec may be a bootstrap default\n",
+			spec.Source, spec.Generation)
+	}
+
+	// Disable is destructive and requires fully-qualified intent (Case 11).
+	// IsExplicitDisable checks mode=disabled, explicit_disabled=true, non-empty
+	// reason, and generation > 0. Ambiguous disables hold runtime state.
+	if spec.IsExplicitDisable() {
 		return a.disableKeepalived(ctx, nodeID, etcdClient, dryRun)
+	}
+	// Non-vip modes that are not explicitly disabled are treated as hold-safe.
+	if spec.Mode != ingress.ModeVIPFailover {
+		if etcdClient != nil && strings.EqualFold(string(spec.Mode), string(ingress.ModeDisabled)) {
+			_ = ingress.WriteStatus(ctx, etcdClient, nodeID, &ingress.NodeStatus{
+				NodeID:    nodeID,
+				Phase:     "DEGRADED_SPEC_INVALID",
+				VRRPState: "UNKNOWN",
+				HasVIP:    false,
+				LastError: fmt.Sprintf("ambiguous disable rejected: mode=%s explicit_disabled=%v reason=%q generation=%d",
+					spec.Mode, spec.ExplicitDisabled, spec.Reason, spec.Generation),
+			})
+		}
+		return fmt.Sprintf("keepalived hold-safe for node %s (mode=%s explicit_disabled=%v reason=%q generation=%d)",
+			nodeID, spec.Mode, spec.ExplicitDisabled, spec.Reason, spec.Generation), nil
 	}
 
 	if spec.VIPFailover == nil {

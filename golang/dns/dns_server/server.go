@@ -111,9 +111,9 @@ type server struct {
 	ReplicationFactor int
 
 	// ScyllaDB storage (shared across all DNS instances in the cluster)
-	ScyllaHosts              []string `json:"ScyllaHosts"`
-	ScyllaPort               int      `json:"ScyllaPort"`
-	ScyllaReplicationFactor  int      `json:"ScyllaReplicationFactor"`
+	ScyllaHosts             []string `json:"ScyllaHosts"`
+	ScyllaPort              int      `json:"ScyllaPort"`
+	ScyllaReplicationFactor int      `json:"ScyllaReplicationFactor"`
 
 	// storage
 	store              storage_store.Store
@@ -124,6 +124,21 @@ type server struct {
 	depCancel context.CancelFunc
 
 	mu sync.RWMutex
+
+	// lastKnownGoodDomains retains the most recent successful zone list loaded
+	// from ScyllaDB or explicitly set by API. Used when reloads fail so DNS does
+	// not regress to an empty managed-zone set.
+	lastKnownGoodDomains []string
+
+	// domainReloadStatus is mirrored to etcd for external diagnostics.
+	domainReloadStatus dnsZoneReloadStatus
+}
+
+type dnsZoneReloadStatus struct {
+	Phase         string `json:"phase"`
+	ServingLKG    bool   `json:"serving_last_known_good"`
+	LastError     string `json:"last_error,omitempty"`
+	UpdatedAtUnix int64  `json:"updated_at_unix"`
 }
 
 // -----------------------------------------------------------------------------
@@ -298,13 +313,17 @@ func (srv *server) Init() error {
 	if loadErr == nil && len(domains) > 0 {
 		srv.mu.Lock()
 		srv.Domains = domains
+		srv.lastKnownGoodDomains = append([]string(nil), domains...)
 		srv.mu.Unlock()
+		srv.setReloadStatus("ACTIVE", false, nil)
 	} else {
 		if etcdDomains, etcdErr := srv.loadDomainListFromEtcd(); etcdErr == nil && len(etcdDomains) > 0 {
 			logger.Info("dns: ScyllaDB zone list empty at startup — restoring from etcd mirror", "zones", etcdDomains)
 			srv.mu.Lock()
 			srv.Domains = etcdDomains
+			srv.lastKnownGoodDomains = append([]string(nil), etcdDomains...)
 			srv.mu.Unlock()
+			srv.setReloadStatus("ACTIVE", true, nil)
 			// Re-persist to ScyllaDB so subsequent restarts don't need etcd.
 			if domainsData, mErr := json.Marshal(etcdDomains); mErr == nil {
 				if wErr := srv.store.SetItem("domains", domainsData); wErr != nil {
@@ -506,6 +525,7 @@ func (srv *server) loadDomainsFromStore() ([]string, error) {
 // etcd is NOT the primary store — ScyllaDB is. This mirror exists only so that
 // zones can be restored after a ScyllaDB restart without manual re-registration.
 const etcdDNSZonesKey = "/globular/dns/v1/zones"
+const etcdDNSZoneReloadStatusKey = "/globular/dns/v1/status"
 
 // saveDomainListToEtcd writes the domain list to etcd as a JSON array.
 // Failure is logged but never fatal — ScyllaDB remains the primary store.
@@ -550,13 +570,68 @@ func (srv *server) loadDomainListFromEtcd() ([]string, error) {
 	return domains, nil
 }
 
+func (srv *server) setReloadStatus(phase string, servingLKG bool, lastErr error) {
+	st := dnsZoneReloadStatus{
+		Phase:         phase,
+		ServingLKG:    servingLKG,
+		UpdatedAtUnix: time.Now().Unix(),
+	}
+	if lastErr != nil {
+		st.LastError = lastErr.Error()
+	}
+	srv.mu.Lock()
+	srv.domainReloadStatus = st
+	srv.mu.Unlock()
+
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return
+	}
+	b, err := json.Marshal(st)
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, _ = cli.Put(ctx, etcdDNSZoneReloadStatusKey, string(b))
+}
+
 // refreshDomainCache reloads srv.Domains from ScyllaDB so that the in-memory
 // cache used by the UDP/TCP hot path stays current with changes made on other
 // nodes in the mesh.
 func (srv *server) refreshDomainCache() {
-	domains, err := srv.loadDomainsFromStore()
+	loadCh := make(chan struct {
+		domains []string
+		err     error
+	}, 1)
+	go func() {
+		domains, err := srv.loadDomainsFromStore()
+		loadCh <- struct {
+			domains []string
+			err     error
+		}{domains: domains, err: err}
+	}()
+
+	var (
+		domains []string
+		err     error
+	)
+	select {
+	case res := <-loadCh:
+		domains, err = res.domains, res.err
+	case <-time.After(12 * time.Second):
+		err = fmt.Errorf("zone reload timeout after 12s")
+	}
+
 	if err != nil {
 		logger.Warn("domain cache refresh failed", "err", err)
+		srv.mu.Lock()
+		hasLKG := len(srv.lastKnownGoodDomains) > 0
+		if hasLKG && len(srv.Domains) == 0 {
+			srv.Domains = append([]string(nil), srv.lastKnownGoodDomains...)
+		}
+		srv.mu.Unlock()
+		srv.setReloadStatus("DEGRADED_RELOAD_FAILED", hasLKG, err)
 		return
 	}
 	if domains == nil {
@@ -564,7 +639,11 @@ func (srv *server) refreshDomainCache() {
 	}
 	srv.mu.Lock()
 	srv.Domains = domains
+	if len(domains) > 0 {
+		srv.lastKnownGoodDomains = append([]string(nil), domains...)
+	}
 	srv.mu.Unlock()
+	srv.setReloadStatus("ACTIVE", false, nil)
 }
 
 // startDomainCacheRefresh launches a background goroutine that re-reads the
@@ -657,27 +736,27 @@ func initializeServerDefaults() *server {
 	cfg := DefaultConfig()
 
 	s := &server{
-		Logger:            logger,
-		Name:              string(dnspb.File_dns_proto.Services().Get(0).FullName()),
-		Proto:             dnspb.File_dns_proto.Path(),
-		Path:              func() string { p, _ := filepath.Abs(filepath.Dir(os.Args[0])); return p }(),
-		Port:              cfg.Port,
-		Proxy:             cfg.Proxy,
-		AllowAllOrigins:   cfg.AllowAllOrigins,
-		AllowedOrigins:    cfg.AllowedOrigins,
-		Protocol:          cfg.Protocol,
-		Domain:            cfg.Domain,
-		Address:           cfg.Address,
-		Description:       "DNS service with storage-backed records, zones, and UDP/TCP resolution",
-		Keywords:          []string{"dns", "resolver", "records", "zones", "nameserver", "udp", "tcp"},
-		Repositories:      globular.CloneStringSlice(cfg.Repositories),
-		Discoveries:       globular.CloneStringSlice(cfg.Discoveries),
-		Version:           Version,
-		PublisherID:       cfg.PublisherID,
-		KeepUpToDate:      cfg.KeepUpToDate,
-		KeepAlive:         cfg.KeepAlive,
-		Process:           cfg.Process,
-		ProxyProcess:      cfg.ProxyProcess,
+		Logger:                  logger,
+		Name:                    string(dnspb.File_dns_proto.Services().Get(0).FullName()),
+		Proto:                   dnspb.File_dns_proto.Path(),
+		Path:                    func() string { p, _ := filepath.Abs(filepath.Dir(os.Args[0])); return p }(),
+		Port:                    cfg.Port,
+		Proxy:                   cfg.Proxy,
+		AllowAllOrigins:         cfg.AllowAllOrigins,
+		AllowedOrigins:          cfg.AllowedOrigins,
+		Protocol:                cfg.Protocol,
+		Domain:                  cfg.Domain,
+		Address:                 cfg.Address,
+		Description:             "DNS service with storage-backed records, zones, and UDP/TCP resolution",
+		Keywords:                []string{"dns", "resolver", "records", "zones", "nameserver", "udp", "tcp"},
+		Repositories:            globular.CloneStringSlice(cfg.Repositories),
+		Discoveries:             globular.CloneStringSlice(cfg.Discoveries),
+		Version:                 Version,
+		PublisherID:             cfg.PublisherID,
+		KeepUpToDate:            cfg.KeepUpToDate,
+		KeepAlive:               cfg.KeepAlive,
+		Process:                 cfg.Process,
+		ProxyProcess:            cfg.ProxyProcess,
 		DnsPort:                 cfg.DnsPort,
 		Domains:                 globular.CloneStringSlice(cfg.Domains),
 		ReplicationFactor:       cfg.ReplicationFactor,
@@ -686,7 +765,7 @@ func initializeServerDefaults() *server {
 		ScyllaPort:              cfg.ScyllaPort,
 		ScyllaReplicationFactor: cfg.ScyllaReplicationFactor,
 		Dependencies:            globular.CloneStringSlice(cfg.Dependencies),
-		Permissions: make([]any, 0),
+		Permissions:             make([]any, 0),
 	}
 
 	if s.Root == "" {

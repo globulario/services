@@ -85,6 +85,10 @@ func Compile(ctx context.Context, def *v1alpha1.WorkflowDefinition) (*CompiledWo
 			cc := compileCondition(s.When)
 			cs.When = &cc
 		}
+		// Per-step execution strategy (e.g. parallel foreach with concurrency).
+		if s.Strategy != nil {
+			cs.Strategy = compileStrategy(*s.Strategy)
+		}
 		// Workflow hardening fields (WH-1) — pass through if present.
 		if s.Execution != nil {
 			cs.Execution = &CompiledExecution{
@@ -171,6 +175,9 @@ func compileSubSteps(steps []v1alpha1.WorkflowStepSpec) (*CompiledWorkflow, []Di
 		if s.When != nil {
 			cc := compileCondition(s.When)
 			cs.When = &cc
+		}
+		if s.Strategy != nil {
+			cs.Strategy = compileStrategy(*s.Strategy)
 		}
 		sub.Steps[cs.ID] = cs
 	}

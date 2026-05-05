@@ -12,6 +12,13 @@ import (
 	"github.com/gocql/gocql"
 )
 
+var projectionLaneTimeout = 45 * time.Second
+var projectionLaneInitialDelay = 30 * time.Second
+
+type nodeIdentityReconciler interface {
+	Reconcile(ctx context.Context, snapshot []projections.NodeIdentity) error
+}
+
 // initProjections brings up the read-only projections backed by ScyllaDB.
 // Best-effort: if ScyllaDB is unreachable or schema init fails, the server
 // continues without projections and callers fall back to direct state scans
@@ -32,12 +39,93 @@ func (srv *server) initProjections(ctx context.Context) (close func(), err error
 	}
 	srv.nodeIdentityProj = proj
 
-	// Start the reconciler. It re-derives the entire projection from
-	// srv.state every 5 minutes, catching missed synchronous writes.
-	go proj.StartReconcileLoop(ctx, 5*time.Minute, srv.snapshotNodeIdentities)
+	// Start the reconciler lane. Projection rebuilds are best-effort and must
+	// never block critical reconcile lanes; enforce timeout + lane isolation.
+	go srv.startProjectionReconcileLane(ctx, proj, 5*time.Minute)
 
 	log.Printf("projections: node_identity projector online")
 	return func() { session.Close() }, nil
+}
+
+func (srv *server) startProjectionReconcileLane(ctx context.Context, proj nodeIdentityReconciler, interval time.Duration) {
+	if interval <= 0 {
+		interval = 5 * time.Minute
+	}
+
+	// Initial reconcile after warmup.
+	timer := time.NewTimer(projectionLaneInitialDelay)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			if !srv.isLeader() {
+				timer.Reset(interval)
+				continue
+			}
+			if !srv.projectionReconcileRunning.CompareAndSwap(false, true) {
+				srv.projectionReconcilePending.Store(true)
+				reconcilePreviousRunActiveTotal.WithLabelValues("projections").Inc()
+				srv.publishReconcileLaneStatus(ctx, "projections", reconcileLaneStatus{
+					Phase:            "BLOCKED",
+					Running:          true,
+					PreviousRunAlive: true,
+					LastError:        "previous run still active",
+				})
+				log.Printf("projections: previous reconcile run still active")
+				timer.Reset(interval)
+				continue
+			}
+
+			func() {
+				defer srv.projectionReconcileRunning.Store(false)
+				for {
+					srv.projectionReconcilePending.Store(false)
+					start := time.Now()
+					reconcileLaneRunning.WithLabelValues("projections").Set(1)
+					rctx, cancel := context.WithTimeout(ctx, projectionLaneTimeout)
+					err := proj.Reconcile(rctx, srv.snapshotNodeIdentities())
+					cancel()
+					reconcileLaneRunning.WithLabelValues("projections").Set(0)
+					reconcileLaneDurationSeconds.WithLabelValues("projections").Observe(time.Since(start).Seconds())
+
+					if err != nil {
+						log.Printf("projections: node_identity reconcile failed: %v", err)
+						if rctx.Err() == context.DeadlineExceeded {
+							reconcileLaneTimeoutsTotal.WithLabelValues("projections").Inc()
+							reconcileBlockedPhase.WithLabelValues("projections").Set(1)
+							srv.publishReconcileLaneStatus(ctx, "projections", reconcileLaneStatus{
+								Phase:     "TIMEOUT",
+								Running:   false,
+								LastError: err.Error(),
+							})
+						} else {
+							srv.publishReconcileLaneStatus(ctx, "projections", reconcileLaneStatus{
+								Phase:     "DEGRADED",
+								Running:   false,
+								LastError: err.Error(),
+							})
+						}
+					} else {
+						reconcileBlockedPhase.WithLabelValues("projections").Set(0)
+						srv.publishReconcileLaneStatus(ctx, "projections", reconcileLaneStatus{
+							Phase:   "OK",
+							Running: false,
+						})
+					}
+					if ctx.Err() != nil {
+						return
+					}
+					if !srv.projectionReconcilePending.CompareAndSwap(true, false) {
+						return
+					}
+					log.Printf("projections: running coalesced follow-up reconcile")
+				}
+			}()
+			timer.Reset(interval)
+		}
+	}
 }
 
 // snapshotNodeIdentities returns the current source-of-truth view of all
@@ -61,7 +149,12 @@ func (srv *server) snapshotNodeIdentities() []projections.NodeIdentity {
 
 // openProjectionsSession connects to ScyllaDB, creates the projections
 // keyspace if it doesn't exist, and returns a session bound to that keyspace.
+// The entire initialization is bounded by a 15-second timeout to prevent
+// blocking the controller startup path.
 func openProjectionsSession(ctx context.Context) (*gocql.Session, error) {
+	initCtx, initCancel := context.WithTimeout(ctx, 15*time.Second)
+	defer initCancel()
+
 	hosts, err := config.GetScyllaHosts()
 	if err != nil || len(hosts) == 0 {
 		return nil, fmt.Errorf("cannot resolve ScyllaDB hosts from etcd: %v", err)
@@ -83,8 +176,12 @@ func openProjectionsSession(ctx context.Context) (*gocql.Session, error) {
 
 	bootstrap, err := cluster.CreateSession()
 	if err != nil {
+		if initCtx.Err() == context.DeadlineExceeded {
+			return nil, fmt.Errorf("scylla bootstrap connect timed out after 15s")
+		}
 		return nil, fmt.Errorf("scylla bootstrap connect: %w", err)
 	}
+	ctx = initCtx
 	rf := projectionReplicationFactor(len(hosts))
 	createKs := fmt.Sprintf(
 		"CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}",
@@ -93,6 +190,20 @@ func openProjectionsSession(ctx context.Context) (*gocql.Session, error) {
 	if err := bootstrap.Query(createKs).WithContext(ctx).Exec(); err != nil {
 		bootstrap.Close()
 		return nil, fmt.Errorf("create keyspace: %w", err)
+	}
+	// Enforce RF on existing keyspace (CREATE IF NOT EXISTS is a no-op on existing keyspaces).
+	// This ensures a pre-existing RF=1 keyspace is promoted at startup without waiting for the
+	// 45s schema guard tick.
+	if rf > 1 {
+		alterKs := fmt.Sprintf(
+			"ALTER KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}",
+			projections.Keyspace, rf,
+		)
+		if aerr := bootstrap.Query(alterKs).WithContext(ctx).Consistency(gocql.One).Exec(); aerr != nil {
+			log.Printf("projections: ALTER KEYSPACE %s RF=%d failed (best-effort): %v", projections.Keyspace, rf, aerr)
+		} else {
+			log.Printf("projections: ALTER KEYSPACE %s RF=%d applied at startup", projections.Keyspace, rf)
+		}
 	}
 	bootstrap.Close()
 

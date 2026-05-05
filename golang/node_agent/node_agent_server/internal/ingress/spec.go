@@ -20,8 +20,52 @@ type Spec struct {
 	Version string `json:"version"` // "v1"
 	Mode    Mode   `json:"mode"`
 
+	// Generation increments on every authoritative controller publish.
+	Generation int64 `json:"generation,omitempty"`
+
+	// Checksum is a content checksum of the canonical spec payload.
+	Checksum string `json:"checksum,omitempty"`
+
+	// WrittenAtUnix is the controller write timestamp (unix seconds).
+	WrittenAtUnix int64 `json:"written_at_unix,omitempty"`
+
+	// WriterLeaderID identifies the controller leader that wrote this spec.
+	WriterLeaderID string `json:"writer_leader_id,omitempty"`
+
+	// Source identifies the authoritative writer ("cluster-controller").
+	Source string `json:"source,omitempty"`
+
+	// ExplicitDisabled must be true to disable keepalived.
+	// Missing spec or mode=disabled with ExplicitDisabled=false is treated as
+	// non-destructive and should trigger hold-last-known-good behavior.
+	ExplicitDisabled bool `json:"explicit_disabled,omitempty"`
+
+	// Reason is a human-readable controller reason for the current spec.
+	Reason string `json:"reason,omitempty"`
+
+	// Authoritative indicates the spec was written and validated by an active
+	// cluster-controller leader with a known cluster topology (Case 02:
+	// BOOTSTRAP_STATE_ESCAPED_TO_PRODUCTION). Specs without this marker are
+	// tentative (bootstrap or operator-injected) — consumers apply them but
+	// log a warning and continue using LKG for destructive decisions.
+	Authoritative bool `json:"authoritative,omitempty"`
+
 	// VIPFailover configuration (only used when Mode == ModeVIPFailover)
 	VIPFailover *VIPFailoverSpec `json:"vip_failover,omitempty"`
+}
+
+// IsExplicitDisable returns true only when the spec carries a fully-qualified
+// disable intent: mode=disabled, explicit_disabled=true, non-empty reason, and
+// positive generation. Any ambiguous disable (missing reason, zero generation,
+// or explicit_disabled=false) is treated as non-destructive — the runtime must
+// hold its last-known-good configuration rather than stopping keepalived.
+//
+// This is the shared policy helper for Case 11 (UNGUARDED_RUNTIME_DESTRUCTIVE_ACTION).
+func (s *Spec) IsExplicitDisable() bool {
+	return s.Mode == ModeDisabled &&
+		s.ExplicitDisabled &&
+		s.Reason != "" &&
+		s.Generation > 0
 }
 
 // VIPFailoverSpec defines keepalived VRRP configuration

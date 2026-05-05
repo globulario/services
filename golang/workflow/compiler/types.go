@@ -53,6 +53,7 @@ type CompiledStep struct {
 	OnFailure  *CompiledHook        `json:"on_failure,omitempty"` // per-item failure hook
 	Export     string               `json:"export,omitempty"`
 	When       *CompiledCondition   `json:"when,omitempty"`
+	Strategy   CompiledStrategy     `json:"strategy,omitempty"` // per-step strategy (e.g. parallel foreach)
 
 	// Workflow hardening (WH-1). Optional — nil means legacy behavior.
 	Execution    *CompiledExecution    `json:"execution,omitempty"`

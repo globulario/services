@@ -301,6 +301,134 @@ func TestForeachWithSubSteps_ChildStatesVisibleInParent(t *testing.T) {
 	}
 }
 
+// buildParallelForeachDef returns a definition with strategy.mode=parallel on the foreach step.
+// Each item sleeps for delayMs before completing via a "node.slow_action" handler.
+func buildParallelForeachDef(concurrency int) *v1alpha1.WorkflowDefinition {
+	n := concurrency
+	concurrencyScalar := &v1alpha1.ScalarInt{Value: &n}
+	return &v1alpha1.WorkflowDefinition{
+		APIVersion: v1alpha1.APIVersion,
+		Kind:       v1alpha1.Kind,
+		Metadata:   v1alpha1.WorkflowMetadata{Name: "test-parallel-foreach"},
+		Spec: v1alpha1.WorkflowDefinitionSpec{
+			Strategy: v1alpha1.ExecutionStrategy{Mode: v1alpha1.StrategySingle},
+			Defaults: map[string]any{
+				"items": []any{"a", "b", "c", "d"},
+			},
+			Steps: []v1alpha1.WorkflowStepSpec{
+				{
+					ID:       "process_items",
+					Foreach:  &v1alpha1.ScalarString{Raw: "$.items"},
+					ItemName: &v1alpha1.ScalarString{Raw: "item"},
+					Export:   &v1alpha1.ScalarString{Raw: "results"},
+					Strategy: &v1alpha1.ExecutionStrategy{
+						Mode:        v1alpha1.StrategyMode("parallel"),
+						Concurrency: concurrencyScalar,
+					},
+					Steps: []v1alpha1.WorkflowStepSpec{
+						{
+							ID:     "work",
+							Actor:  v1alpha1.ActorNodeAgent,
+							Action: "node.slow_action",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestForeachWithSubSteps_ParallelExecution_FasterThanSerial(t *testing.T) {
+	// Each item takes ~50ms. With 4-item parallelism, total should be ~50ms not ~200ms.
+	const itemDelay = 50 * time.Millisecond
+	var mu sync.Mutex
+	activeCount := 0
+	maxConcurrent := 0
+
+	router := NewRouter()
+	router.Register(v1alpha1.ActorNodeAgent, "node.slow_action", func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		mu.Lock()
+		activeCount++
+		if activeCount > maxConcurrent {
+			maxConcurrent = activeCount
+		}
+		mu.Unlock()
+
+		time.Sleep(itemDelay)
+
+		mu.Lock()
+		activeCount--
+		mu.Unlock()
+		return &ActionResult{OK: true}, nil
+	})
+
+	eng := &Engine{Router: router}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	run, err := eng.Execute(ctx, buildParallelForeachDef(4), nil)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if run.Status != RunSucceeded {
+		t.Errorf("expected SUCCEEDED, got %s", run.Status)
+	}
+
+	// 4 items × 50ms serial = 200ms. Parallel should be <130ms (50ms + margin).
+	if elapsed > 150*time.Millisecond {
+		t.Errorf("parallel foreach took %s, expected <150ms (4 items × 50ms should overlap)", elapsed)
+	}
+	t.Logf("Elapsed: %s, maxConcurrent: %d", elapsed, maxConcurrent)
+	if maxConcurrent < 2 {
+		t.Errorf("expected at least 2 concurrent executions, got %d", maxConcurrent)
+	}
+}
+
+func TestForeachWithSubSteps_ParallelPartialFailure_OthersComplete(t *testing.T) {
+	// Item "b" fails immediately. With parallel mode, items a, c, d should still complete.
+	var mu sync.Mutex
+	completed := map[string]bool{}
+
+	router := NewRouter()
+	router.Register(v1alpha1.ActorNodeAgent, "node.slow_action", func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		item, _ := req.Inputs["item"].(string)
+		if item == "b" {
+			return nil, fmt.Errorf("NATIVE_LIBRARY_DEPENDENCY_MISSING: libodbc.so.2 not found on node-b")
+		}
+		mu.Lock()
+		completed[item] = true
+		mu.Unlock()
+		return &ActionResult{OK: true}, nil
+	})
+
+	eng := &Engine{Router: router}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	run, err := eng.Execute(ctx, buildParallelForeachDef(4), nil)
+
+	// Should fail due to item "b".
+	if err == nil {
+		t.Fatal("expected error from partial failure")
+	}
+	if run.Status != RunFailed {
+		t.Errorf("expected FAILED, got %s", run.Status)
+	}
+
+	// Items a, c, d should have completed despite b's failure.
+	mu.Lock()
+	defer mu.Unlock()
+	for _, item := range []string{"a", "c", "d"} {
+		if !completed[item] {
+			t.Errorf("item %q did not complete — was blocked by item b's failure", item)
+		}
+	}
+	t.Logf("Completed items: %v", completed)
+}
+
 func TestForeachWithSubSteps_ItemInputsAvailable(t *testing.T) {
 	var receivedInputs []map[string]any
 	var mu sync.Mutex

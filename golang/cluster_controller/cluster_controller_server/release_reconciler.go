@@ -525,7 +525,9 @@ func (srv *server) getInstalledVersionForRelease(rel *cluster_controllerpb.Servi
 	}
 	// Canonical source: installed-state registry in etcd.
 	canon := canonicalServiceName(rel.Spec.ServiceName)
-	if pkg, err := installed_state.GetInstalledPackage(context.Background(), nodeID, "SERVICE", canon); err == nil && pkg != nil {
+	pkgCtx, pkgCancel := withBounded(boundedShort)
+	defer pkgCancel()
+	if pkg, err := installed_state.GetInstalledPackage(pkgCtx, nodeID, "SERVICE", canon); err == nil && pkg != nil {
 		if v := strings.TrimSpace(pkg.GetVersion()); v != "" {
 			return v
 		}
@@ -538,7 +540,9 @@ func (srv *server) getInstalledVersionForRelease(rel *cluster_controllerpb.Servi
 // Future: read from NodeStatus.Platform directly.
 func (srv *server) getNodePlatform(nodeID string) string {
 	// Best-effort: check installed-state for any package from this node to infer platform.
-	if pkgs, err := installed_state.ListInstalledPackages(context.Background(), nodeID, "SERVICE"); err == nil {
+	platCtx, platCancel := withBounded(boundedShort)
+	defer platCancel()
+	if pkgs, err := installed_state.ListInstalledPackages(platCtx, nodeID, "SERVICE"); err == nil {
 		for _, p := range pkgs {
 			if plat := strings.TrimSpace(p.GetPlatform()); plat != "" {
 				return plat

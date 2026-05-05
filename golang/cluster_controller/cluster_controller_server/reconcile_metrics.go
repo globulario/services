@@ -219,6 +219,42 @@ var (
 		Name:      "xds_last_applied_unix",
 		Help:      "Unix timestamp of the last xDS config change applied to any node.",
 	})
+
+	reconcileLaneRunning = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "reconcile_lane_running",
+		Help:      "1 when the reconcile lane is currently running, 0 otherwise.",
+	}, []string{"lane"})
+
+	reconcileLaneDurationSeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "reconcile_lane_duration_seconds",
+		Help:      "Duration of reconcile lane executions.",
+		Buckets:   prometheus.ExponentialBuckets(0.05, 2, 10),
+	}, []string{"lane"})
+
+	reconcileLaneTimeoutsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "reconcile_lane_timeouts_total",
+		Help:      "Total lane executions that timed out.",
+	}, []string{"lane"})
+
+	reconcilePreviousRunActiveTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "reconcile_previous_run_active_total",
+		Help:      "Times a reconcile lane tick found a previous run still active.",
+	}, []string{"lane"})
+
+	reconcileBlockedPhase = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "reconcile_blocked_phase",
+		Help:      "1 when a phase/lane is blocked (timeout/degraded), else 0.",
+	}, []string{"phase"})
 )
 
 func init() {

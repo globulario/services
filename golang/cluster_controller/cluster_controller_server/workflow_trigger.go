@@ -38,9 +38,9 @@ func (srv *server) triggerJoinWorkflow(nodeID, agentEndpoint string) {
 
 	log.Printf("workflow-trigger: connecting to node-agent at %s for node %s", agentEndpoint, nodeID)
 
-	conn, err := srv.dialNodeAgent(agentEndpoint)
+	conn, _, err := srv.dialNodeAgentForNode(nodeID, agentEndpoint)
 	if err != nil {
-		log.Printf("workflow-trigger: failed to connect to %s: %v", agentEndpoint, err)
+		log.Printf("workflow-trigger: failed to connect to %s (node %s): %v", agentEndpoint, nodeID, err)
 		return
 	}
 	defer conn.Close()

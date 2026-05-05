@@ -9,6 +9,15 @@ import (
 // resolveGRPCAddr normalises a CLI address parameter into a host:port string
 // suitable for gRPC dialing.
 //
+// DNS-free recovery (Case 10: RECOVERY_DEPENDS_ON_DEGRADED_DISCOVERY):
+// When cluster DNS is unavailable, pass a bare IP or IP:port to any command
+// via --controller, --node, or --dns flags. All critical CLI commands support
+// direct endpoint targeting without DNS resolution. Example:
+//
+//	globular doctor report --controller 10.0.0.63:12000
+//	globular scylla schema-guard status --controller 10.0.0.63:12000
+//	globular ingress status --controller 10.0.0.63:12000
+//
 // Accepted input forms:
 //
 //	ip:port                            (e.g. "10.0.0.8:12000")              → used verbatim

@@ -131,44 +131,51 @@ func toWatchEvent(typ string, evt resourcestore.Event) *cluster_controllerpb.Wat
 type kvClient interface {
 	Get(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error)
 	Put(ctx context.Context, key, val string, opts ...clientv3.OpOption) (*clientv3.PutResponse, error)
+	Delete(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.DeleteResponse, error)
 }
 
 type server struct {
 	cluster_controllerpb.UnimplementedClusterControllerServiceServer
 
-	cfg                     *clusterControllerConfig
-	cfgPath                 string
-	statePath               string
-	state                   *controllerState
-	mu                      sync.Mutex
-	muHeldSince             atomic.Int64
-	muHeldBy                atomic.Value
-	kv                      kvClient
-	agentMu                 sync.Mutex
-	agentClients            map[string]*agentClient
-	agentInsecure           bool
-	agentIdleTimeout        time.Duration
-	agentCAPath             string
-	lastStateSave           time.Time
-	agentServerName         string
-	opMu                    sync.Mutex
-	operations              map[string]*operationState
-	watchMu                 sync.Mutex
-	watchers                map[*operationWatcher]struct{}
-	serviceBlock            map[string]time.Time
-	enableServiceRemoval    bool
-	leader                  atomic.Bool
-	leaderID                atomic.Value
-	leaderAddr              atomic.Value
-	leaderEpoch             atomic.Int64
-	resignCh                chan struct{} // signal leader election to resign
-	lastHeartbeatProcessed  atomic.Int64  // UnixNano of last successful ReportNodeStatus
-	reconcileRunning        atomic.Bool
-	clusterReconcileRunning atomic.Bool
-	clusterReconcilePending atomic.Bool
-	workflowRepairNeeded    []string // set under lock, repaired after unlock
-	resources               resourcestore.Store
-	etcdClient              *clientv3.Client
+	cfg                        *clusterControllerConfig
+	cfgPath                    string
+	statePath                  string
+	state                      *controllerState
+	mu                         sync.Mutex
+	muHeldSince                atomic.Int64
+	muHeldBy                   atomic.Value
+	kv                         kvClient
+	agentMu                    sync.Mutex
+	agentClients               map[string]*agentClient
+	agentInsecure              bool
+	agentIdleTimeout           time.Duration
+	agentCAPath                string
+	lastStateSave              time.Time
+	agentServerName            string
+	opMu                       sync.Mutex
+	operations                 map[string]*operationState
+	watchMu                    sync.Mutex
+	watchers                   map[*operationWatcher]struct{}
+	serviceBlock               map[string]time.Time
+	enableServiceRemoval       bool
+	leader                     atomic.Bool
+	leaderID                   atomic.Value
+	leaderAddr                 atomic.Value
+	leaderEpoch                atomic.Int64
+	resignCh                   chan struct{} // signal leader election to resign
+	lastHeartbeatProcessed     atomic.Int64  // UnixNano of last successful ReportNodeStatus
+	reconcileRunning           atomic.Bool
+	clusterReconcileRunning    atomic.Bool
+	clusterReconcilePending    atomic.Bool
+	projectionReconcileRunning atomic.Bool
+	projectionReconcilePending atomic.Bool
+	releaseBridgeRunning       atomic.Bool
+	releaseBridgePending       atomic.Bool
+	driftReconcileRunning      atomic.Bool
+	driftReconcilePending      atomic.Bool
+	workflowRepairNeeded       []string // set under lock, repaired after unlock
+	resources                  resourcestore.Store
+	etcdClient                 *clientv3.Client
 	// releaseEnqueue is set by startControllerRuntime so that ReportNodeStatus can
 	// trigger release re-evaluation when a node's AppliedServicesHash changes.
 	releaseEnqueue func(releaseName string)

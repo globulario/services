@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_service/lkg"
 )
 
 // minioContractFile is the well-known path where the installer and the
@@ -20,6 +21,10 @@ import (
 // source of truth. Any drift between the two is a bug in whoever last
 // wrote the file.
 const minioContractFile = "/var/lib/globular/objectstore/minio.json"
+const (
+	minioContractLKGSubsystem = "objectstore"
+	minioContractLKGKey       = "minio_contract"
+)
 
 // reconcileMinioContract ensures /var/lib/globular/objectstore/minio.json
 // contains a valid JSON contract that matches the MinIO cluster config in
@@ -42,7 +47,8 @@ func (srv *NodeAgentServer) reconcileMinioContract(ctx context.Context) {
 	// Source of truth: etcd — both the consumer config and the topology.
 	etcdCfg, err := config.BuildMinioProxyConfig()
 	if err != nil || etcdCfg == nil {
-		// etcd not ready yet — harmless; try again next tick.
+		// etcd unavailable: hold/repair from LKG if available.
+		srv.reconcileMinioContractFromLKG()
 		return
 	}
 
@@ -78,6 +84,35 @@ func (srv *NodeAgentServer) reconcileMinioContract(ctx context.Context) {
 		log.Printf("minio-contract: write failed: %v", err)
 		return
 	}
+	if raw, err := marshalMinioContract(etcdCfg); err == nil {
+		if err := lkg.StoreRaw(minioContractLKGSubsystem, minioContractLKGKey, sourceGeneration, raw); err != nil {
+			log.Printf("minio-contract: WARNING: failed to persist LKG: %v", err)
+		}
+	}
+}
+
+func (srv *NodeAgentServer) reconcileMinioContractFromLKG() {
+	srv.reconcileMinioContractFromLKGPath(minioContractFile)
+}
+
+func (srv *NodeAgentServer) reconcileMinioContractFromLKGPath(path string) {
+	raw, err := lkg.LoadRaw(minioContractLKGSubsystem, minioContractLKGKey)
+	if err != nil || len(raw) == 0 {
+		return
+	}
+	var cfg config.MinioProxyConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return
+	}
+	existing, existingErr := loadMinioContractFromDisk(path)
+	if existingErr == nil && minioContractsEqual(existing, &cfg) {
+		return
+	}
+	if err := writeMinioContractAtomic(path, &cfg, nil); err != nil {
+		log.Printf("minio-contract: LKG restore failed: %v", err)
+		return
+	}
+	log.Printf("minio-contract: restored from last-known-good")
 }
 
 // loadMinioContractFromDisk reads and parses the on-disk MinIO contract.

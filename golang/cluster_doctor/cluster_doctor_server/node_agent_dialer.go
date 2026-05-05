@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
+	"strings"
 	"sync"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -45,19 +47,50 @@ func (d *controllerNodeAgentDialer) resolveEndpoint(ctx context.Context, nodeID 
 		return "", fmt.Errorf("ListNodes: %w", err)
 	}
 	var found string
+	var fallback string
 	for _, n := range resp.GetNodes() {
 		if n.GetNodeId() == nodeID {
 			found = n.GetAgentEndpoint()
+			fallback = fallbackEndpointFromNodeRecord(n)
 			break
 		}
 	}
 	if found == "" {
 		return "", fmt.Errorf("node %s has no agent_endpoint", nodeID)
 	}
+	// Prefer direct IP endpoint when the registered endpoint host is non-IP.
+	if fallback != "" {
+		found = fallback
+	}
 	d.mu.Lock()
 	d.agentEndpoint[nodeID] = found
 	d.mu.Unlock()
 	return found, nil
+}
+
+func fallbackEndpointFromNodeRecord(n *cluster_controllerpb.NodeRecord) string {
+	endpoint := strings.TrimSpace(n.GetAgentEndpoint())
+	host, port, err := net.SplitHostPort(endpoint)
+	if err != nil || port == "" {
+		return ""
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ""
+	}
+	candidates := []string{
+		strings.TrimSpace(n.GetIdentity().GetAdvertiseIp()),
+	}
+	for _, ip := range n.GetIdentity().GetIps() {
+		candidates = append(candidates, strings.TrimSpace(ip))
+	}
+	for _, c := range candidates {
+		ip := net.ParseIP(c)
+		if ip == nil || ip.IsLoopback() || ip.To4() == nil {
+			continue
+		}
+		return net.JoinHostPort(c, port)
+	}
+	return ""
 }
 
 // dialAgent returns an authenticated gRPC connection to a node-agent.

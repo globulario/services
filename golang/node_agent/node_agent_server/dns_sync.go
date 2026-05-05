@@ -12,6 +12,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	dns_client "github.com/globulario/services/golang/dns/dns_client"
+	"github.com/globulario/services/golang/globular_service/lkg"
 	"github.com/globulario/services/golang/security"
 )
 
@@ -19,6 +20,8 @@ const (
 	dnsDefaultTTL                = 60
 	defaultSessionTimeoutMinutes = 15
 	dnsInitConfigPath            = "/var/lib/globular/dns/dns_init.json"
+	dnsInitLKGSubsystem          = "dns"
+	dnsInitLKGKey                = "dns_init_config"
 )
 
 func (srv *NodeAgentServer) syncDNS(spec *cluster_controllerpb.ClusterNetworkSpec) error {
@@ -124,18 +127,17 @@ type dnsGlueConfig struct {
 // applyDNSInitConfig reads the DNS init config file and applies SOA, NS, and glue records.
 // This is called after basic DNS sync to set up authoritative DNS records.
 func applyDNSInitConfig(client *dns_client.Dns_Client, token string) error {
-	data, err := os.ReadFile(dnsInitConfigPath)
+	config, source, err := loadDNSInitConfigWithLKG()
 	if err != nil {
-		if os.IsNotExist(err) {
-			// No init config - this is fine, node may not have DNS profile
-			return nil
-		}
-		return fmt.Errorf("read dns init config: %w", err)
+		return err
 	}
 
-	var config dnsInitConfig
-	if err := json.Unmarshal(data, &config); err != nil {
-		return fmt.Errorf("parse dns init config: %w", err)
+	if config == nil {
+		// No file and no LKG; non-DNS nodes are allowed to be empty.
+		return nil
+	}
+	if source == "lkg" {
+		fmt.Printf("nodeagent: dns init config: using last-known-good\n")
 	}
 
 	if config.Domain == "" {
@@ -199,6 +201,37 @@ func applyDNSInitConfig(client *dns_client.Dns_Client, token string) error {
 	}
 
 	return nil
+}
+
+func loadDNSInitConfigWithLKG() (*dnsInitConfig, string, error) {
+	return loadDNSInitConfigWithLKGPath(dnsInitConfigPath)
+}
+
+func loadDNSInitConfigWithLKGPath(path string) (*dnsInitConfig, string, error) {
+	data, err := os.ReadFile(path)
+	if err == nil {
+		var cfg dnsInitConfig
+		if err := json.Unmarshal(data, &cfg); err == nil {
+			_ = lkg.StoreRaw(dnsInitLKGSubsystem, dnsInitLKGKey, time.Now().Unix(), data)
+			return &cfg, "file", nil
+		}
+		// File exists but is invalid; fall through to LKG.
+	}
+	if err != nil && !os.IsNotExist(err) {
+		return nil, "", fmt.Errorf("read dns init config: %w", err)
+	}
+	raw, lkgErr := lkg.LoadRaw(dnsInitLKGSubsystem, dnsInitLKGKey)
+	if lkgErr != nil || len(raw) == 0 {
+		if err != nil && !os.IsNotExist(err) {
+			return nil, "", fmt.Errorf("dns init config unavailable and no LKG: %w", err)
+		}
+		return nil, "", nil
+	}
+	var cfg dnsInitConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return nil, "", fmt.Errorf("dns init LKG parse: %w", err)
+	}
+	return &cfg, "lkg", nil
 }
 
 func dialDNSWithRetry(ctx context.Context, endpoint string) (*dns_client.Dns_Client, error) {

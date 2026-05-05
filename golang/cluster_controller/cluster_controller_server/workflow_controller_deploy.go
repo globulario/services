@@ -257,7 +257,7 @@ func (srv *server) confirmLeadershipMoved(ctx context.Context, oldLeaderNodeID s
 // remoteApplyPackageRelease calls the node-agent's ApplyPackageRelease RPC
 // on a remote node to install a package.
 func (srv *server) remoteApplyPackageRelease(ctx context.Context, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr string, buildNumber int64, force bool, buildID string) error {
-	conn, err := srv.dialNodeAgent(agentEndpoint)
+	conn, endpointUsed, err := srv.dialNodeAgentForNode(nodeID, agentEndpoint)
 	if err != nil {
 		return fmt.Errorf("connect to node %s at %s: %w", nodeID, agentEndpoint, err)
 	}
@@ -285,5 +285,9 @@ func (srv *server) remoteApplyPackageRelease(ctx context.Context, nodeID, agentE
 
 	log.Printf("controller-deploy: applied %s@%s on node %s — status=%s",
 		pkgName, version, nodeID, resp.GetStatus())
+	if endpointUsed != agentEndpoint {
+		log.Printf("controller-deploy: node %s apply used fallback endpoint %s (preferred %s)",
+			nodeID, endpointUsed, agentEndpoint)
+	}
 	return nil
 }

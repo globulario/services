@@ -2,11 +2,13 @@ package main
 
 import (
 	"errors"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_service/lkg"
 )
 
 // validContract is the reference config the reconciler should produce.
@@ -118,5 +120,31 @@ func TestMinioContractsEqual(t *testing.T) {
 	}
 	if minioContractsEqual(a, nil) {
 		t.Fatal("non-nil vs nil should compare unequal")
+	}
+}
+
+func TestReconcileMinioContractFromLKG_RestoresMissingFile(t *testing.T) {
+	tmp := t.TempDir()
+	lkg.OverrideBaseDir(tmp)
+	t.Cleanup(func() { lkg.OverrideBaseDir("/var/lib/globular") })
+
+	cfg := validContract()
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal cfg: %v", err)
+	}
+	if err := lkg.StoreRaw(minioContractLKGSubsystem, minioContractLKGKey, 11, raw); err != nil {
+		t.Fatalf("store lkg: %v", err)
+	}
+
+	path := filepath.Join(tmp, "objectstore", "minio.json")
+	srv := &NodeAgentServer{}
+	srv.reconcileMinioContractFromLKGPath(path)
+	loaded, err := loadMinioContractFromDisk(path)
+	if err != nil {
+		t.Fatalf("load restored: %v", err)
+	}
+	if !minioContractsEqual(cfg, loaded) {
+		t.Fatalf("restored contract mismatch")
 	}
 }

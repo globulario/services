@@ -1,10 +1,14 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/globular_service/lkg"
 )
 
 func TestResolveDNSEndpoint(t *testing.T) {
@@ -109,5 +113,41 @@ func TestSelectDNSIPsOverride(t *testing.T) {
 	}
 	if v6 == "" {
 		t.Fatalf("expected v6 override, got empty")
+	}
+}
+
+func TestLoadDNSInitConfigWithLKGPath_FileThenFallback(t *testing.T) {
+	tmp := t.TempDir()
+	lkg.OverrideBaseDir(tmp)
+	t.Cleanup(func() { lkg.OverrideBaseDir("/var/lib/globular") })
+
+	path := filepath.Join(tmp, "dns_init.json")
+	cfg := dnsInitConfig{
+		Domain:    "globular.internal",
+		IsPrimary: true,
+	}
+	raw, _ := json.Marshal(cfg)
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	got, source, err := loadDNSInitConfigWithLKGPath(path)
+	if err != nil {
+		t.Fatalf("load from file: %v", err)
+	}
+	if got == nil || got.Domain != "globular.internal" || source != "file" {
+		t.Fatalf("unexpected file load: cfg=%+v source=%s", got, source)
+	}
+
+	// Corrupt on-disk file should fall back to stored LKG.
+	if err := os.WriteFile(path, []byte("{bad-json"), 0o644); err != nil {
+		t.Fatalf("corrupt write: %v", err)
+	}
+	got2, source2, err := loadDNSInitConfigWithLKGPath(path)
+	if err != nil {
+		t.Fatalf("load from lkg fallback: %v", err)
+	}
+	if got2 == nil || got2.Domain != "globular.internal" || source2 != "lkg" {
+		t.Fatalf("unexpected lkg fallback: cfg=%+v source=%s", got2, source2)
 	}
 }

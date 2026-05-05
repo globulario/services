@@ -107,6 +107,39 @@ type Snapshot struct {
 	// Nil when the controller has not yet published (pre-bootstrap).
 	CAMetadata *config.CAMetadata
 
+	// IngressSpecPresent indicates whether /globular/ingress/v1/spec exists.
+	// IngressSpecLoadError is non-nil only when etcd access failed.
+	IngressSpecPresent   bool
+	IngressSpecLoadError error
+	IngressSpecRaw       string
+
+	// IngressNodeStatus stores per-node ingress status payloads from
+	// /globular/ingress/v1/status/<node_id>. Values are raw JSON maps so rules
+	// can evaluate phase/state without coupling to node-agent internals.
+	IngressNodeStatus map[string]map[string]interface{}
+
+	// ScyllaSchemaGuardStatus stores per-keyspace schema-guard status read from
+	// /globular/scylla/schema_guard/<keyspace>.
+	ScyllaSchemaGuardStatus map[string]map[string]interface{}
+
+	// DNSZoneReloadStatus stores the status payload from
+	// /globular/dns/v1/status published by the DNS service.
+	DNSZoneReloadStatus map[string]interface{}
+
+	// ReconcileLaneStatus stores controller reconcile lane statuses from
+	// /globular/controller/reconcile/lanes/*.
+	ReconcileLaneStatus map[string]map[string]interface{}
+
+	// CriticalKeyPresent stores presence checks for critical etcd keys used by
+	// control-plane guardians. Value is true when the key exists.
+	CriticalKeyPresent map[string]bool
+
+	// NodeDriftAge records how long each node has had a services-hash mismatch
+	// (desired ≠ applied). Populated by the collector's driftSince tracker.
+	// Missing entries mean the node is currently converged. Used by the
+	// cluster.services.drift rule to escalate severity over time.
+	NodeDriftAge map[string]time.Duration
+
 	// NodeRenderedGenerations maps node ID → the objectstore generation that
 	// the node last successfully rendered to disk.
 	// Collected from /globular/nodes/{id}/objectstore/rendered_generation.
@@ -159,11 +192,11 @@ type Snapshot struct {
 // Unmarshalled from report_json verbatim — keep field tags in sync with the
 // action's integrityReport type.
 type IntegrityReport struct {
-	NodeID     string              `json:"node_id"`
-	Checked    int                 `json:"checked"`
-	Findings   []IntegrityFinding  `json:"findings"`
-	Errors     []string            `json:"errors,omitempty"`
-	Invariants map[string]int      `json:"invariants"`
+	NodeID     string             `json:"node_id"`
+	Checked    int                `json:"checked"`
+	Findings   []IntegrityFinding `json:"findings"`
+	Errors     []string           `json:"errors,omitempty"`
+	Invariants map[string]int     `json:"invariants"`
 }
 
 // IntegrityFinding is a single artifact-integrity violation.
@@ -188,6 +221,11 @@ func newSnapshot(id string) *Snapshot {
 		NodeRenderedGenerations:  make(map[string]int64),
 		NodeRenderedFingerprints: make(map[string]string),
 		DiskCandidates:           make(map[string][]*config.DiskCandidate),
+		IngressNodeStatus:        make(map[string]map[string]interface{}),
+		ScyllaSchemaGuardStatus:  make(map[string]map[string]interface{}),
+		DNSZoneReloadStatus:      make(map[string]interface{}),
+		ReconcileLaneStatus:      make(map[string]map[string]interface{}),
+		CriticalKeyPresent:       make(map[string]bool),
 	}
 }
 

@@ -3,6 +3,7 @@
 package testcluster
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -125,6 +126,131 @@ func TestIntegrationReconcile(t *testing.T) {
 			return err2 == nil && strings.Contains(out2, "integration-test-drift")
 		})
 		t.Log("drift detected and workflow dispatched")
+	})
+
+	t.Run("ingress_spec_delete_auto_restore", func(t *testing.T) {
+		const key = "/globular/ingress/v1/spec"
+
+		// Ensure spec exists before destructive test step.
+		beforeRaw := waitForKey(t, key, 60*time.Second)
+		if strings.TrimSpace(beforeRaw) == "" {
+			t.Fatal("ingress spec missing before delete test")
+		}
+		var before map[string]any
+		mustUnmarshalJSON(t, beforeRaw, &before)
+		beforeWritten := int64(0)
+		if v, ok := before["written_at_unix"].(float64); ok {
+			beforeWritten = int64(v)
+		}
+
+		// Delete key to simulate outage condition.
+		if _, err := etcdctl(t, "del", key); err != nil {
+			t.Fatalf("delete ingress spec: %v", err)
+		}
+
+		// Guard should republish automatically within one guard interval.
+		waitFor(t, "ingress spec restored by controller guard", 90*time.Second, func() bool {
+			raw, err := etcdGet(t, key)
+			if err != nil || strings.TrimSpace(raw) == "" {
+				return false
+			}
+			var spec map[string]any
+			if err := json.Unmarshal([]byte(raw), &spec); err != nil {
+				return false
+			}
+			mode, _ := spec["mode"].(string)
+			if mode == "" {
+				return false
+			}
+			if v, ok := spec["written_at_unix"].(float64); ok && int64(v) >= beforeWritten {
+				return true
+			}
+			return false
+		})
+
+		afterRaw, err := etcdGet(t, key)
+		if err != nil {
+			t.Fatalf("read restored ingress spec: %v", err)
+		}
+		var after map[string]any
+		mustUnmarshalJSON(t, afterRaw, &after)
+		t.Logf("ingress spec restored: generation=%v mode=%v written_at=%v",
+			after["generation"], after["mode"], after["written_at_unix"])
+	})
+
+	t.Run("reconcile_lane_status_published", func(t *testing.T) {
+		out, err := etcdctl(t, "get", "/globular/controller/reconcile/lanes/", "--prefix", "--keys-only")
+		if err != nil {
+			t.Fatalf("read reconcile lane keys: %v", err)
+		}
+		keys := strings.TrimSpace(out)
+		if keys == "" {
+			t.Fatal("no reconcile lane status keys published")
+		}
+		if !strings.Contains(keys, "/globular/controller/reconcile/lanes/cluster_reconcile") {
+			t.Fatalf("cluster_reconcile lane status missing:\n%s", keys)
+		}
+		t.Logf("reconcile lane keys:\n%s", keys)
+	})
+
+	t.Run("scylla_schema_enforce_request_consumed", func(t *testing.T) {
+		const (
+			reqKey    = "/globular/scylla/schema_guard/enforce_request"
+			statusKey = "/globular/scylla/schema_guard/dns"
+		)
+		beforeRaw := waitForKey(t, statusKey, 60*time.Second)
+		var before map[string]any
+		mustUnmarshalJSON(t, beforeRaw, &before)
+		beforeUpdated := int64(0)
+		if v, ok := before["updated_at_unix"].(float64); ok {
+			beforeUpdated = int64(v)
+		}
+
+		// Request immediate schema guard run.
+		if err := etcdPut(t, reqKey, fmt.Sprintf("%d", time.Now().Unix())); err != nil {
+			t.Fatalf("write enforce request: %v", err)
+		}
+
+		// Controller should consume (delete) the request key.
+		waitFor(t, "schema enforce request consumed", 90*time.Second, func() bool {
+			v, err := etcdGet(t, reqKey)
+			return err != nil || strings.TrimSpace(v) == ""
+		})
+
+		// And publish a fresher status update for at least one keyspace.
+		waitFor(t, "schema guard status updated", 90*time.Second, func() bool {
+			raw, err := etcdGet(t, statusKey)
+			if err != nil || strings.TrimSpace(raw) == "" {
+				return false
+			}
+			var st map[string]any
+			if err := json.Unmarshal([]byte(raw), &st); err != nil {
+				return false
+			}
+			if v, ok := st["updated_at_unix"].(float64); ok {
+				return int64(v) >= beforeUpdated
+			}
+			return false
+		})
+	})
+
+	t.Run("dns_status_key_contract", func(t *testing.T) {
+		const key = "/globular/dns/v1/status"
+		raw := waitForKey(t, key, 90*time.Second)
+		var st map[string]any
+		mustUnmarshalJSON(t, raw, &st)
+
+		if _, ok := st["phase"]; !ok {
+			t.Fatalf("dns status missing phase: %s", raw)
+		}
+		if _, ok := st["serving_last_known_good"]; !ok {
+			t.Fatalf("dns status missing serving_last_known_good: %s", raw)
+		}
+		if _, ok := st["updated_at_unix"]; !ok {
+			t.Fatalf("dns status missing updated_at_unix: %s", raw)
+		}
+		t.Logf("dns status: phase=%v serving_lkg=%v updated_at=%v",
+			st["phase"], st["serving_last_known_good"], st["updated_at_unix"])
 	})
 }
 

@@ -338,6 +338,22 @@ func (srv *server) RemoveNode(ctx context.Context, req *cluster_controllerpb.Rem
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
 
+	// Topology preflight: block removal if it would violate safety invariants
+	// (Case 12: TOPOLOGY_SAFETY_DRIFT). Force=true overrides the guard.
+	if !req.GetForce() {
+		violations := srv.topologyPreflightForRemove(nodeID)
+		if logTopologyViolations(nodeID, violations) {
+			srv.unlock()
+			msgs := make([]string, 0, len(violations))
+			for _, v := range violations {
+				msgs = append(msgs, v.Message)
+			}
+			return nil, status.Errorf(codes.FailedPrecondition,
+				"topology safety violation — use force=true to override: %s",
+				strings.Join(msgs, "; "))
+		}
+	}
+
 	agentEndpoint := node.AgentEndpoint
 	hostname := node.Identity.Hostname
 	srv.unlock()

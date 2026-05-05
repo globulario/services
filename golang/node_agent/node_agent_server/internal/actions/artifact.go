@@ -691,6 +691,15 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		if err := verifyInstalledBinary(binPath); err != nil {
 			return "", fmt.Errorf("verify %s: %w", service, err)
 		}
+		// Preflight: check that all native shared-library dependencies of the
+		// binary are present on this node. Fail immediately rather than letting
+		// systemd crash-loop for minutes before verify_runtime times out.
+		if missing, err := MissingNativeLibs(ctx, binPath); err == nil && len(missing) > 0 {
+			return "", fmt.Errorf(
+				"NATIVE_LIBRARY_DEPENDENCY_MISSING: %s requires native libraries not installed on this node: %v — install the OS packages providing them (e.g. for libodbc.so.2: apt install unixodbc)",
+				service, missing,
+			)
+		}
 	}
 
 	return fmt.Sprintf("service payload installed version=%s", version), nil

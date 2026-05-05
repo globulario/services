@@ -699,6 +699,8 @@ func (e *Engine) executeForeach(ctx context.Context, run *Run, step *compiler.Co
 // executeForeachWithSubSteps runs a nested sub-DAG per foreach item.
 // Unlike flat foreach, this does NOT short-circuit on first failure —
 // all items run to completion so aggregate steps can compute DEGRADED vs FAILED.
+// When step.Strategy.Mode is "parallel", items run concurrently up to the
+// concurrency limit (default 4). Serial execution is the fallback.
 func (e *Engine) executeForeachWithSubSteps(ctx context.Context, run *Run, step *compiler.CompiledStep, items []any) error {
 	run.stepsMu.RLock()
 	st := run.Steps[step.ID]
@@ -711,20 +713,28 @@ func (e *Engine) executeForeachWithSubSteps(ctx context.Context, run *Run, step 
 		itemName = "target"
 	}
 
-	log.Printf("workflow: step %s starting foreach-with-substeps (%d items, %d sub-steps)",
-		step.ID, len(items), len(step.SubSteps.Steps))
+	parallel := step.Strategy.Mode == "parallel"
+	concurrency := 4
+	if parallel && step.Strategy.Concurrency != nil {
+		if step.Strategy.Concurrency.IsExpr {
+			raw := resolveValue(step.Strategy.Concurrency.Raw, run.Inputs, run.Outputs)
+			if n, ok := toInt(raw); ok && n > 0 {
+				concurrency = n
+			}
+		} else if v, ok := toInt(step.Strategy.Concurrency.Static); ok && v > 0 {
+			concurrency = v
+		}
+	}
 
-	var allResults []any
-	succeeded := 0
-	failed := 0
+	log.Printf("workflow: step %s starting foreach-with-substeps (%d items, %d sub-steps, parallel=%v concurrency=%d)",
+		step.ID, len(items), len(step.SubSteps.Steps), parallel, concurrency)
 
-	for i, item := range items {
-		// Build per-item inputs.
+	// buildItemRun constructs the child run and registers step states on the parent.
+	buildItemRun := func(i int, item any) *Run {
 		itemInputs := make(map[string]any, len(run.Inputs)+3)
 		for k, v := range run.Inputs {
 			itemInputs[k] = v
 		}
-		// Merge parent outputs so sub-steps can see prior step exports.
 		for k, v := range run.Outputs {
 			itemInputs[k] = v
 		}
@@ -734,18 +744,14 @@ func (e *Engine) executeForeachWithSubSteps(ctx context.Context, run *Run, step 
 		if s, ok := item.(string); ok {
 			itemInputs["node_id"] = s
 		}
-		// If item is a map, flatten its fields into inputs for $.target.node_id etc.
 		if m, ok := item.(map[string]any); ok {
 			for k, v := range m {
 				itemInputs[itemName+"."+k] = v
-				// Also expose as node_id if present.
 				if k == "node_id" {
 					itemInputs["node_id"] = v
 				}
 			}
 		}
-
-		// Create a child run for this item's sub-DAG.
 		childRun := &Run{
 			ID:         fmt.Sprintf("%s[%d]", run.ID, i),
 			Definition: run.Definition,
@@ -758,38 +764,88 @@ func (e *Engine) executeForeachWithSubSteps(ctx context.Context, run *Run, step 
 		for id := range step.SubSteps.Steps {
 			childRun.Steps[id] = &StepState{ID: id, Status: StepPending}
 		}
-
-		// Also register child step states in parent run for observability.
 		run.stepsMu.Lock()
 		for id := range step.SubSteps.Steps {
 			qualID := fmt.Sprintf("%s[%d].%s", step.ID, i, id)
 			run.Steps[qualID] = childRun.Steps[id]
 		}
 		run.stepsMu.Unlock()
+		return childRun
+	}
 
-		log.Printf("workflow: %s[%d] starting sub-DAG", step.ID, i)
-		err := e.executeDAG(ctx, childRun, step.SubSteps)
-		childRun.FinishedAt = time.Now()
+	type itemResult struct {
+		index  int
+		output map[string]any
+		err    error
+	}
 
-		if err != nil {
-			childRun.Status = RunFailed
-			childRun.Error = err.Error()
-			failed++
-			log.Printf("workflow: %s[%d] sub-DAG FAILED: %v", step.ID, i, err)
-			// Fire per-item onFailure hook.
-			if step.OnFailure != nil {
-				e.dispatchHook(ctx, childRun, step.OnFailure)
+	results := make([]itemResult, len(items))
+
+	if parallel {
+		sem := make(chan struct{}, concurrency)
+		var wg sync.WaitGroup
+		for i, item := range items {
+			i, item := i, item
+			sem <- struct{}{}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				defer func() { <-sem }()
+				childRun := buildItemRun(i, item)
+				log.Printf("workflow: %s[%d] starting sub-DAG (parallel)", step.ID, i)
+				err := e.executeDAG(ctx, childRun, step.SubSteps)
+				childRun.FinishedAt = time.Now()
+				if err != nil {
+					childRun.Status = RunFailed
+					childRun.Error = err.Error()
+					log.Printf("workflow: %s[%d] sub-DAG FAILED: %v", step.ID, i, err)
+					if step.OnFailure != nil {
+						e.dispatchHook(ctx, childRun, step.OnFailure)
+					}
+					results[i] = itemResult{index: i, err: err}
+				} else {
+					childRun.Status = RunSucceeded
+					log.Printf("workflow: %s[%d] sub-DAG SUCCEEDED", step.ID, i)
+					results[i] = itemResult{index: i, output: childRun.Outputs}
+				}
+			}()
+		}
+		wg.Wait()
+	} else {
+		for i, item := range items {
+			childRun := buildItemRun(i, item)
+			log.Printf("workflow: %s[%d] starting sub-DAG", step.ID, i)
+			err := e.executeDAG(ctx, childRun, step.SubSteps)
+			childRun.FinishedAt = time.Now()
+			if err != nil {
+				childRun.Status = RunFailed
+				childRun.Error = err.Error()
+				log.Printf("workflow: %s[%d] sub-DAG FAILED: %v", step.ID, i, err)
+				if step.OnFailure != nil {
+					e.dispatchHook(ctx, childRun, step.OnFailure)
+				}
+				results[i] = itemResult{index: i, err: err}
+			} else {
+				childRun.Status = RunSucceeded
+				log.Printf("workflow: %s[%d] sub-DAG SUCCEEDED", step.ID, i)
+				results[i] = itemResult{index: i, output: childRun.Outputs}
 			}
+		}
+	}
+
+	var allResults []any
+	succeeded := 0
+	failed := 0
+	for _, r := range results {
+		if r.err != nil {
+			failed++
 			allResults = append(allResults, map[string]any{
-				"index": i, "status": "FAILED", "error": err.Error(),
+				"index": r.index, "status": "FAILED", "error": r.err.Error(),
 			})
-			// Do NOT return — continue with remaining items.
 		} else {
-			childRun.Status = RunSucceeded
 			succeeded++
-			log.Printf("workflow: %s[%d] sub-DAG SUCCEEDED", step.ID, i)
 			allResults = append(allResults, map[string]any{
-				"index": i, "status": "SUCCEEDED", "outputs": childRun.Outputs,
+				"index": r.index, "status": "SUCCEEDED", "outputs": r.output,
 			})
 		}
 	}
@@ -820,6 +876,24 @@ func (e *Engine) executeForeachWithSubSteps(ctx context.Context, run *Run, step 
 		step.ID, succeeded, len(items))
 	e.notifyStep(run, st)
 	return nil
+}
+
+// toInt converts a value to int if possible.
+func toInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	case string:
+		var i int
+		if _, err := fmt.Sscanf(n, "%d", &i); err == nil {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 // --------------------------------------------------------------------------

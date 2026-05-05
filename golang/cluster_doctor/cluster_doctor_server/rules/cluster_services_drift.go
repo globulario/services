@@ -2,6 +2,7 @@ package rules
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
@@ -30,12 +31,21 @@ func (clusterServicesDrift) Evaluate(snap *collector.Snapshot, cfg Config) []Fin
 			summary = fmt.Sprintf("Node %s services state hash mismatch — node lacks privilege for systemd operations", nodeID)
 		}
 
+		driftAge := snap.NodeDriftAge[nodeID]
+		sev := driftSeverity(driftAge)
+
+		ageDesc := ""
+		if driftAge > 0 {
+			ageDesc = fmt.Sprintf(" (drift age: %s)", driftAge.Round(time.Second))
+		}
+
 		evidence := []*cluster_doctorpb.Evidence{
 			kvEvidence("cluster_controller", "GetClusterHealthV1", map[string]string{
 				"node_id":              nodeID,
 				"desired_hash":         desired,
 				"applied_hash":         applied,
 				"can_apply_privileged": fmt.Sprintf("%v", canPriv),
+				"drift_age_seconds":    fmt.Sprintf("%.0f", driftAge.Seconds()),
 			}),
 		}
 
@@ -61,14 +71,26 @@ func (clusterServicesDrift) Evaluate(snap *collector.Snapshot, cfg Config) []Fin
 		findings = append(findings, Finding{
 			FindingID:       FindingID("cluster.services.drift", nodeID, desired),
 			InvariantID:     "cluster.services.drift",
-			Severity:        cluster_doctorpb.Severity_SEVERITY_WARN,
+			Severity:        sev,
 			Category:        "drift",
 			EntityRef:       nodeID,
-			Summary:         summary,
+			Summary:         summary + ageDesc,
 			Evidence:        evidence,
 			Remediation:     remediation,
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		})
 	}
 	return findings
+}
+
+// driftSeverity escalates severity based on how long the drift has persisted.
+//   - Unknown age (0) or < 2 min → WARN (transient, may self-heal)
+//   - 2–5 min → WARN (still recent)
+//   - > 5 min → ERROR (convergence loop should have fixed this)
+func driftSeverity(age time.Duration) cluster_doctorpb.Severity {
+	const errorThreshold = 5 * time.Minute
+	if age > errorThreshold {
+		return cluster_doctorpb.Severity_SEVERITY_ERROR
+	}
+	return cluster_doctorpb.Severity_SEVERITY_WARN
 }

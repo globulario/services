@@ -254,7 +254,7 @@ func main() {
 		return srv.probeScyllaHealth(ctx, endpoint)
 	}
 	srv.scyllaMembers.restartService = func(ctx context.Context, endpoint, unit string) error {
-		conn, err := srv.dialNodeAgent(endpoint)
+		conn, _, err := srv.dialNodeAgentForEndpoint(endpoint)
 		if err != nil {
 			return fmt.Errorf("connect to node agent %s: %w", endpoint, err)
 		}
@@ -275,7 +275,7 @@ func main() {
 		return nil
 	}
 	srv.scyllaMembers.wipeScyllaData = func(ctx context.Context, endpoint string) error {
-		conn, err := srv.dialNodeAgent(endpoint)
+		conn, _, err := srv.dialNodeAgentForEndpoint(endpoint)
 		if err != nil {
 			return fmt.Errorf("connect to node agent %s: %w", endpoint, err)
 		}
@@ -416,9 +416,16 @@ func main() {
 	srv.startHealthMonitorLoop(ctx)
 	srv.startLeaderLivenessCheck(ctx)
 	srv.startPostureLoop(ctx)
+	// Authority lanes MUST start before derived-state lanes (Case 09:
+	// DERIVED_STATE_BLOCKS_AUTHORITY). Projections are consumers of authority,
+	// never a gate for authority publication. This ordering is structural
+	// enforcement: if initProjections blocks or fails, ingress/schema guards
+	// are already running and continue unaffected.
+	srv.startIngressSpecGuard(ctx)
+	srv.startScyllaSchemaGuard(ctx)
 
-	// Bring up read-only projections (node_identity, …). Best-effort: the
-	// server continues if ScyllaDB is unreachable. See projection-clauses.md.
+	// Derived-state lane: read-only projections (node_identity, …). Best-effort:
+	// the server continues if ScyllaDB is unreachable. See projection-clauses.md.
 	closeProjections, _ := srv.initProjections(ctx)
 	defer closeProjections()
 
