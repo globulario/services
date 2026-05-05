@@ -21,6 +21,8 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+var writeConvergenceResult = installed_state.WriteConvergenceResult
+
 func defaultClusterID() string {
 	if d, err := config.GetDomain(); err == nil && strings.TrimSpace(d) != "" {
 		return strings.TrimSpace(d)
@@ -247,6 +249,17 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		if wfIDForBlock == "" {
 			wfIDForBlock = "install-package"
 		}
+		provider := nativeDepProvider(missingLib)
+		manualAction := nativeDepManualAction(missingLib)
+		evidence := map[string]string{
+			"missing_lib": missingLib,
+		}
+		if provider != "" {
+			evidence["provider"] = provider
+		}
+		if manualAction != "" {
+			evidence["manual_action"] = manualAction
+		}
 		log.Printf("grpc-workflow: install-package %s BLOCKED — native dep %q absent", pkgName, missingLib)
 		srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
 			ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
@@ -257,8 +270,8 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 			DesiredBuildID:  buildID,
 			Outcome:         installed_state.OutcomeBlockedMissingNativeDep,
 			ReasonCode:      "missing_native_dep",
-			UnblockPolicy:   "native_dep_must_be_installed:" + missingLib,
-			Evidence:        map[string]string{"missing_lib": missingLib},
+			UnblockPolicy:   "dependency_present|operator_resume|policy_changed",
+			Evidence:        evidence,
 			SourceComponent: "node-agent",
 		})
 		return &node_agentpb.RunWorkflowResponse{
@@ -370,7 +383,7 @@ func (srv *NodeAgentServer) emitConvergenceResult(r *installed_state.Convergence
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 		defer cancel()
-		if err := installed_state.WriteConvergenceResult(ctx, r); err != nil {
+		if err := writeConvergenceResult(ctx, r); err != nil {
 			log.Printf("grpc-workflow: convergence-result %s/%s: %v", r.NodeID, r.Package, err)
 		}
 	}()

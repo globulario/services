@@ -93,3 +93,12 @@ func TestNativeLibPresentVersionedVariant(t *testing.T) {
 		t.Error("versioned variant libfoo.so.2.0.0 should satisfy soname libfoo.so.2 check")
 	}
 }
+
+func TestNativeDepMetadataODBC(t *testing.T) {
+	if got := nativeDepProvider("libodbc.so.2"); got != "debian:unixodbc" {
+		t.Fatalf("provider=%q, want debian:unixodbc", got)
+	}
+	if got := nativeDepManualAction("libodbc.so.2"); got != "sudo apt-get install -y unixodbc" {
+		t.Fatalf("manual_action=%q, want sudo apt-get install -y unixodbc", got)
+	}
+}

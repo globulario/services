@@ -10,8 +10,12 @@ import (
 // Core Globular packages are pure Go binaries with no C deps; add entries
 // here when a service links against a native library.
 var packageNativeDeps = map[string][]string{
-	// Example for a future ODBC-dependent service:
-	// "my-odbc-service": {"libodbc.so.2"},
+	// SQL package requires unixODBC runtime on Linux nodes.
+	"sql": {"libodbc.so.2"},
+}
+
+var nativeDepProviders = map[string]string{
+	"libodbc.so.2": "debian:unixodbc",
 }
 
 // nativeLibScanDirs lists the standard library directories on Debian/Ubuntu
@@ -53,4 +57,17 @@ func nativeLibPresent(soname string) bool {
 		}
 	}
 	return false
+}
+
+func nativeDepProvider(soname string) string {
+	return nativeDepProviders[soname]
+}
+
+func nativeDepManualAction(soname string) string {
+	switch soname {
+	case "libodbc.so.2":
+		return "sudo apt-get install -y unixodbc"
+	default:
+		return ""
+	}
 }
