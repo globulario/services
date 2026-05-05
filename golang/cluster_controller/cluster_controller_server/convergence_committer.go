@@ -52,6 +52,11 @@ func (c *convergenceCommitter) Start(ctx context.Context) {
 	})
 }
 
+// stalePendingTTL is how long a LocalPendingSync result may sit before we
+// emit a warning. After this threshold the controller has failed to commit
+// at least N polling cycles — usually indicates an etcd or leader issue.
+const stalePendingTTL = 10 * time.Minute
+
 func (c *convergenceCommitter) runOnce(ctx context.Context) {
 	nodeIDs, err := installed_state.ListNodeIDs(ctx)
 	if err != nil {
@@ -60,6 +65,7 @@ func (c *convergenceCommitter) runOnce(ctx context.Context) {
 	}
 
 	desired := c.srv.collectDesiredVersions(ctx)
+	staleThreshold := time.Now().Add(-stalePendingTTL).Unix()
 
 	for _, nodeID := range nodeIDs {
 		results, err := installed_state.ListConvergenceResults(ctx, nodeID)
@@ -68,6 +74,11 @@ func (c *convergenceCommitter) runOnce(ctx context.Context) {
 			continue
 		}
 		for _, r := range results {
+			if r.Outcome == installed_state.OutcomeSuccessLocalPendingSync &&
+				r.LastAttemptAt > 0 && r.LastAttemptAt < staleThreshold {
+				log.Printf("convergence-committer: WARNING stale pending-sync node=%s pkg=%s since %s — controller may have lost etcd connectivity",
+					r.NodeID, r.Package, time.Unix(r.LastAttemptAt, 0).Format(time.RFC3339))
+			}
 			c.processResult(ctx, r, desired)
 		}
 	}
@@ -75,7 +86,7 @@ func (c *convergenceCommitter) runOnce(ctx context.Context) {
 
 func (c *convergenceCommitter) processResult(ctx context.Context, r *installed_state.ConvergenceResultV1, desired map[string]desiredVersionInfo) {
 	switch r.Outcome {
-	case installed_state.OutcomeSuccessCommitted:
+	case installed_state.OutcomeSuccessLocalPendingSync:
 		kind := strings.ToUpper(strings.TrimSpace(r.Evidence["kind"]))
 		if kind == "" {
 			kind = "SERVICE"
@@ -106,23 +117,29 @@ func (c *convergenceCommitter) processResult(ctx context.Context, r *installed_s
 			pkg.BuildNumber = dv.buildNumber
 		}
 
-		if err := installed_state.CommitInstalledPackage(ctx, pkg); err != nil {
-			log.Printf("convergence-committer: commit node=%s pkg=%s/%s: %v",
+		// Atomic Txn: write installed-package + promote convergence result to
+		// OutcomeSuccessCommitted + delete convergence action key — all in one
+		// etcd operation. If the controller crashes between any of the previous
+		// separate writes the next leader will retry from OutcomeSuccessLocalPendingSync.
+		if err := installed_state.CommitConvergenceWithInstall(ctx, pkg, r); err != nil {
+			log.Printf("convergence-committer: atomic commit node=%s %s/%s: %v",
 				r.NodeID, kind, r.Package, err)
 			return
 		}
 		log.Printf("convergence-committer: committed node=%s %s/%s@%s build_number=%d",
 			r.NodeID, kind, r.Package, pkg.Version, pkg.BuildNumber)
 
-		// Clean up the convergence result now that installed state is committed.
+	case installed_state.OutcomeSuccessCommitted:
+		// Committed by a previous controller pass; action key may linger if the
+		// delete lost a race. Clean it up now.
 		if err := installed_state.DeleteConvergenceResult(ctx, r.ActionID); err != nil {
-			log.Printf("convergence-committer: delete result %s: %v", r.ActionID, err)
+			log.Printf("convergence-committer: delete committed result %s: %v", r.ActionID, err)
 		}
 
 	case installed_state.OutcomeFailedTransient,
 		installed_state.OutcomeFailedPermanent,
 		installed_state.OutcomeDegradedRetrying:
-		// Leave non-success results for diagnosis. Don't delete.
+		// Leave non-success results in place for diagnosis / operator tooling.
 		log.Printf("convergence-committer: node=%s %s/%s outcome=%s reason=%s",
 			r.NodeID, r.Evidence["kind"], r.Package, r.Outcome, r.ReasonCode)
 

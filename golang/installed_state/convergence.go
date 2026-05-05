@@ -1,28 +1,5 @@
 package installed_state
 
-// Package installed_state — convergence.go
-//
-// A ConvergenceResult is the per-package outcome record written by the
-// node-agent after every install attempt (success, failure, or skip).
-// The controller reads this to learn the actual installed version and then
-// commits the authoritative installed-state record to etcd.
-//
-// etcd key schema:
-//
-//	/globular/nodes/{node_id}/convergence/{kind}/{name}
-//
-// This splits the write ownership cleanly:
-//   - node-agent WRITES convergence results   ← "what happened"
-//   - controller READS convergence, WRITES installed state ← "what is authoritative"
-//
-// Schema:
-//
-// +globular:schema:key="/globular/nodes/{node_id}/convergence/{kind}/{name}"
-// +globular:schema:writer="globular-node-agent"
-// +globular:schema:readers="globular-cluster-controller,globular-cluster-doctor"
-// +globular:schema:description="Per-package convergence outcome written by node-agent after every install attempt."
-// +globular:schema:invariants="Status MUST be one of SUCCEEDED|FAILED|SKIPPED; NodeID, PackageName, PackageKind are required; CommittedUnix must be non-zero."
-
 import (
 	"context"
 	"encoding/json"
@@ -31,115 +8,110 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// Convergence status constants. The controller gate uses these to decide
-// whether to commit the installed-state record or open an incident.
+// ConvergenceOutcome is the persisted convergence verdict.
+type ConvergenceOutcome string
+
 const (
-	ConvergenceStatusSucceeded = "SUCCEEDED"
-	ConvergenceStatusFailed    = "FAILED"
-	ConvergenceStatusSkipped   = "SKIPPED"
+	OutcomeSuccessCommitted          ConvergenceOutcome = "SUCCESS_COMMITTED"
+	OutcomeSuccessLocalPendingSync   ConvergenceOutcome = "SUCCESS_LOCAL_PENDING_SYNC"
+	OutcomeBlockedMissingNativeDep   ConvergenceOutcome = "BLOCKED_MISSING_NATIVE_DEP"
+	OutcomeBlockedCriticalKeyMissing ConvergenceOutcome = "BLOCKED_CRITICAL_KEY_MISSING"
+	OutcomeBlockedNodeUnreachable    ConvergenceOutcome = "BLOCKED_NODE_UNREACHABLE"
+	OutcomeFailedTransient           ConvergenceOutcome = "FAILED_TRANSIENT"
+	OutcomeFailedPermanent           ConvergenceOutcome = "FAILED_PERMANENT"
+	OutcomeDegradedRetrying          ConvergenceOutcome = "DEGRADED_RETRYING"
+	OutcomeStaleInstalledState       ConvergenceOutcome = "STALE_INSTALLED_STATE"
 )
 
-// ConvergenceResult is the outcome record for a single install attempt.
-// It is written by the node-agent and consumed by the cluster controller.
-type ConvergenceResult struct {
-	// NodeID identifies the node where the install was attempted.
-	NodeID string `json:"node_id"`
-	// PackageName is the package name (e.g. "gateway", "etcd").
-	PackageName string `json:"package_name"`
-	// PackageKind is the normalised kind: SERVICE, INFRASTRUCTURE, or COMMAND.
-	PackageKind string `json:"package_kind"`
-	// AttemptedVersion is the version the workflow requested.
-	AttemptedVersion string `json:"attempted_version"`
-	// ActualVersion is the version that is installed on disk now.
-	// For SKIPPED this equals the already-installed version (may differ from
-	// AttemptedVersion when the request targeted the same version that was
-	// already present — they should match — or when an older binary is
-	// already live and the skip was not warranted).
-	ActualVersion string `json:"actual_version"`
-	// BuildID is the exact artifact identity (UUIDv7) of what is on disk.
-	BuildID string `json:"build_id,omitempty"`
-	// Status is one of ConvergenceStatusSucceeded, ConvergenceStatusFailed,
-	// or ConvergenceStatusSkipped.
-	Status string `json:"status"`
-	// Reason is a human-readable explanation, required for SKIPPED and FAILED.
-	Reason string `json:"reason,omitempty"`
-	// OperationID is the workflow operation_id that triggered this attempt.
-	// The controller uses it to correlate convergence results with workflow runs.
-	OperationID string `json:"operation_id,omitempty"`
-	// WorkflowRunID is the ID of the workflow run that triggered this attempt.
-	WorkflowRunID string `json:"workflow_run_id,omitempty"`
-	// CommittedUnix is the Unix timestamp when the node-agent wrote this record.
-	CommittedUnix int64 `json:"committed_unix"`
+const (
+	convergenceActionPrefix = "/globular/convergence/actions/"
+	convergenceLatestPrefix = "/globular/convergence/nodes/"
+)
+
+// ConvergenceResultV1 is the authoritative persisted action outcome contract.
+type ConvergenceResultV1 struct {
+	ActionID       string            `json:"action_id"`
+	WorkflowID     string            `json:"workflow_id"`
+	Package        string            `json:"package"`
+	NodeID         string            `json:"node_id"`
+	DesiredVersion string            `json:"desired_version"`
+	DesiredBuildID string            `json:"desired_build_id"`
+	DesiredHash    string            `json:"desired_hash"`
+	LocalVersion   string            `json:"local_version"`
+	LocalBuildID   string            `json:"local_build_id"`
+	LocalHash      string            `json:"local_hash"`
+	Outcome        ConvergenceOutcome`json:"outcome"`
+	ReasonCode     string            `json:"reason_code"`
+	RetryPolicy    string            `json:"retry_policy"`
+	UnblockPolicy  string            `json:"unblock_policy"`
+	Evidence       map[string]string `json:"evidence,omitempty"`
+	CommittedAt    int64             `json:"committed_at"`
+	LastAttemptAt  int64             `json:"last_attempt_at"`
+	AttemptCount   int32             `json:"attempt_count"`
+	SourceComponent string           `json:"source_component"`
 }
 
-// convergenceKeyPrefix shares the /globular/nodes/ root with installed-state keys.
-const convergenceKeyPrefix = "/globular/nodes/"
-
-// convergenceKey returns the etcd key for a convergence result.
-// Format: /globular/nodes/{node_id}/convergence/{KIND}/{name}
-func convergenceKey(nodeID, kind, name string) string {
-	return convergenceKeyPrefix + nodeID + "/convergence/" + strings.ToUpper(kind) + "/" + name
+func ConvergenceActionKey(actionID string) string {
+	return convergenceActionPrefix + actionID
 }
 
-// nodeConvergencePrefix returns the etcd prefix for all convergence results on a node.
-func nodeConvergencePrefix(nodeID string) string {
-	return convergenceKeyPrefix + nodeID + "/convergence/"
+func ConvergenceLatestKey(nodeID, pkg string) string {
+	return convergenceLatestPrefix + nodeID + "/packages/" + pkg + "/latest"
 }
 
-// nodeConvergenceKindPrefix returns the etcd prefix for convergence results of a specific kind.
-func nodeConvergenceKindPrefix(nodeID, kind string) string {
-	return convergenceKeyPrefix + nodeID + "/convergence/" + strings.ToUpper(kind) + "/"
-}
-
-// ParseConvergenceKey extracts nodeID, kind, and name from an etcd convergence key.
-// Returns an error when the key does not match the expected schema.
-func ParseConvergenceKey(key string) (nodeID, kind, name string, err error) {
-	rest := strings.TrimPrefix(key, convergenceKeyPrefix)
+func ParseConvergenceLatestKey(key string) (nodeID, pkg string, err error) {
+	rest := strings.TrimPrefix(key, convergenceLatestPrefix)
 	if rest == key {
-		return "", "", "", fmt.Errorf("convergence key %q missing prefix %q", key, convergenceKeyPrefix)
+		return "", "", fmt.Errorf("convergence latest key %q missing prefix %q", key, convergenceLatestPrefix)
 	}
-	// rest = "{node_id}/convergence/{KIND}/{name}"
-	parts := strings.SplitN(rest, "/", 4)
-	if len(parts) != 4 || parts[1] != "convergence" || parts[2] == "" || parts[3] == "" {
-		return "", "", "", fmt.Errorf("convergence key %q has unexpected shape (want node/convergence/KIND/name)", key)
+	parts := strings.Split(rest, "/")
+	if len(parts) != 4 || parts[1] != "packages" || parts[3] != "latest" || parts[0] == "" || parts[2] == "" {
+		return "", "", fmt.Errorf("convergence latest key %q has unexpected shape (want node/packages/pkg/latest)", key)
 	}
-	return parts[0], parts[2], parts[3], nil
+	return parts[0], parts[2], nil
 }
 
-// WriteConvergenceResult writes a ConvergenceResult to etcd using the
-// StateCommitWrite policy (30 s timeout, 6 retries, jittered backoff).
-// The controller MUST NOT commit installed-state until this write succeeds.
-func WriteConvergenceResult(ctx context.Context, result *ConvergenceResult) error {
+// WriteConvergenceResult writes both action and latest records via StateCommitWrite.
+func WriteConvergenceResult(ctx context.Context, result *ConvergenceResultV1) error {
 	if err := validateConvergenceResult(result); err != nil {
 		return err
 	}
-	if result.CommittedUnix == 0 {
-		result.CommittedUnix = time.Now().Unix()
+	now := time.Now().Unix()
+	if result.CommittedAt == 0 {
+		result.CommittedAt = now
 	}
+	if result.LastAttemptAt == 0 {
+		result.LastAttemptAt = now
+	}
+	if result.AttemptCount == 0 {
+		result.AttemptCount = 1
+	}
+
 	data, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("convergence_result: marshal: %w", err)
 	}
-	key := convergenceKey(result.NodeID, result.PackageKind, result.PackageName)
-	return config.PutRuntimeWithClass(ctx, key, data, config.StateCommitWrite)
+	if err := config.PutRuntimeWithClass(ctx, ConvergenceActionKey(result.ActionID), data, config.StateCommitWrite); err != nil {
+		return err
+	}
+	return config.PutRuntimeWithClass(ctx, ConvergenceLatestKey(result.NodeID, result.Package), data, config.StateCommitWrite)
 }
 
-// GetConvergenceResult reads a single ConvergenceResult from etcd.
-// Returns (nil, nil) when the key does not exist.
-func GetConvergenceResult(ctx context.Context, nodeID, kind, name string) (*ConvergenceResult, error) {
+func GetConvergenceResult(ctx context.Context, actionID string) (*ConvergenceResultV1, error) {
 	cli, err := config.GetEtcdClient()
 	if err != nil {
 		return nil, fmt.Errorf("convergence_result: etcd client: %w", err)
 	}
-	key := convergenceKey(nodeID, kind, name)
 	tctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
-	resp, err := cli.Get(tctx, key)
+	resp, err := cli.Get(tctx, ConvergenceActionKey(actionID))
 	if err != nil {
-		return nil, fmt.Errorf("convergence_result: get %q: %w", key, err)
+		return nil, fmt.Errorf("convergence_result: get action %q: %w", actionID, err)
 	}
 	if len(resp.Kvs) == 0 {
 		return nil, nil
@@ -147,41 +119,50 @@ func GetConvergenceResult(ctx context.Context, nodeID, kind, name string) (*Conv
 	return unmarshalConvergenceResult(resp.Kvs[0].Value)
 }
 
-// DeleteConvergenceResult removes a ConvergenceResult from etcd.
-// Used by the controller after it has committed the installed-state record.
-func DeleteConvergenceResult(ctx context.Context, nodeID, kind, name string) error {
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		return fmt.Errorf("convergence_result: etcd client: %w", err)
-	}
-	key := convergenceKey(nodeID, kind, name)
-	tctx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
-	_, err = cli.Delete(tctx, key)
-	if err != nil {
-		return fmt.Errorf("convergence_result: delete %q: %w", key, err)
-	}
-	return nil
-}
-
-// ListConvergenceResults returns all ConvergenceResults for a node, optionally
-// filtered to a specific kind. Returns an empty slice when none exist.
-func ListConvergenceResults(ctx context.Context, nodeID, kind string) ([]*ConvergenceResult, error) {
+func GetLatestConvergenceResult(ctx context.Context, nodeID, pkg string) (*ConvergenceResultV1, error) {
 	cli, err := config.GetEtcdClient()
 	if err != nil {
 		return nil, fmt.Errorf("convergence_result: etcd client: %w", err)
 	}
-	prefix := nodeConvergencePrefix(nodeID)
-	if kind != "" {
-		prefix = nodeConvergenceKindPrefix(nodeID, kind)
+	tctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	resp, err := cli.Get(tctx, ConvergenceLatestKey(nodeID, pkg))
+	if err != nil {
+		return nil, fmt.Errorf("convergence_result: get latest %q/%q: %w", nodeID, pkg, err)
 	}
+	if len(resp.Kvs) == 0 {
+		return nil, nil
+	}
+	return unmarshalConvergenceResult(resp.Kvs[0].Value)
+}
+
+func DeleteConvergenceResult(ctx context.Context, actionID string) error {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return fmt.Errorf("convergence_result: etcd client: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	_, err = cli.Delete(tctx, ConvergenceActionKey(actionID))
+	if err != nil {
+		return fmt.Errorf("convergence_result: delete action %q: %w", actionID, err)
+	}
+	return nil
+}
+
+func ListConvergenceResults(ctx context.Context, nodeID string) ([]*ConvergenceResultV1, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return nil, fmt.Errorf("convergence_result: etcd client: %w", err)
+	}
+	prefix := convergenceLatestPrefix + nodeID + "/packages/"
 	tctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	resp, err := cli.Get(tctx, prefix, clientv3.WithPrefix())
 	if err != nil {
-		return nil, fmt.Errorf("convergence_result: list %q: %w", prefix, err)
+		return nil, fmt.Errorf("convergence_result: list latest %q: %w", nodeID, err)
 	}
-	results := make([]*ConvergenceResult, 0, len(resp.Kvs))
+	results := make([]*ConvergenceResultV1, 0, len(resp.Kvs))
 	for _, kv := range resp.Kvs {
 		r, err := unmarshalConvergenceResult(kv.Value)
 		if err != nil {
@@ -192,33 +173,136 @@ func ListConvergenceResults(ctx context.Context, nodeID, kind string) ([]*Conver
 	return results, nil
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
-func validateConvergenceResult(r *ConvergenceResult) error {
+func validateConvergenceResult(r *ConvergenceResultV1) error {
 	if r == nil {
 		return fmt.Errorf("convergence_result: nil result")
+	}
+	if r.ActionID == "" {
+		return fmt.Errorf("convergence_result: action_id is required")
+	}
+	if r.WorkflowID == "" {
+		return fmt.Errorf("convergence_result: workflow_id is required")
+	}
+	if r.Package == "" {
+		return fmt.Errorf("convergence_result: package is required")
 	}
 	if r.NodeID == "" {
 		return fmt.Errorf("convergence_result: node_id is required")
 	}
-	if r.PackageName == "" {
-		return fmt.Errorf("convergence_result: package_name is required")
+	if r.SourceComponent == "" {
+		return fmt.Errorf("convergence_result: source_component is required")
 	}
-	if r.PackageKind == "" {
-		return fmt.Errorf("convergence_result: package_kind is required")
-	}
-	switch r.Status {
-	case ConvergenceStatusSucceeded, ConvergenceStatusFailed, ConvergenceStatusSkipped:
+	switch r.Outcome {
+	case OutcomeSuccessCommitted,
+		OutcomeSuccessLocalPendingSync,
+		OutcomeBlockedMissingNativeDep,
+		OutcomeBlockedCriticalKeyMissing,
+		OutcomeBlockedNodeUnreachable,
+		OutcomeFailedTransient,
+		OutcomeFailedPermanent,
+		OutcomeDegradedRetrying,
+		OutcomeStaleInstalledState:
 	default:
-		return fmt.Errorf("convergence_result: status %q must be SUCCEEDED|FAILED|SKIPPED", r.Status)
+		return fmt.Errorf("convergence_result: outcome %q is invalid", r.Outcome)
 	}
 	return nil
 }
 
-func unmarshalConvergenceResult(data []byte) (*ConvergenceResult, error) {
-	r := &ConvergenceResult{}
+func unmarshalConvergenceResult(data []byte) (*ConvergenceResultV1, error) {
+	r := &ConvergenceResultV1{}
 	if err := json.Unmarshal(data, r); err != nil {
 		return nil, fmt.Errorf("convergence_result: unmarshal: %w", err)
 	}
 	return r, nil
+}
+
+// CommitConvergenceWithInstall atomically commits three etcd operations in a
+// single Txn, preventing partial-write states that would leave installed-state
+// and convergence keys inconsistent after a controller crash:
+//
+//  1. Put: installed-package key   ← authoritative installed state
+//  2. Put: convergence latest key  ← promoted to OutcomeSuccessCommitted
+//  3. Delete: convergence action key ← cleanup, idempotent on retry
+//
+// The result's Outcome is promoted to OutcomeSuccessCommitted and
+// SourceComponent set to "cluster-controller" before the write.
+//
+// Validation mirrors CommitInstalledPackage — call this from the convergence
+// committer instead of calling CommitInstalledPackage + WriteConvergenceResult
+// + DeleteConvergenceResult separately.
+func CommitConvergenceWithInstall(
+	ctx context.Context,
+	pkg *node_agentpb.InstalledPackage,
+	result *ConvergenceResultV1,
+) error {
+	if pkg.GetNodeId() == "" {
+		return fmt.Errorf("convergence_txn: node_id is required")
+	}
+	if pkg.GetName() == "" {
+		return fmt.Errorf("convergence_txn: name is required")
+	}
+	if pkg.GetKind() == "" {
+		return fmt.Errorf("convergence_txn: kind is required")
+	}
+	if result == nil {
+		return fmt.Errorf("convergence_txn: result is required")
+	}
+	if result.ActionID == "" {
+		return fmt.Errorf("convergence_txn: result.action_id is required")
+	}
+	if result.NodeID == "" {
+		return fmt.Errorf("convergence_txn: result.node_id is required")
+	}
+	if result.Package == "" {
+		return fmt.Errorf("convergence_txn: result.package is required")
+	}
+
+	now := time.Now().Unix()
+	if pkg.UpdatedUnix == 0 {
+		pkg.UpdatedUnix = now
+	}
+	if pkg.InstalledUnix == 0 {
+		pkg.InstalledUnix = now
+	}
+	if pkg.Status == "" {
+		pkg.Status = "installed"
+	}
+
+	pkgData, err := protojson.Marshal(pkg)
+	if err != nil {
+		return fmt.Errorf("convergence_txn: marshal pkg: %w", err)
+	}
+
+	// Promote outcome to committed before writing.
+	promoted := *result
+	promoted.Outcome = OutcomeSuccessCommitted
+	promoted.SourceComponent = "cluster-controller"
+	promoted.CommittedAt = now
+
+	resultData, err := json.Marshal(&promoted)
+	if err != nil {
+		return fmt.Errorf("convergence_txn: marshal result: %w", err)
+	}
+
+	installedKey := packageKey(pkg.GetNodeId(), pkg.GetKind(), pkg.GetName())
+	latestKey := ConvergenceLatestKey(result.NodeID, result.Package)
+	actionKey := ConvergenceActionKey(result.ActionID)
+
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return fmt.Errorf("convergence_txn: etcd client: %w", err)
+	}
+
+	tctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	_, err = cli.Txn(tctx).Then(
+		clientv3.OpPut(installedKey, string(pkgData)),
+		clientv3.OpPut(latestKey, string(resultData)),
+		clientv3.OpDelete(actionKey),
+	).Commit()
+	if err != nil {
+		return fmt.Errorf("convergence_txn: commit: %w", err)
+	}
+	return nil
 }
