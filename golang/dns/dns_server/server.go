@@ -131,7 +131,10 @@ type server struct {
 	lastKnownGoodDomains []string
 
 	// domainReloadStatus is mirrored to etcd for external diagnostics.
+	// Protected by reloadMu (separate from mu) to avoid deadlock when
+	// setReloadStatus is called from within mu-protected code.
 	domainReloadStatus dnsZoneReloadStatus
+	reloadMu           sync.Mutex
 }
 
 type dnsZoneReloadStatus struct {
@@ -579,9 +582,9 @@ func (srv *server) setReloadStatus(phase string, servingLKG bool, lastErr error)
 	if lastErr != nil {
 		st.LastError = lastErr.Error()
 	}
-	srv.mu.Lock()
+	srv.reloadMu.Lock()
 	srv.domainReloadStatus = st
-	srv.mu.Unlock()
+	srv.reloadMu.Unlock()
 
 	cli, err := config.GetEtcdClient()
 	if err != nil {
