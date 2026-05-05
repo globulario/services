@@ -34,15 +34,16 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	}
 
 	inputs := map[string]any{
-		"cluster_id":        srv.cfg.ClusterDomain,
-		"release_id":        releaseID,
-		"release_name":      releaseName,
-		"package_name":      pkgName,
-		"package_kind":      pkgKind,
-		"resolved_version":  version,
-		"desired_hash":      desiredHash,
-		"resolved_build_id": resolvedBuildID, // Phase 2: exact artifact identity
-		"candidate_nodes":   nodesAny,
+		"cluster_id":          srv.cfg.ClusterDomain,
+		"release_id":          releaseID,
+		"release_name":        releaseName,
+		"package_name":        pkgName,
+		"package_kind":        pkgKind,
+		"resolved_version":    version,
+		"desired_hash":        desiredHash,
+		"resolved_build_id":   resolvedBuildID, // Phase 2: exact artifact identity
+		"candidate_nodes":     nodesAny,
+		"max_parallel_nodes":  maxParallelNodesForKind(pkgKind),
 	}
 
 	correlationID := releaseID
@@ -130,6 +131,19 @@ func (srv *server) RunRemovePackageWorkflow(ctx context.Context, releaseID, pkgN
 // --------------------------------------------------------------------------
 // Controller action config (runs locally on controller)
 // --------------------------------------------------------------------------
+
+// maxParallelNodesForKind returns the maximum number of nodes that may be
+// upgraded simultaneously for a given package kind. Infrastructure packages
+// use serial rollout (1 node at a time) to preserve quorum — upgrading etcd,
+// ScyllaDB, or MinIO in parallel risks dropping below the replication factor
+// required for consensus. Service and workload packages use 2 as a safe
+// default: one node serves traffic while another upgrades.
+func maxParallelNodesForKind(kind string) int {
+	if strings.ToUpper(kind) == "INFRASTRUCTURE" {
+		return 1
+	}
+	return 2
+}
 
 // releaseResourceType returns the resource type for the release based on pkgKind.
 // SERVICE/WORKLOAD/APPLICATION/COMMAND → ServiceRelease
