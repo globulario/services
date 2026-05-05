@@ -52,10 +52,12 @@ func (c *convergenceCommitter) Start(ctx context.Context) {
 	})
 }
 
-// stalePendingTTL is how long a LocalPendingSync result may sit before we
-// emit a warning. After this threshold the controller has failed to commit
-// at least N polling cycles — usually indicates an etcd or leader issue.
-const stalePendingTTL = 10 * time.Minute
+// Pending-sync thresholds (PR-5 contract defaults).
+// Keep as constants for now; make configurable in a later PR.
+const (
+	pendingSyncWarnAfter  = 5 * time.Minute
+	pendingSyncStaleAfter = 30 * time.Minute
+)
 
 func (c *convergenceCommitter) runOnce(ctx context.Context) {
 	nodeIDs, err := installed_state.ListNodeIDs(ctx)
@@ -65,7 +67,8 @@ func (c *convergenceCommitter) runOnce(ctx context.Context) {
 	}
 
 	desired := c.srv.collectDesiredVersions(ctx)
-	staleThreshold := time.Now().Add(-stalePendingTTL).Unix()
+	warnThreshold := time.Now().Add(-pendingSyncWarnAfter).Unix()
+	staleThreshold := time.Now().Add(-pendingSyncStaleAfter).Unix()
 
 	for _, nodeID := range nodeIDs {
 		results, err := installed_state.ListConvergenceResults(ctx, nodeID)
@@ -74,10 +77,22 @@ func (c *convergenceCommitter) runOnce(ctx context.Context) {
 			continue
 		}
 		for _, r := range results {
-			if r.Outcome == installed_state.OutcomeSuccessLocalPendingSync &&
-				r.LastAttemptAt > 0 && r.LastAttemptAt < staleThreshold {
-				log.Printf("convergence-committer: WARNING stale pending-sync node=%s pkg=%s since %s — controller may have lost etcd connectivity",
-					r.NodeID, r.Package, time.Unix(r.LastAttemptAt, 0).Format(time.RFC3339))
+			if r.Outcome == installed_state.OutcomeSuccessLocalPendingSync && r.LastAttemptAt > 0 {
+				switch {
+				case r.LastAttemptAt < staleThreshold:
+					log.Printf("convergence-committer: STALE pending-sync node=%s pkg=%s since %s — escalating to STALE_INSTALLED_STATE",
+						r.NodeID, r.Package, time.Unix(r.LastAttemptAt, 0).Format(time.RFC3339))
+					stale := *r
+					stale.Outcome = installed_state.OutcomeStaleInstalledState
+					stale.SourceComponent = "cluster-controller"
+					stale.ReasonCode = "PENDING_SYNC_STALE"
+					if err := installed_state.WriteConvergenceResult(ctx, &stale); err != nil {
+						log.Printf("convergence-committer: promote stale pending-sync node=%s pkg=%s: %v", r.NodeID, r.Package, err)
+					}
+				case r.LastAttemptAt < warnThreshold:
+					log.Printf("convergence-committer: WARNING pending-sync node=%s pkg=%s since %s — controller may have lost etcd connectivity",
+						r.NodeID, r.Package, time.Unix(r.LastAttemptAt, 0).Format(time.RFC3339))
+				}
 			}
 			c.processResult(ctx, r, desired)
 		}

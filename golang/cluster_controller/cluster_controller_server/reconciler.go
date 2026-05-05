@@ -163,6 +163,11 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 		// operator or doctor clears the marker.
 		suspendedSet := r.loadSuspendedServices(ctx, nodeID)
 
+		// Block-aware scheduling: load convergence results once per node to
+		// suppress re-dispatch for packages with BLOCKED or FAILED_PERMANENT
+		// outcomes, and apply exponential backoff for transient failures.
+		convergenceMap := driftConvergenceMap(ctx, nodeID)
+
 		pkgs, err := installed_state.ListInstalledPackages(ctx, nodeID, "")
 		if err != nil {
 			log.Printf("drift-reconciler: list installed for node %s: %v", nodeID, err)
@@ -203,6 +208,12 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 			parts0 := strings.SplitN(desiredKey, "/", 2)
 			if len(parts0) == 2 && suspendedSet[parts0[1]] {
 				log.Printf("drift-reconciler: skipping %s on node %s (crash-loop suspended)", parts0[1], nodeID)
+				continue
+			}
+
+			// Block-aware: suppress drift event if the package has a non-retryable
+			// or backoff-gated convergence outcome.
+			if driftSuppressed(convergenceMap, parts0[len(parts0)-1], node.Identity.Hostname, nodeID) {
 				continue
 			}
 
@@ -399,4 +410,71 @@ func (r *driftReconciler) loadSuspendedServices(ctx context.Context, nodeID stri
 		}
 	}
 	return set
+}
+
+// ── Block-aware scheduling helpers ───────────────────────────────────────────
+
+// driftConvergenceMap loads all latest ConvergenceResultV1 records for nodeID,
+// keyed by package name. Returns an empty map on any error (fail-open).
+func driftConvergenceMap(ctx context.Context, nodeID string) map[string]*installed_state.ConvergenceResultV1 {
+	m := make(map[string]*installed_state.ConvergenceResultV1)
+	results, err := installed_state.ListConvergenceResults(ctx, nodeID)
+	if err != nil {
+		return m
+	}
+	for _, r := range results {
+		m[r.Package] = r
+	}
+	return m
+}
+
+// driftSuppressed returns true when the drift event for pkgName on nodeID should
+// be suppressed because the package has a non-retryable or backoff-gated outcome.
+// Fail-open: returns false if no convergence result is found.
+func driftSuppressed(conv map[string]*installed_state.ConvergenceResultV1, pkgName, hostname, nodeID string) bool {
+	r, ok := conv[pkgName]
+	if !ok || r == nil {
+		return false
+	}
+	switch r.Outcome {
+	case installed_state.OutcomeBlockedMissingNativeDep,
+		installed_state.OutcomeBlockedCriticalKeyMissing,
+		installed_state.OutcomeBlockedNodeUnreachable,
+		installed_state.OutcomeFailedPermanent:
+		log.Printf("drift-reconciler: suppressed node=%s pkg=%s outcome=%s",
+			hostname, pkgName, r.Outcome)
+		return true
+	case installed_state.OutcomeFailedTransient, installed_state.OutcomeDegradedRetrying:
+		if r.LastAttemptAt == 0 {
+			return false
+		}
+		backoff := convergenceBackoff(r.AttemptCount)
+		elapsed := time.Since(time.Unix(r.LastAttemptAt, 0))
+		if elapsed < backoff {
+			log.Printf("drift-reconciler: backoff node=%s pkg=%s attempt=%d elapsed=%v backoff=%v",
+				hostname, pkgName, r.AttemptCount, elapsed.Round(time.Second), backoff)
+			return true
+		}
+	}
+	return false
+}
+
+// convergenceBackoff returns an exponential backoff duration for a transient failure.
+// The backoff doubles per attempt (2^attempt minutes) capped at 30 minutes:
+//
+//	attempt 0 → 2 min, attempt 1 → 2 min, attempt 2 → 4 min,
+//	attempt 3 → 8 min, attempt 4 → 16 min, attempt 5+ → 30 min
+func convergenceBackoff(attempts int32) time.Duration {
+	if attempts <= 1 {
+		return 2 * time.Minute
+	}
+	n := int(attempts)
+	if n > 5 {
+		n = 5
+	}
+	d := time.Duration(1<<n) * time.Minute
+	if d > 30*time.Minute {
+		d = 30 * time.Minute
+	}
+	return d
 }

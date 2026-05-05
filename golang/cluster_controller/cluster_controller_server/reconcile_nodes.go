@@ -944,7 +944,7 @@ func (srv *server) retryFailedInfraReleases(ctx context.Context) {
 		}
 		// Only retry if there are unserved nodes that need this package.
 		h := srv.infraReleaseHandle(rel)
-		if !srv.hasUnservedNodes(h) {
+		if !srv.hasUnservedNodes(h, srv.convergenceBlockedNodes(ctx, h.InstalledStateName)) {
 			continue
 		}
 		// Bump generation to trigger FAILED → PENDING transition.

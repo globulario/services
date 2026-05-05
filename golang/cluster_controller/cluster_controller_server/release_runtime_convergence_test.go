@@ -144,7 +144,7 @@ func TestHasUnservedNodes_VersionMatchButRuntimeInactive(t *testing.T) {
 		},
 	}
 
-	if !srv.hasUnservedNodes(h) {
+	if !srv.hasUnservedNodes(h, map[string]struct{}{}) {
 		t.Fatal("expected unserved=true when version matches but runtime is inactive")
 	}
 }
@@ -177,7 +177,7 @@ func TestHasUnservedNodes_VersionMatchAndRuntimeActive(t *testing.T) {
 		},
 	}
 
-	if srv.hasUnservedNodes(h) {
+	if srv.hasUnservedNodes(h, map[string]struct{}{}) {
 		t.Fatal("expected unserved=false when version and runtime both converge")
 	}
 }

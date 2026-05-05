@@ -159,7 +159,7 @@ func TestHasUnservedNodes_EnvoyReady_ControlPlaneCritical_IsUnserved(t *testing.
 		Nodes:              []*cluster_controllerpb.NodeReleaseStatus{},
 		PatchStatus:        func(_ context.Context, _ statusPatch) error { return nil },
 	}
-	if !srv.hasUnservedNodes(hCC) {
+	if !srv.hasUnservedNodes(hCC, map[string]struct{}{}) {
 		t.Error("hasUnservedNodes(cluster-controller) at envoy_ready must return true — control-plane-critical node is eligible")
 	}
 
@@ -174,7 +174,7 @@ func TestHasUnservedNodes_EnvoyReady_ControlPlaneCritical_IsUnserved(t *testing.
 		Nodes:              []*cluster_controllerpb.NodeReleaseStatus{},
 		PatchStatus:        func(_ context.Context, _ statusPatch) error { return nil },
 	}
-	if srv.hasUnservedNodes(hAuth) {
+	if srv.hasUnservedNodes(hAuth, map[string]struct{}{}) {
 		t.Error("hasUnservedNodes(authentication) at envoy_ready must return false — ordinary workload gated until workload_ready")
 	}
 }
@@ -206,7 +206,7 @@ func TestHasUnservedNodes_WorkloadReady_BothServed(t *testing.T) {
 			Nodes:              []*cluster_controllerpb.NodeReleaseStatus{},
 			PatchStatus:        func(_ context.Context, _ statusPatch) error { return nil },
 		}
-		if !srv.hasUnservedNodes(h) {
+		if !srv.hasUnservedNodes(h, map[string]struct{}{}) {
 			t.Errorf("hasUnservedNodes(%s) at workload_ready must return true — gate is open for all workloads", name)
 		}
 	}
@@ -239,7 +239,7 @@ func TestHasUnservedNodes_EtcdReady_NeitherServed(t *testing.T) {
 			Nodes:              []*cluster_controllerpb.NodeReleaseStatus{},
 			PatchStatus:        func(_ context.Context, _ statusPatch) error { return nil },
 		}
-		if srv.hasUnservedNodes(h) {
+		if srv.hasUnservedNodes(h, map[string]struct{}{}) {
 			t.Errorf("hasUnservedNodes(%s) at etcd_ready must return false — infra mesh not up yet, no workload may deploy", name)
 		}
 	}

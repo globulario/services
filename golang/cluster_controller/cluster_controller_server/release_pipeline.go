@@ -626,7 +626,14 @@ func (srv *server) reconcileAvailable(ctx context.Context, h *releaseHandle) {
 	// Check for new nodes that need this release but weren't in the original
 	// dispatch. This handles Day 1 join: a node joins after the release
 	// reached AVAILABLE on existing nodes.
-	if srv.hasUnservedNodes(h) {
+	//
+	// Block-aware: pre-compute which nodes have BLOCKED/FAILED_PERMANENT
+	// convergence outcomes for this package. Those nodes are skipped in
+	// hasUnservedNodes — they need the package but cannot receive a dispatch
+	// right now (missing native dep, key absent, node unreachable, etc.).
+	// This breaks the re-dispatch loop without marking the nodes as "served".
+	blockedNodes := srv.convergenceBlockedNodes(ctx, h.InstalledStateName)
+	if srv.hasUnservedNodes(h, blockedNodes) {
 		log.Printf("%s %s: new unserved node(s) detected, re-entering PENDING to dispatch",
 			h.ResourceType, h.Name)
 		h.PatchStatus(ctx, statusPatch{
@@ -654,7 +661,12 @@ func (srv *server) reconcileAvailable(ctx context.Context, h *releaseHandle) {
 // This is critical for Day 1 join: a node joins, gets dispatched, fails (e.g.
 // 503 during artifact fetch), and must be retried. Without this, the controller
 // treats "was attempted once" as "was successfully served" and never retries.
-func (srv *server) hasUnservedNodes(h *releaseHandle) bool {
+//
+// blockedNodes is a pre-computed set of node IDs that have a BLOCKED or
+// FAILED_PERMANENT convergence outcome for this package. Those nodes are
+// skipped to prevent the infinite re-dispatch loop — they need the package but
+// cannot receive a fresh dispatch until the block condition clears.
+func (srv *server) hasUnservedNodes(h *releaseHandle, blockedNodes map[string]struct{}) bool {
 	srv.lock("hasUnservedNodes")
 	defer srv.unlock()
 
@@ -712,12 +724,51 @@ func (srv *server) hasUnservedNodes(h *releaseHandle) bool {
 				}
 			}
 		}
+		// Convergence signal #3: skip nodes blocked by a BLOCKED/FAILED_PERMANENT
+		// convergence outcome. These nodes need the package but cannot receive a
+		// dispatch right now — skipping prevents the infinite re-dispatch loop.
+		// blockedNodes is pre-computed outside the lock to avoid etcd calls here.
+		if _, isBlocked := blockedNodes[id]; isBlocked {
+			log.Printf("hasUnservedNodes: release=%s node=%s skipped (blocked convergence outcome)",
+				h.Name, id)
+			continue
+		}
+
 		log.Printf("hasUnservedNodes: release=%s node=%s unserved (installed_name=%q resolved_v=%q installed_v=%q)",
 			h.Name, id, h.InstalledStateName, h.ResolvedVersion,
 			node.InstalledVersions[h.InstalledStateName])
 		return true
 	}
 	return false
+}
+
+// convergenceBlockedNodes returns a set of node IDs that have a BLOCKED or
+// FAILED_PERMANENT convergence outcome for pkgName. Called outside the server
+// lock so that etcd reads don't block concurrent state mutations.
+// Fails open: returns an empty set on any error.
+func (srv *server) convergenceBlockedNodes(ctx context.Context, pkgName string) map[string]struct{} {
+	blocked := make(map[string]struct{})
+	if pkgName == "" {
+		return blocked
+	}
+	nodeIDs, err := installed_state.ListNodeIDs(ctx)
+	if err != nil {
+		return blocked
+	}
+	for _, nodeID := range nodeIDs {
+		r, err := installed_state.GetLatestConvergenceResult(ctx, nodeID, pkgName)
+		if err != nil || r == nil {
+			continue
+		}
+		switch r.Outcome {
+		case installed_state.OutcomeBlockedMissingNativeDep,
+			installed_state.OutcomeBlockedCriticalKeyMissing,
+			installed_state.OutcomeBlockedNodeUnreachable,
+			installed_state.OutcomeFailedPermanent:
+			blocked[nodeID] = struct{}{}
+		}
+	}
+	return blocked
 }
 
 // ── Adapters: build releaseHandle from typed releases ────────────────────────

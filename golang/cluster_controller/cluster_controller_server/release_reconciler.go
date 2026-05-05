@@ -317,7 +317,7 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 			return
 		}
 		// Auto-retry: if there are still unserved nodes, re-enter PENDING.
-		if srv.hasUnservedNodes(h) {
+		if srv.hasUnservedNodes(h, srv.convergenceBlockedNodes(ctx, h.InstalledStateName)) {
 			log.Printf("release %s: %s → PENDING (auto-retry, unserved nodes remain)",
 				releaseName, h.Phase)
 			h.PatchStatus(ctx, statusPatch{
@@ -806,7 +806,7 @@ func (srv *server) reconcileInfraRelease(ctx context.Context, releaseName string
 			return
 		}
 		// Auto-retry: if there are unserved nodes, re-enter PENDING.
-		if srv.hasUnservedNodes(h) {
+		if srv.hasUnservedNodes(h, srv.convergenceBlockedNodes(ctx, h.InstalledStateName)) {
 			log.Printf("infra-release %s: %s → PENDING (auto-retry, unserved nodes remain)",
 				releaseName, h.Phase)
 			h.PatchStatus(ctx, statusPatch{

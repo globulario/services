@@ -376,7 +376,7 @@ func TestHasUnservedNodes_DegradedNode_IsUnserved(t *testing.T) {
 		PatchStatus: func(_ context.Context, _ statusPatch) error { return nil },
 	}
 
-	if !srv.hasUnservedNodes(h) {
+	if !srv.hasUnservedNodes(h, map[string]struct{}{}) {
 		t.Fatal("expected hasUnservedNodes=true for DEGRADED per-node status (must trigger re-dispatch)")
 	}
 }
@@ -416,7 +416,7 @@ func TestHasUnservedNodes_EmptyResolvedVersion_SkipsSignal2(t *testing.T) {
 
 	// The node is not in served (no AVAILABLE entry), and signal #2 must NOT
 	// treat "" == "" as a version match. The node must be reported as unserved.
-	if !srv.hasUnservedNodes(h) {
+	if !srv.hasUnservedNodes(h, map[string]struct{}{}) {
 		t.Fatal("expected hasUnservedNodes=true: empty ResolvedVersion must not match empty installed version")
 	}
 }
