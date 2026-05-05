@@ -32,8 +32,10 @@ CREATE TABLE IF NOT EXISTS workflow.step_receipts (
 
 // ── Write ────────────────────────────────────────────────────────────────────
 
-// writeStepReceipt persists a receipt after a step completes successfully.
-// Called by the executor's OnStepDone callback when the step has a receipt_key.
+// writeStepReceipt persists a receipt for step outcomes.
+// Called by the executor's OnStepDone callback. For succeeded steps it stores
+// completion output; for failed/blocked outcomes it stores structured failure
+// metadata (failure_class, reason_code, retry_policy, unblock_signals).
 // Fire-and-forget: errors are logged but never block execution.
 func (srv *server) writeStepReceipt(runID, stepID, receiptKey string, result map[string]any) {
 	if receiptKey == "" {

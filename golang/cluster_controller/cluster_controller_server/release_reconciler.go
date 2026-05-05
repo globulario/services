@@ -273,6 +273,30 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 			log.Printf("release %s: garbage-collected (REMOVED)", releaseName)
 		}
 	case cluster_controllerpb.ReleasePhaseFailed, cluster_controllerpb.ReleasePhaseRolledBack:
+		if rel.Status != nil && isDeterministicBlockedReason(rel.Status.BlockedReason) {
+			if signal, ok := unblockSignalForDeterministicBlock(
+				rel.Status.BlockedReason,
+				rel.Meta.Annotations,
+				rel.Spec.Config,
+				h.Generation > h.ObservedGeneration,
+			); ok {
+				log.Printf("release %s: blocked state unblocked by signal=%s, re-entering PENDING",
+					releaseName, signal)
+				_ = srv.patchReleaseStatus(ctx, releaseName, func(s *cluster_controllerpb.ServiceReleaseStatus) {
+					s.Phase = cluster_controllerpb.ReleasePhasePending
+					s.TransitionReason = "unblocked:" + signal
+					s.BlockedReason = ""
+					s.NextRetryUnixMs = 0
+					s.LastTransientError = ""
+					s.Message = ""
+				})
+				return
+			}
+			// Deterministic prerequisite failure. Do not retry on time.
+			log.Printf("release %s: parked (%s) — waiting for operator/dependency/policy signal",
+				releaseName, rel.Status.BlockedReason)
+			return
+		}
 		// Backoff: wait at least releaseRetryBackoff since the last transition
 		// to avoid a tight FAILED→PENDING→FAILED loop that starves heartbeats.
 		if h.LastTransitionUnixMs > 0 {
@@ -877,6 +901,9 @@ func (srv *server) requeueFailedReleases(ctx context.Context) {
 			phase := rel.Status.Phase
 			switch phase {
 			case cluster_controllerpb.ReleasePhaseFailed, cluster_controllerpb.ReleasePhaseRolledBack:
+				if isDeterministicBlockedReason(rel.Status.BlockedReason) {
+					continue
+				}
 				if rel.Status.LastTransitionUnixMs > 0 {
 					elapsed := now.Sub(time.UnixMilli(rel.Status.LastTransitionUnixMs))
 					if elapsed < releaseRetryBackoff {

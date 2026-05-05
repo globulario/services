@@ -238,6 +238,29 @@ func (srv *server) patchReleasePhaseGuarded(ctx context.Context, resourceType, r
 			rel.Status.Message = reason
 			rel.Status.TransitionReason = reason
 		}
+		if newPhase == cluster_controllerpb.ReleasePhaseFailed {
+			if block, ok := classifyDeterministicBlock(reason); ok {
+				rel.Status.BlockedReason = block.BlockedReason
+				rel.Status.NextRetryUnixMs = 0
+				rel.Status.TransitionReason = block.BlockedReason
+				msg := "deterministic blocked failure; operator/state-change required"
+				msg += ": failure_class=" + block.FailureClass + " reason_code=" + block.ReasonCode
+				if len(block.UnblockSignals) > 0 {
+					msg += " unblock_signals=[" + strings.Join(block.UnblockSignals, ",") + "]"
+				}
+				if block.MissingLibrary != "" {
+					msg += " missing_library=" + block.MissingLibrary
+					if block.Provider != "" {
+						msg += " provider=" + block.Provider
+					}
+					if block.ManualAction != "" {
+						msg += " manual_action=\"" + block.ManualAction + "\""
+					}
+				}
+				msg += " auto_retry=false retry_after=null"
+				rel.Status.Message = msg
+			}
+		}
 		if prev != rel.Status.Phase {
 			_ = srv.emitPhaseTransition(releaseName, prev, rel.Status.Phase, reason)
 			if srv.workflowRec != nil {

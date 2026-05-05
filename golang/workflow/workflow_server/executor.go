@@ -128,10 +128,22 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		OnStepDone: func(run *engine.Run, step *engine.StepState) {
 			recorder.onStepDone(run, step)
 			srv.metricsStep(time.Now())
-			// MC-1: Write receipt if step has a receipt_key and succeeded.
-			if step.Status == engine.StepSucceeded && cw != nil {
+			// MC-1/blocked semantics: write receipts with structured status.
+			// Success writes with explicit receipt_key; deterministic/transient
+			// failures also persist receipt payloads so resume/AI can reason
+			// from failure_class/reason/unblock_signals.
+			if cw != nil {
+				receiptKey := ""
 				if cs, ok := cw.Steps[step.ID]; ok && cs.Execution != nil && cs.Execution.ReceiptKey != "" {
-					srv.writeStepReceipt(runID, step.ID, cs.Execution.ReceiptKey, step.Output)
+					receiptKey = cs.Execution.ReceiptKey
+				}
+				if receiptKey == "" && step.Error != "" {
+					// Auto-key blocked/failed receipts so deterministic blockers
+					// are persisted even for steps without explicit receipt_key.
+					receiptKey = "auto_step_outcome:" + step.ID
+				}
+				if receiptKey != "" {
+					srv.writeStepReceipt(runID, step.ID, receiptKey, buildStepReceiptPayload(step))
 				}
 			}
 		},

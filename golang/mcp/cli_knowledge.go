@@ -179,6 +179,40 @@ var cliCommands = map[string]CLICommand{
 		},
 		FollowUp: []string{"services desired set"},
 	},
+	"pkg resume": {
+		Path:        "pkg resume",
+		Description: "Resume a blocked package release by setting an operator unblock signal",
+		Flags: []CLIFlag{
+			{Name: "node", Type: "string", Required: false, Help: "optional node hint for targeted operator resume"},
+		},
+		Examples: []string{
+			"globular pkg resume sql --node hp-01",
+			"globular pkg resume core@globular.io/sql",
+		},
+		Rules: []string{
+			"Use when release status is blocked by deterministic failures",
+			"Sets release annotations used by reconciler unblock-signal logic",
+		},
+		FollowUp: []string{"release status core@globular.io/sql", "workflow list --status BLOCKED"},
+	},
+	"reconcile retry": {
+		Path:        "reconcile retry",
+		Description: "Trigger retry of a blocked release only via explicit unblock signals",
+		Flags: []CLIFlag{
+			{Name: "package", Type: "string", Required: true, Help: "package/service token or release name"},
+			{Name: "node", Type: "string", Required: false, Help: "optional node hint"},
+			{Name: "dependency-present", Type: "bool", Required: false, Default: "false", Help: "assert dependency-present unblock signal"},
+		},
+		Examples: []string{
+			"globular reconcile retry --package sql --node hp-01",
+			"globular reconcile retry --package core@globular.io/sql --dependency-present",
+		},
+		Rules: []string{
+			"Prefer unblock-signal retry over timer-based retries",
+			"Use for deterministic blocked failures (missing prerequisite, manual approval, dependency missing)",
+		},
+		FollowUp: []string{"release status core@globular.io/sql"},
+	},
 	// Services commands
 	"services desired set": {
 		Path:        "services desired set",
