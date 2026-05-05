@@ -483,6 +483,17 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 		pkgKind = "COMMAND"
 	}
 
+	// Critical key preflight: if a required etcd key is absent, block dispatch
+	// and write OutcomeBlockedCriticalKeyMissing for each eligible node. The
+	// block persists for 5 minutes (driftSuppressed backoff); reconcileResolved
+	// re-checks the key on the next reconcile cycle automatically.
+	if missingKey := criticalKeyPrereqsMissing(ctx, h.InstalledStateName, pkgKind); missingKey != "" {
+		log.Printf("%s %s: critical key %q absent — blocking dispatch on %d node(s)",
+			h.ResourceType, h.Name, missingKey, len(nodeIDs))
+		writeCriticalKeyBlock(ctx, nodeIDs, h.InstalledStateName, pkgKind, missingKey)
+		return
+	}
+
 	releaseID := fmt.Sprintf("%s/%s", h.ResourceType, h.Name)
 
 	// Guard: skip dispatch if a workflow goroutine is already running for
@@ -760,13 +771,15 @@ func (srv *server) convergenceBlockedNodes(ctx context.Context, pkgName string) 
 		if err != nil || r == nil {
 			continue
 		}
-		switch r.Outcome {
-		case installed_state.OutcomeBlockedMissingNativeDep,
-			installed_state.OutcomeBlockedCriticalKeyMissing,
-			installed_state.OutcomeBlockedNodeUnreachable,
-			installed_state.OutcomeFailedPermanent:
-			blocked[nodeID] = struct{}{}
-		}
+	switch r.Outcome {
+	case installed_state.OutcomeBlockedMissingNativeDep,
+		installed_state.OutcomeBlockedCriticalKeyMissing,
+		installed_state.OutcomeBlockedNodeUnreachable,
+		installed_state.OutcomeFailedPermanent,
+		installed_state.OutcomeSuccessLocalPendingSync,
+		installed_state.OutcomeStaleInstalledState:
+		blocked[nodeID] = struct{}{}
+	}
 	}
 	return blocked
 }

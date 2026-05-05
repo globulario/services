@@ -8,9 +8,9 @@ import (
 )
 
 func TestDriftSuppressedBlockedOutcomes(t *testing.T) {
+	// These outcomes suppress drift indefinitely regardless of timing.
 	blocked := []installed_state.ConvergenceOutcome{
 		installed_state.OutcomeBlockedMissingNativeDep,
-		installed_state.OutcomeBlockedCriticalKeyMissing,
 		installed_state.OutcomeBlockedNodeUnreachable,
 		installed_state.OutcomeFailedPermanent,
 	}
@@ -26,8 +26,6 @@ func TestDriftSuppressedBlockedOutcomes(t *testing.T) {
 func TestDriftSuppressedSuccessOutcomesNotSuppressed(t *testing.T) {
 	passOutcomes := []installed_state.ConvergenceOutcome{
 		installed_state.OutcomeSuccessCommitted,
-		installed_state.OutcomeSuccessLocalPendingSync,
-		installed_state.OutcomeStaleInstalledState,
 	}
 	for _, outcome := range passOutcomes {
 		r := &installed_state.ConvergenceResultV1{Outcome: outcome}
@@ -38,11 +36,61 @@ func TestDriftSuppressedSuccessOutcomesNotSuppressed(t *testing.T) {
 	}
 }
 
+func TestDriftSuppressedPendingSyncAndStale(t *testing.T) {
+	blocked := []installed_state.ConvergenceOutcome{
+		installed_state.OutcomeSuccessLocalPendingSync,
+		installed_state.OutcomeStaleInstalledState,
+	}
+	for _, outcome := range blocked {
+		r := &installed_state.ConvergenceResultV1{Outcome: outcome}
+		conv := map[string]*installed_state.ConvergenceResultV1{"workflow": r}
+		if !driftSuppressed(conv, "workflow", "node1", "n1") {
+			t.Errorf("outcome %s should suppress drift", outcome)
+		}
+	}
+}
+
 func TestDriftSuppressedMissingEntry(t *testing.T) {
 	// No convergence result → fail-open (don't suppress).
 	conv := map[string]*installed_state.ConvergenceResultV1{}
 	if driftSuppressed(conv, "workflow", "node1", "n1") {
 		t.Error("missing entry should not suppress drift")
+	}
+}
+
+func TestDriftSuppressedCriticalKeyWithinWindow(t *testing.T) {
+	// CriticalKeyMissing within 5-minute window → suppressed.
+	r := &installed_state.ConvergenceResultV1{
+		Outcome:       installed_state.OutcomeBlockedCriticalKeyMissing,
+		LastAttemptAt: time.Now().Add(-30 * time.Second).Unix(),
+	}
+	conv := map[string]*installed_state.ConvergenceResultV1{"rbac": r}
+	if !driftSuppressed(conv, "rbac", "node1", "n1") {
+		t.Error("CriticalKeyMissing within 5-min window should suppress drift")
+	}
+}
+
+func TestDriftSuppressedCriticalKeyExpired(t *testing.T) {
+	// CriticalKeyMissing after 5-minute window → allow re-check.
+	r := &installed_state.ConvergenceResultV1{
+		Outcome:       installed_state.OutcomeBlockedCriticalKeyMissing,
+		LastAttemptAt: time.Now().Add(-10 * time.Minute).Unix(),
+	}
+	conv := map[string]*installed_state.ConvergenceResultV1{"rbac": r}
+	if driftSuppressed(conv, "rbac", "node1", "n1") {
+		t.Error("CriticalKeyMissing after 5-min window should allow re-check")
+	}
+}
+
+func TestDriftSuppressedCriticalKeyZeroTimestamp(t *testing.T) {
+	// CriticalKeyMissing with zero LastAttemptAt → fail-open (don't suppress).
+	r := &installed_state.ConvergenceResultV1{
+		Outcome:       installed_state.OutcomeBlockedCriticalKeyMissing,
+		LastAttemptAt: 0,
+	}
+	conv := map[string]*installed_state.ConvergenceResultV1{"rbac": r}
+	if driftSuppressed(conv, "rbac", "node1", "n1") {
+		t.Error("CriticalKeyMissing with zero timestamp should not suppress (fail-open)")
 	}
 }
 

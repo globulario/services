@@ -438,12 +438,25 @@ func driftSuppressed(conv map[string]*installed_state.ConvergenceResultV1, pkgNa
 	}
 	switch r.Outcome {
 	case installed_state.OutcomeBlockedMissingNativeDep,
-		installed_state.OutcomeBlockedCriticalKeyMissing,
 		installed_state.OutcomeBlockedNodeUnreachable,
-		installed_state.OutcomeFailedPermanent:
+		installed_state.OutcomeFailedPermanent,
+		installed_state.OutcomeSuccessLocalPendingSync,
+		installed_state.OutcomeStaleInstalledState:
 		log.Printf("drift-reconciler: suppressed node=%s pkg=%s outcome=%s",
 			hostname, pkgName, r.Outcome)
 		return true
+	case installed_state.OutcomeBlockedCriticalKeyMissing:
+		// The missing key may appear once bootstrap completes: re-check every
+		// 5 minutes rather than suppressing indefinitely.
+		if r.LastAttemptAt == 0 {
+			return false
+		}
+		elapsed := time.Since(time.Unix(r.LastAttemptAt, 0))
+		if elapsed < 5*time.Minute {
+			log.Printf("drift-reconciler: critical-key-block node=%s pkg=%s (re-check in %v)",
+				hostname, pkgName, (5*time.Minute-elapsed).Round(time.Second))
+			return true
+		}
 	case installed_state.OutcomeFailedTransient, installed_state.OutcomeDegradedRetrying:
 		if r.LastAttemptAt == 0 {
 			return false
