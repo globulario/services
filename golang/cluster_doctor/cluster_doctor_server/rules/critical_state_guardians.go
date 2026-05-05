@@ -18,6 +18,12 @@ func (ingressSpecMissing) Evaluate(snap *collector.Snapshot, _ Config) []Finding
 	if snap.IngressSpecPresent || len(snap.Nodes) == 0 {
 		return nil
 	}
+	if isLikelyDay0Bootstrap(snap) {
+		// Day-0 bootstrap can legitimately have ingress spec unpublished while
+		// the controller is seeding baseline cluster state. The critical-key
+		// registry already surfaces this as downgraded Day-0 diagnostics.
+		return nil
+	}
 	result := "key_not_found"
 	if snap.IngressSpecLoadError != nil {
 		result = snap.IngressSpecLoadError.Error()

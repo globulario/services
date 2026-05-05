@@ -22,6 +22,7 @@ func (criticalKeyRegistryPresence) Scope() string    { return "cluster" }
 // FAIL — the verdict is indeterminate and must not page the on-call operator.
 func (criticalKeyRegistryPresence) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 	var findings []Finding
+	day0Bootstrap := isLikelyDay0Bootstrap(snap)
 
 	for _, key := range config.CriticalEtcdKeys {
 		if queryErr, failed := snap.CriticalKeyQueryError[key]; failed {
@@ -37,13 +38,19 @@ func (criticalKeyRegistryPresence) Evaluate(snap *collector.Snapshot, _ Config) 
 			continue
 		}
 		invariant := keyToInvariantID(key)
+		severity := cluster_doctorpb.Severity_SEVERITY_ERROR
+		summary := fmt.Sprintf("Critical etcd key %s is absent; authoritative owner must restore it.", key)
+		if day0Bootstrap {
+			severity = cluster_doctorpb.Severity_SEVERITY_WARN
+			summary = fmt.Sprintf("Day-0 bootstrap likely in progress: critical etcd key %s not published yet.", key)
+		}
 		findings = append(findings, Finding{
 			FindingID:   FindingID(invariant, "cluster", key),
 			InvariantID: invariant,
-			Severity:    cluster_doctorpb.Severity_SEVERITY_ERROR,
+			Severity:    severity,
 			Category:    "control_plane",
 			EntityRef:   "cluster",
-			Summary:     fmt.Sprintf("Critical etcd key %s is absent; authoritative owner must restore it.", key),
+			Summary:     summary,
 			Evidence: []*cluster_doctorpb.Evidence{
 				kvEvidence("etcd", fmt.Sprintf("Get(%s)", key), map[string]string{
 					"key":    key,
@@ -68,13 +75,19 @@ func (criticalKeyRegistryPresence) Evaluate(snap *collector.Snapshot, _ Config) 
 			continue
 		}
 		invariant := keyToInvariantID(prefix)
+		severity := cluster_doctorpb.Severity_SEVERITY_WARN
+		summary := fmt.Sprintf("No keys found under critical prefix %s.", prefix)
+		if day0Bootstrap {
+			severity = cluster_doctorpb.Severity_SEVERITY_INFO
+			summary = fmt.Sprintf("Day-0 bootstrap likely in progress: no keys published yet under critical prefix %s.", prefix)
+		}
 		findings = append(findings, Finding{
 			FindingID:   FindingID(invariant, "cluster", prefix),
 			InvariantID: invariant,
-			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Severity:    severity,
 			Category:    "control_plane",
 			EntityRef:   "cluster",
-			Summary:     fmt.Sprintf("No keys found under critical prefix %s.", prefix),
+			Summary:     summary,
 			Evidence: []*cluster_doctorpb.Evidence{
 				kvEvidence("etcd", fmt.Sprintf("Get(%s, prefix)", prefix), map[string]string{
 					"prefix": prefix,

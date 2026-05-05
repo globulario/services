@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/config"
@@ -13,11 +14,48 @@ import (
 func TestCriticalKeyRegistryPresence_MissingKeysEmitFindings(t *testing.T) {
 	inv := criticalKeyRegistryPresence{}
 	// All keys absent.
-	snap := &collector.Snapshot{CriticalKeyPresent: map[string]bool{}}
+	snap := &collector.Snapshot{
+		CriticalKeyPresent: map[string]bool{},
+		// Avoid Day-0 heuristic in this baseline test.
+		Nodes: []*cluster_controllerpb.NodeRecord{{NodeId: "n1"}, {NodeId: "n2"}},
+	}
 	findings := inv.Evaluate(snap, Config{})
 	expected := len(config.CriticalEtcdKeys) + len(config.CriticalEtcdPrefixes)
 	if len(findings) != expected {
 		t.Fatalf("expected %d findings (one per registry entry), got %d", expected, len(findings))
+	}
+}
+
+func TestCriticalKeyRegistryPresence_Day0DowngradesSeverity(t *testing.T) {
+	inv := criticalKeyRegistryPresence{}
+	snap := &collector.Snapshot{
+		Nodes: []*cluster_controllerpb.NodeRecord{{NodeId: "n1"}},
+		CriticalKeyPresent: map[string]bool{
+			"/globular/system/config":          false,
+			"/globular/nodes/":                 false,
+			"/globular/resources/":             false,
+			"/globular/ingress/v1/spec":        false,
+			"/globular/ingress/v1/spec_backup": false,
+			"/globular/pki/ca":                 false,
+			"/globular/objectstore/config":     false,
+			"/globular/scylla/schema_guard/":   false,
+		},
+	}
+
+	findings := inv.Evaluate(snap, Config{})
+	if len(findings) == 0 {
+		t.Fatal("expected findings in day-0 state")
+	}
+	for _, f := range findings {
+		if strings.HasSuffix(f.InvariantID, "_missing") {
+			if strings.Contains(f.InvariantID, "resources_missing") || strings.Contains(f.InvariantID, "nodes_missing") || strings.Contains(f.InvariantID, "scylla.schema_guard_missing") {
+				if f.Severity != cluster_doctorpb.Severity_SEVERITY_INFO {
+					t.Fatalf("prefix finding %s severity=%v want INFO", f.InvariantID, f.Severity)
+				}
+			} else if f.Severity != cluster_doctorpb.Severity_SEVERITY_WARN {
+				t.Fatalf("key finding %s severity=%v want WARN", f.InvariantID, f.Severity)
+			}
+		}
 	}
 }
 
