@@ -158,7 +158,9 @@ func (r *Registry) EvaluateAll(snap *collector.Snapshot) []Finding {
 
 // EvaluateForNode runs all node-scoped invariants for the given node id.
 func (r *Registry) EvaluateForNode(snap *collector.Snapshot, nodeID string) []Finding {
-	// Build a single-node snapshot view.
+	// Build a single-node snapshot view. Cluster-scoped fields (critical keys,
+	// ingress, objectstore, CA, schema guard) are shared read-only — copy them
+	// so invariants that run in both "node" and "cluster" scope see full data.
 	nodesnap := &collector.Snapshot{
 		SnapshotID:     snap.SnapshotID,
 		GeneratedAt:    snap.GeneratedAt,
@@ -167,6 +169,17 @@ func (r *Registry) EvaluateForNode(snap *collector.Snapshot, nodeID string) []Fi
 		DataErrors:     snap.DataErrors,
 		NodeHealths:    snap.NodeHealths,
 		Inventories:    snap.Inventories,
+		// Cluster-scoped state needed by invariants that also run per-node.
+		CriticalKeyPresent:           snap.CriticalKeyPresent,
+		IngressSpecPresent:           snap.IngressSpecPresent,
+		IngressSpecLoadError:         snap.IngressSpecLoadError,
+		IngressSpecRaw:               snap.IngressSpecRaw,
+		IngressNodeStatus:            snap.IngressNodeStatus,
+		ScyllaSchemaGuardStatus:      snap.ScyllaSchemaGuardStatus,
+		ObjectStoreDesired:           snap.ObjectStoreDesired,
+		ObjectStoreDesiredLoadError:  snap.ObjectStoreDesiredLoadError,
+		ObjectStoreAppliedGeneration: snap.ObjectStoreAppliedGeneration,
+		CAMetadata:                   snap.CAMetadata,
 	}
 	// Filter Nodes to just the requested one.
 	for _, n := range snap.Nodes {
