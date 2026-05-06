@@ -1130,18 +1130,16 @@ func (srv *server) publishMinioConfigLocked() {
 }
 
 // buildObjectStoreDesiredStateLocked constructs the ObjectStoreDesiredState
-// from the current controller state without writing to etcd. Returns (nil, true)
-// when the pool has no nodes yet and there is nothing meaningful to publish.
+// from the current controller state without writing to etcd.
 // Must be called with srv.mu held.
 func (srv *server) buildObjectStoreDesiredStateLocked() (*config.ObjectStoreDesiredState, bool) {
 	if srv.state == nil {
 		return nil, true
 	}
 	allowedPool := srv.filterEligiblePoolIPsLocked(srv.state.MinioPoolNodes)
-	// Pre-formation: pool empty and no generation written — nothing to publish.
-	if len(allowedPool) == 0 && srv.state.ObjectStoreGeneration == 0 {
-		return nil, true
-	}
+	// Pre-formation: publish a degraded baseline contract instead of leaving
+	// /globular/objectstore/config absent. This keeps Day-0 diagnostics precise:
+	// endpoint_ready=false rather than "contract missing".
 
 	credentialsReady := srv.state.MinioCredentials != nil &&
 		srv.state.MinioCredentials.RootUser != "" &&
@@ -1302,6 +1300,12 @@ func (srv *server) publishObjectStoreDesiredStateLocked() {
 	}
 }
 
+var (
+	saveCAMetadataFn           = config.SaveCAMetadata
+	saveCACertificateIfEmptyFn = config.SaveCACertificateIfEmpty
+	caSPKIFingerprintFn        = security.FileSPKIFingerprint
+)
+
 // publishCAMetadataLocked writes /globular/pki/ca to etcd so node agents can
 // detect CA rotation without querying the gateway. Must be called with srv.mu held.
 // Safe to call on every state persist — the write is idempotent when the CA is unchanged.
@@ -1310,10 +1314,22 @@ func (srv *server) publishCAMetadataLocked() {
 	if caPath == "" {
 		return
 	}
-
-	fp, err := security.FileSPKIFingerprint(caPath)
+	fp, err := caSPKIFingerprintFn(caPath)
 	if err != nil {
-		// CA not yet present (bootstrap in progress) — skip silently.
+		// Day-0 startup ordering: CA may not be readable yet. Publish a
+		// placeholder metadata record so critical-key and "not published"
+		// invariants do not fire due to transient bootstrap timing.
+		meta := config.CAMetadata{
+			Generation:  int(srv.state.CAGeneration),
+			Fingerprint: "pending-day0-bootstrap",
+			Issuer:      "pending",
+			Active:      false,
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := saveCAMetadataFn(ctx, meta); err != nil {
+			log.Printf("publish ca metadata (placeholder): %v", err)
+		}
 		return
 	}
 
@@ -1338,13 +1354,13 @@ func (srv *server) publishCAMetadataLocked() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := config.SaveCAMetadata(ctx, meta); err != nil {
+	if err := saveCAMetadataFn(ctx, meta); err != nil {
 		log.Printf("publish ca metadata: %v", err)
 		return
 	}
 	// Also publish the CA cert PEM to /globular/pki/ca.crt so joining nodes
 	// can bootstrap trust from etcd without needing MinIO to be healthy.
-	if err := config.SaveCACertificateIfEmpty(ctx, caBytes); err != nil {
+	if err := saveCACertificateIfEmptyFn(ctx, caBytes); err != nil {
 		log.Printf("publish ca cert: %v", err)
 	}
 }

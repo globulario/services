@@ -87,6 +87,11 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 	if workers <= 0 {
 		workers = 2
 	}
+
+	// Day-0 baseline seeding loop: keep critical bootstrap keys/prefixes
+	// present in etcd without manual intervention.
+	srv.startDay0SeedLoop(ctx)
+
 	queue := newWorkQueue(128)
 
 	// Install a safe default router so workflow callbacks don't fail with

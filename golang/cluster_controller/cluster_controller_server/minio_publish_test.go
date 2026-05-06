@@ -115,9 +115,10 @@ func TestBuildObjectStore_NilCredentials_PublishesDegradedContract(t *testing.T)
 	}
 }
 
-// TestBuildObjectStore_EmptyPool_ZeroGeneration_Skips verifies the only valid
-// skip condition: pool is empty AND generation is 0 (truly pre-formation).
-func TestBuildObjectStore_EmptyPool_ZeroGeneration_Skips(t *testing.T) {
+// TestBuildObjectStore_EmptyPool_ZeroGeneration_PublishesDegradedContract
+// verifies Day-0 behavior: even pre-formation state publishes a degraded
+// contract so /globular/objectstore/config is present with EndpointReady=false.
+func TestBuildObjectStore_EmptyPool_ZeroGeneration_PublishesDegradedContract(t *testing.T) {
 	srv := &server{
 		state: &controllerState{
 			MinioPoolNodes:        nil,
@@ -125,9 +126,18 @@ func TestBuildObjectStore_EmptyPool_ZeroGeneration_Skips(t *testing.T) {
 			MinioCredentials:      &minioCredentials{RootUser: "ak", RootPassword: "sk"},
 		},
 	}
-	_, skip := srv.buildObjectStoreDesiredStateLocked()
-	if !skip {
-		t.Error("expected skip=true for empty pool with zero generation")
+	desired, skip := srv.buildObjectStoreDesiredStateLocked()
+	if skip {
+		t.Fatal("expected skip=false for empty pool Day-0 baseline contract")
+	}
+	if desired == nil {
+		t.Fatal("expected non-nil desired state")
+	}
+	if desired.EndpointReady {
+		t.Error("expected EndpointReady=false for empty pool")
+	}
+	if desired.Endpoint != "" {
+		t.Errorf("expected empty endpoint for empty pool, got %q", desired.Endpoint)
 	}
 }
 

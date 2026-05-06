@@ -102,3 +102,30 @@ func TestEnsureIngressDesiredState_RestoreWithoutApproval(t *testing.T) {
 	}
 }
 
+func TestEnsureIngressDesiredState_NoSpecNoBackup_SeedsExplicitDisabled(t *testing.T) {
+	kv := newFakeKV()
+	srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
+	srv.kv = kv
+
+	srv.ensureIngressDesiredState(context.Background())
+
+	resp, _ := kv.Get(context.Background(), ingressSpecKey)
+	if len(resp.Kvs) == 0 {
+		t.Fatal("expected ingress spec to be seeded when spec+backup are both absent")
+	}
+	var spec ingressDesiredSpec
+	if err := json.Unmarshal(resp.Kvs[0].Value, &spec); err != nil {
+		t.Fatalf("unmarshal spec: %v", err)
+	}
+	if spec.Mode != ingressModeDisabled {
+		t.Fatalf("expected mode=disabled, got %q", spec.Mode)
+	}
+	if !spec.ExplicitDisabled {
+		t.Fatal("expected ExplicitDisabled=true for Day-0 seeded baseline")
+	}
+
+	backupResp, _ := kv.Get(context.Background(), ingressSpecBackupKey)
+	if len(backupResp.Kvs) == 0 {
+		t.Fatal("expected ingress backup key to be seeded alongside spec")
+	}
+}

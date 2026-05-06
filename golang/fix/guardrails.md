@@ -1116,6 +1116,11 @@ What's covered (server.go, snapshot.go, cluster_doctor.pb.go)
 [✓] DataIncomplete propagation — transient read errors set DataIncomplete; findings
     do not fire CRITICAL on incomplete data (individual rules check snap fields).
 [✓] ObservedAt timestamp — timestamps when data was actually observed.
+[✓] Day-0 bootstrap guard (critical key diagnostics) — when snapshot evidence
+    indicates likely Day-0 single-node bootstrap (foundational keys/prefixes not
+    yet seeded), critical-key registry findings are downgraded
+    (key missing: ERROR→WARN, prefix missing: WARN→INFO), and duplicate hard
+    ingress.spec_missing is suppressed until post-bootstrap.
 
 ──────────────────────────────────────────────────────────────────────────────
 Original spec below

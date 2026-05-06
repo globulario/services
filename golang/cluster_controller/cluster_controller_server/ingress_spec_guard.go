@@ -199,11 +199,18 @@ func (srv *server) restoreIngressSpecFromBackup(ctx context.Context) {
 		}
 	}
 	// No backup available. Do NOT write any spec to etcd — writing mode=disabled
-	// with explicit_disabled=false is ambiguous and confusing on fresh clusters
-	// where keepalived was never started. Node-agents with a last-known-good will
-	// hold their LKG; nodes without LKG will simply wait.
-	// The operator must set /globular/ingress/v1/spec to restore VIP management.
-	log.Printf("ingress-spec-guard: CRITICAL: ingress spec missing and no backup — keepalived on participant nodes will hold last-known-good. Operator must set /globular/ingress/v1/spec to restore VIP")
+	// with explicit_disabled=false is ambiguous and confusing. Instead, seed an
+	// explicit disabled baseline spec so Day-0 bootstrap has authoritative intent.
+	seed := srv.normalizeIngressSpec(ingressDesiredSpec{
+		Mode:             ingressModeDisabled,
+		ExplicitDisabled: true,
+		Reason:           "day0 bootstrap default: ingress not yet configured",
+	})
+	if err := srv.publishIngressSpec(ctx, seed); err != nil {
+		log.Printf("ingress-spec-guard: CRITICAL: missing spec+backup and failed to seed explicit disabled baseline: %v", err)
+		return
+	}
+	log.Printf("ingress-spec-guard: seeded explicit disabled baseline spec (no backup present)")
 }
 
 func (srv *server) normalizeIngressSpec(spec ingressDesiredSpec) ingressDesiredSpec {

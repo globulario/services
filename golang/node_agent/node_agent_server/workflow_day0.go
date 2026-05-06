@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/security"
@@ -31,6 +32,8 @@ const (
 	bootstrapTokenDir    = "/var/lib/globular/tokens"
 	bootstrapLogDir      = "/var/lib/globular/logs/bootstrap"
 )
+
+var day0RemovePathFn = os.Remove
 
 // RunDay0BootstrapWorkflow executes the day0.bootstrap workflow definition
 // to perform the full cluster bootstrap sequence. This replaces the manual
@@ -60,18 +63,28 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 	// Wire installer actions to real node-agent capabilities.
 	engine.RegisterInstallerActions(router, engine.InstallerConfig{
 		SetupTLS: func(ctx context.Context, clusterID string) error {
-			// TLS is set up by the Globule process before node-agent starts.
-			// Verify certs exist as a sanity check.
-			for _, path := range []string{
-				"/var/lib/globular/config/tls/server.crt",
-				"/var/lib/globular/config/tls/server.key",
-				"/var/lib/globular/pki/ca.crt",
-			} {
-				if _, err := os.Stat(path); err != nil {
-					return fmt.Errorf("TLS cert missing: %s", path)
-				}
+			// Day-0 invariant: generate a fresh cluster CA and replace any stale
+			// existing certs. This avoids inheriting old CA/cert material after
+			// reinstalls or partially-wiped nodes.
+			if err := srv.purgeDay0PKIMaterial(); err != nil {
+				return fmt.Errorf("purge stale day0 pki material: %w", err)
 			}
-			log.Printf("day0: TLS certs verified for cluster %s", clusterID)
+			d := strings.TrimSpace(domain)
+			if d == "" {
+				d = strings.TrimSpace(clusterID)
+			}
+			if d == "" {
+				return fmt.Errorf("day0 setup tls: domain/cluster id required")
+			}
+			spec := &cluster_controllerpb.ClusterNetworkSpec{
+				Protocol:      "https",
+				ClusterDomain: d,
+				AcmeEnabled:   false,
+			}
+			if err := srv.ensureNetworkCerts(spec); err != nil {
+				return fmt.Errorf("generate day0 CA + service certs: %w", err)
+			}
+			log.Printf("day0: TLS re-initialized with fresh CA for cluster %s (domain=%s)", clusterID, d)
 			return nil
 		},
 
@@ -557,6 +570,25 @@ func putDay0Object(ctx context.Context, client *minio.Client, bucket, key string
 	})
 	if err != nil {
 		return fmt.Errorf("put %s/%s: %w", bucket, key, err)
+	}
+	return nil
+}
+
+// purgeDay0PKIMaterial removes local CA and service certificate artifacts so
+// Day-0 bootstrap always re-generates a fresh cluster CA and leaf cert set.
+func (srv *NodeAgentServer) purgeDay0PKIMaterial() error {
+	pkiDir := config.GetCanonicalPKIDir()
+	paths := []string{
+		filepath.Join(pkiDir, "ca.key"),
+		filepath.Join(pkiDir, "ca.crt"),
+		filepath.Join(pkiDir, "ca.pem"),
+		filepath.Join(pkiDir, "issued", "services", "service.key"),
+		filepath.Join(pkiDir, "issued", "services", "service.crt"),
+	}
+	for _, p := range paths {
+		if err := day0RemovePathFn(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 	}
 	return nil
 }
