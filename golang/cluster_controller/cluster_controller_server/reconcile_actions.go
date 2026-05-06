@@ -391,17 +391,21 @@ func (srv *server) reconcileMarkItemStarted(ctx context.Context, item map[string
 	return nil
 }
 
-// lookupServiceReleaseBuildID returns the resolved_build_id from a ServiceRelease
-// (or InfrastructureRelease) for the given package name. Returns "" if not found
-// or not set. This allows the reconciler to propagate exact artifact identity
-// through the drift-dispatch path.
+// lookupServiceReleaseBuildID returns the resolved_build_id and the
+// DesiredHash (computed convergence hash, NOT the artifact digest) for the
+// given package.  The DesiredHash is what the drift reconciler passes as
+// desired_hash to node-agent workflows, and what the convergence-committer
+// stamps into pkg.Checksum.  Using ResolvedArtifactDigest here caused a
+// permanent mismatch: InfrastructureRelease checks pkg.Checksum against
+// its own DesiredHash (computed), but the drift path was stamping the raw
+// artifact digest — so the two never agreed and the loop never terminated.
 func (srv *server) lookupServiceReleaseBuildID(ctx context.Context, pkgName string) (resolvedBuildID, resolvedHash string) {
 	relKey := defaultPublisherID() + "/" + canonicalServiceName(pkgName)
 	// Try ServiceRelease first.
 	if obj, _, err := srv.resources.Get(ctx, "ServiceRelease", relKey); err == nil && obj != nil {
 		if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok {
 			if rel.Status != nil {
-				return rel.Status.ResolvedBuildID, rel.Status.ResolvedArtifactDigest
+				return rel.Status.ResolvedBuildID, rel.Status.DesiredHash
 			}
 		}
 	}
@@ -409,7 +413,7 @@ func (srv *server) lookupServiceReleaseBuildID(ctx context.Context, pkgName stri
 	if obj, _, err := srv.resources.Get(ctx, "InfrastructureRelease", relKey); err == nil && obj != nil {
 		if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok {
 			if rel.Status != nil {
-				return rel.Status.ResolvedBuildID, rel.Status.ResolvedArtifactDigest
+				return rel.Status.ResolvedBuildID, rel.Status.DesiredHash
 			}
 		}
 	}
