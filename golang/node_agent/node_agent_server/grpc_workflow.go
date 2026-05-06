@@ -191,6 +191,7 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 				DesiredBuildID:  buildID,
 				LocalVersion:    existing.GetVersion(),
 				LocalBuildID:    existing.GetBuildId(),
+				LocalHash:       desiredHash,
 				Outcome:         installed_state.OutcomeSuccessLocalPendingSync,
 				SourceComponent: "node-agent",
 				Evidence:        map[string]string{"kind": pkgKind, "skip_reason": "already_converged"},
@@ -217,6 +218,7 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 						DesiredBuildID:  buildID,
 						LocalVersion:    existing.GetVersion(),
 						LocalBuildID:    existing.GetBuildId(),
+						LocalHash:       desiredHash,
 						Outcome:         installed_state.OutcomeSuccessLocalPendingSync,
 						SourceComponent: "node-agent",
 						Evidence:        map[string]string{"kind": pkgKind, "skip_reason": "repaired_via_start"},
@@ -329,6 +331,9 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 			DesiredBuildID:  buildID,
 			LocalVersion:    desiredVersion,
 			LocalBuildID:    buildID,
+			// LocalHash tells the controller what artifact digest was installed so
+			// it can stamp pkg.Checksum and stop re-dispatching on checksum mismatch.
+			LocalHash:       desiredHash,
 			Outcome:         installed_state.OutcomeSuccessLocalPendingSync,
 			SourceComponent: "node-agent",
 			Evidence:        map[string]string{"kind": pkgKind},

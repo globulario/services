@@ -451,7 +451,8 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 // globularBinDir is the canonical directory where Globular service binaries
 // are deployed. Matches internal/actions.ActionBinDir. Duplicated rather than
 // imported to avoid pulling the actions package into the heartbeat loop.
-const globularBinDir = "/usr/lib/globular/bin"
+// var so tests can override it.
+var globularBinDir = "/usr/lib/globular/bin"
 
 // refreshMarkersFromBinaries probes each deployed service binary with
 // --describe and rewrites /var/lib/globular/services/<name>/version when the

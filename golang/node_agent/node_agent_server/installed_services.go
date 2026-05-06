@@ -257,16 +257,22 @@ func loadSystemdUnits(ctx context.Context, byService map[string]*InstalledServic
 		if entry := byService[svc]; entry != nil && entry.Version != "" {
 			continue
 		}
-		// Service has a systemd unit but no version marker. Mark as
-		// RuntimeUnmanaged with "unknown" version — Phase 2.5 (peer
-		// checksum lookup) may resolve it later.
-		// NEVER default to a real version like "" — that pollutes
-		// desired state and causes phantom reconciliation loops.
+		// Service has a systemd unit but no version marker. Try to detect
+		// the installed version from the binary via --describe. SERVICE
+		// binaries follow the <name>_server naming convention.
 		entry := ensureServiceEntry(byService, svc)
 		entry.ServiceName = svc
-		entry.Source = RuntimeUnmanaged
-		if entry.Version == "" {
-			entry.Version = "unknown"
+		binPath := filepath.Join(globularBinDir, strings.ReplaceAll(svc, "-", "_")+"_server")
+		if version := detectGlobularBinaryVersion(ctx, binPath); version != "" && version != "unknown" {
+			entry.Version = version
+			entry.Source = ManagedInstalled
+		} else {
+			// Binary probe failed — mark RuntimeUnmanaged. Phase 2.5 (peer
+			// checksum lookup) may resolve it later.
+			entry.Source = RuntimeUnmanaged
+			if entry.Version == "" {
+				entry.Version = "unknown"
+			}
 		}
 	}
 }
@@ -314,28 +320,67 @@ func loadDay0JoinInfra(ctx context.Context, byService map[string]*InstalledServi
 		}
 	}
 
-	// Generic probe for all infrastructure daemons in skipSystemdUnits that
-	// have active globular-*.service units. loadSystemdUnits skips all of
-	// them to prevent phantom SERVICE/unknown records; this loop provides
-	// version detection for Globular-built binaries (those that respond to
-	// --describe). Third-party binaries (minio, envoy, prometheus, etc.) that
-	// don't support --describe return "unknown" here — they are covered by
-	// syncRepoArtifactsToEtcd Phase 2 which reads their version from the repo.
-	for name := range skipSystemdUnits {
-		// CLI tools have no systemd unit — skip.
-		if strings.HasSuffix(name, "-cmd") {
+	// Per-daemon version detectors for infrastructure packages that don't
+	// support --describe. Each returns "" when the unit is absent or the
+	// binary fails; on success the entry is promoted to ManagedInstalled.
+	type infraDaemon struct {
+		name    string
+		unit    string // systemd unit name (may differ from package name)
+		detect  func() string
+	}
+	daemons := []infraDaemon{
+		{"envoy", "globular-envoy.service", func() string { return detectEnvoyVersion(ctx) }},
+		{"prometheus", "globular-prometheus.service", func() string {
+			return detectPrometheusLikeVersion(ctx, filepath.Join(globularBinDir, "prometheus"))
+		}},
+		{"alertmanager", "globular-alertmanager.service", func() string {
+			return detectPrometheusLikeVersion(ctx, filepath.Join(globularBinDir, "alertmanager"))
+		}},
+		{"node-exporter", "globular-node-exporter.service", func() string {
+			return detectPrometheusLikeVersion(ctx, filepath.Join(globularBinDir, "node_exporter"))
+		}},
+		{"minio", "globular-minio.service", func() string { return detectMinioVersion(ctx) }},
+		{"sidekick", "globular-sidekick.service", func() string { return detectSidekickVersion(ctx) }},
+	}
+	for _, d := range daemons {
+		if exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", d.unit).Run() != nil {
 			continue
 		}
-		// Already handled above with dedicated version detection.
-		if name == "etcd" || name == "scylladb" {
+		if entry := byService[d.name]; entry != nil && entry.Version != "" && entry.Version != "unknown" {
+			continue
+		}
+		version := d.detect()
+		if version == "" {
+			version = "unknown"
+		}
+		e := ensureServiceEntry(byService, d.name)
+		e.ServiceName = d.name
+		e.Version = version
+		// Third-party infra binaries (envoy, prometheus, etc.) are tracked via
+		// the etcd installed-state registry written by the install workflow.
+		// Using FallbackDiscovered keeps them visible for diagnostics but
+		// excludes them from InstalledVersions so the controller does NOT
+		// dispatch repeated install workflows from the heartbeat alone.
+		e.Source = FallbackDiscovered
+	}
+
+	// Generic probe for remaining infrastructure daemons (Globular-built, use
+	// --describe). Skips entries already handled above.
+	handled := map[string]bool{
+		"etcd": true, "scylladb": true,
+		"envoy": true, "prometheus": true, "alertmanager": true,
+		"node-exporter": true, "minio": true, "sidekick": true,
+	}
+	for name := range skipSystemdUnits {
+		if strings.HasSuffix(name, "-cmd") || handled[name] {
 			continue
 		}
 		unitName := "globular-" + name + ".service"
 		if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", unitName).Run(); err != nil {
-			continue // unit not running on this node
+			continue
 		}
 		if entry := byService[name]; entry != nil && entry.Version != "" && entry.Version != "unknown" {
-			continue // already have a good version from markers or previous probes
+			continue
 		}
 		version := detectGlobularBinaryVersion(ctx, filepath.Join(globularBinDir, name))
 		if version == "" {
@@ -411,6 +456,79 @@ func detectScyllaVersion(ctx context.Context) string {
 		ver = ver[:idx]
 	}
 	return ver
+}
+
+// detectEnvoyVersion parses `envoy --version` output.
+// Output format: "envoy  version: <hash>/<semver>/Clean/RELEASE/..."
+func detectEnvoyVersion(ctx context.Context) string {
+	out, err := exec.CommandContext(ctx, filepath.Join(globularBinDir, "envoy"), "--version").Output()
+	if err != nil {
+		return ""
+	}
+	// Extract the semver component: "<hash>/<semver>/..."
+	line := strings.TrimSpace(string(out))
+	if idx := strings.Index(line, "version:"); idx >= 0 {
+		line = strings.TrimSpace(line[idx+len("version:"):])
+	}
+	parts := strings.Split(line, "/")
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if len(p) > 0 && p[0] >= '0' && p[0] <= '9' {
+			return p
+		}
+	}
+	return ""
+}
+
+// detectPrometheusLikeVersion parses `<bin> --version` for Prometheus-family
+// binaries (prometheus, alertmanager, node_exporter).
+// Output format: "<name>, version <semver> ..."
+func detectPrometheusLikeVersion(ctx context.Context, bin string) string {
+	out, err := exec.CommandContext(ctx, bin, "--version").CombinedOutput()
+	if err != nil && len(out) == 0 {
+		return ""
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if idx := strings.Index(line, "version "); idx >= 0 {
+			rest := strings.TrimSpace(line[idx+len("version "):])
+			fields := strings.Fields(rest)
+			if len(fields) > 0 {
+				return fields[0]
+			}
+		}
+	}
+	return ""
+}
+
+// detectMinioVersion parses `minio --version` output.
+// Output format: "minio version RELEASE.2025-09-07T16-13-09Z ..."
+func detectMinioVersion(ctx context.Context) string {
+	out, err := exec.CommandContext(ctx, filepath.Join(globularBinDir, "minio"), "--version").Output()
+	if err != nil {
+		return ""
+	}
+	for _, field := range strings.Fields(string(out)) {
+		if strings.HasPrefix(field, "RELEASE.") {
+			return field
+		}
+	}
+	return ""
+}
+
+// detectSidekickVersion parses `sidekick --version` output.
+// Output format: "sidekick version <semver>"
+func detectSidekickVersion(ctx context.Context) string {
+	out, err := exec.CommandContext(ctx, filepath.Join(globularBinDir, "sidekick"), "--version").Output()
+	if err != nil {
+		return ""
+	}
+	fields := strings.Fields(string(out))
+	for i, f := range fields {
+		if f == "version" && i+1 < len(fields) {
+			return strings.TrimSpace(fields[i+1])
+		}
+	}
+	return ""
 }
 
 // isDay0JoinInfra returns true for infrastructure packages installed via Day 0

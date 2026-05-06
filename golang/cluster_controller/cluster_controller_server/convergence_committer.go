@@ -139,6 +139,11 @@ func (c *convergenceCommitter) processResult(ctx context.Context, r *installed_s
 		if r.LocalBuildID != "" {
 			pkg.BuildId = r.LocalBuildID
 		}
+		// Stamp the artifact checksum so the drift reconciler sees
+		// installed_checksum == desired_hash and stops re-dispatching.
+		if r.LocalHash != "" {
+			pkg.Checksum = r.LocalHash
+		}
 		pkg.Status = "installed"
 		pkg.UpdatedUnix = time.Now().Unix()
 

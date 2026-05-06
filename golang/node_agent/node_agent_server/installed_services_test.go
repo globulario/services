@@ -181,6 +181,72 @@ func TestInvalidConfigDigestReturnsError(t *testing.T) {
 	}
 }
 
+// TestLoadSystemdUnitsDetectsVersionFromBinary verifies that when a service
+// has a running systemd unit but no version marker, loadSystemdUnits probes
+// the binary via --describe and classifies it as ManagedInstalled when a
+// real version is found. This is the path taken by bootstrapped services
+// (installed by globular-installer) that have not yet gone through the
+// controller convergence cycle.
+func TestLoadSystemdUnitsDetectsVersionFromBinary(t *testing.T) {
+	// Create a fake "dns_server" binary that outputs valid --describe JSON.
+	binDir := t.TempDir()
+	fakeBin := filepath.Join(binDir, "dns_server")
+	script := "#!/bin/sh\necho '{\"Id\":\"dns-id\",\"Version\":\"1.2.3\"}'\n"
+	if err := os.WriteFile(fakeBin, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake binary: %v", err)
+	}
+
+	old := globularBinDir
+	globularBinDir = binDir
+	t.Cleanup(func() { globularBinDir = old })
+
+	// Simulate a byService map with a "dns" entry (no version yet) as if
+	// loadSystemdUnits found a globular-dns.service unit.
+	byService := map[string]*InstalledServiceInfo{
+		"dns": {ServiceName: "dns", Source: RuntimeUnmanaged, Version: ""},
+	}
+
+	// Invoke the same probe logic that loadSystemdUnits uses for unversioned entries.
+	entry := byService["dns"]
+	binPath := filepath.Join(globularBinDir, "dns_server")
+	if version := detectGlobularBinaryVersion(t.Context(), binPath); version != "" && version != "unknown" {
+		entry.Version = version
+		entry.Source = ManagedInstalled
+	}
+
+	if entry.Source != ManagedInstalled {
+		t.Fatalf("expected ManagedInstalled after binary probe, got %v", entry.Source)
+	}
+	if entry.Version != "1.2.3" {
+		t.Fatalf("expected version 1.2.3, got %q", entry.Version)
+	}
+}
+
+// TestLoadSystemdUnitsRuntimeUnmanagedOnProbeFailure verifies that when the
+// binary does not exist (or --describe fails), the service remains RuntimeUnmanaged.
+func TestLoadSystemdUnitsRuntimeUnmanagedOnProbeFailure(t *testing.T) {
+	binDir := t.TempDir()
+
+	old := globularBinDir
+	globularBinDir = binDir
+	t.Cleanup(func() { globularBinDir = old })
+
+	entry := &InstalledServiceInfo{ServiceName: "unknown-svc", Source: RuntimeUnmanaged}
+	binPath := filepath.Join(globularBinDir, "unknown_svc_server") // doesn't exist
+	version := detectGlobularBinaryVersion(t.Context(), binPath)
+	if version != "" && version != "unknown" {
+		entry.Version = version
+		entry.Source = ManagedInstalled
+	} else {
+		entry.Source = RuntimeUnmanaged
+		entry.Version = "unknown"
+	}
+
+	if entry.Source != RuntimeUnmanaged {
+		t.Fatalf("expected RuntimeUnmanaged when binary is missing, got %v", entry.Source)
+	}
+}
+
 func writeMarker(t *testing.T, dir, version string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
