@@ -454,6 +454,21 @@ func main() {
 	}); err != nil {
 		logger.Warn("failed to register in Globular service registry; xDS routing may be unavailable", "err", err)
 	}
+	if mac, err := config.GetMacAddress(); err == nil && strings.TrimSpace(mac) != "" {
+		if err := config.PutInstance("cluster_controller.ClusterControllerService", mac, map[string]any{
+			"Address":  registryHost(leaderAddr),
+			"Port":     cfg.Port,
+			"Protocol": "grpc",
+			"TLS":      true,
+			"State":    "running",
+			"PID":      os.Getpid(),
+			"Version":  Version,
+		}); err != nil {
+			logger.Warn("failed to publish controller service instance", "err", err)
+		}
+	} else if err != nil {
+		logger.Warn("failed to resolve MAC for controller instance publish", "err", err)
+	}
 
 	// Signal systemd that the service is ready. The unit file uses Type=notify
 	// + WatchdogSec=60, so without READY=1 the unit stays in "activating"

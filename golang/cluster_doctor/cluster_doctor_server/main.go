@@ -177,11 +177,14 @@ func main() {
 				time.Sleep(10 * time.Second)
 				if err := config.SaveServiceConfiguration(regCfg); err == nil {
 					logger.Info("service registry registration succeeded (background retry)")
+					publishDoctorInstance(cfg.Port)
 					return
 				}
 			}
 			logger.Error("service registry registration failed after all retries; xDS routing unavailable")
 		}()
+	} else {
+		publishDoctorInstance(cfg.Port)
 	}
 
 	go startPprofServer()
@@ -303,4 +306,25 @@ func printHealth() {
 	}
 	data, _ := json.MarshalIndent(health, "", "  ")
 	fmt.Println(string(data))
+}
+
+func publishDoctorInstance(port int) {
+	mac, err := config.GetMacAddress()
+	if err != nil || mac == "" {
+		if err != nil {
+			logger.Warn("failed to resolve MAC for doctor instance publish", "err", err)
+		}
+		return
+	}
+	if err := config.PutInstance("cluster_doctor.ClusterDoctorService", mac, map[string]any{
+		"Address":  config.GetRoutableIPv4(),
+		"Port":     port,
+		"Protocol": "grpc",
+		"TLS":      true,
+		"State":    "running",
+		"PID":      os.Getpid(),
+		"Version":  Version,
+	}); err != nil {
+		logger.Warn("failed to publish doctor service instance", "err", err)
+	}
 }

@@ -244,6 +244,20 @@ func main() {
 			"Version":  cfg.AgentVersion,
 		}); regErr != nil {
 			log.Printf("warn: failed to register in Globular service registry; xDS routing may be unavailable: %v", regErr)
+		} else if mac, err := config.GetMacAddress(); err == nil && strings.TrimSpace(mac) != "" {
+			if err := config.PutInstance("node_agent.NodeAgentService", mac, map[string]any{
+				"Address":  advertiseHost,
+				"Port":     portNum,
+				"Protocol": "grpc",
+				"TLS":      true,
+				"State":    "running",
+				"PID":      os.Getpid(),
+				"Version":  cfg.AgentVersion,
+			}); err != nil {
+				log.Printf("warn: failed to publish node-agent service instance: %v", err)
+			}
+		} else if err != nil {
+			log.Printf("warn: failed to resolve MAC for node-agent instance publish: %v", err)
 		}
 	}
 

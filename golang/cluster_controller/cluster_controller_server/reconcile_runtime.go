@@ -79,6 +79,11 @@ func serviceNameFromKey(key string) string {
 //  3. Execution gate — workflowSem (cap 3) + inflightWorkflows map limit
 //     concurrent workflow dispatches to prevent systemd overload on nodes.
 func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
+	// Day-0 baseline seeding loop must start regardless of reconcile version
+	// gate status. Otherwise a gated reconcile runtime can leave critical
+	// bootstrap keys/prefixes absent indefinitely.
+	srv.startDay0SeedLoop(ctx)
+
 	if !reconcileVersionGate() {
 		logger.Error("startControllerRuntime: controller version too old — reconciliation disabled",
 			"version", Version, "minimum", minSafeReconcileVersion)
@@ -87,11 +92,6 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 	if workers <= 0 {
 		workers = 2
 	}
-
-	// Day-0 baseline seeding loop: keep critical bootstrap keys/prefixes
-	// present in etcd without manual intervention.
-	srv.startDay0SeedLoop(ctx)
-
 	queue := newWorkQueue(128)
 
 	// Install a safe default router so workflow callbacks don't fail with

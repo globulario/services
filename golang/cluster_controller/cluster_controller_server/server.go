@@ -768,10 +768,11 @@ func (srv *server) setLeader(isLeader bool, id, addr string) {
 	// to this node's controller (the leader). Without this, the registry
 	// points to whichever node last started — not necessarily the leader.
 	if isLeader && srv.cfg != nil {
+		addr := config.GetRoutableIPv4()
 		if err := config.SaveServiceConfiguration(map[string]interface{}{
 			"Id":       "cluster_controller.ClusterControllerService",
 			"Name":     "cluster_controller.ClusterControllerService",
-			"Address":  config.GetRoutableIPv4(),
+			"Address":  addr,
 			"Port":     srv.cfg.Port,
 			"Protocol": "grpc",
 			"TLS":      true,
@@ -781,7 +782,22 @@ func (srv *server) setLeader(isLeader bool, id, addr string) {
 		}); err != nil {
 			log.Printf("leader: failed to update service registry: %v", err)
 		} else {
-			log.Printf("leader: updated service registry to %s:%d", config.GetRoutableIPv4(), srv.cfg.Port)
+			log.Printf("leader: updated service registry to %s:%d", addr, srv.cfg.Port)
+		}
+		if mac, err := config.GetMacAddress(); err == nil && strings.TrimSpace(mac) != "" {
+			if err := config.PutInstance("cluster_controller.ClusterControllerService", mac, map[string]any{
+				"Address":  addr,
+				"Port":     srv.cfg.Port,
+				"Protocol": "grpc",
+				"TLS":      true,
+				"State":    "running",
+				"PID":      os.Getpid(),
+				"Version":  Version,
+			}); err != nil {
+				log.Printf("leader: failed to publish controller instance: %v", err)
+			}
+		} else if err != nil {
+			log.Printf("leader: failed to resolve MAC for controller instance publish: %v", err)
 		}
 
 		// Signal routing refresh: write a generation key to etcd so xDS
