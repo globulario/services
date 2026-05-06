@@ -33,10 +33,19 @@ func AuditDrift(ctx context.Context, g *graph.Graph, srcDir string) []Finding {
 			if strings.HasSuffix(n.Path, "_test.go") {
 				continue
 			}
+			// Graph paths are repo-relative (e.g. "golang/foo/bar.go").
+			// srcDir may be the golang sub-directory or the repo root.
+			// Try srcDir-relative first, then fall back to the parent (repo root)
+			// so both calling conventions work correctly.
 			absPath := filepath.Join(srcDir, n.Path)
-			if _, err := os.Stat(absPath); os.IsNotExist(err) {
+			if _, statErr := os.Stat(absPath); os.IsNotExist(statErr) {
+				// Try repo-root-relative (parent of srcDir).
+				altPath := filepath.Join(filepath.Dir(srcDir), n.Path)
+				if _, altErr := os.Stat(altPath); altErr == nil {
+					continue // file exists at the repo-root-relative path — not stale
+				}
 				findings = append(findings, Finding{
-					Code:     "STALE_SOURCE_FILE_NODE",
+					Code:     CodeStaleSourceFileNode,
 					Severity: SeverityWarning,
 					File:     n.Path,
 					Message:  "graph node exists for '" + n.Path + "' but the file no longer exists on disk — run 'globular awareness build' to refresh",

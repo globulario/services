@@ -1,0 +1,32 @@
+# Awareness audit suppressions.
+#
+# Each suppression must have: id, finding_code, reason, owner, created_at, expires_at.
+# ERRORs are NEVER suppressible — only WARNING and INFO findings may be suppressed.
+# max_count guards against hidden growth: if the matched count exceeds max_count
+# the violation is reported as a CI warning even though findings are still suppressed.
+#
+# To burn down a suppression:
+#   1. Fix the underlying findings progressively.
+#   2. Lower max_count to match the remaining count.
+#   3. Remove the suppression entry when count reaches 0.
+#
+# Run 'globular awareness audit --summary' to see current suppressed counts.
+
+suppressions:
+  - id: suppress.unimplemented_test_obligations.initial_backlog
+    finding_code: REQUIRED_TEST_NO_PATH
+    scope:
+      invariant: "*"
+      test: "*"
+    reason: >
+      Initial awareness backlog: invariants.yaml and failure_modes.yaml reference
+      test functions that have not yet been implemented as Go test functions.
+      The graph nodes exist (created from YAML) but have no source file path.
+      This backlog must be burned down progressively before the expiry date.
+      Adding new //globular:tested_by annotations without implementing the tests
+      will surface as a max_count violation — a growth signal for CI.
+    owner: dave
+    created_at: "2026-05-06"
+    expires_at: "2026-08-06"
+    max_count: 1100
+    severity_floor: warning

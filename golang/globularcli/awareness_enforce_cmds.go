@@ -20,17 +20,29 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/globulario/services/golang/awareness/enforce"
+	"github.com/globulario/services/golang/awareness/preflight"
 )
 
 var enforceCfg = struct {
-	jsonOutput  bool
-	files       []string
-	fromGitDiff bool
-}{}
+	jsonOutput       bool
+	files            []string
+	fromGitDiff      bool
+	strict           bool
+	watchlist        string
+	auditStrict      bool
+	summary          bool
+	failOnWarning    bool
+	warningThreshold int
+	suppressionsFile string
+	showSuppressed   bool
+}{
+	warningThreshold: -1, // disabled by default
+}
 
 // ---- audit command ----
 
@@ -38,7 +50,11 @@ var awarenessAuditCmd = &cobra.Command{
 	Use:   "audit",
 	Short: "Run all awareness enforcement checks (annotations, contracts, tests, drift)",
 	Long: `Validates annotation well-formedness, hash-schema contracts, required-test
-existence, and graph drift. Exits with code 1 if any ERROR findings are found.`,
+existence, and graph drift. Exits with code 1 if any ERROR findings are found.
+
+Suppressions file (--suppressions) moves known warning backlogs out of the main
+output without hiding them — they appear in the "Suppressed" section with counts.
+ERRORs are never suppressible.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
 
@@ -56,15 +72,71 @@ existence, and graph drift. Exits with code 1 if any ERROR findings are found.`,
 		result := enforce.Audit(ctx, g, enforce.AuditOptions{
 			SrcDir: golangDir,
 		})
-
-		if enforceCfg.jsonOutput {
-			fmt.Fprint(os.Stdout, enforce.RenderAuditJSON(result))
-			fmt.Fprintln(os.Stdout)
-		} else {
-			fmt.Fprint(os.Stdout, enforce.RenderAuditMarkdown(result))
+		if enforceCfg.auditStrict {
+			watchlist := enforceCfg.watchlist
+			if watchlist == "" {
+				watchlist = filepath.Join(repoRoot, "docs", "awareness", "high_risk_files.yaml")
+			}
+			cov := enforce.AnnotationCoverage(ctx, g, enforce.AnnotationCoverageOptions{
+				RepoRoot:      repoRoot,
+				SrcDir:        golangDir,
+				WatchlistPath: watchlist,
+				DocsDir:       filepath.Join(repoRoot, "docs", "awareness"),
+			})
+			result.Findings = append(result.Findings, cov.Findings...)
+			for _, f := range cov.Findings {
+				switch f.Severity {
+				case enforce.SeverityError:
+					result.ErrorCount++
+				case enforce.SeverityWarning:
+					result.WarningCount++
+				default:
+					result.InfoCount++
+				}
+			}
+			result.Pass = result.ErrorCount == 0
 		}
 
-		if !result.Pass {
+		// Load suppressions (default: docs/awareness/audit_suppressions.yaml).
+		suppressionsPath := enforceCfg.suppressionsFile
+		if suppressionsPath == "" {
+			suppressionsPath = filepath.Join(repoRoot, "docs", "awareness", "audit_suppressions.yaml")
+		}
+		sf, err := enforce.LoadSuppressions(suppressionsPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not load suppressions from %s: %v\n", suppressionsPath, err)
+			sf = &enforce.SuppressionFile{}
+		}
+
+		// Apply suppressions and group findings.
+		triaged := enforce.Triage(result, sf, timeNow())
+
+		// Render output.
+		if enforceCfg.jsonOutput {
+			fmt.Fprint(os.Stdout, enforce.RenderTriagedJSON(triaged))
+			fmt.Fprintln(os.Stdout)
+		} else {
+			fmt.Fprint(os.Stdout, enforce.RenderTriagedMarkdown(triaged, enforce.RenderOptions{
+				Summary:        enforceCfg.summary,
+				ShowSuppressed: enforceCfg.showSuppressed,
+			}))
+		}
+
+		// Exit codes:
+		//   1 — errors present (always)
+		//   1 — --fail-on-warning and unsuppressed warnings > 0
+		//   1 — --warning-threshold exceeded
+		//   1 — strict mode and suppression problems (expired/max_count/invalid)
+		if !triaged.Pass {
+			os.Exit(1)
+		}
+		if enforceCfg.failOnWarning && triaged.WarningCount > 0 {
+			os.Exit(1)
+		}
+		if enforce.FailsWarningThreshold(triaged, enforceCfg.warningThreshold) {
+			os.Exit(1)
+		}
+		if enforceCfg.auditStrict && enforce.HasSuppressionProblems(triaged) {
 			os.Exit(1)
 		}
 		return nil
@@ -211,6 +283,42 @@ var awarenessGraphDriftCmd = &cobra.Command{
 	},
 }
 
+var awarenessAnnotationCoverageCmd = &cobra.Command{
+	Use:   "annotation-coverage",
+	Short: "Report annotation coverage gaps on high-risk files and critical contracts",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := context.Background()
+		repoRoot, err := resolveRepoRoot(awareCfg.repoPath)
+		if err != nil {
+			return err
+		}
+		g, _ := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
+		if g != nil {
+			defer g.Close()
+		}
+		watchlist := enforceCfg.watchlist
+		if watchlist == "" {
+			watchlist = filepath.Join(repoRoot, "docs", "awareness", "high_risk_files.yaml")
+		}
+		result := enforce.AnnotationCoverage(ctx, g, enforce.AnnotationCoverageOptions{
+			RepoRoot:      repoRoot,
+			SrcDir:        filepath.Join(repoRoot, "golang"),
+			WatchlistPath: watchlist,
+			DocsDir:       filepath.Join(repoRoot, "docs", "awareness"),
+		})
+		if enforceCfg.jsonOutput {
+			fmt.Fprint(os.Stdout, enforce.RenderAuditJSON(result))
+			fmt.Fprintln(os.Stdout)
+		} else {
+			fmt.Fprint(os.Stdout, enforce.RenderAuditMarkdown(result))
+		}
+		if !result.Pass {
+			os.Exit(1)
+		}
+		return nil
+	},
+}
+
 // ---- pr-report command ----
 
 var awarenessPRReportCmd = &cobra.Command{
@@ -268,6 +376,10 @@ Exits 0 even when findings exist (informational hook, not a gate).`,
 		ctx := context.Background()
 
 		files := enforceCfg.files
+		repoRoot, err := resolveRepoRoot(awareCfg.repoPath)
+		if err != nil {
+			return err
+		}
 
 		g, _ := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
 		if g != nil {
@@ -280,6 +392,78 @@ Exits 0 even when findings exist (informational hook, not a gate).`,
 		}
 
 		fmt.Fprint(os.Stdout, enforce.RenderHookText(result))
+
+		// Default mode remains warning-only. Strict mode blocks only for high-risk files.
+		if !enforceCfg.strict {
+			return nil
+		}
+		docsDir := filepath.Join(repoRoot, "docs", "awareness")
+		watchlistPath := enforceCfg.watchlist
+		if watchlistPath == "" {
+			watchlistPath = filepath.Join(docsDir, "high_risk_files.yaml")
+		}
+		patterns, err := enforce.LoadHighRiskWatchlist(watchlistPath)
+		if err != nil {
+			return nil
+		}
+		highRisk := false
+		for _, f := range files {
+			rel := filepath.ToSlash(f)
+			if filepath.IsAbs(f) {
+				if r, err := filepath.Rel(repoRoot, f); err == nil {
+					rel = filepath.ToSlash(r)
+				}
+			}
+			if enforce.IsHighRiskFile(rel, patterns) {
+				highRisk = true
+				break
+			}
+		}
+		if !highRisk {
+			return nil
+		}
+
+		// Preflight for strict checks.
+		pfr, _ := preflight.Run(ctx, preflight.Options{
+			Task:    awareCfg.task,
+			Files:   files,
+			DocsDir: docsDir,
+		}, g)
+
+		fileAudit := enforce.AuditFiles(files)
+		refFindings := enforce.ValidateAnnotationReferences(ctx, g, files)
+		auditResult := enforce.Audit(ctx, g, enforce.AuditOptions{
+			SrcDir: filepath.Join(repoRoot, "golang"),
+		})
+		var perFileAudit []enforce.Finding
+		fileSet := map[string]bool{}
+		for _, f := range files {
+			fileSet[filepath.ToSlash(f)] = true
+			fileSet[f] = true
+		}
+		for _, af := range auditResult.Findings {
+			if fileSet[filepath.ToSlash(af.File)] {
+				perFileAudit = append(perFileAudit, af)
+			}
+		}
+
+		decision := enforce.EvaluateStrictGate(enforce.StrictGateInput{
+			Strict:               true,
+			HighRisk:             true,
+			Files:                files,
+			Preflight:            pfr,
+			FileAudit:            fileAudit,
+			AnnotationRefFindings: refFindings,
+			PerFileAuditFindings: perFileAudit,
+		})
+		if decision.ShouldBlock {
+			fmt.Fprintln(os.Stdout, "\n## Awareness hook: STRICT BLOCK")
+			for _, reason := range decision.Reasons {
+				fmt.Fprintln(os.Stdout, "- "+reason)
+			}
+			fmt.Fprintf(os.Stdout, "\nRun: globular awareness preflight --task %q --format agent\n", awareCfg.task)
+			os.Exit(2)
+		}
 		return nil
 	},
 }
@@ -301,6 +485,9 @@ func buildResultFromFindings(findings []enforce.Finding) *enforce.AuditResult {
 	r.Pass = r.ErrorCount == 0
 	return r
 }
+
+// timeNow is a variable so tests can stub it. Production callers leave it as-is.
+var timeNow = func() time.Time { return time.Now() }
 
 // changedGoFiles returns .go files changed in the current git working tree diff.
 func changedGoFiles() ([]string, error) {
@@ -325,6 +512,13 @@ func init() {
 	awarenessAuditCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
 	awarenessAuditCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 	awarenessAuditCmd.Flags().BoolVar(&enforceCfg.jsonOutput, "json", false, "Output JSON instead of markdown")
+	awarenessAuditCmd.Flags().BoolVar(&enforceCfg.auditStrict, "strict", false, "Enable strict mode (includes annotation coverage + suppression problem checks)")
+	awarenessAuditCmd.Flags().StringVar(&enforceCfg.watchlist, "watchlist", "", "Path to high-risk watchlist YAML")
+	awarenessAuditCmd.Flags().BoolVar(&enforceCfg.summary, "summary", false, "Print compact summary only")
+	awarenessAuditCmd.Flags().BoolVar(&enforceCfg.failOnWarning, "fail-on-warning", false, "Exit 1 if any unsuppressed warnings exist")
+	awarenessAuditCmd.Flags().IntVar(&enforceCfg.warningThreshold, "warning-threshold", -1, "Exit 1 if unsuppressed warnings exceed N (-1 disables)")
+	awarenessAuditCmd.Flags().StringVar(&enforceCfg.suppressionsFile, "suppressions", "", "Path to suppression YAML (default: docs/awareness/audit_suppressions.yaml)")
+	awarenessAuditCmd.Flags().BoolVar(&enforceCfg.showSuppressed, "show-suppressed", false, "Include full detail of suppressed findings in output")
 
 	// validate-annotations
 	awarenessValidateAnnotationsCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
@@ -345,6 +539,12 @@ func init() {
 	awarenessGraphDriftCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 	awarenessGraphDriftCmd.Flags().BoolVar(&enforceCfg.jsonOutput, "json", false, "Output JSON")
 
+	// annotation-coverage
+	awarenessAnnotationCoverageCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessAnnotationCoverageCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
+	awarenessAnnotationCoverageCmd.Flags().BoolVar(&enforceCfg.jsonOutput, "json", false, "Output JSON")
+	awarenessAnnotationCoverageCmd.Flags().StringVar(&enforceCfg.watchlist, "watchlist", "", "Path to high-risk watchlist YAML")
+
 	// pr-report
 	awarenessPRReportCmd.Flags().StringSliceVar(&enforceCfg.files, "files", nil, "Comma-separated list of files to check")
 	awarenessPRReportCmd.Flags().BoolVar(&enforceCfg.fromGitDiff, "from-git-diff", false, "Auto-detect changed files from git diff HEAD")
@@ -354,12 +554,15 @@ func init() {
 	awarenessHookCmd.Flags().StringVar(&awareCfg.task, "task", "", "Task description")
 	awarenessHookCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
 	awarenessHookCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
+	awarenessHookCmd.Flags().BoolVar(&enforceCfg.strict, "strict", false, "Enable strict mode (blocks high-risk unsafe edits with exit code 2)")
+	awarenessHookCmd.Flags().StringVar(&enforceCfg.watchlist, "watchlist", "", "Path to high-risk watchlist YAML")
 
 	awarenessCmd.AddCommand(awarenessAuditCmd)
 	awarenessCmd.AddCommand(awarenessValidateAnnotationsCmd)
 	awarenessCmd.AddCommand(awarenessValidateRequiredTestsCmd)
 	awarenessCmd.AddCommand(awarenessValidateContractsCmd)
 	awarenessCmd.AddCommand(awarenessGraphDriftCmd)
+	awarenessCmd.AddCommand(awarenessAnnotationCoverageCmd)
 	awarenessCmd.AddCommand(awarenessPRReportCmd)
 	awarenessCmd.AddCommand(awarenessHookCmd)
 }
