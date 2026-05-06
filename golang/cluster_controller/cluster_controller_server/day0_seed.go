@@ -49,7 +49,15 @@ func (srv *server) seedDay0CriticalState(ctx context.Context) {
 		kv = srv.etcdClient
 	}
 	if kv == nil {
-		return
+		// Fallback to config-package client — same path used by the collector.
+		// srv.kv/etcdClient may be nil if the dedicated connection failed at startup
+		// while the controller still functions via config.GetEtcdClient().
+		c, err := config.GetEtcdClient()
+		if err != nil {
+			log.Printf("day0-seed: no etcd client available, skipping: %v", err)
+			return
+		}
+		kv = c
 	}
 
 	wctx, cancel := context.WithTimeout(ctx, 8*time.Second)
