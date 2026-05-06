@@ -1,0 +1,89 @@
+package enforce
+
+import (
+	"context"
+
+	"github.com/globulario/services/golang/awareness/graph"
+)
+
+// AuditOptions controls which checks are run.
+type AuditOptions struct {
+	// SrcDir is the root directory to walk for annotation validation.
+	// Leave empty to skip file-system annotation checks.
+	SrcDir string
+
+	// SkipAnnotations disables the annotation well-formedness check.
+	SkipAnnotations bool
+
+	// SkipContracts disables the hash schema contract check.
+	SkipContracts bool
+
+	// SkipTests disables the required-test existence check.
+	SkipTests bool
+
+	// SkipDrift disables the graph drift check.
+	SkipDrift bool
+}
+
+// Audit runs all enabled enforcement checks and returns an aggregated result.
+// g may be nil — graph-dependent checks are skipped with a Warning finding.
+func Audit(ctx context.Context, g *graph.Graph, opts AuditOptions) *AuditResult {
+	var all []Finding
+
+	// 1. Annotation well-formedness (file-system walk, no graph needed).
+	if !opts.SkipAnnotations && opts.SrcDir != "" {
+		all = append(all, ValidateAnnotations(opts.SrcDir)...)
+	}
+
+	// 2. Hash schema contracts (graph).
+	if !opts.SkipContracts {
+		if g == nil {
+			all = append(all, Finding{
+				Code:     "NO_GRAPH",
+				Severity: SeverityWarning,
+				Message:  "hash-schema contract check skipped — no graph DB (run 'globular awareness build' first)",
+			})
+		} else {
+			all = append(all, ValidateContracts(ctx, g)...)
+		}
+	}
+
+	// 3. Required test existence (graph).
+	if !opts.SkipTests {
+		if g == nil {
+			all = append(all, Finding{
+				Code:     "NO_GRAPH",
+				Severity: SeverityWarning,
+				Message:  "required-test check skipped — no graph DB",
+			})
+		} else {
+			all = append(all, ValidateRequiredTests(ctx, g)...)
+		}
+	}
+
+	// 4. Graph drift (graph + file system).
+	if !opts.SkipDrift && opts.SrcDir != "" {
+		if g == nil {
+			all = append(all, Finding{
+				Code:     "NO_GRAPH",
+				Severity: SeverityWarning,
+				Message:  "drift check skipped — no graph DB",
+			})
+		} else {
+			all = append(all, AuditDrift(ctx, g, opts.SrcDir)...)
+		}
+	}
+
+	return newAuditResult(all)
+}
+
+// AuditFiles runs a targeted audit on a specific set of source files.
+// Only annotation validation is run (graph is not required), making this
+// fast enough for a pre-edit hook.
+func AuditFiles(files []string) *AuditResult {
+	var all []Finding
+	for _, f := range files {
+		all = append(all, validateFileAnnotations(f, f)...)
+	}
+	return newAuditResult(all)
+}

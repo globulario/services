@@ -1,0 +1,365 @@
+package main
+
+// awareness_enforce_cmds.go: CLI commands for annotation enforcement (Task 9).
+//
+// Commands:
+//
+//	globular awareness audit [--repo <path>] [--db <path>] [--json]
+//	globular awareness validate-annotations [--repo <path>]
+//	globular awareness validate-required-tests [--db <path>]
+//	globular awareness validate-contracts [--db <path>]
+//	globular awareness graph-drift [--repo <path>] [--db <path>]
+//	globular awareness pr-report [--files <f1,f2>]
+//	globular awareness hook --file <file> [--task <task>] [--db <path>]
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"github.com/spf13/cobra"
+
+	"github.com/globulario/services/golang/awareness/enforce"
+)
+
+var enforceCfg = struct {
+	jsonOutput  bool
+	files       []string
+	fromGitDiff bool
+}{}
+
+// ---- audit command ----
+
+var awarenessAuditCmd = &cobra.Command{
+	Use:   "audit",
+	Short: "Run all awareness enforcement checks (annotations, contracts, tests, drift)",
+	Long: `Validates annotation well-formedness, hash-schema contracts, required-test
+existence, and graph drift. Exits with code 1 if any ERROR findings are found.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := context.Background()
+
+		repoRoot, err := resolveRepoRoot(awareCfg.repoPath)
+		if err != nil {
+			return err
+		}
+
+		g, _ := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
+		if g != nil {
+			defer g.Close()
+		}
+
+		golangDir := filepath.Join(repoRoot, "golang")
+		result := enforce.Audit(ctx, g, enforce.AuditOptions{
+			SrcDir: golangDir,
+		})
+
+		if enforceCfg.jsonOutput {
+			fmt.Fprint(os.Stdout, enforce.RenderAuditJSON(result))
+			fmt.Fprintln(os.Stdout)
+		} else {
+			fmt.Fprint(os.Stdout, enforce.RenderAuditMarkdown(result))
+		}
+
+		if !result.Pass {
+			os.Exit(1)
+		}
+		return nil
+	},
+}
+
+// ---- validate-annotations command ----
+
+var awarenessValidateAnnotationsCmd = &cobra.Command{
+	Use:   "validate-annotations",
+	Short: "Validate //globular: annotation syntax in all Go source files",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		repoRoot, err := resolveRepoRoot(awareCfg.repoPath)
+		if err != nil {
+			return err
+		}
+
+		golangDir := filepath.Join(repoRoot, "golang")
+		findings := enforce.ValidateAnnotations(golangDir)
+		result := &enforce.AuditResult{}
+		for _, f := range findings {
+			result.Findings = append(result.Findings, f)
+			switch f.Severity {
+			case enforce.SeverityError:
+				result.ErrorCount++
+			case enforce.SeverityWarning:
+				result.WarningCount++
+			default:
+				result.InfoCount++
+			}
+		}
+		result.Pass = result.ErrorCount == 0
+
+		if enforceCfg.jsonOutput {
+			fmt.Fprint(os.Stdout, enforce.RenderAuditJSON(result))
+			fmt.Fprintln(os.Stdout)
+		} else {
+			fmt.Fprint(os.Stdout, enforce.RenderAuditMarkdown(result))
+		}
+
+		if !result.Pass {
+			os.Exit(1)
+		}
+		return nil
+	},
+}
+
+// ---- validate-required-tests command ----
+
+var awarenessValidateRequiredTestsCmd = &cobra.Command{
+	Use:   "validate-required-tests",
+	Short: "Check that all //globular:tested_by tests exist in the graph",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := context.Background()
+
+		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
+		if err != nil {
+			return err
+		}
+		defer g.Close()
+
+		findings := enforce.ValidateRequiredTests(ctx, g)
+		result := buildResultFromFindings(findings)
+
+		if enforceCfg.jsonOutput {
+			fmt.Fprint(os.Stdout, enforce.RenderAuditJSON(result))
+			fmt.Fprintln(os.Stdout)
+		} else {
+			fmt.Fprint(os.Stdout, enforce.RenderAuditMarkdown(result))
+		}
+
+		if !result.Pass {
+			os.Exit(1)
+		}
+		return nil
+	},
+}
+
+// ---- validate-contracts command ----
+
+var awarenessValidateContractsCmd = &cobra.Command{
+	Use:   "validate-contracts",
+	Short: "Check that all hash_schema contracts have both a producer and a consumer",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := context.Background()
+
+		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
+		if err != nil {
+			return err
+		}
+		defer g.Close()
+
+		findings := enforce.ValidateContracts(ctx, g)
+		result := buildResultFromFindings(findings)
+
+		if enforceCfg.jsonOutput {
+			fmt.Fprint(os.Stdout, enforce.RenderAuditJSON(result))
+			fmt.Fprintln(os.Stdout)
+		} else {
+			fmt.Fprint(os.Stdout, enforce.RenderAuditMarkdown(result))
+		}
+
+		if !result.Pass {
+			os.Exit(1)
+		}
+		return nil
+	},
+}
+
+// ---- graph-drift command ----
+
+var awarenessGraphDriftCmd = &cobra.Command{
+	Use:   "graph-drift",
+	Short: "Report graph nodes that no longer correspond to files on disk",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := context.Background()
+
+		repoRoot, err := resolveRepoRoot(awareCfg.repoPath)
+		if err != nil {
+			return err
+		}
+
+		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
+		if err != nil {
+			return err
+		}
+		defer g.Close()
+
+		findings := enforce.AuditDrift(ctx, g, filepath.Join(repoRoot, "golang"))
+		result := buildResultFromFindings(findings)
+
+		if enforceCfg.jsonOutput {
+			fmt.Fprint(os.Stdout, enforce.RenderAuditJSON(result))
+			fmt.Fprintln(os.Stdout)
+		} else {
+			fmt.Fprint(os.Stdout, enforce.RenderAuditMarkdown(result))
+		}
+
+		// drift is informational — do not exit 1 on WARNING/INFO only
+		if result.ErrorCount > 0 {
+			os.Exit(1)
+		}
+		return nil
+	},
+}
+
+// ---- pr-report command ----
+
+var awarenessPRReportCmd = &cobra.Command{
+	Use:   "pr-report",
+	Short: "Report annotation findings for changed files (CI use)",
+	Long: `Runs annotation validation only on changed files. Use --from-git-diff to
+auto-detect changed files from the current git diff, or --files to supply them
+explicitly. Intended for CI annotation workflows.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		files := enforceCfg.files
+
+		if enforceCfg.fromGitDiff {
+			changed, err := changedGoFiles()
+			if err != nil {
+				return fmt.Errorf("git diff: %w", err)
+			}
+			files = append(files, changed...)
+		}
+
+		if len(files) == 0 {
+			fmt.Fprintf(os.Stdout, "No changed files — nothing to report.\n")
+			return nil
+		}
+
+		result := enforce.AuditFiles(files)
+
+		pr := &enforce.PRReport{
+			ChangedFiles: files,
+			Findings:     result.Findings,
+			ErrorCount:   result.ErrorCount,
+			WarningCount: result.WarningCount,
+			Pass:         result.Pass,
+		}
+
+		fmt.Fprint(os.Stdout, enforce.RenderPRReport(pr))
+
+		if !result.Pass {
+			os.Exit(1)
+		}
+		return nil
+	},
+}
+
+// ---- hook command ----
+
+var awarenessHookCmd = &cobra.Command{
+	Use:   "hook",
+	Short: "Pre-edit awareness hook for Claude Code — surfaces constraints for edited files",
+	Long: `Runs annotation validation and surfaces graph-registered invariants, forbidden
+fixes, and risks for the specified files. Designed to be called from a Claude Code
+PreToolUse hook. Outputs human-readable markdown to stdout.
+
+Exits 0 even when findings exist (informational hook, not a gate).`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := context.Background()
+
+		files := enforceCfg.files
+
+		g, _ := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
+		if g != nil {
+			defer g.Close()
+		}
+
+		result, err := enforce.RunHook(ctx, g, files, awareCfg.task)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprint(os.Stdout, enforce.RenderHookText(result))
+		return nil
+	},
+}
+
+// ---- helpers ----
+
+func buildResultFromFindings(findings []enforce.Finding) *enforce.AuditResult {
+	r := &enforce.AuditResult{Findings: findings}
+	for _, f := range findings {
+		switch f.Severity {
+		case enforce.SeverityError:
+			r.ErrorCount++
+		case enforce.SeverityWarning:
+			r.WarningCount++
+		default:
+			r.InfoCount++
+		}
+	}
+	r.Pass = r.ErrorCount == 0
+	return r
+}
+
+// changedGoFiles returns .go files changed in the current git working tree diff.
+func changedGoFiles() ([]string, error) {
+	cmd := exec.Command("git", "diff", "--name-only", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	scanner := bufio.NewScanner(strings.NewReader(string(out)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasSuffix(line, ".go") {
+			files = append(files, line)
+		}
+	}
+	return files, nil
+}
+
+func init() {
+	// audit
+	awarenessAuditCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessAuditCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
+	awarenessAuditCmd.Flags().BoolVar(&enforceCfg.jsonOutput, "json", false, "Output JSON instead of markdown")
+
+	// validate-annotations
+	awarenessValidateAnnotationsCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
+	awarenessValidateAnnotationsCmd.Flags().BoolVar(&enforceCfg.jsonOutput, "json", false, "Output JSON")
+
+	// validate-required-tests
+	awarenessValidateRequiredTestsCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessValidateRequiredTestsCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
+	awarenessValidateRequiredTestsCmd.Flags().BoolVar(&enforceCfg.jsonOutput, "json", false, "Output JSON")
+
+	// validate-contracts
+	awarenessValidateContractsCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessValidateContractsCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
+	awarenessValidateContractsCmd.Flags().BoolVar(&enforceCfg.jsonOutput, "json", false, "Output JSON")
+
+	// graph-drift
+	awarenessGraphDriftCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessGraphDriftCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
+	awarenessGraphDriftCmd.Flags().BoolVar(&enforceCfg.jsonOutput, "json", false, "Output JSON")
+
+	// pr-report
+	awarenessPRReportCmd.Flags().StringSliceVar(&enforceCfg.files, "files", nil, "Comma-separated list of files to check")
+	awarenessPRReportCmd.Flags().BoolVar(&enforceCfg.fromGitDiff, "from-git-diff", false, "Auto-detect changed files from git diff HEAD")
+
+	// hook
+	awarenessHookCmd.Flags().StringSliceVar(&enforceCfg.files, "file", nil, "File(s) being edited")
+	awarenessHookCmd.Flags().StringVar(&awareCfg.task, "task", "", "Task description")
+	awarenessHookCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessHookCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
+
+	awarenessCmd.AddCommand(awarenessAuditCmd)
+	awarenessCmd.AddCommand(awarenessValidateAnnotationsCmd)
+	awarenessCmd.AddCommand(awarenessValidateRequiredTestsCmd)
+	awarenessCmd.AddCommand(awarenessValidateContractsCmd)
+	awarenessCmd.AddCommand(awarenessGraphDriftCmd)
+	awarenessCmd.AddCommand(awarenessPRReportCmd)
+	awarenessCmd.AddCommand(awarenessHookCmd)
+}
