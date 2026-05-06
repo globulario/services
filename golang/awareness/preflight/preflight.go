@@ -128,7 +128,7 @@ func noAwarenessFactsMatched(r *Report) bool {
 	}
 	hasFixLedgerMatch := false
 	if r.DidWeFix != nil {
-		hasFixLedgerMatch = len(r.DidWeFix.FixCases) > 0 || len(r.DidWeFix.MatchedPatterns) > 0
+		hasFixLedgerMatch = len(r.DidWeFix.FixCases) > 0
 	}
 	hasPackageContext := len(r.Packages) > 0 || r.PackageAdmission != nil
 	hasRuntimeEvidence := false

@@ -6,6 +6,25 @@ This file is read automatically by Claude Code at the start of every session. It
 
 ## PRIME RULES FOR AI AGENTS
 
+## AWARENESS PREFLIGHT — REQUIRED BEFORE CODE EDITS
+
+Before editing Globular code, you MUST run awareness preflight.
+
+Preferred:
+- MCP tool: `awareness.preflight` (when MCP is available)
+
+Fallback:
+- CLI: `globular awareness preflight --task "<task>" --format agent`
+
+For high-risk files, strict hook mode may block unsafe edits:
+- `globular awareness hook --strict --watchlist docs/awareness/high_risk_files.yaml --file "<file>" --task "<task>"`
+
+Use:
+
+```bash
+globular awareness preflight --task "<task>" --format agent
+```
+
 1. Walk the 4 layers before debugging: Repository -> Desired -> Installed -> Runtime.
 2. Never confuse platform release with package version. release-index.json is the platform truth.
 3. Never confuse build_id (UUID) with build_number (integer).

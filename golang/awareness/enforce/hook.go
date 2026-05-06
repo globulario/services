@@ -119,6 +119,11 @@ func buildHookSummary(task string, files []string, findings []Finding, contextLi
 	if len(files) > 0 {
 		sb.WriteString("**Files checked**: " + strings.Join(files, ", ") + "\n")
 	}
+	if task != "" {
+		sb.WriteString("\n")
+		sb.WriteString("Run before editing:\n")
+		sb.WriteString("`globular awareness preflight --task \"" + task + "\" --format agent`\n")
+	}
 
 	return sb.String()
 }

@@ -93,6 +93,16 @@ func runtimeStatusFresh(node *nodeState, now time.Time) (bool, string) {
 	return true, ""
 }
 
+// classifyPackageConvergence compares the controller's desired state against
+// the node-agent's installed state and emits a convergence verdict.
+// The desiredHash here must come from lookupServiceReleaseBuildID — never
+// from a locally recomputed value. Hash schema parity is critical.
+//
+//globular:enforces infra.desired_hash_consistency
+//globular:expects_hash_schema infra_desired_hash
+//globular:expects_hash_schema service_desired_hash
+//globular:state_transition DESIRED -> INSTALLED
+//globular:risk convergence.classification_error
 func classifyPackageConvergence(
 	node *nodeState,
 	pkgName, pkgKind string,

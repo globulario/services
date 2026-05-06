@@ -85,6 +85,12 @@ func (i InstalledServiceInfo) IsAuthoritative() bool {
 
 // ComputeInstalledServices returns the installed services on this node and a deterministic hash.
 // The hash is stable across runs and independent of map/directory iteration order.
+// Observer-only — must not compute or set any desired-state field.
+//
+//globular:enforces infra.heartbeat_not_desired_authority
+//globular:reads /globular/nodes/{node_id}/packages/{kind}/{name}
+//globular:hash_schema installed_services_hash
+//globular:risk infra.heartbeat_sets_desired_state
 func ComputeInstalledServices(ctx context.Context) (map[ServiceKey]InstalledServiceInfo, string, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -553,6 +559,9 @@ func isDay0JoinInfra(name string) bool {
 //   - Entries are sorted by canonical service name.
 //   - This format matches the controller's hashDesiredServiceVersions() so that
 //     the two hashes are directly comparable when the service sets agree.
+//
+//globular:enforces infra.heartbeat_not_desired_authority
+//globular:hash_schema installed_services_hash
 func computeAppliedServicesHash(installed map[ServiceKey]InstalledServiceInfo) string {
 	if len(installed) == 0 {
 		return ""

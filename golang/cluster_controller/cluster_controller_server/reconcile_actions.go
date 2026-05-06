@@ -399,6 +399,13 @@ func (srv *server) reconcileMarkItemStarted(ctx context.Context, item map[string
 // permanent mismatch: InfrastructureRelease checks pkg.Checksum against
 // its own DesiredHash (computed), but the drift path was stamping the raw
 // artifact digest — so the two never agreed and the loop never terminated.
+//
+//globular:enforces infra.desired_hash_consistency
+//globular:expects_hash_schema infra_desired_hash
+//globular:expects_hash_schema service_desired_hash
+//globular:reads /globular/resources/ServiceRelease
+//globular:reads /globular/resources/InfrastructureRelease
+//globular:risk convergence.hash_mismatch_loop
 func (srv *server) lookupServiceReleaseBuildID(ctx context.Context, pkgName string) (resolvedBuildID, resolvedHash string) {
 	relKey := defaultPublisherID() + "/" + canonicalServiceName(pkgName)
 	// Try ServiceRelease first.

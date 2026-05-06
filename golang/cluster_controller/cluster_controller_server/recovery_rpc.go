@@ -238,6 +238,12 @@ func (srv *server) getClusterID() string {
 // dispatchWorkflow submits a workflow run via the centralized WorkflowService
 // and returns the run ID. It builds a per-run Router wired to the recovery
 // controller callbacks so actor dispatch works during execution.
+// Every meaningful cluster mutation must go through this path — no inline state changes.
+//
+//globular:enforces install.result.atomic_commit
+//globular:writes /globular/ai/jobs/{incident_id}
+//globular:state_transition DESIRED -> WORKFLOW
+//globular:risk workflow.dispatch_without_gate
 func (srv *server) dispatchWorkflow(ctx context.Context, workflowName string, inputs map[string]any) (string, error) {
 	router := engine.NewRouter()
 	engine.RegisterNodeRecoveryControllerActions(router, srv.buildNodeRecoveryControllerConfig())

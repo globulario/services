@@ -1,0 +1,132 @@
+failure_modes:
+    - id: install.result.partial_commit
+      title: Leader dies during install result promotion
+      severity: critical
+      symptoms:
+        - node-agent completed package install locally
+        - etcd installed-state missing
+        - reconciler dispatches same install repeatedly
+        - action result exists without promotion
+      root_cause: |
+        Installed-state, result promotion, and action cleanup were committed as separate etcd writes. Leader failover could leave partial state.
+      architecture_fix: |
+        Commit installed-state, result promotion, and action cleanup in one etcd transaction.
+      forbidden_fixes:
+        - retry_install_blindly
+        - clear_action_before_installed_state
+        - mark_release_available_from_local_success
+      related_invariants:
+        - install.result.atomic_commit
+        - convergence.no_infinite_retry
+      related_services:
+        - cluster-controller
+        - node-agent
+        - workflow-service
+      required_tests:
+        - TestLeaderFailoverDuringResultCommit
+        - TestPendingSyncRecovery
+    - id: objectstore.local_membership_inference
+      title: Node-agent infers MinIO membership from local disk
+      severity: critical
+      symptoms:
+        - MinIO starts on a node not in ObjectStoreDesiredState
+        - objectstore topology generation mismatch
+        - split-brain objectstore writes
+        - data loss on erasure-coded pool
+      root_cause: |
+        Node-agent checked local disk state (e.g., minio data directory exists) to decide whether to start MinIO, instead of reading ObjectStoreDesiredState from etcd.
+      architecture_fix: |
+        Node-agent must only start MinIO when the node is present in ObjectStoreDesiredState. Local disk state is irrelevant to membership.
+      forbidden_fixes:
+        - start_minio_from_local_health_check
+        - infer_minio_membership_from_disk
+      related_invariants:
+        - objectstore.topology_contract
+      related_services:
+        - node-agent
+        - repository
+      required_tests:
+        - TestMinioHeldWhenNodeNotInPool
+        - TestTopologyRenderParity
+    - id: deterministic.install.failure.retry_loop
+      title: Deterministic install failure causes infinite retry loop
+      severity: high
+      symptoms:
+        - same install action dispatched repeatedly
+        - action count for same package grows unbounded
+        - controller log flooded with same failure message
+        - cluster convergence never completes
+      root_cause: |
+        Reconciler treated a deterministic failure (e.g., artifact not found, checksum mismatch, wrong architecture) as transient and retried on every tick without classifying the failure or marking the action BLOCKED.
+      architecture_fix: |
+        Classify failures before retry: transient errors get bounded backoff, deterministic errors become BLOCKED and require input change to unblock.
+      forbidden_fixes:
+        - blind_reconcile_retry
+        - treating_all_failures_as_transient
+      related_invariants:
+        - convergence.no_infinite_retry
+      related_services:
+        - cluster-controller
+        - node-agent
+      required_tests:
+        - TestDeterministicFailureDoesNotRetryForever
+    - id: repository.minio.recovery_cycle
+      title: Repository and MinIO form a recovery deadlock
+      severity: critical
+      symptoms:
+        - node-agent cannot install packages during recovery
+        - repository reports MinIO unavailable
+        - MinIO cannot start because node-agent cannot install it
+      root_cause: |
+        node-agent depends on repository during package_install (required). repository depends on MinIO for blob reads (required). MinIO depends on node-agent to install its binary. This creates a required cycle during the recovery phase.
+      architecture_fix: |
+        Repository must be able to serve metadata without MinIO (metadata_first invariant). MinIO bootstrap must use a local BOM cache path. node-agent bootstrap must use local_bom_cache during recovery, not network repository.
+      forbidden_fixes:
+        - gate_metadata_reads_on_minio_health
+        - store_artifact_index_only_in_minio
+      related_invariants:
+        - repository.metadata_first
+        - objectstore.topology_contract
+      related_services:
+        - node-agent
+        - repository
+      required_tests:
+        - TestListArtifactsWhenMinIODown
+        - TestBootstrapRecoveryWithLocalBOMCache
+    - id: workflow.backend_unavailable
+      title: Workflow dispatched when backend is down
+      severity: high
+      symptoms:
+        - workflow records created with no executor
+        - workflow stays in RUNNING state forever
+        - action results never committed
+        - cluster state diverges from desired
+      root_cause: |
+        Workflow dispatch did not check backend (Scylla) health before creating the workflow record. Records written during Scylla instability may be orphaned if the write partially succeeds.
+      architecture_fix: |
+        Workflow dispatch must perform a health preflight check. If Scylla is degraded, dispatch must return an error and let the caller retry with backoff.
+      forbidden_fixes:
+        - dispatch_workflow_when_scylla_down
+        - ignore_backend_health_on_dispatch
+      related_invariants:
+        - workflow.backend_health_gate
+      related_services:
+        - workflow-service
+        - cluster-controller
+      required_tests:
+        - TestWorkflowDispatchRefusedWhenScyllaDown
+    - id: annotation_scanner_false_positive
+      title: Text-based annotation scanner flags string literal content as real annotations
+      severity: MEDIUM
+      symptoms:
+        - awareness audit reports ERRORs from _test.go files, not production code
+        - 'Flagged lines are inside backtick string literals that embed intentionally-malformed //globular: patterns'
+        - CI gate exits 1 despite no real annotation defect
+      root_cause: |
+        ValidateAnnotations uses line-level text scanning (strings.Split + TrimSpace prefix check). Any line matching the //globular: prefix — even inside multi-line raw string literals — is treated as a real annotation. Test fixture files intentionally embed malformed annotation strings to exercise the validator, causing false-positive ERRORs from the package's own tests.
+      architecture_fix: |
+        Skip _test.go files in ValidateAnnotations, consistent with the goast extractor convention (production //globular: annotations are never written in test files). Single-line WalkDir filter change: !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go").
+      related_services:
+        - awareness/enforce
+      required_tests:
+        - TestValidateAnnotationsSkipsTestFiles

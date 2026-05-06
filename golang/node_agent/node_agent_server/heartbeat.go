@@ -230,6 +230,14 @@ func (srv *NodeAgentServer) refreshEtcdEndpointsFromSystemKey(ctx context.Contex
 //     version markers, and config files.
 //  2. Repository catalog — discovers APPLICATION and INFRASTRUCTURE packages
 //     that were published and are assumed installed on this (bootstrap) node.
+//
+// INVARIANT: this function must never write desired_hash, desired_version, or
+// any field owned by the controller's desired-state layer. Observer-only writes.
+//
+//globular:enforces infra.heartbeat_not_desired_authority
+//globular:writes /globular/nodes/{node_id}/status
+//globular:state_transition INSTALLED -> REPORTED
+//globular:risk infra.heartbeat_sets_desired_state
 func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 	// Architecture invariant (controller-authoritative installed state):
 	// node-agent and heartbeat must not write authoritative installed-state keys.

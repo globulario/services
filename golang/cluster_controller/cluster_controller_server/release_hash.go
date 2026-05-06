@@ -15,6 +15,9 @@ import (
 // ComputeReleaseDesiredHash computes a deterministic hash for a service release.
 // Includes build number so that publishing a new build of the same version
 // triggers a rollout (e.g., hotfix rebuild without version bump).
+//
+//globular:hash_schema service_desired_hash
+//globular:risk convergence.hash_mismatch_loop
 func ComputeReleaseDesiredHash(publisherID, serviceName, resolvedVersion string, buildNumber int64, cfg map[string]string) string {
 	var b strings.Builder
 	b.WriteString(publisherID)
@@ -64,6 +67,13 @@ func ComputeApplicationDesiredHash(publisherID, appName, resolvedVersion string)
 }
 
 // ComputeInfrastructureDesiredHash computes a deterministic hash for an infrastructure release.
+// The schema is infra:<publisherID>/<component>=<version>+b:<buildNumber>;
+// This exact schema must be used by every consumer (node-agent classifyPackageConvergence).
+//
+//globular:enforces infra.desired_hash_consistency
+//globular:hash_schema infra_desired_hash
+//globular:risk convergence.hash_mismatch_loop
+//globular:tested_by TestInfraDesiredHashConsistency
 func ComputeInfrastructureDesiredHash(publisherID, component, resolvedVersion string, buildNumber int64) string {
 	var b strings.Builder
 	b.WriteString("infra:")

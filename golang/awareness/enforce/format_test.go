@@ -11,8 +11,8 @@ import (
 func TestRenderAuditMarkdown(t *testing.T) {
 	r := &enforce.AuditResult{
 		Findings: []enforce.Finding{
-			{Code: "MALFORMED_STATE_TRANSITION", Severity: enforce.SeverityError, File: "pkg/foo.go", Message: "bad transition"},
-			{Code: "MISSING_HASH_CONSUMER", Severity: enforce.SeverityWarning, Message: "no consumer"},
+			{Code: enforce.CodeAnnotationBadStateTrans, Severity: enforce.SeverityError, File: "pkg/foo.go", Message: "bad transition"},
+			{Code: enforce.CodeHashSchemaNoConsumer, Severity: enforce.SeverityWarning, Message: "no consumer"},
 		},
 		ErrorCount:   1,
 		WarningCount: 1,
@@ -23,11 +23,11 @@ func TestRenderAuditMarkdown(t *testing.T) {
 	if !strings.Contains(md, "FAIL") {
 		t.Error("expected FAIL in markdown")
 	}
-	if !strings.Contains(md, "MALFORMED_STATE_TRANSITION") {
-		t.Error("expected MALFORMED_STATE_TRANSITION in markdown")
+	if !strings.Contains(md, enforce.CodeAnnotationBadStateTrans) {
+		t.Error("expected ANNOTATION_BAD_STATE_TRANSITION in markdown")
 	}
-	if !strings.Contains(md, "MISSING_HASH_CONSUMER") {
-		t.Error("expected MISSING_HASH_CONSUMER in markdown")
+	if !strings.Contains(md, enforce.CodeHashSchemaNoConsumer) {
+		t.Error("expected HASH_SCHEMA_NO_CONSUMER in markdown")
 	}
 }
 

@@ -14,7 +14,7 @@ func TestGroupFindingsByCode(t *testing.T) {
 		{Code: "REQUIRED_TEST_NO_PATH", Severity: enforce.SeverityWarning, Message: "a"},
 		{Code: "REQUIRED_TEST_NO_PATH", Severity: enforce.SeverityWarning, Message: "b"},
 		{Code: "REQUIRED_TEST_NO_PATH", Severity: enforce.SeverityWarning, Message: "c"},
-		{Code: "MISSING_HASH_CONSUMER", Severity: enforce.SeverityWarning, Message: "d"},
+		{Code: enforce.CodeHashSchemaNoConsumer, Severity: enforce.SeverityWarning, Message: "d"},
 	}
 
 	groups := enforce.GroupFindings(findings)

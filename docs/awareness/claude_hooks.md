@@ -15,8 +15,8 @@ When Claude is about to call `Edit` or `Write` on a Go file, the hook:
    attached to symbols defined in that file.
 3. Outputs a markdown summary to stdout that Claude reads before proceeding.
 
-The hook **never blocks** (exits 0 always). It is purely informational — a
-pre-flight context injection, not a gate.
+Default hook mode is warning-only (`exit 0`). Strict mode can block high-risk
+edits (`exit 2`) when awareness safety gates fail.
 
 ---
 
@@ -49,16 +49,23 @@ Or for a project-scoped hook, add to `.claude/settings.json` at the repo root.
 ## Manual invocation
 
 ```bash
-# Single file
+# Single file (warning mode)
 globular awareness hook \
   --file golang/node_agent/node_agent_server/heartbeat.go \
   --task "fix heartbeat interval logic"
 
-# Multiple files
+# Multiple files (warning mode)
 globular awareness hook \
   --file golang/cluster_controller/cluster_controller_server/release_hash.go \
   --file golang/node_agent/node_agent_server/installed_services.go \
   --task "update hash computation"
+
+# Strict mode (high-risk watchlist, can block with exit 2)
+globular awareness hook \
+  --strict \
+  --watchlist docs/awareness/high_risk_files.yaml \
+  --file "$CLAUDE_TOOL_INPUT_FILE_PATH" \
+  --task "$CLAUDE_TASK"
 ```
 
 ---
@@ -96,7 +103,7 @@ If annotations are malformed:
 
 | Command | When | Scope | Blocks |
 |---------|------|-------|--------|
-| `awareness hook` | Before each edit | Files being edited | Never (informational) |
+| `awareness hook` | Before each edit | Files being edited | Default: no. Strict mode: yes (high-risk only) |
 | `awareness audit` | CI / pre-commit | All source files | Yes (exit 1 on ERROR) |
 | `awareness pr-report` | CI pull request | Changed files | Yes (exit 1 on ERROR) |
 

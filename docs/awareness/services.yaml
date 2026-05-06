@@ -1,0 +1,162 @@
+services:
+  - id: cluster-controller
+    name: cluster-controller
+    summary: Central control plane — reconciles desired state, leads cluster decisions.
+    systemd_unit: globular-cluster-controller.service
+    proto_service: ClusterControllerService
+    depends_on:
+      - service: etcd
+        phase: startup
+        required: true
+      - service: repository
+        phase: package_install
+        required: true
+      - service: workflow-service
+        phase: reconcile
+        required: true
+
+  - id: node-agent
+    name: node-agent
+    summary: Per-node executor — installs packages, controls systemd units.
+    systemd_unit: globular-node-agent.service
+    proto_service: NodeAgentService
+    depends_on:
+      - service: etcd
+        phase: startup
+        required: true
+      - service: repository
+        phase: package_install
+        required: true
+      - service: cluster-controller
+        phase: registration
+        required: true
+
+  - id: workflow-service
+    name: workflow-service
+    summary: Workflow engine — coordinates multi-step cluster mutations.
+    systemd_unit: globular-workflow.service
+    proto_service: WorkflowService
+    depends_on:
+      - service: scylladb
+        phase: startup
+        required: true
+      - service: etcd
+        phase: startup
+        required: true
+
+  - id: repository
+    name: repository
+    summary: Package registry — stores and serves artifacts.
+    systemd_unit: globular-repository.service
+    proto_service: RepositoryService
+    depends_on:
+      - service: scylladb
+        phase: metadata_read
+        required: true
+      - service: minio
+        phase: blob_read
+        required: true
+      - service: minio
+        phase: metadata_read
+        required: false
+      - service: etcd
+        phase: startup
+        required: true
+
+  - id: cluster-doctor
+    name: cluster-doctor
+    summary: Health analysis — checks invariants and emits findings.
+    systemd_unit: globular-cluster-doctor.service
+    proto_service: ClusterDoctorService
+    depends_on:
+      - service: etcd
+        phase: startup
+        required: true
+      - service: cluster-controller
+        phase: snapshot
+        required: true
+
+  - id: etcd
+    name: etcd
+    summary: Distributed key-value store — sole source of truth.
+    systemd_unit: etcd.service
+
+  - id: scylladb
+    name: scylladb
+    summary: Distributed database — stores workflow state and AI memory.
+    systemd_unit: scylla.service
+
+  - id: minio
+    name: minio
+    summary: Object store — caches artifact blobs.
+    systemd_unit: globular-minio.service
+    depends_on:
+      - service: node-agent
+        phase: bootstrap_recovery
+        required: false
+
+  - id: authentication
+    name: authentication
+    summary: JWT token issuer and validator.
+    systemd_unit: globular-authentication.service
+    proto_service: AuthenticationService
+    depends_on:
+      - service: etcd
+        phase: startup
+        required: true
+
+  - id: rbac
+    name: rbac
+    summary: Permission enforcement.
+    systemd_unit: globular-rbac.service
+    proto_service: RBACService
+    depends_on:
+      - service: etcd
+        phase: startup
+        required: true
+
+  - id: dns
+    name: dns
+    summary: Authoritative DNS for internal cluster domain.
+    systemd_unit: globular-dns.service
+    proto_service: DnsService
+    depends_on:
+      - service: scylladb
+        phase: startup
+        required: true
+
+  - id: ai-memory
+    name: ai-memory
+    summary: Persistent AI knowledge store — scar tissue for incidents.
+    systemd_unit: globular-ai-memory.service
+    proto_service: AIMemoryService
+    depends_on:
+      - service: scylladb
+        phase: startup
+        required: true
+
+  - id: ai-executor
+    name: ai-executor
+    summary: Diagnosis and remediation coordinator.
+    systemd_unit: globular-ai-executor.service
+    proto_service: AIExecutorService
+    depends_on:
+      - service: ai-memory
+        phase: startup
+        required: false
+      - service: workflow-service
+        phase: remediation
+        required: true
+
+  - id: ai-watcher
+    name: ai-watcher
+    summary: Event monitor — triggers AI diagnosis on cluster events.
+    systemd_unit: globular-ai-watcher.service
+    proto_service: AIWatcherService
+    depends_on:
+      - service: etcd
+        phase: startup
+        required: true
+      - service: ai-executor
+        phase: diagnosis
+        required: false

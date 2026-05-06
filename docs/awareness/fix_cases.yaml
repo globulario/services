@@ -1,0 +1,68 @@
+fix_cases:
+  - id: config_seed_protection
+    title: Package reinstall must not overwrite live cluster config
+    status: DONE
+    pattern: "package reinstall overwrite"
+    category: config_ownership
+    target_invariants:
+      - install.result.atomic_commit
+    fixed_files:
+      - packages/metadata/prometheus/specs/prometheus_service.yaml
+      - packages/metadata/alertmanager/specs/alertmanager_service.yaml
+      - packages/metadata/xds/specs/xds_service.yaml
+      - packages/metadata/mcp/specs/mcp_service.yaml
+    remaining_files:
+      - golang/fix/guardrails.md  # 1B audit not done
+    required_tests:
+      - TestSpecSeedGuard
+    dod: All cluster-owned config files use skip_if_exists or contract-rendered protection.
+    notes: "1A complete 2026-05-03; 1B (full ownership audit) is FUTURE"
+
+  - id: join_script_safety
+    title: Day-1 join script must be safe, deterministic, non-destructive
+    status: DONE
+    pattern: "join script"
+    category: join_safety
+    target_invariants:
+      - convergence.no_infinite_retry
+    fixed_files:
+      - Globular/internal/gateway/handlers/cluster/join_script.go
+    required_tests:
+      - TestJoinScript_BashNSyntaxCheck
+      - TestJoinScript_EtcdYamlExistingClusterState
+      - TestJoinScript_GhostMemberRemovalBeforeMemberAdd
+    dod: Generated join script passes bash -n, shellcheck, and 20 behavioral tests.
+    notes: "COMPLETE 2026-05-03"
+
+  - id: infra_drift_detection
+    title: Service-like infrastructure drift must be detected and not hidden
+    status: DONE
+    pattern: "infrastructure drift"
+    category: infra_drift
+    target_invariants:
+      - runtime.installed_state_not_liveness
+    fixed_files:
+      - golang/cluster_doctor/cluster_doctor_server/doctor.go
+    required_tests:
+      - TestInfraDriftBatchCoverage
+    dod: All 15 infra components covered by drift detection batch test.
+    notes: "COMPLETE 2026-05-03; 15 components"
+
+  - id: desired_hash_consistency
+    title: Infrastructure desired hash must use canonical computation everywhere
+    status: PARTIAL
+    pattern: "desired hash"
+    category: convergence
+    target_invariants:
+      - infra.desired_hash_consistency
+      - convergence.no_infinite_retry
+    fixed_files: []
+    remaining_files:
+      - golang/cluster_controller/cluster_controller_server/infrastructure_reconciler.go
+      - golang/workflow/workflow_server/infra_release_handler.go
+      - golang/node_agent/node_agent_server/installed_services.go
+    required_tests:
+      - TestInfrastructureDesiredHashConsistency
+      - TestDriftWorkflowUsesDesiredHash
+    dod: All infrastructure convergence paths use ComputeInfrastructureDesiredHash, not ResolvedArtifactDigest.
+    notes: "Identified during Envoy restart storm 2026-05-06"

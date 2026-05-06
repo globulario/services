@@ -107,6 +107,7 @@ func RenderTriagedJSON(r *TriagedResult) string {
 		Pass             bool          `json:"pass"`
 		ErrorCount       int           `json:"error_count"`
 		WarningCount     int           `json:"warning_count"`
+		UnsuppressedCount int          `json:"unsuppressed_count"`
 		InfoCount        int           `json:"info_count"`
 		SuppressedCount  int           `json:"suppressed_count"`
 		Findings         []jsonFinding `json:"findings"`
@@ -120,6 +121,7 @@ func RenderTriagedJSON(r *TriagedResult) string {
 		Pass:             r.Pass,
 		ErrorCount:       r.ErrorCount,
 		WarningCount:     r.WarningCount,
+		UnsuppressedCount: len(r.Findings),
 		InfoCount:        r.InfoCount,
 		SuppressedCount:  r.SuppressedCount,
 		Findings:         []jsonFinding{},

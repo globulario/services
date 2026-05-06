@@ -1,0 +1,33 @@
+{
+  "_comment": "Copy to ~/.claude/settings.json (global) or .claude/settings.local.json (project). Choose one mode.",
+
+  "_mode_warning": "Warning mode — hook runs on every Edit, prints awareness context, never blocks.",
+  "hooks_warning_mode": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "globular awareness hook --file \"$CLAUDE_TOOL_INPUT_FILE_PATH\" --task \"$CLAUDE_TASK\""
+          }
+        ]
+      }
+    ]
+  },
+
+  "_mode_strict": "Strict mode — hook exits 2 (blocking) if Edit targets a high-risk file with an unsafe task.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "globular awareness hook --strict --watchlist docs/awareness/high_risk_files.yaml --file \"$CLAUDE_TOOL_INPUT_FILE_PATH\" --task \"$CLAUDE_TASK\""
+          }
+        ]
+      }
+    ]
+  }
+}

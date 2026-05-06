@@ -1,0 +1,138 @@
+forbidden_fixes:
+  - id: blind_reconcile_retry
+    summary: >
+      Retry the same install action on every reconcile tick without
+      classifying whether the failure is transient or deterministic.
+    related_invariants:
+      - convergence.no_infinite_retry
+
+  - id: treating_all_failures_as_transient
+    summary: >
+      Mark every failure as transient and schedule a retry regardless
+      of whether the root cause can resolve itself without input change.
+    related_invariants:
+      - convergence.no_infinite_retry
+
+  - id: clearing_action_without_durable_result
+    summary: >
+      Delete or clear an action record before the installed-state and
+      result promotion are committed to etcd in a single transaction.
+    related_invariants:
+      - install.result.atomic_commit
+      - convergence.no_infinite_retry
+
+  - id: marking_available_from_local_success_only
+    summary: >
+      Mark a service release AVAILABLE based solely on a local node
+      reporting success, without the controller confirming installed-state
+      in etcd.
+    related_invariants:
+      - install.result.atomic_commit
+      - runtime.installed_state_not_liveness
+
+  - id: start_minio_from_local_health_check
+    summary: >
+      Start the globular-minio.service based on local health checks or
+      disk state, without verifying that the node is present in
+      ObjectStoreDesiredState.
+    related_invariants:
+      - objectstore.topology_contract
+
+  - id: infer_minio_membership_from_disk
+    summary: >
+      Infer that a node should run MinIO because its data directory exists
+      or because MinIO was previously running, rather than reading the
+      authoritative ObjectStoreDesiredState from etcd.
+    related_invariants:
+      - objectstore.topology_contract
+
+  - id: wipe_minio_sys_without_approved_transition
+    summary: >
+      Wipe the MinIO .minio.sys directory or reset erasure-coded pool
+      metadata without going through an approved cluster transition workflow.
+    related_invariants:
+      - objectstore.topology_contract
+
+  - id: round_robin_dns_for_minio_writes
+    summary: >
+      Route MinIO write operations through round-robin DNS without ensuring
+      the target node is in the active objectstore pool.
+    related_invariants:
+      - objectstore.topology_contract
+
+  - id: gate_metadata_reads_on_minio_health
+    summary: >
+      Refuse to serve artifact listing, manifest queries, or version
+      resolution when MinIO is unavailable, even though these operations
+      can be satisfied from ScyllaDB alone.
+    related_invariants:
+      - repository.metadata_first
+
+  - id: store_artifact_index_only_in_minio
+    summary: >
+      Store the artifact index, manifest, or version ledger exclusively
+      in MinIO, making metadata unavailable when blob storage degrades.
+    related_invariants:
+      - repository.metadata_first
+
+  - id: assume_installed_means_running
+    summary: >
+      Treat the presence of an installed-state record in etcd as proof
+      that the corresponding service is currently running and healthy.
+    related_invariants:
+      - runtime.installed_state_not_liveness
+
+  - id: skip_systemd_health_check_if_installed
+    summary: >
+      Skip the systemd unit liveness check because the installed-state
+      record exists, leading to false-positive health reports.
+    related_invariants:
+      - runtime.installed_state_not_liveness
+
+  - id: overwrite_desired_build_id_silently
+    summary: >
+      Silently overwrite a desired build_id in etcd after it has already
+      been resolved and written, breaking audit trails and potentially
+      installing an unverified artifact.
+    related_invariants:
+      - desired.build_id_immutable
+
+  - id: resolve_build_id_at_install_time
+    summary: >
+      Allow node-agent to resolve the build_id at install time rather
+      than using the pre-resolved build_id from DesiredService in etcd.
+    related_invariants:
+      - desired.build_id_immutable
+
+  - id: dispatch_workflow_when_scylla_down
+    summary: >
+      Dispatch a workflow when the Scylla backend is known to be
+      unavailable or degraded, producing orphaned workflow records.
+    related_invariants:
+      - workflow.backend_health_gate
+
+  - id: ignore_backend_health_on_dispatch
+    summary: >
+      Skip the backend health preflight check when dispatching workflows,
+      relying on Scylla to surface errors during the write rather than
+      failing fast before creating the record.
+    related_invariants:
+      - workflow.backend_health_gate
+
+  - id: validate_globular_annotations_inside_test_fixtures
+    summary: >
+      The annotation validator must not treat //globular: strings inside
+      _test.go fixtures or raw test strings as production annotations.
+    related_invariants:
+      - awareness.annotation_scanner.production_source_only
+    required_tests:
+      - TestValidateAnnotationsSkipsTestFiles
+
+  - id: treat_raw_string_fixture_annotations_as_source_annotations
+    summary: >
+      The annotation validator must not interpret //globular: directives
+      inside raw string literals as source-level awareness contracts.
+    related_invariants:
+      - awareness.annotation_scanner.production_source_only
+    required_tests:
+      - TestValidateAnnotationsSkipsTestFiles

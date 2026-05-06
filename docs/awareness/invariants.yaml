@@ -1,0 +1,177 @@
+invariants:
+    - id: objectstore.topology_contract
+      title: MinIO topology contract
+      severity: critical
+      status: active
+      summary: |
+        MinIO may only run on nodes present in ObjectStoreDesiredState. Node-agent must never infer objectstore membership from local disk state.
+      protects:
+        state:
+            - /globular/objectstore/config
+            - /globular/objectstore/desired
+        files:
+            - golang/config/minio_runtime_render.go
+        symbols:
+            - enforceMinioHeld
+            - nodeIPInPool
+      forbidden_fixes:
+        - start_minio_from_local_health_check
+        - infer_minio_membership_from_disk
+        - wipe_minio_sys_without_approved_transition
+        - round_robin_dns_for_minio_writes
+      required_tests:
+        - TestMinioHeldWhenNodeNotInPool
+        - TestTopologyRenderParity
+        - TestApprovedTransitionRequiredForWipe
+      related_failure_modes:
+        - objectstore.local_membership_inference
+        - repository.minio.recovery_cycle
+    - id: install.result.atomic_commit
+      title: Install result must commit atomically
+      severity: critical
+      status: active
+      summary: |
+        Installed-state, result promotion, and action cleanup must commit together in one durable transaction. Partial commits leave the system in an ambiguous state that causes repeated reconcile dispatches.
+      protects:
+        state:
+            - /globular/nodes/{node_id}/packages/{kind}/{name}
+            - /globular/resources/ActionResult/{id}
+        files:
+            - golang/node_agent/node_agent_server/installed_services.go
+            - golang/cluster_controller/cluster_controller_server/reconciler.go
+        symbols:
+            - commitInstallResult
+            - applyPackageRelease
+      forbidden_fixes:
+        - clear_action_before_installed_state
+        - mark_release_available_from_local_success
+        - retry_install_blindly
+      required_tests:
+        - TestLeaderFailoverDuringResultCommit
+        - TestPendingSyncRecovery
+      related_failure_modes:
+        - install.result.partial_commit
+    - id: runtime.installed_state_not_liveness
+      title: Installed-state is not runtime liveness
+      severity: high
+      status: active
+      summary: |
+        Installed-state proves package application to disk, not runtime liveness. A package may be installed but its systemd unit may be stopped, crashed, or degraded. Never treat installed-state as proof the service is running.
+      protects:
+        state:
+            - /globular/nodes/{node_id}/packages/{kind}/{name}
+        symbols:
+            - IsInstalled
+            - GetInstalledState
+      forbidden_fixes:
+        - assume_installed_means_running
+        - skip_systemd_health_check_if_installed
+      required_tests:
+        - TestInstalledNotImpliesRunning
+        - TestRuntimeHealthSeparateFromInstalled
+    - id: desired.build_id_immutable
+      title: Desired build_id must not mutate after resolution
+      severity: critical
+      status: active
+      summary: |
+        Once a desired build_id is resolved and written to etcd, it must not be silently changed. Mutations cause node-agent to see a different artifact than the one the controller resolved, breaking audit trails and potentially installing an unverified artifact.
+      protects:
+        state:
+            - /globular/resources/DesiredService/{name}
+        symbols:
+            - resolveDesiredBuildID
+            - writeDesiredState
+      forbidden_fixes:
+        - overwrite_desired_build_id_silently
+        - resolve_build_id_at_install_time
+      required_tests:
+        - TestDesiredBuildIDImmutableAfterWrite
+        - TestBuildIDNotResolvedAtNodeAgent
+    - id: infra.desired_hash_consistency
+      title: Infrastructure desired_hash must be computed consistently
+      severity: critical
+      status: active
+      summary: |
+        ComputeInfrastructureDesiredHash must use identical inputs on the producer side (controller) and the consumer side (node-agent convergence check). Any divergence in inputs creates a permanent mismatch loop that never converges — desired_hash computed by controller will never match the hash validated at the node-agent layer.
+      protects:
+        state:
+            - /globular/resources/InfrastructureRelease/{name}
+            - /globular/nodes/{node_id}/packages/infra/{name}
+        files:
+            - golang/cluster_controller/cluster_controller_server/release_hash.go
+            - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+            - golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+        symbols:
+            - ComputeInfrastructureDesiredHash
+            - lookupServiceReleaseBuildID
+            - classifyPackageConvergence
+      forbidden_fixes:
+        - compute_hash_only_at_controller
+        - recompute_hash_at_node_agent_with_different_inputs
+        - use_raw_artifact_digest_as_desired_hash
+      required_tests:
+        - TestInfraDesiredHashConsistency
+        - TestLookupServiceReleaseBuildIDUsesDesiredHash
+      related_failure_modes:
+        - convergence.hash_mismatch_loop
+    - id: infra.heartbeat_not_desired_authority
+      title: Heartbeat is observer-only — it must never set desired state
+      severity: critical
+      status: active
+      summary: |
+        The node-agent heartbeat (syncInstalledStateToEtcd) may only write observed and installed state. It must never compute, set, or overwrite desired_hash, desired_version, or any field owned by the controller's desired-state layer. Writing desired state from the heartbeat path breaks the 4-layer state model and causes uncontrolled convergence drift.
+      protects:
+        state:
+            - /globular/nodes/{node_id}/status
+            - /globular/nodes/{node_id}/packages/{kind}/{name}
+        files:
+            - golang/node_agent/node_agent_server/heartbeat.go
+            - golang/node_agent/node_agent_server/installed_services.go
+        symbols:
+            - syncInstalledStateToEtcd
+            - ComputeInstalledServices
+            - computeAppliedServicesHash
+      forbidden_fixes:
+        - heartbeat_sets_desired_hash
+        - heartbeat_sets_desired_version
+        - node_agent_writes_to_desired_release
+      required_tests:
+        - TestHeartbeatDoesNotSetDesiredState
+        - TestSyncInstalledStateOnlyWritesObserved
+      related_failure_modes:
+        - infra.desired_hash_mismatch_loop
+    - id: service.restart_singleflight
+      title: Service restart must go through singleflight gate
+      severity: high
+      status: active
+      summary: |
+        Only one restart may be in-flight per service per convergence tick. Bypassing the singleflight gate causes cascading SIGTERM storms: multiple concurrent restart attempts race, leaving the service in start-limit-hit and requiring manual intervention to reset.
+      protects:
+        state:
+            - /globular/nodes/{node_id}/packages/{kind}/{name}
+        files:
+            - golang/node_agent/node_agent_server/repair_actions.go
+            - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+        symbols:
+            - repairVerifyRuntime
+            - reconcileChooseWorkflow
+      forbidden_fixes:
+        - restart_without_singleflight_gate
+        - concurrent_restart_on_start_limit_hit
+        - reset_singleflight_before_restart_completes
+      required_tests:
+        - TestRestartSingleflightGate
+        - TestNoDoubleRestartOnConvergenceTick
+      related_failure_modes:
+        - service.restart_storm
+    - id: awareness.annotation_scanner.production_source_only
+      title: Annotation scanner validates production Go source only
+      severity: ERROR
+      status: active
+      summary: |
+        The awareness annotation validator must not treat //globular: strings inside test fixtures as production annotations. Production annotations are validated from non-test Go source files only.
+      forbidden_fixes:
+        - validate_globular_annotations_inside_test_fixtures
+        - treat_raw_string_fixture_annotations_as_source_annotations
+      required_tests:
+        - TestValidateAnnotationsSkipsTestFiles

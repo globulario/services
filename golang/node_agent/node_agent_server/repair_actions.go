@@ -113,6 +113,12 @@ func (srv *NodeAgentServer) checkIdentityIntegrity() string {
 // repairVerifyRuntime checks all repair postconditions:
 //  1. All target packages have status "installed" (not partial_apply, failed)
 //  2. All managed systemd units are active/running
+//
+// Only one repair-via-restart may be in-flight at a time (singleflight).
+//
+//globular:enforces service.restart_singleflight
+//globular:state_transition INSTALLED -> RUNTIME
+//globular:risk service.restart_storm
 //  3. Controller version >= minSafeReconcileVersion (if controller was repaired)
 //  4. No non-authoritative observations in installed-state
 func (srv *NodeAgentServer) repairVerifyRuntime(ctx context.Context, nodeID string, repairPlan map[string]any) error {

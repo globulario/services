@@ -113,6 +113,15 @@ func (c *convergenceCommitter) runOnce(ctx context.Context) {
 	}
 }
 
+// processResult reads a ConvergenceResultV1 from node-agent and commits an
+// authoritative InstalledPackage to etcd. This is the final write that closes
+// the desired→installed loop. It must be atomic — partial writes cause
+// repeated reconcile dispatches.
+//
+//globular:enforces install.result.atomic_commit
+//globular:writes /globular/nodes/{node_id}/packages/{kind}/{name}
+//globular:state_transition INSTALLED -> CONVERGED
+//globular:risk install.committer_partial_write
 func (c *convergenceCommitter) processResult(ctx context.Context, r *installed_state.ConvergenceResultV1, desired map[string]desiredVersionInfo) {
 	switch r.Outcome {
 	case installed_state.OutcomeSuccessLocalPendingSync:

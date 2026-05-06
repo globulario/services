@@ -1,0 +1,40 @@
+aliases:
+  infra.desired_hash_consistency:
+    - desired hash mismatch
+    - checksum mismatch
+    - drift loop
+    - install loop
+    - raw artifact digest
+    - ComputeInfrastructureDesiredHash
+    - ResolvedArtifactDigest
+    - desired_hash
+    - hash convergence
+
+  service.restart_singleflight:
+    - restart storm
+    - SIGTERM storm
+    - start-limit-hit
+    - repeated restart
+    - restart loop
+    - start limit
+
+  infra.heartbeat_not_desired_authority:
+    - heartbeat created release
+    - ManagedInstalled created InfrastructureRelease
+    - runtime promoted to desired
+    - heartbeat authority
+    - discovered runtime
+
+  convergence.no_infinite_retry:
+    - retry loop
+    - infinite retry
+    - deterministic failure
+    - reconcile storm
+    - repeated dispatch
+
+  install.result.atomic_commit:
+    - partial commit
+    - atomic install
+    - install result missing
+    - etcd transaction
+    - installed-state missing

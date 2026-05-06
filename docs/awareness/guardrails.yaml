@@ -1,0 +1,44 @@
+guardrails:
+  - id: config_ownership
+    title: Package install may seed defaults only if missing. Live config is owned by controller/node-agent/workflow/identity.
+    priority: P1
+    status: PARTIAL
+    category: configuration
+    target_invariants:
+      - install.result.atomic_commit
+    required_fixes:
+      - config_seed_protection
+    summary: 1A done, 1B (full ownership audit) future.
+
+  - id: join_script_safety
+    title: Day-1 joins existing truth. It does not invent local truth.
+    priority: P1
+    status: DONE
+    category: day1
+    target_invariants:
+      - convergence.no_infinite_retry
+    required_fixes:
+      - join_script_safety
+    summary: Complete 2026-05-03, 20 tests pass.
+
+  - id: infra_drift
+    title: AVAILABLE is not a memory. AVAILABLE must remain true.
+    priority: P1
+    status: DONE
+    category: infrastructure
+    target_invariants:
+      - runtime.installed_state_not_liveness
+    required_fixes:
+      - infra_drift_detection
+    summary: Complete 2026-05-03, 15 components.
+
+  - id: desired_hash_identity
+    title: Infrastructure convergence must use canonical DesiredHash throughout.
+    priority: P0
+    status: PARTIAL
+    category: convergence
+    target_invariants:
+      - infra.desired_hash_consistency
+    required_fixes:
+      - desired_hash_consistency
+    summary: Identified 2026-05-06; fix cases written, not yet implemented.

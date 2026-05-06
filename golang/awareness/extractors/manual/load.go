@@ -21,6 +21,7 @@ func LoadAll(ctx context.Context, g *graph.Graph, docsDir string) error {
 		{"invariants.yaml", LoadInvariants},
 		{"convergence_rules.yaml", LoadInvariants},
 		{"failure_modes.yaml", LoadFailureModes},
+		{"forbidden_fixes.yaml", LoadForbiddenFixes},
 		{"services.yaml", LoadServices},
 	}
 

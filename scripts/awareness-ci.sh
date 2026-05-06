@@ -12,7 +12,9 @@
 # Phases:
 #   1. Build (or verify) the awareness graph.
 #   2. Validate all //globular: annotations are well-formed.
-#   3. Run the full audit (contracts, required tests, graph drift) with suppressions.
+#   3. Run annotation-coverage.
+#   4. Run graph-drift.
+#   5. Run full strict audit with suppressions.
 #
 # Exits 1 if any ERROR finding is detected, or if --strict conditions are violated.
 
@@ -37,13 +39,13 @@ echo ""
 
 # Phase 1 — Build the graph (unless skipped with --skip-build).
 if [[ -z "$SKIP_BUILD" ]]; then
-    echo "[1/3] Building awareness graph..."
+    echo "[1/5] Building awareness graph..."
     globular awareness build --repo "$REPO_ROOT"
     echo ""
 fi
 
 # Phase 2 — Annotation syntax check (fast, no graph required).
-echo "[2/3] Validating annotation syntax..."
+echo "[2/5] Validating annotation syntax..."
 if ! globular awareness validate-annotations --repo "$REPO_ROOT" --json > /tmp/awareness-annotations.json 2>&1; then
     echo "FAIL: annotation validation errors found"
     cat /tmp/awareness-annotations.json
@@ -53,8 +55,26 @@ ANNOTATION_ERRORS=$(jq '.error_count' /tmp/awareness-annotations.json 2>/dev/nul
 echo "    Annotation errors: $ANNOTATION_ERRORS"
 echo ""
 
-# Phase 3 — Full audit with suppressions.
-echo "[3/3] Running full awareness audit..."
+# Phase 3 — annotation coverage.
+echo "[3/5] Running annotation coverage..."
+if ! globular awareness annotation-coverage --repo "$REPO_ROOT" --json > /tmp/awareness-coverage.json 2>&1; then
+    echo "FAIL: annotation coverage errors found"
+    cat /tmp/awareness-coverage.json
+    exit 1
+fi
+echo ""
+
+# Phase 4 — graph drift.
+echo "[4/5] Running graph drift..."
+if ! globular awareness graph-drift --repo "$REPO_ROOT" --json > /tmp/awareness-drift.json 2>&1; then
+    echo "FAIL: graph drift reported ERROR findings"
+    cat /tmp/awareness-drift.json
+    exit 1
+fi
+echo ""
+
+# Phase 5 — Full strict audit with suppressions.
+echo "[5/5] Running full awareness audit..."
 
 AUDIT_FLAGS=(
     --repo "$REPO_ROOT"
@@ -62,9 +82,7 @@ AUDIT_FLAGS=(
     --json
 )
 
-if [[ -n "$STRICT" ]]; then
-    AUDIT_FLAGS+=(--strict)
-fi
+AUDIT_FLAGS+=(--strict)
 
 if ! globular awareness audit "${AUDIT_FLAGS[@]}" > /tmp/awareness-audit.json 2>&1; then
     AUDIT_ERRORS=$(jq '.error_count // 0' /tmp/awareness-audit.json 2>/dev/null || echo "unknown")

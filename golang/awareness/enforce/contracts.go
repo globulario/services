@@ -54,14 +54,14 @@ func ValidateContracts(ctx context.Context, g *graph.Graph) []Finding {
 
 		case !hasProducer:
 			findings = append(findings, Finding{
-				Code:     "MISSING_HASH_PRODUCER",
+				Code:     CodeHashSchemaNoProducer,
 				Severity: SeverityError,
 				Message:  "hash_schema '" + n.Name + "' has consumers but no producer — add //globular:hash_schema " + n.Name + " to the producing function",
 			})
 
 		case !hasConsumer:
 			findings = append(findings, Finding{
-				Code:     "MISSING_HASH_CONSUMER",
+				Code:     CodeHashSchemaNoConsumer,
 				Severity: SeverityWarning,
 				Message:  "hash_schema '" + n.Name + "' has a producer but no consumer — add //globular:expects_hash_schema " + n.Name + " to the consuming function",
 			})
