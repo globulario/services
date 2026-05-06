@@ -339,14 +339,19 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 			Evidence:        map[string]string{"kind": pkgKind},
 		})
 
-		// Restart the systemd unit so the new binary takes effect.
-		// INFRASTRUCTURE and COMMAND packages manage their own lifecycle
-		// (post-install scripts / one-shot units); only SERVICE packages
-		// need an explicit restart here.
-		if strings.ToUpper(pkgKind) == "SERVICE" {
-			if unit := packageUnit(pkgName); unit != "" {
-				restartCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				defer cancel()
+		// Restart / start the systemd unit so the new binary takes effect.
+		//
+		// SERVICE: always restart (re-enable first in case crash-loop suppression
+		// disabled the unit).
+		//
+		// INFRASTRUCTURE: the install action stops the service to replace the
+		// binary. systemd won't auto-restart on a clean SIGTERM exit (Restart=on-failure
+		// only). Start the unit here so the service comes back up after install.
+		if unit := packageUnit(pkgName); unit != "" {
+			restartCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			switch strings.ToUpper(pkgKind) {
+			case "SERVICE":
 				// Re-enable in case crash-loop suppression disabled the unit.
 				if enErr := supervisor.Enable(restartCtx, unit); enErr != nil {
 					log.Printf("grpc-workflow: enable %s failed (proceeding to restart): %v", unit, enErr)
@@ -355,6 +360,15 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 					log.Printf("grpc-workflow: restart %s failed: %v", unit, rsErr)
 				} else {
 					log.Printf("grpc-workflow: restarted %s after install", unit)
+				}
+			case "INFRASTRUCTURE":
+				active, _ := supervisor.IsActive(restartCtx, unit)
+				if !active {
+					if startErr := supervisor.Start(restartCtx, unit); startErr != nil {
+						log.Printf("grpc-workflow: start %s after INFRASTRUCTURE install failed: %v", unit, startErr)
+					} else {
+						log.Printf("grpc-workflow: started %s after INFRASTRUCTURE install", unit)
+					}
 				}
 			}
 		}
@@ -383,13 +397,22 @@ func (srv *NodeAgentServer) writeInstalledRecord(ctx context.Context, pkgName, p
 }
 
 // emitConvergenceResult writes a ConvergenceResultV1 to etcd asynchronously.
-// Failures are logged but never surface to the caller.
+// One retry after 5 seconds guards against transient etcd hiccups — a lost
+// record means the controller never writes the installed-state entry and keeps
+// re-dispatching the install workflow indefinitely.
 func (srv *NodeAgentServer) emitConvergenceResult(r *installed_state.ConvergenceResultV1) {
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
-		defer cancel()
-		if err := writeConvergenceResult(ctx, r); err != nil {
-			log.Printf("grpc-workflow: convergence-result %s/%s: %v", r.NodeID, r.Package, err)
+		for attempt := 0; attempt < 2; attempt++ {
+			if attempt > 0 {
+				time.Sleep(5 * time.Second)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+			err := writeConvergenceResult(ctx, r)
+			cancel()
+			if err == nil {
+				return
+			}
+			log.Printf("grpc-workflow: convergence-result %s/%s (attempt %d): %v", r.NodeID, r.Package, attempt+1, err)
 		}
 	}()
 }
