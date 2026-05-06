@@ -45,12 +45,12 @@ func Foo() {}
 	findings := enforce.ValidateAnnotations(dir)
 	found := false
 	for _, f := range findings {
-		if f.Code == "MALFORMED_STATE_TRANSITION" && f.Severity == enforce.SeverityError {
+		if f.Code == enforce.CodeAnnotationBadStateTrans && f.Severity == enforce.SeverityError {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("expected MALFORMED_STATE_TRANSITION ERROR, got: %v", findings)
+		t.Errorf("expected %s ERROR, got: %v", enforce.CodeAnnotationBadStateTrans, findings)
 	}
 }
 

@@ -40,7 +40,7 @@ func ValidateRequiredTests(ctx context.Context, g *graph.Graph) []Finding {
 		}
 		if testNode == nil {
 			findings = append(findings, Finding{
-				Code:     "REQUIRED_TEST_MISSING",
+				Code:     CodeRequiredTestMissing,
 				Severity: SeverityError,
 				Symbol:   e.Src,
 				Message:  "tested_by target '" + e.Dst + "' does not exist in the graph — add a test function named " + stripPrefix(e.Dst, "test:"),

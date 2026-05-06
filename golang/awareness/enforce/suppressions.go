@@ -180,6 +180,18 @@ func ApplySuppressions(findings []Finding, sf *SuppressionFile, now time.Time) S
 		}
 
 		if matched != "" {
+			// max_count bounds how many findings can be suppressed by this rule.
+			var sup *Suppression
+			for i := range sf.Suppressions {
+				if sf.Suppressions[i].ID == matched {
+					sup = &sf.Suppressions[i]
+					break
+				}
+			}
+			if sup != nil && sup.MaxCount > 0 && matchCounts[matched] > sup.MaxCount {
+				result.Unsuppressed = append(result.Unsuppressed, f)
+				continue
+			}
 			result.Suppressed = append(result.Suppressed, f)
 			result.SuppressedBy = append(result.SuppressedBy, matched)
 		} else {

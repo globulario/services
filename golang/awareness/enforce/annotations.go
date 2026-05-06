@@ -68,7 +68,7 @@ func validateFileAnnotations(relPath, absPath string) []Finding {
 		loc := findingLocation(relPath, lineNo+1)
 		if value == "" {
 			findings = append(findings, Finding{
-				Code:     "ANNOTATION_MISSING_VALUE",
+				Code:     CodeAnnotationMissingValue,
 				Severity: SeverityError,
 				File:     relPath,
 				Message:  loc + ": //globular:" + directive + " requires a non-empty value",
@@ -114,6 +114,13 @@ func validateFileAnnotations(relPath, absPath string) []Finding {
 
 		case "service", "reads", "writes", "controls", "forbids", "phase", "risk":
 			// Non-empty value is sufficient — already checked above.
+		default:
+			findings = append(findings, Finding{
+				Code:     CodeAnnotationUnknownDirective,
+				Severity: SeverityWarning,
+				File:     relPath,
+				Message:  loc + ": unknown //globular directive: " + directive,
+			})
 		}
 	}
 
@@ -128,7 +135,7 @@ func validateStateTransition(relPath, loc, value string) []Finding {
 	idx := strings.Index(norm, " -> ")
 	if idx < 0 {
 		return []Finding{{
-			Code:     "MALFORMED_STATE_TRANSITION",
+			Code:     CodeAnnotationBadStateTrans,
 			Severity: SeverityError,
 			File:     relPath,
 			Message:  loc + ": //globular:state_transition must have format 'FROM -> TO', got: " + value,
@@ -138,7 +145,7 @@ func validateStateTransition(relPath, loc, value string) []Finding {
 	to := strings.TrimSpace(norm[idx+4:])
 	if from == "" || to == "" {
 		return []Finding{{
-			Code:     "MALFORMED_STATE_TRANSITION",
+			Code:     CodeAnnotationBadStateTrans,
 			Severity: SeverityError,
 			File:     relPath,
 			Message:  loc + ": //globular:state_transition FROM and TO must both be non-empty, got: " + value,

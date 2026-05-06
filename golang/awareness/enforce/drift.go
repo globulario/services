@@ -71,7 +71,7 @@ func AuditDrift(ctx context.Context, g *graph.Graph, srcDir string) []Finding {
 		for _, n := range invNodes {
 			if !enforced[n.ID] {
 				findings = append(findings, Finding{
-					Code:     "ORPHANED_INVARIANT_NODE",
+					Code:     CodeInvariantNoEnforcer,
 					Severity: SeverityInfo,
 					Message:  "invariant node '" + n.Name + "' has no enforces or protects edge — it may not be annotated in source code yet",
 				})

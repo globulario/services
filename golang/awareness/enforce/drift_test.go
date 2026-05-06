@@ -32,13 +32,13 @@ func TestAuditDriftNoStaleNodes(t *testing.T) {
 
 	findings := enforce.AuditDrift(ctx, g, dir)
 	for _, f := range findings {
-		if f.Code == "STALE_SOURCE_FILE_NODE" {
+		if f.Code == enforce.CodeGraphSourceFileMissing {
 			t.Errorf("unexpected stale-node finding for existing file: %v", f)
 		}
 	}
 }
 
-// Test 11: Source file node for deleted file → STALE_SOURCE_FILE_NODE WARNING.
+// Test 11: Source file node for deleted file → GRAPH_SOURCE_FILE_MISSING WARNING.
 func TestAuditDriftStaleNode(t *testing.T) {
 	ctx := context.Background()
 	g := openTestGraph(t)
@@ -57,11 +57,11 @@ func TestAuditDriftStaleNode(t *testing.T) {
 	findings := enforce.AuditDrift(ctx, g, dir)
 	found := false
 	for _, f := range findings {
-		if f.Code == "STALE_SOURCE_FILE_NODE" && f.Severity == enforce.SeverityWarning {
+		if f.Code == enforce.CodeGraphSourceFileMissing && f.Severity == enforce.SeverityWarning {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("expected STALE_SOURCE_FILE_NODE WARNING, got: %v", findings)
+		t.Errorf("expected %s WARNING, got: %v", enforce.CodeGraphSourceFileMissing, findings)
 	}
 }

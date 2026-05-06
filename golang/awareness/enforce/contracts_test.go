@@ -47,12 +47,12 @@ func TestValidateContractsMissingConsumer(t *testing.T) {
 	findings := enforce.ValidateContracts(ctx, g)
 	found := false
 	for _, f := range findings {
-		if f.Code == "MISSING_HASH_CONSUMER" && f.Severity == enforce.SeverityWarning {
+		if f.Code == enforce.CodeHashSchemaNoConsumer && f.Severity == enforce.SeverityWarning {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("expected MISSING_HASH_CONSUMER WARNING, got: %v", findings)
+		t.Errorf("expected %s WARNING, got: %v", enforce.CodeHashSchemaNoConsumer, findings)
 	}
 }
 
@@ -68,11 +68,11 @@ func TestValidateContractsMissingProducer(t *testing.T) {
 	findings := enforce.ValidateContracts(ctx, g)
 	found := false
 	for _, f := range findings {
-		if f.Code == "MISSING_HASH_PRODUCER" && f.Severity == enforce.SeverityError {
+		if f.Code == enforce.CodeHashSchemaNoProducer && f.Severity == enforce.SeverityError {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("expected MISSING_HASH_PRODUCER ERROR, got: %v", findings)
+		t.Errorf("expected %s ERROR, got: %v", enforce.CodeHashSchemaNoProducer, findings)
 	}
 }

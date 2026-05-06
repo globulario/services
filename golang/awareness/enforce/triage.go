@@ -107,13 +107,13 @@ func SuggestAction(code string) string {
 		return "Remove or correct the unknown //globular: directive"
 	case CodeAnnotationMissingValue:
 		return "Add the missing value after the //globular: directive"
-	case CodeAnnotationBadStateTransition, CodeMalformedStateTransition:
+	case CodeAnnotationBadStateTrans: // includes CodeMalformedStateTransition alias
 		return "Format: //globular:state_transition FROM -> TO"
 	case CodeAnnotationBadIdentifier:
 		return "Use a single dot-separated identifier with no spaces"
 	case CodeAnnotationBadTestName:
 		return "Value must start with Test, Benchmark, or Example"
-	case CodeAnnotationUnknownInvariant, CodeAnnotationRefInvariantMissing:
+	case CodeAnnotationUnknownInvariant: // includes CodeAnnotationRefInvariantMissing alias
 		return "Add the invariant to docs/awareness/invariants.yaml, then run 'globular awareness build'"
 	case CodeAnnotationRefTestMissing:
 		return "Implement the test function or update the tested_by target name"
@@ -121,15 +121,15 @@ func SuggestAction(code string) string {
 		return "Implement the missing test function named in the //globular:tested_by annotation"
 	case CodeRequiredTestNoPath:
 		return "Run 'globular awareness build' to index test source paths — or implement the test"
-	case CodeHashSchemaNoProducer, CodeMissingHashProducer:
+	case CodeHashSchemaNoProducer: // includes CodeMissingHashProducer alias
 		return "Add //globular:hash_schema <name> to the function that computes this hash"
-	case CodeHashSchemaNoConsumer, CodeMissingHashConsumer:
+	case CodeHashSchemaNoConsumer: // includes CodeMissingHashConsumer alias
 		return "Add //globular:expects_hash_schema <name> to the function that validates this hash"
-	case CodeHashSchemaOrphaned, CodeOrphanedHashSchema:
+	case CodeHashSchemaOrphaned: // includes CodeOrphanedHashSchema alias
 		return "Add a producer and consumer, or remove the hash_schema node"
-	case CodeGraphSourceFileMissing, CodeStaleSourceFileNode:
+	case CodeGraphSourceFileMissing: // includes CodeStaleSourceFileNode alias
 		return "Run 'globular awareness build' to remove stale graph nodes"
-	case CodeInvariantNoEnforcer, CodeOrphanedInvariantNode:
+	case CodeInvariantNoEnforcer: // includes CodeOrphanedInvariantNode alias
 		return "Add //globular:enforces <invariant-id> to the function that checks this invariant"
 	case CodePackageContractMissing:
 		return "Run 'globular awareness admit-package' to register this package's contract"

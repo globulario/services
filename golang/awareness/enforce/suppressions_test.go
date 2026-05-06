@@ -126,9 +126,12 @@ func TestMaxCountViolationReported(t *testing.T) {
 
 	result := enforce.ApplySuppressions(findings, sf, refNow)
 
-	// All 3 are suppressed (suppression still applies even when over budget).
-	if len(result.Suppressed) != 3 {
-		t.Errorf("expected 3 suppressed, got %d", len(result.Suppressed))
+	// The suppression caps at max_count=2: first 2 suppressed, 3rd escapes to unsuppressed.
+	if len(result.Suppressed) != 2 {
+		t.Errorf("expected 2 suppressed (capped at max_count), got %d", len(result.Suppressed))
+	}
+	if len(result.Unsuppressed) != 1 {
+		t.Errorf("expected 1 unsuppressed (over max_count), got %d", len(result.Unsuppressed))
 	}
 	if len(result.MaxCountViolations) != 1 {
 		t.Errorf("expected 1 max_count violation, got %d", len(result.MaxCountViolations))
