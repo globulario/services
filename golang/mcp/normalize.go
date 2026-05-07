@@ -147,6 +147,27 @@ func getInt(args map[string]interface{}, key string, def int) int {
 	}
 }
 
+// getFloat extracts a float64 from a map[string]interface{}.
+func getFloat(args map[string]interface{}, key string, def float64) float64 {
+	if args == nil {
+		return def
+	}
+	v, ok := args[key]
+	if !ok {
+		return def
+	}
+	switch n := v.(type) {
+	case float64:
+		return n
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	default:
+		return def
+	}
+}
+
 // getBool extracts a bool from a map[string]interface{}.
 func getBool(args map[string]interface{}, key string, def bool) bool {
 	if args == nil {

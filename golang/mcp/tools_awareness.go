@@ -59,6 +59,7 @@ func registerAwarenessTools(s *server) {
 	registerAwarenessPackageTools(s, st)
 	registerAwarenessLearningTools(s, st)
 	registerAwarenessNodeContextTools(s, st)
+	registerAwarenessSemanticTools(s, st)
 }
 
 // awarGitRoot returns the git repository root via git rev-parse.

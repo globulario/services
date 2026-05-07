@@ -107,6 +107,7 @@ func TestToolsListIncludesAwarenessWhenEnabled(t *testing.T) {
 	registerAwarenessPackageTools(s, st)
 	registerAwarenessLearningTools(s, st)
 	registerAwarenessNodeContextTools(s, st)
+	registerAwarenessSemanticTools(s, st)
 
 	raw := sendToolsList(t, s)
 
@@ -126,6 +127,11 @@ func TestToolsListIncludesAwarenessWhenEnabled(t *testing.T) {
 		"awareness.node_context",
 		"awareness.neighborhood",
 		"awareness.explain_node",
+		"awareness.related",
+		"awareness.nearest",
+		"awareness.path",
+		"awareness.why_related",
+		"awareness.semantic_neighborhood",
 	}
 
 	for _, want := range required {
