@@ -340,3 +340,71 @@ capability_gap_patterns:
         operation: add
     prevents_repeat_criticism: "Future reviews cannot say 'suggest_incident has no baseline' once snapshot storage exists and the delta test passes."
     status: open
+
+  - id: awareness.etcd_control_plane_knowledge_gap
+    priority: P1
+    keywords:
+      - etcd nospace
+      - etcd leader
+      - leader instability
+      - objectstore false positive
+      - missing etcd failure mode
+      - etcd knowledge
+      - control-plane cascade
+      - nospace alarm
+      - fix order
+      - etcd before controller
+      - etcd before workflow
+      - etcd.nospace_alarm
+      - etcd.leader_instability
+      - controller.lease_expired
+      - workflow.dispatch_timeout
+      - maps to objectstore
+      - false positive objectstore
+      - dedicated failure mode
+      - knowledge base etcd
+    title: "failure_modes.yaml lacks dedicated etcd control-plane cascade entries — offline_diagnose maps to objectstore false positives"
+    criticism: "When offline_diagnose receives journalctl logs showing etcd NOSPACE alarm, etcd leader loss, controller lease expired, and workflow dispatch timeout, it maps the incident to objectstore failure modes rather than etcd/control-plane ones, because failure_modes.yaml has no dedicated etcd.nospace_alarm, etcd.leader_instability, controller.lease_expired_due_to_etcd_instability, or workflow.dispatch_timeout_due_to_control_plane_instability entries."
+    why_it_matters: "The etcd NOSPACE → leader loss → controller lease → workflow timeout cascade is one of the most common and dangerous Globular outage patterns. Without dedicated failure mode entries, offline_diagnose produces misleading matches. An operator may investigate MinIO/objectstore instead of clearing the etcd alarm."
+    requirement: "Add four failure mode entries (etcd.nospace_alarm, etcd.leader_instability, controller.lease_expired_due_to_etcd_instability, workflow.dispatch_timeout_due_to_control_plane_instability) and four forbidden fix entries to failure_modes.yaml. Add the fix-order rule: resolve etcd NOSPACE before touching controller or workflow. Include diagnostic_commands and required_tests."
+    implementation_plan:
+      - "Promote learned-fix-etcd_nospace_control_plane_cascade-* proposal from docs/awareness/proposals/"
+      - "Add etcd.nospace_alarm entry with symptoms, root_cause, architecture_fix, diagnostic_commands (etcdctl alarm list, compact, defrag, alarm disarm, endpoint health)"
+      - "Add etcd.leader_instability entry linked to etcd.nospace_alarm as upstream"
+      - "Add controller.lease_expired_due_to_etcd_instability as downstream of leader_instability"
+      - "Add workflow.dispatch_timeout_due_to_control_plane_instability as terminal symptom"
+      - "Add forbidden fixes: disarm before compact, restart etcd without NOSPACE fix, restart controller before etcd stable, restart workflow before controller stable"
+      - "Verify offline_diagnose maps test logs to etcd entries (not objectstore) after promotion"
+    tests_required:
+      - "TestOfflineDiagnose_EtcdNOSPACE_MapsToEtcdFailureMode (not objectstore)"
+      - "TestOfflineDiagnose_EtcdLeaderLoss_MapsToEtcdLeaderInstability"
+      - "TestOfflineDiagnose_ControllerLeaseExpired_MapsToCorrectFailureMode"
+      - "TestOfflineDiagnose_WorkflowTimeout_MapsToControlPlaneInstability"
+      - "TestCausalChain_EtcdNOSPACE_ProducesControlPlaneCascade (4/4 steps)"
+      - "TestSuggestIncident_FixOrder_EtcdBeforeWorkflow"
+    closure_condition: "Given the same journalctl logs (etcd NOSPACE + leader loss + controller lease expired + workflow timeout), offline_diagnose returns etcd/control-plane failure modes with score > 0.5, objectstore entries are absent or lower-scored, and recommended_next_diagnostics includes etcdctl alarm list as first step."
+    knowledge_updates:
+      - target_file: failure_modes.yaml
+        entry: etcd.nospace_alarm
+        operation: add
+      - target_file: failure_modes.yaml
+        entry: etcd.leader_instability
+        operation: add
+      - target_file: failure_modes.yaml
+        entry: controller.lease_expired_due_to_etcd_instability
+        operation: add
+      - target_file: failure_modes.yaml
+        entry: workflow.dispatch_timeout_due_to_control_plane_instability
+        operation: add
+      - target_file: forbidden_fixes.yaml
+        entry: disarm_alarm_before_compact
+        operation: add
+      - target_file: forbidden_fixes.yaml
+        entry: restart_workflow_before_etcd_stable
+        operation: add
+      - target_file: causal_rules.yaml
+        entry: etcd_disk_pressure_to_workflow_timeout
+        operation: update_diagnostics
+    prevents_repeat_criticism: "Future reviews cannot say 'offline_diagnose maps etcd incidents to objectstore' once the four failure mode entries are promoted to failure_modes.yaml and TestOfflineDiagnose_EtcdNOSPACE_MapsToEtcdFailureMode passes."
+    pending_proposal: "learned-fix-etcd_nospace_control_plane_cascade-20260507T202101Z"
+    status: open
