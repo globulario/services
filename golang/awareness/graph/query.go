@@ -58,6 +58,28 @@ func (g *Graph) FindNodesByType(ctx context.Context, nodeType string) ([]*Node, 
 	return scanNodes(rows)
 }
 
+// FindNodesByPath returns nodes whose path exactly matches the given value.
+func (g *Graph) FindNodesByPath(ctx context.Context, path string) ([]*Node, error) {
+	rows, err := g.db.QueryContext(ctx, `
+		SELECT id, type, name, path, summary, metadata_json, created_at, updated_at
+		FROM nodes WHERE path = ? ORDER BY name
+	`, path)
+	if err != nil {
+		return nil, fmt.Errorf("FindNodesByPath %q: %w", path, err)
+	}
+	defer rows.Close()
+	return scanNodes(rows)
+}
+
+// FindNodeByTypeAndName returns the first node matching type + exact name.
+func (g *Graph) FindNodeByTypeAndName(ctx context.Context, nodeType, name string) (*Node, error) {
+	row := g.db.QueryRowContext(ctx, `
+		SELECT id, type, name, path, summary, metadata_json, created_at, updated_at
+		FROM nodes WHERE type = ? AND name = ? LIMIT 1
+	`, nodeType, name)
+	return scanNode(row)
+}
+
 // FindNodesByNameLike returns nodes whose name contains the query string.
 func (g *Graph) FindNodesByNameLike(ctx context.Context, query string) ([]*Node, error) {
 	rows, err := g.db.QueryContext(ctx, `

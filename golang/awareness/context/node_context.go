@@ -1,0 +1,434 @@
+package awarectx
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/globulario/services/golang/awareness/graph"
+)
+
+// ConfidenceLabel indicates how the node context data was sourced.
+type ConfidenceLabel string
+
+const (
+	ConfidenceExplicit  ConfidenceLabel = "explicit"
+	ConfidenceExtracted ConfidenceLabel = "extracted"
+	ConfidenceInferred  ConfidenceLabel = "inferred"
+	ConfidenceRuntime   ConfidenceLabel = "runtime"
+	ConfidenceLearned   ConfidenceLabel = "learned"
+)
+
+// Options configures NodeContext and Explanation construction.
+type Options struct {
+	MaxItems int // per-list cap (default 20)
+	Depth    int // traversal depth (default 2)
+}
+
+// EdgeSummary is a condensed view of a graph edge.
+type EdgeSummary struct {
+	Kind       string  `json:"kind"`
+	TargetID   string  `json:"target_id"`
+	TargetName string  `json:"target_name"`
+	TargetType string  `json:"target_type"`
+	Confidence float64 `json:"confidence"`
+	Required   bool    `json:"required"`
+}
+
+// NodeContext is the full architectural context for a single graph node.
+type NodeContext struct {
+	NodeID   string `json:"node_id"`
+	NodeType string `json:"node_type"`
+	Name     string `json:"name"`
+	Path     string `json:"path,omitempty"`
+	Summary  string `json:"summary,omitempty"`
+
+	DirectAnnotations []EdgeSummary `json:"direct_annotations"`
+	IncomingEdges     []EdgeSummary `json:"incoming_edges"`
+	OutgoingEdges     []EdgeSummary `json:"outgoing_edges"`
+
+	RelatedInvariants   []graph.Invariant   `json:"related_invariants"`
+	RelatedFailureModes []graph.FailureMode  `json:"related_failure_modes"`
+
+	ForbiddenFixes []string `json:"forbidden_fixes"`
+	StateReads     []string `json:"state_reads"`
+	StateWrites    []string `json:"state_writes"`
+
+	Package string `json:"package,omitempty"`
+	Service string `json:"service,omitempty"`
+
+	DependencyPhases []string `json:"dependency_phases"`
+	RequiredTests    []string `json:"required_tests"`
+	FixCases         []string `json:"fix_cases"`
+	AntiPatterns     []string `json:"anti_patterns"`
+
+	SourceLabel         ConfidenceLabel `json:"source_label"`
+	EditWarnings        []string        `json:"edit_warnings"`
+	RecommendedSearches []string        `json:"recommended_searches"`
+	RuntimeEvidence     []string        `json:"runtime_evidence"`
+
+	Truncated map[string]int `json:"truncated,omitempty"`
+}
+
+// Build constructs a NodeContext for the node with the given ID.
+func Build(ctx context.Context, g *graph.Graph, nodeID string, opts Options) (*NodeContext, error) {
+	if opts.MaxItems <= 0 {
+		opts.MaxItems = 20
+	}
+	if opts.Depth <= 0 {
+		opts.Depth = 2
+	}
+
+	node, err := g.FindNode(ctx, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	if node == nil {
+		return nil, fmt.Errorf("node not found: %s", nodeID)
+	}
+
+	nc := &NodeContext{
+		NodeID:      node.ID,
+		NodeType:    node.Type,
+		Name:        node.Name,
+		Path:        node.Path,
+		Summary:     node.Summary,
+		SourceLabel: labelFromNodeType(node.Type),
+		Truncated:   make(map[string]int),
+	}
+
+	// Classify direct edges.
+	if err := nc.classifyEdges(ctx, g, node, opts); err != nil {
+		return nil, err
+	}
+
+	// Traverse outward to collect safety / structural nodes.
+	nc.traverseRelated(ctx, g, nodeID, opts)
+
+	// Collect runtime evidence from incoming runtime nodes.
+	nc.collectRuntimeEvidence(ctx, g, nodeID)
+
+	// Build edit warnings and recommended searches.
+	nc.EditWarnings = buildEditWarnings(node, nc)
+	nc.RecommendedSearches = buildRecommendedSearches(node, nc)
+
+	// Apply per-list caps.
+	nc.RelatedInvariants = capInvariants(nc.RelatedInvariants, opts.MaxItems, "related_invariants", nc.Truncated)
+	nc.RelatedFailureModes = capFailureModes(nc.RelatedFailureModes, opts.MaxItems, "related_failure_modes", nc.Truncated)
+	nc.ForbiddenFixes = capStrings(nc.ForbiddenFixes, opts.MaxItems, "forbidden_fixes", nc.Truncated)
+	nc.StateReads = capStrings(nc.StateReads, opts.MaxItems, "state_reads", nc.Truncated)
+	nc.StateWrites = capStrings(nc.StateWrites, opts.MaxItems, "state_writes", nc.Truncated)
+	nc.RequiredTests = capStrings(nc.RequiredTests, opts.MaxItems, "required_tests", nc.Truncated)
+
+	return nc, nil
+}
+
+func (nc *NodeContext) classifyEdges(ctx context.Context, g *graph.Graph, node *graph.Node, opts Options) error {
+	allEdges, err := g.Neighbors(ctx, node.ID, "both")
+	if err != nil {
+		return err
+	}
+
+	var direct, incoming, outgoing []EdgeSummary
+
+	for _, e := range allEdges {
+		if e.Src == node.ID {
+			target, _ := g.FindNode(ctx, e.Dst)
+			es := toEdgeSummary(e, e.Dst, target)
+			outgoing = append(outgoing, es)
+
+			switch e.Kind {
+			case graph.EdgeReads:
+				nc.StateReads = appendUniq(nc.StateReads, nodeNameOrID(target, e.Dst))
+			case graph.EdgeWrites:
+				nc.StateWrites = appendUniq(nc.StateWrites, nodeNameOrID(target, e.Dst))
+			case graph.EdgeDependsOn:
+				if target != nil && target.Type == graph.NodeTypeDependencyPhase {
+					nc.DependencyPhases = appendUniq(nc.DependencyPhases, target.Name)
+				}
+			case graph.EdgeForbids:
+				if target != nil {
+					nc.ForbiddenFixes = appendUniq(nc.ForbiddenFixes, target.Name)
+				}
+			case graph.EdgeTestedBy:
+				if target != nil {
+					nc.RequiredTests = appendUniq(nc.RequiredTests, target.Name)
+				}
+			}
+
+			if isSafetyAnnotation(e.Kind) {
+				direct = append(direct, es)
+			}
+		} else {
+			src, _ := g.FindNode(ctx, e.Src)
+			es := toEdgeSummary(e, e.Src, src)
+			incoming = append(incoming, es)
+
+			switch e.Kind {
+			case graph.EdgeProtects, graph.EdgeEnforces:
+				if src != nil && src.Type == graph.NodeTypeInvariant {
+					inv := findInvariantByNode(ctx, g, src)
+					if inv != nil {
+						nc.RelatedInvariants = appendInvariant(nc.RelatedInvariants, *inv)
+					}
+				}
+				if src != nil && src.Type == graph.NodeTypeForbiddenFix {
+					nc.ForbiddenFixes = appendUniq(nc.ForbiddenFixes, src.Name)
+				}
+			case graph.EdgeFixes, graph.EdgePartiallyFixes:
+				if src != nil && src.Type == graph.NodeTypeFixCase {
+					nc.FixCases = appendUniq(nc.FixCases, src.Name)
+				}
+			case graph.EdgeRequiresTest:
+				if src != nil && src.Type == graph.NodeTypeTest {
+					nc.RequiredTests = appendUniq(nc.RequiredTests, src.Name)
+				}
+			}
+		}
+	}
+
+	nc.DirectAnnotations = capEdges(direct, opts.MaxItems, "direct_annotations", nc.Truncated)
+	nc.IncomingEdges = capEdges(incoming, opts.MaxItems, "incoming_edges", nc.Truncated)
+	nc.OutgoingEdges = capEdges(outgoing, opts.MaxItems, "outgoing_edges", nc.Truncated)
+	return nil
+}
+
+func (nc *NodeContext) traverseRelated(ctx context.Context, g *graph.Graph, nodeID string, opts Options) {
+	safetyEdges := []string{
+		graph.EdgeAffects, graph.EdgeProtects, graph.EdgeEnforces,
+		graph.EdgeDependsOn, graph.EdgeOwns, graph.EdgeForbids,
+		graph.EdgeTestedBy, graph.EdgeRequiresTest,
+	}
+	tr, err := g.Traverse(ctx, nodeID, opts.Depth, safetyEdges)
+	if err != nil {
+		return
+	}
+
+	for _, n := range tr.Nodes {
+		if n.ID == nodeID {
+			continue
+		}
+		switch n.Type {
+		case graph.NodeTypeFailureMode:
+			nc.RelatedFailureModes = appendFailureMode(nc.RelatedFailureModes,
+				graph.FailureMode{ID: n.ID, Title: n.Name, Summary: n.Summary})
+		case graph.NodeTypeInvariant:
+			if inv := findInvariantByNode(ctx, g, n); inv != nil {
+				nc.RelatedInvariants = appendInvariant(nc.RelatedInvariants, *inv)
+			}
+		case graph.NodeTypeGoPackage:
+			if nc.Package == "" {
+				nc.Package = n.Name
+			}
+		case graph.NodeTypeGlobularService:
+			if nc.Service == "" {
+				nc.Service = n.Name
+			}
+		case graph.NodeTypeForbiddenFix:
+			nc.ForbiddenFixes = appendUniq(nc.ForbiddenFixes, n.Name)
+		case graph.NodeTypeTest:
+			nc.RequiredTests = appendUniq(nc.RequiredTests, n.Name)
+		case graph.NodeTypeGuardrail, graph.NodeTypeRemainingGap:
+			nc.AntiPatterns = appendUniq(nc.AntiPatterns, n.Name)
+		case graph.NodeTypeDependencyPhase:
+			nc.DependencyPhases = appendUniq(nc.DependencyPhases, n.Name)
+		}
+	}
+}
+
+func (nc *NodeContext) collectRuntimeEvidence(ctx context.Context, g *graph.Graph, nodeID string) {
+	inEdges, err := g.Neighbors(ctx, nodeID, "in")
+	if err != nil {
+		return
+	}
+	for _, e := range inEdges {
+		src, _ := g.FindNode(ctx, e.Src)
+		if src == nil {
+			continue
+		}
+		if isRuntimeNode(src.Type) && src.Summary != "" {
+			nc.RuntimeEvidence = appendUniq(nc.RuntimeEvidence, src.Summary)
+		}
+	}
+}
+
+// --- helpers ---
+
+func labelFromNodeType(t string) ConfidenceLabel {
+	switch t {
+	case graph.NodeTypeInvariant, graph.NodeTypeFailureMode, graph.NodeTypeForbiddenFix:
+		return ConfidenceExplicit
+	case graph.NodeTypeSymbol, graph.NodeTypeGoPackage, graph.NodeTypeProtoService,
+		graph.NodeTypeRPCMethod, graph.NodeTypeSourceFile, graph.NodeTypeTest:
+		return ConfidenceExtracted
+	case graph.NodeTypeRuntimeSnapshot, graph.NodeTypeRuntimeServiceStatus,
+		graph.NodeTypeWorkflowReceipt, graph.NodeTypeSystemdStatus, graph.NodeTypeDoctorEvidence:
+		return ConfidenceRuntime
+	case graph.NodeTypeIncident, graph.NodeTypeAwarenessProposal, graph.NodeTypeLearningRule:
+		return ConfidenceLearned
+	default:
+		return ConfidenceInferred
+	}
+}
+
+func isSafetyAnnotation(kind string) bool {
+	switch kind {
+	case graph.EdgeProtects, graph.EdgeEnforces, graph.EdgeForbids,
+		graph.EdgeTestedBy, graph.EdgeAffects, graph.EdgeBlocks,
+		graph.EdgeSafeWhen, graph.EdgeUnsafeWhen, graph.EdgeRequiresTest:
+		return true
+	}
+	return false
+}
+
+func isRuntimeNode(t string) bool {
+	switch t {
+	case graph.NodeTypeRuntimeSnapshot, graph.NodeTypeRuntimeServiceStatus,
+		graph.NodeTypeWorkflowReceipt, graph.NodeTypeStateDelta,
+		graph.NodeTypeDoctorEvidence, graph.NodeTypeSystemdStatus:
+		return true
+	}
+	return false
+}
+
+func toEdgeSummary(e graph.Edge, targetID string, target *graph.Node) EdgeSummary {
+	es := EdgeSummary{
+		Kind:       e.Kind,
+		TargetID:   targetID,
+		Confidence: e.Confidence,
+		Required:   e.Required,
+	}
+	if target != nil {
+		es.TargetName = target.Name
+		es.TargetType = target.Type
+	}
+	return es
+}
+
+func nodeNameOrID(n *graph.Node, fallback string) string {
+	if n != nil && n.Name != "" {
+		return n.Name
+	}
+	return fallback
+}
+
+func buildEditWarnings(node *graph.Node, nc *NodeContext) []string {
+	var w []string
+	if len(nc.RelatedInvariants) > 0 {
+		w = append(w, fmt.Sprintf("Governed by %d invariant(s) — read them before editing.", len(nc.RelatedInvariants)))
+	}
+	if len(nc.ForbiddenFixes) > 0 {
+		w = append(w, fmt.Sprintf("%d forbidden fix pattern(s) recorded for this node — do not apply them.", len(nc.ForbiddenFixes)))
+	}
+	switch node.Type {
+	case graph.NodeTypeGlobularService:
+		w = append(w, "Service nodes: all config changes flow through workflows — no inline state mutations.")
+	case graph.NodeTypeEtcdKey:
+		w = append(w, "etcd key node: ensure all writes are transactional and idempotent.")
+	case graph.NodeTypeWorkflow:
+		w = append(w, "Workflow nodes must reach a terminal state (SUCCEEDED or FAILED).")
+	case graph.NodeTypeSystemdUnit:
+		w = append(w, "systemd unit: ExecStartPre must include orphan-kill guard (pkill -9 -f <binary>) as the FIRST line.")
+	}
+	if len(nc.StateWrites) > 0 {
+		w = append(w, fmt.Sprintf("Writes to %d state location(s) — verify idempotency.", len(nc.StateWrites)))
+	}
+	return w
+}
+
+func buildRecommendedSearches(node *graph.Node, nc *NodeContext) []string {
+	var s []string
+	s = append(s, "grep -r '"+node.Name+"' golang/")
+	if node.Path != "" {
+		s = append(s, "globular awareness impact --file "+node.Path)
+	}
+	if nc.Service != "" {
+		s = append(s, "globular awareness agent-context --task 'editing "+nc.Service+"'")
+	}
+	for _, inv := range nc.RelatedInvariants {
+		if inv.ID != "" {
+			s = append(s, "invariant: "+inv.ID)
+			break
+		}
+	}
+	return s
+}
+
+// findInvariantByNode looks up an invariant for a node, trying node.ID then node.Name.
+// Node IDs may carry prefixes (e.g. "inv:foo") while the invariants table uses bare IDs.
+func findInvariantByNode(ctx context.Context, g *graph.Graph, n *graph.Node) *graph.Invariant {
+	if n == nil {
+		return nil
+	}
+	inv, _ := g.FindInvariant(ctx, n.ID)
+	if inv != nil {
+		return inv
+	}
+	inv, _ = g.FindInvariant(ctx, n.Name)
+	return inv
+}
+
+// --- collection helpers ---
+
+func appendUniq(s []string, v string) []string {
+	if v == "" {
+		return s
+	}
+	for _, x := range s {
+		if x == v {
+			return s
+		}
+	}
+	return append(s, v)
+}
+
+func appendInvariant(s []graph.Invariant, v graph.Invariant) []graph.Invariant {
+	for _, x := range s {
+		if x.ID == v.ID {
+			return s
+		}
+	}
+	return append(s, v)
+}
+
+func appendFailureMode(s []graph.FailureMode, v graph.FailureMode) []graph.FailureMode {
+	for _, x := range s {
+		if x.ID == v.ID {
+			return s
+		}
+	}
+	return append(s, v)
+}
+
+// --- cap helpers ---
+
+func capEdges(s []EdgeSummary, max int, key string, trunc map[string]int) []EdgeSummary {
+	if len(s) > max {
+		trunc[key] = len(s) - max
+		return s[:max]
+	}
+	return s
+}
+
+func capStrings(s []string, max int, key string, trunc map[string]int) []string {
+	if len(s) > max {
+		trunc[key] = len(s) - max
+		return s[:max]
+	}
+	return s
+}
+
+func capInvariants(s []graph.Invariant, max int, key string, trunc map[string]int) []graph.Invariant {
+	if len(s) > max {
+		trunc[key] = len(s) - max
+		return s[:max]
+	}
+	return s
+}
+
+func capFailureModes(s []graph.FailureMode, max int, key string, trunc map[string]int) []graph.FailureMode {
+	if len(s) > max {
+		trunc[key] = len(s) - max
+		return s[:max]
+	}
+	return s
+}

@@ -47,7 +47,7 @@ func (s *Server) register(def toolDef, handler toolHandler) {
 	s.order = append(s.order, def.Name)
 }
 
-// registerAllTools adds all 12 awareness tools.
+// registerAllTools adds all awareness tools.
 // promote-proposal is intentionally not registered — promotion is CLI-only.
 func registerAllTools(s *Server) {
 	registerPreflightTool(s)
@@ -57,6 +57,7 @@ func registerAllTools(s *Server) {
 	registerFixledgerTools(s)
 	registerPackageTools(s)
 	registerLearningTools(s)
+	registerNodeContextTools(s)
 }
 
 // strArg extracts a string argument from an MCP args map.
