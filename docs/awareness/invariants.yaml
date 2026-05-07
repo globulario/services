@@ -17,7 +17,7 @@ invariants:
             - /globular/services/{service_id}/instances/{node}
         files:
             - golang/cluster_controller/cluster_controller_server/release_reconciler.go
-            - golang/cluster_controller/cluster_controller_server/workflow_client.go
+            - golang/cluster_controller/cluster_controller_server/workflow_execute.go
         symbols:
             - probeWorkflowService
             - openCircuitBreaker
@@ -58,10 +58,8 @@ invariants:
         state:
             - /globular/services/{service_id}/config
         files:
-            - packages/metadata/workflow/systemd/globular-workflow.service
-            - packages/metadata/workflow/specs/workflow_service.yaml
-            - packages/metadata/mcp/systemd/globular-mcp.service
-            - packages/metadata/mcp/specs/mcp_service.yaml
+            - generated/payload/workflow/specs/workflow_service.yaml
+            - generated/specs/mcp_service.yaml
         symbols:
             - ExecStartPre
       enforcement: |
@@ -331,7 +329,7 @@ invariants:
         state:
             - /globular/scylla/schema_guard/{keyspace}
         files:
-            - golang/cluster_controller/cluster_controller_server/schema_guard.go
+            - golang/cluster_controller/cluster_controller_server/scylla_schema_guard.go
       forbidden_fixes:
         - auto_lower_replication_factor
         - ignore_rf_violation_in_multi_node
@@ -391,7 +389,7 @@ invariants:
             - /globular/ingress/v1/spec
             - /globular/objectstore/config
         files:
-            - golang/node_agent/node_agent_server/lkg/
+            - golang/globular_service/lkg/lkg.go
       forbidden_fixes:
         - overwrite_lkg_with_invalid_state
         - ignore_lkg_when_authority_unavailable
@@ -473,7 +471,7 @@ invariants:
       protects:
         files:
             - golang/cluster_controller/cluster_controller_server/reconciler.go
-            - golang/dns/dns_server/dns_server.go
+            - golang/dns/dns_server/server.go
       forbidden_fixes:
         - run_unbounded_query_in_reconcile_path
         - ignore_context_timeout_in_critical_query
@@ -525,8 +523,8 @@ invariants:
         Service stop/delete/destructive-reconfigure actions require explicit validated intent including explicit_disabled=true, non-empty reason, and matching generation. Ambiguous disables (missing reason, stale generation, bad checksum) must be rejected and emit a doctor finding.
       protects:
         files:
-            - golang/node_agent/node_agent_server/explicit_disable.go
-            - golang/cluster_controller/cluster_controller_server/ingress_reconciler.go
+            - golang/node_agent/node_agent_server/internal/ingress/spec.go
+            - golang/cluster_controller/cluster_controller_server/ingress_spec_guard.go
       forbidden_fixes:
         - stop_runtime_from_ambiguous_disable
         - wipe_state_without_approved_transition
@@ -545,7 +543,7 @@ invariants:
         Drift reconciliation must obey topology safety contracts before applying any topology/runtime change. Storage quorum viability, ingress participant validity, objectstore topology consistency, and controller profile/role placement must be checked. Unsafe actions are blocked individually while safe reconciles continue.
       protects:
         files:
-            - golang/cluster_controller/cluster_controller_server/drift_reconciler.go
+            - golang/cluster_controller/cluster_controller_server/repair_node_workflow.go
       forbidden_fixes:
         - infer_topology_from_local_disk
         - reconcile_topology_without_contract

@@ -7,10 +7,7 @@ fix_cases:
     target_invariants:
       - install.result.atomic_commit
     fixed_files:
-      - packages/metadata/prometheus/specs/prometheus_service.yaml
-      - packages/metadata/alertmanager/specs/alertmanager_service.yaml
-      - packages/metadata/xds/specs/xds_service.yaml
-      - packages/metadata/mcp/specs/mcp_service.yaml
+      - generated/specs/mcp_service.yaml
     remaining_files:
       - golang/fix/guardrails.md  # 1B audit not done
     required_tests:
@@ -75,7 +72,7 @@ fix_cases:
     target_invariants:
       - scylla.critical_keyspace_replication_policy
     fixed_files:
-      - golang/cluster_controller/cluster_controller_server/schema_guard.go
+      - golang/cluster_controller/cluster_controller_server/scylla_schema_guard.go
       - golang/cluster_doctor/cluster_doctor_server/rules/scylla_health.go
     required_tests:
       - TestRFPolicyEnforcedOn5NodeCluster
@@ -128,7 +125,7 @@ fix_cases:
     target_invariants:
       - runtime.last_known_good_required_for_critical_consumers
     fixed_files:
-      - golang/node_agent/node_agent_server/lkg/lkg.go
+      - golang/globular_service/lkg/lkg.go
     remaining_files:
       - golang/node_agent/node_agent_server/envoy_consumer.go
       - golang/node_agent/node_agent_server/objectstore_consumer.go
@@ -167,7 +164,7 @@ fix_cases:
     target_invariants:
       - critical_state.deletion_requires_audited_intent
     fixed_files:
-      - golang/cluster_controller/cluster_controller_server/ingress_reconciler.go
+      - golang/cluster_controller/cluster_controller_server/ingress_spec_guard.go
     remaining_files:
       - golang/cluster_controller/cluster_controller_server/objectstore_reconciler.go
       - golang/cluster_controller/cluster_controller_server/pki_reconciler.go
@@ -252,7 +249,7 @@ fix_cases:
     target_invariants:
       - destructive_actions.require_explicit_guard
     fixed_files:
-      - golang/node_agent/node_agent_server/explicit_disable.go
+      - golang/node_agent/node_agent_server/internal/ingress/spec.go
     remaining_files:
       - golang/cluster_doctor/cluster_doctor_server/rules/destructive_action_audit.go
     required_tests:
@@ -269,7 +266,7 @@ fix_cases:
     target_invariants:
       - topology.reconciler_must_respect_safety_contract
     fixed_files:
-      - golang/cluster_controller/cluster_controller_server/drift_reconciler.go
+      - golang/cluster_controller/cluster_controller_server/repair_node_workflow.go
     remaining_files:
       - golang/cluster_controller/cluster_controller_server/drift_action_planner.go
     required_tests:

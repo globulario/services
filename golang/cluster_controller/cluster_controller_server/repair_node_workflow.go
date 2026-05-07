@@ -577,6 +577,7 @@ func (srv *server) repairEmitRecovered(ctx context.Context, nodeID string) error
 // validateReferenceNode checks that the reference node is healthy, converged,
 // and running a safe controller version. Returns an error if the reference
 // is not suitable for repair planning.
+//globular:expects_hash_schema installed_services_hash
 func (srv *server) validateReferenceNode(ctx context.Context, referenceNodeID string) error {
 	srv.lock("validateReferenceNode")
 	defer srv.unlock()
