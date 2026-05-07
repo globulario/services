@@ -24,6 +24,8 @@ type Options struct {
 	IncludeRuntime bool          // collect live runtime snapshot
 	RuntimeWindow  time.Duration // lookback window for events/workflows (default 15m)
 	Bridge         *runtime.RuntimeBridge // optional: if nil and IncludeRuntime, uses noop bridge
+	WriteAudit     bool   // if true, persist a PreflightAuditRecord to the graph DB after the run
+	GitSHA         string // optional: current git commit SHA for the audit record
 }
 
 // Run executes the full preflight and returns a structured report.
@@ -99,6 +101,17 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 	r.ForbiddenFixes = append(r.ForbiddenFixes, guardrailForbiddenFixes(opts.Task, opts.DocsDir)...)
 	r.ForbiddenFixes = unique(r.ForbiddenFixes)
 
+	// 11b. Collect code smells from pattern nodes reachable via invariants.
+	if g != nil && len(r.Invariants) > 0 {
+		invNodeIDs := make([]string, len(r.Invariants))
+		for i, id := range r.Invariants {
+			invNodeIDs[i] = "invariant:" + id
+		}
+		if smells, err := g.CodeSmellsForInvariants(ctx, invNodeIDs); err == nil {
+			r.CodeSmells = smells
+		}
+	}
+
 	// 12. False-silence detection and UNKNOWN_IMPACT gating.
 	noFacts := noAwarenessFactsMatched(r)
 	if noFacts {
@@ -117,6 +130,21 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 	// 15. Runtime snapshot (optional).
 	if opts.IncludeRuntime {
 		r = mergeRuntime(ctx, opts, g, r)
+	}
+
+	// 16. Durable audit record (optional).
+	if opts.WriteAudit && g != nil {
+		rec := graph.PreflightAuditRecord{
+			Task:           opts.Task,
+			GitSHA:         opts.GitSHA,
+			Files:          r.Files,
+			ForbiddenFixes: r.ForbiddenFixes,
+			Invariants:     r.Invariants,
+			CodeSmells:     r.CodeSmells,
+		}
+		if err := g.InsertPreflightAudit(ctx, rec); err != nil {
+			r.Warnings = append(r.Warnings, "preflight-audit write failed: "+err.Error())
+		}
 	}
 
 	return r, nil

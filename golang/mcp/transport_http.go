@@ -355,6 +355,10 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 	}
 	updateMCPJsonFiles(actualPort, scheme, advertiseHost)
 
+	// Signal readiness to systemd and start the watchdog loop.
+	// No-op when NOTIFY_SOCKET is not set (Type=simple or non-systemd envs).
+	sdNotifyReady(ctx)
+
 	// MCP is typically local-only, but can be exposed cluster-wide when
 	// configured with a non-loopback listen address or TLS termination.
 
@@ -380,6 +384,39 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 		return fmt.Errorf("http serve: %w", err)
 	}
 	return nil
+}
+
+// sdNotifyReady signals READY=1 to systemd and starts a watchdog goroutine.
+// No-op when NOTIFY_SOCKET is not set (non-systemd or Type=simple units).
+// WatchdogSec=60 in the unit file → ping every 30 s (half the interval).
+func sdNotifyReady(ctx context.Context) {
+	sock := os.Getenv("NOTIFY_SOCKET")
+	if sock == "" {
+		return
+	}
+	sdNotifyMsg(sock, "READY=1")
+	go func() {
+		t := time.NewTicker(30 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				sdNotifyMsg(sock, "STOPPING=1")
+				return
+			case <-t.C:
+				sdNotifyMsg(sock, "WATCHDOG=1")
+			}
+		}
+	}()
+}
+
+func sdNotifyMsg(sock, state string) {
+	conn, err := net.Dial("unixgram", sock)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	conn.Write([]byte(state)) //nolint:errcheck
 }
 
 // handleStreamablePost processes an MCP Streamable HTTP POST request where the

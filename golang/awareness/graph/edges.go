@@ -61,6 +61,19 @@ const (
 	// Protocol annotation edge kinds (Task 8).
 	EdgeControls = "controls"
 
+	// Design / documentation edge kinds (Task 12).
+	EdgeExplains      = "explains"
+	EdgeDecides       = "decides"
+	EdgeRationalizes  = "rationalizes"
+	EdgeContradicts   = "contradicts"
+	EdgeDocuments     = "documents"
+	EdgeMentionedIn   = "mentioned_in"
+	EdgeCausedBy      = "caused_by"
+	EdgeFixedBy       = "fixed_by"
+	EdgeValidatedBy   = "validated_by"
+	EdgeGeneralizesTo = "generalizes_to"
+	EdgeSpecializes   = "specializes"
+
 	// Runtime bridge edge kinds (Task 6).
 	EdgeCapturedIn = "captured_in"
 	EdgeReports           = "reports"

@@ -94,6 +94,7 @@ type Report struct {
 	Invariants       []string                 `json:"invariants"`
 	FailureModes     []string                 `json:"failure_modes"`
 	ForbiddenFixes   []string                 `json:"forbidden_fixes"`
+	CodeSmells       []string                 `json:"code_smells,omitempty"`
 	HashSchemas      []string                 `json:"hash_schemas,omitempty"`
 	StateTransitions []string                 `json:"state_transitions,omitempty"`
 	DidWeFix         *DidWeFixSection         `json:"did_we_fix"`

@@ -19,9 +19,21 @@ var awarenessMCPCfg = struct {
 }{}
 
 var awarenessMCPCmd = &cobra.Command{
-	Use:   "mcp-server",
-	Short: "Start the awareness MCP server (stdin/stdout JSON-RPC 2.0)",
-	Long: `Starts a standalone MCP server that exposes all 12 awareness graph tools.
+	Use:        "mcp-server",
+	Short:      "Start the awareness MCP server (stdin/stdout JSON-RPC 2.0) [DEPRECATED]",
+	Deprecated: "Use the main Globular MCP service instead (tool_groups.awareness=true in /var/lib/globular/mcp/config.json). Run 'globular mcp tools --group awareness' to list awareness tools.",
+	Long: `[DEPRECATED] Starts a standalone MCP server that exposes all 12 awareness graph tools.
+
+The awareness tools are now part of the main Globular MCP service (golang/mcp).
+Enable them with tool_groups.awareness=true in /var/lib/globular/mcp/config.json.
+Use 'globular mcp tools --group awareness' to list all available awareness tools.
+
+This standalone server remains for local development only and will be removed
+in a future release. For production, use the main MCP service.
+
+---
+
+Starts a standalone MCP server that exposes all 12 awareness graph tools.
 
 The server speaks the Model Context Protocol over stdin/stdout with
 Content-Length framing (same as Language Server Protocol).

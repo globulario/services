@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/globulario/services/golang/awareness/analysis"
+	"github.com/globulario/services/golang/awareness/extractors/docs"
 	"github.com/globulario/services/golang/awareness/extractors/goast"
 	"github.com/globulario/services/golang/awareness/extractors/manual"
 	"github.com/globulario/services/golang/awareness/extractors/packages"
@@ -119,6 +120,16 @@ var awarenessBuildCmd = &cobra.Command{
 		fmt.Fprintf(os.Stdout, "Extracting package manifests ...\n")
 		if err := packages.Extract(ctx, g, repoRoot); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: package extractor: %v\n", err)
+		}
+
+		// Docs / design decision extractor.
+		fmt.Fprintf(os.Stdout, "Extracting documentation and design decisions ...\n")
+		if warnings, err := docs.Extract(ctx, g, repoRoot); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: docs extractor: %v\n", err)
+		} else {
+			for _, w := range warnings {
+				fmt.Fprintf(os.Stderr, "warning: docs extractor: %s\n", w)
+			}
 		}
 
 		// Record the build.

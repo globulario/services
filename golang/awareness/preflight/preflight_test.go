@@ -424,3 +424,137 @@ func TestPreflightAgentFormatContainsForbiddenActions(t *testing.T) {
 		t.Error("agent format must contain Forbidden fixes section")
 	}
 }
+
+// seedPreflightGraphWithPattern adds a pattern node linked to the existing invariant in seedPreflightGraph.
+func seedPreflightGraphWithPattern(t *testing.T) *graph.Graph {
+	t.Helper()
+	ctx := context.Background()
+	g := seedPreflightGraph(t)
+
+	// Pattern node with code smells, linked to infra.desired_hash_consistency.
+	_ = g.AddNode(ctx, graph.Node{
+		ID:   "pattern:raw_digest_as_hash",
+		Type: graph.NodeTypePattern,
+		Name: "raw_digest_as_hash",
+		Metadata: map[string]any{
+			"title":       "Raw Digest as Desired Hash",
+			"code_smells": []any{"raw_artifact_digest_as_desired_hash", "missing_version_normalization"},
+		},
+	})
+	_ = g.AddEdge(ctx, graph.Edge{
+		Src:  "pattern:raw_digest_as_hash",
+		Kind: graph.EdgeRequires,
+		Dst:  "invariant:infra.desired_hash_consistency",
+	})
+	return g
+}
+
+func TestPreflightCodeSmellsPopulated(t *testing.T) {
+	g := seedPreflightGraphWithPattern(t)
+	docsDir := setupPreflightDocsDir(t)
+
+	r, err := preflight.Run(context.Background(), preflight.Options{
+		Task:    "desired_hash is inconsistent across convergence ticks",
+		DocsDir: docsDir,
+	}, g)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(r.CodeSmells) == 0 {
+		t.Fatal("expected code smells from pattern node linked to matched invariant")
+	}
+	found := false
+	for _, s := range r.CodeSmells {
+		if strings.Contains(s, "raw_artifact_digest") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'raw_artifact_digest_as_desired_hash' in code smells, got %v", r.CodeSmells)
+	}
+}
+
+func TestPreflightCodeSmellsInMarkdown(t *testing.T) {
+	g := seedPreflightGraphWithPattern(t)
+	docsDir := setupPreflightDocsDir(t)
+
+	r, err := preflight.Run(context.Background(), preflight.Options{
+		Task:    "desired_hash is inconsistent across convergence ticks",
+		DocsDir: docsDir,
+	}, g)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(r.CodeSmells) == 0 {
+		t.Skip("no code smells matched — skipping format check")
+	}
+
+	md, err := preflight.Render(r, preflight.FormatMarkdown)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(md, "Code smells to watch for") {
+		t.Error("markdown missing 'Code smells to watch for' section")
+	}
+}
+
+func TestPreflightCodeSmellsInJSON(t *testing.T) {
+	g := seedPreflightGraphWithPattern(t)
+	docsDir := setupPreflightDocsDir(t)
+
+	r, err := preflight.Run(context.Background(), preflight.Options{
+		Task:    "desired_hash is inconsistent across convergence ticks",
+		DocsDir: docsDir,
+	}, g)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(r.CodeSmells) == 0 {
+		t.Skip("no code smells matched — skipping JSON check")
+	}
+
+	j, err := preflight.Render(r, preflight.FormatJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(j), &parsed); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if _, ok := parsed["code_smells"]; !ok {
+		t.Error("JSON missing 'code_smells' key")
+	}
+}
+
+func TestPreflightWriteAudit(t *testing.T) {
+	g := seedPreflightGraphWithPattern(t)
+	docsDir := setupPreflightDocsDir(t)
+	ctx := context.Background()
+
+	_, err := preflight.Run(ctx, preflight.Options{
+		Task:       "desired_hash is inconsistent",
+		DocsDir:    docsDir,
+		WriteAudit: true,
+		GitSHA:     "deadbeef",
+	}, g)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	records, err := g.QueryPreflightAudits(ctx, 0, "deadbeef")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("want 1 audit record, got %d", len(records))
+	}
+	if records[0].GitSHA != "deadbeef" {
+		t.Errorf("GitSHA: got %s", records[0].GitSHA)
+	}
+	if records[0].Task != "desired_hash is inconsistent" {
+		t.Errorf("Task: got %s", records[0].Task)
+	}
+}

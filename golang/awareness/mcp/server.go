@@ -1,6 +1,15 @@
 // Package mcp implements a standalone MCP server that exposes the Globular
 // awareness graph as tools for AI agents.
 //
+// Deprecated: The awareness tools are now exposed by the main Globular MCP
+// service (golang/mcp). Use that service for all production deployments.
+// This package remains for local development and testing only — it will be
+// removed in a future release.
+//
+// Migration: Enable tool_groups.awareness=true in the main MCP service config
+// (/var/lib/globular/mcp/config.json). The main service automatically includes
+// all 12 awareness tools when the awareness graph DB is present.
+//
 // Protocol: JSON-RPC 2.0 over stdio with Content-Length framing (same as LSP).
 // Transport: stdin / stdout.
 //

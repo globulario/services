@@ -465,7 +465,7 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(20 * time.Second):
+		case <-time.After(5 * time.Second):
 		}
 		if !srv.waitForReadiness(ctx) {
 			return

@@ -492,6 +492,145 @@ func TestNeighborhood_Depth2_IncludesInvariantAndFailure(t *testing.T) {
 	}
 }
 
+// --- Typed prefix resolution tests ---
+
+// openTestGraphWithSemanticNodes returns a graph with nodes covering all typed
+// prefix kinds used by the extended ResolveNode.
+func openTestGraphWithSemanticNodes(t *testing.T) *graph.Graph {
+	t.Helper()
+	g := openTestGraph(t)
+	ctx := context.Background()
+
+	extras := []graph.Node{
+		{ID: "stored:fix_case_node", Type: graph.NodeTypeFixCase, Name: "critical_state.absence_is_not_destructive_intent", Summary: "Fix case for absence-is-not-destructive"},
+		{ID: "pattern:some_pattern", Type: graph.NodeTypePattern, Name: "runtime_observation_as_desired_authority", Summary: "Pattern: observation as authority"},
+		{ID: "decision:desired_hash_is_convergence_identity", Type: graph.NodeTypeArchitectureDecision, Name: "desired_hash_is_convergence_identity", Summary: "Desired hash is convergence identity"},
+		{ID: "stored:design_rule_node", Type: graph.NodeTypeDesignRule, Name: "no_raw_digest_in_desired_state", Summary: "Design rule: no raw digest"},
+		{ID: "stored:guardrail_node", Type: graph.NodeTypeGuardrail, Name: "downgrade_guard", Summary: "Guardrail: no downgrade"},
+		{ID: "stored:doc_section_node", Type: graph.NodeTypeDocumentationSection, Name: "convergence_identity_design", Summary: "Doc section: convergence identity"},
+	}
+	for _, n := range extras {
+		if err := g.AddNode(ctx, n); err != nil {
+			t.Fatalf("AddNode %s: %v", n.ID, err)
+		}
+	}
+	return g
+}
+
+func TestResolveTypedPrefix_ForbiddenFix(t *testing.T) {
+	g := openTestGraph(t)
+	ctx := context.Background()
+	// The test graph has a forbidden_fix node with name "relying_on_restart_without_pkill_guard".
+	// Using typed prefix should find it even though its ID is "fix:relying_on_restart".
+	r, err := awarectx.ResolveNode(ctx, g, "forbidden_fix:relying_on_restart_without_pkill_guard")
+	if err != nil {
+		t.Fatalf("ResolveNode: %v", err)
+	}
+	if r.Exact == nil {
+		t.Fatal("expected exact match via forbidden_fix typed prefix, got nil")
+	}
+	if r.Kind != awarectx.RefKindForbiddenFix {
+		t.Errorf("kind = %q, want %q", r.Kind, awarectx.RefKindForbiddenFix)
+	}
+}
+
+func TestResolveTypedPrefix_FixCase(t *testing.T) {
+	g := openTestGraphWithSemanticNodes(t)
+	ctx := context.Background()
+	r, err := awarectx.ResolveNode(ctx, g, "fix_case:critical_state.absence_is_not_destructive_intent")
+	if err != nil {
+		t.Fatalf("ResolveNode: %v", err)
+	}
+	if r.Exact == nil {
+		t.Fatal("expected exact match via fix_case typed prefix, got nil")
+	}
+	if r.Kind != awarectx.RefKindFixCase {
+		t.Errorf("kind = %q, want %q", r.Kind, awarectx.RefKindFixCase)
+	}
+}
+
+func TestResolveTypedPrefix_Pattern(t *testing.T) {
+	g := openTestGraphWithSemanticNodes(t)
+	ctx := context.Background()
+	// "pattern:" prefix maps to NodeTypePattern.
+	r, err := awarectx.ResolveNode(ctx, g, "pattern:runtime_observation_as_desired_authority")
+	if err != nil {
+		t.Fatalf("ResolveNode: %v", err)
+	}
+	if r.Exact == nil {
+		t.Fatal("expected exact match via pattern typed prefix, got nil")
+	}
+	if r.Kind != awarectx.RefKindPattern {
+		t.Errorf("kind = %q, want %q", r.Kind, awarectx.RefKindPattern)
+	}
+}
+
+func TestResolveTypedPrefix_ArchitectureDecision(t *testing.T) {
+	g := openTestGraphWithSemanticNodes(t)
+	ctx := context.Background()
+	// The node's stored ID is "decision:desired_hash_is_convergence_identity".
+	// Typed prefix "architecture_decision:" should find it via name lookup.
+	r, err := awarectx.ResolveNode(ctx, g, "architecture_decision:desired_hash_is_convergence_identity")
+	if err != nil {
+		t.Fatalf("ResolveNode: %v", err)
+	}
+	if r.Exact == nil {
+		t.Fatal("expected exact match via architecture_decision typed prefix, got nil")
+	}
+	if r.Kind != awarectx.RefKindArchDecision {
+		t.Errorf("kind = %q, want %q", r.Kind, awarectx.RefKindArchDecision)
+	}
+	// Verify we resolved the correct node.
+	if r.Exact.Type != graph.NodeTypeArchitectureDecision {
+		t.Errorf("resolved node type = %q, want %q", r.Exact.Type, graph.NodeTypeArchitectureDecision)
+	}
+}
+
+func TestResolveTypedPrefix_DesignRule(t *testing.T) {
+	g := openTestGraphWithSemanticNodes(t)
+	ctx := context.Background()
+	r, err := awarectx.ResolveNode(ctx, g, "design_rule:no_raw_digest_in_desired_state")
+	if err != nil {
+		t.Fatalf("ResolveNode: %v", err)
+	}
+	if r.Exact == nil {
+		t.Fatal("expected exact match via design_rule typed prefix, got nil")
+	}
+	if r.Kind != awarectx.RefKindDesignRule {
+		t.Errorf("kind = %q, want %q", r.Kind, awarectx.RefKindDesignRule)
+	}
+}
+
+func TestResolveTypedPrefix_Guardrail(t *testing.T) {
+	g := openTestGraphWithSemanticNodes(t)
+	ctx := context.Background()
+	r, err := awarectx.ResolveNode(ctx, g, "guardrail:downgrade_guard")
+	if err != nil {
+		t.Fatalf("ResolveNode: %v", err)
+	}
+	if r.Exact == nil {
+		t.Fatal("expected exact match via guardrail typed prefix, got nil")
+	}
+	if r.Kind != awarectx.RefKindGuardrail {
+		t.Errorf("kind = %q, want %q", r.Kind, awarectx.RefKindGuardrail)
+	}
+}
+
+func TestResolveTypedPrefix_DocumentationSection(t *testing.T) {
+	g := openTestGraphWithSemanticNodes(t)
+	ctx := context.Background()
+	r, err := awarectx.ResolveNode(ctx, g, "documentation_section:convergence_identity_design")
+	if err != nil {
+		t.Fatalf("ResolveNode: %v", err)
+	}
+	if r.Exact == nil {
+		t.Fatal("expected exact match via documentation_section typed prefix, got nil")
+	}
+	if r.Kind != awarectx.RefKindDocSection {
+		t.Errorf("kind = %q, want %q", r.Kind, awarectx.RefKindDocSection)
+	}
+}
+
 // --- ExplainNode agent format with forbidden fix warning ---
 
 // TestExplainNode_AgentOutputIncludesForbiddenFix verifies that the agent-format

@@ -11,18 +11,46 @@ import (
 type RefKind string
 
 const (
-	RefKindExact     RefKind = "exact"
-	RefKindSymbol    RefKind = "symbol"
-	RefKindFile      RefKind = "file"
-	RefKindPackage   RefKind = "package"
-	RefKindService   RefKind = "service"
-	RefKindInvariant RefKind = "invariant"
-	RefKindFailure   RefKind = "failure_mode"
-	RefKindTest      RefKind = "test"
-	RefKindProto     RefKind = "proto"
-	RefKindWorkflow  RefKind = "workflow"
-	RefKindName      RefKind = "name"
+	RefKindExact          RefKind = "exact"
+	RefKindSymbol         RefKind = "symbol"
+	RefKindFile           RefKind = "file"
+	RefKindPackage        RefKind = "package"
+	RefKindService        RefKind = "service"
+	RefKindInvariant      RefKind = "invariant"
+	RefKindFailure        RefKind = "failure_mode"
+	RefKindTest           RefKind = "test"
+	RefKindProto          RefKind = "proto"
+	RefKindWorkflow       RefKind = "workflow"
+	RefKindName           RefKind = "name"
+	RefKindForbiddenFix   RefKind = "forbidden_fix"
+	RefKindFixCase        RefKind = "fix_case"
+	RefKindPattern        RefKind = "pattern"
+	RefKindArchDecision   RefKind = "architecture_decision"
+	RefKindDesignRule     RefKind = "design_rule"
+	RefKindGuardrail      RefKind = "guardrail"
+	RefKindDocSection     RefKind = "documentation_section"
 )
+
+// typedPrefixTable maps user-supplied type prefixes to graph node types.
+// This allows refs like "architecture_decision:name" to resolve even when
+// the stored node ID uses a different prefix (e.g., "decision:name").
+var typedPrefixTable = map[string]struct {
+	nodeType string
+	kind     RefKind
+}{
+	"forbidden_fix":         {graph.NodeTypeForbiddenFix, RefKindForbiddenFix},
+	"fix_case":              {graph.NodeTypeFixCase, RefKindFixCase},
+	"pattern":               {graph.NodeTypePattern, RefKindPattern},
+	"architecture_decision": {graph.NodeTypeArchitectureDecision, RefKindArchDecision},
+	"design_rule":           {graph.NodeTypeDesignRule, RefKindDesignRule},
+	"guardrail":             {graph.NodeTypeGuardrail, RefKindGuardrail},
+	"documentation_section": {graph.NodeTypeDocumentationSection, RefKindDocSection},
+	// Aliases that match stored node ID prefixes but are useful explicitly.
+	"invariant":    {graph.NodeTypeInvariant, RefKindInvariant},
+	"failure_mode": {graph.NodeTypeFailureMode, RefKindFailure},
+	"symbol":       {graph.NodeTypeSymbol, RefKindSymbol},
+	"decision":     {graph.NodeTypeArchitectureDecision, RefKindArchDecision},
+}
 
 // ResolveResult holds the outcome of a node reference lookup.
 type ResolveResult struct {
@@ -47,6 +75,21 @@ func ResolveNode(ctx context.Context, g *graph.Graph, ref string) (*ResolveResul
 	}
 	if n != nil {
 		return &ResolveResult{Exact: n, Kind: RefKindExact, Ref: ref}, nil
+	}
+
+	// 1b. Typed prefix lookup: "type_alias:name".
+	// Handles refs where the prefix is a recognised type alias that may not
+	// match the stored node ID prefix (e.g., "architecture_decision:foo" when
+	// the node ID is "decision:foo").
+	if colon := strings.IndexByte(ref, ':'); colon > 0 {
+		prefix := ref[:colon]
+		name := ref[colon+1:]
+		if entry, ok := typedPrefixTable[prefix]; ok && name != "" {
+			node, lookupErr := g.FindNodeByTypeAndName(ctx, entry.nodeType, name)
+			if lookupErr == nil && node != nil {
+				return &ResolveResult{Exact: node, Kind: entry.kind, Ref: ref}, nil
+			}
+		}
 	}
 
 	// 2. Invariant table lookup (IDs like "service.endpoint.reachability").

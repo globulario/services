@@ -386,6 +386,53 @@ func TestDebugSession_FormatJSON_IsValidJSON(t *testing.T) {
 	}
 }
 
+// TestDebugSession_DesiredHashMismatch_AgentOutputHasRootCausePath verifies
+// that the agent-format output for a desired_hash mismatch task includes at
+// least one "Likely root-cause" section.
+func TestDebugSession_DesiredHashMismatch_AgentOutputHasRootCausePath(t *testing.T) {
+	ctx := context.Background()
+	g := openTestGraph(t)
+
+	// Set up the invariant and a service that enforces it.
+	addInvariant(t, ctx, g,
+		"infra.desired_hash_consistency",
+		"Desired Hash Consistency",
+		"DesiredHash must be computed consistently — mismatches cause restart storms.",
+		"critical",
+	)
+	addFailureMode(t, ctx, g,
+		"infra.desired_hash_mismatch_restart_storm",
+		"Desired Hash Mismatch Restart Storm",
+		"Hash mismatch causes the reconciler to keep reinstalling on every tick.",
+		"lookupServiceReleaseBuildID returns inconsistent hash",
+	)
+	svcID := addService(t, ctx, g, "cluster_controller")
+	linkEnforces(t, ctx, g, svcID, "invariant:infra.desired_hash_consistency")
+
+	// Connect the service to the failure mode via an affects edge.
+	if err := g.AddEdge(ctx, graph.Edge{
+		Src:        svcID,
+		Dst:        "failure_mode:infra.desired_hash_mismatch_restart_storm",
+		Kind:       graph.EdgeAffects,
+		Confidence: 0.9,
+	}); err != nil {
+		t.Fatalf("add affects edge: %v", err)
+	}
+
+	report, err := debugsession.Run(ctx, debugsession.Options{
+		Task: "desired_hash mismatch caused install loop and envoy restart storm",
+	}, g)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	out := debugsession.FormatReport(report, "agent")
+
+	if !strings.Contains(out, "Likely root-cause") && !strings.Contains(out, "root-cause") {
+		t.Errorf("agent output missing 'root-cause' section for desired_hash mismatch\noutput:\n%s", out)
+	}
+}
+
 // ---- helpers ----------------------------------------------------------------
 
 func pathTargets(paths []debugsession.RootCausePath) []string {

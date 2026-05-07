@@ -319,6 +319,21 @@ func (nc *NodeContext) traverseRelated(ctx context.Context, g *graph.Graph, node
 			if wantArchitecture {
 				nc.AntiPatterns = appendUniq(nc.AntiPatterns, n.Name)
 			}
+		case graph.NodeTypePattern:
+			if wantArchitecture || wantHistory {
+				nc.AntiPatterns = appendUniq(nc.AntiPatterns, n.Name)
+				// Unpack code_smells from node metadata.
+				if smells, ok := n.Metadata["code_smells"]; ok {
+					switch v := smells.(type) {
+					case []interface{}:
+						for _, item := range v {
+							if s, ok := item.(string); ok && s != "" {
+								nc.AntiPatterns = appendUniq(nc.AntiPatterns, s)
+							}
+						}
+					}
+				}
+			}
 		case graph.NodeTypeDependencyPhase:
 			nc.DependencyPhases = appendUniq(nc.DependencyPhases, n.Name)
 		case graph.NodeTypeArchitectureDecision, graph.NodeTypeDesignRule:

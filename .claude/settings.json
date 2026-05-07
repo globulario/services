@@ -2,5 +2,18 @@
   "permissions": {
     "allow": [],
     "deny": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "globular awareness check-edit --file \"$CLAUDE_TOOL_INPUT_FILE_PATH\" --format agent 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
   }
 }

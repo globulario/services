@@ -50,6 +50,11 @@ func newConvergenceCommitter(srv *server) *convergenceCommitter {
 // Start launches the committer as a background goroutine under safeGo.
 func (c *convergenceCommitter) Start(ctx context.Context) {
 	safeGo("convergence-committer", func() {
+		// Run immediately on startup to commit any pending-sync results left
+		// by a previous controller instance before the regular tick fires.
+		if c.srv.isLeader() {
+			c.runOnce(ctx)
+		}
 		ticker := time.NewTicker(c.interval)
 		defer ticker.Stop()
 		for {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -576,6 +577,186 @@ func scanEdges(rows *sql.Rows) ([]Edge, error) {
 		e.Required = req == 1
 		e.Metadata = unmarshalMeta(meta)
 		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// ---- code smell helpers ----
+
+// CodeSmellsForInvariants returns all code_smells from pattern nodes that
+// have a "requires" edge targeting any of the given invariant node IDs.
+// Results are deduplicated and sorted.
+func (g *Graph) CodeSmellsForInvariants(ctx context.Context, invariantNodeIDs []string) ([]string, error) {
+	if len(invariantNodeIDs) == 0 {
+		return nil, nil
+	}
+
+	// Build query: find edges kind=requires whose dst is one of the invariant IDs.
+	// Then fetch the src node when type = 'pattern'.
+	rows, err := g.db.QueryContext(ctx, `
+		SELECT DISTINCT n.metadata_json
+		FROM edges e
+		JOIN nodes n ON n.id = e.src
+		WHERE e.kind = 'requires'
+		  AND n.type = 'pattern'
+		  AND e.dst IN (`+placeholders(len(invariantNodeIDs))+`)
+	`, stringsToInterfaces(invariantNodeIDs)...)
+	if err != nil {
+		return nil, fmt.Errorf("CodeSmellsForInvariants: %w", err)
+	}
+	defer rows.Close()
+
+	seen := map[string]bool{}
+	var out []string
+	for rows.Next() {
+		var metaJSON string
+		if err := rows.Scan(&metaJSON); err != nil {
+			return nil, err
+		}
+		smells := extractCodeSmells(metaJSON)
+		for _, s := range smells {
+			if s != "" && !seen[s] {
+				seen[s] = true
+				out = append(out, s)
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// extractCodeSmells unpacks the code_smells array from a node's metadata_json blob.
+func extractCodeSmells(metaJSON string) []string {
+	var meta map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(metaJSON), &meta); err != nil {
+		return nil
+	}
+	raw, ok := meta["code_smells"]
+	if !ok {
+		return nil
+	}
+	var smells []string
+	_ = json.Unmarshal(raw, &smells)
+	return smells
+}
+
+// placeholders returns n comma-separated "?" for SQL IN clauses.
+func placeholders(n int) string {
+	if n == 0 {
+		return ""
+	}
+	b := make([]byte, n*2-1)
+	for i := range b {
+		if i%2 == 0 {
+			b[i] = '?'
+		} else {
+			b[i] = ','
+		}
+	}
+	return string(b)
+}
+
+// stringsToInterfaces converts []string to []interface{} for variadic SQL args.
+func stringsToInterfaces(ss []string) []interface{} {
+	out := make([]interface{}, len(ss))
+	for i, s := range out {
+		_ = s
+		out[i] = ss[i]
+	}
+	return out
+}
+
+// ---- preflight audit ----
+
+// PreflightAuditRecord is a durable record of one preflight run.
+type PreflightAuditRecord struct {
+	ID             string
+	Task           string
+	Timestamp      int64
+	GitSHA         string
+	Files          []string
+	ForbiddenFixes []string
+	Invariants     []string
+	CodeSmells     []string
+	CreatedAt      int64
+}
+
+// InsertPreflightAudit inserts a durable preflight audit record.
+func (g *Graph) InsertPreflightAudit(ctx context.Context, r PreflightAuditRecord) error {
+	if r.ID == "" {
+		r.ID = fmt.Sprintf("preflight-audit-%d", time.Now().UnixNano())
+	}
+	now := time.Now().Unix()
+	if r.Timestamp == 0 {
+		r.Timestamp = now
+	}
+	if r.CreatedAt == 0 {
+		r.CreatedAt = now
+	}
+
+	filesJSON, _ := json.Marshal(r.Files)
+	ffJSON, _ := json.Marshal(r.ForbiddenFixes)
+	invJSON, _ := json.Marshal(r.Invariants)
+	csJSON, _ := json.Marshal(r.CodeSmells)
+
+	_, err := g.db.ExecContext(ctx, `
+		INSERT INTO preflight_audits
+			(id, task, timestamp, git_sha, files_json, forbidden_fixes_json, invariants_json, code_smells_json, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			task                 = excluded.task,
+			timestamp            = excluded.timestamp,
+			git_sha              = excluded.git_sha,
+			files_json           = excluded.files_json,
+			forbidden_fixes_json = excluded.forbidden_fixes_json,
+			invariants_json      = excluded.invariants_json,
+			code_smells_json     = excluded.code_smells_json
+	`, r.ID, r.Task, r.Timestamp, r.GitSHA,
+		string(filesJSON), string(ffJSON), string(invJSON), string(csJSON), r.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("InsertPreflightAudit: %w", err)
+	}
+	return nil
+}
+
+// QueryPreflightAudits returns audit records, optionally filtered by since (unix
+// timestamp lower bound, 0 = no bound) and gitSHA (empty = no filter).
+// Results are ordered by timestamp descending.
+func (g *Graph) QueryPreflightAudits(ctx context.Context, since int64, gitSHA string) ([]*PreflightAuditRecord, error) {
+	query := `
+		SELECT id, task, timestamp, git_sha, files_json, forbidden_fixes_json, invariants_json, code_smells_json, created_at
+		FROM preflight_audits
+		WHERE timestamp >= ?`
+	args := []interface{}{since}
+
+	if gitSHA != "" {
+		query += ` AND git_sha = ?`
+		args = append(args, gitSHA)
+	}
+	query += ` ORDER BY timestamp DESC`
+
+	rows, err := g.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("QueryPreflightAudits: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*PreflightAuditRecord
+	for rows.Next() {
+		var r PreflightAuditRecord
+		var filesJSON, ffJSON, invJSON, csJSON string
+		if err := rows.Scan(&r.ID, &r.Task, &r.Timestamp, &r.GitSHA,
+			&filesJSON, &ffJSON, &invJSON, &csJSON, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal([]byte(filesJSON), &r.Files)
+		_ = json.Unmarshal([]byte(ffJSON), &r.ForbiddenFixes)
+		_ = json.Unmarshal([]byte(invJSON), &r.Invariants)
+		_ = json.Unmarshal([]byte(csJSON), &r.CodeSmells)
+		out = append(out, &r)
 	}
 	return out, rows.Err()
 }

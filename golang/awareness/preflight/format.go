@@ -47,6 +47,7 @@ func renderJSON(r *Report) (string, error) {
 		Invariants               []string                 `json:"invariants"`
 		FailureModes             []string                 `json:"failure_modes"`
 		ForbiddenFixes           []string                 `json:"forbidden_fixes"`
+		CodeSmells               []string                 `json:"code_smells,omitempty"`
 		HashSchemas              []string                 `json:"hash_schemas,omitempty"`
 		StateTransitions         []string                 `json:"state_transitions,omitempty"`
 		DidWeFix                 *DidWeFixSection         `json:"did_we_fix"`
@@ -70,6 +71,7 @@ func renderJSON(r *Report) (string, error) {
 		Invariants:               orEmpty(r.Invariants),
 		FailureModes:             orEmpty(r.FailureModes),
 		ForbiddenFixes:           orEmpty(r.ForbiddenFixes),
+		CodeSmells:               r.CodeSmells,
 		HashSchemas:              r.HashSchemas,
 		StateTransitions:         r.StateTransitions,
 		DidWeFix:                 r.DidWeFix,
@@ -163,6 +165,11 @@ func renderMarkdown(r *Report) string {
 
 	// Forbidden fixes.
 	writeListSection(&sb, "## Forbidden fixes\n\n", r.ForbiddenFixes, "No forbidden fixes identified.")
+
+	// Code smells from patterns.
+	if len(r.CodeSmells) > 0 {
+		writeListSection(&sb, "## Code smells to watch for\n\n", r.CodeSmells, "")
+	}
 
 	// Impacted files.
 	writeListSection(&sb, "## Impacted files\n\n", r.Files, "No files provided.")
@@ -270,6 +277,15 @@ func renderAgent(r *Report) string {
 		sb.WriteString("Forbidden fixes:\n")
 		for _, ff := range r.ForbiddenFixes {
 			sb.WriteString("- " + ff + "\n")
+		}
+		sb.WriteString("\n")
+	}
+
+	// Code smells.
+	if len(r.CodeSmells) > 0 {
+		sb.WriteString("Code smells:\n")
+		for _, s := range r.CodeSmells {
+			sb.WriteString("- " + s + "\n")
 		}
 		sb.WriteString("\n")
 	}

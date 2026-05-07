@@ -820,31 +820,17 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 
 		SyncInstalledPackage: func(ctx context.Context, name, version, hash, kind string) error {
 			nc, _ := engine.GetNodeContext(ctx)
-			nodeID, endpoint := nc.NodeID, nc.AgentEndpoint
-			if endpoint == "" {
-				return fmt.Errorf("no agent endpoint for node %s", nodeID)
+			nodeID := nc.NodeID
+			if nodeID == "" {
+				return fmt.Errorf("no node ID in context for sync installed state %s", name)
 			}
-
-			conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
-			if err != nil {
-				return fmt.Errorf("connect to node %s: %w", nodeID, err)
-			}
-			defer conn.Close()
-
-			client := node_agentpb.NewNodeAgentServiceClient(conn)
-			_, err = client.SetInstalledPackage(ctx, &node_agentpb.SetInstalledPackageRequest{
-				Package: &node_agentpb.InstalledPackage{
-					NodeId:   nodeID,
-					Name:     name,
-					Version:  version,
-					Checksum: hash,
-					Kind:     kind,
-				},
+			return installed_state.CommitInstalledPackage(ctx, &node_agentpb.InstalledPackage{
+				NodeId:   nodeID,
+				Name:     name,
+				Version:  version,
+				Checksum: hash,
+				Kind:     kind,
 			})
-			if err != nil {
-				return fmt.Errorf("sync installed state %s on node %s: %w", name, nodeID, err)
-			}
-			return nil
 		},
 
 		// Removal actions
@@ -925,27 +911,11 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 
 		ClearInstalledPackageState: func(ctx context.Context, name, kind string) error {
 			nc, _ := engine.GetNodeContext(ctx)
-			nodeID, endpoint := nc.NodeID, nc.AgentEndpoint
-			if endpoint == "" {
-				return fmt.Errorf("no agent endpoint for node %s", nodeID)
+			nodeID := nc.NodeID
+			if nodeID == "" {
+				return fmt.Errorf("no node ID in context for clear state %s", name)
 			}
-			conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
-			if err != nil {
-				return fmt.Errorf("connect to node %s: %w", nodeID, err)
-			}
-			defer conn.Close()
-			// Clear the installed-state entry by setting an empty package.
-			client := node_agentpb.NewNodeAgentServiceClient(conn)
-			_, err = client.SetInstalledPackage(ctx, &node_agentpb.SetInstalledPackageRequest{
-				Package: &node_agentpb.InstalledPackage{
-					NodeId:  nodeID,
-					Name:    name,
-					Kind:    kind,
-					Status:  "removed",
-					Version: "",
-				},
-			})
-			if err != nil {
+			if err := installed_state.DeleteInstalledPackage(ctx, nodeID, kind, name); err != nil {
 				return fmt.Errorf("clear state %s on node %s: %w", name, nodeID, err)
 			}
 			return nil

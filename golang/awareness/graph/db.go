@@ -119,6 +119,21 @@ CREATE INDEX IF NOT EXISTS idx_edges_dst  ON edges(dst);
 CREATE INDEX IF NOT EXISTS idx_edges_kind ON edges(kind);
 CREATE INDEX IF NOT EXISTS idx_edges_phase ON edges(phase);
 CREATE INDEX IF NOT EXISTS idx_context_aliases_target ON context_aliases(target_id);
+
+CREATE TABLE IF NOT EXISTS preflight_audits (
+    id                   TEXT PRIMARY KEY,
+    task                 TEXT NOT NULL DEFAULT '',
+    timestamp            INTEGER NOT NULL DEFAULT 0,
+    git_sha              TEXT NOT NULL DEFAULT '',
+    files_json           TEXT NOT NULL DEFAULT '[]',
+    forbidden_fixes_json TEXT NOT NULL DEFAULT '[]',
+    invariants_json      TEXT NOT NULL DEFAULT '[]',
+    code_smells_json     TEXT NOT NULL DEFAULT '[]',
+    created_at           INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_preflight_audits_ts  ON preflight_audits(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_preflight_audits_sha ON preflight_audits(git_sha);
 `
 
 // Graph is the central awareness graph handle backed by SQLite.

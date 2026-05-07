@@ -23,6 +23,7 @@ func LoadAll(ctx context.Context, g *graph.Graph, docsDir string) error {
 		{"failure_modes.yaml", LoadFailureModes},
 		{"forbidden_fixes.yaml", LoadForbiddenFixes},
 		{"services.yaml", LoadServices},
+		{"patterns.yaml", LoadPatterns},
 	}
 
 	for _, l := range loaders {

@@ -64,6 +64,50 @@ All fields are optional. When empty, the server auto-detects the repo root via `
 
 ---
 
+## Discovering tools
+
+### Via CLI
+
+List all tools registered in the running MCP service:
+
+```bash
+globular mcp tools
+```
+
+Filter to awareness tools only:
+
+```bash
+globular mcp tools --group awareness
+```
+
+Sample output:
+
+```
+TOOL                              DESCRIPTION
+awareness.agent_context           Invariants + forbidden fixes for a coding task
+awareness.approve_proposal        Approve a validated proposal (sets APPROVED; does n...
+awareness.did_we_fix              Look up the fix-ledger for a task or symptom
+awareness.fix_status              Retrieve a fix case by ID or keyword
+awareness.impact_file             Downstream graph impact for a specific source file
+awareness.package_context         Package architectural context from the awareness gr...
+awareness.pattern_status          All fix cases that match a keyword pattern
+awareness.preflight               Full awareness preflight — primary entry point for ...
+awareness.propose_from_incident   Generate a draft proposal from an incident (DRAFT s...
+awareness.runtime_snapshot        Read-only snapshot of live cluster runtime state
+awareness.validate_package        Validate a package against awareness graph rules
+awareness.validate_proposal       Validate a proposal file against all 12 rules
+
+12 tool(s) in group "awareness".
+```
+
+The command connects to the MCP service resolved from etcd, or falls back to `https://globular.internal:10260/mcp`. Use `--url` to override:
+
+```bash
+globular mcp tools --group awareness --url https://10.0.0.63:10260/mcp
+```
+
+---
+
 ## Tool list
 
 | Tool | Description | Required args |

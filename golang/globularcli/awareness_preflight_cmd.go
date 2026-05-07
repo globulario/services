@@ -21,6 +21,8 @@ var preflightCfg = struct {
 	format         string
 	includeRuntime bool
 	runtimeWindow  time.Duration
+	writeAudit     bool
+	gitSHA         string
 }{}
 
 var awarenessPreflightCmd = &cobra.Command{
@@ -83,6 +85,8 @@ Examples:
 			DocsDir:        docsDir,
 			IncludeRuntime: preflightCfg.includeRuntime,
 			RuntimeWindow:  preflightCfg.runtimeWindow,
+			WriteAudit:     preflightCfg.writeAudit,
+			GitSHA:         preflightCfg.gitSHA,
 		}
 
 		if preflightCfg.includeRuntime {
@@ -119,6 +123,8 @@ func init() {
 	awarenessPreflightCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root (default: auto-detected from git)")
 	awarenessPreflightCmd.Flags().BoolVar(&preflightCfg.includeRuntime, "include-runtime", false, "Collect live runtime snapshot and merge into preflight report")
 	awarenessPreflightCmd.Flags().DurationVar(&preflightCfg.runtimeWindow, "runtime-window", 15*time.Minute, "Lookback window for runtime events/workflows")
+	awarenessPreflightCmd.Flags().BoolVar(&preflightCfg.writeAudit, "write-audit", false, "Persist a preflight audit record to the graph DB after the run")
+	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.gitSHA, "git-sha", "", "Current git SHA for the audit record (used with --write-audit)")
 
 	awarenessCmd.AddCommand(awarenessPreflightCmd)
 }

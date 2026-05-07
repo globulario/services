@@ -59,6 +59,22 @@ const (
 	NodeTypeRiskSurface      = "risk_surface"
 	NodeTypeProtocolContract = "protocol_contract"
 
+	// Pattern node type (Task 15).
+	NodeTypePattern = "pattern"
+
+	// Design / documentation node types (Task 12).
+	NodeTypeArchitectureDecision = "architecture_decision"
+	NodeTypeDesignRule           = "design_rule"
+	NodeTypeRationale            = "rationale"
+	NodeTypeTradeoff             = "tradeoff"
+	NodeTypeOperationalPrinciple = "operational_principle"
+	NodeTypeRunbook              = "runbook"
+	NodeTypeDebugPlaybook        = "debug_playbook"
+	NodeTypeDocumentationSection = "documentation_section"
+	NodeTypeErrorReport          = "error_report"
+	NodeTypeIncidentReport       = "incident_report"
+	NodeTypeCommitFix            = "commit_fix"
+
 	// Runtime bridge node types (Task 6).
 	NodeTypeRuntimeSnapshot = "runtime_snapshot"
 	NodeTypeRuntimeServiceStatus = "runtime_service_status"

@@ -11,7 +11,7 @@ patterns:
       - restart loses truth
       - leader failover sees different truth
       - memory and etcd diverge
-    safe_fix_rule: Every state mutation that matters to control flow must cross a persistence barrier or fail. Update state, persist, check error, then trigger side effects.
+    safe_fix_rule: "Every state mutation that matters to control flow must cross a persistence barrier or fail. Update state, persist, check error, then trigger side effects."
     related_invariants:
       - install.result.atomic_commit
       - critical_state.registry_ownership_required
@@ -78,7 +78,7 @@ patterns:
       - runtime observation permanently overrides desired state
       - rollback impossible because desired == runtime
       - drift is hidden
-    safe_fix_rule: Desired state flows top-down: controller decides, node-agent executes. Runtime observation must never write to desired-state keys.
+    safe_fix_rule: "Desired state flows top-down: controller decides, node-agent executes. Runtime observation must never write to desired-state keys."
     related_invariants:
       - desired.bootstrap_state_requires_promotion
 
