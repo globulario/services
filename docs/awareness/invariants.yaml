@@ -634,3 +634,123 @@ invariants:
         - TestObjectstoreRegistryEntryComplete
       related_failure_modes:
         - objectstore.no_desired_state_governance
+
+    # ── Self-awareness invariants ────────────────────────────────────────────
+    # These protect the awareness system itself from quality regressions.
+    # Checked by: globular awareness self-check
+    - id: awareness.no_false_silence_for_sensitive_tasks
+      title: Awareness must not be silent for sensitive architectural tasks
+      severity: high
+      status: active
+      summary: |
+        For tasks involving heartbeat authority, desired state writes, etcd quorum,
+        convergence loops, or restart storms, the awareness graph must surface at
+        least one invariant or failure mode. Silent preflight output for these task
+        classes is a regression — the graph is missing keyword coverage, context
+        aliases, or invariant nodes.
+      protects:
+        files:
+            - golang/awareness/preflight/preflight.go
+            - docs/awareness/context_aliases.yaml
+      forbidden_fixes:
+        - suppress_no_awareness_match_warning_without_fixing_root_cause
+      required_tests:
+        - TestSmokePassesOnKnownInvariants
+      related_failure_modes:
+        - awareness.false_silence_on_sensitive_task
+
+    - id: awareness.audit_noise_must_be_triaged
+      title: Awareness audit warnings must be triaged, not silently accumulated
+      severity: medium
+      status: active
+      summary: |
+        Audit warnings that accumulate beyond the configured threshold (>3 in self-check)
+        indicate that invariant coverage has grown noisy. Each warning must be triaged:
+        either it reveals a real gap (promote to ERROR) or it is a false positive
+        (suppress explicitly with a suppression entry). Silently ignoring audit warnings
+        degrades the signal-to-noise ratio over time.
+      protects:
+        files:
+            - golang/awareness/enforce/audit.go
+            - golang/awareness/enforce/suppressions.go
+      forbidden_fixes:
+        - suppress_all_audit_warnings_without_reviewing_each
+      required_tests:
+        - TestSelfCheckReportsNoisySections
+
+    - id: awareness.graph_edges_need_provenance
+      title: Every awareness graph edge must have a traceable provenance
+      severity: medium
+      status: active
+      summary: |
+        Graph edges between awareness nodes (invariant, failure_mode, forbidden_fix,
+        source_file, symbol) must be created by a known extractor or a manually
+        authored YAML truth file — never speculatively. An edge without a traceable
+        source is a stale reference that will not survive a rebuild. Drift check
+        failures are the observable symptom.
+      protects:
+        files:
+            - golang/awareness/graph/edges.go
+            - golang/awareness/extractors/
+      forbidden_fixes:
+        - add_graph_edge_without_extractor_or_yaml_source
+      required_tests:
+        - TestGraphDriftNoStaleRefs
+
+    - id: awareness.mcp_must_not_expose_promotion
+      title: MCP must not expose promote_proposal as a tool
+      severity: critical
+      status: active
+      summary: |
+        The MCP server (both awareness/mcp and golang/mcp) must never register a tool
+        named promote_proposal or any tool that writes to the approved awareness YAML
+        files (invariants.yaml, failure_modes.yaml, forbidden_fixes.yaml). Promotion
+        is an operator action — it must require explicit CLI invocation with human
+        review. MCP tool exposure bypasses this gate.
+      protects:
+        files:
+            - golang/awareness/mcp/learning_tool.go
+            - golang/mcp/
+      forbidden_fixes:
+        - register_promote_proposal_as_mcp_tool
+        - allow_mcp_to_write_awareness_yaml_files
+      required_tests:
+        - TestMCPCheckFailsWhenPromoteProposalExposed
+        - TestApproveProposalDoesNotPromote
+
+    - id: awareness.node_context_must_not_flood
+      title: Node context results must not flood with irrelevant matches
+      severity: medium
+      status: active
+      summary: |
+        GenerateAgentContext must return targeted results for a given task — not
+        every invariant in the graph. Results are considered noisy when more than
+        15 distinct invariant IDs are returned for a single task (unless the task
+        is explicitly broad like "full audit"). Node context flood dilutes signal
+        and increases agent token usage without improving diagnostic quality.
+      protects:
+        files:
+            - golang/awareness/analysis/agent_context.go
+      forbidden_fixes:
+        - return_all_invariants_for_every_task_without_filtering
+      required_tests:
+        - TestNodeContextSmokePasses
+
+    - id: awareness.semantic_paths_must_explain_why
+      title: Semantic paths between awareness nodes must include a human-readable explanation
+      severity: medium
+      status: active
+      summary: |
+        ShortestPath results must include a non-empty Explanation field — a
+        prose description of why the path exists (what architectural constraint
+        connects the two nodes). A path without an explanation is a traversal
+        artifact, not actionable awareness. Agents using semantic paths to
+        diagnose issues need the explanation to avoid following spurious connections.
+      protects:
+        files:
+            - golang/awareness/semantic/path.go
+            - golang/awareness/semantic/why.go
+      forbidden_fixes:
+        - return_semantic_path_without_explanation
+      required_tests:
+        - TestSemanticPathIncludesExplanation
