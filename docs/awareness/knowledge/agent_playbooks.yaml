@@ -49,10 +49,10 @@ capability_gap_patterns:
       - "Save proposals to docs/awareness/proposals/ only — never mutate knowledge YAML directly"
       - "Mark graph rebuild required after applying knowledge changes"
     tests_required:
-      - "learn_from_fix proposes a new failure mode from a verified incident"
-      - "learn_from_fix proposes a forbidden fix when known_bad_fix is provided"
-      - "learn_from_fix does not mutate YAML without approval"
-      - "pending_proposals lists the generated learned-fix proposal"
+      - TestLearnFromFix_NewFailureMode
+      - TestLearnFromFix_ForbiddenFixProposal
+      - TestLearnFromFix_NoDirectYAMLMutation
+      - TestLearnFromFix_ProposalIsLoadable
     closure_condition: "Given a verified fix, awareness produces at least one reviewable knowledge proposal or explains why no durable lesson should be added."
     knowledge_updates:
       - target_file: design_patterns.yaml
@@ -84,9 +84,9 @@ capability_gap_patterns:
       - "Build a timestamped timeline when timestamps are present"
       - "Return evidence, timeline, suspected failure modes, confidence, blind spots"
     tests_required:
-      - "etcd NOSPACE in journalctl text → etcd failure mode matched"
-      - "address already in use + unknown service → port squatting failure mode"
-      - "Empty input returns low confidence with blind spots listed"
+      - TestOfflineDiagnose_EtcdNospace
+      - TestOfflineDiagnose_PortSquatting
+      - TestOfflineDiagnose_EmptyInput
     closure_condition: "An operator with only journalctl output from a broken cluster can get meaningful failure mode matches and a timeline without any live gRPC connection."
     knowledge_updates:
       - target_file: failure_modes.yaml
@@ -117,10 +117,11 @@ capability_gap_patterns:
       - "Merge AST findings with regex findings in scan_violations tool, dedup by file+line"
       - "Each finding includes scanner: 'go_ast' or scanner: 'regex'"
     tests_required:
-      - "Direct loopback string literal detected"
-      - "const target = '127.0.0.1' then grpc.Dial(target) detected"
-      - "os.Getenv in non-test file detected"
-      - "os/exec import in cluster_controller path detected"
+      - TestScanGoFile_LoopbackStringLiteral
+      - TestScanGoFile_ConstLoopback
+      - TestScanGoFile_GRPCDialLoopback
+      - TestScanGoFile_OsGetenv
+      - TestScanGoFile_ExecImportInController
     closure_condition: "A fixture with const target = '127.0.0.1:12000'; grpc.Dial(target) must produce a violation mapped to hard_rule.no_localhost with scanner: go_ast."
     knowledge_updates:
       - target_file: scan_rules.yaml
@@ -148,9 +149,9 @@ capability_gap_patterns:
       - "Score evidence/events against each rule's sequence steps"
       - "Return chains where ≥50% of steps match, with recommended fix order"
     tests_required:
-      - "etcd NOSPACE + leader changed + workflow timeout → etcd_disk_pressure chain matched"
-      - "Unrelated symptoms → no chain, clear blind spots"
-      - "Partial match (1 of 4 steps) → chain not returned"
+      - TestCausalChain_EtcdNspaceToWorkflowTimeout
+      - TestCausalChain_UnrelatedSymptoms
+      - TestCausalChain_PartialMatchBelowThreshold
     closure_condition: "Given a mix of etcd, controller, and workflow symptoms, awareness groups them into a chain with a recommended fix order rather than listing them separately."
     knowledge_updates:
       - target_file: causal_rules.yaml
@@ -179,9 +180,9 @@ capability_gap_patterns:
       - "Noop sources report Kind=noop explicitly"
       - "BuildBridge() wires real sources when addresses are configured, noop otherwise"
     tests_required:
-      - "Noop source reports Kind=noop in source_health"
-      - "Real source with fake gRPC server reports Kind=real, Healthy=true"
-      - "Error source reports Healthy=false with error message"
+      - TestSourceHealthFor_Noop
+      - TestSourceHealthFor_RealSource_Success
+      - TestSourceHealthFor_RealSource_Error
     closure_condition: "Runtime snapshot source_health must never be empty. Every source reports noop or healthy or error. No silent empty results."
     knowledge_updates:
       - target_file: invariants.yaml
@@ -208,9 +209,9 @@ capability_gap_patterns:
       - "Bridge.Snapshot() calls MatchWithThresholds with loaded thresholds"
       - "RuntimeTool loads thresholds via LoadMetricThresholds(docsDir) and passes to bridge"
     tests_required:
-      - "metric_thresholds.yaml loaded from docs dir"
-      - "Service-specific threshold overrides default for etcd disk"
-      - "Default threshold applies when service-specific is missing"
+      - TestLoadMetricThresholds_ServiceSpecificOverridesDefault
+      - TestMatchWithThresholds_ServiceSpecificEtcdDisk
+      - TestMatchWithThresholds_NilUsesDefaults
     closure_condition: "A metric sample for etcd at 76% produces a warning with threshold_source: etcd, warn_threshold: 70."
     knowledge_updates:
       - target_file: metric_thresholds.yaml
@@ -237,9 +238,9 @@ capability_gap_patterns:
       - "Change Coverage struct fields to CoverageState"
       - "computeConfidence() must always set RawYAML to checked_clean or checked_with_matches, never not_checked"
     tests_required:
-      - "Raw YAML ran and found nothing → coverage.raw_yaml = checked_clean"
-      - "Raw YAML ran and found matches → coverage.raw_yaml = checked_with_matches"
-      - "Runtime noop → coverage.runtime = noop, confidence reduced"
+      - TestCoverage_RawYAMLWithZeroMatchesIsCheckedClean
+      - TestCoverage_RawYAMLWithMatches
+      - TestCoverage_RuntimeNoop
     closure_condition: "A preflight where raw YAML ran but found nothing reports coverage.raw_yaml=checked_clean, not not_checked. NO_MATCH is only reported when coverage is checked_clean."
     knowledge_updates:
       - target_file: design_patterns.yaml
@@ -269,10 +270,9 @@ capability_gap_patterns:
       - "Report transport: mtls or transport: insecure in SourceHealth"
       - "Test: fake gRPC server with TLS cert accepts mTLS client connection"
     tests_required:
-      - "mTLS config fields present in Config struct"
-      - "BuildBridge uses tls.Config when CACert is set"
-      - "SourceHealth reports transport: mtls when mTLS is active"
-      - "Insecure=true produces transport: insecure with warning in source_health"
+      - TestGrpcSourceConfig_InsecureDialOptions
+      - TestGrpcSourceConfig_NoCAUsesSystemTLS
+      - TestSourceHealth_WithTransportMTLS
     closure_condition: "A runtime snapshot against a production cluster with mTLS succeeds and reports transport: mtls in source_health. Insecure is never used silently."
     knowledge_updates:
       - target_file: invariants.yaml
@@ -300,9 +300,9 @@ capability_gap_patterns:
       - "If stale, include graph_freshness.stale=true and rebuild_recommendation in preflight output"
       - "CLI rebuild command: globular awareness rebuild"
     tests_required:
-      - "Graph built from YAML A, YAML changed → freshness check reports stale=true"
-      - "Graph rebuilt → freshness check reports stale=false"
-      - "Missing graph → freshness reports not_built with rebuild_required=true"
+      - TestFreshness_KnowledgeNewerThanGraph
+      - TestFreshness_FreshGraph
+      - TestFreshness_NoBuilds
     closure_condition: "Preflight output always includes graph_freshness. If source files changed since last build, stale=true and rebuild_recommendation is non-empty."
     knowledge_updates:
       - target_file: design_patterns.yaml
@@ -330,9 +330,9 @@ capability_gap_patterns:
       - "Diff current vs baseline: new warnings, cleared warnings, changed metrics"
       - "Return delta as evidence for incident candidates"
     tests_required:
-      - "Snapshot saved and loaded correctly"
-      - "suggest_incident with stored baseline reports delta"
-      - "suggest_incident without stored baseline degrades gracefully with blind spot"
+      - TestSnapshotStorage_SaveAndLoad
+      - TestSuggestIncident_WithBaselineReportsDelta
+      - TestSuggestIncident_WithoutBaselineDegradesGracefully
     closure_condition: "suggest_incident with a stored baseline reports delta between baseline and current, not just current state."
     knowledge_updates:
       - target_file: design_patterns.yaml

@@ -696,6 +696,12 @@ func buildSelfReviewSummary(gaps []capabilityGapResult, closed []closedGapResult
 // Test verification for closed gaps
 // ---------------------------------------------------------------------------
 
+// isValidTestFuncName returns true if s is a valid Go test function name:
+// starts with "Test" followed by an uppercase letter (e.g. TestFoo_Bar).
+func isValidTestFuncName(s string) bool {
+	return len(s) >= 5 && strings.HasPrefix(s, "Test") && s[4] >= 'A' && s[4] <= 'Z'
+}
+
 // verifyGapTests checks whether the test function names listed in testsRequired
 // can be found in any *_test.go file under golang/awareness/ in the repo.
 // This prevents self_review from reporting false confidence when a gap is marked
@@ -722,6 +728,23 @@ func verifyGapTests(repoRoot string, testsRequired []string) (status string, not
 		} else {
 			normalized[i] = strings.TrimSpace(entry)
 		}
+	}
+
+	// Reject description-style entries before scanning. An entry like
+	// "etcd NOSPACE in journalctl text → etcd failure mode matched" normalizes
+	// to "etcd" — scanning for func etcd( always returns zero matches and
+	// silently produces a misleading tests_not_found result.
+	// Valid entries must start with "Test" followed by an uppercase letter.
+	var invalidEntries []string
+	for i, norm := range normalized {
+		if !isValidTestFuncName(norm) {
+			invalidEntries = append(invalidEntries, fmt.Sprintf("%q (from %q)", norm, testsRequired[i]))
+		}
+	}
+	if len(invalidEntries) > 0 {
+		return "invalid_metadata", fmt.Sprintf(
+			"tests_required contains %d non-function-name entry(ies) — use exact Go func names starting with TestXxx: %s",
+			len(invalidEntries), strings.Join(invalidEntries, "; "))
 	}
 
 	found := make(map[string]bool)
