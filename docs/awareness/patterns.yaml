@@ -163,3 +163,39 @@ patterns:
     safe_fix_rule: Only the controller may write to desired-state keys. Node-agent writes to installed-state only. Runtime observation never becomes desired authority.
     related_invariants:
       - desired.bootstrap_state_requires_promotion
+
+  - id: pattern.ephemeral_state_contamination
+    title: Ephemeral State Contamination
+    definition: Persistent storage from a previous cluster lifecycle carries stale node identities, profiles, or ownership records into a fresh boot. The new cluster silently inherits corrupted authority and diverges from the intended initial state.
+    detect: Look for etcd volumes not wiped between cluster teardown and re-creation. Watch for node UUIDs in controller state that don't match any live heartbeat. Watch for profiles assigned from a previous run persisting on "new" nodes.
+    code_smells:
+      - "docker compose down without -v flag"
+      - "etcd data volumes not removed between cluster wipes"
+      - "assign-profiles says 'already assigned' on a fresh cluster"
+      - "node UUID in state has no matching heartbeat"
+    failure_modes:
+      - wrong profiles assigned to founding nodes
+      - founding quorum check passes with wrong node set
+      - DNS A records generated for wrong node-to-IP mappings
+      - reconciler installs services on wrong nodes
+    safe_fix_rule: "Cluster re-creation requires explicit volume wipe. Treat etcd state as fully owned by a cluster lifetime: on wipe, destroy ALL etcd volumes. Never re-use volumes across cluster lifetimes."
+    related_invariants:
+      - critical_state.registry_ownership_required
+      - founding_quorum.three_storage_nodes
+
+  - id: pattern.unit_type_shadowing
+    title: Unit Type Shadowing
+    definition: A systemd unit declares Type= more than once. The last declaration silently wins. Services that expect Type=simple but have a later Type=notify never leave activating state, blocking any unit with After= or Wants= on them.
+    detect: Look for multiple Type= lines in a .service file. Search for Type=simple AND Type=notify in the same [Service] block. Watch for services stuck in 'activating (start)' with a running main process and no obvious errors.
+    code_smells:
+      - "two Type= lines in [Service] block"
+      - "Type=simple followed by Type=notify later in file"
+      - "WatchdogSec= present without matching Type=notify intent"
+      - "service active=activating but process is running and logging normally"
+    failure_modes:
+      - dependent services (node-agent, assign-profiles) never start
+      - watchdog fires because sd_notify READY=1 is never sent
+      - cluster bootstrap deadlock if controller is the blocked service
+    safe_fix_rule: "A unit file MUST have exactly one Type= declaration. WatchdogSec= is only valid with Type=notify. If the process does not call sd_notify, use Type=simple. Validate all units with 'systemd-analyze verify'."
+    related_invariants:
+      - bootstrap.infra_before_workload

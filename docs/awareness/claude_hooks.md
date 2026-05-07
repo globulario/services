@@ -22,7 +22,12 @@ edits (`exit 2`) when awareness safety gates fail.
 
 ## Configuration
 
-Add this to `~/.claude/settings.json`:
+Two hook types work together:
+
+- **PreToolUse** — runs `awareness hook` before an edit, surfaces invariants and forbidden fixes
+- **PostToolUse** — runs `check-edit` after an edit, surfaces code smells and pattern violations
+
+Add both to `~/.claude/settings.json` (global) or `.claude/settings.local.json` (project):
 
 ```json
 {
@@ -33,7 +38,18 @@ Add this to `~/.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "globular awareness hook --file \"$CLAUDE_TOOL_INPUT_PATH\" --task \"$CLAUDE_TASK\""
+            "command": "globular awareness hook --file \"${CLAUDE_TOOL_INPUT_FILE_PATH:-${CLAUDE_TOOL_INPUT_FILE:-}}\" --task \"$CLAUDE_TASK\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "globular awareness check-edit --file \"${CLAUDE_TOOL_INPUT_FILE_PATH:-${CLAUDE_TOOL_INPUT_FILE:-}}\" --format agent 2>/dev/null || true"
           }
         ]
       }
@@ -41,6 +57,10 @@ Add this to `~/.claude/settings.json`:
   }
 }
 ```
+
+The file-path variable uses a fallback chain (`${CLAUDE_TOOL_INPUT_FILE_PATH:-${CLAUDE_TOOL_INPUT_FILE:-}}`) to support both current and older Claude Code versions. If the variable is empty, both hooks skip silently.
+
+See `.claude/settings.example.json` for a copy-paste ready config with strict mode options.
 
 Or for a project-scoped hook, add to `.claude/settings.json` at the repo root.
 
@@ -70,7 +90,7 @@ globular awareness hook \
 
 ---
 
-## Example output
+## PreToolUse hook output
 
 ```
 ## Awareness hook: PASS
@@ -86,7 +106,7 @@ globular awareness hook \
 **Files checked**: golang/node_agent/node_agent_server/heartbeat.go
 ```
 
-If annotations are malformed:
+If annotations are malformed, strict mode blocks with exit 2:
 
 ```
 ## Awareness hook: BLOCKED
@@ -99,11 +119,53 @@ If annotations are malformed:
 
 ---
 
+## PostToolUse hook output
+
+After each edit, `check-edit` scans the file for forbidden fixes and code smells linked to its invariants.
+
+When the file is clean:
+
+```
+AWARENESS POST-EDIT CHECK
+file: golang/node_agent/node_agent_server/heartbeat.go
+
+PASS
+```
+
+When issues are detected:
+
+```
+AWARENESS POST-EDIT CHECK
+file: golang/cluster_controller/convergence.go
+
+Forbidden fixes nearby:
+- create_infra_release_from_heartbeat_only
+
+Code smells to watch:
+- raw_artifact_digest_as_desired_hash
+- calling Restart() without exponential backoff
+```
+
+The hook exits 1 when issues are found — `|| true` in the hook command ensures it never blocks the edit. Claude reads the output and takes it into account before the next action.
+
+If the file is not in the graph (no `globular awareness build` run yet):
+
+```
+AWARENESS POST-EDIT CHECK
+file: golang/node_agent/node_agent_server/heartbeat.go
+
+Warnings:
+- no graph node for this file — run 'globular awareness build' to index it
+```
+
+---
+
 ## Relation to `awareness audit`
 
-| Command | When | Scope | Blocks |
-|---------|------|-------|--------|
-| `awareness hook` | Before each edit | Files being edited | Default: no. Strict mode: yes (high-risk only) |
+| Command | Hook type | When | Blocks |
+|---------|-----------|------|--------|
+| `awareness hook` | PreToolUse | Before each edit | Default: no. Strict mode: yes (high-risk only) |
+| `awareness check-edit` | PostToolUse | After each edit | No — always exits 0 via `\|\| true` in hook |
 | `awareness audit` | CI / pre-commit | All source files | Yes (exit 1 on ERROR) |
 | `awareness pr-report` | CI pull request | Changed files | Yes (exit 1 on ERROR) |
 

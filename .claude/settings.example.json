@@ -9,7 +9,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "globular awareness hook --file \"$CLAUDE_TOOL_INPUT_FILE_PATH\" --task \"$CLAUDE_TASK\""
+            "command": "globular awareness hook --file \"${CLAUDE_TOOL_INPUT_FILE_PATH:-${CLAUDE_TOOL_INPUT_FILE:-}}\" --task \"$CLAUDE_TASK\""
           }
         ]
       }
@@ -24,7 +24,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "globular awareness hook --strict --watchlist docs/awareness/high_risk_files.yaml --file \"$CLAUDE_TOOL_INPUT_FILE_PATH\" --task \"$CLAUDE_TASK\""
+            "command": "globular awareness hook --strict --watchlist docs/awareness/high_risk_files.yaml --file \"${CLAUDE_TOOL_INPUT_FILE_PATH:-${CLAUDE_TOOL_INPUT_FILE:-}}\" --task \"$CLAUDE_TASK\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "globular awareness check-edit --file \"${CLAUDE_TOOL_INPUT_FILE_PATH:-${CLAUDE_TOOL_INPUT_FILE:-}}\" --format agent 2>/dev/null || true"
           }
         ]
       }

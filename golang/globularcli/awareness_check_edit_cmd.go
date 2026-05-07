@@ -38,7 +38,8 @@ Examples:
 
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if checkEditCfg.file == "" {
-			return fmt.Errorf("--file is required")
+			fmt.Fprintln(os.Stderr, "check-edit: no --file provided (hook fired without file path) — skipping")
+			return nil
 		}
 
 		ctx := context.Background()
