@@ -138,6 +138,11 @@ services:
     priority: 1000
     dependencies: [authentication, event, rbac, resource, title]
 
+  mcp:
+    profiles: [core, compute, control-plane]
+    priority: 1000
+    dependencies: [resource]
+
   monitoring:
     profiles: [core, compute, control-plane]
     priority: 8

@@ -40,6 +40,7 @@ func (p *Paths) GoPackageDir(serviceName, execName string) (string, error) {
 		filepath.Join(p.Golang, serviceName, execName),
 		filepath.Join(p.Golang, serviceName, serviceName+"_server"),
 		filepath.Join(p.Golang, execName),
+		filepath.Join(p.Golang, serviceName), // for packages that ARE the directory (e.g. mcp)
 	}
 	for _, c := range candidates {
 		if info, err := os.Stat(c); err == nil && info.IsDir() {
