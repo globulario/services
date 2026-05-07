@@ -72,13 +72,34 @@ type capabilityGapResult struct {
 	DuplicateOf             string            `json:"duplicate_of,omitempty"`
 }
 
+// testResultsInput carries optional test execution evidence supplied by the caller.
+// When provided, self_review upgrades verification from "tests_found" (existence-only)
+// to "tests_passed" or "strict_verified" (existence + execution evidence).
+type testResultsInput struct {
+	Command      string   `json:"command,omitempty"`
+	Passed       bool     `json:"passed"`
+	Packages     int      `json:"packages,omitempty"`
+	FailedTests  []string `json:"failed_tests,omitempty"`
+	SkippedTests []string `json:"skipped_tests,omitempty"`
+}
+
 type closedGapResult struct {
 	GapID                   string `json:"gap_id"`
 	Status                  string `json:"status"`
 	ClosureCondition        string `json:"closure_condition"`
 	PreventsRepeatCriticism string `json:"prevents_repeat_criticism"`
-	// VerificationStatus reports whether required tests were found in the codebase.
-	// Values: "tests_found" | "tests_partial" | "tests_not_found" | "no_tests_required" | "unverified"
+	// VerificationStatus reports the level of test verification achieved.
+	// Values (in ascending order of strength):
+	//   "invalid_metadata"        — tests_required contains non-TestXxx entries
+	//   "no_tests_required"       — tests_required is empty
+	//   "tests_not_found"         — 0 required test functions found in codebase
+	//   "tests_partial"           — some but not all required tests found
+	//   "tests_found"             — all required tests exist (no execution evidence)
+	//   "tests_found_but_skipped" — all required tests exist but some are skipped
+	//   "tests_failed"            — required tests exist but some failed in test_results
+	//   "tests_passed"            — all required tests exist and passed in test_results
+	//   "strict_verified"         — all required tests exist, none skipped, all passed
+	//   "unverified"              — repo root unavailable — cannot scan test files
 	VerificationStatus string `json:"verification_status,omitempty"`
 	VerificationNote   string `json:"verification_note,omitempty"`
 }
@@ -148,6 +169,10 @@ func registerSelfReviewTool(s *Server) {
 					Description: "If true, vague feedback without any keyword match causes a hard error instead of incomplete_criticisms.",
 					Default:     false,
 				},
+				"test_results": {
+					Type:        "object",
+					Description: "Optional test execution evidence. When provided, self_review upgrades verification from 'tests_found' (existence-only) to 'tests_passed' or 'strict_verified'. Fields: command (string), passed (bool), packages (int), failed_tests ([]string), skipped_tests ([]string).",
+				},
 			},
 			Required: []string{"feedback"},
 		},
@@ -160,6 +185,23 @@ func registerSelfReviewTool(s *Server) {
 		}
 
 		strict := boolArg(args, "strict")
+
+		// Parse optional test execution evidence.
+		var testResults *testResultsInput
+		if trRaw, ok := args["test_results"]; ok && trRaw != nil {
+			if trMap, ok := trRaw.(map[string]interface{}); ok {
+				tr := &testResultsInput{
+					Passed: boolArg(trMap, "passed"),
+				}
+				tr.Command, _ = trMap["command"].(string)
+				if v, ok := trMap["packages"].(float64); ok {
+					tr.Packages = int(v)
+				}
+				tr.FailedTests = strSliceArg(trMap, "failed_tests")
+				tr.SkippedTests = strSliceArg(trMap, "skipped_tests")
+				testResults = tr
+			}
+		}
 
 		docsDir := s.resolvedDocsDir()
 		repoRoot := s.resolvedRepoRoot()
@@ -245,6 +287,10 @@ func registerSelfReviewTool(s *Server) {
 			pat := sg.pattern
 			if pat.Status == "implemented" {
 				verStatus, verNote := verifyGapTests(repoRoot, pat.TestsRequired)
+				// Upgrade verification level using test execution evidence when provided.
+				if testResults != nil && (verStatus == "tests_found" || verStatus == "tests_partial") {
+					verStatus, verNote = upgradeWithTestResults(verStatus, verNote, pat.TestsRequired, testResults)
+				}
 				closedGaps = append(closedGaps, closedGapResult{
 					GapID:                   pat.ID,
 					Status:                  "implemented",
@@ -782,5 +828,62 @@ func verifyGapTests(repoRoot string, testsRequired []string) (status string, not
 		return "tests_partial", fmt.Sprintf("%d/%d found; missing: %s", foundCount, total, strings.Join(missing, ", "))
 	default:
 		return "tests_not_found", fmt.Sprintf("0/%d required tests found in golang/awareness/", total)
+	}
+}
+
+// upgradeWithTestResults upgrades a "tests_found" verification status using
+// caller-supplied test execution evidence (from test_results input field).
+//
+// Upgrade ladder (descending priority):
+//
+//	strict_verified   — all required tests exist, none skipped, none failed
+//	tests_passed      — all required tests passed (may have unrelated skips)
+//	tests_found_but_skipped — at least one required test is in skipped_tests
+//	tests_failed      — at least one required test is in failed_tests
+//	tests_found       — no execution evidence matched (fall back to existence-only)
+func upgradeWithTestResults(baseStatus, baseNote string, testsRequired []string, tr *testResultsInput) (status string, note string) {
+	if tr == nil {
+		return baseStatus, baseNote
+	}
+
+	// Normalize required test names (same logic as verifyGapTests).
+	var normalized []string
+	for _, entry := range testsRequired {
+		if idx := strings.IndexByte(entry, ' '); idx >= 0 {
+			normalized = append(normalized, strings.TrimSpace(entry[:idx]))
+		} else {
+			normalized = append(normalized, strings.TrimSpace(entry))
+		}
+	}
+
+	failedSet := make(map[string]bool, len(tr.FailedTests))
+	for _, t := range tr.FailedTests {
+		failedSet[t] = true
+	}
+	skippedSet := make(map[string]bool, len(tr.SkippedTests))
+	for _, t := range tr.SkippedTests {
+		skippedSet[t] = true
+	}
+
+	var failed, skipped []string
+	for _, name := range normalized {
+		if failedSet[name] {
+			failed = append(failed, name)
+		}
+		if skippedSet[name] {
+			skipped = append(skipped, name)
+		}
+	}
+
+	switch {
+	case len(failed) > 0:
+		return "tests_failed", fmt.Sprintf("%d required test(s) failed: %s", len(failed), strings.Join(failed, ", "))
+	case len(skipped) > 0:
+		return "tests_found_but_skipped", fmt.Sprintf("%d required test(s) skipped (t.Skip): %s — skipped tests do not prove behavior", len(skipped), strings.Join(skipped, ", "))
+	case tr.Passed:
+		return "strict_verified", fmt.Sprintf("all %d required tests found and passed in test execution evidence (%s)", len(normalized), tr.Command)
+	default:
+		// test_results.passed=false but no specific test failures listed → passed check failed globally.
+		return "tests_passed", fmt.Sprintf("required tests found; execution evidence present but overall suite passed=%v", tr.Passed)
 	}
 }

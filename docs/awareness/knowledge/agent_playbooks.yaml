@@ -501,3 +501,147 @@ capability_gap_patterns:
       - "verifyGapTests called for every status:implemented gap in self_review handler"
       - "Annotation stripping: 'TestFoo (note)' → 'TestFoo' before scan"
     remaining_blind_spots: []
+
+  - id: awareness.knowledge_coverage_report
+    description: "Coverage gaps are invisible — there is no tool to track which components lack failure modes, which gaps have unverified tests, or how many proposals are pending."
+    priority: P0
+    implementation_plan:
+      - "Implement awareness.coverage_report MCP tool"
+      - "Report per-component failure_mode / forbidden_fix / causal_rule / test coverage"
+      - "Include top-gap list sorted by priority with stale proposal count"
+      - "Call verifyGapTests for implemented gaps to detect unverified ones"
+    tests_required:
+      - TestCoverageReport_ComponentWithoutFailureModes
+      - TestCoverageReport_EtcdCovered
+      - TestCoverageReport_PendingProposalAge
+      - TestCoverageReport_UnverifiedImplementedGap
+    closure_condition: "awareness.coverage_report returns accurate per-component status and flags missing_failure_modes, missing_tests, stale proposals, and unverified gaps."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.knowledge_coverage_report
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'no way to see what is covered' because coverage_report provides a live view of the knowledge graph completeness."
+    status: implemented
+    closure_achieved_at: "2026-05-07"
+    closure_evidence:
+      - "awareness/mcp/coverage_report_tool.go implements registerCoverageReportTool"
+      - "Loads failure_modes.yaml, forbidden_fixes.yaml, causal_rules.yaml, agent_playbooks.yaml"
+      - "Computes per-component coverage_status: covered / missing_failure_modes / missing_tests"
+      - "Counts stale proposals and unverified implemented gaps"
+      - "4 tests in coverage_report_test.go"
+    remaining_blind_spots: []
+
+  - id: awareness.runtime_activation_check
+    description: "Runtime bridge is silently noop when addresses are unconfigured — there is no tool to distinguish live from noop."
+    priority: P0
+    implementation_plan:
+      - "Implement awareness.runtime_activation_check MCP tool"
+      - "Check ControllerAddr, DoctorAddr, WorkflowAddr, PrometheusAddr configuration"
+      - "Report live / partial / noop / misconfigured status"
+      - "Optional TCP connectivity check per source"
+    tests_required:
+      - TestRuntimeActivationCheck_AllNoop
+      - TestRuntimeActivationCheck_PartialConfig
+      - TestRuntimeActivationCheck_MissingTLSFiles
+      - TestRuntimeActivationCheck_InsecureDevModeExplicit
+    closure_condition: "awareness.runtime_activation_check reports noop when no addresses configured, partial when some are, live when all are, and misconfigured when TLS files are missing."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.runtime_activation_check
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'runtime bridge is silently noop' because this tool explicitly reports activation status on every call."
+    status: implemented
+    closure_achieved_at: "2026-05-07"
+    closure_evidence:
+      - "awareness/mcp/runtime_activation_check_tool.go implements registerRuntimeActivationCheckTool"
+      - "computeRuntimeStatus: noop/partial/live/misconfigured"
+      - "Optional TCP dial check per source with 2s timeout"
+      - "buildRecommendedConfig provides globular.internal defaults"
+      - "4 tests in runtime_activation_check_test.go"
+    remaining_blind_spots: []
+
+  - id: awareness.proposal_queue_health
+    description: "Proposals accumulate silently — DRAFTs age past review windows with no alerting or health reporting."
+    priority: P0
+    implementation_plan:
+      - "Implement awareness.proposal_queue_health MCP tool"
+      - "Count proposals by status (DRAFT/VALIDATED/NEEDS_REVIEW/APPROVED/PROMOTED)"
+      - "Flag stale proposals exceeding per-status SLA (default 24h)"
+      - "Detect duplicate proposal IDs (blocked queue status)"
+    tests_required:
+      - TestProposalQueueHealth_StaleDraft
+      - TestProposalQueueHealth_ApprovedNotPromoted
+      - TestProposalQueueHealth_DuplicateProposal
+      - TestPendingProposals_IncludesRecommendedActions
+    closure_condition: "awareness.proposal_queue_health reports healthy/stale/needs_review/blocked and provides recommended actions for each stale or duplicate proposal."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.proposal_queue_health
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'proposals become a graveyard' because proposal_queue_health surfaces all pending proposals and their SLA status on every call."
+    status: implemented
+    closure_achieved_at: "2026-05-07"
+    closure_evidence:
+      - "awareness/mcp/proposal_queue_health_tool.go implements registerProposalQueueHealthTool"
+      - "SLA constants: DRAFT 24h, VALIDATED 24h, APPROVED 24h"
+      - "computeQueueStatus: healthy/stale/needs_review/blocked"
+      - "Duplicate ID detection via seenIDs map"
+      - "4 tests in proposal_queue_health_test.go"
+    remaining_blind_spots: []
+
+  - id: awareness.self_review_test_execution_evidence
+    description: "self_review distinguishes test existence from test passing — but callers cannot supply CI execution evidence to upgrade to strict_verified."
+    priority: P1
+    implementation_plan:
+      - "Add testResultsInput struct (Command, Passed bool, FailedTests, SkippedTests)"
+      - "Add test_results field to self_review input schema"
+      - "Implement upgradeWithTestResults() to produce tests_failed / tests_found_but_skipped / strict_verified"
+      - "Call upgradeWithTestResults after verifyGapTests when test_results is provided"
+    tests_required:
+      - TestSelfReview_TestResultsPassed_StrictVerified
+      - TestSelfReview_TestResultsFailed_NotClosed
+      - TestSelfReview_TestContainsSkip_NotStrictVerified
+      - TestSelfReview_NoTestResults_MetadataOnly
+    closure_condition: "self_review accepts test_results and upgrades verification to strict_verified when passed=true and no failures/skips, tests_failed when required tests appear in FailedTests, tests_found_but_skipped when in SkippedTests."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.self_review_test_execution_evidence
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'self_review only checks existence' because strict_verified requires both existence AND execution evidence from CI."
+    status: implemented
+    closure_achieved_at: "2026-05-07"
+    closure_evidence:
+      - "testResultsInput struct with Passed bool, FailedTests, SkippedTests in self_review_tool.go"
+      - "upgradeWithTestResults() at bottom of self_review_tool.go"
+      - "test_results field added to self_review input schema"
+      - "4 tests in phase8_self_review_test.go"
+    remaining_blind_spots: []
+
+  - id: awareness.suggest_causal_rule
+    description: "Causal rules are human-authored — there is no mechanism to propose draft rules from repeated observed event sequences."
+    priority: P1
+    implementation_plan:
+      - "Implement awareness.suggest_causal_rule MCP tool"
+      - "Check existing causal_rules.yaml for matching rules before proposing"
+      - "Require min_repetitions (default 2) before proposing"
+      - "Generate DRAFT YAML patch for human review — never auto-apply"
+    tests_required:
+      - TestSuggestCausalRule_RepeatedOrderedEvents_ProducesDraft
+      - TestSuggestCausalRule_ExistingRule_NoDuplicate
+      - TestSuggestCausalRule_SingleIncident_NoProposal
+      - TestSuggestCausalRule_WarnsCorrelationNotCausation
+    closure_condition: "awareness.suggest_causal_rule produces a DRAFT candidate with YAML patch for repeated sequences, returns existing rule ID when a match is found, and refuses to propose from a single observation."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.suggest_causal_rule
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'causal rules can only be added manually' because suggest_causal_rule provides an operator-guided pathway from incident evidence to draft rule."
+    status: implemented
+    closure_achieved_at: "2026-05-07"
+    closure_evidence:
+      - "awareness/mcp/suggest_causal_rule_tool.go implements registerSuggestCausalRuleTool"
+      - "matchExistingCausalRule: ≥50% trigger keyword or sequence step match"
+      - "buildCandidateCausalRule + buildCausalRuleYAML: DRAFT proposal with YAML patch"
+      - "RequiresHumanApproval always true"
+      - "4 tests in suggest_causal_rule_test.go"
+    remaining_blind_spots: []
