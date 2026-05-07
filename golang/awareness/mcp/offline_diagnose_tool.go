@@ -128,6 +128,33 @@ var offlineLogPatterns = []logPattern{
 	},
 }
 
+// fmDirectNextDiagnostics maps high-severity failure mode IDs to first-line diagnostic
+// commands that an operator should run immediately. These surface in recommended_next_diagnostics
+// without requiring a follow-up awareness.explain_symptom call.
+var fmDirectNextDiagnostics = map[string][]string{
+	"etcd.nospace_alarm": {
+		"etcdctl alarm list  — verify NOSPACE is active",
+		"etcdctl compact $(etcdctl endpoint status --write-out=json | jq -r '.[0].Status.header.revision')  — compact revision history",
+		"etcdctl defrag --endpoints=<all>  — release disk space below quota",
+		"etcdctl alarm disarm  — ONLY after disk usage is below quota",
+		"etcdctl endpoint health  — verify all members healthy",
+		"etcdctl endpoint status --write-out=table  — confirm stable leader",
+	},
+	"etcd.leader_instability": {
+		"etcdctl endpoint status --write-out=table  — watch leader_id for stability",
+		"wait for no 'lost leader'/'elected leader' messages for ≥60s before acting",
+		"do NOT restart etcd or controller until quorum is stable",
+	},
+	"controller.lease_expired_due_to_etcd_instability": {
+		"watch controller logs for 'acquired leader lease' — do not intervene before",
+		"do NOT restart controller before etcd is stable (etcdctl alarm list must be empty)",
+	},
+	"workflow.dispatch_timeout_due_to_control_plane_instability": {
+		"do NOT restart workflow service — fix etcd and controller first",
+		"globular workflow list-runs --status blocked  — check after control plane stabilises",
+	},
+}
+
 // timestamp patterns for timeline parsing.
 var (
 	rfc3339RE    = regexp.MustCompile(`(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)`)
@@ -373,10 +400,30 @@ func registerOfflineDiagnoseTool(s *Server) {
 		}
 
 		// --- Build next diagnostics ---
+		// For failure modes with direct diagnostic commands, surface them immediately
+		// so the operator doesn't need a follow-up awareness.explain_symptom call.
+		// For other modes, point to explain_symptom as before.
 		var nextDiag []string
+		seen := make(map[string]bool)
+		addDiag := func(d string) {
+			if !seen[d] {
+				seen[d] = true
+				nextDiag = append(nextDiag, d)
+			}
+		}
 		for _, fm := range suspectedFMs {
-			if fm.MatchScore > 0.3 {
-				nextDiag = append(nextDiag, fmt.Sprintf("run awareness.explain_symptom for failure mode %q", fm.ID))
+			if fm.MatchScore <= 0.3 {
+				continue
+			}
+			if direct, ok := fmDirectNextDiagnostics[fm.ID]; ok {
+				for _, cmd := range direct {
+					addDiag(cmd)
+				}
+			} else {
+				addDiag(fmt.Sprintf("run awareness.explain_symptom for failure mode %q", fm.ID))
+			}
+			if len(nextDiag) >= 8 {
+				break
 			}
 		}
 		if len(nextDiag) == 0 {
