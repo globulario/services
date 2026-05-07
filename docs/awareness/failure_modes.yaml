@@ -1,4 +1,49 @@
 failure_modes:
+    - id: service.endpoint.port_squatting_cgroup_escape
+      title: Orphaned service process squats original port after cgroup escape, stale address in etcd blocks reconciliation
+      severity: critical
+      symptoms:
+        - service restarts but immediately reallocates to a different port (e.g., workflow moves from 10004 to 10014)
+        - etcd config for service shows new port (10014) but mesh/Envoy still routes to old port (10004)
+        - gRPC probe to old port gets a response but "Unimplemented: unknown service X" — orphan is answering
+        - controller circuit breaker opens on workflow dispatch failures
+        - posture transitions to RECOVERY_ONLY and all new install workflows are blocked
+        - "ss -lnt" on node shows the old port still bound by a process not in the service cgroup
+        - "systemctl status globular-workflow.service" shows active but a different PID holds the old port
+      root_cause: |
+        When a service process exits uncleanly (e.g., SIGKILL or crash) without systemd catching it
+        (e.g., child fork, or process moved to a different cgroup before systemd could track it),
+        the process continues running and holds the original port. When systemd starts a new
+        instance (Restart=on-failure), the new process cannot bind the original port and
+        reallocates to a free port. The new address is written to etcd, but the mesh (Envoy/xDS)
+        may not yet be updated. The controller probes the orphan, gets a valid gRPC connection that
+        does NOT implement the expected service interface, and opens the circuit breaker.
+        With the circuit breaker open, posture goes RECOVERY_ONLY and all new install workflows
+        are blocked — making this a cluster-wide reconciliation stopper triggered by a single
+        runaway process.
+      architecture_fix: |
+        1. Add ExecStartPre=+/bin/sh -c 'pkill -9 -f <binary> || true' to every service unit file
+           (and its inline spec counterpart) so any orphan is killed before the new instance starts.
+        2. The controller must scope circuit breaker effects: an open CB on workflow must block
+           only workflow-dependent dispatch, not ALL install workflows.
+        3. When a service re-registers a new address in etcd, the controller must probe the new
+           address with the correct gRPC service interface (not just TCP) before trusting it for
+           routing. A mismatch must trigger node-agent remediation (restart), not a global CB open.
+      forbidden_fixes:
+        - ignoring_orphan_processes_assuming_systemd_handles_them
+        - relying_on_service_restart_without_pkill_guard
+        - circuit_breaker_that_blocks_all_reconciliation_on_single_service_failure
+      related_invariants:
+        - service.endpoint.etcd_address_reachability
+        - service.endpoint.cgroup_escape_guard
+      related_services:
+        - workflow
+        - mcp
+        - cluster-controller
+      required_tests:
+        - TestWorkflowOrphanKilledBeforeRestart
+        - TestCircuitBreakerScopedToAffectedService
+
     - id: service.desired_state.pipeline_gap
       title: platform-upgrade omits ServiceDesiredVersion records during early bootstrap
       severity: high

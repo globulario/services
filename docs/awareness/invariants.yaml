@@ -1,4 +1,84 @@
 invariants:
+    - id: service.endpoint.etcd_address_reachability
+      title: etcd-registered service address must be validated reachable with the correct interface before reconciliation depends on it
+      severity: critical
+      status: active
+      summary: |
+        When a service writes its address and port to etcd (on start or after port reallocation),
+        the controller must probe that address to verify the correct gRPC service interface responds
+        — not just a TCP connection. A successful TCP connect to a wrong process (cgroup-escaped
+        orphan, a different service) must never be treated as "service reachable". Until the
+        interface probe passes, the service is DEGRADED. A DEGRADED workflow service must not
+        halt ALL reconciliation: only operations that directly depend on workflow dispatch are
+        blocked; health checks, status reads, and non-workflow installs must continue.
+      protects:
+        state:
+            - /globular/services/{service_id}/config
+            - /globular/services/{service_id}/instances/{node}
+        files:
+            - golang/cluster_controller/cluster_controller_server/release_reconciler.go
+            - golang/cluster_controller/cluster_controller_server/workflow_client.go
+        symbols:
+            - probeWorkflowService
+            - openCircuitBreaker
+            - reconcileCluster
+      enforcement: |
+        Before the controller opens a circuit breaker on workflow dispatch failures, it must
+        distinguish between: (a) correct service not reachable (CB open, posture DEGRADED for
+        workflow-dependent ops only) vs. (b) wrong service responding (trigger node-agent
+        restart, update etcd address after interface probe confirms). The service itself must
+        confirm its listener is bound and responding before writing the new address to etcd.
+      forbidden_fixes:
+        - opening_global_circuit_breaker_on_single_service_tcp_failure
+        - trusting_tcp_connect_as_proof_of_service_identity
+        - halting_all_reconciliation_when_workflow_is_degraded
+        - writing_new_port_to_etcd_before_listener_is_confirmed_reachable
+      required_tests:
+        - TestControllerProbsServiceInterfaceNotJustTCP
+        - TestCircuitBreakerScopedNotGlobal
+        - TestWorkflowDegradedDoesNotBlockNonWorkflowInstalls
+      related_failure_modes:
+        - service.endpoint.port_squatting_cgroup_escape
+
+    - id: service.endpoint.cgroup_escape_guard
+      title: Every service unit must kill orphaned processes before starting a new instance
+      severity: high
+      status: active
+      summary: |
+        When a service process escapes its systemd cgroup (e.g., via a child fork, exec, or
+        race during upgrade), systemd cannot track or kill it on restart. The orphan continues
+        holding its port, causing the new instance to reallocate to a different port. This
+        triggers a cascade: etcd gets a new address, the mesh may route to the old address,
+        the controller sees an interface mismatch, and opens circuit breakers. Every service
+        unit file AND its inline spec counterpart must include:
+          ExecStartPre=+/bin/sh -c 'pkill -9 -f <binary_name> || true'
+        as the FIRST ExecStartPre line, to guarantee any orphan is killed before the new
+        instance attempts to bind its port.
+      protects:
+        state:
+            - /globular/services/{service_id}/config
+        files:
+            - packages/metadata/workflow/systemd/globular-workflow.service
+            - packages/metadata/workflow/specs/workflow_service.yaml
+            - packages/metadata/mcp/systemd/globular-mcp.service
+            - packages/metadata/mcp/specs/mcp_service.yaml
+        symbols:
+            - ExecStartPre
+      enforcement: |
+        The pkill ExecStartPre must use the '+' prefix (runs as root regardless of User= setting)
+        and must be the first ExecStartPre line so no subsequent pre-start check can pass with
+        a running orphan. The '|| true' ensures the guard never fails when no orphan is present.
+        This guard must be applied consistently to ALL service unit files — not just services
+        that have experienced cgroup escapes before.
+      forbidden_fixes:
+        - relying_on_systemd_to_kill_processes_outside_the_cgroup
+        - adding_pkill_guard_only_after_an_incident
+        - using_non_root_pkill_without_plus_prefix
+      required_tests:
+        - TestOrphanKilledBeforeServiceRestart
+      related_failure_modes:
+        - service.endpoint.port_squatting_cgroup_escape
+
     - id: service.desired_state.bom_completeness
       title: Every BOM service package must have a ServiceDesiredVersion record
       severity: high
