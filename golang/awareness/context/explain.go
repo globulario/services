@@ -64,6 +64,7 @@ func ExplainNode(ctx context.Context, g *graph.Graph, nodeID string, opts Option
 	}
 
 	// Collect risks: incoming affects/violates/blocks edges and failure modes.
+	// Also collect forbidden fixes from invariants that protect this node.
 	inEdges, err := g.Neighbors(ctx, nodeID, "in")
 	if err != nil {
 		return nil, err
@@ -86,6 +87,19 @@ func ExplainNode(ctx context.Context, g *graph.Graph, nodeID string, opts Option
 		case graph.EdgeTestedBy, graph.EdgeRequiresTest:
 			if src != nil {
 				ex.Tests = appendUniq(ex.Tests, src.Name)
+			}
+		case graph.EdgeProtects, graph.EdgeEnforces:
+			// Collect forbidden fixes from protecting/enforcing invariants.
+			if src != nil && (src.Type == graph.NodeTypeInvariant || src.Type == graph.NodeTypeForbiddenFix) {
+				invOut, _ := g.Neighbors(ctx, src.ID, "out")
+				for _, e2 := range invOut {
+					if e2.Kind == graph.EdgeForbids {
+						fix, _ := g.FindNode(ctx, e2.Dst)
+						if fix != nil {
+							ex.Warnings = appendUniq(ex.Warnings, "do not apply: "+fix.Name)
+						}
+					}
+				}
 			}
 		}
 	}

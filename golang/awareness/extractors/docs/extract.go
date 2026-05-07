@@ -173,13 +173,20 @@ func addDecisionNode(ctx context.Context, g *graph.Graph, fm *FrontMatter, relPa
 		return []string{fmt.Sprintf("add decision node %s: %v", decID, err)}
 	}
 
+	docMeta := map[string]any{
+		"source_kind": "documentation",
+		"extractor":   "docs",
+		"source_file": relPath,
+		"explicit":    true,
+	}
+
 	// Link decision to its source document.
 	_ = g.AddEdge(ctx, graph.Edge{
 		Src:        decID,
 		Kind:       graph.EdgeDocuments,
 		Dst:        docNodeID,
 		Confidence: 1.0,
-		Metadata:   map[string]any{"source_kind": "front_matter", "source_file": relPath},
+		Metadata:   docMeta,
 	})
 
 	// Link to invariants.
@@ -190,7 +197,13 @@ func addDecisionNode(ctx context.Context, g *graph.Graph, fm *FrontMatter, relPa
 			Kind:       graph.EdgeExplains,
 			Dst:        invNodeID,
 			Confidence: 1.0,
-			Metadata:   map[string]any{"source_kind": "front_matter"},
+			Metadata: map[string]any{
+				"source_kind": "documentation",
+				"extractor":   "docs",
+				"source_file": relPath,
+				"explicit":    true,
+				"reason":      "front_matter invariants field",
+			},
 		})
 	}
 
@@ -202,7 +215,13 @@ func addDecisionNode(ctx context.Context, g *graph.Graph, fm *FrontMatter, relPa
 			Kind:       graph.EdgeCausedBy,
 			Dst:        fmNodeID,
 			Confidence: 1.0,
-			Metadata:   map[string]any{"source_kind": "front_matter"},
+			Metadata: map[string]any{
+				"source_kind": "documentation",
+				"extractor":   "docs",
+				"source_file": relPath,
+				"explicit":    true,
+				"reason":      "front_matter failure_modes field",
+			},
 		})
 	}
 
@@ -214,7 +233,13 @@ func addDecisionNode(ctx context.Context, g *graph.Graph, fm *FrontMatter, relPa
 			Kind:       graph.EdgeForbids,
 			Dst:        fixNodeID,
 			Confidence: 1.0,
-			Metadata:   map[string]any{"source_kind": "front_matter"},
+			Metadata: map[string]any{
+				"source_kind": "documentation",
+				"extractor":   "docs",
+				"source_file": relPath,
+				"explicit":    true,
+				"reason":      "front_matter forbidden_fixes field",
+			},
 		})
 	}
 
@@ -226,7 +251,13 @@ func addDecisionNode(ctx context.Context, g *graph.Graph, fm *FrontMatter, relPa
 			Kind:       graph.EdgeDocuments,
 			Dst:        symNodeID,
 			Confidence: 0.9,
-			Metadata:   map[string]any{"source_kind": "front_matter"},
+			Metadata: map[string]any{
+				"source_kind": "documentation",
+				"extractor":   "docs",
+				"source_file": relPath,
+				"explicit":    true,
+				"reason":      "front_matter symbols field",
+			},
 		})
 	}
 
@@ -238,7 +269,13 @@ func addDecisionNode(ctx context.Context, g *graph.Graph, fm *FrontMatter, relPa
 			Kind:       graph.EdgeTestedBy,
 			Dst:        testNodeID,
 			Confidence: 1.0,
-			Metadata:   map[string]any{"source_kind": "front_matter"},
+			Metadata: map[string]any{
+				"source_kind": "documentation",
+				"extractor":   "docs",
+				"source_file": relPath,
+				"explicit":    true,
+				"reason":      "front_matter tests field",
+			},
 		})
 	}
 

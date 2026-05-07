@@ -5,7 +5,7 @@ failure_modes:
       symptoms:
         - service restarts but immediately reallocates to a different port (e.g., workflow moves from 10004 to 10014)
         - etcd config for service shows new port (10014) but mesh/Envoy still routes to old port (10004)
-        - gRPC probe to old port gets a response but "Unimplemented: unknown service X" — orphan is answering
+        - gRPC probe to old port gets a response but "Unimplemented unknown service X" — orphan is answering
         - controller circuit breaker opens on workflow dispatch failures
         - posture transitions to RECOVERY_ONLY and all new install workflows are blocked
         - ss -lnt on node shows the old port still bound by a process not in the service cgroup

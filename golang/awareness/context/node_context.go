@@ -42,12 +42,13 @@ type Options struct {
 
 // EdgeSummary is a condensed view of a graph edge.
 type EdgeSummary struct {
-	Kind       string  `json:"kind"`
-	TargetID   string  `json:"target_id"`
-	TargetName string  `json:"target_name"`
-	TargetType string  `json:"target_type"`
-	Confidence float64 `json:"confidence"`
-	Required   bool    `json:"required"`
+	Kind       string          `json:"kind"`
+	TargetID   string          `json:"target_id"`
+	TargetName string          `json:"target_name"`
+	TargetType string          `json:"target_type"`
+	Confidence float64         `json:"confidence"`
+	Required   bool            `json:"required"`
+	Provenance ConfidenceLabel `json:"provenance,omitempty"` // populated when IncludeProvenance=true
 }
 
 // NodeContext is the full architectural context for a single graph node.
@@ -156,10 +157,15 @@ func (nc *NodeContext) classifyEdges(ctx context.Context, g *graph.Graph, node *
 
 	var direct, incoming, outgoing []EdgeSummary
 
+	edgeSumFn := toEdgeSummary
+	if opts.IncludeProvenance {
+		edgeSumFn = toEdgeSummaryWithProvenance
+	}
+
 	for _, e := range allEdges {
 		if e.Src == node.ID {
 			target, _ := g.FindNode(ctx, e.Dst)
-			es := toEdgeSummary(e, e.Dst, target)
+			es := edgeSumFn(e, e.Dst, target)
 			outgoing = append(outgoing, es)
 
 			switch e.Kind {
@@ -186,7 +192,7 @@ func (nc *NodeContext) classifyEdges(ctx context.Context, g *graph.Graph, node *
 			}
 		} else {
 			src, _ := g.FindNode(ctx, e.Src)
-			es := toEdgeSummary(e, e.Src, src)
+			es := edgeSumFn(e, e.Src, src)
 			incoming = append(incoming, es)
 
 			switch e.Kind {
@@ -241,6 +247,38 @@ func (nc *NodeContext) traverseRelated(ctx context.Context, g *graph.Graph, node
 	tr, err := g.Traverse(ctx, nodeID, opts.Depth, safetyEdges)
 	if err != nil {
 		return
+	}
+
+	// Phase 2: walk ancestors via incoming structural edges so that a symbol or
+	// file node inherits context from its parent service/package. This lets
+	// "sym:Foo" reach the invariants that protect the owning "svc:bar".
+	ancestors := collectAncestors(ctx, g, nodeID, opts.Depth)
+	for _, ancestorID := range ancestors {
+		parentTr, err2 := g.Traverse(ctx, ancestorID, opts.Depth, safetyEdges)
+		if err2 != nil {
+			continue
+		}
+		tr.Nodes = append(tr.Nodes, parentTr.Nodes...)
+	}
+	// Phase 2b: also run classifyEdges logic for service-type ancestors so that
+	// incoming EdgeProtects on the service are captured.
+	for _, ancestorID := range ancestors {
+		ancNode, _ := g.FindNode(ctx, ancestorID)
+		if ancNode == nil {
+			continue
+		}
+		ancIn, _ := g.Neighbors(ctx, ancestorID, "in")
+		for _, e := range ancIn {
+			if e.Kind != graph.EdgeProtects && e.Kind != graph.EdgeEnforces {
+				continue
+			}
+			src, _ := g.FindNode(ctx, e.Src)
+			if src != nil && src.Type == graph.NodeTypeInvariant {
+				if inv := findInvariantByNode(ctx, g, src); inv != nil {
+					nc.RelatedInvariants = appendInvariant(nc.RelatedInvariants, *inv)
+				}
+			}
+		}
 	}
 
 	wantArchitecture := zoomIncludes(opts.Zoom, ZoomArchitecture)
@@ -372,6 +410,42 @@ func toEdgeSummary(e graph.Edge, targetID string, target *graph.Node) EdgeSummar
 	return es
 }
 
+func toEdgeSummaryWithProvenance(e graph.Edge, targetID string, target *graph.Node) EdgeSummary {
+	es := toEdgeSummary(e, targetID, target)
+	es.Provenance = labelFromEdgeMeta(e.Metadata)
+	return es
+}
+
+// labelFromEdgeMeta infers a ConfidenceLabel from edge metadata.
+func labelFromEdgeMeta(meta map[string]any) ConfidenceLabel {
+	if meta == nil {
+		return ConfidenceInferred
+	}
+	if v, ok := meta["source_kind"]; ok {
+		switch v {
+		case "documentation":
+			return ConfidenceLabel("documentation")
+		case "manual":
+			return ConfidenceLabel("manual")
+		case "runtime":
+			return ConfidenceRuntime
+		case "learned":
+			return ConfidenceLearned
+		}
+	}
+	if b, ok := meta["explicit"]; ok && b == true {
+		return ConfidenceExplicit
+	}
+	extractor, _ := meta["extractor"].(string)
+	switch extractor {
+	case "goast", "proto", "workflows", "packages", "tests":
+		return ConfidenceExtracted
+	case "docs":
+		return ConfidenceLabel("documentation")
+	}
+	return ConfidenceInferred
+}
+
 func nodeNameOrID(n *graph.Node, fallback string) string {
 	if n != nil && n.Name != "" {
 		return n.Name
@@ -499,4 +573,37 @@ func capFailureModes(s []graph.FailureMode, max int, key string, trunc map[strin
 		return s[:max]
 	}
 	return s
+}
+
+// collectAncestors traverses incoming structural edges (defines, owns, imports)
+// upward from startID up to maxHops, returning the IDs of all ancestor nodes.
+// This allows a symbol node to discover its parent file → service → package chain.
+func collectAncestors(ctx context.Context, g *graph.Graph, startID string, maxHops int) []string {
+	structuralKinds := map[string]bool{
+		graph.EdgeDefines: true,
+		graph.EdgeOwns:    true,
+		graph.EdgeImports: true,
+	}
+	visited := map[string]bool{startID: true}
+	var result []string
+	queue := []string{startID}
+	for hop := 0; hop < maxHops && len(queue) > 0; hop++ {
+		var next []string
+		for _, id := range queue {
+			inEdges, _ := g.Neighbors(ctx, id, "in")
+			for _, e := range inEdges {
+				if !structuralKinds[e.Kind] {
+					continue
+				}
+				if visited[e.Src] {
+					continue
+				}
+				visited[e.Src] = true
+				result = append(result, e.Src)
+				next = append(next, e.Src)
+			}
+		}
+		queue = next
+	}
+	return result
 }

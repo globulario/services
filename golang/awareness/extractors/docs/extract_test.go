@@ -230,3 +230,107 @@ No front matter here.
 		t.Fatal("expected documentation_section node for plain.md, got none")
 	}
 }
+
+// TestDocExtract_CreatesHeadingSections verifies that top-level headings in a
+// Markdown file produce child documentation_section nodes with anchors.
+func TestDocExtract_CreatesHeadingSections(t *testing.T) {
+	g := openTestGraph(t)
+	root := t.TempDir()
+
+	writeFile(t, root, "docs/awareness/headed.md", `# First Heading
+
+Content under first.
+
+## Second Heading
+
+Content under second.
+
+## Third Heading
+
+Content under third.
+`)
+
+	if _, err := docs.Extract(context.Background(), g, root); err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+
+	ctx := context.Background()
+	// The file node should exist.
+	fileNodes, err := g.FindNodesByPath(ctx, "docs/awareness/headed.md")
+	if err != nil {
+		t.Fatalf("FindNodesByPath: %v", err)
+	}
+	if len(fileNodes) == 0 {
+		t.Fatal("expected file node for headed.md, got none")
+	}
+	fileID := "doc:docs/awareness/headed.md"
+	edges, err := g.OutgoingEdges(ctx, fileID)
+	if err != nil {
+		t.Fatalf("OutgoingEdges: %v", err)
+	}
+	// The file should own at least 2 section nodes (H1 and H2-level).
+	sectionCount := 0
+	for _, e := range edges {
+		if e.Kind == "owns" {
+			sectionCount++
+		}
+	}
+	if sectionCount < 2 {
+		t.Errorf("expected at least 2 section nodes (headings) owned by headed.md, got %d edges total: %+v", sectionCount, edges)
+	}
+}
+
+// TestDocExtract_EdgeProvenanceMetadata verifies that edges created by the docs
+// extractor carry the required provenance fields.
+func TestDocExtract_EdgeProvenanceMetadata(t *testing.T) {
+	g := openTestGraph(t)
+	root := t.TempDir()
+
+	writeFile(t, root, "docs/awareness/prov-decision.md", `---
+id: prov_test_decision
+type: architecture_decision
+status: accepted
+summary: Test decision for provenance metadata.
+invariants:
+  - prov.test.invariant
+---
+
+Body.
+`)
+
+	if _, err := docs.Extract(context.Background(), g, root); err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+
+	ctx := context.Background()
+	decNode, err := g.FindNodeByTypeAndName(ctx, graph.NodeTypeArchitectureDecision, "prov_test_decision")
+	if err != nil || decNode == nil {
+		t.Fatalf("decision node not found: %v", err)
+	}
+
+	edges, err := g.OutgoingEdges(ctx, decNode.ID)
+	if err != nil {
+		t.Fatalf("OutgoingEdges: %v", err)
+	}
+
+	for _, e := range edges {
+		if e.Kind != "explains" {
+			continue
+		}
+		meta := e.Metadata
+		if meta == nil {
+			t.Fatal("explains edge has nil metadata")
+		}
+		if meta["source_kind"] != "documentation" {
+			t.Errorf("source_kind = %v, want documentation", meta["source_kind"])
+		}
+		if meta["extractor"] != "docs" {
+			t.Errorf("extractor = %v, want docs", meta["extractor"])
+		}
+		if meta["explicit"] != true {
+			t.Errorf("explicit = %v, want true", meta["explicit"])
+		}
+		return
+	}
+	t.Error("no explains edge found from decision to invariant")
+}

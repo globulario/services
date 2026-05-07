@@ -443,3 +443,86 @@ func TestZoomLocal_ExcludesDesignDecision(t *testing.T) {
 		t.Errorf("ZoomLocal: expected no design decisions, got: %v", nc.DesignDecisions)
 	}
 }
+
+// --- Symbol → invariant surfacing ---
+
+// TestBuildNodeContext_SymbolSurfacesInvariant verifies that building context for
+// an annotated symbol surfaces the invariant that protects its parent service.
+func TestBuildNodeContext_SymbolSurfacesInvariant(t *testing.T) {
+	g := openTestGraph(t)
+	ctx := context.Background()
+
+	// sym:Serve is defined in file:golang/workflow/server.go, which is owned by svc:workflow.
+	// inv:service.endpoint.reachability protects svc:workflow.
+	// At depth 2, the traversal from sym:Serve should reach svc:workflow and find the invariant.
+	nc, err := awarectx.Build(ctx, g, "sym:Serve", awarectx.Options{
+		Zoom:     awarectx.ZoomAll,
+		MaxItems: 20,
+		Depth:    3,
+	})
+	if err != nil {
+		t.Fatalf("Build for symbol: %v", err)
+	}
+	if len(nc.RelatedInvariants) == 0 {
+		t.Error("expected symbol's context to surface invariant via service link, got none")
+	}
+}
+
+// --- Neighborhood depth 2 type coverage ---
+
+// TestNeighborhood_Depth2_IncludesInvariantAndFailure verifies that at depth 2
+// from the service, the neighborhood includes invariant and failure mode nodes.
+func TestNeighborhood_Depth2_IncludesInvariantAndFailure(t *testing.T) {
+	g := openTestGraph(t)
+	ctx := context.Background()
+
+	nr, err := awarectx.Neighborhood(ctx, g, "svc:workflow", 2)
+	if err != nil {
+		t.Fatalf("Neighborhood: %v", err)
+	}
+
+	if len(nr.Invariants) == 0 {
+		t.Error("expected invariant nodes in depth-2 neighborhood of service, got none")
+	}
+	if len(nr.FailureModes) == 0 {
+		t.Error("expected failure mode nodes in depth-2 neighborhood of service, got none")
+	}
+	if len(nr.Tests) == 0 {
+		t.Error("expected test nodes in depth-2 neighborhood of service, got none")
+	}
+}
+
+// --- ExplainNode agent format with forbidden fix warning ---
+
+// TestExplainNode_AgentOutputIncludesForbiddenFix verifies that the agent-format
+// explain output includes at least one "do not apply" warning derived from an
+// invariant that protects the node.
+func TestExplainNode_AgentOutputIncludesForbiddenFix(t *testing.T) {
+	g := openTestGraph(t)
+	ctx := context.Background()
+
+	// inv:service.endpoint.reachability protects svc:workflow (EdgeProtects).
+	// inv:service.endpoint.reachability forbids fix:relying_on_restart (EdgeForbids).
+	// ExplainNode should surface this as a warning.
+	ex, err := awarectx.ExplainNode(ctx, g, "svc:workflow", awarectx.Options{MaxItems: 20, Depth: 2})
+	if err != nil {
+		t.Fatalf("ExplainNode: %v", err)
+	}
+
+	foundForbidden := false
+	for _, w := range ex.Warnings {
+		if strings.Contains(w, "do not apply") {
+			foundForbidden = true
+			break
+		}
+	}
+	if !foundForbidden {
+		t.Errorf("expected 'do not apply' warning from forbidden fix, got warnings: %v", ex.Warnings)
+	}
+
+	// Verify the agent-format output also includes it.
+	out := awarectx.FormatExplanation(ex, "agent")
+	if !strings.Contains(out, "do not apply") {
+		t.Errorf("agent format output missing forbidden fix warning:\n%s", out)
+	}
+}
