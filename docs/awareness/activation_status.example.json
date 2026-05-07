@@ -1,0 +1,85 @@
+{
+  "_comment": "Copy this file to .awareness/activation_status.json and fill in as you complete each section. Do not commit this file with real cluster values — it may contain paths to credentials.",
+  "_schema_version": "1",
+  "_updated_at": "YYYY-MM-DDTHH:MM:SSZ",
+  "_updated_by": "operator-name",
+
+  "A_schedule_health_pulse": {
+    "status": "pending",
+    "_status_values": ["pending", "done", "not_applicable"],
+    "scheduler_type": "",
+    "_scheduler_type_values": ["systemd_timer", "cron", ""],
+    "timer_name": "awareness-health-pulse.timer",
+    "verified_active": false,
+    "log_path": "/var/log/globular/awareness-health.log",
+    "log_exists": false,
+    "last_checked_at": "",
+    "last_exit_code": null,
+    "_last_exit_code_values": [0, 1, 2, 3, null],
+    "proof_commands_passed": false,
+    "notes": ""
+  },
+
+  "B_ci_strict_verified": {
+    "status": "pending",
+    "_status_values": ["pending", "done", "acknowledged"],
+    "acknowledged": false,
+    "acknowledged_reason": "",
+    "converter_built": false,
+    "converter_path": "golang/bin/go-test-to-awareness",
+    "test_results_file": ".awareness/test-results.json",
+    "test_results_file_exists": false,
+    "test_suite_passed": null,
+    "strict_verified_gap_count": null,
+    "tests_not_found_gap_count": null,
+    "invalid_metadata_gap_count": null,
+    "ci_step_added_to_workflow": false,
+    "ci_workflow_file": ".github/workflows/ci.yml",
+    "proof_commands_passed": false,
+    "notes": ""
+  },
+
+  "C_runtime_sources": {
+    "status": "pending",
+    "_status_values": ["pending", "done", "acknowledged"],
+    "acknowledged": false,
+    "acknowledged_reason": "local dev — no cluster available",
+    "bootstrap_run": false,
+    "sample_config_generated": false,
+    "sample_config_path": ".awareness/runtime_sources.yaml",
+    "config_applied_to_mcp": false,
+    "mcp_config_path": "/var/lib/globular/mcp/config.json",
+    "mcp_server_restarted": false,
+    "runtime_awareness_status": "",
+    "_runtime_awareness_status_values": ["live", "partial", "noop", "misconfigured", ""],
+    "configured_sources": null,
+    "total_sources": 4,
+    "sources_with_ok_connectivity": null,
+    "proof_commands_passed": false,
+    "notes": ""
+  },
+
+  "D_proposal_queue_drain": {
+    "status": "pending",
+    "_status_values": ["pending", "done"],
+    "queue_health_checked": false,
+    "review_plan_run": false,
+    "validate_batch_run": false,
+    "proposals_reviewed_by_human": false,
+    "proposals_promoted": 0,
+    "proposals_rejected": 0,
+    "queue_status": "",
+    "_queue_status_values": ["healthy", "stale", "needs_review", "blocked", ""],
+    "stale_count": null,
+    "mcp_exposes_promotion_tool": null,
+    "proof_commands_passed": false,
+    "notes": ""
+  },
+
+  "overall": {
+    "operationally_wired": false,
+    "_operationally_wired_definition": "All four sections are done or acknowledged. Proof script in activation_checklist.md passes without error.",
+    "last_full_proof_run": "",
+    "last_full_proof_passed": false
+  }
+}
