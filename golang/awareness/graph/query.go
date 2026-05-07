@@ -628,6 +628,38 @@ func (g *Graph) CodeSmellsForInvariants(ctx context.Context, invariantNodeIDs []
 	return out, nil
 }
 
+// PatternNamesForInvariants returns the IDs (names) of NodeTypePattern nodes
+// that have an EdgeRequires edge to any of the given invariant node IDs.
+// This is used by node-context to surface patterns.yaml pattern names alongside
+// design_patterns.yaml patterns.
+func (g *Graph) PatternNamesForInvariants(ctx context.Context, invariantNodeIDs []string) ([]string, error) {
+	if len(invariantNodeIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := g.db.QueryContext(ctx, `
+		SELECT DISTINCT n.name
+		FROM edges e
+		JOIN nodes n ON n.id = e.src
+		WHERE e.kind = 'requires'
+		  AND n.type = 'pattern'
+		  AND e.dst IN (`+placeholders(len(invariantNodeIDs))+`)
+		ORDER BY n.name
+	`, stringsToInterfaces(invariantNodeIDs)...)
+	if err != nil {
+		return nil, fmt.Errorf("PatternNamesForInvariants: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		out = append(out, name)
+	}
+	return out, rows.Err()
+}
+
 // DesignContext is the set of design patterns, anti-patterns, and code smells
 // linked to a given set of invariant node IDs.
 type DesignContext struct {

@@ -3,6 +3,7 @@ package awarectx
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/globulario/services/golang/awareness/graph"
 )
@@ -412,14 +413,36 @@ func (nc *NodeContext) enrichDesignContext(ctx context.Context, g *graph.Graph) 
 		}
 	}
 
-	// Pass 1: via invariants collected from graph traversal.
-	if len(nc.RelatedInvariants) > 0 {
-		invNodeIDs := make([]string, len(nc.RelatedInvariants))
-		for i, inv := range nc.RelatedInvariants {
-			invNodeIDs[i] = "invariant:" + inv.ID
+	// Collect invariant node IDs from two sources:
+	// 1. RelatedInvariants populated by traversal.
+	// 2. The starting node itself, if it IS an invariant (e.g. --invariant flag).
+	invNodeIDSet := make(map[string]bool)
+	for _, inv := range nc.RelatedInvariants {
+		invNodeIDSet["invariant:"+inv.ID] = true
+	}
+	if strings.HasPrefix(nc.NodeID, "invariant:") {
+		invNodeIDSet[nc.NodeID] = true
+	}
+
+	if len(invNodeIDSet) > 0 {
+		invNodeIDs := make([]string, 0, len(invNodeIDSet))
+		for id := range invNodeIDSet {
+			invNodeIDs = append(invNodeIDs, id)
 		}
+		// NodeTypeDesignPattern / NodeTypeAntiPattern (design_patterns.yaml).
 		if dc, err := g.DesignContextForInvariants(ctx, invNodeIDs); err == nil {
 			applyDC(dc)
+		}
+		// NodeTypePattern code smells and pattern names (patterns.yaml).
+		if smells, err := g.CodeSmellsForInvariants(ctx, invNodeIDs); err == nil {
+			for _, s := range smells {
+				nc.CodeSmells = appendUniq(nc.CodeSmells, s)
+			}
+		}
+		if names, err := g.PatternNamesForInvariants(ctx, invNodeIDs); err == nil {
+			for _, n := range names {
+				nc.DesignPatterns = appendUniq(nc.DesignPatterns, n)
+			}
 		}
 	}
 
