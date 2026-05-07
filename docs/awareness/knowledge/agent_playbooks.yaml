@@ -406,5 +406,17 @@ capability_gap_patterns:
         entry: etcd_disk_pressure_to_workflow_timeout
         operation: update_diagnostics
     prevents_repeat_criticism: "Future reviews cannot say 'offline_diagnose maps etcd incidents to objectstore' once the four failure mode entries are promoted to failure_modes.yaml and TestOfflineDiagnose_EtcdNOSPACE_MapsToEtcdFailureMode passes."
-    pending_proposal: "learned-fix-etcd_nospace_control_plane_cascade-20260507T202101Z"
-    status: open
+    pending_proposal: "etcd-control-plane-cascade-INC-etcd-nospace"
+    status: implemented
+    closure_achieved_at: "2026-05-07"
+    closure_evidence:
+      - "etcd.nospace_alarm promoted to failure_modes.yaml (score 1.00 on etcd NOSPACE logs)"
+      - "etcd.leader_instability promoted to failure_modes.yaml (score 1.00)"
+      - "workflow.dispatch_timeout_due_to_control_plane_instability promoted (score 1.00)"
+      - "controller.lease_expired_due_to_etcd_instability promoted (score 0.67)"
+      - "6 forbidden fixes promoted to forbidden_fixes.yaml"
+      - "directPatternToFailureMode keywords made etcd-specific (nospace/mvcc/alarm) — objectstore absent from results"
+      - "score update logic replaces alreadyInFMList skip — direct pattern boosts override RawKnowledgeFallback ties"
+    remaining_blind_spots:
+      - "Formal Go unit tests (TestOfflineDiagnose_EtcdNOSPACE_MapsToEtcdFailureMode etc.) not yet written"
+      - "recommended_next_diagnostics suggests explain_symptom, not etcdctl alarm list directly (user must follow up)"

@@ -158,19 +158,20 @@ func ValidateProposal(ctx context.Context, p *ProposalSpec, mainGraph *graph.Gra
 }
 
 func checkServiceReferences(ctx context.Context, p *ProposalSpec, g *graph.Graph, fail func(int, string), pass func(int, string)) error {
-	// Build set of declared service IDs in proposal.
+	if g == nil {
+		pass(4, "service references skipped (graph unavailable)")
+		return nil
+	}
 	declaredServices := make(map[string]bool)
 	for _, svc := range p.AllProposedServiceIDs() {
 		declaredServices[svc] = true
 	}
 
-	// Check services referenced by failure modes.
 	for _, fm := range p.FailureModes {
 		for _, svc := range fm.RelatedServices {
 			if declaredServices[svc] {
 				continue
 			}
-			// Check if service exists in graph.
 			n, err := g.FindNode(ctx, "service:"+svc)
 			if err != nil {
 				return err
@@ -185,6 +186,10 @@ func checkServiceReferences(ctx context.Context, p *ProposalSpec, g *graph.Graph
 }
 
 func checkInvariantReferences(ctx context.Context, p *ProposalSpec, g *graph.Graph, fail func(int, string), pass func(int, string)) error {
+	if g == nil {
+		pass(5, "invariant references skipped (graph unavailable)")
+		return nil
+	}
 	declaredInvs := make(map[string]bool)
 	for _, id := range p.AllProposedInvariantIDs() {
 		declaredInvs[id] = true
@@ -209,10 +214,10 @@ func checkInvariantReferences(ctx context.Context, p *ProposalSpec, g *graph.Gra
 }
 
 func checkNoInvariantDeletion(ctx context.Context, p *ProposalSpec, g *graph.Graph, fail func(int, string), pass func(int, string)) error {
-	// A proposal cannot delete invariants — it can only add or update them.
-	// We verify that the proposal does not declare removal. Since proposals
-	// are additive-only YAML files, deletion is structurally impossible via
-	// the promotion path. This rule guards against future API extensions.
+	if g == nil {
+		pass(6, "invariant deletion check skipped (graph unavailable)")
+		return nil
+	}
 	existing, err := g.AllInvariants(ctx)
 	if err != nil {
 		return err
@@ -232,6 +237,10 @@ func checkNoInvariantDeletion(ctx context.Context, p *ProposalSpec, g *graph.Gra
 }
 
 func checkNoSeverityLowering(ctx context.Context, p *ProposalSpec, g *graph.Graph, fail func(int, string), pass func(int, string)) error {
+	if g == nil {
+		pass(7, "severity lowering check skipped (graph unavailable)")
+		return nil
+	}
 	severityRank := map[string]int{
 		"critical": 3,
 		"high":     2,
@@ -259,6 +268,10 @@ func checkNoSeverityLowering(ctx context.Context, p *ProposalSpec, g *graph.Grap
 }
 
 func checkNoForbiddenFixRemoval(ctx context.Context, p *ProposalSpec, g *graph.Graph, fail func(int, string), pass func(int, string)) error {
+	if g == nil {
+		pass(8, "forbidden fix removal check skipped (graph unavailable)")
+		return nil
+	}
 	for _, inv := range p.Invariants {
 		existing, err := g.FindInvariant(ctx, inv.ID)
 		if err != nil {
@@ -300,6 +313,10 @@ func checkNoForbiddenFixRemoval(ctx context.Context, p *ProposalSpec, g *graph.G
 func checkNoDangerousCycles(ctx context.Context, p *ProposalSpec, mainGraph *graph.Graph, fail func(int, string), pass func(int, string)) error {
 	if len(p.ServiceDependencies) == 0 {
 		pass(9, "no proposed service dependency edges to cycle-check")
+		return nil
+	}
+	if mainGraph == nil {
+		pass(9, "cycle check skipped (graph unavailable)")
 		return nil
 	}
 

@@ -43,7 +43,6 @@ failure_modes:
       required_tests:
         - TestWorkflowOrphanKilledBeforeRestart
         - TestCircuitBreakerScopedToAffectedService
-
     - id: service.desired_state.pipeline_gap
       title: platform-upgrade omits ServiceDesiredVersion records during early bootstrap
       severity: high
@@ -78,13 +77,12 @@ failure_modes:
       required_tests:
         - TestPlatformUpgradeWritesServiceDesiredVersionWithoutMesh
         - TestAllBOMPackagesHaveDesiredState
-
     - id: release.failed.wave_succeeded_commit_error
       title: ServiceRelease stays FAILED after wave succeeds when workflow commit RPC fails
       severity: medium
       symptoms:
         - ServiceRelease phase is FAILED or DEGRADED
-        - 'message contains WAVE_BLOCKED ... note=RUN_STATUS_SUCCEEDED'
+        - message contains WAVE_BLOCKED ... note=RUN_STATUS_SUCCEEDED
         - packages ARE installed on all nodes (etcd installed records present, checksums match)
         - blocked_reason is workflow_unavailable or workflow_handler_missing
         - no active workflow runs for affected releases
@@ -118,7 +116,6 @@ failure_modes:
       required_tests:
         - TestServiceReleaseRecoveryAfterWorkflowCommitFailure
         - TestWaveBlockedSucceededSelfHeals
-
     - id: install.desired_state.invisible_service
       title: Service never installs on any node because ServiceDesiredVersion record is absent
       severity: high
@@ -144,15 +141,12 @@ failure_modes:
         - assuming_publish_implies_desired_state
       related_invariants:
         - service.desired_state.bom_completeness
-      related_failure_modes:
-        - service.desired_state.pipeline_gap
       related_services:
         - cluster-controller
         - repository
         - globularcli
       required_tests:
         - TestPublishedServiceWithoutDesiredStateDetectedByDoctor
-
     - id: install.result.partial_commit
       title: Leader dies during install result promotion
       severity: critical
@@ -487,7 +481,7 @@ failure_modes:
       symptoms:
         - operator cannot run DNS repair CLI because DNS is down
         - controller cannot reach nodes because DNS lookup fails during recovery
-        - "cluster stuck: DNS broken, DNS repair needs DNS"
+        - 'cluster stuck: DNS broken, DNS repair needs DNS'
       root_cause: |
         CLI and controller used hostname resolution for all cluster operations. Direct IP fallback not implemented. DNS outage is self-referential.
       architecture_fix: |
@@ -639,7 +633,6 @@ failure_modes:
       required_tests:
         - TestMCPStartFailsWhenOrphanHoldsPort
         - TestExecStartPreKillsOrphan
-
     - id: mcp.day1_install_no_start
       title: mcp spec missing start_services step — Day-1 install does not start mcp
       severity: medium
@@ -670,7 +663,6 @@ failure_modes:
       required_tests:
         - TestMCPStartedAfterDay1Install
         - TestDay1SpecHasStartServicesStep
-
     - id: objectstore.no_desired_state_governance
       title: Objectstore desired state key has no registry governance
       severity: critical
@@ -694,3 +686,143 @@ failure_modes:
         - minio
       required_tests:
         - TestObjectstoreNoDesiredStateFiresWhenNilAndStorageNodes
+    - id: etcd.nospace_alarm
+      title: 'etcd NOSPACE alarm: database space exceeded — all writes rejected, control-plane cascade begins'
+      severity: critical
+      symptoms:
+        - '''mvcc: database space exceeded'' appears in etcd logs'
+        - etcd rejects all write RPCs with NOSPACE error
+        - etcd leader begins losing heartbeat quorum
+        - controller cannot renew leader lease
+        - workflow dispatch times out or hangs
+        - reconciler stalls — no desired-state changes applied
+      root_cause: |
+        etcd database grew beyond its configured quota (default 2 GiB). Common causes:
+        excessive revision history accumulation, write storm from a reconcile loop, or
+        compaction/defragmentation not running on schedule. Once the NOSPACE alarm fires,
+        etcd rejects ALL writes — including leader heartbeats — causing leader loss and a
+        cascading control-plane failure affecting controller, workflow, and reconciler.
+      architecture_fix: |
+        Fix order is strict — do not skip steps:
+        1. etcdctl alarm list   → confirm NOSPACE is active
+        2. REV=$(etcdctl endpoint status --write-out=json | jq -r '.[0].Status.header.revision')
+           etcdctl compact $REV → compact revision history
+        3. etcdctl defrag --endpoints=<all>  → release disk space
+        4. Verify disk usage dropped below quota
+        5. etcdctl alarm disarm   → ONLY after disk is below quota
+        6. etcdctl endpoint health → confirm all members healthy
+        7. etcdctl endpoint status --write-out=table → confirm stable leader
+        8. Watch controller logs for "acquired leader lease"
+        9. Watch workflow logs for successful dispatch
+      forbidden_fixes:
+        - etcd.disarm_before_compact
+        - etcd.restart_nodes_without_nospace_fix
+      related_invariants:
+        - etcd.must_not_exceed_quota
+      related_services:
+        - etcd
+        - cluster_controller
+        - workflow
+      required_tests:
+        - TestOfflineDiagnose_EtcdNOSPACE_MapsToEtcdFailureMode
+        - TestOfflineDiagnose_EtcdNOSPACE_DoesNotMapToObjectstore
+        - TestCausalChain_EtcdNOSPACE_ProducesControlPlaneCascade
+    - id: etcd.leader_instability
+      title: 'etcd leader instability: repeated leader loss caused by NOSPACE or disk I/O pressure'
+      severity: critical
+      symptoms:
+        - '''lost leader'' in etcd logs'
+        - '''elected leader'' appears repeatedly within short interval'
+        - etcd leader_id changes in etcdctl endpoint status output
+        - controller lease renewal fails during leader instability window
+        - no controller holds authoritative lease — reconciler stalls
+      root_cause: |
+        etcd leader cannot commit entries or send heartbeats when the NOSPACE alarm is
+        active (writes rejected) or when disk I/O latency exceeds the election timeout.
+        Repeated leader elections cascade: the controller cannot renew its etcd lease,
+        the lease expires, all controllers enter re-election, and no controller is
+        authoritative for the duration. Workflow dispatch RPCs time out.
+      architecture_fix: |
+        1. Resolve the upstream cause first (NOSPACE alarm or disk I/O pressure)
+        2. etcdctl endpoint status --write-out=table → watch leader_id until stable
+        3. Wait for no "lost leader" / "elected leader" messages for ≥60s
+        4. Only then look at controller/workflow — do not restart them during instability
+      forbidden_fixes:
+        - etcd.restart_nodes_without_nospace_fix
+        - controller.restart_before_etcd_stable
+      related_invariants:
+        - etcd.quorum_must_be_stable_before_controller_action
+      related_services:
+        - etcd
+        - cluster_controller
+      required_tests:
+        - TestOfflineDiagnose_EtcdLeaderLoss_MapsToEtcdLeaderInstability
+        - TestCausalChain_LeaderLoss_After_NOSPACE
+    - id: controller.lease_expired_due_to_etcd_instability
+      title: controller leader lease expired because etcd cannot commit writes during NOSPACE or leader instability
+      severity: high
+      symptoms:
+        - '''lease expired, attempting re-election'' in controller logs'
+        - no controller holds the leader lease — all controllers in re-election loop
+        - reconciler produces no changes to desired state
+        - workflow steps are not dispatched
+        - etcd shows concurrent write attempts from multiple controller instances
+      root_cause: |
+        The cluster controller renews its leader lease by writing to etcd. When etcd
+        cannot commit writes (NOSPACE alarm) or has no stable leader, lease renewal fails.
+        All controller instances detect lease expiry and attempt re-election simultaneously,
+        flooding etcd with new lease write attempts — which also fail if NOSPACE is still
+        active. The result is a re-election storm that continues until etcd is healthy.
+      architecture_fix: |
+        1. Verify etcd is healthy first: etcdctl alarm list (must be empty), etcdctl endpoint health (all healthy)
+        2. Watch controller logs for "acquired leader lease" — do not intervene before this
+        3. Do NOT restart controller processes before etcd is stable — restarts add more lease write load
+        4. If lease not acquired within 5 min after etcd stabilises, check for split-brain (two leaders)
+      forbidden_fixes:
+        - controller.restart_before_etcd_stable
+        - controller.kill_to_clear_lease_contention
+      related_invariants:
+        - etcd.quorum_must_be_stable_before_controller_action
+        - controller.single_leader_invariant
+      related_services:
+        - cluster_controller
+        - etcd
+      required_tests:
+        - TestOfflineDiagnose_ControllerLeaseExpired_MapsToCorrectFailureMode
+        - TestSuggestIncident_ControlPlaneCascade_EtcdFirst
+    - id: workflow.dispatch_timeout_due_to_control_plane_instability
+      title: workflow dispatch timeout — terminal symptom of upstream etcd or controller instability, not the root cause
+      severity: high
+      symptoms:
+        - '''context deadline exceeded dispatching workflow step'''
+        - '''workflow stuck at CONVERGING'''
+        - workflow runs remain in ACTIVE/CONVERGING state indefinitely
+        - no new workflow steps dispatched
+        - globular workflow list-runs shows blocked workflows piling up
+      root_cause: |
+        The workflow service dispatches steps by writing to etcd and coordinating with the
+        cluster controller. When etcd rejects writes (NOSPACE) or no controller holds the
+        leader lease, dispatch RPCs time out. This failure is always a symptom — the root
+        cause is upstream in etcd or the controller.
+        WARNING: Do not fix workflow before fixing etcd and controller.
+      architecture_fix: |
+        Fix order is strict:
+        1. Confirm etcd NOSPACE is cleared (alarm list empty, endpoint health all healthy)
+        2. Confirm controller has acquired leader lease (watch controller logs)
+        3. Workflow dispatch typically recovers automatically within 30-60s after controller stabilises
+        4. If workflows remain CONVERGING >5min post-stabilisation:
+           globular workflow list-runs --status blocked
+           → manually re-trigger or advance blocked workflows
+        NEVER restart workflow service before etcd and controller are stable.
+      forbidden_fixes:
+        - workflow.restart_before_control_plane_stable
+        - workflow.treat_as_root_cause
+      related_invariants:
+        - workflow.dispatch_requires_stable_control_plane
+      related_services:
+        - workflow
+        - cluster_controller
+        - etcd
+      required_tests:
+        - TestOfflineDiagnose_WorkflowTimeout_MapsToControlPlaneInstability
+        - TestSuggestIncident_FixOrder_EtcdBeforeWorkflow

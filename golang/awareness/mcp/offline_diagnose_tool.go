@@ -322,10 +322,23 @@ func registerOfflineDiagnoseTool(s *Server) {
 			}
 
 			// Also match patterns directly to failure modes by patternID keyword.
+			// If a failure mode is already in the list, update its score if the direct
+			// pattern gives a higher score — this lets etcd-specific patterns boost
+			// etcd failure modes above false-positive objectstore matches.
 			for pID := range patternHits {
 				directMatches := directPatternToFailureMode(pID, fmDetails)
 				for _, fm := range directMatches {
-					if !alreadyInFMList(suspectedFMs, fm.ID) {
+					updated := false
+					for i := range suspectedFMs {
+						if suspectedFMs[i].ID == fm.ID {
+							if fm.MatchScore > suspectedFMs[i].MatchScore {
+								suspectedFMs[i].MatchScore = fm.MatchScore
+							}
+							updated = true
+							break
+						}
+					}
+					if !updated {
 						suspectedFMs = append(suspectedFMs, fm)
 					}
 				}
@@ -482,17 +495,20 @@ func buildTaskFromEvents(events []offlineEvent) string {
 
 // directPatternToFailureMode maps known pattern IDs to failure mode IDs by keyword similarity.
 func directPatternToFailureMode(patternID string, fmDetails map[string]map[string]interface{}) []offlineFailureModeMatch {
+	// Keywords must be specific enough to discriminate the target failure mode
+	// from unrelated entries sharing generic terms like "etcd" or "leader".
+	// Use terms present in the failure mode's symptoms, not just root_cause/fix text.
 	keywordMap := map[string][]string{
-		"etcd_nospace":      {"etcd", "disk", "nospace"},
-		"leader_instability": {"leader", "etcd"},
-		"port_squatting":    {"port", "squatting", "orphan", "cgroup"},
-		"unknown_grpc_service": {"port", "squatting", "grpc", "unknown"},
-		"restart_storm":     {"restart", "storm", "loop"},
-		"minio_issue":       {"minio", "objectstore", "artifact"},
-		"scylladb_issue":    {"scylla", "database"},
-		"workflow_stuck":    {"workflow"},
-		"tls_problem":       {"tls", "certificate"},
-		"artifact_integrity": {"artifact", "checksum"},
+		"etcd_nospace":           {"nospace", "mvcc", "alarm"},       // etcd-disk-specific; absent from objectstore
+		"leader_instability":     {"quorum", "election", "heartbeat"}, // etcd-election-specific; absent from objectstore
+		"port_squatting":         {"port", "squatting", "orphan", "cgroup"},
+		"unknown_grpc_service":   {"port", "squatting", "grpc", "unknown"},
+		"restart_storm":          {"restart", "storm", "loop"},
+		"minio_issue":            {"minio", "objectstore", "artifact"},
+		"scylladb_issue":         {"scylla", "database"},
+		"workflow_stuck":         {"workflow", "dispatch", "converging"},
+		"tls_problem":            {"tls", "certificate"},
+		"artifact_integrity":     {"artifact", "checksum"},
 		"systemd_notify_failure": {"systemd", "notify", "orphan", "port"},
 	}
 	keywords, ok := keywordMap[patternID]
@@ -534,6 +550,7 @@ func marshalToString(v interface{}) (string, error) {
 	return fmt.Sprintf("%v", v), nil
 }
 
+// alreadyInFMList is kept for potential future use by other callers.
 func alreadyInFMList(list []offlineFailureModeMatch, id string) bool {
 	for _, m := range list {
 		if m.ID == id {

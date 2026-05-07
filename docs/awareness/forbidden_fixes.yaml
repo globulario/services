@@ -1,451 +1,349 @@
 forbidden_fixes:
-  - id: blind_reconcile_retry
-    summary: >
-      Retry the same install action on every reconcile tick without
-      classifying whether the failure is transient or deterministic.
-    related_invariants:
-      - convergence.no_infinite_retry
-
-  - id: treating_all_failures_as_transient
-    summary: >
-      Mark every failure as transient and schedule a retry regardless
-      of whether the root cause can resolve itself without input change.
-    related_invariants:
-      - convergence.no_infinite_retry
-
-  - id: clearing_action_without_durable_result
-    summary: >
-      Delete or clear an action record before the installed-state and
-      result promotion are committed to etcd in a single transaction.
-    related_invariants:
-      - install.result.atomic_commit
-      - convergence.no_infinite_retry
-
-  - id: marking_available_from_local_success_only
-    summary: >
-      Mark a service release AVAILABLE based solely on a local node
-      reporting success, without the controller confirming installed-state
-      in etcd.
-    related_invariants:
-      - install.result.atomic_commit
-      - runtime.installed_state_not_liveness
-
-  - id: start_minio_from_local_health_check
-    summary: >
-      Start the globular-minio.service based on local health checks or
-      disk state, without verifying that the node is present in
-      ObjectStoreDesiredState.
-    related_invariants:
-      - objectstore.topology_contract
-
-  - id: infer_minio_membership_from_disk
-    summary: >
-      Infer that a node should run MinIO because its data directory exists
-      or because MinIO was previously running, rather than reading the
-      authoritative ObjectStoreDesiredState from etcd.
-    related_invariants:
-      - objectstore.topology_contract
-
-  - id: wipe_minio_sys_without_approved_transition
-    summary: >
-      Wipe the MinIO .minio.sys directory or reset erasure-coded pool
-      metadata without going through an approved cluster transition workflow.
-    related_invariants:
-      - objectstore.topology_contract
-
-  - id: round_robin_dns_for_minio_writes
-    summary: >
-      Route MinIO write operations through round-robin DNS without ensuring
-      the target node is in the active objectstore pool.
-    related_invariants:
-      - objectstore.topology_contract
-
-  - id: gate_metadata_reads_on_minio_health
-    summary: >
-      Refuse to serve artifact listing, manifest queries, or version
-      resolution when MinIO is unavailable, even though these operations
-      can be satisfied from ScyllaDB alone.
-    related_invariants:
-      - repository.metadata_first
-
-  - id: store_artifact_index_only_in_minio
-    summary: >
-      Store the artifact index, manifest, or version ledger exclusively
-      in MinIO, making metadata unavailable when blob storage degrades.
-    related_invariants:
-      - repository.metadata_first
-
-  - id: assume_installed_means_running
-    summary: >
-      Treat the presence of an installed-state record in etcd as proof
-      that the corresponding service is currently running and healthy.
-    related_invariants:
-      - runtime.installed_state_not_liveness
-
-  - id: skip_systemd_health_check_if_installed
-    summary: >
-      Skip the systemd unit liveness check because the installed-state
-      record exists, leading to false-positive health reports.
-    related_invariants:
-      - runtime.installed_state_not_liveness
-
-  - id: overwrite_desired_build_id_silently
-    summary: >
-      Silently overwrite a desired build_id in etcd after it has already
-      been resolved and written, breaking audit trails and potentially
-      installing an unverified artifact.
-    related_invariants:
-      - desired.build_id_immutable
-
-  - id: resolve_build_id_at_install_time
-    summary: >
-      Allow node-agent to resolve the build_id at install time rather
-      than using the pre-resolved build_id from DesiredService in etcd.
-    related_invariants:
-      - desired.build_id_immutable
-
-  - id: dispatch_workflow_when_scylla_down
-    summary: >
-      Dispatch a workflow when the Scylla backend is known to be
-      unavailable or degraded, producing orphaned workflow records.
-    related_invariants:
-      - workflow.backend_health_gate
-
-  - id: ignore_backend_health_on_dispatch
-    summary: >
-      Skip the backend health preflight check when dispatching workflows,
-      relying on Scylla to surface errors during the write rather than
-      failing fast before creating the record.
-    related_invariants:
-      - workflow.backend_health_gate
-
-  - id: validate_globular_annotations_inside_test_fixtures
-    summary: >
-      The annotation validator must not treat //globular: strings inside
-      _test.go fixtures or raw test strings as production annotations.
-    related_invariants:
-      - awareness.annotation_scanner.production_source_only
-    required_tests:
-      - TestValidateAnnotationsSkipsTestFiles
-
-  - id: treat_raw_string_fixture_annotations_as_source_annotations
-    summary: >
-      The annotation validator must not interpret //globular: directives
-      inside raw string literals as source-level awareness contracts.
-    related_invariants:
-      - awareness.annotation_scanner.production_source_only
-    required_tests:
-      - TestValidateAnnotationsSkipsTestFiles
-
-  - id: auto_lower_replication_factor
-    summary: >
-      Automatically lower Scylla keyspace RF below policy when storage nodes
-      decrease. RF must only ever increase automatically, never decrease.
-    related_invariants:
-      - scylla.critical_keyspace_replication_policy
-
-  - id: ignore_rf_violation_in_multi_node
-    summary: >
-      Allow a critical keyspace to remain below required RF on a multi-node
-      cluster without emitting a doctor finding or repair action.
-    related_invariants:
-      - scylla.critical_keyspace_replication_policy
-
-  - id: treat_bootstrap_state_as_authoritative
-    summary: >
-      Treat desired-state records with source=bootstrap or authoritative=false
-      as final authoritative state without running the controller promotion pass.
-    related_invariants:
-      - desired.bootstrap_state_requires_promotion
-
-  - id: claim_convergence_from_bootstrap_records
-    summary: >
-      Mark the cluster as converged or allow node-agent to install from
-      bootstrap records before the controller promotion reconciler has validated
-      and rewritten them as authoritative.
-    related_invariants:
-      - desired.bootstrap_state_requires_promotion
-
-  - id: stop_runtime_on_missing_key
-    summary: >
-      Stop a managed runtime service (keepalived, envoy, minio) solely because
-      the control-plane key is absent or could not be read. Missing key must
-      mean HOLD_LAST_KNOWN_GOOD.
-    related_invariants:
-      - critical_state.absence_is_not_destructive_intent
-
-  - id: delete_runtime_on_timeout
-    summary: >
-      Interpret an etcd read timeout as a stop or delete intent and halt the
-      runtime service. Timeout must be treated as a temporary authority
-      unavailability, not a destructive command.
-    related_invariants:
-      - critical_state.absence_is_not_destructive_intent
-
-  - id: treat_invalid_spec_as_disable_intent
-    summary: >
-      Accept a spec that fails schema validation or checksum as a valid
-      disable-intent and stop the runtime. Invalid specs must be ignored;
-      LKG must be held.
-    related_invariants:
-      - critical_state.absence_is_not_destructive_intent
-      - destructive_actions.require_explicit_guard
-
-  - id: overwrite_lkg_with_invalid_state
-    summary: >
-      Write invalid or unvalidated state to the LKG file, overwriting the last
-      valid configuration. LKG writes must pass checksum and generation
-      validation before committing.
-    related_invariants:
-      - runtime.last_known_good_required_for_critical_consumers
-
-  - id: ignore_lkg_when_authority_unavailable
-    summary: >
-      Fail or use empty config when the authority source is unreachable instead
-      of falling back to the validated LKG file.
-    related_invariants:
-      - runtime.last_known_good_required_for_critical_consumers
-
-  - id: accept_corrupt_lkg
-    summary: >
-      Load and apply a LKG file that fails checksum or generation validation
-      rather than rejecting it and retaining the prior valid state.
-    related_invariants:
-      - runtime.last_known_good_required_for_critical_consumers
-
-  - id: write_critical_key_without_registered_owner
-    summary: >
-      Write to a critical etcd key from code that is not the registered owner
-      in critical_state_registry. Unknown writers must be rejected.
-    related_invariants:
-      - critical_state.registry_ownership_required
-
-  - id: delete_critical_key_without_policy
-    summary: >
-      Delete a critical etcd key without checking the registry-defined delete
-      policy. Keys with DeleteNeverAutomatic must require explicit operator
-      approval.
-    related_invariants:
-      - critical_state.registry_ownership_required
-      - critical_state.deletion_requires_audited_intent
-
-  - id: accept_unknown_writer_for_critical_state
-    summary: >
-      Accept a write to a registry-managed critical key from a writer_leader_id
-      or service that does not match the registered owner.
-    related_invariants:
-      - critical_state.registry_ownership_required
-
-  - id: delete_desired_state_without_approval_marker
-    summary: >
-      Delete a critical desired-state key from etcd without first creating the
-      delete-approval marker at /globular/<domain>/delete_approval/<generation>.
-    related_invariants:
-      - critical_state.deletion_requires_audited_intent
-
-  - id: treat_missing_key_as_delete_intent
-    summary: >
-      Interpret the absence of a desired-state key as an intention to delete
-      the corresponding runtime state. Missing key must trigger restoration,
-      not deletion.
-    related_invariants:
-      - critical_state.deletion_requires_audited_intent
-      - critical_state.absence_is_not_destructive_intent
-
-  - id: accept_stale_delete_approval
-    summary: >
-      Accept a delete-approval marker with a generation that does not match
-      the current key generation, or one signed by a non-leader node.
-    related_invariants:
-      - critical_state.deletion_requires_audited_intent
-
-  - id: start_new_global_work_while_completion_is_blocked
-    summary: >
-      Start a new global reconcile phase when completion of an already-started
-      phase is blocked. New work must wait behind completion, not starve it.
-    related_invariants:
-      - reconcile.global_work_must_not_starve_completion
-
-  - id: allow_reconcile_tick_to_starve_terminal_commit
-    summary: >
-      Allow a reconcile tick to prevent or delay the terminal commit of an
-      already-running reconcile phase by acquiring shared resources first.
-    related_invariants:
-      - reconcile.global_work_must_not_starve_completion
-
-  - id: run_unbounded_query_in_reconcile_path
-    summary: >
-      Execute a Scylla, etcd, or DNS query in a critical reconcile path without
-      a context deadline or timeout. All critical-path queries must be bounded
-      at 5-15s.
-    related_invariants:
-      - critical_queries.must_be_bounded
-
-  - id: ignore_context_timeout_in_critical_query
-    summary: >
-      Ignore or suppress the ctx.Err() result from a bounded query in a
-      critical path, allowing the caller to proceed as if the query succeeded.
-    related_invariants:
-      - critical_queries.must_be_bounded
-
-  - id: block_controller_loop_on_external_query
-    summary: >
-      Allow a slow or unresponsive external backend (Scylla, DNS, etcd) to
-      block the main controller reconcile loop indefinitely without a timeout
-      gate.
-    related_invariants:
-      - critical_queries.must_be_bounded
-
-  - id: require_derived_state_before_publishing_authority
-    summary: >
-      Gate authoritative desired-state publication on the success of derived or
-      projection pipelines. Projections are consumers of authority, not
-      prerequisites.
-    related_invariants:
-      - derived_state.must_not_block_authority
-
-  - id: block_authority_on_cache_availability
-    summary: >
-      Refuse to publish authoritative state because a cache, projection, or
-      secondary index is unavailable. Authority must publish regardless of
-      derived-state health.
-    related_invariants:
-      - derived_state.must_not_block_authority
-
-  - id: require_dns_for_dns_recovery
-    summary: >
-      Require hostname resolution (DNS) to run DNS repair or recovery CLI
-      commands. DNS recovery must work via direct IP:port fallback.
-    related_invariants:
-      - recovery.must_not_depend_on_dns_only
-
-  - id: require_service_discovery_when_discovery_is_unhealthy
-    summary: >
-      Require service-discovery lookup when discovery itself is part of the
-      failure being recovered from. Recovery paths must support direct endpoint
-      configuration.
-    related_invariants:
-      - recovery.must_not_depend_on_dns_only
-
-  - id: stop_runtime_from_ambiguous_disable
-    summary: >
-      Stop a runtime service when the disable spec is malformed, missing a
-      reason, or has a stale generation — without validating explicit intent.
-    related_invariants:
-      - destructive_actions.require_explicit_guard
-
-  - id: wipe_state_without_approved_transition
-    summary: >
-      Wipe persistent state (MinIO .minio.sys, ScyllaDB data directory, etcd
-      snapshots) without a controller-approved transition record for the correct
-      generation.
-    related_invariants:
-      - destructive_actions.require_explicit_guard
-      - topology.reconciler_must_respect_safety_contract
-
-  - id: delete_runtime_data_from_ambiguous_state
-    summary: >
-      Delete or reset runtime data when the system is in an ambiguous state
-      (recovering, no quorum, missing desired-state key) without explicit
-      operator approval.
-    related_invariants:
-      - destructive_actions.require_explicit_guard
-
-  - id: perform_destructive_action_from_inferred_intent
-    summary: >
-      Infer that a destructive action is desired from indirect signals (missing
-      key, timeout, local disk state) rather than requiring explicit audited
-      intent.
-    related_invariants:
-      - destructive_actions.require_explicit_guard
-      - critical_state.absence_is_not_destructive_intent
-
-  - id: infer_topology_from_local_disk
-    summary: >
-      Decide topology membership or configuration from local disk state
-      (minio data directory, scylla data files) instead of the authoritative
-      desired-state in etcd.
-    related_invariants:
-      - topology.reconciler_must_respect_safety_contract
-      - objectstore.desired_state_must_be_registry_governed
-
-  - id: reconcile_topology_without_contract
-    summary: >
-      Apply a topology change in the drift reconciler without first running
-      topology safety preflight checks (quorum viability, participant validity,
-      objectstore consistency).
-    related_invariants:
-      - topology.reconciler_must_respect_safety_contract
-
-  - id: apply_topology_drift_without_generation_check
-    summary: >
-      Apply a topology drift action without checking the topology generation,
-      allowing stale drift plans to modify live topology.
-    related_invariants:
-      - topology.reconciler_must_respect_safety_contract
-
-  - id: keep_drift_warning_forever_without_escalation
-    summary: >
-      Keep service drift finding at WARN severity indefinitely regardless of
-      age or affected services. Drift older than 5 minutes is ERROR; drift on
-      critical services is CRITICAL.
-    related_invariants:
-      - services.drift_must_age_and_escalate
-
-  - id: omit_pki_ca_from_critical_registry
-    summary: >
-      Publish /globular/pki/ca without adding it to config.CriticalEtcdKeys
-      and critical_state_registry, leaving CA metadata without owner, restore,
-      or delete policy.
-    related_invariants:
-      - pki.ca_metadata_must_be_published
-      - critical_state.registry_ownership_required
-
-  - id: hardcode_command_package_runtime_expectations_forever
-    summary: >
-      Keep the hardcoded commandPackage() list in the doctor rule instead of
-      migrating to catalog-driven package kind checks. The list will drift as
-      new command packages are added.
-    related_invariants:
-      - runtime.installed_state_must_match_package_kind
-
-  - id: require_systemd_unit_for_command_package
-    summary: >
-      Expect COMMAND-type packages (yt-dlp, rclone, sha256sum, globular-cli)
-      to have a systemd unit and flag them as runtime-mismatch if no unit
-      exists.
-    related_invariants:
-      - runtime.installed_state_must_match_package_kind
-
-  - id: ignore_package_kind_in_runtime_proof
-    summary: >
-      Use only the package name (not the catalog-defined kind) to decide
-      whether a systemd unit is required. This causes false positives for new
-      command packages.
-    related_invariants:
-      - runtime.installed_state_must_match_package_kind
-
-  - id: start_minio_without_objectstore_desired_state
-    summary: >
-      Allow node-agent to start MinIO when /globular/objectstore/config is
-      absent, relying on local state or stale config instead.
-    related_invariants:
-      - objectstore.desired_state_must_be_registry_governed
-      - objectstore.topology_contract
-
-  - id: infer_objectstore_topology_from_local_state
-    summary: >
-      Infer MinIO pool membership from local disk (data directory, .minio.sys,
-      last-run topology) when /globular/objectstore/config is absent.
-    related_invariants:
-      - objectstore.desired_state_must_be_registry_governed
-      - objectstore.topology_contract
-
-  - id: omit_objectstore_config_from_critical_registry
-    summary: >
-      Publish /globular/objectstore/config without adding it to
-      config.CriticalEtcdKeys and critical_state_registry, leaving objectstore
-      desired state without governance.
-    related_invariants:
-      - objectstore.desired_state_must_be_registry_governed
-      - critical_state.registry_ownership_required
+    - id: blind_reconcile_retry
+      summary: |
+        Retry the same install action on every reconcile tick without classifying whether the failure is transient or deterministic.
+      related_invariants:
+        - convergence.no_infinite_retry
+    - id: treating_all_failures_as_transient
+      summary: |
+        Mark every failure as transient and schedule a retry regardless of whether the root cause can resolve itself without input change.
+      related_invariants:
+        - convergence.no_infinite_retry
+    - id: clearing_action_without_durable_result
+      summary: |
+        Delete or clear an action record before the installed-state and result promotion are committed to etcd in a single transaction.
+      related_invariants:
+        - install.result.atomic_commit
+        - convergence.no_infinite_retry
+    - id: marking_available_from_local_success_only
+      summary: |
+        Mark a service release AVAILABLE based solely on a local node reporting success, without the controller confirming installed-state in etcd.
+      related_invariants:
+        - install.result.atomic_commit
+        - runtime.installed_state_not_liveness
+    - id: start_minio_from_local_health_check
+      summary: |
+        Start the globular-minio.service based on local health checks or disk state, without verifying that the node is present in ObjectStoreDesiredState.
+      related_invariants:
+        - objectstore.topology_contract
+    - id: infer_minio_membership_from_disk
+      summary: |
+        Infer that a node should run MinIO because its data directory exists or because MinIO was previously running, rather than reading the authoritative ObjectStoreDesiredState from etcd.
+      related_invariants:
+        - objectstore.topology_contract
+    - id: wipe_minio_sys_without_approved_transition
+      summary: |
+        Wipe the MinIO .minio.sys directory or reset erasure-coded pool metadata without going through an approved cluster transition workflow.
+      related_invariants:
+        - objectstore.topology_contract
+    - id: round_robin_dns_for_minio_writes
+      summary: |
+        Route MinIO write operations through round-robin DNS without ensuring the target node is in the active objectstore pool.
+      related_invariants:
+        - objectstore.topology_contract
+    - id: gate_metadata_reads_on_minio_health
+      summary: |
+        Refuse to serve artifact listing, manifest queries, or version resolution when MinIO is unavailable, even though these operations can be satisfied from ScyllaDB alone.
+      related_invariants:
+        - repository.metadata_first
+    - id: store_artifact_index_only_in_minio
+      summary: |
+        Store the artifact index, manifest, or version ledger exclusively in MinIO, making metadata unavailable when blob storage degrades.
+      related_invariants:
+        - repository.metadata_first
+    - id: assume_installed_means_running
+      summary: |
+        Treat the presence of an installed-state record in etcd as proof that the corresponding service is currently running and healthy.
+      related_invariants:
+        - runtime.installed_state_not_liveness
+    - id: skip_systemd_health_check_if_installed
+      summary: |
+        Skip the systemd unit liveness check because the installed-state record exists, leading to false-positive health reports.
+      related_invariants:
+        - runtime.installed_state_not_liveness
+    - id: overwrite_desired_build_id_silently
+      summary: |
+        Silently overwrite a desired build_id in etcd after it has already been resolved and written, breaking audit trails and potentially installing an unverified artifact.
+      related_invariants:
+        - desired.build_id_immutable
+    - id: resolve_build_id_at_install_time
+      summary: |
+        Allow node-agent to resolve the build_id at install time rather than using the pre-resolved build_id from DesiredService in etcd.
+      related_invariants:
+        - desired.build_id_immutable
+    - id: dispatch_workflow_when_scylla_down
+      summary: |
+        Dispatch a workflow when the Scylla backend is known to be unavailable or degraded, producing orphaned workflow records.
+      related_invariants:
+        - workflow.backend_health_gate
+    - id: ignore_backend_health_on_dispatch
+      summary: |
+        Skip the backend health preflight check when dispatching workflows, relying on Scylla to surface errors during the write rather than failing fast before creating the record.
+      related_invariants:
+        - workflow.backend_health_gate
+    - id: validate_globular_annotations_inside_test_fixtures
+      summary: |
+        The annotation validator must not treat //globular: strings inside _test.go fixtures or raw test strings as production annotations.
+      related_invariants:
+        - awareness.annotation_scanner.production_source_only
+    - id: treat_raw_string_fixture_annotations_as_source_annotations
+      summary: |
+        The annotation validator must not interpret //globular: directives inside raw string literals as source-level awareness contracts.
+      related_invariants:
+        - awareness.annotation_scanner.production_source_only
+    - id: auto_lower_replication_factor
+      summary: |
+        Automatically lower Scylla keyspace RF below policy when storage nodes decrease. RF must only ever increase automatically, never decrease.
+      related_invariants:
+        - scylla.critical_keyspace_replication_policy
+    - id: ignore_rf_violation_in_multi_node
+      summary: |
+        Allow a critical keyspace to remain below required RF on a multi-node cluster without emitting a doctor finding or repair action.
+      related_invariants:
+        - scylla.critical_keyspace_replication_policy
+    - id: treat_bootstrap_state_as_authoritative
+      summary: |
+        Treat desired-state records with source=bootstrap or authoritative=false as final authoritative state without running the controller promotion pass.
+      related_invariants:
+        - desired.bootstrap_state_requires_promotion
+    - id: claim_convergence_from_bootstrap_records
+      summary: |
+        Mark the cluster as converged or allow node-agent to install from bootstrap records before the controller promotion reconciler has validated and rewritten them as authoritative.
+      related_invariants:
+        - desired.bootstrap_state_requires_promotion
+    - id: stop_runtime_on_missing_key
+      summary: |
+        Stop a managed runtime service (keepalived, envoy, minio) solely because the control-plane key is absent or could not be read. Missing key must mean HOLD_LAST_KNOWN_GOOD.
+      related_invariants:
+        - critical_state.absence_is_not_destructive_intent
+    - id: delete_runtime_on_timeout
+      summary: |
+        Interpret an etcd read timeout as a stop or delete intent and halt the runtime service. Timeout must be treated as a temporary authority unavailability, not a destructive command.
+      related_invariants:
+        - critical_state.absence_is_not_destructive_intent
+    - id: treat_invalid_spec_as_disable_intent
+      summary: |
+        Accept a spec that fails schema validation or checksum as a valid disable-intent and stop the runtime. Invalid specs must be ignored; LKG must be held.
+      related_invariants:
+        - critical_state.absence_is_not_destructive_intent
+        - destructive_actions.require_explicit_guard
+    - id: overwrite_lkg_with_invalid_state
+      summary: |
+        Write invalid or unvalidated state to the LKG file, overwriting the last valid configuration. LKG writes must pass checksum and generation validation before committing.
+      related_invariants:
+        - runtime.last_known_good_required_for_critical_consumers
+    - id: ignore_lkg_when_authority_unavailable
+      summary: |
+        Fail or use empty config when the authority source is unreachable instead of falling back to the validated LKG file.
+      related_invariants:
+        - runtime.last_known_good_required_for_critical_consumers
+    - id: accept_corrupt_lkg
+      summary: |
+        Load and apply a LKG file that fails checksum or generation validation rather than rejecting it and retaining the prior valid state.
+      related_invariants:
+        - runtime.last_known_good_required_for_critical_consumers
+    - id: write_critical_key_without_registered_owner
+      summary: |
+        Write to a critical etcd key from code that is not the registered owner in critical_state_registry. Unknown writers must be rejected.
+      related_invariants:
+        - critical_state.registry_ownership_required
+    - id: delete_critical_key_without_policy
+      summary: |
+        Delete a critical etcd key without checking the registry-defined delete policy. Keys with DeleteNeverAutomatic must require explicit operator approval.
+      related_invariants:
+        - critical_state.registry_ownership_required
+        - critical_state.deletion_requires_audited_intent
+    - id: accept_unknown_writer_for_critical_state
+      summary: |
+        Accept a write to a registry-managed critical key from a writer_leader_id or service that does not match the registered owner.
+      related_invariants:
+        - critical_state.registry_ownership_required
+    - id: delete_desired_state_without_approval_marker
+      summary: |
+        Delete a critical desired-state key from etcd without first creating the delete-approval marker at /globular/<domain>/delete_approval/<generation>.
+      related_invariants:
+        - critical_state.deletion_requires_audited_intent
+    - id: treat_missing_key_as_delete_intent
+      summary: |
+        Interpret the absence of a desired-state key as an intention to delete the corresponding runtime state. Missing key must trigger restoration, not deletion.
+      related_invariants:
+        - critical_state.deletion_requires_audited_intent
+        - critical_state.absence_is_not_destructive_intent
+    - id: accept_stale_delete_approval
+      summary: |
+        Accept a delete-approval marker with a generation that does not match the current key generation, or one signed by a non-leader node.
+      related_invariants:
+        - critical_state.deletion_requires_audited_intent
+    - id: start_new_global_work_while_completion_is_blocked
+      summary: |
+        Start a new global reconcile phase when completion of an already-started phase is blocked. New work must wait behind completion, not starve it.
+      related_invariants:
+        - reconcile.global_work_must_not_starve_completion
+    - id: allow_reconcile_tick_to_starve_terminal_commit
+      summary: |
+        Allow a reconcile tick to prevent or delay the terminal commit of an already-running reconcile phase by acquiring shared resources first.
+      related_invariants:
+        - reconcile.global_work_must_not_starve_completion
+    - id: run_unbounded_query_in_reconcile_path
+      summary: |
+        Execute a Scylla, etcd, or DNS query in a critical reconcile path without a context deadline or timeout. All critical-path queries must be bounded at 5-15s.
+      related_invariants:
+        - critical_queries.must_be_bounded
+    - id: ignore_context_timeout_in_critical_query
+      summary: |
+        Ignore or suppress the ctx.Err() result from a bounded query in a critical path, allowing the caller to proceed as if the query succeeded.
+      related_invariants:
+        - critical_queries.must_be_bounded
+    - id: block_controller_loop_on_external_query
+      summary: |
+        Allow a slow or unresponsive external backend (Scylla, DNS, etcd) to block the main controller reconcile loop indefinitely without a timeout gate.
+      related_invariants:
+        - critical_queries.must_be_bounded
+    - id: require_derived_state_before_publishing_authority
+      summary: |
+        Gate authoritative desired-state publication on the success of derived or projection pipelines. Projections are consumers of authority, not prerequisites.
+      related_invariants:
+        - derived_state.must_not_block_authority
+    - id: block_authority_on_cache_availability
+      summary: |
+        Refuse to publish authoritative state because a cache, projection, or secondary index is unavailable. Authority must publish regardless of derived-state health.
+      related_invariants:
+        - derived_state.must_not_block_authority
+    - id: require_dns_for_dns_recovery
+      summary: |
+        Require hostname resolution (DNS) to run DNS repair or recovery CLI commands. DNS recovery must work via direct IP:port fallback.
+      related_invariants:
+        - recovery.must_not_depend_on_dns_only
+    - id: require_service_discovery_when_discovery_is_unhealthy
+      summary: |
+        Require service-discovery lookup when discovery itself is part of the failure being recovered from. Recovery paths must support direct endpoint configuration.
+      related_invariants:
+        - recovery.must_not_depend_on_dns_only
+    - id: stop_runtime_from_ambiguous_disable
+      summary: |
+        Stop a runtime service when the disable spec is malformed, missing a reason, or has a stale generation — without validating explicit intent.
+      related_invariants:
+        - destructive_actions.require_explicit_guard
+    - id: wipe_state_without_approved_transition
+      summary: |
+        Wipe persistent state (MinIO .minio.sys, ScyllaDB data directory, etcd snapshots) without a controller-approved transition record for the correct generation.
+      related_invariants:
+        - destructive_actions.require_explicit_guard
+        - topology.reconciler_must_respect_safety_contract
+    - id: delete_runtime_data_from_ambiguous_state
+      summary: |
+        Delete or reset runtime data when the system is in an ambiguous state (recovering, no quorum, missing desired-state key) without explicit operator approval.
+      related_invariants:
+        - destructive_actions.require_explicit_guard
+    - id: perform_destructive_action_from_inferred_intent
+      summary: |
+        Infer that a destructive action is desired from indirect signals (missing key, timeout, local disk state) rather than requiring explicit audited intent.
+      related_invariants:
+        - destructive_actions.require_explicit_guard
+        - critical_state.absence_is_not_destructive_intent
+    - id: infer_topology_from_local_disk
+      summary: |
+        Decide topology membership or configuration from local disk state (minio data directory, scylla data files) instead of the authoritative desired-state in etcd.
+      related_invariants:
+        - topology.reconciler_must_respect_safety_contract
+        - objectstore.desired_state_must_be_registry_governed
+    - id: reconcile_topology_without_contract
+      summary: |
+        Apply a topology change in the drift reconciler without first running topology safety preflight checks (quorum viability, participant validity, objectstore consistency).
+      related_invariants:
+        - topology.reconciler_must_respect_safety_contract
+    - id: apply_topology_drift_without_generation_check
+      summary: |
+        Apply a topology drift action without checking the topology generation, allowing stale drift plans to modify live topology.
+      related_invariants:
+        - topology.reconciler_must_respect_safety_contract
+    - id: keep_drift_warning_forever_without_escalation
+      summary: |
+        Keep service drift finding at WARN severity indefinitely regardless of age or affected services. Drift older than 5 minutes is ERROR; drift on critical services is CRITICAL.
+      related_invariants:
+        - services.drift_must_age_and_escalate
+    - id: omit_pki_ca_from_critical_registry
+      summary: |
+        Publish /globular/pki/ca without adding it to config.CriticalEtcdKeys and critical_state_registry, leaving CA metadata without owner, restore, or delete policy.
+      related_invariants:
+        - pki.ca_metadata_must_be_published
+        - critical_state.registry_ownership_required
+    - id: hardcode_command_package_runtime_expectations_forever
+      summary: |
+        Keep the hardcoded commandPackage() list in the doctor rule instead of migrating to catalog-driven package kind checks. The list will drift as new command packages are added.
+      related_invariants:
+        - runtime.installed_state_must_match_package_kind
+    - id: require_systemd_unit_for_command_package
+      summary: |
+        Expect COMMAND-type packages (yt-dlp, rclone, sha256sum, globular-cli) to have a systemd unit and flag them as runtime-mismatch if no unit exists.
+      related_invariants:
+        - runtime.installed_state_must_match_package_kind
+    - id: ignore_package_kind_in_runtime_proof
+      summary: |
+        Use only the package name (not the catalog-defined kind) to decide whether a systemd unit is required. This causes false positives for new command packages.
+      related_invariants:
+        - runtime.installed_state_must_match_package_kind
+    - id: start_minio_without_objectstore_desired_state
+      summary: |
+        Allow node-agent to start MinIO when /globular/objectstore/config is absent, relying on local state or stale config instead.
+      related_invariants:
+        - objectstore.desired_state_must_be_registry_governed
+        - objectstore.topology_contract
+    - id: infer_objectstore_topology_from_local_state
+      summary: |
+        Infer MinIO pool membership from local disk (data directory, .minio.sys, last-run topology) when /globular/objectstore/config is absent.
+      related_invariants:
+        - objectstore.desired_state_must_be_registry_governed
+        - objectstore.topology_contract
+    - id: omit_objectstore_config_from_critical_registry
+      summary: |
+        Publish /globular/objectstore/config without adding it to config.CriticalEtcdKeys and critical_state_registry, leaving objectstore desired state without governance.
+      related_invariants:
+        - objectstore.desired_state_must_be_registry_governed
+        - critical_state.registry_ownership_required
+    - id: etcd.disarm_before_compact
+      summary: |
+        Running 'etcdctl alarm disarm' before compacting revision history and defragmenting
+        the database does not fix the underlying disk pressure. The database is still above
+        quota, so the alarm re-fires immediately and the control-plane cascade resumes.
+        Always compact and defrag first; verify disk usage drops below quota; then disarm.
+      related_invariants:
+        - etcd.must_not_exceed_quota
+    - id: etcd.restart_nodes_without_nospace_fix
+      summary: |
+        Restarting etcd nodes when NOSPACE is active does not help. The restarted node
+        rejoins the cluster but immediately encounters the same alarm condition and cannot
+        commit writes. Leader election continues to fail. Resolve the disk pressure first.
+      related_invariants:
+        - etcd.must_not_exceed_quota
+    - id: controller.restart_before_etcd_stable
+      summary: |
+        Restarting controller processes while etcd is in NOSPACE or leader-instability state
+        causes each restarted instance to immediately attempt to write a new leader lease to
+        etcd. These writes all fail (NOSPACE) or contend during re-election, amplifying the
+        load on an already-stressed etcd cluster and delaying recovery.
+      related_invariants:
+        - etcd.quorum_must_be_stable_before_controller_action
+    - id: controller.kill_to_clear_lease_contention
+      summary: |
+        Killing controller processes does not clear lease contention — the killed process
+        held the lease, and killing it without etcd being healthy means the lease expires
+        and all remaining controllers immediately attempt re-election, adding more write
+        pressure. Only etcd stability resolves lease contention.
+      related_invariants:
+        - etcd.quorum_must_be_stable_before_controller_action
+    - id: workflow.restart_before_control_plane_stable
+      summary: |
+        Restarting the workflow service or retrying workflow steps while etcd and controller
+        are unstable causes immediate re-failure: the new dispatch attempt also times out
+        because the control plane cannot serve it. Resolve etcd → controller → then workflow.
+      related_invariants:
+        - workflow.dispatch_requires_stable_control_plane
+    - id: workflow.treat_as_root_cause
+      summary: |
+        Workflow dispatch timeouts are always a terminal symptom of control-plane instability.
+        The correct fix order is: etcd → controller → workflow. Fixing or restarting the
+        workflow service first will not unblock it — it will re-fail immediately because the
+        underlying etcd/controller issue is unresolved.
+      related_invariants:
+        - workflow.dispatch_requires_stable_control_plane
