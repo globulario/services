@@ -7,34 +7,36 @@ import (
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // GrpcDoctorSource pulls live doctor findings from the cluster_doctor service.
 // It is read-only: it only calls GetClusterReport with HEAL_MODE_OBSERVE.
 type GrpcDoctorSource struct {
-	addr   string
-	conn   *grpc.ClientConn
-	client cluster_doctorpb.ClusterDoctorServiceClient
+	cfg       GrpcSourceConfig
+	transport string // "insecure", "tls", or "mtls"
+	conn      *grpc.ClientConn
+	client    cluster_doctorpb.ClusterDoctorServiceClient
 }
 
-// NewGrpcDoctorSource dials the cluster_doctor service at addr.
-// addr must be a host:port string (e.g. "10.0.0.63:12005").
+// NewGrpcDoctorSource dials the cluster_doctor service using the provided config.
 // Returns an error if the dial fails; the source is unusable in that case.
-// Uses insecure transport — add TLS support via TODO below.
-func NewGrpcDoctorSource(addr string) (*GrpcDoctorSource, error) {
-	if addr == "" {
+func NewGrpcDoctorSource(cfg GrpcSourceConfig) (*GrpcDoctorSource, error) {
+	if cfg.Addr == "" {
 		return nil, fmt.Errorf("doctor source: addr is empty")
 	}
-	// TODO: support mTLS via tls.Config parameter once awareness CLI accepts cert flags.
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	opts, transport, err := cfg.dialOptions()
 	if err != nil {
-		return nil, fmt.Errorf("doctor source: dial %s: %w", addr, err)
+		return nil, fmt.Errorf("doctor source: dial options: %w", err)
+	}
+	conn, err := grpc.NewClient(cfg.Addr, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("doctor source: dial %s: %w", cfg.Addr, err)
 	}
 	return &GrpcDoctorSource{
-		addr:   addr,
-		conn:   conn,
-		client: cluster_doctorpb.NewClusterDoctorServiceClient(conn),
+		cfg:       cfg,
+		transport: transport,
+		conn:      conn,
+		client:    cluster_doctorpb.NewClusterDoctorServiceClient(conn),
 	}, nil
 }
 
@@ -43,6 +45,9 @@ func (s *GrpcDoctorSource) Close() { _ = s.conn.Close() }
 
 // SourceInfo implements sourceIdentifier.
 func (s *GrpcDoctorSource) SourceInfo() (string, bool) { return "cluster_doctor.grpc", false }
+
+// Transport implements transportReporter.
+func (s *GrpcDoctorSource) Transport() string { return s.transport }
 
 // Findings calls GetClusterReport in observe mode (no mutations) and maps results.
 func (s *GrpcDoctorSource) Findings(ctx context.Context) ([]DoctorFinding, error) {

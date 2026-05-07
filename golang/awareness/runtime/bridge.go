@@ -17,6 +17,10 @@ type RuntimeBridge struct {
 	NodeID    string
 	ClusterID string
 
+	// Thresholds is the loaded metric threshold configuration.
+	// If nil, built-in defaults are used for metric evaluation in MatchWithThresholds.
+	Thresholds *MetricThresholds
+
 	Doctor      DoctorSource
 	Events      EventSource
 	Workflows   WorkflowSource
@@ -182,7 +186,7 @@ func (b *RuntimeBridge) Snapshot(ctx context.Context, since time.Duration, g *gr
 		for _, fm := range fms {
 			fmIDs = append(fmIDs, fm.ID)
 		}
-		snap = snap.Match(invIDs, fmIDs)
+		snap = snap.MatchWithThresholds(invIDs, fmIDs, b.Thresholds)
 	}
 
 	return snap, nil

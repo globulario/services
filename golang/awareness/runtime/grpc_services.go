@@ -6,30 +6,35 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // GrpcServiceStatusSource pulls operational service state from the cluster_controller.
 // It synthesizes ServiceStatus records from GetClusterHealthV1 per-node data.
 type GrpcServiceStatusSource struct {
-	addr   string
-	conn   *grpc.ClientConn
-	client cluster_controllerpb.ClusterControllerServiceClient
+	cfg       GrpcSourceConfig
+	transport string
+	conn      *grpc.ClientConn
+	client    cluster_controllerpb.ClusterControllerServiceClient
 }
 
-// NewGrpcServiceStatusSource dials the cluster_controller service at addr.
-func NewGrpcServiceStatusSource(addr string) (*GrpcServiceStatusSource, error) {
-	if addr == "" {
+// NewGrpcServiceStatusSource dials the cluster_controller service using the provided config.
+func NewGrpcServiceStatusSource(cfg GrpcSourceConfig) (*GrpcServiceStatusSource, error) {
+	if cfg.Addr == "" {
 		return nil, fmt.Errorf("service status source: addr is empty")
 	}
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	opts, transport, err := cfg.dialOptions()
 	if err != nil {
-		return nil, fmt.Errorf("service status source: dial %s: %w", addr, err)
+		return nil, fmt.Errorf("service status source: dial options: %w", err)
+	}
+	conn, err := grpc.NewClient(cfg.Addr, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("service status source: dial %s: %w", cfg.Addr, err)
 	}
 	return &GrpcServiceStatusSource{
-		addr:   addr,
-		conn:   conn,
-		client: cluster_controllerpb.NewClusterControllerServiceClient(conn),
+		cfg:       cfg,
+		transport: transport,
+		conn:      conn,
+		client:    cluster_controllerpb.NewClusterControllerServiceClient(conn),
 	}, nil
 }
 
@@ -38,6 +43,9 @@ func (s *GrpcServiceStatusSource) Close() { _ = s.conn.Close() }
 
 // SourceInfo implements sourceIdentifier.
 func (s *GrpcServiceStatusSource) SourceInfo() (string, bool) { return "cluster_controller.grpc", false }
+
+// Transport implements transportReporter.
+func (s *GrpcServiceStatusSource) Transport() string { return s.transport }
 
 // Services returns per-node service statuses derived from GetClusterHealthV1.
 func (s *GrpcServiceStatusSource) Services(ctx context.Context) ([]ServiceStatus, error) {

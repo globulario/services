@@ -1,0 +1,7 @@
+allowlist:
+  - path_pattern: "**/*_test.go"
+    pattern_id: "localhost_interservice"
+    reason: "test fixtures may use loopback addresses"
+  - path_pattern: "golang/awareness/runtime/grpc_*"
+    pattern_id: "insecure_grpc_transport"
+    reason: "awareness runtime sources use insecure for dev — excluded separately via FileExclude"

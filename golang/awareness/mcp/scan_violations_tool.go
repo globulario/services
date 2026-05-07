@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // violationPattern is a code smell that awareness can detect.
@@ -81,20 +83,121 @@ var codeViolationPatterns = []violationPattern{
 		FileFilter:      regexp.MustCompile(`minio|objectstore|storage`),
 		FileExclude:     regexp.MustCompile(`_test\.go|awareness`),
 	},
+	{
+		ID:              "direct_state_write",
+		Pattern:         regexp.MustCompile(`etcd\.Put|clientv3\..*Put\(`),
+		KnowledgeID:     "config.no_direct_etcd_state_write",
+		Severity:        "high",
+		WhyDangerous:    "Direct etcd writes bypass the controller authority model and can create split-brain state.",
+		SafeAlternative: "Use the controller gRPC API or workflow steps for state mutations.",
+		FileExclude:     regexp.MustCompile(`_test\.go|awareness|config/etcd`),
+	},
+	{
+		ID:              "blind_retry_loop",
+		Pattern:         regexp.MustCompile(`for\s*{|for\s+err\s*!=\s*nil|goto\s+retry`),
+		KnowledgeID:     "deterministic.install.failure.retry_loop",
+		Severity:        "medium",
+		WhyDangerous:    "Blind retry loops without terminal classification can spin forever on deterministic failures.",
+		SafeAlternative: "Use FailureClass classification and workflow retry policy with max attempts.",
+		FileExclude:     regexp.MustCompile(`_test\.go|awareness`),
+	},
+	{
+		ID:              "insecure_grpc_transport",
+		Pattern:         regexp.MustCompile(`insecure\.NewCredentials\(\)|grpc\.WithInsecure\(\)`),
+		KnowledgeID:     "service.security.no_insecure_grpc_interservice",
+		Severity:        "critical",
+		WhyDangerous:    "Insecure gRPC transport exposes cluster RPCs to interception on the network.",
+		SafeAlternative: "Use mTLS with the cluster CA cert and service identity certs.",
+		FileExclude:     regexp.MustCompile(`_test\.go|awareness/runtime/grpc_|awareness/runtime/prometheus`),
+	},
 }
 
 type violationFinding struct {
 	File            string `json:"file"`
 	Line            int    `json:"line"`
+	Column          int    `json:"column"`       // byte offset of match start in line
 	Snippet         string `json:"snippet"`
 	PatternID       string `json:"pattern_id"`
 	KnowledgeID     string `json:"knowledge_id"`
 	Severity        string `json:"severity"`
 	WhyDangerous    string `json:"why_dangerous"`
 	SafeAlternative string `json:"safe_alternative"`
+	Confidence      string `json:"confidence"` // "high" for regex match; future: "medium" for heuristic
+}
+
+// scanAllowlistEntry is a single entry in the scan allowlist.
+type scanAllowlistEntry struct {
+	PathPattern string `yaml:"path_pattern"`
+	PatternID   string `yaml:"pattern_id"`
+	Reason      string `yaml:"reason"`
+}
+
+type scanAllowlist struct {
+	Allowlist []scanAllowlistEntry `yaml:"allowlist"`
+}
+
+func loadScanAllowlist(docsDir string) []scanAllowlistEntry {
+	if docsDir == "" {
+		return nil
+	}
+	path := filepath.Join(docsDir, "knowledge", "scan_allowlist.yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var al scanAllowlist
+	if err := yaml.Unmarshal(data, &al); err != nil {
+		return nil
+	}
+	return al.Allowlist
+}
+
+// matchesAllowlist returns the allowlist entry that suppresses this finding, or nil.
+func matchesAllowlist(f violationFinding, allowlist []scanAllowlistEntry) *scanAllowlistEntry {
+	for i, entry := range allowlist {
+		if entry.PatternID != f.PatternID {
+			continue
+		}
+		if matchesPathPattern(f.File, entry.PathPattern) {
+			return &allowlist[i]
+		}
+	}
+	return nil
+}
+
+// matchesPathPattern checks whether filePath matches a glob pattern.
+// Supports:
+//   - "**/*.ext" — any file ending with the extension in any directory
+//   - "glob/pattern" — filepath.Match against base name or full path
+func matchesPathPattern(filePath, pattern string) bool {
+	if strings.HasPrefix(pattern, "**/") {
+		// Strip "**/" and match the rest as a glob against the base name.
+		rest := pattern[3:]
+		base := filepath.Base(filePath)
+		matched, err := filepath.Match(rest, base)
+		if err == nil && matched {
+			return true
+		}
+		// Also check if any path component matches.
+		return false
+	}
+	// Try base name match.
+	matched, err := filepath.Match(pattern, filepath.Base(filePath))
+	if err == nil && matched {
+		return true
+	}
+	// Try full path match.
+	matched, err = filepath.Match(pattern, filePath)
+	if err == nil && matched {
+		return true
+	}
+	return false
 }
 
 func registerScanViolationsTool(s *Server) {
+	// Load allowlist once at registration time.
+	allowlist := loadScanAllowlist(s.resolvedDocsDir())
+
 	s.register(toolDef{
 		Name:        "awareness.scan_violations",
 		Description: "Scan Go source files for forbidden architecture patterns. Each finding maps back to a known failure mode, forbidden fix, or invariant.",
@@ -132,13 +235,24 @@ func registerScanViolationsTool(s *Server) {
 		}
 		includeTests := boolArg(args, "include_tests")
 
-		var findings []violationFinding
+		var allFindings []violationFinding
 		for _, scanPath := range paths {
 			found, err := scanPathForViolations(scanPath, minSeverity, includeTests)
 			if err != nil {
 				return nil, fmt.Errorf("scan %s: %w", scanPath, err)
 			}
-			findings = append(findings, found...)
+			allFindings = append(allFindings, found...)
+		}
+
+		// Apply allowlist.
+		var findings []violationFinding
+		var suppressed []violationFinding
+		for _, f := range allFindings {
+			if entry := matchesAllowlist(f, allowlist); entry != nil {
+				suppressed = append(suppressed, f)
+			} else {
+				findings = append(findings, f)
+			}
 		}
 
 		// Summarise by knowledge ID.
@@ -148,10 +262,12 @@ func registerScanViolationsTool(s *Server) {
 		}
 
 		return map[string]interface{}{
-			"findings":        findings,
-			"total":           len(findings),
-			"by_knowledge_id": byKnowledge,
-			"scanned_paths":   paths,
+			"findings":            findings,
+			"suppressed_findings": suppressed,
+			"total":               len(findings),
+			"suppressed_count":    len(suppressed),
+			"by_knowledge_id":     byKnowledge,
+			"scanned_paths":       paths,
 		}, nil
 	})
 }
@@ -206,18 +322,23 @@ func scanFileForViolations(path, minSeverity string) []violationFinding {
 			if pat.FileExclude != nil && pat.FileExclude.MatchString(path) {
 				continue
 			}
-			if pat.Pattern.MatchString(line) {
-				findings = append(findings, violationFinding{
-					File:            path,
-					Line:            lineNum,
-					Snippet:         strings.TrimSpace(line),
-					PatternID:       pat.ID,
-					KnowledgeID:     pat.KnowledgeID,
-					Severity:        pat.Severity,
-					WhyDangerous:    pat.WhyDangerous,
-					SafeAlternative: pat.SafeAlternative,
-				})
+			loc := pat.Pattern.FindStringIndex(line)
+			if loc == nil {
+				continue
 			}
+			col := loc[0]
+			findings = append(findings, violationFinding{
+				File:            path,
+				Line:            lineNum,
+				Column:          col,
+				Snippet:         strings.TrimSpace(line),
+				PatternID:       pat.ID,
+				KnowledgeID:     pat.KnowledgeID,
+				Severity:        pat.Severity,
+				WhyDangerous:    pat.WhyDangerous,
+				SafeAlternative: pat.SafeAlternative,
+				Confidence:      "high",
+			})
 		}
 	}
 	return findings

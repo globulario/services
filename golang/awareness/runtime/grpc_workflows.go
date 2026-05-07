@@ -7,30 +7,35 @@ import (
 
 	workflowpb "github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // GrpcWorkflowSource pulls recent workflow runs from the workflow service.
 // It fetches both failed and active/blocked runs within the lookback window.
 type GrpcWorkflowSource struct {
-	addr   string
-	conn   *grpc.ClientConn
-	client workflowpb.WorkflowServiceClient
+	cfg       GrpcSourceConfig
+	transport string
+	conn      *grpc.ClientConn
+	client    workflowpb.WorkflowServiceClient
 }
 
-// NewGrpcWorkflowSource dials the workflow service at addr.
-func NewGrpcWorkflowSource(addr string) (*GrpcWorkflowSource, error) {
-	if addr == "" {
+// NewGrpcWorkflowSource dials the workflow service using the provided config.
+func NewGrpcWorkflowSource(cfg GrpcSourceConfig) (*GrpcWorkflowSource, error) {
+	if cfg.Addr == "" {
 		return nil, fmt.Errorf("workflow source: addr is empty")
 	}
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	opts, transport, err := cfg.dialOptions()
 	if err != nil {
-		return nil, fmt.Errorf("workflow source: dial %s: %w", addr, err)
+		return nil, fmt.Errorf("workflow source: dial options: %w", err)
+	}
+	conn, err := grpc.NewClient(cfg.Addr, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("workflow source: dial %s: %w", cfg.Addr, err)
 	}
 	return &GrpcWorkflowSource{
-		addr:   addr,
-		conn:   conn,
-		client: workflowpb.NewWorkflowServiceClient(conn),
+		cfg:       cfg,
+		transport: transport,
+		conn:      conn,
+		client:    workflowpb.NewWorkflowServiceClient(conn),
 	}, nil
 }
 
@@ -39,6 +44,9 @@ func (s *GrpcWorkflowSource) Close() { _ = s.conn.Close() }
 
 // SourceInfo implements sourceIdentifier.
 func (s *GrpcWorkflowSource) SourceInfo() (string, bool) { return "workflow.grpc", false }
+
+// Transport implements transportReporter.
+func (s *GrpcWorkflowSource) Transport() string { return s.transport }
 
 // RecentReceipts fetches failed and active workflow runs within the lookback window.
 func (s *GrpcWorkflowSource) RecentReceipts(ctx context.Context, since time.Duration) ([]WorkflowReceipt, error) {

@@ -46,6 +46,14 @@ type Config struct {
 	DoctorAddr     string // e.g. "10.0.0.63:12005"
 	WorkflowAddr   string // e.g. "10.0.0.63:10004"
 	PrometheusAddr string // e.g. "http://10.0.0.63:9090"
+	// TLS settings for gRPC runtime sources.
+	// If Insecure is true, plain-text transport is used (local dev/test only).
+	// For production, set CACert (and optionally ClientCert/ClientKey) for mTLS.
+	Insecure   bool   // if true, use insecure transport (local dev/test only)
+	CACert     string // path to CA cert PEM
+	ClientCert string // path to client cert PEM
+	ClientKey  string // path to client key PEM
+	ServerName string // TLS server name override
 }
 
 // jsonRPCRequest is an incoming JSON-RPC 2.0 request.

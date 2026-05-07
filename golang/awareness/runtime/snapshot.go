@@ -54,12 +54,12 @@ type RuntimeSnapshot struct {
 	Errors         []string
 }
 
-// Match performs invariant and failure-mode matching against the snapshot evidence.
-// knownInvariants and knownFMs are IDs loaded from the graph.
-// This method is pure — it returns a new snapshot with Match fields populated.
-// Calling Match multiple times on the result is idempotent: Warnings is always
-// recomputed as SourceWarnings + newly derived warnings.
-func (s *RuntimeSnapshot) Match(knownInvariants, knownFMs []string) *RuntimeSnapshot {
+// MatchWithThresholds is like Match but uses the provided thresholds for metric evaluation.
+// If thresholds is nil, built-in defaults are used (same as Match).
+func (s *RuntimeSnapshot) MatchWithThresholds(knownInvariants, knownFMs []string, thresholds *MetricThresholds) *RuntimeSnapshot {
+	if thresholds == nil {
+		thresholds = &MetricThresholds{}
+	}
 	out := *s
 	// Reset computed fields so we don't double-append on successive calls.
 	out.StateDelta = nil
@@ -179,9 +179,7 @@ func (s *RuntimeSnapshot) Match(knownInvariants, knownFMs []string) *RuntimeSnap
 		}
 	}
 
-	// Dynamic metric risk. Keep this intentionally generic so Prometheus,
-	// node-exporter, or a future metrics bridge can all speak the same shape.
-	thresholds := &MetricThresholds{} // uses built-in defaults; bridge can upgrade via MatchWithThresholds
+	// Dynamic metric risk using the provided thresholds.
 	for _, m := range s.Metrics {
 		if w, _ := thresholds.Evaluate(m); w != "" {
 			derivedWarnings = append(derivedWarnings, w)
@@ -198,6 +196,15 @@ func (s *RuntimeSnapshot) Match(knownInvariants, knownFMs []string) *RuntimeSnap
 	out.Warnings = append(append([]string(nil), out.SourceWarnings...), derivedWarnings...)
 
 	return &out
+}
+
+// Match performs invariant and failure-mode matching against the snapshot evidence.
+// knownInvariants and knownFMs are IDs loaded from the graph.
+// This method is pure — it returns a new snapshot with Match fields populated.
+// Calling Match multiple times on the result is idempotent: Warnings is always
+// recomputed as SourceWarnings + newly derived warnings.
+func (s *RuntimeSnapshot) Match(knownInvariants, knownFMs []string) *RuntimeSnapshot {
+	return s.MatchWithThresholds(knownInvariants, knownFMs, nil)
 }
 
 // findInvariantByPattern returns the first invariant ID containing pattern.

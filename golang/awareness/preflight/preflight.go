@@ -183,11 +183,13 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 	if g != nil && opts.DocsDir != "" {
 		f := g.Freshness(ctx, opts.DocsDir)
 		r.GraphFreshness = &GraphFreshnessReport{
-			BuiltAt:        formatTime(f.BuiltAt),
-			AgeSeconds:     f.AgeSeconds,
-			Stale:          f.Stale,
-			StaleReason:    f.StaleReason,
-			KnowledgeMtime: formatTime(f.KnowledgeMtime),
+			BuiltAt:             formatTime(f.BuiltAt),
+			AgeSeconds:          f.AgeSeconds,
+			Stale:               f.Stale,
+			StaleReason:         f.StaleReason,
+			KnowledgeMtime:      formatTime(f.KnowledgeMtime),
+			KnowledgeSourceHash: f.KnowledgeSourceHash,
+			RebuildRecommended:  f.RebuildRecommended,
 		}
 		if f.Stale && len(r.RawKnowledgeMatches) > 0 {
 			r.Warnings = append(r.Warnings, "GRAPH_STALE: "+f.StaleReason+". Raw YAML matched — treat graph as incomplete.")
@@ -208,43 +210,100 @@ func formatTime(t time.Time) string {
 }
 
 func computeConfidence(r *Report, g *graph.Graph) (Coverage, Confidence, string, []string) {
+	// Graph coverage.
+	var graphCov CoverageState
+	if g == nil {
+		graphCov = CoverageNotChecked
+	} else if len(r.Invariants) > 0 || len(r.FailureModes) > 0 {
+		graphCov = CoverageCheckedWithMatch
+	} else {
+		graphCov = CoverageCheckedClean
+	}
+	if r.GraphFreshness != nil && r.GraphFreshness.Stale {
+		graphCov = CoverageStale
+	}
+
+	// Raw YAML coverage — the raw fallback always runs in step 12.
+	// We track whether it ran (it always does) and whether it found matches.
+	var rawYAMLCov CoverageState
+	if len(r.RawKnowledgeMatches) > 0 {
+		rawYAMLCov = CoverageCheckedWithMatch
+	} else {
+		rawYAMLCov = CoverageCheckedClean
+	}
+
+	// Runtime coverage.
+	var runtimeCov CoverageState
+	if r.Runtime == nil || !r.Runtime.Included {
+		runtimeCov = CoverageNoop
+	} else {
+		hasEvidence := len(r.Runtime.DoctorFindings) > 0 ||
+			len(r.Runtime.ServiceStatuses) > 0 ||
+			len(r.Runtime.WorkflowReceipts) > 0 ||
+			len(r.Runtime.StateDeltas) > 0 ||
+			len(r.Runtime.MatchedInvariants) > 0 ||
+			len(r.Runtime.MatchedFailureModes) > 0
+		if hasEvidence {
+			runtimeCov = CoverageCheckedWithMatch
+		} else {
+			runtimeCov = CoverageCheckedClean
+		}
+	}
+
+	// Metrics coverage.
+	var metricsCov CoverageState
+	if r.Runtime == nil || !r.Runtime.Included {
+		metricsCov = CoverageNoop
+	} else if len(r.Runtime.MetricWarnings) > 0 {
+		metricsCov = CoverageCheckedWithMatch
+	} else {
+		metricsCov = CoverageCheckedClean
+	}
+
 	cov := Coverage{
-		GraphChecked:   g != nil,
-		RawYAMLChecked: len(r.RawKnowledgeMatches) > 0 || len(r.Warnings) > 0, // raw fallback ran
-		RuntimeChecked: r.Runtime != nil && r.Runtime.Included,
-		MetricsChecked: r.Runtime != nil && len(r.Runtime.MetricWarnings) > 0,
-		CodeScanChecked: false, // scan_violations is a separate tool
+		Graph:         graphCov,
+		RawYAML:       rawYAMLCov,
+		Runtime:       runtimeCov,
+		Metrics:       metricsCov,
+		CodeScan:      CoverageNotChecked, // scan_violations is a separate tool
+		IncidentStore: CoverageNotChecked,
 	}
 
 	var blindSpots []string
-	if !cov.GraphChecked {
+	if graphCov == CoverageNotChecked {
 		blindSpots = append(blindSpots, "graph unavailable — static pattern matching only")
 	}
-	if r.GraphFreshness != nil && r.GraphFreshness.Stale {
+	if graphCov == CoverageStale {
 		blindSpots = append(blindSpots, "graph stale — knowledge may be incomplete")
 	}
-	if !cov.RuntimeChecked {
+	if runtimeCov == CoverageNoop {
 		blindSpots = append(blindSpots, "runtime snapshot not collected — no live cluster evidence")
 	}
-	if !cov.MetricsChecked {
+	if metricsCov == CoverageNoop {
 		blindSpots = append(blindSpots, "metrics not available — resource saturation not assessed")
 	}
-	if !cov.CodeScanChecked {
+	if cov.CodeScan == CoverageNotChecked {
 		blindSpots = append(blindSpots, "code violation scan not run — use awareness.scan_violations")
 	}
 
 	// Score the confidence.
+	// graph checked (any non-not_checked state except stale):
+	graphChecked := graphCov == CoverageCheckedClean || graphCov == CoverageCheckedWithMatch
+	rawYAMLChecked := rawYAMLCov == CoverageCheckedClean || rawYAMLCov == CoverageCheckedWithMatch
+	runtimeActive := runtimeCov == CoverageCheckedClean || runtimeCov == CoverageCheckedWithMatch
+	metricsActive := metricsCov == CoverageCheckedClean || metricsCov == CoverageCheckedWithMatch
+
 	score := 0
-	if cov.GraphChecked {
+	if graphChecked {
 		score++
 	}
-	if cov.RawYAMLChecked {
+	if rawYAMLChecked {
 		score++
 	}
-	if cov.RuntimeChecked {
+	if runtimeActive {
 		score++
 	}
-	if cov.MetricsChecked {
+	if metricsActive {
 		score++
 	}
 
@@ -265,8 +324,8 @@ func computeConfidence(r *Report, g *graph.Graph) (Coverage, Confidence, string,
 		reason = "no awareness data collected — graph missing and runtime unavailable"
 	}
 
-	// Override to low if graph is stale and no runtime compensates.
-	if r.GraphFreshness != nil && r.GraphFreshness.Stale && !cov.RuntimeChecked {
+	// Override if graph is stale and no runtime compensates.
+	if graphCov == CoverageStale && !runtimeActive {
 		if conf == ConfidenceHigh {
 			conf = ConfidenceMedium
 			reason += "; demoted due to stale graph"

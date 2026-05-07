@@ -140,6 +140,71 @@ func TestLoadMetricThresholds_MissingFile(t *testing.T) {
 	}
 }
 
+// TestLoadMetricThresholds_ServiceSpecificOverridesDefault verifies that
+// a service-specific threshold overrides the default.
+func TestLoadMetricThresholds_ServiceSpecificOverridesDefault(t *testing.T) {
+	dir := t.TempDir()
+	knowledgeDir := filepath.Join(dir, "knowledge")
+	if err := os.MkdirAll(knowledgeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	content := `
+thresholds:
+  default:
+    disk_percent:
+      warn: 90
+      critical: 95
+  etcd:
+    disk_percent:
+      warn: 75
+      critical: 82
+`
+	if err := os.WriteFile(filepath.Join(knowledgeDir, "metric_thresholds.yaml"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mt := LoadMetricThresholds(dir)
+
+	// etcd disk at 76% should warn (etcd threshold 75), not use default 90.
+	s := MetricSample{Name: "node_disk_percent", Value: 76, Unit: "percent", NodeID: "etcd-node", ServiceID: "etcd"}
+	w, sev := mt.Evaluate(s)
+	if sev != "warning" {
+		t.Errorf("expected warning for etcd disk at 76%% (etcd threshold=75), got %q (msg: %q)", sev, w)
+	}
+	if !strings.Contains(w, "threshold_src=etcd") {
+		t.Errorf("expected threshold_src=etcd in message, got %q", w)
+	}
+
+	// etcd disk at 82% should be critical.
+	s2 := MetricSample{Name: "node_disk_percent", Value: 82, Unit: "percent", NodeID: "etcd-node", ServiceID: "etcd"}
+	_, sev2 := mt.Evaluate(s2)
+	if sev2 != "critical" {
+		t.Errorf("expected critical for etcd disk at 82%% (critical threshold=82), got %q", sev2)
+	}
+
+	// node disk at 91% should warn (default threshold=90).
+	s3 := MetricSample{Name: "node_disk_percent", Value: 91, Unit: "percent", NodeID: "n1", ServiceID: "node"}
+	_, sev3 := mt.Evaluate(s3)
+	if sev3 != "warning" {
+		t.Errorf("expected warning for node disk at 91%% (default threshold=90), got %q", sev3)
+	}
+}
+
+// TestLoadMetricThresholds_MissingYAMLDegradesGracefully verifies that loading
+// from a path with no file returns usable defaults without panic.
+func TestLoadMetricThresholds_MissingYAMLDegradesGracefully(t *testing.T) {
+	mt := LoadMetricThresholds("/nonexistent/path/xyz")
+	if mt == nil {
+		t.Fatal("expected non-nil MetricThresholds on missing file")
+	}
+	// Should use builtin defaults — CPU at 95% should warn.
+	s := MetricSample{Name: "node_cpu_percent", Value: 95, Unit: "percent", NodeID: "n1", ServiceID: "node"}
+	_, sev := mt.Evaluate(s)
+	if sev != "warning" {
+		t.Errorf("expected warning from builtin defaults on missing YAML, got %q", sev)
+	}
+}
+
 func TestFormatFloat(t *testing.T) {
 	cases := []struct {
 		f    float64

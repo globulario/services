@@ -26,6 +26,11 @@ func registerRuntimeTool(s *Server) {
 					Description: "Write evidence nodes to the awareness graph (default false). Only evidence nodes are written — no runtime state is mutated.",
 					Default:     false,
 				},
+				"store_snapshot": {
+					Type:        "boolean",
+					Description: "Persist snapshot JSON in the graph DB so it can be retrieved by snapshot_id later (default true when graph is available).",
+					Default:     true,
+				},
 			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
@@ -42,14 +47,24 @@ func registerRuntimeTool(s *Server) {
 			return nil, fmt.Errorf("runtime snapshot: %w", err)
 		}
 
-		// Optionally write evidence to the graph (still read-only w.r.t. runtime state).
-		if boolArg(args, "write_graph") && s.g != nil {
+		// Write evidence and/or store snapshot in the graph.
+		writeGraph := boolArg(args, "write_graph")
+		storeSnapshot := true // default true
+		if v, ok := args["store_snapshot"]; ok {
+			if b, ok := v.(bool); ok {
+				storeSnapshot = b
+			}
+		}
+
+		if s.g != nil && (writeGraph || storeSnapshot) {
 			if writeErr := bridge.WriteToGraph(ctx, snap, s.g); writeErr != nil {
 				snap.Warnings = append(snap.Warnings, "write-graph: "+writeErr.Error())
 			}
 		}
 
-		return snapshotToMap(snap), nil
+		result := snapshotToMap(snap)
+		result["snapshot_id"] = snap.ID
+		return result, nil
 	})
 }
 
@@ -57,21 +72,35 @@ func registerRuntimeTool(s *Server) {
 func buildBridge(s *Server) *runtime.RuntimeBridge {
 	b := runtime.NewBridge(s.cfg.NodeID, "")
 
+	// Load metric thresholds from docs dir.
+	b.Thresholds = runtime.LoadMetricThresholds(s.resolvedDocsDir())
+
+	grpcCfg := func(addr string) runtime.GrpcSourceConfig {
+		return runtime.GrpcSourceConfig{
+			Addr:       addr,
+			Insecure:   s.cfg.Insecure,
+			CACert:     s.cfg.CACert,
+			ClientCert: s.cfg.ClientCert,
+			ClientKey:  s.cfg.ClientKey,
+			ServerName: s.cfg.ServerName,
+		}
+	}
+
 	if s.cfg.DoctorAddr != "" {
-		if src, err := runtime.NewGrpcDoctorSource(s.cfg.DoctorAddr); err == nil {
+		if src, err := runtime.NewGrpcDoctorSource(grpcCfg(s.cfg.DoctorAddr)); err == nil {
 			b.Doctor = src
 		}
 	}
 	if s.cfg.ControllerAddr != "" {
-		if src, err := runtime.NewGrpcStateSource(s.cfg.ControllerAddr); err == nil {
+		if src, err := runtime.NewGrpcStateSource(grpcCfg(s.cfg.ControllerAddr)); err == nil {
 			b.State = src
 		}
-		if src, err := runtime.NewGrpcServiceStatusSource(s.cfg.ControllerAddr); err == nil {
+		if src, err := runtime.NewGrpcServiceStatusSource(grpcCfg(s.cfg.ControllerAddr)); err == nil {
 			b.Services = src
 		}
 	}
 	if s.cfg.WorkflowAddr != "" {
-		if src, err := runtime.NewGrpcWorkflowSource(s.cfg.WorkflowAddr); err == nil {
+		if src, err := runtime.NewGrpcWorkflowSource(grpcCfg(s.cfg.WorkflowAddr)); err == nil {
 			b.Workflows = src
 		}
 	}
@@ -138,14 +167,24 @@ func snapshotToMap(snap *runtime.RuntimeSnapshot) map[string]interface{} {
 
 	sourceHealth := make([]map[string]interface{}, 0, len(snap.SourceHealth))
 	for _, sh := range snap.SourceHealth {
-		sourceHealth = append(sourceHealth, map[string]interface{}{
+		entry := map[string]interface{}{
 			"source":            sh.Source,
 			"backend":           sh.Backend,
 			"healthy":           sh.Healthy,
 			"empty_due_to_noop": sh.EmptyDueToNoop,
 			"last_error":        sh.LastError,
 			"collected_at":      sh.CollectedAt,
-		})
+		}
+		if sh.Transport != "" {
+			entry["transport"] = sh.Transport
+		}
+		if sh.Auth != "" {
+			entry["auth"] = sh.Auth
+		}
+		if len(sh.Warnings) > 0 {
+			entry["warnings"] = sh.Warnings
+		}
+		sourceHealth = append(sourceHealth, entry)
 	}
 
 	return map[string]interface{}{

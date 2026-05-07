@@ -25,17 +25,37 @@ const (
 //   - Healthy=true: data was collected (may still be empty if cluster has no findings)
 type SourceHealth struct {
 	Source         SourceKind `json:"source"`
-	Backend        string     `json:"backend"`            // "cluster_doctor.grpc", "prometheus.http", "noop", etc.
+	Backend        string     `json:"backend"`                    // "cluster_doctor.grpc", "prometheus.http", "noop", etc.
+	Transport      string     `json:"transport,omitempty"`        // "insecure", "tls", "mtls"
+	Auth           string     `json:"auth,omitempty"`             // "none", "service_token"
 	Healthy        bool       `json:"healthy"`
 	EmptyDueToNoop bool       `json:"empty_due_to_noop"`
 	LastError      string     `json:"last_error,omitempty"`
 	CollectedAt    string     `json:"collected_at"`
+	Warnings       []string   `json:"warnings,omitempty"` // e.g. insecure transport warning
+}
+
+// withTransport returns a copy of SourceHealth with Transport and Auth set.
+// If transport is "insecure", a production-safety warning is appended.
+func (sh SourceHealth) withTransport(transport, auth string) SourceHealth {
+	sh.Transport = transport
+	sh.Auth = auth
+	if transport == "insecure" {
+		sh.Warnings = append(append([]string(nil), sh.Warnings...), "insecure runtime source transport enabled — not safe for production")
+	}
+	return sh
 }
 
 // sourceIdentifier is an optional interface that sources implement to report
 // their backend name and whether they are a no-op.
 type sourceIdentifier interface {
 	SourceInfo() (backend string, isNoop bool)
+}
+
+// transportReporter is an optional interface for sources that can report
+// which transport they are using.
+type transportReporter interface {
+	Transport() string
 }
 
 func newHealthySource(kind SourceKind, backend string) SourceHealth {
@@ -82,8 +102,18 @@ func sourceHealthFor(kind SourceKind, src interface{}, err error) SourceHealth {
 	if isNoop {
 		return newNoopSource(kind)
 	}
+
+	var sh SourceHealth
 	if err != nil {
-		return newErrSource(kind, backend, err)
+		sh = newErrSource(kind, backend, err)
+	} else {
+		sh = newHealthySource(kind, backend)
 	}
-	return newHealthySource(kind, backend)
+
+	// Carry transport info if the source implements transportReporter.
+	if tr, ok := src.(transportReporter); ok {
+		sh = sh.withTransport(tr.Transport(), "none")
+	}
+
+	return sh
 }

@@ -106,22 +106,38 @@ const (
 	ConfidenceUnknown Confidence = "unknown" // nothing ran (no graph, no docs dir)
 )
 
-// Coverage tracks which layers of evidence actually ran.
+// CoverageState describes the result of a single coverage layer check.
+type CoverageState string
+
+const (
+	CoverageNotChecked       CoverageState = "not_checked"
+	CoverageNotApplicable    CoverageState = "not_applicable"
+	CoverageCheckedClean     CoverageState = "checked_clean"
+	CoverageCheckedWithMatch CoverageState = "checked_with_matches"
+	CoverageFailed           CoverageState = "failed"
+	CoverageNoop             CoverageState = "noop"
+	CoverageStale            CoverageState = "stale"
+)
+
+// Coverage tracks which evidence layers were checked and their result.
 type Coverage struct {
-	GraphChecked    bool `json:"graph_checked"`
-	RawYAMLChecked  bool `json:"raw_yaml_checked"`
-	RuntimeChecked  bool `json:"runtime_checked"`
-	MetricsChecked  bool `json:"metrics_checked"`
-	CodeScanChecked bool `json:"code_scan_checked"`
+	Graph         CoverageState `json:"graph"`
+	RawYAML       CoverageState `json:"raw_yaml"`
+	Runtime       CoverageState `json:"runtime"`
+	Metrics       CoverageState `json:"metrics"`
+	CodeScan      CoverageState `json:"code_scan"`
+	IncidentStore CoverageState `json:"incident_store"`
 }
 
 // GraphFreshnessReport summarises graph staleness for the report.
 type GraphFreshnessReport struct {
-	BuiltAt        string  `json:"built_at,omitempty"`
-	AgeSeconds     float64 `json:"age_seconds,omitempty"`
-	Stale          bool    `json:"stale"`
-	StaleReason    string  `json:"stale_reason,omitempty"`
-	KnowledgeMtime string  `json:"knowledge_mtime,omitempty"`
+	BuiltAt             string  `json:"built_at,omitempty"`
+	AgeSeconds          float64 `json:"age_seconds,omitempty"`
+	Stale               bool    `json:"stale"`
+	StaleReason         string  `json:"stale_reason,omitempty"`
+	KnowledgeMtime      string  `json:"knowledge_mtime,omitempty"`
+	KnowledgeSourceHash string  `json:"knowledge_source_hash,omitempty"`
+	RebuildRecommended  bool    `json:"rebuild_recommended"`
 }
 
 // Report is the complete output of a preflight run.

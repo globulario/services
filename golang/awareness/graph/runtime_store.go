@@ -40,3 +40,18 @@ func (g *Graph) LatestRuntimeSnapshot(ctx context.Context) ([]byte, error) {
 	}
 	return []byte(jsonStr), nil
 }
+
+// GetRuntimeSnapshotByID returns the stored snapshot JSON for the given snapshot ID.
+// Returns (nil, nil) if no snapshot with that ID exists.
+func (g *Graph) GetRuntimeSnapshotByID(ctx context.Context, id string) ([]byte, error) {
+	var jsonStr string
+	err := g.db.QueryRowContext(ctx,
+		`SELECT snapshot_json FROM runtime_snapshots WHERE id = ?`, id).Scan(&jsonStr)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("GetRuntimeSnapshotByID: %w", err)
+	}
+	return []byte(jsonStr), nil
+}

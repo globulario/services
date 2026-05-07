@@ -6,7 +6,6 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -14,24 +13,30 @@ import (
 // DesiredState: calls GetDesiredState (authoritative).
 // InstalledState: derived from GetClusterHealthV1 per-node installed_versions map.
 type GrpcStateSource struct {
-	addr   string
-	conn   *grpc.ClientConn
-	client cluster_controllerpb.ClusterControllerServiceClient
+	cfg       GrpcSourceConfig
+	transport string
+	conn      *grpc.ClientConn
+	client    cluster_controllerpb.ClusterControllerServiceClient
 }
 
-// NewGrpcStateSource dials the cluster_controller service at addr.
-func NewGrpcStateSource(addr string) (*GrpcStateSource, error) {
-	if addr == "" {
+// NewGrpcStateSource dials the cluster_controller service using the provided config.
+func NewGrpcStateSource(cfg GrpcSourceConfig) (*GrpcStateSource, error) {
+	if cfg.Addr == "" {
 		return nil, fmt.Errorf("state source: addr is empty")
 	}
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	opts, transport, err := cfg.dialOptions()
 	if err != nil {
-		return nil, fmt.Errorf("state source: dial %s: %w", addr, err)
+		return nil, fmt.Errorf("state source: dial options: %w", err)
+	}
+	conn, err := grpc.NewClient(cfg.Addr, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("state source: dial %s: %w", cfg.Addr, err)
 	}
 	return &GrpcStateSource{
-		addr:   addr,
-		conn:   conn,
-		client: cluster_controllerpb.NewClusterControllerServiceClient(conn),
+		cfg:       cfg,
+		transport: transport,
+		conn:      conn,
+		client:    cluster_controllerpb.NewClusterControllerServiceClient(conn),
 	}, nil
 }
 
@@ -40,6 +45,9 @@ func (s *GrpcStateSource) Close() { _ = s.conn.Close() }
 
 // SourceInfo implements sourceIdentifier.
 func (s *GrpcStateSource) SourceInfo() (string, bool) { return "cluster_controller.grpc", false }
+
+// Transport implements transportReporter.
+func (s *GrpcStateSource) Transport() string { return s.transport }
 
 // DesiredState calls GetDesiredState and returns the list of desired services.
 func (s *GrpcStateSource) DesiredState(ctx context.Context) ([]DesiredStateRecord, error) {
