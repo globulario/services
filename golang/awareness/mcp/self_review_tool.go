@@ -77,6 +77,10 @@ type closedGapResult struct {
 	Status                  string `json:"status"`
 	ClosureCondition        string `json:"closure_condition"`
 	PreventsRepeatCriticism string `json:"prevents_repeat_criticism"`
+	// VerificationStatus reports whether required tests were found in the codebase.
+	// Values: "tests_found" | "tests_partial" | "tests_not_found" | "no_tests_required" | "unverified"
+	VerificationStatus string `json:"verification_status,omitempty"`
+	VerificationNote   string `json:"verification_note,omitempty"`
 }
 
 type incompleteCriticism struct {
@@ -158,6 +162,7 @@ func registerSelfReviewTool(s *Server) {
 		strict := boolArg(args, "strict")
 
 		docsDir := s.resolvedDocsDir()
+		repoRoot := s.resolvedRepoRoot()
 		if docsDir == "" {
 			return &selfReviewResult{
 				Summary:                "docs dir not configured — cannot load agent_playbooks.yaml",
@@ -239,11 +244,14 @@ func registerSelfReviewTool(s *Server) {
 		for _, sg := range gapScores {
 			pat := sg.pattern
 			if pat.Status == "implemented" {
+				verStatus, verNote := verifyGapTests(repoRoot, pat.TestsRequired)
 				closedGaps = append(closedGaps, closedGapResult{
 					GapID:                   pat.ID,
 					Status:                  "implemented",
 					ClosureCondition:        pat.ClosureCondition,
 					PreventsRepeatCriticism: pat.PreventsRepeatCriticism,
+					VerificationStatus:      verStatus,
+					VerificationNote:        verNote,
 				})
 				// Mark those segments as handled.
 				for _, m := range sg.matched {
@@ -682,4 +690,74 @@ func buildSelfReviewSummary(gaps []capabilityGapResult, closed []closedGapResult
 		return "No gaps identified — feedback matched no known capability gap patterns."
 	}
 	return strings.Join(parts, "; ") + "."
+}
+
+// ---------------------------------------------------------------------------
+// Test verification for closed gaps
+// ---------------------------------------------------------------------------
+
+// verifyGapTests checks whether the test function names listed in testsRequired
+// can be found in any *_test.go file under golang/awareness/ in the repo.
+// This prevents self_review from reporting false confidence when a gap is marked
+// "implemented" in agent_playbooks.yaml but its required tests no longer exist.
+//
+// Returns a verification status string and a human-readable note.
+// Status values: "tests_found" | "tests_partial" | "tests_not_found" |
+//                "no_tests_required" | "unverified"
+func verifyGapTests(repoRoot string, testsRequired []string) (status string, note string) {
+	if len(testsRequired) == 0 {
+		return "no_tests_required", ""
+	}
+	if repoRoot == "" {
+		return "unverified", "repo root unavailable — cannot scan test files"
+	}
+
+	testDir := filepath.Join(repoRoot, "golang", "awareness")
+	// Normalize: strip trailing annotation notes like "(not objectstore)" from
+	// entries such as "TestFoo (note)" so only the Go function name is matched.
+	normalized := make([]string, len(testsRequired))
+	for i, entry := range testsRequired {
+		if idx := strings.IndexByte(entry, ' '); idx >= 0 {
+			normalized[i] = strings.TrimSpace(entry[:idx])
+		} else {
+			normalized[i] = strings.TrimSpace(entry)
+		}
+	}
+
+	found := make(map[string]bool)
+
+	_ = filepath.Walk(testDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return nil
+		}
+		content := string(data)
+		for _, testName := range normalized {
+			if strings.Contains(content, "func "+testName+"(") {
+				found[testName] = true
+			}
+		}
+		return nil
+	})
+
+	foundCount := len(found)
+	total := len(normalized)
+
+	switch {
+	case foundCount == total:
+		return "tests_found", fmt.Sprintf("%d/%d required tests found", foundCount, total)
+	case foundCount > 0:
+		var missing []string
+		for _, name := range normalized {
+			if !found[name] {
+				missing = append(missing, name)
+			}
+		}
+		return "tests_partial", fmt.Sprintf("%d/%d found; missing: %s", foundCount, total, strings.Join(missing, ", "))
+	default:
+		return "tests_not_found", fmt.Sprintf("0/%d required tests found in golang/awareness/", total)
+	}
 }

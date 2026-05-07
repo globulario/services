@@ -376,12 +376,13 @@ capability_gap_patterns:
       - "Add forbidden fixes: disarm before compact, restart etcd without NOSPACE fix, restart controller before etcd stable, restart workflow before controller stable"
       - "Verify offline_diagnose maps test logs to etcd entries (not objectstore) after promotion"
     tests_required:
-      - "TestOfflineDiagnose_EtcdNOSPACE_MapsToEtcdFailureMode (not objectstore)"
-      - "TestOfflineDiagnose_EtcdLeaderLoss_MapsToEtcdLeaderInstability"
-      - "TestOfflineDiagnose_ControllerLeaseExpired_MapsToCorrectFailureMode"
-      - "TestOfflineDiagnose_WorkflowTimeout_MapsToControlPlaneInstability"
-      - "TestCausalChain_EtcdNOSPACE_ProducesControlPlaneCascade (4/4 steps)"
-      - "TestSuggestIncident_FixOrder_EtcdBeforeWorkflow"
+      - TestOfflineDiagnose_EtcdNOSPACE_MapsToEtcdFailureMode
+      - TestOfflineDiagnose_EtcdNOSPACE_DoesNotMapToObjectstore
+      - TestOfflineDiagnose_EtcdNOSPACE_SurfacesDirectDiagnostics
+      - TestCausalChain_EtcdNOSPACE_ProducesControlPlaneCascade
+      - TestSuggestIncident_FixOrder_EtcdBeforeWorkflow
+      - TestForbiddenFixes_EtcdCascade
+      - TestCausalRules_ProductionFile_EtcdCascadePresent
     closure_condition: "Given the same journalctl logs (etcd NOSPACE + leader loss + controller lease expired + workflow timeout), offline_diagnose returns etcd/control-plane failure modes with score > 0.5, objectstore entries are absent or lower-scored, and recommended_next_diagnostics includes etcdctl alarm list as first step."
     knowledge_updates:
       - target_file: failure_modes.yaml
@@ -417,6 +418,86 @@ capability_gap_patterns:
       - "6 forbidden fixes promoted to forbidden_fixes.yaml"
       - "directPatternToFailureMode keywords made etcd-specific (nospace/mvcc/alarm) — objectstore absent from results"
       - "score update logic replaces alreadyInFMList skip — direct pattern boosts override RawKnowledgeFallback ties"
-    remaining_blind_spots:
-      - "Formal Go unit tests (TestOfflineDiagnose_EtcdNOSPACE_MapsToEtcdFailureMode etc.) not yet written"
-      - "recommended_next_diagnostics suggests explain_symptom, not etcdctl alarm list directly (user must follow up)"
+    remaining_blind_spots: []
+
+  - id: awareness.offline_diagnose_symptom_scoring_gap
+    priority: P1
+    keywords:
+      - bag of words
+      - symptom scoring
+      - offline_diagnose false positive
+      - raw yaml blob
+      - objectstore root_cause mentions etcd
+      - full yaml scoring
+      - symptom-only
+      - score against corpus
+      - blob matching
+    title: "offline_diagnose scores full YAML blobs — root_cause text causes false positives when different failure modes share keywords"
+    criticism: "offline_diagnose used RawKnowledgeFallback against full YAML blobs (including root_cause, remediation, architecture_fix), so an objectstore failure mode whose root_cause mentioned 'etcd' scored equal to etcd.nospace_alarm on etcd NOSPACE logs. Scoring must use only the symptom and title fields."
+    why_it_matters: "Bag-of-words against full blobs will always produce false positives when failure modes causally reference each other. An operator diagnosing an etcd outage must not be sent to investigate MinIO because objectstore's root_cause says 'caused by etcd instability'."
+    requirement: "offline_diagnose primary failure-mode scoring must use symptom+title fields only (symptomBasedFMMatch). Full blob matching is acceptable as fallback for invariants only, and as FM fallback when symptom matching produces zero results."
+    implementation_plan:
+      - "Add extractFMSymptomsText() helper — concatenates title + symptoms[] only"
+      - "Add buildEventKeywords() helper — tokenizes event patterns+text, applies stop-word filter"
+      - "Add symptomBasedFMMatch() — scores FMs by token overlap against symptom corpus only"
+      - "Replace primary RawKnowledgeFallback FM path with symptomBasedFMMatch"
+      - "Keep RawKnowledgeFallback for invariants + as FM fallback when symptom scoring is empty"
+    tests_required:
+      - TestOfflineDiagnose_SymptomsOnlyScoring_NoFalsePositives
+      - TestOfflineDiagnose_EtcdNOSPACE_DoesNotMapToObjectstore
+    closure_condition: "Given etcd NOSPACE logs, objectstore failure modes score strictly below etcd.nospace_alarm even when objectstore's root_cause field mentions 'etcd'."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.offline_diagnose_symptom_scoring_gap
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'offline_diagnose uses bag-of-words and produces false positives' because symptomBasedFMMatch uses title+symptoms only, not full YAML blobs."
+    status: implemented
+    closure_achieved_at: "2026-05-07"
+    closure_evidence:
+      - "extractFMSymptomsText() implemented — only title + symptoms[]"
+      - "buildEventKeywords() implemented with stop-word filtering"
+      - "symptomBasedFMMatch() is now primary FM scoring in offline_diagnose handler"
+      - "RawKnowledgeFallback demoted to invariant path + FM fallback"
+      - "TestOfflineDiagnose_EtcdNOSPACE_DoesNotMapToObjectstore passes — no false positives"
+    remaining_blind_spots: []
+
+  - id: awareness.self_review_test_verification_gap
+    priority: P0
+    keywords:
+      - self_review trusts status implemented
+      - test verification
+      - gap marked implemented without tests
+      - verifyGapTests
+      - tests_required unverified
+      - false confidence
+      - implemented without evidence
+      - test not found
+      - tests_partial
+    title: "self_review trusts status:implemented in agent_playbooks.yaml without verifying required tests exist in the codebase"
+    criticism: "self_review reported gaps as 'implemented' based solely on status:implemented in agent_playbooks.yaml, with no check that the required test functions actually exist in golang/awareness/**/*_test.go. This produces false confidence — a gap could be marked implemented after code is deleted."
+    why_it_matters: "The self_review tool is the closed-loop discipline's source of truth. If it trusts agent_playbooks.yaml without verifying tests, regressions go undetected. A deleted test silently leaves the system in a broken state that self_review considers healthy."
+    requirement: "When a gap has status:implemented, self_review must scan golang/awareness/**/*_test.go for each function name in tests_required and report verification_status: tests_found | tests_partial | tests_not_found | no_tests_required | unverified."
+    implementation_plan:
+      - "Add VerificationStatus and VerificationNote fields to closedGapResult struct"
+      - "Add verifyGapTests(repoRoot, testsRequired) function — walks golang/awareness/**/*_test.go"
+      - "Strip annotation notes from test names (e.g. 'TestFoo (note)' → 'TestFoo') before scanning"
+      - "Call verifyGapTests in self_review handler for each status:implemented gap"
+      - "Report tests_found / tests_partial / tests_not_found / no_tests_required / unverified"
+    tests_required:
+      - TestSelfReview_ClosedGap_HasVerificationStatus
+      - TestSelfReview_ClosedGap_TestsVerified
+      - TestSelfReview_ClosedGap_UnverifiedWhenNoTests
+    closure_condition: "self_review reports verification_status:tests_found for gaps whose required tests exist, tests_partial for partial, and tests_not_found for gaps marked implemented with nonexistent tests."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.self_review_test_verification_gap
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'self_review reports implemented gaps without verifying tests exist' because verifyGapTests scans the codebase on every self_review call."
+    status: implemented
+    closure_achieved_at: "2026-05-07"
+    closure_evidence:
+      - "VerificationStatus + VerificationNote added to closedGapResult struct"
+      - "verifyGapTests() walks golang/awareness/**/*_test.go, normalizes test names, reports found/partial/not_found"
+      - "verifyGapTests called for every status:implemented gap in self_review handler"
+      - "Annotation stripping: 'TestFoo (note)' → 'TestFoo' before scan"
+    remaining_blind_spots: []

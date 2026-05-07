@@ -305,53 +305,54 @@ func registerOfflineDiagnoseTool(s *Server) {
 		// --- Build timeline ---
 		timeline := buildTimeline(events)
 
-		// --- Match against failure modes using RawKnowledgeFallback ---
+		// --- Match against failure modes ---
 		docsDir := s.resolvedDocsDir()
 		var suspectedFMs []offlineFailureModeMatch
 		var suspectedInvs []offlineInvariantMatch
 
 		if docsDir != "" {
-			// Build a combined task string from all extracted events.
-			taskTerms := buildTaskFromEvents(events)
-			matches := preflight.RawKnowledgeFallback(taskTerms, nil, docsDir)
-
-			// Also load details for scoring.
 			fmDetails := loadFailureModeDetails(filepath.Join(docsDir, "failure_modes.yaml"))
 			invDetails := loadInvariantDetails(filepath.Join(docsDir, "invariants.yaml"))
 
-			for _, m := range matches {
+			// Primary failure-mode scoring: symptom fields only (title + symptoms list).
+			// Scoring only symptoms prevents false positives from background terms such as
+			// "etcd" or "leader" that appear in other failure modes' root_cause text but
+			// are not observable symptoms of that failure mode.
+			suspectedFMs = symptomBasedFMMatch(events, fmDetails)
+
+			// Raw blob matching: always runs for invariants (no symptom fields), and
+			// for failure modes only as fallback when no FM has matching symptom text.
+			taskTerms := buildTaskFromEvents(events)
+			rawMatches := preflight.RawKnowledgeFallback(taskTerms, nil, docsDir)
+			for _, m := range rawMatches {
 				score := float64(m.Score) / float64(len(offlineLogPatterns))
 				if score > 1.0 {
 					score = 1.0
 				}
 				switch m.Kind {
 				case "failure_mode":
-					title := ""
-					if d, ok := fmDetails[m.ID]; ok {
-						title, _ = d["title"].(string)
+					if len(suspectedFMs) == 0 {
+						title := ""
+						if d, ok := fmDetails[m.ID]; ok {
+							title, _ = d["title"].(string)
+						}
+						suspectedFMs = append(suspectedFMs, offlineFailureModeMatch{
+							ID: m.ID, Title: title, MatchScore: score,
+						})
 					}
-					suspectedFMs = append(suspectedFMs, offlineFailureModeMatch{
-						ID:         m.ID,
-						Title:      title,
-						MatchScore: score,
-					})
 				case "invariant":
 					title := ""
 					if d, ok := invDetails[m.ID]; ok {
 						title, _ = d["title"].(string)
 					}
 					suspectedInvs = append(suspectedInvs, offlineInvariantMatch{
-						ID:       m.ID,
-						Title:    title,
-						Violated: true,
+						ID: m.ID, Title: title, Violated: true,
 					})
 				}
 			}
 
-			// Also match patterns directly to failure modes by patternID keyword.
-			// If a failure mode is already in the list, update its score if the direct
-			// pattern gives a higher score — this lets etcd-specific patterns boost
-			// etcd failure modes above false-positive objectstore matches.
+			// Direct pattern boost: raises score for pattern-specific FM matches.
+			// Scores are updated (not skipped) when already present from symptom matching.
 			for pID := range patternHits {
 				directMatches := directPatternToFailureMode(pID, fmDetails)
 				for _, fm := range directMatches {
@@ -538,6 +539,102 @@ func buildTaskFromEvents(events []offlineEvent) string {
 		}
 	}
 	return strings.Join(terms, " ")
+}
+
+// ---------------------------------------------------------------------------
+// Symptom-only failure mode matching
+// ---------------------------------------------------------------------------
+
+// offlineStopWords are common English words excluded from event keyword extraction.
+var offlineStopWords = map[string]bool{
+	"the": true, "and": true, "for": true, "with": true, "from": true,
+	"that": true, "this": true, "into": true, "when": true, "not": true,
+	"are": true, "was": true, "has": true, "all": true, "any": true,
+	"been": true, "will": true, "make": true, "fix": true, "safe": true,
+	"via": true, "its": true, "but": true, "due": true, "per": true,
+}
+
+// extractFMSymptomsText returns lowercased title + symptom strings for a failure mode.
+// root_cause and architecture_fix are deliberately excluded — they contain background
+// context that mentions unrelated systems and causes false-positive matches.
+func extractFMSymptomsText(fm map[string]interface{}) string {
+	var parts []string
+	if title, ok := fm["title"].(string); ok && title != "" {
+		parts = append(parts, title)
+	}
+	if symptoms, ok := fm["symptoms"].([]interface{}); ok {
+		for _, s := range symptoms {
+			if st, ok := s.(string); ok {
+				parts = append(parts, st)
+			}
+		}
+	}
+	return strings.ToLower(strings.Join(parts, " "))
+}
+
+// buildEventKeywords extracts significant lowercase keywords from detected events.
+// Pattern ID segments ("etcd_nospace" → "etcd", "nospace") and meaningful log
+// words (len ≥ 3, not stop words) are included.
+func buildEventKeywords(events []offlineEvent) []string {
+	seen := make(map[string]bool)
+	var terms []string
+	add := func(w string) {
+		w = strings.ToLower(strings.Trim(w, ".,;:\"'()[]{}!?-/\\"))
+		if len(w) < 3 || offlineStopWords[w] || seen[w] {
+			return
+		}
+		seen[w] = true
+		terms = append(terms, w)
+	}
+	for _, e := range events {
+		for _, part := range strings.FieldsFunc(e.Pattern, func(r rune) bool { return r == '_' }) {
+			add(part)
+		}
+		for _, word := range strings.Fields(e.Text) {
+			add(word)
+		}
+	}
+	return terms
+}
+
+// symptomBasedFMMatch scores failure modes against event keywords using only
+// symptom text and title — not root_cause, architecture_fix, or related_services.
+// Score = fraction of event keywords that appear in the FM's symptom corpus.
+// Returns nil when no events or no failure modes have symptom text.
+func symptomBasedFMMatch(events []offlineEvent, fmDetails map[string]map[string]interface{}) []offlineFailureModeMatch {
+	if len(events) == 0 || len(fmDetails) == 0 {
+		return nil
+	}
+	keywords := buildEventKeywords(events)
+	if len(keywords) == 0 {
+		return nil
+	}
+	var out []offlineFailureModeMatch
+	for fmID, detail := range fmDetails {
+		corpus := extractFMSymptomsText(detail)
+		if corpus == "" {
+			continue
+		}
+		matched := 0
+		for _, kw := range keywords {
+			if strings.Contains(corpus, kw) {
+				matched++
+			}
+		}
+		if matched == 0 {
+			continue
+		}
+		score := float64(matched) / float64(len(keywords))
+		if score > 1.0 {
+			score = 1.0
+		}
+		title, _ := detail["title"].(string)
+		out = append(out, offlineFailureModeMatch{ID: fmID, Title: title, MatchScore: score})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].MatchScore > out[j].MatchScore
+	})
+	return out
 }
 
 // directPatternToFailureMode maps known pattern IDs to failure mode IDs by keyword similarity.
