@@ -23,15 +23,37 @@ const (
 
 // ProposalSpec is the top-level structure of a proposal YAML file.
 type ProposalSpec struct {
-	Proposal           ProposalHeader         `yaml:"proposal"`
-	FailureModes       []ProposedFailureMode  `yaml:"failure_modes,omitempty"`
-	Invariants         []ProposedInvariant    `yaml:"invariants,omitempty"`
-	ForbiddenFixes     []ProposedForbiddenFix `yaml:"forbidden_fixes,omitempty"`
-	RequiredTests      []string               `yaml:"required_tests,omitempty"`
-	ContextAliases     map[string][]string    `yaml:"context_aliases,omitempty"`
-	ServiceDependencies []ProposedDependency  `yaml:"service_dependencies,omitempty"`
-	ManualRepairs      []string               `yaml:"manual_repairs,omitempty"`
-	Evidence           ProposalEvidence       `yaml:"evidence"`
+	Proposal            ProposalHeader                     `yaml:"proposal"`
+	FailureModes        []ProposedFailureMode              `yaml:"failure_modes,omitempty"`
+	Invariants          []ProposedInvariant                `yaml:"invariants,omitempty"`
+	ForbiddenFixes      []ProposedForbiddenFix             `yaml:"forbidden_fixes,omitempty"`
+	ScanRules           []ProposedScanRule                 `yaml:"scan_rules,omitempty"`
+	MetricThresholds    map[string]map[string]ThresholdEntry `yaml:"metric_thresholds,omitempty"`
+	RequiredTests       []string                           `yaml:"required_tests,omitempty"`
+	ContextAliases      map[string][]string                `yaml:"context_aliases,omitempty"`
+	ServiceDependencies []ProposedDependency               `yaml:"service_dependencies,omitempty"`
+	ManualRepairs       []string                           `yaml:"manual_repairs,omitempty"`
+	Evidence            ProposalEvidence                   `yaml:"evidence"`
+	LearnSource         string                             `yaml:"learn_source,omitempty"` // "learn_from_fix" or "incident"
+}
+
+// ProposedScanRule is a static analysis rule proposed by the learning system.
+type ProposedScanRule struct {
+	ID              string   `yaml:"id"`
+	Description     string   `yaml:"description"`
+	Language        string   `yaml:"language"`
+	Severity        string   `yaml:"severity"`
+	Patterns        []string `yaml:"patterns,omitempty"`
+	KnowledgeID     string   `yaml:"knowledge_id,omitempty"`
+	SafeAlternative string   `yaml:"safe_alternative,omitempty"`
+	Allowlist       []string `yaml:"allowlist,omitempty"`
+}
+
+// ThresholdEntry is a metric alert threshold.
+type ThresholdEntry struct {
+	Warn     float64 `yaml:"warn"`
+	Critical float64 `yaml:"critical"`
+	Reason   string  `yaml:"reason,omitempty"`
 }
 
 // ProposalHeader identifies the proposal and links it to the source incident.

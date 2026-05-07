@@ -292,3 +292,114 @@ Returns the fix-ledger status for a given fix case ID or pattern.
 
 All tools are read-only. They do not modify the graph or any YAML file.
 Use the CLI commands (`promote-proposal`, `admit-package --commit`) for mutations.
+
+---
+
+## Closed-Loop Learning
+
+These tools complete the awareness feedback cycle: a verified fix becomes a
+knowledge proposal that enters the normal approval and promotion pipeline.
+
+### awareness.learn_from_fix
+
+**Purpose:** Convert a verified fix into a draft awareness proposal.
+
+**Flow:**
+```
+verified fix → learn_from_fix → proposals/learned-fix-<ts>.yaml → approve → promote → graph rebuild
+```
+
+**Input fields:** `symptom_text`, `root_cause`, `fix_summary` (required);
+`incident_id`, `verification`, `changed_files`, `tests_added`, `known_bad_fix`,
+`related_failure_mode`, `related_invariant` (optional).
+
+**What it proposes:**
+- A **failure mode** entry derived from the symptom/root-cause/fix
+- A **forbidden fix** entry when `known_bad_fix` is provided
+- A **scan rule** entry when Go files are changed and a detectable bad pattern is in the symptom
+- An **invariant** entry when the root cause implies an architectural constraint
+
+**Safety rules:**
+- All proposals have `requires_human_approval: true`
+- Proposals are saved only to `docs/awareness/proposals/` — never directly to knowledge YAML files
+- Compatible with `pending_proposals` and `approve_proposal` tools
+
+**NO_MATCH is not safe:** If the failure mode isn't in the knowledge base yet,
+the tool synthesizes a proposal. Review it — don't skip.
+
+---
+
+### awareness.offline_diagnose
+
+**Purpose:** Diagnose failures when gRPC sources are unavailable (cluster down,
+node unreachable, early bootstrap).
+
+**Input:** Any combination of `journalctl_text`, `systemd_status`, `etcdctl_output`,
+`docker_compose_logs`, `logs_dir`, `workflow_receipts_dir`, `doctor_report_file`.
+
+**Behavior:**
+- Extracts events matching 15 known failure patterns (etcd NOSPACE, leader changes,
+  port squatting, restart storms, TLS problems, MinIO disk failures, workflow stuck, etc.)
+- Scores events against `failure_modes.yaml` and `invariants.yaml` using the same
+  keyword scoring as the raw knowledge fallback
+- Builds a time-ordered timeline when timestamps are present
+- Returns `confidence` and `blind_spots` so you know what's missing
+
+**Confidence is honest:** Low/unknown confidence means you should get runtime sources
+before acting.
+
+---
+
+### awareness.causal_chain
+
+**Purpose:** Identify multi-step failure chains from log evidence.
+
+**Input:** `events` array or `offline_evidence` text. Optionally `live=true`
+(requires cluster access).
+
+**Behavior:**
+- Loads `docs/awareness/knowledge/causal_rules.yaml`
+- For each rule, scores how many sequence steps have matching evidence
+- Returns chains where 50%+ of steps match
+- Chains are sorted by confidence then step coverage
+
+**Output fields:** `chain_id`, `confidence`, `root_signal`, `matched_steps`,
+`total_steps`, `events` (per-step with evidence snippet), `explanation`,
+`recommended_fix_order`, `blind_spots`.
+
+**Heuristic — always check blind_spots.** The chain tool reports what matches
+the known rules; it cannot detect what it doesn't know. An empty `chains` array
+does NOT mean the cluster is healthy.
+
+---
+
+### awareness.scan_violations (AST mode)
+
+The existing `scan_violations` tool now runs both regex and AST-based checks.
+
+**AST patterns detected:**
+- `loopback_string_literal` — string literal with `127.0.0.1` or `localhost`
+- `loopback_in_const_or_var` — const/var initialized to loopback address
+- `loopback_in_grpc_dial` — `grpc.Dial/NewClient/DialContext` with loopback first arg
+- `loopback_in_http_call` — `http.Get/Post/NewRequest` with loopback URL
+- `os_getenv_runtime_config` — `os.Getenv` in non-test file
+- `exec_import_in_controller` — `os/exec` import in `cluster_controller` path
+- `exec_command_in_high_risk` — `exec.Command` in `cluster_controller` or `workflow` path
+- `retry_without_terminal` — `for` loop with `time.Sleep` and no terminal break (heuristic, low confidence)
+
+AST findings have `scanner: "go_ast"`. Regex findings have `scanner: "regex"`.
+Duplicate (file, line) findings are deduplicated — one finding per source line.
+
+---
+
+### Safety model summary
+
+```
+awareness proposes → humans approve → CLI promotes → graph rebuilds
+```
+
+1. NO tool directly edits `failure_modes.yaml`, `invariants.yaml`, `forbidden_fixes.yaml`, or any knowledge YAML.
+2. Every learn_from_fix output goes to `proposals/` and is `DRAFT` status.
+3. NO_MATCH in preflight ≠ safe. Always grep the raw YAML files if the graph misses.
+4. Causal chain confidence is heuristic. Use with offline_diagnose and explain_symptom together.
+5. AST scan findings are higher-fidelity than regex but still require judgment — review before blocking.

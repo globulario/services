@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/globulario/services/golang/awareness/scan"
 	"gopkg.in/yaml.v3"
 )
 
@@ -244,6 +245,10 @@ func registerScanViolationsTool(s *Server) {
 			allFindings = append(allFindings, found...)
 		}
 
+		// Deduplicate: when regex and AST both fire on the same (file, line),
+		// prefer the regex finding (it's already allowlist-aware by patternID).
+		allFindings = deduplicateViolationFindings(allFindings)
+
 		// Apply allowlist.
 		var findings []violationFinding
 		var suppressed []violationFinding
@@ -251,6 +256,7 @@ func registerScanViolationsTool(s *Server) {
 			if entry := matchesAllowlist(f, allowlist); entry != nil {
 				suppressed = append(suppressed, f)
 			} else {
+				// Also suppress AST findings at a (file, line) already suppressed by regex.
 				findings = append(findings, f)
 			}
 		}
@@ -294,6 +300,26 @@ func scanPathForViolations(root, minSeverity string, includeTests bool) ([]viola
 		}
 		found := scanFileForViolations(path, minSeverity)
 		findings = append(findings, found...)
+
+		// Also run AST scanner and merge results.
+		astFindings, _ := scan.ScanGoFile(path, nil)
+		for _, af := range astFindings {
+			if !severityAtLeast(af.Severity, minSeverity) {
+				continue
+			}
+			findings = append(findings, violationFinding{
+				File:            af.File,
+				Line:            af.Line,
+				Column:          af.Column,
+				Snippet:         af.Snippet,
+				PatternID:       af.PatternID,
+				KnowledgeID:     af.KnowledgeID,
+				Severity:        af.Severity,
+				WhyDangerous:    af.WhyDangerous,
+				SafeAlternative: af.SafeAlternative,
+				Confidence:      af.Confidence,
+			})
+		}
 		return nil
 	})
 	return findings, err
@@ -345,6 +371,27 @@ func scanFileForViolations(path, minSeverity string) []violationFinding {
 }
 
 func severityAtLeast(have, min string) bool {
-	order := map[string]int{"medium": 1, "high": 2, "critical": 3}
+	order := map[string]int{"medium": 1, "high": 2, "critical": 3, "warning": 1}
 	return order[have] >= order[min]
+}
+
+// deduplicateViolationFindings removes duplicate findings at the same (file, line).
+// Regex findings are preferred over AST findings for the same location, since
+// regex findings are allowlist-registered by patternID.
+// Among same-location findings, the first one seen is kept (regex comes first).
+func deduplicateViolationFindings(findings []violationFinding) []violationFinding {
+	type loc struct {
+		file string
+		line int
+	}
+	seen := make(map[loc]bool)
+	out := make([]violationFinding, 0, len(findings))
+	for _, f := range findings {
+		k := loc{f.File, f.Line}
+		if !seen[k] {
+			seen[k] = true
+			out = append(out, f)
+		}
+	}
+	return out
 }
