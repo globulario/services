@@ -117,6 +117,114 @@ func TestSuggestIncident_DuplicateOpenIncidentNotDuplicated(t *testing.T) {
 	}
 }
 
+// TestSuggestIncident_FixOrder_EtcdBeforeWorkflow verifies that when an etcd
+// NOSPACE control-plane cascade is present, suggested candidates rank etcd
+// remediation before controller and workflow actions, and never treat the
+// workflow dispatch timeout as the root cause.
+func TestSuggestIncident_FixOrder_EtcdBeforeWorkflow(t *testing.T) {
+	// Construct a snapshot that mirrors the etcd NOSPACE → leader loss →
+	// controller lease expired → workflow dispatch timeout cascade.
+	// Doctor findings drive candidate ordering: critical findings appear first.
+	snap := &runtime.RuntimeSnapshot{
+		ID: "snap-etcd-cascade",
+		MatchedFailureModes: []string{
+			"etcd.nospace_alarm",
+			"etcd.leader_instability",
+			"controller.lease_expired_due_to_etcd_instability",
+			"workflow.dispatch_timeout_due_to_control_plane_instability",
+		},
+		DoctorFindings: []runtime.DoctorFinding{
+			{
+				FindingID:    "etcd-nospace",
+				Severity:     "critical",
+				Title:        "etcd NOSPACE alarm — all writes rejected",
+				InvariantRef: "etcd.nospace_alarm",
+			},
+			{
+				FindingID:    "workflow-timeout",
+				Severity:     "high",
+				Title:        "workflow dispatch timeout — context deadline exceeded",
+				InvariantRef: "workflow.dispatch_timeout_due_to_control_plane_instability",
+			},
+		},
+	}
+
+	openIDs := make(map[string]bool)
+	candidates := suggestFromSnapshot(snap, "high", openIDs, true)
+
+	if len(candidates) == 0 {
+		t.Fatal("expected at least one candidate from etcd cascade snapshot")
+	}
+
+	// Locate etcd.nospace_alarm and workflow.dispatch_timeout in the candidate list.
+	etcdIdx, workflowIdx := -1, -1
+	for i, c := range candidates {
+		id := c.FailureModeID
+		if id == "" {
+			id = c.FindingID
+		}
+		if id == "etcd.nospace_alarm" && etcdIdx == -1 {
+			etcdIdx = i
+		}
+		if id == "workflow.dispatch_timeout_due_to_control_plane_instability" && workflowIdx == -1 {
+			workflowIdx = i
+		}
+	}
+
+	if etcdIdx == -1 {
+		t.Error("etcd.nospace_alarm candidate not found — must be present as root-cause candidate")
+	}
+	if workflowIdx == -1 {
+		t.Error("workflow.dispatch_timeout candidate not found")
+	}
+
+	// etcd must appear before workflow — etcd is root, workflow is terminal symptom.
+	if etcdIdx != -1 && workflowIdx != -1 && etcdIdx > workflowIdx {
+		t.Errorf("etcd candidate (pos %d) appears after workflow candidate (pos %d) — etcd is root, workflow is downstream",
+			etcdIdx, workflowIdx)
+	}
+
+	// First candidate must not be the workflow timeout — do not treat it as root.
+	firstID := candidates[0].FailureModeID
+	if firstID == "" {
+		firstID = candidates[0].FindingID
+	}
+	if strings.Contains(firstID, "workflow.dispatch") {
+		t.Errorf("first candidate is %q — workflow timeout must not be treated as root cause", firstID)
+	}
+
+	// MatchedFMs on every candidate must list etcd entries before workflow entries,
+	// preserving the upstream → downstream cascade order.
+	for _, c := range candidates {
+		if len(c.MatchedFMs) < 2 {
+			continue
+		}
+		etcdFMIdx, workflowFMIdx := -1, -1
+		for i, fm := range c.MatchedFMs {
+			if strings.HasPrefix(fm, "etcd.") && etcdFMIdx == -1 {
+				etcdFMIdx = i
+			}
+			if strings.HasPrefix(fm, "workflow.") && workflowFMIdx == -1 {
+				workflowFMIdx = i
+			}
+		}
+		if etcdFMIdx != -1 && workflowFMIdx != -1 && etcdFMIdx > workflowFMIdx {
+			t.Errorf("candidate %q: MatchedFMs lists etcd (pos %d) after workflow (pos %d) — cascade order must be preserved",
+				c.FailureModeID, etcdFMIdx, workflowFMIdx)
+		}
+	}
+
+	// YAML draft for the etcd.nospace_alarm candidate must identify etcd as the failure mode.
+	if etcdIdx != -1 {
+		draft := candidates[etcdIdx].YAMLDraft
+		if draft == "" {
+			t.Error("etcd.nospace_alarm candidate has empty YAML draft (include_yaml=true was set)")
+		} else if !strings.Contains(draft, "etcd.nospace_alarm") {
+			t.Errorf("etcd candidate YAML draft does not reference etcd.nospace_alarm:\n%s", draft)
+		}
+	}
+}
+
 // TestSuggestIncident_SeparatesFailureModesFromInvariants verifies that
 // MatchedFailureModes and MatchedInvariants appear separately.
 func TestSuggestIncident_SeparatesFailureModesFromInvariants(t *testing.T) {

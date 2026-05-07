@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -369,6 +370,116 @@ func TestOfflineDiagnose_EtcdNOSPACE_SurfacesDirectDiagnostics(t *testing.T) {
 	}
 	if allExplain && len(nextDiag) > 0 {
 		t.Errorf("recommended_next_diagnostics contains only explain_symptom calls — direct commands must be surfaced: %v", nextDiag)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test 6 — production causal_rules.yaml contains the etcd cascade rule
+// ---------------------------------------------------------------------------
+
+// TestCausalRules_ProductionFile_EtcdCascadePresent verifies that the real
+// docs/awareness/knowledge/causal_rules.yaml file contains the
+// etcd_disk_pressure_to_workflow_timeout rule with all four cascade steps
+// and a fix order that puts etcd remediation before controller/workflow.
+func TestCausalRules_ProductionFile_EtcdCascadePresent(t *testing.T) {
+	docsDir := selfReviewDocsDir(t)
+	path := filepath.Join(docsDir, "knowledge", "causal_rules.yaml")
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read causal_rules.yaml: %v", err)
+	}
+
+	var root map[string]interface{}
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		t.Fatalf("parse causal_rules.yaml: %v", err)
+	}
+
+	rules, _ := root["rules"].([]interface{})
+	if len(rules) == 0 {
+		t.Fatal("causal_rules.yaml has no rules")
+	}
+
+	// Locate etcd_disk_pressure_to_workflow_timeout.
+	var cascade map[string]interface{}
+	for _, item := range rules {
+		m, _ := item.(map[string]interface{})
+		if id, _ := m["id"].(string); id == "etcd_disk_pressure_to_workflow_timeout" {
+			cascade = m
+			break
+		}
+	}
+	if cascade == nil {
+		t.Fatal("rule etcd_disk_pressure_to_workflow_timeout not found in causal_rules.yaml")
+	}
+
+	// Sequence must have at least 4 steps.
+	seq, _ := cascade["sequence"].([]interface{})
+	if len(seq) < 4 {
+		t.Fatalf("expected ≥ 4 sequence steps, got %d", len(seq))
+	}
+
+	// Each step must cover one layer of the cascade. We match by keyword content
+	// across the event name, component, and keywords fields.
+	type stepCheck struct {
+		label    string
+		needsAny []string // at least one of these must appear in the step blob
+	}
+	checks := []stepCheck{
+		{"etcd disk pressure / NOSPACE", []string{"nospace", "database space", "etcd_nospace", "etcd disk"}},
+		{"leader instability", []string{"leader", "election", "quorum"}},
+		{"controller lease churn", []string{"lease", "controller", "leadership"}},
+		{"workflow dispatch timeout", []string{"workflow", "dispatch", "deadline"}},
+	}
+
+	for i, chk := range checks {
+		if i >= len(seq) {
+			t.Errorf("step %d (%s) missing — only %d steps present", i, chk.label, len(seq))
+			continue
+		}
+		stepBytes, _ := yaml.Marshal(seq[i])
+		blob := strings.ToLower(string(stepBytes))
+		found := false
+		for _, kw := range chk.needsAny {
+			if strings.Contains(blob, kw) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("step %d (%s): none of %v found in:\n%s", i, chk.label, chk.needsAny, blob)
+		}
+	}
+
+	// recommended_fix_order must exist and start with etcd remediation.
+	fixOrder, _ := cascade["recommended_fix_order"].([]interface{})
+	if len(fixOrder) == 0 {
+		t.Fatal("recommended_fix_order is empty")
+	}
+
+	// Find positions of etcd, controller, and workflow in the fix order.
+	etcdIdx, controllerIdx, workflowIdx := -1, -1, -1
+	for i, step := range fixOrder {
+		s := strings.ToLower(fmt.Sprintf("%v", step))
+		if etcdIdx == -1 && strings.Contains(s, "etcd") {
+			etcdIdx = i
+		}
+		if controllerIdx == -1 && (strings.Contains(s, "controller") || strings.Contains(s, "leader") || strings.Contains(s, "quorum")) {
+			controllerIdx = i
+		}
+		if workflowIdx == -1 && strings.Contains(s, "workflow") {
+			workflowIdx = i
+		}
+	}
+
+	if etcdIdx == -1 {
+		t.Error("recommended_fix_order must mention etcd remediation")
+	}
+	if controllerIdx != -1 && etcdIdx > controllerIdx {
+		t.Errorf("fix order: etcd (pos %d) must come before controller/leader (pos %d)", etcdIdx, controllerIdx)
+	}
+	if workflowIdx != -1 && etcdIdx > workflowIdx {
+		t.Errorf("fix order: etcd (pos %d) must come before workflow (pos %d)", etcdIdx, workflowIdx)
 	}
 }
 
