@@ -120,7 +120,7 @@ func SuggestAction(code string) string {
 	case CodeRequiredTestMissing:
 		return "Implement the missing test function named in the //globular:tested_by annotation"
 	case CodeRequiredTestNoPath:
-		return "Run 'globular awareness build' to index test source paths — or implement the test"
+		return "Implement the test function in a *_test.go file — it is declared in awareness YAML but has no Go implementation yet"
 	case CodeHashSchemaNoProducer: // includes CodeMissingHashProducer alias
 		return "Add //globular:hash_schema <name> to the function that computes this hash"
 	case CodeHashSchemaNoConsumer: // includes CodeMissingHashConsumer alias

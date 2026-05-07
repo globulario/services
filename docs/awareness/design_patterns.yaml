@@ -359,10 +359,10 @@ design_patterns:
       running service. Absence of a key is never an intent to destroy.
       Destruction requires an explicit, audited approval record.
     applies_to:
-      - golang/node_agent/node_agent_server/ingress_consumer.go
-      - golang/node_agent/node_agent_server/objectstore_consumer.go
-      - golang/node_agent/node_agent_server/envoy_consumer.go
-      - golang/node_agent/node_agent_server/dns_consumer.go
+      - golang/node_agent/node_agent_server/ingress_reconcile.go
+      - golang/node_agent/node_agent_server/minio_systemd_reconcile.go
+      - golang/node_agent/node_agent_server/network_reconcile.go
+      - golang/node_agent/node_agent_server/dns_sync.go
     invariants:
       - critical_state.absence_is_not_destructive_intent
       - destructive_actions.require_explicit_guard
@@ -448,8 +448,7 @@ design_patterns:
       authority-publication lane.
     applies_to:
       - golang/cluster_controller/cluster_controller_server/reconciler.go
-      - golang/dns/dns_server/reconciler.go
-      - golang/dns/dns_server/watcher.go
+      - golang/dns/dns_server/handlers.go
     invariants:
       - critical_queries.must_be_bounded
       - reconcile.global_work_must_not_starve_completion
@@ -490,9 +489,9 @@ design_patterns:
       quorum confirmation, or a complete convergence check. Downstream consumers
       then treat this partial truth as the definitive desired state.
     applies_to:
-      - golang/cluster_controller/cluster_controller_server/desired_state_publisher.go
-      - golang/cluster_controller/cluster_controller_server/promotion_reconciler.go
-      - golang/workflow/workflow_server/infra_release_handler.go
+      - golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+      - golang/cluster_controller/cluster_controller_server/workflow_release.go
+      - golang/workflow/workflow_server/executor.go
     invariants:
       - desired.bootstrap_state_requires_promotion
       - install.result.atomic_commit

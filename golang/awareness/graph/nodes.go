@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -126,6 +128,40 @@ func (g *Graph) AddNode(ctx context.Context, n Node) error {
 		return fmt.Errorf("AddNode %s: %w", n.ID, err)
 	}
 	return nil
+}
+
+// DeleteNode removes a node and all its edges from the graph.
+func (g *Graph) DeleteNode(ctx context.Context, id string) error {
+	if _, err := g.db.ExecContext(ctx, `DELETE FROM edges WHERE src = ? OR dst = ?`, id, id); err != nil {
+		return fmt.Errorf("DeleteNode edges %s: %w", id, err)
+	}
+	if _, err := g.db.ExecContext(ctx, `DELETE FROM nodes WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("DeleteNode node %s: %w", id, err)
+	}
+	return nil
+}
+
+// PruneStaleSourceFileNodes removes source_file nodes whose paths no longer
+// exist on disk. srcDir is the repo root used to resolve repo-relative paths.
+func (g *Graph) PruneStaleSourceFileNodes(ctx context.Context, srcDir string) (int, error) {
+	nodes, err := g.FindNodesByType(ctx, NodeTypeSourceFile)
+	if err != nil {
+		return 0, fmt.Errorf("PruneStale: list nodes: %w", err)
+	}
+	pruned := 0
+	for _, n := range nodes {
+		if n.Path == "" {
+			continue
+		}
+		absPath := filepath.Join(srcDir, n.Path)
+		if _, statErr := os.Stat(absPath); os.IsNotExist(statErr) {
+			if err := g.DeleteNode(ctx, n.ID); err != nil {
+				return pruned, err
+			}
+			pruned++
+		}
+	}
+	return pruned, nil
 }
 
 // marshalMeta encodes a metadata map to JSON. Returns "{}" for nil.

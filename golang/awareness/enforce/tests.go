@@ -52,7 +52,7 @@ func ValidateRequiredTests(ctx context.Context, g *graph.Graph) []Finding {
 				Code:     "REQUIRED_TEST_NO_PATH",
 				Severity: SeverityWarning,
 				Symbol:   e.Src,
-				Message:  "tested_by target '" + testNode.Name + "' exists but has no source path — run 'globular awareness build' to index test files",
+				Message:  "tested_by target '" + testNode.Name + "' declared but not yet implemented — add func " + testNode.Name + "(t *testing.T) to a *_test.go file",
 			})
 		}
 	}

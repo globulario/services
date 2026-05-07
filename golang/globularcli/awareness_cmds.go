@@ -132,6 +132,13 @@ var awarenessBuildCmd = &cobra.Command{
 			}
 		}
 
+		// Prune stale source_file nodes (files that no longer exist on disk).
+		if pruned, pruneErr := g.PruneStaleSourceFileNodes(ctx, repoRoot); pruneErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: prune stale nodes: %v\n", pruneErr)
+		} else if pruned > 0 {
+			fmt.Fprintf(os.Stdout, "Pruned %d stale source_file nodes\n", pruned)
+		}
+
 		// Record the build.
 		gitCommit := gitHead(repoRoot)
 		stats, err := g.Stats(ctx)
