@@ -57,6 +57,7 @@ type propSchema struct {
 	Description string      `json:"description,omitempty"`
 	Default     interface{} `json:"default,omitempty"`
 	Enum        []string    `json:"enum,omitempty"`
+	Items       *propSchema `json:"items,omitempty"` // for array types
 }
 
 type toolCallParams struct {
@@ -123,6 +124,25 @@ func (s *server) register(def toolDef, handler toolHandler) {
 	defer s.mu.Unlock()
 	s.tools[def.Name] = &registeredTool{def: def, handler: handler}
 	s.order = append(s.order, def.Name)
+}
+
+// callTool invokes a registered tool by name. Used in tests.
+func (s *server) callTool(ctx context.Context, name string, args map[string]interface{}) (interface{}, error) {
+	s.mu.RLock()
+	tool, ok := s.tools[name]
+	s.mu.RUnlock()
+	if !ok {
+		return nil, fmt.Errorf("unknown tool: %s", name)
+	}
+	return tool.handler(ctx, args)
+}
+
+// hasTool reports whether a tool with the given name is registered.
+func (s *server) hasTool(name string) bool {
+	s.mu.RLock()
+	_, ok := s.tools[name]
+	s.mu.RUnlock()
+	return ok
 }
 
 func (s *server) serveStdio(ctx context.Context) error {
