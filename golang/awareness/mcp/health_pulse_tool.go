@@ -1,0 +1,424 @@
+package mcp
+
+import (
+	"context"
+	"fmt"
+	"time"
+)
+
+// ---------------------------------------------------------------------------
+// Output types
+// ---------------------------------------------------------------------------
+
+type healthPulseAlert struct {
+	Severity          string `json:"severity"` // warning | critical
+	ID                string `json:"id"`
+	Message           string `json:"message"`
+	RecommendedAction string `json:"recommended_action"`
+}
+
+type healthPulseCoverageSection struct {
+	ComponentsTotal               int    `json:"components_total"`
+	ComponentsWithoutFailureModes int    `json:"components_without_failure_modes"`
+	UnverifiedImplementedGaps     int    `json:"unverified_implemented_gaps"`
+	Status                        string `json:"status"` // ok | warn | critical
+}
+
+type healthPulseRuntimeSection struct {
+	RuntimeAwarenessStatus string `json:"runtime_awareness_status"` // live | partial | noop | misconfigured
+	ConfiguredSources      int    `json:"configured_sources"`
+	TotalSources           int    `json:"total_sources"`
+	Status                 string `json:"status"` // ok | warn | critical
+}
+
+type healthPulseQueueSection struct {
+	PendingProposals int    `json:"pending_proposals"`
+	StaleProposals   int    `json:"stale_proposals"`
+	QueueStatus      string `json:"queue_status"` // healthy | stale | needs_review | blocked
+	Status           string `json:"status"`       // ok | warn | critical
+}
+
+type healthPulseGraphSection struct {
+	Available          bool    `json:"available"`
+	Stale              bool    `json:"stale"`
+	StaleReason        string  `json:"stale_reason,omitempty"`
+	AgeHours           float64 `json:"age_hours,omitempty"`
+	RebuildRecommended bool    `json:"rebuild_recommended"`
+	Status             string  `json:"status"` // ok | warn | critical | no_graph
+}
+
+type healthPulseSelfReviewSection struct {
+	TotalImplemented int    `json:"total_implemented"`
+	TestsFound       int    `json:"tests_found"`
+	TestsNotFound    int    `json:"tests_not_found"`
+	InvalidMetadata  int    `json:"invalid_metadata"`
+	Status           string `json:"status"` // ok | warn | critical
+}
+
+type healthPulseSections struct {
+	Coverage       healthPulseCoverageSection   `json:"coverage"`
+	RuntimeSources healthPulseRuntimeSection    `json:"runtime_sources"`
+	ProposalQueue  healthPulseQueueSection      `json:"proposal_queue"`
+	GraphFreshness healthPulseGraphSection      `json:"graph_freshness"`
+	SelfReview     healthPulseSelfReviewSection `json:"self_review_verification"`
+}
+
+type healthPulseResult struct {
+	Status    string              `json:"status"` // healthy | warning | critical
+	CheckedAt string              `json:"checked_at"`
+	Sections  healthPulseSections `json:"sections"`
+	Alerts    []healthPulseAlert  `json:"alerts"`
+	ExitCode  int                 `json:"exit_code"` // 0=healthy 1=warning 2=critical 3=check_failed
+}
+
+// ---------------------------------------------------------------------------
+// Registration
+// ---------------------------------------------------------------------------
+
+func registerHealthPulseTool(s *Server) {
+	s.register(toolDef{
+		Name:        "awareness.health_pulse",
+		Description: "Aggregate awareness self-health check. Runs coverage_report, runtime_activation_check, proposal_queue_health, graph_freshness, and self_review verification in one call. Returns a machine-readable report with severity-tagged alerts and an exit code (0=healthy, 1=warning, 2=critical, 3=check_failed). Designed to be scheduled by cron, systemd timer, or CI pipeline.",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"stale_proposal_hours": {
+					Type:        "number",
+					Description: "Hours after which a proposal is considered stale. Default: 24.",
+				},
+				"include_graph_check": {
+					Type:        "boolean",
+					Description: "If true, check graph freshness. Default: true.",
+					Default:     true,
+				},
+			},
+			Required: []string{},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		docsDir := s.resolvedDocsDir()
+		repoRoot := s.resolvedRepoRoot()
+
+		staleHours := 24.0
+		if v, ok := args["stale_proposal_hours"].(float64); ok && v > 0 {
+			staleHours = v
+		}
+		includeGraph := true
+		if v, ok := args["include_graph_check"].(bool); ok {
+			includeGraph = v
+		}
+
+		var alerts []healthPulseAlert
+		checkedAt := time.Now().UTC().Format(time.RFC3339)
+
+		coverageSection, coverageAlerts := buildCoverageSection(docsDir, repoRoot, staleHours)
+		alerts = append(alerts, coverageAlerts...)
+
+		runtimeSection, runtimeAlerts := buildRuntimeSection(s.cfg)
+		alerts = append(alerts, runtimeAlerts...)
+
+		queueSection, queueAlerts := buildQueueSection(docsDir, staleHours)
+		alerts = append(alerts, queueAlerts...)
+
+		graphSection, graphAlerts := buildGraphSection(ctx, s, docsDir, includeGraph)
+		alerts = append(alerts, graphAlerts...)
+
+		srSection, srAlerts := buildSelfReviewSection(docsDir, repoRoot)
+		alerts = append(alerts, srAlerts...)
+
+		overallStatus, exitCode := computePulseStatus(
+			coverageSection.Status,
+			runtimeSection.Status,
+			queueSection.Status,
+			graphSection.Status,
+			srSection.Status,
+		)
+
+		return &healthPulseResult{
+			Status:    overallStatus,
+			CheckedAt: checkedAt,
+			Sections: healthPulseSections{
+				Coverage:       coverageSection,
+				RuntimeSources: runtimeSection,
+				ProposalQueue:  queueSection,
+				GraphFreshness: graphSection,
+				SelfReview:     srSection,
+			},
+			Alerts:   alerts,
+			ExitCode: exitCode,
+		}, nil
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Section builders
+// ---------------------------------------------------------------------------
+
+func buildCoverageSection(docsDir, repoRoot string, staleHours float64) (healthPulseCoverageSection, []healthPulseAlert) {
+	var alerts []healthPulseAlert
+	if docsDir == "" {
+		return healthPulseCoverageSection{Status: "warn"}, []healthPulseAlert{{
+			Severity:          "warning",
+			ID:                "coverage.docs_dir_missing",
+			Message:           "docs dir not configured — coverage check skipped",
+			RecommendedAction: "Set DocsDir in MCP config",
+		}}
+	}
+
+	fmByComp := loadFailureModesByComponent(docsDir)
+	compSet := buildComponentSet(nil)
+	for c := range fmByComp {
+		compSet[c] = true
+	}
+
+	withoutFMs := 0
+	for comp := range compSet {
+		if len(fmByComp[comp]) == 0 {
+			withoutFMs++
+		}
+	}
+
+	_, _, unverified := loadGapCoverageByComponent(docsDir, repoRoot)
+
+	status := "ok"
+	if withoutFMs > 0 {
+		status = "warn"
+		alerts = append(alerts, healthPulseAlert{
+			Severity:          "warning",
+			ID:                "coverage.missing_failure_modes",
+			Message:           fmt.Sprintf("%d component(s) have no documented failure modes", withoutFMs),
+			RecommendedAction: "Run awareness.coverage_report for details, then use learn_from_fix after next incident.",
+		})
+	}
+	if unverified > 0 {
+		if status != "warn" {
+			status = "warn"
+		}
+		alerts = append(alerts, healthPulseAlert{
+			Severity:          "warning",
+			ID:                "coverage.unverified_gaps",
+			Message:           fmt.Sprintf("%d implemented gap(s) have unverified test evidence", unverified),
+			RecommendedAction: "Run awareness.self_review to identify gaps with tests_not_found or invalid_metadata.",
+		})
+	}
+
+	return healthPulseCoverageSection{
+		ComponentsTotal:               len(compSet),
+		ComponentsWithoutFailureModes: withoutFMs,
+		UnverifiedImplementedGaps:     unverified,
+		Status:                        status,
+	}, alerts
+}
+
+func buildRuntimeSection(cfg Config) (healthPulseRuntimeSection, []healthPulseAlert) {
+	sources := []string{cfg.ControllerAddr, cfg.DoctorAddr, cfg.WorkflowAddr, cfg.PrometheusAddr}
+	configured := 0
+	for _, addr := range sources {
+		if addr != "" {
+			configured++
+		}
+	}
+	total := len(sources)
+	var missingConfig []string
+	if !cfg.Insecure && cfg.CACert == "" {
+		missingConfig = append(missingConfig, "CACert")
+	}
+	runtimeStatus := computeRuntimeStatus(configured, total, missingConfig, cfg.Insecure)
+
+	sectionStatus := "ok"
+	var alerts []healthPulseAlert
+	switch runtimeStatus {
+	case "noop":
+		sectionStatus = "warn"
+		alerts = append(alerts, healthPulseAlert{
+			Severity:          "warning",
+			ID:                "runtime.noop",
+			Message:           "Runtime awareness is noop — no cluster addresses configured",
+			RecommendedAction: "Run awareness.runtime_config_bootstrap to generate a config, or awareness.runtime_activation_check for details.",
+		})
+	case "misconfigured":
+		sectionStatus = "warn"
+		alerts = append(alerts, healthPulseAlert{
+			Severity:          "warning",
+			ID:                "runtime.misconfigured",
+			Message:           "Runtime awareness is misconfigured — addresses set but TLS credentials missing",
+			RecommendedAction: "Run awareness.runtime_activation_check to see which credentials are missing.",
+		})
+	case "partial":
+		sectionStatus = "warn"
+		alerts = append(alerts, healthPulseAlert{
+			Severity:          "warning",
+			ID:                "runtime.partial",
+			Message:           fmt.Sprintf("Runtime awareness is partial — %d/%d sources configured", configured, total),
+			RecommendedAction: "Run awareness.runtime_activation_check for missing source details.",
+		})
+	}
+
+	return healthPulseRuntimeSection{
+		RuntimeAwarenessStatus: runtimeStatus,
+		ConfiguredSources:      configured,
+		TotalSources:           total,
+		Status:                 sectionStatus,
+	}, alerts
+}
+
+func buildQueueSection(docsDir string, staleHours float64) (healthPulseQueueSection, []healthPulseAlert) {
+	var alerts []healthPulseAlert
+
+	pending, _ := loadPendingProposalCount(docsDir)
+	stale := countStaleProposals(docsDir, staleHours)
+
+	counts := proposalCounts{Stale: stale}
+	qStatus := computeQueueStatus(counts, stale, 0)
+
+	sectionStatus := "ok"
+	if stale > 0 {
+		sectionStatus = "warn"
+		alerts = append(alerts, healthPulseAlert{
+			Severity:          "warning",
+			ID:                "proposal_queue.stale",
+			Message:           fmt.Sprintf("%d proposal(s) older than %.0fh SLA", stale, staleHours),
+			RecommendedAction: "Run awareness.proposal_queue_health for details, then awareness.proposal_review_plan to prioritize.",
+		})
+	}
+	if qStatus == "needs_review" {
+		sectionStatus = "warn"
+	}
+
+	return healthPulseQueueSection{
+		PendingProposals: pending,
+		StaleProposals:   stale,
+		QueueStatus:      qStatus,
+		Status:           sectionStatus,
+	}, alerts
+}
+
+func buildGraphSection(ctx context.Context, s *Server, docsDir string, includeGraph bool) (healthPulseGraphSection, []healthPulseAlert) {
+	if !includeGraph {
+		return healthPulseGraphSection{Status: "ok", Available: false}, nil
+	}
+	if s.g == nil {
+		return healthPulseGraphSection{
+			Available:          false,
+			Stale:              true,
+			StaleReason:        "no graph.db found — run 'globular awareness build'",
+			RebuildRecommended: true,
+			Status:             "no_graph",
+		}, []healthPulseAlert{{
+			Severity:          "warning",
+			ID:                "graph.no_db",
+			Message:           "Awareness graph database not found",
+			RecommendedAction: "Run 'globular awareness build' to initialize the graph.",
+		}}
+	}
+
+	f := s.g.Freshness(ctx, docsDir)
+	sectionStatus := "ok"
+	var alerts []healthPulseAlert
+	if f.Stale {
+		sectionStatus = "critical"
+		alerts = append(alerts, healthPulseAlert{
+			Severity:          "critical",
+			ID:                "graph.stale",
+			Message:           f.StaleReason,
+			RecommendedAction: "Run 'globular awareness build' to rebuild the graph.",
+		})
+	}
+	return healthPulseGraphSection{
+		Available:          true,
+		Stale:              f.Stale,
+		StaleReason:        f.StaleReason,
+		AgeHours:           f.AgeSeconds / 3600,
+		RebuildRecommended: f.RebuildRecommended,
+		Status:             sectionStatus,
+	}, alerts
+}
+
+func buildSelfReviewSection(docsDir, repoRoot string) (healthPulseSelfReviewSection, []healthPulseAlert) {
+	var alerts []healthPulseAlert
+
+	if docsDir == "" {
+		return healthPulseSelfReviewSection{Status: "warn"}, nil
+	}
+
+	pb, err := loadAgentPlaybooks(docsDir)
+	if err != nil {
+		return healthPulseSelfReviewSection{Status: "warn"}, []healthPulseAlert{{
+			Severity:          "warning",
+			ID:                "self_review.playbooks_unreadable",
+			Message:           "Could not read agent_playbooks.yaml",
+			RecommendedAction: "Check docs/awareness/knowledge/agent_playbooks.yaml for syntax errors.",
+		}}
+	}
+
+	total, found, notFound, invalid := 0, 0, 0, 0
+	for _, pat := range pb.CapabilityGapPatterns {
+		if pat.Status != "implemented" {
+			continue
+		}
+		total++
+		status, _ := verifyGapTests(repoRoot, pat.TestsRequired)
+		switch status {
+		case "tests_found", "tests_partial":
+			found++
+		case "invalid_metadata":
+			invalid++
+		default:
+			notFound++
+		}
+	}
+
+	sectionStatus := "ok"
+	if invalid > 0 {
+		sectionStatus = "warn"
+		alerts = append(alerts, healthPulseAlert{
+			Severity:          "warning",
+			ID:                "self_review.invalid_metadata",
+			Message:           fmt.Sprintf("%d implemented gap(s) have description-style tests_required entries", invalid),
+			RecommendedAction: "Update tests_required with exact Go test function names (TestXxx format).",
+		})
+	}
+	if notFound > 0 {
+		if sectionStatus != "warn" {
+			sectionStatus = "warn"
+		}
+		alerts = append(alerts, healthPulseAlert{
+			Severity:          "warning",
+			ID:                "self_review.tests_not_found",
+			Message:           fmt.Sprintf("%d implemented gap(s) have missing tests", notFound),
+			RecommendedAction: "Write the missing tests or update tests_required to match actual test function names.",
+		})
+	}
+
+	return healthPulseSelfReviewSection{
+		TotalImplemented: total,
+		TestsFound:       found,
+		TestsNotFound:    notFound,
+		InvalidMetadata:  invalid,
+		Status:           sectionStatus,
+	}, alerts
+}
+
+// ---------------------------------------------------------------------------
+// Status aggregation
+// ---------------------------------------------------------------------------
+
+func computePulseStatus(statuses ...string) (string, int) {
+	hasCritical := false
+	hasWarn := false
+	for _, s := range statuses {
+		switch s {
+		case "critical":
+			hasCritical = true
+		case "warn", "warning", "no_graph":
+			hasWarn = true
+		}
+	}
+	switch {
+	case hasCritical:
+		return "critical", 2
+	case hasWarn:
+		return "warning", 1
+	default:
+		return "healthy", 0
+	}
+}

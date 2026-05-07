@@ -645,3 +645,128 @@ capability_gap_patterns:
       - "RequiresHumanApproval always true"
       - "4 tests in suggest_causal_rule_test.go"
     remaining_blind_spots: []
+
+  - id: awareness.health_pulse
+    description: "Awareness is reactive — there is no single schedulable command that aggregates all self-health checks and produces exit codes for cron/systemd/CI."
+    priority: P0
+    implementation_plan:
+      - "Implement awareness.health_pulse MCP tool"
+      - "Aggregate coverage_report, runtime_activation_check, proposal_queue_health, graph_freshness, self_review verification"
+      - "Return status (healthy/warning/critical), sections{}, alerts[], exit_code (0/1/2)"
+      - "Document as schedulable by cron, systemd timer, CI pipeline"
+    tests_required:
+      - TestHealthPulse_Healthy
+      - TestHealthPulse_StaleProposalWarning
+      - TestHealthPulse_RuntimeNoopWarning
+      - TestHealthPulse_GraphStaleCritical
+      - TestHealthPulse_ExitCodes
+    closure_condition: "awareness.health_pulse exists, aggregates all self-health tools, produces severity-tagged alerts, emits exit codes 0/1/2, and is documented as schedulable."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.health_pulse
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness is only reactive' because health_pulse is one schedulable command that runs all checks and exits with a machine-readable code."
+    status: implemented
+    closure_achieved_at: "2026-05-07"
+    closure_evidence:
+      - "awareness/mcp/health_pulse_tool.go implements registerHealthPulseTool"
+      - "Aggregates: buildCoverageSection, buildRuntimeSection, buildQueueSection, buildGraphSection, buildSelfReviewSection"
+      - "computePulseStatus: critical→2, warn→1, healthy→0"
+      - "All 5 section builders produce typed alerts with severity, id, message, recommended_action"
+      - "5 tests in health_pulse_test.go"
+    remaining_blind_spots:
+      - "health_pulse is still called on-demand — scheduling requires external cron/systemd/CI setup by the operator"
+
+  - id: awareness.ci_test_results_import
+    description: "strict_verified is operationally unreachable because no CI pipeline currently feeds test results into self_review."
+    priority: P0
+    implementation_plan:
+      - "Add test_results_file param to awareness.self_review"
+      - "Add ciTestResultsFile schema and loadTestResultsFromFile function"
+      - "Add go-test-to-awareness converter (awareness/cmd/go-test-to-awareness/main.go)"
+      - "CI runs: go test -json ./awareness/... | go-test-to-awareness > .awareness/test-results.json"
+      - "self_review reads file and upgrades to strict_verified when all required tests passed"
+    tests_required:
+      - TestSelfReview_StrictVerified_FromTestResultsFile
+      - TestSelfReview_FailedRequiredTest_NotStrictVerified
+      - TestSelfReview_SkippedRequiredTest_NotStrictVerified
+      - TestSelfReview_MissingTestResults_MetadataOnly
+      - TestTestResultsParser_GoTestJSON
+    closure_condition: "CI-compatible test results JSON schema exists, self_review reads test_results_file, failed/skipped required tests prevent strict_verified, converter tool exists."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.ci_test_results_import
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'strict_verified is operationally unreachable' because CI can write .awareness/test-results.json and self_review will read it."
+    status: implemented
+    closure_achieved_at: "2026-05-07"
+    closure_evidence:
+      - "test_results_file param added to awareness.self_review input schema"
+      - "ciTestResultsFile + ciTestResult structs + loadTestResultsFromFile in self_review_tool.go"
+      - "awareness/cmd/go-test-to-awareness/main.go converts go test -json JSONL to awareness JSON"
+      - "5 tests in ci_test_results_test.go"
+    remaining_blind_spots:
+      - "Operator must add go-test-to-awareness to CI pipeline explicitly — not wired automatically"
+
+  - id: awareness.runtime_config_bootstrap
+    description: "Runtime awareness is static because MCP config addresses and credentials are not wired — no tool helps discover and bootstrap the config."
+    priority: P1
+    implementation_plan:
+      - "Implement awareness.runtime_config_bootstrap MCP tool"
+      - "Read /var/lib/globular/config/etcd.yaml to detect service host"
+      - "Detect PKI paths (/var/lib/globular/pki/ca.crt, service.crt, service.key)"
+      - "Generate safe sample config YAML — never expose key paths or contents"
+      - "Write sample only when write=true is explicitly set"
+    tests_required:
+      - TestRuntimeConfigBootstrap_DetectsConfig
+      - TestRuntimeConfigBootstrap_MissingTLS
+      - TestRuntimeConfigBootstrap_WriteFalseDoesNotWrite
+      - TestRuntimeConfigBootstrap_RedactsSecrets
+    closure_condition: "runtime_config_bootstrap reports detected addresses and missing TLS, generates a safe sample config, never prints private key contents, writes only on explicit request."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.runtime_config_bootstrap
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'runtime awareness is static because config is not wired' because runtime_config_bootstrap provides a step-by-step path to activation."
+    status: implemented
+    closure_achieved_at: "2026-05-07"
+    closure_evidence:
+      - "awareness/mcp/runtime_config_bootstrap_tool.go implements registerRuntimeConfigBootstrapTool"
+      - "detectGlobularConfig: reads etcd.yaml, falls back to globular.internal defaults with warnings"
+      - "missingFields: checks addresses and TLS separately for insecure vs mTLS modes"
+      - "buildSampleConfig: never emits 'present' or key paths as values; comments out client_key"
+      - "4 tests in runtime_config_bootstrap_test.go"
+    remaining_blind_spots:
+      - "Bootstrap generates a sample but operator must still manually set ClientKey path and configure MCP server"
+
+  - id: awareness.proposal_queue_drain
+    description: "proposal_queue_health shows stale proposals but the queue has no drain helpers — manual YAML editing required for every proposal."
+    priority: P1
+    implementation_plan:
+      - "Implement awareness.proposal_review_plan — group proposals by next action"
+      - "Implement awareness.validate_proposal_batch — validate DRAFT schema without approving"
+      - "Implement markProposalPromoted helper (CLI-only, not exposed via MCP per invariant)"
+      - "Register proposal_review_plan and validate_proposal_batch as MCP tools"
+      - "Keep promote_approved_proposals as a non-MCP function (promotion is CLI-only)"
+    tests_required:
+      - TestProposalReviewPlan_GroupsActions
+      - TestValidateProposalBatch_DoesNotApprove
+      - TestPromoteApprovedProposals_DryRunDefault
+      - TestPromoteApprovedProposals_RequiresExplicitFalseDryRun
+      - TestProposalDrain_DuplicateSuggestedReject
+    closure_condition: "proposal_review_plan groups proposals by action, validate_proposal_batch validates without approving, promotion helper exists but is CLI-only (not MCP). Human approval required."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.proposal_queue_drain
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'proposal pipeline has no drain' because review_plan + batch_validate give operators visibility and tooling without removing human approval."
+    status: implemented
+    closure_achieved_at: "2026-05-07"
+    closure_evidence:
+      - "awareness/mcp/proposal_drain_tool.go implements proposal_review_plan, validate_proposal_batch, markProposalPromoted"
+      - "promote_approved_proposals NOT registered as MCP tool (selfcheck invariant: promotion = CLI-only)"
+      - "loadAllProposals: reads all proposals/*.yaml, groups by status"
+      - "validateProposalSchema: checks id/status/age without modifying files"
+      - "5 tests in proposal_drain_test.go"
+    remaining_blind_spots:
+      - "Actual promotion still requires manual operator command or CLI integration of markProposalPromoted"

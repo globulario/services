@@ -69,6 +69,12 @@ func registerAllTools(s *Server) {
 	registerRuntimeActivationCheckTool(s)
 	registerProposalQueueHealthTool(s)
 	registerSuggestCausalRuleTool(s)
+	registerHealthPulseTool(s)
+	registerRuntimeConfigBootstrapTool(s)
+	registerProposalReviewPlanTool(s)
+	registerValidateProposalBatchTool(s)
+	// registerPromoteApprovedProposalsTool is intentionally NOT registered here.
+	// Promotion is CLI-only per awareness.mcp_must_not_expose_promotion invariant.
 }
 
 // strArg extracts a string argument from an MCP args map.

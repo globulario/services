@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -173,6 +174,10 @@ func registerSelfReviewTool(s *Server) {
 					Type:        "object",
 					Description: "Optional test execution evidence. When provided, self_review upgrades verification from 'tests_found' (existence-only) to 'tests_passed' or 'strict_verified'. Fields: command (string), passed (bool), packages (int), failed_tests ([]string), skipped_tests ([]string).",
 				},
+				"test_results_file": {
+					Type:        "string",
+					Description: "Optional path to a CI test results JSON file (e.g. .awareness/test-results.json). Overrides test_results when both are present. Produced by 'go test -json ... | scripts/awareness/go-test-to-awareness'. See docs/awareness/ci-verification.md.",
+				},
 			},
 			Required: []string{"feedback"},
 		},
@@ -200,6 +205,13 @@ func registerSelfReviewTool(s *Server) {
 				tr.FailedTests = strSliceArg(trMap, "failed_tests")
 				tr.SkippedTests = strSliceArg(trMap, "skipped_tests")
 				testResults = tr
+			}
+		}
+
+		// test_results_file overrides test_results when provided.
+		if trFile := strArg(args, "test_results_file"); trFile != "" {
+			if loaded, err := loadTestResultsFromFile(trFile); err == nil {
+				testResults = loaded
 			}
 		}
 
@@ -886,4 +898,64 @@ func upgradeWithTestResults(baseStatus, baseNote string, testsRequired []string,
 		// test_results.passed=false but no specific test failures listed → passed check failed globally.
 		return "tests_passed", fmt.Sprintf("required tests found; execution evidence present but overall suite passed=%v", tr.Passed)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// CI test results file support
+// ---------------------------------------------------------------------------
+
+// ciTestResult is a single test entry in the awareness CI test results JSON.
+type ciTestResult struct {
+	Name       string `json:"name"`
+	Package    string `json:"package"`
+	Status     string `json:"status"` // passed | failed | skipped
+	DurationMs int    `json:"duration_ms"`
+}
+
+// ciTestResultsFile is the schema for .awareness/test-results.json,
+// produced by scripts/awareness/go-test-to-awareness or compatible CI scripts.
+type ciTestResultsFile struct {
+	Command    string         `json:"command"`
+	StartedAt  string         `json:"started_at"`
+	FinishedAt string         `json:"finished_at"`
+	Passed     bool           `json:"passed"`
+	Packages   int            `json:"packages"`
+	Tests      []ciTestResult `json:"tests"`
+	FailedTests  []string     `json:"failed_tests"`
+	SkippedTests []string     `json:"skipped_tests"`
+}
+
+// loadTestResultsFromFile reads a CI test results JSON file and converts it
+// into a testResultsInput that upgradeWithTestResults can consume.
+func loadTestResultsFromFile(path string) (*testResultsInput, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read test results file %s: %w", path, err)
+	}
+	var f ciTestResultsFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		return nil, fmt.Errorf("parse test results file %s: %w", path, err)
+	}
+
+	// Build failed/skipped from Tests[] if explicit lists are empty.
+	failed := f.FailedTests
+	skipped := f.SkippedTests
+	if len(failed) == 0 && len(skipped) == 0 {
+		for _, t := range f.Tests {
+			switch t.Status {
+			case "failed":
+				failed = append(failed, t.Name)
+			case "skipped":
+				skipped = append(skipped, t.Name)
+			}
+		}
+	}
+
+	return &testResultsInput{
+		Command:      f.Command,
+		Passed:       f.Passed,
+		Packages:     f.Packages,
+		FailedTests:  failed,
+		SkippedTests: skipped,
+	}, nil
 }
