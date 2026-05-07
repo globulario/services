@@ -1,0 +1,342 @@
+---
+# agent_playbooks.yaml — Awareness agent playbooks and known capability gap patterns.
+#
+# Section 1: playbooks — review workflows for converting critique into requirements.
+# Section 2: capability_gap_patterns — known awareness capability gaps with full
+#             requirement structures. Used by awareness.self_review and
+#             awareness.requirement_from_critique.
+#
+# status values: open | implemented
+# priority values: P0 (blocking / false confidence) | P1 (high value) | P2 (nice to have)
+
+playbooks:
+  - id: closed_loop_review
+    title: Convert critique into requirement and closure condition
+    trigger:
+      - awareness review
+      - Claude criticism
+      - repeated gap finding
+    required_output:
+      - criticism
+      - requirement
+      - implementation_plan
+      - tests_required
+      - closure_condition
+      - knowledge_updates
+    forbidden_behavior:
+      - open-ended criticism without requirement
+      - saying no_match means safe
+      - declaring complete without tests
+
+capability_gap_patterns:
+  - id: awareness.learn_from_verified_fix
+    priority: P0
+    keywords:
+      - learn from fix
+      - verified fix
+      - learning loop
+      - knowledge base update
+      - encode lessons
+      - automatically learn
+      - remember
+    title: "Awareness does not automatically convert verified fixes into knowledge proposals"
+    criticism: "Awareness only amplifies documented knowledge — it does not automatically grow from verified fixes. The loop from incident → fix → verified lesson → knowledge update is still manual."
+    why_it_matters: "Every time a bug recurs, it represents a knowledge encoding failure. The knowledge base only improves if a human remembers to encode lessons after an incident."
+    requirement: "Add awareness.learn_from_fix that converts verified incident/fix context into proposed updates to failure_modes.yaml, forbidden_fixes.yaml, scan_rules.yaml, invariants.yaml, or metric_thresholds.yaml. Requires human approval before modifying knowledge files."
+    implementation_plan:
+      - "Add awareness.learn_from_fix MCP tool accepting incident_id, symptom_text, root_cause, fix_summary, verification, changed_files, tests_added, known_bad_fix"
+      - "Generate ProposalSpec objects compatible with existing proposal workflow"
+      - "Save proposals to docs/awareness/proposals/ only — never mutate knowledge YAML directly"
+      - "Mark graph rebuild required after applying knowledge changes"
+    tests_required:
+      - "learn_from_fix proposes a new failure mode from a verified incident"
+      - "learn_from_fix proposes a forbidden fix when known_bad_fix is provided"
+      - "learn_from_fix does not mutate YAML without approval"
+      - "pending_proposals lists the generated learned-fix proposal"
+    closure_condition: "Given a verified fix, awareness produces at least one reviewable knowledge proposal or explains why no durable lesson should be added."
+    knowledge_updates:
+      - target_file: design_patterns.yaml
+        entry: closed_loop_learning
+        operation: add_or_update
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness does not learn from verified fixes' once learn_from_fix exists, creates proposal objects from verified fixes, tests prove proposals require approval, and applied proposals update YAML."
+    status: implemented
+
+  - id: awareness.offline_diagnose
+    priority: P1
+    keywords:
+      - offline
+      - cluster down
+      - grpc unavailable
+      - logs only
+      - no runtime
+      - broken cluster
+      - journalctl
+      - systemd
+      - diagnose without cluster
+    title: "Awareness cannot diagnose when gRPC runtime sources are down"
+    criticism: "Runtime gRPC sources only work when the cluster is healthy enough to answer. But awareness is most needed when the cluster is badly broken."
+    why_it_matters: "During an actual outage, the cluster may be too broken to serve gRPC. An operator with only logs and systemd status cannot get useful awareness output."
+    requirement: "Add awareness.offline_diagnose that parses logs/journalctl/systemd/etcdctl text and matches against known failure modes without requiring a live cluster."
+    implementation_plan:
+      - "Accept journalctl_text, systemd_status, etcdctl_output, docker_compose_logs as text inputs"
+      - "Extract events matching 15+ known patterns (NOSPACE, port in use, unknown gRPC service, etc.)"
+      - "Score extracted events against failure_modes.yaml and invariants.yaml"
+      - "Build a timestamped timeline when timestamps are present"
+      - "Return evidence, timeline, suspected failure modes, confidence, blind spots"
+    tests_required:
+      - "etcd NOSPACE in journalctl text → etcd failure mode matched"
+      - "address already in use + unknown service → port squatting failure mode"
+      - "Empty input returns low confidence with blind spots listed"
+    closure_condition: "An operator with only journalctl output from a broken cluster can get meaningful failure mode matches and a timeline without any live gRPC connection."
+    knowledge_updates:
+      - target_file: failure_modes.yaml
+        entry: offline_diagnosis_workflow
+        operation: add_procedure_note
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness is useless when cluster is down' once offline_diagnose exists and its tests pass."
+    status: implemented
+
+  - id: awareness.ast_scan
+    priority: P1
+    keywords:
+      - grep-based
+      - ast
+      - indirect
+      - hidden pattern
+      - const
+      - variable
+      - helper function
+      - static analysis
+    title: "scan_violations uses regex only and misses indirect dangerous patterns"
+    criticism: "scan_violations is grep-based and can miss patterns hidden behind constants, helper functions, or variable assignments (e.g. const addr = '127.0.0.1'; grpc.Dial(addr))."
+    why_it_matters: "A const target = '127.0.0.1' pattern passes all regex checks but is still a hard-rule violation. Grep cannot trace variable values."
+    requirement: "Add Go AST scanning to scan_violations using go/parser + go/ast. Detect loopback in consts/vars, grpc.Dial with loopback arg, os.Getenv for config, os/exec in controller, retry without terminal."
+    implementation_plan:
+      - "Create golang/awareness/scan package using stdlib go/parser + go/ast"
+      - "Implement ScanGoFile and ScanGoDir functions"
+      - "Detect: loopback string literals, loopback in const/var, grpc.Dial with loopback, os.Getenv, os/exec import in controller"
+      - "Merge AST findings with regex findings in scan_violations tool, dedup by file+line"
+      - "Each finding includes scanner: 'go_ast' or scanner: 'regex'"
+    tests_required:
+      - "Direct loopback string literal detected"
+      - "const target = '127.0.0.1' then grpc.Dial(target) detected"
+      - "os.Getenv in non-test file detected"
+      - "os/exec import in cluster_controller path detected"
+    closure_condition: "A fixture with const target = '127.0.0.1:12000'; grpc.Dial(target) must produce a violation mapped to hard_rule.no_localhost with scanner: go_ast."
+    knowledge_updates:
+      - target_file: scan_rules.yaml
+        entry: loopback_in_grpc_dial_via_const
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'scan is only grep-based' once the AST scanner package exists and its fixture tests pass."
+    status: implemented
+
+  - id: awareness.causal_chain
+    priority: P1
+    keywords:
+      - causal chain
+      - root cause chain
+      - linked symptoms
+      - cascading failure
+      - why did this cause that
+      - multiple symptoms
+    title: "Awareness reports symptoms individually but cannot build causal chains"
+    criticism: "If etcd disk pressure, leader flaps, and workflow timeouts all appear simultaneously, awareness reports all three but cannot say etcd caused the others."
+    why_it_matters: "An operator sees 5 alerts and doesn't know which to fix first. Without a causal chain, they may fix a symptom instead of the root cause."
+    requirement: "Add awareness.causal_chain that groups related symptoms into likely causal sequences using causal_rules.yaml."
+    implementation_plan:
+      - "Create docs/awareness/knowledge/causal_rules.yaml with known causal chain rules"
+      - "Add awareness.causal_chain MCP tool"
+      - "Score evidence/events against each rule's sequence steps"
+      - "Return chains where ≥50% of steps match, with recommended fix order"
+    tests_required:
+      - "etcd NOSPACE + leader changed + workflow timeout → etcd_disk_pressure chain matched"
+      - "Unrelated symptoms → no chain, clear blind spots"
+      - "Partial match (1 of 4 steps) → chain not returned"
+    closure_condition: "Given a mix of etcd, controller, and workflow symptoms, awareness groups them into a chain with a recommended fix order rather than listing them separately."
+    knowledge_updates:
+      - target_file: causal_rules.yaml
+        entry: additional_chains_as_discovered
+        operation: extend
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness cannot trace causation' once causal_chain exists and its tests pass for the 4 known chain types."
+    status: implemented
+
+  - id: awareness.real_runtime_sources
+    priority: P0
+    keywords:
+      - noop
+      - runtime sources
+      - empty snapshot
+      - real grpc
+      - live data
+      - cluster data
+      - no data
+    title: "All RuntimeBridge sources were noops — no live cluster data"
+    criticism: "RuntimeBridge sources all return empty — the runtime snapshot looks healthy because there is no data, not because the cluster is healthy."
+    why_it_matters: "A noop runtime source produces a false impression of a clean cluster. Silent noop is worse than a reported error."
+    requirement: "Implement real gRPC-backed sources for cluster_doctor, cluster_controller, workflow service. Add SourceHealth metadata distinguishing noop/healthy/error. Noop must be explicit and visible."
+    implementation_plan:
+      - "Add GrpcDoctorSource, GrpcStateSource, GrpcServiceStatusSource, GrpcWorkflowSource"
+      - "Add SourceHealth struct with Kind, Healthy, Error, Transport, Auth fields"
+      - "Noop sources report Kind=noop explicitly"
+      - "BuildBridge() wires real sources when addresses are configured, noop otherwise"
+    tests_required:
+      - "Noop source reports Kind=noop in source_health"
+      - "Real source with fake gRPC server reports Kind=real, Healthy=true"
+      - "Error source reports Healthy=false with error message"
+    closure_condition: "Runtime snapshot source_health must never be empty. Every source reports noop or healthy or error. No silent empty results."
+    knowledge_updates:
+      - target_file: invariants.yaml
+        entry: runtime_source_health_must_be_explicit
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'runtime sources are all noops' once real gRPC sources exist and source_health is populated for every source."
+    status: implemented
+
+  - id: awareness.metric_thresholds_wired
+    priority: P0
+    keywords:
+      - threshold
+      - 90%
+      - default threshold
+      - service-specific threshold
+      - metric not using config
+      - hardcoded threshold
+    title: "Metric thresholds were hardcoded — service-specific YAML thresholds not used"
+    criticism: "Runtime snapshot Match() instantiated empty MetricThresholds, so service-specific thresholds from metric_thresholds.yaml never influenced warnings."
+    why_it_matters: "etcd disk at 76% should warn (threshold: 70%) but was silent because generic 90% threshold was used."
+    requirement: "Wire metric_thresholds.yaml into runtime snapshot evaluation via MatchWithThresholds(). Service-specific thresholds must override defaults."
+    implementation_plan:
+      - "Add MatchWithThresholds(invIDs, fmIDs []string, thresholds *MetricThresholds) method to Snapshot"
+      - "Bridge.Snapshot() calls MatchWithThresholds with loaded thresholds"
+      - "RuntimeTool loads thresholds via LoadMetricThresholds(docsDir) and passes to bridge"
+    tests_required:
+      - "metric_thresholds.yaml loaded from docs dir"
+      - "Service-specific threshold overrides default for etcd disk"
+      - "Default threshold applies when service-specific is missing"
+    closure_condition: "A metric sample for etcd at 76% produces a warning with threshold_source: etcd, warn_threshold: 70."
+    knowledge_updates:
+      - target_file: metric_thresholds.yaml
+        entry: additional_service_thresholds_as_discovered
+        operation: extend
+    prevents_repeat_criticism: "Future reviews cannot say 'thresholds are hardcoded' once MatchWithThresholds exists and the etcd threshold test passes."
+    status: implemented
+
+  - id: awareness.coverage_model
+    priority: P0
+    keywords:
+      - coverage
+      - not checked
+      - raw yaml inferred
+      - checked clean
+      - false confidence
+      - no_match safe
+    title: "Coverage was inferred from match count, not tracked explicitly"
+    criticism: "RawYAMLChecked=false could appear even when raw YAML ran and found nothing, because coverage was inferred from len(matches)>0."
+    why_it_matters: "NO_MATCH means safe only if we know the check actually ran. Inferred coverage allows false confidence."
+    requirement: "Change Coverage from bool fields to CoverageState enum: not_checked, checked_clean, checked_with_matches, failed, noop, stale, not_applicable."
+    implementation_plan:
+      - "Define CoverageState type with 7 values"
+      - "Change Coverage struct fields to CoverageState"
+      - "computeConfidence() must always set RawYAML to checked_clean or checked_with_matches, never not_checked"
+    tests_required:
+      - "Raw YAML ran and found nothing → coverage.raw_yaml = checked_clean"
+      - "Raw YAML ran and found matches → coverage.raw_yaml = checked_with_matches"
+      - "Runtime noop → coverage.runtime = noop, confidence reduced"
+    closure_condition: "A preflight where raw YAML ran but found nothing reports coverage.raw_yaml=checked_clean, not not_checked. NO_MATCH is only reported when coverage is checked_clean."
+    knowledge_updates:
+      - target_file: design_patterns.yaml
+        entry: explicit_coverage_not_inferred
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'coverage is inferred' once CoverageState enum exists and the checked_clean/not_checked tests pass."
+    status: implemented
+
+  - id: awareness.mtls_grpc_sources
+    priority: P1
+    keywords:
+      - mtls
+      - mutual tls
+      - grpc auth
+      - unauthenticated grpc
+      - tls certificate
+      - grpc security
+      - insecure grpc
+    title: "gRPC runtime sources do not support mTLS — production clusters require mutual TLS"
+    criticism: "Runtime bridge sources connect to gRPC endpoints without mTLS. Production Globular clusters require mTLS on all inter-service gRPC. Without mTLS, the bridge cannot connect to any production cluster."
+    why_it_matters: "The runtime snapshot is useless on production clusters if the gRPC sources cannot authenticate. This turns a useful tool into a noop on the systems that matter most."
+    requirement: "Add mTLS configuration to the gRPC runtime bridge. Accept CA cert, client cert, and client key paths. Fall back to insecure only in dev mode with an explicit warning."
+    implementation_plan:
+      - "Add CACert, ClientCert, ClientKey, ServerName, Insecure fields to Config"
+      - "Build tls.Config from those fields in BuildBridge()"
+      - "Pass credentials.NewTLS(tlsCfg) to grpc.NewClient()"
+      - "Report transport: mtls or transport: insecure in SourceHealth"
+      - "Test: fake gRPC server with TLS cert accepts mTLS client connection"
+    tests_required:
+      - "mTLS config fields present in Config struct"
+      - "BuildBridge uses tls.Config when CACert is set"
+      - "SourceHealth reports transport: mtls when mTLS is active"
+      - "Insecure=true produces transport: insecure with warning in source_health"
+    closure_condition: "A runtime snapshot against a production cluster with mTLS succeeds and reports transport: mtls in source_health. Insecure is never used silently."
+    knowledge_updates:
+      - target_file: invariants.yaml
+        entry: grpc_bridge_must_use_mtls_on_production
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'runtime bridge ignores mTLS' once the tls.Config wiring exists and the mTLS transport test passes."
+    status: implemented
+
+  - id: awareness.graph_freshness
+    priority: P1
+    keywords:
+      - stale graph
+      - graph not rebuilt
+      - graph freshness
+      - hash mismatch
+      - rebuild recommendation
+      - outdated graph
+    title: "Awareness graph can become stale without any warning"
+    criticism: "The awareness graph is precompiled. If source YAML files change, the graph silently serves stale data. There is no freshness check or rebuild recommendation."
+    why_it_matters: "An agent consulting a stale graph gets wrong invariants and wrong failure modes. The mistake is invisible — the graph appears healthy but the data is outdated."
+    requirement: "Add graph freshness tracking via content hashing of source YAML files. Preflight output must include graph_freshness with source_hash, graph_hash, stale flag, and rebuild recommendation."
+    implementation_plan:
+      - "Compute SHA256 of all source YAML files at graph build time, store hash in graph metadata"
+      - "On preflight, recompute source hash and compare to stored hash"
+      - "If stale, include graph_freshness.stale=true and rebuild_recommendation in preflight output"
+      - "CLI rebuild command: globular awareness rebuild"
+    tests_required:
+      - "Graph built from YAML A, YAML changed → freshness check reports stale=true"
+      - "Graph rebuilt → freshness check reports stale=false"
+      - "Missing graph → freshness reports not_built with rebuild_required=true"
+    closure_condition: "Preflight output always includes graph_freshness. If source files changed since last build, stale=true and rebuild_recommendation is non-empty."
+    knowledge_updates:
+      - target_file: design_patterns.yaml
+        entry: graph_freshness_tracking
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'graph is silently stale' once freshness tracking exists and the stale detection test passes."
+    status: implemented
+
+  - id: awareness.snapshot_storage
+    priority: P2
+    keywords:
+      - snapshot storage
+      - suggest incident
+      - runtime history
+      - baseline snapshot
+      - compare snapshots
+      - snapshot not stored
+    title: "Runtime snapshots are ephemeral — suggest_incident cannot compare to baseline"
+    criticism: "suggest_incident generates incident candidates from a single runtime snapshot. Without stored historical snapshots, it cannot detect drift from a known-good baseline."
+    why_it_matters: "A single snapshot shows current state. A comparison to a stored baseline shows what changed. Without storage, transient noise and real incidents look identical."
+    requirement: "Add snapshot storage so suggest_incident can compare current state to a stored baseline. Snapshots stored under docs/awareness/snapshots/ with timestamp. Baseline = most recent approved snapshot."
+    implementation_plan:
+      - "Add snapshot save/load to runtime package"
+      - "suggest_incident optionally loads baseline from snapshots dir"
+      - "Diff current vs baseline: new warnings, cleared warnings, changed metrics"
+      - "Return delta as evidence for incident candidates"
+    tests_required:
+      - "Snapshot saved and loaded correctly"
+      - "suggest_incident with stored baseline reports delta"
+      - "suggest_incident without stored baseline degrades gracefully with blind spot"
+    closure_condition: "suggest_incident with a stored baseline reports delta between baseline and current, not just current state."
+    knowledge_updates:
+      - target_file: design_patterns.yaml
+        entry: snapshot_storage_for_baseline_comparison
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'suggest_incident has no baseline' once snapshot storage exists and the delta test passes."
+    status: open

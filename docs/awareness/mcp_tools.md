@@ -402,4 +402,153 @@ awareness proposes → humans approve → CLI promotes → graph rebuilds
 2. Every learn_from_fix output goes to `proposals/` and is `DRAFT` status.
 3. NO_MATCH in preflight ≠ safe. Always grep the raw YAML files if the graph misses.
 4. Causal chain confidence is heuristic. Use with offline_diagnose and explain_symptom together.
+
+---
+
+## Closed-Loop Review Mode
+
+Two tools convert criticism/feedback into structured, testable requirements so that every gap has a closure condition and prevents repeat critique.
+
+### awareness.self_review
+
+Converts a block of feedback or criticism into structured capability gap requirements. Each matched criticism becomes a gap with requirement, implementation plan, tests, closure condition, and `prevents_repeat_criticism`. Already-implemented gaps go into `closed_gaps`. Vague feedback that matches no known pattern is marked `incomplete` — never invented.
+
+**Algorithm:** Pure keyword matching against `docs/awareness/knowledge/agent_playbooks.yaml`. No LLM, no external calls.
+
+#### Input
+
+```json
+{
+  "goal": "make awareness prevent known dangerous code patterns",
+  "feedback": "scan_violations is grep-based, not AST-based. There is no causal chain tool.",
+  "context": {
+    "current_tools": true,
+    "include_runtime_snapshot": false,
+    "include_graph_freshness": true,
+    "include_pending_proposals": true,
+    "include_test_results": false
+  },
+  "scope": ["scan_violations", "awareness"],
+  "strict": false
+}
+```
+
+#### Output
+
+```json
+{
+  "summary": "2 open gap(s) identified; 1 already-implemented gap(s).",
+  "capability_gaps": [
+    {
+      "gap_id": "awareness.ast_scan",
+      "priority": "P1",
+      "status": "open",
+      "criticism": "scan_violations is grep-based ...",
+      "why_it_matters": "...",
+      "requirement": "Add Go AST scanning ...",
+      "implementation_plan": ["..."],
+      "tests_required": ["..."],
+      "closure_condition": "A fixture with const target = '127.0.0.1' must produce a violation.",
+      "knowledge_updates": [{"target_file": "scan_rules.yaml", "entry": "...", "operation": "add"}],
+      "prevents_repeat_criticism": "Future reviews cannot say 'scan is only grep-based' once ...",
+      "already_proposed": false,
+      "duplicate_of": ""
+    }
+  ],
+  "closed_gaps": [
+    {
+      "gap_id": "awareness.causal_chain",
+      "status": "implemented",
+      "closure_condition": "...",
+      "prevents_repeat_criticism": "..."
+    }
+  ],
+  "incomplete_criticisms": [
+    {
+      "text": "Awareness is bad.",
+      "status": "incomplete",
+      "missing_evidence": "Criticism is too vague to map to a specific capability gap."
+    }
+  ],
+  "global_closure_condition": "Every criticism in the feedback is either converted into a testable requirement or marked as incomplete with missing evidence.",
+  "confidence": "high",
+  "confidence_reason": "3 gaps identified with keyword matching",
+  "blind_spots": [],
+  "recommended_next_action": "implement_p0_gaps"
+}
+```
+
+#### Rules
+
+- **Open gaps** → `capability_gaps[]` with full requirement structure
+- **Implemented gaps** → `closed_gaps[]` with closure condition and prevents_repeat_criticism
+- **Vague feedback** → `incomplete_criticisms[]` with missing_evidence — never a fabricated gap
+- **Duplicate check** → if a pending proposal already covers the gap, `already_proposed=true` and `duplicate_of=<filename>`
+- **Confidence** → high (3+ gaps), medium (1-2 gaps), low (no matches or vague)
+
+---
+
+### awareness.requirement_from_critique
+
+Converts a single criticism string into a single structured requirement. Used standalone or internally by `self_review`. Same keyword matching, operates on one string.
+
+#### Input
+
+```json
+{
+  "criticism": "scan_violations is grep-based, not AST-based",
+  "goal": "make awareness prevent known dangerous code patterns",
+  "scope": "scan_violations"
+}
+```
+
+#### Output
+
+```json
+{
+  "gap_id": "awareness.ast_scan",
+  "priority": "P1",
+  "criticism": "...",
+  "why_it_matters": "...",
+  "requirement": "Add Go AST scanning ...",
+  "implementation_plan": ["..."],
+  "tests_required": ["..."],
+  "closure_condition": "...",
+  "knowledge_updates": [],
+  "prevents_repeat_criticism": "...",
+  "confidence": "medium",
+  "blind_spots": []
+}
+```
+
+---
+
+### agent_playbooks.yaml — the knowledge base of known gaps
+
+Located at `docs/awareness/knowledge/agent_playbooks.yaml`. Contains two sections:
+
+**Section 1: `playbooks`** — review workflow definitions with required output fields and forbidden behaviors.
+
+**Section 2: `capability_gap_patterns`** — each known awareness capability gap. Fields:
+- `id` — unique gap identifier (e.g. `awareness.ast_scan`)
+- `priority` — P0 (false confidence risk) | P1 (high value) | P2 (nice to have)
+- `keywords` — phrases used for keyword matching against feedback text
+- `status` — `open` | `implemented`
+- `requirement` — single-sentence testable requirement
+- `implementation_plan` — ordered list of implementation steps
+- `tests_required` — specific test names/descriptions that close the gap
+- `closure_condition` — what must be true for the gap to be considered closed
+- `prevents_repeat_criticism` — explicit statement of what future reviews cannot say
+
+To add a new gap pattern, add an entry to `capability_gap_patterns` with `status: open`. Mark as `status: implemented` once the gap is closed. The tools will automatically route implemented gaps to `closed_gaps` in review output.
+
+---
+
+### How to use
+
+1. After receiving criticism of the awareness system, paste it into `awareness.self_review` as `feedback`.
+2. Review `capability_gaps` — implement P0 gaps first.
+3. For each gap, use `implementation_plan`, `tests_required`, and `closure_condition` to guide implementation.
+4. When a gap is implemented, set `status: implemented` in `agent_playbooks.yaml`.
+5. Use `awareness.requirement_from_critique` for single-sentence criticisms or when building a requirement incrementally.
 5. AST scan findings are higher-fidelity than regex but still require judgment — review before blocking.
