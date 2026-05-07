@@ -343,3 +343,103 @@ func TestFormatNodeContext_Agent(t *testing.T) {
 		t.Error("agent output missing 'node_id:' key")
 	}
 }
+
+// --- Zoom-level tests ---
+
+// openTestGraphWithDecision returns a graph that includes a design decision node
+// linked to the workflow service via EdgeExplains.
+func openTestGraphWithDecision(t *testing.T) *graph.Graph {
+	t.Helper()
+	g := openTestGraph(t)
+	ctx := context.Background()
+
+	dec := graph.Node{
+		ID:      "decision:workflow_state_authority",
+		Type:    graph.NodeTypeArchitectureDecision,
+		Name:    "workflow_state_authority",
+		Summary: "Workflow state must be authoritative via etcd",
+	}
+	if err := g.AddNode(ctx, dec); err != nil {
+		t.Fatalf("AddNode decision: %v", err)
+	}
+	// Link decision → service (explains).
+	if err := g.AddEdge(ctx, graph.Edge{
+		Src:        dec.ID,
+		Dst:        "svc:workflow",
+		Kind:       graph.EdgeExplains,
+		Confidence: 1.0,
+	}); err != nil {
+		t.Fatalf("AddEdge decision→service: %v", err)
+	}
+	return g
+}
+
+// TestZoomArchitecture_SurfacesDesignDecision verifies that ZoomArchitecture
+// includes architecture_decision nodes in the context output.
+func TestZoomArchitecture_SurfacesDesignDecision(t *testing.T) {
+	g := openTestGraphWithDecision(t)
+	ctx := context.Background()
+
+	nc, err := awarectx.Build(ctx, g, "svc:workflow", awarectx.Options{
+		Zoom:     awarectx.ZoomArchitecture,
+		MaxItems: 20,
+		Depth:    2,
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	if len(nc.DesignDecisions) == 0 {
+		t.Error("ZoomArchitecture: expected at least one design decision, got none")
+	}
+	found := false
+	for _, d := range nc.DesignDecisions {
+		if strings.Contains(d, "workflow_state_authority") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("ZoomArchitecture: 'workflow_state_authority' not in DesignDecisions: %v", nc.DesignDecisions)
+	}
+}
+
+// TestZoomHistory_SurfacesFailureMode verifies that ZoomHistory includes
+// failure modes in the context output.
+func TestZoomHistory_SurfacesFailureMode(t *testing.T) {
+	g := openTestGraph(t)
+	ctx := context.Background()
+
+	nc, err := awarectx.Build(ctx, g, "svc:workflow", awarectx.Options{
+		Zoom:     awarectx.ZoomHistory,
+		MaxItems: 20,
+		Depth:    2,
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	if len(nc.RelatedFailureModes) == 0 {
+		t.Error("ZoomHistory: expected at least one failure mode, got none")
+	}
+}
+
+// TestZoomLocal_ExcludesDesignDecision verifies that ZoomLocal does NOT
+// include architecture decision nodes (those belong to ZoomArchitecture).
+func TestZoomLocal_ExcludesDesignDecision(t *testing.T) {
+	g := openTestGraphWithDecision(t)
+	ctx := context.Background()
+
+	nc, err := awarectx.Build(ctx, g, "svc:workflow", awarectx.Options{
+		Zoom:     awarectx.ZoomLocal,
+		MaxItems: 20,
+		Depth:    2,
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	if len(nc.DesignDecisions) > 0 {
+		t.Errorf("ZoomLocal: expected no design decisions, got: %v", nc.DesignDecisions)
+	}
+}

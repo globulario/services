@@ -8,8 +8,8 @@ failure_modes:
         - gRPC probe to old port gets a response but "Unimplemented: unknown service X" — orphan is answering
         - controller circuit breaker opens on workflow dispatch failures
         - posture transitions to RECOVERY_ONLY and all new install workflows are blocked
-        - "ss -lnt" on node shows the old port still bound by a process not in the service cgroup
-        - "systemctl status globular-workflow.service" shows active but a different PID holds the old port
+        - ss -lnt on node shows the old port still bound by a process not in the service cgroup
+        - systemctl status globular-workflow.service shows active but a different PID holds the old port
       root_cause: |
         When a service process exits uncleanly (e.g., SIGKILL or crash) without systemd catching it
         (e.g., child fork, or process moved to a different cgroup before systemd could track it),

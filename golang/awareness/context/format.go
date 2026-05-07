@@ -70,6 +70,7 @@ func formatNodeContextMarkdown(nc *NodeContext) string {
 	}
 	b.WriteString("\n")
 
+	writeMarkdownStrings(&b, "### Design decisions", nc.DesignDecisions)
 	writeMarkdownStrings(&b, "### Forbidden fixes", nc.ForbiddenFixes)
 	writeMarkdownStrings(&b, "### State reads", nc.StateReads)
 	writeMarkdownStrings(&b, "### State writes", nc.StateWrites)
@@ -141,6 +142,7 @@ func formatNodeContextAgent(nc *NodeContext) string {
 	if nc.Package != "" {
 		fmt.Fprintf(&b, "package: %s\n", nc.Package)
 	}
+	writeAgentList(&b, "design_decisions", nc.DesignDecisions)
 	writeAgentList(&b, "forbidden_fixes", nc.ForbiddenFixes)
 	writeAgentList(&b, "state_reads", nc.StateReads)
 	writeAgentList(&b, "state_writes", nc.StateWrites)

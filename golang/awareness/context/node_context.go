@@ -18,10 +18,26 @@ const (
 	ConfidenceLearned   ConfidenceLabel = "learned"
 )
 
+// Zoom controls which semantic layers are included in NodeContext output.
+type Zoom string
+
+const (
+	ZoomLocal        Zoom = "local"        // node identity + direct edges + direct tests
+	ZoomModule       Zoom = "module"       // + file/package/service ownership + symbols in same file
+	ZoomService      Zoom = "service"      // + dependencies + workflows + proto APIs + runtime phases
+	ZoomArchitecture Zoom = "architecture" // + invariants + design decisions + forbidden fixes + guardrails
+	ZoomRuntime      Zoom = "runtime"      // + runtime snapshot evidence + doctor findings + state deltas
+	ZoomHistory      Zoom = "history"      // + failure modes + fix cases + patterns + incidents
+	ZoomAll          Zoom = "all"          // all of the above
+)
+
 // Options configures NodeContext and Explanation construction.
 type Options struct {
-	MaxItems int // per-list cap (default 20)
-	Depth    int // traversal depth (default 2)
+	Zoom               Zoom // semantic zoom level (default ZoomAll)
+	MaxItems           int  // per-list cap (default 20)
+	Depth              int  // traversal depth (default 2)
+	IncludeRuntime     bool // include runtime bridge evidence
+	IncludeProvenance  bool // include source labels on each item
 }
 
 // EdgeSummary is a condensed view of a graph edge.
@@ -60,6 +76,7 @@ type NodeContext struct {
 	RequiredTests    []string `json:"required_tests"`
 	FixCases         []string `json:"fix_cases"`
 	AntiPatterns     []string `json:"anti_patterns"`
+	DesignDecisions  []string `json:"design_decisions"`
 
 	SourceLabel         ConfidenceLabel `json:"source_label"`
 	EditWarnings        []string        `json:"edit_warnings"`
@@ -76,6 +93,9 @@ func Build(ctx context.Context, g *graph.Graph, nodeID string, opts Options) (*N
 	}
 	if opts.Depth <= 0 {
 		opts.Depth = 2
+	}
+	if opts.Zoom == "" {
+		opts.Zoom = ZoomAll
 	}
 
 	node, err := g.FindNode(ctx, nodeID)
@@ -96,16 +116,20 @@ func Build(ctx context.Context, g *graph.Graph, nodeID string, opts Options) (*N
 		Truncated:   make(map[string]int),
 	}
 
-	// Classify direct edges.
+	// Local zoom: always included — direct edges + annotations.
 	if err := nc.classifyEdges(ctx, g, node, opts); err != nil {
 		return nil, err
 	}
 
-	// Traverse outward to collect safety / structural nodes.
-	nc.traverseRelated(ctx, g, nodeID, opts)
+	// Module / service / architecture / history zoom: traverse related nodes.
+	if opts.Zoom != ZoomLocal {
+		nc.traverseRelated(ctx, g, nodeID, opts)
+	}
 
-	// Collect runtime evidence from incoming runtime nodes.
-	nc.collectRuntimeEvidence(ctx, g, nodeID)
+	// Runtime zoom: incoming runtime-bridge evidence.
+	if opts.Zoom == ZoomRuntime || opts.Zoom == ZoomAll || opts.IncludeRuntime {
+		nc.collectRuntimeEvidence(ctx, g, nodeID)
+	}
 
 	// Build edit warnings and recommended searches.
 	nc.EditWarnings = buildEditWarnings(node, nc)
@@ -118,6 +142,8 @@ func Build(ctx context.Context, g *graph.Graph, nodeID string, opts Options) (*N
 	nc.StateReads = capStrings(nc.StateReads, opts.MaxItems, "state_reads", nc.Truncated)
 	nc.StateWrites = capStrings(nc.StateWrites, opts.MaxItems, "state_writes", nc.Truncated)
 	nc.RequiredTests = capStrings(nc.RequiredTests, opts.MaxItems, "required_tests", nc.Truncated)
+	nc.DesignDecisions = capStrings(nc.DesignDecisions, opts.MaxItems, "design_decisions", nc.Truncated)
+	nc.FixCases = capStrings(nc.FixCases, opts.MaxItems, "fix_cases", nc.Truncated)
 
 	return nc, nil
 }
@@ -182,6 +208,19 @@ func (nc *NodeContext) classifyEdges(ctx context.Context, g *graph.Graph, node *
 				if src != nil && src.Type == graph.NodeTypeTest {
 					nc.RequiredTests = appendUniq(nc.RequiredTests, src.Name)
 				}
+			case graph.EdgeAffects:
+				if src != nil && src.Type == graph.NodeTypeFailureMode {
+					if zoomIncludes(opts.Zoom, ZoomHistory) || zoomIncludes(opts.Zoom, ZoomArchitecture) {
+						nc.RelatedFailureModes = appendFailureMode(nc.RelatedFailureModes,
+							graph.FailureMode{ID: src.ID, Title: src.Name, Summary: src.Summary})
+					}
+				}
+			case graph.EdgeExplains, graph.EdgeDecides, graph.EdgeDocuments:
+				if src != nil && (src.Type == graph.NodeTypeArchitectureDecision || src.Type == graph.NodeTypeDesignRule) {
+					if zoomIncludes(opts.Zoom, ZoomArchitecture) {
+						nc.DesignDecisions = appendUniq(nc.DesignDecisions, src.Name)
+					}
+				}
 			}
 		}
 	}
@@ -197,11 +236,16 @@ func (nc *NodeContext) traverseRelated(ctx context.Context, g *graph.Graph, node
 		graph.EdgeAffects, graph.EdgeProtects, graph.EdgeEnforces,
 		graph.EdgeDependsOn, graph.EdgeOwns, graph.EdgeForbids,
 		graph.EdgeTestedBy, graph.EdgeRequiresTest,
+		graph.EdgeExplains, graph.EdgeDecides, graph.EdgeDocuments,
 	}
 	tr, err := g.Traverse(ctx, nodeID, opts.Depth, safetyEdges)
 	if err != nil {
 		return
 	}
+
+	wantArchitecture := zoomIncludes(opts.Zoom, ZoomArchitecture)
+	wantHistory := zoomIncludes(opts.Zoom, ZoomHistory)
+	wantModule := zoomIncludes(opts.Zoom, ZoomModule)
 
 	for _, n := range tr.Nodes {
 		if n.ID == nodeID {
@@ -209,30 +253,54 @@ func (nc *NodeContext) traverseRelated(ctx context.Context, g *graph.Graph, node
 		}
 		switch n.Type {
 		case graph.NodeTypeFailureMode:
-			nc.RelatedFailureModes = appendFailureMode(nc.RelatedFailureModes,
-				graph.FailureMode{ID: n.ID, Title: n.Name, Summary: n.Summary})
+			if wantHistory || wantArchitecture {
+				nc.RelatedFailureModes = appendFailureMode(nc.RelatedFailureModes,
+					graph.FailureMode{ID: n.ID, Title: n.Name, Summary: n.Summary})
+			}
 		case graph.NodeTypeInvariant:
-			if inv := findInvariantByNode(ctx, g, n); inv != nil {
-				nc.RelatedInvariants = appendInvariant(nc.RelatedInvariants, *inv)
+			if wantArchitecture {
+				if inv := findInvariantByNode(ctx, g, n); inv != nil {
+					nc.RelatedInvariants = appendInvariant(nc.RelatedInvariants, *inv)
+				}
 			}
 		case graph.NodeTypeGoPackage:
-			if nc.Package == "" {
+			if wantModule && nc.Package == "" {
 				nc.Package = n.Name
 			}
 		case graph.NodeTypeGlobularService:
-			if nc.Service == "" {
+			if wantModule && nc.Service == "" {
 				nc.Service = n.Name
 			}
 		case graph.NodeTypeForbiddenFix:
-			nc.ForbiddenFixes = appendUniq(nc.ForbiddenFixes, n.Name)
+			if wantArchitecture {
+				nc.ForbiddenFixes = appendUniq(nc.ForbiddenFixes, n.Name)
+			}
 		case graph.NodeTypeTest:
 			nc.RequiredTests = appendUniq(nc.RequiredTests, n.Name)
 		case graph.NodeTypeGuardrail, graph.NodeTypeRemainingGap:
-			nc.AntiPatterns = appendUniq(nc.AntiPatterns, n.Name)
+			if wantArchitecture {
+				nc.AntiPatterns = appendUniq(nc.AntiPatterns, n.Name)
+			}
 		case graph.NodeTypeDependencyPhase:
 			nc.DependencyPhases = appendUniq(nc.DependencyPhases, n.Name)
+		case graph.NodeTypeArchitectureDecision, graph.NodeTypeDesignRule:
+			if wantArchitecture {
+				nc.DesignDecisions = appendUniq(nc.DesignDecisions, n.Name)
+			}
+		case graph.NodeTypeFixCase:
+			if wantHistory {
+				nc.FixCases = appendUniq(nc.FixCases, n.Name)
+			}
 		}
 	}
+}
+
+// zoomIncludes returns true if the given zoom level includes the target capability.
+func zoomIncludes(zoom, target Zoom) bool {
+	if zoom == ZoomAll {
+		return true
+	}
+	return zoom == target
 }
 
 func (nc *NodeContext) collectRuntimeEvidence(ctx context.Context, g *graph.Graph, nodeID string) {

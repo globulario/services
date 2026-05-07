@@ -16,6 +16,7 @@ var nodeCtxCfg = struct {
 	file        string
 	invariant   string
 	failureMode string
+	zoom        string
 	format      string
 	maxItems    int
 	depth       int
@@ -57,7 +58,11 @@ Node reference may be: node ID, service name, symbol name, file path, invariant 
 			return nil
 		}
 
-		opts := awarectx.Options{MaxItems: nodeCtxCfg.maxItems, Depth: nodeCtxCfg.depth}
+		zoom := awarectx.Zoom(nodeCtxCfg.zoom)
+		if zoom == "" {
+			zoom = awarectx.ZoomAll
+		}
+		opts := awarectx.Options{Zoom: zoom, MaxItems: nodeCtxCfg.maxItems, Depth: nodeCtxCfg.depth}
 		nc, err := awarectx.Build(ctx, g, r.Exact.ID, opts)
 		if err != nil {
 			return fmt.Errorf("build context: %w", err)
@@ -170,6 +175,7 @@ func init() {
 	awarenessNodeContextCmd.Flags().StringVar(&nodeCtxCfg.file, "file", "", "File path")
 	awarenessNodeContextCmd.Flags().StringVar(&nodeCtxCfg.invariant, "invariant", "", "Invariant ID")
 	awarenessNodeContextCmd.Flags().StringVar(&nodeCtxCfg.failureMode, "failure-mode", "", "Failure mode ID")
+	awarenessNodeContextCmd.Flags().StringVar(&nodeCtxCfg.zoom, "zoom", "", "Semantic zoom: local, module, service, architecture, runtime, history, all")
 	awarenessNodeContextCmd.Flags().StringVar(&nodeCtxCfg.format, "format", "markdown", "Output format: markdown, json, agent")
 	awarenessNodeContextCmd.Flags().IntVar(&nodeCtxCfg.maxItems, "max-items", 20, "Max items per list")
 	awarenessNodeContextCmd.Flags().IntVar(&nodeCtxCfg.depth, "depth", 2, "Traversal depth")

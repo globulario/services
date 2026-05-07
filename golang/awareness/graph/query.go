@@ -136,6 +136,19 @@ func (g *Graph) AllEdges(ctx context.Context) ([]Edge, error) {
 	return scanEdges(rows)
 }
 
+// OutgoingEdges returns all edges where src == nodeID.
+func (g *Graph) OutgoingEdges(ctx context.Context, nodeID string) ([]Edge, error) {
+	rows, err := g.db.QueryContext(ctx, `
+		SELECT src, kind, dst, phase, required, confidence, metadata_json
+		FROM edges WHERE src = ?
+	`, nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("OutgoingEdges %s: %w", nodeID, err)
+	}
+	defer rows.Close()
+	return scanEdges(rows)
+}
+
 // EdgesByKind returns all edges of the given kind.
 func (g *Graph) EdgesByKind(ctx context.Context, kind string) ([]Edge, error) {
 	rows, err := g.db.QueryContext(ctx, `
