@@ -179,7 +179,101 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 		}
 	}
 
+	// 18. Graph freshness.
+	if g != nil && opts.DocsDir != "" {
+		f := g.Freshness(ctx, opts.DocsDir)
+		r.GraphFreshness = &GraphFreshnessReport{
+			BuiltAt:        formatTime(f.BuiltAt),
+			AgeSeconds:     f.AgeSeconds,
+			Stale:          f.Stale,
+			StaleReason:    f.StaleReason,
+			KnowledgeMtime: formatTime(f.KnowledgeMtime),
+		}
+		if f.Stale && len(r.RawKnowledgeMatches) > 0 {
+			r.Warnings = append(r.Warnings, "GRAPH_STALE: "+f.StaleReason+". Raw YAML matched — treat graph as incomplete.")
+		}
+	}
+
+	// 19. Confidence model.
+	r.Coverage, r.Confidence, r.ConfidenceReason, r.BlindSpots = computeConfidence(r, g)
+
 	return r, nil
+}
+
+func formatTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
+}
+
+func computeConfidence(r *Report, g *graph.Graph) (Coverage, Confidence, string, []string) {
+	cov := Coverage{
+		GraphChecked:   g != nil,
+		RawYAMLChecked: len(r.RawKnowledgeMatches) > 0 || len(r.Warnings) > 0, // raw fallback ran
+		RuntimeChecked: r.Runtime != nil && r.Runtime.Included,
+		MetricsChecked: r.Runtime != nil && len(r.Runtime.MetricWarnings) > 0,
+		CodeScanChecked: false, // scan_violations is a separate tool
+	}
+
+	var blindSpots []string
+	if !cov.GraphChecked {
+		blindSpots = append(blindSpots, "graph unavailable — static pattern matching only")
+	}
+	if r.GraphFreshness != nil && r.GraphFreshness.Stale {
+		blindSpots = append(blindSpots, "graph stale — knowledge may be incomplete")
+	}
+	if !cov.RuntimeChecked {
+		blindSpots = append(blindSpots, "runtime snapshot not collected — no live cluster evidence")
+	}
+	if !cov.MetricsChecked {
+		blindSpots = append(blindSpots, "metrics not available — resource saturation not assessed")
+	}
+	if !cov.CodeScanChecked {
+		blindSpots = append(blindSpots, "code violation scan not run — use awareness.scan_violations")
+	}
+
+	// Score the confidence.
+	score := 0
+	if cov.GraphChecked {
+		score++
+	}
+	if cov.RawYAMLChecked {
+		score++
+	}
+	if cov.RuntimeChecked {
+		score++
+	}
+	if cov.MetricsChecked {
+		score++
+	}
+
+	var conf Confidence
+	var reason string
+	switch {
+	case score >= 3:
+		conf = ConfidenceHigh
+		reason = "graph, raw YAML, and runtime evidence all collected"
+	case score == 2:
+		conf = ConfidenceMedium
+		reason = "static analysis complete; runtime evidence partial or unavailable"
+	case score == 1:
+		conf = ConfidenceLow
+		reason = "only partial static analysis available; runtime sources unavailable"
+	default:
+		conf = ConfidenceUnknown
+		reason = "no awareness data collected — graph missing and runtime unavailable"
+	}
+
+	// Override to low if graph is stale and no runtime compensates.
+	if r.GraphFreshness != nil && r.GraphFreshness.Stale && !cov.RuntimeChecked {
+		if conf == ConfidenceHigh {
+			conf = ConfidenceMedium
+			reason += "; demoted due to stale graph"
+		}
+	}
+
+	return cov, conf, reason, blindSpots
 }
 
 func noAwarenessFactsMatched(r *Report) bool {

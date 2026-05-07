@@ -30,6 +30,7 @@ type DoctorSource interface {
 type NoopDoctorSource struct{}
 
 func (NoopDoctorSource) Findings(_ context.Context) ([]DoctorFinding, error) { return nil, nil }
+func (NoopDoctorSource) SourceInfo() (string, bool)                           { return "noop", true }
 
 // FakeDoctorSource returns a fixed set of findings (for tests).
 type FakeDoctorSource struct {

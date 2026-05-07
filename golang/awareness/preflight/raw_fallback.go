@@ -21,6 +21,12 @@ var rawStopWords = map[string]bool{
 	"module": true, "awareness": true, "globular": true, "service": true, "services": true,
 }
 
+// RawKnowledgeFallback is the exported version of rawKnowledgeFallback.
+// It scans hand-authored awareness YAML files directly for MCP tools and external callers.
+func RawKnowledgeFallback(task string, files []string, docsDir string) []RawKnowledgeMatch {
+	return rawKnowledgeFallback(task, files, docsDir)
+}
+
 // rawKnowledgeFallback scans hand-authored awareness YAML files directly.
 // It is intentionally simple and deterministic: if the graph query misses,
 // this gives the agent a second lantern before it walks into the cave.

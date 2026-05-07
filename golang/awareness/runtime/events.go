@@ -26,6 +26,7 @@ type NoopEventSource struct{}
 func (NoopEventSource) RecentEvents(_ context.Context, _ time.Duration) ([]RuntimeEvent, error) {
 	return nil, nil
 }
+func (NoopEventSource) SourceInfo() (string, bool) { return "noop", true }
 
 // FakeEventSource returns fixed events (for tests).
 type FakeEventSource struct {

@@ -21,6 +21,7 @@ type SystemdStatusSource interface {
 type NoopSystemdStatusSource struct{}
 
 func (NoopSystemdStatusSource) Units(_ context.Context) ([]SystemdUnit, error) { return nil, nil }
+func (NoopSystemdStatusSource) SourceInfo() (string, bool)                     { return "noop", true }
 
 // FakeSystemdStatusSource returns fixed units (for tests).
 type FakeSystemdStatusSource struct {

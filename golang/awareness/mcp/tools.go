@@ -58,6 +58,9 @@ func registerAllTools(s *Server) {
 	registerPackageTools(s)
 	registerLearningTools(s)
 	registerNodeContextTools(s)
+	registerExplainSymptomTool(s)
+	registerScanViolationsTool(s)
+	registerSuggestIncidentTool(s)
 }
 
 // strArg extracts a string argument from an MCP args map.

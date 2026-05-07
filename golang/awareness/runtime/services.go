@@ -23,6 +23,7 @@ type NoopServiceStatusSource struct{}
 func (NoopServiceStatusSource) Services(_ context.Context) ([]ServiceStatus, error) {
 	return nil, nil
 }
+func (NoopServiceStatusSource) SourceInfo() (string, bool) { return "noop", true }
 
 // FakeServiceStatusSource returns fixed statuses (for tests).
 type FakeServiceStatusSource struct {

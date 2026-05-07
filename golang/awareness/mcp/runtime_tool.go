@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/globulario/services/golang/awareness/runtime"
@@ -35,7 +36,7 @@ func registerRuntimeTool(s *Server) {
 			}
 		}
 
-		bridge := runtime.NewBridge(s.cfg.NodeID, "")
+		bridge := buildBridge(s)
 		snap, err := bridge.Snapshot(ctx, window, s.g)
 		if err != nil {
 			return nil, fmt.Errorf("runtime snapshot: %w", err)
@@ -50,6 +51,40 @@ func registerRuntimeTool(s *Server) {
 
 		return snapshotToMap(snap), nil
 	})
+}
+
+// buildBridge constructs a RuntimeBridge with real gRPC sources where configured.
+func buildBridge(s *Server) *runtime.RuntimeBridge {
+	b := runtime.NewBridge(s.cfg.NodeID, "")
+
+	if s.cfg.DoctorAddr != "" {
+		if src, err := runtime.NewGrpcDoctorSource(s.cfg.DoctorAddr); err == nil {
+			b.Doctor = src
+		}
+	}
+	if s.cfg.ControllerAddr != "" {
+		if src, err := runtime.NewGrpcStateSource(s.cfg.ControllerAddr); err == nil {
+			b.State = src
+		}
+		if src, err := runtime.NewGrpcServiceStatusSource(s.cfg.ControllerAddr); err == nil {
+			b.Services = src
+		}
+	}
+	if s.cfg.WorkflowAddr != "" {
+		if src, err := runtime.NewGrpcWorkflowSource(s.cfg.WorkflowAddr); err == nil {
+			b.Workflows = src
+		}
+	}
+	if s.cfg.PrometheusAddr != "" {
+		queriesFile := ""
+		if s.cfg.DocsDir != "" {
+			queriesFile = filepath.Join(s.cfg.DocsDir, "knowledge", "metric_queries.yaml")
+		}
+		if src, err := runtime.NewPrometheusMetricsSource(s.cfg.PrometheusAddr, queriesFile); err == nil {
+			b.Metrics = src
+		}
+	}
+	return b
 }
 
 // snapshotToMap converts a RuntimeSnapshot to a JSON-serializable map.
@@ -101,6 +136,18 @@ func snapshotToMap(snap *runtime.RuntimeSnapshot) map[string]interface{} {
 		})
 	}
 
+	sourceHealth := make([]map[string]interface{}, 0, len(snap.SourceHealth))
+	for _, sh := range snap.SourceHealth {
+		sourceHealth = append(sourceHealth, map[string]interface{}{
+			"source":            sh.Source,
+			"backend":           sh.Backend,
+			"healthy":           sh.Healthy,
+			"empty_due_to_noop": sh.EmptyDueToNoop,
+			"last_error":        sh.LastError,
+			"collected_at":      sh.CollectedAt,
+		})
+	}
+
 	return map[string]interface{}{
 		"id":                    snap.ID,
 		"captured_at":           snap.CapturedAt.Format(time.RFC3339),
@@ -114,5 +161,6 @@ func snapshotToMap(snap *runtime.RuntimeSnapshot) map[string]interface{} {
 		"matched_invariants":    snap.MatchedInvariants,
 		"matched_failure_modes": snap.MatchedFailureModes,
 		"warnings":              snap.Warnings,
+		"source_health":         sourceHealth,
 	}
 }

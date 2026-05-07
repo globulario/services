@@ -37,6 +37,7 @@ type RuntimeSnapshot struct {
 	XDSStatus         []XDSStatus
 	SystemdUnits      []SystemdUnit
 	Metrics           []MetricSample
+	SourceHealth      []SourceHealth
 
 	// Computed by Match().
 	StateDelta          []StateDelta
@@ -180,12 +181,14 @@ func (s *RuntimeSnapshot) Match(knownInvariants, knownFMs []string) *RuntimeSnap
 
 	// Dynamic metric risk. Keep this intentionally generic so Prometheus,
 	// node-exporter, or a future metrics bridge can all speak the same shape.
+	thresholds := &MetricThresholds{} // uses built-in defaults; bridge can upgrade via MatchWithThresholds
 	for _, m := range s.Metrics {
-		name := strings.ToLower(m.Name)
-		if (strings.Contains(name, "cpu") || strings.Contains(name, "memory") || strings.Contains(name, "disk")) && m.Value >= 90 {
-			derivedWarnings = append(derivedWarnings, fmt.Sprintf("metric saturation: %s=%.2f%s node=%s service=%s", m.Name, m.Value, m.Unit, m.NodeID, m.ServiceID))
+		if w, _ := thresholds.Evaluate(m); w != "" {
+			derivedWarnings = append(derivedWarnings, w)
+			continue
 		}
-		if strings.Contains(name, "error") && m.Value > 0 {
+		// Error signal metrics (any name containing "error" with value > 0).
+		if strings.Contains(strings.ToLower(m.Name), "error") && m.Value > 0 {
 			derivedWarnings = append(derivedWarnings, fmt.Sprintf("metric error signal: %s=%.2f%s node=%s service=%s", m.Name, m.Value, m.Unit, m.NodeID, m.ServiceID))
 		}
 	}

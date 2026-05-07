@@ -19,6 +19,7 @@ type XDSStatusSource interface {
 type NoopXDSStatusSource struct{}
 
 func (NoopXDSStatusSource) Status(_ context.Context) ([]XDSStatus, error) { return nil, nil }
+func (NoopXDSStatusSource) SourceInfo() (string, bool)                     { return "noop", true }
 
 // FakeXDSStatusSource returns fixed status (for tests).
 type FakeXDSStatusSource struct {

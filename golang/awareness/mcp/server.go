@@ -40,6 +40,12 @@ type Config struct {
 	RepoPath string // repo root; empty → auto-detect via git
 	DocsDir  string // path to docs/awareness; empty → <repo>/docs/awareness
 	NodeID   string // optional: local node ID for runtime bridge labelling
+	// Cluster endpoints for runtime bridge gRPC sources.
+	// All are optional — if empty, the source degrades gracefully.
+	ControllerAddr string // e.g. "10.0.0.63:12000"
+	DoctorAddr     string // e.g. "10.0.0.63:12005"
+	WorkflowAddr   string // e.g. "10.0.0.63:10004"
+	PrometheusAddr string // e.g. "http://10.0.0.63:9090"
 }
 
 // jsonRPCRequest is an incoming JSON-RPC 2.0 request.

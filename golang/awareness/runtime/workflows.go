@@ -28,6 +28,7 @@ type NoopWorkflowSource struct{}
 func (NoopWorkflowSource) RecentReceipts(_ context.Context, _ time.Duration) ([]WorkflowReceipt, error) {
 	return nil, nil
 }
+func (NoopWorkflowSource) SourceInfo() (string, bool) { return "noop", true }
 
 // FakeWorkflowSource returns fixed receipts (for tests).
 type FakeWorkflowSource struct {

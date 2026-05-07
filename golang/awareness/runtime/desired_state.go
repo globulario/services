@@ -28,6 +28,8 @@ func (NoopStateSource) InstalledState(_ context.Context) ([]InstalledStateRecord
 	return nil, nil
 }
 
+func (NoopStateSource) SourceInfo() (string, bool) { return "noop", true }
+
 // FakeStateSource returns fixed state (for tests).
 type FakeStateSource struct {
 	DesiredData   []DesiredStateRecord

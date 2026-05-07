@@ -23,6 +23,7 @@ type NoopObjectstoreStatusSource struct{}
 func (NoopObjectstoreStatusSource) Status(_ context.Context) ([]ObjectstoreStatus, error) {
 	return nil, nil
 }
+func (NoopObjectstoreStatusSource) SourceInfo() (string, bool) { return "noop", true }
 
 // FakeObjectstoreStatusSource returns fixed status (for tests).
 type FakeObjectstoreStatusSource struct {

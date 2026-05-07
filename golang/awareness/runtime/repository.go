@@ -21,6 +21,7 @@ type NoopRepositoryStatusSource struct{}
 func (NoopRepositoryStatusSource) Status(_ context.Context) ([]RepositoryStatus, error) {
 	return nil, nil
 }
+func (NoopRepositoryStatusSource) SourceInfo() (string, bool) { return "noop", true }
 
 // FakeRepositoryStatusSource returns fixed status (for tests).
 type FakeRepositoryStatusSource struct {

@@ -96,6 +96,34 @@ type StateDeltaSummary struct {
 	Installed string `json:"installed_version,omitempty"`
 }
 
+// Confidence describes how much the preflight knows about the task's safety.
+type Confidence string
+
+const (
+	ConfidenceHigh    Confidence = "high"    // graph + raw YAML + runtime + metrics all ran
+	ConfidenceMedium  Confidence = "medium"  // graph + raw YAML ran; runtime partial
+	ConfidenceLow     Confidence = "low"     // only static analysis; runtime unavailable
+	ConfidenceUnknown Confidence = "unknown" // nothing ran (no graph, no docs dir)
+)
+
+// Coverage tracks which layers of evidence actually ran.
+type Coverage struct {
+	GraphChecked    bool `json:"graph_checked"`
+	RawYAMLChecked  bool `json:"raw_yaml_checked"`
+	RuntimeChecked  bool `json:"runtime_checked"`
+	MetricsChecked  bool `json:"metrics_checked"`
+	CodeScanChecked bool `json:"code_scan_checked"`
+}
+
+// GraphFreshnessReport summarises graph staleness for the report.
+type GraphFreshnessReport struct {
+	BuiltAt        string  `json:"built_at,omitempty"`
+	AgeSeconds     float64 `json:"age_seconds,omitempty"`
+	Stale          bool    `json:"stale"`
+	StaleReason    string  `json:"stale_reason,omitempty"`
+	KnowledgeMtime string  `json:"knowledge_mtime,omitempty"`
+}
+
 // Report is the complete output of a preflight run.
 type Report struct {
 	Task                string                   `json:"task"`
@@ -122,4 +150,9 @@ type Report struct {
 	Warnings            []string                 `json:"warnings"`
 	RawKnowledgeMatches []RawKnowledgeMatch      `json:"raw_knowledge_matches,omitempty"`
 	Runtime             *RuntimeSection          `json:"runtime,omitempty"`
+	Confidence          Confidence               `json:"confidence"`
+	ConfidenceReason    string                   `json:"confidence_reason"`
+	Coverage            Coverage                 `json:"coverage"`
+	BlindSpots          []string                 `json:"blind_spots,omitempty"`
+	GraphFreshness      *GraphFreshnessReport    `json:"graph_freshness,omitempty"`
 }

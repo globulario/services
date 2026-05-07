@@ -24,6 +24,7 @@ type MetricsSource interface {
 type NoopMetricsSource struct{}
 
 func (NoopMetricsSource) Samples(_ context.Context) ([]MetricSample, error) { return nil, nil }
+func (NoopMetricsSource) SourceInfo() (string, bool)                         { return "noop", true }
 
 // FakeMetricsSource returns fixed samples for tests.
 type FakeMetricsSource struct {
