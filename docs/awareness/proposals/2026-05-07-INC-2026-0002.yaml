@@ -1,7 +1,7 @@
 proposal:
     id: proposal.inc_2026_0002
     source_incident: INC-2026-0002
-    status: DRAFT
+    status: PROMOTED
     created_at: "2026-05-07T02:10:52Z"
 failure_modes:
     - id: failure_mode.inc_2026_0002

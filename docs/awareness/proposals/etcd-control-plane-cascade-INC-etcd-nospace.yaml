@@ -1,7 +1,7 @@
 proposal:
     id: etcd-control-plane-cascade-INC-etcd-nospace
     source_incident: etcd-nospace-control-plane-cascade
-    status: APPROVED
+    status: PROMOTED
     created_at: "2026-05-07T20:30:00Z"
 failure_modes:
     - id: etcd.nospace_alarm

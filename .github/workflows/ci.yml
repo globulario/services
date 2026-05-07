@@ -59,6 +59,48 @@ jobs:
         run: go test ./... -race -short -coverprofile=coverage.out
         continue-on-error: true  # Some tests need infrastructure (etcd, ScyllaDB) not available in CI
 
+      - name: Build awareness CI tools
+        run: |
+          go build -o bin/go-test-to-awareness ./awareness/cmd/go-test-to-awareness
+          go build -o bin/awareness-ci-check    ./awareness/cmd/awareness-ci-check
+
+      - name: Run awareness tests and generate CI evidence
+        run: |
+          mkdir -p ../.awareness
+          go test -json ./awareness/... -timeout 120s -short \
+            | ./bin/go-test-to-awareness \
+                --command "go test -json ./awareness/... -short" \
+                --output ../.awareness/test-results.json
+          jq -e '.passed == true' ../.awareness/test-results.json \
+            || { echo "::error::Awareness test suite failed — see .awareness/test-results.json"; exit 1; }
+
+      - name: Check awareness strict_verified (no regression)
+        run: |
+          ./bin/awareness-ci-check \
+            --playbooks ../docs/awareness/knowledge/agent_playbooks.yaml \
+            --test-results ../.awareness/test-results.json \
+            --repo-root .. \
+            --json | tee ../.awareness/ci-check-report.json
+          STRICT=$(jq '.strict_verified_count' ../.awareness/ci-check-report.json)
+          NOT_FOUND=$(jq '.tests_not_found_count' ../.awareness/ci-check-report.json)
+          INVALID=$(jq '.invalid_metadata_count' ../.awareness/ci-check-report.json)
+          echo "strict_verified: $STRICT"
+          if [ "$NOT_FOUND" -gt 0 ] || [ "$INVALID" -gt 0 ]; then
+            echo "::error::$((NOT_FOUND + INVALID)) implemented gap(s) have missing or invalid test evidence"
+            jq '.gaps[] | select(.verification_status == "tests_not_found" or .verification_status == "invalid_metadata")' \
+              ../.awareness/ci-check-report.json
+            exit 1
+          fi
+
+      - name: Upload awareness test evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: awareness-test-results
+          path: |
+            .awareness/test-results.json
+            .awareness/ci-check-report.json
+
   proto-check:
     runs-on: ubuntu-latest
     steps:

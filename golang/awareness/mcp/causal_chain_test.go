@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -40,10 +41,14 @@ func setupCausalServer(t *testing.T) (*Server, string) {
     confidence: medium
     explanation_template: "etcd disk pressure likely destabilized control-plane operations, leading to workflow dispatch failures."
     recommended_fix_order:
-      - clear etcd NOSPACE alarm (etcdctl alarm disarm)
-      - verify etcd quorum and leader stability
-      - verify controller leadership
-      - re-run workflow dispatch verification
+      - etcdctl alarm list — confirm NOSPACE is active
+      - compact revision history (etcdctl compact <rev>)
+      - defrag all members (etcdctl defrag --endpoints=<all>)
+      - verify disk usage dropped below quota
+      - etcdctl alarm disarm — only after disk is below quota
+      - verify etcd quorum and leader stability (etcdctl endpoint health)
+      - verify controller leadership (watch controller logs for 'acquired leader lease')
+      - verify workflow dispatch resumes
 
   - id: port_squatting_to_unknown_grpc_service
     root_signal: wrong_process_on_port
@@ -323,6 +328,141 @@ func TestCausalChain_PartialMatchBelowThreshold(t *testing.T) {
 			// The 4-step rule with 1/4 = 25% < 50% must not appear.
 			t.Errorf("etcd_disk_pressure chain should not appear with only 1/4 steps matched: %+v", c)
 		}
+	}
+}
+
+// TestCausalChain_EtcdNospace_FixOrderCompactBeforeDisarm verifies that the etcd disk pressure
+// causal rule recommends compact+defrag before alarm disarm, consistent with the
+// etcd.disarm_before_compact forbidden fix in forbidden_fixes.yaml.
+func TestCausalChain_EtcdNospace_FixOrderCompactBeforeDisarm(t *testing.T) {
+	s, _ := setupCausalServer(t)
+
+	result, err := s.CallTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
+		"events": []interface{}{
+			"etcd: NOSPACE alarm is activated — database space exceeded",
+			"controller: lease expired, attempting re-election",
+			"workflow: context deadline exceeded dispatching step",
+		},
+	})
+	if err != nil {
+		t.Fatalf("causal_chain error: %v", err)
+	}
+	m, ok := result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map, got %T", result)
+	}
+
+	chains, _ := m["chains"].([]causalChainResult)
+	var etcdChain *causalChainResult
+	for i := range chains {
+		if chains[i].RootSignal == "etcd_disk_pressure" {
+			etcdChain = &chains[i]
+			break
+		}
+	}
+	if etcdChain == nil {
+		t.Fatalf("etcd_disk_pressure chain not matched; got: %+v", chains)
+	}
+
+	order := etcdChain.RecommendedFixOrder
+	if len(order) < 4 {
+		t.Fatalf("expected at least 4 fix steps, got %d: %v", len(order), order)
+	}
+
+	// Find positions of compact/defrag and disarm.
+	compactIdx := -1
+	disarmIdx := -1
+	for i, step := range order {
+		lower := strings.ToLower(step)
+		if strings.Contains(lower, "compact") || strings.Contains(lower, "defrag") {
+			if compactIdx == -1 {
+				compactIdx = i
+			}
+		}
+		if strings.Contains(lower, "disarm") {
+			if disarmIdx == -1 {
+				disarmIdx = i
+			}
+		}
+	}
+
+	if compactIdx == -1 {
+		t.Errorf("fix order must include a compact or defrag step; got: %v", order)
+	}
+	if disarmIdx == -1 {
+		t.Errorf("fix order must include a disarm step; got: %v", order)
+	}
+	if compactIdx != -1 && disarmIdx != -1 && disarmIdx <= compactIdx {
+		t.Errorf("disarm (step %d) must come AFTER compact/defrag (step %d) — etcd.disarm_before_compact forbidden fix; fix order: %v",
+			disarmIdx, compactIdx, order)
+	}
+}
+
+// TestCausalChain_EtcdNospace_FixOrderDisarmNotFirst verifies that alarm disarm is not the
+// first step in the etcd disk pressure recommended fix order.
+func TestCausalChain_EtcdNospace_FixOrderDisarmNotFirst(t *testing.T) {
+	s, _ := setupCausalServer(t)
+
+	result, err := s.CallTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
+		"events": []interface{}{
+			"etcd: NOSPACE alarm — database space exceeded",
+			"etcd: lost leader, new election started",
+			"workflow: context deadline exceeded",
+		},
+	})
+	if err != nil {
+		t.Fatalf("causal_chain error: %v", err)
+	}
+	m, ok := result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map, got %T", result)
+	}
+
+	chains, _ := m["chains"].([]causalChainResult)
+	for _, c := range chains {
+		if c.RootSignal != "etcd_disk_pressure" {
+			continue
+		}
+		if len(c.RecommendedFixOrder) == 0 {
+			t.Fatal("fix order must not be empty")
+		}
+		firstStep := strings.ToLower(c.RecommendedFixOrder[0])
+		if strings.Contains(firstStep, "disarm") {
+			t.Errorf("first fix step must not be disarm — violates etcd.disarm_before_compact; got: %q", c.RecommendedFixOrder[0])
+		}
+	}
+}
+
+// TestCausalRule_ForbiddenFix_DisarmBeforeCompactExists verifies that the
+// etcd.disarm_before_compact forbidden fix is present in forbidden_fixes.yaml.
+// This guards against the fix being accidentally removed.
+func TestCausalRule_ForbiddenFix_DisarmBeforeCompactExists(t *testing.T) {
+	// Locate forbidden_fixes.yaml relative to the repo root.
+	// Tests run from golang/awareness/mcp/; repo root is three levels up.
+	candidates := []string{
+		"../../../docs/awareness/forbidden_fixes.yaml",
+		"../../../../docs/awareness/forbidden_fixes.yaml",
+	}
+	var data []byte
+	var found string
+	for _, p := range candidates {
+		b, err := os.ReadFile(p)
+		if err == nil {
+			data = b
+			found = p
+			break
+		}
+	}
+	if found == "" {
+		t.Skip("forbidden_fixes.yaml not found relative to test directory — skipping file-level check")
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "etcd.disarm_before_compact") {
+		t.Errorf("forbidden_fixes.yaml (%s) must contain etcd.disarm_before_compact; compact-before-disarm invariant is not guarded", found)
+	}
+	if !strings.Contains(content, "compact") || !strings.Contains(content, "defrag") {
+		t.Errorf("forbidden_fixes.yaml must describe compact+defrag requirement; got no mention in: %s", found)
 	}
 }
 

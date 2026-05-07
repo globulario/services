@@ -21,10 +21,14 @@ rules:
     confidence: medium
     explanation_template: "etcd disk pressure likely destabilized control-plane operations, leading to workflow dispatch failures."
     recommended_fix_order:
-      - clear etcd NOSPACE alarm (etcdctl alarm disarm)
-      - verify etcd quorum and leader stability
-      - verify controller leadership
-      - re-run workflow dispatch verification
+      - etcdctl alarm list — confirm NOSPACE is active
+      - compact revision history (etcdctl compact <rev>)
+      - defrag all members (etcdctl defrag --endpoints=<all>)
+      - verify disk usage dropped below quota
+      - etcdctl alarm disarm — only after disk is below quota
+      - verify etcd quorum and leader stability (etcdctl endpoint health)
+      - verify controller leadership (watch controller logs for 'acquired leader lease')
+      - verify workflow dispatch resumes
 
   - id: port_squatting_to_unknown_grpc_service
     root_signal: wrong_process_on_port
