@@ -369,6 +369,58 @@ func TestAwarenessDidWeFix_ReturnsFixLedgerResult(t *testing.T) {
 	}
 }
 
+// TestMCPAwarenessDebugSession_ReturnsValidJSON verifies that awareness.debug_session
+// returns a parseable JSON object with the required top-level fields.
+func TestMCPAwarenessDebugSession_ReturnsValidJSON(t *testing.T) {
+	docsDir := setupAwarenessTestDocsDir(t)
+	g := setupAwarenessTestGraph(t)
+	t.Cleanup(func() { g.Close() })
+
+	cfg := defaultConfig()
+	cfg.ToolGroups.Awareness = true
+	s := newServer(cfg)
+	st := &awarenessState{g: g, docsDir: docsDir, nodeID: "test-node"}
+	registerAwarenessDebugSessionTool(s, st)
+
+	result, err := s.callTool(context.Background(), "awareness.debug_session", map[string]interface{}{
+		"task":   "desired_hash mismatch causing convergence loop",
+		"format": "json",
+	})
+	if err != nil {
+		t.Fatalf("debug_session: %v", err)
+	}
+
+	b, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("result not serializable: %v", err)
+	}
+
+	var v map[string]interface{}
+	if err := json.Unmarshal(b, &v); err != nil {
+		t.Fatalf("debug_session returned invalid JSON: %v\nraw: %s", err, string(b))
+	}
+
+	required := []string{"task", "classification", "confidence", "investigation_plan"}
+	for _, key := range required {
+		if _, ok := v[key]; !ok {
+			t.Errorf("debug_session JSON missing field %q\nkeys: %v", key, keys(v))
+		}
+	}
+
+	if task, _ := v["task"].(string); task == "" {
+		t.Error("debug_session JSON 'task' field is empty")
+	}
+}
+
+// keys returns the sorted keys of a map for diagnostic messages.
+func keys(m map[string]interface{}) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
+
 func TestAwarenessApproveProposalDoesNotPromote(t *testing.T) {
 	s, st := newAwarenessTestServer(t)
 	writeAwarenessIncidentFixture(t, st.docsDir)
