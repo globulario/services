@@ -130,3 +130,351 @@ failure_modes:
         - awareness/enforce
       required_tests:
         - TestValidateAnnotationsSkipsTestFiles
+    - id: scylla.critical_keyspace_under_replicated
+      title: Critical Scylla keyspace replication factor below policy
+      severity: critical
+      symptoms:
+        - Scylla keyspace RF=1 on multi-node cluster
+        - doctor emits scylla.keyspace.rf_policy_violation
+        - repair_required=true in schema guard status
+        - keyspace data at risk if any storage node fails
+      root_cause: |
+        Cluster storage node count increased but RF was not raised to match policy. Or ALTER TABLE failed silently.
+      architecture_fix: |
+        schema guard must detect RF < required, emit finding, publish repair_required, and enqueue repair action. Never auto-lower RF.
+      forbidden_fixes:
+        - auto_lower_replication_factor
+        - ignore_rf_violation_in_multi_node
+      related_invariants:
+        - scylla.critical_keyspace_replication_policy
+      related_services:
+        - cluster-controller
+        - scylladb
+      required_tests:
+        - TestRFPolicyEnforcedOn5NodeCluster
+        - TestRFPolicyAllowsRF1OnSingleNode
+    - id: desired.bootstrap_premature_convergence
+      title: Bootstrap state treated as authoritative desired state
+      severity: critical
+      symptoms:
+        - first-boot cluster marks convergence before promotion runs
+        - bootstrap records appear in installed-state as final
+        - node-agent installs from unvalidated seed data
+      root_cause: |
+        Desired-state records lacked source/authoritative fields. Controller promotion reconciler not implemented. Consumers treated any written record as final.
+      architecture_fix: |
+        Add source=bootstrap/authoritative=false fields. Require controller promotion pass before records are considered final. Consumers reject bootstrap records as non-final.
+      forbidden_fixes:
+        - treat_bootstrap_state_as_authoritative
+        - claim_convergence_from_bootstrap_records
+      related_invariants:
+        - desired.bootstrap_state_requires_promotion
+      related_services:
+        - cluster-controller
+        - node-agent
+      required_tests:
+        - TestBootstrapRecordIgnoredAsFinalByConsumers
+        - TestFirstBootClaimsConvergenceOnlyAfterPromotion
+    - id: critical_state.absent_key_interpreted_as_stop
+      title: Missing etcd key causes runtime shutdown
+      severity: critical
+      symptoms:
+        - keepalived/envoy/minio stops without explicit disable intent
+        - runtime shut down after etcd key deleted or expired
+        - no explicit_disabled=true in any spec
+      root_cause: |
+        Consumer interpreted missing key as a stop command rather than holding LKG. Absence == destructive intent was the implicit policy.
+      architecture_fix: |
+        Consumer policy must be missing/timeout/invalid => HOLD_LAST_KNOWN_GOOD. Only explicit valid disable spec may stop runtime.
+      forbidden_fixes:
+        - stop_runtime_on_missing_key
+        - delete_runtime_on_timeout
+        - treat_invalid_spec_as_disable_intent
+      related_invariants:
+        - critical_state.absence_is_not_destructive_intent
+      related_services:
+        - node-agent
+        - cluster-controller
+      required_tests:
+        - TestMissingKeyDoesNotStopRuntime
+    - id: runtime.lkg_corrupt_or_missing
+      title: Last-known-good state corrupt or absent causing service interruption
+      severity: high
+      symptoms:
+        - service restarts with empty config after etcd outage
+        - LKG file checksum mismatch detected on load
+        - service loses routing config during control-plane blip
+      root_cause: |
+        LKG write was not atomic (no tmp+fsync+rename), or generation guard was absent, or LKG was overwritten with invalid state.
+      architecture_fix: |
+        LKG write must be atomic. Checksum and monotonic generation validation required. Corrupt LKG must be rejected and prior valid state retained, not deleted.
+      forbidden_fixes:
+        - overwrite_lkg_with_invalid_state
+        - ignore_lkg_when_authority_unavailable
+        - accept_corrupt_lkg
+      related_invariants:
+        - runtime.last_known_good_required_for_critical_consumers
+      related_services:
+        - node-agent
+        - envoy
+        - minio
+      required_tests:
+        - TestCorruptLKGRejectedPriorStateRetained
+        - TestAtomicLKGWriteSurvivesRestart
+    - id: critical_state.unregistered_key_governance
+      title: Critical etcd key has no registered owner or policy
+      severity: high
+      symptoms:
+        - doctor detects missing key but no restoration occurs
+        - unknown writer overwrites critical key without rejection
+        - delete policy missing for class-A key
+      root_cause: |
+        Critical key not in config.CriticalEtcdKeys or critical_state_registry. No owner, schema, restore strategy, or delete approval policy defined.
+      architecture_fix: |
+        All critical keys must be in the registry with complete governance fields. Doctor iterates registry to detect missing/invalid/stale keys automatically.
+      forbidden_fixes:
+        - write_critical_key_without_registered_owner
+        - delete_critical_key_without_policy
+        - accept_unknown_writer_for_critical_state
+      related_invariants:
+        - critical_state.registry_ownership_required
+      related_services:
+        - cluster-controller
+        - cluster-doctor
+      required_tests:
+        - TestRegistryKeyHasCompletePolicy
+    - id: critical_state.accidental_key_deletion
+      title: Critical desired-state key deleted without approval
+      severity: critical
+      symptoms:
+        - ingress spec missing from etcd without any explicit operator action
+        - VIP stops floating without keepalived being intentionally disabled
+        - critical key disappears and is not auto-restored
+      root_cause: |
+        No delete-approval marker required. Any etcd client with write permission could delete the key, and the controller did not restore it on next cycle.
+      architecture_fix: |
+        Controller must restore missing critical keys unless a valid delete-approval marker exists with matching generation and leader identity.
+      forbidden_fixes:
+        - delete_desired_state_without_approval_marker
+        - treat_missing_key_as_delete_intent
+        - accept_stale_delete_approval
+      related_invariants:
+        - critical_state.deletion_requires_audited_intent
+      related_services:
+        - cluster-controller
+      required_tests:
+        - TestDeleteWithoutApprovalRestoresKey
+        - TestDeleteWithValidApprovalAccepted
+    - id: reconcile.lane_starvation
+      title: Blocked reconcile phase starves completion and critical publishers
+      severity: high
+      symptoms:
+        - ingress spec not republished despite new desired state
+        - release lane blocked behind stuck projection rebuild
+        - controller log shows lane "previous run still active"
+      root_cause: |
+        Reconcile lanes share a single goroutine or lock. One blocked phase (projection scan, Scylla slow query) prevents all other lanes from running.
+      architecture_fix: |
+        Isolated lane executors with per-lane timeout and independent "previous run active" tracking. Emergency lane always runnable.
+      forbidden_fixes:
+        - start_new_global_work_while_completion_is_blocked
+        - allow_reconcile_tick_to_starve_terminal_commit
+      related_invariants:
+        - reconcile.global_work_must_not_starve_completion
+      related_services:
+        - cluster-controller
+      required_tests:
+        - TestProjectionHangDoesNotBlockReleaseLane
+    - id: critical_queries.unbounded_hang
+      title: Unbounded query blocks critical reconcile loop
+      severity: high
+      symptoms:
+        - controller reconcile tick takes >60s
+        - DNS reconciler hangs on backend query
+        - watchdog fires because controller stops heartbeating
+      root_cause: |
+        Critical control-path query ran without context deadline. Scylla/etcd/DNS backend slow or unresponsive; query blocks indefinitely.
+      architecture_fix: |
+        All critical control-path queries must use bounded context with 5-15s deadline. Timeout must map to DEGRADED result category, not hang.
+      forbidden_fixes:
+        - run_unbounded_query_in_reconcile_path
+        - ignore_context_timeout_in_critical_query
+        - block_controller_loop_on_external_query
+      related_invariants:
+        - critical_queries.must_be_bounded
+      related_services:
+        - cluster-controller
+        - dns
+      required_tests:
+        - TestQueryTimeoutMappedToDegradedCategory
+    - id: derived_state.projection_blocks_authority
+      title: Projection failure prevents authoritative state publication
+      severity: high
+      symptoms:
+        - ingress spec not republished when projection scan is stuck
+        - objectstore config stale despite controller having fresh state
+        - repair workflow not dispatched because derived lane is blocked
+      root_cause: |
+        Authority publication was gated on derived/projection lane success. Projection failure propagated to authority lane as a blocking error.
+      architecture_fix: |
+        Authority lanes publish first each cycle. Projection failure marks projection degraded only, not authority.
+      forbidden_fixes:
+        - require_derived_state_before_publishing_authority
+        - block_authority_on_cache_availability
+      related_invariants:
+        - derived_state.must_not_block_authority
+      related_services:
+        - cluster-controller
+      required_tests:
+        - TestProjectionScanHangAllowsIngressRepublish
+    - id: recovery.dns_required_for_dns_recovery
+      title: DNS recovery requires working DNS — circular dependency
+      severity: high
+      symptoms:
+        - operator cannot run DNS repair CLI because DNS is down
+        - controller cannot reach nodes because DNS lookup fails during recovery
+        - "cluster stuck: DNS broken, DNS repair needs DNS"
+      root_cause: |
+        CLI and controller used hostname resolution for all cluster operations. Direct IP fallback not implemented. DNS outage is self-referential.
+      architecture_fix: |
+        All resilience CLI commands must support --controller IP:port. Controller-to-node critical paths must prefer node IP from membership/state when DNS lookup fails.
+      forbidden_fixes:
+        - require_dns_for_dns_recovery
+        - require_service_discovery_when_discovery_is_unhealthy
+      related_invariants:
+        - recovery.must_not_depend_on_dns_only
+      related_services:
+        - dns
+        - cluster-controller
+      required_tests:
+        - TestIngressCLIWorksWithDNSDisabled
+    - id: destructive_actions.ambiguous_disable
+      title: Ambiguous or malformed disable spec stops runtime
+      severity: critical
+      symptoms:
+        - service stopped despite no operator intent
+        - disable spec missing reason or has stale generation
+        - IsExplicitDisable rejects spec but runtime stops anyway
+      root_cause: |
+        Destructive action guard not called on all code paths. Ambiguous disable (missing reason/generation/checksum) accepted as valid stop intent.
+      architecture_fix: |
+        Shared guard API (IsExplicitDisable) must be called before every destructive action. Rejected ambiguous disables must emit doctor finding. Rate-limited audit event for operator review.
+      forbidden_fixes:
+        - stop_runtime_from_ambiguous_disable
+        - wipe_state_without_approved_transition
+        - delete_runtime_data_from_ambiguous_state
+        - perform_destructive_action_from_inferred_intent
+      related_invariants:
+        - destructive_actions.require_explicit_guard
+      related_services:
+        - node-agent
+        - cluster-controller
+      required_tests:
+        - TestMalformedDisableDoesNotStopRuntime
+        - TestExplicitValidDisableStopsRuntimeAndAuditable
+    - id: topology.unsafe_drift_applied
+      title: Topology drift reconciler applies unsafe topology change
+      severity: critical
+      symptoms:
+        - storage node removed below quorum by drift reconciler
+        - MinIO erasure-coding pool loses redundancy without operator approval
+        - controller profile changed on node below founding quorum
+      root_cause: |
+        Drift reconciler applied topology change without calling topology safety preflight. Safety checks were only on the direct RPC path, not in the drift action planner.
+      architecture_fix: |
+        Topology preflight must be called in drift reconciler action planner for every topology/runtime change. Unsafe actions are blocked individually; other safe reconciles continue.
+      forbidden_fixes:
+        - infer_topology_from_local_disk
+        - reconcile_topology_without_contract
+        - apply_topology_drift_without_generation_check
+      related_invariants:
+        - topology.reconciler_must_respect_safety_contract
+      related_services:
+        - cluster-controller
+        - node-agent
+      required_tests:
+        - TestStaleMajorityTopologyRejectedWhileSafeActionsRun
+    - id: services.drift_never_escalates
+      title: Service drift warning stays at WARN indefinitely
+      severity: medium
+      symptoms:
+        - cluster.services.drift stuck at WARN for hours
+        - operator does not notice critical drift on ingress node
+        - drift becomes background noise
+      root_cause: |
+        Doctor rule had static SEVERITY_WARN for any desired/applied hash mismatch regardless of age. No driftSince tracking, no escalation.
+      architecture_fix: |
+        Track drift start timestamp per node in Collector. Escalate: <2min=WARN, >5min=ERROR, >5min on critical service=CRITICAL.
+      forbidden_fixes:
+        - keep_drift_warning_forever_without_escalation
+      related_invariants:
+        - services.drift_must_age_and_escalate
+      related_services:
+        - cluster-doctor
+      required_tests:
+        - TestDriftUnder2MinIsWarn
+        - TestDriftOver5MinIsError
+    - id: pki.ca_not_published
+      title: PKI CA metadata not published to etcd
+      severity: high
+      symptoms:
+        - pki.ca_not_published warning fires from doctor
+        - /globular/pki/ca absent from etcd
+        - no governance policy — key has no owner, no delete policy
+      root_cause: |
+        /globular/pki/ca not in config.CriticalEtcdKeys or critical_state_registry. Controller publishes it but no policy enforces restoration if deleted.
+      architecture_fix: |
+        Add /globular/pki/ca to CriticalEtcdKeys and critical_state_registry with owner=cluster-controller, RestoreFromState, DeleteNeverAutomatic.
+      forbidden_fixes:
+        - omit_pki_ca_from_critical_registry
+      related_invariants:
+        - pki.ca_metadata_must_be_published
+      related_services:
+        - cluster-controller
+        - cluster-doctor
+      required_tests:
+        - TestPKICANotPublishedFiresWhenCAMetadataNilAndNodesExist
+    - id: runtime.command_package_false_positive
+      title: Doctor flags COMMAND packages as missing systemd units
+      severity: medium
+      symptoms:
+        - installed_state_runtime_mismatch fires for yt-dlp, rclone, sha256sum, globular-cli
+        - doctor reports false-positive ERROR for packages with no daemon
+        - operator investigates non-existent systemd unit failure
+      root_cause: |
+        commandPackage() in the rule is a hardcoded list. New command packages added to catalog not in the list are incorrectly flagged.
+      architecture_fix: |
+        Query package kind from catalog (getCatalogEntry). COMMAND packages have no runtime unit expectation. Hardcoded list is tech debt until catalog integration complete.
+      forbidden_fixes:
+        - hardcode_command_package_runtime_expectations_forever
+        - require_systemd_unit_for_command_package
+        - ignore_package_kind_in_runtime_proof
+      related_invariants:
+        - runtime.installed_state_must_match_package_kind
+      related_services:
+        - cluster-doctor
+      required_tests:
+        - TestCommandPackageWithNoUnitProducesNoFinding
+    - id: objectstore.no_desired_state_governance
+      title: Objectstore desired state key has no registry governance
+      severity: critical
+      symptoms:
+        - objectstore.no_desired_state fires but controller does not restore
+        - node-agent infers MinIO topology from local disk when key absent
+        - /globular/objectstore/config absent — MinIO starts from stale local config
+      root_cause: |
+        /globular/objectstore/config not in config.CriticalEtcdKeys or critical_state_registry. No restoration policy, no delete approval required.
+      architecture_fix: |
+        Add /globular/objectstore/config to registry with owner=cluster-controller, RestoreFromState, DeleteNeverAutomatic. Node-agent must hold LKG and not infer topology.
+      forbidden_fixes:
+        - start_minio_without_objectstore_desired_state
+        - infer_objectstore_topology_from_local_state
+        - omit_objectstore_config_from_critical_registry
+      related_invariants:
+        - objectstore.desired_state_must_be_registry_governed
+      related_services:
+        - cluster-controller
+        - node-agent
+        - minio
+      required_tests:
+        - TestObjectstoreNoDesiredStateFiresWhenNilAndStorageNodes

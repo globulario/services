@@ -175,3 +175,316 @@ invariants:
         - treat_raw_string_fixture_annotations_as_source_annotations
       required_tests:
         - TestValidateAnnotationsSkipsTestFiles
+    - id: scylla.critical_keyspace_replication_policy
+      title: Critical Scylla keyspace replication policy
+      severity: critical
+      status: active
+      summary: |
+        In multi-node clusters, critical Scylla keyspaces must never remain below required RF. RF is determined by storage node count: 1 node=RF1, 2 nodes=RF2, 3+nodes=RF3. RF is never auto-lowered.
+      protects:
+        state:
+            - /globular/scylla/schema_guard/{keyspace}
+        files:
+            - golang/cluster_controller/cluster_controller_server/schema_guard.go
+      forbidden_fixes:
+        - auto_lower_replication_factor
+        - ignore_rf_violation_in_multi_node
+      required_tests:
+        - TestRFPolicyEnforcedOn5NodeCluster
+        - TestRFPolicyAllowsRF1OnSingleNode
+        - TestRFAlterFailurePublishesDegradedStatus
+      related_failure_modes:
+        - scylla.critical_keyspace_under_replicated
+    - id: desired.bootstrap_state_requires_promotion
+      title: Bootstrap desired state requires explicit promotion
+      severity: critical
+      status: active
+      summary: |
+        Temporary/bootstrap values must never be promoted as authoritative desired state without ownership and validation. Bootstrap records must carry source=bootstrap, authoritative=false. Only the controller promotion pass may convert bootstrap→authoritative.
+      protects:
+        state:
+            - /globular/resources/DesiredService/{name}
+            - /globular/ingress/v1/spec
+            - /globular/objectstore/config
+      forbidden_fixes:
+        - treat_bootstrap_state_as_authoritative
+        - claim_convergence_from_bootstrap_records
+      required_tests:
+        - TestBootstrapRecordIgnoredAsFinalByConsumers
+        - TestFirstBootClaimsConvergenceOnlyAfterPromotion
+      related_failure_modes:
+        - desired.bootstrap_premature_convergence
+    - id: critical_state.absence_is_not_destructive_intent
+      title: Missing control-plane key is not a stop or delete command
+      severity: critical
+      status: active
+      summary: |
+        Missing, timed-out, or invalid control-plane state must not imply disable, stop, or delete. Missing key => HOLD_LAST_KNOWN_GOOD. Only an explicit valid disable intent may stop a runtime. Applied to ingress; must be phased in for objectstore, envoy, dns.
+      protects:
+        state:
+            - /globular/ingress/v1/spec
+            - /globular/objectstore/config
+            - /globular/services/{service_id}/config
+      forbidden_fixes:
+        - stop_runtime_on_missing_key
+        - delete_runtime_on_timeout
+        - treat_invalid_spec_as_disable_intent
+      required_tests:
+        - TestMissingKeyDoesNotStopRuntime
+        - TestDeleteKeyWhileRunningKeepsRuntimeActive
+      related_failure_modes:
+        - critical_state.absent_key_interpreted_as_stop
+    - id: runtime.last_known_good_required_for_critical_consumers
+      title: Critical consumers must hold last-known-good state
+      severity: critical
+      status: active
+      summary: |
+        Critical consumers must preserve service continuity using validated LKG state when authority is temporarily unavailable. LKG must be atomic (tmp+fsync+rename), checksum-validated, and monotonic-generation-guarded. Ingress done; Envoy/MinIO/DNS consumers not yet migrated.
+      protects:
+        state:
+            - /globular/ingress/v1/spec
+            - /globular/objectstore/config
+        files:
+            - golang/node_agent/node_agent_server/lkg/
+      forbidden_fixes:
+        - overwrite_lkg_with_invalid_state
+        - ignore_lkg_when_authority_unavailable
+        - accept_corrupt_lkg
+      required_tests:
+        - TestCorruptLKGRejectedPriorStateRetained
+        - TestAtomicLKGWriteSurvivesRestart
+        - TestEtcdOutageServesFromLKG
+      related_failure_modes:
+        - runtime.lkg_corrupt_or_missing
+    - id: critical_state.registry_ownership_required
+      title: Every critical key must have one authoritative owner
+      severity: critical
+      status: active
+      summary: |
+        Every critical etcd key must have one authoritative owner, schema version, delete policy, and healing policy. The critical state registry is the single source of truth for key governance. Doctor iterates the registry to detect missing/invalid/stale keys.
+      protects:
+        state:
+            - /globular/ingress/v1/spec
+            - /globular/objectstore/config
+            - /globular/pki/ca
+        files:
+            - golang/cluster_controller/cluster_controller_server/critical_state_registry.go
+            - golang/config/critical_keys.go
+      forbidden_fixes:
+        - write_critical_key_without_registered_owner
+        - delete_critical_key_without_policy
+        - accept_unknown_writer_for_critical_state
+      required_tests:
+        - TestRegistryKeyHasCompletePolicy
+        - TestUnknownWriterRejected
+        - TestDeleteCriticalKeyTriggerOwnerRestore
+      related_failure_modes:
+        - critical_state.unregistered_key_governance
+    - id: critical_state.deletion_requires_audited_intent
+      title: Desired-state deletion requires explicit audited intent
+      severity: critical
+      status: active
+      summary: |
+        Destructive desired-state deletion requires explicit audited intent via delete-approval markers (/globular/<domain>/delete_approval/<generation>). Controller restores missing key on next cycle unless a valid approval with matching generation and leader identity exists.
+      protects:
+        state:
+            - /globular/ingress/v1/spec
+            - /globular/objectstore/config
+      forbidden_fixes:
+        - delete_desired_state_without_approval_marker
+        - treat_missing_key_as_delete_intent
+        - accept_stale_delete_approval
+      required_tests:
+        - TestDeleteWithoutApprovalRestoresKey
+        - TestDeleteWithValidApprovalAccepted
+        - TestStaleApprovalGenerationRejected
+      related_failure_modes:
+        - critical_state.accidental_key_deletion
+    - id: reconcile.global_work_must_not_starve_completion
+      title: Reconcile lanes must not starve completion
+      severity: high
+      status: active
+      summary: |
+        One blocked reconcile phase must not freeze critical publishers, release planning, or repair dispatch. Each lane has isolated executor, per-lane timeout, and independent "previous run active" tracking. Emergency lane (ingress/objectstore/spec republish) always runnable.
+      protects:
+        files:
+            - golang/cluster_controller/cluster_controller_server/reconciler.go
+      forbidden_fixes:
+        - start_new_global_work_while_completion_is_blocked
+        - allow_reconcile_tick_to_starve_terminal_commit
+      required_tests:
+        - TestProjectionHangDoesNotBlockReleaseLane
+        - TestScyllaDegradedAllowsIngressRepublish
+        - TestTimeoutReleasesLaneLock
+      related_failure_modes:
+        - reconcile.lane_starvation
+    - id: critical_queries.must_be_bounded
+      title: Critical control-plane queries must be bounded
+      severity: high
+      status: active
+      summary: |
+        Queries in critical control paths must be bounded by timeout/context (5-15s policy by operation class) and must not block reconciliation forever. DNS reconciler and some secondary paths still need timeout audit.
+      protects:
+        files:
+            - golang/cluster_controller/cluster_controller_server/reconciler.go
+            - golang/dns/dns_server/dns_server.go
+      forbidden_fixes:
+        - run_unbounded_query_in_reconcile_path
+        - ignore_context_timeout_in_critical_query
+        - block_controller_loop_on_external_query
+      required_tests:
+        - TestQueryTimeoutMappedToDegradedCategory
+        - TestSlowBackendTriggersTimeoutAndLaneRecovery
+      related_failure_modes:
+        - critical_queries.unbounded_hang
+    - id: derived_state.must_not_block_authority
+      title: Derived state failure must not block authority publication
+      severity: high
+      status: active
+      summary: |
+        Failure in derived/projection pipelines cannot block authoritative desired-state publication. Projections are consumers of authority, never a gate. If projections fail, mark degraded and continue authority writes and repair workflows.
+      protects:
+        files:
+            - golang/cluster_controller/cluster_controller_server/reconciler.go
+      forbidden_fixes:
+        - require_derived_state_before_publishing_authority
+        - block_authority_on_cache_availability
+      required_tests:
+        - TestProjectionScanHangAllowsIngressRepublish
+        - TestDerivedLaneErrorDoesNotFlipAuthorityToBlocked
+      related_failure_modes:
+        - derived_state.projection_blocks_authority
+    - id: recovery.must_not_depend_on_dns_only
+      title: Recovery paths must not require DNS
+      severity: high
+      status: active
+      summary: |
+        Operators and controllers must recover cluster-critical state using direct control-plane endpoints when DNS is degraded. All resilience CLI commands must support direct controller IP/port. Controller-to-node critical operations must use node IPs from membership/state when DNS lookup fails.
+      protects:
+        files:
+            - golang/globularcli/resilience_cmds.go
+      forbidden_fixes:
+        - require_dns_for_dns_recovery
+        - require_service_discovery_when_discovery_is_unhealthy
+      required_tests:
+        - TestIngressCLIWorksWithDNSDisabled
+        - TestControllerToNodeSkipsDNSOnLookupFailure
+      related_failure_modes:
+        - recovery.dns_required_for_dns_recovery
+    - id: destructive_actions.require_explicit_guard
+      title: Destructive actions require explicit validated guard
+      severity: critical
+      status: active
+      summary: |
+        Service stop/delete/destructive-reconfigure actions require explicit validated intent including explicit_disabled=true, non-empty reason, and matching generation. Ambiguous disables (missing reason, stale generation, bad checksum) must be rejected and emit a doctor finding.
+      protects:
+        files:
+            - golang/node_agent/node_agent_server/explicit_disable.go
+            - golang/cluster_controller/cluster_controller_server/ingress_reconciler.go
+      forbidden_fixes:
+        - stop_runtime_from_ambiguous_disable
+        - wipe_state_without_approved_transition
+        - delete_runtime_data_from_ambiguous_state
+        - perform_destructive_action_from_inferred_intent
+      required_tests:
+        - TestMalformedDisableDoesNotStopRuntime
+        - TestExplicitValidDisableStopsRuntimeAndAuditable
+      related_failure_modes:
+        - destructive_actions.ambiguous_disable
+    - id: topology.reconciler_must_respect_safety_contract
+      title: Topology drift reconciler must check safety contracts
+      severity: critical
+      status: active
+      summary: |
+        Drift reconciliation must obey topology safety contracts before applying any topology/runtime change. Storage quorum viability, ingress participant validity, objectstore topology consistency, and controller profile/role placement must be checked. Unsafe actions are blocked individually while safe reconciles continue.
+      protects:
+        files:
+            - golang/cluster_controller/cluster_controller_server/drift_reconciler.go
+      forbidden_fixes:
+        - infer_topology_from_local_disk
+        - reconcile_topology_without_contract
+        - apply_topology_drift_without_generation_check
+      required_tests:
+        - TestStaleMajorityTopologyRejectedWhileSafeActionsRun
+        - TestPerActionSafetyGateDeterministic
+      related_failure_modes:
+        - topology.unsafe_drift_applied
+    - id: services.drift_must_age_and_escalate
+      title: Service drift must age and escalate
+      severity: high
+      status: active
+      summary: |
+        Service desired/applied drift must age and escalate instead of remaining background noise. <2min=WARN, >5min=ERROR, >5min on critical service (ingress/dns/objectstore/controller/node-agent)=CRITICAL. Drift severity reflects urgency.
+      protects:
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/collector/collector.go
+            - golang/cluster_doctor/cluster_doctor_server/rules/cluster_services_drift.go
+      forbidden_fixes:
+        - keep_drift_warning_forever_without_escalation
+      required_tests:
+        - TestDriftUnder2MinIsWarn
+        - TestDriftOver5MinIsError
+        - TestDriftOver5MinOnCriticalServiceIsCritical
+      related_failure_modes:
+        - services.drift_never_escalates
+    - id: pki.ca_metadata_must_be_published
+      title: PKI CA metadata must be published and registry-governed
+      severity: high
+      status: active
+      summary: |
+        PKI CA metadata must be governed by the critical-state registry and published under /globular/pki/ca while the cluster has a valid CA. /globular/pki/ca must appear in config.CriticalEtcdKeys and critical_state_registry with owner=cluster-controller, RestoreFromState, DeleteNeverAutomatic.
+      protects:
+        state:
+            - /globular/pki/ca
+        files:
+            - golang/config/critical_keys.go
+            - golang/cluster_controller/cluster_controller_server/critical_state_registry.go
+      forbidden_fixes:
+        - omit_pki_ca_from_critical_registry
+      required_tests:
+        - TestPKICANotPublishedFiresWhenCAMetadataNilAndNodesExist
+        - TestPKICANotPublishedClearsWhenCAPresent
+        - TestPKIRegistryEntryComplete
+      related_failure_modes:
+        - pki.ca_not_published
+    - id: runtime.installed_state_must_match_package_kind
+      title: Doctor runtime proof must match package kind
+      severity: high
+      status: active
+      summary: |
+        Installed state is not converged unless runtime proof matches package metadata. COMMAND packages must not be expected to have systemd units. Package kind is the single source of truth for runtime expectation — not a hardcoded list.
+      protects:
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/rules/installed_state_runtime_mismatch.go
+      forbidden_fixes:
+        - hardcode_command_package_runtime_expectations_forever
+        - require_systemd_unit_for_command_package
+        - ignore_package_kind_in_runtime_proof
+      required_tests:
+        - TestCommandPackageWithNoUnitProducesNoFinding
+        - TestServicePackageWithNoUnitProducesFinding
+        - TestServicePackageWithActiveUnitProducesNoFinding
+      related_failure_modes:
+        - runtime.command_package_false_positive
+    - id: objectstore.desired_state_must_be_registry_governed
+      title: Objectstore desired state must be registry-governed
+      severity: critical
+      status: active
+      summary: |
+        Objectstore topology must have controller-owned desired state before any node starts or reconfigures MinIO. /globular/objectstore/config must be in config.CriticalEtcdKeys and critical_state_registry. Node-agent must hold LKG and not infer topology when key absent.
+      protects:
+        state:
+            - /globular/objectstore/config
+        files:
+            - golang/config/critical_keys.go
+            - golang/cluster_controller/cluster_controller_server/critical_state_registry.go
+      forbidden_fixes:
+        - start_minio_without_objectstore_desired_state
+        - infer_objectstore_topology_from_local_state
+        - omit_objectstore_config_from_critical_registry
+      required_tests:
+        - TestObjectstoreNoDesiredStateFiresWhenNilAndStorageNodes
+        - TestObjectstoreNoDesiredStateDoesNotFireWithNoStorageNodes
+        - TestObjectstoreRegistryEntryComplete
+      related_failure_modes:
+        - objectstore.no_desired_state_governance

@@ -1,0 +1,165 @@
+patterns:
+  - id: pattern.persistence_gap
+    title: Persistence Gap
+    definition: State changes in memory but does not become durable. The persistent store is never updated.
+    detect: Look for field/map/struct updates with no etcd write, no persistStateLocked(), no saveState() after. Persistence error ignored. Background goroutines launched before durable write succeeds.
+    code_smells:
+      - "x = newValue with no persistence call"
+      - "persistence error ignored"
+      - "goroutine launched before persist success"
+    failure_modes:
+      - restart loses truth
+      - leader failover sees different truth
+      - memory and etcd diverge
+    safe_fix_rule: Every state mutation that matters to control flow must cross a persistence barrier or fail. Update state, persist, check error, then trigger side effects.
+    related_invariants:
+      - install.result.atomic_commit
+      - critical_state.registry_ownership_required
+
+  - id: pattern.error_swallowing
+    title: Error Swallowing
+    definition: An error happens, but the code reports success or suppresses recovery.
+    detect: Look for return nil in failure branch, ignored err, log-only failure in control path, if err != nil { log... } but continue as healthy.
+    code_smells:
+      - "return nil in error branch"
+      - "ignored err"
+      - "log-only failure in control path"
+    failure_modes:
+      - rediscovery never triggers
+      - retries never happen
+      - health appears good while logic is broken
+    safe_fix_rule: Errors that affect control decisions must propagate into the loop that can react.
+    related_invariants:
+      - convergence.no_infinite_retry
+      - critical_queries.must_be_bounded
+
+  - id: pattern.stale_authority
+    title: Stale Authority
+    definition: A component keeps using an old leader, endpoint, owner, or routing decision.
+    detect: Look for cached endpoint, cached client, leader address stored once, refresh only when empty not when unhealthy.
+    code_smells:
+      - "cached endpoint refreshed only when nil"
+      - "leader address stored once"
+      - "multiple independent dial paths"
+    failure_modes:
+      - heartbeats sent to dead leader
+      - client talks to old controller
+      - node stays connected to obsolete authority
+    safe_fix_rule: Authority must be refreshed when unhealthy, not only when missing.
+    related_invariants:
+      - desired.bootstrap_state_requires_promotion
+      - topology.reconciler_must_respect_safety_contract
+
+  - id: pattern.partial_truth
+    title: Partial Truth
+    definition: A richer identity or state exists, but control logic uses only part of it.
+    detect: Look for version-only comparisons where true identity should include name, version, build number, platform, checksum.
+    code_smells:
+      - "installed == version"
+      - "map[string]string for desired versions"
+      - "version-only equality"
+    failure_modes:
+      - wrong build treated as healthy
+      - wrong rollback target chosen
+      - same-version hotfix not deployed
+    safe_fix_rule: All control paths must use canonical identity (name+version+build_number+checksum), never partial identity.
+    related_invariants:
+      - desired.build_id_immutable
+
+  - id: pattern.unverified_runtime_truth
+    title: Unverified Runtime Truth
+    definition: Runtime observation is treated as desired authority without validation.
+    detect: Look for runtime state promoting itself to desired state, heartbeat creating release records, discovered runtime overwriting desired.
+    code_smells:
+      - "heartbeat creates InfrastructureRelease"
+      - "runtime state written as DesiredService"
+      - "discovered state overwrites desired state"
+    failure_modes:
+      - runtime observation permanently overrides desired state
+      - rollback impossible because desired == runtime
+      - drift is hidden
+    safe_fix_rule: Desired state flows top-down: controller decides, node-agent executes. Runtime observation must never write to desired-state keys.
+    related_invariants:
+      - desired.bootstrap_state_requires_promotion
+
+  - id: pattern.unbounded_critical_query
+    title: Unbounded Critical Query
+    definition: A query in a critical control path runs without a context deadline and can block indefinitely.
+    detect: Look for Scylla/etcd/DNS queries in reconcile paths without context.WithTimeout or context.WithDeadline.
+    code_smells:
+      - "query without context deadline"
+      - "ctx.Background() in reconcile path"
+      - "no withBounded() wrapper"
+    failure_modes:
+      - reconcile loop hangs forever
+      - controller watchdog fires
+      - cluster stops converging
+    safe_fix_rule: All critical-path queries must be bounded at 5-15s. Timeout must map to DEGRADED result, not hang.
+    related_invariants:
+      - critical_queries.must_be_bounded
+
+  - id: pattern.destructive_absence
+    title: Destructive Absence
+    definition: Missing, timed-out, or invalid control-plane state is interpreted as a stop or delete command.
+    detect: Look for code that stops/deletes/disables a runtime service when a key is absent, instead of holding LKG.
+    code_smells:
+      - "if spec == nil { stop service }"
+      - "if err != nil { disable runtime }"
+      - "missing key => delete runtime state"
+    failure_modes:
+      - runtime stops without explicit operator intent
+      - temporary etcd outage kills live services
+      - LKG ignored in favor of empty config
+    safe_fix_rule: Missing/timeout/invalid state => HOLD_LAST_KNOWN_GOOD. Only an explicit valid disable spec with reason+generation may stop a runtime.
+    related_invariants:
+      - critical_state.absence_is_not_destructive_intent
+      - runtime.last_known_good_required_for_critical_consumers
+
+  - id: pattern.missing_intent_marker
+    title: Missing Intent Marker
+    definition: A destructive action is performed without an explicit audited intent marker (approval token, generation, reason).
+    detect: Look for stop/wipe/delete operations that check only for presence of a flag rather than requiring an explicit signed approval record.
+    code_smells:
+      - "if disabled { stop }"
+      - "wipe without generation check"
+      - "delete without approval marker lookup"
+    failure_modes:
+      - services stopped by accident on key deletion
+      - destructive operations non-auditable
+      - operator has no record of who authorized action
+    safe_fix_rule: Every destructive action requires explicit_disabled=true + non-empty reason + matching generation. Controller verifies approval marker before acting.
+    related_invariants:
+      - critical_state.deletion_requires_audited_intent
+      - destructive_actions.require_explicit_guard
+
+  - id: pattern.version_only_identity
+    title: Version-Only Identity
+    definition: Control logic uses only the version string to identify an artifact or release, ignoring build_id, checksum, and platform.
+    detect: Look for version string comparison where build_id+checksum are available but ignored.
+    code_smells:
+      - "if installed.Version == desired.Version { skip }"
+      - "version string as map key"
+      - "rollback keyed only by version"
+    failure_modes:
+      - same-version hotfix skipped
+      - wrong build installed silently
+      - audit trail broken
+    safe_fix_rule: Use canonical identity struct (name+version+build_id+checksum). Never compare by version string alone in control paths.
+    related_invariants:
+      - desired.build_id_immutable
+
+  - id: pattern.runtime_observation_as_desired_authority
+    title: Runtime Observation As Desired Authority
+    definition: A component observes the running state and writes it back as the authoritative desired state, bypassing the controller's decision authority.
+    detect: Look for node-agent or heartbeat writing to /globular/resources/DesiredService/ or creating InfrastructureRelease records from local observations.
+    code_smells:
+      - "heartbeat writes to DesiredService"
+      - "ManagedInstalled creates InfrastructureRelease"
+      - "node-agent promotes runtime to desired"
+    failure_modes:
+      - runtime truth permanently overrides desired
+      - controller can no longer distinguish desired from installed
+      - drift detection breaks
+    safe_fix_rule: Only the controller may write to desired-state keys. Node-agent writes to installed-state only. Runtime observation never becomes desired authority.
+    related_invariants:
+      - desired.bootstrap_state_requires_promotion
