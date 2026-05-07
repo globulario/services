@@ -193,21 +193,19 @@ fix_cases:
 
   - id: bounded_critical_queries
     title: All critical control-plane queries must have context deadline
-    status: PARTIAL
+    status: DONE
     pattern: "unbounded query"
     category: resilience
     target_invariants:
       - critical_queries.must_be_bounded
     fixed_files:
       - golang/cluster_controller/cluster_controller_server/reconciler.go
-    remaining_files:
-      - golang/dns/dns_server/reconciler.go
-      - golang/dns/dns_server/watcher.go
+      - golang/cluster_controller/cluster_controller_server/dns_reconciler.go
     required_tests:
       - TestQueryTimeoutMappedToDegradedCategory
       - TestSlowBackendTriggersTimeoutAndLaneRecovery
     dod: No critical reconcile path can hang indefinitely.
-    notes: "PARTIAL 2026-05-04. withBounded() applied to 13 hot paths; DNS reconciler not yet audited."
+    notes: "DONE 2026-05-07. withBounded() applied to 13 hot paths + DNS reconciler. fetchServiceInstances bounded via goroutine+select. Timeout errors map immediately to DEGRADED (not after 3 errors). Both required tests pass."
 
   - id: derived_state_blocks_authority
     title: Derived state failure must not block authority publication

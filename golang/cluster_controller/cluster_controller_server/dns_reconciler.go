@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -154,10 +155,19 @@ func (r *DNSReconciler) reconcileLoop() {
 
 	log.Printf("dns reconciler: starting loop (interval=%v)", dnsReconcileInterval)
 
+	recordReconcileError := func(err error) {
+		h.TickError(err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			// Timeout is immediately DEGRADED — don't wait for 3 consecutive errors.
+			h.SetState(globular_service.SubsystemDegraded)
+			h.SetMeta("last_timeout_phase", "apply-dns-state")
+		}
+	}
+
 	// Initial reconciliation
 	if err := r.reconcile(); err != nil {
 		log.Printf("dns reconciler: initial reconciliation failed: %v", err)
-		h.TickError(err)
+		recordReconcileError(err)
 	} else {
 		h.Tick()
 	}
@@ -167,7 +177,7 @@ func (r *DNSReconciler) reconcileLoop() {
 		case <-ticker.C:
 			if err := r.reconcile(); err != nil {
 				log.Printf("dns reconciler: reconciliation error: %v (will retry in %v)", err, dnsReconcileInterval)
-				h.TickError(err)
+				recordReconcileError(err)
 			} else {
 				h.Tick()
 			}
@@ -319,8 +329,12 @@ func (r *DNSReconciler) reconcile() error {
 		}
 	}
 
+	// Bound the entire apply phase — fetchServiceInstances + DNS apply must complete within dnsReconcileTimeout.
+	ctx, cancel := withBounded(dnsReconcileTimeout)
+	defer cancel()
+
 	// Fetch service instances from etcd (PR4.1)
-	serviceInstances := r.fetchServiceInstances(spec.ClusterDomain, nodeByFQDN)
+	serviceInstances := r.fetchServiceInstances(ctx, spec.ClusterDomain, nodeByFQDN)
 	if len(serviceInstances) > 0 {
 		log.Printf("dns reconciler: discovered %d service instances for SRV records", len(serviceInstances))
 	}
@@ -344,8 +358,6 @@ func (r *DNSReconciler) reconcile() error {
 	}
 
 	// Apply desired state to DNS service for each domain
-	ctx, cancel := withBounded(dnsReconcileTimeout)
-	defer cancel()
 
 	// Gather pool memberships from controller state so DNS exposes <role>.<domain>
 	// multi-A records. Services discover pool endpoints via DNS only — no env vars,
@@ -627,11 +639,30 @@ func (r *DNSReconciler) applyToDNSInstance(ctx context.Context, endpoint string,
 }
 
 
-// fetchServiceInstances retrieves service instances from etcd for SRV records (PR4.1)
-func (r *DNSReconciler) fetchServiceInstances(clusterDomain string, nodeByFQDN map[string]string) []ServiceInstance {
-	services, err := config.GetServicesConfigurations()
-	if err != nil {
-		log.Printf("dns reconciler: WARN - failed to fetch services for SRV: %v", err)
+// fetchServiceInstances retrieves service instances from etcd for SRV records (PR4.1).
+// ctx bounds the operation: if it expires before GetServicesConfigurations returns, the
+// function returns nil immediately so the reconcile cycle is not hung by a slow etcd.
+func (r *DNSReconciler) fetchServiceInstances(ctx context.Context, clusterDomain string, nodeByFQDN map[string]string) []ServiceInstance {
+	type svcResult struct {
+		services []map[string]interface{}
+		err      error
+	}
+	ch := make(chan svcResult, 1)
+	go func() {
+		svcs, err := config.GetServicesConfigurations()
+		ch <- svcResult{svcs, err}
+	}()
+
+	var services []map[string]interface{}
+	select {
+	case res := <-ch:
+		if res.err != nil {
+			log.Printf("dns reconciler: WARN - failed to fetch services for SRV: %v", res.err)
+			return nil
+		}
+		services = res.services
+	case <-ctx.Done():
+		log.Printf("dns reconciler: fetchServiceInstances cancelled (%v), skipping SRV records", ctx.Err())
 		return nil
 	}
 
