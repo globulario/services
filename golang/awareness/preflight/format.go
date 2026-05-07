@@ -48,6 +48,8 @@ func renderJSON(r *Report) (string, error) {
 		FailureModes             []string                 `json:"failure_modes"`
 		ForbiddenFixes           []string                 `json:"forbidden_fixes"`
 		CodeSmells               []string                 `json:"code_smells,omitempty"`
+		DesignPatterns           []string                 `json:"design_patterns,omitempty"`
+		AntiPatterns             []string                 `json:"anti_patterns,omitempty"`
 		HashSchemas              []string                 `json:"hash_schemas,omitempty"`
 		StateTransitions         []string                 `json:"state_transitions,omitempty"`
 		DidWeFix                 *DidWeFixSection         `json:"did_we_fix"`
@@ -72,6 +74,8 @@ func renderJSON(r *Report) (string, error) {
 		FailureModes:             orEmpty(r.FailureModes),
 		ForbiddenFixes:           orEmpty(r.ForbiddenFixes),
 		CodeSmells:               r.CodeSmells,
+		DesignPatterns:           r.DesignPatterns,
+		AntiPatterns:             r.AntiPatterns,
 		HashSchemas:              r.HashSchemas,
 		StateTransitions:         r.StateTransitions,
 		DidWeFix:                 r.DidWeFix,
@@ -165,6 +169,14 @@ func renderMarkdown(r *Report) string {
 
 	// Forbidden fixes.
 	writeListSection(&sb, "## Forbidden fixes\n\n", r.ForbiddenFixes, "No forbidden fixes identified.")
+
+	// Design pattern layer.
+	if len(r.DesignPatterns) > 0 {
+		writeListSection(&sb, "## Relevant design patterns\n\n", r.DesignPatterns, "")
+	}
+	if len(r.AntiPatterns) > 0 {
+		writeListSection(&sb, "## Anti-patterns to avoid\n\n", r.AntiPatterns, "")
+	}
 
 	// Code smells from patterns.
 	if len(r.CodeSmells) > 0 {
@@ -277,6 +289,22 @@ func renderAgent(r *Report) string {
 		sb.WriteString("Forbidden fixes:\n")
 		for _, ff := range r.ForbiddenFixes {
 			sb.WriteString("- " + ff + "\n")
+		}
+		sb.WriteString("\n")
+	}
+
+	// Design pattern layer.
+	if len(r.DesignPatterns) > 0 {
+		sb.WriteString("Relevant design patterns:\n")
+		for _, p := range r.DesignPatterns {
+			sb.WriteString("- " + p + "\n")
+		}
+		sb.WriteString("\n")
+	}
+	if len(r.AntiPatterns) > 0 {
+		sb.WriteString("Anti-patterns to avoid:\n")
+		for _, p := range r.AntiPatterns {
+			sb.WriteString("- " + p + "\n")
 		}
 		sb.WriteString("\n")
 	}

@@ -24,6 +24,7 @@ func LoadAll(ctx context.Context, g *graph.Graph, docsDir string) error {
 		{"forbidden_fixes.yaml", LoadForbiddenFixes},
 		{"services.yaml", LoadServices},
 		{"patterns.yaml", LoadPatterns},
+		{"design_patterns.yaml", LoadDesignPatterns},
 	}
 
 	for _, l := range loaders {

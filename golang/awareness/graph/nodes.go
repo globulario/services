@@ -62,6 +62,11 @@ const (
 	// Pattern node type (Task 15).
 	NodeTypePattern = "pattern"
 
+	// Design pattern layer node types.
+	NodeTypeDesignPattern = "design_pattern"
+	NodeTypeAntiPattern   = "anti_pattern"
+	NodeTypeCodeSmell     = "code_smell"
+
 	// Design / documentation node types (Task 12).
 	NodeTypeArchitectureDecision = "architecture_decision"
 	NodeTypeDesignRule           = "design_rule"

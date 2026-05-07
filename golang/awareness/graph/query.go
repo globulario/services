@@ -628,6 +628,215 @@ func (g *Graph) CodeSmellsForInvariants(ctx context.Context, invariantNodeIDs []
 	return out, nil
 }
 
+// DesignContext is the set of design patterns, anti-patterns, and code smells
+// linked to a given set of invariant node IDs.
+type DesignContext struct {
+	DesignPatterns []string
+	AntiPatterns   []string
+	CodeSmells     []string
+}
+
+// DesignContextForInvariants returns design patterns and anti-patterns that are
+// linked to the given invariant node IDs via EdgeRequires (design_pattern) or
+// EdgeViolates (anti_pattern). It also returns code_smell nodes attached to
+// anti-patterns via EdgeSmellsLike, and code_smells embedded in metadata.
+func (g *Graph) DesignContextForInvariants(ctx context.Context, invariantNodeIDs []string) (*DesignContext, error) {
+	if len(invariantNodeIDs) == 0 {
+		return &DesignContext{}, nil
+	}
+
+	dc := &DesignContext{}
+	seen := map[string]bool{}
+	args := stringsToInterfaces(invariantNodeIDs)
+	ph := placeholders(len(invariantNodeIDs))
+
+	// Design patterns: EdgeRequires or EdgeMitigates from design_pattern → invariant.
+	dpRows, err := g.db.QueryContext(ctx, `
+		SELECT DISTINCT n.name, n.summary
+		FROM edges e
+		JOIN nodes n ON n.id = e.src
+		WHERE e.kind IN ('requires', 'mitigates')
+		  AND n.type = 'design_pattern'
+		  AND e.dst IN (`+ph+`)
+	`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("DesignContextForInvariants patterns: %w", err)
+	}
+	defer dpRows.Close()
+	for dpRows.Next() {
+		var name, summary string
+		if err := dpRows.Scan(&name, &summary); err != nil {
+			return nil, err
+		}
+		if !seen[name] {
+			seen[name] = true
+			dc.DesignPatterns = append(dc.DesignPatterns, name)
+		}
+	}
+	if err := dpRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Anti-patterns: EdgeViolates from anti_pattern → invariant.
+	apRows, err := g.db.QueryContext(ctx, `
+		SELECT DISTINCT n.id, n.name, n.metadata_json
+		FROM edges e
+		JOIN nodes n ON n.id = e.src
+		WHERE e.kind = 'violates'
+		  AND n.type = 'anti_pattern'
+		  AND e.dst IN (`+ph+`)
+	`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("DesignContextForInvariants anti-patterns: %w", err)
+	}
+	defer apRows.Close()
+
+	var antiPatternIDs []string
+	for apRows.Next() {
+		var id, name, metaJSON string
+		if err := apRows.Scan(&id, &name, &metaJSON); err != nil {
+			return nil, err
+		}
+		if !seen[name] {
+			seen[name] = true
+			dc.AntiPatterns = append(dc.AntiPatterns, name)
+		}
+		antiPatternIDs = append(antiPatternIDs, id)
+		// Also extract code_smells embedded in anti-pattern metadata.
+		for _, s := range extractCodeSmells(metaJSON) {
+			if s != "" && !seen["smell:"+s] {
+				seen["smell:"+s] = true
+				dc.CodeSmells = append(dc.CodeSmells, s)
+			}
+		}
+	}
+	if err := apRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Code smell nodes linked from anti-patterns via EdgeSmellsLike.
+	if len(antiPatternIDs) > 0 {
+		csRows, err := g.db.QueryContext(ctx, `
+			SELECT DISTINCT n.name
+			FROM edges e
+			JOIN nodes n ON n.id = e.dst
+			WHERE e.kind = 'smells_like'
+			  AND n.type = 'code_smell'
+			  AND e.src IN (`+placeholders(len(antiPatternIDs))+`)
+		`, stringsToInterfaces(antiPatternIDs)...)
+		if err != nil {
+			return nil, fmt.Errorf("DesignContextForInvariants code smells: %w", err)
+		}
+		defer csRows.Close()
+		for csRows.Next() {
+			var name string
+			if err := csRows.Scan(&name); err != nil {
+				return nil, err
+			}
+			if name != "" && !seen["smell:"+name] {
+				seen["smell:"+name] = true
+				dc.CodeSmells = append(dc.CodeSmells, name)
+			}
+		}
+		if err := csRows.Err(); err != nil {
+			return nil, err
+		}
+	}
+
+	sort.Strings(dc.DesignPatterns)
+	sort.Strings(dc.AntiPatterns)
+	sort.Strings(dc.CodeSmells)
+	return dc, nil
+}
+
+// DesignContextForNode returns design patterns and anti-patterns that are
+// directly linked to the given node ID via EdgeImplements, EdgeExhibits, or
+// EdgeTouchesFile edges. This covers nodes (files, services) that have direct
+// links in the design pattern layer even if they don't yet have invariant edges.
+func (g *Graph) DesignContextForNode(ctx context.Context, nodeID string) (*DesignContext, error) {
+	dc := &DesignContext{}
+	seen := map[string]bool{}
+
+	// Find design_pattern and anti_pattern nodes that link TO nodeID via
+	// implements, exhibits, or touches_file edges.
+	rows, err := g.db.QueryContext(ctx, `
+		SELECT DISTINCT n.id, n.type, n.name, n.metadata_json
+		FROM edges e
+		JOIN nodes n ON n.id = e.src
+		WHERE e.kind IN ('implements', 'exhibits', 'touches_file')
+		  AND n.type IN ('design_pattern', 'anti_pattern')
+		  AND e.dst = ?
+	`, nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("DesignContextForNode: %w", err)
+	}
+	defer rows.Close()
+
+	var antiPatternIDs []string
+	for rows.Next() {
+		var id, nodeType, name, metaJSON string
+		if err := rows.Scan(&id, &nodeType, &name, &metaJSON); err != nil {
+			return nil, err
+		}
+		switch nodeType {
+		case NodeTypeDesignPattern:
+			if !seen[name] {
+				seen[name] = true
+				dc.DesignPatterns = append(dc.DesignPatterns, name)
+			}
+		case NodeTypeAntiPattern:
+			if !seen[name] {
+				seen[name] = true
+				dc.AntiPatterns = append(dc.AntiPatterns, name)
+			}
+			antiPatternIDs = append(antiPatternIDs, id)
+			for _, s := range extractCodeSmells(metaJSON) {
+				if s != "" && !seen["smell:"+s] {
+					seen["smell:"+s] = true
+					dc.CodeSmells = append(dc.CodeSmells, s)
+				}
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Code smell nodes via EdgeSmellsLike from anti-patterns.
+	if len(antiPatternIDs) > 0 {
+		csRows, err := g.db.QueryContext(ctx, `
+			SELECT DISTINCT n.name
+			FROM edges e
+			JOIN nodes n ON n.id = e.dst
+			WHERE e.kind = 'smells_like'
+			  AND n.type = 'code_smell'
+			  AND e.src IN (`+placeholders(len(antiPatternIDs))+`)
+		`, stringsToInterfaces(antiPatternIDs)...)
+		if err != nil {
+			return nil, fmt.Errorf("DesignContextForNode code smells: %w", err)
+		}
+		defer csRows.Close()
+		for csRows.Next() {
+			var name string
+			if err := csRows.Scan(&name); err != nil {
+				return nil, err
+			}
+			if name != "" && !seen["smell:"+name] {
+				seen["smell:"+name] = true
+				dc.CodeSmells = append(dc.CodeSmells, name)
+			}
+		}
+		if err := csRows.Err(); err != nil {
+			return nil, err
+		}
+	}
+
+	sort.Strings(dc.DesignPatterns)
+	sort.Strings(dc.AntiPatterns)
+	sort.Strings(dc.CodeSmells)
+	return dc, nil
+}
+
 // extractCodeSmells unpacks the code_smells array from a node's metadata_json blob.
 func extractCodeSmells(metaJSON string) []string {
 	var meta map[string]json.RawMessage

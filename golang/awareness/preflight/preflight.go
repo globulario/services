@@ -101,14 +101,33 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 	r.ForbiddenFixes = append(r.ForbiddenFixes, guardrailForbiddenFixes(opts.Task, opts.DocsDir)...)
 	r.ForbiddenFixes = unique(r.ForbiddenFixes)
 
-	// 11b. Collect code smells from pattern nodes reachable via invariants.
-	if g != nil && len(r.Invariants) > 0 {
-		invNodeIDs := make([]string, len(r.Invariants))
-		for i, id := range r.Invariants {
-			invNodeIDs[i] = "invariant:" + id
+	// 11b. Collect code smells and design context from invariants.
+	// Use both graph-matched invariants and alias-matched invariant IDs so that
+	// design patterns surface even when GenerateAgentContext doesn't traverse
+	// to those invariant nodes via graph edges.
+	if g != nil {
+		invIDSet := make(map[string]bool)
+		for _, id := range r.Invariants {
+			invIDSet["invariant:"+id] = true
 		}
-		if smells, err := g.CodeSmellsForInvariants(ctx, invNodeIDs); err == nil {
-			r.CodeSmells = smells
+		for _, alias := range r.MatchedAliases {
+			invIDSet["invariant:"+alias] = true
+		}
+		if len(invIDSet) > 0 {
+			invNodeIDs := make([]string, 0, len(invIDSet))
+			for id := range invIDSet {
+				invNodeIDs = append(invNodeIDs, id)
+			}
+			// Legacy pattern nodes (patterns.yaml).
+			if smells, err := g.CodeSmellsForInvariants(ctx, invNodeIDs); err == nil {
+				r.CodeSmells = smells
+			}
+			// Design pattern layer (design_patterns.yaml).
+			if dc, err := g.DesignContextForInvariants(ctx, invNodeIDs); err == nil {
+				r.DesignPatterns = unique(dc.DesignPatterns)
+				r.AntiPatterns = unique(dc.AntiPatterns)
+				r.CodeSmells = unique(append(r.CodeSmells, dc.CodeSmells...))
+			}
 		}
 	}
 

@@ -95,6 +95,8 @@ type Report struct {
 	FailureModes     []string                 `json:"failure_modes"`
 	ForbiddenFixes   []string                 `json:"forbidden_fixes"`
 	CodeSmells       []string                 `json:"code_smells,omitempty"`
+	DesignPatterns   []string                 `json:"design_patterns,omitempty"`
+	AntiPatterns     []string                 `json:"anti_patterns,omitempty"`
 	HashSchemas      []string                 `json:"hash_schemas,omitempty"`
 	StateTransitions []string                 `json:"state_transitions,omitempty"`
 	DidWeFix         *DidWeFixSection         `json:"did_we_fix"`

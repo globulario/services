@@ -18,6 +18,8 @@ type CheckEditResult struct {
 	File           string   `json:"file"`
 	HasIssues      bool     `json:"has_issues"`
 	ForbiddenFixes []string `json:"forbidden_fixes"`
+	DesignPatterns []string `json:"design_patterns,omitempty"`
+	AntiPatterns   []string `json:"anti_patterns,omitempty"`
 	CodeSmells     []string `json:"code_smells"`
 	Warnings       []string `json:"warnings"`
 }
@@ -61,15 +63,24 @@ func Run(ctx context.Context, g *graph.Graph, opts Options) (*CheckEditResult, e
 		}
 	}
 	if len(invNodeIDs) > 0 {
+		// Legacy pattern nodes (patterns.yaml).
 		smells, err := g.CodeSmellsForInvariants(ctx, invNodeIDs)
 		if err != nil {
 			r.Warnings = append(r.Warnings, fmt.Sprintf("CodeSmellsForInvariants: %v", err))
 		} else {
 			r.CodeSmells = smells
 		}
+		// Design pattern layer (design_patterns.yaml).
+		if dc, err := g.DesignContextForInvariants(ctx, invNodeIDs); err == nil {
+			r.DesignPatterns = dc.DesignPatterns
+			r.AntiPatterns = dc.AntiPatterns
+			for _, s := range dc.CodeSmells {
+				r.CodeSmells = appendUniq(r.CodeSmells, s)
+			}
+		}
 	}
 
-	r.HasIssues = len(r.ForbiddenFixes) > 0 || len(r.CodeSmells) > 0
+	r.HasIssues = len(r.ForbiddenFixes) > 0 || len(r.CodeSmells) > 0 || len(r.AntiPatterns) > 0
 
 	return r, nil
 }
@@ -99,7 +110,7 @@ func renderCheckEditMarkdown(r *CheckEditResult) string {
 	}
 
 	if !r.HasIssues {
-		sb.WriteString("No forbidden fixes or code smells detected for this file.\n")
+		sb.WriteString("No forbidden fixes, anti-patterns, or code smells detected for this file.\n")
 		return sb.String()
 	}
 
@@ -107,6 +118,22 @@ func renderCheckEditMarkdown(r *CheckEditResult) string {
 		sb.WriteString("## Forbidden fixes — do not apply\n\n")
 		for _, ff := range r.ForbiddenFixes {
 			sb.WriteString("- " + ff + "\n")
+		}
+		sb.WriteString("\n")
+	}
+
+	if len(r.DesignPatterns) > 0 {
+		sb.WriteString("## Relevant design patterns\n\n")
+		for _, p := range r.DesignPatterns {
+			sb.WriteString("- " + p + "\n")
+		}
+		sb.WriteString("\n")
+	}
+
+	if len(r.AntiPatterns) > 0 {
+		sb.WriteString("## Anti-patterns to avoid\n\n")
+		for _, p := range r.AntiPatterns {
+			sb.WriteString("- " + p + "\n")
 		}
 		sb.WriteString("\n")
 	}
@@ -138,6 +165,20 @@ func renderCheckEditAgent(r *CheckEditResult) string {
 		sb.WriteString("\nForbidden fixes — do not apply:\n")
 		for _, ff := range r.ForbiddenFixes {
 			sb.WriteString("  - " + ff + "\n")
+		}
+	}
+
+	if len(r.DesignPatterns) > 0 {
+		sb.WriteString("\nRelevant design patterns:\n")
+		for _, p := range r.DesignPatterns {
+			sb.WriteString("  - " + p + "\n")
+		}
+	}
+
+	if len(r.AntiPatterns) > 0 {
+		sb.WriteString("\nAnti-patterns to avoid:\n")
+		for _, p := range r.AntiPatterns {
+			sb.WriteString("  - " + p + "\n")
 		}
 	}
 

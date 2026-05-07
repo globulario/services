@@ -61,6 +61,13 @@ const (
 	// Protocol annotation edge kinds (Task 8).
 	EdgeControls = "controls"
 
+	// Design pattern layer edge kinds.
+	EdgeImplements  = "implements"   // source_file implements a design_pattern
+	EdgeExhibits    = "exhibits"     // source_file exhibits an anti_pattern
+	EdgeSmellsLike  = "smells_like"  // anti_pattern → code_smell
+	EdgeMitigates   = "mitigates"    // design_pattern mitigates failure_mode / anti_pattern
+	EdgePreventedBy = "prevented_by" // anti_pattern prevented_by design_pattern
+
 	// Design / documentation edge kinds (Task 12).
 	EdgeExplains      = "explains"
 	EdgeDecides       = "decides"

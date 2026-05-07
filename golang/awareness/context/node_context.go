@@ -76,7 +76,9 @@ type NodeContext struct {
 	DependencyPhases []string `json:"dependency_phases"`
 	RequiredTests    []string `json:"required_tests"`
 	FixCases         []string `json:"fix_cases"`
+	DesignPatterns   []string `json:"design_patterns"`
 	AntiPatterns     []string `json:"anti_patterns"`
+	CodeSmells       []string `json:"code_smells"`
 	DesignDecisions  []string `json:"design_decisions"`
 
 	SourceLabel         ConfidenceLabel `json:"source_label"`
@@ -108,13 +110,16 @@ func Build(ctx context.Context, g *graph.Graph, nodeID string, opts Options) (*N
 	}
 
 	nc := &NodeContext{
-		NodeID:      node.ID,
-		NodeType:    node.Type,
-		Name:        node.Name,
-		Path:        node.Path,
-		Summary:     node.Summary,
-		SourceLabel: labelFromNodeType(node.Type),
-		Truncated:   make(map[string]int),
+		NodeID:         node.ID,
+		NodeType:       node.Type,
+		Name:           node.Name,
+		Path:           node.Path,
+		Summary:        node.Summary,
+		SourceLabel:    labelFromNodeType(node.Type),
+		Truncated:      make(map[string]int),
+		DesignPatterns: []string{},
+		AntiPatterns:   []string{},
+		CodeSmells:     []string{},
 	}
 
 	// Local zoom: always included — direct edges + annotations.
@@ -125,6 +130,12 @@ func Build(ctx context.Context, g *graph.Graph, nodeID string, opts Options) (*N
 	// Module / service / architecture / history zoom: traverse related nodes.
 	if opts.Zoom != ZoomLocal {
 		nc.traverseRelated(ctx, g, nodeID, opts)
+	}
+
+	// Design pattern layer: use collected invariants to surface patterns/anti-patterns.
+	// Done after traverseRelated so RelatedInvariants is populated.
+	if opts.Zoom == ZoomArchitecture || opts.Zoom == ZoomHistory || opts.Zoom == ZoomAll {
+		nc.enrichDesignContext(ctx, g)
 	}
 
 	// Runtime zoom: incoming runtime-bridge evidence.
@@ -319,6 +330,28 @@ func (nc *NodeContext) traverseRelated(ctx context.Context, g *graph.Graph, node
 			if wantArchitecture {
 				nc.AntiPatterns = appendUniq(nc.AntiPatterns, n.Name)
 			}
+		case graph.NodeTypeDesignPattern:
+			if wantArchitecture || wantHistory {
+				nc.DesignPatterns = appendUniq(nc.DesignPatterns, n.Name)
+			}
+		case graph.NodeTypeAntiPattern:
+			if wantArchitecture || wantHistory {
+				nc.AntiPatterns = appendUniq(nc.AntiPatterns, n.Name)
+				// Unpack code_smells embedded in anti-pattern metadata.
+				if smells, ok := n.Metadata["code_smells"]; ok {
+					if items, ok := smells.([]interface{}); ok {
+						for _, item := range items {
+							if s, ok := item.(string); ok && s != "" {
+								nc.CodeSmells = appendUniq(nc.CodeSmells, s)
+							}
+						}
+					}
+				}
+			}
+		case graph.NodeTypeCodeSmell:
+			if wantArchitecture || wantHistory {
+				nc.CodeSmells = appendUniq(nc.CodeSmells, n.Name)
+			}
 		case graph.NodeTypePattern:
 			if wantArchitecture || wantHistory {
 				nc.AntiPatterns = appendUniq(nc.AntiPatterns, n.Name)
@@ -328,7 +361,7 @@ func (nc *NodeContext) traverseRelated(ctx context.Context, g *graph.Graph, node
 					case []interface{}:
 						for _, item := range v {
 							if s, ok := item.(string); ok && s != "" {
-								nc.AntiPatterns = appendUniq(nc.AntiPatterns, s)
+								nc.CodeSmells = appendUniq(nc.CodeSmells, s)
 							}
 						}
 					}
@@ -354,6 +387,46 @@ func zoomIncludes(zoom, target Zoom) bool {
 		return true
 	}
 	return zoom == target
+}
+
+// enrichDesignContext adds design patterns, anti-patterns, and code smells using
+// two complementary queries:
+// 1. DesignContextForInvariants — finds patterns linked to invariants collected
+//    via traverseRelated (works when the node has invariant edges).
+// 2. DesignContextForNode — finds patterns that directly link to this node via
+//    implements/exhibits/touches_file edges (works for source files and services
+//    even without invariant edges).
+func (nc *NodeContext) enrichDesignContext(ctx context.Context, g *graph.Graph) {
+	applyDC := func(dc *graph.DesignContext) {
+		if dc == nil {
+			return
+		}
+		for _, p := range dc.DesignPatterns {
+			nc.DesignPatterns = appendUniq(nc.DesignPatterns, p)
+		}
+		for _, p := range dc.AntiPatterns {
+			nc.AntiPatterns = appendUniq(nc.AntiPatterns, p)
+		}
+		for _, s := range dc.CodeSmells {
+			nc.CodeSmells = appendUniq(nc.CodeSmells, s)
+		}
+	}
+
+	// Pass 1: via invariants collected from graph traversal.
+	if len(nc.RelatedInvariants) > 0 {
+		invNodeIDs := make([]string, len(nc.RelatedInvariants))
+		for i, inv := range nc.RelatedInvariants {
+			invNodeIDs[i] = "invariant:" + inv.ID
+		}
+		if dc, err := g.DesignContextForInvariants(ctx, invNodeIDs); err == nil {
+			applyDC(dc)
+		}
+	}
+
+	// Pass 2: direct pattern-to-node links (implements/exhibits/touches_file).
+	if dc, err := g.DesignContextForNode(ctx, nc.NodeID); err == nil {
+		applyDC(dc)
+	}
 }
 
 func (nc *NodeContext) collectRuntimeEvidence(ctx context.Context, g *graph.Graph, nodeID string) {
