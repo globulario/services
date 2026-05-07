@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/spf13/cobra"
 )
@@ -47,6 +46,7 @@ type bomEntry struct {
 	Kind        string `json:"kind"`
 	Version     string `json:"version"`
 	BuildNumber int64  `json:"build_number,omitempty"`
+	BuildID     string `json:"build_id,omitempty"`
 }
 
 type bomIndex struct {
@@ -71,14 +71,6 @@ func runPlatformUpgrade(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Platform upgrade to %s (%s)\n", idx.PlatformRelease, idx.ReleaseTag)
 	fmt.Printf("BOM packages: %d\n\n", len(idx.Packages))
-
-	conn, err := controllerClient()
-	if err != nil {
-		return fmt.Errorf("connect to controller: %w", err)
-	}
-	defer conn.Close()
-
-	cc := cluster_controllerpb.NewClusterControllerServiceClient(conn)
 
 	var svcUpdated, infraUpdated, failed int
 
@@ -111,23 +103,18 @@ func runPlatformUpgrade(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  update  %-25s -> v%-25s (%s)\n", pkg.Name, pkg.Version, label)
 			infraUpdated++
 		} else {
-			// Service packages — update via UpsertDesiredService.
+			// Service packages — write ServiceDesiredVersion directly to etcd.
+			// We bypass the gRPC path intentionally: platform-upgrade is run during
+			// early bootstrap when the mesh may not yet be routing, and infra packages
+			// already use direct etcd writes for the same reason. The controller reads
+			// ServiceDesiredVersion records from etcd on every reconcile tick.
 			if platformUpgradeDryRun {
 				fmt.Printf("  would   %-25s -> v%-25s (%s)\n", pkg.Name, pkg.Version, label)
 				svcUpdated++
 				continue
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			_, err := cc.UpsertDesiredService(ctx,
-				&cluster_controllerpb.UpsertDesiredServiceRequest{
-					Service: &cluster_controllerpb.DesiredService{
-						ServiceId:   pkg.Name,
-						Version:     pkg.Version,
-						BuildNumber: pkg.BuildNumber,
-					},
-				})
-			cancel()
+			err := upsertServiceDesiredVersion(pkg.Name, pkg.Version, pkg.BuildNumber, pkg.BuildID)
 			if err != nil {
 				fmt.Printf("  FAIL   %-25s v%-25s (%s: %v)\n", pkg.Name, pkg.Version, label, err)
 				failed++
@@ -177,6 +164,70 @@ func loadBOMIndex(tag string) (*bomIndex, error) {
 			"Download it first:\n"+
 			"  curl -LO https://github.com/globulario/services/releases/download/%s/release-index.json\n"+
 			"  globular platform-upgrade %s", tag, tag, tag)
+}
+
+// upsertServiceDesiredVersion writes a ServiceDesiredVersion record directly to etcd.
+// This mirrors updateInfraReleaseVersion: both bypass gRPC so platform-upgrade works
+// during early bootstrap before the mesh is routing.
+func upsertServiceDesiredVersion(serviceName, version string, buildNumber int64, buildID string) error {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return fmt.Errorf("etcd client: %w", err)
+	}
+
+	key := "/globular/resources/ServiceDesiredVersion/" + serviceName
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := cli.Get(ctx, key)
+	if err != nil {
+		return fmt.Errorf("etcd get %s: %w", key, err)
+	}
+
+	var rec map[string]interface{}
+	generation := float64(1)
+	if len(resp.Kvs) > 0 {
+		if err := json.Unmarshal(resp.Kvs[0].Value, &rec); err != nil {
+			return fmt.Errorf("unmarshal: %w", err)
+		}
+		if m, ok := rec["meta"].(map[string]interface{}); ok {
+			if g, ok := m["generation"].(float64); ok {
+				generation = g + 1
+			}
+		}
+	} else {
+		rec = map[string]interface{}{
+			"meta":   map[string]interface{}{},
+			"spec":   map[string]interface{}{},
+			"status": map[string]interface{}{},
+		}
+	}
+
+	rec["meta"] = map[string]interface{}{
+		"name":       serviceName,
+		"generation": generation,
+	}
+	spec := map[string]interface{}{
+		"service_name": serviceName,
+		"version":      version,
+	}
+	if buildNumber > 0 {
+		spec["build_number"] = buildNumber
+	}
+	if buildID != "" {
+		spec["build_id"] = buildID
+	}
+	rec["spec"] = spec
+
+	data, err := json.Marshal(rec)
+	if err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+	_, err = cli.Put(ctx, key, string(data))
+	if err != nil {
+		return fmt.Errorf("etcd put %s: %w", key, err)
+	}
+	return nil
 }
 
 // updateInfraReleaseVersion updates the spec.version of an InfrastructureRelease

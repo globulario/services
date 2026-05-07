@@ -1,4 +1,113 @@
 failure_modes:
+    - id: service.desired_state.pipeline_gap
+      title: platform-upgrade omits ServiceDesiredVersion records during early bootstrap
+      severity: high
+      symptoms:
+        - services show 1/2 or 0/N in cluster status (installed on some nodes only)
+        - controller reconciler never dispatches install workflows for service packages
+        - ServiceDesiredVersion records missing from etcd for published service packages
+        - running "globular services desired set NAME VERSION" manually fixes the symptom per-service
+        - infra packages converge normally but workload services do not install
+      root_cause: |
+        platform-upgrade wrote ServiceDesiredVersion records via the gRPC UpsertDesiredService
+        RPC, which routes through Envoy on port 443. During early Day-0/Day-1 bootstrap the
+        mesh may not yet be routing, causing those calls to fail silently. Infrastructure
+        packages were unaffected because their path writes directly to etcd. The result is
+        that all service packages in the BOM have no desired state record and the controller
+        reconciler is entirely unaware of them.
+      architecture_fix: |
+        platform-upgrade must write ServiceDesiredVersion records directly to etcd
+        (key: /globular/resources/ServiceDesiredVersion/{name}) using the same approach
+        as updateInfraReleaseVersion. Direct etcd writes are mesh-independent and work
+        at any bootstrap phase. The controller reads these records from etcd on every
+        reconcile tick regardless of how they were written.
+      forbidden_fixes:
+        - manually_seeding_desired_state_per_node
+        - skipping_service_packages_from_bom
+        - writing_desired_state_via_grpc_only_during_bootstrap
+      related_invariants:
+        - service.desired_state.bom_completeness
+      related_services:
+        - cluster-controller
+        - globularcli
+      required_tests:
+        - TestPlatformUpgradeWritesServiceDesiredVersionWithoutMesh
+        - TestAllBOMPackagesHaveDesiredState
+
+    - id: release.failed.wave_succeeded_commit_error
+      title: ServiceRelease stays FAILED after wave succeeds when workflow commit RPC fails
+      severity: medium
+      symptoms:
+        - ServiceRelease phase is FAILED or DEGRADED
+        - 'message contains WAVE_BLOCKED ... note=RUN_STATUS_SUCCEEDED'
+        - packages ARE installed on all nodes (etcd installed records present, checksums match)
+        - blocked_reason is workflow_unavailable or workflow_handler_missing
+        - no active workflow runs for affected releases
+        - health checks show version:X as ok but release status shows FAILED
+      root_cause: |
+        After a workflow wave completes successfully (packages installed on all nodes), the
+        workflow executor writes the final phase-commit RPC to the controller. If the workflow
+        service restarts, loses its gRPC connection, or reallocates its port at that exact
+        moment, the commit RPC fails. The ServiceRelease is left in FAILED/DEGRADED with
+        WAVE_BLOCKED message even though the packages are installed and correct. The reconciler
+        self-heals via signal #2 (node heartbeat reports correct installed version) but only
+        after the retry backoff expires and a no-op workflow verifies convergence.
+      architecture_fix: |
+        The reconciler already has a self_healed_converged path in reconcileFailed: when all
+        nodes report the desired version via heartbeat (signal #2 in hasUnservedNodes), the
+        release is re-entered as PENDING → workflow runs verify_installed → AVAILABLE.
+        No code change needed for self-heal. To reduce the recovery window, the retry backoff
+        can be shortened when desired_hash matches all installed checksums. Separately, the
+        workflow service must not reallocate its port mid-install (fix: ExecStartPre kill
+        guard before the new process starts).
+      forbidden_fixes:
+        - manually_patching_release_phase_to_available
+        - skipping_workflow_run_to_force_available
+        - marking_release_available_from_local_success
+      related_invariants:
+        - install.result.atomic_commit
+        - convergence.no_infinite_retry
+      related_services:
+        - cluster-controller
+        - workflow-service
+      required_tests:
+        - TestServiceReleaseRecoveryAfterWorkflowCommitFailure
+        - TestWaveBlockedSucceededSelfHeals
+
+    - id: install.desired_state.invisible_service
+      title: Service never installs on any node because ServiceDesiredVersion record is absent
+      severity: high
+      symptoms:
+        - service shows 0/N instances in cluster status
+        - no ServiceRelease record exists for the service
+        - no install workflows ever dispatched for the service
+        - cluster node full-status shows version check failing with "not installed (desired X)"
+        - repository has a published artifact for the service
+      root_cause: |
+        The controller reconciler only manages services that have a ServiceDesiredVersion
+        record in etcd. If that record is missing (never written by platform-upgrade, or
+        written via gRPC when the mesh was down, or never added to the BOM), the reconciler
+        is completely unaware of the service. Profile-aware dispatch and dependency ordering
+        are both irrelevant — the service is invisible at the Desired layer.
+      architecture_fix: |
+        Ensure ServiceDesiredVersion records are written as part of every publish and
+        platform-upgrade pipeline run. Use direct etcd writes (not gRPC) so bootstrap
+        timing cannot cause silent omissions. Doctor should detect published-but-undesired
+        services and emit a SEVERITY_WARN.
+      forbidden_fixes:
+        - manually_running_services_desired_set_per_service
+        - assuming_publish_implies_desired_state
+      related_invariants:
+        - service.desired_state.bom_completeness
+      related_failure_modes:
+        - service.desired_state.pipeline_gap
+      related_services:
+        - cluster-controller
+        - repository
+        - globularcli
+      required_tests:
+        - TestPublishedServiceWithoutDesiredStateDetectedByDoctor
+
     - id: install.result.partial_commit
       title: Leader dies during install result promotion
       severity: critical
@@ -455,6 +564,68 @@ failure_modes:
         - cluster-doctor
       required_tests:
         - TestCommandPackageWithNoUnitProducesNoFinding
+    - id: mcp.orphan_port_hold
+      title: Orphaned mcp_server process holds port 10260, blocking service start
+      severity: high
+      symptoms:
+        - globular-mcp.service fails to start with 'address already in use' on :10260
+        - mcp retries port bind 10 times then exits with code 1
+        - systemctl start fails but no crashed service visible
+        - mcp_server process with PPid=1 (escaped cgroup) visible in ps
+        - INC-2026-0002 and INC-2026-0003
+      root_cause: |
+        A previous mcp_server instance escaped the systemd cgroup (PPid=1) during a
+        restart race or cgroup-misconfigured kill. It continues holding :10260 indefinitely.
+        When a new globular-mcp.service starts, all 10 bind retries fail and the service exits.
+      architecture_fix: |
+        Add ExecStartPre=+/bin/sh -c 'pkill -9 -f mcp_server || true' to globular-mcp.service
+        unit file. This kills any escaped orphan before attempting to bind the port.
+        Applied in packages/metadata/mcp/systemd/globular-mcp.service and
+        packages/metadata/mcp/specs/mcp_service.yaml as of INC-2026-0003.
+        Manual recovery: ssh to affected node and run: sudo killall -9 mcp_server
+      forbidden_fixes:
+        - restart_mcp_without_killing_orphan
+        - reduce_bind_retry_count_to_mask_orphan
+        - change_mcp_port_as_workaround
+      related_invariants:
+        - runtime.installed_state_not_liveness
+      related_services:
+        - mcp
+      required_tests:
+        - TestMCPStartFailsWhenOrphanHoldsPort
+        - TestExecStartPreKillsOrphan
+
+    - id: mcp.day1_install_no_start
+      title: mcp spec missing start_services step — Day-1 install does not start mcp
+      severity: medium
+      symptoms:
+        - mcp binary installed on joining node but globular-mcp.service is inactive
+        - no globular-mcp.service journal entries after install
+        - node-agent reports mcp in installed list but service is not running
+        - convergence result never emitted (WaitActive never reached)
+        - reconciler dispatches missing_package remediation for mcp repeatedly
+      root_cause: |
+        The mcp_service.yaml spec had no start_services or health_checks steps.
+        The spec comment said "Day-0 script starts all services together at the end."
+        For Day-1 joining nodes, there is no such script — the workflow must start the service.
+      architecture_fix: |
+        Add start_services and health_checks steps to mcp_service.yaml after enable_services.
+        Applied in packages/metadata/mcp/specs/mcp_service.yaml as of INC-2026-0003.
+        Any package spec that is installed on Day-1 joining nodes MUST have start_services
+        unless the service is intentionally deferred (document why if so).
+      forbidden_fixes:
+        - manually_start_mcp_without_fixing_spec
+        - skip_health_checks_to_avoid_waitactive_timeout
+      related_invariants:
+        - convergence.no_infinite_retry
+        - install.result.atomic_commit
+      related_services:
+        - mcp
+        - node-agent
+      required_tests:
+        - TestMCPStartedAfterDay1Install
+        - TestDay1SpecHasStartServicesStep
+
     - id: objectstore.no_desired_state_governance
       title: Objectstore desired state key has no registry governance
       severity: critical

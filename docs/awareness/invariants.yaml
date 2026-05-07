@@ -1,4 +1,70 @@
 invariants:
+    - id: service.desired_state.bom_completeness
+      title: Every BOM service package must have a ServiceDesiredVersion record
+      severity: high
+      status: active
+      summary: |
+        The controller reconciler only installs services for which a ServiceDesiredVersion
+        record exists in etcd. Every service package listed in the platform BOM
+        (release-index.json) must have a corresponding record written during platform-upgrade.
+        Absence of the record makes the service permanently invisible to the reconciler —
+        profile-aware dispatch, dependency ordering, and health checks are all irrelevant
+        for a service the reconciler cannot see.
+      protects:
+        state:
+            - /globular/resources/ServiceDesiredVersion/
+        files:
+            - golang/globularcli/upgrade_cmds.go
+            - golang/cluster_controller/cluster_controller_server/desired_from_resources.go
+        symbols:
+            - runPlatformUpgrade
+            - upsertServiceDesiredVersion
+            - loadDesiredServices
+      enforcement: |
+        platform-upgrade writes ServiceDesiredVersion records directly to etcd (not via gRPC)
+        for all service packages in the BOM. Direct writes are mesh-independent and survive
+        early bootstrap when the mesh may not yet be routing.
+      forbidden_fixes:
+        - writing_desired_state_via_grpc_only_during_bootstrap
+        - manually_seeding_desired_state_per_node
+        - skipping_service_packages_from_bom
+        - assuming_publish_implies_desired_state
+      required_tests:
+        - TestPlatformUpgradeWritesServiceDesiredVersionWithoutMesh
+        - TestAllBOMPackagesHaveDesiredState
+      related_failure_modes:
+        - service.desired_state.pipeline_gap
+        - install.desired_state.invisible_service
+
+    - id: service.desired_state.direct_etcd_write
+      title: Desired state writes during bootstrap must bypass the mesh
+      severity: high
+      status: active
+      summary: |
+        During early bootstrap (Day-0 / Day-1) the service mesh (Envoy) may not yet be
+        routing. Any desired-state write that goes through a gRPC RPC routed via the mesh
+        will fail silently and leave the cluster with an incomplete desired state. All
+        pipeline commands that must run during bootstrap (platform-upgrade, materialize-infra)
+        must write to etcd directly, not via gRPC service RPCs.
+      protects:
+        state:
+            - /globular/resources/ServiceDesiredVersion/
+            - /globular/resources/InfrastructureRelease/
+        files:
+            - golang/globularcli/upgrade_cmds.go
+        symbols:
+            - upsertServiceDesiredVersion
+            - updateInfraReleaseVersion
+      enforcement: |
+        Both service and infrastructure desired state are written via direct etcd client
+        in upgrade_cmds.go. Neither path requires the mesh to be up.
+      forbidden_fixes:
+        - writing_desired_state_via_grpc_only_during_bootstrap
+      required_tests:
+        - TestPlatformUpgradeWritesServiceDesiredVersionWithoutMesh
+      related_failure_modes:
+        - service.desired_state.pipeline_gap
+
     - id: objectstore.topology_contract
       title: MinIO topology contract
       severity: critical
