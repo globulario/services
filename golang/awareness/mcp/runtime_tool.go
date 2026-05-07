@@ -93,17 +93,26 @@ func snapshotToMap(snap *runtime.RuntimeSnapshot) map[string]interface{} {
 		})
 	}
 
+	metrics := make([]map[string]interface{}, 0, len(snap.Metrics))
+	for _, m := range snap.Metrics {
+		metrics = append(metrics, map[string]interface{}{
+			"name": m.Name, "node_id": m.NodeID, "service_id": m.ServiceID,
+			"value": m.Value, "unit": m.Unit, "labels": m.Labels,
+		})
+	}
+
 	return map[string]interface{}{
-		"id":                   snap.ID,
-		"captured_at":          snap.CapturedAt.Format(time.RFC3339),
-		"node_id":              snap.NodeID,
-		"cluster_id":           snap.ClusterID,
-		"doctor_findings":      findings,
-		"service_statuses":     services,
-		"workflow_receipts":    workflows,
-		"state_deltas":         deltas,
-		"matched_invariants":   snap.MatchedInvariants,
+		"id":                    snap.ID,
+		"captured_at":           snap.CapturedAt.Format(time.RFC3339),
+		"node_id":               snap.NodeID,
+		"cluster_id":            snap.ClusterID,
+		"doctor_findings":       findings,
+		"service_statuses":      services,
+		"workflow_receipts":     workflows,
+		"state_deltas":          deltas,
+		"metrics":               metrics,
+		"matched_invariants":    snap.MatchedInvariants,
 		"matched_failure_modes": snap.MatchedFailureModes,
-		"warnings":             snap.Warnings,
+		"warnings":              snap.Warnings,
 	}
 }

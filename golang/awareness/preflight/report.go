@@ -16,6 +16,7 @@ const (
 	ClassStateMismatch         TaskClass = "STATE_MISMATCH"
 	ClassDependencyCycle       TaskClass = "DEPENDENCY_CYCLE"
 	ClassUnknownImpact         TaskClass = "UNKNOWN_IMPACT"
+	ClassStaticFallback        TaskClass = "STATIC_KNOWLEDGE_FALLBACK"
 )
 
 // DidWeFixSection summarises the fix-ledger lookup result.
@@ -41,6 +42,17 @@ type CycleWarning struct {
 	Reason         string   `json:"reason"`
 }
 
+// RawKnowledgeMatch is a conservative fallback match from the source YAML files.
+// It exists to make NO_MATCH honest: graph lookup can be silent while the
+// hand-authored truth files still contain relevant knowledge.
+type RawKnowledgeMatch struct {
+	Source       string   `json:"source"`
+	Kind         string   `json:"kind"`
+	ID           string   `json:"id"`
+	Score        int      `json:"score"`
+	MatchedTerms []string `json:"matched_terms"`
+}
+
 // RuntimeSection holds live cluster evidence included in the preflight.
 type RuntimeSection struct {
 	Included            bool                     `json:"included"`
@@ -51,6 +63,7 @@ type RuntimeSection struct {
 	StateDeltas         []StateDeltaSummary      `json:"state_deltas"`
 	MatchedInvariants   []string                 `json:"matched_invariants"`
 	MatchedFailureModes []string                 `json:"matched_failure_modes"`
+	MetricWarnings      []string                 `json:"metric_warnings,omitempty"`
 	Warnings            []string                 `json:"warnings"`
 }
 
@@ -85,27 +98,28 @@ type StateDeltaSummary struct {
 
 // Report is the complete output of a preflight run.
 type Report struct {
-	Task             string                   `json:"task"`
-	Classification   []TaskClass              `json:"classification"`
-	MatchedAliases   []string                 `json:"matched_aliases"`
-	Services         []string                 `json:"services"`
-	Packages         []string                 `json:"packages"`
-	Files            []string                 `json:"files"`
-	Invariants       []string                 `json:"invariants"`
-	FailureModes     []string                 `json:"failure_modes"`
-	ForbiddenFixes   []string                 `json:"forbidden_fixes"`
-	CodeSmells       []string                 `json:"code_smells,omitempty"`
-	DesignPatterns   []string                 `json:"design_patterns,omitempty"`
-	AntiPatterns     []string                 `json:"anti_patterns,omitempty"`
-	HashSchemas      []string                 `json:"hash_schemas,omitempty"`
-	StateTransitions []string                 `json:"state_transitions,omitempty"`
-	DidWeFix         *DidWeFixSection         `json:"did_we_fix"`
-	PackageAdmission *PackageAdmissionSection `json:"package_admission,omitempty"`
-	Cycles           []CycleWarning           `json:"cycles"`
-	RequiredTests    []string                 `json:"required_tests"`
-	RequiredSearches []string                 `json:"required_searches"`
-	RecommendedOrder []string                 `json:"recommended_investigation_order"`
-	AgentInstruction string                   `json:"agent_instruction"`
-	Warnings         []string                 `json:"warnings"`
-	Runtime          *RuntimeSection          `json:"runtime,omitempty"`
+	Task                string                   `json:"task"`
+	Classification      []TaskClass              `json:"classification"`
+	MatchedAliases      []string                 `json:"matched_aliases"`
+	Services            []string                 `json:"services"`
+	Packages            []string                 `json:"packages"`
+	Files               []string                 `json:"files"`
+	Invariants          []string                 `json:"invariants"`
+	FailureModes        []string                 `json:"failure_modes"`
+	ForbiddenFixes      []string                 `json:"forbidden_fixes"`
+	CodeSmells          []string                 `json:"code_smells,omitempty"`
+	DesignPatterns      []string                 `json:"design_patterns,omitempty"`
+	AntiPatterns        []string                 `json:"anti_patterns,omitempty"`
+	HashSchemas         []string                 `json:"hash_schemas,omitempty"`
+	StateTransitions    []string                 `json:"state_transitions,omitempty"`
+	DidWeFix            *DidWeFixSection         `json:"did_we_fix"`
+	PackageAdmission    *PackageAdmissionSection `json:"package_admission,omitempty"`
+	Cycles              []CycleWarning           `json:"cycles"`
+	RequiredTests       []string                 `json:"required_tests"`
+	RequiredSearches    []string                 `json:"required_searches"`
+	RecommendedOrder    []string                 `json:"recommended_investigation_order"`
+	AgentInstruction    string                   `json:"agent_instruction"`
+	Warnings            []string                 `json:"warnings"`
+	RawKnowledgeMatches []RawKnowledgeMatch      `json:"raw_knowledge_matches,omitempty"`
+	Runtime             *RuntimeSection          `json:"runtime,omitempty"`
 }

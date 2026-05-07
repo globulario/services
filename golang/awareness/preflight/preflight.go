@@ -16,25 +16,25 @@ import (
 
 // Options configures a preflight run.
 type Options struct {
-	Task           string        // required: task description
-	Files          []string      // optional: files to run impact analysis on
-	PackagePath    string        // optional: path to package dir with awareness.yaml
-	Phase          string        // optional: dependency phase filter for cycle detection
-	DocsDir        string        // path to docs/awareness (aliases, fix_cases, guardrails)
-	IncludeRuntime bool          // collect live runtime snapshot
-	RuntimeWindow  time.Duration // lookback window for events/workflows (default 15m)
+	Task           string                 // required: task description
+	Files          []string               // optional: files to run impact analysis on
+	PackagePath    string                 // optional: path to package dir with awareness.yaml
+	Phase          string                 // optional: dependency phase filter for cycle detection
+	DocsDir        string                 // path to docs/awareness (aliases, fix_cases, guardrails)
+	IncludeRuntime bool                   // collect live runtime snapshot
+	RuntimeWindow  time.Duration          // lookback window for events/workflows (default 15m)
 	Bridge         *runtime.RuntimeBridge // optional: if nil and IncludeRuntime, uses noop bridge
-	WriteAudit     bool   // if true, persist a PreflightAuditRecord to the graph DB after the run
-	GitSHA         string // optional: current git commit SHA for the audit record
+	WriteAudit     bool                   // if true, persist a PreflightAuditRecord to the graph DB after the run
+	GitSHA         string                 // optional: current git commit SHA for the audit record
 }
 
 // Run executes the full preflight and returns a structured report.
 // g may be nil — in that case graph-dependent sections are skipped with a warning.
 func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 	r := &Report{
-		Task:    opts.Task,
-		Files:   opts.Files,
-		Cycles:  []CycleWarning{},
+		Task:     opts.Task,
+		Files:    opts.Files,
+		Cycles:   []CycleWarning{},
 		DidWeFix: &DidWeFixSection{},
 	}
 
@@ -131,27 +131,40 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 		}
 	}
 
-	// 12. False-silence detection and UNKNOWN_IMPACT gating.
+	// 12. Raw YAML fallback: graph/query NO_MATCH is not proof of safety.
+	// The source awareness YAML files are the authority; the graph is an index.
+	// Cross-check them directly so stale graph nodes or query misses do not
+	// create false confidence.
+	rawMatches := rawKnowledgeFallback(opts.Task, opts.Files, opts.DocsDir)
+	r.RawKnowledgeMatches = rawMatches
+	if len(rawMatches) > 0 {
+		r = mergeRawKnowledgeMatches(r, rawMatches)
+	}
+
+	// 13. False-silence detection and UNKNOWN_IMPACT gating.
 	noFacts := noAwarenessFactsMatched(r)
 	if noFacts {
 		r.Warnings = append(r.Warnings, "NO_AWARENESS_MATCH: no awareness facts matched this task. This does not prove the task is safe.")
+	} else if len(rawMatches) > 0 {
+		r.Classification = appendClass(r.Classification, ClassStaticFallback)
+		r.Warnings = append(r.Warnings, "RAW_KNOWLEDGE_CROSSCHECK: source YAML matched relevant awareness facts; graph/query silence must not be treated as safe.")
 	}
 	if hasClass(r.Classification, ClassArchitectureSensitive) && noFacts {
 		r.Classification = appendClass(r.Classification, ClassUnknownImpact)
 	}
 
-	// 13. Build recommended investigation order.
+	// 14. Build recommended investigation order.
 	r.RecommendedOrder = buildInvestigationOrder(r)
 
-	// 14. Build agent instruction.
+	// 15. Build agent instruction.
 	r.AgentInstruction = buildAgentInstruction(r)
 
-	// 15. Runtime snapshot (optional).
+	// 16. Runtime snapshot (optional).
 	if opts.IncludeRuntime {
 		r = mergeRuntime(ctx, opts, g, r)
 	}
 
-	// 16. Durable audit record (optional).
+	// 17. Durable audit record (optional).
 	if opts.WriteAudit && g != nil {
 		rec := graph.PreflightAuditRecord{
 			Task:           opts.Task,
@@ -557,6 +570,7 @@ func mergeRuntime(ctx context.Context, opts Options, g *graph.Graph, r *Report) 
 		CapturedAt:          snap.CapturedAt.Format(time.RFC3339),
 		MatchedInvariants:   snap.MatchedInvariants,
 		MatchedFailureModes: snap.MatchedFailureModes,
+		MetricWarnings:      metricWarnings(snap.Warnings),
 		Warnings:            snap.Warnings,
 		DoctorFindings:      make([]DoctorFindingSummary, 0, len(snap.DoctorFindings)),
 		ServiceStatuses:     make([]ServiceStatusSummary, 0, len(snap.RuntimeServices)),
@@ -609,11 +623,15 @@ func mergeRuntime(ctx context.Context, opts Options, g *graph.Graph, r *Report) 
 		r.Classification = appendClass(r.Classification, ClassConvergenceRisk)
 	}
 
-	// Systemd start-limit-hit warning → ClassRestartStorm.
+	// Runtime warnings can promote static preflight into dynamic risk.
 	for _, w := range snap.Warnings {
-		if strings.Contains(w, "start-limit-hit") {
+		lw := strings.ToLower(w)
+		if strings.Contains(lw, "start-limit-hit") {
 			r.Classification = appendClass(r.Classification, ClassRestartStorm)
-			break
+		}
+		if strings.Contains(lw, "metric saturation") || strings.Contains(lw, "metric error signal") {
+			r.Classification = appendClass(r.Classification, ClassRuntimeIncident)
+			r.Classification = appendClass(r.Classification, ClassConvergenceRisk)
 		}
 	}
 
@@ -638,3 +656,14 @@ func mergeRuntime(ctx context.Context, opts Options, g *graph.Graph, r *Report) 
 
 // block-level reference to keep import alive for buildInvestigationOrder
 var _ = analysis.AdmissionBlock
+
+func metricWarnings(warnings []string) []string {
+	var out []string
+	for _, w := range warnings {
+		lw := strings.ToLower(w)
+		if strings.Contains(lw, "metric ") || strings.Contains(lw, "saturation") {
+			out = append(out, w)
+		}
+	}
+	return out
+}

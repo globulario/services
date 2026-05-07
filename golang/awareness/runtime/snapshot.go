@@ -36,6 +36,7 @@ type RuntimeSnapshot struct {
 	ObjectstoreStatus []ObjectstoreStatus
 	XDSStatus         []XDSStatus
 	SystemdUnits      []SystemdUnit
+	Metrics           []MetricSample
 
 	// Computed by Match().
 	StateDelta          []StateDelta
@@ -174,6 +175,18 @@ func (s *RuntimeSnapshot) Match(knownInvariants, knownFMs []string) *RuntimeSnap
 	for _, x := range s.XDSStatus {
 		if x.AppliedGeneration == 0 && x.PendingGeneration > 0 {
 			derivedWarnings = append(derivedWarnings, fmt.Sprintf("xDS node %s has pending generation %d but no applied generation", x.NodeID, x.PendingGeneration))
+		}
+	}
+
+	// Dynamic metric risk. Keep this intentionally generic so Prometheus,
+	// node-exporter, or a future metrics bridge can all speak the same shape.
+	for _, m := range s.Metrics {
+		name := strings.ToLower(m.Name)
+		if (strings.Contains(name, "cpu") || strings.Contains(name, "memory") || strings.Contains(name, "disk")) && m.Value >= 90 {
+			derivedWarnings = append(derivedWarnings, fmt.Sprintf("metric saturation: %s=%.2f%s node=%s service=%s", m.Name, m.Value, m.Unit, m.NodeID, m.ServiceID))
+		}
+		if strings.Contains(name, "error") && m.Value > 0 {
+			derivedWarnings = append(derivedWarnings, fmt.Sprintf("metric error signal: %s=%.2f%s node=%s service=%s", m.Name, m.Value, m.Unit, m.NodeID, m.ServiceID))
 		}
 	}
 

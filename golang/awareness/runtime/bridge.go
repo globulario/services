@@ -26,6 +26,7 @@ type RuntimeBridge struct {
 	Objectstore ObjectstoreStatusSource
 	XDS         XDSStatusSource
 	Systemd     SystemdStatusSource
+	Metrics     MetricsSource
 }
 
 // NewBridge returns a RuntimeBridge with all noop sources.
@@ -43,6 +44,7 @@ func NewBridge(nodeID, clusterID string) *RuntimeBridge {
 		Objectstore: NoopObjectstoreStatusSource{},
 		XDS:         NoopXDSStatusSource{},
 		Systemd:     NoopSystemdStatusSource{},
+		Metrics:     NoopMetricsSource{},
 	}
 }
 
@@ -123,6 +125,12 @@ func (b *RuntimeBridge) Snapshot(ctx context.Context, since time.Duration, g *gr
 		addSourceWarn("systemd source unavailable: " + err.Error())
 	} else {
 		snap.SystemdUnits = units
+	}
+
+	if samples, err := b.Metrics.Samples(ctx); err != nil {
+		addSourceWarn("metrics source unavailable: " + err.Error())
+	} else {
+		snap.Metrics = samples
 	}
 
 	// Populate Warnings from SourceWarnings before Match() so callers
