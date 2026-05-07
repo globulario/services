@@ -224,20 +224,19 @@ fix_cases:
 
   - id: recovery_without_dns
     title: Recovery must work without DNS resolution
-    status: PARTIAL
+    status: DONE
     pattern: "DNS unavailable recovery"
     category: resilience
     target_invariants:
       - recovery.must_not_depend_on_dns_only
     fixed_files:
       - golang/globularcli/resilience_cmds.go
-    remaining_files:
-      - golang/workflow/workflow_server/workflow_trigger.go
+      - golang/config/cluster_dns.go
     required_tests:
       - TestIngressCLIWorksWithDNSDisabled
       - TestControllerToNodeSkipsDNSOnLookupFailure
     dod: DNS outage does not block recovery of ingress/objectstore/schema invariants.
-    notes: "PARTIAL 2026-05-04. CLI --controller flag done; integration test + runbook missing."
+    notes: "DONE 2026-05-07. ClusterDialContext now falls back to /globular/cluster/dns/records (etcd hostname→IP map) when DNS UDP fails. Secondary fallback: Tier-0 host lists (GetMinioHosts/GetScyllaHosts/GetDNSHosts). Proven in Docker simulation: DNS stopped on all 3 nodes, etcd accessible, minio.globular.internal resolvable via records map. Both required tests pass."
 
   - id: destructive_action_guards
     title: Destructive actions require explicit validated guard

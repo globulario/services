@@ -2,6 +2,9 @@ package config
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"log"
 	"net"
 	"strings"
 	"sync"
@@ -62,6 +65,11 @@ func ClusterResolver() *net.Resolver {
 // cluster names (*.globular.internal) via Globular DNS and dials them.
 // All other hostnames fall through to the system resolver.
 //
+// When the cluster DNS service is unavailable, ClusterDialContext falls back to
+// the etcd-backed DNS records map (/globular/cluster/dns/records) written by the
+// DNS reconciler, then to Tier-0 service-specific host lists. This allows MinIO,
+// Scylla, and other cluster services to remain reachable even during a DNS outage.
+//
 // Use this as http.Transport.DialContext to wire cluster-aware resolution
 // into any Go HTTP client (including the MinIO SDK).
 func ClusterDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -73,10 +81,15 @@ func ClusterDialContext(ctx context.Context, network, addr string) (net.Conn, er
 	}
 	lowered := strings.ToLower(strings.TrimSuffix(host, "."))
 	if strings.HasSuffix(lowered, clusterDNSSuffix) || lowered == strings.TrimPrefix(clusterDNSSuffix, ".") {
-		// Resolve via cluster DNS.
+		// Resolve via cluster DNS first.
 		ips, err := ClusterResolver().LookupHost(ctx, host)
 		if err != nil {
-			return nil, err
+			// DNS service is unreachable — fall back to etcd-backed records.
+			log.Printf("cluster-dial: DNS lookup failed for %q (%v); trying etcd fallback", host, err)
+			ips, err = resolveClusterNameFromEtcd(host)
+			if err != nil {
+				return nil, fmt.Errorf("cluster-dial: DNS and etcd fallback both failed for %q: %w", host, err)
+			}
 		}
 		var lastErr error
 		d := net.Dialer{Timeout: 5 * time.Second}
@@ -98,4 +111,55 @@ func ClusterDialContext(ctx context.Context, network, addr string) (net.Conn, er
 	// Fall through to system resolver for non-cluster names.
 	d := net.Dialer{Timeout: 5 * time.Second}
 	return d.DialContext(ctx, network, addr)
+}
+
+// resolveClusterNameFromEtcd is the DNS fallback when the cluster DNS service is
+// unavailable. It tries two sources in order:
+//  1. /globular/cluster/dns/records — a hostname→IP map written by the DNS reconciler
+//  2. Tier-0 service-specific host lists (minio/scylla/dns) from individual etcd keys
+//
+// Invariant: recovery.must_not_depend_on_dns_only
+func resolveClusterNameFromEtcd(host string) ([]string, error) {
+	// 1. Try the full DNS records map (mirrors what the DNS service would return).
+	if ips, err := lookupDNSRecordFromEtcd(host); err == nil && len(ips) > 0 {
+		return ips, nil
+	}
+
+	// 2. Tier-0 host lists for known service prefixes.
+	normalized := strings.ToLower(strings.TrimSuffix(strings.TrimSuffix(host, "."), clusterDNSSuffix))
+	switch normalized {
+	case "minio":
+		return GetMinioHosts()
+	case "scylla":
+		return GetScyllaHosts()
+	case "dns":
+		return GetDNSHosts()
+	}
+	return nil, fmt.Errorf("no etcd fallback for %q", host)
+}
+
+// lookupDNSRecordFromEtcd reads /globular/cluster/dns/records from etcd (a
+// hostname→IP map written by the cluster controller's DNS reconciler) and returns
+// the single IP for host. This is the same data the DNS service serves but stored
+// directly in etcd, so it remains queryable even when the DNS daemon is down.
+func lookupDNSRecordFromEtcd(host string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	cli, err := GetEtcdClient()
+	if err != nil {
+		return nil, fmt.Errorf("dns records: etcd unavailable: %w", err)
+	}
+	resp, err := cli.Get(ctx, "/globular/cluster/dns/records")
+	if err != nil || len(resp.Kvs) == 0 {
+		return nil, fmt.Errorf("dns records: not found in etcd")
+	}
+	var records map[string]string
+	if err := json.Unmarshal(resp.Kvs[0].Value, &records); err != nil {
+		return nil, fmt.Errorf("dns records: parse error: %w", err)
+	}
+	normalized := strings.ToLower(strings.TrimSuffix(host, "."))
+	if ip, ok := records[normalized]; ok {
+		return []string{ip}, nil
+	}
+	return nil, fmt.Errorf("dns records: no entry for %q", host)
 }
