@@ -212,6 +212,7 @@ func main() {
 	srv.StartCAKeySync(ctx)
 	srv.StartCACertDriftCheck(ctx)
 	srv.StartIngressReconciliation(ctx)
+	srv.StartXDSConfigReconciliation(ctx)
 	node_agentpb.RegisterNodeAgentServiceServer(grpcServer, srv)
 
 	// Phase F-final — register WorkflowActorService so the workflow

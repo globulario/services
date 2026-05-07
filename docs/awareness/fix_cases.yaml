@@ -119,23 +119,23 @@ fix_cases:
 
   - id: lkg_expansion
     title: Last-known-good state must cover all critical consumers
-    status: PARTIAL
+    status: DONE
     pattern: "last known good"
     category: resilience
     target_invariants:
       - runtime.last_known_good_required_for_critical_consumers
     fixed_files:
       - golang/globular_service/lkg/lkg.go
-    remaining_files:
-      - golang/node_agent/node_agent_server/envoy_consumer.go
-      - golang/node_agent/node_agent_server/objectstore_consumer.go
-      - golang/node_agent/node_agent_server/dns_consumer.go
+      - golang/node_agent/node_agent_server/ingress_reconcile.go
+      - golang/node_agent/node_agent_server/dns_sync.go
+      - golang/node_agent/node_agent_server/minio_contract_reconcile.go
+      - golang/node_agent/node_agent_server/xds_config_reconcile.go
     required_tests:
       - TestCorruptLKGRejectedPriorStateRetained
       - TestAtomicLKGWriteSurvivesRestart
       - TestEtcdOutageServesFromLKG
     dod: LKG is durable, validated, and reusable across all critical consumers.
-    notes: "PARTIAL 2026-05-04. Shared LKG lib + ingress done; Envoy/MinIO/DNS consumers not migrated."
+    notes: "DONE 2026-05-07. All four critical consumers now have LKG. DNS was already done in dns_sync.go (loadDNSInitConfigWithLKGPath); objectstore already done in minio_contract_reconcile.go; ingress done in ingress_reconcile.go. The remaining_files in the original entry named files that do not exist — the consumers were wired into existing files. Envoy/xDS: new xds_config_reconcile.go implements file-first LKG guard for /var/lib/globular/xds/config.json (same pattern as dns_sync.go). All three required tests pass."
 
   - id: critical_state_registry_ownership
     title: Every critical key must have a registered owner and policy
