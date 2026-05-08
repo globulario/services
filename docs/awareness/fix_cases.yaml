@@ -139,7 +139,7 @@ fix_cases:
 
   - id: critical_state_registry_ownership
     title: Every critical key must have a registered owner and policy
-    status: PARTIAL
+    status: DONE
     pattern: "critical key registry"
     category: governance
     target_invariants:
@@ -147,14 +147,16 @@ fix_cases:
     fixed_files:
       - golang/config/critical_keys.go
       - golang/cluster_controller/cluster_controller_server/critical_state_registry.go
-    remaining_files:
       - golang/cluster_doctor/cluster_doctor_server/collector/collector.go
+      - golang/cluster_doctor/cluster_doctor_server/collector/snapshot.go
+      - golang/cluster_doctor/cluster_doctor_server/rules/critical_key_registry.go
+    remaining_files: []
     required_tests:
       - TestRegistryKeyHasCompletePolicy
       - TestUnknownWriterRejected
       - TestDeleteCriticalKeyTriggerOwnerRestore
     dod: Critical key governance is declarative and enforceable via doctor iteration.
-    notes: "PARTIAL 2026-05-04. Registry structs exist; doctor iteration not fully wired."
+    notes: "DONE 2026-05-07. CriticalKeyPolicy struct + CriticalKeyPolicies table (8 entries covering all 5 keys + 3 prefixes) added to config package. OwnerForKey(), ValidateCriticalKeyOwner(), PolicyGapsForKeys() added. Collector populates CriticalKeyPolicyGaps statically (no etcd). Doctor criticalKeyOwnershipComplete invariant fires ERROR when any key in CriticalEtcdKeys/Prefixes lacks a policy entry — acts as CI regression guard. All 3 required tests pass. The controller's criticalStateRegistry in main package remains unchanged; the config package carries the subset accessible to doctor and other importers."
 
   - id: intent_markers_tombstones
     title: Critical key deletion requires audited intent marker

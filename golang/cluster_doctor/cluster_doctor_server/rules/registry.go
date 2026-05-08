@@ -139,7 +139,11 @@ func NewRegistry(cfg Config) *Registry {
 		// Complements ingressAmbiguousDisableRejected which fires on node status.
 		ingressUnguardedDisableIntent{},
 		scyllaKeyspaceRFPolicyViolation{},
+		// Critical-key registry presence: key is absent from etcd.
 		criticalKeyRegistryPresence{},
+		// Critical-key ownership completeness: key in live-check list has no
+		// declared owner in config.CriticalKeyPolicies. Static check — no etcd.
+		criticalKeyOwnershipComplete{},
 		// DNS degraded-mode visibility from /globular/dns/v1/status.
 		dnsZoneReloadFailed{},
 		dnsServingLastKnownGood{},

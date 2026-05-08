@@ -126,6 +126,58 @@ func checkErrorFinding(key string, queryErr error) Finding {
 	}
 }
 
+// criticalKeyOwnershipComplete fires when one or more critical etcd keys lack
+// a declared owner in config.CriticalKeyPolicies. This catches any future key
+// added to the live-check list without adding the corresponding governance entry.
+// The finding is purely static — no etcd query is needed.
+//
+// Invariant: critical_state.registry_ownership_required
+type criticalKeyOwnershipComplete struct{}
+
+func (criticalKeyOwnershipComplete) ID() string       { return "critical_state.ownership_complete" }
+func (criticalKeyOwnershipComplete) Category() string { return "control_plane" }
+func (criticalKeyOwnershipComplete) Scope() string    { return "cluster" }
+
+func (criticalKeyOwnershipComplete) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	if len(snap.CriticalKeyPolicyGaps) == 0 {
+		return nil
+	}
+	gapList := strings.Join(snap.CriticalKeyPolicyGaps, ", ")
+	return []Finding{{
+		FindingID:   FindingID("critical_state.ownership_complete", "cluster", gapList),
+		InvariantID: "critical_state.ownership_complete",
+		Severity:    cluster_doctorpb.Severity_SEVERITY_ERROR,
+		Category:    "control_plane",
+		EntityRef:   "cluster",
+		Summary: fmt.Sprintf(
+			"%d critical etcd key(s) have no declared owner in config.CriticalKeyPolicies: [%s]. "+
+				"These keys cannot be governed, restored, or audited. "+
+				"Add a CriticalKeyPolicy entry for each key. "+
+				"Invariant: critical_state.registry_ownership_required.",
+			len(snap.CriticalKeyPolicyGaps), gapList,
+		),
+		Evidence: []*cluster_doctorpb.Evidence{
+			kvEvidence("config", "PolicyGapsForKeys(CriticalEtcdKeys, CriticalEtcdPrefixes)", map[string]string{
+				"gap_count":   fmt.Sprintf("%d", len(snap.CriticalKeyPolicyGaps)),
+				"gap_keys":    gapList,
+				"total_keys":  fmt.Sprintf("%d", len(config.CriticalEtcdKeys)+len(config.CriticalEtcdPrefixes)),
+				"policy_size": fmt.Sprintf("%d", len(config.CriticalKeyPolicies)),
+			}),
+		},
+		Remediation: []*cluster_doctorpb.RemediationStep{
+			step(1,
+				"Add a CriticalKeyPolicy entry to golang/config/critical_keys.go for each key listed above (Owner, SchemaVersion, DeletePolicyName, DoctorInvariant must all be non-empty).",
+				"# Edit golang/config/critical_keys.go → CriticalKeyPolicies",
+			),
+			step(2,
+				"Verify TestRegistryKeyHasCompletePolicy passes after adding the entry.",
+				"cd golang && go test ./config/... -run TestRegistryKeyHasCompletePolicy",
+			),
+		},
+		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+	}}
+}
+
 // keyToInvariantID converts an etcd key path to a stable dot-separated invariant ID.
 // "/globular/ingress/v1/spec_backup" → "ingress.spec_backup_missing"
 func keyToInvariantID(key string) string {

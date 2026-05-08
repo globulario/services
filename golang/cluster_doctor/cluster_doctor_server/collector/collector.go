@@ -455,6 +455,11 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 		snap.addSource("etcd.critical_key_presence")
 	}
 
+	// Static ownership-completeness check — no etcd query required.
+	// Detects when a key is added to CriticalEtcdKeys/Prefixes without a
+	// corresponding CriticalKeyPolicy entry in the config package.
+	snap.CriticalKeyPolicyGaps = config.PolicyGapsForKeys(config.CriticalEtcdKeys, config.CriticalEtcdPrefixes)
+
 	// ── 4. Per-node calls (concurrent, capped) ────────────────────────────────
 	if len(snap.Nodes) > 0 {
 		c.fetchPerNode(ctx, snap)

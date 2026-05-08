@@ -141,6 +141,16 @@ type Snapshot struct {
 	// instead so the operator sees "query failed" rather than "key missing".
 	CriticalKeyQueryError map[string]error
 
+	// CriticalKeyPolicyGaps lists critical keys (from config.CriticalEtcdKeys
+	// and config.CriticalEtcdPrefixes) that have no entry in
+	// config.CriticalKeyPolicies. Populated statically at snapshot creation —
+	// no etcd query required. A non-empty slice means ownership governance is
+	// incomplete for those keys, and any future key addition will be caught by
+	// the doctor without a live cluster.
+	//
+	// Invariant: critical_state.registry_ownership_required
+	CriticalKeyPolicyGaps []string
+
 	// NodeDriftAge records how long each node has had a services-hash mismatch
 	// (desired ≠ applied). Populated by the collector's driftSince tracker.
 	// Missing entries mean the node is currently converged. Used by the
