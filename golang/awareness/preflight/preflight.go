@@ -10,6 +10,7 @@ import (
 	"github.com/globulario/services/golang/awareness/extractors/packages"
 	"github.com/globulario/services/golang/awareness/fixledger"
 	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/services/golang/awareness/integrity"
 	"github.com/globulario/services/golang/awareness/learning"
 	"github.com/globulario/services/golang/awareness/runtime"
 )
@@ -51,6 +52,7 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 	r.MatchedAliases = matchAliases(opts.Task, aliasMap)
 
 	// 5. Agent context from graph (invariants, failure modes, forbidden fixes, tests, searches, services).
+	r.GraphAvailable = g != nil
 	if g != nil {
 		acResult, warn := runAgentContext(ctx, g, opts.Task, opts.Files, aliasMap)
 		if warn != "" {
@@ -62,8 +64,17 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 		r.RequiredTests = acResult.RequiredTests
 		r.RequiredSearches = acResult.RequiredSearches
 		r.Services = acResult.ServiceNames
+		r.GraphMatchCount = len(r.Invariants) + len(r.FailureModes) + len(r.ForbiddenFixes)
+
+		// 5b. Trust filter: annotate low-trust graph matches into FilteredMatches.
+		// Low-trust matches are still present in the main result lists (per spec:
+		// do not suppress them entirely) but are also reported under FilteredMatches
+		// so callers understand why graph_filtered_by_trust_count > 0.
+		r.FilteredMatches = checkNodesTrust(ctx, g, r.Invariants, r.FailureModes, r.ForbiddenFixes)
+		r.GraphFilteredByTrustCount = len(r.FilteredMatches)
 	} else {
 		r.Warnings = append(r.Warnings, "no graph DB — graph-dependent sections skipped (run 'globular awareness build' first)")
+		r.Warnings = append(r.Warnings, "UNKNOWN_IMPACT: graph unavailable — use awareness.preflight with graph for reliable classification")
 	}
 
 	// 6. Impact analysis per file (annotation-priority first, then transitive traversal).
@@ -137,6 +148,7 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 	// create false confidence.
 	rawMatches := rawKnowledgeFallback(opts.Task, opts.Files, opts.DocsDir)
 	r.RawKnowledgeMatches = rawMatches
+	r.RawYAMLMatchCount = len(rawMatches)
 	if len(rawMatches) > 0 {
 		r = mergeRawKnowledgeMatches(r, rawMatches)
 	}
@@ -817,6 +829,74 @@ func metricWarnings(warnings []string) []string {
 		if strings.Contains(lw, "metric ") || strings.Contains(lw, "saturation") {
 			out = append(out, w)
 		}
+	}
+	return out
+}
+
+// lowTrustLevels are VerificationLevel values that indicate a match is present
+// in the graph but not yet fully validated. The match is kept in the main result
+// lists — it is NOT suppressed — but also reported in FilteredMatches with the
+// reason so callers can lower their confidence accordingly.
+var lowTrustLevels = map[string]bool{
+	integrity.TrustStale:    true,
+	integrity.TrustInferred: true,
+	integrity.TrustProposal: true,
+	integrity.TrustInvalid:  true,
+}
+
+// trustReasonFor maps a trust level to the human-readable reason reported in
+// FilteredMatch.Reason. When the node has no trust metadata the reason is
+// "missing_provenance" — not an error, but worth surfacing.
+func trustReasonFor(level string) string {
+	switch level {
+	case integrity.TrustStale:
+		return "stale"
+	case integrity.TrustInferred:
+		return "inferred"
+	case integrity.TrustProposal:
+		return "proposal"
+	case integrity.TrustInvalid:
+		return "invalid"
+	default:
+		return level
+	}
+}
+
+// checkNodesTrust inspects matched invariant/failure_mode/forbidden_fix node
+// metadata for low trust provenance. It does not remove the matches from the
+// main result; it returns a parallel FilteredMatch slice so callers know which
+// graph findings carry reduced confidence.
+func checkNodesTrust(ctx context.Context, g *graph.Graph, invariantIDs, failureModeIDs, forbiddenFixIDs []string) []FilteredMatch {
+	var out []FilteredMatch
+
+	check := func(id, kind, nodePrefix string) {
+		nodeID := nodePrefix + id
+		n, err := g.FindNode(ctx, nodeID)
+		if err != nil || n == nil {
+			return
+		}
+		tl, _ := n.Metadata["trust_level"].(string)
+		if tl == "" {
+			tl, _ = n.Metadata["verification_level"].(string)
+		}
+		if tl != "" && lowTrustLevels[tl] {
+			out = append(out, FilteredMatch{
+				ID:         id,
+				Kind:       kind,
+				Reason:     trustReasonFor(tl),
+				TrustLevel: tl,
+			})
+		}
+	}
+
+	for _, id := range invariantIDs {
+		check(id, "invariant", "invariant:")
+	}
+	for _, id := range failureModeIDs {
+		check(id, "failure_mode", "failure_mode:")
+	}
+	for _, id := range forbiddenFixIDs {
+		check(id, "forbidden_fix", "forbidden_fix:")
 	}
 	return out
 }

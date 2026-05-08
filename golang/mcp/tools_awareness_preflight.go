@@ -122,11 +122,29 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 		}
 		if st.g == nil {
 			return map[string]interface{}{
-				"invariants":     []string{},
-				"failure_modes":  []string{},
+				"status":          "UNKNOWN_IMPACT",
+				"invariants":      []string{},
+				"failure_modes":   []string{},
 				"forbidden_fixes": []string{},
-				"required_tests": []string{},
-				"warnings":       []string{"no graph DB — run 'globular awareness build' first"},
+				"required_tests":  []string{},
+				"graph_available": false,
+				"coverage": map[string]interface{}{
+					"graph":          "not_checked",
+					"raw_yaml":       "not_checked",
+					"runtime":        "noop",
+					"metrics":        "noop",
+					"code_scan":      "not_checked",
+					"incident_store": "not_checked",
+				},
+				"confidence":        "unknown",
+				"confidence_reason": "graph DB not available — no architecture facts can be matched; run 'globular awareness build' first",
+				"blind_spots": []string{
+					"graph unavailable — static pattern matching only",
+					"runtime snapshot not collected — no live cluster evidence",
+					"metrics not available — resource saturation not assessed",
+					"code violation scan not run — use awareness.scan_violations",
+				},
+				"warnings": []string{"no graph DB — run 'globular awareness build' first"},
 			}, nil
 		}
 

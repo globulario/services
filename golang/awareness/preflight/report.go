@@ -53,6 +53,17 @@ type RawKnowledgeMatch struct {
 	MatchedTerms []string `json:"matched_terms"`
 }
 
+// FilteredMatch is a graph match that has low-trust provenance.
+// The match is still present in the main invariants/failure_modes lists
+// (with lower confidence) but is also reported here so callers understand
+// why graph_filtered_by_trust_count > 0.
+type FilteredMatch struct {
+	ID         string `json:"id"`
+	Kind       string `json:"kind"`       // invariant, failure_mode, forbidden_fix
+	Reason     string `json:"reason"`     // stale, inferred, invalid, proposal, missing_provenance
+	TrustLevel string `json:"trust_level"`
+}
+
 // RuntimeSection holds live cluster evidence included in the preflight.
 type RuntimeSection struct {
 	Included            bool                     `json:"included"`
@@ -171,4 +182,12 @@ type Report struct {
 	Coverage            Coverage                 `json:"coverage"`
 	BlindSpots          []string                 `json:"blind_spots,omitempty"`
 	GraphFreshness      *GraphFreshnessReport    `json:"graph_freshness,omitempty"`
+
+	// Graph coverage detail — tells callers WHY a result has no/few matches.
+	GraphAvailable            bool            `json:"graph_available"`
+	GraphDBPath               string          `json:"graph_db_path,omitempty"`
+	GraphMatchCount           int             `json:"graph_match_count"`
+	GraphFilteredByTrustCount int             `json:"graph_filtered_by_trust_count"`
+	RawYAMLMatchCount         int             `json:"raw_yaml_match_count"`
+	FilteredMatches           []FilteredMatch `json:"filtered_matches,omitempty"`
 }
