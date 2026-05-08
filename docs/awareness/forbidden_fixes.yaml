@@ -1163,6 +1163,52 @@ forbidden_fixes:
     'globular awareness build' first", "cannot check files for decision paths",
     and "runtime not collected". These are always true in no-graph mode.
 
+- id: auto_rollback_on_crash
+  summary: |
+    Automatically install an older package version when the current version crashes
+    or fails its health check, without explicit operator approval.
+  related_invariants:
+    - controller.reconciler.no_downgrade_without_force
+  safe_alternative: |
+    When a service crashes, create an incident and halt convergence for that package.
+    Never install a lower version unless the operator explicitly runs a rollback command
+    with Force=true. Auto-rollback masks root causes and can compound incidents.
+
+- id: reconcile_from_in_memory_snapshot_after_failover
+  summary: |
+    After acquiring cluster leadership, load desired state from an in-memory snapshot
+    carried over from a prior leader session rather than reading fresh from etcd.
+  related_invariants:
+    - controller.reconciler.desired_state_from_etcd_only
+  safe_alternative: |
+    After every leader election, the reconciler must reload desired state exclusively
+    from etcd before running any convergence tick. In-memory state from a prior
+    leader session is stale by definition and must be discarded entirely.
+
+- id: hardcode_kind_list_in_reconciler
+  summary: |
+    Maintain a hardcoded list of service names or prefixes inside the reconciler to
+    classify packages as infrastructure vs service kind, duplicating the canonical
+    registry.
+  related_invariants:
+    - package.kind.single_canonical_source
+  safe_alternative: |
+    The reconciler must read kind from the package metadata (package.json or catalog).
+    No list of names or prefixes inside reconciler logic. If the metadata is missing,
+    fail loudly — do not fall back to a guess.
+
+- id: infer_kind_from_service_name
+  summary: |
+    Infer package kind (infrastructure vs service) from the service name string (e.g.
+    "xds" implies infrastructure) rather than reading from the canonical package
+    metadata registry.
+  related_invariants:
+    - package.kind.single_canonical_source
+  safe_alternative: |
+    Kind must always be read from package.json metadata. Service name is not a
+    reliable proxy for kind — names change, packages are renamed, and inference
+    creates silent mismatches that only surface at convergence time.
+
 - id: backfill_causal_chain_without_symptoms
   summary: |
     Create a causal_rules.yaml entry retroactively, from memory or logs, without
