@@ -584,11 +584,13 @@ func checkMCPDiscovery(opts Options) CheckResult {
 
 	// The invariant is violated if registerPromoteApprovedProposalsTool is called
 	// from registerProposalDrainTools (i.e., the call is present and uncommented).
+	// Look for a non-comment call to registerPromoteApprovedProposalsTool.
+	// The function definition line starts with "func " — skip it.
 	lines := strings.Split(string(data), "\n")
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "//") {
-			continue // skip comments
+		if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "func ") {
+			continue
 		}
 		if strings.Contains(trimmed, "registerPromoteApprovedProposalsTool") {
 			cr.Status = StatusFail

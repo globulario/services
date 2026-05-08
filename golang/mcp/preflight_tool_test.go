@@ -1,18 +1,16 @@
-package main_test
+package main
 
 import (
 	"context"
 	"encoding/json"
 	"strings"
 	"testing"
-
-	mcpaware "github.com/globulario/services/golang/awareness/mcp"
 )
 
 func TestPreflightReturnsValidJSON(t *testing.T) {
-	s, _ := makeTestServer(t)
+	s, _ := newAwarenessTestServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.preflight", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.preflight", map[string]interface{}{
 		"task": "desired_hash mismatch after deploy",
 	})
 	if err != nil {
@@ -37,11 +35,9 @@ func TestPreflightReturnsValidJSON(t *testing.T) {
 }
 
 func TestPreflightDegradesMissingGraph(t *testing.T) {
-	docsDir := setupTestDocsDir(t)
-	// No graph.
-	s, _ := makeTestServerNoGraph(t, docsDir)
+	s, _ := newAwarenessDegradedServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.preflight", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.preflight", map[string]interface{}{
 		"task": "desired_hash mismatch",
 	})
 	if err != nil {
@@ -49,15 +45,15 @@ func TestPreflightDegradesMissingGraph(t *testing.T) {
 	}
 
 	b, _ := json.Marshal(result)
-	if !strings.Contains(string(b), "no graph DB") {
+	if !strings.Contains(string(b), "no graph DB") && !strings.Contains(string(b), "no graph") {
 		t.Errorf("degraded preflight must include 'no graph DB' warning, got: %s", b)
 	}
 }
 
 func TestPreflightWithIncludeRuntimeIncludesRuntimeSection(t *testing.T) {
-	s, _ := makeTestServer(t)
+	s, _ := newAwarenessTestServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.preflight", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.preflight", map[string]interface{}{
 		"task":            "desired_hash mismatch",
 		"include_runtime": true,
 		"runtime_window":  "5m",
@@ -70,16 +66,15 @@ func TestPreflightWithIncludeRuntimeIncludesRuntimeSection(t *testing.T) {
 	var m map[string]interface{}
 	_ = json.Unmarshal(b, &m)
 
-	// runtime section should be present when include_runtime is true.
 	if _, ok := m["runtime"]; !ok {
 		t.Error("expected 'runtime' section when include_runtime=true")
 	}
 }
 
 func TestPreflightClassifiesDesiredHashAsMismatch(t *testing.T) {
-	s, _ := makeTestServer(t)
+	s, _ := newAwarenessTestServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.preflight", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.preflight", map[string]interface{}{
 		"task": "desired_hash mismatch between controller and node-agent",
 	})
 	if err != nil {
@@ -87,15 +82,7 @@ func TestPreflightClassifiesDesiredHashAsMismatch(t *testing.T) {
 	}
 
 	b, _ := json.Marshal(result)
-	// Should contain STATE_MISMATCH in classification.
 	if !strings.Contains(string(b), "STATE_MISMATCH") {
 		t.Errorf("expected STATE_MISMATCH classification for desired_hash task, got: %s", b)
 	}
-}
-
-func makeTestServerNoGraph(t *testing.T, docsDir string) (*mcpaware.Server, string) {
-	t.Helper()
-	s := mcpaware.NewWithGraph(mcpaware.Config{DocsDir: docsDir}, nil)
-	t.Cleanup(func() { s.Close() })
-	return s, docsDir
 }

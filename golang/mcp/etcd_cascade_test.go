@@ -38,7 +38,7 @@ May 07 18:00:16 globule-ryzen workflow[9012]: workflow stuck at CONVERGING
 func TestOfflineDiagnose_EtcdNOSPACE_MapsToEtcdFailureMode(t *testing.T) {
 	s := newSelfReviewServer(t) // uses real docs/awareness dir with promoted entries
 
-	result, err := s.CallTool(context.Background(), "awareness.offline_diagnose", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.offline_diagnose", map[string]interface{}{
 		"journalctl_text": etcdNOSPACELogs,
 	})
 	if err != nil {
@@ -108,7 +108,7 @@ func TestOfflineDiagnose_EtcdNOSPACE_MapsToEtcdFailureMode(t *testing.T) {
 func TestOfflineDiagnose_EtcdNOSPACE_DoesNotMapToObjectstore(t *testing.T) {
 	s := newSelfReviewServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.offline_diagnose", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.offline_diagnose", map[string]interface{}{
 		"journalctl_text": etcdNOSPACELogs,
 	})
 	if err != nil {
@@ -138,7 +138,7 @@ func TestOfflineDiagnose_EtcdNOSPACE_DoesNotMapToObjectstore(t *testing.T) {
 func TestCausalChain_EtcdNOSPACE_ProducesControlPlaneCascade(t *testing.T) {
 	s, _ := setupCausalServer(t) // fixture already contains etcd_disk_pressure_to_workflow_timeout
 
-	result, err := s.CallTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
 		"events": []interface{}{
 			"etcd: NOSPACE alarm activated — mvcc: database space exceeded",
 			"etcd: lost leader — leader election started",
@@ -335,7 +335,7 @@ func TestForbiddenFixes_EtcdCascade(t *testing.T) {
 func TestOfflineDiagnose_EtcdNOSPACE_SurfacesDirectDiagnostics(t *testing.T) {
 	s := newSelfReviewServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.offline_diagnose", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.offline_diagnose", map[string]interface{}{
 		"journalctl_text": etcdNOSPACELogs,
 	})
 	if err != nil {

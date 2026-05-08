@@ -47,11 +47,10 @@ func TestHealthPulse_StaleProposalWarning(t *testing.T) {
 	}
 }
 
-// TestHealthPulse_RuntimeNoopWarning verifies that a noop runtime config
-// produces a warning section status and a noop alert.
+// TestHealthPulse_RuntimeNoopWarning verifies that the noop runtime config
+// (main MCP uses etcd — no static gRPC addresses) produces a warning.
 func TestHealthPulse_RuntimeNoopWarning(t *testing.T) {
-	cfg := Config{Insecure: true} // no addresses set
-	section, alerts := buildRuntimeSection(cfg)
+	section, alerts := buildRuntimeSection()
 	if section.Status != "warn" {
 		t.Errorf("expected warn for noop config, got %q", section.Status)
 	}

@@ -1,4 +1,4 @@
-package main_test
+package main
 
 import (
 	"bytes"
@@ -15,11 +15,10 @@ import (
 // TestStartupSmoke verifies the server registers all required tools and
 // excludes the forbidden promote-proposal tool immediately after creation.
 func TestStartupSmoke(t *testing.T) {
-	s, _ := makeTestServer(t)
+	s, _ := newAwarenessTestServer(t)
 
-	names := s.ToolNames()
-	nameSet := make(map[string]bool, len(names))
-	for _, n := range names {
+	nameSet := make(map[string]bool, len(s.tools))
+	for n := range s.tools {
 		nameSet[n] = true
 	}
 
@@ -36,17 +35,17 @@ func TestStartupSmoke(t *testing.T) {
 // TestStartupSmokeViaJSONRPC exercises the full MCP JSON-RPC wire path:
 // initialize → tools/list → verify awareness.preflight present, promote-proposal absent.
 func TestStartupSmokeViaJSONRPC(t *testing.T) {
-	s, _ := makeTestServer(t)
+	s, _ := newAwarenessTestServer(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	pr, pw := io.Pipe()
-	out := &safeBuffer{}
+	out := &startupSafeBuf{}
 
 	srvDone := make(chan error, 1)
 	go func() {
-		srvDone <- s.ServeRW(ctx, pr, out)
+		srvDone <- s.serveRW(ctx, pr, out)
 	}()
 
 	encode := func(v interface{}) []byte {
@@ -87,19 +86,19 @@ func TestStartupSmokeViaJSONRPC(t *testing.T) {
 	}
 }
 
-// safeBuffer is a goroutine-safe bytes.Buffer.
-type safeBuffer struct {
+// startupSafeBuf is a goroutine-safe bytes.Buffer (renamed to avoid collision with safeBuf).
+type startupSafeBuf struct {
 	mu  sync.Mutex
 	buf bytes.Buffer
 }
 
-func (b *safeBuffer) Write(p []byte) (int, error) {
+func (b *startupSafeBuf) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.Write(p)
 }
 
-func (b *safeBuffer) String() string {
+func (b *startupSafeBuf) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()

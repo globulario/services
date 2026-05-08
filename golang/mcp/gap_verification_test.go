@@ -23,7 +23,7 @@ import (
 //   - agent_playbooks.yaml lists functions that don't start with TestXxx
 func TestVerifyGapTests_AllImplementedGapsHaveRealTests(t *testing.T) {
 	docsDir := selfReviewDocsDir(t)
-	repoRoot, err := filepath.Abs("../../..")
+	repoRoot, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestVerifyGapTests_AllImplementedGapsHaveRealTests(t *testing.T) {
 // reported as tests_not_found. Instead it must return "invalid_metadata"
 // with a clear note, so the gap maintainer knows the entry needs fixing.
 func TestVerifyGapTests_DescriptionStyleEntryReportedAsInvalidMetadata(t *testing.T) {
-	repoRoot, err := filepath.Abs("../../..")
+	repoRoot, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
 	}

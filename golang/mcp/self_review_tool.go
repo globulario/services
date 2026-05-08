@@ -776,7 +776,11 @@ func verifyGapTests(repoRoot string, testsRequired []string) (status string, not
 		return "unverified", "repo root unavailable — cannot scan test files"
 	}
 
-	testDir := filepath.Join(repoRoot, "golang", "awareness")
+	// Scan both golang/awareness/ and golang/mcp/ (awareness tools were merged into mcp in v1.2.20).
+	testDirs := []string{
+		filepath.Join(repoRoot, "golang", "awareness"),
+		filepath.Join(repoRoot, "golang", "mcp"),
+	}
 	// Normalize: strip trailing annotation notes like "(not objectstore)" from
 	// entries such as "TestFoo (note)" so only the Go function name is matched.
 	normalized := make([]string, len(testsRequired))
@@ -807,22 +811,24 @@ func verifyGapTests(repoRoot string, testsRequired []string) (status string, not
 
 	found := make(map[string]bool)
 
-	_ = filepath.Walk(testDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		data, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return nil
-		}
-		content := string(data)
-		for _, testName := range normalized {
-			if strings.Contains(content, "func "+testName+"(") {
-				found[testName] = true
+	for _, testDir := range testDirs {
+		_ = filepath.Walk(testDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
+				return nil
 			}
-		}
-		return nil
-	})
+			data, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return nil
+			}
+			content := string(data)
+			for _, testName := range normalized {
+				if strings.Contains(content, "func "+testName+"(") {
+					found[testName] = true
+				}
+			}
+			return nil
+		})
+	}
 
 	foundCount := len(found)
 	total := len(normalized)
@@ -839,7 +845,7 @@ func verifyGapTests(repoRoot string, testsRequired []string) (status string, not
 		}
 		return "tests_partial", fmt.Sprintf("%d/%d found; missing: %s", foundCount, total, strings.Join(missing, ", "))
 	default:
-		return "tests_not_found", fmt.Sprintf("0/%d required tests found in golang/awareness/", total)
+		return "tests_not_found", fmt.Sprintf("0/%d required tests found in golang/awareness/ or golang/mcp/", total)
 	}
 }
 

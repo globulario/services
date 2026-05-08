@@ -6,9 +6,9 @@ import (
 )
 
 func TestExplainSymptom_UnknownTextNoMatch(t *testing.T) {
-	s := NewWithGraph(Config{DocsDir: resolveTestDocsDir()}, nil)
+	s := newMCPWithDocsDir(t, resolveTestDocsDir())
 
-	result, err := s.CallTool(context.Background(), "awareness.explain_symptom", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.explain_symptom", map[string]interface{}{
 		"text": "zzz_totally_unknown_xyzzy_not_in_knowledge_base",
 	})
 	if err != nil {
@@ -31,9 +31,9 @@ func TestExplainSymptom_UnknownTextNoMatch(t *testing.T) {
 }
 
 func TestExplainSymptom_RequiresText(t *testing.T) {
-	s := NewWithGraph(Config{DocsDir: "/tmp/nonexistent-docs"}, nil)
+	s := newMCPWithDocsDir(t, "/tmp/nonexistent-docs")
 
-	_, err := s.CallTool(context.Background(), "awareness.explain_symptom", map[string]interface{}{})
+	_, err := s.callTool(context.Background(), "awareness.explain_symptom", map[string]interface{}{})
 	// Should error: either "text is required" or "docs dir not configured".
 	if err == nil {
 		t.Error("expected error when text is missing or docs dir invalid")
@@ -41,8 +41,8 @@ func TestExplainSymptom_RequiresText(t *testing.T) {
 }
 
 func TestExplainSymptom_Registered(t *testing.T) {
-	s := NewWithGraph(Config{}, nil)
-	if !s.HasTool("awareness.explain_symptom") {
+	s := newMCPWithDocsDir(t, "")
+	if !s.hasTool("awareness.explain_symptom") {
 		t.Error("awareness.explain_symptom should be registered")
 	}
 }

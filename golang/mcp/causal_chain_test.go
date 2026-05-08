@@ -122,15 +122,25 @@ func setupCausalServer(t *testing.T) (*server, string) {
 		t.Fatal(err)
 	}
 
-	s := NewWithGraph(Config{DocsDir: docsDir}, nil)
-	t.Cleanup(func() { s.Close() })
+	s := newCausalTestServer(t, docsDir)
 	return s, docsDir
+}
+
+// newCausalTestServer creates a minimal server with only the causal_chain tool registered.
+func newCausalTestServer(t *testing.T, docsDir string) *server {
+	t.Helper()
+	cfg := defaultConfig()
+	cfg.ToolGroups.Awareness = true
+	s := newServer(cfg)
+	st := &awarenessState{docsDir: docsDir}
+	registerCausalChainTool(s, st)
+	return s
 }
 
 // TestCausalChain_Registered verifies the tool is available.
 func TestCausalChain_Registered(t *testing.T) {
-	s := NewWithGraph(Config{}, nil)
-	if !s.HasTool("awareness.causal_chain") {
+	s := newCausalTestServer(t, t.TempDir())
+	if !s.hasTool("awareness.causal_chain") {
 		t.Error("awareness.causal_chain must be registered")
 	}
 }
@@ -139,7 +149,7 @@ func TestCausalChain_Registered(t *testing.T) {
 func TestCausalChain_EtcdNspaceToWorkflowTimeout(t *testing.T) {
 	s, _ := setupCausalServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
 		"events": []interface{}{
 			"etcd: NOSPACE alarm is activated — database space exceeded",
 			"leader changed: globule-ryzen is now leader",
@@ -179,7 +189,7 @@ func TestCausalChain_EtcdNspaceToWorkflowTimeout(t *testing.T) {
 func TestCausalChain_PortSquatting(t *testing.T) {
 	s, _ := setupCausalServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
 		"offline_evidence": `
 bind: address already in use :10004
 rpc error: code = Unimplemented desc = unknown gRPC service
@@ -213,7 +223,7 @@ workflow service client unavailable
 func TestCausalChain_MinioChain(t *testing.T) {
 	s, _ := setupCausalServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
 		"events": []interface{}{
 			"minio: drive offline /data/disk2",
 			"node_agent: artifact download failed: not found",
@@ -244,7 +254,7 @@ func TestCausalChain_MinioChain(t *testing.T) {
 func TestCausalChain_UnrelatedSymptoms(t *testing.T) {
 	s, _ := setupCausalServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
 		"events": []interface{}{
 			"TLS certificate expired: x509 validation failed",
 			"certificate mismatch on globular.io",
@@ -282,7 +292,7 @@ func TestCausalChain_UnrelatedSymptoms(t *testing.T) {
 func TestCausalChain_EmptyEvents(t *testing.T) {
 	s, _ := setupCausalServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.causal_chain", map[string]interface{}{})
+	result, err := s.callTool(context.Background(), "awareness.causal_chain", map[string]interface{}{})
 	if err != nil {
 		t.Fatalf("causal_chain error: %v", err)
 	}
@@ -308,7 +318,7 @@ func TestCausalChain_PartialMatchBelowThreshold(t *testing.T) {
 
 	// etcd_disk_pressure_to_workflow_timeout has 4 steps.
 	// We provide only 1 matching event (25% < 50% threshold).
-	result, err := s.CallTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
 		"events": []interface{}{
 			// Only matches etcd_nospace step, not the others.
 			"etcd: NOSPACE alarm detected",
@@ -337,7 +347,7 @@ func TestCausalChain_PartialMatchBelowThreshold(t *testing.T) {
 func TestCausalChain_EtcdNospace_FixOrderCompactBeforeDisarm(t *testing.T) {
 	s, _ := setupCausalServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
 		"events": []interface{}{
 			"etcd: NOSPACE alarm is activated — database space exceeded",
 			"controller: lease expired, attempting re-election",
@@ -403,7 +413,7 @@ func TestCausalChain_EtcdNospace_FixOrderCompactBeforeDisarm(t *testing.T) {
 func TestCausalChain_EtcdNospace_FixOrderDisarmNotFirst(t *testing.T) {
 	s, _ := setupCausalServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
 		"events": []interface{}{
 			"etcd: NOSPACE alarm — database space exceeded",
 			"etcd: lost leader, new election started",
@@ -438,10 +448,10 @@ func TestCausalChain_EtcdNospace_FixOrderDisarmNotFirst(t *testing.T) {
 // This guards against the fix being accidentally removed.
 func TestCausalRule_ForbiddenFix_DisarmBeforeCompactExists(t *testing.T) {
 	// Locate forbidden_fixes.yaml relative to the repo root.
-	// Tests run from golang/awareness/mcp/; repo root is three levels up.
+	// Tests run from golang/mcp/; repo root is two levels up.
 	candidates := []string{
+		"../../docs/awareness/forbidden_fixes.yaml",
 		"../../../docs/awareness/forbidden_fixes.yaml",
-		"../../../../docs/awareness/forbidden_fixes.yaml",
 	}
 	var data []byte
 	var found string
@@ -469,10 +479,9 @@ func TestCausalRule_ForbiddenFix_DisarmBeforeCompactExists(t *testing.T) {
 // TestCausalChain_NoCausalRulesFile verifies graceful degradation when rules file is missing.
 func TestCausalChain_NoCausalRulesFile(t *testing.T) {
 	docsDir := t.TempDir()
-	s := NewWithGraph(Config{DocsDir: docsDir}, nil)
-	defer s.Close()
+	s := newCausalTestServer(t, docsDir)
 
-	result, err := s.CallTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.causal_chain", map[string]interface{}{
 		"events": []interface{}{"NOSPACE alarm"},
 	})
 	if err != nil {

@@ -30,9 +30,9 @@ import (
 
 func TestOfflineDiagnose_SymptomsOnlyScoring_NoFalsePositives(t *testing.T) {
 	docsDir := buildSymptomsOnlyTempDocs(t)
-	s := NewWithGraph(Config{DocsDir: docsDir}, nil)
+	s := newMCPWithDocsDir(t, docsDir)
 
-	result, err := s.CallTool(context.Background(), "awareness.offline_diagnose", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.offline_diagnose", map[string]interface{}{
 		"journalctl_text": etcdNOSPACELogs, // defined in etcd_cascade_test.go
 	})
 	if err != nil {
@@ -187,7 +187,7 @@ func TestSelfReview_ClosedGap_UnverifiedWhenNoTests(t *testing.T) {
 	docsDir := buildFakePlaybookDocs(t, "status: implemented", []string{
 		"TestThatDefinitelyDoesNotExistAnywhere_XYZ123",
 	})
-	s := NewWithGraph(Config{DocsDir: docsDir}, nil)
+	s := newMCPWithDocsDir(t, docsDir)
 
 	result := callSelfReview(t, s, map[string]interface{}{
 		"feedback": "fake gap keyword trigger abc123",

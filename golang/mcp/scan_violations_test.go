@@ -8,8 +8,8 @@ import (
 )
 
 func TestScanViolations_Registered(t *testing.T) {
-	s := NewWithGraph(Config{}, nil)
-	if !s.HasTool("awareness.scan_violations") {
+	s := newMCPWithDocsDir(t, "")
+	if !s.hasTool("awareness.scan_violations") {
 		t.Error("awareness.scan_violations should be registered")
 	}
 }
@@ -30,8 +30,8 @@ func dial() {
 		t.Fatal(err)
 	}
 
-	s := NewWithGraph(Config{}, nil)
-	result, err := s.CallTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
+	s := newMCPWithDocsDir(t, "")
+	result, err := s.callTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
 		"paths":    []interface{}{dir},
 		"severity": "critical",
 	})
@@ -76,8 +76,8 @@ func getAddr() string {
 		t.Fatal(err)
 	}
 
-	s := NewWithGraph(Config{}, nil)
-	result, err := s.CallTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
+	s := newMCPWithDocsDir(t, "")
+	result, err := s.callTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
 		"paths":    []interface{}{dir},
 		"severity": "high",
 	})
@@ -94,8 +94,8 @@ func getAddr() string {
 
 func TestScanViolations_EmptyDir(t *testing.T) {
 	dir := t.TempDir()
-	s := NewWithGraph(Config{}, nil)
-	result, err := s.CallTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
+	s := newMCPWithDocsDir(t, "")
+	result, err := s.callTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
 		"paths": []interface{}{dir},
 	})
 	if err != nil {
@@ -149,8 +149,8 @@ func dial() {
 		t.Fatal(err)
 	}
 
-	s := NewWithGraph(Config{}, nil)
-	result, err := s.CallTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
+	s := newMCPWithDocsDir(t, "")
+	result, err := s.callTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
 		"paths":    []interface{}{dir},
 		"severity": "critical",
 	})
@@ -176,8 +176,8 @@ const addr = "127.0.0.1:9090"
 		t.Fatal(err)
 	}
 
-	s := NewWithGraph(Config{}, nil)
-	result, err := s.CallTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
+	s := newMCPWithDocsDir(t, "")
+	result, err := s.callTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
 		"paths":    []interface{}{dir},
 		"severity": "critical",
 	})
@@ -208,8 +208,8 @@ const addr = "127.0.0.1:9090"
 		t.Fatal(err)
 	}
 
-	s := NewWithGraph(Config{}, nil)
-	result, err := s.CallTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
+	s := newMCPWithDocsDir(t, "")
+	result, err := s.callTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
 		"paths":    []interface{}{dir},
 		"severity": "critical",
 	})
@@ -254,8 +254,8 @@ const addr = "127.0.0.1:9090"
 		t.Fatal(err)
 	}
 
-	s := NewWithGraph(Config{DocsDir: dir}, nil)
-	result, err := s.CallTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
+	s := newMCPWithDocsDir(t, dir)
+	result, err := s.callTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
 		"paths":    []interface{}{scanDir},
 		"severity": "critical",
 	})
@@ -289,8 +289,8 @@ const addr = "127.0.0.1:9090"
 		t.Fatal(err)
 	}
 
-	s := NewWithGraph(Config{}, nil)
-	result, err := s.CallTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
+	s := newMCPWithDocsDir(t, "")
+	result, err := s.callTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
 		"paths":    []interface{}{dir},
 		"severity": "medium",
 	})

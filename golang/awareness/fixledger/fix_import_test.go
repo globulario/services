@@ -114,9 +114,9 @@ func TestImportCase03ForbiddenFixStopOnMissingKey(t *testing.T) {
 
 // ---- Test 3: Case 02 is a PARTIAL fix case ----
 
-// TestImportCase02IsPartial verifies that bootstrap_state_promotion appears as
-// a PARTIAL fix case with remaining implementation gaps.
-func TestImportCase02IsPartial(t *testing.T) {
+// TestImportCase02IsDone verifies that bootstrap_state_promotion is fully
+// resolved — promoted via proposal.inc_2026_0002.promoted in v1.2.20.
+func TestImportCase02IsDone(t *testing.T) {
 	cases := fixCasesFromDocs(t)
 
 	var found *fixledger.FixCase
@@ -129,11 +129,8 @@ func TestImportCase02IsPartial(t *testing.T) {
 	if found == nil {
 		t.Fatal("fix case bootstrap_state_promotion not found in fix_cases.yaml")
 	}
-	if found.Status != fixledger.FixPartial {
-		t.Errorf("expected status PARTIAL for bootstrap_state_promotion, got %s", found.Status)
-	}
-	if len(found.RemainingFiles) == 0 {
-		t.Error("bootstrap_state_promotion must list remaining_files for the promotion reconciler")
+	if found.Status != fixledger.FixDone {
+		t.Errorf("expected status DONE for bootstrap_state_promotion, got %s", found.Status)
 	}
 	if len(found.TargetInvariants) == 0 {
 		t.Error("bootstrap_state_promotion must have target_invariants")

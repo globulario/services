@@ -1,32 +1,26 @@
-package main_test
+package main
 
 import (
 	"testing"
 )
 
 func TestAllToolsHaveNonEmptyDescription(t *testing.T) {
-	s, _ := makeTestServer(t)
-	for _, name := range s.ToolNames() {
-		def := s.ToolDef(name)
-		if def == nil {
-			t.Errorf("tool %q: ToolDef returned nil", name)
-			continue
-		}
-		if def.Name == "" {
+	s, _ := newAwarenessTestServer(t)
+	for name, rt := range s.tools {
+		if rt.def.Name == "" {
 			t.Errorf("tool %q: Name is empty", name)
 		}
-		if def.Description == "" {
+		if rt.def.Description == "" {
 			t.Errorf("tool %q: Description is empty", name)
 		}
-		if def.InputSchema.Type != "object" {
-			t.Errorf("tool %q: InputSchema.Type must be 'object', got %q", name, def.InputSchema.Type)
+		if rt.def.InputSchema.Type != "object" {
+			t.Errorf("tool %q: InputSchema.Type must be 'object', got %q", name, rt.def.InputSchema.Type)
 		}
-		_ = def.InputSchema.Properties // ensure Properties is accessible
 	}
 }
 
 func TestRequiredToolsHaveRequiredFields(t *testing.T) {
-	s, _ := makeTestServer(t)
+	s, _ := newAwarenessTestServer(t)
 
 	mustHaveRequired := map[string][]string{
 		"awareness.preflight":             {"task"},
@@ -42,13 +36,13 @@ func TestRequiredToolsHaveRequiredFields(t *testing.T) {
 	}
 
 	for toolName, wantRequired := range mustHaveRequired {
-		def := s.ToolDef(toolName)
-		if def == nil {
+		rt, ok := s.tools[toolName]
+		if !ok {
 			t.Errorf("tool %q not found", toolName)
 			continue
 		}
-		reqSet := make(map[string]bool, len(def.InputSchema.Required))
-		for _, r := range def.InputSchema.Required {
+		reqSet := make(map[string]bool, len(rt.def.InputSchema.Required))
+		for _, r := range rt.def.InputSchema.Required {
 			reqSet[r] = true
 		}
 		for _, field := range wantRequired {

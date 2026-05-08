@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/awareness/graph"
-	mcpaware "github.com/globulario/services/golang/awareness/mcp"
 	"github.com/globulario/services/golang/awareness/selfcheck"
 )
 
@@ -193,20 +192,23 @@ func TestSmokeMissingInvariantReportsFalseSilence(t *testing.T) {
 // ── Test 3: self-check reports MCP failure if promote_proposal is exposed ──────
 
 func TestMCPCheckFailsWhenPromoteProposalExposed(t *testing.T) {
-	// The real MCP server must NOT expose promote_proposal.
-	s := mcpaware.New(mcpaware.Config{})
-	for _, name := range s.ToolNames() {
-		if strings.Contains(strings.ToLower(name), "promote") {
-			t.Errorf("MCP server exposes promotion tool %q — violation of awareness.mcp_must_not_expose_promotion", name)
-		}
-	}
-
-	// Run full self-check (nil graph → skip graph-dependent checks);
-	// MCP discovery check does not require graph.
-	opts := selfcheck.Options{}
-	r, err := selfcheck.Run(context.Background(), opts, nil)
+	// The standalone awareness/mcp server was removed in v1.2.20.
+	// The invariant (awareness.mcp_must_not_expose_promotion) is now enforced
+	// in golang/mcp/proposal_drain_tool.go and verified via source inspection
+	// by selfcheck.checkMCPDiscovery.
+	//
+	// Run full self-check with a DocsDir so the source inspection can locate
+	// the MCP registration file.
+	repoRoot, err := findRepoRoot(t)
 	if err != nil {
-		t.Fatalf("selfcheck.Run: %v", err)
+		t.Skipf("repo root not found (%v) — skipping MCP discovery check", err)
+	}
+	opts := selfcheck.Options{
+		DocsDir: filepath.Join(repoRoot, "docs", "awareness"),
+	}
+	r, runErr := selfcheck.Run(context.Background(), opts, nil)
+	if runErr != nil {
+		t.Fatalf("selfcheck.Run: %v", runErr)
 	}
 
 	found := false
@@ -220,6 +222,24 @@ func TestMCPCheckFailsWhenPromoteProposalExposed(t *testing.T) {
 	}
 	if !found {
 		t.Error("KindMCPDiscovery check not found in report")
+	}
+}
+
+func findRepoRoot(t *testing.T) (string, error) {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.work")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", os.ErrNotExist
+		}
+		dir = parent
 	}
 }
 

@@ -7,28 +7,39 @@ import (
 	"testing"
 )
 
-// docsDir returns the absolute path to docs/awareness, relative to this package.
+// selfReviewDocsDir returns the absolute path to docs/awareness, relative to this package.
 func selfReviewDocsDir(t *testing.T) string {
 	t.Helper()
-	// golang/awareness/mcp/ → up 3 dirs → repo root → docs/awareness
-	abs, err := filepath.Abs("../../../docs/awareness")
+	// golang/mcp/ → up 2 dirs → repo root → docs/awareness
+	abs, err := filepath.Abs("../../docs/awareness")
 	if err != nil {
 		t.Fatalf("resolve docs dir: %v", err)
 	}
 	return abs
 }
 
-// newSelfReviewServer creates a test server with the real docs dir.
+// newSelfReviewTestServer creates a server with self_review tools registered.
+func newSelfReviewTestServer(t *testing.T, docsDir string) *server {
+	t.Helper()
+	cfg := defaultConfig()
+	cfg.ToolGroups.Awareness = true
+	s := newServer(cfg)
+	st := &awarenessState{docsDir: docsDir, repoRoot: awarGitRoot()}
+	registerSelfReviewTools(s, st)
+	return s
+}
+
+// newSelfReviewServer creates a test server with all awareness tools and the real docs dir.
 func newSelfReviewServer(t *testing.T) *server {
 	t.Helper()
 	docsDir := selfReviewDocsDir(t)
-	return NewWithGraph(Config{DocsDir: docsDir}, nil)
+	return newMCPWithDocsDir(t, docsDir)
 }
 
 // callSelfReview is a convenience wrapper.
 func callSelfReview(t *testing.T, s *server, args map[string]interface{}) *selfReviewResult {
 	t.Helper()
-	raw, err := s.CallTool(context.Background(), "awareness.self_review", args)
+	raw, err := s.callTool(context.Background(), "awareness.self_review", args)
 	if err != nil {
 		t.Fatalf("self_review tool error: %v", err)
 	}
@@ -42,7 +53,7 @@ func callSelfReview(t *testing.T, s *server, args map[string]interface{}) *selfR
 // callRequirementFromCritique is a convenience wrapper.
 func callRequirementFromCritique(t *testing.T, s *server, args map[string]interface{}) *requirementFromCritiqueResult {
 	t.Helper()
-	raw, err := s.CallTool(context.Background(), "awareness.requirement_from_critique", args)
+	raw, err := s.callTool(context.Background(), "awareness.requirement_from_critique", args)
 	if err != nil {
 		t.Fatalf("requirement_from_critique tool error: %v", err)
 	}
@@ -146,7 +157,7 @@ there is no causal chain linking multiple symptoms to a root cause.`
 	for _, want := range wantPatterns {
 		found := false
 		for _, id := range allGapIDs {
-			if contains(id, want.needle) {
+			if srContains(id, want.needle) {
 				found = true
 				break
 			}
@@ -278,7 +289,7 @@ func TestSelfReview_AlreadyImplementedGap_InClosedGaps(t *testing.T) {
 
 	found := false
 	for _, g := range result.ClosedGaps {
-		if contains(g.GapID, "ast_scan") {
+		if srContains(g.GapID, "ast_scan") {
 			found = true
 			if g.Status != "implemented" {
 				t.Errorf("expected status=implemented for %q, got %q", g.GapID, g.Status)
@@ -292,7 +303,7 @@ func TestSelfReview_AlreadyImplementedGap_InClosedGaps(t *testing.T) {
 
 	// Must NOT appear in open gaps.
 	for _, g := range result.CapabilityGaps {
-		if contains(g.GapID, "ast_scan") {
+		if srContains(g.GapID, "ast_scan") {
 			t.Errorf("ast_scan gap should be in closed_gaps (implemented), but found in open capability_gaps")
 		}
 	}
@@ -326,7 +337,7 @@ func TestRequirementFromCritique_SingleCriticism(t *testing.T) {
 		t.Error("confidence must be non-empty")
 	}
 	// Should match ast_scan pattern.
-	if !contains(result.GapID, "ast_scan") {
+	if !srContains(result.GapID, "ast_scan") {
 		t.Errorf("expected gap_id to reference ast_scan, got %q", result.GapID)
 	}
 }
@@ -338,7 +349,7 @@ func TestRequirementFromCritique_SingleCriticism(t *testing.T) {
 func TestSelfReview_MissingDocsDir_GracefulDegradation(t *testing.T) {
 	tmpDir := t.TempDir()
 	// Use a non-existent docs dir inside the temp dir.
-	s := NewWithGraph(Config{DocsDir: filepath.Join(tmpDir, "nonexistent")}, nil)
+	s := newSelfReviewTestServer(t, filepath.Join(tmpDir, "nonexistent"))
 
 	result := callSelfReview(t, s, map[string]interface{}{
 		"feedback": "awareness is missing features",
@@ -391,14 +402,14 @@ Final paragraph.`
 // ---------------------------------------------------------------------------
 
 func TestSelfReviewToolsRegistered(t *testing.T) {
-	s := NewWithGraph(Config{}, nil)
+	s := newSelfReviewTestServer(t, t.TempDir())
 
 	tools := []string{
 		"awareness.self_review",
 		"awareness.requirement_from_critique",
 	}
 	for _, name := range tools {
-		if !s.HasTool(name) {
+		if !s.hasTool(name) {
 			t.Errorf("tool %q not registered", name)
 		}
 	}
@@ -418,7 +429,7 @@ func TestSelfReview_OpenGap_NotInClosedGaps(t *testing.T) {
 
 	// snapshot_storage must NOT appear in closed_gaps.
 	for _, g := range result.ClosedGaps {
-		if contains(g.GapID, "snapshot_storage") {
+		if srContains(g.GapID, "snapshot_storage") {
 			t.Errorf("snapshot_storage is open but appeared in closed_gaps: %q", g.GapID)
 		}
 	}
@@ -426,7 +437,7 @@ func TestSelfReview_OpenGap_NotInClosedGaps(t *testing.T) {
 	// snapshot_storage SHOULD appear in open capability_gaps if matched.
 	found := false
 	for _, g := range result.CapabilityGaps {
-		if contains(g.GapID, "snapshot_storage") {
+		if srContains(g.GapID, "snapshot_storage") {
 			found = true
 			if g.Status != "open" {
 				t.Errorf("expected status=open for snapshot_storage, got %q", g.Status)
@@ -480,7 +491,7 @@ evidence:
 		t.Fatal(err)
 	}
 
-	s := NewWithGraph(Config{DocsDir: tmpDir}, nil)
+	s := newSelfReviewTestServer(t, tmpDir)
 
 	result := callSelfReview(t, s, map[string]interface{}{
 		"feedback": "runtime snapshots are not stored, suggest_incident cannot compare to baseline snapshot",
@@ -488,7 +499,7 @@ evidence:
 
 	// If snapshot_storage matched and a proposal exists, it should be marked already_proposed.
 	for _, g := range result.CapabilityGaps {
-		if contains(g.GapID, "snapshot_storage") {
+		if srContains(g.GapID, "snapshot_storage") {
 			if !g.AlreadyProposed {
 				t.Errorf("gap %q should be marked already_proposed=true (fake proposal exists)", g.GapID)
 			}
@@ -519,11 +530,11 @@ func openGapIDs(gaps []capabilityGapResult) []string {
 	return out
 }
 
-func contains(s, sub string) bool {
-	return len(sub) > 0 && (s == sub || len(s) >= len(sub) && containsStr(s, sub))
+func srContains(s, sub string) bool {
+	return len(sub) > 0 && (s == sub || len(s) >= len(sub) && srContainsStr(s, sub))
 }
 
-func containsStr(s, sub string) bool {
+func srContainsStr(s, sub string) bool {
 	return len(s) >= len(sub) && (s == sub ||
 		func() bool {
 			for i := 0; i <= len(s)-len(sub); i++ {

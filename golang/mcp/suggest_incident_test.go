@@ -10,8 +10,8 @@ import (
 
 // TestSuggestIncident_Registered verifies the tool is registered.
 func TestSuggestIncident_Registered(t *testing.T) {
-	s := NewWithGraph(Config{}, nil)
-	if !s.HasTool("awareness.suggest_incident") {
+	s := newMCPWithDocsDir(t, "")
+	if !s.hasTool("awareness.suggest_incident") {
 		t.Error("awareness.suggest_incident should be registered")
 	}
 }
@@ -19,8 +19,8 @@ func TestSuggestIncident_Registered(t *testing.T) {
 // TestSuggestIncident_LiveFalseWithoutSnapshotIDErrors verifies that
 // passing live=false without a snapshot_id returns a clear error.
 func TestSuggestIncident_LiveFalseWithoutSnapshotIDErrors(t *testing.T) {
-	s := NewWithGraph(Config{}, nil)
-	_, err := s.CallTool(context.Background(), "awareness.suggest_incident", map[string]interface{}{
+	s := newMCPWithDocsDir(t, "")
+	_, err := s.callTool(context.Background(), "awareness.suggest_incident", map[string]interface{}{
 		"live": false,
 	})
 	if err == nil {
@@ -35,11 +35,11 @@ func TestSuggestIncident_LiveFalseWithoutSnapshotIDErrors(t *testing.T) {
 // a fake bridge returns a valid result.
 func TestSuggestIncident_LiveProducesCandidates(t *testing.T) {
 	// Build a server with a fake bridge that has doctor findings.
-	s := NewWithGraph(Config{}, nil)
+	s := newMCPWithDocsDir(t, "")
 
 	// Override bridge via DoctorAddr — since we can't inject a bridge directly
 	// through the tool, we call live=true (default) and check the result shape.
-	result, err := s.CallTool(context.Background(), "awareness.suggest_incident", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.suggest_incident", map[string]interface{}{
 		"live":         true,
 		"min_severity": "high",
 	})

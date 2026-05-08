@@ -15,15 +15,14 @@ func setupLearnFromFixServer(t *testing.T) (*server, string) {
 	docsDir := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(docsDir, "proposals"), 0o755)
 	_ = os.MkdirAll(filepath.Join(docsDir, "knowledge"), 0o755)
-	s := NewWithGraph(Config{DocsDir: docsDir}, nil)
-	t.Cleanup(func() { s.Close() })
+	s := newMCPWithDocsDir(t, docsDir)
 	return s, docsDir
 }
 
 // TestLearnFromFix_Registered verifies the tool is available.
 func TestLearnFromFix_Registered(t *testing.T) {
-	s := NewWithGraph(Config{}, nil)
-	if !s.HasTool("awareness.learn_from_fix") {
+	s := newMCPWithDocsDir(t, "")
+	if !s.hasTool("awareness.learn_from_fix") {
 		t.Error("awareness.learn_from_fix must be registered")
 	}
 }
@@ -32,7 +31,7 @@ func TestLearnFromFix_Registered(t *testing.T) {
 func TestLearnFromFix_NewFailureMode(t *testing.T) {
 	s, docsDir := setupLearnFromFixServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.learn_from_fix", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.learn_from_fix", map[string]interface{}{
 		"symptom_text": "connection refused to 127.0.0.1:12000",
 		"root_cause":   "hardcoded loopback address bypasses etcd service discovery",
 		"fix_summary":  "replaced 127.0.0.1 with address resolved from etcd",
@@ -88,7 +87,7 @@ func TestLearnFromFix_NewFailureMode(t *testing.T) {
 func TestLearnFromFix_ForbiddenFixProposal(t *testing.T) {
 	s, _ := setupLearnFromFixServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.learn_from_fix", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.learn_from_fix", map[string]interface{}{
 		"symptom_text":  "workflow stuck after controller restart",
 		"root_cause":    "stale etcd leader lease not cleared",
 		"fix_summary":   "added lease expiry guard in controller startup",
@@ -128,7 +127,7 @@ func TestLearnFromFix_ForbiddenFixProposal(t *testing.T) {
 func TestLearnFromFix_ScanRuleProposal(t *testing.T) {
 	s, _ := setupLearnFromFixServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.learn_from_fix", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.learn_from_fix", map[string]interface{}{
 		"symptom_text":  "grpc.Dial used with 127.0.0.1:10004 causing single-node limitation",
 		"root_cause":    "hardcoded localhost address prevents multi-node operation",
 		"fix_summary":   "resolve address from etcd service discovery",
@@ -163,7 +162,7 @@ func TestLearnFromFix_ScanRuleProposal(t *testing.T) {
 func TestLearnFromFix_BlindSpotWhenVerificationMissing(t *testing.T) {
 	s, _ := setupLearnFromFixServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.learn_from_fix", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.learn_from_fix", map[string]interface{}{
 		"symptom_text": "minio offline disk after power outage",
 		"root_cause":   "disk not re-mounted after reboot",
 		"fix_summary":  "added mount check to startup script",
@@ -194,7 +193,7 @@ func TestLearnFromFix_BlindSpotWhenVerificationMissing(t *testing.T) {
 func TestLearnFromFix_HumanApprovalRequiredByDefault(t *testing.T) {
 	s, _ := setupLearnFromFixServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.learn_from_fix", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.learn_from_fix", map[string]interface{}{
 		"symptom_text":  "address already in use on port 12000",
 		"root_cause":    "orphaned controller process holds port",
 		"fix_summary":   "added ExecStartPre pkill guard to unit file",
@@ -235,10 +234,9 @@ func TestLearnFromFix_NoDirectYAMLMutation(t *testing.T) {
 	_ = os.WriteFile(ffPath, []byte("forbidden_fixes: []\n"), 0o644)
 	_ = os.WriteFile(invPath, []byte("invariants: []\n"), 0o644)
 
-	s := NewWithGraph(Config{DocsDir: docsDir}, nil)
-	defer s.Close()
+	s := newMCPWithDocsDir(t, docsDir)
 
-	_, err := s.CallTool(context.Background(), "awareness.learn_from_fix", map[string]interface{}{
+	_, err := s.callTool(context.Background(), "awareness.learn_from_fix", map[string]interface{}{
 		"symptom_text":  "etcd disk full causes workflow timeout",
 		"root_cause":    "no etcd compaction scheduled",
 		"fix_summary":   "added compaction job",
@@ -263,7 +261,7 @@ func TestLearnFromFix_NoDirectYAMLMutation(t *testing.T) {
 func TestLearnFromFix_ProposalIsLoadable(t *testing.T) {
 	s, docsDir := setupLearnFromFixServer(t)
 
-	result, err := s.CallTool(context.Background(), "awareness.learn_from_fix", map[string]interface{}{
+	result, err := s.callTool(context.Background(), "awareness.learn_from_fix", map[string]interface{}{
 		"incident_id":  "INC-test-001",
 		"symptom_text": "scylla connection refused at startup",
 		"root_cause":   "service started before scylladb was ready",
