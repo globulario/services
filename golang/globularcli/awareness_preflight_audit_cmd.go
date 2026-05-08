@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
+"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -49,7 +48,7 @@ Examples:
 
 		dbPath := awareCfg.dbPath
 		if dbPath == "" {
-			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+			dbPath = resolveAwarenessDBPath(repoRoot)
 		}
 
 		g, err := openAwarenessGraph(dbPath, awareCfg.repoPath)

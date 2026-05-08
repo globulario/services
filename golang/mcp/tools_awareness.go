@@ -37,20 +37,11 @@ func registerAwarenessTools(s *server) {
 
 	dbPath := cfg.DBPath
 	if dbPath == "" {
-		// Prefer repo-relative path (dev mode), fall back to system install path.
-		if repoRoot != "" {
-			candidate := filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
-			if _, err := os.Stat(candidate); err == nil {
-				dbPath = candidate
-			}
-		}
-		if dbPath == "" {
-			const systemPath = "/var/lib/globular/awareness/graph.db"
-			if _, err := os.Stat(systemPath); err == nil {
-				dbPath = systemPath
-			}
-		}
-		if dbPath == "" && repoRoot != "" {
+		// Prefer system install path; fall back to repo-relative for dev mode.
+		const systemDir = "/var/lib/globular/awareness"
+		if _, err := os.Stat(systemDir); err == nil {
+			dbPath = systemDir + "/graph.db"
+		} else if repoRoot != "" {
 			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
 		}
 	}

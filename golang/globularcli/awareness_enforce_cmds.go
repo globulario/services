@@ -29,6 +29,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/globulario/services/golang/awareness/enforce"
+	"github.com/globulario/services/golang/awareness/graph"
 	"github.com/globulario/services/golang/awareness/preflight"
 )
 
@@ -48,10 +49,18 @@ var enforceCfg = struct {
 	trendFile             string
 	trendRecord           bool
 	trendLast             int
+	scaffoldLimit         int
 }{
 	warningThreshold:      -1, // disabled by default
 	maxRequiredTestNoPath: -1,
 	trendLast:             20,
+	scaffoldLimit:         20,
+}
+
+type requiredTestBacklogEntry struct {
+	Test        string   `json:"test"`
+	Refs        []string `json:"refs"`
+	Suggestions []string `json:"suggestions,omitempty"`
 }
 
 // ---- audit command ----
@@ -176,67 +185,19 @@ var awarenessRequiredTestsBacklogCmd = &cobra.Command{
 		defer g.Close()
 
 		findings := enforce.ValidateRequiredTestsWithRepo(ctx, g, repoRoot)
-		type backlogEntry struct {
-			Test        string   `json:"test"`
-			Refs        []string `json:"refs"`
-			Suggestions []string `json:"suggestions,omitempty"`
+		entries, err := buildRequiredTestBacklogEntries(ctx, g, findings)
+		if err != nil {
+			return err
 		}
-		byTest := make(map[string]map[string]bool)
-		re := regexp.MustCompile(`tested_by target '([^']+)'`)
-		for _, f := range findings {
-			if f.Code != "REQUIRED_TEST_NO_PATH" {
-				continue
-			}
-			m := re.FindStringSubmatch(f.Message)
-			if len(m) != 2 {
-				continue
-			}
-			testName := m[1]
-			if byTest[testName] == nil {
-				byTest[testName] = make(map[string]bool)
-			}
-			if strings.TrimSpace(f.Symbol) != "" {
-				byTest[testName][f.Symbol] = true
-			}
-		}
-
-		var tests []string
-		for t := range byTest {
-			tests = append(tests, t)
-		}
-		sort.Strings(tests)
-		if len(tests) == 0 {
+		if len(entries) == 0 {
 			fmt.Fprintln(os.Stdout, "No REQUIRED_TEST_NO_PATH backlog entries.")
 			return nil
-		}
-		var entries []backlogEntry
-		for _, tname := range tests {
-			var symbols []string
-			for s := range byTest[tname] {
-				symbols = append(symbols, s)
-			}
-			sort.Strings(symbols)
-			entry := backlogEntry{
-				Test: tname,
-				Refs: symbols,
-			}
-			for _, sym := range symbols {
-				n, err := g.FindNode(ctx, sym)
-				if err != nil || n == nil {
-					continue
-				}
-				if p := strings.TrimSpace(n.Path); p != "" {
-					entry.Suggestions = append(entry.Suggestions, p)
-				}
-			}
-			entry.Suggestions = dedupeSorted(entry.Suggestions)
-			entries = append(entries, entry)
 		}
 		outputMode := strings.ToLower(strings.TrimSpace(rootCfg.output))
 		if outputMode == "json" {
 			out := struct {
-				Total   int            `json:"total"`
-				Entries []backlogEntry `json:"entries"`
+				Total   int                        `json:"total"`
+				Entries []requiredTestBacklogEntry `json:"entries"`
 			}{
 				Total:   len(entries),
 				Entries: entries,
@@ -258,6 +219,119 @@ var awarenessRequiredTestsBacklogCmd = &cobra.Command{
 		fmt.Fprintf(os.Stdout, "\nTotal missing test targets: %d\n", len(entries))
 		return nil
 	},
+}
+
+var awarenessRequiredTestsScaffoldCmd = &cobra.Command{
+	Use:   "required-tests-scaffold",
+	Short: "Generate test stubs for missing required tests",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := context.Background()
+		repoRoot, err := resolveRepoRoot(awareCfg.repoPath)
+		if err != nil {
+			return err
+		}
+		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
+		if err != nil {
+			return err
+		}
+		defer g.Close()
+
+		findings := enforce.ValidateRequiredTestsWithRepo(ctx, g, repoRoot)
+		entries, err := buildRequiredTestBacklogEntries(ctx, g, findings)
+		if err != nil {
+			return err
+		}
+		if len(entries) == 0 {
+			fmt.Fprintln(os.Stdout, "No REQUIRED_TEST_NO_PATH backlog entries.")
+			return nil
+		}
+		limit := enforceCfg.scaffoldLimit
+		if limit > 0 && len(entries) > limit {
+			entries = entries[:limit]
+		}
+
+		outputMode := strings.ToLower(strings.TrimSpace(rootCfg.output))
+		if outputMode == "json" {
+			out := struct {
+				Generated int                        `json:"generated"`
+				Entries   []requiredTestBacklogEntry `json:"entries"`
+			}{
+				Generated: len(entries),
+				Entries:   entries,
+			}
+			b, _ := json.MarshalIndent(out, "", "  ")
+			fmt.Fprintln(os.Stdout, string(b))
+			return nil
+		}
+
+		for _, entry := range entries {
+			primary := ""
+			if len(entry.Suggestions) > 0 {
+				primary = entry.Suggestions[0]
+			}
+			if primary == "" {
+				primary = "golang/<area>/TODO_test.go"
+			}
+			fmt.Fprintf(os.Stdout, "// target: %s\n", primary)
+			fmt.Fprintf(os.Stdout, "// refs: %s\n", strings.Join(entry.Refs, ", "))
+			fmt.Fprintf(os.Stdout, "func %s(t *testing.T) {\n", entry.Test)
+			fmt.Fprintf(os.Stdout, "\tt.Skip(\"TODO: implement required awareness test\")\n")
+			fmt.Fprintf(os.Stdout, "}\n\n")
+		}
+		fmt.Fprintf(os.Stdout, "Generated %d test stubs (from %d backlog entries).\n", len(entries), len(entries))
+		return nil
+	},
+}
+
+func buildRequiredTestBacklogEntries(ctx context.Context, g *graph.Graph, findings []enforce.Finding) ([]requiredTestBacklogEntry, error) {
+	byTest := make(map[string]map[string]bool)
+	re := regexp.MustCompile(`tested_by target '([^']+)'`)
+	for _, f := range findings {
+		if f.Code != "REQUIRED_TEST_NO_PATH" {
+			continue
+		}
+		m := re.FindStringSubmatch(f.Message)
+		if len(m) != 2 {
+			continue
+		}
+		testName := m[1]
+		if byTest[testName] == nil {
+			byTest[testName] = make(map[string]bool)
+		}
+		if strings.TrimSpace(f.Symbol) != "" {
+			byTest[testName][f.Symbol] = true
+		}
+	}
+
+	var tests []string
+	for t := range byTest {
+		tests = append(tests, t)
+	}
+	sort.Strings(tests)
+	entries := make([]requiredTestBacklogEntry, 0, len(tests))
+	for _, tname := range tests {
+		var symbols []string
+		for s := range byTest[tname] {
+			symbols = append(symbols, s)
+		}
+		sort.Strings(symbols)
+		entry := requiredTestBacklogEntry{
+			Test: tname,
+			Refs: symbols,
+		}
+		for _, sym := range symbols {
+			n, err := g.FindNode(ctx, sym)
+			if err != nil || n == nil {
+				continue
+			}
+			if p := strings.TrimSpace(n.Path); p != "" {
+				entry.Suggestions = append(entry.Suggestions, p)
+			}
+		}
+		entry.Suggestions = dedupeSorted(entry.Suggestions)
+		entries = append(entries, entry)
+	}
+	return entries, nil
 }
 
 func dedupeSorted(values []string) []string {
@@ -313,7 +387,7 @@ var awarenessAuditTrendCmd = &cobra.Command{
 
 		trendPath := enforceCfg.trendFile
 		if trendPath == "" {
-			trendPath = filepath.Join(repoRoot, ".globular", "awareness", "audit-trend.jsonl")
+			trendPath = resolveAwarenessTrendPath(repoRoot)
 		}
 		entries, _ := readTrendEntries(trendPath)
 		if enforceCfg.trendRecord {
@@ -857,6 +931,10 @@ func init() {
 	awarenessCmd.AddCommand(awarenessRequiredTestsBacklogCmd)
 	awarenessRequiredTestsBacklogCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
 	awarenessRequiredTestsBacklogCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
+	awarenessCmd.AddCommand(awarenessRequiredTestsScaffoldCmd)
+	awarenessRequiredTestsScaffoldCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessRequiredTestsScaffoldCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
+	awarenessRequiredTestsScaffoldCmd.Flags().IntVar(&enforceCfg.scaffoldLimit, "limit", 20, "Max number of test stubs to generate (0 = all)")
 	awarenessCmd.AddCommand(awarenessValidateContractsCmd)
 	awarenessCmd.AddCommand(awarenessGraphDriftCmd)
 	awarenessCmd.AddCommand(awarenessAnnotationCoverageCmd)

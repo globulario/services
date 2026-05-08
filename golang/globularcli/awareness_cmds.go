@@ -70,7 +70,7 @@ var awarenessBuildCmd = &cobra.Command{
 
 		dbPath := awareCfg.dbPath
 		if dbPath == "" {
-			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+			dbPath = resolveAwarenessDBPath(repoRoot)
 		}
 
 		fmt.Fprintf(os.Stdout, "Building awareness graph\n")
@@ -734,35 +734,41 @@ func init() {
 	rootCmd.AddCommand(awarenessCmd)
 }
 
+const systemAwarenessDir = "/var/lib/globular/awareness"
+
+// resolveAwarenessDBPath returns the canonical graph.db path.
+// Resolution order:
+//  1. /var/lib/globular/awareness/graph.db  (system install — preferred)
+//  2. repoRoot/.globular/awareness/graph.db (dev fallback)
+//
+// The system directory is used whenever it exists, even if graph.db has not
+// been built yet, so that `globular awareness build` always writes to the
+// system location on installed nodes.
+func resolveAwarenessDBPath(repoRoot string) string {
+	if _, err := os.Stat(systemAwarenessDir); err == nil {
+		return filepath.Join(systemAwarenessDir, "graph.db")
+	}
+	return filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+}
+
+// resolveAwarenessTrendPath returns the canonical audit-trend.jsonl path,
+// using the same system-first, repo-fallback priority as resolveAwarenessDBPath.
+func resolveAwarenessTrendPath(repoRoot string) string {
+	if _, err := os.Stat(systemAwarenessDir); err == nil {
+		return filepath.Join(systemAwarenessDir, "audit-trend.jsonl")
+	}
+	return filepath.Join(repoRoot, ".globular", "awareness", "audit-trend.jsonl")
+}
+
 // openAwarenessGraph opens the graph DB using the given path or the default location.
 // Resolution order:
 //  1. Explicit --db flag
-//  2. Repo-relative .globular/awareness/graph.db (when inside a git repo)
-//  3. /var/lib/globular/awareness/graph.db (system install fallback)
+//  2. /var/lib/globular/awareness/graph.db  (system install — preferred)
+//  3. repoRoot/.globular/awareness/graph.db (dev fallback)
 func openAwarenessGraph(dbPath, repoPath string) (*graph.Graph, error) {
 	if dbPath == "" {
-		repoRoot, err := resolveRepoRoot(repoPath)
-		if err == nil {
-			candidate := filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
-			if _, statErr := os.Stat(candidate); statErr == nil {
-				dbPath = candidate
-			}
-		}
-		if dbPath == "" {
-			// System install fallback.
-			const systemPath = "/var/lib/globular/awareness/graph.db"
-			if _, statErr := os.Stat(systemPath); statErr == nil {
-				dbPath = systemPath
-			}
-		}
-		if dbPath == "" {
-			// Use repo-relative path even if not yet built (graph.Open will create it).
-			repoRoot, err := resolveRepoRoot(repoPath)
-			if err != nil {
-				return nil, fmt.Errorf("no graph.db found; run 'globular awareness build': %w", err)
-			}
-			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
-		}
+		repoRoot, _ := resolveRepoRoot(repoPath)
+		dbPath = resolveAwarenessDBPath(repoRoot)
 	}
 	g, err := graph.Open(dbPath)
 	if err != nil {

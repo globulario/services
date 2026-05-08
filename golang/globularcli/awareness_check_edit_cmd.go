@@ -60,7 +60,7 @@ Examples:
 
 		dbPath := awareCfg.dbPath
 		if dbPath == "" {
-			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+			dbPath = resolveAwarenessDBPath(repoRoot)
 		}
 
 		g, graphErr := openAwarenessGraph(dbPath, awareCfg.repoPath)

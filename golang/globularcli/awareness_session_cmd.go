@@ -49,7 +49,7 @@ Example:
 
 		dbPath := awareCfg.dbPath
 		if dbPath == "" {
-			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+			dbPath = resolveAwarenessDBPath(repoRoot)
 		}
 
 		result := buildCLISessionStart(repoRoot, docsDir, dbPath)

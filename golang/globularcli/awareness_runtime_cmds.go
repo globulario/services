@@ -57,7 +57,7 @@ This command is strictly read-only — it never mutates cluster state.`,
 
 		dbPath := awareCfg.dbPath
 		if dbPath == "" {
-			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+			dbPath = resolveAwarenessDBPath(repoRoot)
 		}
 
 		// Open graph (non-fatal).
@@ -255,7 +255,7 @@ With --propose: a draft proposal is also generated alongside the bundle.`,
 
 		dbPath := awareCfg.dbPath
 		if dbPath == "" {
-			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+			dbPath = resolveAwarenessDBPath(repoRoot)
 		}
 
 		g, graphErr := openAwarenessGraph(dbPath, awareCfg.repoPath)
