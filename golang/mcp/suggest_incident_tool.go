@@ -68,7 +68,7 @@ func registerSuggestIncidentTool(s *server, st *awarenessState) {
 			snap = &loaded
 		} else if live {
 			// Collect live snapshot.
-			bridge := runtime.NewBridge(st.nodeID, "")
+			bridge := newLiveBridge(st)
 			var err error
 			snap, err = bridge.Snapshot(ctx, window, st.g)
 			if err != nil {

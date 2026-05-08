@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
+
+	"github.com/globulario/services/golang/awareness/extractors/manual"
 )
 
 // ---------------------------------------------------------------------------
@@ -55,12 +58,24 @@ type healthPulseSelfReviewSection struct {
 	Status           string `json:"status"` // ok | warn | critical
 }
 
+type healthPulseUnindexedEntry struct {
+	Path   string `json:"path"`
+	TopKey string `json:"top_key"`
+}
+
+type healthPulseUnindexedSection struct {
+	Count          int                         `json:"count"`
+	UnindexedFiles []healthPulseUnindexedEntry `json:"unindexed_files,omitempty"`
+	Status         string                      `json:"status"` // ok | warn
+}
+
 type healthPulseSections struct {
-	Coverage       healthPulseCoverageSection   `json:"coverage"`
-	RuntimeSources healthPulseRuntimeSection    `json:"runtime_sources"`
-	ProposalQueue  healthPulseQueueSection      `json:"proposal_queue"`
-	GraphFreshness healthPulseGraphSection      `json:"graph_freshness"`
-	SelfReview     healthPulseSelfReviewSection `json:"self_review_verification"`
+	Coverage         healthPulseCoverageSection   `json:"coverage"`
+	RuntimeSources   healthPulseRuntimeSection    `json:"runtime_sources"`
+	ProposalQueue    healthPulseQueueSection      `json:"proposal_queue"`
+	GraphFreshness   healthPulseGraphSection      `json:"graph_freshness"`
+	SelfReview       healthPulseSelfReviewSection `json:"self_review_verification"`
+	UnindexedYAML    healthPulseUnindexedSection  `json:"unindexed_yaml"`
 }
 
 type healthPulseResult struct {
@@ -125,12 +140,16 @@ func registerHealthPulseTool(s *server, st *awarenessState) {
 		srSection, srAlerts := buildSelfReviewSection(docsDir, repoRoot)
 		alerts = append(alerts, srAlerts...)
 
+		unindexedSection, unindexedAlerts := buildUnindexedYAMLSection(docsDir)
+		alerts = append(alerts, unindexedAlerts...)
+
 		overallStatus, exitCode := computePulseStatus(
 			coverageSection.Status,
 			runtimeSection.Status,
 			queueSection.Status,
 			graphSection.Status,
 			srSection.Status,
+			unindexedSection.Status,
 		)
 
 		return &healthPulseResult{
@@ -142,6 +161,7 @@ func registerHealthPulseTool(s *server, st *awarenessState) {
 				ProposalQueue:  queueSection,
 				GraphFreshness: graphSection,
 				SelfReview:     srSection,
+				UnindexedYAML:  unindexedSection,
 			},
 			Alerts:   alerts,
 			ExitCode: exitCode,
@@ -248,10 +268,20 @@ func buildRuntimeSection(repoRoot string) (healthPulseRuntimeSection, []healthPu
 		})
 	case "partial":
 		sectionStatus = "warn"
+		etcdCount := 0
+		for _, src := range result.Sources {
+			if src.Transport == "etcd_resolved" {
+				etcdCount++
+			}
+		}
+		msg := fmt.Sprintf("Runtime awareness partial — %d/%d sources statically configured", configured, total)
+		if etcdCount > 0 {
+			msg += fmt.Sprintf(" (%d via etcd resolution)", etcdCount)
+		}
 		alerts = append(alerts, healthPulseAlert{
 			Severity:          "warning",
 			ID:                "runtime.partial",
-			Message:           fmt.Sprintf("Runtime awareness is partial — %d/%d sources configured", configured, total),
+			Message:           msg,
 			RecommendedAction: "Run awareness.runtime_activation_check for missing source details.",
 		})
 	}
@@ -399,6 +429,49 @@ func buildSelfReviewSection(docsDir, repoRoot string) (healthPulseSelfReviewSect
 		InvalidMetadata:  invalid,
 		Status:           sectionStatus,
 	}, alerts
+}
+
+func buildUnindexedYAMLSection(docsDir string) (healthPulseUnindexedSection, []healthPulseAlert) {
+	if docsDir == "" {
+		return healthPulseUnindexedSection{Status: "ok"}, nil
+	}
+
+	files, err := manual.WalkUnindexed(docsDir)
+	if err != nil {
+		return healthPulseUnindexedSection{Status: "ok"}, nil
+	}
+	if len(files) == 0 {
+		return healthPulseUnindexedSection{Status: "ok"}, nil
+	}
+
+	entries := make([]healthPulseUnindexedEntry, len(files))
+	for i, f := range files {
+		entries[i] = healthPulseUnindexedEntry{Path: f.Path, TopKey: f.TopKey}
+	}
+
+	// Build a compact summary for the alert message (first 5 files).
+	summary := ""
+	for i, f := range files {
+		if i >= 5 {
+			summary += fmt.Sprintf(" (+%d more)", len(files)-5)
+			break
+		}
+		if i > 0 {
+			summary += ", "
+		}
+		summary += filepath.Base(f.Path) + " (" + f.TopKey + ":)"
+	}
+
+	return healthPulseUnindexedSection{
+			Count:          len(files),
+			UnindexedFiles: entries,
+			Status:         "warn",
+		}, []healthPulseAlert{{
+			Severity:          "warning",
+			ID:                "knowledge.unindexed_yaml",
+			Message:           fmt.Sprintf("%d YAML file(s) in docs/awareness have unrecognized top-level keys and are not loaded into the graph: %s", len(files), summary),
+			RecommendedAction: "Review unindexed_yaml section. Add a loader for types that should be indexed; add a comment in the file for intentional config-only files.",
+		}}
 }
 
 // ---------------------------------------------------------------------------

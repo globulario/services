@@ -90,6 +90,20 @@ const (
 	EdgeHasStateDelta     = "has_state_delta"
 	EdgeCurrentStatusOf   = "current_status_of"
 	EdgeRuntimeDependsOn  = "runtime_depends_on"
+
+	// Observation edge kinds.
+	EdgeObserves = "observes" // source_file observes/detects an invariant (diagnostic/reporting)
+
+	// Precise file→invariant relationship edges (Phase 3).
+	EdgeConfigures = "configures" // source_file configures/defines data for invariant
+	EdgeMayAffect  = "may_affect" // source_file may indirectly affect invariant
+
+	// Service design graph edge kinds (Phase 2-8).
+	EdgeHasAuthz         = "has_authz"          // rpc_method → authz_annotation
+	EdgeHasStreamingMode = "has_streaming_mode"  // rpc_method → streaming_mode
+	EdgeImplementedBy    = "implemented_by"      // rpc_method → symbol (Go method)
+	EdgeGovernedBy       = "governed_by"         // rpc_method → invariant
+	EdgeProvidesService  = "provides_service"    // package → proto_service
 )
 
 // Edge is a directed relationship between two graph nodes.

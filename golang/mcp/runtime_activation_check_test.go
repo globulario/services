@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -146,6 +147,62 @@ insecure: true
 	}
 	if section.RuntimeAwarenessStatus != "live" {
 		t.Errorf("expected live, got %q", section.RuntimeAwarenessStatus)
+	}
+}
+
+// TestEvaluateRuntimeActivation_EtcdResolvedSources verifies that controller/doctor/workflow
+// show as etcd_resolved in the source list when their addr is empty — they are not missing,
+// just not statically configured. Prometheus with empty addr remains unconfigured.
+func TestEvaluateRuntimeActivation_EtcdResolvedSources(t *testing.T) {
+	cfg := &runtimeSourcesConfig{
+		PrometheusAddr: "http://globular.internal:9090",
+		Insecure:       true,
+	}
+	result := evaluateRuntimeActivation(cfg, false, false)
+
+	for _, src := range result.Sources {
+		switch src.Source {
+		case "controller", "doctor", "workflow":
+			if src.Transport != "etcd_resolved" {
+				t.Errorf("source %q: expected transport=etcd_resolved, got %q", src.Source, src.Transport)
+			}
+			if src.Address != "etcd" {
+				t.Errorf("source %q: expected address=etcd, got %q", src.Source, src.Address)
+			}
+		case "prometheus":
+			if src.Transport == "etcd_resolved" {
+				t.Errorf("prometheus should not be etcd_resolved")
+			}
+		}
+	}
+}
+
+// TestBuildRuntimeSection_PartialShowsEtcdCount verifies that a config with only
+// prometheus statically set produces a partial alert that mentions etcd resolution.
+func TestBuildRuntimeSection_PartialShowsEtcdCount(t *testing.T) {
+	dir := t.TempDir()
+	awarenessDir := filepath.Join(dir, ".awareness")
+	if err := os.MkdirAll(awarenessDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	yaml := `prometheus_addr: "http://globular.internal:9090"
+insecure: true
+`
+	if err := os.WriteFile(filepath.Join(awarenessDir, "runtime_sources.yaml"), []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	section, alerts := buildRuntimeSection(dir)
+	if section.RuntimeAwarenessStatus != "partial" {
+		t.Errorf("expected partial with only prometheus configured, got %q", section.RuntimeAwarenessStatus)
+	}
+	found := false
+	for _, a := range alerts {
+		if a.ID == "runtime.partial" && strings.Contains(a.Message, "etcd") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected runtime.partial alert mentioning etcd resolution")
 	}
 }
 

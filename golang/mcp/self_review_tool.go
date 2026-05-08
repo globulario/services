@@ -145,6 +145,7 @@ type requirementFromCritiqueResult struct {
 func registerSelfReviewTools(s *server, st *awarenessState) {
 	registerSelfReviewTool(s, st)
 	registerRequirementFromCritiqueTool(s, st)
+	registerReviewServiceTool(s, st)
 }
 
 func registerSelfReviewTool(s *server, st *awarenessState) {

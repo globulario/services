@@ -1,0 +1,46 @@
+# path_weights.yaml — Scoring weights for awareness weighted path ranking.
+#
+# These are operational heuristics, not ground truth.
+# A high score means "best known path", not "guaranteed safe".
+# Weight changes must be proposed via learn_from_fix and require human approval.
+# After promotion, run: globular awareness build
+
+trust:
+  strict_verified: 40   # required test passed in CI
+  verified: 30          # symbol/file confirmed by extractor
+  declared: 15          # YAML declares it, no test proof
+  inferred: 5           # heuristic only
+  proposal: -10         # pending, not yet authoritative
+  stale: -25            # source changed or CI missing
+  invalid: -100         # referenced file/test/function missing
+
+domain:
+  decision: 25          # forbidden actions, fix order, verification requirements
+  proof: 20             # tests, CI evidence, closure conditions
+  risk: 20              # failure modes, symptoms, hazards
+  information: 8        # structure, references, implementation, dependencies
+  proposal: -5          # unless reviewing proposals explicitly
+
+severity:
+  critical: 30
+  high: 20
+  medium: 10
+  low: 3
+  unknown: 0
+
+evidence:
+  exact_file_match: 30        # changed file exactly matches a graph node path
+  exact_function_match: 35    # changed symbol exactly matches a graph node
+  runtime_evidence_match: 25  # runtime snapshot confirms symptom
+  symptom_text_match: 20      # free-text symptom matches failure mode
+  required_test_exists: 15    # required test is present in codebase
+  required_test_passed: 25    # required test passed in last CI run
+
+penalties:
+  contradiction: -100          # this path contradicts a forbidden fix
+  missing_required_test: -50   # path requires a test that is absent
+  invalid_edge: -100           # path contains an invalid edge
+  graph_stale: -20             # graph is stale (not rebuilt after changes)
+  noop_runtime_source: -10     # runtime was not collected (noop)
+  proposal_only_path: -5       # entire path relies only on proposal-trust edges
+  stale_path: -25              # path contains stale edges

@@ -44,6 +44,9 @@ var impactEdgeKinds = map[string]bool{
 	graph.EdgeVerifiedBy:    true,
 	graph.EdgeTouchesFile:   true,
 	graph.EdgeTouchesSymbol: true,
+	graph.EdgeObserves:      true,
+	graph.EdgeConfigures:    true,
+	graph.EdgeMayAffect:     true,
 }
 
 // highValueNodeTypes are node types that represent meaningful impact targets.
@@ -196,6 +199,10 @@ func edgeTrust(kind string, isTyped bool) string {
 		return TrustVerified
 	case graph.EdgeImplements, graph.EdgeFixes, graph.EdgeProtects, graph.EdgeEnforces:
 		return TrustDeclared
+	case graph.EdgeConfigures, graph.EdgeObserves:
+		return TrustDeclared
+	case graph.EdgeMayAffect:
+		return TrustInferred
 	default:
 		return TrustDeclared
 	}

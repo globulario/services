@@ -863,3 +863,99 @@ failure_modes:
         - TestMCPSdNotifySentAfterBind
         - TestMCPServiceReachesActiveAfterRestart
         - TestWaitActiveSucceedsWithNewBinary
+
+    - id: minio.version_drift_auth_failure
+      title: MinIO binary version differs across nodes causing auth failures
+      severity: critical
+      symptoms:
+        - MinIO requests fail with auth/signature errors on specific nodes only
+        - globular-minio.service active but ListBuckets returns 403 from affected node
+        - node heartbeat shows installed=1.x.y but process fingerprint matches older binary
+        - version drift persists across restarts because old binary survives in PATH
+      root_cause: |
+        A typo in the heartbeat phase-2 loop caused a node's installed MinIO version to go
+        undetected. The old binary was left on disk while etcd recorded the new version.
+        When requests were routed to the node with the old binary, MinIO's HMAC signature
+        verification failed against credentials issued for the new version. The mismatch was
+        invisible to the controller because heartbeat reported the etcd version, not the
+        on-disk binary fingerprint.
+      architecture_fix: |
+        Process fingerprinting: compute and cache a SHA-256 checksum of the binary at startup.
+        Heartbeat phase-2 compares the running checksum against the etcd artifact checksum
+        (entrypoint_checksum field). On mismatch, node transitions to NEEDS_REPAIR and triggers
+        a re-download rather than silently reporting the wrong version.
+      related_invariants:
+        - node.heartbeat.phase2_version_from_running_binary
+      related_services:
+        - minio
+        - node_agent
+      required_tests:
+        - TestHeartbeatDetectsChecksumMismatch
+        - TestMinIOVersionDriftTriggersRepair
+
+    - id: node_agent.state_poisoning_from_stale_reconciler
+      title: Node installs wrong version from stale reconciler after leader failover
+      severity: critical
+      symptoms:
+        - node installs version 0.0.1 or placeholder immediately after leader re-election
+        - etcd desired state shows current version but installed state regresses
+        - controller log shows new leader running reconciler against stale desired state snapshot
+        - downgrade guard fires but is overridden by force-install path
+      root_cause: |
+        After a leader failover, the new controller leader started its reconciler against an
+        in-memory desired state snapshot from the previous leader's session. The snapshot
+        contained a placeholder (0.0.1) for a package that had not yet been assigned a real
+        version. The reconciler installed the placeholder version, poisoning the node's installed
+        state. The downgrade guard was bypassed because the old leader's state was not fully
+        written to etcd before failover.
+      architecture_fix: |
+        Reconciler must load desired state exclusively from etcd at startup after acquiring
+        leadership — never from an in-memory snapshot from a prior leader session.
+        Unconditional downgrade guard: if desired version < installed version AND Force=false,
+        skip the install regardless of source. Only Force=true (explicit operator command) permits
+        downgrade. No automatic rollback ever.
+      related_invariants:
+        - controller.reconciler.no_downgrade_without_force
+        - controller.reconciler.desired_state_from_etcd_only
+      forbidden_fixes:
+        - auto_rollback_on_crash
+        - reconcile_from_in_memory_snapshot_after_failover
+      related_services:
+        - node_agent
+        - controller
+      required_tests:
+        - TestReconcilerNoDowngradeWithoutForce
+        - TestReconcilerLoadsDesiredStateFromEtcdOnLeaderElection
+
+    - id: xds.infra_preparing_loop_from_kind_mismatch
+      title: xds or gateway stuck in infra_preparing due to package kind classification conflict
+      severity: high
+      symptoms:
+        - xds or gateway DesiredService shows phase=infra_preparing indefinitely
+        - reconciler repeatedly re-attempts xds/gateway install with no progress
+        - install workflow completes SUCCEEDED but convergence never happens
+        - package kind in spec differs from package.json or catalog classification
+        - controller log shows "kind=service" but reconciler routes it as "kind=infrastructure"
+      root_cause: |
+        Package kind classification (infrastructure vs service) was duplicated across spec YAML,
+        package.json, and the catalog. When these disagreed, the reconciler applied the wrong
+        convergence logic: service-kind packages use a different readiness gate than
+        infrastructure-kind. xds and gateway are infrastructure but were classified as service in
+        one of the three sources, causing the readiness gate to never fire.
+      architecture_fix: |
+        Package kind must come from ONE canonical registry (package.json metadata). The spec YAML
+        and catalog must derive from this source, never independently classify. Add validation at
+        build time that asserts spec.kind == package.json.kind. Any disagreement is a build error,
+        not a runtime silent mismatch.
+      related_invariants:
+        - package.kind.single_canonical_source
+      forbidden_fixes:
+        - hardcode_kind_list_in_reconciler
+        - infer_kind_from_service_name
+      related_services:
+        - xds
+        - repository
+        - node_agent
+      required_tests:
+        - TestPackageKindFromCanonicalRegistry
+        - TestXDSConvergesAfterKindMismatchFixed

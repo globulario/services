@@ -1,0 +1,371 @@
+# decision_rules.yaml — operational decision rules for Globular AI agents.
+#
+# Each rule is derived from a real incident or verified operational constraint.
+# Rules encode WHEN a decision is needed, WHAT is forbidden, and WHAT proves the fix.
+#
+# This file is loaded by 'globular awareness build' to populate decision edges in
+# the graph. Editing it requires a graph rebuild before the new rules take effect.
+#
+# Fields:
+#   id              — unique rule identifier
+#   title           — one-line human description
+#   severity        — critical | high | medium | low
+#   source_incidents — INC-YYYY-NNNN references that produced this rule
+#   trigger         — conditions that activate this decision gate
+#   decision        — what must be decided before proceeding
+#   forbidden_if    — conditions under which the action is forbidden
+#   required_evidence_before — what must be verified before proceeding
+#   required_verification_after — what proves the fix is complete
+#   forbidden_fixes — IDs matching docs/awareness/forbidden_fixes.yaml
+#   related_invariants — IDs matching docs/awareness/invariants.yaml
+#   required_tests  — test names that validate this rule
+
+decision_rules:
+
+  # ── INC-2026-0002 / INC-2026-0003: MCP orphan port / cgroup escape ───────────
+
+  - id: service_restart_requires_orphan_kill_first
+    title: Before restarting any Globular service, verify no orphaned process holds its port
+    severity: critical
+    source_incidents:
+      - INC-2026-0002
+      - INC-2026-0003
+    trigger:
+      - service fails to start with "address already in use"
+      - systemd shows service active but gRPC returns "unknown service"
+      - port held by process with ppid=1 (escaped cgroup)
+    decision: |
+      Is the port held by an orphaned process from a previous instance?
+      If yes: kill orphan BEFORE restarting the service.
+      If no: diagnose why the new instance cannot bind (firewall, another service).
+    forbidden_if:
+      - restarting service without first confirming the port is free
+      - assuming systemd kill cleans up processes that escaped the cgroup
+      - killing the process via 'systemctl restart' without ExecStartPre pkill guard
+    required_evidence_before:
+      - ss -tlnp | grep <port> — confirm which PID holds the port
+      - ps -p <pid> -o ppid= — confirm ppid=1 (orphan, not in cgroup)
+      - systemctl status globular-<service>.service — confirm different PID owns unit
+    required_verification_after:
+      - ss -tlnp | grep <port> returns new PID matching systemd unit
+      - globular service health check returns OK
+      - no further "address already in use" in journald
+    forbidden_fixes:
+      - relying_on_systemd_to_kill_processes_outside_the_cgroup
+      - ignoring_orphan_processes_assuming_systemd_handles_them
+    related_invariants:
+      - service.endpoint.cgroup_escape_guard
+      - service.endpoint.etcd_address_reachability
+    required_tests:
+      - TestOrphanKilledBeforeServiceRestart
+      - TestWorkflowOrphanKilledBeforeRestart
+
+  - id: mcp_start_requires_orphan_kill_guard
+    title: globular-mcp.service must kill mcp_server orphans via ExecStartPre before binding port 10260
+    severity: critical
+    source_incidents:
+      - INC-2026-0002
+      - INC-2026-0003
+    trigger:
+      - mcp fails to start
+      - port 10260 already in use after upgrade
+      - journald shows "bind: address already in use" for mcp_server
+    decision: |
+      Has ExecStartPre=+/bin/sh -c 'pkill -9 -f mcp_server || true' been added
+      to the globular-mcp.service unit file AND its inline spec counterpart?
+      If no: add it before attempting manual restart.
+    forbidden_if:
+      - manually killing mcp_server without adding the ExecStartPre guard
+      - assuming a service restart handles the orphan on future upgrades
+    required_evidence_before:
+      - grep ExecStartPre packages/metadata/mcp/systemd/globular-mcp.service
+      - grep ExecStartPre packages/metadata/mcp/specs/mcp_service.yaml
+    required_verification_after:
+      - systemctl status globular-mcp shows port 10260 bound by new PID
+      - awareness.session_start reports mcp runtime healthy
+      - no orphaned mcp_server process after second restart cycle
+    forbidden_fixes:
+      - adding_pkill_guard_only_after_an_incident
+      - relying_on_systemd_to_kill_processes_outside_the_cgroup
+    related_invariants:
+      - service.endpoint.cgroup_escape_guard
+    required_tests:
+      - TestOrphanKilledBeforeServiceRestart
+
+  - id: service_notify_ready_before_etcd_write
+    title: Service must send sd_notify READY=1 only after its gRPC listener is bound and proven reachable
+    severity: critical
+    source_incidents:
+      - INC-2026-0002
+    trigger:
+      - service stuck in "activating" state in systemd
+      - READY=1 never sent or sent before listener is up
+      - WaitActive timeout in node-agent install workflow
+    decision: |
+      Does the service call sdNotifyReady() AFTER net.Listen() succeeds?
+      If no: fix the startup sequence before any other diagnosis.
+    forbidden_if:
+      - calling sdNotifyReady() before the listener is bound
+      - calling sdNotifyReady() during initialization, before gRPC server is serving
+      - not calling sdNotifyReady() at all (leaves service in activating state)
+    required_evidence_before:
+      - grep -n "sdNotify\|READY=1" golang/<service>/<service>_server/main.go
+      - confirm net.Listen is called before sdNotify in startup sequence
+    required_verification_after:
+      - systemctl show globular-<service> | grep SubState=running
+      - node-agent WaitActive completes within TimeoutStartSec
+      - no "start operation timed out" in journald
+    forbidden_fixes:
+      - relying_on_systemd_to_kill_processes_outside_the_cgroup
+    related_invariants:
+      - service.endpoint.cgroup_escape_guard
+      - install.result.atomic_commit
+    required_tests:
+      - TestOrphanKilledBeforeServiceRestart
+
+  # ── INC-2026-0003: Convergence committer race / self-upgrade loop ─────────────
+
+  - id: controller_self_upgrade_committer_must_fire_before_next_restart
+    title: convergenceCommitter must commit installed state before the controller can restart itself
+    severity: critical
+    source_incidents:
+      - INC-2026-0003
+    trigger:
+      - cluster-controller restart loop every ~25 seconds
+      - reconciler repeatedly dispatches cluster-controller install workflow
+      - convergenceCommitter never fires before next restart
+    decision: |
+      Does convergenceCommitter fire within the first tick (≤ 5s startup delay)?
+      If not: the controller will restart itself from its own install workflow before
+      committing its installed state, causing an infinite loop.
+    forbidden_if:
+      - convergenceCommitter startup delay > the controller install workflow timeout
+      - convergenceCommitter first tick delayed past the next reconcile cycle
+    required_evidence_before:
+      - check convergenceCommitter startup delay in cluster_controller_server.go
+      - confirm runOnce is called on Start() not just after first tick
+    required_verification_after:
+      - no cluster-controller install dispatched after initial commit
+      - etcd shows /globular/nodes/{node}/packages/service/cluster-controller with correct version
+      - controller does not restart within 60s of first boot
+    forbidden_fixes:
+      - blind_reconcile_retry
+      - clearing_action_without_durable_result
+    related_invariants:
+      - install.result.atomic_commit
+      - convergence.no_infinite_retry
+    required_tests:
+      - TestConvergenceCommitterFiresBeforeFirstRestartCycle
+
+  # ── INC-2026-0003: Gateway version unresolved ─────────────────────────────────
+
+  - id: infra_version_must_have_installed_record_before_release_created
+    title: InfrastructureRelease must not be created with a version that has no installed record on any node
+    severity: high
+    source_incidents:
+      - INC-2026-0003
+    trigger:
+      - InfrastructureRelease stuck in FAILED
+      - "version unresolved" for infra service
+      - resolveInfraVersion returns empty string
+    decision: |
+      Does the service have a ConvergenceResultV1 / installed record written to etcd
+      for the version specified in the InfrastructureRelease spec?
+      If no: the reconciler cannot verify the release and it will stay FAILED.
+    forbidden_if:
+      - creating InfrastructureRelease with version from a manually-seeded etcd record
+        that does not match any version in the repository
+      - seeding an InfrastructureRelease without confirming the installed record exists
+    required_evidence_before:
+      - etcdctl get /globular/nodes/{node}/packages/infra/{service} — confirm version
+      - globular repo versions {service} — confirm version exists in repository
+    required_verification_after:
+      - InfrastructureRelease status transitions from FAILED to SUCCEEDED
+      - resolveInfraVersion returns correct version
+    forbidden_fixes:
+      - manually_seeding_desired_state_per_node
+    related_invariants:
+      - service.desired_state.bom_completeness
+    required_tests:
+      - TestPlatformUpgradeWritesServiceDesiredVersionWithoutMesh
+
+  # ── INC-2026-0001: Annotation scanner false positive ─────────────────────────
+
+  - id: annotation_scanner_must_skip_test_files
+    title: ValidateAnnotations must skip _test.go files to avoid false positives from test fixtures
+    severity: medium
+    source_incidents:
+      - INC-2026-0001
+    trigger:
+      - awareness audit reports MALFORMED_STATE_TRANSITION or ANNOTATION_BAD_TEST_NAME
+      - all flagged lines come from _test.go files
+      - flagged content is inside backtick string literals (test fixtures)
+    decision: |
+      Is the annotation validator skipping _test.go files?
+      If not: the scanner will flag intentionally-malformed annotation strings
+      used as test fixtures as real annotation errors.
+    forbidden_if:
+      - running ValidateAnnotations on _test.go files
+      - treating annotation ERRORs from _test.go files as production violations
+    required_evidence_before:
+      - confirm all ERRORs come from _test.go files via file name suffix
+      - verify the flagged lines are inside raw string literals (backtick strings)
+    required_verification_after:
+      - globular awareness audit reports 0 ERRORs from _test.go files
+      - CI passes with --strict flag
+    forbidden_fixes: []
+    related_invariants:
+      - infra.annotation_validator_skips_test_files
+    required_tests:
+      - TestValidateAnnotationsSkipsTestFiles
+
+  # ── Session memory incidents: etcd-derived ───────────────────────────────────
+
+  - id: leader_only_reconcilers_must_gate_on_leadership
+    title: Domain and DNS reconcilers must check leadership before applying changes
+    severity: critical
+    source_incidents: []
+    trigger:
+      - multiple controller nodes applying conflicting DNS records
+      - domain reconciler running on non-leader nodes
+      - Let's Encrypt ACME cert shows flickering (applied, then overwritten)
+    decision: |
+      Does the reconciler check IsLeader() before making any external-facing write?
+      If no: all controllers will run the reconciler, applying conflicting state.
+    forbidden_if:
+      - running domain reconciler without leader gate
+      - running DNS reconciler without leader gate
+      - applying ACME challenges from multiple nodes simultaneously
+    required_evidence_before:
+      - grep -n "IsLeader\|isLeader" golang/cluster_controller/cluster_controller_server/domain_reconciler.go
+      - grep -n "IsLeader\|isLeader" golang/cluster_controller/cluster_controller_server/dns_reconciler.go
+    required_verification_after:
+      - only leader node applies DNS/domain changes
+      - ACME challenges no longer flicker
+      - Let's Encrypt cert propagates on first attempt
+    forbidden_fixes: []
+    related_invariants:
+      - service.endpoint.etcd_address_reachability
+    required_tests: []
+
+  - id: vip_address_must_be_in_cert_sans
+    title: The cluster VIP (keepalived floating IP) must be included in the TLS certificate SANs
+    severity: critical
+    source_incidents: []
+    trigger:
+      - TLS handshake fails for connections to VIP IP
+      - node unreachable via VIP but reachable via node IP
+      - certificate does not contain VIP IP in SubjectAltName
+    decision: |
+      Is the VIP address present in the issued certificate's SANs?
+      If not: all clients connecting via the VIP will get TLS errors (certificate
+      mismatch), making the VIP useless for routing.
+    forbidden_if:
+      - issuing a new cert without including the VIP in the SAN list
+      - replacing a cert without verifying VIP is in the new cert's SANs
+    required_evidence_before:
+      - openssl x509 -noout -ext subjectAltName -in /var/lib/globular/pki/issued/services/service.crt | grep VIP_IP
+    required_verification_after:
+      - curl -v --cacert /var/lib/globular/pki/ca.crt https://<VIP>:443/health returns 200
+      - openssl s_client -connect <VIP>:443 -CAfile ca.crt shows no certificate error
+    forbidden_fixes: []
+    related_invariants: []
+    required_tests: []
+
+  - id: minio_topology_requires_three_storage_nodes
+    title: Distributed MinIO cannot start until 3 storage nodes are available
+    severity: high
+    source_incidents:
+      - INC-2026-0003
+    trigger:
+      - MinIO returns SKIP_NO_QUORUM
+      - storage_nodes_below_quorum: N (need 3)
+      - minio inactive on node despite disk available
+    decision: |
+      How many storage nodes are currently in the cluster?
+      If < 3: MinIO cannot run in distributed (erasure-coded) mode. Options:
+        (a) Add a 3rd storage node (correct long-term fix)
+        (b) Switch to standalone mode (data loss risk, not recommended for production)
+    forbidden_if:
+      - starting MinIO in distributed mode with fewer than 3 nodes
+      - bypassing the topology gate to force-start MinIO on 2 nodes
+      - wiping .minio.sys to "reset" the topology without an approved transition
+    required_evidence_before:
+      - globular cluster nodes --profiles storage — count storage-profile nodes
+      - mc admin info — confirm node count and health
+    required_verification_after:
+      - MinIO shows 3/3 nodes healthy
+      - mc admin info shows erasure set with k+m > 0
+      - objectstore.topology_contract invariant satisfied
+    forbidden_fixes:
+      - start_minio_from_local_health_check
+      - infer_minio_membership_from_disk
+      - wipe_minio_sys_without_approved_transition
+    related_invariants:
+      - objectstore.topology_contract
+      - founding_quorum.three_storage_nodes
+    required_tests: []
+
+  # ── Awareness system self-governance rules ────────────────────────────────────
+
+  - id: awareness_yaml_edit_requires_rebuild
+    title: Editing awareness knowledge YAML files requires a graph rebuild before calling decision_context
+    severity: high
+    source_incidents: []
+    trigger:
+      - developer edits invariants.yaml, forbidden_fixes.yaml, causal_rules.yaml,
+        failure_modes.yaml, or any knowledge/*.yaml file
+      - awareness.decision_context called immediately after the edit
+    decision: |
+      Has 'globular awareness build' been run AFTER the YAML edit?
+      If no: the graph is stale and will not reflect the new invariants/rules.
+    forbidden_if:
+      - calling awareness.decision_context before rebuilding after a YAML edit
+      - treating "checked_clean" from a stale graph as evidence of safety
+    required_evidence_before:
+      - awareness.session_start returns graph.stale: false
+      - graph build timestamp is AFTER the YAML file's mtime
+    required_verification_after:
+      - awareness.decision_context for the edited file returns non-empty decision_paths
+      - new forbidden_fixes appear in the response forbidden_actions list
+    forbidden_fixes:
+      - edit_awareness_yaml_without_graph_rebuild
+      - rely_on_stale_graph_after_knowledge_edit
+    related_invariants:
+      - awareness.knowledge.graph_rebuild_after_yaml_edit
+    required_tests:
+      - TestLearnFromFix_DoesNotApplyWeightsWithoutApproval
+      - TestWeightProposalIncludesReasonAndEvidence
+
+  - id: decision_context_coverage_always_required
+    title: awareness.decision_context must return coverage and blind_spots in all modes including no-graph
+    severity: critical
+    source_incidents: []
+    trigger:
+      - awareness.decision_context called in any mode
+      - graph unavailable, stale, or returns no matches
+    decision: |
+      Does the response include coverage map AND blind_spots list?
+      If not: the consumer cannot tell whether NO_MATCH means "no risk" or
+      "no data". These are structurally different outcomes.
+    forbidden_if:
+      - returning {} or null for coverage when graph is unavailable
+      - returning empty blind_spots when graph is unavailable
+      - omitting the warning field about NO_MATCH semantics
+    required_evidence_before: []
+    required_verification_after:
+      - response includes coverage.graph, coverage.runtime, coverage.code_scan
+      - response includes non-empty blind_spots list in degraded mode
+      - response includes warning containing "NO_MATCH does not mean safe"
+    forbidden_fixes:
+      - return_bare_no_match_without_coverage
+      - skip_blind_spots_when_graph_unavailable
+      - treat_no_match_as_safe_for_high_risk_files
+    related_invariants:
+      - awareness.mcp.decision_context_no_bare_no_match
+    required_tests:
+      - TestDecisionContext_NoMatchStillReportsCoverage
+      - TestDecisionContext_FileEditReturnsDecisionPath
+      - TestDecisionAction_DangerousActionRequiresApproval
+      - TestDecisionAction_IncludesStopCondition
+      - TestDecisionIntegrity_DangerousActionMissingApprovalFails

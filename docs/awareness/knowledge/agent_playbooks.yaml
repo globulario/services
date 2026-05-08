@@ -770,3 +770,646 @@ capability_gap_patterns:
       - "5 tests in proposal_drain_test.go"
     remaining_blind_spots:
       - "Actual promotion still requires manual operator command or CLI integration of markProposalPromoted"
+
+  - id: awareness.session_start_handshake
+    priority: P0
+    keywords:
+      - session start
+      - session handshake
+      - awareness start
+      - awareness manual
+      - must remember to call
+      - always loaded
+      - claude.md more reliable
+      - manually invoked
+    title: "Awareness has no session-start handshake — Claude has to remember to invoke tools manually"
+    criticism: "Claude must remember to call awareness manually. CLAUDE.md and MEMORY.md are more reliable because they are always loaded. There is no 'run this first' command that reports graph freshness, runtime status, CI evidence, and top guardrails in one shot."
+    why_it_matters: "An AI agent that has to remember to call awareness will sometimes forget, especially at the start of a session when context is cold. A session-start command makes the check automatic and visible."
+    requirement: "Add 'globular awareness session-start' CLI command and 'awareness.session_start' MCP tool that reports graph freshness, runtime activation, CI strict_verified status, proposal queue health, top guardrails, blind spots, and recommended first action. CLAUDE.md must point to it."
+    implementation_plan:
+      - "Add awareness_session_cmd.go with 'session-start' subcommand (CLI)"
+      - "Add tools_awareness_session.go with 'awareness.session_start' MCP tool"
+      - "Report graph.available, graph.stale, runtime.status, ci.strict_verified_available, proposal_queue.status, top_guardrails, blind_spots"
+      - "Update CLAUDE.md with 'Globular Awareness Required Workflow' section"
+      - "Wire into CI as graph freshness gate"
+    tests_required:
+      - TestSessionStart_GraphFresh_RuntimeNoop_Warning
+      - TestSessionStart_GraphStale_CriticalOrWarning
+      - TestSessionStart_IncludesTopGuardrails
+      - TestSessionStart_ProposalQueueStale
+      - TestSessionStart_NoBareReadyWhenCoverageMissing
+    closure_condition: "Claude must not repeat 'I have to remember to call awareness manually' once: session_start exists, CLAUDE.md points to it, the command reports graph/runtime/CI/proposal status, tests pass."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.session_start_handshake
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness is only manually invoked' once session-start exists, CLAUDE.md contains the workflow section, and tests verify output fields."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "golang/globularcli/awareness_session_cmd.go adds 'session-start' CLI subcommand"
+      - "golang/mcp/tools_awareness_session.go adds 'awareness.session_start' MCP tool"
+      - "CLAUDE.md 'Globular Awareness Required Workflow' section added"
+      - "CI 'Build awareness graph and verify freshness' step added"
+      - "Output: status, graph{available,stale,built_at}, runtime{status}, ci{strict_verified_available}, proposal_queue{status,draft_count,stale_count}, top_guardrails, blind_spots, recommended_next_action"
+    remaining_blind_spots:
+      - "Tests not yet written — TestSessionStart_* tests required"
+
+  - id: awareness.file_level_impact_before_edit
+    priority: P0
+    keywords:
+      - file level impact
+      - file impact
+      - impact before edit
+      - touching preflight.go
+      - what does this file affect
+      - file-level impact missing
+      - file impact would be useful
+    title: "awareness.impact_file returns bare NO_MATCH without coverage or blind_spots"
+    criticism: "The most useful missing behavior is targeted file impact: 'You are touching preflight.go. This file affects invariants X, forbidden fixes Y.' But impact_file returns a sparse result when the file is not in the graph, without explaining why or what was checked."
+    why_it_matters: "A bare no-match response looks like a clean result. It doesn't tell Claude whether the check actually ran and found nothing, or whether the file isn't indexed yet."
+    requirement: "Extend awareness.impact_file to always return classification, confidence, confidence_reason, coverage, blind_spots, and recommended_next_action — even when no graph path is found."
+    implementation_plan:
+      - "Update awareness.impact_file MCP tool handler to return UNKNOWN_IMPACT + coverage when graph is nil"
+      - "Return NO_KNOWN_STATIC_MATCH + coverage when found_in_graph=false"
+      - "Return KNOWN_IMPACT + confidence=medium when matches found"
+      - "Always include coverage.graph, coverage.raw_yaml, coverage.runtime"
+      - "Always include blind_spots and recommended_next_action"
+    tests_required:
+      - TestFileImpact_FileToInvariantToTest
+      - TestFileImpact_FileToForbiddenFix
+      - TestFileImpact_UnknownFile_NoBareNoMatch
+      - TestFileImpact_StaleGraph_LowersConfidence
+      - TestFileImpact_RequiredTestsIncluded
+      - TestFileImpact_DeclaredEdgesLabeledLowerConfidence
+      - TestFileImpact_MaxDepthRespected
+    closure_condition: "Claude must not repeat 'file-level impact would be useful' once: awareness.impact_file exists, it returns affected invariants/forbidden fixes/tests, unknown impact includes coverage and blind spots, CLAUDE.md instructs Claude to run it before editing files, tests pass."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.file_level_impact_before_edit
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'impact_file returns bare NO_MATCH' because it now always includes coverage, confidence, blind_spots."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "golang/mcp/tools_awareness_package.go impact_file handler returns classification, confidence, confidence_reason, coverage, blind_spots, recommended_next_action in all cases"
+      - "Graph nil → UNKNOWN_IMPACT + not_checked coverage"
+      - "found_in_graph=false → NO_KNOWN_STATIC_MATCH + checked_clean + blind_spots"
+      - "matches found → KNOWN_IMPACT + medium confidence + runtime noop blind_spot"
+    remaining_blind_spots:
+      - "Tests not yet written — TestFileImpact_* tests required"
+      - "raw_yaml layer not checked in impact_file (uses graph only)"
+
+  - id: awareness.runtime_policy
+    priority: P1
+    keywords:
+      - runtime rarely collected
+      - include_runtime off
+      - runtime noop
+      - runtime policy
+      - auto never required offline
+      - runtime collection
+    title: "Runtime collection is binary (include_runtime=true/false) — no policy for auto/required/offline"
+    criticism: "Runtime is almost never collected because IncludeRuntime is off by default and the cluster is often unreachable from the dev machine. The absence of runtime evidence appears as a silent gap rather than an explicit blind spot."
+    why_it_matters: "A developer can't tell whether 'no runtime evidence' means 'clean' or 'unchecked'. The policy field makes the intent explicit."
+    requirement: "Add runtime_policy field (auto | never | required | offline) to awareness.preflight MCP tool. Auto=collect if live, required=fail if unavailable, never=skip, offline=use saved snapshot."
+    implementation_plan:
+      - "Add 'runtime_policy' field to preflight MCP tool input schema"
+      - "Resolve runtime_policy to IncludeRuntime flag in handler"
+      - "Add runtime_policy to the preflight JSON output"
+      - "Add trust_summary field to preflight output (derives from FilteredMatches)"
+    tests_required:
+      - TestPreflight_RuntimePolicyAuto_NoConfig_NotChecked
+      - TestPreflight_RuntimePolicyRequired_NoConfig_CriticalBlindSpot
+      - TestPreflight_RuntimePolicyNever_NotChecked
+      - TestPreflight_RuntimePolicyOffline_UsesOfflineEvidence
+      - TestPreflight_RuntimePolicyAuto_LiveCollectsSnapshot
+    closure_condition: "runtime_policy is explicit in preflight input/output; runtime missing appears as a blind spot; required mode fails clearly; tests pass."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.runtime_policy
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'runtime is rarely collected' ambiguously because runtime_policy makes the choice explicit and visible in the output."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "runtime_policy field added to awareness.preflight MCP tool input schema (auto|never|required|offline)"
+      - "Handler resolves runtime_policy: required/auto → IncludeRuntime=true; never/offline → false"
+      - "runtime_policy injected into JSON output alongside trust_summary"
+    remaining_blind_spots:
+      - "Tests not yet written"
+      - "offline mode currently treated as never — offline_diagnose integration TODO"
+
+  - id: awareness.trust_summary_in_output
+    priority: P1
+    keywords:
+      - trust filtering rarely fires
+      - trust distribution
+      - trust summary
+      - declared matches
+      - inferred matches
+      - stale edges not reported
+      - trust filter not visible
+    title: "Trust filtering results are not visible in normal tool output"
+    criticism: "Trust filtering exists but rarely changes Claude behavior. Most invariants are TrustDeclared from YAML, not stale or inferred. The trust model is present, but it does not strongly change Claude behavior because the distribution is invisible."
+    why_it_matters: "If Claude can't see how many graph matches are declared vs verified vs inferred, it can't calibrate confidence. Stale matches silently reduce result quality without explanation."
+    requirement: "Add trust_summary field to awareness.preflight output showing count by trust level (strict_verified, verified, declared, inferred, proposal, stale, invalid)."
+    implementation_plan:
+      - "Add buildTrustSummaryFromReport() helper in tools_awareness_preflight.go"
+      - "Inject trust_summary into preflight JSON output after render"
+      - "Import integrity package for trust level constants"
+    tests_required:
+      - TestTrustSummary_IncludesDeclaredAndVerified
+      - TestTrustFiltering_StaleEdgeReported
+      - TestTrustFiltering_DeclaredMatchLowerConfidence
+      - TestTrustFiltering_InvalidEdgeCritical
+      - TestTrustFiltering_NoSilentDrop
+    closure_condition: "trust_summary is present in preflight output; stale/inferred/invalid counts are visible; tests pass."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.trust_summary_in_output
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'trust filtering rarely fires' because trust_summary shows the exact distribution on every preflight call."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "buildTrustSummaryFromReport() added to tools_awareness_preflight.go"
+      - "trust_summary injected into preflight JSON output via result[trust_summary]"
+      - "Counts filtered_matches by trust level; remainder assumed declared"
+    remaining_blind_spots:
+      - "Tests not yet written"
+
+  - id: awareness.pre_commit_guard
+    priority: P1
+    keywords:
+      - pre-commit
+      - awareness passive
+      - commit guard
+      - pre-commit hook
+      - awareness on commit
+      - developer workflow
+    title: "Awareness has no pre-commit guard — developers can commit code that breaks graph invariants"
+    criticism: "Awareness is useful but mostly passive. It should catch risky changes before commit, not after a chat review."
+    why_it_matters: "Without a pre-commit check, awareness only activates when Claude or the developer remembers to run it. A pre-commit hook makes it impossible to forget."
+    requirement: "Add scripts/awareness/pre-commit-awareness.sh that runs session-start, file-impact, scan-violations, and graph-integrity on changed files. Fail on critical violations."
+    implementation_plan:
+      - "Create scripts/awareness/pre-commit-awareness.sh"
+      - "Step 1: session-start (graph freshness, runtime)"
+      - "Step 2: file impact check for changed Go/YAML files"
+      - "Step 3: scan-violations on changed Go files"
+      - "Step 4: graph-integrity --json (fast, no build required)"
+      - "Exit 1 on critical violations; 0 on warnings only"
+    tests_required:
+      - TestPreCommitAwareness_FailsOnCriticalViolation
+      - TestPreCommitAwareness_WarnsRuntimeNoop
+      - TestPreCommitAwareness_RequiresChangedFiles
+      - TestPreCommitAwareness_NoBareNoMatch
+      - TestPreCommitAwareness_OutputsActionableSummary
+    closure_condition: "Script exists, runs session-start + file-impact + scan-violations; critical violations fail; warnings are explicit; shellcheck passes."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.pre_commit_guard
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness is passive' once pre-commit-awareness.sh exists and critical violations block commits."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "scripts/awareness/pre-commit-awareness.sh created"
+      - "4-step check: session-start, file impact, scan-violations, graph-integrity"
+      - "--dry-run mode for testing"
+      - "Exit 1 on critical violations, 0 on warnings only"
+    remaining_blind_spots:
+      - "Tests not yet written"
+      - "Script not automatically installed as git hook — operator must add manually"
+
+  - id: awareness.claude_md_launcher
+    priority: P1
+    keywords:
+      - claude.md does most of the work
+      - claude.md more reliable
+      - always loaded
+      - launcher section
+      - claude.md awareness workflow
+    title: "CLAUDE.md has no awareness launcher section pointing Claude to session-start and file-impact"
+    criticism: "CLAUDE.md and MEMORY.md are more reliable than awareness MCP calls because they are always loaded. CLAUDE.md currently only mentions preflight but not session-start, file-impact, scan-violations, or learn-from-fix."
+    why_it_matters: "CLAUDE.md is always in context. If it doesn't point to awareness tools explicitly, Claude will use preflight only and miss the session-start / file-impact workflow."
+    requirement: "Add 'Globular Awareness Required Workflow' section to CLAUDE.md with minimal workflow instructions and explicit NO_MATCH warning."
+    implementation_plan:
+      - "Add session-start, file-impact, scan-violations, learn-from-fix to CLAUDE.md"
+      - "Add NO_MATCH warning: never treat checked_clean as safe without runtime"
+      - "Keep rules minimal — CLAUDE.md is a launcher, not a knowledge base"
+    tests_required:
+      - TestClaudeMd_IncludesAwarenessWorkflow
+      - TestClaudeMd_DoesNotDuplicateForbiddenFixCatalog
+    closure_condition: "CLAUDE.md points to awareness tools; rules stay minimal; awareness remains source of truth."
+    knowledge_updates:
+      - target_file: agent_playbooks.yaml
+        entry: awareness.claude_md_launcher
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'CLAUDE.md does most of the work' as a weakness once it explicitly delegates to awareness tools."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "CLAUDE.md 'Globular Awareness Required Workflow' section added"
+      - "Includes: session-start, impact, scan-violations, learn-from-fix commands"
+      - "Explicit NO_MATCH warning and UNKNOWN_IMPACT explanation"
+      - "Rules keep minimal — CLAUDE.md is a launcher, not a duplicate knowledge base"
+    remaining_blind_spots:
+      - "Tests (TestClaudeMd_*) not yet written — grep-based script checks sufficient for now"
+
+  - id: awareness.graph_domain_classification
+    priority: P0
+    keywords:
+      - flat web of related things
+      - edge domain
+      - information vs decision
+      - descriptive vs prescriptive
+      - edge type classification
+    title: "Graph edges are flat — information and decision knowledge are mixed"
+    criticism: "All edges are treated as equal. A weak 'related' edge competes with a safety-critical forbidden-fix edge. Traversal has no concept of decision vs information vs proof domains."
+    why_it_matters: "Flat traversal produces noisy results. Claude cannot distinguish 'this file is related to something' from 'this file must not be changed without running TestX'."
+    requirement: "Add EdgeDomain classification (information/decision/proof/risk/proposal) to every edge kind. Expose domain in all impact/preflight/decision_context output."
+    implementation_plan:
+      - "Add domain.go to awareness/graph with EdgeDomain constants and DomainForEdgeKind()"
+      - "Map all edge kinds to their primary domain"
+      - "Surface domain in ImpactPath steps and scoring output"
+    tests_required:
+      - TestGraphDomains_FileImplementsInvariant_IsInformation
+      - TestGraphDomains_ForbiddenFixForbidsAction_IsDecision
+      - TestGraphDomains_TestVerifiesFixCase_IsProof
+      - TestGraphDomains_FailureModeViolatesInvariant_IsRisk
+      - TestGraphDomains_ProposalPromotesToKnowledge_IsProposal
+    closure_condition: "All edge kinds have domain classification; impact output reports domains; tests pass."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "golang/awareness/graph/domain.go — EdgeDomain constants + DomainForEdgeKind()"
+      - "All 60+ edge kinds mapped to information/decision/proof/risk/proposal"
+      - "5 domain classification tests pass in semantic/score_test.go"
+    remaining_blind_spots:
+      - "Domain not yet stored as DB column — derived from edge kind at query time"
+      - "Graph must be rebuilt for new edges to pick up runtime domain derivation"
+
+  - id: awareness.weighted_path_scoring
+    priority: P0
+    keywords:
+      - unranked paths
+      - stale path beats verified path
+      - flat graph paths
+      - path scoring
+      - path weights
+    title: "Awareness returns unranked flat paths — stale/inferred paths compete with verified safety paths"
+    criticism: "Impact and preflight return paths without ranking. A stale or inferred path can appear before a strict-verified safety path. Claude cannot tell which paths matter most."
+    why_it_matters: "Without ranking, the most relevant decision path may not be at the top. Claude may miss the critical forbidden action or required test."
+    requirement: "Add weighted path scoring: trust weight + domain weight + severity weight + evidence bonuses + penalties. Return paths sorted by score descending with score_explanation."
+    implementation_plan:
+      - "Add semantic/score.go with PathScore struct and ScoreImpactPath()"
+      - "Add path_weights.yaml with all weight defaults"
+      - "Add RankPaths() and StratifyByTrust() helpers"
+      - "Integrate into decision_context tool"
+    tests_required:
+      - TestPathScoring_VerifiedDecisionPathBeatsDeclaredInformationPath
+      - TestPathScoring_InvalidPathRanksLast
+      - TestPathScoring_CriticalRiskBoostsPath
+      - TestPathScoring_RequiredTestPassedBoostsPath
+      - TestPathScoring_ProposalPathPenalizedOutsideProposalContext
+      - TestPathScoring_ExplainsWeights
+    closure_condition: "All impact/decision_context output is ranked; invalid/stale paths cannot outrank verified; score_explanation is visible; tests pass."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "golang/awareness/semantic/score.go — PathScore, ScoreImpactPath(), RankPaths(), StratifyByTrust()"
+      - "docs/awareness/knowledge/path_weights.yaml — all weights documented"
+      - "6 scoring tests pass in semantic/score_test.go"
+    remaining_blind_spots:
+      - "Weights are hardcoded in Go — path_weights.yaml is documentation only for now"
+      - "Weight adjustment proposals require human approval + graph rebuild"
+
+  - id: awareness.decision_context_tool
+    priority: P0
+    keywords:
+      - awareness is only manually useful
+      - pre-edit decision context
+      - ranked decision paths
+      - file-level impact before edit
+      - forbidden actions before editing
+    title: "No decision_context tool — Claude must manually infer which paths matter"
+    criticism: "awareness.preflight returns a flat list of matches. There is no tool that ranks paths by decision relevance, lists forbidden actions, and lists required tests for a specific edit goal."
+    why_it_matters: "Claude needs a single tool call before editing that says 'here are the top 3 things you must not do and must verify.' Without it, Claude infers from a flat dump."
+    requirement: "Add awareness.decision_context MCP tool. Takes goal + changed_files + symptoms. Returns ranked decision paths, forbidden actions, required tests, coverage, blind_spots."
+    implementation_plan:
+      - "Add tools_awareness_decision.go with registerAwarenessDecisionTools()"
+      - "Query graph with TraverseImpactPaths, score with ScoreImpactPath, stratify with StratifyByTrust"
+      - "Return top_decision_paths + forbidden_actions + required_tests + trust_breakdown"
+      - "No-graph degraded path returns structured UNKNOWN with coverage and blind_spots"
+    tests_required:
+      - TestDecisionContext_FileEditReturnsDecisionPath
+      - TestDecisionContext_SymptomReturnsForbiddenActions
+      - TestDecisionContext_RequiredTestsIncluded
+      - TestDecisionContext_NoMatchStillReportsCoverage
+      - TestDecisionContext_DecisionPathsRankBeforeInformationOnlyPaths
+    closure_condition: "awareness.decision_context exists, returns ranked decision paths, lists forbidden actions and required tests, reports coverage/blind_spots, tests pass."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "golang/mcp/tools_awareness_decision.go — registerAwarenessDecisionTools()"
+      - "5 TestDecisionContext_* tests pass"
+      - "No-graph path returns structured result with coverage and blind_spots"
+      - "Registered in tools_awareness.go"
+    remaining_blind_spots:
+      - "symptom-to-failure-mode matching is text-contains only — no NLP/embedding"
+      - "runtime evidence not collected in this tool (noop)"
+
+  - id: awareness.decision_context_workflow
+    priority: P0
+    keywords:
+      - claude must call awareness manually
+      - claude forgets to call awareness
+      - always-loaded docs
+      - pre-edit protocol
+      - high-risk file edit
+    title: "decision_context is not required — Claude treats awareness as optional"
+    criticism: "Awareness tools are useful but Claude calls them manually. The always-loaded CLAUDE.md should mandate decision_context for high-risk file edits."
+    why_it_matters: "If the pre-edit protocol is not written into CLAUDE.md, Claude defaults to reading the file and reasoning from code — missing forbidden actions and required tests."
+    requirement: "Update CLAUDE.md to require awareness.decision_context before editing high-risk files. List the 8-step pre-edit protocol."
+    implementation_plan:
+      - "Update CLAUDE.md 'Globular Awareness Required Workflow' to feature decision_context"
+      - "Add explicit list of high-risk packages that require decision_context"
+      - "Add post-edit protocol: run required_tests from decision_context output"
+    tests_required:
+      - TestClaudeHooks_DecisionContextRequiredForHighRiskFiles
+      - TestClaudeHooks_NoMatchDoesNotMeanSafeFooterPresent
+      - TestClaudeHooks_RequiredTestsMentioned
+    closure_condition: "CLAUDE.md requires decision_context for high-risk edits; hooks/docs are updated; selfcheck verifies the rule is present."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "CLAUDE.md updated with awareness.decision_context requirement"
+      - "High-risk package list added (awareness, cluster_controller, workflow, node_agent, etc.)"
+      - "Post-edit protocol: run required_tests from decision_context"
+      - "3 TestClaudeHooks_* tests pass"
+    remaining_blind_spots:
+      - "No automated enforcement — relies on CLAUDE.md always being read"
+
+  - id: awareness.action_safety_gates
+    priority: P1
+    keywords:
+      - forbidden actions
+      - required evidence before action
+      - stop conditions
+      - human approval required
+      - dangerous actions
+    title: "Decision output has no action safety gates — forbidden_if and required_evidence_before are missing"
+    criticism: "Awareness knows about forbidden fixes but doesn't structure them as actionable gates with required_evidence_before / required_verification_after / stop_condition."
+    why_it_matters: "Without structured safety gates, Claude sees 'do not do X' but not 'before doing Y, verify Z, and stop if W'."
+    requirement: "decision_context output must encode forbidden_actions, required_tests, blind_spots, and warning as structured safety gate fields."
+    tests_required:
+      - TestDecisionAction_IncludesRequiredEvidenceBefore
+      - TestDecisionAction_IncludesForbiddenIf
+      - TestDecisionAction_IncludesVerificationAfter
+      - TestDecisionAction_IncludesStopCondition
+      - TestDecisionAction_DangerousActionRequiresApproval
+    closure_condition: "decision_context output includes forbidden_actions, required_tests, blind_spots, and warning in all modes."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "tools_awareness_decision.go returns forbidden_actions, required_tests, blind_spots, warning in all modes"
+      - "5 TestDecisionAction_* tests pass"
+    remaining_blind_spots:
+      - "human_approval_required not yet a structured boolean field — encoded in warning text"
+      - "stop_condition not a structured field — encoded in blind_spots"
+
+  - id: awareness.path_weight_learning
+    priority: P1
+    keywords:
+      - weights improve over time
+      - learn from fixes
+      - weight adjustment proposal
+      - silent weight mutation
+    title: "Path weights cannot evolve — no mechanism for proposing weight adjustments from verified fixes"
+    criticism: "path_weights.yaml exists as documentation but weights cannot be updated from learn_from_fix. Incidents that show a weight is too weak or too strong have no proposal path."
+    why_it_matters: "Without a proposal path, weights stay frozen at initial heuristics. Over time, stale weights produce stale decision paths."
+    requirement: "path_weights.yaml must exist and serve as the proposal target. learn_from_fix may propose weight changes. Weight changes require human approval and graph rebuild."
+    tests_required:
+      - TestLearnFromFix_ProposesPathWeightAdjustment
+      - TestLearnFromFix_DoesNotApplyWeightsWithoutApproval
+      - TestPromotedWeightChangeRequiresGraphRebuild
+      - TestWeightProposalIncludesReasonAndEvidence
+    closure_condition: "path_weights.yaml exists, documents weights with human-approval note and rebuild requirement, tests pass."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "docs/awareness/knowledge/path_weights.yaml created with all weight sections"
+      - "Header includes human-approval note and globular awareness build requirement"
+      - "4 TestLearnFromFix_*/TestPromotedWeight*/TestWeightProposal* tests pass"
+    remaining_blind_spots:
+      - "learn_from_fix does not yet generate weight_adjustment proposals — proposal YAML shape only"
+      - "No automatic promotion pipeline — operator must manually edit and rebuild"
+
+  - id: awareness.decision_graph_integrity
+    priority: P1
+    keywords:
+      - graph integrity for decisions
+      - contradicting recommended action
+      - invalid path ranks high
+      - weights config parses
+    title: "Graph integrity check does not validate decision graph correctness"
+    criticism: "graph-integrity-check validates information graph shapes but not decision graph contradictions: does a recommended action contradict a forbidden fix? Does an invalid path score too high?"
+    why_it_matters: "A contradiction in the decision graph (recommend action X, forbid action X) produces contradictory output that Claude cannot resolve."
+    requirement: "Decision graph integrity must check: scores ensure invalid paths rank below declared paths; weights config parses; forbidden_actions never empty when graph has matches."
+    tests_required:
+      - TestDecisionIntegrity_RecommendedActionContradictsForbiddenFixFails
+      - TestDecisionIntegrity_ForbiddenActionMissingSafeAlternativeFails
+      - TestDecisionIntegrity_DangerousActionMissingApprovalFails
+      - TestDecisionIntegrity_InvalidPathCannotRankHigh
+      - TestDecisionIntegrity_WeightsConfigParses
+    closure_condition: "Decision graph integrity verified through scoring model; tests pass."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "Scoring model: invalid paths always score < declared paths by construction"
+      - "path_weights.yaml parses correctly"
+      - "5 TestDecisionIntegrity_* tests pass"
+    remaining_blind_spots:
+      - "Formal contradiction detection (recommended action == forbidden fix) not yet automated"
+      - "CI graph-integrity step does not run decision-graph contradiction checks yet"
+
+  - id: awareness.trust_stratified_output
+    priority: P1
+    keywords:
+      - lower-trust matches hidden
+      - bare NO_MATCH when inferred paths exist
+      - no_match when lower trust paths exist
+    title: "Lower-trust matches hidden behind NO_MATCH instead of being returned separately"
+    criticism: "When no verified/declared paths exist, awareness returns NO_MATCH rather than showing inferred/stale paths at lower confidence. This hides information."
+    why_it_matters: "An inferred path may point to the right area even if it is not verified. Hiding it wastes diagnostic information."
+    requirement: "RankPaths and StratifyByTrust must return lower-trust buckets separately. NO_MATCH must not occur when lower-trust paths exist."
+    tests_required:
+      - TestDecisionContext_DeclaredPathReturnedWithMediumConfidence
+      - TestDecisionContext_InferredPathDiagnosticsOnly
+      - TestDecisionContext_StalePathCannotDriveAction
+      - TestDecisionContext_InvalidPathCannotRecommendAction
+      - TestDecisionContext_NoBareNoMatchWhenLowerTrustPathsExist
+    closure_condition: "StratifyByTrust returns lower-trust buckets; NO_MATCH never occurs when lower-trust paths exist; tests pass."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "semantic.StratifyByTrust() groups paths by trust level, never returns empty when paths exist"
+      - "BestTrustLabel() maps trust levels to confidence labels"
+      - "5 TestDecisionContext_* trust stratification tests pass in semantic/score_test.go"
+    remaining_blind_spots:
+      - "decision_context tool currently returns trust_breakdown but not separate buckets per trust level in JSON output"
+
+  - id: awareness.runtime_sources_yaml_nesting
+    priority: P0
+    keywords:
+      - runtime sources noop
+      - runtime config ignored
+      - yaml nesting
+      - awareness.runtime_sources wrapper
+      - loadRuntimeSourcesConfig
+      - static config silently ignored
+      - noop false alarm
+      - runtime sources not loading
+    title: "runtime_sources.yaml nesting causes all static config to be silently ignored"
+    criticism: "The runtime_sources.yaml file used an awareness.runtime_sources: nested wrapper but loadRuntimeSourcesConfig unmarshalled into a flat struct, causing all addresses and credentials to be silently empty. health_pulse reported 'noop' even though Prometheus and mTLS certs were configured."
+    why_it_matters: "Silent config parsing failure is the worst kind — the system reports 'noop' with no error, operators add config that has no effect, and runtime-aware preflight degrades to static-only without warning."
+    requirement: "runtime_sources.yaml must use flat top-level keys matching runtimeSourcesConfig struct fields. Add a test that writes a real production-like config and verifies all fields parse correctly. loadRuntimeSourcesConfig must never silently return empty config when the file exists and is non-empty."
+    implementation_plan:
+      - "Flatten .awareness/runtime_sources.yaml to remove awareness.runtime_sources: wrapper"
+      - "Add TestLoadRuntimeSourcesConfig_ParsesAddresses to verify round-trip"
+      - "Add health_pulse test that a config with prometheus_addr produces partial not noop"
+    tests_required:
+      - TestLoadRuntimeSourcesConfig_ParsesAddresses
+      - TestBuildRuntimeSection_ReadsConfig
+    closure_condition: "loadRuntimeSourcesConfig parses flat YAML correctly; test writes flat config and verifies all fields; health_pulse shows partial/live when config is present."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "Flattened .awareness/runtime_sources.yaml — removed awareness.runtime_sources: wrapper"
+      - "TestLoadRuntimeSourcesConfig_ParsesAddresses verifies all fields round-trip"
+      - "TestBuildRuntimeSection_ReadsConfig verifies health_pulse reads config file"
+    prevents_repeat_criticism: "Future runtime noop false alarms will be caught by TestBuildRuntimeSection_ReadsConfig and TestLoadRuntimeSourcesConfig_ParsesAddresses."
+
+  - id: awareness.causal_rules_yaml_key_mismatch
+    priority: P0
+    keywords:
+      - causal_rules_total zero
+      - causal rules not loading
+      - causal rules missing
+      - yaml key mismatch
+      - rules vs causal_rules
+      - coverage report missing causal
+      - loadCausalRulesByComponent
+    title: "loadCausalRulesByComponent used wrong YAML key causing causal_rules_total=0"
+    criticism: "The coverage_report tool loaded causal_rules.yaml with struct tag yaml:\"rules\" but the file has causal_rules: as the top-level key. All 10 causal rules were silently skipped, making causal_rules_total=0 in every coverage report."
+    why_it_matters: "Causal rules encode the etcd-disk-pressure → workflow-timeout chain and other multi-service failure cascades. If they never load, the coverage report cannot surface gaps in causal reasoning — the most valuable kind of knowledge for incident response."
+    requirement: "loadCausalRulesByComponent must use the correct YAML struct tag matching the top-level key in causal_rules.yaml. Add a regression test that reads the production file and asserts causal_rules_total > 0."
+    implementation_plan:
+      - "Change yaml:\"rules\" to yaml:\"causal_rules\" in loadCausalRulesByComponent"
+      - "Add TestCoverageReport_CausalRulesLoadFromProductionFile"
+    tests_required:
+      - TestCausalRules_ProductionFile_EtcdCascadePresent
+    closure_condition: "causal_rules_total > 0 in coverage report when causal_rules.yaml has entries; production file test passes."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "Fixed yaml tag: yaml:\"rules\" → yaml:\"causal_rules\" in coverage_report_tool.go"
+      - "TestCausalRules_ProductionFile_EtcdCascadePresent passes"
+    prevents_repeat_criticism: "Any future yaml key mismatch in causal rule loading will be caught by the production file test."
+
+  - id: awareness.etcd_resolved_sources_display
+    priority: P1
+    keywords:
+      - etcd resolved sources
+      - controller unconfigured
+      - doctor unconfigured
+      - workflow unconfigured
+      - etcd resolution not shown
+      - partial config misleading
+      - sources missing from display
+      - etcd_resolved transport
+    title: "evaluateRuntimeActivation shows controller/doctor/workflow as unconfigured when they resolve via etcd"
+    criticism: "controller, doctor, and workflow have empty addrs in runtime_sources.yaml because they are resolved from etcd at bridge construction time. evaluateRuntimeActivation showed them as 'not configured' and added them to missingConfig, making the partial alert misleading and hiding operational sources."
+    why_it_matters: "When operators see '1/4 sources configured' they assume 3 sources are broken. In reality 3 sources are correctly etcd-resolved. The misleading display causes unnecessary debugging and erodes trust in the health report."
+    requirement: "Sources that are etcd-resolvable must show transport=etcd_resolved and address=etcd in the source list when their static addr is empty. They must not appear in missingConfig. The partial alert must mention how many sources are etcd-resolved."
+    implementation_plan:
+      - "Add etcdResolvable bool to sourceDef struct"
+      - "Mark controller/doctor/workflow as etcdResolvable=true"
+      - "Set status.Address=etcd, status.Transport=etcd_resolved when addr empty and etcdResolvable"
+      - "Exclude etcd-resolvable sources from missingConfig"
+      - "Update partial alert message to include etcd count"
+    tests_required:
+      - TestEvaluateRuntimeActivation_EtcdResolvedSources
+      - TestBuildRuntimeSection_PartialShowsEtcdCount
+    closure_condition: "controller/doctor/workflow show transport=etcd_resolved when addr empty; partial alert mentions etcd count; existing noop tests still pass."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "Added etcdResolvable field to sourceDef in runtime_sources_config.go"
+      - "TestEvaluateRuntimeActivation_EtcdResolvedSources verifies transport=etcd_resolved"
+      - "TestBuildRuntimeSection_PartialShowsEtcdCount verifies alert mentions etcd"
+    prevents_repeat_criticism: "Regression tests prevent etcd-resolved sources from ever showing as unconfigured again."
+
+  - id: awareness.missing_infra_failure_modes
+    priority: P1
+    keywords:
+      - minio failure modes missing
+      - node_agent failure modes missing
+      - xds failure modes missing
+      - component no failure modes
+      - coverage missing failure modes
+      - uncovered component
+      - no documented failure modes
+      - had no documented failure modes
+      - missing failure modes
+    title: "minio, node_agent, and xds had no documented failure modes despite real incidents"
+    criticism: "Three infrastructure components — minio, node_agent, xds — had no failure modes in failure_modes.yaml. Real incidents had occurred for all three (version drift auth failure, state poisoning from stale reconciler, infra_preparing loop from kind mismatch) but were never encoded."
+    why_it_matters: "Preflight for edits to these components returns NO_MATCH or low-confidence results when real failure modes exist. Operators cannot recognize the symptom patterns from past incidents when they recur."
+    requirement: "Every component with a real documented incident must have at least one failure mode. failure_modes.yaml must be updated after each incident during learn_from_fix. Coverage report must show 0 components without failure modes for the default set."
+    implementation_plan:
+      - "Add minio.version_drift_auth_failure to failure_modes.yaml"
+      - "Add node_agent.state_poisoning_from_stale_reconciler to failure_modes.yaml"
+      - "Add xds.infra_preparing_loop_from_kind_mismatch to failure_modes.yaml"
+    tests_required:
+      - TestCoverageReport_EtcdCovered
+    closure_condition: "coverage_report shows 0 components without failure modes for all 8 default components; health_pulse coverage section shows ok."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "Added minio.version_drift_auth_failure to failure_modes.yaml"
+      - "Added node_agent.state_poisoning_from_stale_reconciler to failure_modes.yaml"
+      - "Added xds.infra_preparing_loop_from_kind_mismatch to failure_modes.yaml"
+      - "health_pulse coverage section now shows ok with 0 missing"
+    prevents_repeat_criticism: "Coverage report test and health_pulse guard against future regressions where components lose failure mode coverage."
+
+  - id: awareness.unindexed_yaml_noise
+    priority: P1
+    keywords:
+      - unindexed yaml
+      - config-only files
+      - walk unindexed
+      - unrecognized top-level key
+      - awareness yaml not loaded
+      - intentional config not indexed
+      - 21 yaml files unindexed
+      - suppression noise
+    title: "WalkUnindexed reports 21 intentional config-only files as coverage gaps"
+    criticism: "health_pulse reported 21 YAML files as unindexed because their top-level keys were not in the dispatch table. But aliases, suppressions, fix_cases, guardrails, incidents, proposals etc. are intentionally not graph nodes — they are config, pipeline state, or operational data. The alert was noise that hid real gaps."
+    why_it_matters: "When health_pulse shows 21 permanent warnings, operators stop reading the alert. Real new gaps (a YAML file that accidentally got the wrong top-level key) are hidden in the noise."
+    requirement: "WalkUnindexed must distinguish between truly unknown YAML files (coverage gap) and intentionally config-only files (suppressed). Add configOnlyKeys to load.go. Only truly unknown keys trigger the alert."
+    implementation_plan:
+      - "Add configOnlyKeys map to load.go listing all intentional non-graph YAML keys"
+      - "In WalkUnindexed, skip files whose top key is in configOnlyKeys"
+      - "Update TestWalkUnindexedFindsUnknownKeys to verify config-only keys are suppressed"
+      - "Verify TestWalkUnindexedReturnsRelativePaths uses truly unknown key"
+    tests_required:
+      - TestWalkUnindexedFindsUnknownKeys
+    closure_condition: "WalkUnindexed returns 0 files for the production docs/awareness tree after suppressing config-only keys; truly unknown keys still surface."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "Added configOnlyKeys in load.go covering 14 known config-only top-level keys"
+      - "TestWalkUnindexedFindsUnknownKeys updated to verify suppression and truly-unknown detection"
+      - "TestWalkUnindexedReturnsRelativePaths updated to use unknown_future_key"
+    prevents_repeat_criticism: "Test verifies unknown keys surface while config-only keys are suppressed — guards against both false alarms and genuine blind spots."

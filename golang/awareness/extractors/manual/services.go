@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -17,18 +18,34 @@ type servicesFile struct {
 }
 
 type yamlService struct {
-	ID           string             `yaml:"id"`
-	Name         string             `yaml:"name"`
-	Summary      string             `yaml:"summary"`
-	SystemdUnit  string             `yaml:"systemd_unit"`
-	ProtoService string             `yaml:"proto_service"`
-	DependsOn    []yamlDependency   `yaml:"depends_on"`
+	ID             string           `yaml:"id"`
+	Name           string           `yaml:"name"`
+	Summary        string           `yaml:"summary"`
+	SystemdUnit    string           `yaml:"systemd_unit"`
+	ProtoService   string           `yaml:"proto_service"`
+	ProtoFile      string           `yaml:"proto_file"`
+	Implementation []string         `yaml:"implementation"`
+	DependsOn      []yamlDependency `yaml:"depends_on"`
+	Authority      *yamlAuthority   `yaml:"authority"`
+	Security       *yamlSecurity    `yaml:"security"`
 }
 
 type yamlDependency struct {
 	Service  string `yaml:"service"`
 	Phase    string `yaml:"phase"`
 	Required bool   `yaml:"required"`
+	Reason   string `yaml:"reason"`
+}
+
+type yamlAuthority struct {
+	Owns       []string `yaml:"owns"`
+	MustNotOwn []string `yaml:"must_not_own"`
+}
+
+type yamlSecurity struct {
+	TLSRequired                      bool `yaml:"tls_required"`
+	AuthzRequired                    bool `yaml:"authz_required"`
+	StreamingRPCsRequirePathBeforeWrite bool `yaml:"streaming_rpcs_require_path_before_write"`
 }
 
 // LoadServices loads services.yaml into g.
@@ -90,7 +107,7 @@ func loadService(ctx context.Context, g *graph.Graph, svc yamlService) error {
 		}
 	}
 
-	// Proto service → proto_service node + owns edge.
+	// Proto service → proto_service node + provides_service edge.
 	if svc.ProtoService != "" {
 		protoID := "proto_service:" + svc.ProtoService
 		if err := g.AddNode(ctx, graph.Node{
@@ -102,10 +119,79 @@ func loadService(ctx context.Context, g *graph.Graph, svc yamlService) error {
 		}
 		if err := g.AddEdge(ctx, graph.Edge{
 			Src:  svcID,
+			Kind: graph.EdgeProvidesService,
+			Dst:  protoID,
+		}); err != nil {
+			return err
+		}
+		// Also maintain backward-compat owns edge.
+		if err := g.AddEdge(ctx, graph.Edge{
+			Src:  svcID,
 			Kind: graph.EdgeOwns,
 			Dst:  protoID,
 		}); err != nil {
 			return err
+		}
+	}
+
+	// Proto file → source_file node + defines edge from service.
+	if svc.ProtoFile != "" {
+		fileID := "source_file:" + svc.ProtoFile
+		if err := g.AddNode(ctx, graph.Node{
+			ID:   fileID,
+			Type: graph.NodeTypeSourceFile,
+			Name: lastSegment(svc.ProtoFile),
+			Path: svc.ProtoFile,
+		}); err != nil {
+			return err
+		}
+		if err := g.AddEdge(ctx, graph.Edge{
+			Src:  svcID,
+			Kind: graph.EdgeOwns,
+			Dst:  fileID,
+		}); err != nil {
+			return err
+		}
+	}
+
+	// Implementation files → source_file nodes + implements edges.
+	// These are the Go files that realize the proto service contract.
+	for _, implFile := range svc.Implementation {
+		fileID := "source_file:" + implFile
+		if err := g.AddNode(ctx, graph.Node{
+			ID:   fileID,
+			Type: graph.NodeTypeSourceFile,
+			Name: lastSegment(implFile),
+			Path: implFile,
+		}); err != nil {
+			return err
+		}
+		// source_file → implements → service (enables BFS from changed file)
+		if err := g.AddEdge(ctx, graph.Edge{
+			Src:  fileID,
+			Kind: graph.EdgeImplements,
+			Dst:  svcID,
+		}); err != nil {
+			return err
+		}
+		// service → owns → source_file (describes the service)
+		if err := g.AddEdge(ctx, graph.Edge{
+			Src:  svcID,
+			Kind: graph.EdgeOwns,
+			Dst:  fileID,
+		}); err != nil {
+			return err
+		}
+		// Also link to proto service if known (for RPC traversal)
+		if svc.ProtoService != "" {
+			protoID := "proto_service:" + svc.ProtoService
+			if err := g.AddEdge(ctx, graph.Edge{
+				Src:  fileID,
+				Kind: graph.EdgeImplements,
+				Dst:  protoID,
+			}); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -131,4 +217,12 @@ func loadService(ctx context.Context, g *graph.Graph, svc yamlService) error {
 	}
 
 	return nil
+}
+
+// lastSegment returns the final path component (filename).
+func lastSegment(path string) string {
+	if i := strings.LastIndexAny(path, "/\\"); i >= 0 {
+		return path[i+1:]
+	}
+	return path
 }

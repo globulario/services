@@ -1,0 +1,9 @@
+# controller_addr, doctor_addr, workflow_addr are resolved from etcd automatically.
+# Override here only if etcd lookup is unavailable (e.g. offline dev).
+# controller_addr: ""
+# doctor_addr:     ""
+# workflow_addr:   ""
+prometheus_addr: "http://10.0.0.63:9090"
+ca_cert:         "/var/lib/globular/pki/ca.crt"
+client_cert:     "/var/lib/globular/pki/issued/services/service.crt"
+client_key:      "/var/lib/globular/pki/issued/services/service.key"

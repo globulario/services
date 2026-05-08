@@ -82,6 +82,10 @@ const (
 	NodeTypeIncidentReport       = "incident_report"
 	NodeTypeCommitFix            = "commit_fix"
 
+	// Service design graph node types (Phase 2-8).
+	NodeTypeAuthzAnnotation = "authz_annotation" // proto RPC authz option
+	NodeTypeStreamingMode   = "streaming_mode"   // client_streaming / server_streaming / bidirectional
+
 	// Runtime bridge node types (Task 6).
 	NodeTypeRuntimeSnapshot = "runtime_snapshot"
 	NodeTypeRuntimeServiceStatus = "runtime_service_status"

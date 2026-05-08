@@ -752,3 +752,442 @@ invariants:
         - return_semantic_path_without_explanation
       required_tests:
         - TestSemanticPathIncludesExplanation
+
+    - id: awareness.knowledge.graph_rebuild_after_yaml_edit
+      title: Editing awareness YAML knowledge files requires a graph rebuild before the decision context is trustworthy
+      severity: high
+      status: active
+      summary: |
+        The awareness graph is compiled from YAML source files (invariants.yaml,
+        forbidden_fixes.yaml, causal_rules.yaml, failure_modes.yaml, decision_rules.yaml,
+        agent_playbooks.yaml, path_weights.yaml). When any of these files are edited,
+        the SQLite graph.db is stale until 'globular awareness build' runs again.
+        A stale graph returns degraded decision context — missing paths, stale forbidden_fixes,
+        and incomplete blind_spots. Editing knowledge YAML and relying on the old graph for
+        further decisions is a compounding error: the graph cannot reason about changes it
+        has not indexed.
+      protects:
+        configures_files:
+            - docs/awareness/knowledge/causal_rules.yaml
+            - docs/awareness/knowledge/agent_playbooks.yaml
+            - docs/awareness/knowledge/path_weights.yaml
+            - docs/awareness/invariants.yaml
+            - docs/awareness/forbidden_fixes.yaml
+            - docs/awareness/failure_modes.yaml
+            - docs/awareness/fix_cases.yaml
+            - docs/awareness/convergence_rules.yaml
+      forbidden_fixes:
+        - edit_awareness_yaml_without_graph_rebuild
+        - rely_on_stale_graph_after_knowledge_edit
+        - skip_awareness_preflight_before_yaml_edit
+      required_tests:
+        - TestLearnFromFix_DoesNotApplyWeightsWithoutApproval
+        - TestPromotedWeightChangeRequiresGraphRebuild
+        - TestWeightProposalIncludesReasonAndEvidence
+      related_failure_modes:
+        - awareness.graph.stale_context_drives_decision
+
+    - id: awareness.knowledge.causal_rules_evidence_required
+      title: Causal rules must be derived from observed incidents, not hypothetical chains
+      severity: high
+      status: active
+      summary: |
+        Each entry in causal_rules.yaml must trace back to at least one real incident
+        (INC-YYYY-NNNN). A causal rule without incident evidence is a hypothesis, not
+        a scar. Hypothetical rules fill the graph with unverifiable edges and reduce
+        signal-to-noise for decision_context traversal. The confidence field must be
+        set conservatively (low/medium) until the chain has been validated across
+        multiple incidents.
+      protects:
+        configures_files:
+            - docs/awareness/knowledge/causal_rules.yaml
+      forbidden_fixes:
+        - add_causal_rule_without_incident_evidence
+        - set_causal_rule_confidence_high_without_verification
+        - backfill_causal_chain_without_symptoms
+      required_tests:
+        - TestCausalRulesFileExists
+        - TestCausalRulesHaveRequiredFields
+
+    - id: awareness.mcp.decision_context_no_bare_no_match
+      title: awareness.decision_context must never return bare NO_MATCH — always include coverage and blind_spots
+      severity: critical
+      status: active
+      summary: |
+        When the awareness graph has no decision paths for a given goal and changed files,
+        the response must NOT be a bare NO_MATCH. It must include: coverage (graph, runtime,
+        code_scan, raw_yaml), blind_spots explaining WHY there are no matches, and a
+        warning that NO_MATCH does not mean safe. A bare NO_MATCH response silently
+        implies safety — which is the opposite of the correct interpretation. Even in
+        degraded (no-graph) mode, the response must be structurally complete.
+      protects:
+        files:
+            - golang/mcp/tools_awareness_decision.go
+        symbols:
+            - decisionContextNoGraph
+            - buildDecisionContext
+            - buildDecisionBlindSpots
+      forbidden_fixes:
+        - return_bare_no_match_without_coverage
+        - treat_no_match_as_safe_for_high_risk_files
+        - skip_blind_spots_when_graph_unavailable
+      required_tests:
+        - TestDecisionContext_NoMatchStillReportsCoverage
+        - TestDecisionContext_FileEditReturnsDecisionPath
+        - TestDecisionAction_DangerousActionRequiresApproval
+        - TestDecisionIntegrity_DangerousActionMissingApprovalFails
+
+    - id: awareness.graph.domain_classification_required
+      title: Every edge kind must be classified into a domain (decision/information/proof/risk/proposal)
+      severity: high
+      status: active
+      summary: |
+        The semantic scorer uses edge domain classification to distinguish decision paths
+        from information paths. A decision path (EdgeForbids, EdgeEnforces, EdgeRequiresTest)
+        must score higher than a pure information path (EdgeImplements, EdgeDocuments).
+        Unknown edge kinds default to the information domain — not decision — to prevent
+        unverified edges from being presented as operational guidance. New edge kinds added
+        to graph/edges.go must be classified in graph/domain.go before merging.
+      protects:
+        files:
+            - golang/awareness/graph/domain.go
+            - golang/awareness/semantic/score.go
+            - golang/awareness/semantic/weights.go
+        symbols:
+            - DomainForEdgeKind
+            - ScoreImpactPath
+            - RankPaths
+      forbidden_fixes:
+        - skip_edge_domain_classification
+        - default_new_edge_to_decision_domain
+        - ignore_forbidden_fix_edges_in_scoring
+      required_tests:
+        - TestGraphDomains_ForbiddenFixForbidsAction_IsDecision
+        - TestGraphDomains_UnknownEdge_DefaultsToInformation
+        - TestPathScoring_VerifiedDecisionPathBeatsDeclaredInformationPath
+        - TestPathScoring_ExplainsWeights
+
+    - id: awareness.weight_learning.human_approval_required
+      title: Path weight changes must be proposed via learn_from_fix and require explicit human approval before promotion
+      severity: high
+      status: active
+      summary: |
+        path_weights.yaml encodes the scoring heuristics used by RankPaths(). Arbitrary
+        weight changes alter which paths rank as "best known path" — directly affecting
+        what decisions the awareness system recommends. Weight changes must be proposed
+        via the learn_from_fix workflow, reviewed by a human, and promoted only after
+        explicit approval. After promotion, 'globular awareness build' is required to
+        recompile the graph with the new weights.
+      protects:
+        configures_files:
+            - docs/awareness/knowledge/path_weights.yaml
+        symbols:
+            - RankPaths
+            - ScoreImpactPath
+      forbidden_fixes:
+        - apply_weight_changes_without_human_approval
+        - promote_weights_without_graph_rebuild
+        - lower_penalty_for_invalid_trust_paths
+      required_tests:
+        - TestLearnFromFix_DoesNotApplyWeightsWithoutApproval
+        - TestPromotedWeightChangeRequiresGraphRebuild
+        - TestWeightProposalIncludesReasonAndEvidence
+        - TestDecisionIntegrity_WeightsConfigParses
+
+    - id: awareness.preflight.required_before_edit
+      title: awareness.preflight or awareness.decision_context must run before editing any high-risk awareness file
+      severity: critical
+      status: active
+      summary: |
+        High-risk awareness files include: graph/domain.go, semantic/score.go,
+        semantic/weights.go, integrity/impact_path.go, mcp/tools_awareness_decision.go,
+        and all docs/awareness/knowledge/ YAML files. Before editing any of these,
+        the agent must call awareness.preflight (or awareness.decision_context) and
+        review the forbidden_actions and required_tests in the response. Skipping
+        preflight for these files is equivalent to editing the safety guardrails of
+        the safety system itself without reading them first.
+      protects:
+        files:
+            - golang/awareness/graph/domain.go
+            - golang/awareness/semantic/score.go
+            - golang/awareness/semantic/weights.go
+            - golang/awareness/integrity/impact_path.go
+            - golang/mcp/tools_awareness_decision.go
+            - golang/awareness/extractors/manual/invariants.go
+        symbols:
+            - TraverseImpactPaths
+            - ScoreImpactPath
+            - RankPaths
+      forbidden_fixes:
+        - skip_awareness_preflight_before_yaml_edit
+        - edit_impact_path_traversal_without_scoring_test
+        - remove_decision_edges_from_impact_kinds
+      required_tests:
+        - TestPathScoring_VerifiedDecisionPathBeatsDeclaredInformationPath
+        - TestDecisionContext_NoBareNoMatchWhenLowerTrustPathsExist
+        - TestDecisionPathType_PreEdit
+        - TestDecisionIntegrity_InvalidPathCannotRankHigh
+
+    - id: awareness.impact_analysis.explain_path_required
+      title: ExplainImpactByFile must return graph path traces and missing-link suggestions
+      severity: high
+      status: active
+      summary: |
+        The impact analysis engine (ExplainImpactByFile) is the core of the awareness
+        guardrail loop. It must: (1) return ExplainedFinding entries with full edge path
+        traces for every impacted invariant, forbidden fix, and required test; (2) mark
+        mandatory=true for forbidden fixes and paths through enforces/requires_test edges;
+        (3) report missing_links when a file has no graph edges, with pattern-based
+        suggestions about which invariant the file likely implements. Without path traces,
+        the output is unactionable — an agent cannot distinguish a critical mandatory
+        violation from a weak informational hit.
+      protects:
+        files:
+            - golang/awareness/analysis/impact.go
+        symbols:
+            - ExplainImpactByFile
+            - detectMissingLinks
+            - ExplainedFinding
+            - ExplainedImpactResult
+      forbidden_fixes:
+        - return_impact_finding_without_graph_path
+        - omit_missing_links_when_file_has_no_edges
+        - mark_forbidden_fix_as_non_mandatory
+      required_tests:
+        - TestExplainImpactByFile_ReturnsMissingLinks
+        - TestExplainImpactByFile_MandatoryForbiddenFix
+        - TestRejectInvariantWithMissingRequiredTest
+
+    - id: awareness.cli.build_clean_required_after_yaml_edit
+      title: globular awareness build must use --clean after YAML knowledge edits to prevent stale edge accumulation
+      severity: high
+      status: active
+      summary: |
+        The awareness build command uses SQLite upsert (AddNode/AddEdge). This means
+        edges from a previous build are never removed unless the DB is deleted first.
+        If an invariant's 'files:' list is changed to 'configures_files:', the old
+        'implements' edge survives in graph.db and corrupts impact path traversal.
+        The '--clean' flag deletes graph.db before building, ensuring edge precision.
+        It must be used any time invariants.yaml or other knowledge YAML files change
+        the file-to-invariant edge semantics.
+      protects:
+        files:
+            - golang/globularcli/awareness_cmds.go
+        symbols:
+            - awarenessBuildCmd
+            - cleanBuild
+      forbidden_fixes:
+        - edit_awareness_yaml_without_graph_rebuild
+        - rebuild_awareness_graph_without_clean_after_yaml_edit
+      required_tests:
+        - TestAwarenessBuildCleanRemovesOldDB
+        - TestLearnFromFix_DoesNotApplyWeightsWithoutApproval
+
+    - id: awareness.ci.impact_ci_enforces_required_tests
+      title: awareness impact-ci must exit 1 when required tests are missing for changed files
+      severity: critical
+      status: active
+      summary: |
+        The CI enforcement command (awareness impact-ci) is the automated guardrail
+        that prevents merging code that implements invariants without their required
+        tests. It must: (1) run ExplainImpactByFile for each changed file; (2) verify
+        that all required_tests referenced by impacted invariants exist on disk;
+        (3) exit 1 with an actionable graph-path-annotated error message when tests
+        are missing. Without this, the entire invariant→test enforcement chain has no
+        automated enforcement.
+      protects:
+        files:
+            - golang/globularcli/awareness_impact_ci_cmd.go
+        symbols:
+            - awarenessImpactCICmd
+            - verifyGapTestsDirs
+      forbidden_fixes:
+        - skip_required_test_check_in_ci
+        - exit_0_on_missing_mandatory_tests
+      required_tests:
+        - TestAwarenessImpactCI_ExitsOneOnMissingTest
+        - TestAwarenessImpactCI_PassesWhenTestsPresent
+
+
+    # ── File service invariants (Phases 4-6, 8) ──────────────────────────────
+
+    - id: file.authz.streaming_write_path_must_be_authorized_before_data_write
+      title: Client-streaming file writes must resolve and authorize the destination path before any storage write
+      severity: critical
+      status: active
+      summary: |
+        SaveFile and UploadFile are client-streaming RPCs. The destination path is
+        sent in the first message of the stream. Authorization must be resolved for
+        that path BEFORE writing any storage content. If the server begins writing
+        to storage before the path is known and authorized, an attacker can inject
+        data into an arbitrary path by sending a pre-auth stream. The authorization
+        check must gate on the resolved path in the first chunk, not on a default
+        or empty path.
+      protects:
+        files:
+          - golang/file/file_server/file_ops.go
+        rpcs:
+          - file.FileService.SaveFile
+          - file.FileService.UploadFile
+      forbidden_fixes:
+        - write_stream_data_before_resolving_authorized_path
+        - authorize_savefile_using_empty_or_default_path
+        - skip_authz_for_streaming_rpc_because_path_is_in_first_message
+      required_tests:
+        - TestSaveFileAuthorizesPathBeforeWrite
+        - TestSaveFileRejectsDataBeforePath
+        - TestSaveFileRejectsMissingPath
+
+    - id: file.path.normalization_must_not_escape_virtual_roots
+      title: All file paths must be normalized and constrained to approved virtual roots before storage access
+      severity: critical
+      status: active
+      summary: |
+        The file service is path-authoritative within virtual roots. All paths from
+        client requests must be: URL-decoded, cleaned (filepath.Clean equivalent),
+        converted to slash form, and verified to start with an approved virtual root
+        prefix BEFORE any storage operation. Skipping any of these steps enables
+        path traversal attacks that can read or write files outside the virtual root.
+      protects:
+        files:
+          - golang/file/file_server/file_ops.go
+          - golang/file/file_server/dir_ops.go
+          - golang/file/file_server/storage_helpers.go
+          - golang/file/file_server/path_util.go
+      forbidden_fixes:
+        - accept_raw_path_without_normalization
+        - use_string_prefix_as_authority_boundary_without_cleaning
+        - allow_parent_traversal_segments
+      required_tests:
+        - TestPathNormalizationRejectsTraversal
+        - TestPathNormalizationRejectsEncodedTraversal
+        - TestPathNormalizationKeepsUserRootBoundary
+
+    - id: file.path.delete_must_not_accept_root_or_parent_escape
+      title: Delete operations must reject empty path, root path, parent traversal, or malformed absolute paths
+      severity: critical
+      status: active
+      summary: |
+        DeleteFile and DeleteDir call os.Remove or os.RemoveAll after path
+        resolution. These operations must reject: empty string, "/", paths
+        containing ".." after cleaning, and paths that resolve outside the
+        virtual root. A single missing check can result in recursive deletion
+        of the filesystem root or the service binary itself.
+      protects:
+        files:
+          - golang/file/file_server/file_ops.go
+          - golang/file/file_server/dir_ops.go
+      forbidden_fixes:
+        - call_remove_all_on_unsanitized_user_path
+        - treat_empty_path_as_current_directory
+        - allow_delete_of_virtual_root
+      required_tests:
+        - TestDeleteRejectsRootAndEmptyPath
+        - TestDeleteRejectsParentTraversal
+
+    - id: file.archive.extraction_must_prevent_zip_slip
+      title: Archive extraction must reject entries that escape the destination directory
+      severity: critical
+      status: active
+      summary: |
+        Archive extraction (zip, tar, etc.) must validate every entry path against
+        the destination directory prefix AFTER cleaning. An attacker can craft an
+        archive with entries like "../../etc/cron.d/evil" that extract outside the
+        intended destination. This is the classic zip slip vulnerability. Every
+        archive entry must be cleaned and verified to be a child of the destination
+        before the file is created.
+      protects:
+        files:
+          - golang/file/file_server/file_ops.go
+      forbidden_fixes:
+        - join_archive_entry_without_clean_boundary_check
+        - trust_archive_entry_names
+      required_tests:
+        - TestArchiveExtractionRejectsZipSlip
+
+    - id: file.upload.url_must_not_enable_ssrf
+      title: URL-based file upload must restrict protocols and block private/metadata network targets
+      severity: high
+      status: active
+      summary: |
+        UploadFile accepts a URL source. The server must validate the URL before
+        fetching: only HTTPS (or explicitly allowed schemes) may be used; loopback,
+        link-local (169.254.x.x), private RFC1918 addresses, and cloud metadata
+        endpoints (169.254.169.254) must be blocked. Without this, an attacker can
+        use the file service as a proxy to scan the cluster network (SSRF).
+      protects:
+        files:
+          - golang/file/file_server/file_ops.go
+      forbidden_fixes:
+        - fetch_arbitrary_url_from_cluster_network
+        - allow_file_scheme_in_upload_url
+        - allow_metadata_ip_upload_target
+      required_tests:
+        - TestUploadRejectsUnsafeURLTargets
+        - TestUploadAllowsSafeHTTPSTarget
+
+    - id: file.public_dir.authority_must_come_from_cluster_registry
+      title: Public directory routing must use the cluster public directory authority, not local inference
+      severity: high
+      status: active
+      summary: |
+        The file service's public proxy serves files from registered public
+        directories. The list of valid public directories must come from the
+        cluster registry (etcd), not from local filesystem inference. Inferring
+        public directories locally allows an operator to bypass the registry and
+        serve arbitrary paths as public content — breaking the authoritative
+        cluster-wide routing model.
+      protects:
+        files:
+          - golang/file/file_server/public_proxy.go
+          - golang/file/file_server/server.go
+      forbidden_fixes:
+        - infer_public_dir_authority_from_local_path_only
+        - bypass_cluster_public_directory_registry
+      required_tests:
+        - TestPublicDirAuthorityUsesClusterRegistry
+
+    - id: service.dependencies.discovered_calls_must_be_classified
+      title: Every service client constructed in service code must be classified as declared/optional/background/test
+      severity: high
+      status: active
+      summary: |
+        When a service instantiates a client for another service (rbac, authentication,
+        event, etc.), that dependency must be classified in the service's awareness
+        contract (awareness.yaml). Unclassified dependencies are invisible to the
+        dependency ordering system — they may be treated as optional when they are
+        required, or as required when they are background-only. This can cause silent
+        startup failures or unnecessary blocking.
+      protects:
+        files:
+          - golang/file/file_server/server.go
+      forbidden_fixes:
+        - adding_service_client_without_dependency_classification
+        - making_background_dependency_startup_required_without_reason
+        - hiding_required_runtime_dependency_from_package_manifest
+      required_tests:
+        - TestFileServiceDependenciesClassified
+        - TestDiscoveredDependenciesAreDeclaredOrClassified
+
+    - id: file.identity.grpc_service_name_must_match_tls_and_registry_identity
+      title: File service runtime identity must match proto service name, registry name, and TLS certificate SANs
+      severity: high
+      status: active
+      summary: |
+        The file service registers under a name in etcd and presents a TLS
+        certificate. The TLS server name used by clients must match the name
+        in the certificate's SANs. The service registry name must match the
+        proto service name (file.FileService). Mismatches between any of these
+        three identities cause TLS verification failures for clients — a silent
+        misconfiguration that appears as a "certificate mismatch" error and not
+        as a configuration error.
+      protects:
+        files:
+          - golang/file/file_server/server.go
+      forbidden_fixes:
+        - disable_tls_verification_to_fix_file_client_connection
+        - use_localhost_server_name_for_cluster_dial
+        - ignore_certificate_san_mismatch
+      required_tests:
+        - TestFileServiceTLSIdentityMatchesRegistry
+        - TestFileClientUsesResolvedServerName

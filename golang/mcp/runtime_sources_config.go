@@ -59,14 +59,15 @@ func evaluateRuntimeActivation(cfg *runtimeSourcesConfig, checkCreds, checkConn 
 	credentialsPresent := cfg.Insecure || fileReadable(caPath)
 
 	type sourceDef struct {
-		name string
-		addr string
+		name           string
+		addr           string
+		etcdResolvable bool // true if this source can be resolved from etcd when addr is empty
 	}
 	sourceDefs := []sourceDef{
-		{"controller", cfg.ControllerAddr},
-		{"doctor", cfg.DoctorAddr},
-		{"workflow", cfg.WorkflowAddr},
-		{"prometheus", cfg.PrometheusAddr},
+		{"controller", cfg.ControllerAddr, true},
+		{"doctor", cfg.DoctorAddr, true},
+		{"workflow", cfg.WorkflowAddr, true},
+		{"prometheus", cfg.PrometheusAddr, false},
 	}
 
 	var sources []sourceActivationStatus
@@ -77,7 +78,10 @@ func evaluateRuntimeActivation(cfg *runtimeSourcesConfig, checkCreds, checkConn 
 		configured := src.addr != ""
 		if configured {
 			configuredCount++
-		} else {
+		} else if !src.etcdResolvable {
+			// Only count truly unconfigured sources as missing.
+			// etcd-resolvable sources (controller/doctor/workflow) are resolved at
+			// bridge construction time — they are not missing, just not static.
 			missingConfig = append(missingConfig, addrFieldName(src.name))
 		}
 
@@ -101,6 +105,10 @@ func evaluateRuntimeActivation(cfg *runtimeSourcesConfig, checkCreds, checkConn 
 					status.LastError = connErr
 				}
 			}
+		} else if src.etcdResolvable {
+			// Show the operator that this source is reached via etcd, not missing.
+			status.Address = "etcd"
+			status.Transport = "etcd_resolved"
 		}
 		sources = append(sources, status)
 	}
@@ -118,11 +126,18 @@ func evaluateRuntimeActivation(cfg *runtimeSourcesConfig, checkCreds, checkConn 
 		confidence = "medium"
 	}
 
+	// gRPC sources without static addresses are resolved from etcd at bridge construction time.
+	etcdResolution := "not_needed"
+	if cfg.ControllerAddr == "" || cfg.DoctorAddr == "" || cfg.WorkflowAddr == "" {
+		etcdResolution = "active"
+	}
+
 	return &runtimeActivationResult{
 		RuntimeAwarenessStatus: overallStatus,
 		Sources:                sources,
 		MissingConfig:          missingConfig,
 		RecommendedConfig:      buildRecommendedConfig(),
 		Confidence:             confidence,
+		EtcdResolution:         etcdResolution,
 	}
 }

@@ -43,6 +43,8 @@ var awareCfg = struct {
 	phase       string
 	packagePath string
 	commit      bool
+	explain     bool
+	cleanBuild  bool
 }{}
 
 var awarenessCmd = &cobra.Command{
@@ -74,6 +76,19 @@ var awarenessBuildCmd = &cobra.Command{
 		fmt.Fprintf(os.Stdout, "Building awareness graph\n")
 		fmt.Fprintf(os.Stdout, "  repo: %s\n", repoRoot)
 		fmt.Fprintf(os.Stdout, "  db:   %s\n\n", dbPath)
+
+		// --clean removes stale edges from incremental upsert builds.
+		// Must remove main db AND the WAL/SHM files — SQLite will fail to open
+		// a new db if orphaned WAL/SHM files remain from the previous session.
+		if awareCfg.cleanBuild {
+			for _, suffix := range []string{"", "-wal", "-shm"} {
+				p := dbPath + suffix
+				if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+					return fmt.Errorf("clean graph: remove %s: %w", p, err)
+				}
+			}
+			fmt.Fprintf(os.Stdout, "Cleaned previous graph.\n")
+		}
 
 		g, err := graph.Open(dbPath)
 		if err != nil {
@@ -196,6 +211,10 @@ var awarenessImpactCmd = &cobra.Command{
 		}
 		defer g.Close()
 
+		if awareCfg.explain {
+			return runImpactExplain(ctx, g, awareCfg.file)
+		}
+
 		result, err := analysis.ImpactByFile(ctx, g, awareCfg.file)
 		if err != nil {
 			return err
@@ -228,6 +247,51 @@ var awarenessImpactCmd = &cobra.Command{
 		printSection("Other nodes", result.Other)
 		return nil
 	},
+}
+
+// runImpactExplain runs impact analysis with graph path traces printed inline.
+func runImpactExplain(ctx context.Context, g *graph.Graph, filePath string) error {
+	result, err := analysis.ExplainImpactByFile(ctx, g, filePath)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(os.Stdout, "Impact analysis (explained): %s\n\n", filePath)
+
+	if len(result.MissingLinks) > 0 {
+		for _, m := range result.MissingLinks {
+			fmt.Fprintf(os.Stdout, "  note: %s\n", m)
+		}
+		fmt.Fprintln(os.Stdout)
+	}
+
+	printExplainedSection := func(label string, findings []analysis.ExplainedFinding) {
+		if len(findings) == 0 {
+			return
+		}
+		fmt.Fprintf(os.Stdout, "%s:\n", label)
+		for _, f := range findings {
+			mandatoryTag := ""
+			if f.Mandatory {
+				mandatoryTag = "  [MANDATORY]"
+			}
+			fmt.Fprintf(os.Stdout, "  - %s%s\n", f.NodeName, mandatoryTag)
+			for _, p := range f.EdgePath {
+				fmt.Fprintf(os.Stdout, "    path: %s\n", p)
+			}
+			fmt.Fprintf(os.Stdout, "    confidence: %s\n", f.Confidence)
+			if f.Source != "" {
+				fmt.Fprintf(os.Stdout, "    source: %s\n", f.Source)
+			}
+		}
+		fmt.Fprintln(os.Stdout)
+	}
+
+	printExplainedSection("Forbidden fixes", result.ForbiddenFixes)
+	printExplainedSection("Required tests", result.RequiredTests)
+	printExplainedSection("Impacted invariants", result.Invariants)
+	printExplainedSection("Impacted failure modes", result.FailureModes)
+	return nil
 }
 
 var awarenessAgentContextCmd = &cobra.Command{
@@ -447,10 +511,173 @@ BLOCK always exits with code 1. WARN exits with code 0 but prints warnings.`,
 	},
 }
 
+var awarenessReviewServiceCmd = &cobra.Command{
+	Use:   "review-service <service-id>",
+	Short: "Design-level review of a service in the awareness graph",
+	Long: `Synthesises proto contract, RPC authz coverage, implementation links,
+invariant attachments, dependencies, and runtime identity into a structured
+design review for the named service.
+
+<service-id> can be the service ID (e.g. "file-service"), the proto service
+name (e.g. "file.FileService"), or the service display name.
+
+Examples:
+  globular awareness review-service file-service
+  globular awareness review-service file.FileService`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := context.Background()
+		serviceID := args[0]
+
+		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
+		if err != nil {
+			return err
+		}
+		defer g.Close()
+
+		review, err := analysis.ReviewService(ctx, g, serviceID)
+		if err != nil {
+			return fmt.Errorf("review-service: %w", err)
+		}
+
+		fmt.Fprint(os.Stdout, renderServiceReview(review))
+		return nil
+	},
+}
+
+// renderServiceReview formats a ServiceDesignReview as human-readable text.
+func renderServiceReview(r *analysis.ServiceDesignReview) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "=== Service Design Review: %s ===\n\n", r.ServiceID)
+
+	// Identity
+	fmt.Fprintf(&b, "## Identity\n")
+	if r.ProtoService != "" {
+		fmt.Fprintf(&b, "  proto_service : %s\n", r.ProtoService)
+	}
+	if r.ProtoFile != "" {
+		fmt.Fprintf(&b, "  proto_file    : %s\n", r.ProtoFile)
+	}
+	if r.SystemdUnit != "" {
+		fmt.Fprintf(&b, "  systemd_unit  : %s\n", r.SystemdUnit)
+	}
+	fmt.Fprintln(&b)
+
+	// API contract
+	if len(r.APIContract.RPCs) > 0 {
+		fmt.Fprintf(&b, "## API Contract (%d RPCs)\n", len(r.APIContract.RPCs))
+		for _, rpc := range r.APIContract.RPCs {
+			mode := ""
+			if rpc.StreamingMode != "" {
+				mode = " [" + rpc.StreamingMode + "]"
+			}
+			authz := "NO AUTHZ"
+			if rpc.HasAuthz {
+				authz = fmt.Sprintf("authz: %s/%s", rpc.AuthzAction, rpc.AuthzResource)
+			}
+			fmt.Fprintf(&b, "  %-45s  %s%s\n", rpc.Name+mode, authz, gapsStr(rpc.Gaps))
+		}
+		fmt.Fprintln(&b)
+	}
+
+	// Dependencies
+	if len(r.Dependencies) > 0 {
+		fmt.Fprintf(&b, "## Dependencies (%d)\n", len(r.Dependencies))
+		for _, dep := range r.Dependencies {
+			req := "optional"
+			if dep.Required {
+				req = "required"
+			}
+			fmt.Fprintf(&b, "  %-35s  phase=%-20s  %s\n", dep.Service, dep.Phase, req)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	// Invariants
+	totalInvariants := len(r.Invariants.Critical) + len(r.Invariants.High) +
+		len(r.Invariants.Medium) + len(r.Invariants.Low)
+	if totalInvariants > 0 {
+		fmt.Fprintf(&b, "## Invariants (%d)\n", totalInvariants)
+		for _, id := range r.Invariants.Critical {
+			fmt.Fprintf(&b, "  [CRITICAL] %s\n", id)
+		}
+		for _, id := range r.Invariants.High {
+			fmt.Fprintf(&b, "  [HIGH]     %s\n", id)
+		}
+		for _, id := range r.Invariants.Medium {
+			fmt.Fprintf(&b, "  [MEDIUM]   %s\n", id)
+		}
+		for _, id := range r.Invariants.Low {
+			fmt.Fprintf(&b, "  [LOW]      %s\n", id)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	// Forbidden fixes
+	if len(r.ForbiddenFixes) > 0 {
+		fmt.Fprintf(&b, "## Forbidden Fixes (%d)\n", len(r.ForbiddenFixes))
+		for _, f := range r.ForbiddenFixes {
+			fmt.Fprintf(&b, "  [%s] %s  (%s)\n", f.Severity, f.NodeName, f.NodeType)
+			for _, p := range f.EdgePath {
+				fmt.Fprintf(&b, "    path: %s\n", p)
+			}
+		}
+		fmt.Fprintln(&b)
+	}
+
+	// Required tests
+	if len(r.RequiredTests) > 0 {
+		fmt.Fprintf(&b, "## Required Tests (%d)\n", len(r.RequiredTests))
+		for _, f := range r.RequiredTests {
+			fmt.Fprintf(&b, "  [%s] %s  (%s)\n", f.Severity, f.NodeName, f.NodeType)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	// Missing links
+	if len(r.MissingLinks) > 0 {
+		fmt.Fprintf(&b, "## Missing Links\n")
+		for _, m := range r.MissingLinks {
+			fmt.Fprintf(&b, "  ! %s\n", m)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	// Recommendations
+	if len(r.Recommendations) > 0 {
+		fmt.Fprintf(&b, "## Recommendations\n")
+		for _, rec := range r.Recommendations {
+			fmt.Fprintf(&b, "  [%s] %s\n", strings.ToUpper(rec.Priority), rec.Action)
+			if rec.Evidence != "" {
+				fmt.Fprintf(&b, "    evidence: %s\n", rec.Evidence)
+			}
+			if rec.GraphPath != "" {
+				fmt.Fprintf(&b, "    graph:    %s\n", rec.GraphPath)
+			}
+		}
+		fmt.Fprintln(&b)
+	}
+
+	if len(r.MissingLinks) == 0 && len(r.Recommendations) == 0 {
+		fmt.Fprintf(&b, "No gaps or recommendations found.\n")
+	}
+
+	return b.String()
+}
+
+// gapsStr formats RPC gaps as a short inline suffix.
+func gapsStr(gaps []string) string {
+	if len(gaps) == 0 {
+		return ""
+	}
+	return "  GAPS: [" + strings.Join(gaps, ", ") + "]"
+}
+
 func init() {
 	// Build command flags.
 	awarenessBuildCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db (default: .globular/awareness/graph.db in repo root)")
 	awarenessBuildCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root (default: auto-detected from git)")
+	awarenessBuildCmd.Flags().BoolVar(&awareCfg.cleanBuild, "clean", false, "Remove existing graph.db before building (required for edge correctness after YAML edits)")
 
 	// Stats flags.
 	awarenessStatsCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
@@ -460,6 +687,7 @@ func init() {
 	awarenessImpactCmd.Flags().StringVar(&awareCfg.file, "file", "", "File path to analyse (relative to repo root)")
 	awarenessImpactCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
 	awarenessImpactCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
+	awarenessImpactCmd.Flags().BoolVar(&awareCfg.explain, "explain", false, "Show graph path for each finding")
 
 	// Agent-context flags.
 	awarenessAgentContextCmd.Flags().StringVar(&awareCfg.task, "task", "", "Task description for the AI agent")
@@ -487,6 +715,10 @@ func init() {
 	awarenessAdmitPackageCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
 	awarenessAdmitPackageCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
+	// review-service flags.
+	awarenessReviewServiceCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessReviewServiceCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
+
 	// Register subcommands.
 	awarenessCmd.AddCommand(awarenessBuildCmd)
 	awarenessCmd.AddCommand(awarenessStatsCmd)
@@ -496,19 +728,41 @@ func init() {
 	awarenessCmd.AddCommand(awarenessValidatePackageCmd)
 	awarenessCmd.AddCommand(awarenessPackageContextCmd)
 	awarenessCmd.AddCommand(awarenessAdmitPackageCmd)
+	awarenessCmd.AddCommand(awarenessReviewServiceCmd)
 
 	// Register top-level command.
 	rootCmd.AddCommand(awarenessCmd)
 }
 
 // openAwarenessGraph opens the graph DB using the given path or the default location.
+// Resolution order:
+//  1. Explicit --db flag
+//  2. Repo-relative .globular/awareness/graph.db (when inside a git repo)
+//  3. /var/lib/globular/awareness/graph.db (system install fallback)
 func openAwarenessGraph(dbPath, repoPath string) (*graph.Graph, error) {
 	if dbPath == "" {
 		repoRoot, err := resolveRepoRoot(repoPath)
-		if err != nil {
-			return nil, err
+		if err == nil {
+			candidate := filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+			if _, statErr := os.Stat(candidate); statErr == nil {
+				dbPath = candidate
+			}
 		}
-		dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+		if dbPath == "" {
+			// System install fallback.
+			const systemPath = "/var/lib/globular/awareness/graph.db"
+			if _, statErr := os.Stat(systemPath); statErr == nil {
+				dbPath = systemPath
+			}
+		}
+		if dbPath == "" {
+			// Use repo-relative path even if not yet built (graph.Open will create it).
+			repoRoot, err := resolveRepoRoot(repoPath)
+			if err != nil {
+				return nil, fmt.Errorf("no graph.db found; run 'globular awareness build': %w", err)
+			}
+			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+		}
 	}
 	g, err := graph.Open(dbPath)
 	if err != nil {

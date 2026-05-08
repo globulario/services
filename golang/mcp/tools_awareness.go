@@ -36,8 +36,23 @@ func registerAwarenessTools(s *server) {
 	}
 
 	dbPath := cfg.DBPath
-	if dbPath == "" && repoRoot != "" {
-		dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+	if dbPath == "" {
+		// Prefer repo-relative path (dev mode), fall back to system install path.
+		if repoRoot != "" {
+			candidate := filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+			if _, err := os.Stat(candidate); err == nil {
+				dbPath = candidate
+			}
+		}
+		if dbPath == "" {
+			const systemPath = "/var/lib/globular/awareness/graph.db"
+			if _, err := os.Stat(systemPath); err == nil {
+				dbPath = systemPath
+			}
+		}
+		if dbPath == "" && repoRoot != "" {
+			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+		}
 	}
 
 	st := &awarenessState{
@@ -64,6 +79,7 @@ func registerAwarenessTools(s *server) {
 	registerAwarenessSemanticTools(s, st)
 	registerAwarenessDebugSessionTool(s, st)
 	registerAwarenessIntegrityTools(s, st)
+	registerAwarenessSessionTools(s, st)
 	// New tools merged from golang/awareness/mcp.
 	registerPendingProposalsTool(s, st)
 	registerExplainSymptomTool(s, st)
@@ -80,6 +96,7 @@ func registerAwarenessTools(s *server) {
 	registerHealthPulseTool(s, st)
 	registerRuntimeConfigBootstrapTool(s, st)
 	registerProposalDrainTools(s, st)
+	registerAwarenessDecisionTools(s, st)
 }
 
 // awarGitRoot returns the git repository root via git rev-parse.

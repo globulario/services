@@ -960,3 +960,217 @@ forbidden_fixes:
   related_invariants:
   - install.result.atomic_commit
   - convergence.no_infinite_retry
+
+# ── Awareness system self-governance forbidden fixes ──────────────────────────
+
+- id: edit_awareness_yaml_without_graph_rebuild
+  summary: |
+    Edit any awareness YAML knowledge file (invariants.yaml, forbidden_fixes.yaml,
+    causal_rules.yaml, failure_modes.yaml, agent_playbooks.yaml, path_weights.yaml)
+    and then immediately rely on the graph's decision_context output without rebuilding.
+    The graph is now stale and will return paths that do not reflect the edit.
+  related_invariants:
+    - awareness.knowledge.graph_rebuild_after_yaml_edit
+  safe_alternative: |
+    After editing any awareness YAML, run 'globular awareness build' before calling
+    awareness.decision_context or any other graph-querying tool. Treat the graph as
+    STALE until the build completes.
+
+- id: rely_on_stale_graph_after_knowledge_edit
+  summary: |
+    Use the awareness graph's decision paths, coverage, or blind_spots as authoritative
+    guidance immediately after a knowledge YAML edit, without rebuilding the graph.
+    A stale graph silently omits the newly added forbidden_fixes and invariants.
+  related_invariants:
+    - awareness.knowledge.graph_rebuild_after_yaml_edit
+  safe_alternative: |
+    Check graph freshness with awareness.session_start before using decision_context.
+    If the graph is stale, rebuild. Never treat stale-graph output as current guidance.
+
+- id: skip_awareness_preflight_before_yaml_edit
+  summary: |
+    Edit high-risk awareness files (graph/domain.go, semantic/score.go, integrity/
+    impact_path.go, docs/awareness/knowledge/*.yaml) without first calling
+    awareness.preflight or awareness.decision_context to check what the edit touches.
+    This is editing the safety system without reading its own guardrails first.
+  related_invariants:
+    - awareness.preflight.required_before_edit
+    - awareness.knowledge.graph_rebuild_after_yaml_edit
+  safe_alternative: |
+    Before editing any file in the awareness package or docs/awareness/knowledge/,
+    call awareness.decision_context with goal and changed_files. Review forbidden_actions
+    and required_tests. Run all required_tests after the edit.
+
+- id: return_bare_no_match_without_coverage
+  summary: |
+    Return a bare NO_MATCH response from awareness.decision_context without including
+    the coverage map (graph, runtime, code_scan, raw_yaml) and blind_spots list.
+    NO_MATCH without coverage context silently implies safety, which is wrong.
+  related_invariants:
+    - awareness.mcp.decision_context_no_bare_no_match
+  safe_alternative: |
+    Always return coverage and blind_spots regardless of whether decision paths exist.
+    The consumer must be able to determine WHY there are no paths (not checked vs.
+    checked clean vs. graph unavailable).
+
+- id: treat_no_match_as_safe_for_high_risk_files
+  summary: |
+    Treat a NO_MATCH result from awareness.decision_context as evidence that an edit
+    is safe for high-risk files. NO_MATCH means the graph has no paths — it does NOT
+    mean no risk exists. The graph may be stale, the files may be unindexed, or the
+    relevant invariants may not have been added yet.
+  related_invariants:
+    - awareness.mcp.decision_context_no_bare_no_match
+  safe_alternative: |
+    When decision_context returns NO_MATCH: check coverage.graph (not_checked vs.
+    checked_clean), check blind_spots, and if the graph is fresh, check whether the
+    invariants governing those files have forbidden_fixes and required_tests defined.
+
+- id: skip_edge_domain_classification
+  summary: |
+    Add a new edge kind to graph/edges.go without adding its domain classification
+    to graph/domain.go. Unclassified edges default to the information domain, causing
+    decision-relevant edges to be silently downgraded in the semantic scorer.
+  related_invariants:
+    - awareness.graph.domain_classification_required
+  safe_alternative: |
+    For every new edge kind added to graph/edges.go, add the corresponding entry to
+    the edgeDomains map in graph/domain.go before merging. Decision-domain edges
+    must be explicit — they never default.
+
+- id: default_new_edge_to_decision_domain
+  summary: |
+    Add a new edge kind with an optimistic "decision" domain classification before
+    the edge has been used in real decision paths and verified to carry actionable
+    guidance. Overly broad decision classification inflates path scores and erodes
+    trust in decision_context output.
+  related_invariants:
+    - awareness.graph.domain_classification_required
+  safe_alternative: |
+    Start new edge kinds as "information" domain. Promote to "decision" domain only
+    after the edge has been validated in at least one real incident or preflight
+    scenario where the decision guidance was verified correct.
+
+- id: ignore_forbidden_fix_edges_in_scoring
+  summary: |
+    Score impact paths without giving extra weight to edges that lead to
+    forbidden_fix nodes. Paths that terminate at forbidden_fix nodes are PRE-EDIT
+    decision paths — the most actionable signals in the graph. Scoring them the
+    same as information paths causes them to be buried under less relevant results.
+  related_invariants:
+    - awareness.graph.domain_classification_required
+  safe_alternative: |
+    In ScoreImpactPath, apply the decision domain bonus (+25) to steps that touch
+    forbidden_fix or invariant nodes via EdgeForbids. Rank these paths first.
+
+- id: add_causal_rule_without_incident_evidence
+  summary: |
+    Add an entry to causal_rules.yaml based on theoretical reasoning without
+    a corresponding incident (INC-YYYY-NNNN) that demonstrated the failure chain.
+    Hypothetical rules clutter the causal graph with unverifiable noise.
+  related_invariants:
+    - awareness.knowledge.causal_rules_evidence_required
+  safe_alternative: |
+    Only add causal rules after an incident has been resolved and the chain has been
+    directly observed. Reference the incident ID in the rule's comment or metadata.
+    Set confidence to "low" until the chain recurs and is validated a second time.
+
+- id: apply_weight_changes_without_human_approval
+  summary: |
+    Directly modify path_weights.yaml without going through the learn_from_fix
+    proposal workflow and without human review. Weight changes alter the ranking
+    of all decision paths for every future preflight call.
+  related_invariants:
+    - awareness.weight_learning.human_approval_required
+  safe_alternative: |
+    Use awareness.learn_from_fix to propose weight adjustments. Wait for human
+    review and approval of the proposal. Only then promote the change to
+    path_weights.yaml and rebuild the graph.
+
+- id: promote_weights_without_graph_rebuild
+  summary: |
+    Promote a weight change from a proposal into path_weights.yaml and then
+    immediately rely on the new rankings without rebuilding the graph. The graph
+    reads weights at build time; live scoring uses the compiled graph, not the
+    YAML directly.
+  related_invariants:
+    - awareness.weight_learning.human_approval_required
+  safe_alternative: |
+    After promoting weight changes to path_weights.yaml, always run
+    'globular awareness build' to recompile the graph with the new weights.
+    Verify the ranking changes using awareness.decision_context on a known scenario.
+
+- id: lower_penalty_for_invalid_trust_paths
+  summary: |
+    Reduce the score penalty for paths with TrustInvalid edges (currently -100)
+    to make them "less invisible" in the output. Invalid paths represent broken
+    or stale graph edges — making them visible in decision output is more
+    dangerous than filtering them.
+  related_invariants:
+    - awareness.weight_learning.human_approval_required
+  safe_alternative: |
+    Invalid paths must score below any declared path. If invalid paths are surfacing
+    in practice, fix the graph data (reindex, validate) rather than inflating invalid
+    path scores to paper over the gap.
+
+- id: edit_impact_path_traversal_without_scoring_test
+  summary: |
+    Modify the impact path traversal algorithm (TraverseImpactPaths, traverseTyped,
+    edgeTrust, or impactEdgeKinds) without updating or adding tests that verify the
+    scoring behavior of the result. Traversal changes silently alter which paths the
+    decision_context returns.
+  related_invariants:
+    - awareness.preflight.required_before_edit
+  safe_alternative: |
+    Before modifying traversal: run TestPathScoring_* and TestDecisionContext_* tests.
+    After modifying: verify that verified decision paths still score above declared
+    information paths, and that invalid paths score below all valid paths.
+
+- id: remove_decision_edges_from_impact_kinds
+  summary: |
+    Remove EdgeForbids, EdgeTestedBy, EdgeRequiresTest, or EdgeEnforces from the
+    impactEdgeKinds set in impact_path.go. These are the ONLY edges that create
+    decision-domain traversal paths. Removing them causes decision_context to return
+    only information paths for all queries.
+  related_invariants:
+    - awareness.preflight.required_before_edit
+    - awareness.graph.domain_classification_required
+  safe_alternative: |
+    If an edge kind proves too noisy, add a scoring penalty instead of removing it
+    from impactEdgeKinds. The traversal must stay complete; filtering happens in scoring.
+
+- id: set_causal_rule_confidence_high_without_verification
+  summary: |
+    Set confidence: high on a causal rule that has only been observed once or only
+    in a controlled test environment. High confidence rules are presented to operators
+    as established fact, not hypothesis.
+  related_invariants:
+    - awareness.knowledge.causal_rules_evidence_required
+  safe_alternative: |
+    Use confidence: low for first-observed chains, confidence: medium after 2-3
+    confirmed recurrences, confidence: high only after the chain has been validated
+    across multiple independent incidents and multiple operator environments.
+
+- id: skip_blind_spots_when_graph_unavailable
+  summary: |
+    Return an empty blind_spots list from decisionContextNoGraph() when the graph
+    is unavailable. An empty blind_spots list when the graph is missing implies the
+    tool has full coverage — the opposite of the truth.
+  related_invariants:
+    - awareness.mcp.decision_context_no_bare_no_match
+  safe_alternative: |
+    When graph is unavailable, always include at least: "graph unavailable — run
+    'globular awareness build' first", "cannot check files for decision paths",
+    and "runtime not collected". These are always true in no-graph mode.
+
+- id: backfill_causal_chain_without_symptoms
+  summary: |
+    Create a causal_rules.yaml entry retroactively, from memory or logs, without
+    the actual symptom keywords that were observed during the incident. Without
+    real symptom keywords, the rule can never match a future incident's log output.
+  related_invariants:
+    - awareness.knowledge.causal_rules_evidence_required
+  safe_alternative: |
+    Only finalize a causal rule when you have the actual log output from the incident.
+    Extract the exact symptom keywords that appeared in logs (trigger_keywords and
+    sequence[*].keywords must be literal log fragments, not paraphrases).

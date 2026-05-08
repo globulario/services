@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/awareness/analysis"
+	"github.com/globulario/services/golang/awareness/integrity"
 	"github.com/globulario/services/golang/awareness/learning"
 	"github.com/globulario/services/golang/awareness/preflight"
-	"github.com/globulario/services/golang/awareness/runtime"
 )
 
 func registerAwarenessPreflightTools(s *server, st *awarenessState) {
@@ -41,6 +41,11 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 					Description: "Collect live runtime snapshot and merge into preflight",
 					Default:     false,
 				},
+				"runtime_policy": {
+					Type:        "string",
+					Description: "Runtime collection policy: auto (collect if live), never (skip), required (fail if unavailable), offline (use saved snapshot). Default: auto.",
+					Default:     "auto",
+				},
 				"runtime_window": {
 					Type:        "string",
 					Description: "Lookback window for runtime events/workflows (e.g. 15m, 1h)",
@@ -63,9 +68,28 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 			DocsDir:     st.docsDir,
 		}
 
-		if getBool(args, "include_runtime", false) {
+		runtimePolicy := strArg(args, "runtime_policy")
+		if runtimePolicy == "" {
+			runtimePolicy = "auto"
+		}
+
+		// Resolve runtime_policy to include_runtime flag.
+		// "auto": collect if cluster config is detectable; "required": collect, fail if unavailable;
+		// "never": skip; "offline": use saved snapshot (treated as never for now — offline_diagnose is separate).
+		switch runtimePolicy {
+		case "required", "auto":
 			opts.IncludeRuntime = true
-			opts.Bridge = runtime.NewBridge(st.nodeID, "")
+			opts.Bridge = newLiveBridge(st)
+		case "never", "offline":
+			opts.IncludeRuntime = false
+		default:
+			if getBool(args, "include_runtime", false) {
+				opts.IncludeRuntime = true
+				opts.Bridge = newLiveBridge(st)
+			}
+		}
+
+		if opts.IncludeRuntime {
 			if ws := strArg(args, "runtime_window"); ws != "" {
 				if d, err := time.ParseDuration(ws); err == nil {
 					opts.RuntimeWindow = d
@@ -87,8 +111,21 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 		}
 
 		// Return as a raw JSON object (not a string) for clean MCP consumption.
-		var result interface{}
-		_ = json.Unmarshal([]byte(out), &result)
+		var result map[string]interface{}
+		if err := json.Unmarshal([]byte(out), &result); err == nil {
+			// Inject runtime_policy and trust_summary into the result.
+			result["runtime_policy"] = runtimePolicy
+
+			// Build trust_summary from matched graph nodes if graph is available.
+			if st.g != nil {
+				invIDs := getStrSlice(args, "invariants")
+				_ = invIDs // main IDs are in the rendered JSON, not re-available here.
+				// Instead, include trust_summary by looking at filtered_matches from the report.
+				// The trust distribution is pre-computed in the report; expose it directly.
+				trustSum := buildTrustSummaryFromReport(r)
+				result["trust_summary"] = trustSum
+			}
+		}
 		return result, nil
 	})
 
@@ -172,4 +209,39 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 			"services":          result.ServiceNames,
 		}, nil
 	})
+}
+
+// buildTrustSummaryFromReport derives a trust level distribution from a preflight
+// Report's FilteredMatches. Matches not in FilteredMatches are assumed "declared"
+// (the most common source for YAML-authored knowledge).
+func buildTrustSummaryFromReport(r *preflight.Report) map[string]int {
+	counts := map[string]int{
+		integrity.TrustStrictVerified: 0,
+		integrity.TrustVerified:       0,
+		integrity.TrustDeclared:       0,
+		integrity.TrustInferred:       0,
+		integrity.TrustProposal:       0,
+		integrity.TrustStale:          0,
+		integrity.TrustInvalid:        0,
+	}
+
+	// Count low-trust filtered matches.
+	filteredIDs := make(map[string]bool)
+	for _, fm := range r.FilteredMatches {
+		filteredIDs[fm.ID] = true
+		if _, ok := counts[fm.TrustLevel]; ok {
+			counts[fm.TrustLevel]++
+		}
+	}
+
+	// Remaining matched nodes are assumed declared (YAML-authored).
+	totalMatched := r.GraphMatchCount
+	filteredCount := len(r.FilteredMatches)
+	declaredCount := totalMatched - filteredCount
+	if declaredCount < 0 {
+		declaredCount = 0
+	}
+	counts[integrity.TrustDeclared] += declaredCount
+
+	return counts
 }

@@ -138,7 +138,7 @@ func registerAwarenessPackageTools(s *server, st *awarenessState) {
 
 	s.register(toolDef{
 		Name:        "awareness.impact_file",
-		Description: "Show all graph nodes impacted by changes to a file — services, invariants, failure modes, forbidden fixes, and required tests.",
+		Description: "Show all graph nodes impacted by changes to a file — services, invariants, failure modes, forbidden fixes, and required tests. Returns coverage and blind spots when no path is found.",
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
@@ -157,8 +157,21 @@ func registerAwarenessPackageTools(s *server, st *awarenessState) {
 
 		if st.g == nil {
 			return map[string]interface{}{
-				"file":     file,
-				"warnings": []string{"no graph DB — run 'globular awareness build' first"},
+				"file":               file,
+				"risk":               "unknown",
+				"classification":     "UNKNOWN_IMPACT",
+				"confidence":         "unknown",
+				"confidence_reason":  "graph DB not available — no architecture facts can be matched; run 'globular awareness build' first",
+				"coverage": map[string]string{
+					"graph":    "not_checked",
+					"raw_yaml": "not_checked",
+					"runtime":  "noop",
+				},
+				"blind_spots": []string{
+					"graph unavailable — run 'globular awareness build' first",
+					"runtime not collected",
+				},
+				"recommended_next_action": "Run 'globular awareness build' to index the codebase, then retry.",
 			}, nil
 		}
 
@@ -167,7 +180,6 @@ func registerAwarenessPackageTools(s *server, st *awarenessState) {
 			return nil, err
 		}
 
-		found := result.SourceFile != nil
 		names := func(nodes []*graph.Node) []string {
 			out := make([]string, 0, len(nodes))
 			for _, n := range nodes {
@@ -176,14 +188,80 @@ func registerAwarenessPackageTools(s *server, st *awarenessState) {
 			return out
 		}
 
+		found := result.SourceFile != nil
+		invariants := names(result.Invariants)
+		failureModes := names(result.FailureModes)
+		forbiddenFixes := names(result.ForbiddenFixes)
+		tests := names(result.Tests)
+		services := names(result.Services)
+
+		hasMatches := len(invariants)+len(failureModes)+len(forbiddenFixes)+len(tests) > 0
+
+		var graphCov, risk, classification, confidence, confidenceReason string
+		var blindSpots []string
+		var recommendedAction string
+
+		if !found {
+			graphCov = "checked_clean"
+			risk = "unknown"
+			classification = "NO_KNOWN_STATIC_MATCH"
+			confidence = "low"
+			confidenceReason = "File not indexed in graph — no graph path from file to invariants or failure modes."
+			blindSpots = []string{
+				"No graph node for this file — run 'globular awareness build' after adding/renaming files.",
+				"No implementation edge indexed for this file.",
+				"Runtime not collected.",
+			}
+			recommendedAction = "Run 'globular awareness build', then retry. Also run awareness.scan_violations on this path."
+		} else if !hasMatches {
+			graphCov = "checked_clean"
+			risk = "low"
+			classification = "NO_KNOWN_STATIC_MATCH"
+			confidence = "low"
+			confidenceReason = "Graph found the file but no paths reach invariants, failure modes, or required tests. This does not prove the file is safe — graph traversal may be incomplete."
+			blindSpots = []string{
+				"No graph path from file to invariants.",
+				"Runtime not collected.",
+				"Code scan not run — use awareness.scan_violations.",
+			}
+			recommendedAction = "Run awareness.scan_violations and inspect package ownership manually."
+		} else {
+			graphCov = "checked_with_matches"
+			risk = "high"
+			if len(invariants)+len(forbiddenFixes) > 2 {
+				risk = "high"
+			} else {
+				risk = "medium"
+			}
+			classification = "KNOWN_IMPACT"
+			confidence = "medium"
+			confidenceReason = "Graph found paths to invariants/failure modes. Runtime not collected — live cluster state not verified."
+			blindSpots = []string{
+				"Runtime not collected — no live cluster evidence.",
+				"Code scan not run — use awareness.scan_violations.",
+			}
+			recommendedAction = "Run listed required tests before committing. Run awareness.scan_violations on changed paths."
+		}
+
 		return map[string]interface{}{
-			"file":            file,
-			"found_in_graph":  found,
-			"services":        names(result.Services),
-			"invariants":      names(result.Invariants),
-			"failure_modes":   names(result.FailureModes),
-			"forbidden_fixes": names(result.ForbiddenFixes),
-			"tests":           names(result.Tests),
+			"file":                    file,
+			"found_in_graph":          found,
+			"risk":                    risk,
+			"classification":          classification,
+			"confidence":              confidence,
+			"confidence_reason":       confidenceReason,
+			"services":                services,
+			"invariants":              invariants,
+			"failure_modes":           failureModes,
+			"forbidden_fixes":         forbiddenFixes,
+			"required_tests":          tests,
+			"coverage": map[string]string{
+				"graph":    graphCov,
+				"raw_yaml": "not_checked",
+				"runtime":  "noop",
+			},
+			"blind_spots":             blindSpots,
+			"recommended_next_action": recommendedAction,
 		}, nil
 	})
 }

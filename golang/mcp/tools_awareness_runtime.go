@@ -35,7 +35,7 @@ func registerAwarenessRuntimeTools(s *server, st *awarenessState) {
 			}
 		}
 
-		bridge := runtime.NewBridge(st.nodeID, "")
+		bridge := newLiveBridge(st)
 		snap, err := bridge.Snapshot(ctx, window, st.g)
 		if err != nil {
 			return nil, fmt.Errorf("runtime snapshot: %w", err)

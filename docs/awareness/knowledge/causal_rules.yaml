@@ -1,4 +1,4 @@
-rules:
+causal_rules:
   - id: etcd_disk_pressure_to_workflow_timeout
     root_signal: etcd_disk_pressure
     trigger_keywords:
@@ -101,3 +101,156 @@ rules:
       - kill orphaned processes holding the port
       - add ExecStartPre to clear orphans before start
       - verify WaitActive completes after fix
+
+  - id: convergence_committer_race_to_self_upgrade_loop
+    root_signal: convergence_committer_delay
+    trigger_keywords:
+      - install workflow dispatched repeatedly
+      - cluster-controller restarted
+      - convergenceCommitter
+    sequence:
+      - event: controller_installs_itself
+        component: cluster-controller
+        keywords: [install workflow, cluster-controller, dispatch]
+      - event: controller_restarts_before_commit
+        component: cluster-controller
+        keywords: [restarted, restart, controller restart]
+      - event: no_installed_record_committed
+        component: etcd
+        keywords: [installed state, ConvergenceResultV1, committed]
+      - event: reconciler_redispatches_install
+        component: cluster-controller
+        keywords: [dispatch, install, missing]
+    confidence: high
+    explanation_template: "The convergenceCommitter startup delay exceeded the time before the next controller restart, so no installed record was committed, causing the reconciler to repeatedly redispatch the cluster-controller install workflow."
+    recommended_fix_order:
+      - check convergenceCommitter startup delay (must be <= 5s)
+      - add runOnce() call at Start() to commit before first tick
+      - verify etcd /globular/nodes/{node}/packages/service/cluster-controller exists after fix
+      - confirm no further install workflow dispatched within 60s
+
+  - id: vip_missing_from_cert_sans_to_node_unreachable
+    root_signal: tls_cert_sans_mismatch
+    trigger_keywords:
+      - certificate error
+      - tls handshake failed
+      - x509 certificate
+      - VIP
+    sequence:
+      - event: cert_issued_without_vip
+        component: pki
+        keywords: [certificate, issued, SAN, SubjectAltName]
+      - event: client_tls_handshake_failure
+        component: network
+        keywords: [TLS handshake, certificate, x509]
+      - event: node_unreachable_via_vip
+        component: cluster-controller
+        keywords: [unreachable, VIP, connection refused, timeout]
+    confidence: high
+    explanation_template: "A TLS certificate was issued without the VIP IP in its SANs. Clients connecting via the VIP received certificate errors, making the node appear unreachable despite its services running."
+    recommended_fix_order:
+      - openssl x509 -noout -ext subjectAltName — confirm VIP missing
+      - reissue certificate with VIP in SAN list
+      - restart services to load new certificate
+      - verify with openssl s_client -connect VIP:443
+
+  - id: auth_token_wrong_mac_to_permission_denied
+    root_signal: auth_token_using_wrong_mac
+    trigger_keywords:
+      - permission denied
+      - unauthorized
+      - token invalid
+      - MAC address
+    sequence:
+      - event: token_generated_with_wrong_mac
+        component: authentication
+        keywords: [token, MAC, generated, wrong node]
+      - event: token_validation_fails
+        component: authentication
+        keywords: [invalid token, unauthorized, permission denied]
+      - event: service_calls_rejected
+        component: grpc
+        keywords: [permission denied, unauthorized, unauthenticated]
+    confidence: medium
+    explanation_template: "Authentication token was generated using the wrong node's MAC address (e.g., using local MAC instead of node-specific MAC), causing all token validations to fail with permission denied."
+    recommended_fix_order:
+      - check which MAC address was used for token generation
+      - verify node identity in etcd (node MAC should match token MAC)
+      - regenerate token using correct node MAC
+      - verify permission denied errors resolve
+
+  - id: acme_cert_path_mismatch_to_https_failure
+    root_signal: acme_cert_symlink_missing
+    trigger_keywords:
+      - ACME
+      - Let's Encrypt
+      - cert not found
+      - TLS
+      - wrong certificate
+    sequence:
+      - event: acme_cert_written_to_domains_path
+        component: domain-reconciler
+        keywords: [ACME, cert, /var/lib/globular/domains, fullchain.pem]
+      - event: xds_reads_from_different_path
+        component: xds
+        keywords: [xDS, TLS, /var/lib/globular/config/tls/acme, cert not found]
+      - event: envoy_serves_wrong_cert
+        component: envoy
+        keywords: [certificate, TLS, serving]
+    confidence: high
+    explanation_template: "ACME cert reconciler writes to /var/lib/globular/domains/{domain}/fullchain.pem but xDS reads from /var/lib/globular/config/tls/acme/{domain}/. Without a symlink between them, Envoy serves the old (cluster-internal) certificate for external requests."
+    recommended_fix_order:
+      - confirm cert at /var/lib/globular/domains/{domain}/fullchain.pem
+      - create symlink /var/lib/globular/config/tls/acme/{domain}/ → /var/lib/globular/domains/{domain}/
+      - reload xDS config
+      - verify Envoy serves Let's Encrypt cert via openssl s_client
+
+  - id: scylladb_raft_join_sequencing_to_stall
+    root_signal: scylladb_raft_join_parallel
+    trigger_keywords:
+      - Raft join
+      - ScyllaDB
+      - join stalled
+      - Bootstrap
+    sequence:
+      - event: first_scylla_node_joining
+        component: scylladb
+        keywords: [joining, bootstrapping, Raft, first node]
+      - event: second_node_starts_join_simultaneously
+        component: scylladb
+        keywords: [joining, bootstrapping, Raft, second node]
+      - event: both_nodes_stall
+        component: scylladb
+        keywords: [stalled, timeout, bootstrap failed]
+    confidence: high
+    explanation_template: "ScyllaDB Raft cluster joins must be sequential. If two nodes attempt to join simultaneously, both stall waiting for the other to complete the bootstrap process."
+    recommended_fix_order:
+      - confirm only one ScyllaDB node is bootstrapping at a time
+      - wait for first node's ScyllaDB to become healthy before starting second
+      - use 'nodetool status' to confirm first node is UN (Up/Normal) before joining second
+      - add sequencing gate in join script
+
+  - id: non_leader_reconciler_to_dns_flicker
+    root_signal: non_leader_applies_dns
+    trigger_keywords:
+      - DNS flickering
+      - multiple controllers
+      - domain reconciler
+      - DNS conflict
+    sequence:
+      - event: non_leader_runs_domain_reconciler
+        component: cluster-controller
+        keywords: [domain reconciler, not leader, apply]
+      - event: non_leader_overwrites_leader_state
+        component: dns
+        keywords: [DNS, overwrite, conflict, record]
+      - event: dns_flickering
+        component: dns
+        keywords: [flickering, record changed, inconsistent]
+    confidence: high
+    explanation_template: "The domain and DNS reconcilers were not gated on leadership. Multiple controller nodes ran the reconcilers simultaneously, applying conflicting DNS records that caused flickering and ACME challenge failures."
+    recommended_fix_order:
+      - add IsLeader() gate to domain_reconciler.go before any writes
+      - add IsLeader() gate to dns_reconciler.go before any writes
+      - verify only leader applies DNS records (check controller logs on non-leader)
+      - verify ACME challenges succeed after fix

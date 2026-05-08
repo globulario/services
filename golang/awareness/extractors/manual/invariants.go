@@ -23,10 +23,14 @@ type yamlInvariant struct {
 	Status   string `yaml:"status"`
 	Summary  string `yaml:"summary"`
 	Protects struct {
-		State        []string `yaml:"state"`
-		Files        []string `yaml:"files"`
-		Symbols      []string `yaml:"symbols"`
-		SystemdUnits []string `yaml:"systemd_units"`
+		State           []string `yaml:"state"`
+		Files           []string `yaml:"files"`           // → implements (core logic)
+		EnforcesFiles   []string `yaml:"enforces_files"`  // → enforces (validation/blocking)
+		ConfiguresFiles []string `yaml:"configures_files"` // → configures (data/config/YAML)
+		ObservesFiles   []string `yaml:"observes_files"`  // → observes (detection/reporting)
+		MayAffectFiles  []string `yaml:"may_affect_files"` // → may_affect (weak indirect)
+		Symbols         []string `yaml:"symbols"`
+		SystemdUnits    []string `yaml:"systemd_units"`
 	} `yaml:"protects"`
 	ForbiddenFixes    []string `yaml:"forbidden_fixes"`
 	RequiredTests     []string `yaml:"required_tests"`
@@ -95,6 +99,8 @@ func loadInvariant(ctx context.Context, g *graph.Graph, inv yamlInvariant) error
 	}
 
 	// Protected files → source_file nodes + protects edges.
+	// Also create the reverse implements edge so impact path traversal (which
+	// follows outgoing edges from the changed file) can reach this invariant.
 	for _, file := range inv.Protects.Files {
 		fileID := "source_file:" + file
 		if err := g.AddNode(ctx, graph.Node{
@@ -106,6 +112,90 @@ func loadInvariant(ctx context.Context, g *graph.Graph, inv yamlInvariant) error
 			return err
 		}
 		if err := g.AddEdge(ctx, graph.Edge{Src: nodeID, Kind: graph.EdgeProtects, Dst: fileID}); err != nil {
+			return err
+		}
+		// Reverse edge: file → implements → invariant (enables BFS from changed file).
+		if err := g.AddEdge(ctx, graph.Edge{Src: fileID, Kind: graph.EdgeImplements, Dst: nodeID}); err != nil {
+			return err
+		}
+	}
+
+	// enforces_files → source_file nodes + protects + reverse enforces edges.
+	for _, file := range inv.Protects.EnforcesFiles {
+		fileID := "source_file:" + file
+		if err := g.AddNode(ctx, graph.Node{
+			ID:   fileID,
+			Type: graph.NodeTypeSourceFile,
+			Name: file,
+			Path: file,
+		}); err != nil {
+			return err
+		}
+		if err := g.AddEdge(ctx, graph.Edge{Src: nodeID, Kind: graph.EdgeProtects, Dst: fileID}); err != nil {
+			return err
+		}
+		// Reverse: file → enforces → invariant (more precise than implements).
+		if err := g.AddEdge(ctx, graph.Edge{Src: fileID, Kind: graph.EdgeEnforces, Dst: nodeID}); err != nil {
+			return err
+		}
+	}
+
+	// configures_files → source_file nodes + protects + reverse configures edges.
+	for _, file := range inv.Protects.ConfiguresFiles {
+		fileID := "source_file:" + file
+		if err := g.AddNode(ctx, graph.Node{
+			ID:   fileID,
+			Type: graph.NodeTypeSourceFile,
+			Name: file,
+			Path: file,
+		}); err != nil {
+			return err
+		}
+		if err := g.AddEdge(ctx, graph.Edge{Src: nodeID, Kind: graph.EdgeProtects, Dst: fileID}); err != nil {
+			return err
+		}
+		// Reverse: file → configures → invariant.
+		if err := g.AddEdge(ctx, graph.Edge{Src: fileID, Kind: graph.EdgeConfigures, Dst: nodeID}); err != nil {
+			return err
+		}
+	}
+
+	// observes_files → source_file nodes + protects + reverse observes edges.
+	for _, file := range inv.Protects.ObservesFiles {
+		fileID := "source_file:" + file
+		if err := g.AddNode(ctx, graph.Node{
+			ID:   fileID,
+			Type: graph.NodeTypeSourceFile,
+			Name: file,
+			Path: file,
+		}); err != nil {
+			return err
+		}
+		if err := g.AddEdge(ctx, graph.Edge{Src: nodeID, Kind: graph.EdgeProtects, Dst: fileID}); err != nil {
+			return err
+		}
+		// Reverse: file → observes → invariant (detection/reporting).
+		if err := g.AddEdge(ctx, graph.Edge{Src: fileID, Kind: graph.EdgeObserves, Dst: nodeID}); err != nil {
+			return err
+		}
+	}
+
+	// may_affect_files → source_file nodes + protects + reverse may_affect edges.
+	for _, file := range inv.Protects.MayAffectFiles {
+		fileID := "source_file:" + file
+		if err := g.AddNode(ctx, graph.Node{
+			ID:   fileID,
+			Type: graph.NodeTypeSourceFile,
+			Name: file,
+			Path: file,
+		}); err != nil {
+			return err
+		}
+		if err := g.AddEdge(ctx, graph.Edge{Src: nodeID, Kind: graph.EdgeProtects, Dst: fileID}); err != nil {
+			return err
+		}
+		// Reverse: file → may_affect → invariant (weak indirect link).
+		if err := g.AddEdge(ctx, graph.Edge{Src: fileID, Kind: graph.EdgeMayAffect, Dst: nodeID}); err != nil {
 			return err
 		}
 	}

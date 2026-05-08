@@ -278,7 +278,7 @@ func loadCausalRulesByComponent(docsDir string) map[string][]string {
 		Rules []struct {
 			ID          string `yaml:"id"`
 			RootSignal  string `yaml:"root_signal"`
-		} `yaml:"rules"`
+		} `yaml:"causal_rules"`
 	}
 	if err := yaml.Unmarshal(data, &root); err != nil {
 		return result

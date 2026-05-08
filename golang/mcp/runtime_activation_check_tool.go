@@ -28,6 +28,9 @@ type runtimeActivationResult struct {
 	MissingConfig          []string                 `json:"missing_config"`
 	RecommendedConfig      map[string]string        `json:"recommended_config"`
 	Confidence             string                   `json:"confidence"`
+	// EtcdResolution indicates that unconfigured gRPC sources (controller/doctor/workflow)
+	// are resolved at runtime from etcd — no static address required.
+	EtcdResolution string `json:"etcd_resolution"` // "active" | "not_available"
 }
 
 // ---------------------------------------------------------------------------

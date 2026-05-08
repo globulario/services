@@ -395,7 +395,8 @@ func TestCausalRules_ProductionFile_EtcdCascadePresent(t *testing.T) {
 		t.Fatalf("parse causal_rules.yaml: %v", err)
 	}
 
-	rules, _ := root["rules"].([]interface{})
+	// The file uses "causal_rules:" as the top-level key.
+	rules, _ := root["causal_rules"].([]interface{})
 	if len(rules) == 0 {
 		t.Fatal("causal_rules.yaml has no rules")
 	}
