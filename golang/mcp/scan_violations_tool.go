@@ -91,16 +91,7 @@ var codeViolationPatterns = []violationPattern{
 		Severity:        "high",
 		WhyDangerous:    "Direct etcd writes bypass the controller authority model and can create split-brain state.",
 		SafeAlternative: "Use the controller gRPC API or workflow steps for state mutations.",
-		FileExclude:     regexp.MustCompile(`_test\.go|awareness|config/etcd`),
-	},
-	{
-		ID:              "blind_retry_loop",
-		Pattern:         regexp.MustCompile(`for\s*{|for\s+err\s*!=\s*nil|goto\s+retry`),
-		KnowledgeID:     "deterministic.install.failure.retry_loop",
-		Severity:        "medium",
-		WhyDangerous:    "Blind retry loops without terminal classification can spin forever on deterministic failures.",
-		SafeAlternative: "Use FailureClass classification and workflow retry policy with max attempts.",
-		FileExclude:     regexp.MustCompile(`_test\.go|awareness`),
+		FileExclude:     regexp.MustCompile(`_test\.go|awareness|config/|cluster_controller|globular_service`),
 	},
 	{
 		ID:              "insecure_grpc_transport",

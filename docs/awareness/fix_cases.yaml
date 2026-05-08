@@ -11,13 +11,13 @@ fix_cases:
     remaining_files:
       - golang/fix/guardrails.md  # 1B audit not done
     required_tests:
-      - TestSpecSeedGuard
+      - TestSeedConfigsHaveSkipIfExists
     dod: All cluster-owned config files use skip_if_exists or contract-rendered protection.
     notes: "1A complete 2026-05-03; 1B (full ownership audit) is FUTURE"
 
   - id: join_script_safety
     title: Day-1 join script must be safe, deterministic, non-destructive
-    status: DONE
+    status: WIP
     pattern: "join script"
     category: join_safety
     target_invariants:
@@ -33,7 +33,7 @@ fix_cases:
 
   - id: infra_drift_detection
     title: Service-like infrastructure drift must be detected and not hidden
-    status: DONE
+    status: WIP
     pattern: "infrastructure drift"
     category: infra_drift
     target_invariants:
@@ -69,7 +69,7 @@ fix_cases:
 
   - id: scylla_critical_keyspace_rf_policy
     title: Critical Scylla keyspace replication factor must match policy
-    status: DONE
+    status: WIP
     pattern: "scylla keyspace RF below policy"
     category: database_resilience
     target_invariants:
@@ -104,7 +104,7 @@ fix_cases:
 
   - id: absence_as_destructive_intent
     title: Missing control-plane key must not stop or delete runtime
-    status: DONE
+    status: WIP
     pattern: "missing key stopped service"
     category: safety
     target_invariants:
@@ -184,7 +184,7 @@ fix_cases:
 
   - id: reconcile_lane_starvation
     title: Reconcile lanes must not starve completion or critical publishers
-    status: DONE
+    status: WIP
     pattern: "reconcile starvation"
     category: convergence
     target_invariants:
@@ -216,7 +216,7 @@ fix_cases:
 
   - id: derived_state_blocks_authority
     title: Derived state failure must not block authority publication
-    status: DONE
+    status: WIP
     pattern: "projection blocks authority"
     category: convergence
     target_invariants:
@@ -291,15 +291,15 @@ fix_cases:
       - golang/cluster_doctor/cluster_doctor_server/collector/collector.go
       - golang/cluster_doctor/cluster_doctor_server/rules/cluster_services_drift.go
     required_tests:
-      - TestDriftUnder2MinIsWarn
-      - TestDriftOver5MinIsError
-      - TestDriftOver5MinOnCriticalServiceIsCritical
+      - TestClusterServicesDrift_UnknownAge_IsWarn
+      - TestClusterServicesDrift_ShortAge_IsWarn
+      - TestClusterServicesDrift_LongAge_IsError
     dod: Drift severity reflects urgency. Stale drift becomes blocking, not background noise.
     notes: "DONE 2026-05-04. NodeDriftAge in Snapshot, driftSince in Collector. 4 tests pass."
 
   - id: pki_ca_registry
     title: PKI CA metadata must be in critical state registry
-    status: DONE
+    status: WIP
     pattern: "pki CA not published"
     category: governance
     target_invariants:
@@ -327,15 +327,15 @@ fix_cases:
     remaining_files:
       - golang/cluster_doctor/cluster_doctor_server/rules/installed_state_runtime_mismatch.go
     required_tests:
-      - TestCommandPackageWithNoUnitProducesNoFinding
-      - TestServicePackageWithNoUnitProducesFinding
-      - TestServicePackageWithActiveUnitProducesNoFinding
+      - TestInstalledStateRuntimeMismatch_CommandPackage_NoFinding
+      - TestInstalledStateRuntimeMismatch_DaemonMissingUnit_FindingFired
+      - TestInstalledStateRuntimeMismatch_DaemonActiveUnit_NoFinding
     dod: Doctor only flags missing systemd units for packages expected to run as daemons.
     notes: "DONE 2026-05-04. 9 unit tests. Hardcoded commandPackage() list validated; catalog-driven is tech debt."
 
   - id: objectstore_critical_registry
     title: Objectstore desired state must be in critical state registry
-    status: DONE
+    status: WIP
     pattern: "objectstore no desired state"
     category: governance
     target_invariants:

@@ -90,6 +90,26 @@ jobs:
             exit 1
           fi
 
+      - name: Graph integrity check
+        run: |
+          ./bin/globular awareness graph-integrity \
+            --docs-dir ../docs/awareness \
+            --repo-root .. \
+            --json | tee ../.awareness/graph-integrity-report.json
+          STATUS=$(jq -r '.status' ../.awareness/graph-integrity-report.json)
+          EXIT_CODE=$(jq '.exit_code' ../.awareness/graph-integrity-report.json)
+          echo "graph integrity status: $STATUS (exit_code=$EXIT_CODE)"
+          if [ "$EXIT_CODE" -ge 2 ]; then
+            echo "::error::Graph integrity check failed — critical violations detected"
+            jq '.invalid_shapes[] | select(.severity == "critical")' ../.awareness/graph-integrity-report.json
+            jq '.missing_tests[]' ../.awareness/graph-integrity-report.json
+            exit 1
+          fi
+          if [ "$EXIT_CODE" -eq 1 ]; then
+            echo "::warning::Graph integrity warnings detected"
+            jq '.invalid_shapes[]' ../.awareness/graph-integrity-report.json
+          fi
+
       - name: Upload awareness test evidence
         uses: actions/upload-artifact@v4
         if: always()
@@ -98,6 +118,7 @@ jobs:
           path: |
             .awareness/test-results.json
             .awareness/ci-check-report.json
+            .awareness/graph-integrity-report.json
 
   proto-check:
     runs-on: ubuntu-latest
