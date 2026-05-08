@@ -90,6 +90,25 @@ jobs:
             exit 1
           fi
 
+      - name: Build awareness graph and verify freshness
+        run: |
+          # Build the graph from source YAML truth files.
+          ./bin/globular awareness build \
+            --repo .. \
+            --db ../.globular/awareness/graph.db
+          # Session-start check: graph freshness, runtime, CI, proposals.
+          ./bin/globular awareness session-start \
+            --repo .. \
+            --db ../.globular/awareness/graph.db \
+            --output json | tee ../.awareness/session-start.json
+          # Fail if graph is stale after a fresh build (indicates build error).
+          STALE=$(jq '.graph.stale' ../.awareness/session-start.json)
+          if [ "$STALE" = "true" ]; then
+            echo "::error::Graph is stale immediately after build — awareness build step may have failed"
+            exit 1
+          fi
+          echo "::notice::Graph freshness check passed"
+
       - name: Graph integrity check
         run: |
           ./bin/globular awareness graph-integrity \
@@ -119,6 +138,7 @@ jobs:
             .awareness/test-results.json
             .awareness/ci-check-report.json
             .awareness/graph-integrity-report.json
+            .awareness/session-start.json
 
   proto-check:
     runs-on: ubuntu-latest

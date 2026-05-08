@@ -1,6 +1,35 @@
 {
   "permissions": {
-    "allow": [],
+    "allow": [
+      "Bash(journalctl *)",
+      "Bash(systemctl is-active *)",
+      "Bash(systemctl status *)",
+      "Bash(systemctl list-units *)",
+      "mcp__globular__etcd_get",
+      "mcp__globular__nodeagent_get_service_logs",
+      "mcp__globular__cluster_get_health",
+      "mcp__globular__nodeagent_search_logs",
+      "mcp__globular__cluster_get_node_full_status",
+      "mcp__globular__workflow_list_runs",
+      "mcp__globular__repository_get_artifact_versions",
+      "mcp__globular__cluster_get_reconcile_status",
+      "mcp__globular__pkg_info",
+      "mcp__globular__repository_get_artifact_manifest",
+      "mcp__globular__awareness_preflight",
+      "mcp__globular__cluster_list_nodes",
+      "mcp__globular__cluster_get_operational_snapshot",
+      "mcp__globular__cluster_get_node_plan",
+      "mcp__globular__cluster_get_doctor_report",
+      "mcp__globular__awareness_agent_context",
+      "mcp__globular__cluster_get_convergence_detail",
+      "mcp__globular__cluster_get_service_workflow_status",
+      "mcp__globular__workflow_get_run",
+      "mcp__globular__awareness_self_review",
+      "mcp__globular__nodeagent_list_installed_packages",
+      "mcp__globular__memory_query",
+      "mcp__globular__cluster_get_desired_state",
+      "mcp__globular__cluster_get_drift_report"
+    ],
     "deny": []
   },
   "hooks": {

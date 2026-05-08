@@ -25,6 +25,41 @@ Use:
 globular awareness preflight --task "<task>" --format agent
 ```
 
+## Globular Awareness Required Workflow
+
+Run at session start, before each file edit, and before committing:
+
+```bash
+# 1. Session start — graph freshness, runtime, CI, proposals, guardrails
+globular awareness session-start --output json
+
+# 2. Before editing any file — get ranked decision paths, forbidden actions, required tests
+# MCP: awareness.decision_context (preferred for high-risk files)
+awareness.decision_context goal="<what you will do>" changed_files=["<file>"]
+# CLI fallback:
+globular awareness impact --file <path> --output json
+
+# 3. Before committing — scan for violations
+globular awareness scan-violations --paths <changed files> --output json
+# MCP: awareness.scan_violations
+
+# 4. After a verified fix — propose a knowledge update
+globular awareness learn-from-fix --incident <id> --output json
+# MCP: awareness.learn_from_fix
+```
+
+**Before editing awareness, cluster_controller, workflow, node_agent, repository, xds, runtime, MCP tools, graph, integrity, or scan code:**
+Run `awareness.decision_context` with your goal and the files you plan to edit.
+Read `top_decision_paths`, `forbidden_actions`, `required_tests`, and `blind_spots` before making any change.
+
+**Rules:**
+- If graph is stale → rebuild: `globular awareness build`
+- If runtime is `noop` → do NOT infer live cluster health from static checks
+- `NO_MATCH` is NOT safe — always check `coverage` and `blind_spots` in the output
+- Never treat `checked_clean` as proof of safety when runtime was not collected
+- `UNKNOWN_IMPACT` with `blind_spots` means the check ran but had incomplete coverage
+- Run all `required_tests` returned by `decision_context` after every edit
+
 1. Walk the 4 layers before debugging: Repository -> Desired -> Installed -> Runtime.
 2. Never confuse platform release with package version. release-index.json is the platform truth.
 3. Never confuse build_id (UUID) with build_number (integer).
