@@ -249,14 +249,23 @@ func registerScanViolationsTool(s *server, st *awarenessState) {
 		// prefer the regex finding (it's already allowlist-aware by patternID).
 		allFindings = deduplicateViolationFindings(allFindings)
 
-		// Apply allowlist.
+		// Apply allowlist. Track suppressed (file, line) positions so that AST
+		// findings at the same location are also suppressed even when the AST
+		// patternID differs from the allowlist entry's patternID.
+		type fileLine struct{ file string; line int }
+		suppressedLocs := make(map[fileLine]bool)
 		var findings []violationFinding
 		var suppressed []violationFinding
 		for _, f := range allFindings {
+			loc := fileLine{f.File, f.Line}
+			if suppressedLocs[loc] {
+				suppressed = append(suppressed, f)
+				continue
+			}
 			if entry := matchesAllowlist(f, allowlist); entry != nil {
 				suppressed = append(suppressed, f)
+				suppressedLocs[loc] = true
 			} else {
-				// Also suppress AST findings at a (file, line) already suppressed by regex.
 				findings = append(findings, f)
 			}
 		}

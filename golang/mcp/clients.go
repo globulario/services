@@ -19,12 +19,13 @@ import (
 
 // clientPool manages lazy gRPC connections to Globular services.
 type clientPool struct {
-	mu    sync.Mutex
-	conns map[string]*grpc.ClientConn
+	mu               sync.Mutex
+	conns            map[string]*grpc.ClientConn
+	insecureFallback bool // must be true explicitly in config; never silent
 }
 
-func newClientPool() *clientPool {
-	return &clientPool{conns: make(map[string]*grpc.ClientConn)}
+func newClientPool(allowInsecure bool) *clientPool {
+	return &clientPool{conns: make(map[string]*grpc.ClientConn), insecureFallback: allowInsecure}
 }
 
 func (p *clientPool) get(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
@@ -35,7 +36,7 @@ func (p *clientPool) get(ctx context.Context, endpoint string) (*grpc.ClientConn
 		return conn, nil
 	}
 
-	conn, err := dial(ctx, endpoint)
+	conn, err := p.dial(ctx, endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -64,18 +65,20 @@ func (p *clientPool) close() {
 	p.conns = make(map[string]*grpc.ClientConn)
 }
 
-func dial(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
+func (p *clientPool) dial(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
 	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	var opts []grpc.DialOption
 
-	// Try TLS first (production), fall back to insecure (development).
 	dt := config.ResolveDialTarget(endpoint)
 	if tlsCfg := buildTLSConfig(dt.ServerName); tlsCfg != nil {
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
-	} else {
+	} else if p.insecureFallback {
+		log.Printf("mcp: WARNING: insecure transport to %s — insecure_transport=true in config; not safe for production", endpoint)
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	} else {
+		return nil, fmt.Errorf("dial %s: TLS credentials unavailable; set insecure_transport=true in MCP config for dev-only access", dt.Address)
 	}
 
 	conn, err := grpc.DialContext(dialCtx, dt.Address, opts...)

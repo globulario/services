@@ -278,6 +278,84 @@ const addr = "127.0.0.1:9090"
 	}
 }
 
+// TestScanViolations_ExactCountOneViolation asserts that a file with exactly one
+// localhost violation produces exactly one finding (no duplicate from AST+regex).
+func TestScanViolations_ExactCountOneViolation(t *testing.T) {
+	dir := t.TempDir()
+	goFile := filepath.Join(dir, "conn.go")
+	content := `package main
+
+const addr = "127.0.0.1:9090"
+`
+	if err := os.WriteFile(goFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := newMCPWithDocsDir(t, "")
+	result, err := s.callTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
+		"paths":    []interface{}{dir},
+		"severity": "critical",
+	})
+	if err != nil {
+		t.Fatalf("scan_violations error: %v", err)
+	}
+
+	m := result.(map[string]interface{})
+	total, _ := m["total"].(int)
+	if total != 1 {
+		t.Errorf("expected exactly 1 finding for one localhost violation, got %d", total)
+	}
+}
+
+// TestScanViolations_AllowlistSuppressesSecondaryAST verifies that an allowlist
+// entry suppresses both the regex finding and any AST finding at the same line.
+func TestScanViolations_AllowlistSuppressesSecondaryAST(t *testing.T) {
+	docsDir := t.TempDir()
+	knowledgeDir := filepath.Join(docsDir, "knowledge")
+	if err := os.MkdirAll(knowledgeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	// Allowlist suppresses localhost_interservice for all .go files.
+	allowlistYAML := `allowlist:
+  - path_pattern: "**/*.go"
+    pattern_id: "localhost_interservice"
+    reason: "test suppression"
+`
+	if err := os.WriteFile(filepath.Join(knowledgeDir, "scan_allowlist.yaml"), []byte(allowlistYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	scanDir := t.TempDir()
+	goFile := filepath.Join(scanDir, "conn.go")
+	content := `package main
+
+const addr = "127.0.0.1:9090"
+`
+	if err := os.WriteFile(goFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := newMCPWithDocsDir(t, docsDir)
+	result, err := s.callTool(context.Background(), "awareness.scan_violations", map[string]interface{}{
+		"paths":    []interface{}{scanDir},
+		"severity": "critical",
+	})
+	if err != nil {
+		t.Fatalf("scan_violations error: %v", err)
+	}
+
+	m := result.(map[string]interface{})
+	total, _ := m["total"].(int)
+	suppressedCount, _ := m["suppressed_count"].(int)
+
+	if total != 0 {
+		t.Errorf("expected total=0 after suppression, got %d", total)
+	}
+	if suppressedCount == 0 {
+		t.Error("expected suppressed_count > 0 when allowlist matches")
+	}
+}
+
 func TestScanViolations_KnowledgeIDMap(t *testing.T) {
 	dir := t.TempDir()
 	// Create a file that should trigger localhost pattern.

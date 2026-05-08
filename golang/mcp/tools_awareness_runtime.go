@@ -53,6 +53,8 @@ func registerAwarenessRuntimeTools(s *server, st *awarenessState) {
 }
 
 // awarenessSnapshotToMap converts a RuntimeSnapshot to a JSON-serializable map.
+// source_health, confidence, coverage, and blind_spots are always present so
+// callers can detect noop snapshots without guessing from empty result arrays.
 func awarenessSnapshotToMap(snap *runtime.RuntimeSnapshot) map[string]interface{} {
 	findings := make([]map[string]interface{}, 0, len(snap.DoctorFindings))
 	for _, f := range snap.DoctorFindings {
@@ -93,6 +95,59 @@ func awarenessSnapshotToMap(snap *runtime.RuntimeSnapshot) map[string]interface{
 		})
 	}
 
+	// Source health: expose every source so callers can distinguish noop from
+	// genuinely empty (healthy cluster with no findings).
+	sourceHealthList := make([]map[string]interface{}, 0, len(snap.SourceHealth))
+	healthyCount, noopCount := 0, 0
+	var coverage, blindSpots []string
+	for _, sh := range snap.SourceHealth {
+		entry := map[string]interface{}{
+			"source":            string(sh.Source),
+			"backend":           sh.Backend,
+			"healthy":           sh.Healthy,
+			"empty_due_to_noop": sh.EmptyDueToNoop,
+			"collected_at":      sh.CollectedAt,
+		}
+		if sh.Transport != "" {
+			entry["transport"] = sh.Transport
+		}
+		if sh.Auth != "" {
+			entry["auth"] = sh.Auth
+		}
+		if sh.LastError != "" {
+			entry["last_error"] = sh.LastError
+		}
+		if len(sh.Warnings) > 0 {
+			entry["warnings"] = sh.Warnings
+		}
+		sourceHealthList = append(sourceHealthList, entry)
+
+		if sh.EmptyDueToNoop {
+			noopCount++
+			blindSpots = append(blindSpots, string(sh.Source))
+		} else if sh.Healthy {
+			healthyCount++
+			coverage = append(coverage, string(sh.Source))
+		}
+	}
+
+	total := len(snap.SourceHealth)
+	confidence := "unknown"
+	switch {
+	case total == 0:
+		confidence = "unknown"
+	case healthyCount == 0 && noopCount == total:
+		confidence = "noop"
+	case healthyCount == 0:
+		confidence = "low"
+	case healthyCount < total/2+1:
+		confidence = "medium"
+	case healthyCount < total:
+		confidence = "high"
+	default:
+		confidence = "full"
+	}
+
 	return map[string]interface{}{
 		"id":                    snap.ID,
 		"captured_at":           snap.CapturedAt.Format(time.RFC3339),
@@ -105,5 +160,9 @@ func awarenessSnapshotToMap(snap *runtime.RuntimeSnapshot) map[string]interface{
 		"matched_invariants":    snap.MatchedInvariants,
 		"matched_failure_modes": snap.MatchedFailureModes,
 		"warnings":              snap.Warnings,
+		"source_health":         sourceHealthList,
+		"confidence":            confidence,
+		"coverage":              coverage,
+		"blind_spots":           blindSpots,
 	}
 }

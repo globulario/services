@@ -113,7 +113,7 @@ func newServer(cfg *MCPConfig) *server {
 	}
 	return &server{
 		tools:   make(map[string]*registeredTool),
-		clients: newClientPool(),
+		clients: newClientPool(cfg.InsecureTransport),
 		cfg:     cfg,
 		sem:     make(chan struct{}, limit),
 	}

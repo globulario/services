@@ -113,7 +113,7 @@ func registerHealthPulseTool(s *server, st *awarenessState) {
 		coverageSection, coverageAlerts := buildCoverageSection(docsDir, repoRoot, staleHours)
 		alerts = append(alerts, coverageAlerts...)
 
-		runtimeSection, runtimeAlerts := buildRuntimeSection()
+		runtimeSection, runtimeAlerts := buildRuntimeSection(repoRoot)
 		alerts = append(alerts, runtimeAlerts...)
 
 		queueSection, queueAlerts := buildQueueSection(docsDir, staleHours)
@@ -209,15 +209,24 @@ func buildCoverageSection(docsDir, repoRoot string, staleHours float64) (healthP
 	}, alerts
 }
 
-// buildRuntimeSection reports runtime bridge status. In the main MCP server,
-// cluster addresses are resolved from etcd — no static config is present,
-// so this section always reports "noop" (not an error, just a different mode).
-func buildRuntimeSection() (healthPulseRuntimeSection, []healthPulseAlert) {
-	configured := 0
-	total := 4 // controller, doctor, workflow, prometheus
-	var missingConfig []string
-	runtimeStatus := computeRuntimeStatus(configured, total, missingConfig, false)
+// buildRuntimeSection reports runtime bridge status by loading the real runtime
+// sources config from repoRoot/.awareness/runtime_sources.yaml. Uses the same
+// evaluateRuntimeActivation logic as the runtime_activation_check tool so the
+// two never diverge.
+func buildRuntimeSection(repoRoot string) (healthPulseRuntimeSection, []healthPulseAlert) {
+	cfg := loadRuntimeSourcesConfig(repoRoot)
+	result := evaluateRuntimeActivation(cfg, false, false)
 
+	configured := 0
+	total := 0
+	for _, src := range result.Sources {
+		total++
+		if src.Configured {
+			configured++
+		}
+	}
+
+	runtimeStatus := result.RuntimeAwarenessStatus
 	sectionStatus := "ok"
 	var alerts []healthPulseAlert
 	switch runtimeStatus {

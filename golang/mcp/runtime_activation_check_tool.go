@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -69,88 +68,8 @@ func registerRuntimeActivationCheckTool(s *server, st *awarenessState) {
 			checkCreds = v
 		}
 
-		// In the main MCP server, cluster addresses are resolved from etcd.
-		// Static runtime addresses are not configured — all sources report unconfigured.
-		transport := "mtls"
-		credentialsPresent := false
-		// Check standard Globular CA path.
-		const defaultCA = "/var/lib/globular/pki/ca.crt"
-		if fileReadable(defaultCA) {
-			credentialsPresent = true
-		}
-
-		// Define sources.
-		type sourceDef struct {
-			name string
-			addr string
-		}
-		sourceDefs := []sourceDef{
-			{"controller", ""},
-			{"doctor", ""},
-			{"workflow", ""},
-			{"prometheus", ""},
-		}
-
-		var sources []sourceActivationStatus
-		var missingConfig []string
-		configuredCount := 0
-
-		for _, src := range sourceDefs {
-			configured := src.addr != ""
-			if configured {
-				configuredCount++
-			} else {
-				missingConfig = append(missingConfig, addrFieldName(src.name))
-			}
-
-			status := sourceActivationStatus{
-				Source:             src.name,
-				Configured:         configured,
-				Connectivity:       "not_checked",
-				CredentialsPresent: credentialsPresent || !configured,
-			}
-			if configured {
-				status.Address = src.addr
-				status.Transport = transport
-				if checkCreds && !credentialsPresent {
-					status.CredentialsPresent = false
-					status.LastError = "mTLS credentials missing or unreadable"
-				}
-				if checkConn && status.CredentialsPresent {
-					connStatus, connErr := dialCheck(src.addr, 2*time.Second)
-					status.Connectivity = connStatus
-					status.LastError = connErr
-				}
-			}
-			sources = append(sources, status)
-		}
-
-		// Also flag missing TLS files explicitly.
-		if !fileReadable(defaultCA) {
-			missingConfig = append(missingConfig, fmt.Sprintf("CACert (not found: %s)", defaultCA))
-		}
-
-		// Compute overall status.
-		overallStatus := computeRuntimeStatus(configuredCount, len(sourceDefs), missingConfig, false)
-
-		// Build recommended config hint.
-		recommended := buildRecommendedConfig()
-
-		// Confidence.
-		confidence := "high"
-		if configuredCount == 0 {
-			confidence = "low"
-		} else if configuredCount < len(sourceDefs) {
-			confidence = "medium"
-		}
-
-		return &runtimeActivationResult{
-			RuntimeAwarenessStatus: overallStatus,
-			Sources:                sources,
-			MissingConfig:          missingConfig,
-			RecommendedConfig:      recommended,
-			Confidence:             confidence,
-		}, nil
+		cfg := loadRuntimeSourcesConfig(st.repoRoot)
+		return evaluateRuntimeActivation(cfg, checkCreds, checkConn), nil
 	})
 }
 

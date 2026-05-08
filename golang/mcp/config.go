@@ -63,6 +63,11 @@ type MCPConfig struct {
 	// Audit
 	AuditLog     bool   `json:"audit_log"`      // true by default
 	AuditLogPath string `json:"audit_log_path"` // default stderr
+
+	// InsecureTransport allows plaintext gRPC when TLS credentials are unavailable.
+	// False by default: production clusters always use mTLS.
+	// Set to true only for local dev/test environments without PKI.
+	InsecureTransport bool `json:"insecure_transport"`
 }
 
 // ToolGroupConfig controls which tool groups are registered.
