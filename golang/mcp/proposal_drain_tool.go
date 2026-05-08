@@ -89,7 +89,8 @@ type reviewPlanResult struct {
 func registerProposalDrainTools(s *server, st *awarenessState) {
 	registerProposalReviewPlanTool(s, st)
 	registerValidateProposalBatchTool(s, st)
-	registerPromoteApprovedProposalsTool(s, st)
+	// registerPromoteApprovedProposalsTool intentionally NOT called here.
+	// Promotion is CLI-only per awareness.mcp_must_not_expose_promotion invariant.
 }
 
 func registerProposalReviewPlanTool(s *server, st *awarenessState) {

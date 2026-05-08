@@ -18,7 +18,6 @@ import (
 	"github.com/globulario/services/golang/awareness/debugsession"
 	"github.com/globulario/services/golang/awareness/enforce"
 	"github.com/globulario/services/golang/awareness/graph"
-	mcpaware "github.com/globulario/services/golang/awareness/mcp"
 	"github.com/globulario/services/golang/awareness/preflight"
 	"github.com/globulario/services/golang/awareness/semantic"
 )
@@ -555,33 +554,51 @@ func checkPreflightAudit(ctx context.Context, g *graph.Graph) CheckResult {
 
 // checkMCPDiscovery verifies promote_proposal is NOT exposed via MCP.
 // MCP safety invariant: awareness.mcp_must_not_expose_promotion.
+// checkMCPDiscovery verifies the awareness.mcp_must_not_expose_promotion invariant
+// by scanning the MCP registration source for forbidden calls.
+// The standalone awareness/mcp server was removed in v1.2.20; the invariant is now
+// enforced in golang/mcp/proposal_drain_tool.go (registerPromoteApprovedProposalsTool
+// is deliberately not called from registerProposalDrainTools).
 func checkMCPDiscovery(opts Options) CheckResult {
 	cr := CheckResult{Kind: KindMCPDiscovery, Name: "mcp_promote_not_exposed"}
 
-	s := mcpaware.New(mcpaware.Config{
-		DBPath:  opts.DBPath,
-		DocsDir: opts.DocsDir,
-	})
-
-	names := s.ToolNames()
-	var violations []string
-	for _, name := range names {
-		lower := strings.ToLower(name)
-		if strings.Contains(lower, "promote") {
-			violations = append(violations, name)
-		}
+	// Locate the MCP proposal drain tool file relative to opts.DocsDir (../golang/mcp/).
+	repoRoot := ""
+	if opts.DocsDir != "" {
+		// DocsDir is typically <repo>/docs/awareness — go up two levels.
+		repoRoot = filepath.Join(opts.DocsDir, "..", "..")
 	}
-
-	if len(violations) > 0 {
-		cr.Status = StatusFail
-		cr.Detail = fmt.Sprintf("MCP exposes promotion tools (must be CLI-only): %s", strings.Join(violations, ", "))
-		cr.FalseSilences = nil
-		// Record as MCPIssue rather than FalseSilence.
+	if repoRoot == "" {
+		cr.Status = StatusSkipped
+		cr.Detail = "docs dir unknown — cannot verify MCP promotion invariant"
 		return cr
 	}
 
+	drainFile := filepath.Join(repoRoot, "golang", "mcp", "proposal_drain_tool.go")
+	data, err := os.ReadFile(drainFile)
+	if err != nil {
+		cr.Status = StatusSkipped
+		cr.Detail = fmt.Sprintf("proposal_drain_tool.go not found (%v) — skipping MCP promotion check", err)
+		return cr
+	}
+
+	// The invariant is violated if registerPromoteApprovedProposalsTool is called
+	// from registerProposalDrainTools (i.e., the call is present and uncommented).
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "//") {
+			continue // skip comments
+		}
+		if strings.Contains(trimmed, "registerPromoteApprovedProposalsTool") {
+			cr.Status = StatusFail
+			cr.Detail = "MCP exposes promote_approved_proposals (must be CLI-only) — remove call from registerProposalDrainTools"
+			return cr
+		}
+	}
+
 	cr.Status = StatusPass
-	cr.Detail = fmt.Sprintf("MCP tool list (%d tools) does not expose promote_proposal — safety invariant holds", len(names))
+	cr.Detail = "MCP proposal_drain_tool.go does not call registerPromoteApprovedProposalsTool — promotion invariant holds"
 	return cr
 }
 
