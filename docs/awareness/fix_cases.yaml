@@ -260,20 +260,21 @@ fix_cases:
 
   - id: topology_safety_drift_reconciler
     title: Topology drift reconciler must respect safety contracts
-    status: PARTIAL
+    status: DONE
     pattern: "topology drift unsafe"
     category: safety
     target_invariants:
       - topology.reconciler_must_respect_safety_contract
     fixed_files:
       - golang/cluster_controller/cluster_controller_server/repair_node_workflow.go
-    remaining_files:
       - golang/cluster_controller/cluster_controller_server/drift_action_planner.go
+      - golang/cluster_controller/cluster_controller_server/reconciler.go
+      - golang/cluster_controller/cluster_controller_server/drift_action_planner_test.go
     required_tests:
       - TestStaleMajorityTopologyRejectedWhileSafeActionsRun
       - TestPerActionSafetyGateDeterministic
     dod: Drift reconciler becomes safety-aware, not purely convergent.
-    notes: "PARTIAL 2026-05-04. topologyPreflightForRemove done; drift action planner calls missing."
+    notes: "DONE 2026-05-07. drift_action_planner.go adds classifyDriftAction/driftActionSafe. reconcileOnce uses per-action gate — SERVICE/COMMAND continue when topology is degraded; INFRASTRUCTURE blocked when violations present. Both required tests pass."
 
   - id: drift_severity_escalation
     title: Service drift must age and escalate severity

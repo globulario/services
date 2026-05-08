@@ -116,23 +116,17 @@ func (srv *server) recordDriftReconcileOutcome(ctx context.Context, runCtxErr er
 
 func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 	r.expireStale()
-	if violations := r.srv.driftTopologyPreflight(ctx); len(violations) > 0 {
-		kinds := make([]string, 0, len(violations))
-		for _, v := range violations {
-			log.Printf("CRITICAL: drift-reconciler topology preflight blocked: %s", v.Error())
-			kinds = append(kinds, v.Kind)
+
+	// Run topology preflight once. Violations are applied per-action via the
+	// drift action planner (drift_action_planner.go). Safe actions (SERVICE,
+	// COMMAND) always proceed; topology-affecting actions (INFRASTRUCTURE) are
+	// blocked when violations are present. This replaces the previous early-return
+	// that halted all drift processing on any topology violation.
+	topoViolations := r.srv.driftTopologyPreflight(ctx)
+	if len(topoViolations) > 0 {
+		for _, v := range topoViolations {
+			log.Printf("drift-reconciler: topology preflight violation (safe actions continue): %s", v.Error())
 		}
-		reconcileBlockedPhase.WithLabelValues("drift_reconcile").Set(1)
-		r.srv.publishReconcileLaneStatus(ctx, "drift_reconcile", reconcileLaneStatus{
-			Phase:     "DEGRADED",
-			Running:   false,
-			LastError: fmt.Sprintf("topology preflight blocked drift reconcile: %s", strings.Join(kinds, ",")),
-		})
-		r.srv.emitClusterEvent("cluster.reconcile.topology_blocked", map[string]interface{}{
-			"lane":       "drift_reconcile",
-			"violations": kinds,
-		})
-		return
 	}
 
 	desired := r.srv.collectDesiredVersions(ctx)
@@ -249,6 +243,37 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 				continue
 			}
 			kind, name := parts[0], parts[1]
+
+			// Per-action topology safety gate. Topology-affecting actions
+			// (INFRASTRUCTURE) are blocked when preflight violations are present.
+			// Safe actions (SERVICE, COMMAND) always proceed regardless of topology
+			// state — a version bump must not stall because objectstore config drifted.
+			action := driftAction{
+				NodeID:     nodeID,
+				PackageKey: desiredKey,
+				Kind:       kind,
+				ActionKind: classifyDriftAction(kind),
+			}
+			if !driftActionSafe(action, topoViolations) {
+				kinds := make([]string, 0, len(topoViolations))
+				for _, v := range topoViolations {
+					kinds = append(kinds, v.Kind)
+				}
+				log.Printf("drift-reconciler: topology gate blocked %s on node=%s violations=%s",
+					desiredKey, nodeID, strings.Join(kinds, ","))
+				reconcileBlockedPhase.WithLabelValues("drift_reconcile").Set(1)
+				r.srv.publishReconcileLaneStatus(ctx, "drift_reconcile", reconcileLaneStatus{
+					Phase:     "DEGRADED",
+					Running:   false,
+					LastError: fmt.Sprintf("topology gate blocked %s: %s", desiredKey, strings.Join(kinds, ",")),
+				})
+				r.srv.emitClusterEvent("cluster.reconcile.topology_blocked", map[string]interface{}{
+					"lane":       "drift_reconcile",
+					"package":    desiredKey,
+					"violations": kinds,
+				})
+				continue
+			}
 
 			// Only reconcile SERVICE packages; infrastructure is managed by bootstrap.
 			if kind != "SERVICE" {
