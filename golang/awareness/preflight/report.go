@@ -59,8 +59,8 @@ type RawKnowledgeMatch struct {
 // why graph_filtered_by_trust_count > 0.
 type FilteredMatch struct {
 	ID         string `json:"id"`
-	Kind       string `json:"kind"`       // invariant, failure_mode, forbidden_fix
-	Reason     string `json:"reason"`     // stale, inferred, invalid, proposal, missing_provenance
+	Kind       string `json:"kind"`   // invariant, failure_mode, forbidden_fix
+	Reason     string `json:"reason"` // stale, inferred, invalid, proposal, missing_provenance
 	TrustLevel string `json:"trust_level"`
 }
 
@@ -151,6 +151,42 @@ type GraphFreshnessReport struct {
 	RebuildRecommended  bool    `json:"rebuild_recommended"`
 }
 
+// ConfidenceFactors explains why a confidence level was assigned.
+type ConfidenceFactors struct {
+	Coverage        CoverageState `json:"coverage"`
+	Provenance      string        `json:"provenance"`
+	GraphFreshness  CoverageState `json:"graph_freshness"`
+	PathQuality     string        `json:"path_quality"`
+	RuntimeEvidence CoverageState `json:"runtime_evidence"`
+}
+
+// SafetyStatus indicates whether the current evidence quality is safe enough
+// to proceed without escalation.
+type SafetyStatus string
+
+const (
+	SafetyStatusProceed        SafetyStatus = "PROCEED"
+	SafetyStatusUnknownNotSafe SafetyStatus = "UNKNOWN_NOT_SAFE"
+)
+
+type RiskTier string
+
+const (
+	RiskLow    RiskTier = "low"
+	RiskMedium RiskTier = "medium"
+	RiskHigh   RiskTier = "high"
+)
+
+// DegradedModePlaybook provides deterministic guidance when evidence quality
+// is degraded and preflight cannot safely produce high-confidence decisions.
+type DegradedModePlaybook struct {
+	Enabled          bool     `json:"enabled"`
+	Reason           string   `json:"reason,omitempty"`
+	AllowedNextSteps []string `json:"allowed_next_steps,omitempty"`
+	BlockedActions   []string `json:"blocked_actions,omitempty"`
+	StopConditions   []string `json:"stop_conditions,omitempty"`
+}
+
 // Report is the complete output of a preflight run.
 type Report struct {
 	Task                string                   `json:"task"`
@@ -184,10 +220,15 @@ type Report struct {
 	GraphFreshness      *GraphFreshnessReport    `json:"graph_freshness,omitempty"`
 
 	// Graph coverage detail — tells callers WHY a result has no/few matches.
-	GraphAvailable            bool            `json:"graph_available"`
-	GraphDBPath               string          `json:"graph_db_path,omitempty"`
-	GraphMatchCount           int             `json:"graph_match_count"`
-	GraphFilteredByTrustCount int             `json:"graph_filtered_by_trust_count"`
-	RawYAMLMatchCount         int             `json:"raw_yaml_match_count"`
-	FilteredMatches           []FilteredMatch `json:"filtered_matches,omitempty"`
+	GraphAvailable            bool                 `json:"graph_available"`
+	GraphDBPath               string               `json:"graph_db_path,omitempty"`
+	GraphMatchCount           int                  `json:"graph_match_count"`
+	GraphFilteredByTrustCount int                  `json:"graph_filtered_by_trust_count"`
+	RawYAMLMatchCount         int                  `json:"raw_yaml_match_count"`
+	FilteredMatches           []FilteredMatch      `json:"filtered_matches,omitempty"`
+	ConfidenceFactors         ConfidenceFactors    `json:"confidence_factors"`
+	SafetyStatus              SafetyStatus         `json:"safety_status"`
+	DegradedMode              DegradedModePlaybook `json:"degraded_mode"`
+	RiskTier                  RiskTier             `json:"risk_tier"`
+	FastPathApplied           bool                 `json:"fast_path_applied"`
 }

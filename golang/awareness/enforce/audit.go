@@ -8,6 +8,11 @@ import (
 
 // AuditOptions controls which checks are run.
 type AuditOptions struct {
+	// RepoRoot is the repository root used for optional filesystem-backed checks.
+	// When set, required-test validation may resolve test targets from *_test.go
+	// even when graph test nodes are missing path metadata.
+	RepoRoot string
+
 	// SrcDir is the root directory to walk for annotation validation.
 	// Leave empty to skip file-system annotation checks.
 	SrcDir string
@@ -57,7 +62,7 @@ func Audit(ctx context.Context, g *graph.Graph, opts AuditOptions) *AuditResult 
 				Message:  "required-test check skipped — no graph DB",
 			})
 		} else {
-			all = append(all, ValidateRequiredTests(ctx, g)...)
+			all = append(all, ValidateRequiredTestsWithRepo(ctx, g, opts.RepoRoot)...)
 		}
 	}
 

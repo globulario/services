@@ -367,3 +367,85 @@ func TestValidateFullProposalFromFixturePasses(t *testing.T) {
 		t.Error("expected PASS for full valid fixture proposal")
 	}
 }
+
+func TestFalsePositiveFeedback_RecordHasRequiredFields(t *testing.T) {
+	ctx := context.Background()
+	g := seedValidateGraph(t)
+
+	p := &learning.ProposalSpec{
+		Proposal: learning.ProposalHeader{
+			ID:             "proposal.fp",
+			SourceIncident: "test.incident",
+			Status:         learning.StatusDraft,
+		},
+		FailureModes: []learning.ProposedFailureMode{
+			{
+				ID:              "test.fp",
+				Title:           "False positive feedback",
+				Severity:        "high",
+				Symptoms:        []string{"noise"},
+				RootCause:       "rules too broad",
+				ArchitectureFix: "narrow matching",
+				RelatedServices: []string{"envoy"},
+				RequiredTests:   []string{"TestFP"},
+			},
+		},
+		Evidence: learning.ProposalEvidence{
+			SourceIncident: "test.incident",
+			FalsePositive: &learning.FalsePositiveFeedback{
+				FindingID:        "HIGH_RISK_FILE_NO_ANNOTATIONS",
+				WhyFalsePositive: "test fixture file triggered production-only rule",
+				EvidenceLink:     "docs/awareness/proposals/fp-example.md",
+				Owner:            "awareness-team",
+				Reviewer:         "reviewer@example.com",
+			},
+		},
+	}
+
+	result, err := learning.ValidateProposal(ctx, p, g)
+	if err != nil {
+		t.Fatalf("ValidateProposal: %v", err)
+	}
+	if result.Status != learning.ValidationPass {
+		t.Fatalf("expected PASS with complete false-positive feedback payload; got %v", result.Status)
+	}
+}
+
+func TestFalsePositiveFeedback_MissingRequiredFieldsBlocks(t *testing.T) {
+	ctx := context.Background()
+	g := seedValidateGraph(t)
+
+	p := &learning.ProposalSpec{
+		Proposal: learning.ProposalHeader{
+			ID:             "proposal.fp.missing",
+			SourceIncident: "test.incident",
+			Status:         learning.StatusDraft,
+		},
+		FailureModes: []learning.ProposedFailureMode{
+			{
+				ID:              "test.fp.missing",
+				Title:           "False positive feedback missing fields",
+				Severity:        "high",
+				Symptoms:        []string{"noise"},
+				RootCause:       "rules too broad",
+				ArchitectureFix: "narrow matching",
+				RelatedServices: []string{"envoy"},
+				RequiredTests:   []string{"TestFPMissing"},
+			},
+		},
+		Evidence: learning.ProposalEvidence{
+			SourceIncident: "test.incident",
+			FalsePositive: &learning.FalsePositiveFeedback{
+				FindingID: "HIGH_RISK_FILE_NO_ANNOTATIONS",
+			},
+		},
+	}
+
+	result, err := learning.ValidateProposal(ctx, p, g)
+	if err != nil {
+		t.Fatalf("ValidateProposal: %v", err)
+	}
+	if result.Status != learning.ValidationFail {
+		t.Fatalf("expected FAIL when false-positive payload is incomplete")
+	}
+}

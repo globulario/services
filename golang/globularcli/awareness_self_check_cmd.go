@@ -12,9 +12,10 @@ import (
 )
 
 var selfCheckCfg = struct {
-	format         string
-	createIncident bool
-	strict         bool
+	format             string
+	createIncident     bool
+	strict             bool
+	maxTopWarningGroup int
 }{}
 
 var awarenessSelfCheckCmd = &cobra.Command{
@@ -68,10 +69,11 @@ Examples:
 		}
 
 		opts := selfcheck.Options{
-			RepoPath: repoRoot,
-			DocsDir:  docsDir,
-			DBPath:   dbPath,
-			Strict:   selfCheckCfg.strict,
+			RepoPath:           repoRoot,
+			DocsDir:            docsDir,
+			DBPath:             dbPath,
+			Strict:             selfCheckCfg.strict,
+			MaxTopWarningGroup: selfCheckCfg.maxTopWarningGroup,
 		}
 
 		r, err := selfcheck.Run(ctx, opts, g)
@@ -116,6 +118,8 @@ func init() {
 		"Write an incident bundle to docs/awareness/incidents/ when checks fail (no proposal generated)")
 	awarenessSelfCheckCmd.Flags().BoolVar(&selfCheckCfg.strict, "strict", false,
 		"Exit non-zero if any check fails")
+	awarenessSelfCheckCmd.Flags().IntVar(&selfCheckCfg.maxTopWarningGroup, "max-top-warning-group", -1,
+		"Fail strict self-check if the largest audit warning group exceeds this count (-1 disables)")
 	awarenessSelfCheckCmd.Flags().StringVar(&awareCfg.dbPath, "db", "",
 		"Path to graph.db (default: .globular/awareness/graph.db)")
 	awarenessSelfCheckCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "",

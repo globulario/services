@@ -15,10 +15,14 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,19 +33,25 @@ import (
 )
 
 var enforceCfg = struct {
-	jsonOutput       bool
-	files            []string
-	fromGitDiff      bool
-	strict           bool
-	watchlist        string
-	auditStrict      bool
-	summary          bool
-	failOnWarning    bool
-	warningThreshold int
-	suppressionsFile string
-	showSuppressed   bool
+	jsonOutput            bool
+	files                 []string
+	fromGitDiff           bool
+	strict                bool
+	watchlist             string
+	auditStrict           bool
+	summary               bool
+	failOnWarning         bool
+	warningThreshold      int
+	suppressionsFile      string
+	showSuppressed        bool
+	maxRequiredTestNoPath int
+	trendFile             string
+	trendRecord           bool
+	trendLast             int
 }{
-	warningThreshold: -1, // disabled by default
+	warningThreshold:      -1, // disabled by default
+	maxRequiredTestNoPath: -1,
+	trendLast:             20,
 }
 
 // ---- audit command ----
@@ -70,7 +80,8 @@ ERRORs are never suppressible.`,
 
 		golangDir := filepath.Join(repoRoot, "golang")
 		result := enforce.Audit(ctx, g, enforce.AuditOptions{
-			SrcDir: golangDir,
+			RepoRoot: repoRoot,
+			SrcDir:   golangDir,
 		})
 		if enforceCfg.auditStrict {
 			watchlist := enforceCfg.watchlist
@@ -136,8 +147,215 @@ ERRORs are never suppressible.`,
 		if enforce.FailsWarningThreshold(triaged, enforceCfg.warningThreshold) {
 			os.Exit(1)
 		}
+		if enforceCfg.maxRequiredTestNoPath >= 0 {
+			if count := warningGroupCount(triaged.Groups, "REQUIRED_TEST_NO_PATH"); count > enforceCfg.maxRequiredTestNoPath {
+				fmt.Fprintf(os.Stderr, "REQUIRED_TEST_NO_PATH threshold exceeded: %d > %d\n", count, enforceCfg.maxRequiredTestNoPath)
+				os.Exit(1)
+			}
+		}
 		if enforceCfg.auditStrict && enforce.HasSuppressionProblems(triaged) {
 			os.Exit(1)
+		}
+		return nil
+	},
+}
+
+var awarenessRequiredTestsBacklogCmd = &cobra.Command{
+	Use:   "required-tests-backlog",
+	Short: "List unique missing required test targets and referencing symbols",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := context.Background()
+		repoRoot, err := resolveRepoRoot(awareCfg.repoPath)
+		if err != nil {
+			return err
+		}
+		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
+		if err != nil {
+			return err
+		}
+		defer g.Close()
+
+		findings := enforce.ValidateRequiredTestsWithRepo(ctx, g, repoRoot)
+		type backlogEntry struct {
+			Test        string   `json:"test"`
+			Refs        []string `json:"refs"`
+			Suggestions []string `json:"suggestions,omitempty"`
+		}
+		byTest := make(map[string]map[string]bool)
+		re := regexp.MustCompile(`tested_by target '([^']+)'`)
+		for _, f := range findings {
+			if f.Code != "REQUIRED_TEST_NO_PATH" {
+				continue
+			}
+			m := re.FindStringSubmatch(f.Message)
+			if len(m) != 2 {
+				continue
+			}
+			testName := m[1]
+			if byTest[testName] == nil {
+				byTest[testName] = make(map[string]bool)
+			}
+			if strings.TrimSpace(f.Symbol) != "" {
+				byTest[testName][f.Symbol] = true
+			}
+		}
+
+		var tests []string
+		for t := range byTest {
+			tests = append(tests, t)
+		}
+		sort.Strings(tests)
+		if len(tests) == 0 {
+			fmt.Fprintln(os.Stdout, "No REQUIRED_TEST_NO_PATH backlog entries.")
+			return nil
+		}
+		var entries []backlogEntry
+		for _, tname := range tests {
+			var symbols []string
+			for s := range byTest[tname] {
+				symbols = append(symbols, s)
+			}
+			sort.Strings(symbols)
+			entry := backlogEntry{
+				Test: tname,
+				Refs: symbols,
+			}
+			for _, sym := range symbols {
+				n, err := g.FindNode(ctx, sym)
+				if err != nil || n == nil {
+					continue
+				}
+				if p := strings.TrimSpace(n.Path); p != "" {
+					entry.Suggestions = append(entry.Suggestions, p)
+				}
+			}
+			entry.Suggestions = dedupeSorted(entry.Suggestions)
+			entries = append(entries, entry)
+		}
+		outputMode := strings.ToLower(strings.TrimSpace(rootCfg.output))
+		if outputMode == "json" {
+			out := struct {
+				Total   int            `json:"total"`
+				Entries []backlogEntry `json:"entries"`
+			}{
+				Total:   len(entries),
+				Entries: entries,
+			}
+			b, _ := json.MarshalIndent(out, "", "  ")
+			fmt.Fprintln(os.Stdout, string(b))
+			return nil
+		}
+		for _, entry := range entries {
+			fmt.Fprintf(os.Stdout, "- %s", entry.Test)
+			if len(entry.Refs) > 0 {
+				fmt.Fprintf(os.Stdout, " | refs: %s", strings.Join(entry.Refs, ", "))
+			}
+			if len(entry.Suggestions) > 0 {
+				fmt.Fprintf(os.Stdout, " | suggested-sources: %s", strings.Join(entry.Suggestions, ", "))
+			}
+			fmt.Fprintln(os.Stdout)
+		}
+		fmt.Fprintf(os.Stdout, "\nTotal missing test targets: %d\n", len(entries))
+		return nil
+	},
+}
+
+func dedupeSorted(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(values))
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		if strings.TrimSpace(v) == "" || seen[v] {
+			continue
+		}
+		seen[v] = true
+		out = append(out, v)
+	}
+	sort.Strings(out)
+	return out
+}
+
+type warningTrendEntry struct {
+	Timestamp string         `json:"timestamp"`
+	Codes     map[string]int `json:"codes"`
+}
+
+var awarenessAuditTrendCmd = &cobra.Command{
+	Use:   "audit-trend",
+	Short: "Show or record audit warning trends by code",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := context.Background()
+		repoRoot, err := resolveRepoRoot(awareCfg.repoPath)
+		if err != nil {
+			return err
+		}
+		g, _ := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
+		if g != nil {
+			defer g.Close()
+		}
+		result := enforce.Audit(ctx, g, enforce.AuditOptions{
+			RepoRoot: repoRoot,
+			SrcDir:   filepath.Join(repoRoot, "golang"),
+		})
+		var warnings []enforce.Finding
+		for _, f := range result.Findings {
+			if f.Severity == enforce.SeverityWarning {
+				warnings = append(warnings, f)
+			}
+		}
+		groups := enforce.GroupFindings(warnings)
+		current := make(map[string]int)
+		for _, gr := range groups {
+			current[gr.Code] = gr.Count
+		}
+
+		trendPath := enforceCfg.trendFile
+		if trendPath == "" {
+			trendPath = filepath.Join(repoRoot, ".globular", "awareness", "audit-trend.jsonl")
+		}
+		entries, _ := readTrendEntries(trendPath)
+		if enforceCfg.trendRecord {
+			if err := os.MkdirAll(filepath.Dir(trendPath), 0o755); err != nil {
+				return err
+			}
+			f, err := os.OpenFile(trendPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			entry := warningTrendEntry{
+				Timestamp: time.Now().UTC().Format(time.RFC3339),
+				Codes:     current,
+			}
+			b, _ := json.Marshal(entry)
+			if _, err := f.Write(append(b, '\n')); err != nil {
+				return err
+			}
+			entries = append(entries, entry)
+		}
+
+		start := 0
+		if enforceCfg.trendLast > 0 && len(entries) > enforceCfg.trendLast {
+			start = len(entries) - enforceCfg.trendLast
+		}
+		fmt.Fprintf(os.Stdout, "Current warning groups: %d\n", len(current))
+		printTopWarningCodes(os.Stdout, current, 10)
+		if len(entries) >= 2 {
+			prev := entries[len(entries)-2].Codes
+			fmt.Fprintln(os.Stdout, "\nDelta vs previous snapshot:")
+			printWarningDelta(os.Stdout, prev, current)
+		}
+		if len(entries) > 0 {
+			fmt.Fprintf(os.Stdout, "\nTrend snapshots (%d shown):\n", len(entries[start:]))
+			for _, e := range entries[start:] {
+				total := 0
+				for _, c := range e.Codes {
+					total += c
+				}
+				fmt.Fprintf(os.Stdout, "- %s total=%d codes=%d\n", e.Timestamp, total, len(e.Codes))
+			}
 		}
 		return nil
 	},
@@ -433,7 +651,8 @@ Exits 0 even when findings exist (informational hook, not a gate).`,
 		fileAudit := enforce.AuditFiles(files)
 		refFindings := enforce.ValidateAnnotationReferences(ctx, g, files)
 		auditResult := enforce.Audit(ctx, g, enforce.AuditOptions{
-			SrcDir: filepath.Join(repoRoot, "golang"),
+			RepoRoot: repoRoot,
+			SrcDir:   filepath.Join(repoRoot, "golang"),
 		})
 		var perFileAudit []enforce.Finding
 		fileSet := map[string]bool{}
@@ -448,13 +667,13 @@ Exits 0 even when findings exist (informational hook, not a gate).`,
 		}
 
 		decision := enforce.EvaluateStrictGate(enforce.StrictGateInput{
-			Strict:               true,
-			HighRisk:             true,
-			Files:                files,
-			Preflight:            pfr,
-			FileAudit:            fileAudit,
+			Strict:                true,
+			HighRisk:              true,
+			Files:                 files,
+			Preflight:             pfr,
+			FileAudit:             fileAudit,
 			AnnotationRefFindings: refFindings,
-			PerFileAuditFindings: perFileAudit,
+			PerFileAuditFindings:  perFileAudit,
 		})
 		if decision.ShouldBlock {
 			fmt.Fprintln(os.Stdout, "\n## Awareness hook: STRICT BLOCK")
@@ -484,6 +703,80 @@ func buildResultFromFindings(findings []enforce.Finding) *enforce.AuditResult {
 	}
 	r.Pass = r.ErrorCount == 0
 	return r
+}
+
+func warningGroupCount(groups []enforce.FindingGroup, code string) int {
+	for _, g := range groups {
+		if g.Code == code {
+			return g.Count
+		}
+	}
+	return 0
+}
+
+func readTrendEntries(path string) ([]warningTrendEntry, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	var out []warningTrendEntry
+	for _, ln := range lines {
+		ln = strings.TrimSpace(ln)
+		if ln == "" {
+			continue
+		}
+		var e warningTrendEntry
+		if err := json.Unmarshal([]byte(ln), &e); err == nil {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
+func printTopWarningCodes(w *os.File, codes map[string]int, n int) {
+	type pair struct {
+		code  string
+		count int
+	}
+	var pairs []pair
+	for c, ct := range codes {
+		pairs = append(pairs, pair{c, ct})
+	}
+	sort.Slice(pairs, func(i, j int) bool {
+		if pairs[i].count == pairs[j].count {
+			return pairs[i].code < pairs[j].code
+		}
+		return pairs[i].count > pairs[j].count
+	})
+	if len(pairs) > n {
+		pairs = pairs[:n]
+	}
+	for _, p := range pairs {
+		fmt.Fprintf(w, "- %s: %d\n", p.code, p.count)
+	}
+}
+
+func printWarningDelta(w *os.File, prev, curr map[string]int) {
+	seen := make(map[string]bool)
+	var codes []string
+	for c := range prev {
+		seen[c] = true
+		codes = append(codes, c)
+	}
+	for c := range curr {
+		if !seen[c] {
+			codes = append(codes, c)
+		}
+	}
+	sort.Strings(codes)
+	for _, c := range codes {
+		d := curr[c] - prev[c]
+		if d == 0 {
+			continue
+		}
+		fmt.Fprintf(w, "- %s: %s%d (now %d)\n", c, map[bool]string{true: "+", false: ""}[d >= 0], d, curr[c])
+	}
 }
 
 // timeNow is a variable so tests can stub it. Production callers leave it as-is.
@@ -519,6 +812,7 @@ func init() {
 	awarenessAuditCmd.Flags().IntVar(&enforceCfg.warningThreshold, "warning-threshold", -1, "Exit 1 if unsuppressed warnings exceed N (-1 disables)")
 	awarenessAuditCmd.Flags().StringVar(&enforceCfg.suppressionsFile, "suppressions", "", "Path to suppression YAML (default: docs/awareness/audit_suppressions.yaml)")
 	awarenessAuditCmd.Flags().BoolVar(&enforceCfg.showSuppressed, "show-suppressed", false, "Include full detail of suppressed findings in output")
+	awarenessAuditCmd.Flags().IntVar(&enforceCfg.maxRequiredTestNoPath, "max-required-test-no-path", -1, "Exit 1 if REQUIRED_TEST_NO_PATH warning count exceeds N (-1 disables)")
 
 	// validate-annotations
 	awarenessValidateAnnotationsCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
@@ -560,9 +854,25 @@ func init() {
 	awarenessCmd.AddCommand(awarenessAuditCmd)
 	awarenessCmd.AddCommand(awarenessValidateAnnotationsCmd)
 	awarenessCmd.AddCommand(awarenessValidateRequiredTestsCmd)
+	awarenessCmd.AddCommand(awarenessRequiredTestsBacklogCmd)
+	awarenessRequiredTestsBacklogCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessRequiredTestsBacklogCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 	awarenessCmd.AddCommand(awarenessValidateContractsCmd)
 	awarenessCmd.AddCommand(awarenessGraphDriftCmd)
 	awarenessCmd.AddCommand(awarenessAnnotationCoverageCmd)
 	awarenessCmd.AddCommand(awarenessPRReportCmd)
 	awarenessCmd.AddCommand(awarenessHookCmd)
+	awarenessCmd.AddCommand(awarenessAuditTrendCmd)
+	awarenessAuditTrendCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessAuditTrendCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
+	awarenessAuditTrendCmd.Flags().StringVar(&enforceCfg.trendFile, "trend-file", "", "Path to audit trend jsonl file")
+	awarenessAuditTrendCmd.Flags().BoolVar(&enforceCfg.trendRecord, "record", false, "Append current warning-code snapshot to trend file")
+	awarenessAuditTrendCmd.Flags().IntVar(&enforceCfg.trendLast, "last", 20, "Show last N trend snapshots")
+
+	// Parse helper for max-required-test-no-path from env in CI wrappers if needed.
+	if v := strings.TrimSpace(os.Getenv("AWARENESS_MAX_REQUIRED_TEST_NO_PATH")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			enforceCfg.maxRequiredTestNoPath = n
+		}
+	}
 }

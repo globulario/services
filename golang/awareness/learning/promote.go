@@ -57,6 +57,9 @@ func PromoteProposal(ctx context.Context, p *ProposalSpec, vr *ProposalValidatio
 	if !o.AllowUnapproved && p.Proposal.Status != StatusApproved {
 		return nil, fmt.Errorf("proposal has status %q; promotion requires APPROVED status (use --allow-unapproved to override in developer mode)", p.Proposal.Status)
 	}
+	if !o.AllowUnapproved && strings.TrimSpace(p.Proposal.ApprovedBy) == "" {
+		return nil, fmt.Errorf("proposal %q is APPROVED but missing approved_by reviewer identity", p.Proposal.ID)
+	}
 
 	result := &PromotionResult{GraphRebuildNeeded: true}
 
@@ -108,10 +111,12 @@ func PromoteProposal(ctx context.Context, p *ProposalSpec, vr *ProposalValidatio
 	markerPath := filepath.Join(docsAwarenessDir, "proposals",
 		sanitiseID(p.Proposal.ID)+".promoted")
 	_ = os.WriteFile(markerPath, []byte(fmt.Sprintf(
-		"promoted_at: %s\nproposal_id: %s\nsource_incident: %s\n",
+		"promoted_at: %s\nproposal_id: %s\nsource_incident: %s\napproved_by: %s\napproved_at: %s\n",
 		time.Now().UTC().Format(time.RFC3339),
 		p.Proposal.ID,
 		p.Proposal.SourceIncident,
+		p.Proposal.ApprovedBy,
+		p.Proposal.ApprovedAt,
 	)), 0o644)
 
 	return result, nil
@@ -125,15 +130,15 @@ type invariantFile struct {
 }
 
 type rawInvariant struct {
-	ID             string           `yaml:"id"`
-	Title          string           `yaml:"title"`
-	Severity       string           `yaml:"severity"`
-	Status         string           `yaml:"status,omitempty"`
-	Summary        string           `yaml:"summary"`
-	Protects       *rawProtects     `yaml:"protects,omitempty"`
-	ForbiddenFixes []string         `yaml:"forbidden_fixes,omitempty"`
-	RequiredTests  []string         `yaml:"required_tests,omitempty"`
-	RelatedFailureModes []string    `yaml:"related_failure_modes,omitempty"`
+	ID                  string       `yaml:"id"`
+	Title               string       `yaml:"title"`
+	Severity            string       `yaml:"severity"`
+	Status              string       `yaml:"status,omitempty"`
+	Summary             string       `yaml:"summary"`
+	Protects            *rawProtects `yaml:"protects,omitempty"`
+	ForbiddenFixes      []string     `yaml:"forbidden_fixes,omitempty"`
+	RequiredTests       []string     `yaml:"required_tests,omitempty"`
+	RelatedFailureModes []string     `yaml:"related_failure_modes,omitempty"`
 }
 
 type rawProtects struct {
@@ -170,9 +175,9 @@ func mergeInvariants(path string, proposed []ProposedInvariant) ([]string, error
 		}
 		if inv.Protects != nil {
 			ri.Protects = &rawProtects{
-				State:   inv.Protects.State,
-				Files:   inv.Protects.Files,
-				Symbols: inv.Protects.Symbols,
+				State:    inv.Protects.State,
+				Files:    inv.Protects.Files,
+				Symbols:  inv.Protects.Symbols,
 				Services: inv.Protects.Services,
 			}
 		}
@@ -193,16 +198,16 @@ type failureModesFile struct {
 }
 
 type rawFailureMode struct {
-	ID              string   `yaml:"id"`
-	Title           string   `yaml:"title"`
-	Severity        string   `yaml:"severity,omitempty"`
-	Symptoms        []string `yaml:"symptoms"`
-	RootCause       string   `yaml:"root_cause"`
-	ArchitectureFix string   `yaml:"architecture_fix"`
-	ForbiddenFixes  []string `yaml:"forbidden_fixes,omitempty"`
+	ID                string   `yaml:"id"`
+	Title             string   `yaml:"title"`
+	Severity          string   `yaml:"severity,omitempty"`
+	Symptoms          []string `yaml:"symptoms"`
+	RootCause         string   `yaml:"root_cause"`
+	ArchitectureFix   string   `yaml:"architecture_fix"`
+	ForbiddenFixes    []string `yaml:"forbidden_fixes,omitempty"`
 	RelatedInvariants []string `yaml:"related_invariants,omitempty"`
-	RelatedServices []string `yaml:"related_services,omitempty"`
-	RequiredTests   []string `yaml:"required_tests,omitempty"`
+	RelatedServices   []string `yaml:"related_services,omitempty"`
+	RequiredTests     []string `yaml:"required_tests,omitempty"`
 }
 
 func mergeFailureModes(path string, proposed []ProposedFailureMode) ([]string, error) {
@@ -222,16 +227,16 @@ func mergeFailureModes(path string, proposed []ProposedFailureMode) ([]string, e
 			continue
 		}
 		f.FailureModes = append(f.FailureModes, rawFailureMode{
-			ID:               fm.ID,
-			Title:            fm.Title,
-			Severity:         fm.Severity,
-			Symptoms:         fm.Symptoms,
-			RootCause:        fm.RootCause,
-			ArchitectureFix:  fm.ArchitectureFix,
-			ForbiddenFixes:   fm.ForbiddenFixes,
+			ID:                fm.ID,
+			Title:             fm.Title,
+			Severity:          fm.Severity,
+			Symptoms:          fm.Symptoms,
+			RootCause:         fm.RootCause,
+			ArchitectureFix:   fm.ArchitectureFix,
+			ForbiddenFixes:    fm.ForbiddenFixes,
 			RelatedInvariants: fm.RelatedInvariants,
-			RelatedServices:  fm.RelatedServices,
-			RequiredTests:    fm.RequiredTests,
+			RelatedServices:   fm.RelatedServices,
+			RequiredTests:     fm.RequiredTests,
 		})
 		existing[fm.ID] = true
 		added = append(added, fm.ID)

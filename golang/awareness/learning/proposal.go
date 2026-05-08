@@ -23,18 +23,18 @@ const (
 
 // ProposalSpec is the top-level structure of a proposal YAML file.
 type ProposalSpec struct {
-	Proposal            ProposalHeader                     `yaml:"proposal"`
-	FailureModes        []ProposedFailureMode              `yaml:"failure_modes,omitempty"`
-	Invariants          []ProposedInvariant                `yaml:"invariants,omitempty"`
-	ForbiddenFixes      []ProposedForbiddenFix             `yaml:"forbidden_fixes,omitempty"`
-	ScanRules           []ProposedScanRule                 `yaml:"scan_rules,omitempty"`
+	Proposal            ProposalHeader                       `yaml:"proposal"`
+	FailureModes        []ProposedFailureMode                `yaml:"failure_modes,omitempty"`
+	Invariants          []ProposedInvariant                  `yaml:"invariants,omitempty"`
+	ForbiddenFixes      []ProposedForbiddenFix               `yaml:"forbidden_fixes,omitempty"`
+	ScanRules           []ProposedScanRule                   `yaml:"scan_rules,omitempty"`
 	MetricThresholds    map[string]map[string]ThresholdEntry `yaml:"metric_thresholds,omitempty"`
-	RequiredTests       []string                           `yaml:"required_tests,omitempty"`
-	ContextAliases      map[string][]string                `yaml:"context_aliases,omitempty"`
-	ServiceDependencies []ProposedDependency               `yaml:"service_dependencies,omitempty"`
-	ManualRepairs       []string                           `yaml:"manual_repairs,omitempty"`
-	Evidence            ProposalEvidence                   `yaml:"evidence"`
-	LearnSource         string                             `yaml:"learn_source,omitempty"` // "learn_from_fix" or "incident"
+	RequiredTests       []string                             `yaml:"required_tests,omitempty"`
+	ContextAliases      map[string][]string                  `yaml:"context_aliases,omitempty"`
+	ServiceDependencies []ProposedDependency                 `yaml:"service_dependencies,omitempty"`
+	ManualRepairs       []string                             `yaml:"manual_repairs,omitempty"`
+	Evidence            ProposalEvidence                     `yaml:"evidence"`
+	LearnSource         string                               `yaml:"learn_source,omitempty"` // "learn_from_fix" or "incident"
 }
 
 // ProposedScanRule is a static analysis rule proposed by the learning system.
@@ -62,32 +62,34 @@ type ProposalHeader struct {
 	SourceIncident string `yaml:"source_incident"`
 	Status         string `yaml:"status"`
 	CreatedAt      string `yaml:"created_at,omitempty"`
+	ApprovedBy     string `yaml:"approved_by,omitempty"`
+	ApprovedAt     string `yaml:"approved_at,omitempty"`
 }
 
 // ProposedFailureMode is a failure mode proposed by the awareness learning system.
 type ProposedFailureMode struct {
-	ID               string              `yaml:"id"`
-	Title            string              `yaml:"title"`
-	Severity         string              `yaml:"severity"`
-	Symptoms         []string            `yaml:"symptoms"`
-	RootCause        string              `yaml:"root_cause"`
-	ArchitectureFix  string              `yaml:"architecture_fix"`
-	RelatedInvariants []string           `yaml:"related_invariants,omitempty"`
-	RelatedServices  []string            `yaml:"related_services,omitempty"`
-	ForbiddenFixes   []string            `yaml:"forbidden_fixes,omitempty"`
-	RequiredTests    []string            `yaml:"required_tests,omitempty"`
-	Protects         *ProposedProtects   `yaml:"protects,omitempty"`
+	ID                string            `yaml:"id"`
+	Title             string            `yaml:"title"`
+	Severity          string            `yaml:"severity"`
+	Symptoms          []string          `yaml:"symptoms"`
+	RootCause         string            `yaml:"root_cause"`
+	ArchitectureFix   string            `yaml:"architecture_fix"`
+	RelatedInvariants []string          `yaml:"related_invariants,omitempty"`
+	RelatedServices   []string          `yaml:"related_services,omitempty"`
+	ForbiddenFixes    []string          `yaml:"forbidden_fixes,omitempty"`
+	RequiredTests     []string          `yaml:"required_tests,omitempty"`
+	Protects          *ProposedProtects `yaml:"protects,omitempty"`
 }
 
 // ProposedInvariant is an invariant proposed by the awareness learning system.
 type ProposedInvariant struct {
-	ID             string           `yaml:"id"`
-	Title          string           `yaml:"title"`
-	Severity       string           `yaml:"severity"`
-	Summary        string           `yaml:"summary"`
+	ID             string            `yaml:"id"`
+	Title          string            `yaml:"title"`
+	Severity       string            `yaml:"severity"`
+	Summary        string            `yaml:"summary"`
 	Protects       *ProposedProtects `yaml:"protects,omitempty"`
-	ForbiddenFixes []string         `yaml:"forbidden_fixes,omitempty"`
-	RequiredTests  []string         `yaml:"required_tests,omitempty"`
+	ForbiddenFixes []string          `yaml:"forbidden_fixes,omitempty"`
+	RequiredTests  []string          `yaml:"required_tests,omitempty"`
 }
 
 // ProposedProtects declares what state or code an invariant protects.
@@ -116,10 +118,21 @@ type ProposedDependency struct {
 
 // ProposalEvidence links a proposal to its source incident evidence.
 type ProposalEvidence struct {
-	SourceIncident string   `yaml:"source_incident"`
-	Symptoms       []string `yaml:"symptoms,omitempty"`
-	StateDeltas    []string `yaml:"state_deltas,omitempty"`
-	ManualRepairs  []string `yaml:"manual_repairs,omitempty"`
+	SourceIncident string                 `yaml:"source_incident"`
+	Symptoms       []string               `yaml:"symptoms,omitempty"`
+	StateDeltas    []string               `yaml:"state_deltas,omitempty"`
+	ManualRepairs  []string               `yaml:"manual_repairs,omitempty"`
+	FalsePositive  *FalsePositiveFeedback `yaml:"false_positive,omitempty"`
+}
+
+// FalsePositiveFeedback captures structured feedback when a finding is judged
+// to be a false positive and should influence learning proposals.
+type FalsePositiveFeedback struct {
+	FindingID        string `yaml:"finding_id"`
+	WhyFalsePositive string `yaml:"why_false_positive"`
+	EvidenceLink     string `yaml:"evidence_link"`
+	Owner            string `yaml:"owner"`
+	Reviewer         string `yaml:"reviewer"`
 }
 
 // LoadProposalFromFile reads a proposal YAML from path.
@@ -273,6 +286,12 @@ func (p *ProposalSpec) AllProposedInvariantIDs() []string {
 // This is the programmatic equivalent of the approve-proposal CLI command.
 func ApproveProposal(p *ProposalSpec) {
 	p.Proposal.Status = StatusApproved
+	if strings.TrimSpace(p.Proposal.ApprovedBy) == "" {
+		p.Proposal.ApprovedBy = "human-review"
+	}
+	if strings.TrimSpace(p.Proposal.ApprovedAt) == "" {
+		p.Proposal.ApprovedAt = time.Now().UTC().Format(time.RFC3339)
+	}
 }
 
 // AllReferencedInvariantIDs returns all invariant IDs referenced by failure modes.

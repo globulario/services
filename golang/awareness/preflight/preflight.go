@@ -208,8 +208,18 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 		}
 	}
 
+	// 18b. Risk tier and optional low-risk fast path.
+	r.RiskTier = computeRiskTier(r, g)
+	r.FastPathApplied = applyLowRiskFastPath(r)
+
 	// 19. Confidence model.
-	r.Coverage, r.Confidence, r.ConfidenceReason, r.BlindSpots = computeConfidence(r, g)
+	r.Coverage, r.Confidence, r.ConfidenceReason, r.BlindSpots, r.ConfidenceFactors = computeConfidence(r, g)
+	r.SafetyStatus = computeSafetyStatus(r)
+	r.DegradedMode = computeDegradedMode(r)
+	if r.SafetyStatus == SafetyStatusUnknownNotSafe {
+		r.Warnings = append(r.Warnings,
+			"UNKNOWN_NOT_SAFE: evidence is incomplete for a sensitive task. Rebuild graph and collect runtime evidence before code changes.")
+	}
 
 	return r, nil
 }
@@ -221,7 +231,7 @@ func formatTime(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
-func computeConfidence(r *Report, g *graph.Graph) (Coverage, Confidence, string, []string) {
+func computeConfidence(r *Report, g *graph.Graph) (Coverage, Confidence, string, []string, ConfidenceFactors) {
 	// Graph coverage.
 	var graphCov CoverageState
 	if g == nil {
@@ -344,7 +354,129 @@ func computeConfidence(r *Report, g *graph.Graph) (Coverage, Confidence, string,
 		}
 	}
 
-	return cov, conf, reason, blindSpots
+	factors := ConfidenceFactors{
+		Coverage:        cov.Graph,
+		Provenance:      "graph+raw_yaml",
+		GraphFreshness:  graphCov,
+		PathQuality:     "trusted_or_declared",
+		RuntimeEvidence: runtimeCov,
+	}
+	if r.GraphFilteredByTrustCount > 0 {
+		factors.PathQuality = "mixed_trust_paths"
+	}
+	if r.GraphMatchCount == 0 && r.RawYAMLMatchCount > 0 {
+		factors.Provenance = "raw_yaml_fallback"
+	}
+	if g == nil {
+		factors.Provenance = "raw_yaml_only"
+	}
+
+	return cov, conf, reason, blindSpots, factors
+}
+
+func computeSafetyStatus(r *Report) SafetyStatus {
+	if r == nil {
+		return SafetyStatusUnknownNotSafe
+	}
+	sensitive := hasClass(r.Classification, ClassArchitectureSensitive) ||
+		hasClass(r.Classification, ClassConvergenceRisk)
+	unknownImpact := hasClass(r.Classification, ClassUnknownImpact)
+	graphStaleNoRuntime := r.Coverage.Graph == CoverageStale && r.Coverage.Runtime == CoverageNoop
+	if sensitive && (unknownImpact || graphStaleNoRuntime) {
+		return SafetyStatusUnknownNotSafe
+	}
+	return SafetyStatusProceed
+}
+
+func computeDegradedMode(r *Report) DegradedModePlaybook {
+	p := DegradedModePlaybook{}
+	if r == nil {
+		p.Enabled = true
+		p.Reason = "preflight report unavailable"
+		return p
+	}
+
+	graphUnavailable := r.Coverage.Graph == CoverageNotChecked
+	graphStale := r.Coverage.Graph == CoverageStale
+	sensitive := hasClass(r.Classification, ClassArchitectureSensitive) || hasClass(r.Classification, ClassConvergenceRisk)
+	if !(graphUnavailable || graphStale || r.SafetyStatus == SafetyStatusUnknownNotSafe) {
+		return p
+	}
+
+	p.Enabled = true
+	if graphUnavailable {
+		p.Reason = "graph unavailable"
+	} else if graphStale {
+		p.Reason = "graph stale"
+	} else {
+		p.Reason = "insufficient trusted evidence"
+	}
+	p.AllowedNextSteps = []string{
+		"Run `globular awareness build --clean` to refresh graph evidence.",
+		"Re-run preflight with the exact task and target files.",
+		"Use raw YAML matches as guidance only; require tests before any behavior change.",
+	}
+	p.BlockedActions = []string{
+		"Do not apply destructive or runtime-stop changes from inferred intent.",
+		"Do not treat no-match as safe for architecture-sensitive tasks.",
+		"Do not promote confidence to high without refreshed graph or runtime evidence.",
+	}
+	p.StopConditions = []string{
+		"Stop and escalate if preflight still returns UNKNOWN_NOT_SAFE after rebuild.",
+		"Stop if required tests cannot be identified for a sensitive task.",
+	}
+	if sensitive {
+		p.StopConditions = append(p.StopConditions,
+			"Stop if any proposed fix violates listed forbidden fixes.")
+	}
+	return p
+}
+
+func computeRiskTier(r *Report, g *graph.Graph) RiskTier {
+	if r == nil {
+		return RiskHigh
+	}
+	if hasClass(r.Classification, ClassArchitectureSensitive) ||
+		hasClass(r.Classification, ClassConvergenceRisk) ||
+		hasClass(r.Classification, ClassDependencyCycle) ||
+		hasClass(r.Classification, ClassPackageAdmission) ||
+		hasClass(r.Classification, ClassRuntimeIncident) {
+		return RiskHigh
+	}
+	if hasClass(r.Classification, ClassLocalCodeChange) && len(r.Files) == 0 {
+		// Only low risk when the graph was available and confirmed no file impact.
+		// With a nil graph, zero file matches means the graph did not cover this
+		// task — that is a coverage gap, not confirmed low impact.
+		if g != nil {
+			return RiskLow
+		}
+	}
+	return RiskMedium
+}
+
+func applyLowRiskFastPath(r *Report) bool {
+	if r == nil {
+		return false
+	}
+	if r.RiskTier != RiskLow {
+		return false
+	}
+	if hasClass(r.Classification, ClassUnknownImpact) {
+		return false
+	}
+	// Fast-path is only for truly local/no-context tasks. If awareness already
+	// matched aliases or architectural facts, keep full context fidelity.
+	if len(r.MatchedAliases) > 0 || len(r.Invariants) > 0 || len(r.FailureModes) > 0 {
+		return false
+	}
+	if r.GraphFreshness != nil && r.GraphFreshness.Stale {
+		return false
+	}
+	// FastPathApplied is a pure signal — no data is truncated here.
+	// Context reduction for presentation belongs in the render layer, not
+	// on the shared Report struct where truncation is unrecoverable.
+	r.Warnings = append(r.Warnings, "FAST_PATH_APPLIED: low-risk task; graph confirmed no architectural impact.")
+	return true
 }
 
 func noAwarenessFactsMatched(r *Report) bool {

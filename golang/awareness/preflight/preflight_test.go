@@ -392,6 +392,18 @@ func TestPreflightJSONOutputIsValidAndStable(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &m); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
+	if _, ok := m["confidence_factors"]; !ok {
+		t.Fatalf("json missing confidence_factors: %s", out)
+	}
+	if _, ok := m["safety_status"]; !ok {
+		t.Fatalf("json missing safety_status: %s", out)
+	}
+	if _, ok := m["risk_tier"]; !ok {
+		t.Fatalf("json missing risk_tier: %s", out)
+	}
+	if _, ok := m["fast_path_applied"]; !ok {
+		t.Fatalf("json missing fast_path_applied: %s", out)
+	}
 
 	// Re-render must be identical.
 	out2, _ := preflight.Render(r, preflight.FormatJSON)

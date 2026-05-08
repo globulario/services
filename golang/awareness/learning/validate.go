@@ -148,6 +148,9 @@ func ValidateProposal(ctx context.Context, p *ProposalSpec, mainGraph *graph.Gra
 	// Rule 10: proposal must preserve evidence links to source incident.
 	checkEvidenceLinks(p, fail, pass)
 
+	// Rule 10b: false-positive feedback records must be complete when present.
+	checkFalsePositiveFeedback(p, fail, pass)
+
 	// Rule 11: proposal must not directly write approved awareness files (structural).
 	pass(11, "proposals are written to docs/awareness/proposals/ (enforced by CLI)")
 
@@ -389,6 +392,36 @@ func checkEvidenceLinks(p *ProposalSpec, fail func(int, string), pass func(int, 
 	pass(10, "evidence links to source incident preserved")
 }
 
+func checkFalsePositiveFeedback(p *ProposalSpec, fail func(int, string), pass func(int, string)) {
+	fp := p.Evidence.FalsePositive
+	if fp == nil {
+		pass(10, "no false-positive feedback payload present")
+		return
+	}
+	if strings.TrimSpace(fp.FindingID) == "" {
+		fail(10, "false_positive.finding_id is required")
+	}
+	if strings.TrimSpace(fp.WhyFalsePositive) == "" {
+		fail(10, "false_positive.why_false_positive is required")
+	}
+	if strings.TrimSpace(fp.EvidenceLink) == "" {
+		fail(10, "false_positive.evidence_link is required")
+	}
+	if strings.TrimSpace(fp.Owner) == "" {
+		fail(10, "false_positive.owner is required")
+	}
+	if strings.TrimSpace(fp.Reviewer) == "" {
+		fail(10, "false_positive.reviewer is required")
+	}
+	if strings.TrimSpace(fp.FindingID) != "" &&
+		strings.TrimSpace(fp.WhyFalsePositive) != "" &&
+		strings.TrimSpace(fp.EvidenceLink) != "" &&
+		strings.TrimSpace(fp.Owner) != "" &&
+		strings.TrimSpace(fp.Reviewer) != "" {
+		pass(10, "false-positive feedback payload is complete")
+	}
+}
+
 // RenderValidationMarkdown produces a human-readable validation report.
 func RenderValidationMarkdown(p *ProposalSpec, r *ProposalValidationResult) string {
 	var sb strings.Builder
@@ -425,4 +458,3 @@ func RenderValidationMarkdown(p *ProposalSpec, r *ProposalValidationResult) stri
 
 	return sb.String()
 }
-

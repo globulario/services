@@ -2,6 +2,8 @@ package preflight_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/globulario/services/golang/awareness/graph"
@@ -244,9 +246,9 @@ func TestPreflightRuntimeActiveButEmpty(t *testing.T) {
 // non-empty ConfidenceReason. The bare "no results" response is forbidden.
 func TestPreflightNoMatchNeverWithoutCoverageAndReason(t *testing.T) {
 	cases := []struct {
-		name    string
+		name      string
 		withGraph bool
-		task    string
+		task      string
 	}{
 		{"nil_graph_no_match", false, "zzz_xyzzy_nomatch_12345"},
 		{"nil_graph_with_task", false, "restart controller after network partition"},
@@ -288,5 +290,135 @@ func TestPreflightNoMatchNeverWithoutCoverageAndReason(t *testing.T) {
 				t.Error("GraphAvailable=true but no graph was provided")
 			}
 		})
+	}
+}
+
+func TestDecisionContext_UnknownNotSafeForSensitiveTask(t *testing.T) {
+	r, err := preflight.Run(context.Background(), preflight.Options{
+		Task: "reconcile desired installed runtime behavior",
+	}, nil)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if r.SafetyStatus != preflight.SafetyStatusUnknownNotSafe {
+		t.Fatalf("SafetyStatus=%q, want %q", r.SafetyStatus, preflight.SafetyStatusUnknownNotSafe)
+	}
+}
+
+func TestPreflightConfidenceFactorsArePopulated(t *testing.T) {
+	r, err := preflight.Run(context.Background(), preflight.Options{
+		Task: "desired_hash mismatch in convergence",
+	}, nil)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if r.ConfidenceFactors.Coverage == "" {
+		t.Fatal("confidence_factors.coverage must be set")
+	}
+	if r.ConfidenceFactors.Provenance == "" {
+		t.Fatal("confidence_factors.provenance must be set")
+	}
+	if r.ConfidenceFactors.GraphFreshness == "" {
+		t.Fatal("confidence_factors.graph_freshness must be set")
+	}
+	if r.ConfidenceFactors.PathQuality == "" {
+		t.Fatal("confidence_factors.path_quality must be set")
+	}
+	if r.ConfidenceFactors.RuntimeEvidence == "" {
+		t.Fatal("confidence_factors.runtime_evidence must be set")
+	}
+}
+
+func TestPreflightDegradedMode_EmitsBlockedActions(t *testing.T) {
+	r, err := preflight.Run(context.Background(), preflight.Options{
+		Task: "reconcile desired installed runtime behavior",
+	}, nil)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !r.DegradedMode.Enabled {
+		t.Fatal("degraded_mode must be enabled when graph is unavailable")
+	}
+	if len(r.DegradedMode.BlockedActions) == 0 {
+		t.Fatal("degraded_mode.blocked_actions must be populated")
+	}
+	if len(r.DegradedMode.StopConditions) == 0 {
+		t.Fatal("degraded_mode.stop_conditions must be populated")
+	}
+}
+
+func TestPreflightDegradedMode_UsesRawKnowledgeFallback(t *testing.T) {
+	docsDir := t.TempDir()
+	invariants := `invariants:
+  - id: infra.desired_hash_consistency
+    title: desired_hash must be stable
+    summary: checks desired_hash behavior
+`
+	if err := os.WriteFile(filepath.Join(docsDir, "invariants.yaml"), []byte(invariants), 0o644); err != nil {
+		t.Fatalf("write invariants.yaml: %v", err)
+	}
+	r, err := preflight.Run(context.Background(), preflight.Options{
+		Task:    "desired_hash mismatch detected in convergence tick",
+		DocsDir: docsDir,
+	}, nil)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !r.DegradedMode.Enabled {
+		t.Fatal("degraded_mode must be enabled when graph is unavailable")
+	}
+	if r.RawYAMLMatchCount == 0 {
+		t.Fatal("expected raw YAML fallback matches in degraded mode")
+	}
+}
+
+func TestPreflightFastPath_NilGraph_LocalRenameIsMediumNotLow(t *testing.T) {
+	// With no graph, zero file matches is a coverage gap, not confirmed low impact.
+	// RiskLow requires the graph to have been available and confirmed no impact.
+	r, err := preflight.Run(context.Background(), preflight.Options{
+		Task: "rename helper variable in local utility function",
+	}, nil)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if r.RiskTier != preflight.RiskMedium {
+		t.Fatalf("RiskTier=%q, want %q (nil graph: no-file-match is coverage gap not low impact)", r.RiskTier, preflight.RiskMedium)
+	}
+	if r.FastPathApplied {
+		t.Fatal("fast path must not apply when RiskTier is not low")
+	}
+}
+
+func TestPreflightFastPath_WithGraph_LocalRenameIsLowAndFastPath(t *testing.T) {
+	g, err := graph.OpenMemory()
+	if err != nil {
+		t.Fatalf("OpenMemory: %v", err)
+	}
+	r, err := preflight.Run(context.Background(), preflight.Options{
+		Task: "rename helper variable in local utility function",
+	}, g)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if r.RiskTier != preflight.RiskLow {
+		t.Fatalf("RiskTier=%q, want %q (graph available, no file impact confirmed)", r.RiskTier, preflight.RiskLow)
+	}
+	if !r.FastPathApplied {
+		t.Fatal("expected fast path to be applied for confirmed low-risk task")
+	}
+}
+
+func TestPreflightFastPath_DisabledForHighRisk(t *testing.T) {
+	r, err := preflight.Run(context.Background(), preflight.Options{
+		Task: "reconcile desired installed runtime behavior",
+	}, nil)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if r.RiskTier != preflight.RiskHigh {
+		t.Fatalf("RiskTier=%q, want %q", r.RiskTier, preflight.RiskHigh)
+	}
+	if r.FastPathApplied {
+		t.Fatal("fast path must not be applied for high-risk task")
 	}
 }

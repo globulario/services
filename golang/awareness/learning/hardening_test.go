@@ -47,6 +47,12 @@ func TestApproveProposalChangesStatus(t *testing.T) {
 	if p.Proposal.Status != learning.StatusApproved {
 		t.Errorf("expected APPROVED status after ApproveProposal, got %q", p.Proposal.Status)
 	}
+	if strings.TrimSpace(p.Proposal.ApprovedBy) == "" {
+		t.Error("expected approved_by to be populated by ApproveProposal")
+	}
+	if strings.TrimSpace(p.Proposal.ApprovedAt) == "" {
+		t.Error("expected approved_at to be populated by ApproveProposal")
+	}
 }
 
 // ---- 3. TestPromoteProposalRejectsDraft ----
@@ -97,6 +103,30 @@ func TestPromoteProposalAcceptsApproved(t *testing.T) {
 	_, err = learning.PromoteProposal(ctx, p, vr, docsDir, nil)
 	if err != nil {
 		t.Errorf("expected promotion to succeed for APPROVED proposal: %v", err)
+	}
+}
+
+func TestPromoteProposalRejectsApprovedWithoutReviewer(t *testing.T) {
+	ctx := context.Background()
+	docsDir := setupAwarenessDir(t)
+
+	b, err := learning.LoadIncidentBundle(fixtureEnvoy)
+	if err != nil {
+		t.Fatalf("LoadIncidentBundle: %v", err)
+	}
+	p := learning.GenerateProposalFromBundle(b)
+	p.Proposal.Status = learning.StatusApproved
+	p.Proposal.ApprovedBy = ""
+	p.Proposal.ApprovedAt = ""
+
+	vr := validateAndGetResult(t, p)
+	if vr.Status != learning.ValidationPass {
+		t.Fatalf("fixture must pass validation")
+	}
+
+	_, err = learning.PromoteProposal(ctx, p, vr, docsDir, nil)
+	if err == nil {
+		t.Fatal("expected promotion to fail without approved_by reviewer identity")
 	}
 }
 

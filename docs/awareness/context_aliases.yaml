@@ -61,6 +61,7 @@ aliases:
     - invalid spec stopped service
     - missing key disable
     - missing etcd key stopped
+    - absence not treated as intent
     - keepalived disabled by absent
 
   runtime.last_known_good_required_for_critical_consumers:

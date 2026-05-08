@@ -66,13 +66,16 @@ type Options struct {
 	DocsDir  string // path to docs/awareness
 	DBPath   string // path to graph.db (empty = no graph)
 	Strict   bool   // if true, Report.StrictFail is set when any check fails
+	// MaxTopWarningGroup, when >= 0, fails self-check strict mode if the largest
+	// warning group in audit exceeds this count.
+	MaxTopWarningGroup int
 }
 
 // Report is the complete self-check output.
 type Report struct {
 	GeneratedAt          time.Time
 	Pass                 bool
-	StrictFail           bool     // true when Strict=true and any FAIL exists
+	StrictFail           bool // true when Strict=true and any FAIL exists
 	Checks               []CheckResult
 	FalseSilences        []string // aggregated from all smoke checks
 	NoisySections        []string
@@ -117,7 +120,7 @@ var SmokeCases = []SmokeCase{
 	},
 	{
 		Name: "missing_key_stopped_runtime",
-		Task: "missing etcd key stopped running service — absence not treated as intent",
+		Task: "missing key stopped service — absence is not destructive intent",
 		ExpectedInvariants: []string{
 			"critical_state.absence_is_not_destructive_intent",
 		},
@@ -258,8 +261,9 @@ func checkAudit(ctx context.Context, g *graph.Graph, opts Options) CheckResult {
 	}
 
 	result := enforce.Audit(ctx, g, enforce.AuditOptions{
-		SrcDir:      opts.RepoPath,
-		SkipDrift:   true, // drift has its own check
+		RepoRoot:  opts.RepoPath,
+		SrcDir:    opts.RepoPath,
+		SkipDrift: true, // drift has its own check
 	})
 
 	if result.ErrorCount > 0 {
@@ -278,8 +282,59 @@ func checkAudit(ctx context.Context, g *graph.Graph, opts Options) CheckResult {
 	cr.Detail = fmt.Sprintf("audit passed — %d warnings, %d info findings", result.WarningCount, result.InfoCount)
 	if result.WarningCount > 3 {
 		cr.Noisy = []string{fmt.Sprintf("%d audit warnings — consider triaging", result.WarningCount)}
+		cr.Noisy = append(cr.Noisy, summarizeWarningGroups(result.Findings, 3)...)
+	}
+	if opts.Strict && opts.MaxTopWarningGroup >= 0 {
+		topCount := maxWarningGroupCount(result.Findings)
+		if topCount > opts.MaxTopWarningGroup {
+			cr.Status = StatusFail
+			cr.Detail = fmt.Sprintf(
+				"audit warning-group threshold exceeded: top warning group count=%d > max=%d",
+				topCount, opts.MaxTopWarningGroup)
+		}
 	}
 	return cr
+}
+
+func summarizeWarningGroups(findings []enforce.Finding, maxGroups int) []string {
+	if maxGroups <= 0 {
+		return nil
+	}
+	var warnings []enforce.Finding
+	for _, f := range findings {
+		if f.Severity == enforce.SeverityWarning {
+			warnings = append(warnings, f)
+		}
+	}
+	if len(warnings) == 0 {
+		return nil
+	}
+	groups := enforce.GroupFindings(warnings)
+	if len(groups) > maxGroups {
+		groups = groups[:maxGroups]
+	}
+	out := make([]string, 0, len(groups))
+	for _, g := range groups {
+		out = append(out, fmt.Sprintf("top warning group: %s (%d) — %s", g.Code, g.Count, g.SuggestedAction))
+	}
+	return out
+}
+
+func maxWarningGroupCount(findings []enforce.Finding) int {
+	var warnings []enforce.Finding
+	for _, f := range findings {
+		if f.Severity == enforce.SeverityWarning {
+			warnings = append(warnings, f)
+		}
+	}
+	if len(warnings) == 0 {
+		return 0
+	}
+	groups := enforce.GroupFindings(warnings)
+	if len(groups) == 0 {
+		return 0
+	}
+	return groups[0].Count
 }
 
 func checkAnnotationCoverage(ctx context.Context, g *graph.Graph, opts Options) CheckResult {
