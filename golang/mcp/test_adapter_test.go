@@ -28,8 +28,9 @@ func newMCPWithDocsDir(t *testing.T, docsDir string) *server {
 func newMCPWithGraph(t *testing.T, docsDir string, g *graph.Graph) *server {
 	t.Helper()
 	cfg := defaultConfig()
-	cfg.ToolGroups.Awareness = true
-	cfg.Awareness.DocsDir = docsDir
+	// Do NOT enable Awareness in ToolGroups — that would cause newServer to call
+	// registerAwarenessTools() which opens the disk graph and leaves it unclosed,
+	// racing with the test's own registrations. We register awareness tools manually below.
 	s := newServer(cfg)
 	repoRoot := awarGitRoot()
 	st := &awarenessState{g: g, docsDir: docsDir, repoRoot: repoRoot}

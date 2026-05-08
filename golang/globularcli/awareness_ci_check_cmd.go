@@ -90,7 +90,11 @@ Exit codes:
 			}
 		}
 
-		awareDir := filepath.Join(ciCheckCfg.repoRoot, "golang", "awareness")
+		// Awareness tests live in both golang/awareness/ and golang/mcp/ (consolidated).
+		scanDirs := []string{
+			filepath.Join(ciCheckCfg.repoRoot, "golang", "awareness"),
+			filepath.Join(ciCheckCfg.repoRoot, "golang", "mcp"),
+		}
 
 		var reports []gapReport
 		notFoundCount, invalidMetaCount, strictVerifiedCount, testsFoundCount := 0, 0, 0, 0
@@ -99,7 +103,7 @@ Exit codes:
 			if gap.Status != "implemented" && gap.Status != "closed" {
 				continue
 			}
-			status, note := verifyGapTests(awareDir, gap.TestsRequired)
+			status, note := verifyGapTestsDirs(scanDirs, gap.TestsRequired)
 			if tr != nil && (status == "tests_found" || status == "tests_partial") {
 				status, note = upgradeGapStatus(status, note, gap.TestsRequired, tr)
 			}
@@ -268,6 +272,10 @@ func loadTestResults(path string) (*testResultsFile, error) {
 }
 
 func verifyGapTests(awareDir string, testsRequired []string) (status, note string) {
+	return verifyGapTestsDirs([]string{awareDir}, testsRequired)
+}
+
+func verifyGapTestsDirs(dirs []string, testsRequired []string) (status, note string) {
 	if len(testsRequired) == 0 {
 		return "no_tests_required", ""
 	}
@@ -287,22 +295,24 @@ func verifyGapTests(awareDir string, testsRequired []string) (status, note strin
 	}
 
 	found := make(map[string]bool)
-	_ = filepath.Walk(awareDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		data, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return nil
-		}
-		content := string(data)
-		for _, name := range normalized {
-			if strings.Contains(content, "func "+name+"(") {
-				found[name] = true
+	for _, dir := range dirs {
+		_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
+				return nil
 			}
-		}
-		return nil
-	})
+			data, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return nil
+			}
+			content := string(data)
+			for _, name := range normalized {
+				if strings.Contains(content, "func "+name+"(") {
+					found[name] = true
+				}
+			}
+			return nil
+		})
+	}
 
 	foundCount := len(found)
 	total := len(normalized)
@@ -318,7 +328,7 @@ func verifyGapTests(awareDir string, testsRequired []string) (status, note strin
 		}
 		return "tests_partial", fmt.Sprintf("%d/%d found; missing: %s", foundCount, total, strings.Join(missing, ", "))
 	default:
-		return "tests_not_found", fmt.Sprintf("0/%d required tests found in %s", total, awareDir)
+		return "tests_not_found", fmt.Sprintf("0/%d required tests found in %s", total, strings.Join(dirs, " or "))
 	}
 }
 

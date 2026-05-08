@@ -375,9 +375,13 @@ func registerOfflineDiagnoseTool(s *server, st *awarenessState) {
 			blindSpots = append(blindSpots, "docs dir not configured — failure mode matching unavailable")
 		}
 
-		// Sort failure modes by score descending.
+		// Sort failure modes by score descending; break ties by ID ascending
+		// so that truncation to 8 is deterministic across runs.
 		sort.Slice(suspectedFMs, func(i, j int) bool {
-			return suspectedFMs[i].MatchScore > suspectedFMs[j].MatchScore
+			if suspectedFMs[i].MatchScore != suspectedFMs[j].MatchScore {
+				return suspectedFMs[i].MatchScore > suspectedFMs[j].MatchScore
+			}
+			return suspectedFMs[i].ID < suspectedFMs[j].ID
 		})
 		if len(suspectedFMs) > 8 {
 			suspectedFMs = suspectedFMs[:8]

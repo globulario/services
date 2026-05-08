@@ -60,15 +60,13 @@ jobs:
         continue-on-error: true  # Some tests need infrastructure (etcd, ScyllaDB) not available in CI
 
       - name: Build awareness CI tools
-        run: |
-          go build -o bin/go-test-to-awareness ./awareness/cmd/go-test-to-awareness
-          go build -o bin/awareness-ci-check    ./awareness/cmd/awareness-ci-check
+        run: go build -o bin/globular ./globularcli
 
       - name: Run awareness tests and generate CI evidence
         run: |
           mkdir -p ../.awareness
           go test -json ./awareness/... -timeout 120s -short \
-            | ./bin/go-test-to-awareness \
+            | ./bin/globular awareness test-results \
                 --command "go test -json ./awareness/... -short" \
                 --output ../.awareness/test-results.json
           jq -e '.passed == true' ../.awareness/test-results.json \
@@ -76,7 +74,7 @@ jobs:
 
       - name: Check awareness strict_verified (no regression)
         run: |
-          ./bin/awareness-ci-check \
+          ./bin/globular awareness ci-check \
             --playbooks ../docs/awareness/knowledge/agent_playbooks.yaml \
             --test-results ../.awareness/test-results.json \
             --repo-root .. \
