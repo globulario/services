@@ -561,6 +561,9 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 				},
 				Status: &cluster_controllerpb.InfrastructureReleaseStatus{},
 			}
+			// Inferred from observed installed state — mark as bootstrap until
+			// the promotion reconciler confirms Phase == AVAILABLE.
+			stampBootstrapLabels(obj.Meta)
 			if _, err := srv.resources.Apply(ctx, "InfrastructureRelease", obj); err != nil {
 				log.Printf("materialize-infra: failed to create InfrastructureRelease %s: %v", relName, err)
 				unresolvable[compName] = true
@@ -675,6 +678,7 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 						},
 						Status: &cluster_controllerpb.InfrastructureReleaseStatus{},
 					}
+					stampBootstrapLabels(obj.Meta) // inferred from observed state
 					if _, err := srv.resources.Apply(ctx, "InfrastructureRelease", obj); err != nil {
 						log.Printf("materialize-deps: failed to create InfrastructureRelease %s: %v", relName, err)
 						unresolvable[depCanon] = true

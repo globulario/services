@@ -86,20 +86,21 @@ fix_cases:
 
   - id: bootstrap_state_promotion
     title: Bootstrap desired state must require explicit promotion
-    status: PARTIAL
+    status: DONE
     pattern: "bootstrap state authoritative"
     category: desired_state
     target_invariants:
       - desired.bootstrap_state_requires_promotion
-    fixed_files: []
-    remaining_files:
+    fixed_files:
       - golang/cluster_controller/cluster_controller_server/desired_state_publisher.go
       - golang/cluster_controller/cluster_controller_server/promotion_reconciler.go
+      - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
+    remaining_files: []
     required_tests:
       - TestBootstrapRecordIgnoredAsFinalByConsumers
       - TestFirstBootClaimsConvergenceOnlyAfterPromotion
     dod: Bootstrap defaults cannot accidentally become permanent cluster intent.
-    notes: "PARTIAL 2026-05-04. authoritative field stamped; promotion reconciler not implemented."
+    notes: "DONE 2026-05-07. stampBootstrapLabels applied at both materializeMissingInfraDesired call sites; bootstrapConvergenceAllowed gate; promotion reconciler promotes on Phase==AVAILABLE."
 
   - id: absence_as_destructive_intent
     title: Missing control-plane key must not stop or delete runtime
