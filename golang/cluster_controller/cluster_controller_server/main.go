@@ -423,6 +423,10 @@ func main() {
 	// are already running and continue unaffected.
 	srv.startIngressSpecGuard(ctx)
 	srv.startScyllaSchemaGuard(ctx)
+	// Delete-approval guards for the two other Class A keys that must never
+	// be absent without an audited intent marker (Case 06).
+	srv.startObjectstoreDeleteApprovalGuard(ctx)
+	srv.startPKICADeleteApprovalGuard(ctx)
 
 	// Derived-state lane: read-only projections (node_identity, …). Best-effort:
 	// the server continues if ScyllaDB is unreachable. See projection-clauses.md.

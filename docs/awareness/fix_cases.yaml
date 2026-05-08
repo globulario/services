@@ -160,22 +160,23 @@ fix_cases:
 
   - id: intent_markers_tombstones
     title: Critical key deletion requires audited intent marker
-    status: PARTIAL
+    status: DONE
     pattern: "delete without approval"
     category: safety
     target_invariants:
       - critical_state.deletion_requires_audited_intent
     fixed_files:
       - golang/cluster_controller/cluster_controller_server/ingress_spec_guard.go
-    remaining_files:
+      - golang/cluster_controller/cluster_controller_server/delete_approval.go
       - golang/cluster_controller/cluster_controller_server/objectstore_reconciler.go
       - golang/cluster_controller/cluster_controller_server/pki_reconciler.go
+    remaining_files: []
     required_tests:
       - TestDeleteWithoutApprovalRestoresKey
       - TestDeleteWithValidApprovalAccepted
       - TestStaleApprovalGenerationRejected
     dod: Key deletion is intentional, auditable, and reversible by default.
-    notes: "PARTIAL 2026-05-04. Ingress delete-approval exists; integration + multi-domain missing."
+    notes: "DONE 2026-05-07. Shared criticalKeyDeleteApproval struct + isValidDeleteApproval() + hasDeleteApprovalFromKVs() extracted to delete_approval.go (testable without etcd). objectstore_reconciler.go guards /globular/objectstore/config — restores from state via publishObjectStoreDesiredStateLocked() when key absent without valid tombstone at /globular/objectstore/delete_approval/. pki_reconciler.go guards /globular/pki/ca — restores via publishCAMetadataLocked() when absent without tombstone at /globular/pki/ca_delete_approval/. Both guards started from main.go alongside startIngressSpecGuard. Approval maxAge=24h; invalid actor/reason rejected. 3 required tests pass including boundary conditions."
 
   - id: reconcile_lane_starvation
     title: Reconcile lanes must not starve completion or critical publishers
