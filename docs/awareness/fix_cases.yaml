@@ -240,20 +240,20 @@ fix_cases:
 
   - id: destructive_action_guards
     title: Destructive actions require explicit validated guard
-    status: PARTIAL
+    status: DONE
     pattern: "ambiguous disable"
     category: safety
     target_invariants:
       - destructive_actions.require_explicit_guard
     fixed_files:
       - golang/node_agent/node_agent_server/internal/ingress/spec.go
-    remaining_files:
       - golang/cluster_doctor/cluster_doctor_server/rules/destructive_action_audit.go
+    remaining_files: []
     required_tests:
       - TestMalformedDisableDoesNotStopRuntime
       - TestExplicitValidDisableStopsRuntimeAndAuditable
     dod: Destructive transitions are always explicit, validated, and attributable.
-    notes: "PARTIAL 2026-05-04. IsExplicitDisable() done; doctor invariant emission + audit missing."
+    notes: "DONE 2026-05-07. IsExplicitDisable() guards node-agent keepalived action (spec.go). Doctor invariant ingressUnguardedDisableIntent fires CRITICAL from the desired spec itself — proactively, before any node processes it. Complements ingressAmbiguousDisableRejected (node status path). 4 tests pass: TestMalformedDisableDoesNotStopRuntime (4 sub-cases), TestExplicitValidDisableStopsRuntimeAndAuditable, TestActiveSpecProducesNoFinding, TestMissingSpecProducesNoFinding."
 
   - id: topology_safety_drift_reconciler
     title: Topology drift reconciler must respect safety contracts

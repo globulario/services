@@ -134,6 +134,10 @@ func NewRegistry(cfg Config) *Registry {
 		ingressSpecMissing{},
 		ingressNodeHoldingLastKnownGood{},
 		ingressAmbiguousDisableRejected{},
+		// Proactive guard: fires when the desired spec carries mode=disabled
+		// without a valid explicit-disable guard (before any node processes it).
+		// Complements ingressAmbiguousDisableRejected which fires on node status.
+		ingressUnguardedDisableIntent{},
 		scyllaKeyspaceRFPolicyViolation{},
 		criticalKeyRegistryPresence{},
 		// DNS degraded-mode visibility from /globular/dns/v1/status.
