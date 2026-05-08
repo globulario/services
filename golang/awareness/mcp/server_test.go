@@ -24,6 +24,9 @@ var requiredTools = []string{
 	"awareness.validate_proposal",
 	"awareness.approve_proposal",
 	"awareness.fix_status",
+	// Phase 11: graph integrity and trust management.
+	"awareness.graph_integrity_check",
+	"awareness.impact_path",
 }
 
 // forbiddenTools must never be exposed over MCP.

@@ -103,6 +103,53 @@ type Edge struct {
 	Metadata   map[string]any
 }
 
+// ProvenanceEdge is an Edge that carries full provenance metadata describing
+// where the edge came from and how well it is verified.
+// Use AddEdgeWithProvenance to write provenance into the graph.
+type ProvenanceEdge struct {
+	Edge
+	// SourceType is one of the SourceXxx constants in the integrity package.
+	SourceType string
+	// SourceFile is the YAML or source file from which this edge was extracted.
+	SourceFile string
+	// SourceCommit is the git SHA when the edge was last written.
+	SourceCommit string
+	// CreatedBy identifies the extractor or tool that created this edge.
+	CreatedBy string
+	// LastVerifiedAt is the Unix timestamp of the last verification.
+	LastVerifiedAt int64
+	// LastVerifiedBy identifies the verifier (e.g., "ci-check", "test-discovery").
+	LastVerifiedBy string
+	// VerificationLevel is one of the TrustXxx constants in the integrity package.
+	VerificationLevel string
+	// StalePolicy lists the conditions under which this edge becomes stale.
+	StalePolicy []string
+}
+
+// AddEdgeWithProvenance writes an edge with full provenance metadata.
+// The provenance is encoded in the edge's metadata_json under "provenance_json".
+func (g *Graph) AddEdgeWithProvenance(ctx context.Context, pe ProvenanceEdge) error {
+	if pe.Edge.Metadata == nil {
+		pe.Edge.Metadata = make(map[string]any)
+	}
+	prov := map[string]any{
+		"source_type":        pe.SourceType,
+		"source_file":        pe.SourceFile,
+		"source_commit":      pe.SourceCommit,
+		"created_by":         pe.CreatedBy,
+		"last_verified_at":   pe.LastVerifiedAt,
+		"last_verified_by":   pe.LastVerifiedBy,
+		"verification_level": pe.VerificationLevel,
+		"stale_policy":       pe.StalePolicy,
+	}
+	provJSON, err := marshalMeta(prov)
+	if err != nil {
+		return fmt.Errorf("AddEdgeWithProvenance: encode provenance: %w", err)
+	}
+	pe.Edge.Metadata["provenance_json"] = provJSON
+	return g.AddEdge(ctx, pe.Edge)
+}
+
 // AddEdge upserts an edge. The (src, kind, dst, phase) tuple is the primary key.
 func (g *Graph) AddEdge(ctx context.Context, e Edge) error {
 	meta, err := marshalMeta(e.Metadata)

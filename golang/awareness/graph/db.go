@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -191,5 +192,36 @@ func (g *Graph) migrate(_ context.Context) error {
 	if _, err := g.db.Exec(schemaSQL); err != nil {
 		return fmt.Errorf("awareness graph: migrate: %w", err)
 	}
+	if err := g.addMigrations(); err != nil {
+		return fmt.Errorf("awareness graph: addMigrations: %w", err)
+	}
 	return nil
+}
+
+// addMigrations applies incremental schema changes to existing databases.
+// Each statement is idempotent: "duplicate column name" errors are silently ignored.
+func (g *Graph) addMigrations() error {
+	migrations := []string{
+		// Phase 11: edge provenance for trust tracking.
+		`ALTER TABLE edges ADD COLUMN provenance_json TEXT NOT NULL DEFAULT '{}'`,
+	}
+	for _, m := range migrations {
+		if _, err := g.db.Exec(m); err != nil {
+			if isDuplicateColumnError(err) {
+				continue // column already exists — idempotent
+			}
+			return fmt.Errorf("migration %q: %w", m, err)
+		}
+	}
+	return nil
+}
+
+// isDuplicateColumnError returns true when SQLite rejects an ALTER TABLE ADD COLUMN
+// because the column already exists (error message contains "duplicate column name").
+func isDuplicateColumnError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "duplicate column name") || strings.Contains(msg, "already exists")
 }

@@ -73,6 +73,7 @@ func registerAllTools(s *Server) {
 	registerRuntimeConfigBootstrapTool(s)
 	registerProposalReviewPlanTool(s)
 	registerValidateProposalBatchTool(s)
+	registerIntegrityTools(s)
 	// registerPromoteApprovedProposalsTool is intentionally NOT registered here.
 	// Promotion is CLI-only per awareness.mcp_must_not_expose_promotion invariant.
 }

@@ -13,9 +13,10 @@ import (
 // awarenessState is captured in awareness tool handler closures.
 // The graph may be nil when the DB is missing — all tools degrade gracefully.
 type awarenessState struct {
-	g       *graph.Graph
-	docsDir string
-	nodeID  string
+	g        *graph.Graph
+	docsDir  string
+	repoRoot string
+	nodeID   string
 }
 
 // registerAwarenessTools initialises the awareness state from the server config,
@@ -40,8 +41,9 @@ func registerAwarenessTools(s *server) {
 	}
 
 	st := &awarenessState{
-		docsDir: docsDir,
-		nodeID:  cfg.NodeID,
+		docsDir:  docsDir,
+		repoRoot: repoRoot,
+		nodeID:   cfg.NodeID,
 	}
 
 	if dbPath != "" {
@@ -61,6 +63,7 @@ func registerAwarenessTools(s *server) {
 	registerAwarenessNodeContextTools(s, st)
 	registerAwarenessSemanticTools(s, st)
 	registerAwarenessDebugSessionTool(s, st)
+	registerAwarenessIntegrityTools(s, st)
 }
 
 // awarGitRoot returns the git repository root via git rev-parse.

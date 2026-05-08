@@ -347,3 +347,20 @@ forbidden_fixes:
         underlying etcd/controller issue is unresolved.
       related_invariants:
         - workflow.dispatch_requires_stable_control_plane
+    - id: etcd.disarm_before_compact
+      summary: |
+        Run etcdctl alarm disarm before the etcd disk is actually below quota — specifically,
+        before compact + defrag + verified disk size reduction have all completed.
+      why_wrong: |
+        Disarming the alarm does not free disk space. It only clears the NOSPACE signal.
+        If compact+defrag have not run, the disk is still above quota. etcd will re-hit
+        the NOSPACE limit on the very next write, re-triggering the alarm immediately.
+        The cluster appears to recover but fails again seconds later.
+      safe_alternative: |
+        Always run in this safe order:
+          1. etcdctl compact <rev>          — compact revision history
+          2. etcdctl defrag --endpoints=<all> — defragment all members
+          3. Verify disk usage dropped below quota (df -h or du)
+          4. etcdctl alarm disarm           — only after disk is confirmed below quota
+      related_invariants:
+        - etcd.quorum_must_be_stable_before_controller_action
