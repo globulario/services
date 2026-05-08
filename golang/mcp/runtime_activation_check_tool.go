@@ -127,7 +127,10 @@ func dialCheck(addr string, timeout time.Duration) (status string, errStr string
 }
 
 func computeRuntimeStatus(configured, total int, missingConfig []string, insecure bool) string {
-	if configured == 0 {
+	if configured == 0 && len(missingConfig) > 0 {
+		// No statically configured sources AND at least one source truly missing
+		// (etcd-resolvable sources are never added to missingConfig, so a non-empty
+		// missingConfig means something like PrometheusAddr is absent).
 		return "noop"
 	}
 	hasMissingCreds := false
@@ -140,7 +143,10 @@ func computeRuntimeStatus(configured, total int, missingConfig []string, insecur
 	if hasMissingCreds && !insecure {
 		return "misconfigured"
 	}
-	if configured < total {
+	// Use missingConfig rather than configured<total: etcd-resolvable sources
+	// (controller, doctor, workflow) are intentionally absent from missingConfig
+	// and should not trigger "partial" — they resolve addresses at query time.
+	if len(missingConfig) > 0 {
 		return "partial"
 	}
 	return "live"

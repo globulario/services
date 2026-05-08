@@ -268,16 +268,13 @@ func buildRuntimeSection(repoRoot string) (healthPulseRuntimeSection, []healthPu
 		})
 	case "partial":
 		sectionStatus = "warn"
-		etcdCount := 0
+		missing := 0
 		for _, src := range result.Sources {
-			if src.Transport == "etcd_resolved" {
-				etcdCount++
+			if !src.Configured && src.Transport != "etcd_resolved" {
+				missing++
 			}
 		}
-		msg := fmt.Sprintf("Runtime awareness partial — %d/%d sources statically configured", configured, total)
-		if etcdCount > 0 {
-			msg += fmt.Sprintf(" (%d via etcd resolution)", etcdCount)
-		}
+		msg := fmt.Sprintf("Runtime awareness partial — %d source(s) missing static address and not etcd-resolvable", missing)
 		alerts = append(alerts, healthPulseAlert{
 			Severity:          "warning",
 			ID:                "runtime.partial",

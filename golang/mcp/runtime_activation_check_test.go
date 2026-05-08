@@ -3,23 +3,37 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
 // TestRuntimeActivationCheck_AllNoop verifies that zero configured addresses
-// produces "noop" status.
+// AND a truly-missing source (non-etcd-resolvable with no addr) produces "noop".
+// etcd-resolvable sources are never added to missingConfig, so noop requires a
+// genuinely absent non-etcd-resolvable source (e.g. PrometheusAddr).
 func TestRuntimeActivationCheck_AllNoop(t *testing.T) {
-	status := computeRuntimeStatus(0, 4, nil, true)
+	status := computeRuntimeStatus(0, 4, []string{"PrometheusAddr"}, false)
 	if status != "noop" {
 		t.Errorf("expected noop, got %q", status)
 	}
 }
 
-// TestRuntimeActivationCheck_PartialConfig verifies that some but not all
-// addresses configured produces "partial" status.
-func TestRuntimeActivationCheck_PartialConfig(t *testing.T) {
+// TestRuntimeActivationCheck_EtcdResolvedWithStaticPrometheusIsLive verifies
+// that 1 statically configured source (prometheus) + 3 etcd-resolved sources
+// (controller/doctor/workflow) with no missing config → "live", not "partial".
+// This is the standard production scenario for a Globular cluster.
+func TestRuntimeActivationCheck_EtcdResolvedWithStaticPrometheusIsLive(t *testing.T) {
+	// missingConfig is nil: etcd-resolvable sources are never added to it.
 	status := computeRuntimeStatus(1, 4, nil, true)
+	if status != "live" {
+		t.Errorf("expected live (etcd-resolved sources are functional), got %q", status)
+	}
+}
+
+// TestRuntimeActivationCheck_PartialConfig verifies that a genuinely missing
+// non-etcd-resolvable source alongside a configured source → "partial".
+func TestRuntimeActivationCheck_PartialConfig(t *testing.T) {
+	// configured=1, but missingConfig has a non-cred entry → partial.
+	status := computeRuntimeStatus(1, 5, []string{"OtherMetricsAddr"}, false)
 	if status != "partial" {
 		t.Errorf("expected partial, got %q", status)
 	}
@@ -177,9 +191,11 @@ func TestEvaluateRuntimeActivation_EtcdResolvedSources(t *testing.T) {
 	}
 }
 
-// TestBuildRuntimeSection_PartialShowsEtcdCount verifies that a config with only
-// prometheus statically set produces a partial alert that mentions etcd resolution.
-func TestBuildRuntimeSection_PartialShowsEtcdCount(t *testing.T) {
+// TestBuildRuntimeSection_EtcdResolvedIsLiveNotPartial verifies that the standard
+// production configuration — prometheus statically configured, controller/doctor/workflow
+// resolved from etcd — produces "live" status with no runtime.partial alert.
+// This was the false-positive this fix addresses.
+func TestBuildRuntimeSection_EtcdResolvedIsLiveNotPartial(t *testing.T) {
 	dir := t.TempDir()
 	awarenessDir := filepath.Join(dir, ".awareness")
 	if err := os.MkdirAll(awarenessDir, 0o755); err != nil {
@@ -192,17 +208,13 @@ insecure: true
 		t.Fatal(err)
 	}
 	section, alerts := buildRuntimeSection(dir)
-	if section.RuntimeAwarenessStatus != "partial" {
-		t.Errorf("expected partial with only prometheus configured, got %q", section.RuntimeAwarenessStatus)
+	if section.RuntimeAwarenessStatus != "live" {
+		t.Errorf("expected live (etcd-resolved sources are functional), got %q", section.RuntimeAwarenessStatus)
 	}
-	found := false
 	for _, a := range alerts {
-		if a.ID == "runtime.partial" && strings.Contains(a.Message, "etcd") {
-			found = true
+		if a.ID == "runtime.partial" {
+			t.Errorf("expected no runtime.partial alert, got: %s", a.Message)
 		}
-	}
-	if !found {
-		t.Error("expected runtime.partial alert mentioning etcd resolution")
 	}
 }
 
