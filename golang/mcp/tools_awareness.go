@@ -64,6 +64,22 @@ func registerAwarenessTools(s *server) {
 	registerAwarenessSemanticTools(s, st)
 	registerAwarenessDebugSessionTool(s, st)
 	registerAwarenessIntegrityTools(s, st)
+	// New tools merged from golang/awareness/mcp.
+	registerPendingProposalsTool(s, st)
+	registerExplainSymptomTool(s, st)
+	registerScanViolationsTool(s, st)
+	registerSuggestIncidentTool(s, st)
+	registerLearnFromFixTool(s, st)
+	registerOfflineDiagnoseTool(s, st)
+	registerCausalChainTool(s, st)
+	registerSelfReviewTools(s, st)
+	registerCoverageReportTool(s, st)
+	registerRuntimeActivationCheckTool(s, st)
+	registerProposalQueueHealthTool(s, st)
+	registerSuggestCausalRuleTool(s, st)
+	registerHealthPulseTool(s, st)
+	registerRuntimeConfigBootstrapTool(s, st)
+	registerProposalDrainTools(s, st)
 }
 
 // awarGitRoot returns the git repository root via git rev-parse.
@@ -75,6 +91,35 @@ func awarGitRoot() string {
 		return cwd
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// strSliceArg extracts a []string from an MCP args map.
+func strSliceArg(args map[string]interface{}, key string) []string {
+	if v, ok := args[key]; ok {
+		switch vv := v.(type) {
+		case []interface{}:
+			out := make([]string, 0, len(vv))
+			for _, item := range vv {
+				if s, ok := item.(string); ok {
+					out = append(out, s)
+				}
+			}
+			return out
+		case []string:
+			return vv
+		}
+	}
+	return nil
+}
+
+// boolArg extracts a bool from an MCP args map (false if missing or wrong type).
+func boolArg(args map[string]interface{}, key string) bool {
+	if v, ok := args[key]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return false
 }
 
 // awarOrEmpty filters empty strings from a slice, returning a non-nil slice.

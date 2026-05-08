@@ -83,7 +83,7 @@ func registerAllTools(s *server) {
 		registerAIExecutorTools(s)
 	}
 	if g.Awareness {
-		registerAwarenessTools(s)
+		registerAwarenessTools(s) // also registers new tools internally
 	}
 	// Always-available tools.
 	registerLogRingTools(s)
