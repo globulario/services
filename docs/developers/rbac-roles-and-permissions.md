@@ -686,4 +686,4 @@ This lets operators tighten or expand role actions for their specific deployment
 - [Access Control: Roles and Permissions (Operators)](../operators/rbac-permissions.md) — Operator guide: assigning roles, CLI usage, built-in role reference
 - [Writing a Microservice](writing-a-microservice.md) — Service primitives, lifecycle, registration
 - [RBAC Integration (quick reference)](rbac-integration.md) — Annotation reference and runtime details
-- [proto/rbac.proto](../../proto/rbac.proto) — Full protobuf API for the RBAC service
+- `proto/rbac.proto` — Full protobuf API for the RBAC service (in the services repository)

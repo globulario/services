@@ -120,7 +120,8 @@ jobs:
           ERRORS=0
 
           # Check for /etc/globular/creds/ (removed — should be /var/lib/globular/pki/)
-          if grep -r "/etc/globular/creds" docs/ 2>/dev/null; then
+          # Exclude known-issues.md which documents this path as a known mistake.
+          if grep -r "/etc/globular/creds" docs/ --exclude='known-issues.md' 2>/dev/null; then
             echo "ERROR: Found /etc/globular/creds/ references (should be /var/lib/globular/pki/)"
             ERRORS=$((ERRORS + 1))
           fi

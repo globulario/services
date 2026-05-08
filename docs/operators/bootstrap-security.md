@@ -79,7 +79,7 @@ Bootstrap mode is deliberately narrow:
 
 - It does **not** bypass TLS — all connections still require the cluster CA certificate
 - It does **not** bypass authentication — handler-level path 2 requires a valid token
-- It does **not** grant access to arbitrary methods — only the [explicit allowlist](../../golang/security/bootstrap.go) (health, RBAC, auth, resource identity, DNS, repository, event)
+- It does **not** grant access to arbitrary methods — only an explicit allowlist (health, RBAC, auth, resource identity, DNS, repository, event)
 - It does **not** persist — once the flag expires or is removed, every subsequent request goes through normal RBAC with no exceptions
 - It is **not** a recovery mechanism — if RBAC bindings are lost after bootstrap, recover using the [node repair workflow](node-recovery.md), not by re-enabling bootstrap
 
