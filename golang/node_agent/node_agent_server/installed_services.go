@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/identity"
+	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/versionutil"
 )
 
@@ -605,6 +606,45 @@ func isHex64(s string) bool {
 		}
 	}
 	return true
+}
+
+// StampInfraConvergenceHash updates the Checksum field of an installed
+// INFRASTRUCTURE package to the convergence hash received from the workflow
+// dispatcher (computed by the controller using ComputeInfrastructureDesiredHash).
+// This replaces the binary SHA256 that apply_package_release stamps by default,
+// which would never match the controller's expected convergence hash and would
+// cause a perpetual redispatch loop (Envoy restart storm, 2026-05-06).
+//
+// The binary SHA256 is preserved in Metadata["entrypoint_checksum"] for
+// integrity verification. Only pkg.Checksum is updated — this is the field
+// that classifyPackageConvergence compares against DesiredHash.
+//
+//globular:enforces infra.desired_hash_consistency
+//globular:expects_hash_schema infra_desired_hash
+//globular:reads /globular/nodes/{node_id}/packages/INFRASTRUCTURE/{component}
+//globular:writes /globular/nodes/{node_id}/packages/INFRASTRUCTURE/{component}
+func StampInfraConvergenceHash(ctx context.Context, nodeID, component, convergenceHash string) error {
+	if convergenceHash == "" {
+		return nil // nothing to stamp
+	}
+	existing, err := installed_state.GetInstalledPackage(ctx, nodeID, "INFRASTRUCTURE", component)
+	if err != nil {
+		return fmt.Errorf("stamp infra convergence hash: get %s: %w", component, err)
+	}
+	if existing == nil {
+		return fmt.Errorf("stamp infra convergence hash: no installed record for INFRASTRUCTURE/%s", component)
+	}
+
+	// Preserve binary SHA256 in metadata for integrity checks, then overwrite
+	// Checksum with the convergence hash so the controller's comparison passes.
+	if existing.Metadata == nil {
+		existing.Metadata = make(map[string]string)
+	}
+	if existing.Checksum != "" && existing.Metadata["entrypoint_checksum"] == "" {
+		existing.Metadata["entrypoint_checksum"] = existing.Checksum
+	}
+	existing.Checksum = convergenceHash
+	return installed_state.WriteInstalledPackage(ctx, existing)
 }
 
 func canonicalServiceName(name string) string {

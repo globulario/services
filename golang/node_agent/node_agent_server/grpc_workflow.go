@@ -372,6 +372,20 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 				}
 			}
 		}
+
+		// Stamp the convergence hash for INFRASTRUCTURE packages. The controller's
+		// classifyPackageConvergence compares pkg.Checksum against
+		// InfrastructureRelease.Status.DesiredHash (= ComputeInfrastructureDesiredHash
+		// output). apply_package_release stamps the binary SHA256 which never matches
+		// the convergence hash — causing a perpetual redispatch loop. Overwrite
+		// Checksum with the convergence hash received from the workflow dispatcher.
+		if strings.ToUpper(pkgKind) == "INFRASTRUCTURE" && desiredHash != "" {
+			if stampErr := StampInfraConvergenceHash(ctx, srv.nodeID, pkgName, desiredHash); stampErr != nil {
+				log.Printf("grpc-workflow: stamp convergence hash for %s failed (non-fatal): %v", pkgName, stampErr)
+			} else {
+				log.Printf("grpc-workflow: stamped convergence hash for INFRASTRUCTURE/%s", pkgName)
+			}
+		}
 	}
 	return resp, nil
 }

@@ -47,22 +47,25 @@ fix_cases:
 
   - id: desired_hash_consistency
     title: Infrastructure desired hash must use canonical computation everywhere
-    status: PARTIAL
+    status: DONE
     pattern: "desired hash"
     category: convergence
     target_invariants:
       - infra.desired_hash_consistency
       - convergence.no_infinite_retry
-    fixed_files: []
-    remaining_files:
+    fixed_files:
       - golang/cluster_controller/cluster_controller_server/infrastructure_reconciler.go
+      - golang/cluster_controller/cluster_controller_server/infrastructure_reconciler_test.go
       - golang/workflow/workflow_server/infra_release_handler.go
+      - golang/workflow/workflow_server/infra_release_handler_test.go
       - golang/node_agent/node_agent_server/installed_services.go
+      - golang/node_agent/node_agent_server/grpc_workflow.go
     required_tests:
-      - TestInfrastructureDesiredHashConsistency
+      - TestInfraDesiredHashConsistency
+      - TestLookupServiceReleaseBuildIDUsesDesiredHash
       - TestDriftWorkflowUsesDesiredHash
     dod: All infrastructure convergence paths use ComputeInfrastructureDesiredHash, not ResolvedArtifactDigest.
-    notes: "Identified during Envoy restart storm 2026-05-06"
+    notes: "DONE 2026-05-07. infrastructure_reconciler.go: infraReleaseBuildID/infraHashConverged/mustNotUseResolvedArtifactDigest pure helpers. infra_release_handler.go: infraDesiredHashValid/infraWorkflowInputsValid. installed_services.go: StampInfraConvergenceHash stamps convergence hash after INFRASTRUCTURE install. grpc_workflow.go: calls StampInfraConvergenceHash on INFRASTRUCTURE install success. Breaks the Envoy restart storm loop."
 
   - id: scylla_critical_keyspace_rf_policy
     title: Critical Scylla keyspace replication factor must match policy
