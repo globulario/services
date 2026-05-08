@@ -51,6 +51,8 @@ markdown_extensions:
       permalink: true
 
 docs_dir: docs
+exclude_docs: |
+  index.html
 
 nav:
   - Home: index.md
