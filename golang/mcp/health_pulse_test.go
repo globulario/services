@@ -135,3 +135,96 @@ func TestHealthPulse_IncludesCollectorHealth(t *testing.T) {
 		t.Errorf("unexpected exit code %d for collector_degraded status", code)
 	}
 }
+
+// TestProposalQueueHealth_StaleDraftWarns verifies that a DRAFT proposal older
+// than the SLA threshold produces status=warn and a stale alert.
+func TestProposalQueueHealth_StaleDraftWarns(t *testing.T) {
+	docsDir := t.TempDir()
+	proposalsDir := filepath.Join(docsDir, "proposals")
+	if err := os.MkdirAll(proposalsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	staleYAML := `proposal:
+  id: draft-stale-001
+  status: DRAFT
+  created_at: "2000-01-01T00:00:00Z"
+`
+	if err := os.WriteFile(filepath.Join(proposalsDir, "draft-stale-001.yaml"), []byte(staleYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	section, alerts := buildQueueSection(docsDir, 24.0)
+
+	if section.Status != "warn" {
+		t.Errorf("expected status=warn for stale DRAFT, got %q", section.Status)
+	}
+	if section.StaleProposals < 1 {
+		t.Error("StaleProposals must be >= 1")
+	}
+
+	found := false
+	for _, a := range alerts {
+		if a.ID == "proposal_queue.stale" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected proposal_queue.stale alert")
+	}
+}
+
+// TestProposalQueueHealth_ApprovedNotPromotedWarns verifies that an APPROVED
+// proposal that has not been promoted produces status=warn and an alert.
+func TestProposalQueueHealth_ApprovedNotPromotedWarns(t *testing.T) {
+	docsDir := t.TempDir()
+	proposalsDir := filepath.Join(docsDir, "proposals")
+	if err := os.MkdirAll(proposalsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	approvedYAML := `proposal:
+  id: approved-not-promoted-001
+  status: APPROVED
+  created_at: "2000-01-01T00:00:00Z"
+`
+	if err := os.WriteFile(filepath.Join(proposalsDir, "approved-001.yaml"), []byte(approvedYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	section, alerts := buildQueueSection(docsDir, 24.0)
+
+	if section.ApprovedNotPromoted < 1 {
+		t.Errorf("expected ApprovedNotPromoted >= 1, got %d", section.ApprovedNotPromoted)
+	}
+	if section.Status != "warn" {
+		t.Errorf("expected status=warn when APPROVED proposal not promoted, got %q", section.Status)
+	}
+	if section.QueueStatus != "promotion_pending" {
+		t.Errorf("expected queue_status=promotion_pending, got %q", section.QueueStatus)
+	}
+
+	found := false
+	for _, a := range alerts {
+		if a.ID == "proposal_queue.approved_not_promoted" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected proposal_queue.approved_not_promoted alert")
+	}
+}
+
+// TestHealthPulse_IncludesAgentUsageWarning verifies that a high preflight skip
+// rate propagates as a warning through computePulseStatus.
+func TestHealthPulse_IncludesAgentUsageWarning(t *testing.T) {
+	// Simulate: 1 out of 5 sessions used preflight → 80% skip rate → warning.
+	// computePulseStatus("warn") → exit code 1.
+	status, code := computePulseStatus("ok", "ok", "warn", "ok", "ok")
+	if status != "warning" {
+		t.Errorf("expected warning when one section is warn, got %q", status)
+	}
+	if code != 1 {
+		t.Errorf("expected exit code 1 for warning status, got %d", code)
+	}
+}

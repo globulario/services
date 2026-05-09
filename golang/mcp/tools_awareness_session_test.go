@@ -129,3 +129,70 @@ func TestSessionStart_NoBareReadyWhenCoverageMissing(t *testing.T) {
 	}
 }
 
+// TestAgentSessionStart_ReturnsGraphAndLiveStatus verifies that buildSessionStart
+// always returns populated graph and runtime sections with non-empty status strings.
+func TestAgentSessionStart_ReturnsGraphAndLiveStatus(t *testing.T) {
+	st := &awarenessState{
+		g:        nil,
+		docsDir:  t.TempDir(),
+		repoRoot: t.TempDir(),
+	}
+
+	result := buildSessionStart(context.Background(), st)
+
+	// Graph section must always be populated.
+	if result.Graph.Available && result.Graph.BuiltAt == "" {
+		t.Error("if graph is available, built_at must be set")
+	}
+	// Runtime section must always have a non-empty status.
+	if result.Runtime.Status == "" {
+		t.Error("runtime.status must never be empty")
+	}
+	// checked_at must be an RFC3339 timestamp.
+	if result.CheckedAt == "" {
+		t.Error("checked_at must not be empty")
+	}
+	// RecommendedNextAction must always give guidance.
+	if result.RecommendedNextAction == "" {
+		t.Error("recommended_next_action must not be empty")
+	}
+}
+
+// TestAgentSessionStart_ShowsProposalQueueWarning verifies that a stale DRAFT
+// proposal in the queue causes buildSessionStart to escalate status to "warning"
+// and include a non-empty ProposalQueue.Status.
+func TestAgentSessionStart_ShowsProposalQueueWarning(t *testing.T) {
+	docsDir := t.TempDir()
+	proposalsDir := filepath.Join(docsDir, "proposals")
+	if err := os.MkdirAll(proposalsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write a stale DRAFT proposal (modified >24h ago).
+	oldFile := filepath.Join(proposalsDir, "draft-stale.yaml")
+	if err := os.WriteFile(oldFile, []byte("id: draft-stale\nstatus: DRAFT\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pastTime := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(oldFile, pastTime, pastTime); err != nil {
+		t.Fatal(err)
+	}
+
+	st := &awarenessState{
+		g:        nil,
+		docsDir:  docsDir,
+		repoRoot: t.TempDir(),
+	}
+
+	result := buildSessionStart(context.Background(), st)
+
+	// ProposalQueue section must reflect the stale draft.
+	if result.ProposalQueue.Status == "" {
+		t.Error("proposal_queue.status must not be empty")
+	}
+	// Session status should be "warning" (stale proposal escalates from healthy).
+	if result.Status == "ready" {
+		t.Error("status must not be 'ready' when stale proposals exist")
+	}
+}
+

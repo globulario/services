@@ -2297,3 +2297,168 @@ capability_gap_patterns:
       - "mcp/health_pulse_tool.go: buildWorkflowRuntimePulseSection() with stale/failure alerts"
       - "awareness_cmds.go: --collect-workflow / --workflow-addr flags wired"
       - "10 tests pass (race-clean)"
+
+  - gap_id: awareness.agent_session_hooks
+    keywords:
+      - session hooks
+      - agent hooks
+      - hooks not wired
+      - pre_commit_check
+      - pre-commit check
+      - session start hook
+      - pre-edit hook
+      - agent adoption
+      - adoption incomplete
+      - awareness not used
+      - agents bypass
+      - agents ignore awareness
+    title: "Agent workflow hooks are not wired — awareness is called manually but not part of the automatic agent loop"
+    criticism: "Awareness helps only when agents remember to call it. session_start, pre_edit_context, and pre_commit_check must be part of the normal agent loop, not optional calls."
+    requirement: "Add pre_commit_check tool. Wire RecordAgentUsage into session_start. Ensure pre_edit_context records usage. Update CLAUDE.md hooks."
+    implementation_plan:
+      - "Add awareness.pre_commit_check MCP tool: runs impact_path + scan_violations + graph_integrity_check summary"
+      - "Wire RecordAgentUsage into session_start handler"
+      - "Add TestPreCommitCheck_RunsGraphIntegrityAndScanSummary test"
+      - "Add TestAgentSessionStart_ReturnsGraphAndLiveStatus test"
+      - "Add TestAgentHooks_RecordUsage test"
+    tests_required:
+      - TestAgentSessionStart_ReturnsGraphAndLiveStatus
+      - TestPreEditContext_IncludesForbiddenFixes
+      - TestPreEditContext_WarnsHighRiskFileWithoutInvariant
+      - TestPreCommitCheck_RunsGraphIntegrityAndScanSummary
+      - TestAgentHooks_RecordUsage
+    closure_condition: "Agent can complete session_start → pre_edit_context → pre_commit_check flow with usage recorded at each step."
+    prevents_repeat_criticism: "Future reviews cannot say 'session hooks are not wired' once session_start records usage and pre_commit_check exists."
+    status: not_implemented
+
+  - gap_id: awareness.proposal_queue_discipline
+    keywords:
+      - proposal queue discipline
+      - proposal queue enforced
+      - proposals not reviewed
+      - learning loop clogged
+      - approved not promoted
+      - stale proposal
+      - proposal drain
+      - queue discipline
+      - proposal backlog
+    title: "Proposal queue lacks enforcement signals — approved-not-promoted and oldest-age are not tracked in health_pulse"
+    criticism: "The learning loop can clog silently if proposals are approved but never promoted. Oldest proposal age and approved-not-promoted count are missing from health_pulse."
+    requirement: "Add approved_not_promoted, validated_count, oldest_proposal_age_hours to healthPulseQueueSection. Alert when approved proposals are not promoted within SLA."
+    implementation_plan:
+      - "Extend healthPulseQueueSection with ApprovedNotPromoted, ValidatedCount, OldestAgeHours fields"
+      - "Update buildQueueSection to parse proposal YAML and count by status"
+      - "Add alert for approved_not_promoted > 0 exceeding 24h SLA"
+      - "Add TestProposalQueueHealth_ApprovedNotPromotedWarns test"
+    tests_required:
+      - TestHealthPulse_IncludesProposalQueueHealth
+      - TestProposalQueueHealth_StaleDraftWarns
+      - TestProposalQueueHealth_ApprovedNotPromotedWarns
+      - TestAgentSessionStart_ShowsProposalQueueWarning
+    closure_condition: "health_pulse shows approved-not-promoted count and oldest proposal age. Alert fires when SLA is exceeded."
+    prevents_repeat_criticism: "Future reviews cannot say 'proposal queue discipline is not enforced' once approved-not-promoted alert is wired."
+    status: not_implemented
+
+  - gap_id: awareness.graph_integrity_ci
+    keywords:
+      - graph integrity CI
+      - CI gate
+      - integrity in CI
+      - CI fails on graph lies
+      - graph decay CI
+      - strict mode CI
+      - CI graph check
+    title: "Graph integrity strict mode is not running in CI — graph lies can enter the repository undetected"
+    criticism: "Graph integrity checks exist but are not wired as a CI gate. The --strict flag on graph-integrity-check must block merges when critical findings exist."
+    requirement: "Ensure globular awareness graph-integrity-check --strict exits non-zero on critical findings. Add CI-wiring documentation and a fixture-based test."
+    implementation_plan:
+      - "Verify --strict flag exits 2 on critical findings"
+      - "Add TestGraphIntegrityCI_StrictModeBlocksMerge test"
+      - "Document CI command in docs/awareness/graph_integrity.md"
+    tests_required:
+      - TestGraphIntegrityCI_MissingRequiredTestFails
+      - TestGraphIntegrityCI_SkippedRequiredTestFails
+      - TestGraphIntegrityCI_InvariantWithoutImplementationFails
+      - TestGraphIntegrityCI_WarningsDoNotFail
+    closure_condition: "globular awareness graph-integrity-check --strict exits 2 when critical findings exist. CI step documented."
+    prevents_repeat_criticism: "Future reviews cannot say 'graph integrity does not run in CI' once the exit code is verified and the CI step is documented."
+    status: partially_implemented
+
+  - gap_id: awareness.scaffold_audit_cli
+    keywords:
+      - scaffold audit
+      - max-scaffold-skips
+      - scaffold CLI
+      - audit scaffold
+      - scaffold gate
+      - todo skip audit
+    title: "audit CLI lacks --max-scaffold-skips flag — scaffold TODO skips cannot be gated in CI"
+    criticism: "ScanScaffoldTests exists but --max-scaffold-skips is not wired to the audit CLI command. CI cannot enforce a scaffold skip threshold."
+    requirement: "Add --max-scaffold-skips and --max-required-test-no-path flags to 'globular awareness audit'. Exit 1 when thresholds are exceeded."
+    implementation_plan:
+      - "Add --max-scaffold-skips flag to audit CLI"
+      - "Add --max-required-test-no-path flag to audit CLI"
+      - "Wire ScanScaffoldTests result into audit exit code"
+      - "Add TestAudit_MaxScaffoldSkipsFlag test"
+    tests_required:
+      - TestAudit_DetectsTodoSkip
+      - TestAudit_FailsRequiredSkippedTest
+      - TestAudit_DetectsRequiredTestNoPath
+      - TestAudit_DoesNotCountScaffoldAsProof
+    closure_condition: "globular awareness audit --max-scaffold-skips 0 exits 1 when any scaffold TODO skip exists."
+    prevents_repeat_criticism: "Future reviews cannot say 'scaffold tests count as proof' once the CLI gate exists."
+    status: partially_implemented
+
+  - gap_id: awareness.live_overlay_battle_test
+    keywords:
+      - battle-tested
+      - battle tested
+      - live overlay proven
+      - Day-0
+      - Day-1
+      - Day-2
+      - day0 day1 day2
+      - convergence scenario
+      - cluster operation
+      - real operation
+      - prove awareness
+      - scenario runner
+    title: "Live overlay confidence is not battle-tested — no Day-0 → Day-1 → Day-2 scenario validates awareness in real cluster operation"
+    criticism: "The live overlay is architecturally sound but has not been exercised in a real or fixture-backed Day-0 → Day-1 → Day-2 convergence scenario."
+    requirement: "Add a repeatable scenario fixture (or documented real-cluster command sequence) that validates awareness at each convergence phase."
+    implementation_plan:
+      - "Create awareness/scenarios/day0_day1_day2_test.go with fixture-based scenario"
+      - "Define ScenarioPhaseResult struct with live_overlay, workflow_runtime, graph_integrity, proposal_queue fields"
+      - "Add Phase fixtures: day0 (static only), day1 (convergence), day2 (drift/recovery)"
+      - "Validate each phase produces expected awareness signals"
+    tests_required:
+      - TestDay0Awareness_StaticGraphOnly
+      - TestDay1Awareness_LiveOverlayFresh
+      - TestDay2Awareness_DriftDetected
+      - TestScenario_JSONSchemaValid
+    closure_condition: "A fixture-based scenario test passes for all three phases. JSON output schema is validated."
+    prevents_repeat_criticism: "Future reviews cannot say 'live overlay is not battle-tested' once the scenario fixture passes."
+    status: not_implemented
+
+  - gap_id: awareness.agent_usage_health_pulse
+    keywords:
+      - agent usage in health pulse
+      - skip rate health pulse
+      - usage warning
+      - health pulse agent
+      - preflight skip rate warning
+      - usage telemetry
+      - agent usage zero
+    title: "Agent usage skip-rate is tracked but not visibly warned in health_pulse when agents are bypassing awareness"
+    criticism: "agent_usage section exists in health_pulse but the warning does not fire if all values are zero (no_data state). High skip-rate alert must fire when sessions > 0 and skip rate > threshold."
+    requirement: "Ensure health_pulse warns when skip rate > 20% with sessions > 3. Add TestHealthPulse_IncludesAgentUsageWarning."
+    implementation_plan:
+      - "Add TestHealthPulse_IncludesAgentUsageWarning test"
+      - "Verify high_skip_rate alert threshold (currently >50%) — lower to 20% or document why 50% is appropriate"
+    tests_required:
+      - TestHealthPulse_IncludesAgentUsageWarning
+      - TestAgentUsage_RecordsSessionStart
+      - TestAgentUsage_CalculatesSkipRate
+    closure_condition: "health_pulse fires agent_usage.high_skip_rate warning when skip rate exceeds threshold with sufficient session data."
+    prevents_repeat_criticism: "Future reviews cannot say 'skip rate is not visible in health_pulse' once the alert threshold is documented and tested."
+    status: partially_implemented

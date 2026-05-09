@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/awareness/extractors/manual"
+	"gopkg.in/yaml.v3"
 )
 
 // ---------------------------------------------------------------------------
@@ -35,10 +38,13 @@ type healthPulseRuntimeSection struct {
 }
 
 type healthPulseQueueSection struct {
-	PendingProposals int    `json:"pending_proposals"`
-	StaleProposals   int    `json:"stale_proposals"`
-	QueueStatus      string `json:"queue_status"` // healthy | stale | needs_review | blocked
-	Status           string `json:"status"`       // ok | warn | critical
+	PendingProposals      int     `json:"pending_proposals"`
+	StaleProposals        int     `json:"stale_proposals"`
+	ValidatedCount        int     `json:"validated_count"`
+	ApprovedNotPromoted   int     `json:"approved_not_promoted"`
+	OldestAgeHours        float64 `json:"oldest_age_hours,omitempty"`
+	QueueStatus           string  `json:"queue_status"` // healthy | stale | needs_review | blocked | promotion_pending
+	Status                string  `json:"status"`       // ok | warn | critical
 }
 
 type healthPulseGraphSection struct {
@@ -324,32 +330,123 @@ func buildRuntimeSection(repoRoot string) (healthPulseRuntimeSection, []healthPu
 func buildQueueSection(docsDir string, staleHours float64) (healthPulseQueueSection, []healthPulseAlert) {
 	var alerts []healthPulseAlert
 
-	pending, _ := loadPendingProposalCount(docsDir)
-	stale := countStaleProposals(docsDir, staleHours)
+	scan := scanProposalQueue(docsDir, staleHours)
 
-	counts := proposalCounts{Stale: stale}
-	qStatus := computeQueueStatus(counts, stale, 0)
+	counts := proposalCounts{
+		Draft:     scan.draft,
+		Validated: scan.validated,
+		Approved:  scan.approved,
+		Stale:     scan.stale,
+	}
+	qStatus := computeQueueStatus(counts, scan.stale, 0)
+	if scan.approvedNotPromoted > 0 {
+		qStatus = "promotion_pending"
+	}
 
 	sectionStatus := "ok"
-	if stale > 0 {
+	if scan.stale > 0 {
 		sectionStatus = "warn"
 		alerts = append(alerts, healthPulseAlert{
 			Severity:          "warning",
 			ID:                "proposal_queue.stale",
-			Message:           fmt.Sprintf("%d proposal(s) older than %.0fh SLA", stale, staleHours),
+			Message:           fmt.Sprintf("%d proposal(s) older than %.0fh SLA", scan.stale, staleHours),
 			RecommendedAction: "Run awareness.proposal_queue_health for details, then awareness.proposal_review_plan to prioritize.",
 		})
 	}
-	if qStatus == "needs_review" {
+	if scan.approvedNotPromoted > 0 {
+		sectionStatus = "warn"
+		alerts = append(alerts, healthPulseAlert{
+			Severity:          "warning",
+			ID:                "proposal_queue.approved_not_promoted",
+			Message:           fmt.Sprintf("%d approved proposal(s) not yet promoted to knowledge base", scan.approvedNotPromoted),
+			RecommendedAction: "Run 'globular awareness promote-proposal <id>' for each APPROVED proposal.",
+		})
+	}
+	if qStatus == "needs_review" && sectionStatus == "ok" {
 		sectionStatus = "warn"
 	}
 
-	return healthPulseQueueSection{
-		PendingProposals: pending,
-		StaleProposals:   stale,
-		QueueStatus:      qStatus,
-		Status:           sectionStatus,
-	}, alerts
+	sec := healthPulseQueueSection{
+		PendingProposals:    scan.pending,
+		StaleProposals:      scan.stale,
+		ValidatedCount:      scan.validated,
+		ApprovedNotPromoted: scan.approvedNotPromoted,
+		QueueStatus:         qStatus,
+		Status:              sectionStatus,
+	}
+	if scan.oldestAgeHours > 0 {
+		sec.OldestAgeHours = scan.oldestAgeHours
+	}
+	return sec, alerts
+}
+
+// proposalQueueScan holds the raw counts from a single-pass scan.
+type proposalQueueScan struct {
+	pending             int
+	draft               int
+	validated           int
+	approved            int
+	approvedNotPromoted int
+	stale               int
+	oldestAgeHours      float64
+}
+
+// scanProposalQueue reads the proposals directory once and computes all counts.
+func scanProposalQueue(docsDir string, staleHours float64) proposalQueueScan {
+	proposalsDir := filepath.Join(docsDir, "proposals")
+	entries, err := os.ReadDir(proposalsDir)
+	if err != nil {
+		return proposalQueueScan{}
+	}
+
+	now := time.Now()
+	var scan proposalQueueScan
+
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
+			continue
+		}
+		path := filepath.Join(proposalsDir, e.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var raw struct {
+			Proposal struct {
+				ID        string `yaml:"id"`
+				Status    string `yaml:"status"`
+				CreatedAt string `yaml:"created_at"`
+			} `yaml:"proposal"`
+		}
+		if err := yaml.Unmarshal(data, &raw); err != nil {
+			continue
+		}
+		status := strings.ToUpper(raw.Proposal.Status)
+		if status == "PROMOTED" || status == "REJECTED" {
+			continue
+		}
+
+		scan.pending++
+		age := proposalAge(raw.Proposal.CreatedAt, path, now)
+		ageH := age.Hours()
+		if ageH > scan.oldestAgeHours {
+			scan.oldestAgeHours = ageH
+		}
+		if ageH > staleHours {
+			scan.stale++
+		}
+
+		switch status {
+		case "DRAFT", "":
+			scan.draft++
+		case "VALIDATED":
+			scan.validated++
+		case "APPROVED":
+			scan.approved++
+			scan.approvedNotPromoted++
+		}
+	}
+	return scan
 }
 
 func buildGraphSection(ctx context.Context, st *awarenessState, docsDir string, includeGraph bool) (healthPulseGraphSection, []healthPulseAlert) {

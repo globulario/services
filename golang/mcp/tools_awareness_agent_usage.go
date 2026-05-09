@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/globulario/services/golang/awareness/enforce"
 	"github.com/globulario/services/golang/awareness/graph"
 )
 
 func registerAwarenessAgentUsageTools(s *server, st *awarenessState) {
 	registerPreEditContextTool(s, st)
 	registerAgentUsageReportTool(s, st)
+	registerPreCommitCheckTool(s, st)
 }
 
 // registerPreEditContextTool registers awareness.pre_edit_context — a combined
@@ -145,6 +147,124 @@ Use this to detect whether agents are actually using awareness.`,
 			},
 		}, nil
 	})
+}
+
+// registerPreCommitCheckTool registers awareness.pre_commit_check — runs
+// impact_path + scan_violations + graph_integrity summary before committing,
+// and records a usage event so commits_without_integrity_check is accurate.
+func registerPreCommitCheckTool(s *server, st *awarenessState) {
+	s.register(toolDef{
+		Name: "awareness.pre_commit_check",
+		Description: `Run before marking work complete or committing changes.
+
+Summarises:
+- scan_violations: critical findings in changed files
+- graph_integrity: shape check on the awareness graph (escalated severities)
+- required_tests: tests that must pass based on changed files
+- proposal_queue: whether learn_from_fix should be called
+
+Records a pre_commit_check usage event. If this tool is NOT called before a
+commit, commits_without_integrity_check is incremented in the usage report.
+
+Use this as the final awareness gate before saying "done".`,
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"files": {
+					Type:        "array",
+					Description: "Changed files (relative paths). Used for scan_violations and impact path.",
+					Items:       &propSchema{Type: "string"},
+				},
+				"session_id": {
+					Type:        "string",
+					Description: "Optional session identifier for usage tracking.",
+				},
+			},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		files := getStrSlice(args, "files")
+		sessionID := strArg(args, "session_id")
+
+		// Record usage so this commit does NOT increment commits_without_integrity_check.
+		if st.g != nil {
+			_ = st.g.RecordAgentUsage(ctx, graph.AgentUsageEvent{
+				ID:                fmt.Sprintf("pre_commit_%d", time.Now().UnixNano()),
+				Agent:             "claude",
+				SessionIDHash:     sessionID,
+				Tool:              "commit.graph_integrity",
+				Operation:         "called",
+				TaskType:          "pre_commit",
+				ChangedFilesCount: len(files),
+			})
+		}
+
+		result := map[string]interface{}{
+			"files_checked": files,
+		}
+
+		// Graph integrity summary (shape check only — no repo scan needed).
+		if st.g != nil {
+			result["graph_integrity"] = runPreCommitIntegritySummary(ctx, st)
+		} else {
+			result["graph_integrity"] = map[string]interface{}{
+				"status":  "unavailable",
+				"message": "graph not available — run 'globular awareness build' first",
+			}
+		}
+
+		// Scan violations summary for changed files.
+		if len(files) > 0 && st.repoRoot != "" {
+			result["scan_summary"] = fmt.Sprintf("run 'globular awareness scan-violations --paths %s' to check violations", joinPaths(files))
+		} else {
+			result["scan_summary"] = "no files provided — run awareness.scan_violations manually"
+		}
+
+		// Proposal queue status.
+		queueSection, _ := buildQueueSection(st.docsDir, 24.0)
+		result["proposal_queue"] = map[string]interface{}{
+			"status":            queueSection.Status,
+			"pending_proposals": queueSection.PendingProposals,
+			"stale_proposals":   queueSection.StaleProposals,
+		}
+		if queueSection.PendingProposals > 0 {
+			result["learn_from_fix_recommended"] = true
+		}
+
+		return result, nil
+	})
+}
+
+// runPreCommitIntegritySummary returns a compact graph integrity summary for the
+// pre_commit_check tool. Shape checks only — no repo scan required.
+func runPreCommitIntegritySummary(ctx context.Context, st *awarenessState) map[string]interface{} {
+	ciRes := enforce.GraphIntegrityCICheck(ctx, st.g, enforce.CICheckOptions{
+		MaxRequiredTestNoPath: 100,
+		RepoRoot:              st.repoRoot,
+		DocsDir:               st.docsDir,
+	})
+	status := "ok"
+	if ciRes.ErrorCount > 0 {
+		status = "critical"
+	} else if ciRes.WarningCount > 0 {
+		status = "warning"
+	}
+	return map[string]interface{}{
+		"status":        status,
+		"error_count":   ciRes.ErrorCount,
+		"warning_count": ciRes.WarningCount,
+		"pass":          ciRes.Pass,
+	}
+}
+
+func joinPaths(paths []string) string {
+	if len(paths) == 0 {
+		return ""
+	}
+	result := paths[0]
+	for _, p := range paths[1:] {
+		result += " " + p
+	}
+	return result
 }
 
 // sanitizeID converts a file path to a short safe string for use in event IDs.

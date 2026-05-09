@@ -1046,6 +1046,7 @@ func init() {
 	awarenessAuditCmd.Flags().BoolVar(&enforceCfg.showSuppressed, "show-suppressed", false, "Include full detail of suppressed findings in output")
 	awarenessAuditCmd.Flags().IntVar(&enforceCfg.maxRequiredTestNoPath, "max-required-test-no-path", -1, "Exit 1 if REQUIRED_TEST_NO_PATH warning count exceeds N (-1 disables)")
 	awarenessAuditCmd.Flags().IntVar(&enforceCfg.maxTodoScaffoldSkips, "max-todo-scaffold-skips", -1, "Exit 1 if SCAFFOLD_TODO_SKIP count exceeds N (-1 disables)")
+	awarenessAuditCmd.Flags().IntVar(&enforceCfg.maxTodoScaffoldSkips, "max-scaffold-skips", -1, "Alias for --max-todo-scaffold-skips")
 	awarenessAuditCmd.Flags().Float64Var(&enforceCfg.minInvariantImplementationCoverage, "min-invariant-implementation-coverage", 0, "Exit 1 if invariant implementation coverage percent falls below this value (0 = use internal default)")
 
 	// validate-annotations
