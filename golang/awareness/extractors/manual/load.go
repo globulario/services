@@ -46,6 +46,7 @@ var configOnlyKeys = map[string]bool{
 	"queries":      true, // knowledge/metric_queries.yaml — Prometheus query templates
 	"thresholds":   true, // knowledge/metric_thresholds.yaml — metric thresholds
 	"playbooks":    true, // knowledge/agent_playbooks.yaml — agent playbooks
+	"dns_zones":    true, // knowledge/dns_zones.yaml — read by dns extractor, not manual loader
 	"incident_id":  true, // incidents/*.yaml — dynamic incident records
 	"proposal":     true, // proposals/*.yaml — proposal pipeline records
 	"last_updated": true, // status_tracker.yaml — operational status
