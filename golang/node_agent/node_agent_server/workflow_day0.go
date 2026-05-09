@@ -425,16 +425,26 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 	return run, err
 }
 
-// inferPackageKind returns the package kind based on known infrastructure names.
+// inferPackageKind returns the package kind for Day-0 bootstrap installs.
+// This is the ONLY place where kind is inferred from a name — all post-Day-0
+// installs derive kind from the artifact manifest (package.json "type" field).
+//
+// Rules:
+//   - INFRASTRUCTURE: daemons that are cluster substrate, not gRPC microservices
+//     (databases, proxies, monitoring, VIP manager, mesh fabric).
+//   - SERVICE: Globular gRPC microservices (have authz, register in service mesh).
+//     cluster-controller, cluster-doctor, node-agent are SERVICE — they are gRPC
+//     services installed from the repository, NOT infrastructure daemons.
+//   - COMMAND: CLI tools with no systemd unit.
 func inferPackageKind(name string) string {
 	switch name {
 	case "scylladb", "etcd", "minio", "envoy", "xds", "gateway",
-		"node-agent", "cluster-controller", "cluster-doctor",
+		"keepalived",
 		"prometheus", "alertmanager", "node-exporter", "sidekick",
 		"scylla-manager", "scylla-manager-agent":
 		return "INFRASTRUCTURE"
-	case "mc", "globular-cli", "etcdctl", "rclone", "restic", "sctool",
-		"sha256sum", "yt-dlp", "ffmpeg":
+	case "mc", "globular-cli", "cli", "etcdctl", "rclone", "restic", "sctool",
+		"sha256sum", "yt-dlp", "ffmpeg", "claude":
 		return "COMMAND"
 	default:
 		return "SERVICE"

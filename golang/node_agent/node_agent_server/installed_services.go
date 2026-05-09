@@ -73,6 +73,10 @@ type InstalledServiceInfo struct {
 	PublisherID  string
 	ServiceName  string
 	Version      string
+	// Kind is the package classification ("SERVICE", "INFRASTRUCTURE", "COMMAND",
+	// "APPLICATION"). Populated from the kind sidecar written at install time.
+	// Empty string means unknown — consumers should fall back to static inference.
+	Kind         string
 	Config       map[string]string
 	ConfigDigest string
 	Source       ObservationSource
@@ -134,6 +138,7 @@ func ComputeInstalledServices(ctx context.Context) (map[ServiceKey]InstalledServ
 			PublisherID:  entry.PublisherID,
 			ServiceName:  entry.ServiceName,
 			Version:      entry.Version,
+			Kind:         entry.Kind,
 			Config:       entry.Config,
 			ConfigDigest: entry.ConfigDigest,
 			Source:       entry.Source,
@@ -187,6 +192,10 @@ func loadMarkers(ctx context.Context, byService map[string]*InstalledServiceInfo
 		entry.ServiceName = svc
 		entry.Version = version
 		entry.Source = ManagedInstalled // version markers are written by the apply path
+		// Optional kind sidecar — persisted at install time alongside the version marker.
+		if k := versionutil.ReadKind(name); k != "" {
+			entry.Kind = k
+		}
 		// Optional config digest marker.
 		digestPath := filepath.Join(markerRoot, name, "config.sha256")
 		if cfgData, err := os.ReadFile(digestPath); err == nil {

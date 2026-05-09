@@ -42,12 +42,14 @@ func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Conf
 			unitsByName[strings.ToLower(strings.TrimSpace(u.GetName()))] = strings.ToLower(strings.TrimSpace(u.GetState()))
 		}
 
+		nodeKinds := snap.NodePackageKinds[nodeID] // may be nil
+
 		for name, version := range health.GetInstalledVersions() {
 			canon := normalizeInstalledName(name)
 			if canon == "" || strings.TrimSpace(version) == "" {
 				continue
 			}
-			if commandPackage(canon) {
+			if packageIsCommand(canon, nodeKinds) {
 				continue
 			}
 			unit := packageUnit(canon)
@@ -111,19 +113,36 @@ func normalizeInstalledName(name string) string {
 	return n
 }
 
-func commandPackage(name string) bool {
-	switch name {
-	case "rclone", "restic", "mc", "sctool", "etcdctl", "ffmpeg", "globular-cli":
-		return true
-	default:
-		return false
+// packageIsCommand returns true when the package has no systemd unit to check.
+//
+// Primary source: nodeKinds (from etcd /globular/nodes/{id}/packages/{KIND}/{name}).
+// Any package recorded as "COMMAND" in etcd is skipped — no static list needed.
+//
+// Fallback: a minimal static list covers packages installed before the kind
+// sidecar was introduced (Day-0 bootstrapped nodes that predate this fix).
+// This list should NOT grow; add new packages to the workflow spec instead.
+func packageIsCommand(name string, nodeKinds map[string]string) bool {
+	if kind, ok := nodeKinds[name]; ok {
+		return kind == "COMMAND"
 	}
+	// Fallback for pre-kind-sidecar installs only.
+	switch name {
+	case "rclone", "restic", "mc", "sctool", "etcdctl", "ffmpeg",
+		"globular-cli", "cli", "sha256sum", "yt-dlp", "claude":
+		return true
+	}
+	return false
 }
 
+// packageUnit returns the systemd unit name for a non-command package.
+// Most packages follow the globular-{name}.service convention.
+// Infrastructure packages installed as OS/native packages are listed explicitly.
 func packageUnit(name string) string {
 	switch name {
 	case "scylladb":
 		return "scylla-server.service"
+	case "keepalived":
+		return "keepalived.service"
 	case "scylla-manager":
 		return "globular-scylla-manager.service"
 	case "scylla-manager-agent":

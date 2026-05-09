@@ -214,6 +214,16 @@ type Snapshot struct {
 	// no record exists (condition is resolved or has never occurred).
 	LeaderPendingUpdate *LeaderPendingUpdateRecord
 
+	// NodePackageKinds is the authoritative per-node package-kind map read from
+	// etcd (/globular/nodes/{nodeID}/packages/{KIND}/{name}).
+	// Outer key: nodeID. Inner key: canonical package name. Value: uppercase
+	// kind string ("SERVICE", "INFRASTRUCTURE", "COMMAND", "APPLICATION").
+	// Rules use this to avoid hardcoding package-classification lists — any
+	// package with kind=="COMMAND" has no systemd unit and must be skipped by
+	// runtime-convergence checks. Missing inner entry means kind is unknown;
+	// callers fall back to static inference.
+	NodePackageKinds map[string]map[string]string
+
 	mu sync.Mutex
 }
 
@@ -282,6 +292,7 @@ func newSnapshot(id string) *Snapshot {
 		ReconcileLaneStatus:      make(map[string]map[string]interface{}),
 		CriticalKeyPresent:       make(map[string]bool),
 		CriticalKeyQueryError:    make(map[string]error),
+		NodePackageKinds:         make(map[string]map[string]string),
 	}
 }
 

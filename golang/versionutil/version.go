@@ -47,6 +47,41 @@ func MarkerPath(serviceName string) string {
 	return canonical
 }
 
+// KindPath returns the path to the kind sidecar file for a given service name.
+// Written at install time alongside the version marker.
+// Format: /var/lib/globular/services/<name>/kind
+func KindPath(serviceName string) string {
+	name := sanitize(serviceName)
+	if name == "" {
+		name = "unknown"
+	}
+	return filepath.Join(baseDir, name, "kind")
+}
+
+// WriteKind persists the package kind ("SERVICE", "INFRASTRUCTURE", "COMMAND",
+// "APPLICATION") alongside the version marker so offline/Phase-1 reads know the
+// kind without an etcd query. Safe to call multiple times; last write wins.
+func WriteKind(serviceName, kind string) error {
+	kind = strings.ToUpper(strings.TrimSpace(kind))
+	if kind == "" {
+		return nil
+	}
+	path := KindPath(serviceName)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(kind+"\n"), 0o644)
+}
+
+// ReadKind returns the persisted kind for a package, or "" if no sidecar exists.
+func ReadKind(serviceName string) string {
+	data, err := os.ReadFile(KindPath(serviceName))
+	if err != nil {
+		return ""
+	}
+	return strings.ToUpper(strings.TrimSpace(string(data)))
+}
+
 func sanitize(name string) string {
 	n := strings.ToLower(strings.TrimSpace(name))
 	if n == "" {

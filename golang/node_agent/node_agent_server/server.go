@@ -798,7 +798,7 @@ func detectUnits(ctx context.Context) []*node_agentpb.UnitStatus {
 	}
 
 	// Must-check baseline — infrastructure units that may not have the
-	// globular-* prefix (e.g. scylla-server).
+	// globular-* prefix (e.g. scylla-server, keepalived).
 	baseline := []string{
 		"globular-etcd.service",
 		"globular-dns.service",
@@ -811,6 +811,7 @@ func detectUnits(ctx context.Context) []*node_agentpb.UnitStatus {
 		"globular-xds.service",
 		"globular-envoy.service",
 		"scylla-server.service",
+		"keepalived.service",
 		"globular-monitoring.service",
 	}
 

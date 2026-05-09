@@ -67,7 +67,7 @@ func TestInstalledStateRuntimeMismatch_DaemonActiveUnit_NoFinding(t *testing.T) 
 	snap := &collector.Snapshot{
 		Nodes:       []*cluster_controllerpb.NodeRecord{freshNodeRecord("n1")},
 		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{"n1": freshNodeHealth("n1", map[string]string{"keepalived": "0.0.1"})},
-		Inventories: map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits(unit("globular-keepalived.service", "active"))},
+		Inventories: map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits(unit("keepalived.service", "active"))},
 	}
 	findings := (installedStateRuntimeMismatch{}).Evaluate(snap, testConfig())
 	if len(findings) != 0 {
@@ -79,7 +79,7 @@ func TestInstalledStateRuntimeMismatch_DaemonFailedUnit_FindingFired(t *testing.
 	snap := &collector.Snapshot{
 		Nodes:       []*cluster_controllerpb.NodeRecord{freshNodeRecord("n1")},
 		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{"n1": freshNodeHealth("n1", map[string]string{"keepalived": "0.0.1"})},
-		Inventories: map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits(unit("globular-keepalived.service", "failed"))},
+		Inventories: map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits(unit("keepalived.service", "failed"))},
 	}
 	findings := (installedStateRuntimeMismatch{}).Evaluate(snap, testConfig())
 	if len(findings) != 1 {
@@ -156,19 +156,70 @@ func TestInstalledStateRuntimeMismatch_NoInventory_NoFinding(t *testing.T) {
 	}
 }
 
-func TestCommandPackage_KnownCommands(t *testing.T) {
-	known := []string{"rclone", "restic", "mc", "sctool", "etcdctl", "ffmpeg", "globular-cli"}
+func TestPackageIsCommand_FallbackList(t *testing.T) {
+	known := []string{
+		"rclone", "restic", "mc", "sctool", "etcdctl", "ffmpeg", "globular-cli",
+		"cli", "sha256sum", "yt-dlp", "claude",
+	}
 	for _, name := range known {
-		if !commandPackage(name) {
-			t.Errorf("expected %q to be classified as a command package", name)
+		if !packageIsCommand(name, nil) {
+			t.Errorf("expected %q to be classified as a command package via fallback", name)
 		}
 	}
 }
 
-func TestCommandPackage_DaemonIsNotCommand(t *testing.T) {
+func TestPackageIsCommand_EtcdKindWins(t *testing.T) {
+	// A package recorded as COMMAND in etcd is skipped even if absent from fallback list.
+	kinds := map[string]string{"new-tool": "COMMAND"}
+	if !packageIsCommand("new-tool", kinds) {
+		t.Error("etcd COMMAND kind must mark package as command")
+	}
+	// A package recorded as SERVICE in etcd is NOT a command, even if it looks like one.
+	kinds2 := map[string]string{"rclone": "SERVICE"}
+	if packageIsCommand("rclone", kinds2) {
+		t.Error("etcd SERVICE kind must override fallback COMMAND classification")
+	}
+}
+
+func TestInstalledStateRuntimeMismatch_CommandPackages_NoFinding(t *testing.T) {
+	pkgs := map[string]string{
+		"cli":       "1.2.21",
+		"sha256sum": "9.4.0",
+		"yt-dlp":    "2026.2.21",
+		"claude":    "2.1.80",
+	}
+	snap := &collector.Snapshot{
+		Nodes:       []*cluster_controllerpb.NodeRecord{freshNodeRecord("n1")},
+		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{"n1": freshNodeHealth("n1", pkgs)},
+		Inventories: map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits()},
+	}
+	findings := (installedStateRuntimeMismatch{}).Evaluate(snap, testConfig())
+	if len(findings) != 0 {
+		t.Errorf("CLI tool packages must not require systemd units, got %d findings", len(findings))
+	}
+}
+
+func TestInstalledStateRuntimeMismatch_EtcdCommandKind_NoFinding(t *testing.T) {
+	// Packages recorded as COMMAND in etcd must never fire, even if not in fallback list.
+	pkgs := map[string]string{"brand-new-tool": "1.0.0"}
+	snap := &collector.Snapshot{
+		Nodes:       []*cluster_controllerpb.NodeRecord{freshNodeRecord("n1")},
+		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{"n1": freshNodeHealth("n1", pkgs)},
+		Inventories: map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits()},
+		NodePackageKinds: map[string]map[string]string{
+			"n1": {"brand-new-tool": "COMMAND"},
+		},
+	}
+	findings := (installedStateRuntimeMismatch{}).Evaluate(snap, testConfig())
+	if len(findings) != 0 {
+		t.Errorf("COMMAND package from etcd must not require a systemd unit, got %d findings", len(findings))
+	}
+}
+
+func TestPackageIsCommand_DaemonIsNotCommand(t *testing.T) {
 	daemons := []string{"keepalived", "mcp", "cluster-controller", "node-agent", "scylladb"}
 	for _, name := range daemons {
-		if commandPackage(name) {
+		if packageIsCommand(name, nil) {
 			t.Errorf("expected %q NOT to be classified as a command package", name)
 		}
 	}

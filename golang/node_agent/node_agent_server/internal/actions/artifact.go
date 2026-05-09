@@ -782,6 +782,10 @@ func (serviceWriteVersionMarkerAction) Apply(ctx context.Context, args *structpb
 	if err := os.WriteFile(path, []byte(version), 0o644); err != nil {
 		return "", fmt.Errorf("write marker: %w", err)
 	}
+	// Persist kind sidecar so Phase-1 (offline) reads know the kind without etcd.
+	if kind := strings.TrimSpace(fields["artifact_kind"].GetStringValue()); kind != "" {
+		_ = versionutil.WriteKind(service, kind)
+	}
 	return "version marker written", nil
 }
 

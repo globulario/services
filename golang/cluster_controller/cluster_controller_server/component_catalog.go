@@ -526,8 +526,20 @@ func buildCatalog() []*Component {
 			RuntimeLocalDependencies: []string{"event"},
 		},
 
+		// node-agent: Globular gRPC microservice installed from the repository.
+		// Absent from service_catalog.yaml auto-generation because it self-upgrades,
+		// but it IS a SERVICE and must be classified as such.
+		{
+			Name:                     "node-agent",
+			Unit:                     "globular-node-agent.service",
+			Kind:                     KindWorkload,
+			Priority:                 1000,
+			Profiles:                 []string{"core", "compute"},
+			RuntimeLocalDependencies: []string{"event"},
+		},
+
 		// ---------------------------------------------------------------
-		// Command packages — CLI tools dispatched as dependencies
+		// Command packages — CLI tools, no systemd unit
 		// ---------------------------------------------------------------
 		{
 			Name:     "rclone",
@@ -560,10 +572,56 @@ func buildCatalog() []*Component {
 			Priority: 900,
 			Profiles: []string{"core", "compute"},
 		},
+		{
+			Name:     "etcdctl",
+			Kind:     KindCommand,
+			Priority: 900,
+			Profiles: []string{"core", "compute", "control-plane"},
+		},
+		{
+			Name:     "globular-cli",
+			Kind:     KindCommand,
+			Priority: 900,
+			Profiles: []string{"core", "compute"},
+		},
+		{
+			Name:     "cli",
+			Kind:     KindCommand,
+			Priority: 900,
+			Profiles: []string{"core", "compute"},
+		},
+		{
+			Name:     "sha256sum",
+			Kind:     KindCommand,
+			Priority: 900,
+			Profiles: []string{"core", "compute"},
+		},
+		{
+			Name:     "yt-dlp",
+			Kind:     KindCommand,
+			Priority: 900,
+			Profiles: []string{"core", "compute"},
+		},
+		{
+			Name:     "claude",
+			Kind:     KindCommand,
+			Priority: 900,
+			Profiles: []string{"core", "compute"},
+		},
 
 		// ---------------------------------------------------------------
-		// Infrastructure components — monitoring & database management
+		// Infrastructure components — monitoring, VIP, database management
 		// ---------------------------------------------------------------
+		{
+			// keepalived: VRRP-based VIP failover daemon. Managed by the
+			// ingress reconciler in node-agent; version comes from binary probe.
+			// Unit is keepalived.service (OS package name, no globular- prefix).
+			Name:     "keepalived",
+			Unit:     "keepalived.service",
+			Kind:     KindInfrastructure,
+			Priority: 9,
+			Profiles: []string{"control-plane", "gateway"},
+		},
 		{
 			Name:        "prometheus",
 			Unit:        "globular-prometheus.service",

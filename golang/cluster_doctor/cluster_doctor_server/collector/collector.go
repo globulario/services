@@ -201,6 +201,49 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 	// First observation records the start time; cleared when drift resolves.
 	snap.NodeDriftAge = c.updateDriftSince(snap.NodeHealths)
 
+	// ── 2b. NodePackageKinds — package kind per node from etcd ───────────────
+	// Key format: /globular/nodes/{nodeID}/packages/{KIND}/{name}
+	// We do a single prefix scan per known node and parse the kind from the path.
+	// This is the authoritative source for package classification; rules must
+	// use this instead of hardcoded name lists so new packages work automatically.
+	if len(snap.Nodes) > 0 {
+		if etcdCli, err := config.GetEtcdClient(); err == nil {
+			pkgCtx, pkgCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+			defer pkgCancel()
+			for _, node := range snap.Nodes {
+				nid := node.GetNodeId()
+				if nid == "" {
+					continue
+				}
+				prefix := "/globular/nodes/" + nid + "/packages/"
+				resp, err := etcdCli.Get(pkgCtx, prefix, clientv3.WithPrefix(), clientv3.WithKeysOnly())
+				if err != nil {
+					continue
+				}
+				kinds := make(map[string]string, len(resp.Kvs))
+				for _, kv := range resp.Kvs {
+					// key = /globular/nodes/{nid}/packages/{KIND}/{name}
+					tail := strings.TrimPrefix(string(kv.Key), prefix)
+					slash := strings.Index(tail, "/")
+					if slash <= 0 || slash == len(tail)-1 {
+						continue
+					}
+					kind := tail[:slash]
+					name := tail[slash+1:]
+					if kind != "" && name != "" {
+						kinds[name] = strings.ToUpper(kind)
+					}
+				}
+				if len(kinds) > 0 {
+					snap.mu.Lock()
+					snap.NodePackageKinds[nid] = kinds
+					snap.mu.Unlock()
+				}
+			}
+			snap.addSource("etcd.node_package_kinds")
+		}
+	}
+
 	// ── 3. ObjectStoreDesiredState — objectstore topology from etcd ──────────
 	osCtx, osCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 	defer osCancel()

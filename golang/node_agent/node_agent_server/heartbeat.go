@@ -1005,8 +1005,9 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 		// Process INFRASTRUCTURE first so that SERVICE records (written by the
 		// release workflow) always take precedence for services that appear in both
 		// (e.g. gateway, mcp upgraded via ServiceRelease but still having a stale
-		// INFRASTRUCTURE record from Day-0).
-		for _, kind := range []string{"INFRASTRUCTURE", "APPLICATION", "SERVICE"} {
+		// INFRASTRUCTURE record from Day-0). COMMAND last — pure CLI tools, no
+		// unit to check, but version must be confirmed back to the controller.
+		for _, kind := range []string{"INFRASTRUCTURE", "APPLICATION", "SERVICE", "COMMAND"} {
 			pkgs, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, kind)
 			if err != nil {
 				continue
