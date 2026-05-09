@@ -1392,6 +1392,11 @@ func (srv *server) publishCAMetadataLocked() {
 //
 // Must NOT be called with srv.mu held.
 func (srv *server) publishScyllaHostsIfNeeded(ctx context.Context) {
+	// ScyllaDB binds to the node's real NIC IP, not the floating VIP.
+	// Exclude the VIP so services that read /globular/cluster/scylla/hosts
+	// always get a connectable address.
+	clusterVIP := srv.clusterVIPFromSpec(ctx)
+
 	srv.lock("scylla-hosts")
 	var hosts []string
 	for _, node := range srv.state.Nodes {
@@ -1412,7 +1417,7 @@ func (srv *server) publishScyllaHostsIfNeeded(ctx context.Context) {
 		if !hasScylla {
 			continue
 		}
-		ip := node.PrimaryIP()
+		ip := node.StableIP(clusterVIP)
 		if ip == "" {
 			continue
 		}
@@ -1449,6 +1454,28 @@ func (srv *server) publishScyllaHostsIfNeeded(ctx context.Context) {
 		return
 	}
 	log.Printf("scylla hosts updated in etcd: %v", hosts)
+}
+
+// clusterVIPFromSpec reads the cluster VIP from the ingress spec stored in etcd.
+// Returns "" if the spec is absent, malformed, or no VIP is configured.
+// Safe to call without holding srv.mu.
+func (srv *server) clusterVIPFromSpec(ctx context.Context) string {
+	if srv.etcdClient == nil {
+		return ""
+	}
+	resp, err := srv.etcdClient.Get(ctx, ingressSpecKey)
+	if err != nil || len(resp.Kvs) == 0 {
+		return ""
+	}
+	var spec ingressDesiredSpec
+	if err := json.Unmarshal(resp.Kvs[0].Value, &spec); err != nil {
+		return ""
+	}
+	if spec.VIPFailover == nil {
+		return ""
+	}
+	vip, _ := spec.VIPFailover["vip"].(string)
+	return strings.TrimSpace(vip)
 }
 
 func protoToStoredIdentity(pi *cluster_controllerpb.NodeIdentity) storedIdentity {

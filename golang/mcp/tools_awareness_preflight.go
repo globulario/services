@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/awareness/analysis"
+	"github.com/globulario/services/golang/awareness/failuregraph"
 	"github.com/globulario/services/golang/awareness/integrity"
 	"github.com/globulario/services/golang/awareness/learning"
 	"github.com/globulario/services/golang/awareness/preflight"
@@ -205,7 +207,10 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 		// whether there are stale/pending proposals before starting code changes.
 		queueSection, _ := buildQueueSection(st.docsDir, 24.0)
 
-		return map[string]interface{}{
+		// Attach relevant failure knowledge for this task.
+		failureKnowledge := buildFailureKnowledgeForTask(ctx, st, task, getStrSlice(args, "files"))
+
+		out := map[string]interface{}{
 			"invariants":        result.InvariantIDs,
 			"failure_modes":     result.FailureModeIDs,
 			"forbidden_fixes":   result.ForbiddenFixes,
@@ -218,7 +223,11 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 				"queue_status":      queueSection.QueueStatus,
 				"status":            queueSection.Status,
 			},
-		}, nil
+		}
+		if len(failureKnowledge) > 0 {
+			out["relevant_failure_knowledge"] = failureKnowledge
+		}
+		return out, nil
 	})
 }
 
@@ -255,4 +264,80 @@ func buildTrustSummaryFromReport(r *preflight.Report) map[string]int {
 	counts[integrity.TrustDeclared] += declaredCount
 
 	return counts
+}
+
+// buildFailureKnowledgeForTask returns failure categories relevant to the task
+// by matching task keywords against category names and summaries.
+// At most 3 categories are returned to keep agent-context concise.
+func buildFailureKnowledgeForTask(ctx context.Context, st *awarenessState, task string, files []string) []map[string]interface{} {
+	if st.g == nil {
+		return nil
+	}
+	store := failuregraph.New(st.g)
+	cats, err := store.ListCategories(ctx)
+	if err != nil || len(cats) == 0 {
+		return nil
+	}
+
+	// Build a set of candidate keywords from task + file paths.
+	taskLower := strings.ToLower(task)
+	fileLower := strings.ToLower(strings.Join(files, " "))
+	combined := taskLower + " " + fileLower
+
+	type scored struct {
+		cat   failuregraph.FailureNode
+		score int
+	}
+	var candidates []scored
+	for _, cat := range cats {
+		s := 0
+		name := strings.ToLower(cat.Name)
+		words := strings.FieldsFunc(name, func(r rune) bool { return r == '_' })
+		for _, w := range words {
+			if len(w) > 3 && strings.Contains(combined, w) {
+				s++
+			}
+		}
+		sum := strings.ToLower(cat.Summary)
+		sumWords := strings.Fields(sum)
+		for _, w := range sumWords {
+			if len(w) > 5 && strings.Contains(combined, w) {
+				s++
+			}
+		}
+		if s > 0 {
+			candidates = append(candidates, scored{cat, s})
+		}
+	}
+
+	// Sort by score descending, cap at 3.
+	for i := 0; i < len(candidates); i++ {
+		for j := i + 1; j < len(candidates); j++ {
+			if candidates[j].score > candidates[i].score {
+				candidates[i], candidates[j] = candidates[j], candidates[i]
+			}
+		}
+	}
+	if len(candidates) > 3 {
+		candidates = candidates[:3]
+	}
+
+	var result []map[string]interface{}
+	for _, c := range candidates {
+		exp, err := failuregraph.ExplainCategory(ctx, store, c.cat.ID)
+		if err != nil {
+			continue
+		}
+		causes := nodeSummaries(exp.LikelyCauses)
+		wrongFixes := nodeSummaries(exp.WrongFixes)
+		tests := nodeSummaries(exp.RequiredTests)
+		result = append(result, map[string]interface{}{
+			"category":    c.cat.Name,
+			"summary":     c.cat.Summary,
+			"causes":      causes,
+			"wrong_fixes": wrongFixes,
+			"tests":       tests,
+		})
+	}
+	return result
 }

@@ -233,6 +233,7 @@ spec:
             version: $.resolved_version
             desired_hash: $.desired_hash
             package_kind: $.package_kind
+            build_id: $.resolved_build_id
           execution:
             idempotency: verify_then_continue
             resume_policy: verify_effect

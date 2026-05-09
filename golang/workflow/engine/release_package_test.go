@@ -47,7 +47,7 @@ type releasePackageTestOpts struct {
 	verifyPackageInstalled func(ctx context.Context, name, version, hash string) error
 	maybeRestartPackage  func(ctx context.Context, name, kind, policy string) error
 	verifyPackageRuntime func(ctx context.Context, name, check string) error
-	syncInstalledPackage func(ctx context.Context, name, version, hash, kind string) error
+	syncInstalledPackage func(ctx context.Context, name, version, hash, kind, buildID string) error
 }
 
 func defaultReleasePackageOpts() releasePackageTestOpts {
@@ -66,7 +66,7 @@ func defaultReleasePackageOpts() releasePackageTestOpts {
 		verifyPackageInstalled: func(ctx context.Context, name, version, hash string) error { return nil },
 		maybeRestartPackage:    func(ctx context.Context, name, kind, policy string) error { return nil },
 		verifyPackageRuntime:   func(ctx context.Context, name, check string) error { return nil },
-		syncInstalledPackage:   func(ctx context.Context, name, version, hash, kind string) error { return nil },
+		syncInstalledPackage:   func(ctx context.Context, name, version, hash, kind, buildID string) error { return nil },
 	}
 }
 
@@ -148,7 +148,7 @@ func TestReleasePackage_ServiceRolloutSuccess(t *testing.T) {
 		record("health:" + name)
 		return nil
 	}
-	opts.syncInstalledPackage = func(ctx context.Context, name, version, hash, kind string) error {
+	opts.syncInstalledPackage = func(ctx context.Context, name, version, hash, kind, buildID string) error {
 		record("sync:" + name)
 		return nil
 	}
@@ -209,7 +209,7 @@ func TestReleasePackage_WorkloadPartialFailure(t *testing.T) {
 	opts.verifyPackageInstalled = func(ctx context.Context, name, version, hash string) error { return nil }
 	opts.maybeRestartPackage = func(ctx context.Context, name, kind, policy string) error { return nil }
 	opts.verifyPackageRuntime = func(ctx context.Context, name, check string) error { return nil }
-	opts.syncInstalledPackage = func(ctx context.Context, name, version, hash, kind string) error { return nil }
+	opts.syncInstalledPackage = func(ctx context.Context, name, version, hash, kind, buildID string) error { return nil }
 
 	router := newReleasePackageRouter(t, opts)
 	eng := &Engine{Router: router}
@@ -248,7 +248,7 @@ func TestReleasePackage_CommandSkipsRestart(t *testing.T) {
 		return nil
 	}
 	opts.verifyPackageRuntime = func(ctx context.Context, name, check string) error { return nil }
-	opts.syncInstalledPackage = func(ctx context.Context, name, version, hash, kind string) error { return nil }
+	opts.syncInstalledPackage = func(ctx context.Context, name, version, hash, kind, buildID string) error { return nil }
 
 	router := newReleasePackageRouter(t, opts)
 	eng := &Engine{Router: router}

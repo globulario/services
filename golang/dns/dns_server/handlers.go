@@ -809,7 +809,7 @@ func (srv *server) GetTXT(ctx context.Context, rqst *dnspb.GetTXTRequest) (*dnsp
 
 	data, err := srv.store.GetItem(uuid)
 	values := make([]string, 0)
-	if err == nil {
+	if err == nil && len(data) > 0 {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("GetTXT unmarshal", "domain", domainKey, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))

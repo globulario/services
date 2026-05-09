@@ -221,6 +221,13 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 				pkg, err = installed_state.GetInstalledPackage(ctx, node.NodeID, "INFRASTRUCTURE", svc)
 			}
 			if err != nil || pkg == nil {
+				// If the node is an active infrastructure member for this package
+				// (joined via the Day-0/join flow), the release workflow will
+				// short-circuit with 0 targets. Emitting missing_package here
+				// creates a permanent remediation loop with no effect.
+				if isActiveInfraMember(node, svc) {
+					continue
+				}
 				driftItems = append(driftItems, map[string]any{
 					"type":            "missing_package",
 					"node_id":         node.NodeID,

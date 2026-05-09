@@ -232,6 +232,11 @@ invariants:
       required_tests:
         - TestInstalledNotImpliesRunning
         - TestRuntimeHealthSeparateFromInstalled
+      implemented_by:
+        - file: golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
+          trust: declared
+        - file: golang/node_agent/node_agent_server/installed_services.go
+          trust: declared
     - id: desired.build_id_immutable
       title: Desired build_id must not mutate after resolution
       severity: critical
@@ -250,6 +255,11 @@ invariants:
       required_tests:
         - TestDesiredBuildIDImmutableAfterWrite
         - TestBuildIDNotResolvedAtNodeAgent
+      implemented_by:
+        - file: golang/cluster_controller/cluster_controller_server/release_resolver.go
+          trust: declared
+        - file: golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+          trust: declared
       authority:
         - etcd: /globular/resources/DesiredService/{name}
       verified_by:
@@ -454,6 +464,9 @@ invariants:
       required_tests:
         - TestMissingKeyDoesNotStopRuntime
         - TestDeleteKeyWhileRunningKeepsRuntimeActive
+      implemented_by:
+        - file: golang/cluster_controller/cluster_controller_server/desired_state_publisher.go
+          trust: declared
       related_failure_modes:
         - critical_state.absent_key_interpreted_as_stop
     - id: runtime.last_known_good_required_for_critical_consumers
@@ -520,6 +533,9 @@ invariants:
         - TestDeleteWithoutApprovalRestoresKey
         - TestDeleteWithValidApprovalAccepted
         - TestStaleApprovalGenerationRejected
+      implemented_by:
+        - file: golang/cluster_controller/cluster_controller_server/critical_state_registry.go
+          trust: declared
       related_failure_modes:
         - critical_state.accidental_key_deletion
     - id: reconcile.global_work_must_not_starve_completion
@@ -958,6 +974,8 @@ invariants:
             - awarenessBuildCmd
             - cleanBuild
           trust: declared
+        - file: golang/globularcli/awareness_preflight_cmd.go
+          trust: declared
       authority:
         - file: docs/awareness/knowledge/causal_rules.yaml
         - file: docs/awareness/knowledge/agent_playbooks.yaml
@@ -995,6 +1013,8 @@ invariants:
         - TestCausalRulesFileExists
         - TestCausalRulesHaveRequiredFields
       implemented_by:
+        - file: golang/awareness/learning/validate.go
+          trust: declared
         - file: docs/awareness/knowledge/causal_rules.yaml
           trust: declared
       authority:
@@ -1134,7 +1154,9 @@ invariants:
           functions:
             - learnFromFix
           trust: verified
-        - file: golang/awareness/learning/
+        - file: golang/awareness/learning/promote.go
+          trust: declared
+        - file: golang/awareness/learning/validate.go
           trust: declared
       authority:
         - file: docs/awareness/knowledge/path_weights.yaml

@@ -251,6 +251,99 @@ func TestBuildObjectStore_FiltersStalePoolIPs(t *testing.T) {
 	}
 }
 
+// TestMigratePoolNodeHostnames verifies that stale FQDN/hostname entries in
+// MinioPoolNodes are replaced with the routable IP of the matching node.
+// This covers clusters where an older code version wrote hostnames instead of IPs,
+// which caused resolveMinioEndpointLocked to permanently reject the endpoint.
+func TestMigratePoolNodeHostnames(t *testing.T) {
+	cases := []struct {
+		name        string
+		poolNodes   []string
+		nodes       map[string]*nodeState
+		wantPool    []string
+		wantLogged  bool // whether a replacement should have occurred
+	}{
+		{
+			name:      "FQDN replaced with IP via advertise_fqdn",
+			poolNodes: []string{"globule-ryzen.globular.internal"},
+			nodes: map[string]*nodeState{
+				"ryzen": {
+					NodeID:        "ryzen",
+					Identity:      storedIdentity{Hostname: "globule-ryzen", Ips: []string{"10.0.0.63"}},
+					AdvertiseFqdn: "globule-ryzen.globular.internal",
+				},
+			},
+			wantPool:   []string{"10.0.0.63"},
+			wantLogged: true,
+		},
+		{
+			name:      "short hostname replaced via identity hostname",
+			poolNodes: []string{"globule-ryzen"},
+			nodes: map[string]*nodeState{
+				"ryzen": {
+					NodeID:   "ryzen",
+					Identity: storedIdentity{Hostname: "globule-ryzen", Ips: []string{"10.0.0.63"}},
+				},
+			},
+			wantPool:   []string{"10.0.0.63"},
+			wantLogged: true,
+		},
+		{
+			name:      "valid IP left unchanged",
+			poolNodes: []string{"10.0.0.63"},
+			nodes: map[string]*nodeState{
+				"ryzen": {
+					NodeID:   "ryzen",
+					Identity: storedIdentity{Hostname: "globule-ryzen", Ips: []string{"10.0.0.63"}},
+				},
+			},
+			wantPool:   []string{"10.0.0.63"},
+			wantLogged: false,
+		},
+		{
+			name:      "mixed pool: FQDN and existing IP",
+			poolNodes: []string{"globule-ryzen.globular.internal", "10.0.0.8"},
+			nodes: map[string]*nodeState{
+				"ryzen": {
+					NodeID:        "ryzen",
+					Identity:      storedIdentity{Hostname: "globule-ryzen", Ips: []string{"10.0.0.63"}},
+					AdvertiseFqdn: "globule-ryzen.globular.internal",
+				},
+				"nuc": {
+					NodeID:   "nuc",
+					Identity: storedIdentity{Hostname: "globule-nuc", Ips: []string{"10.0.0.8"}},
+				},
+			},
+			wantPool:   []string{"10.0.0.63", "10.0.0.8"},
+			wantLogged: true,
+		},
+		{
+			name:      "unresolvable hostname left as-is",
+			poolNodes: []string{"unknown-host.globular.internal"},
+			nodes:     map[string]*nodeState{},
+			wantPool:  []string{"unknown-host.globular.internal"},
+			wantLogged: false, // just a warning, no change
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			state := &controllerState{
+				MinioPoolNodes: append([]string(nil), tc.poolNodes...),
+				Nodes:          tc.nodes,
+			}
+			migratePoolNodeHostnames(state)
+			if len(state.MinioPoolNodes) != len(tc.wantPool) {
+				t.Fatalf("pool length: got %d want %d: %v", len(state.MinioPoolNodes), len(tc.wantPool), state.MinioPoolNodes)
+			}
+			for i, want := range tc.wantPool {
+				if state.MinioPoolNodes[i] != want {
+					t.Errorf("pool[%d]: got %q want %q", i, state.MinioPoolNodes[i], want)
+				}
+			}
+		})
+	}
+}
+
 func TestBuildObjectStore_ExcludesStaleAndNonMemberPoolIPs(t *testing.T) {
 	now := time.Now()
 	srv := &server{

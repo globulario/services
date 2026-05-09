@@ -80,7 +80,7 @@ type releaseTestOpts struct {
 	verifyPackageInstalled func(ctx context.Context, name, version, hash string) error
 	restartPackageService func(ctx context.Context, name string) error
 	verifyPackageRuntime func(ctx context.Context, name, check string) error
-	syncInstalledPackage func(ctx context.Context, name, version, hash, kind string) error
+	syncInstalledPackage func(ctx context.Context, name, version, hash, kind, buildID string) error
 }
 
 func defaultReleaseOpts() releaseTestOpts {
@@ -100,7 +100,7 @@ func defaultReleaseOpts() releaseTestOpts {
 		verifyPackageInstalled: func(ctx context.Context, name, version, hash string) error { return nil },
 		restartPackageService:  func(ctx context.Context, name string) error { return nil },
 		verifyPackageRuntime:   func(ctx context.Context, name, check string) error { return nil },
-		syncInstalledPackage:   func(ctx context.Context, name, version, hash, kind string) error { return nil },
+		syncInstalledPackage:   func(ctx context.Context, name, version, hash, kind, buildID string) error { return nil },
 	}
 }
 
@@ -184,7 +184,7 @@ func TestInfraRelease_SingleNodeSuccess(t *testing.T) {
 		record("health:" + name)
 		return nil
 	}
-	opts.syncInstalledPackage = func(ctx context.Context, name, version, hash, kind string) error {
+	opts.syncInstalledPackage = func(ctx context.Context, name, version, hash, kind, buildID string) error {
 		record("sync:" + name)
 		return nil
 	}

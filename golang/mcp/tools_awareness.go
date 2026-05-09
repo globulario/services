@@ -96,6 +96,8 @@ func registerAwarenessTools(s *server) {
 	registerAwarenessLiveClusterTools(s, st)
 	registerAwarenessSemanticDiffTools(s, st)
 	registerAwarenessCoordinationTools(s, st)
+	registerAwarenessFailureTools(s, st)
+	registerAwarenessFailureLearningTools(s, st)
 }
 
 // awarGitRoot returns the git repository root via git rev-parse.

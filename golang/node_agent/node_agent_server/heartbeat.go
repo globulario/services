@@ -239,12 +239,6 @@ func (srv *NodeAgentServer) refreshEtcdEndpointsFromSystemKey(ctx context.Contex
 //globular:state_transition INSTALLED -> REPORTED
 //globular:risk infra.heartbeat_sets_desired_state
 func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
-	// Architecture invariant (controller-authoritative installed state):
-	// node-agent and heartbeat must not write authoritative installed-state keys.
-	// The controller commits installed state after validating convergence evidence.
-	log.Printf("nodeagent: sync installed-state skipped — controller owns authoritative installed-state commits")
-	return
-
 	if !isAnyEtcdEndpointReachable(300 * time.Millisecond) {
 		log.Printf("nodeagent: sync installed-state skipped — no reachable etcd endpoint")
 		return
@@ -323,6 +317,12 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 				}
 			}
 			if existing != nil {
+				// Do not overwrite records committed by the controller via
+				// ConvergenceResultV1 — they carry build_id/build_number that
+				// local discovery cannot reproduce and must not clear.
+				if existing.GetBuildId() != "" {
+					continue
+				}
 				// Update existing record if version changed (e.g. after apply-desired).
 				if info.Version != "" && info.Version != existing.GetVersion() {
 					oldVer := existing.GetVersion()
@@ -789,10 +789,17 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 					continue
 				}
 			} else {
-				// INFRASTRUCTURE: check if a systemd unit is actually running.
+				// INFRASTRUCTURE: check if the unit file is installed OR the binary
+				// exists on disk. We do NOT require the service to be active — an
+				// installed INFRASTRUCTURE package may be inactive during topology
+				// transitions (e.g. MinIO stopped for quorum resharding) or while
+				// waiting for cluster quorum to form.
 				unitName := "globular-" + name + ".service"
-				if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", unitName).Run(); err != nil {
-					// Not running — not installed on this node.
+				unitFileInstalled := false
+				if out, err := exec.CommandContext(ctx, "systemctl", "list-unit-files", unitName, "--no-legend", "--no-pager").Output(); err == nil {
+					unitFileInstalled = strings.TrimSpace(string(out)) != ""
+				}
+				if !unitFileInstalled && !commandBinaryExists(name) {
 					continue
 				}
 			}

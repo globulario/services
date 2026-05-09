@@ -907,7 +907,7 @@ type NodeDirectApplyConfig struct {
 	RestartPackageService  func(ctx context.Context, name string) error
 	MaybeRestartPackage    func(ctx context.Context, name, kind, restartPolicy string) error
 	VerifyPackageRuntime   func(ctx context.Context, name, healthCheck string) error
-	SyncInstalledPackage   func(ctx context.Context, name, version, hash, kind string) error
+	SyncInstalledPackage   func(ctx context.Context, name, version, hash, kind, buildID string) error
 
 	// Removal actions (release.remove.package workflow)
 	StopPackageService         func(ctx context.Context, name string) error
@@ -1073,8 +1073,12 @@ func nodeSyncPackageState(cfg NodeDirectApplyConfig) ActionHandler {
 		version := fmt.Sprint(req.With["version"])
 		hash := fmt.Sprint(req.With["desired_hash"])
 		kind := fmt.Sprint(req.With["package_kind"])
+		buildID := fmt.Sprint(req.With["build_id"])
+		if buildID == "<nil>" {
+			buildID = ""
+		}
 		if cfg.SyncInstalledPackage != nil {
-			if err := cfg.SyncInstalledPackage(ctx, name, version, hash, kind); err != nil {
+			if err := cfg.SyncInstalledPackage(ctx, name, version, hash, kind, buildID); err != nil {
 				return nil, fmt.Errorf("sync state %s: %w", name, err)
 			}
 		}

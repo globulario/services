@@ -818,7 +818,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			return nil
 		},
 
-		SyncInstalledPackage: func(ctx context.Context, name, version, hash, kind string) error {
+		SyncInstalledPackage: func(ctx context.Context, name, version, hash, kind, buildID string) error {
 			nc, _ := engine.GetNodeContext(ctx)
 			nodeID := nc.NodeID
 			if nodeID == "" {
@@ -830,6 +830,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 				Version:  version,
 				Checksum: hash,
 				Kind:     kind,
+				BuildId:  buildID,
 			})
 		},
 

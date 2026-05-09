@@ -1,0 +1,26 @@
+{
+  "live_overlay": {
+    "status": "partial",
+    "collected_at": "2026-05-09T07:42:18Z",
+    "expires_at": "2026-05-09T07:47:18Z",
+    "collectors": [
+      {
+        "collector": "systemd",
+        "status": "ok"
+      },
+      {
+        "collector": "varlib",
+        "status": "ok"
+      },
+      {
+        "collector": "pki",
+        "status": "failed",
+        "last_error": "AddNode certificate:ca.crt: AddNode certificate:ca.crt: attempt to write a readonly database"
+      },
+      {
+        "collector": "rbac",
+        "status": "failed"
+      }
+    ]
+  }
+}

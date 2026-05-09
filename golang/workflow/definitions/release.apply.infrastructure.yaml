@@ -25,6 +25,7 @@ spec:
       package_name: { type: string }
       resolved_version: { type: string }
       desired_hash: { type: string }
+      resolved_build_id: { type: string, default: "" }
       release_kind: { type: string, default: infrastructure }
       candidate_nodes:
         type: array
@@ -242,6 +243,7 @@ spec:
             package_name: $.package_name
             version: $.resolved_version
             desired_hash: $.desired_hash
+            build_id: $.resolved_build_id
           export: sync_result
           execution:
             idempotency: verify_then_continue

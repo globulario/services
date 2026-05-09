@@ -103,37 +103,7 @@ func (srv *server) RunObjectStoreTopologyWorkflow(ctx context.Context, targetGen
 	}
 
 	router := engine.NewRouter()
-
-	engine.RegisterObjectStoreControllerActions(router, engine.ObjectStoreControllerConfig{
-		CheckAllNodesRendered: func(ctx context.Context, gen int64, fingerprint string, nodeIDs []string) error {
-			return srv.checkAllNodesRenderedGeneration(ctx, gen, fingerprint, nodeIDs)
-		},
-		AcquireTopologyLock: func(ctx context.Context) error {
-			return srv.acquireObjectStoreTopologyLock(ctx)
-		},
-		ReleaseTopologyLock: func(ctx context.Context) error {
-			return srv.releaseObjectStoreTopologyLock(ctx)
-		},
-		MarkRestartInProgress: func(ctx context.Context) error {
-			return srv.setObjectStoreRestartInProgress(ctx, true)
-		},
-		ClearRestartInProgress: func(ctx context.Context) error {
-			return srv.setObjectStoreRestartInProgress(ctx, false)
-		},
-		RecordAppliedGeneration: func(ctx context.Context, gen int64) error {
-			return srv.recordObjectStoreAppliedGeneration(ctx, gen)
-		},
-		VerifyMinioClusterHealthy: func(ctx context.Context, gen int64, hash string, nodeIDs []string) error {
-			return srv.verifyMinioClusterHealthy(ctx, gen, hash, nodeIDs)
-		},
-		VerifyRuntimeScope: func(ctx context.Context, nodeIDs []string) error {
-			return srv.verifyMinioRuntimeScope(ctx, nodeIDs)
-		},
-		FailureCleanup: func(ctx context.Context, gen int64, reason string) error {
-			return srv.objectStoreFailureCleanup(ctx, gen, reason)
-		},
-	})
-
+	engine.RegisterObjectStoreControllerActions(router, srv.buildObjectStoreControllerConfig())
 	engine.RegisterNodeDirectApplyActions(router, srv.buildObjectStoreNodeDirectApplyConfig())
 
 	inputs := map[string]any{
@@ -202,6 +172,43 @@ func (srv *server) buildObjectStoreNodeDirectApplyConfig() engine.NodeDirectAppl
 			}
 			log.Printf("objectstore-workflow: started %s on %s", unit, nodeID)
 			return nil
+		},
+	}
+}
+
+// buildObjectStoreControllerConfig returns an ObjectStoreControllerConfig that
+// delegates every callback to the live server state. All closures are
+// stateless with respect to run-specific data — parameters arrive via workflow
+// step inputs — so this config is safe for the default router (post-restart
+// callbacks on in-flight runs).
+func (srv *server) buildObjectStoreControllerConfig() engine.ObjectStoreControllerConfig {
+	return engine.ObjectStoreControllerConfig{
+		CheckAllNodesRendered: func(ctx context.Context, gen int64, fingerprint string, nodeIDs []string) error {
+			return srv.checkAllNodesRenderedGeneration(ctx, gen, fingerprint, nodeIDs)
+		},
+		AcquireTopologyLock: func(ctx context.Context) error {
+			return srv.acquireObjectStoreTopologyLock(ctx)
+		},
+		ReleaseTopologyLock: func(ctx context.Context) error {
+			return srv.releaseObjectStoreTopologyLock(ctx)
+		},
+		MarkRestartInProgress: func(ctx context.Context) error {
+			return srv.setObjectStoreRestartInProgress(ctx, true)
+		},
+		ClearRestartInProgress: func(ctx context.Context) error {
+			return srv.setObjectStoreRestartInProgress(ctx, false)
+		},
+		RecordAppliedGeneration: func(ctx context.Context, gen int64) error {
+			return srv.recordObjectStoreAppliedGeneration(ctx, gen)
+		},
+		VerifyMinioClusterHealthy: func(ctx context.Context, gen int64, hash string, nodeIDs []string) error {
+			return srv.verifyMinioClusterHealthy(ctx, gen, hash, nodeIDs)
+		},
+		VerifyRuntimeScope: func(ctx context.Context, nodeIDs []string) error {
+			return srv.verifyMinioRuntimeScope(ctx, nodeIDs)
+		},
+		FailureCleanup: func(ctx context.Context, gen int64, reason string) error {
+			return srv.objectStoreFailureCleanup(ctx, gen, reason)
 		},
 	}
 }

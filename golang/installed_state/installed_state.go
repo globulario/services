@@ -81,17 +81,39 @@ func CommitInstalledPackage(ctx context.Context, pkg *node_agentpb.InstalledPack
 	return config.PutRuntimeWithClass(ctx, key, data, config.StateCommitWrite)
 }
 
-// WriteInstalledPackage is disabled for authoritative writes.
+// WriteInstalledPackage writes an installed-package record from the node-agent
+// heartbeat path. It uses NormalRuntimeWrite (4 s timeout, 2 retries) which
+// is appropriate for best-effort heartbeat reporting.
 //
-// Architecture invariant: only the cluster-controller commit path may write
-// /globular/nodes/{node}/packages/{kind}/{name}. Node-agent and heartbeat
-// must emit convergence evidence and let the controller commit.
-//
-// Kept as a hard-fail shim to surface legacy call sites during migration.
+// Callers MUST read the existing record first and skip this call when the
+// existing record has build_id set — that indicates a controller-committed
+// record written via CommitInstalledPackage, which must not be overwritten.
+// Phase 1 of syncInstalledStateToEtcd enforces this contract.
 func WriteInstalledPackage(ctx context.Context, pkg *node_agentpb.InstalledPackage) error {
-	_ = ctx
-	_ = pkg
-	return fmt.Errorf("installed_state: authoritative writes are controller-only; use CommitInstalledPackage via convergence commit path")
+	if pkg.GetNodeId() == "" {
+		return fmt.Errorf("installed_state: node_id is required")
+	}
+	if pkg.GetName() == "" {
+		return fmt.Errorf("installed_state: name is required")
+	}
+	if pkg.GetKind() == "" {
+		return fmt.Errorf("installed_state: kind is required")
+	}
+	if pkg.UpdatedUnix == 0 {
+		pkg.UpdatedUnix = time.Now().Unix()
+	}
+	if pkg.InstalledUnix == 0 {
+		pkg.InstalledUnix = pkg.UpdatedUnix
+	}
+	if pkg.Status == "" {
+		pkg.Status = "installed"
+	}
+	data, err := protojson.Marshal(pkg)
+	if err != nil {
+		return fmt.Errorf("installed_state: marshal: %w", err)
+	}
+	key := packageKey(pkg.GetNodeId(), pkg.GetKind(), pkg.GetName())
+	return config.PutRuntimeWithClass(ctx, key, data, config.NormalRuntimeWrite)
 }
 
 // GetInstalledPackage reads a single installed package record from etcd.

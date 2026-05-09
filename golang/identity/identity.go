@@ -299,6 +299,17 @@ var registry = func() map[string]ServiceIdentity {
 			Binary:     "envoy",
 			Aliases:    []string{"envoy.service"}, // envoy.service = system envoy alias
 		},
+		{
+			// globular-cli is a COMMAND package — no systemd unit, no gRPC.
+			// Must be registered with its full name so canonicalServiceName does not
+			// strip the "globular-" prefix and look for artifact "cli" in the repository.
+			Key:        "globular-cli",
+			BundleName: "globular-cli",
+			UnitName:   "",
+			GrpcFull:   "",
+			Binary:     "globular",
+			Aliases:    []string{"cli"},
+		},
 	}
 
 	m := make(map[string]ServiceIdentity, len(entries))

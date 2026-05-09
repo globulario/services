@@ -755,6 +755,147 @@ CREATE TABLE IF NOT EXISTS coordination_conflicts (
 );
 CREATE INDEX IF NOT EXISTS idx_coord_conflicts_run    ON coordination_conflicts(run_id);
 CREATE INDEX IF NOT EXISTS idx_coord_conflicts_status ON coordination_conflicts(status);
+
+-- Failure Knowledge Graph tables (Phase 13)
+
+CREATE TABLE IF NOT EXISTS failure_nodes (
+    id            TEXT PRIMARY KEY,
+    node_type     TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    summary       TEXT NOT NULL DEFAULT '',
+    severity      TEXT NOT NULL DEFAULT '',
+    status        TEXT NOT NULL DEFAULT 'active',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at    INTEGER NOT NULL DEFAULT 0,
+    updated_at    INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_failure_nodes_type   ON failure_nodes(node_type);
+CREATE INDEX IF NOT EXISTS idx_failure_nodes_name   ON failure_nodes(name);
+CREATE INDEX IF NOT EXISTS idx_failure_nodes_status ON failure_nodes(status);
+
+CREATE TABLE IF NOT EXISTS failure_edges (
+    id         TEXT PRIMARY KEY,
+    from_id    TEXT NOT NULL,
+    to_id      TEXT NOT NULL,
+    edge_type  TEXT NOT NULL,
+    confidence TEXT NOT NULL DEFAULT '',
+    evidence   TEXT NOT NULL DEFAULT '',
+    source     TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_failure_edges_from ON failure_edges(from_id);
+CREATE INDEX IF NOT EXISTS idx_failure_edges_to   ON failure_edges(to_id);
+CREATE INDEX IF NOT EXISTS idx_failure_edges_type ON failure_edges(edge_type);
+
+CREATE TABLE IF NOT EXISTS failure_error_signatures (
+    id                   TEXT PRIMARY KEY,
+    signature            TEXT NOT NULL,
+    normalized_signature TEXT NOT NULL,
+    category_id          TEXT NOT NULL DEFAULT '',
+    severity             TEXT NOT NULL DEFAULT '',
+    sample               TEXT NOT NULL DEFAULT '',
+    matcher_kind         TEXT NOT NULL DEFAULT 'exact',
+    matcher_pattern      TEXT NOT NULL DEFAULT '',
+    created_at           INTEGER NOT NULL DEFAULT 0,
+    updated_at           INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_failure_sig_normalized ON failure_error_signatures(normalized_signature);
+CREATE INDEX IF NOT EXISTS idx_failure_sig_category   ON failure_error_signatures(category_id);
+
+CREATE TABLE IF NOT EXISTS failure_resolution_recipes (
+    id                  TEXT PRIMARY KEY,
+    resolution_id       TEXT NOT NULL,
+    title               TEXT NOT NULL,
+    steps_json          TEXT NOT NULL DEFAULT '[]',
+    forbidden_steps_json TEXT NOT NULL DEFAULT '[]',
+    verification_json   TEXT NOT NULL DEFAULT '[]',
+    created_at          INTEGER NOT NULL DEFAULT 0,
+    updated_at          INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_resolution_recipes_resolution ON failure_resolution_recipes(resolution_id);
+
+CREATE TABLE IF NOT EXISTS workflow_failure_modes (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    summary         TEXT NOT NULL DEFAULT '',
+    workflow_stage  TEXT NOT NULL DEFAULT '',
+    failure_phase   TEXT NOT NULL DEFAULT '',
+    retry_semantics TEXT NOT NULL DEFAULT '',
+    closure_rule    TEXT NOT NULL DEFAULT '',
+    metadata_json   TEXT NOT NULL DEFAULT '{}',
+    created_at      INTEGER NOT NULL DEFAULT 0,
+    updated_at      INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_workflow_failure_modes_name  ON workflow_failure_modes(name);
+CREATE INDEX IF NOT EXISTS idx_workflow_failure_modes_stage ON workflow_failure_modes(workflow_stage);
+
+CREATE TABLE IF NOT EXISTS failure_observations (
+    id                   TEXT PRIMARY KEY,
+    session_id           TEXT NOT NULL DEFAULT '',
+    incident_id          TEXT NOT NULL DEFAULT '',
+    run_id               TEXT NOT NULL DEFAULT '',
+    source               TEXT NOT NULL DEFAULT '',
+    raw_error            TEXT NOT NULL DEFAULT '',
+    normalized_signature TEXT NOT NULL DEFAULT '',
+    matched_signature_id TEXT NOT NULL DEFAULT '',
+    matched_category_id  TEXT NOT NULL DEFAULT '',
+    component            TEXT NOT NULL DEFAULT '',
+    service_name         TEXT NOT NULL DEFAULT '',
+    file_path            TEXT NOT NULL DEFAULT '',
+    symbol               TEXT NOT NULL DEFAULT '',
+    confidence           TEXT NOT NULL DEFAULT '',
+    created_at           INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_failure_obs_session  ON failure_observations(session_id);
+CREATE INDEX IF NOT EXISTS idx_failure_obs_category ON failure_observations(matched_category_id);
+CREATE INDEX IF NOT EXISTS idx_failure_obs_component ON failure_observations(component);
+
+CREATE TABLE IF NOT EXISTS failure_learning_proposals (
+    id                  TEXT PRIMARY KEY,
+    source_type         TEXT NOT NULL,
+    source_id           TEXT NOT NULL,
+    proposal_kind       TEXT NOT NULL,
+    status              TEXT NOT NULL,
+    target_category_id  TEXT,
+    proposed_category_id TEXT,
+    title               TEXT NOT NULL,
+    summary             TEXT NOT NULL,
+    confidence          TEXT NOT NULL,
+    rationale           TEXT,
+    extracted_json      TEXT NOT NULL DEFAULT '{}',
+    patch_json          TEXT NOT NULL DEFAULT '{}',
+    created_by          TEXT,
+    reviewed_by         TEXT,
+    created_at          INTEGER NOT NULL,
+    reviewed_at         INTEGER,
+    applied_at          INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_failure_learning_source ON failure_learning_proposals(source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_failure_learning_status ON failure_learning_proposals(status);
+CREATE INDEX IF NOT EXISTS idx_failure_learning_target ON failure_learning_proposals(target_category_id);
+
+CREATE TABLE IF NOT EXISTS failure_learning_reviews (
+    id               TEXT PRIMARY KEY,
+    proposal_id      TEXT NOT NULL,
+    reviewer         TEXT NOT NULL,
+    decision         TEXT NOT NULL,
+    notes            TEXT,
+    edited_patch_json TEXT,
+    created_at       INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_failure_learning_reviews_proposal ON failure_learning_reviews(proposal_id);
+
+CREATE TABLE IF NOT EXISTS failure_seed_sync (
+    id           TEXT PRIMARY KEY,
+    proposal_id  TEXT NOT NULL,
+    seed_path    TEXT NOT NULL,
+    status       TEXT NOT NULL,
+    content_hash TEXT,
+    message      TEXT,
+    created_at   INTEGER NOT NULL,
+    updated_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_failure_seed_sync_proposal ON failure_seed_sync(proposal_id);
 `
 
 // Graph is the central awareness graph handle backed by SQLite.

@@ -490,6 +490,10 @@ func loadControllerState(path string) (*controllerState, error) {
 	if state.MinioCredentials == nil {
 		state.MinioCredentials = generateMinioCredentials()
 	}
+	// Migrate: replace hostnames in MinioPoolNodes with routable IPs.
+	// Older versions wrote FQDNs (e.g. "globule-ryzen.globular.internal") instead
+	// of bare IPs, which causes resolveMinioEndpointLocked to reject them.
+	migratePoolNodeHostnames(state)
 	return state, nil
 }
 
@@ -563,5 +567,54 @@ func loadFromEtcd(cli *clientv3.Client) (*controllerState, error) {
 	if err := json.Unmarshal(resp.Kvs[0].Value, state); err != nil {
 		return nil, err
 	}
+	migratePoolNodeHostnames(state)
 	return state, nil
+}
+
+// migratePoolNodeHostnames replaces any non-IP entries in MinioPoolNodes with
+// the routable IP of the matching node. Older code wrote FQDNs instead of IPs,
+// which causes resolveMinioEndpointLocked to reject them with an INVARIANT
+// VIOLATION and leave the objectstore endpoint permanently unresolved.
+func migratePoolNodeHostnames(state *controllerState) {
+	if state == nil || len(state.MinioPoolNodes) == 0 {
+		return
+	}
+	// Build a hostname/FQDN → routable IP map from the loaded nodes.
+	hostToIP := make(map[string]string, len(state.Nodes))
+	for _, n := range state.Nodes {
+		if n == nil {
+			continue
+		}
+		ip := nodeRoutableIP(n)
+		if ip == "" {
+			continue
+		}
+		if n.Identity.Hostname != "" {
+			hostToIP[n.Identity.Hostname] = ip
+		}
+		if n.AdvertiseFqdn != "" {
+			hostToIP[n.AdvertiseFqdn] = ip
+		}
+	}
+	for i, entry := range state.MinioPoolNodes {
+		if net.ParseIP(entry) != nil {
+			continue // already a valid IP
+		}
+		// Try exact match (FQDN or short hostname).
+		if ip, ok := hostToIP[entry]; ok {
+			log.Printf("migratePoolNodeHostnames: minio_pool_nodes[%d]: replacing %q → %q", i, entry, ip)
+			state.MinioPoolNodes[i] = ip
+			continue
+		}
+		// Try stripping domain suffix: "globule-ryzen.globular.internal" → "globule-ryzen".
+		if dot := strings.Index(entry, "."); dot >= 0 {
+			short := entry[:dot]
+			if ip, ok := hostToIP[short]; ok {
+				log.Printf("migratePoolNodeHostnames: minio_pool_nodes[%d]: replacing FQDN %q (hostname %q) → %q", i, entry, short, ip)
+				state.MinioPoolNodes[i] = ip
+				continue
+			}
+		}
+		log.Printf("migratePoolNodeHostnames: WARNING: minio_pool_nodes[%d]=%q is not an IP and no matching node found — leaving as-is", i, entry)
+	}
 }

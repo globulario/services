@@ -21,6 +21,11 @@ invariants:
       - TestDeterministicFailureDoesNotRetryForever
       - TestPendingSyncRecovery
       - TestLeaderFailoverDuringResultCommit
+    implemented_by:
+      - file: golang/cluster_controller/cluster_controller_server/reconciler.go
+        trust: declared
+      - file: golang/node_agent/node_agent_server/grpc_workflow.go
+        trust: declared
     related_failure_modes:
       - install.result.partial_commit
       - deterministic.install.failure.retry_loop
@@ -47,6 +52,9 @@ invariants:
     required_tests:
       - TestListArtifactsWhenMinIODown
       - TestMetadataReadsDegradedMode
+    implemented_by:
+      - file: golang/repository/repository_server/artifact_handlers.go
+        trust: declared
     related_failure_modes:
       - repository.minio.recovery_cycle
 
@@ -70,5 +78,10 @@ invariants:
     required_tests:
       - TestWorkflowDispatchRefusedWhenScyllaDown
       - TestWorkflowBackendHealthGate
+    implemented_by:
+      - file: golang/cluster_controller/cluster_controller_server/recovery_rpc.go
+        trust: declared
+      - file: golang/workflow/workflow_server/server.go
+        trust: declared
     related_failure_modes:
       - workflow.backend_unavailable

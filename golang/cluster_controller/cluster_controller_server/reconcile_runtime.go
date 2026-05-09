@@ -104,6 +104,8 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 	engine.RegisterNodeRepairAgentActions(defaultRouter, srv.buildNodeRepairAgentConfig())
 	engine.RegisterNodeRecoveryControllerActions(defaultRouter, srv.buildNodeRecoveryControllerConfig())
 	engine.RegisterRepositoryActions(defaultRouter, srv.buildRepositoryConfig())
+	engine.RegisterObjectStoreControllerActions(defaultRouter, srv.buildObjectStoreControllerConfig())
+	engine.RegisterNodeDirectApplyActions(defaultRouter, srv.buildObjectStoreNodeDirectApplyConfig())
 	srv.actorServer.SetDefaultRouter(defaultRouter)
 
 	// Staggered initial enqueue: wait for readiness predicates to pass, then
