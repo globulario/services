@@ -170,6 +170,25 @@ invariants:
       related_failure_modes:
         - objectstore.local_membership_inference
         - repository.minio.recovery_cycle
+      implemented_by:
+        - file: golang/config/minio_runtime_render.go
+          functions:
+            - enforceMinioHeld
+            - nodeIPInPool
+          trust: verified
+      authority:
+        - etcd: /globular/objectstore/config
+        - etcd: /globular/objectstore/desired
+      verified_by:
+        - TestMinioHeldWhenNodeNotInPool
+        - TestTopologyRenderParity
+        - TestApprovedTransitionRequiredForWipe
+      violated_by:
+        - objectstore.local_membership_inference
+        - repository.minio.recovery_cycle
+      decision_guidance:
+        - "MinIO membership is determined by ObjectStoreDesiredState in etcd — never by local disk state, MinIO API responses, or node-agent heuristics"
+        - "A node that is not in the desired pool must NOT start MinIO even if it has valid MinIO data on disk — this is the wipe_minio_sys_without_approved_transition forbidden fix"
     - id: install.result.atomic_commit
       title: Install result must commit atomically
       severity: critical
@@ -231,6 +250,14 @@ invariants:
       required_tests:
         - TestDesiredBuildIDImmutableAfterWrite
         - TestBuildIDNotResolvedAtNodeAgent
+      authority:
+        - etcd: /globular/resources/DesiredService/{name}
+      verified_by:
+        - TestDesiredBuildIDImmutableAfterWrite
+        - TestBuildIDNotResolvedAtNodeAgent
+      decision_guidance:
+        - "build_id (UUID) is the sole artifact identity — it must be resolved once at the controller when creating the desired record and never changed"
+        - "build_number (integer) is a CI sequence counter — it is NOT interchangeable with build_id"
     - id: infra.desired_hash_consistency
       title: Infrastructure desired_hash must be computed consistently
       severity: critical
@@ -258,6 +285,26 @@ invariants:
         - TestLookupServiceReleaseBuildIDUsesDesiredHash
       related_failure_modes:
         - convergence.hash_mismatch_loop
+      implemented_by:
+        - file: golang/cluster_controller/cluster_controller_server/release_hash.go
+          functions:
+            - ComputeInfrastructureDesiredHash
+          trust: verified
+        - file: golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+          functions:
+            - classifyPackageConvergence
+          trust: verified
+      authority:
+        - etcd: /globular/resources/InfrastructureRelease/{name}
+        - etcd: /globular/nodes/{node_id}/packages/infra/{name}
+      verified_by:
+        - TestInfraDesiredHashConsistency
+        - TestLookupServiceReleaseBuildIDUsesDesiredHash
+      violated_by:
+        - convergence.hash_mismatch_loop
+      decision_guidance:
+        - "ComputeInfrastructureDesiredHash inputs must be identical on both producer (controller) and consumer (node-agent) sides — any asymmetry creates a permanent loop"
+        - "Never use raw artifact digest as desired_hash — the hash must incorporate package kind, build_id, and version together"
     - id: infra.heartbeat_not_desired_authority
       title: Heartbeat is observer-only — it must never set desired state
       severity: critical
@@ -284,6 +331,27 @@ invariants:
         - TestSyncInstalledStateOnlyWritesObserved
       related_failure_modes:
         - infra.desired_hash_mismatch_loop
+      implemented_by:
+        - file: golang/node_agent/node_agent_server/heartbeat.go
+          functions:
+            - syncInstalledStateToEtcd
+            - computeAppliedServicesHash
+          trust: verified
+        - file: golang/node_agent/node_agent_server/installed_services.go
+          functions:
+            - ComputeInstalledServices
+          trust: verified
+      authority:
+        - etcd: /globular/nodes/{node_id}/status
+        - etcd: /globular/nodes/{node_id}/packages/{kind}/{name}
+      verified_by:
+        - TestHeartbeatDoesNotSetDesiredState
+        - TestSyncInstalledStateOnlyWritesObserved
+      violated_by:
+        - infra.desired_hash_mismatch_loop
+      decision_guidance:
+        - "The heartbeat is an observer — it writes /globular/nodes/{id}/status and /nodes/{id}/packages only; any write to /resources/ from the heartbeat path is a violation"
+        - "Heartbeat must be lean: Phase 1 (local markers) + Phase 2 (etcd writes) only — no repository calls, checksumming, or external service dependencies"
     - id: service.restart_singleflight
       title: Service restart must go through singleflight gate
       severity: high
@@ -319,6 +387,16 @@ invariants:
         - treat_raw_string_fixture_annotations_as_source_annotations
       required_tests:
         - TestValidateAnnotationsSkipsTestFiles
+      implemented_by:
+        - file: golang/awareness/extractors/goast/extract.go
+          functions:
+            - parseAnnotations
+            - isTestFile
+          trust: strict_verified
+      verified_by:
+        - TestValidateAnnotationsSkipsTestFiles
+      decision_guidance:
+        - "Only scan .go files that do NOT end in _test.go for //globular: annotations — test fixtures embed raw annotation strings that are not production declarations"
     - id: scylla.critical_keyspace_replication_policy
       title: Critical Scylla keyspace replication policy
       severity: critical
@@ -656,6 +734,21 @@ invariants:
         - TestSmokePassesOnKnownInvariants
       related_failure_modes:
         - awareness.false_silence_on_sensitive_task
+      implemented_by:
+        - file: golang/awareness/preflight/preflight.go
+          functions:
+            - Run
+            - buildWarnings
+          trust: verified
+        - file: docs/awareness/context_aliases.yaml
+          trust: declared
+      verified_by:
+        - TestSmokePassesOnKnownInvariants
+        - TestPreflightSurfacesAbsenceInvariantForMissingKey
+      violated_by:
+        - awareness.false_silence_on_sensitive_task
+      decision_guidance:
+        - "If preflight returns silent for heartbeat/desired-state/etcd/convergence tasks, add context_aliases.yaml entries mapping the missing keywords to known invariant IDs — do not suppress the NO_MATCH warning as a fix"
 
     - id: awareness.audit_noise_must_be_triaged
       title: Awareness audit warnings must be triaged, not silently accumulated
@@ -675,6 +768,20 @@ invariants:
         - suppress_all_audit_warnings_without_reviewing_each
       required_tests:
         - TestSelfCheckReportsNoisySections
+      implemented_by:
+        - file: golang/awareness/enforce/audit.go
+          functions:
+            - Audit
+          trust: strict_verified
+        - file: golang/awareness/enforce/suppressions.go
+          functions:
+            - ApplySuppressions
+          trust: verified
+      verified_by:
+        - TestSelfCheckReportsNoisySections
+        - TestSuppressionHidesMatchingWarning
+      decision_guidance:
+        - "Every audit warning must be triaged to either a suppression entry (with expiry) or promoted to ERROR — adding suppressions in bulk without reviewing each is itself a violation of this invariant"
 
     - id: awareness.graph_edges_need_provenance
       title: Every awareness graph edge must have a traceable provenance
@@ -694,6 +801,25 @@ invariants:
         - add_graph_edge_without_extractor_or_yaml_source
       required_tests:
         - TestGraphDriftNoStaleRefs
+      implemented_by:
+        - file: golang/awareness/graph/edges.go
+          functions:
+            - EdgeClass
+            - EdgeWeight
+          trust: strict_verified
+        - file: golang/awareness/extractors/manual/invariants.go
+          functions:
+            - LoadInvariants
+            - loadInvariant
+          trust: verified
+      authority:
+        - file: golang/awareness/graph/edges.go
+      verified_by:
+        - TestGraphDriftNoStaleRefs
+        - TestEdgePredicates_DecisionClassification
+        - TestEdgePredicates_StructuralClassification
+      decision_guidance:
+        - "Every edge must come from a YAML truth file (invariants.yaml, failure_modes.yaml) or a known extractor package — never add edges speculatively in test fixtures or inline in tool handlers"
 
     - id: awareness.mcp_must_not_expose_promotion
       title: MCP must not expose promote_proposal as a tool
@@ -715,6 +841,21 @@ invariants:
       required_tests:
         - TestMCPCheckFailsWhenPromoteProposalExposed
         - TestApproveProposalDoesNotPromote
+      implemented_by:
+        - file: golang/mcp/tools_awareness_learning.go
+          functions:
+            - registerAwarenessLearningTools
+          trust: strict_verified
+        - file: golang/awareness/selfcheck/selfcheck_test.go
+          functions:
+            - TestMCPCheckFailsWhenPromoteProposalExposed
+          trust: strict_verified
+      verified_by:
+        - TestMCPCheckFailsWhenPromoteProposalExposed
+        - TestApproveProposalDoesNotPromote
+      decision_guidance:
+        - "The approve_proposal MCP tool is read-only — it marks a proposal for human review but never writes to invariants.yaml or any approved YAML file; that requires explicit CLI 'globular awareness approve-proposal'"
+        - "If a new MCP tool is added that could write to docs/awareness/, it must first pass selfcheck TestMCPCheckFailsWhenPromoteProposalExposed"
 
     - id: awareness.node_context_must_not_flood
       title: Node context results must not flood with irrelevant matches
@@ -733,6 +874,16 @@ invariants:
         - return_all_invariants_for_every_task_without_filtering
       required_tests:
         - TestNodeContextSmokePasses
+      implemented_by:
+        - file: golang/awareness/analysis/agent_context.go
+          functions:
+            - GenerateAgentContext
+          trust: verified
+      verified_by:
+        - TestNodeContextSmokePasses
+      decision_guidance:
+        - "GenerateAgentContext filters by task-keyword relevance scoring — do not remove the result limit (currently 15) without measuring token-budget impact on agents using this tool"
+        - "A result count above 15 is a signal that the context alias or keyword matching is too broad, not that the limit is wrong"
 
     - id: awareness.semantic_paths_must_explain_why
       title: Semantic paths between awareness nodes must include a human-readable explanation
@@ -752,6 +903,21 @@ invariants:
         - return_semantic_path_without_explanation
       required_tests:
         - TestSemanticPathIncludesExplanation
+      implemented_by:
+        - file: golang/awareness/semantic/path.go
+          functions:
+            - ShortestPath
+          trust: strict_verified
+        - file: golang/awareness/semantic/why.go
+          functions:
+            - BuildExplanation
+          trust: strict_verified
+      verified_by:
+        - TestSemanticPathIncludesExplanation
+        - TestWhyRelated_SymbolToFailureMode
+      decision_guidance:
+        - "A ShortestPath result with empty Explanation is a traversal artifact — check why.go BuildExplanation to see why the edge chain produces no human-readable narrative"
+        - "Agents must not follow a path they cannot explain; an unexplained path may cross domain boundaries that make it architecturally incorrect"
 
     - id: awareness.knowledge.graph_rebuild_after_yaml_edit
       title: Editing awareness YAML knowledge files requires a graph rebuild before the decision context is trustworthy
@@ -786,6 +952,26 @@ invariants:
         - TestWeightProposalIncludesReasonAndEvidence
       related_failure_modes:
         - awareness.graph.stale_context_drives_decision
+      implemented_by:
+        - file: golang/globularcli/awareness_cmds.go
+          functions:
+            - awarenessBuildCmd
+            - cleanBuild
+          trust: declared
+      authority:
+        - file: docs/awareness/knowledge/causal_rules.yaml
+        - file: docs/awareness/knowledge/agent_playbooks.yaml
+        - file: docs/awareness/knowledge/path_weights.yaml
+        - file: docs/awareness/invariants.yaml
+        - file: docs/awareness/failure_modes.yaml
+      verified_by:
+        - TestLearnFromFix_DoesNotApplyWeightsWithoutApproval
+        - TestPromotedWeightChangeRequiresGraphRebuild
+      violated_by:
+        - awareness.graph.stale_context_drives_decision
+      decision_guidance:
+        - "Always run 'globular awareness build --clean' after editing knowledge YAML — not just 'build'. The upsert-only DB accumulates stale edges unless --clean deletes it first."
+        - "If graph was not rebuilt after an edit, set GraphIsStale=true in scoring context — it applies -20 penalty to all paths from that graph"
 
     - id: awareness.knowledge.causal_rules_evidence_required
       title: Causal rules must be derived from observed incidents, not hypothetical chains
@@ -808,6 +994,18 @@ invariants:
       required_tests:
         - TestCausalRulesFileExists
         - TestCausalRulesHaveRequiredFields
+      implemented_by:
+        - file: docs/awareness/knowledge/causal_rules.yaml
+          trust: declared
+      authority:
+        - file: docs/awareness/knowledge/causal_rules.yaml
+      verified_by:
+        - TestCausalRulesFileExists
+        - TestCausalRulesHaveRequiredFields
+      decision_guidance:
+        - "Every causal rule in causal_rules.yaml must reference an incident_id (INC-YYYY-NNNN) — a rule without an incident is a hypothesis, not a scar"
+        - "Set confidence=low until the causal chain has been validated across multiple independent incidents; do not set confidence=high speculatively"
+        - "Hypothetical causal rules that are never validated must be removed, not left at low confidence indefinitely — stale rules pollute the decision graph"
 
     - id: awareness.mcp.decision_context_no_bare_no_match
       title: awareness.decision_context must never return bare NO_MATCH — always include coverage and blind_spots
@@ -836,6 +1034,22 @@ invariants:
         - TestDecisionContext_FileEditReturnsDecisionPath
         - TestDecisionAction_DangerousActionRequiresApproval
         - TestDecisionIntegrity_DangerousActionMissingApprovalFails
+      implemented_by:
+        - file: golang/mcp/tools_awareness_decision.go
+          functions:
+            - decisionContextNoGraph
+            - buildDecisionContext
+            - buildDecisionBlindSpots
+          trust: strict_verified
+      verified_by:
+        - TestDecisionContext_NoMatchStillReportsCoverage
+        - TestDecisionContext_FileEditReturnsDecisionPath
+        - TestDecisionAction_DangerousActionRequiresApproval
+        - TestDecisionIntegrity_DangerousActionMissingApprovalFails
+      decision_guidance:
+        - "NO_MATCH is never safe — coverage and blind_spots must always be present even in no-graph degraded mode (decisionContextNoGraph)"
+        - "The warning field must contain 'NO_MATCH' explicitly so agents that pattern-match on this field get the correct signal"
+        - "confidence must never be 'high' when the graph is unavailable — use 'low' with a clear reason"
 
     - id: awareness.graph.domain_classification_required
       title: Every edge kind must be classified into a domain (decision/information/proof/risk/proposal)
@@ -866,6 +1080,28 @@ invariants:
         - TestGraphDomains_UnknownEdge_DefaultsToInformation
         - TestPathScoring_VerifiedDecisionPathBeatsDeclaredInformationPath
         - TestPathScoring_ExplainsWeights
+      implemented_by:
+        - file: golang/awareness/graph/domain.go
+          functions:
+            - DomainForEdgeKind
+            - edgeDomains
+          trust: strict_verified
+        - file: golang/awareness/semantic/score.go
+          functions:
+            - ScoreImpactPath
+            - RankPaths
+          trust: strict_verified
+      authority:
+        - file: golang/awareness/graph/edges.go
+      verified_by:
+        - TestGraphDomains_ForbiddenFixForbidsAction_IsDecision
+        - TestGraphDomains_UnknownEdge_DefaultsToInformation
+        - TestPathScoring_VerifiedDecisionPathBeatsDeclaredInformationPath
+        - TestPathScoring_ExplainsWeights
+        - TestEdgePredicates_DecisionClassification
+      decision_guidance:
+        - "Any new edge constant in graph/edges.go MUST be added to edgeDomains in domain.go before merging — missing entries default to DomainInformation, silently making decision-class edges invisible to the scorer"
+        - "Do not default a new edge to DomainDecision to 'make it rank higher' — only edges that encode allowed/forbidden actions or required verification belong in the decision domain"
 
     - id: awareness.weight_learning.human_approval_required
       title: Path weight changes must be proposed via learn_from_fix and require explicit human approval before promotion
@@ -893,6 +1129,24 @@ invariants:
         - TestPromotedWeightChangeRequiresGraphRebuild
         - TestWeightProposalIncludesReasonAndEvidence
         - TestDecisionIntegrity_WeightsConfigParses
+      implemented_by:
+        - file: golang/mcp/tools_awareness_learning.go
+          functions:
+            - learnFromFix
+          trust: verified
+        - file: golang/awareness/learning/
+          trust: declared
+      authority:
+        - file: docs/awareness/knowledge/path_weights.yaml
+      verified_by:
+        - TestLearnFromFix_DoesNotApplyWeightsWithoutApproval
+        - TestPromotedWeightChangeRequiresGraphRebuild
+        - TestWeightProposalIncludesReasonAndEvidence
+        - TestDecisionIntegrity_WeightsConfigParses
+      decision_guidance:
+        - "Weight proposals from learn_from_fix go to a pending queue (DomainProposal edges) — they never auto-apply to path_weights.yaml"
+        - "After human approves: (1) edit path_weights.yaml, (2) run 'globular awareness build --clean', (3) verify TestPathScoring_VerifiedDecisionPathBeatsDeclaredInformationPath still passes"
+        - "Never lower ContradictionPenalty (-100) or InvalidEdgePenalty (-100) — these are absolute safety gates, not tunable weights"
 
     - id: awareness.preflight.required_before_edit
       title: awareness.preflight or awareness.decision_context must run before editing any high-risk awareness file
@@ -927,6 +1181,27 @@ invariants:
         - TestDecisionContext_NoBareNoMatchWhenLowerTrustPathsExist
         - TestDecisionPathType_PreEdit
         - TestDecisionIntegrity_InvalidPathCannotRankHigh
+      implemented_by:
+        - file: golang/awareness/preflight/preflight.go
+          functions:
+            - Run
+          trust: strict_verified
+        - file: golang/mcp/tools_awareness_preflight.go
+          functions:
+            - registerAwarenessPreflightTools
+          trust: strict_verified
+      authority:
+        - file: docs/awareness/high_risk_files.yaml
+      verified_by:
+        - TestPathScoring_VerifiedDecisionPathBeatsDeclaredInformationPath
+        - TestDecisionContext_NoBareNoMatchWhenLowerTrustPathsExist
+        - TestDecisionPathType_PreEdit
+        - TestDecisionIntegrity_InvalidPathCannotRankHigh
+        - TestComputeRiskTier_HighRiskClassOverrides
+      decision_guidance:
+        - "For files in docs/awareness/high_risk_files.yaml, strict hook mode may block edits without preflight — do not bypass with --no-verify or by removing the hook"
+        - "The preflight check is itself governed by this invariant — editing preflight.go requires running preflight first"
+        - "If preflight is unavailable (graph not built), use 'awareness.decision_context' with changed_files set to the specific files you intend to edit"
 
     - id: awareness.impact_analysis.explain_path_required
       title: ExplainImpactByFile must return graph path traces and missing-link suggestions
@@ -957,6 +1232,20 @@ invariants:
         - TestExplainImpactByFile_ReturnsMissingLinks
         - TestExplainImpactByFile_MandatoryForbiddenFix
         - TestRejectInvariantWithMissingRequiredTest
+      implemented_by:
+        - file: golang/awareness/analysis/impact.go
+          functions:
+            - ExplainImpactByFile
+            - detectMissingLinks
+          trust: strict_verified
+      verified_by:
+        - TestExplainImpactByFile_ReturnsMissingLinks
+        - TestExplainImpactByFile_MandatoryForbiddenFix
+        - TestRejectInvariantWithMissingRequiredTest
+      decision_guidance:
+        - "missing_links are as important as hits — a file with no graph edges is likely implementing an invariant without declaring it, which is a coverage gap"
+        - "Mandatory findings (from forbidden_fix and enforces edges) must be presented first — they are not equal weight to informational findings"
+        - "Path traces let the agent understand WHY a file is impacted — without them, the agent cannot determine if the impact is real or transitive noise"
 
     - id: awareness.cli.build_clean_required_after_yaml_edit
       title: globular awareness build must use --clean after YAML knowledge edits to prevent stale edge accumulation
@@ -982,6 +1271,17 @@ invariants:
       required_tests:
         - TestAwarenessBuildCleanRemovesOldDB
         - TestLearnFromFix_DoesNotApplyWeightsWithoutApproval
+      implemented_by:
+        - file: golang/globularcli/awareness_cmds.go
+          functions:
+            - awarenessBuildCmd
+            - cleanBuild
+          trust: declared
+      verified_by:
+        - TestAwarenessBuildCleanRemovesOldDB
+      decision_guidance:
+        - "Use 'globular awareness build --clean' not just 'build' when any knowledge YAML changes the semantic meaning of file-to-invariant edges (e.g., changing 'files:' to 'configures_files:') — bare 'build' leaves stale edges in graph.db"
+        - "The --clean flag deletes graph.db entirely before rebuilding — it is safe to use after every YAML edit, not just semantic changes"
 
     - id: awareness.ci.impact_ci_enforces_required_tests
       title: awareness impact-ci must exit 1 when required tests are missing for changed files
@@ -1007,6 +1307,19 @@ invariants:
       required_tests:
         - TestAwarenessImpactCI_ExitsOneOnMissingTest
         - TestAwarenessImpactCI_PassesWhenTestsPresent
+      implemented_by:
+        - file: golang/globularcli/awareness_impact_ci_cmd.go
+          functions:
+            - awarenessImpactCICmd
+            - verifyGapTestsDirs
+          trust: declared
+      verified_by:
+        - TestAwarenessImpactCI_ExitsOneOnMissingTest
+        - TestAwarenessImpactCI_PassesWhenTestsPresent
+      decision_guidance:
+        - "impact-ci is the final automated gate — it enforces that required_tests listed in invariants.yaml actually exist on disk before merge"
+        - "Never exit 0 when required tests are missing, even as a 'temporary workaround' — this breaks the invariant→test→CI enforcement chain entirely"
+        - "The exit code must be 1 (not panic, not 2) so CI systems can distinguish 'test missing' from 'tool crashed'"
 
 
     # ── File service invariants (Phases 4-6, 8) ──────────────────────────────

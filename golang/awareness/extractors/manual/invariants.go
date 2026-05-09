@@ -19,7 +19,8 @@ type invariantFile struct {
 // yamlImplementedBy is one entry in implemented_by[].
 type yamlImplementedBy struct {
 	File          string   `yaml:"file"`
-	Function      string   `yaml:"function"`       // optional — Go function name
+	Functions     []string `yaml:"functions"`      // optional — Go function names (list)
+	Function      string   `yaml:"function"`       // optional — single Go function name (alias)
 	Trust         string   `yaml:"trust"`          // trust level: strict_verified/verified/declared/inferred
 	ReadsAuthority []string `yaml:"reads_authority"` // etcd keys or config paths this fn reads
 	WritesState   []string `yaml:"writes_state"`   // etcd keys or state artifacts this fn writes
@@ -27,8 +28,15 @@ type yamlImplementedBy struct {
 }
 
 // yamlInvAuthority is one entry in authority[] of an invariant.
+// Supports two styles:
+//
+//	source: /key  (generic — kind must be specified separately)
+//	file: path    (shorthand for kind=config_file)
+//	etcd: /key    (shorthand for kind=etcd_key)
 type yamlInvAuthority struct {
 	Source     string `yaml:"source"`     // etcd key path, config file, or proto field
+	File       string `yaml:"file"`       // shorthand: config file path (kind=config_file)
+	Etcd       string `yaml:"etcd"`       // shorthand: etcd key path (kind=etcd_key)
 	Kind       string `yaml:"kind"`       // etcd_key / config_file / proto_field / runtime_state
 	Confidence string `yaml:"confidence"` // high / medium / low
 }
@@ -360,8 +368,13 @@ func loadInvariant(ctx context.Context, g *graph.Graph, inv yamlInvariant, path 
 			"source_file": path,
 			"trust_level": trust,
 		}
-		if impl.Function != "" {
-			implMeta["function"] = impl.Function
+		// Collect all function names (Functions list takes precedence over Function scalar).
+		fns := impl.Functions
+		if len(fns) == 0 && impl.Function != "" {
+			fns = []string{impl.Function}
+		}
+		if len(fns) > 0 {
+			implMeta["functions"] = fns
 		}
 		if err := g.AddEdge(ctx, graph.Edge{
 			Src:      fileID,
@@ -420,11 +433,27 @@ func loadInvariant(ctx context.Context, g *graph.Graph, inv yamlInvariant, path 
 
 	// authority[] → authority_source nodes + reads_authority edges from the invariant node.
 	for _, auth := range inv.Authority {
-		authID := "authority:" + auth.Source
+		// Resolve source and kind from shorthand fields (file: / etcd:) or generic (source: + kind:).
+		src := auth.Source
 		kind := auth.Kind
+		if auth.File != "" {
+			src = auth.File
+			if kind == "" {
+				kind = "config_file"
+			}
+		} else if auth.Etcd != "" {
+			src = auth.Etcd
+			if kind == "" {
+				kind = "etcd_key"
+			}
+		}
+		if src == "" {
+			continue // skip malformed entry
+		}
 		if kind == "" {
 			kind = "etcd_key"
 		}
+		authID := "authority:" + src
 		conf := auth.Confidence
 		if conf == "" {
 			conf = "medium"

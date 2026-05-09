@@ -359,3 +359,102 @@ invariants:
 		}
 	}
 }
+
+// TestInvariantLoader_AuthorityShorthands verifies that authority[] entries using
+// file: and etcd: shorthand fields produce correct authority_source nodes and
+// reads_authority edges (rather than requiring source: + kind:).
+func TestInvariantLoader_AuthorityShorthands(t *testing.T) {
+	g := openGraph(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	p := writeYAML(t, dir, "inv.yaml", `
+invariants:
+  - id: test.authority.shorthands
+    title: Authority shorthand test
+    severity: high
+    status: active
+    summary: "Tests file and etcd shorthand fields in authority list."
+    forbidden_fixes: []
+    required_tests: []
+    authority:
+      - file: docs/awareness/knowledge/path_weights.yaml
+      - etcd: /globular/services/{service_id}/config
+`)
+	if err := manual.LoadInvariants(ctx, g, p); err != nil {
+		t.Fatalf("LoadInvariants: %v", err)
+	}
+
+	outEdges, err := g.Neighbors(ctx, "invariant:test.authority.shorthands", "out")
+	if err != nil {
+		t.Fatalf("Neighbors: %v", err)
+	}
+
+	var fileAuth, etcdAuth bool
+	for _, e := range outEdges {
+		if e.Kind == graph.EdgeReadsAuthority {
+			if e.Dst == "authority:docs/awareness/knowledge/path_weights.yaml" {
+				fileAuth = true
+			}
+			if e.Dst == "authority:/globular/services/{service_id}/config" {
+				etcdAuth = true
+			}
+		}
+	}
+	if !fileAuth {
+		t.Error("expected reads_authority to authority:docs/awareness/knowledge/path_weights.yaml (file: shorthand)")
+	}
+	if !etcdAuth {
+		t.Error("expected reads_authority to authority:/globular/services/{service_id}/config (etcd: shorthand)")
+	}
+}
+
+// TestInvariantLoader_FunctionsListInMetadata verifies that implemented_by entries
+// using the functions: list (not the singular function: field) store all function
+// names in edge metadata.
+func TestInvariantLoader_FunctionsListInMetadata(t *testing.T) {
+	g := openGraph(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	p := writeYAML(t, dir, "inv.yaml", `
+invariants:
+  - id: test.impl.functions_list
+    title: Functions list test
+    severity: medium
+    status: active
+    summary: "Tests functions list field in implemented_by."
+    forbidden_fixes: []
+    required_tests: []
+    implemented_by:
+      - file: golang/mcp/tools_awareness_decision.go
+        functions:
+          - decisionContextNoGraph
+          - buildDecisionContext
+          - buildDecisionBlindSpots
+        trust: strict_verified
+`)
+	if err := manual.LoadInvariants(ctx, g, p); err != nil {
+		t.Fatalf("LoadInvariants: %v", err)
+	}
+
+	outEdges, err := g.Neighbors(ctx, "source_file:golang/mcp/tools_awareness_decision.go", "out")
+	if err != nil {
+		t.Fatalf("Neighbors: %v", err)
+	}
+
+	var implEdge *graph.Edge
+	for i, e := range outEdges {
+		if e.Kind == graph.EdgeImplements && e.Dst == "invariant:test.impl.functions_list" {
+			implEdge = &outEdges[i]
+			break
+		}
+	}
+	if implEdge == nil {
+		t.Fatal("expected implements edge from source_file to invariant")
+	}
+
+	// JSON round-trip: []string serializes as []interface{} on retrieval.
+	fnsRaw, _ := implEdge.Metadata["functions"].([]interface{})
+	if len(fnsRaw) != 3 {
+		t.Errorf("expected 3 functions in metadata, got %d: %v", len(fnsRaw), fnsRaw)
+	}
+}
