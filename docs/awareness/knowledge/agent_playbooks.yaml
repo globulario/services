@@ -1900,7 +1900,13 @@ capability_gap_patterns:
         entry: desired_installed_must_converge
         operation: add
     prevents_repeat_criticism: "Future reviews cannot say 'awareness cannot join Desired to Installed' once the etcd collector exists and cross-layer divergence edges are emitted."
-    status: open
+    status: implemented
+    closure_evidence:
+      - "golang/awareness/extractors/clusterstate/etcd.go: CollectEtcd() reads /globular/resources/ServiceDesiredVersion/* and /globular/nodes/*/packages/*/*"
+      - "Emits etcd_desired_state nodes + installed_package nodes + EdgeHasStateDelta divergence edges"
+      - "EtcdClientFactory pattern: nil factory → graceful skip (status=skipped). Works offline/in tests."
+      - "5 tests: TestEtcdCollector_SkipsWhenNoFactory, TestEtcdCollector_SkipsWhenFactoryReturnsNilClient, TestEtcdCollector_DetectsDrift_ViaGraphPreload, TestEtcdCollector_CollectorIDIsEtcd, TestEtcdCollector_FactoryErrorSkipsGracefully"
+      - "Wired into 'globular awareness build --collect-etcd' via getEtcdClientFactory()"
 
   - id: awareness.identity_normalization
     priority: P1
@@ -1940,7 +1946,13 @@ capability_gap_patterns:
         entry: canonical_identity_prefixes
         operation: add
     prevents_repeat_criticism: "Future reviews cannot say 'cross-layer joins fail' once NormalizeID is applied in all collectors and alias resolution is added to graph query functions."
-    status: open
+    status: implemented
+    closure_evidence:
+      - "golang/awareness/enforce/identity.go: NormalizeID(tier, raw) with 7 SourceTier constants"
+      - "ResolveNode(ctx, g, raw) tries exact ID then all canonical candidate prefixes"
+      - "Canonical prefixes: package: service: unit: artifact: node: build: platform: profile: etcd: cert: receipt: config: script: failure_mode: invariant: workflow:"
+      - "5 tests: TestIdentityNormalization_PackagePrefix, UnitPrefix, ArtifactPrefix, AliasResolution, CrossLayerJoin"
+      - "Cross-layer test: NormalizeID(TierPackageSpec, 'globular-minio.service') == NormalizeID(TierSystemdRuntime, 'globular-minio.service') == 'unit:globular-minio.service'"
 
   - id: awareness.collector_health
     priority: P1
@@ -1977,7 +1989,14 @@ capability_gap_patterns:
         entry: preflight_must_report_collector_health
         operation: add
     prevents_repeat_criticism: "Future reviews cannot say 'preflight confidence is opaque' once collector_health[] is included and confidence degrades on P0 collector failure."
-    status: open
+    status: implemented
+    closure_evidence:
+      - "graph.CollectorHealthItem type in graph/query.go; stored in graph_builds.collector_health_json"
+      - "graph.SetBuildCollectorHealth(ctx, buildID, items) method persists results after each build"
+      - "graph.LatestBuildRecord() reads collector_health_json alongside stats_json"
+      - "preflight.Report.CollectorHealth []CollectorHealthSummary field in report.go"
+      - "preflight step 18 reads BuildRecord.CollectorHealth, surfaces COLLECTOR_ERROR warnings and blind spots for any status=error collector"
+      - "globularcli awareness build collects []CollectorHealthItem from all P0/P1 extractors and calls SetBuildCollectorHealth after UpsertBuildRecord"
 
   - id: awareness.cross_layer_invariants
     priority: P1
@@ -2015,7 +2034,12 @@ capability_gap_patterns:
         entry: cross_layer_invariants_section
         operation: add
     prevents_repeat_criticism: "Future reviews cannot say 'awareness cannot detect cross-layer divergence' once CrossLayerCheck emits violations for all 11 invariant types."
-    status: open
+    status: implemented
+    closure_evidence:
+      - "golang/awareness/enforce/cross_layer.go: CrossLayerCheck(ctx, g) with 5 checks"
+      - "Checks: desired/installed mismatch, installed-without-unit, sidecar hash mismatch, founding quorum below minimum, cert SAN coverage"
+      - "Violations carry InvariantID, Kind, NodeA/NodeB, Detail; graph edges emitted (EdgeHasStateDelta, EdgeViolates)"
+      - "6 tests: TestCrossLayer_DesiredInstalledMismatch, InstalledWithoutUnit, SidecarHashMismatch, FoundingQuorumBelowMinimum, CertMissingInternalSAN, NoDivergenceWhenVersionsMatch"
 
   - id: awareness.decision_information_separation
     priority: P1
@@ -2055,4 +2079,11 @@ capability_gap_patterns:
         entry: decision_information_edge_separation
         operation: add
     prevents_repeat_criticism: "Future reviews cannot say 'decision paths are polluted with information edges' once EdgeClass and Weight exist on all edges and decision_context uses class_filter=decision."
-    status: open
+    status: implemented
+    closure_evidence:
+      - "graph/edges.go: EdgeClassDecision/Structural/Information constants; classifyEdge(kind) auto-assigns class+weight"
+      - "decisionEdgeKinds map: blocks, requires, forbids, safe_when, unsafe_when, violates, enforces, requires_test, governed_by, caused_by, fixed_by, remediated_by, unblocks"
+      - "structuralEdgeKinds map: owns, depends_on, calls, imports, reads, writes, defines, produces, emits, tested_by, implements, controls, implemented_by, current_status_of, runtime_depends_on"
+      - "All other edges auto-classified as information (weight=0.3)"
+      - "graph/query.go: NeighborsByClass(), EdgesByClass(), TraverseDecision() BFS on decision-class edges only"
+      - "5 tests in edge_class_test.go; decision_context MCP tool adds decision_causal_chain via TraverseDecision + class_filter=decision in coverage output"

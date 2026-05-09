@@ -221,6 +221,13 @@ func (g *Graph) addMigrations() error {
 	migrations := []string{
 		// Phase 11: edge provenance for trust tracking.
 		`ALTER TABLE edges ADD COLUMN provenance_json TEXT NOT NULL DEFAULT '{}'`,
+		// Phase 12: decision/information edge separation.
+		// edge_class distinguishes causal/decision edges from contextual/information edges.
+		// weight (0.0–1.0) controls traversal ranking: decision=1.0, structural=0.7, info=0.3.
+		`ALTER TABLE edges ADD COLUMN edge_class TEXT NOT NULL DEFAULT 'information'`,
+		`ALTER TABLE edges ADD COLUMN weight REAL NOT NULL DEFAULT 0.5`,
+		// Phase 12: collector health tracking in graph_builds stats.
+		`ALTER TABLE graph_builds ADD COLUMN collector_health_json TEXT NOT NULL DEFAULT '[]'`,
 	}
 	for _, m := range migrations {
 		if _, err := g.db.Exec(m); err != nil {

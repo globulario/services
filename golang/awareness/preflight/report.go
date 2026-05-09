@@ -19,6 +19,15 @@ const (
 	ClassStaticFallback        TaskClass = "STATIC_KNOWLEDGE_FALLBACK"
 )
 
+// CollectorHealthSummary is a compact view of a single collector's outcome.
+// Populated from the most recent graph_builds.collector_health_json record.
+type CollectorHealthSummary struct {
+	CollectorID  string `json:"collector_id"`
+	Status       string `json:"status"`           // "ok" | "skipped" | "error"
+	NodesEmitted int    `json:"nodes_emitted"`
+	Error        string `json:"error,omitempty"`
+}
+
 // DidWeFixSection summarises the fix-ledger lookup result.
 type DidWeFixSection struct {
 	Status          string   `json:"status"`
@@ -206,6 +215,7 @@ type DegradedModePlaybook struct {
 // Report is the complete output of a preflight run.
 type Report struct {
 	Task                string                   `json:"task"`
+	CollectorHealth     []CollectorHealthSummary `json:"collector_health,omitempty"`
 	Classification      []TaskClass              `json:"classification"`
 	MatchedAliases      []string                 `json:"matched_aliases"`
 	Services            []string                 `json:"services"`

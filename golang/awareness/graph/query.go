@@ -40,29 +40,42 @@ type BuildStats struct {
 	DurationMs           int64 `json:"duration_ms,omitempty"`
 }
 
+// CollectorHealthItem records the outcome of a single collector pass.
+// Stored as JSON array in graph_builds.collector_health_json.
+type CollectorHealthItem struct {
+	CollectorID  string `json:"collector_id"`
+	SourceTier   string `json:"source_tier,omitempty"`
+	Status       string `json:"status"`       // "ok" | "skipped" | "error"
+	NodesEmitted int    `json:"nodes_emitted"`
+	Error        string `json:"error,omitempty"`
+	Priority     string `json:"priority,omitempty"` // "P0" | "P1"
+}
+
+// BuildRecord is a single row from the graph_builds table.
+type BuildRecord struct {
+	ID               string
+	RepoRoot         string
+	GitCommit        string
+	ReleaseID        string
+	CreatedAt        int64
+	Stats            BuildStats
+	CollectorHealth  []CollectorHealthItem
+}
+
 // LatestBuildRecord returns the most recent graph_builds row, or (nil, nil) if none.
 func (g *Graph) LatestBuildRecord(ctx context.Context) (*BuildRecord, error) {
 	row := g.db.QueryRowContext(ctx, `
-		SELECT id, repo_root, git_commit, release_id, created_at, stats_json
+		SELECT id, repo_root, git_commit, release_id, created_at, stats_json,
+		       COALESCE(collector_health_json, '[]')
 		FROM graph_builds ORDER BY created_at DESC LIMIT 1
 	`)
 	return scanBuildRecord(row)
 }
 
-// BuildRecord is a single row from the graph_builds table.
-type BuildRecord struct {
-	ID        string
-	RepoRoot  string
-	GitCommit string
-	ReleaseID string
-	CreatedAt int64
-	Stats     BuildStats
-}
-
 func scanBuildRecord(row *sql.Row) (*BuildRecord, error) {
 	var r BuildRecord
-	var statsJSON string
-	err := row.Scan(&r.ID, &r.RepoRoot, &r.GitCommit, &r.ReleaseID, &r.CreatedAt, &statsJSON)
+	var statsJSON, healthJSON string
+	err := row.Scan(&r.ID, &r.RepoRoot, &r.GitCommit, &r.ReleaseID, &r.CreatedAt, &statsJSON, &healthJSON)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -70,7 +83,23 @@ func scanBuildRecord(row *sql.Row) (*BuildRecord, error) {
 		return nil, fmt.Errorf("scanBuildRecord: %w", err)
 	}
 	_ = json.Unmarshal([]byte(statsJSON), &r.Stats)
+	_ = json.Unmarshal([]byte(healthJSON), &r.CollectorHealth)
 	return &r, nil
+}
+
+// SetBuildCollectorHealth stores the collector health array for a build record.
+func (g *Graph) SetBuildCollectorHealth(ctx context.Context, buildID string, items []CollectorHealthItem) error {
+	data, err := json.Marshal(items)
+	if err != nil {
+		return fmt.Errorf("SetBuildCollectorHealth: encode: %w", err)
+	}
+	_, err = g.db.ExecContext(ctx,
+		`UPDATE graph_builds SET collector_health_json = ? WHERE id = ?`,
+		string(data), buildID)
+	if err != nil {
+		return fmt.Errorf("SetBuildCollectorHealth %s: %w", buildID, err)
+	}
+	return nil
 }
 
 // FindNode returns a node by ID, or (nil, nil) if not found.
@@ -159,6 +188,84 @@ func (g *Graph) Neighbors(ctx context.Context, id, direction string) ([]Edge, er
 	}
 	defer rows.Close()
 	return scanEdges(rows)
+}
+
+// NeighborsByClass returns outgoing edges from id filtered by edge_class.
+// Use EdgeClassDecision, EdgeClassStructural, or EdgeClassInformation.
+// Falls back to all neighbors if edge_class column is missing (pre-migration DBs).
+func (g *Graph) NeighborsByClass(ctx context.Context, id, class string) ([]Edge, error) {
+	rows, err := g.db.QueryContext(ctx, `
+		SELECT src, kind, dst, phase, required, confidence, metadata_json
+		FROM edges WHERE src = ? AND edge_class = ?
+	`, id, class)
+	if err != nil {
+		// Fallback: column may not exist yet on pre-migration databases.
+		return g.Neighbors(ctx, id, "out")
+	}
+	defer rows.Close()
+	return scanEdges(rows)
+}
+
+// EdgesByClass returns all edges in the graph with the given edge_class.
+func (g *Graph) EdgesByClass(ctx context.Context, class string) ([]Edge, error) {
+	rows, err := g.db.QueryContext(ctx, `
+		SELECT src, kind, dst, phase, required, confidence, metadata_json
+		FROM edges WHERE edge_class = ?
+	`, class)
+	if err != nil {
+		return nil, fmt.Errorf("EdgesByClass %s: %w", class, err)
+	}
+	defer rows.Close()
+	return scanEdges(rows)
+}
+
+// TraverseDecision performs BFS from startID following only decision-class edges.
+// This gives a clean causal path without information/context noise.
+func (g *Graph) TraverseDecision(ctx context.Context, startID string, maxDepth int) (*TraversalResult, error) {
+	visited := make(map[string]bool)
+	result := &TraversalResult{}
+
+	type item struct {
+		id    string
+		depth int
+	}
+	queue := []item{{startID, 0}}
+
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+
+		if visited[cur.id] {
+			continue
+		}
+		visited[cur.id] = true
+
+		node, err := g.FindNode(ctx, cur.id)
+		if err != nil {
+			return nil, err
+		}
+		if node != nil {
+			result.Nodes = append(result.Nodes, node)
+		}
+
+		if cur.depth >= maxDepth {
+			continue
+		}
+
+		edges, err := g.NeighborsByClass(ctx, cur.id, EdgeClassDecision)
+		if err != nil {
+			return nil, fmt.Errorf("TraverseDecision neighbors %s: %w", cur.id, err)
+		}
+
+		for _, e := range edges {
+			result.Edges = append(result.Edges, e)
+			if !visited[e.Dst] {
+				queue = append(queue, item{e.Dst, cur.depth + 1})
+			}
+		}
+	}
+
+	return result, nil
 }
 
 // AllEdges returns every edge in the graph (used by cycle detection).

@@ -194,7 +194,7 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 		}
 	}
 
-	// 18. Graph freshness.
+	// 18. Graph freshness + collector health.
 	if g != nil && opts.DocsDir != "" {
 		f := g.Freshness(ctx, opts.DocsDir)
 		gfr := &GraphFreshnessReport{
@@ -206,9 +206,23 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 			KnowledgeSourceHash: f.KnowledgeSourceHash,
 			RebuildRecommended:  f.RebuildRecommended,
 		}
-		// Include last build duration if available.
+		// Include last build duration and collector health if available.
 		if rec, err := g.LatestBuildRecord(ctx); err == nil && rec != nil {
 			gfr.LastBuildDurationMs = rec.Stats.DurationMs
+			for _, ch := range rec.CollectorHealth {
+				r.CollectorHealth = append(r.CollectorHealth, CollectorHealthSummary{
+					CollectorID:  ch.CollectorID,
+					Status:       ch.Status,
+					NodesEmitted: ch.NodesEmitted,
+					Error:        ch.Error,
+				})
+				if ch.Status == "error" {
+					r.Warnings = append(r.Warnings,
+						fmt.Sprintf("COLLECTOR_ERROR: %s failed: %s — graph may be missing nodes from this tier", ch.CollectorID, ch.Error))
+					r.BlindSpots = append(r.BlindSpots,
+						fmt.Sprintf("collector %s errored: nodes from this source may be absent from the graph", ch.CollectorID))
+				}
+			}
 		}
 		r.GraphFreshness = gfr
 		if f.Stale && len(r.RawKnowledgeMatches) > 0 {

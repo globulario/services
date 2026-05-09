@@ -225,24 +225,91 @@ func buildDecisionContext(
 		trustBreakdown[trust] = len(bucket)
 	}
 
+	// 12. Decision-only causal chain traversal.
+	// Traverse from the first matched file's graph node following only
+	// decision-class edges (blocks, requires, forbids, violates, enforces, etc.).
+	// This gives a tight causal chain independent of the scoring machinery above.
+	decisionTraversalNodes := buildDecisionTraversalNodes(ctx, g, changedFiles, symptoms, services, 4)
+
 	return map[string]interface{}{
 		"goal":       goal,
 		"summary":    summary,
 		"confidence": confidence,
 		"coverage": map[string]string{
-			"graph":     graphCoverage,
-			"raw_yaml":  "not_checked",
-			"runtime":   "noop",
-			"code_scan": "not_checked",
+			"graph":        graphCoverage,
+			"raw_yaml":     "not_checked",
+			"runtime":      "noop",
+			"code_scan":    "not_checked",
+			"class_filter": "decision",
 		},
-		"top_decision_paths":  decisionPaths,
-		"information_paths":   infoPaths,
-		"forbidden_actions":   allForbidden,
-		"required_tests":      allRequiredTests,
-		"trust_breakdown":     trustBreakdown,
-		"blind_spots":         blindSpots,
-		"warning":             "NO_MATCH does not mean safe — check coverage.graph and blind_spots",
+		"top_decision_paths":       decisionPaths,
+		"information_paths":        infoPaths,
+		"forbidden_actions":        allForbidden,
+		"required_tests":           allRequiredTests,
+		"trust_breakdown":          trustBreakdown,
+		"blind_spots":              blindSpots,
+		"decision_causal_chain":    decisionTraversalNodes,
+		"warning":                  "NO_MATCH does not mean safe — check coverage.graph and blind_spots",
 	}, nil
+}
+
+// buildDecisionTraversalNodes uses g.TraverseDecision to walk decision-class
+// edges from the provided starting points and returns a compact node list.
+// This is additive — it does not replace the scored path output but supplements
+// it with a pure decision-graph view.
+func buildDecisionTraversalNodes(
+	ctx context.Context,
+	g *graph.Graph,
+	changedFiles, symptoms, services []string,
+	maxDepth int,
+) []map[string]interface{} {
+	// Build a list of starting node IDs to traverse from.
+	var startIDs []string
+
+	// Resolved file → node ID for changed files.
+	for _, f := range changedFiles {
+		nodes, err := g.FindNodesByPath(ctx, f)
+		if err == nil && len(nodes) > 0 {
+			startIDs = append(startIDs, nodes[0].ID)
+		}
+	}
+
+	// Service name → service node IDs.
+	for _, svc := range services {
+		if svcNodes, err := g.FindNodesByNameLike(ctx, svc); err == nil {
+			for _, n := range svcNodes {
+				if n.Type == graph.NodeTypeGlobularService || n.Type == "package" {
+					startIDs = append(startIDs, n.ID)
+					break
+				}
+			}
+		}
+	}
+
+	if len(startIDs) == 0 {
+		return nil
+	}
+
+	// Traverse from the first start ID (most relevant anchor point).
+	result, err := g.TraverseDecision(ctx, startIDs[0], maxDepth)
+	if err != nil || result == nil {
+		return nil
+	}
+
+	if len(result.Nodes) == 0 {
+		return nil
+	}
+
+	out := make([]map[string]interface{}, 0, len(result.Nodes))
+	for _, n := range result.Nodes {
+		out = append(out, map[string]interface{}{
+			"id":      n.ID,
+			"type":    n.Type,
+			"name":    n.Name,
+			"summary": n.Summary,
+		})
+	}
+	return out
 }
 
 // buildPathEntry converts a ScoredPath into the canonical output schema.

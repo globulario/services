@@ -106,6 +106,46 @@ const (
 	EdgeProvidesService  = "provides_service"    // package → proto_service
 )
 
+// EdgeClass distinguishes decision-relevant edges from contextual information edges.
+const (
+	// EdgeClassDecision marks edges that directly drive decisions: causal rules,
+	// forbidden actions, required tests, blocks relationships. Weight=1.0.
+	EdgeClassDecision = "decision"
+	// EdgeClassStructural marks architectural structure edges: owns, depends_on,
+	// calls, reads, writes. Weight=0.7.
+	EdgeClassStructural = "structural"
+	// EdgeClassInformation marks low-signal context edges: references, mentions,
+	// similar_to, documents. Weight=0.3.
+	EdgeClassInformation = "information"
+)
+
+// decisionEdgeKinds lists edge kinds that are always classified as decision-class.
+var decisionEdgeKinds = map[string]bool{
+	EdgeBlocks: true, EdgeRequires: true, EdgeForbids: true, EdgeSafeWhen: true,
+	EdgeUnsafeWhen: true, EdgeViolates: true, EdgeEnforces: true,
+	EdgeRequiresTest: true, EdgeGovernedBy: true, EdgeCausedBy: true,
+	EdgeFixedBy: true, EdgeRemediatedBy: true, EdgeUnblocks: true,
+}
+
+// structuralEdgeKinds lists edge kinds classified as structural-class.
+var structuralEdgeKinds = map[string]bool{
+	EdgeOwns: true, EdgeDependsOn: true, EdgeCalls: true, EdgeImports: true,
+	EdgeReads: true, EdgeWrites: true, EdgeDefines: true, EdgeProduces: true,
+	EdgeEmits: true, EdgeTestedBy: true, EdgeImplements: true, EdgeControls: true,
+	EdgeImplementedBy: true, EdgeCurrentStatusOf: true, EdgeRuntimeDependsOn: true,
+}
+
+// classifyEdge returns the edge_class and weight for an edge kind.
+func classifyEdge(kind string) (string, float64) {
+	if decisionEdgeKinds[kind] {
+		return EdgeClassDecision, 1.0
+	}
+	if structuralEdgeKinds[kind] {
+		return EdgeClassStructural, 0.7
+	}
+	return EdgeClassInformation, 0.3
+}
+
 // Edge is a directed relationship between two graph nodes.
 type Edge struct {
 	Src        string
@@ -114,6 +154,11 @@ type Edge struct {
 	Phase      string
 	Required   bool
 	Confidence float64
+	// Class is the edge classification: decision, structural, or information.
+	// Auto-classified from Kind if empty.
+	Class  string
+	// Weight is the traversal weight (0.0–1.0). Auto-set from Class if 0.
+	Weight float64
 	Metadata   map[string]any
 }
 
@@ -165,6 +210,7 @@ func (g *Graph) AddEdgeWithProvenance(ctx context.Context, pe ProvenanceEdge) er
 }
 
 // AddEdge upserts an edge. The (src, kind, dst, phase) tuple is the primary key.
+// edge_class and weight are auto-classified from Kind when not explicitly set.
 func (g *Graph) AddEdge(ctx context.Context, e Edge) error {
 	meta, err := marshalMeta(e.Metadata)
 	if err != nil {
@@ -178,14 +224,27 @@ func (g *Graph) AddEdge(ctx context.Context, e Edge) error {
 	if e.Required {
 		req = 1
 	}
+	class := e.Class
+	weight := e.Weight
+	if class == "" || weight == 0 {
+		c, w := classifyEdge(e.Kind)
+		if class == "" {
+			class = c
+		}
+		if weight == 0 {
+			weight = w
+		}
+	}
 	_, err = g.db.ExecContext(ctx, `
-		INSERT INTO edges (src, kind, dst, phase, required, confidence, metadata_json)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO edges (src, kind, dst, phase, required, confidence, metadata_json, edge_class, weight)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(src, kind, dst, phase) DO UPDATE SET
 			required      = excluded.required,
 			confidence    = excluded.confidence,
-			metadata_json = excluded.metadata_json
-	`, e.Src, e.Kind, e.Dst, e.Phase, req, conf, meta)
+			metadata_json = excluded.metadata_json,
+			edge_class    = excluded.edge_class,
+			weight        = excluded.weight
+	`, e.Src, e.Kind, e.Dst, e.Phase, req, conf, meta, class, weight)
 	if err != nil {
 		return fmt.Errorf("AddEdge %s -[%s]-> %s: %w", e.Src, e.Kind, e.Dst, err)
 	}

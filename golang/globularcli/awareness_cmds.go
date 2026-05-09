@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/globulario/services/golang/awareness/analysis"
 	"github.com/globulario/services/golang/awareness/extractors/clusterspec"
@@ -36,6 +37,7 @@ import (
 	"github.com/globulario/services/golang/awareness/extractors/tests"
 	"github.com/globulario/services/golang/awareness/extractors/workflows"
 	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/services/golang/config"
 )
 
 var awareCfg = struct {
@@ -52,6 +54,7 @@ var awareCfg = struct {
 	extraScriptRoots []string
 	collectSystemd  bool
 	collectVarLib   bool
+	collectEtcd     bool
 }{}
 
 var awarenessCmd = &cobra.Command{
@@ -154,15 +157,31 @@ var awarenessBuildCmd = &cobra.Command{
 			}
 		}
 
+		// collectorHealthItems accumulates the outcome of every P0/P1 collector run.
+		var collectorHealthItems []graph.CollectorHealthItem
+		addHealth := func(id, sourceTier, status string, nodes int, errStr, priority string) {
+			collectorHealthItems = append(collectorHealthItems, graph.CollectorHealthItem{
+				CollectorID:  id,
+				SourceTier:   sourceTier,
+				Status:       status,
+				NodesEmitted: nodes,
+				Error:        errStr,
+				Priority:     priority,
+			})
+		}
+
 		// Package spec indexer — reads packages metadata repo (package.json + awareness.yaml).
 		if awareCfg.packagesMetaDir != "" {
 			fmt.Fprintf(os.Stdout, "Extracting package specs from %s ...\n", awareCfg.packagesMetaDir)
 			h, err := clusterspec.Extract(ctx, g, awareCfg.packagesMetaDir)
+			errStr := ""
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "warning: clusterspec extractor: %v\n", err)
+				errStr = err.Error()
 			} else {
 				fmt.Fprintf(os.Stdout, "  clusterspec: status=%s nodes=%d\n", h.Status, h.NodesEmitted)
 			}
+			addHealth("clusterspec", "package_spec", h.Status, h.NodesEmitted, errStr, "P0")
 		}
 
 		// Shell script crawler — indexes extra repos (installer scripts, Makefile, etc.).
@@ -178,6 +197,7 @@ var awarenessBuildCmd = &cobra.Command{
 			}
 			for _, h := range healths {
 				fmt.Fprintf(os.Stdout, "  scripts[%s]: status=%s nodes=%d\n", h.CollectorID, h.Status, h.NodesEmitted)
+				addHealth(h.CollectorID, "installer_script", h.Status, h.NodesEmitted, h.Error, "P0")
 			}
 		}
 
@@ -185,22 +205,47 @@ var awarenessBuildCmd = &cobra.Command{
 		if awareCfg.collectSystemd {
 			fmt.Fprintf(os.Stdout, "Collecting systemd unit state ...\n")
 			h, err := clusterstate.CollectSystemd(ctx, g)
+			errStr := ""
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "warning: systemd collector: %v\n", err)
+				errStr = err.Error()
 			} else {
 				fmt.Fprintf(os.Stdout, "  systemd: status=%s nodes=%d\n", h.Status, h.NodesEmitted)
 			}
+			addHealth("systemd", "systemd_runtime", h.Status, h.NodesEmitted, errStr, "P0")
 		}
 
 		// /var/lib/globular metadata scanner — certs, receipts, minio.env.
 		if awareCfg.collectVarLib {
 			fmt.Fprintf(os.Stdout, "Scanning /var/lib/globular metadata ...\n")
 			h, err := clusterstate.CollectVarLib(ctx, g)
+			errStr := ""
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "warning: varlib collector: %v\n", err)
+				errStr = err.Error()
 			} else {
 				fmt.Fprintf(os.Stdout, "  varlib: status=%s nodes=%d\n", h.Status, h.NodesEmitted)
 			}
+			addHealth("varlib", "installed_metadata", h.Status, h.NodesEmitted, errStr, "P0")
+		}
+
+		// etcd snapshot — desired/installed divergence detection.
+		if awareCfg.collectEtcd {
+			fmt.Fprintf(os.Stdout, "Collecting etcd desired-state snapshot ...\n")
+			// Use config.GetEtcdClient as the factory; nil on connection failure → graceful skip.
+			var etcdFactory clusterstate.EtcdClientFactory
+			if client, err := getEtcdClientFactory(); err == nil {
+				etcdFactory = client
+			}
+			h, err := clusterstate.CollectEtcd(ctx, g, etcdFactory)
+			errStr := ""
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: etcd collector: %v\n", err)
+				errStr = err.Error()
+			} else {
+				fmt.Fprintf(os.Stdout, "  etcd: status=%s nodes=%d\n", h.Status, h.NodesEmitted)
+			}
+			addHealth("etcd", "etcd_desired_state", h.Status, h.NodesEmitted, errStr, "P1")
 		}
 
 		// Prune stale source_file nodes (files that no longer exist on disk).
@@ -219,6 +264,11 @@ var awarenessBuildCmd = &cobra.Command{
 		buildID := fmt.Sprintf("build-%d", time.Now().Unix())
 		if err := g.UpsertBuildRecord(ctx, buildID, repoRoot, gitCommit, "", stats); err != nil {
 			return err
+		}
+		if len(collectorHealthItems) > 0 {
+			if err := g.SetBuildCollectorHealth(ctx, buildID, collectorHealthItems); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: store collector health: %v\n", err)
+			}
 		}
 
 		fmt.Fprintf(os.Stdout, "\nBuild complete:\n")
@@ -738,6 +788,7 @@ func init() {
 	awarenessBuildCmd.Flags().StringArrayVar(&awareCfg.extraScriptRoots, "extra-scripts", nil, "Extra repo roots to crawl for shell scripts and Makefiles (repeatable)")
 	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectSystemd, "collect-systemd", false, "Collect systemd unit state from /etc/systemd/system/globular-*.service")
 	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectVarLib, "collect-var-lib", false, "Scan /var/lib/globular for PKI certs, receipts, and minio.env (never reads private keys)")
+	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectEtcd, "collect-etcd", false, "Collect desired/installed state from etcd (requires cluster connectivity and TLS certs)")
 
 	// Stats flags.
 	awarenessStatsCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
@@ -858,4 +909,16 @@ func gitHead(repoRoot string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// getEtcdClientFactory returns an EtcdClientFactory that uses config.GetEtcdClient.
+// Returns an error if the config package is not available (e.g. running off-cluster).
+func getEtcdClientFactory() (clusterstate.EtcdClientFactory, error) {
+	// Probe once to see if etcd is reachable; avoid importing the factory if not.
+	if _, err := config.GetEtcdClient(); err != nil {
+		return nil, err
+	}
+	return func() (*clientv3.Client, error) {
+		return config.GetEtcdClient()
+	}, nil
 }
