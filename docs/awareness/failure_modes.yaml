@@ -22,8 +22,11 @@ failure_modes:
         are blocked — making this a cluster-wide reconciliation stopper triggered by a single
         runaway process.
       architecture_fix: |
-        1. Add ExecStartPre=+/bin/sh -c 'pkill -9 -f <binary> || true' to every service unit file
+        1. Add ExecStartPre=+/bin/sh -c 'pkill -9 -x <binary> || true' to every service unit file
            (and its inline spec counterpart) so any orphan is killed before the new instance starts.
+           MUST use -x (process-name match) — never -f, which also matches the parent shell's argv
+           and self-SIGKILLs. For binary names >15 chars, use the bracket trick:
+           pkill -9 -f '[<first_char>]<rest>' instead.
         2. The controller must scope circuit breaker effects: an open CB on workflow must block
            only workflow-dependent dispatch, not ALL install workflows.
         3. When a service re-registers a new address in etcd, the controller must probe the new
@@ -617,8 +620,9 @@ failure_modes:
         restart race or cgroup-misconfigured kill. It continues holding :10260 indefinitely.
         When a new globular-mcp.service starts, all 10 bind retries fail and the service exits.
       architecture_fix: |
-        Add ExecStartPre=+/bin/sh -c 'pkill -9 -f mcp_server || true' to globular-mcp.service
-        unit file. This kills any escaped orphan before attempting to bind the port.
+        Add ExecStartPre=+/bin/sh -c 'pkill -9 -x mcp_server || true' to globular-mcp.service
+        unit file. This kills any escaped orphan before attempting to bind the port. MUST use
+        -x (process-name match), never -f — -f matches the parent shell's argv and self-SIGKILLs.
         Applied in packages/metadata/mcp/systemd/globular-mcp.service and
         packages/metadata/mcp/specs/mcp_service.yaml as of INC-2026-0003.
         Manual recovery: ssh to affected node and run: sudo killall -9 mcp_server
@@ -853,9 +857,10 @@ failure_modes:
         (half of WatchdogSec=60). Also sends STOPPING=1 on ctx cancellation. File changed:
         golang/mcp/transport_http.go. Deployed as mcp@1.2.15.
 
-        Fix 2 (recommended): Add ExecStartPre=+/bin/sh -c 'pkill -9 -f mcp_server || true'
+        Fix 2 (recommended): Add ExecStartPre=+/bin/sh -c 'pkill -9 -x mcp_server || true'
         to the globular-mcp.service unit as defence-in-depth against orphaned processes from
-        any future restart race, regardless of sd_notify status.
+        any future restart race, regardless of sd_notify status. MUST use -x (process-name
+        match), never -f — -f matches the parent shell's argv and self-SIGKILLs.
       related_services:
         - mcp
         - node_agent

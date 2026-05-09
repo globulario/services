@@ -51,9 +51,15 @@ invariants:
         triggers a cascade: etcd gets a new address, the mesh may route to the old address,
         the controller sees an interface mismatch, and opens circuit breakers. Every service
         unit file AND its inline spec counterpart must include:
-          ExecStartPre=+/bin/sh -c 'pkill -9 -f <binary_name> || true'
+          ExecStartPre=+/bin/sh -c 'pkill -9 -x <binary_name> || true'
         as the FIRST ExecStartPre line, to guarantee any orphan is killed before the new
-        instance attempts to bind its port.
+        instance attempts to bind its port. MUST use -x (matches process name exactly),
+        never -f — `pkill -f` matches against the FULL command line of every process,
+        including the parent shell whose argv contains the binary name as its pkill
+        argument, so the parent shell self-SIGKILLs and ExecStartPre fails. Note: -x
+        relies on the kernel comm field which is truncated to 15 chars (TASK_COMM_LEN);
+        for binaries with names longer than 15 characters, use the regex bracket trick:
+        pkill -9 -f '[<first_char>]<rest_of_name>' (e.g. '[c]luster_controller_server').
       protects:
         state:
             - /globular/services/{service_id}/config

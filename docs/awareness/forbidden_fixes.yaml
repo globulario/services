@@ -749,8 +749,11 @@ forbidden_fixes:
     service restarts, without adding an ExecStartPre kill step.
 
     '
-  safe_alternative: 'Add ExecStartPre=+/bin/sh -c ''pkill -9 -f <binary> || true'' to every service unit that binds a port;
-    this kills any orphaned process from a prior cgroup escape before the new process tries to bind.
+  safe_alternative: 'Add ExecStartPre=+/bin/sh -c ''pkill -9 -x <binary> || true'' to every service unit that binds a port;
+    this kills any orphaned process from a prior cgroup escape before the new process tries to bind. MUST use -x (process-name
+    match), never -f — `pkill -f` matches the FULL command line including the parent shell''s argv (which contains the binary
+    name as the pkill argument), so the parent shell self-SIGKILLs and ExecStartPre fails. For binary names >15 chars use the
+    bracket trick: pkill -9 -f ''[<first_char>]<rest>''.
 
     '
   related_invariants:
@@ -909,8 +912,9 @@ forbidden_fixes:
     its cgroup and is holding port 10260.
 
     '
-  safe_alternative: 'The globular-mcp.service unit must include ExecStartPre=+/bin/sh -c ''pkill -9 -f mcp_server || true''
-    to terminate orphaned processes before the new instance tries to bind.
+  safe_alternative: 'The globular-mcp.service unit must include ExecStartPre=+/bin/sh -c ''pkill -9 -x mcp_server || true''
+    to terminate orphaned processes before the new instance tries to bind. MUST use -x (process-name match), never -f —
+    `pkill -f` also matches the parent shell''s argv and self-SIGKILLs.
 
     '
   related_invariants:

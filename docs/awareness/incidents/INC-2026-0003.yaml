@@ -47,8 +47,11 @@ root_cause: |
      during the install wave, the start_services step was absent from the spec (intentional Day-0
      skip), so the service was not started. On manual start attempt, port 10260 was blocked by the
      orphan. Fix: sudo killall -9 mcp_server on nuc, then start via node-agent ControlService.
-     Long-term fix: added ExecStartPre=+/bin/sh -c 'pkill -9 -f mcp_server || true' to unit file
+     Long-term fix: added ExecStartPre=+/bin/sh -c 'pkill -9 -x mcp_server || true' to unit file
      in both spec and systemd/ directory. Added start_services + health_checks steps to mcp spec.
+     (Original recommendation used -f; corrected to -x on 2026-05-09 after workflow_1.2.24 hit the
+     self-SIGKILL trap — `pkill -f` matches the parent shell's argv which contains the binary
+     name as its pkill argument, killing itself.)
 
   5. MINIO TOPOLOGY GATE: nuc's node-agent blocks globular-minio.service start if the node IP is
      not in ObjectStoreDesiredState.Nodes. The objectstore is standalone (ryzen only). The topology

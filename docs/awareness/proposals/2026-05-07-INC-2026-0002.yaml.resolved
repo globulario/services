@@ -31,9 +31,10 @@ failure_modes:
         (half of WatchdogSec=60). Also sends STOPPING=1 on ctx cancellation. File changed:
         golang/mcp/transport_http.go. Deployed as mcp@1.2.15.
 
-        Fix 2 (recommended): Add ExecStartPre=+/bin/sh -c 'pkill -9 -f mcp_server || true'
+        Fix 2 (recommended): Add ExecStartPre=+/bin/sh -c 'pkill -9 -x mcp_server || true'
         to the globular-mcp.service unit as defence-in-depth against orphaned processes from
-        any future restart race, regardless of sd_notify status.
+        any future restart race, regardless of sd_notify status. MUST use -x — -f matches the
+        parent shell's argv and self-SIGKILLs.
       required_tests:
         - TestMCPSdNotifySentAfterBind
         - TestMCPServiceReachesActiveAfterRestart

@@ -71,9 +71,10 @@ decision_rules:
       - port 10260 already in use after upgrade
       - journald shows "bind: address already in use" for mcp_server
     decision: |
-      Has ExecStartPre=+/bin/sh -c 'pkill -9 -f mcp_server || true' been added
+      Has ExecStartPre=+/bin/sh -c 'pkill -9 -x mcp_server || true' been added
       to the globular-mcp.service unit file AND its inline spec counterpart?
-      If no: add it before attempting manual restart.
+      If no: add it before attempting manual restart. MUST use -x (process-name
+      match), never -f — `pkill -f` matches the parent shell's argv and self-SIGKILLs.
     forbidden_if:
       - manually killing mcp_server without adding the ExecStartPre guard
       - assuming a service restart handles the orphan on future upgrades

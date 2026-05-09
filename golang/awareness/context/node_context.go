@@ -580,7 +580,7 @@ func buildEditWarnings(node *graph.Node, nc *NodeContext) []string {
 	case graph.NodeTypeWorkflow:
 		w = append(w, "Workflow nodes must reach a terminal state (SUCCEEDED or FAILED).")
 	case graph.NodeTypeSystemdUnit:
-		w = append(w, "systemd unit: ExecStartPre must include orphan-kill guard (pkill -9 -f <binary>) as the FIRST line.")
+		w = append(w, "systemd unit: ExecStartPre must include orphan-kill guard (pkill -9 -x <binary>) as the FIRST line. Use -x (process-name match), never -f — -f matches the parent shell's argv and self-SIGKILLs.")
 	}
 	if len(nc.StateWrites) > 0 {
 		w = append(w, fmt.Sprintf("Writes to %d state location(s) — verify idempotency.", len(nc.StateWrites)))

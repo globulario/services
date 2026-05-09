@@ -65,7 +65,8 @@ remaining_risk: |
   (e.g. 10 retries × 3s = 30s, plus startup overhead), READY=1 could still arrive
   late. The unit file does not set TimeoutStartSec explicitly (defaults to 90s), which
   gives enough headroom for the current retry logic (max 30s). Recommend adding
-  ExecStartPre cleanup as defence-in-depth: pkill -9 -f mcp_server || true.
+  ExecStartPre cleanup as defence-in-depth: pkill -9 -x mcp_server || true.
+  Must use -x (process-name match), never -f — -f matches the parent shell's argv and self-SIGKILLs.
 
 invariants_touched:
   - runtime.installed_state_not_liveness

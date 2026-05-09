@@ -71,7 +71,7 @@ var codeViolationPatterns = []violationPattern{
 		KnowledgeID:     "service.endpoint.port_squatting_cgroup_escape",
 		Severity:        "medium",
 		WhyDangerous:    "Restart without killing orphaned processes can cause port squatting (cgroup escape).",
-		SafeAlternative: "Use ExecStartPre=+/bin/sh -c 'pkill -9 -f <binary> || true' in the unit file.",
+		SafeAlternative: "Use ExecStartPre=+/bin/sh -c 'pkill -9 -x <binary> || true' in the unit file. Use -x (process name match), never -f (full cmdline match) — -f also matches the parent shell's argv and SIGKILLs itself.",
 		FileExclude:     regexp.MustCompile(`_test\.go|awareness`),
 	},
 	{
