@@ -87,7 +87,7 @@ const (
 	NodeTypeStreamingMode   = "streaming_mode"   // client_streaming / server_streaming / bidirectional
 
 	// Runtime bridge node types (Task 6).
-	NodeTypeRuntimeSnapshot = "runtime_snapshot"
+	NodeTypeRuntimeSnapshot      = "runtime_snapshot"
 	NodeTypeRuntimeServiceStatus = "runtime_service_status"
 	NodeTypeWorkflowReceipt      = "workflow_receipt"
 	NodeTypeStateDelta           = "state_delta"
@@ -96,6 +96,62 @@ const (
 	NodeTypeXDSStatus            = "xds_status"
 	NodeTypeSystemdStatus        = "systemd_status"
 	NodeTypeDoctorEvidence       = "doctor_evidence"
+
+	// Live etcd cluster state node types.
+	// These nodes are collected at runtime from etcd and carry TTL metadata.
+	NodeTypeEtcdSnapshot          = "etcd_snapshot"
+	NodeTypeDesiredService        = "desired_service"
+	NodeTypeDesiredInfrastructure = "desired_infrastructure"
+	NodeTypeServiceRelease        = "service_release"
+	NodeTypeInfrastructureRelease = "infrastructure_release"
+	NodeTypeNodeHeartbeat         = "node_heartbeat"
+	NodeTypeNodeConvergenceState  = "node_convergence_state"
+	NodeTypeNodeInstalledPackage  = "node_installed_package"
+	NodeTypeObjectstoreDesired    = "objectstore_desired_state"
+	NodeTypeServiceRuntimeConfig  = "service_runtime_config"
+	NodeTypeClusterSystemConfig   = "cluster_system_config"
+
+	// Convergence delta node types.
+	NodeTypeConvergenceRecord  = "convergence_record"
+	NodeTypeDesiredStateRecord = "desired_state_record"
+	NodeTypeInstalledStateRecord = "installed_state_record"
+	NodeTypeRuntimeStateRecord = "runtime_state_record"
+	NodeTypeDriftRecord        = "drift_record"
+	NodeTypeReleaseAction      = "release_action"
+	NodeTypeVerificationRecord = "verification_record"
+
+	// Metrics node types.
+	NodeTypeMetricQuery       = "metric_query"
+	NodeTypeMetricThreshold   = "metric_threshold"
+	NodeTypeMetricWarningRule = "metric_warning_rule"
+	NodeTypeMetricSample      = "metric_sample"
+	NodeTypeMetricWarning     = "metric_warning"
+
+	// PKI / certificate node types.
+	NodeTypeCertificate          = "certificate"
+	NodeTypeCertificateAuthority = "certificate_authority"
+	NodeTypeCertSAN              = "certificate_san"
+	NodeTypeCertExpiryWarning    = "certificate_expiry_warning"
+
+	// RBAC policy node types.
+	NodeTypeRBACPolicyFile = "rbac_policy_file"
+	NodeTypeRBACRole       = "rbac_role"
+	NodeTypeRBACPermission = "rbac_permission"
+	NodeTypeRBACSubject    = "rbac_subject"
+	NodeTypeRBACBinding    = "rbac_binding"
+	NodeTypeServiceIdentity = "service_identity"
+
+	// Workflow execution node types.
+	NodeTypeWorkflowRun          = "workflow_run"
+	NodeTypeWorkflowStepRun      = "workflow_step_run"
+	NodeTypeWorkflowBlockedReason = "workflow_blocked_reason"
+	NodeTypeWorkflowRetryRecord  = "workflow_retry_record"
+
+	// DNS / network node types.
+	NodeTypeDNSZone       = "dns_zone"
+	NodeTypeDNSRecord     = "dns_record"
+	NodeTypeServiceEndpoint = "service_endpoint"
+	NodeTypeDomainSpec    = "domain_spec"
 )
 
 // Node is a vertex in the awareness graph.

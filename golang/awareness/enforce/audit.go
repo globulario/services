@@ -38,6 +38,9 @@ type AuditOptions struct {
 
 	// SkipInvariantShape disables invariant implementation graph shape checks.
 	SkipInvariantShape bool
+
+	// SkipImplCoverage disables the invariant implementation coverage ratchet check.
+	SkipImplCoverage bool
 }
 
 // Audit runs all enabled enforcement checks and returns an aggregated result.
@@ -106,6 +109,23 @@ func Audit(ctx context.Context, g *graph.Graph, opts AuditOptions) *AuditResult 
 		} else {
 			shape := InvariantShapeCheck(ctx, g)
 			all = append(all, shape.Findings...)
+		}
+	}
+
+	// 7. Invariant implementation coverage ratchet (graph).
+	if !opts.SkipImplCoverage {
+		if g == nil {
+			all = append(all, Finding{
+				Code:     "NO_GRAPH",
+				Severity: SeverityWarning,
+				Message:  "invariant implementation coverage check skipped — no graph DB",
+			})
+		} else {
+			cov := InvariantImplementationCoverage(ctx, g, InvariantImplCoverageOptions{
+				MinPercent: defaultImplCoverageMinPercent,
+				Enforced:   true,
+			})
+			all = append(all, cov.Findings...)
 		}
 	}
 

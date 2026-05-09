@@ -117,6 +117,59 @@ const (
 	EdgeVerifies              = "verifies"                // test → invariant (direct test proof)
 	EdgeConstrainsActionFor   = "constrains_action_for"   // invariant → action it constrains at runtime
 	EdgeHasEvidence           = "has_evidence"            // any node → evidence artifact
+
+	// Live etcd / cluster state edge kinds.
+	EdgeEtcdSnapshotContainsKey    = "etcd_snapshot_contains_key"
+	EdgeKeyDeclaresResource        = "key_declares_resource"
+	EdgeDesiredTargetsService      = "desired_targets_service"
+	EdgeDesiredTargetsNode         = "desired_targets_node"
+	EdgeReleaseHasBuildID          = "release_has_build_id"
+	EdgeNodeReportsInstalledPackage = "node_reports_installed_package"
+	EdgeNodeReportsRuntimeStatus   = "node_reports_runtime_status"
+	EdgeServiceConfigDeclEndpoint  = "service_config_declares_endpoint"
+
+	// Convergence delta edge kinds.
+	EdgeDesiredComparesToInstalled = "desired_compares_to_installed"
+	EdgeInstalledComparesToRuntime = "installed_compares_to_runtime"
+	EdgeActionTargetsPackage       = "action_targets_package"
+	EdgeDriftDetectedBetween       = "drift_detected_between"
+
+	// Metrics edge kinds.
+	EdgeMetricQueryObservesService     = "metric_query_observes_service"
+	EdgeMetricThresholdAppliesToService = "metric_threshold_applies_to_service"
+	EdgeMetricWarningIndicatesFailureMode = "metric_warning_indicates_failure_mode"
+	EdgeMetricWarningRisksInvariant    = "metric_warning_risks_invariant"
+	EdgeMetricWarningTriggerRule       = "metric_warning_triggers_decision_rule"
+
+	// PKI / certificate edge kinds.
+	EdgeCertIssuedBy         = "certificate_issued_by"
+	EdgeCertHasSAN           = "certificate_has_san"
+	EdgeCertUsedByService    = "certificate_used_by_service"
+	EdgeCertCoversEndpoint   = "certificate_covers_endpoint"
+	EdgeCertRisksInvariant   = "certificate_risks_invariant"
+
+	// RBAC edge kinds.
+	EdgeRoleGrantsPermission   = "role_grants_permission"
+	EdgeSubjectBoundToRole     = "subject_bound_to_role"
+	EdgeServiceRequiresPermission = "service_requires_permission"
+	EdgeServiceHasIdentity     = "service_has_identity"
+	EdgePermissionAllowsAction = "permission_allows_action"
+	EdgePermissionRisksInvariant = "permission_risks_invariant"
+
+	// Workflow execution edge kinds.
+	EdgeWorkflowRunInstantiates    = "workflow_run_instantiates_definition"
+	EdgeWorkflowRunTargetsService  = "workflow_run_targets_service"
+	EdgeWorkflowRunTargetsNode     = "workflow_run_targets_node"
+	EdgeWorkflowRunFailedAtStep    = "workflow_run_failed_at_step"
+	EdgeWorkflowFailureIndicates   = "workflow_failure_indicates_failure_mode"
+	EdgeWorkflowFailureRisksInvariant = "workflow_failure_risks_invariant"
+
+	// DNS / network edge kinds.
+	EdgeDNSRecordResolvesTo       = "dns_record_resolves_to"
+	EdgeServiceEndpointAdvertisedBy = "service_endpoint_advertised_by"
+	EdgeDomainSpecDeclaresRecord  = "domain_spec_declares_record"
+	EdgeDNSRecordRisksInvariant   = "dns_record_risks_invariant"
+	EdgeServiceEndpointCoveredByCert = "service_endpoint_covered_by_cert"
 )
 
 // EdgeClass distinguishes decision-relevant edges from contextual information edges.

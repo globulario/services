@@ -34,24 +34,25 @@ import (
 )
 
 var enforceCfg = struct {
-	jsonOutput            bool
-	files                 []string
-	fromGitDiff           bool
-	strict                bool
-	watchlist             string
-	auditStrict           bool
-	summary               bool
-	failOnWarning         bool
-	warningThreshold      int
-	suppressionsFile      string
-	showSuppressed        bool
-	maxRequiredTestNoPath int
-	maxTodoScaffoldSkips  int
-	trendFile             string
-	trendRecord           bool
-	trendLast             int
-	scaffoldLimit         int
-	scaffoldWrite         bool
+	jsonOutput                        bool
+	files                             []string
+	fromGitDiff                       bool
+	strict                            bool
+	watchlist                         string
+	auditStrict                       bool
+	summary                           bool
+	failOnWarning                     bool
+	warningThreshold                  int
+	suppressionsFile                  string
+	showSuppressed                    bool
+	maxRequiredTestNoPath             int
+	maxTodoScaffoldSkips              int
+	trendFile                         string
+	trendRecord                       bool
+	trendLast                         int
+	scaffoldLimit                     int
+	scaffoldWrite                     bool
+	minInvariantImplementationCoverage float64
 }{
 	warningThreshold:      -1, // disabled by default
 	maxRequiredTestNoPath: -1,
@@ -92,11 +93,34 @@ ERRORs are never suppressible.`,
 
 		golangDir := filepath.Join(repoRoot, "golang")
 		docsDir := filepath.Join(repoRoot, "docs", "awareness")
-		result := enforce.Audit(ctx, g, enforce.AuditOptions{
+		auditOpts := enforce.AuditOptions{
 			RepoRoot: repoRoot,
 			SrcDir:   golangDir,
 			DocsDir:  docsDir,
-		})
+		}
+		result := enforce.Audit(ctx, g, auditOpts)
+
+		// If --min-invariant-implementation-coverage was supplied, run an
+		// additional coverage check with the caller-supplied threshold and
+		// merge its findings into the result.
+		if enforceCfg.minInvariantImplementationCoverage > 0 && g != nil {
+			cov := enforce.InvariantImplementationCoverage(ctx, g, enforce.InvariantImplCoverageOptions{
+				MinPercent: enforceCfg.minInvariantImplementationCoverage,
+				Enforced:   true,
+			})
+			result.Findings = append(result.Findings, cov.Findings...)
+			for _, f := range cov.Findings {
+				switch f.Severity {
+				case enforce.SeverityError:
+					result.ErrorCount++
+				case enforce.SeverityWarning:
+					result.WarningCount++
+				default:
+					result.InfoCount++
+				}
+			}
+			result.Pass = result.ErrorCount == 0
+		}
 		if enforceCfg.auditStrict {
 			watchlist := enforceCfg.watchlist
 			if watchlist == "" {
@@ -1022,6 +1046,7 @@ func init() {
 	awarenessAuditCmd.Flags().BoolVar(&enforceCfg.showSuppressed, "show-suppressed", false, "Include full detail of suppressed findings in output")
 	awarenessAuditCmd.Flags().IntVar(&enforceCfg.maxRequiredTestNoPath, "max-required-test-no-path", -1, "Exit 1 if REQUIRED_TEST_NO_PATH warning count exceeds N (-1 disables)")
 	awarenessAuditCmd.Flags().IntVar(&enforceCfg.maxTodoScaffoldSkips, "max-todo-scaffold-skips", -1, "Exit 1 if SCAFFOLD_TODO_SKIP count exceeds N (-1 disables)")
+	awarenessAuditCmd.Flags().Float64Var(&enforceCfg.minInvariantImplementationCoverage, "min-invariant-implementation-coverage", 0, "Exit 1 if invariant implementation coverage percent falls below this value (0 = use internal default)")
 
 	// validate-annotations
 	awarenessValidateAnnotationsCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")

@@ -36,6 +36,9 @@ const (
 	CodeGraphCoverageLow      = "GRAPH_COVERAGE_LOW"
 	CodeGraphCoverageCritical = "GRAPH_COVERAGE_CRITICAL"
 
+	// Invariant implementation coverage ratchet
+	CodeInvariantCoverageBelowThreshold = "INVARIANT_COVERAGE_BELOW_THRESHOLD"
+
 	// Invariant shape integrity codes.
 	CodeInvariantNoImplementation    = "INVARIANT_NO_IMPLEMENTATION"
 	CodeInvariantNoTestCoverage      = "INVARIANT_NO_TEST_COVERAGE"

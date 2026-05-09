@@ -31,8 +31,11 @@ import (
 	"github.com/globulario/services/golang/awareness/extractors/docs"
 	"github.com/globulario/services/golang/awareness/extractors/goast"
 	"github.com/globulario/services/golang/awareness/extractors/manual"
+	"github.com/globulario/services/golang/awareness/extractors/metrics"
 	"github.com/globulario/services/golang/awareness/extractors/packages"
+	"github.com/globulario/services/golang/awareness/extractors/pki"
 	"github.com/globulario/services/golang/awareness/extractors/proto"
+	"github.com/globulario/services/golang/awareness/extractors/rbac"
 	"github.com/globulario/services/golang/awareness/extractors/scripts"
 	"github.com/globulario/services/golang/awareness/extractors/tests"
 	"github.com/globulario/services/golang/awareness/extractors/workflows"
@@ -52,9 +55,13 @@ var awareCfg = struct {
 	cleanBuild      bool
 	packagesMetaDir string
 	extraScriptRoots []string
-	collectSystemd  bool
-	collectVarLib   bool
-	collectEtcd     bool
+	collectSystemd      bool
+	collectVarLib       bool
+	collectEtcd         bool
+	collectConvergence  bool
+	collectMetrics      bool
+	collectPKI          bool
+	collectRBAC         bool
 }{}
 
 var awarenessCmd = &cobra.Command{
@@ -232,7 +239,6 @@ var awarenessBuildCmd = &cobra.Command{
 		// etcd snapshot — desired/installed divergence detection.
 		if awareCfg.collectEtcd {
 			fmt.Fprintf(os.Stdout, "Collecting etcd desired-state snapshot ...\n")
-			// Use config.GetEtcdClient as the factory; nil on connection failure → graceful skip.
 			var etcdFactory clusterstate.EtcdClientFactory
 			if client, err := getEtcdClientFactory(); err == nil {
 				etcdFactory = client
@@ -245,7 +251,66 @@ var awarenessBuildCmd = &cobra.Command{
 			} else {
 				fmt.Fprintf(os.Stdout, "  etcd: status=%s nodes=%d\n", h.Status, h.NodesEmitted)
 			}
-			addHealth("etcd", "etcd_desired_state", h.Status, h.NodesEmitted, errStr, "P1")
+			addHealth("etcd", "etcd_desired_state", h.Status, h.NodesEmitted, errStr, "P0")
+		}
+
+		// convergence records — Desired→Installed→Runtime delta extraction.
+		if awareCfg.collectConvergence {
+			fmt.Fprintf(os.Stdout, "Collecting convergence records from etcd ...\n")
+			var etcdFactory clusterstate.EtcdClientFactory
+			if client, err := getEtcdClientFactory(); err == nil {
+				etcdFactory = client
+			}
+			h, err := clusterstate.CollectConvergence(ctx, g, etcdFactory)
+			errStr := ""
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: convergence collector: %v\n", err)
+				errStr = err.Error()
+			} else {
+				fmt.Fprintf(os.Stdout, "  convergence: status=%s nodes=%d\n", h.Status, h.NodesEmitted)
+			}
+			addHealth("convergence", "cluster_authority", h.Status, h.NodesEmitted, errStr, "P0")
+		}
+
+		// metrics knowledge indexer — loads metric_queries.yaml + metric_thresholds.yaml.
+		if awareCfg.collectMetrics {
+			fmt.Fprintf(os.Stdout, "Indexing metrics knowledge ...\n")
+			docsDir := filepath.Join(repoRoot, "docs", "awareness")
+			if err := metrics.Extract(ctx, g, docsDir); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: metrics extractor: %v\n", err)
+				addHealth("metrics", "knowledge_base", "error", 0, err.Error(), "P0")
+			} else {
+				fmt.Fprintf(os.Stdout, "  metrics: indexed\n")
+				addHealth("metrics", "knowledge_base", "ok", 0, "", "P0")
+			}
+		}
+
+		// PKI certificate extractor — public cert metadata, SAN coverage, expiry.
+		if awareCfg.collectPKI {
+			fmt.Fprintf(os.Stdout, "Extracting PKI certificate metadata ...\n")
+			h, err := pki.Extract(ctx, g, pki.DefaultPKIPaths[0])
+			errStr := ""
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: pki extractor: %v\n", err)
+				errStr = err.Error()
+			} else {
+				fmt.Fprintf(os.Stdout, "  pki: status=%s nodes=%d\n", h.Status, h.NodesEmitted)
+			}
+			addHealth("pki", "cluster_security", h.Status, h.NodesEmitted, errStr, "P1")
+		}
+
+		// RBAC policy extractor — roles, permissions, bindings.
+		if awareCfg.collectRBAC {
+			fmt.Fprintf(os.Stdout, "Extracting RBAC policy ...\n")
+			h, err := rbac.Extract(ctx, g, rbac.DefaultPolicyDir)
+			errStr := ""
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: rbac extractor: %v\n", err)
+				errStr = err.Error()
+			} else {
+				fmt.Fprintf(os.Stdout, "  rbac: status=%s nodes=%d\n", h.Status, h.NodesEmitted)
+			}
+			addHealth("rbac", "cluster_security", h.Status, h.NodesEmitted, errStr, "P1")
 		}
 
 		// Prune stale source_file nodes (files that no longer exist on disk).
@@ -789,6 +854,10 @@ func init() {
 	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectSystemd, "collect-systemd", false, "Collect systemd unit state from /etc/systemd/system/globular-*.service")
 	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectVarLib, "collect-var-lib", false, "Scan /var/lib/globular for PKI certs, receipts, and minio.env (never reads private keys)")
 	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectEtcd, "collect-etcd", false, "Collect desired/installed state from etcd (requires cluster connectivity and TLS certs)")
+	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectConvergence, "collect-convergence", false, "Collect Desired→Installed→Runtime convergence deltas from etcd (requires cluster connectivity)")
+	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectMetrics, "collect-metrics", true, "Index metric_queries.yaml and metric_thresholds.yaml into the graph (default: on)")
+	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectPKI, "collect-pki", false, "Extract public certificate metadata from /var/lib/globular/pki (never reads private keys)")
+	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectRBAC, "collect-rbac", false, "Extract RBAC roles and permissions from /var/lib/globular/policy/rbac")
 
 	// Stats flags.
 	awarenessStatsCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")

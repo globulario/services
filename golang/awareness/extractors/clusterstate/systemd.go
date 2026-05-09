@@ -36,9 +36,10 @@ const (
 type CollectorHealth struct {
 	CollectorID  string
 	SourceTier   string
-	Status       string // "ok" | "skipped" | "error"
+	Status       string // "ok" | "skipped" | "partial" | "failed" | "error"
 	NodesEmitted int
 	Error        string
+	Notes        []string // advisory notes (empty keyspace, partial coverage, etc.)
 }
 
 // SystemdDir is the default location for systemd unit files.

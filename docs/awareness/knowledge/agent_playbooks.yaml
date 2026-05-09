@@ -2087,3 +2087,166 @@ capability_gap_patterns:
       - "All other edges auto-classified as information (weight=0.3)"
       - "graph/query.go: NeighborsByClass(), EdgesByClass(), TraverseDecision() BFS on decision-class edges only"
       - "5 tests in edge_class_test.go; decision_context MCP tool adds decision_causal_chain via TraverseDecision + class_filter=decision in coverage output"
+
+  - gap_id: awareness.invariant_implementation_coverage
+    keywords:
+      - invariant implementation
+      - implemented_by
+      - implementation coverage
+      - coverage ratchet
+      - implementation percent
+      - invariants have implemented_by
+      - invariants without implementation
+    title: "Only N of M invariants have implemented_by[] filled in — implementation coverage is untracked"
+    criticism: "Most invariants are architectural declarations without implemented_by[], verified_by[], or authority[] links. There is no ratchet preventing coverage from regressing."
+    requirement: "Add InvariantImplementationCoverage() that measures implemented/verified/authority/forbidden_fix coverage per invariant, with configurable threshold enforcement and exception support."
+    implementation_plan:
+      - "Add enforce/impl_coverage.go with InvariantImplementationCoverage()"
+      - "Add ImplCoverageException YAML struct with expires_at support"
+      - "Add CodeInvariantCoverageBelowThreshold to codes.go"
+      - "Wire into Audit() as check 7 with SkipImplCoverage flag"
+      - "Add --min-invariant-implementation-coverage flag to audit CLI"
+    tests_required:
+      - TestCoverageReport_InvariantImplementationCoverage
+      - TestAudit_FailsWhenCoverageBelowThreshold
+      - TestAudit_AllowsExplicitException
+      - TestAudit_FailsExpiredException
+      - TestCoverageRatchet_PreventsRegression
+    closure_condition: "awareness audit reports invariant_implementation_coverage with total/implemented/verified counts, threshold enforcement, and exception support. Coverage cannot silently regress below threshold."
+    prevents_repeat_criticism: "Future reviews cannot say 'only N of M invariants have implemented_by filled in' as unmanaged criticism — it is a tracked metric with a ratchet."
+    status: implemented
+    closure_evidence:
+      - "enforce/impl_coverage.go: InvariantImplementationCoverage() with threshold, exceptions, 5 coverage dimensions"
+      - "enforce/audit.go: check 7 wired with SkipImplCoverage option"
+      - "globularcli/awareness_enforce_cmds.go: --min-invariant-implementation-coverage flag"
+      - "5 tests pass in enforce package"
+
+  - gap_id: awareness.live_etcd_extractor
+    keywords:
+      - live etcd
+      - etcd state
+      - etcd snapshot
+      - desired state
+      - live cluster
+      - static graph
+      - cluster mirror
+      - etcd extractor
+      - convergence records
+      - convergence state
+      - desired installed runtime
+      - drift detection
+    title: "Awareness graph is a static snapshot — live etcd state, convergence records, and runtime drift are not captured"
+    criticism: "Awareness cannot tell what the cluster currently desires, what releases are in progress, what nodes report, or what convergence state exists. It is a static architecture graph, not a live cluster mirror."
+    requirement: "Extend the etcd extractor to read the full set of Globular keyspaces with freshness metadata. Add a convergence extractor that produces Desired→Installed→Runtime deltas with drift classification."
+    implementation_plan:
+      - "Extend clusterstate/etcd.go: EtcdCollectOptions with configurable keyspaces, DefaultEtcdKeyspaces, freshness TTL metadata on all nodes"
+      - "Add clusterstate/convergence.go: CollectConvergence() reading /globular/convergence/nodes/*/packages/*/latest"
+      - "Drift classification: aligned, version_mismatch, installed_missing, desired_missing, runtime_dead, release_phase_stuck, unknown"
+      - "Wire --collect-convergence flag into awareness build CLI"
+    tests_required:
+      - TestEtcdLiveExtractor_RejectsWrites
+      - TestEtcdLiveExtractor_UnreachableReportsCollectorHealth
+      - TestEtcdLiveExtractor_RuntimeFactsExpire
+      - TestConvergenceExtractor_DesiredInstalledRuntimeOK
+      - TestConvergenceExtractor_RuntimeDead
+      - TestConvergenceExtractor_BuildIDMismatch
+    closure_condition: "Awareness can report current desired/release/node/objectstore state from etcd with freshness, revision, collector health, and confidence. Convergence records produce Desired→Installed→Runtime deltas."
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness has no live etcd state' once the etcd and convergence collectors are wired and collector health is reported."
+    status: implemented
+    closure_evidence:
+      - "clusterstate/etcd.go: EtcdCollectOptions, DefaultEtcdKeyspaces (7 prefixes), per-node freshness TTL metadata"
+      - "clusterstate/convergence.go: CollectConvergence() with 7 drift classifications"
+      - "awareness_cmds.go: --collect-etcd (P0), --collect-convergence flag wired"
+      - "30 tests pass across etcd + convergence packages"
+
+  - gap_id: awareness.metrics_invariant_linkage
+    keywords:
+      - metrics linkage
+      - metric queries
+      - metric thresholds
+      - metrics to invariant
+      - metric warning
+      - prometheus metric
+      - metrics knowledge
+      - metric graph nodes
+    title: "metric_queries.yaml and metric_thresholds.yaml are not graph nodes — metrics cannot be linked to failure modes or invariants"
+    criticism: "Metric warnings are just numbers. They do not point to failure modes, threatened invariants, or next diagnostics."
+    requirement: "Promote metric configuration into graph nodes. Link metric warning rules to failure modes and invariants. Enable awareness to answer: this metric threshold breach likely indicates these failure modes and threatens these invariants."
+    implementation_plan:
+      - "Create extractors/metrics/extract.go indexing metric_queries.yaml and metric_thresholds.yaml"
+      - "Create metric_query, metric_threshold, metric_warning_rule nodes"
+      - "Hardcode metric→failure_mode→invariant mappings for 5 critical metrics"
+      - "Wire --collect-metrics flag (default: on) into awareness build CLI"
+    tests_required:
+      - TestMetricKnowledgeIndexer_LoadsMetricQueries
+      - TestMetricKnowledgeIndexer_LoadsThresholds
+      - TestMetricKnowledgeIndexer_LinksEtcdDiskToFailureMode
+      - TestMetricWarning_LinksToInvariant
+      - TestMetricWarning_UsesServiceSpecificThreshold
+    closure_condition: "A metric warning node points to likely failure modes, threatened invariants, and next diagnostics."
+    prevents_repeat_criticism: "Future reviews cannot say 'metrics are not graph nodes' once metric_query, metric_threshold, and metric_warning_rule nodes exist with invariant/failure_mode edges."
+    status: implemented
+    closure_evidence:
+      - "extractors/metrics/extract.go: Extract() indexing both YAML files, 5 warning rule mappings"
+      - "awareness_cmds.go: --collect-metrics flag (default: true)"
+      - "7 tests pass"
+
+  - gap_id: awareness.certificate_state
+    keywords:
+      - certificate state
+      - cert expiry
+      - SAN coverage
+      - certificate extractor
+      - PKI extractor
+      - cert metadata
+      - TLS certificate
+      - certificate authority
+    title: "PKI certificate expiry and SAN coverage are not in the awareness graph"
+    criticism: "Awareness cannot reason about cert expiry, SAN coverage gaps, or mTLS identity mismatches — even though PKI is central to cluster connectivity."
+    requirement: "Add a certificate metadata extractor that parses public certs only, never private keys."
+    implementation_plan:
+      - "Create extractors/pki/extract.go: Extract() scanning pkiDir for .crt/.pem files"
+      - "Two-pass: emit cert/CA nodes + SAN nodes, then wire certificate_issued_by edges"
+      - "Expiry warning nodes for certs expiring in <30 days"
+      - "Wire --collect-pki flag into awareness build CLI"
+    tests_required:
+      - TestCertExtractor_SkipsPrivateKeys
+      - TestCertExtractor_ParsesCertMetadata
+      - TestCertExtractor_DetectsExpiryWarning
+      - TestCertExtractor_DetectsMissingSAN
+    closure_condition: "Awareness can identify cert expiry and SAN coverage risks without exposing secrets."
+    prevents_repeat_criticism: "Future reviews cannot say 'certificate state is not in the graph' once pki extractor is wired and collector health is reported."
+    status: implemented
+    closure_evidence:
+      - "extractors/pki/extract.go: never reads .key/_private, two-pass for CA linkage, expiry warnings"
+      - "awareness_cmds.go: --collect-pki flag wired"
+      - "5 tests pass (race-clean)"
+
+  - gap_id: awareness.rbac_policy_extractor
+    keywords:
+      - RBAC
+      - role permissions
+      - cluster roles
+      - RBAC extractor
+      - service permissions
+      - authorization policy
+      - privilege
+    title: "RBAC policies are not in the awareness graph — awareness cannot reason about authorization or privilege drift"
+    criticism: "Awareness cannot answer which service identity is allowed to perform a cluster action or which invariants depend on a permission boundary."
+    requirement: "Add a read-only RBAC policy extractor that indexes roles and permissions without reading secrets."
+    implementation_plan:
+      - "Create extractors/rbac/extract.go: Extract() reading cluster-roles.json"
+      - "Emit rbac_role, rbac_permission nodes; EdgeRoleGrantsPermission edges"
+      - "Redact token/password/secret/credential fields"
+      - "Wire --collect-rbac flag into awareness build CLI"
+    tests_required:
+      - TestRBACExtractor_LoadsClusterRoles
+      - TestRBACExtractor_RedactsSensitiveSubjects
+      - TestRBACExtractor_MapsRolePermissions
+    closure_condition: "Awareness can list roles and permissions; sensitive fields are redacted."
+    prevents_repeat_criticism: "Future reviews cannot say 'RBAC is not in the graph' once rbac extractor is wired."
+    status: implemented
+    closure_evidence:
+      - "extractors/rbac/extract.go: redaction of token/password/secret fields, permission string parsing"
+      - "awareness_cmds.go: --collect-rbac flag wired"
+      - "6 tests pass (race-clean)"
