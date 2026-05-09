@@ -956,12 +956,26 @@ func mergeRuntime(ctx context.Context, opts Options, g *graph.Graph, r *Report) 
 		})
 	}
 
+	// Attach live workflow runtime section from graph overlay.
+	rs.WorkflowRuntime = buildWorkflowRuntimeSection(ctx, g)
 	r.Runtime = rs
 
 	// Merge matched invariants and failure modes (deduplicate).
 	r.Invariants = unique(append(r.Invariants, snap.MatchedInvariants...))
 	r.FailureModes = unique(append(r.FailureModes, snap.MatchedFailureModes...))
 	r.Warnings = append(r.Warnings, snap.Warnings...)
+
+	// Propagate workflow runtime stale/failed as a blind spot and lower confidence.
+	if rs.WorkflowRuntime != nil {
+		switch rs.WorkflowRuntime.Coverage {
+		case "stale":
+			r.BlindSpots = append(r.BlindSpots, "workflow_runtime_stale: live workflow overlay is expired — rebuild with --collect-workflow")
+		case "failed":
+			r.BlindSpots = append(r.BlindSpots, "workflow_runtime_failed: live workflow overlay collection failed — source may be unreachable")
+		case "not_checked", "disabled":
+			r.BlindSpots = append(r.BlindSpots, "workflow_runtime_not_checked: no live workflow overlay in graph — run awareness build --collect-workflow to enable")
+		}
+	}
 
 	// Adjust classification based on runtime evidence.
 	if len(snap.StateDelta) > 0 {
@@ -1179,4 +1193,67 @@ func checkNodesTrust(ctx context.Context, g *graph.Graph, invariantIDs, failureM
 		check(id, "forbidden_fix", "forbidden_fix:")
 	}
 	return out
+}
+
+// buildWorkflowRuntimeSection reads workflow_run overlay nodes from the graph
+// and summarises their freshness and coverage for the preflight report.
+// Returns nil when the graph is nil or no workflow nodes exist.
+func buildWorkflowRuntimeSection(ctx context.Context, g *graph.Graph) *WorkflowRuntimeSection {
+	if g == nil {
+		return nil
+	}
+	runs, err := g.FindNodesByType(ctx, graph.NodeTypeWorkflowRun)
+	if err != nil || len(runs) == 0 {
+		return &WorkflowRuntimeSection{
+			Coverage:        "not_checked",
+			Freshness:       "unknown",
+			Source:          "none",
+			CollectorStatus: "disabled",
+		}
+	}
+
+	ws := &WorkflowRuntimeSection{
+		Source:          "graph_cache",
+		CollectorStatus: "ok",
+	}
+	now := time.Now()
+	stale := false
+	for _, n := range runs {
+		ws.RunsSeen++
+		if status, ok := n.Metadata["status"].(string); ok {
+			if status == "failed" {
+				ws.FailedRuns++
+			}
+			if status == "blocked" {
+				ws.BlockedRuns++
+			}
+		}
+		// Check TTL freshness.
+		if expiresStr, ok := n.Metadata["expires_at"].(string); ok {
+			exp, parseErr := time.Parse(time.RFC3339, expiresStr)
+			if parseErr == nil && now.After(exp) {
+				stale = true
+			}
+		}
+		if collectedAt, ok := n.Metadata["collected_at"].(string); ok && ws.CollectedAt == "" {
+			ws.CollectedAt = collectedAt
+		}
+		if ttl, ok := n.Metadata["ttl_seconds"].(int); ok && ws.TTLSeconds == 0 {
+			ws.TTLSeconds = ttl
+		}
+	}
+
+	if stale {
+		ws.Freshness = "stale"
+		ws.Coverage = "stale"
+	} else {
+		ws.Freshness = "fresh"
+		if ws.FailedRuns > 0 || ws.BlockedRuns > 0 {
+			ws.Coverage = "checked_with_matches"
+		} else {
+			ws.Coverage = "checked_clean"
+		}
+	}
+
+	return ws
 }

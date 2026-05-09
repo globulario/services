@@ -85,6 +85,7 @@ type RuntimeSection struct {
 	MatchedFailureModes []string                 `json:"matched_failure_modes"`
 	MetricWarnings      []string                 `json:"metric_warnings,omitempty"`
 	Warnings            []string                 `json:"warnings"`
+	WorkflowRuntime     *WorkflowRuntimeSection  `json:"workflow_runtime,omitempty"`
 }
 
 // DoctorFindingSummary is a compact view of a DoctorFinding.
@@ -139,14 +140,29 @@ const (
 	CoverageStale            CoverageState = "stale"
 )
 
+// WorkflowRuntimeSection summarises live workflow execution coverage in the preflight.
+type WorkflowRuntimeSection struct {
+	Coverage       string `json:"coverage"`       // checked_clean | checked_with_matches | failed | stale | disabled | not_checked
+	Freshness      string `json:"freshness"`      // fresh | stale | unknown
+	Source         string `json:"source"`         // workflow_service_grpc | graph_cache | none
+	RunsSeen       int    `json:"runs_seen"`
+	FailedRuns     int    `json:"failed_runs"`
+	BlockedRuns    int    `json:"blocked_runs"`
+	RetryStorms    int    `json:"retry_storms"`
+	CollectedAt    string `json:"collected_at,omitempty"`
+	TTLSeconds     int    `json:"ttl_seconds,omitempty"`
+	CollectorStatus string `json:"collector_status,omitempty"` // ok | partial | failed | disabled
+}
+
 // Coverage tracks which evidence layers were checked and their result.
 type Coverage struct {
-	Graph         CoverageState `json:"graph"`
-	RawYAML       CoverageState `json:"raw_yaml"`
-	Runtime       CoverageState `json:"runtime"`
-	Metrics       CoverageState `json:"metrics"`
-	CodeScan      CoverageState `json:"code_scan"`
-	IncidentStore CoverageState `json:"incident_store"`
+	Graph           CoverageState `json:"graph"`
+	RawYAML         CoverageState `json:"raw_yaml"`
+	Runtime         CoverageState `json:"runtime"`
+	Metrics         CoverageState `json:"metrics"`
+	CodeScan        CoverageState `json:"code_scan"`
+	IncidentStore   CoverageState `json:"incident_store"`
+	WorkflowRuntime CoverageState `json:"workflow_runtime"`
 }
 
 // GraphFreshnessReport summarises graph staleness for the report.

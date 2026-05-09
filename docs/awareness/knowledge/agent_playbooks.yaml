@@ -2250,3 +2250,50 @@ capability_gap_patterns:
       - "extractors/rbac/extract.go: redaction of token/password/secret fields, permission string parsing"
       - "awareness_cmds.go: --collect-rbac flag wired"
       - "6 tests pass (race-clean)"
+
+  - gap_id: awareness.workflow_execution_overlay
+    keywords:
+      - workflow execution
+      - live workflow
+      - workflow run
+      - workflow failure
+      - retry storm
+      - workflow state
+      - workflow blocked
+      - workflow verification
+      - workflow incident
+      - deterministic failure
+    title: "Workflow execution state is not linked to awareness graph — awareness cannot reason about live workflow failures, retry storms, or blocked convergence"
+    criticism: "Awareness can describe workflow definitions but cannot see which workflows are currently failing, retrying, or blocked. It cannot map live failures to failure modes or identify incident candidates."
+    requirement: "Add a live workflow execution overlay with TTL. Link runs to static definitions. Map failures to failure modes/invariants. Detect retry storms and incident candidates."
+    implementation_plan:
+      - "Create extractors/workflowstate/extract.go: gRPC collector, TTL overlay, definition linking"
+      - "Create extractors/workflowstate/diagnosis.go: failure mode matching from failure_modes.yaml"
+      - "Create extractors/workflowstate/incidents.go: retry storm detection, incident candidate generation"
+      - "Add WorkflowRuntimeSection to preflight RuntimeSection and Coverage struct"
+      - "Add buildWorkflowRuntimePulseSection() to health_pulse_tool.go"
+      - "Wire --collect-workflow and --workflow-addr flags into awareness build CLI"
+      - "10 tests added; all pass"
+    tests_required:
+      - TestWorkflowExecutionExtractor_Disabled
+      - TestWorkflowExecutionExtractor_Unreachable
+      - TestWorkflowLiveOverlay_RunHasTTL
+      - TestWorkflowLiveOverlay_RunLinksToDefinition
+      - TestWorkflowRun_MissingDefinitionReportsBlindSpot
+      - TestWorkflowRun_LinksTargets
+      - TestWorkflowDiagnosis_DetectsRetryStorm
+      - TestWorkflowDiagnosis_DetectsVerificationSkipped
+      - TestWorkflowIncidentCandidate_DoesNotAutoOpen
+      - TestCollectorHealth_Included
+    closure_condition: "Awareness exposes live workflow execution as expiring overlay, maps failures to failure modes, detects retry storms, and reports workflow runtime coverage in preflight and health pulse."
+    prevents_repeat_criticism: "Future reviews cannot say 'live workflow execution is not linked to awareness' once workflowstate extractor is wired and collector health is reported."
+    status: implemented
+    closure_evidence:
+      - "extractors/workflowstate/extract.go: gRPC collector, TTL metadata, definition linking, blind-spot nodes"
+      - "extractors/workflowstate/diagnosis.go: failure_modes.yaml matching, forbidden retry detection"
+      - "extractors/workflowstate/incidents.go: retry storm, verification gap, blocked workflow candidates; never auto-opens"
+      - "preflight/report.go: WorkflowRuntimeSection, Coverage.WorkflowRuntime, RuntimeSection.WorkflowRuntime"
+      - "preflight/preflight.go: buildWorkflowRuntimeSection() from graph overlay"
+      - "mcp/health_pulse_tool.go: buildWorkflowRuntimePulseSection() with stale/failure alerts"
+      - "awareness_cmds.go: --collect-workflow / --workflow-addr flags wired"
+      - "10 tests pass (race-clean)"

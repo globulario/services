@@ -24,6 +24,7 @@ import (
 
 	"github.com/spf13/cobra"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc"
 
 	"github.com/globulario/services/golang/awareness/analysis"
 	"github.com/globulario/services/golang/awareness/extractors/clusterspec"
@@ -39,6 +40,7 @@ import (
 	"github.com/globulario/services/golang/awareness/extractors/scripts"
 	"github.com/globulario/services/golang/awareness/extractors/tests"
 	"github.com/globulario/services/golang/awareness/extractors/workflows"
+	"github.com/globulario/services/golang/awareness/extractors/workflowstate"
 	"github.com/globulario/services/golang/awareness/graph"
 	"github.com/globulario/services/golang/config"
 )
@@ -62,6 +64,8 @@ var awareCfg = struct {
 	collectMetrics      bool
 	collectPKI          bool
 	collectRBAC         bool
+	collectWorkflow     bool
+	workflowAddr        string
 }{}
 
 var awarenessCmd = &cobra.Command{
@@ -311,6 +315,28 @@ var awarenessBuildCmd = &cobra.Command{
 				fmt.Fprintf(os.Stdout, "  rbac: status=%s nodes=%d\n", h.Status, h.NodesEmitted)
 			}
 			addHealth("rbac", "cluster_security", h.Status, h.NodesEmitted, errStr, "P1")
+		}
+
+		// Workflow execution overlay — live run state from workflow service gRPC.
+		if awareCfg.collectWorkflow {
+			fmt.Fprintf(os.Stdout, "Collecting workflow execution state ...\n")
+			var wfFactory workflowstate.GRPCConnFactory
+			if addr := awareCfg.workflowAddr; addr != "" {
+				wfFactory = func() (*grpc.ClientConn, error) {
+					return dialGRPC(addr)
+				}
+			}
+			docsDir := filepath.Join(repoRoot, "docs", "awareness")
+			h, err := workflowstate.Collect(ctx, g, wfFactory, docsDir)
+			errStr := ""
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: workflow state collector: %v\n", err)
+				errStr = err.Error()
+			} else {
+				fmt.Fprintf(os.Stdout, "  workflow: status=%s coverage=%s runs_seen=%d failed=%d\n",
+					h.Status, h.Coverage, h.RunsSeen, h.FailedRuns)
+			}
+			addHealth("workflow_execution", "live_runtime", h.Status, h.NodesEmitted, errStr, "P1")
 		}
 
 		// Prune stale source_file nodes (files that no longer exist on disk).
@@ -858,6 +884,8 @@ func init() {
 	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectMetrics, "collect-metrics", true, "Index metric_queries.yaml and metric_thresholds.yaml into the graph (default: on)")
 	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectPKI, "collect-pki", false, "Extract public certificate metadata from /var/lib/globular/pki (never reads private keys)")
 	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectRBAC, "collect-rbac", false, "Extract RBAC roles and permissions from /var/lib/globular/policy/rbac")
+	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectWorkflow, "collect-workflow", false, "Collect live workflow execution state from workflow service gRPC (requires --workflow-addr)")
+	awarenessBuildCmd.Flags().StringVar(&awareCfg.workflowAddr, "workflow-addr", "", "Workflow service gRPC address for live execution collection (e.g. workflow.globular.internal:10004)")
 
 	// Stats flags.
 	awarenessStatsCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")

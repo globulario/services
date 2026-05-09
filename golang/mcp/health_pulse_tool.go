@@ -79,6 +79,16 @@ type healthPulseAgentUsageSection struct {
 	RecommendedAction    string  `json:"recommended_action,omitempty"`
 }
 
+type healthPulseWorkflowSection struct {
+	Coverage    string `json:"coverage"`     // not_checked | disabled | checked_clean | checked_with_matches | failed | stale
+	Freshness   string `json:"freshness"`    // fresh | stale | unknown
+	RunsSeen    int    `json:"runs_seen"`
+	FailedRuns  int    `json:"failed_runs"`
+	BlockedRuns int    `json:"blocked_runs"`
+	RetryStorms int    `json:"retry_storms"`
+	Status      string `json:"status"`       // ok | warn | critical
+}
+
 type healthPulseSections struct {
 	Coverage         healthPulseCoverageSection   `json:"coverage"`
 	RuntimeSources   healthPulseRuntimeSection    `json:"runtime_sources"`
@@ -87,6 +97,7 @@ type healthPulseSections struct {
 	SelfReview       healthPulseSelfReviewSection `json:"self_review_verification"`
 	UnindexedYAML    healthPulseUnindexedSection  `json:"unindexed_yaml"`
 	AgentUsage       healthPulseAgentUsageSection `json:"agent_usage"`
+	WorkflowRuntime  healthPulseWorkflowSection   `json:"workflow_runtime"`
 }
 
 type healthPulseResult struct {
@@ -157,6 +168,9 @@ func registerHealthPulseTool(s *server, st *awarenessState) {
 		agentUsageSection, agentUsageAlerts := buildAgentUsageSection(ctx, st)
 		alerts = append(alerts, agentUsageAlerts...)
 
+		wfSection, wfAlerts := buildWorkflowRuntimePulseSection(ctx, st)
+		alerts = append(alerts, wfAlerts...)
+
 		overallStatus, exitCode := computePulseStatus(
 			coverageSection.Status,
 			runtimeSection.Status,
@@ -170,13 +184,14 @@ func registerHealthPulseTool(s *server, st *awarenessState) {
 			Status:    overallStatus,
 			CheckedAt: checkedAt,
 			Sections: healthPulseSections{
-				Coverage:       coverageSection,
-				RuntimeSources: runtimeSection,
-				ProposalQueue:  queueSection,
-				GraphFreshness: graphSection,
-				SelfReview:     srSection,
-				UnindexedYAML:  unindexedSection,
-				AgentUsage:     agentUsageSection,
+				Coverage:        coverageSection,
+				RuntimeSources:  runtimeSection,
+				ProposalQueue:   queueSection,
+				GraphFreshness:  graphSection,
+				SelfReview:      srSection,
+				UnindexedYAML:   unindexedSection,
+				AgentUsage:      agentUsageSection,
+				WorkflowRuntime: wfSection,
 			},
 			Alerts:   alerts,
 			ExitCode: exitCode,
@@ -514,6 +529,89 @@ func computePulseStatus(statuses ...string) (string, int) {
 	default:
 		return "healthy", 0
 	}
+}
+
+// buildWorkflowRuntimePulseSection checks the graph for live workflow_run nodes
+// and summarises their freshness/coverage for the health pulse report.
+func buildWorkflowRuntimePulseSection(ctx context.Context, st *awarenessState) (healthPulseWorkflowSection, []healthPulseAlert) {
+	if st.g == nil {
+		return healthPulseWorkflowSection{
+			Coverage:  "not_checked",
+			Freshness: "unknown",
+			Status:    "warn",
+		}, []healthPulseAlert{{
+			Severity:          "warning",
+			ID:                "workflow_runtime.no_graph",
+			Message:           "No awareness graph available — workflow runtime coverage cannot be determined",
+			RecommendedAction: "Run 'globular awareness build' to initialize the graph.",
+		}}
+	}
+
+	runs, err := st.g.FindNodesByType(ctx, "workflow_run")
+	if err != nil || len(runs) == 0 {
+		return healthPulseWorkflowSection{
+			Coverage:  "not_checked",
+			Freshness: "unknown",
+			Status:    "warn",
+		}, []healthPulseAlert{{
+			Severity:          "warning",
+			ID:                "workflow_runtime.not_collected",
+			Message:           "No live workflow execution overlay in graph — workflow runtime state is unknown",
+			RecommendedAction: "Run 'globular awareness build --collect-workflow --workflow-addr <addr>' to enable live workflow coverage.",
+		}}
+	}
+
+	sec := healthPulseWorkflowSection{}
+	now := time.Now()
+	stale := false
+
+	for _, n := range runs {
+		sec.RunsSeen++
+		if status, ok := n.Metadata["status"].(string); ok {
+			if status == "failed" {
+				sec.FailedRuns++
+			}
+			if status == "blocked" {
+				sec.BlockedRuns++
+			}
+		}
+		if expiresStr, ok := n.Metadata["expires_at"].(string); ok {
+			exp, parseErr := time.Parse(time.RFC3339, expiresStr)
+			if parseErr == nil && now.After(exp) {
+				stale = true
+			}
+		}
+	}
+
+	var alerts []healthPulseAlert
+	if stale {
+		sec.Freshness = "stale"
+		sec.Coverage = "stale"
+		sec.Status = "warn"
+		alerts = append(alerts, healthPulseAlert{
+			Severity:          "warning",
+			ID:                "workflow_runtime.stale",
+			Message:           fmt.Sprintf("Live workflow execution overlay is stale (%d runs cached) — run awareness build with --collect-workflow to refresh", sec.RunsSeen),
+			RecommendedAction: "globular awareness build --collect-workflow --workflow-addr <addr>",
+		})
+	} else {
+		sec.Freshness = "fresh"
+		if sec.FailedRuns > 0 || sec.BlockedRuns > 0 {
+			sec.Coverage = "checked_with_matches"
+			sec.Status = "warn"
+			alerts = append(alerts, healthPulseAlert{
+				Severity:          "warning",
+				ID:                "workflow_runtime.failures",
+				Message:           fmt.Sprintf("Workflow execution overlay: %d failed, %d blocked (total %d runs)", sec.FailedRuns, sec.BlockedRuns, sec.RunsSeen),
+				RecommendedAction: "Check awareness.impact_path or review workflow_run nodes for failure details.",
+			})
+		} else {
+			sec.Coverage = "checked_clean"
+			sec.Status = "ok"
+		}
+	}
+
+	return sec, alerts
 }
 
 func buildAgentUsageSection(ctx context.Context, st *awarenessState) (healthPulseAgentUsageSection, []healthPulseAlert) {
