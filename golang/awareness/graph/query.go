@@ -1197,17 +1197,21 @@ func (g *Graph) RecordAgentUsage(ctx context.Context, e AgentUsageEvent) error {
 
 // AgentUsageSummary holds aggregate usage stats over a time window.
 type AgentUsageSummary struct {
-	WindowDays              int     `json:"window_days"`
-	SessionsTotal           int     `json:"sessions_total"`
-	PreflightCalls          int     `json:"preflight_calls"`
-	AgentContextCalls       int     `json:"agent_context_calls"`
-	ScanViolationsCalls     int     `json:"scan_violations_calls"`
-	PreflightSkipRatePct    float64 `json:"preflight_skip_rate_pct"`
-	Status                  string  `json:"status"`
-	RecommendedAction       string  `json:"recommended_action,omitempty"`
+	WindowDays                       int     `json:"window_days"`
+	SessionsTotal                    int     `json:"sessions_total"`
+	PreflightCalls                   int     `json:"preflight_calls"`
+	AgentContextCalls                int     `json:"agent_context_calls"`
+	ScanViolationsCalls              int     `json:"scan_violations_calls"`
+	PreEditContextCalls              int     `json:"pre_edit_context_calls"`
+	CommitsWithoutIntegrityCheck     int     `json:"commits_without_integrity_check"`
+	PreflightSkipRatePct             float64 `json:"preflight_skip_rate_pct"`
+	Status                           string  `json:"status"`
+	RecommendedAction                string  `json:"recommended_action,omitempty"`
 }
 
-// AgentUsageSummary7d returns aggregate usage stats for the last 7 days.
+// QueryAgentUsageSummary returns aggregate usage stats for a rolling window of
+// windowDays days. Sessions are counted by distinct non-empty session_id_hash
+// values. Skip rate = 1 - (preflight_calls / sessions).
 func (g *Graph) QueryAgentUsageSummary(ctx context.Context, windowDays int) (*AgentUsageSummary, error) {
 	since := time.Now().AddDate(0, 0, -windowDays).Unix()
 
@@ -1229,6 +1233,14 @@ func (g *Graph) QueryAgentUsageSummary(ctx context.Context, windowDays int) (*Ag
 	s.PreflightCalls = countTool("awareness.preflight")
 	s.AgentContextCalls = countTool("awareness.agent_context")
 	s.ScanViolationsCalls = countTool("awareness.scan_violations")
+	s.PreEditContextCalls = countTool("awareness.pre_edit_context")
+
+	// Commits without integrity check = events with tool "commit.graph_integrity" and operation "skipped".
+	var commitSkips int
+	r := g.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM agent_usage_events WHERE event_time >= ? AND tool = 'commit.graph_integrity' AND operation = 'skipped'`, since)
+	_ = r.Scan(&commitSkips)
+	s.CommitsWithoutIntegrityCheck = commitSkips
 
 	if s.SessionsTotal > 0 {
 		s.PreflightSkipRatePct = (1 - float64(s.PreflightCalls)/float64(s.SessionsTotal)) * 100
@@ -1241,6 +1253,9 @@ func (g *Graph) QueryAgentUsageSummary(ctx context.Context, windowDays int) (*Ag
 	case s.SessionsTotal == 0:
 		s.Status = "no_data"
 		s.RecommendedAction = "Configure session-start hook to call awareness.agent_context"
+	case s.CommitsWithoutIntegrityCheck > 0:
+		s.Status = "warning"
+		s.RecommendedAction = fmt.Sprintf("%d commits bypassed graph integrity check — run awareness.graph_integrity_check before committing", s.CommitsWithoutIntegrityCheck)
 	case s.PreflightSkipRatePct > 50:
 		s.Status = "warning"
 		s.RecommendedAction = "Configure session-start hook to call awareness.agent_context — skip rate is high"

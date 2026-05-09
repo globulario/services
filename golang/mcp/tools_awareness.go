@@ -89,6 +89,7 @@ func registerAwarenessTools(s *server) {
 	registerProposalDrainTools(s, st)
 	registerAwarenessDecisionTools(s, st)
 	registerAwarenessInvariantTools(s, st)
+	registerAwarenessAgentUsageTools(s, st)
 }
 
 // awarGitRoot returns the git repository root via git rev-parse.
