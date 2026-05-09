@@ -510,11 +510,20 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 		}
 
 		// Only materialize: (a) infrastructure components, (b) command packages, or
-		// (c) workload components that are runtime deps of already-desired services.
+		// (c) workload components that are EITHER runtime deps of an already-desired
+		// service OR explicitly marked PlatformDefault in the catalog.
+		//
+		// PlatformDefault is the opt-in marker for core platform workloads
+		// (workflow, mcp, monitoring, log, repository, etc.) that must install
+		// by default at Day-1, without requiring an explicit `globular deploy`.
+		// Without it, those services would only land if some other component
+		// happened to declare a runtime dep on them — which is wrong: mcp
+		// answering RPCs is a platform expectation, not a side-effect of an
+		// app's transitive dependency closure.
 		isMaterializable :=
 			comp.Kind == KindInfrastructure ||
 			comp.Kind == KindCommand ||
-			(comp.Kind == KindWorkload && runtimeDepsOfDesired[compName])
+			(comp.Kind == KindWorkload && (runtimeDepsOfDesired[compName] || comp.PlatformDefault))
 		if !isMaterializable {
 			continue
 		}

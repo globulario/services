@@ -375,6 +375,47 @@ func TestDerivedProfileCapabilities(t *testing.T) {
 	}
 }
 
+// TestPlatformDefaultMarksCoreWorkloads verifies the catalog flags the
+// core platform workloads (workflow, mcp, monitoring, log, repository,
+// etc.) with PlatformDefault=true so they auto-materialize at Day-1
+// without requiring an explicit `globular deploy`. User-installable
+// applications (blog, catalog, claude, search, media, title, ldap,
+// mail, conversation, torrent, echo, sql) must NOT carry the flag.
+func TestPlatformDefaultMarksCoreWorkloads(t *testing.T) {
+	mustBeDefault := []string{
+		"dns", "event", "rbac", "file", "monitoring",
+		"authentication", "resource", "persistence",
+		"repository", "log", "backup-manager",
+		"cluster-controller", "cluster-doctor",
+		"ai-memory", "ai-executor", "ai-router", "ai-watcher",
+		"workflow", "mcp",
+	}
+	for _, name := range mustBeDefault {
+		c := CatalogByName(name)
+		if c == nil {
+			t.Errorf("catalog missing platform workload %q", name)
+			continue
+		}
+		if !c.PlatformDefault {
+			t.Errorf("workload %q must have PlatformDefault=true", name)
+		}
+	}
+
+	mustNotBeDefault := []string{
+		"blog", "catalog", "claude", "search", "media", "title",
+		"ldap", "mail", "conversation", "torrent", "echo", "sql",
+	}
+	for _, name := range mustNotBeDefault {
+		c := CatalogByName(name)
+		if c == nil {
+			continue // not all are required to be in the catalog
+		}
+		if c.PlatformDefault {
+			t.Errorf("user-installable workload %q must NOT have PlatformDefault=true", name)
+		}
+	}
+}
+
 // TestNodeHasComponentProfile verifies catalog-driven profile checks.
 func TestNodeHasComponentProfile(t *testing.T) {
 	coreNode := &nodeState{Profiles: []string{"core", "compute"}}

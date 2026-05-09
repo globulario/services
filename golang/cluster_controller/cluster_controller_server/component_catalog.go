@@ -123,6 +123,16 @@ type Component struct {
 	// (bootstrapInfraReady) instead of requiring workload_ready.
 	ControlPlaneCritical bool
 
+	// PlatformDefault marks this component as part of the platform's default
+	// installation set. The controller will auto-materialize a ServiceRelease
+	// (or InfrastructureRelease) for any PlatformDefault component that is
+	// missing from etcd, using the version resolved from currently-installed
+	// nodes. Without this flag, KindWorkload components require an explicit
+	// `globular deploy` to create the release record — useful for opt-in
+	// applications, but wrong for core platform services like workflow, mcp,
+	// monitoring, log, repository.
+	PlatformDefault bool
+
 	// HealthCheck describes how to verify this component is healthy.
 	HealthCheck *HealthCheckHintC
 }
@@ -208,6 +218,7 @@ func buildCatalog() []*Component {
 			Profiles:             []string{"core", "compute", "control-plane", "dns"},
 			ProvidesCapabilities: []Capability{CapDNS},
 			ManagedUnit:          true,
+			PlatformDefault:      true,
 			HealthCheck:          &HealthCheckHintC{Unit: "globular-dns.service", Port: 10006},
 		},
 		{
@@ -218,6 +229,7 @@ func buildCatalog() []*Component {
 			Profiles:             []string{"core", "compute"},
 			ProvidesCapabilities: []Capability{CapEventBus},
 			ManagedUnit:          true, // included in profileUnitMap for unit actions
+			PlatformDefault:      true,
 			HealthCheck:          &HealthCheckHintC{Unit: "globular-event.service"},
 		},
 		{
@@ -228,6 +240,7 @@ func buildCatalog() []*Component {
 			Profiles:                 []string{"core", "compute"},
 			RuntimeLocalDependencies: []string{"event"},
 			ManagedUnit:              true, // included in profileUnitMap for unit actions
+			PlatformDefault:          true,
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-rbac.service"},
 		},
 		{
@@ -256,6 +269,7 @@ func buildCatalog() []*Component {
 			Profiles:    []string{"core", "compute", "storage"},
 			ManagedUnit: true, // included in profileUnitMap for unit actions
 			RuntimeLocalDependencies: []string{"event"},
+			PlatformDefault:          true,
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-file.service"},
 		},
 		{
@@ -266,6 +280,7 @@ func buildCatalog() []*Component {
 			Profiles:             []string{"core", "compute", "control-plane"},
 			ProvidesCapabilities: []Capability{CapMonitoring},
 			ManagedUnit:          true,
+			PlatformDefault:      true,
 			HealthCheck:          &HealthCheckHintC{Unit: "globular-monitoring.service"},
 		},
 		{
@@ -308,6 +323,7 @@ func buildCatalog() []*Component {
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute"},
 			RuntimeLocalDependencies: []string{"event", "rbac"},
+			PlatformDefault:          true,
 		},
 		{
 			Name:                     "resource",
@@ -316,6 +332,7 @@ func buildCatalog() []*Component {
 			Priority:                 1000,
 			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event"},
+			PlatformDefault:          true,
 		},
 		{
 			Name:                     "persistence",
@@ -324,6 +341,7 @@ func buildCatalog() []*Component {
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute"},
 			RuntimeLocalDependencies: []string{"event"},
+			PlatformDefault:          true,
 		},
 		{
 			Name:                     "sql",
@@ -348,6 +366,7 @@ func buildCatalog() []*Component {
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute"},
 			RuntimeLocalDependencies: []string{"event"},
+			PlatformDefault:          true,
 		},
 		{
 			Name:                     "catalog",
@@ -372,6 +391,7 @@ func buildCatalog() []*Component {
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute"},
 			RuntimeLocalDependencies: []string{"event"},
+			PlatformDefault:          true,
 		},
 		{
 			Name:                     "ldap",
@@ -444,6 +464,7 @@ func buildCatalog() []*Component {
 			Priority:                 1000,
 			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event", "rclone", "restic", "sctool"},
+			PlatformDefault:          true,
 		},
 		{
 			Name:                     "cluster-controller",
@@ -453,6 +474,7 @@ func buildCatalog() []*Component {
 			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event"},
 			ControlPlaneCritical:     true,
+			PlatformDefault:          true,
 		},
 		{
 			Name:                     "cluster-doctor",
@@ -462,6 +484,7 @@ func buildCatalog() []*Component {
 			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event"},
 			ControlPlaneCritical:     true,
+			PlatformDefault:          true,
 		},
 		{
 			Name:                     "ai-memory",
@@ -470,6 +493,7 @@ func buildCatalog() []*Component {
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"scylladb", "event"},
+			PlatformDefault:          true,
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-ai-memory.service", Port: 10200},
 		},
 		{
@@ -479,6 +503,7 @@ func buildCatalog() []*Component {
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"ai-memory", "event"},
+			PlatformDefault:          true,
 		},
 		{
 			Name:                     "ai-router",
@@ -487,6 +512,7 @@ func buildCatalog() []*Component {
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute"},
 			RuntimeLocalDependencies: []string{"event"},
+			PlatformDefault:          true,
 		},
 		{
 			Name:                     "ai-watcher",
@@ -495,6 +521,7 @@ func buildCatalog() []*Component {
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"ai-executor", "event"},
+			PlatformDefault:          true,
 		},
 		{
 			Name:                     "workflow",
@@ -505,6 +532,7 @@ func buildCatalog() []*Component {
 			RuntimeLocalDependencies: []string{"scylladb", "event"},
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-workflow.service", Port: 10220},
 			ControlPlaneCritical:     true,
+			PlatformDefault:          true,
 		},
 		{
 			Name:                     "mcp",
@@ -513,6 +541,7 @@ func buildCatalog() []*Component {
 			Priority:                 1000,
 			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event"},
+			PlatformDefault:          true,
 		},
 
 		// node-agent: bootstrapped by the Day-0 join script, not by the join workflow.
