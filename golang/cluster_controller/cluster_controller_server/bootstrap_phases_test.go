@@ -22,6 +22,18 @@ func (m *mockEmitter) getWorkflowRecorder() *workflow.Recorder {
 	return nil
 }
 
+// stubAwarenessBundleInstalled marks a node as if the node-agent had already
+// fetched and installed the awareness bundle. Without this, BootstrapAwarenessReady
+// blocks until either the bundle build_id appears in InstalledBuildIDs or the
+// phase times out — neither happens in unit tests by default. Tests that drive
+// a node past awareness_ready call this once before re-reconciling.
+func stubAwarenessBundleInstalled(node *nodeState) {
+	if node.InstalledBuildIDs == nil {
+		node.InstalledBuildIDs = make(map[string]string)
+	}
+	node.InstalledBuildIDs[bootstrapAwarenessKey] = "test-bundle"
+}
+
 func TestBootstrapPhaseReady(t *testing.T) {
 	tests := []struct {
 		phase BootstrapPhase
@@ -127,7 +139,14 @@ func TestBootstrap_FullPath_CoreGateway(t *testing.T) {
 		t.Fatalf("expected envoy_ready, got %s", node.BootstrapPhase)
 	}
 
-	// envoy_ready → storage_joining (core profile includes MinIO)
+	// envoy_ready → awareness_ready (node-agent will fetch bundle)
+	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
+	if !dirty || node.BootstrapPhase != BootstrapAwarenessReady {
+		t.Fatalf("expected awareness_ready, got %s", node.BootstrapPhase)
+	}
+
+	// awareness_ready → storage_joining (after bundle install reported)
+	stubAwarenessBundleInstalled(node)
 	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty || node.BootstrapPhase != BootstrapStorageJoining {
 		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
@@ -196,10 +215,17 @@ func TestBootstrap_SkipEnvoy(t *testing.T) {
 		t.Fatalf("expected infra_preparing, got %s", node.BootstrapPhase)
 	}
 
-	// infra_preparing: no etcd/xds/envoy profile → skip to storage_joining
+	// infra_preparing: no etcd/xds/envoy profile → skip past envoy → awareness_ready
+	reconcileBootstrapPhases(nodes, nil, emitter)
+	if node.BootstrapPhase != BootstrapAwarenessReady {
+		t.Fatalf("expected awareness_ready (skip etcd/xds/envoy), got %s", node.BootstrapPhase)
+	}
+
+	// awareness_ready → storage_joining
+	stubAwarenessBundleInstalled(node)
 	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapStorageJoining {
-		t.Fatalf("expected storage_joining (no etcd/xds/envoy), got %s", node.BootstrapPhase)
+		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
 	}
 
 	// storage_joining: both MinIO and Scylla join verified → workload_ready
@@ -402,8 +428,14 @@ func TestBootstrap_StorageOnlyNode(t *testing.T) {
 		t.Fatalf("expected infra_preparing, got %s", node.BootstrapPhase)
 	}
 
-	// infra_preparing: no etcd, no xds, no envoy → skips to storage_joining
-	// (storage profile has MinIO, which needs join verification)
+	// infra_preparing: no etcd, no xds, no envoy → skips to awareness_ready
+	reconcileBootstrapPhases(nodes, nil, emitter)
+	if node.BootstrapPhase != BootstrapAwarenessReady {
+		t.Fatalf("expected awareness_ready, got %s", node.BootstrapPhase)
+	}
+
+	// awareness_ready → storage_joining (storage profile has MinIO)
+	stubAwarenessBundleInstalled(node)
 	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapStorageJoining {
 		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
@@ -439,7 +471,14 @@ func TestBootstrap_StorageJoin_CoreNode(t *testing.T) {
 	}
 	nodes := []*nodeState{node}
 
-	// envoy_ready → storage_joining (core has MinIO)
+	// envoy_ready → awareness_ready
+	reconcileBootstrapPhases(nodes, nil, emitter)
+	if node.BootstrapPhase != BootstrapAwarenessReady {
+		t.Fatalf("expected awareness_ready, got %s", node.BootstrapPhase)
+	}
+
+	// awareness_ready → storage_joining (core has MinIO)
+	stubAwarenessBundleInstalled(node)
 	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapStorageJoining {
 		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
@@ -468,11 +507,16 @@ func TestBootstrap_StorageJoin_ScyllaNode(t *testing.T) {
 	}
 	nodes := []*nodeState{node}
 
-	// admitted → infra_preparing → storage_joining (no etcd/xds/envoy, but has scylla)
+	// admitted → infra_preparing → awareness_ready → storage_joining (no etcd/xds/envoy, but has scylla)
 	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapInfraPreparing {
 		t.Fatalf("expected infra_preparing, got %s", node.BootstrapPhase)
 	}
+	reconcileBootstrapPhases(nodes, nil, emitter)
+	if node.BootstrapPhase != BootstrapAwarenessReady {
+		t.Fatalf("expected awareness_ready, got %s", node.BootstrapPhase)
+	}
+	stubAwarenessBundleInstalled(node)
 	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapStorageJoining {
 		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
@@ -530,7 +574,12 @@ func TestBootstrap_GatewayOnly_NoStorageJoin(t *testing.T) {
 	}
 	nodes := []*nodeState{node}
 
-	// envoy_ready → workload_ready (no storage profile, skip storage_joining)
+	// envoy_ready → awareness_ready → workload_ready (no storage profile, skip storage_joining)
+	reconcileBootstrapPhases(nodes, nil, emitter)
+	if node.BootstrapPhase != BootstrapAwarenessReady {
+		t.Fatalf("expected awareness_ready, got %s", node.BootstrapPhase)
+	}
+	stubAwarenessBundleInstalled(node)
 	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapWorkloadReady {
 		t.Fatalf("expected workload_ready (no storage), got %s", node.BootstrapPhase)
@@ -552,7 +601,13 @@ func TestBootstrap_DnsOnly_NoStorageJoin(t *testing.T) {
 
 	// admitted → infra_preparing
 	reconcileBootstrapPhases(nodes, nil, emitter)
-	// infra_preparing: no etcd, no xds, no envoy, no storage → workload_ready
+	// infra_preparing: no etcd, no xds, no envoy, no storage → awareness_ready
+	reconcileBootstrapPhases(nodes, nil, emitter)
+	if node.BootstrapPhase != BootstrapAwarenessReady {
+		t.Fatalf("expected awareness_ready, got %s", node.BootstrapPhase)
+	}
+	// awareness_ready → workload_ready (dns-only has no storage profile)
+	stubAwarenessBundleInstalled(node)
 	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapWorkloadReady {
 		t.Fatalf("expected workload_ready (dns-only, no storage), got %s", node.BootstrapPhase)
@@ -587,11 +642,20 @@ func TestBootstrap_MinioSkip_Day1NonMember(t *testing.T) {
 	// Pool is non-empty; this node's IP (10.0.0.99) is not in it.
 	poolNodes := []string{"10.0.0.63", "10.0.0.8", "10.0.0.20"}
 
+	// envoy_ready → awareness_ready (the MinIO skip check is what would have
+	// blocked envoy→awareness if pool membership weren't honored; reaching
+	// awareness_ready proves the skip worked).
 	dirty := reconcileBootstrapPhases(nodes, poolNodes, emitter)
 	if !dirty {
 		t.Fatal("expected dirty=true when minio skipped via pool membership check")
 	}
-	// Must advance to storage_joining (has scylla profile), not block at envoy_ready.
+	if node.BootstrapPhase != BootstrapAwarenessReady {
+		t.Fatalf("expected awareness_ready, got %s (blocked: %s)", node.BootstrapPhase, node.BlockedDetails)
+	}
+
+	// awareness_ready → storage_joining (has scylla profile)
+	stubAwarenessBundleInstalled(node)
+	reconcileBootstrapPhases(nodes, poolNodes, emitter)
 	if node.BootstrapPhase != BootstrapStorageJoining {
 		t.Fatalf("expected storage_joining, got %s (blocked: %s)", node.BootstrapPhase, node.BlockedDetails)
 	}
@@ -621,10 +685,18 @@ func TestBootstrap_MinioSkip_NonMemberPhase(t *testing.T) {
 	}
 	nodes := []*nodeState{node}
 	// Even with an empty pool, MinioJoinNonMember should skip the check.
+	// envoy_ready → awareness_ready
 	dirty := reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty {
 		t.Fatal("expected dirty=true")
 	}
+	if node.BootstrapPhase != BootstrapAwarenessReady {
+		t.Fatalf("expected awareness_ready, got %s (blocked: %s)", node.BootstrapPhase, node.BlockedDetails)
+	}
+
+	// awareness_ready → storage_joining
+	stubAwarenessBundleInstalled(node)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapStorageJoining {
 		t.Fatalf("expected storage_joining, got %s (blocked: %s)", node.BootstrapPhase, node.BlockedDetails)
 	}
