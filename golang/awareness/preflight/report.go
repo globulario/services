@@ -149,6 +149,22 @@ type GraphFreshnessReport struct {
 	KnowledgeMtime      string  `json:"knowledge_mtime,omitempty"`
 	KnowledgeSourceHash string  `json:"knowledge_source_hash,omitempty"`
 	RebuildRecommended  bool    `json:"rebuild_recommended"`
+	LastBuildDurationMs int64   `json:"last_build_duration_ms,omitempty"`
+}
+
+// GoFileCoverageReport holds the graph Go-file coverage metrics as reported by
+// preflight. It mirrors enforce.GoFileCoverageResult but lives here to avoid a
+// circular import (enforce imports preflight via strict.go).
+type GoFileCoverageReport struct {
+	EligibleGoFilesTotal        int      `json:"eligible_go_files_total"`
+	IndexedGoFilesTotal         int      `json:"indexed_go_files_total"`
+	CoveragePercentGoFiles      float64  `json:"coverage_percent_go_files"`
+	EligibleNonTestGoFiles      int      `json:"eligible_non_test_go_files_total"`
+	IndexedNonTestGoFiles       int      `json:"indexed_non_test_go_files_total"`
+	MissingFiles                []string `json:"missing_files,omitempty"`
+	BlindSpots                  []string `json:"blind_spots,omitempty"`
+	// ConfidenceImpact: none | low | medium | high
+	ConfidenceImpact string `json:"confidence_impact"`
 }
 
 // ConfidenceFactors explains why a confidence level was assigned.
@@ -231,4 +247,5 @@ type Report struct {
 	DegradedMode              DegradedModePlaybook `json:"degraded_mode"`
 	RiskTier                  RiskTier             `json:"risk_tier"`
 	FastPathApplied           bool                 `json:"fast_path_applied"`
+	GoFileCoverage            *GoFileCoverageReport `json:"go_file_coverage,omitempty"`
 }

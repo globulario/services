@@ -66,6 +66,7 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 			PackagePath: strArg(args, "package_path"),
 			Phase:       strArg(args, "phase"),
 			DocsDir:     st.docsDir,
+			RepoRoot:    st.repoRoot,
 		}
 
 		runtimePolicy := strArg(args, "runtime_policy")
@@ -200,6 +201,10 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 			return nil, err
 		}
 
+		// Include a lightweight proposal queue health summary so agents know
+		// whether there are stale/pending proposals before starting code changes.
+		queueSection, _ := buildQueueSection(st.docsDir, 24.0)
+
 		return map[string]interface{}{
 			"invariants":        result.InvariantIDs,
 			"failure_modes":     result.FailureModeIDs,
@@ -207,6 +212,12 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 			"required_tests":    result.RequiredTests,
 			"required_searches": result.RequiredSearches,
 			"services":          result.ServiceNames,
+			"proposal_queue": map[string]interface{}{
+				"pending_proposals": queueSection.PendingProposals,
+				"stale_proposals":   queueSection.StaleProposals,
+				"queue_status":      queueSection.QueueStatus,
+				"status":            queueSection.Status,
+			},
 		}, nil
 	})
 }

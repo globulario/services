@@ -31,10 +31,46 @@ type FailureMode struct {
 
 // BuildStats holds graph build statistics.
 type BuildStats struct {
-	Nodes        int `json:"nodes"`
-	Edges        int `json:"edges"`
-	Invariants   int `json:"invariants"`
-	FailureModes int `json:"failure_modes"`
+	Nodes                int   `json:"nodes"`
+	Edges                int   `json:"edges"`
+	Invariants           int   `json:"invariants"`
+	FailureModes         int   `json:"failure_modes"`
+	FilesScanned         int   `json:"files_scanned,omitempty"`
+	KnowledgeFilesScanned int  `json:"knowledge_files_scanned,omitempty"`
+	DurationMs           int64 `json:"duration_ms,omitempty"`
+}
+
+// LatestBuildRecord returns the most recent graph_builds row, or (nil, nil) if none.
+func (g *Graph) LatestBuildRecord(ctx context.Context) (*BuildRecord, error) {
+	row := g.db.QueryRowContext(ctx, `
+		SELECT id, repo_root, git_commit, release_id, created_at, stats_json
+		FROM graph_builds ORDER BY created_at DESC LIMIT 1
+	`)
+	return scanBuildRecord(row)
+}
+
+// BuildRecord is a single row from the graph_builds table.
+type BuildRecord struct {
+	ID        string
+	RepoRoot  string
+	GitCommit string
+	ReleaseID string
+	CreatedAt int64
+	Stats     BuildStats
+}
+
+func scanBuildRecord(row *sql.Row) (*BuildRecord, error) {
+	var r BuildRecord
+	var statsJSON string
+	err := row.Scan(&r.ID, &r.RepoRoot, &r.GitCommit, &r.ReleaseID, &r.CreatedAt, &statsJSON)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("scanBuildRecord: %w", err)
+	}
+	_ = json.Unmarshal([]byte(statsJSON), &r.Stats)
+	return &r, nil
 }
 
 // FindNode returns a node by ID, or (nil, nil) if not found.
@@ -1000,4 +1036,95 @@ func (g *Graph) QueryPreflightAudits(ctx context.Context, since int64, gitSHA st
 		out = append(out, &r)
 	}
 	return out, rows.Err()
+}
+
+// AgentUsageEvent is a single recorded preflight/agent-context call.
+type AgentUsageEvent struct {
+	ID                string
+	EventTime         int64
+	Agent             string
+	SessionIDHash     string
+	Repo              string
+	Tool              string
+	Operation         string // "called" | "skipped" | "failed"
+	ResultStatus      string
+	Confidence        string
+	TaskType          string
+	ChangedFilesCount int
+}
+
+// RecordAgentUsage inserts a usage event. Raw prompts are never stored.
+func (g *Graph) RecordAgentUsage(ctx context.Context, e AgentUsageEvent) error {
+	if e.ID == "" {
+		return errors.New("RecordAgentUsage: id required")
+	}
+	if e.EventTime == 0 {
+		e.EventTime = time.Now().Unix()
+	}
+	_, err := g.db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO agent_usage_events
+		(id, event_time, agent, session_id_hash, repo, tool, operation, result_status, confidence, task_type, changed_files_count)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, e.ID, e.EventTime, e.Agent, e.SessionIDHash, e.Repo, e.Tool, e.Operation,
+		e.ResultStatus, e.Confidence, e.TaskType, e.ChangedFilesCount)
+	if err != nil {
+		return fmt.Errorf("RecordAgentUsage: %w", err)
+	}
+	return nil
+}
+
+// AgentUsageSummary holds aggregate usage stats over a time window.
+type AgentUsageSummary struct {
+	WindowDays              int     `json:"window_days"`
+	SessionsTotal           int     `json:"sessions_total"`
+	PreflightCalls          int     `json:"preflight_calls"`
+	AgentContextCalls       int     `json:"agent_context_calls"`
+	ScanViolationsCalls     int     `json:"scan_violations_calls"`
+	PreflightSkipRatePct    float64 `json:"preflight_skip_rate_pct"`
+	Status                  string  `json:"status"`
+	RecommendedAction       string  `json:"recommended_action,omitempty"`
+}
+
+// AgentUsageSummary7d returns aggregate usage stats for the last 7 days.
+func (g *Graph) QueryAgentUsageSummary(ctx context.Context, windowDays int) (*AgentUsageSummary, error) {
+	since := time.Now().AddDate(0, 0, -windowDays).Unix()
+
+	s := &AgentUsageSummary{WindowDays: windowDays}
+
+	// Sessions = distinct session_id_hash values.
+	row := g.db.QueryRowContext(ctx,
+		`SELECT COUNT(DISTINCT session_id_hash) FROM agent_usage_events WHERE event_time >= ? AND session_id_hash != ''`, since)
+	_ = row.Scan(&s.SessionsTotal)
+
+	countTool := func(tool string) int {
+		var n int
+		r := g.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM agent_usage_events WHERE event_time >= ? AND tool = ? AND operation = 'called'`, since, tool)
+		_ = r.Scan(&n)
+		return n
+	}
+
+	s.PreflightCalls = countTool("awareness.preflight")
+	s.AgentContextCalls = countTool("awareness.agent_context")
+	s.ScanViolationsCalls = countTool("awareness.scan_violations")
+
+	if s.SessionsTotal > 0 {
+		s.PreflightSkipRatePct = (1 - float64(s.PreflightCalls)/float64(s.SessionsTotal)) * 100
+		if s.PreflightSkipRatePct < 0 {
+			s.PreflightSkipRatePct = 0
+		}
+	}
+
+	switch {
+	case s.SessionsTotal == 0:
+		s.Status = "no_data"
+		s.RecommendedAction = "Configure session-start hook to call awareness.agent_context"
+	case s.PreflightSkipRatePct > 50:
+		s.Status = "warning"
+		s.RecommendedAction = "Configure session-start hook to call awareness.agent_context — skip rate is high"
+	default:
+		s.Status = "ok"
+	}
+
+	return s, nil
 }

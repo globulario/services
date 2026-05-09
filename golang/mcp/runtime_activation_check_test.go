@@ -234,3 +234,40 @@ func TestBuildRuntimeSection_NoConfigIsNoop(t *testing.T) {
 		t.Error("expected runtime.noop alert when no config present")
 	}
 }
+
+// TestBuildRuntimeSection_PartialShowsEtcdCount verifies that when some sources
+// are etcd_resolved and others are not configured, the partial alert message
+// counts only the non-etcd-resolved missing sources.
+func TestBuildRuntimeSection_PartialShowsEtcdCount(t *testing.T) {
+	dir := t.TempDir()
+	awarenessDir := filepath.Join(dir, ".awareness")
+	if err := os.MkdirAll(awarenessDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A config with controller_addr but no prometheus_addr forces partial.
+	// controller is etcd_resolvable so its absence alone is never partial.
+	// prometheus is non-etcd-resolvable, so it IS added to missingConfig → partial.
+	yaml := `controller_addr: "globular.internal:12000"
+insecure: true
+`
+	if err := os.WriteFile(filepath.Join(awarenessDir, "runtime_sources.yaml"), []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	section, alerts := buildRuntimeSection(dir)
+	// Partial or live — etcd_resolved sources don't count as missing.
+	if section.RuntimeAwarenessStatus == "noop" {
+		t.Errorf("expected partial or live (some gRPC source configured), got noop")
+	}
+	// If partial, the alert must not count etcd_resolved sources as missing.
+	for _, a := range alerts {
+		if a.ID == "runtime.partial" {
+			if a.Message == "" {
+				t.Error("partial alert must include a message with missing count")
+			}
+			// The message must not reference etcd_resolved sources as missing.
+			if len(a.Message) > 0 && a.Message == "Runtime awareness partial — 0 source(s) missing static address and not etcd-resolvable" {
+				t.Error("partial alert message should have a non-zero missing count when prometheus is absent")
+			}
+		}
+	}
+}

@@ -86,3 +86,41 @@ func Bad() {}
 		t.Errorf("expected ANNOTATION_BAD_TEST_NAME, got: %v", result.Findings)
 	}
 }
+
+// TestAwarenessAudit_MaxRequiredTestNoPathZero verifies that Audit() scaffold
+// check emits SCAFFOLD_TODO_SKIP findings when TODO stubs exist. These findings
+// are used by the --max-todo-scaffold-skips CLI gate.
+func TestAwarenessAudit_MaxRequiredTestNoPathZero(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write a test file with scaffold TODO skips.
+	content := `package foo_test
+
+import "testing"
+
+func TestScaffoldForAudit(t *testing.T) {
+	t.Skip("TODO: implement required awareness test")
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "s_test.go"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := enforce.Audit(context.Background(), nil, enforce.AuditOptions{
+		RepoRoot:        dir,
+		SkipAnnotations: true,
+		SkipContracts:   true,
+		SkipTests:       true,
+		SkipDrift:       true,
+	})
+
+	found := false
+	for _, f := range result.Findings {
+		if f.Code == enforce.CodeScaffoldTodoSkip {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected SCAFFOLD_TODO_SKIP finding when TODO skips exist")
+	}
+}

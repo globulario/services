@@ -17,6 +17,10 @@ type AuditOptions struct {
 	// Leave empty to skip file-system annotation checks.
 	SrcDir string
 
+	// DocsDir is the awareness docs directory (docs/awareness).
+	// Used by scaffold and coverage checks to load fix_cases.yaml.
+	DocsDir string
+
 	// SkipAnnotations disables the annotation well-formedness check.
 	SkipAnnotations bool
 
@@ -28,6 +32,9 @@ type AuditOptions struct {
 
 	// SkipDrift disables the graph drift check.
 	SkipDrift bool
+
+	// SkipScaffold disables the scaffold TODO-skip detection check.
+	SkipScaffold bool
 }
 
 // Audit runs all enabled enforcement checks and returns an aggregated result.
@@ -77,6 +84,12 @@ func Audit(ctx context.Context, g *graph.Graph, opts AuditOptions) *AuditResult 
 		} else {
 			all = append(all, AuditDrift(ctx, g, opts.SrcDir)...)
 		}
+	}
+
+	// 5. Scaffold TODO-skip detection (file-system walk, no graph needed).
+	if !opts.SkipScaffold && opts.RepoRoot != "" {
+		scan := ScanScaffoldTests(opts.RepoRoot, opts.DocsDir)
+		all = append(all, scan.Findings...)
 	}
 
 	return newAuditResult(all)

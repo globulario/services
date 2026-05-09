@@ -2,6 +2,8 @@ package preflight
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -22,6 +24,7 @@ type Options struct {
 	PackagePath    string                 // optional: path to package dir with awareness.yaml
 	Phase          string                 // optional: dependency phase filter for cycle detection
 	DocsDir        string                 // path to docs/awareness (aliases, fix_cases, guardrails)
+	RepoRoot       string                 // optional: repo root for Go file coverage computation
 	IncludeRuntime bool                   // collect live runtime snapshot
 	RuntimeWindow  time.Duration          // lookback window for events/workflows (default 15m)
 	Bridge         *runtime.RuntimeBridge // optional: if nil and IncludeRuntime, uses noop bridge
@@ -194,7 +197,7 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 	// 18. Graph freshness.
 	if g != nil && opts.DocsDir != "" {
 		f := g.Freshness(ctx, opts.DocsDir)
-		r.GraphFreshness = &GraphFreshnessReport{
+		gfr := &GraphFreshnessReport{
 			BuiltAt:             formatTime(f.BuiltAt),
 			AgeSeconds:          f.AgeSeconds,
 			Stale:               f.Stale,
@@ -203,8 +206,28 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 			KnowledgeSourceHash: f.KnowledgeSourceHash,
 			RebuildRecommended:  f.RebuildRecommended,
 		}
+		// Include last build duration if available.
+		if rec, err := g.LatestBuildRecord(ctx); err == nil && rec != nil {
+			gfr.LastBuildDurationMs = rec.Stats.DurationMs
+		}
+		r.GraphFreshness = gfr
 		if f.Stale && len(r.RawKnowledgeMatches) > 0 {
 			r.Warnings = append(r.Warnings, "GRAPH_STALE: "+f.StaleReason+". Raw YAML matched — treat graph as incomplete.")
+		}
+	}
+
+	// 18a. Go file coverage — measures what fraction of eligible Go files are indexed.
+	// Low coverage lowers confidence and is reported as a blind spot.
+	if opts.RepoRoot != "" {
+		cov := computeGoFileCoverage(ctx, g, opts.RepoRoot)
+		r.GoFileCoverage = cov
+		if cov.ConfidenceImpact == "high" {
+			r.BlindSpots = append(r.BlindSpots, cov.BlindSpots...)
+			r.Warnings = append(r.Warnings, fmt.Sprintf(
+				"UNKNOWN_IMPACT_LOW_COVERAGE: graph indexes only %.1f%% of eligible Go files — NO_MATCH results cannot be trusted as safe",
+				cov.CoveragePercentGoFiles))
+		} else if cov.ConfidenceImpact == "medium" {
+			r.BlindSpots = append(r.BlindSpots, cov.BlindSpots...)
 		}
 	}
 
@@ -214,6 +237,18 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 
 	// 19. Confidence model.
 	r.Coverage, r.Confidence, r.ConfidenceReason, r.BlindSpots, r.ConfidenceFactors = computeConfidence(r, g)
+	// Demote confidence if Go file coverage is critically low: the graph cannot
+	// give reliable NO_MATCH answers for files it has never seen.
+	if r.GoFileCoverage != nil && r.GoFileCoverage.ConfidenceImpact == "high" {
+		if r.Confidence == ConfidenceHigh {
+			r.Confidence = ConfidenceMedium
+			r.ConfidenceReason += "; demoted: graph Go-file coverage < 70%"
+		}
+	}
+	// Merge GoFileCoverage blind spots (computeConfidence builds its own slice).
+	if r.GoFileCoverage != nil && len(r.GoFileCoverage.BlindSpots) > 0 {
+		r.BlindSpots = unique(append(r.BlindSpots, r.GoFileCoverage.BlindSpots...))
+	}
 	r.SafetyStatus = computeSafetyStatus(r)
 	r.DegradedMode = computeDegradedMode(r)
 	if r.SafetyStatus == SafetyStatusUnknownNotSafe {
@@ -953,6 +988,105 @@ func mergeRuntime(ctx context.Context, opts Options, g *graph.Graph, r *Report) 
 
 // block-level reference to keep import alive for buildInvestigationOrder
 var _ = analysis.AdmissionBlock
+
+// computeGoFileCoverage walks repoRoot to count eligible Go files and compares
+// them against source_file nodes indexed in g. Duplicates the core walk from
+// enforce.GoFileCoverage to avoid the circular import (enforce → preflight).
+func computeGoFileCoverage(ctx context.Context, g *graph.Graph, repoRoot string) *GoFileCoverageReport {
+	res := &GoFileCoverageReport{}
+
+	excludedDirs := map[string]bool{
+		"vendor": true, ".git": true, "node_modules": true,
+		"dist": true, "build": true, ".cache": true,
+	}
+	isExcluded := func(rel string) bool {
+		parts := strings.SplitN(rel, string(os.PathSeparator), 2)
+		return excludedDirs[parts[0]]
+	}
+	isGeneratedProto := func(rel string) bool {
+		return strings.HasSuffix(rel, ".pb.go") || strings.HasSuffix(rel, ".pb.gw.go")
+	}
+
+	eligibleSet := map[string]bool{}
+	_ = filepath.Walk(repoRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		rel, _ := filepath.Rel(repoRoot, path)
+		if info.IsDir() {
+			if isExcluded(rel) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if isExcluded(rel) || !strings.HasSuffix(rel, ".go") || isGeneratedProto(rel) {
+			return nil
+		}
+		eligibleSet[rel] = true
+		res.EligibleGoFilesTotal++
+		if !strings.HasSuffix(rel, "_test.go") {
+			res.EligibleNonTestGoFiles++
+		}
+		return nil
+	})
+
+	if g == nil {
+		res.ConfidenceImpact = "low"
+		res.BlindSpots = []string{fmt.Sprintf("%d eligible Go files cannot be checked — graph not loaded", res.EligibleGoFilesTotal)}
+		return res
+	}
+
+	nodes, err := g.FindNodesByType(ctx, graph.NodeTypeSourceFile)
+	if err != nil {
+		res.ConfidenceImpact = "low"
+		res.BlindSpots = []string{"graph source_file query failed: " + err.Error()}
+		return res
+	}
+
+	indexedSet := map[string]bool{}
+	for _, n := range nodes {
+		if n.Path == "" {
+			continue
+		}
+		p := filepath.ToSlash(n.Path)
+		indexedSet[p] = true
+		if strings.HasSuffix(p, ".go") {
+			res.IndexedGoFilesTotal++
+			if !strings.HasSuffix(p, "_test.go") {
+				res.IndexedNonTestGoFiles++
+			}
+		}
+	}
+
+	for rel := range eligibleSet {
+		if !indexedSet[filepath.ToSlash(rel)] {
+			res.MissingFiles = append(res.MissingFiles, rel)
+		}
+	}
+
+	if res.EligibleGoFilesTotal > 0 {
+		res.CoveragePercentGoFiles = float64(res.IndexedGoFilesTotal) / float64(res.EligibleGoFilesTotal) * 100
+	}
+	if res.EligibleNonTestGoFiles > 0 {
+		// stored in struct but not used in confidence path here; kept for completeness
+		_ = float64(res.IndexedNonTestGoFiles) / float64(res.EligibleNonTestGoFiles) * 100
+	}
+
+	missing := len(res.MissingFiles)
+	switch {
+	case res.CoveragePercentGoFiles < 70.0:
+		res.ConfidenceImpact = "high"
+		res.BlindSpots = append(res.BlindSpots,
+			fmt.Sprintf("%d eligible Go files are not represented in the graph (coverage %.1f%% < 70%%)", missing, res.CoveragePercentGoFiles))
+	case res.CoveragePercentGoFiles < 85.0:
+		res.ConfidenceImpact = "medium"
+		res.BlindSpots = append(res.BlindSpots,
+			fmt.Sprintf("%d eligible Go files are not represented in the graph (coverage %.1f%% < 85%%)", missing, res.CoveragePercentGoFiles))
+	default:
+		res.ConfidenceImpact = "none"
+	}
+	return res
+}
 
 func metricWarnings(warnings []string) []string {
 	var out []string

@@ -27,4 +27,12 @@ const (
 	CodeOrphanedHashSchema       = CodeHashSchemaOrphaned
 	CodeOrphanedInvariantNode    = CodeInvariantNoEnforcer
 	CodeNoGraph                  = "NO_GRAPH"
+
+	// Scaffold test quality
+	CodeScaffoldTodoSkip        = "SCAFFOLD_TODO_SKIP"
+	CodeDoneFixcaseScaffoldOnly = "DONE_FIXCASE_SCAFFOLD_ONLY"
+
+	// Graph Go-file coverage
+	CodeGraphCoverageLow      = "GRAPH_COVERAGE_LOW"
+	CodeGraphCoverageCritical = "GRAPH_COVERAGE_CRITICAL"
 )

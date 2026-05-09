@@ -42,12 +42,13 @@ type healthPulseQueueSection struct {
 }
 
 type healthPulseGraphSection struct {
-	Available          bool    `json:"available"`
-	Stale              bool    `json:"stale"`
-	StaleReason        string  `json:"stale_reason,omitempty"`
-	AgeHours           float64 `json:"age_hours,omitempty"`
-	RebuildRecommended bool    `json:"rebuild_recommended"`
-	Status             string  `json:"status"` // ok | warn | critical | no_graph
+	Available            bool    `json:"available"`
+	Stale                bool    `json:"stale"`
+	StaleReason          string  `json:"stale_reason,omitempty"`
+	AgeHours             float64 `json:"age_hours,omitempty"`
+	RebuildRecommended   bool    `json:"rebuild_recommended"`
+	LastBuildDurationMs  int64   `json:"last_build_duration_ms,omitempty"`
+	Status               string  `json:"status"` // ok | warn | critical | no_graph
 }
 
 type healthPulseSelfReviewSection struct {
@@ -69,6 +70,15 @@ type healthPulseUnindexedSection struct {
 	Status         string                      `json:"status"` // ok | warn
 }
 
+type healthPulseAgentUsageSection struct {
+	WindowDays           int     `json:"window_days"`
+	SessionsTotal        int     `json:"sessions_total"`
+	PreflightCalls       int     `json:"preflight_calls"`
+	PreflightSkipRatePct float64 `json:"preflight_skip_rate_pct"`
+	Status               string  `json:"status"` // ok | warning | no_data
+	RecommendedAction    string  `json:"recommended_action,omitempty"`
+}
+
 type healthPulseSections struct {
 	Coverage         healthPulseCoverageSection   `json:"coverage"`
 	RuntimeSources   healthPulseRuntimeSection    `json:"runtime_sources"`
@@ -76,6 +86,7 @@ type healthPulseSections struct {
 	GraphFreshness   healthPulseGraphSection      `json:"graph_freshness"`
 	SelfReview       healthPulseSelfReviewSection `json:"self_review_verification"`
 	UnindexedYAML    healthPulseUnindexedSection  `json:"unindexed_yaml"`
+	AgentUsage       healthPulseAgentUsageSection `json:"agent_usage"`
 }
 
 type healthPulseResult struct {
@@ -143,6 +154,9 @@ func registerHealthPulseTool(s *server, st *awarenessState) {
 		unindexedSection, unindexedAlerts := buildUnindexedYAMLSection(docsDir)
 		alerts = append(alerts, unindexedAlerts...)
 
+		agentUsageSection, agentUsageAlerts := buildAgentUsageSection(ctx, st)
+		alerts = append(alerts, agentUsageAlerts...)
+
 		overallStatus, exitCode := computePulseStatus(
 			coverageSection.Status,
 			runtimeSection.Status,
@@ -162,6 +176,7 @@ func registerHealthPulseTool(s *server, st *awarenessState) {
 				GraphFreshness: graphSection,
 				SelfReview:     srSection,
 				UnindexedYAML:  unindexedSection,
+				AgentUsage:     agentUsageSection,
 			},
 			Alerts:   alerts,
 			ExitCode: exitCode,
@@ -353,14 +368,19 @@ func buildGraphSection(ctx context.Context, st *awarenessState, docsDir string, 
 			RecommendedAction: "Run 'globular awareness build' to rebuild the graph.",
 		})
 	}
-	return healthPulseGraphSection{
+
+	sec := healthPulseGraphSection{
 		Available:          true,
 		Stale:              f.Stale,
 		StaleReason:        f.StaleReason,
 		AgeHours:           f.AgeSeconds / 3600,
 		RebuildRecommended: f.RebuildRecommended,
 		Status:             sectionStatus,
-	}, alerts
+	}
+	if rec, err := st.g.LatestBuildRecord(ctx); err == nil && rec != nil {
+		sec.LastBuildDurationMs = rec.Stats.DurationMs
+	}
+	return sec, alerts
 }
 
 func buildSelfReviewSection(docsDir, repoRoot string) (healthPulseSelfReviewSection, []healthPulseAlert) {
@@ -494,4 +514,32 @@ func computePulseStatus(statuses ...string) (string, int) {
 	default:
 		return "healthy", 0
 	}
+}
+
+func buildAgentUsageSection(ctx context.Context, st *awarenessState) (healthPulseAgentUsageSection, []healthPulseAlert) {
+	if st.g == nil {
+		return healthPulseAgentUsageSection{Status: "no_data"}, nil
+	}
+	summary, err := st.g.QueryAgentUsageSummary(ctx, 7)
+	if err != nil {
+		return healthPulseAgentUsageSection{Status: "no_data"}, nil
+	}
+	sec := healthPulseAgentUsageSection{
+		WindowDays:           summary.WindowDays,
+		SessionsTotal:        summary.SessionsTotal,
+		PreflightCalls:       summary.PreflightCalls,
+		PreflightSkipRatePct: summary.PreflightSkipRatePct,
+		Status:               summary.Status,
+		RecommendedAction:    summary.RecommendedAction,
+	}
+	var alerts []healthPulseAlert
+	if summary.Status == "warning" {
+		alerts = append(alerts, healthPulseAlert{
+			Severity:          "warning",
+			ID:                "agent_usage.high_skip_rate",
+			Message:           fmt.Sprintf("preflight skip rate %.0f%% over last %d days — agents may be bypassing awareness", summary.PreflightSkipRatePct, summary.WindowDays),
+			RecommendedAction: summary.RecommendedAction,
+		})
+	}
+	return sec, alerts
 }

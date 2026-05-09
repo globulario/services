@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/awareness/enforce"
 	"gopkg.in/yaml.v3"
 )
 
@@ -52,9 +53,23 @@ type coverageTopGap struct {
 
 type coverageReportResult struct {
 	Summary                coverageSummary          `json:"summary"`
+	GraphCoverage          graphFileCoverageSection `json:"graph_coverage"`
 	Components             []componentCoverageEntry `json:"components"`
 	TopGaps                []coverageTopGap         `json:"top_gaps"`
 	RecommendedNextActions []string                 `json:"recommended_next_actions"`
+}
+
+type graphFileCoverageSection struct {
+	EligibleGoFilesTotal       int      `json:"eligible_go_files_total"`
+	IndexedGoFilesTotal        int      `json:"indexed_go_files_total"`
+	CoveragePercentGoFiles     float64  `json:"coverage_percent_go_files"`
+	EligibleNonTestGoFiles     int      `json:"eligible_non_test_go_files_total"`
+	IndexedNonTestGoFiles      int      `json:"indexed_non_test_go_files_total"`
+	CoveragePercentNonTestFiles float64 `json:"coverage_percent_non_test_go_files"`
+	MissingFilesCount          int      `json:"missing_files_count"`
+	BlindSpots                 []string `json:"blind_spots,omitempty"`
+	ConfidenceImpact           string   `json:"confidence_impact"`
+	Status                     string   `json:"status"` // "ok" | "warn" | "critical" | "no_graph"
 }
 
 // ---------------------------------------------------------------------------
@@ -96,8 +111,6 @@ func registerCoverageReportTool(s *server, st *awarenessState) {
 			Required: []string{},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-		_ = ctx
-
 		docsDir := st.docsDir
 		repoRoot := st.repoRoot
 		if docsDir == "" {
@@ -189,6 +202,35 @@ func registerCoverageReportTool(s *server, st *awarenessState) {
 		// Build recommended actions.
 		actions := buildCoverageActions(components, pendingProposals, staleHours)
 
+		// Graph Go-file coverage.
+		gcov := enforce.GoFileCoverage(ctx, st.g, repoRoot)
+		graphCovSection := graphFileCoverageSection{
+			EligibleGoFilesTotal:        gcov.EligibleGoFilesTotal,
+			IndexedGoFilesTotal:         gcov.IndexedGoFilesTotal,
+			CoveragePercentGoFiles:      gcov.CoveragePercentGoFiles,
+			EligibleNonTestGoFiles:      gcov.EligibleNonTestGoFiles,
+			IndexedNonTestGoFiles:       gcov.IndexedNonTestGoFiles,
+			CoveragePercentNonTestFiles: gcov.CoveragePercentNonTestFiles,
+			MissingFilesCount:           len(gcov.MissingFiles),
+			BlindSpots:                  gcov.BlindSpots,
+			ConfidenceImpact:            gcov.ConfidenceImpact,
+		}
+		switch {
+		case st.g == nil:
+			graphCovSection.Status = "no_graph"
+		case gcov.CoveragePercentGoFiles < 70:
+			graphCovSection.Status = "critical"
+		case gcov.CoveragePercentGoFiles < 85:
+			graphCovSection.Status = "warn"
+		default:
+			graphCovSection.Status = "ok"
+		}
+		if graphCovSection.Status == "warn" || graphCovSection.Status == "critical" {
+			actions = append(actions,
+				fmt.Sprintf("Graph Go-file coverage %.1f%% — run 'globular awareness build' to re-index missing files",
+					gcov.CoveragePercentGoFiles))
+		}
+
 		return &coverageReportResult{
 			Summary: coverageSummary{
 				ComponentsTotal:               len(componentSet),
@@ -201,6 +243,7 @@ func registerCoverageReportTool(s *server, st *awarenessState) {
 				ImplementedGapsUnverified:     unverifiedCount,
 				PendingProposals:              pendingProposals,
 			},
+			GraphCoverage:          graphCovSection,
 			Components:             components,
 			TopGaps:                topGaps,
 			RecommendedNextActions: actions,

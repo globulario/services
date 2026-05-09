@@ -99,3 +99,25 @@ func TestHealthPulse_ExitCodes(t *testing.T) {
 		}
 	}
 }
+
+// TestHealthPulse_IncludesProposalQueueHealth verifies that the proposal queue
+// section is populated in health_pulse output.
+func TestHealthPulse_IncludesProposalQueueHealth(t *testing.T) {
+	docsDir := t.TempDir()
+	proposalsDir := filepath.Join(docsDir, "proposals")
+	if err := os.MkdirAll(proposalsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// A healthy queue (no proposals).
+	section, alerts := buildQueueSection(docsDir, 24.0)
+	if section.Status == "" {
+		t.Error("proposal queue section status must not be empty")
+	}
+	// No stale proposals → no alerts.
+	for _, a := range alerts {
+		if a.ID == "proposal_queue.stale" {
+			t.Errorf("unexpected stale proposal alert on empty queue")
+		}
+	}
+}

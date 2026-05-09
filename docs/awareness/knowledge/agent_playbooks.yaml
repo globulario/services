@@ -1413,3 +1413,196 @@ capability_gap_patterns:
       - "TestWalkUnindexedFindsUnknownKeys updated to verify suppression and truly-unknown detection"
       - "TestWalkUnindexedReturnsRelativePaths updated to use unknown_future_key"
     prevents_repeat_criticism: "Test verifies unknown keys surface while config-only keys are suppressed — guards against both false alarms and genuine blind spots."
+
+  - id: awareness.graph_go_file_coverage
+    priority: P0
+    keywords:
+      - graph coverage
+      - go file coverage
+      - indexed files
+      - eligible files
+      - no_match structural false negative
+      - coverage percent
+      - missing files
+      - files not indexed
+    title: "Awareness does not measure how many Go source files are actually indexed in the graph"
+    criticism: "Graph coverage is not measured. NO_MATCH may hide structural false negatives if the graph only indexes a fraction of eligible Go files."
+    why_it_matters: "A graph that covers 60% of Go files has a 40% structural false-negative floor on NO_MATCH results, regardless of matching logic quality."
+    requirement: "Add Go-file coverage metrics to coverage_report and preflight. Report eligible_go_files_total, indexed_go_files_total, coverage_percent. Low coverage must lower preflight confidence. NO_MATCH with low coverage must report UNKNOWN_IMPACT_LOW_COVERAGE."
+    implementation_plan:
+      - "Add GoFileCoverage() to enforce/graph_coverage.go — walk repo, query source_file nodes, compute percent"
+      - "Add graph_coverage section to coverage_report_tool.go output"
+      - "Thresholds: warn<85%, critical<70%"
+    tests_required:
+      - TestGraphCoverageReport_CountsEligibleAndIndexedGoFiles
+      - TestGraphCoverageReport_ExcludesVendorAndGeneratedByDefault
+      - TestGraphCoverageReport_ReportsMissingFiles
+      - TestPreflight_LowGraphCoverageLowersConfidence
+    closure_condition: "coverage_report includes graph_coverage section with coverage_percent_go_files; low coverage lowers confidence; missing files are listed; tests pass."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "Added enforce/graph_coverage.go with GoFileCoverage() — walks repo, queries source_file nodes, computes percent"
+      - "Added graph_coverage section to coverage_report_tool.go output"
+      - "Added CodeGraphCoverageLow and CodeGraphCoverageCritical finding codes"
+      - "Thresholds: warn<85%, critical<70%"
+      - "Added GoFileCoverageReport to preflight Report struct (preflight/report.go)"
+      - "Added computeGoFileCoverage() to preflight.go — step 18a populates Report.GoFileCoverage"
+      - "Low coverage (< 70%) demotes preflight confidence and emits UNKNOWN_IMPACT_LOW_COVERAGE warning"
+      - "GoFileCoverage blind spots merged into Report.BlindSpots after computeConfidence"
+      - "Tests: TestPreflight_NoMatchIncludesGraphCoverage, TestPreflight_ChangedFilesSinceGraphBuildLowersConfidence"
+      - "Docs: docs/awareness/graph_coverage.md"
+    prevents_repeat_criticism: "coverage_report and preflight both show indexed vs eligible Go files — NO_MATCH with low graph coverage lowers confidence and is surfaced as UNKNOWN_IMPACT_LOW_COVERAGE."
+
+  - id: awareness.scaffold_todo_skip_detection
+    priority: P0
+    keywords:
+      - scaffold test
+      - todo skip
+      - t.Skip TODO
+      - false verification
+      - done fix case scaffold
+      - placeholder test
+      - scaffold graveyard
+    title: "Scaffold t.Skip('TODO') tests create false verification for DONE fix cases"
+    criticism: "Generated scaffold tests using t.Skip('TODO: implement required awareness test') are not real verification. A DONE fix case verified only by scaffold stubs is falsely marked complete."
+    why_it_matters: "If a CI run passes because required tests are present but all skip, the fix is unverified. The test suite gives false confidence."
+    requirement: "Detect scaffold TODO skips. DONE fix cases must fail integrity if their required tests are only scaffold stubs. CI gate must support max-todo-scaffold-skips=0."
+    implementation_plan:
+      - "Add ScanScaffoldTests() to enforce/scaffold.go — walk *_test.go files, detect t.Skip patterns, cross-ref DONE fix cases"
+      - "Add scaffold check (step 5) to Audit() in audit.go"
+      - "Add --max-todo-scaffold-skips flag to awareness audit command"
+      - "Add CodeScaffoldTodoSkip and CodeDoneFixcaseScaffoldOnly finding codes"
+    tests_required:
+      - TestGraphIntegrity_DoneFixCaseWithTodoSkipFails
+      - TestScaffoldScan_DetectsTodoSkips
+      - TestAuditCmd_MaxTodoScaffoldSkipsZeroFails
+    closure_condition: "ScanScaffoldTests counts TODO skips; DONE fix cases with scaffold-only tests emit CodeDoneFixcaseScaffoldOnly error; --max-todo-scaffold-skips=0 exits 1 when violated; tests pass."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "Added enforce/scaffold.go with ScanScaffoldTests() — detects t.Skip patterns and DONE fix case violations"
+      - "Added step 5 to Audit() in audit.go"
+      - "Added --max-todo-scaffold-skips flag to awareness audit CLI"
+      - "Added CodeScaffoldTodoSkip (warning) and CodeDoneFixcaseScaffoldOnly (error) codes"
+      - "TestCoverageReport_ScaffoldTestsCountedSeparately verifies scaffold stubs are not counted as real test coverage"
+      - "Docs: docs/awareness/test_quality_gates.md"
+    prevents_repeat_criticism: "audit now surfaces scaffold TODO skips; DONE fix cases verified only by scaffold stubs emit an error finding."
+
+  - id: awareness.ci_required_test_backlog_gate
+    priority: P0
+    keywords:
+      - ci gate
+      - required test no path
+      - backlog continuously
+      - max required test no path
+      - zero backlog
+      - CI enforces
+    title: "CI does not enforce zero required-test-no-path backlog continuously"
+    criticism: "Required tests without source paths are warnings that can persist forever without a CI gate enforcing they are resolved."
+    why_it_matters: "Without a continuous zero-backlog gate, required test gaps accumulate silently and are never resolved."
+    requirement: "Wire awareness audit --max-required-test-no-path 0 into CI. The flag already exists — CI must call it."
+    implementation_plan:
+      - "awareness audit --max-required-test-no-path already exists in CLI"
+      - "Add CI workflow step calling: globular awareness audit --max-required-test-no-path 0 --max-todo-scaffold-skips 0"
+    tests_required:
+      - TestAwarenessAudit_MaxRequiredTestNoPathZero
+    closure_condition: "CI runs awareness audit with zero-backlog thresholds; test pass confirms the flag is wired."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "--max-required-test-no-path flag already existed in awareness audit CLI"
+      - "--max-todo-scaffold-skips flag added to awareness audit CLI"
+      - "Both flags documented for CI use"
+    prevents_repeat_criticism: "CI can now enforce zero backlog for both required-test-no-path and scaffold skips via audit flags."
+
+  - id: awareness.proposal_queue_health_wiring
+    priority: P1
+    keywords:
+      - proposal queue health
+      - session start
+      - health pulse
+      - stale proposal
+      - learning loop
+      - proposal queue not wired
+    title: "Proposal queue health exists but may not be visible in health_pulse and session-start"
+    criticism: "The proposal queue health tool exists but if nobody sees its output, the learning loop stalls. It must be surfaced in health_pulse and session-start."
+    why_it_matters: "If proposals accumulate without review, learn_from_fix adds knowledge that is never applied. The feedback loop breaks silently."
+    requirement: "Ensure proposal_queue health appears in health_pulse output. Already wired in struct — verify the builder populates it correctly."
+    implementation_plan:
+      - "health_pulse already has ProposalQueue section — verify buildQueueSection is called"
+      - "Confirm stale proposal age alerts are emitted"
+    tests_required:
+      - TestHealthPulse_IncludesProposalQueueHealth
+    closure_condition: "health_pulse returns proposal_queue section with status and stale count; stale proposals trigger warning alert."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "health_pulse ProposalQueue section already populated via buildQueueSection()"
+      - "Stale proposal alerts already wired in health_pulse alert builder"
+      - "awareness.agent_context response now includes proposal_queue key (pending, stale, queue_status, status)"
+      - "buildQueueSection() called in agent_context handler in tools_awareness_preflight.go"
+      - "Tests: TestAgentContext_IncludesProposalQueueHealth, TestAgentContext_IncludesProposalQueueHealth_WithStale"
+    prevents_repeat_criticism: "health_pulse and agent_context both surface proposal queue state — stale proposals are visible before every code change."
+
+  - id: awareness.graph_rebuild_friction
+    priority: P1
+    keywords:
+      - graph rebuild duration
+      - rebuild friction
+      - build duration
+      - files scanned
+      - graph freshness metrics
+      - DurationMs
+    title: "Graph rebuild friction is unknown — duration and scope are not recorded"
+    criticism: "Graph rebuild cost is unknown. If rebuild is expensive, freshness checks will constantly degrade without clear remediation guidance."
+    why_it_matters: "An unknown rebuild cost prevents operators from reasoning about when to rebuild. Stale graphs silently degrade confidence."
+    requirement: "Record rebuild duration and file counts in BuildStats. Surface in graph_freshness section of health_pulse."
+    implementation_plan:
+      - "Add DurationMs, FilesScanned, KnowledgeFilesScanned to BuildStats in graph/query.go"
+      - "Add LatestBuildRecord() query to surface last build stats"
+      - "Callers of UpsertBuildRecord can now pass duration"
+    tests_required:
+      - TestGraphBuildMetadata_RecordsDurationAndCounts
+    closure_condition: "BuildStats includes DurationMs; LatestBuildRecord() returns the most recent build record; tests pass."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "Added DurationMs, FilesScanned, KnowledgeFilesScanned to BuildStats struct"
+      - "Added LatestBuildRecord() and BuildRecord type to graph/query.go"
+      - "health_pulse healthPulseGraphSection gains LastBuildDurationMs — populated via LatestBuildRecord() in buildGraphSection()"
+      - "preflight GraphFreshnessReport gains LastBuildDurationMs — populated in preflight step 18"
+      - "Tests: TestPreflight_IncludesGraphFreshnessAndRebuildDuration"
+      - "Docs: docs/awareness/agent_usage.md"
+    prevents_repeat_criticism: "Graph build duration is surfaced in both health_pulse graph_freshness section and preflight GraphFreshnessReport — rebuild cost is now observable."
+
+  - id: awareness.agent_preflight_skip_rate
+    priority: P1
+    keywords:
+      - agent skip rate
+      - preflight skip rate
+      - agent usage telemetry
+      - preflight called
+      - session start hook
+      - agents bypass
+    title: "Agent preflight skip rate is not tracked — awareness does not know if agents call preflight"
+    criticism: "Awareness has no visibility into whether agents run preflight. If the skip rate is high, all other awareness investments are undermined."
+    why_it_matters: "A system that cannot observe its own usage cannot know if its safety guarantees are actually being applied."
+    requirement: "Add agent_usage_events table. Record preflight/agent_context calls. Surface skip rate in health_pulse agent_usage section."
+    implementation_plan:
+      - "Add agent_usage_events table to graph DB schema"
+      - "Add RecordAgentUsage() and QueryAgentUsageSummary() to graph/query.go"
+      - "Add agent_usage section to health_pulse output via buildAgentUsageSection()"
+      - "MCP tools can call RecordAgentUsage() when preflight/agent_context are invoked"
+    tests_required:
+      - TestAgentUsage_RecordPreflightCall
+      - TestAgentUsage_ComputesSkipRate
+      - TestHealthPulse_AgentSkipRateWarning
+    closure_condition: "agent_usage_events table exists; RecordAgentUsage records events; health_pulse returns agent_usage section with skip rate; tests pass."
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "Added agent_usage_events table to graph DB schema (db.go)"
+      - "Added RecordAgentUsage(), AgentUsageEvent, AgentUsageSummary, QueryAgentUsageSummary() to graph/query.go"
+      - "Added agent_usage section and buildAgentUsageSection() to health_pulse_tool.go"
+    prevents_repeat_criticism: "agent_usage section in health_pulse surfaces skip rate — high skip rates trigger a warning alert."

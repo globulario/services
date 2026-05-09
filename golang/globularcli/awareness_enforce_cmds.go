@@ -46,13 +46,16 @@ var enforceCfg = struct {
 	suppressionsFile      string
 	showSuppressed        bool
 	maxRequiredTestNoPath int
+	maxTodoScaffoldSkips  int
 	trendFile             string
 	trendRecord           bool
 	trendLast             int
 	scaffoldLimit         int
+	scaffoldWrite         bool
 }{
 	warningThreshold:      -1, // disabled by default
 	maxRequiredTestNoPath: -1,
+	maxTodoScaffoldSkips:  -1,
 	trendLast:             20,
 	scaffoldLimit:         20,
 }
@@ -88,9 +91,11 @@ ERRORs are never suppressible.`,
 		}
 
 		golangDir := filepath.Join(repoRoot, "golang")
+		docsDir := filepath.Join(repoRoot, "docs", "awareness")
 		result := enforce.Audit(ctx, g, enforce.AuditOptions{
 			RepoRoot: repoRoot,
 			SrcDir:   golangDir,
+			DocsDir:  docsDir,
 		})
 		if enforceCfg.auditStrict {
 			watchlist := enforceCfg.watchlist
@@ -156,11 +161,13 @@ ERRORs are never suppressible.`,
 		if enforce.FailsWarningThreshold(triaged, enforceCfg.warningThreshold) {
 			os.Exit(1)
 		}
-		if enforceCfg.maxRequiredTestNoPath >= 0 {
-			if count := warningGroupCount(triaged.Groups, "REQUIRED_TEST_NO_PATH"); count > enforceCfg.maxRequiredTestNoPath {
-				fmt.Fprintf(os.Stderr, "REQUIRED_TEST_NO_PATH threshold exceeded: %d > %d\n", count, enforceCfg.maxRequiredTestNoPath)
-				os.Exit(1)
-			}
+		if count, exceeded := exceedsRequiredTestNoPathThreshold(triaged.Groups, enforceCfg.maxRequiredTestNoPath); exceeded {
+			fmt.Fprintf(os.Stderr, "REQUIRED_TEST_NO_PATH threshold exceeded: %d > %d\n", count, enforceCfg.maxRequiredTestNoPath)
+			os.Exit(1)
+		}
+		if count, exceeded := exceedsTodoScaffoldSkipsThreshold(triaged.Groups, enforceCfg.maxTodoScaffoldSkips); exceeded {
+			fmt.Fprintf(os.Stderr, "SCAFFOLD_TODO_SKIP threshold exceeded: %d > %d\n", count, enforceCfg.maxTodoScaffoldSkips)
+			os.Exit(1)
 		}
 		if enforceCfg.auditStrict && enforce.HasSuppressionProblems(triaged) {
 			os.Exit(1)
@@ -249,14 +256,18 @@ var awarenessRequiredTestsScaffoldCmd = &cobra.Command{
 		if limit > 0 && len(entries) > limit {
 			entries = entries[:limit]
 		}
+		written := 0
+		skippedExisting := 0
 
 		outputMode := strings.ToLower(strings.TrimSpace(rootCfg.output))
 		if outputMode == "json" {
 			out := struct {
 				Generated int                        `json:"generated"`
+				WriteMode bool                       `json:"write_mode"`
 				Entries   []requiredTestBacklogEntry `json:"entries"`
 			}{
 				Generated: len(entries),
+				WriteMode: enforceCfg.scaffoldWrite,
 				Entries:   entries,
 			}
 			b, _ := json.MarshalIndent(out, "", "  ")
@@ -265,22 +276,129 @@ var awarenessRequiredTestsScaffoldCmd = &cobra.Command{
 		}
 
 		for _, entry := range entries {
-			primary := ""
-			if len(entry.Suggestions) > 0 {
-				primary = entry.Suggestions[0]
+			target := chooseScaffoldTargetPath(entry)
+			if enforceCfg.scaffoldWrite {
+				status, err := writeRequiredTestStub(repoRoot, target, entry)
+				if err != nil {
+					return err
+				}
+				switch status {
+				case "written":
+					written++
+				case "exists":
+					skippedExisting++
+				}
+				fmt.Fprintf(os.Stdout, "- %s | file: %s | status: %s\n", entry.Test, target, status)
+				continue
 			}
-			if primary == "" {
-				primary = "golang/<area>/TODO_test.go"
-			}
-			fmt.Fprintf(os.Stdout, "// target: %s\n", primary)
+			fmt.Fprintf(os.Stdout, "// target: %s\n", target)
 			fmt.Fprintf(os.Stdout, "// refs: %s\n", strings.Join(entry.Refs, ", "))
 			fmt.Fprintf(os.Stdout, "func %s(t *testing.T) {\n", entry.Test)
 			fmt.Fprintf(os.Stdout, "\tt.Skip(\"TODO: implement required awareness test\")\n")
 			fmt.Fprintf(os.Stdout, "}\n\n")
 		}
+		if enforceCfg.scaffoldWrite {
+			fmt.Fprintf(os.Stdout, "Scaffold write complete: written=%d, skipped_existing=%d, considered=%d\n", written, skippedExisting, len(entries))
+			return nil
+		}
 		fmt.Fprintf(os.Stdout, "Generated %d test stubs (from %d backlog entries).\n", len(entries), len(entries))
 		return nil
 	},
+}
+
+func chooseScaffoldTargetPath(entry requiredTestBacklogEntry) string {
+	for _, s := range entry.Suggestions {
+		ss := filepath.ToSlash(strings.TrimSpace(s))
+		if !strings.HasPrefix(ss, "golang/") {
+			continue
+		}
+		if strings.HasSuffix(ss, "_test.go") {
+			return ss
+		}
+	}
+	for _, s := range entry.Suggestions {
+		ss := filepath.ToSlash(strings.TrimSpace(s))
+		if !strings.HasPrefix(ss, "golang/") {
+			continue
+		}
+		dir := filepath.ToSlash(filepath.Dir(ss))
+		if dir == "." || dir == "/" {
+			continue
+		}
+		return filepath.ToSlash(filepath.Join(dir, "awareness_required_tests_scaffold_test.go"))
+	}
+	return "golang/awareness/awareness_required_tests_scaffold_test.go"
+}
+
+func writeRequiredTestStub(repoRoot, relPath string, entry requiredTestBacklogEntry) (string, error) {
+	if strings.TrimSpace(relPath) == "" {
+		return "", fmt.Errorf("empty scaffold target path")
+	}
+	abs := filepath.Join(repoRoot, relPath)
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		return "", err
+	}
+	bodyBytes, err := os.ReadFile(abs)
+	exists := err == nil
+	if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+	body := string(bodyBytes)
+	if strings.Contains(body, "func "+entry.Test+"(") {
+		return "exists", nil
+	}
+
+	if !exists {
+		pkg := detectPackageName(filepath.Dir(abs))
+		header := "package " + pkg + "\n\nimport \"testing\"\n\n"
+		if err := os.WriteFile(abs, []byte(header), 0o644); err != nil {
+			return "", err
+		}
+		body = header
+	}
+	appendBlock := fmt.Sprintf("// refs: %s\nfunc %s(t *testing.T) {\n\tt.Skip(\"TODO: implement required awareness test\")\n}\n",
+		strings.Join(entry.Refs, ", "), entry.Test)
+	if !strings.HasSuffix(body, "\n") {
+		appendBlock = "\n" + appendBlock
+	} else {
+		appendBlock = "\n" + appendBlock
+	}
+	f, err := os.OpenFile(abs, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	if _, err := f.WriteString(appendBlock); err != nil {
+		return "", err
+	}
+	return "written", nil
+}
+
+func detectPackageName(dir string) string {
+	matches, err := filepath.Glob(filepath.Join(dir, "*.go"))
+	if err != nil {
+		return "main"
+	}
+	re := regexp.MustCompile(`^\s*package\s+([A-Za-z_][A-Za-z0-9_]*)\s*$`)
+	for _, m := range matches {
+		b, err := os.ReadFile(m)
+		if err != nil {
+			continue
+		}
+		sc := bufio.NewScanner(strings.NewReader(string(b)))
+		for sc.Scan() {
+			line := strings.TrimSpace(sc.Text())
+			if strings.HasPrefix(line, "//") || strings.HasPrefix(line, "/*") || line == "" {
+				continue
+			}
+			mm := re.FindStringSubmatch(line)
+			if len(mm) == 2 {
+				return mm[1]
+			}
+			break
+		}
+	}
+	return "main"
 }
 
 func buildRequiredTestBacklogEntries(ctx context.Context, g *graph.Graph, findings []enforce.Finding) ([]requiredTestBacklogEntry, error) {
@@ -788,6 +906,22 @@ func warningGroupCount(groups []enforce.FindingGroup, code string) int {
 	return 0
 }
 
+func exceedsRequiredTestNoPathThreshold(groups []enforce.FindingGroup, max int) (count int, exceeded bool) {
+	if max < 0 {
+		return 0, false
+	}
+	count = warningGroupCount(groups, "REQUIRED_TEST_NO_PATH")
+	return count, count > max
+}
+
+func exceedsTodoScaffoldSkipsThreshold(groups []enforce.FindingGroup, max int) (count int, exceeded bool) {
+	if max < 0 {
+		return 0, false
+	}
+	count = warningGroupCount(groups, enforce.CodeScaffoldTodoSkip)
+	return count, count > max
+}
+
 func readTrendEntries(path string) ([]warningTrendEntry, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -887,6 +1021,7 @@ func init() {
 	awarenessAuditCmd.Flags().StringVar(&enforceCfg.suppressionsFile, "suppressions", "", "Path to suppression YAML (default: docs/awareness/audit_suppressions.yaml)")
 	awarenessAuditCmd.Flags().BoolVar(&enforceCfg.showSuppressed, "show-suppressed", false, "Include full detail of suppressed findings in output")
 	awarenessAuditCmd.Flags().IntVar(&enforceCfg.maxRequiredTestNoPath, "max-required-test-no-path", -1, "Exit 1 if REQUIRED_TEST_NO_PATH warning count exceeds N (-1 disables)")
+	awarenessAuditCmd.Flags().IntVar(&enforceCfg.maxTodoScaffoldSkips, "max-todo-scaffold-skips", -1, "Exit 1 if SCAFFOLD_TODO_SKIP count exceeds N (-1 disables)")
 
 	// validate-annotations
 	awarenessValidateAnnotationsCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
@@ -935,6 +1070,7 @@ func init() {
 	awarenessRequiredTestsScaffoldCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
 	awarenessRequiredTestsScaffoldCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 	awarenessRequiredTestsScaffoldCmd.Flags().IntVar(&enforceCfg.scaffoldLimit, "limit", 20, "Max number of test stubs to generate (0 = all)")
+	awarenessRequiredTestsScaffoldCmd.Flags().BoolVar(&enforceCfg.scaffoldWrite, "write", false, "Write generated stubs into *_test.go files")
 	awarenessCmd.AddCommand(awarenessValidateContractsCmd)
 	awarenessCmd.AddCommand(awarenessGraphDriftCmd)
 	awarenessCmd.AddCommand(awarenessAnnotationCoverageCmd)

@@ -135,6 +135,23 @@ CREATE TABLE IF NOT EXISTS preflight_audits (
 
 CREATE INDEX IF NOT EXISTS idx_preflight_audits_ts  ON preflight_audits(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_preflight_audits_sha ON preflight_audits(git_sha);
+
+CREATE TABLE IF NOT EXISTS agent_usage_events (
+    id                TEXT PRIMARY KEY,
+    event_time        INTEGER NOT NULL DEFAULT 0,
+    agent             TEXT NOT NULL DEFAULT 'unknown',
+    session_id_hash   TEXT NOT NULL DEFAULT '',
+    repo              TEXT NOT NULL DEFAULT '',
+    tool              TEXT NOT NULL DEFAULT '',
+    operation         TEXT NOT NULL DEFAULT 'called',
+    result_status     TEXT NOT NULL DEFAULT '',
+    confidence        TEXT NOT NULL DEFAULT '',
+    task_type         TEXT NOT NULL DEFAULT '',
+    changed_files_count INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_usage_time ON agent_usage_events(event_time DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_usage_tool ON agent_usage_events(tool);
 `
 
 // Graph is the central awareness graph handle backed by SQLite.
