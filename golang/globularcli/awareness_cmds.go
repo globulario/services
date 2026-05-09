@@ -25,26 +25,33 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/globulario/services/golang/awareness/analysis"
+	"github.com/globulario/services/golang/awareness/extractors/clusterspec"
+	"github.com/globulario/services/golang/awareness/extractors/clusterstate"
 	"github.com/globulario/services/golang/awareness/extractors/docs"
 	"github.com/globulario/services/golang/awareness/extractors/goast"
 	"github.com/globulario/services/golang/awareness/extractors/manual"
 	"github.com/globulario/services/golang/awareness/extractors/packages"
 	"github.com/globulario/services/golang/awareness/extractors/proto"
+	"github.com/globulario/services/golang/awareness/extractors/scripts"
 	"github.com/globulario/services/golang/awareness/extractors/tests"
 	"github.com/globulario/services/golang/awareness/extractors/workflows"
 	"github.com/globulario/services/golang/awareness/graph"
 )
 
 var awareCfg = struct {
-	dbPath      string
-	repoPath    string
-	file        string
-	task        string
-	phase       string
-	packagePath string
-	commit      bool
-	explain     bool
-	cleanBuild  bool
+	dbPath          string
+	repoPath        string
+	file            string
+	task            string
+	phase           string
+	packagePath     string
+	commit          bool
+	explain         bool
+	cleanBuild      bool
+	packagesMetaDir string
+	extraScriptRoots []string
+	collectSystemd  bool
+	collectVarLib   bool
 }{}
 
 var awarenessCmd = &cobra.Command{
@@ -144,6 +151,55 @@ var awarenessBuildCmd = &cobra.Command{
 		} else {
 			for _, w := range warnings {
 				fmt.Fprintf(os.Stderr, "warning: docs extractor: %s\n", w)
+			}
+		}
+
+		// Package spec indexer — reads packages metadata repo (package.json + awareness.yaml).
+		if awareCfg.packagesMetaDir != "" {
+			fmt.Fprintf(os.Stdout, "Extracting package specs from %s ...\n", awareCfg.packagesMetaDir)
+			h, err := clusterspec.Extract(ctx, g, awareCfg.packagesMetaDir)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: clusterspec extractor: %v\n", err)
+			} else {
+				fmt.Fprintf(os.Stdout, "  clusterspec: status=%s nodes=%d\n", h.Status, h.NodesEmitted)
+			}
+		}
+
+		// Shell script crawler — indexes extra repos (installer scripts, Makefile, etc.).
+		if len(awareCfg.extraScriptRoots) > 0 {
+			fmt.Fprintf(os.Stdout, "Crawling extra script repos ...\n")
+			var roots []scripts.RepoRoot
+			for _, r := range awareCfg.extraScriptRoots {
+				roots = append(roots, scripts.RepoRoot{Path: r, SourceTier: "installer_script"})
+			}
+			healths, err := scripts.Extract(ctx, g, roots)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: scripts extractor: %v\n", err)
+			}
+			for _, h := range healths {
+				fmt.Fprintf(os.Stdout, "  scripts[%s]: status=%s nodes=%d\n", h.CollectorID, h.Status, h.NodesEmitted)
+			}
+		}
+
+		// systemd unit snapshot — reads /etc/systemd/system/globular-*.service.
+		if awareCfg.collectSystemd {
+			fmt.Fprintf(os.Stdout, "Collecting systemd unit state ...\n")
+			h, err := clusterstate.CollectSystemd(ctx, g)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: systemd collector: %v\n", err)
+			} else {
+				fmt.Fprintf(os.Stdout, "  systemd: status=%s nodes=%d\n", h.Status, h.NodesEmitted)
+			}
+		}
+
+		// /var/lib/globular metadata scanner — certs, receipts, minio.env.
+		if awareCfg.collectVarLib {
+			fmt.Fprintf(os.Stdout, "Scanning /var/lib/globular metadata ...\n")
+			h, err := clusterstate.CollectVarLib(ctx, g)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: varlib collector: %v\n", err)
+			} else {
+				fmt.Fprintf(os.Stdout, "  varlib: status=%s nodes=%d\n", h.Status, h.NodesEmitted)
 			}
 		}
 
@@ -678,6 +734,10 @@ func init() {
 	awarenessBuildCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db (default: .globular/awareness/graph.db in repo root)")
 	awarenessBuildCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root (default: auto-detected from git)")
 	awarenessBuildCmd.Flags().BoolVar(&awareCfg.cleanBuild, "clean", false, "Remove existing graph.db before building (required for edge correctness after YAML edits)")
+	awarenessBuildCmd.Flags().StringVar(&awareCfg.packagesMetaDir, "packages-meta", "", "Path to packages metadata repo (e.g. /path/to/packages/metadata)")
+	awarenessBuildCmd.Flags().StringArrayVar(&awareCfg.extraScriptRoots, "extra-scripts", nil, "Extra repo roots to crawl for shell scripts and Makefiles (repeatable)")
+	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectSystemd, "collect-systemd", false, "Collect systemd unit state from /etc/systemd/system/globular-*.service")
+	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectVarLib, "collect-var-lib", false, "Scan /var/lib/globular for PKI certs, receipts, and minio.env (never reads private keys)")
 
 	// Stats flags.
 	awarenessStatsCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")

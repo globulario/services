@@ -1606,3 +1606,412 @@ capability_gap_patterns:
       - "Added RecordAgentUsage(), AgentUsageEvent, AgentUsageSummary, QueryAgentUsageSummary() to graph/query.go"
       - "Added agent_usage section and buildAgentUsageSection() to health_pulse_tool.go"
     prevents_repeat_criticism: "agent_usage section in health_pulse surfaces skip rate — high skip rates trigger a warning alert."
+
+  - id: awareness.package_spec_indexer
+    priority: P0
+    keywords:
+      - package spec
+      - package kind
+      - package profiles
+      - package dependencies
+      - unit template
+      - template vars
+      - config.json
+      - package.json
+      - package indexer
+      - package spec indexer
+      - package coverage
+      - false positive package
+      - no_match package
+    title: "Awareness does not index package specs — package kind, profiles, deps, and unit templates are invisible"
+    criticism: "Awareness indexes Go code but not package specs (packages/ repo). Package kind, required profiles, dependencies, unit templates, and template variables are unknown to the graph. This causes NO_MATCH on package-related decisions and false positives in preflight."
+    why_it_matters: "Package specs define what gets installed on which nodes (profiles), what dependencies must exist, and what systemd units to expect. Without indexing them, awareness cannot reason about Day-1 convergence, profile compliance, or unit expectations."
+    requirement: "Add a package spec indexer that reads packages/<name>/package.json, config.json, and systemd/ templates from the packages/ repo. Index name, kind, profiles, deps, unit_templates, and template_vars as graph nodes with source_tier=package_spec."
+    implementation_plan:
+      - "Add golang/awareness/enforce/package_spec_indexer.go: walk packages/ repo directory"
+      - "Parse package.json for name, kind, profiles, deps, entrypoint"
+      - "Parse systemd/*.service template files for template vars ({{.Prefix}}, {{.NodeIP}}, etc.)"
+      - "Create graph nodes: Package(name), Kind(kind), Profile(p) for each required profile"
+      - "Create edges: Package→Kind, Package→Profile (requires), Package→Package (depends_on)"
+      - "Add source_tier=package_spec, freshness=file_mtime, scope=cluster to all nodes/edges"
+      - "Wire into graph rebuild via BuildOptions.PackagesRepo path"
+    tests_required:
+      - TestPackageSpecIndexer_ParsePackageJSON
+      - TestPackageSpecIndexer_ParseSystemdTemplateVars
+      - TestPackageSpecIndexer_EmitsKindNode
+      - TestPackageSpecIndexer_EmitsProfileEdges
+      - TestPackageSpecIndexer_MissingPackagesRepoSkipsGracefully
+    closure_condition: "After graph rebuild with packages/ repo configured, awareness.nearest('minio') returns nodes with source_tier=package_spec including kind, profiles=[core,storage], and deps."
+    knowledge_updates:
+      - target_file: services.yaml
+        entry: package_spec_source_tier
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness does not index package specs' once the indexer exists, emits source_tier=package_spec nodes, and nearest/preflight return package-sourced context."
+    status: open
+
+  - id: awareness.multi_repo_crawler
+    priority: P0
+    keywords:
+      - multi-repo
+      - installer script
+      - shell script
+      - bash script
+      - Makefile
+      - globular-installer
+      - packages repo
+      - Globular repo
+      - ensure-bootstrap
+      - script indexer
+      - cross-repo
+      - multi repo coverage
+    title: "Awareness only indexes the services/ repo — installer scripts, package scripts, and Globular/ code are invisible"
+    criticism: "Awareness crawls golang/ in the services/ repo only. Installer scripts (globular-installer/), package build scripts (packages/), Globular/ shared code, Makefiles, and shell scripts are not indexed. This leaves a large coverage gap for Day-0/Day-1 failure modes."
+    why_it_matters: "ensure-bootstrap-artifacts.sh and install_package_payload_step.go are where Day-0 bugs live (e.g. build_number=1 bootstrap bug). Without indexing them, awareness cannot detect issues in the full install pipeline."
+    requirement: "Add a multi-repo source crawler that indexes Go files, shell scripts (.sh), and Makefiles from packages/, globular-installer/, and Globular/ repos. Assign source_tier=installer_script or source_tier=shared_lib. Link symbols that match services/ graph nodes via cross-repo edges."
+    implementation_plan:
+      - "Add golang/awareness/enforce/multi_repo_crawler.go"
+      - "Accept []RepoRoot{Path, SourceTier, Include(glob patterns)} config"
+      - "Walk each root: index .go files as code nodes, .sh files as script nodes, Makefiles as build nodes"
+      - "For shell scripts: extract function names, variable assignments, significant commands (publish, install, sync)"
+      - "Create cross-repo edges: script→package when script references package name, installer→service when installer calls service RPC"
+      - "Add source_tier, repo_root, file_path to all nodes"
+      - "Wire into BuildOptions.ExtraRepos"
+    tests_required:
+      - TestMultiRepoCrawler_IndexesShellScripts
+      - TestMultiRepoCrawler_ExtractsScriptFunctions
+      - TestMultiRepoCrawler_CrossRepoEdgeToPackage
+      - TestMultiRepoCrawler_SkipsMissingRepoGracefully
+      - TestMultiRepoCrawler_SourceTierTagged
+    closure_condition: "After rebuild with packages/ and globular-installer/ configured, awareness.impact_file('ensure-bootstrap-artifacts.sh') returns at least 2 cross-repo impact nodes including affected package names."
+    knowledge_updates:
+      - target_file: services.yaml
+        entry: installer_script_source_tier
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness does not index installer scripts' once the multi-repo crawler indexes .sh files and produces cross-repo impact edges."
+    status: open
+
+  - id: awareness.repository_manifest_indexer
+    priority: P0
+    keywords:
+      - release-index
+      - release index
+      - BOM
+      - bill of materials
+      - artifact manifest
+      - build_number
+      - build_id
+      - artifact not published
+      - cosmetic drift
+      - dangerous drift
+      - build drift
+      - artifact checksum
+      - pinned artifact
+      - repository manifest
+    title: "Awareness does not index release-index.json — platform BOM and artifact identity are invisible"
+    criticism: "The release-index.json (platform BOM) contains the authoritative build_number, build_id, and checksum for every published artifact. Without indexing it, awareness cannot distinguish cosmetic build drift (same binary, different build_id) from dangerous drift (different checksum). It also cannot detect artifact_not_published mismatches."
+    why_it_matters: "Build drift warnings flood the doctor panel. Without artifact identity from the BOM, awareness cannot classify them as cosmetic vs. dangerous, causing unnecessary operator alarm and suppressing real signals."
+    requirement: "Add a repository manifest indexer that reads release-index.json and per-artifact manifests. Index artifact name, version, build_id, build_number, checksum, publish_state as graph nodes with source_tier=repository_manifest. Add drift classification edges: cosmetic_drift when checksum matches, dangerous_drift when checksum differs."
+    implementation_plan:
+      - "Add golang/awareness/enforce/repository_manifest_indexer.go"
+      - "Read release-index.json from configured path or repository MCP tool"
+      - "For each artifact: create Artifact(name, version) node with build_id, build_number, checksum, publish_state fields"
+      - "Create edges: Artifact→Platform(release_tag), Artifact→Package(name)"
+      - "Add drift classification: compare installed build_id vs. BOM build_id. Same checksum → cosmetic_drift. Different checksum → dangerous_drift."
+      - "Expose via preflight: if dangerous_drift detected → StatusNeedsApply. cosmetic_drift → info only."
+      - "Wire into BuildOptions.ReleaseIndexPath"
+    tests_required:
+      - TestRepositoryManifestIndexer_ParseReleaseIndex
+      - TestRepositoryManifestIndexer_ClassifiesCosmeticDrift
+      - TestRepositoryManifestIndexer_ClassifiesDangerousDrift
+      - TestRepositoryManifestIndexer_EmitsArtifactNodes
+      - TestRepositoryManifestIndexer_SkipsMissingManifest
+    closure_condition: "After rebuild, awareness.explain_node('artifact:workflow') returns build_id, build_number, checksum, publish_state. Preflight distinguishes cosmetic from dangerous drift."
+    knowledge_updates:
+      - target_file: invariants.yaml
+        entry: artifact_drift_classification
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness cannot classify build drift' once the manifest indexer exists and preflight surfaces cosmetic vs. dangerous drift."
+    status: open
+
+  - id: awareness.systemd_collector
+    priority: P0
+    keywords:
+      - systemd
+      - systemd unit
+      - active state
+      - substate
+      - unit file
+      - unit hash drift
+      - drop-in
+      - sidecar hash
+      - ExecStart
+      - globular service unit
+      - runtime unit
+      - systemd runtime
+      - systemd snapshot
+    title: "Awareness has no systemd unit runtime snapshot — unit state, ExecStart, and sidecar hashes are invisible"
+    criticism: "Awareness cannot query the running state of globular-*.service systemd units. ActiveState, SubState, ExecStart args, drop-in overrides, and sidecar SHA-256 hashes are not collected. This makes it impossible to join Installed state to Runtime state."
+    why_it_matters: "The 4-layer model requires Installed → Runtime join. Without systemd state, awareness can only confirm packages are installed (Layer 3) but cannot know if they are actually running (Layer 4). unit_hash_drift blocking Day-1 gate is invisible to awareness."
+    requirement: "Add a systemd runtime snapshot collector that reads globular-*.service unit files, queries systemctl status for ActiveState/SubState, reads drop-in overrides, and compares sidecar SHA-256 hashes. Expose via source_tier=systemd_runtime graph nodes."
+    implementation_plan:
+      - "Add golang/awareness/enforce/systemd_collector.go"
+      - "Walk /etc/systemd/system/globular-*.service files"
+      - "For each unit: read file content, compute SHA-256, compare to .sha256 sidecar"
+      - "Parse ExecStart, ExecStartPre lines and template vars"
+      - "Read drop-in directory /etc/systemd/system/<unit>.d/*.conf"
+      - "Call systemctl show <unit> for ActiveState, SubState, MainPID (via os/exec — node_agent only)"
+      - "Emit SystemdUnit(name) nodes with fields: active_state, sub_state, sidecar_match, dropin_count, exec_start"
+      - "Add source_tier=systemd_runtime, collected_at=timestamp to all nodes"
+      - "Edge: SystemdUnit→Package(name) where unit name matches package name"
+    tests_required:
+      - TestSystemdCollector_ParsesUnitFile
+      - TestSystemdCollector_DetectsSidecarMismatch
+      - TestSystemdCollector_ReadsDropInOverride
+      - TestSystemdCollector_EmitsActiveStateNode
+      - TestSystemdCollector_SkipsMissingUnitsGracefully
+    closure_condition: "After collection, awareness.explain_node('unit:globular-minio.service') returns active_state, sub_state, sidecar_match=true/false, exec_start, and dropin_count."
+    knowledge_updates:
+      - target_file: invariants.yaml
+        entry: systemd_unit_sidecar_must_match
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness cannot see systemd state' once the systemd collector exists and unit nodes carry ActiveState and sidecar_match fields."
+    status: open
+
+  - id: awareness.var_lib_scanner
+    priority: P0
+    keywords:
+      - var lib globular
+      - /var/lib/globular
+      - pki
+      - certificate expiry
+      - cert expiry
+      - SAN
+      - version marker
+      - minio env
+      - pinned artifacts
+      - installed metadata
+      - filesystem metadata
+      - cluster metadata
+    title: "Awareness cannot read /var/lib/globular — cert expiry, version markers, and installed metadata are invisible"
+    criticism: "Critical cluster metadata lives in /var/lib/globular/: PKI certs (expiry, SANs), version markers, minio.env config, pinned artifact receipts. Without scanning it, awareness cannot detect cert near-expiry, misconfigured template vars, or installation gaps."
+    why_it_matters: "A cert expiring in 3 days is a P0 finding. A minio.env with wrong NodeIP is a silent misconfiguration that causes unit_hash_drift. Version markers tell you what was actually installed vs. what the BOM says. All of this is invisible without /var/lib scanning."
+    requirement: "Add a /var/lib/globular metadata scanner that reads PKI cert expiry and SANs (NO private keys), version markers, minio.env, and pinned artifact receipts. NEVER read private keys, JWTs, or tokens. Emit source_tier=installed_metadata nodes."
+    implementation_plan:
+      - "Add golang/awareness/enforce/var_lib_scanner.go"
+      - "Walk /var/lib/globular/pki/issued/ for *.crt files ONLY (never *.key)"
+      - "For each cert: parse expiry (NotAfter), SANs, subject CN — emit CertNode(path, expiry, sans, days_remaining)"
+      - "Read /var/lib/globular/config/ for version markers and config files"
+      - "Read /etc/systemd/system/globular-minio.service.d/ for minio.env template var values"
+      - "Read /var/lib/globular/packages/receipts/ for installed artifact records (name, version, build_id, installed_at)"
+      - "SAFETY: skip any file ending in .key, _private, .token, .jwt, .pem (private)"
+      - "Emit nodes with source_tier=installed_metadata, freshness=file_mtime"
+      - "Add cross-layer edges: receipt→Artifact, CertNode→service that depends on cert"
+    tests_required:
+      - TestVarLibScanner_ParsesCertExpiry
+      - TestVarLibScanner_ParsesCertSANs
+      - TestVarLibScanner_SkipsPrivateKeys
+      - TestVarLibScanner_ParsesMinioEnvVars
+      - TestVarLibScanner_EmitsReceiptNodes
+    closure_condition: "After scan, awareness.explain_node('cert:/var/lib/globular/pki/issued/services/service.crt') returns expiry, sans, days_remaining. Private keys are never read."
+    knowledge_updates:
+      - target_file: invariants.yaml
+        entry: cert_expiry_must_be_monitored
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness cannot see cert expiry or installed metadata' once the var_lib scanner exists and cert nodes include days_remaining."
+    status: open
+
+  - id: awareness.etcd_snapshot_collector
+    priority: P1
+    keywords:
+      - etcd snapshot
+      - etcd desired state
+      - etcd keys
+      - desired service
+      - desired release
+      - node packages
+      - node status
+      - etcd collector
+      - cluster config
+      - etcd read-only
+    title: "Awareness cannot read etcd — desired state, installed packages, and node status are invisible"
+    criticism: "etcd holds the authoritative desired state (/globular/resources/DesiredService/), installed packages (/globular/nodes/{id}/packages/), and node status. Without reading it, awareness cannot join Desired → Installed layers or detect divergence between what should be installed and what is."
+    why_it_matters: "The core 4-layer model requires joining Layer 2 (Desired) to Layer 3 (Installed). Without etcd, awareness can only see Layer 3 from the node-agent heartbeat, not whether Layer 2 agrees. Desired/Installed divergence is the most common source of cluster instability."
+    requirement: "Add a read-only etcd snapshot collector that reads DesiredService, DesiredRelease, node packages, and node status keys. NEVER write to etcd. Emit source_tier=etcd_desired_state nodes. Add cross-layer edges connecting Desired → Installed → Runtime."
+    implementation_plan:
+      - "Add golang/awareness/enforce/etcd_collector.go"
+      - "Accept etcd endpoints from config (never hardcoded)"
+      - "Read /globular/resources/DesiredService/* → emit DesiredService(name, version, profiles) nodes"
+      - "Read /globular/resources/ServiceRelease/* → emit Release(name, build_id, version) nodes"
+      - "Read /globular/nodes/{id}/packages/* → emit InstalledPackage(node, name, version, build_id) nodes"
+      - "Read /globular/nodes/{id}/status → emit NodeStatus(node, healthy, last_heartbeat) nodes"
+      - "NEVER write to etcd — read-only client only"
+      - "Add cross-layer edges: DesiredService→InstalledPackage (desired_to_installed), InstalledPackage→SystemdUnit (installed_to_runtime)"
+      - "Detect and emit divergence edges when desired version != installed version"
+    tests_required:
+      - TestEtcdCollector_ReadsDesiredService
+      - TestEtcdCollector_ReadsInstalledPackages
+      - TestEtcdCollector_EmitsDivergenceEdge
+      - TestEtcdCollector_NeverWritesToEtcd
+      - TestEtcdCollector_SkipsOnConnectionFailure
+    closure_condition: "After collection, awareness.path('desired:minio','installed:minio') returns a path with edge type desired_to_installed. Divergence is flagged when versions differ."
+    knowledge_updates:
+      - target_file: invariants.yaml
+        entry: desired_installed_must_converge
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness cannot join Desired to Installed' once the etcd collector exists and cross-layer divergence edges are emitted."
+    status: open
+
+  - id: awareness.identity_normalization
+    priority: P1
+    keywords:
+      - identity normalization
+      - canonical identity
+      - node prefix
+      - package prefix
+      - service prefix
+      - unit prefix
+      - artifact prefix
+      - build prefix
+      - platform prefix
+      - cross-layer join
+      - node identity
+      - identity schema
+    title: "Cross-layer graph nodes use inconsistent identities — joins fail silently"
+    criticism: "Package nodes from package_spec, installed nodes from etcd, and unit nodes from systemd all refer to the same service by different names. Without canonical identity normalization, graph joins between layers produce NO_MATCH instead of cross-layer paths."
+    why_it_matters: "awareness.path('package:minio', 'unit:globular-minio.service') should return a path. Without normalization, the two nodes appear unrelated. Every cross-layer query degrades to NO_MATCH."
+    requirement: "Define canonical identity prefixes for all node types: package:<name>, service:<name>, unit:<name>.service, artifact:<name>@<version>, node:<id>, build:<build_id>, platform:<release_tag>. Apply normalization in all collectors. Add identity_alias edges when multiple names refer to the same entity."
+    implementation_plan:
+      - "Add golang/awareness/enforce/identity.go with NormalizeID(tier, raw) function"
+      - "Define canonical prefix per tier: package:, service:, unit:, artifact:, node:, build:, platform:"
+      - "Apply NormalizeID in all collectors: package_spec_indexer, systemd_collector, etcd_collector, var_lib_scanner"
+      - "When a legacy or variant name is found, emit identity_alias edge: alias→canonical"
+      - "graph.Nearest(), graph.Path(), graph.Neighborhood() all resolve aliases before querying"
+      - "Add node_type field to all graph nodes for tier-aware queries"
+    tests_required:
+      - TestIdentityNormalization_PackagePrefix
+      - TestIdentityNormalization_UnitPrefix
+      - TestIdentityNormalization_ArtifactPrefix
+      - TestIdentityNormalization_AliasResolution
+      - TestIdentityNormalization_CrossLayerJoin
+    closure_condition: "awareness.path('package:minio', 'unit:globular-minio.service') returns a non-empty path. awareness.nearest('minio') returns nodes from at least 3 source tiers."
+    knowledge_updates:
+      - target_file: design_patterns.yaml
+        entry: canonical_identity_prefixes
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'cross-layer joins fail' once NormalizeID is applied in all collectors and alias resolution is added to graph query functions."
+    status: open
+
+  - id: awareness.collector_health
+    priority: P1
+    keywords:
+      - collector health
+      - source tier health
+      - collector coverage
+      - preflight coverage
+      - source tier missing
+      - collector failure
+      - collection error
+      - coverage reporting
+      - collector status
+    title: "Preflight does not report which collectors ran and which failed — coverage blindness"
+    criticism: "When a collector fails (etcd unreachable, packages/ repo missing), awareness silently produces partial results. Preflight confidence shows medium without explaining which tiers are missing. Operators cannot distinguish 'clean' from 'unchecked'."
+    why_it_matters: "If the etcd collector fails, all Desired-state evidence is absent. A medium confidence preflight result looks the same whether etcd was checked or not. This is the coverage inversion problem at the collector level."
+    requirement: "Add CollectorHealth tracking to preflight output. For each registered collector, report: status (ok/skipped/error), source_tier, nodes_emitted, error_message. Preflight confidence must be degraded when critical P0 collectors fail."
+    implementation_plan:
+      - "Add CollectorHealth struct: CollectorID, SourceTier, Status, NodesEmitted, Error"
+      - "Each collector returns (nodes, CollectorHealth) from Collect()"
+      - "BuildOptions tracks []CollectorHealth after rebuild"
+      - "Preflight step: include collector_health[] in output"
+      - "Confidence degradation: if any P0 collector (package_spec, etcd, systemd) status=error → confidence downgrades to low"
+      - "health_pulse gains collector_health section"
+    tests_required:
+      - TestCollectorHealth_OKWhenAllCollectorsSucceed
+      - TestCollectorHealth_DegradedWhenP0CollectorFails
+      - TestCollectorHealth_SkippedWhenRepoMissing
+      - TestPreflightOutput_IncludesCollectorHealth
+      - TestHealthPulse_IncludesCollectorHealth
+    closure_condition: "Preflight output includes collector_health[] with status per collector. A missing packages/ repo produces status=skipped (not silent). A failed etcd collector degrades confidence to low."
+    knowledge_updates:
+      - target_file: invariants.yaml
+        entry: preflight_must_report_collector_health
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'preflight confidence is opaque' once collector_health[] is included and confidence degrades on P0 collector failure."
+    status: open
+
+  - id: awareness.cross_layer_invariants
+    priority: P1
+    keywords:
+      - cross-layer invariant
+      - desired installed mismatch
+      - installed runtime mismatch
+      - layer join invariant
+      - 4-layer invariant
+      - desired runtime join
+      - package unit mismatch
+      - profile compliance
+      - founding quorum invariant
+      - layer divergence
+    title: "Awareness has no cross-layer invariants — Desired→Installed→Runtime divergence is not detected"
+    criticism: "Awareness checks invariants within a single layer (e.g. Go code hard rules) but not across layers. A DesiredService with version X and an InstalledPackage with version Y on the same node is a cross-layer invariant violation that awareness currently cannot detect."
+    why_it_matters: "The most dangerous cluster states are cross-layer: desired says run version X, installed has version Y, systemd shows version X running (stale binary). Without cross-layer invariants, awareness cannot find these failure modes."
+    requirement: "Add 11 cross-layer invariants to invariants.yaml and wire them into scan_violations and preflight. Invariants cover: desired/installed version match, installed/runtime unit presence, profile/service compliance, founding quorum, cert SAN coverage, sidecar hash integrity, build_number sync, artifact publish state, drop-in consistency, template var resolution, and collector completeness."
+    implementation_plan:
+      - "Add cross_layer_invariants section to invariants.yaml with 11 entries"
+      - "Add CrossLayerCheck(graph) function in golang/awareness/enforce/ that joins nodes across source tiers"
+      - "For each invariant: query nodes from two tiers, compare fields, emit Violation if mismatch"
+      - "Wire CrossLayerCheck into scan_violations and preflight Step 19 (after collector health)"
+      - "Each violation includes: invariant_id, tier_a, tier_b, node_a, node_b, field, expected, actual, severity"
+    tests_required:
+      - TestCrossLayerInvariants_DesiredInstalledVersionMismatch
+      - TestCrossLayerInvariants_InstalledWithoutUnit
+      - TestCrossLayerInvariants_ProfileServiceCompliance
+      - TestCrossLayerInvariants_FoundingQuorumBelow3
+      - TestCrossLayerInvariants_CertSANMissing
+      - TestCrossLayerInvariants_SidecarHashMismatch
+    closure_condition: "scan_violations detects a DesiredService/InstalledPackage version mismatch as a cross_layer_invariant violation. preflight Step 19 reports 0 cross-layer violations on a healthy cluster."
+    knowledge_updates:
+      - target_file: invariants.yaml
+        entry: cross_layer_invariants_section
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness cannot detect cross-layer divergence' once CrossLayerCheck emits violations for all 11 invariant types."
+    status: open
+
+  - id: awareness.decision_information_separation
+    priority: P1
+    keywords:
+      - decision edge
+      - information edge
+      - edge weight
+      - graph separation
+      - decision path
+      - information path
+      - edge type
+      - decision vs information
+      - graph edge weight
+      - decision graph
+      - information graph
+    title: "Graph mixes decision edges and information edges — decision paths are polluted with low-signal links"
+    criticism: "Graph edges do not distinguish decision-relevant links (forbidden_action, required_test, causal_rule) from information links (references, mentions, similar_to). This pollutes decision paths with low-signal context and weakens preflight's top_decision_paths ranking."
+    why_it_matters: "When an agent queries top_decision_paths, it should get the shortest, highest-confidence causal path to the decision. Mixing information edges inflates path length and buries the real decision path in noise."
+    requirement: "Add edge_class field to all graph edges: decision (direct causal/forbidden/required), information (context/reference/similar). Add edge_weight 0.1–1.0. Decision-class edges weight 1.0, information-class edges weight 0.1. graph.Path() and graph.Nearest() must support class-filtered and weight-ranked queries."
+    implementation_plan:
+      - "Add EdgeClass type: decision | information to graph schema"
+      - "Add Weight float64 (0.1–1.0) to graph edge"
+      - "Migrate existing edge types: forbidden_action, required_test, causal_rule, blocks → decision. references, mentions, similar_to, related → information."
+      - "Update UpsertEdge() to accept EdgeClass and Weight"
+      - "Update graph.Path() to support class_filter=decision option"
+      - "Update graph.Nearest() to rank by cumulative edge weight when class_filter set"
+      - "decision_context tool: use class_filter=decision for top_decision_paths"
+    tests_required:
+      - TestEdgeClass_DecisionEdgeHighWeight
+      - TestEdgeClass_InformationEdgeLowWeight
+      - TestGraphPath_ClassFilteredDecisionOnly
+      - TestGraphNearest_WeightRankedResults
+      - TestDecisionContext_UsesDecisionClassFilter
+    closure_condition: "awareness.decision_context with class_filter=decision returns only decision-class edges in top_decision_paths. The same query without filter includes information edges. edge_weight is present on all edges."
+    knowledge_updates:
+      - target_file: design_patterns.yaml
+        entry: decision_information_edge_separation
+        operation: add
+    prevents_repeat_criticism: "Future reviews cannot say 'decision paths are polluted with information edges' once EdgeClass and Weight exist on all edges and decision_context uses class_filter=decision."
+    status: open
