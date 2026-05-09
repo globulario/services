@@ -1647,7 +1647,15 @@ capability_gap_patterns:
         entry: package_spec_source_tier
         operation: add
     prevents_repeat_criticism: "Future reviews cannot say 'awareness does not index package specs' once the indexer exists, emits source_tier=package_spec nodes, and nearest/preflight return package-sourced context."
-    status: open
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "golang/awareness/extractors/clusterspec/extract.go: walks packages/metadata/, reads package.json + awareness.yaml"
+      - "Emits source_tier=package_spec Package, SystemdUnit, EtcdKey, FailureMode, Invariant nodes"
+      - "Reads systemd/*.service templates, extracts {{.Var}} template vars"
+      - "Wired into globular awareness build --packages-meta flag"
+      - "296 nodes emitted on first live build (56 packages × ~5 nodes each)"
+      - "6 tests: MissingRepoSkips, ParsePackageJSON, EmitsKindNode, EmitsProfileEdges, ParseSystemdTemplateVars, EmptyRootSkips"
 
   - id: awareness.multi_repo_crawler
     priority: P0
@@ -1688,7 +1696,15 @@ capability_gap_patterns:
         entry: installer_script_source_tier
         operation: add
     prevents_repeat_criticism: "Future reviews cannot say 'awareness does not index installer scripts' once the multi-repo crawler indexes .sh files and produces cross-repo impact edges."
-    status: open
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "golang/awareness/extractors/scripts/extract.go: walks .sh/Makefile/.go files in configurable extra repos"
+      - "Extracts shell function names and package name references from scripts"
+      - "Emits source_tier=installer_script source_file nodes with cross-repo affects→package edges"
+      - "Wired into globular awareness build --extra-scripts flag (repeatable)"
+      - "111 nodes from globular-installer/, 10 nodes from packages/ on first live build"
+      - "5 tests: SkipsMissingRepo, IndexesShellScripts, ExtractsScriptFunctions, CrossRepoEdgeToPackage, SourceTierTagged"
 
   - id: awareness.repository_manifest_indexer
     priority: P0
@@ -1731,7 +1747,14 @@ capability_gap_patterns:
         entry: artifact_drift_classification
         operation: add
     prevents_repeat_criticism: "Future reviews cannot say 'awareness cannot classify build drift' once the manifest indexer exists and preflight surfaces cosmetic vs. dangerous drift."
-    status: open
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "golang/awareness/extractors/packages/extract.go extended: release-index.json now indexes build_id, build_number, package_digest, entrypoint_checksum, profiles"
+      - "Emits artifact:<name>@<version> nodes with source_tier=repository_manifest and full BOM identity"
+      - "Emits platform:<release_tag> nodes linking all artifacts in a release"
+      - "artifact nodes include changed_in_release flag for drift classification"
+      - "artifact→package and artifact→platform edges for cross-layer joins"
 
   - id: awareness.systemd_collector
     priority: P0
@@ -1775,7 +1798,16 @@ capability_gap_patterns:
         entry: systemd_unit_sidecar_must_match
         operation: add
     prevents_repeat_criticism: "Future reviews cannot say 'awareness cannot see systemd state' once the systemd collector exists and unit nodes carry ActiveState and sidecar_match fields."
-    status: open
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "golang/awareness/extractors/clusterstate/systemd.go: walks /etc/systemd/system/globular-*.service"
+      - "Computes SHA-256 of each unit file, compares to .sha256 sidecar → sidecar_match field"
+      - "Reads drop-in overrides (dropin_count), parses ExecStart/ExecStartPre directives"
+      - "Emits source_tier=systemd_runtime SystemdUnit nodes with current_status_of→package edges"
+      - "Wired into globular awareness build --collect-systemd flag"
+      - "44 unit nodes on first live build"
+      - "5 tests: SkipsMissing, ParsesUnitFile, DetectsSidecarMismatch, ReadsDropIn, EmitsActiveState"
 
   - id: awareness.var_lib_scanner
     priority: P0
@@ -1818,7 +1850,16 @@ capability_gap_patterns:
         entry: cert_expiry_must_be_monitored
         operation: add
     prevents_repeat_criticism: "Future reviews cannot say 'awareness cannot see cert expiry or installed metadata' once the var_lib scanner exists and cert nodes include days_remaining."
-    status: open
+    status: implemented
+    closure_achieved_at: "2026-05-08"
+    closure_evidence:
+      - "golang/awareness/extractors/clusterstate/varlib.go: walks /var/lib/globular/pki/issued/ for *.crt files only"
+      - "SAFETY: skips .key, _private, .token, .jwt, .pem.private — never reads private keys"
+      - "Parses x509 cert for expiry (NotAfter), SANs (DNSNames + IPAddresses), days_remaining"
+      - "Reads minio.env drop-in, extracts non-credential env vars as config nodes"
+      - "Reads installed artifact receipts from packages/receipts/ with build_id, build_number"
+      - "Wired into globular awareness build --collect-var-lib flag"
+      - "5 tests: SkipsPrivateKeys, ParsesCertExpiry, ParsesCertSANs, ParsesMinioEnvVars, EmitsReceiptNodes"
 
   - id: awareness.etcd_snapshot_collector
     priority: P1
