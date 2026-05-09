@@ -85,6 +85,9 @@ func registerAllTools(s *server) {
 	if g.Awareness {
 		registerAwarenessTools(s) // also registers new tools internally
 	}
+	if g.Aggregator {
+		registerAggregatorTools(s)
+	}
 	// Always-available tools.
 	registerLogRingTools(s)
 	registerPackageTools(s)

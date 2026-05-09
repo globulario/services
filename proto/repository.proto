@@ -14,6 +14,7 @@ enum ArtifactKind {
   SUBSYSTEM = 4;
   INFRASTRUCTURE = 5;
   COMMAND = 6;             // CLI tools (ffmpeg, rclone, restic, mc, etc.)
+  AWARENESS_BUNDLE = 7;   // compiled awareness graph + YAML knowledge base — distributed as a release artifact
 }
 
 // ArtifactChannel controls which release tier an artifact belongs to.

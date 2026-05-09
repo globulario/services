@@ -99,6 +99,7 @@ type ToolGroupConfig struct {
 	Awareness   bool `json:"awareness"`   // default true (awareness graph tools)
 	Auth        bool `json:"auth"`        // default false (deferred)
 	DNS         bool `json:"dns"`         // default false (deferred)
+	Aggregator  bool `json:"aggregator"`  // default true (cluster MCP aggregator)
 }
 
 // Duration wraps time.Duration for JSON marshal/unmarshal.
@@ -165,6 +166,7 @@ func defaultConfig() *MCPConfig {
 			Awareness:   true,
 			Auth:        false, // deferred
 			DNS:         false, // deferred
+			Aggregator:  true,
 		},
 		FileAllowedRoots:          []string{"/users", "/applications", "/var/lib/globular/webroot", "/var/lib/globular/data/files"},
 		PersistenceAllowedConns:   []string{},
@@ -251,6 +253,7 @@ func applyToolGroupDefaults(rawJSON []byte, cfg *MCPConfig) {
 		"etcd":       &cfg.ToolGroups.Etcd,
 		"monitoring": &cfg.ToolGroups.Monitoring,
 		"awareness":  &cfg.ToolGroups.Awareness,
+		"aggregator": &cfg.ToolGroups.Aggregator,
 	}
 
 	updated := false

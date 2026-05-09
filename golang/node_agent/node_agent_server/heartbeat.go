@@ -173,6 +173,11 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			withOpTimeout(10*time.Second, srv.ensureScyllaManagerAgentAuthToken)
 			withOpTimeout(30*time.Second, srv.importProvisionalPackages)
 			withOpTimeout(15*time.Second, srv.reconcileDiskInventory)
+			// Fetch awareness bundle if not already installed or stale.
+			// Non-blocking: any failure is logged and retried next cycle.
+			withOpTimeout(5*time.Minute, func(ctx context.Context) {
+				FetchAndInstallAwarenessBundle(ctx)
+			})
 		case <-rediscoverTicker.C:
 			shouldRediscover := srv.controllerEndpoint == "" ||
 				srv.controllerConnState == ConnStateDegraded ||
@@ -716,6 +721,12 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 			continue
 		}
 
+		// AWARENESS_BUNDLE (kind=7) is installed separately and not tracked
+		// as an installed package in etcd — skip it here.
+		if IsAwarenessBundleRef(int32(ref.GetKind())) {
+			continue
+		}
+
 		kind := "SERVICE"
 		switch ref.GetKind() {
 		case 2: // APPLICATION
@@ -988,6 +999,12 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 	}
 	statusReq.InstalledVersions = make(map[string]string)
 	statusReq.InstalledBuildIds = make(map[string]string)
+
+	// Report installed awareness bundle build_id so the controller can advance
+	// the bootstrap phase machine past awareness_ready.
+	if buildID := LoadInstalledAwarenessBuildID(); buildID != "" {
+		statusReq.InstalledBuildIds["awareness_bundle"] = buildID
+	}
 
 	// Phase 1: local discovery (systemd units, version markers, config files).
 	// Only report authoritative (ManagedInstalled) observations. Non-authoritative

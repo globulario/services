@@ -1526,3 +1526,247 @@ invariants:
       required_tests:
         - TestFileServiceTLSIdentityMatchesRegistry
         - TestFileClientUsesResolvedServerName
+
+    - id: day1.awareness_bundle_required
+      title: A node must not reach workload_ready without a verified awareness bundle matching the active release
+      severity: critical
+      status: active
+      summary: |
+        The awareness bundle (kind=AWARENESS_BUNDLE) is a compiled release artifact containing
+        the awareness graph.db, YAML knowledge files (services, failure modes, invariants,
+        guardrails), and failuregraph seeds. It is built once on the release machine and
+        distributed through the repository — same authority chain as service packages.
+
+        A joining node must fetch and install the bundle before advancing past the
+        awareness_ready bootstrap phase. MCP reads the graph from the installed bundle
+        (/var/lib/globular/awareness/current/graph.db). Without the bundle, MCP operates
+        in degraded mode and cannot classify failures or run architecture-sensitive preflight.
+
+        The controller enforces this gate: if the bundle is not installed within the
+        bootstrapPhaseTimeout window, the node advances anyway (degraded, not blocked) to
+        avoid making awareness a hard cluster dependency. The gap is recorded and surfaced
+        via health_pulse as AWARENESS_BUNDLE_MISSING.
+      protects:
+        state:
+          - /globular/nodes/{node_id}/packages/AWARENESS_BUNDLE/globular-awareness-bundle
+          - /var/lib/globular/awareness/current/manifest.json
+        files:
+          - golang/cluster_controller/cluster_controller_server/bootstrap_phases.go
+          - golang/cluster_controller/cluster_controller_server/state.go
+          - golang/node_agent/node_agent_server/awareness_bundle.go
+          - golang/node_agent/node_agent_server/heartbeat.go
+          - golang/mcp/tools_awareness.go
+        symbols:
+          - BootstrapAwarenessReady
+          - FetchAndInstallAwarenessBundle
+          - LoadInstalledAwarenessBuildID
+          - bootstrapAwarenessKey
+      enforcement: |
+        - Node-agent fetches the latest AWARENESS_BUNDLE from the repository every 5 minutes
+          (syncTicker) and installs it to /usr/local/share/globular/awareness/<build_id>/.
+        - Node-agent reports installed build_id in InstalledBuildIds["awareness_bundle"].
+        - Controller waits for InstalledBuildIds["awareness_bundle"] != "" at awareness_ready.
+        - MCP prefers /var/lib/globular/awareness/current/graph.db (bundle path) over legacy paths.
+        - Phase times out after bootstrapPhaseTimeout and advances with degraded awareness.
+      forbidden_fixes:
+        - skip_awareness_ready_phase_entirely
+        - hardcode_graph_db_path_on_non_dev_node
+        - treat_empty_installed_build_ids_awareness_bundle_as_ok
+        - load_graph_from_repo_checkout_on_cluster_node
+        - merge_compiled_knowledge_with_runtime_evidence_in_same_directory
+      required_tests:
+        - TestAwarenessBundleInstallSetsCurrentSymlink
+        - TestHeartbeatReportsAwarenessBuildID
+        - TestBootstrapAwarenessReadyAdvancesOnBuildID
+        - TestBootstrapAwarenessReadyTimesOutGracefully
+        - TestMCPLoadsBundlePathFirst
+
+    - id: day1.scylla_dependency_gate
+      status: active
+      severity: critical
+      summary: >
+        A node must not be marked WORKLOAD_READY or DAY1_COMPLETE while Scylla is expected
+        on that node but not locally ready. The evidence pipeline (awareness/evidence package)
+        classifies this state as JOINED_BUT_DEPENDENCY_BLOCKED and blocks further Day-1 progression.
+      rationale: |
+        ScyllaDB is the metadata backend for workflow, event, resource, and repository services.
+        If Scylla is not ready, all four subsystems will fail on first use. Marking the node
+        workload-ready before Scylla is stable causes silent, hard-to-diagnose cascading failures.
+        The awareness evidence classifier enforces this gate locally so MCP can surface the
+        exact blocker without requiring cluster connectivity.
+
+        Evidence sources checked:
+          - systemd ActiveState for scylla-server.service
+          - port 9042 listener state
+          - SCYLLA_CQL_UNREACHABLE RuntimeFact from the normalizer
+
+        Classification: JOINED_BUT_DEPENDENCY_BLOCKED
+      protects:
+        state:
+          - /var/lib/globular/awareness/runtime/latest_snapshot.json
+          - /var/lib/globular/awareness/runtime/facts.jsonl
+        files:
+          - golang/awareness/evidence/classifier.go
+          - golang/awareness/evidence/normalizer.go
+          - golang/awareness/evidence/day1.go
+          - golang/mcp/tools_awareness_evidence.go
+        symbols:
+          - Classifier.Classify
+          - Normalizer.Normalize
+          - Day1Verdict
+          - LevelScyllaReady
+          - LevelWorkloadReady
+          - LevelDay1Complete
+          - ClassJoinedButDependencyBlocked
+      enforcement: |
+        - Classifier sets Readiness[LevelScyllaReady]=false when SCYLLA_CQL_UNREACHABLE is present.
+        - Classifier sets Readiness[LevelWorkloadReady]=false when Scylla is not ready.
+        - Classifier sets Readiness[LevelDay1Complete]=false when Scylla is not ready.
+        - Verdict is BLOCK with Classification=JOINED_BUT_DEPENDENCY_BLOCKED.
+        - MCP tool awareness.day1_classify_node surfaces this verdict.
+        - Controller must not advance past awareness_ready to workload_ready on a BLOCK verdict.
+      forbidden_fixes:
+        - mark_node_day1_complete_before_scylla_ready
+        - dispatch_scylla_backed_workloads_while_classification_is_joined_but_dependency_blocked
+        - retry_dependent_services_indefinitely_without_checking_scylla_gate
+        - wipe_scylla_data_automatically
+        - skip_scylla_port_check_in_classifier
+      required_tests:
+        - TestClassifierBlocksWhenScyllaFailed
+        - TestClassifierBlocksWhenScyllaPortClosed
+        - TestNormalizerEmitsScyllaCQLUnreachableOnFailedUnit
+        - TestDay1ClassifyNodeMCPToolReturnsBLOCKForScyllaDown
+        - TestAwarenessBundleMissingClassificationOnFirstJoin
+
+    - id: awareness.auto_install_requires_verification
+      title: A node may auto-install a missing awareness bundle only when the candidate matches the active release-index and passes integrity verification
+      severity: critical
+      status: active
+      summary: |
+        Phase C/D contract for the awareness bundle subsystem. Runtime nodes
+        may detect missing/stale/mismatched bundles and auto-fetch from
+        trusted cluster sources, but they MUST NOT install anything that
+        does not exactly match the active release-index version + build_id,
+        does not pass tar-safety + sha256 verification, and was not pulled
+        over a TLS channel verified against the cluster CA.
+
+        "Automatic ensure, not automatic trust." The node may keep trying
+        sources with bounded backoff while it stays in
+        AWARENESS_BUNDLE_MISSING / STALE / MISMATCH, but every install path
+        flows through the same set of safety checks. There is no fast-path
+        bypass for emergency installs.
+      protects:
+        state:
+            - /var/lib/globular/awareness/current
+            - /var/lib/globular/awareness/installed/<version>/<build_id>/
+            - /globular/mcp/nodes/<node-id>           # peer registry — used for source discovery
+        files:
+            - golang/awareness/bundlesync/verify.go
+            - golang/awareness/bundlesync/tarsafe.go
+            - golang/awareness/bundlesync/install.go
+            - golang/awareness/bundlesync/pull.go
+            - golang/awareness/bundlesync/discovery.go
+            - golang/awareness/bundlesync/ensure.go
+            - golang/awareness/bundlesync/freshness.go
+            - golang/awareness/evidence/classifier.go
+            - golang/awareness/evidence/normalizer.go
+            - golang/mcp/tools_awareness_evidence.go
+            - golang/mcp/tools_awareness_bundle_serve.go
+            - golang/mcp/tools_awareness_bundle_freshness.go
+            - golang/globularcli/awareness_sync_cmds.go
+        symbols:
+            - VerifyBundle
+            - VerifyManifest
+            - VerifyBundleSHA256
+            - ValidateTarSafe
+            - ExtractTarSafe
+            - InstallBundle
+            - PullBundle
+            - CheckAwarenessFreshness
+            - DiscoverSources
+            - EnsureAwarenessBundle
+            - EnsureLoop
+            - LevelAwarenessReady
+            - ClassAwarenessBundleMissing
+            - ClassAwarenessBundleMismatch
+            - ClassAwarenessBundleStale
+            - ClassAwarenessBundleSchemaUnsupported
+            - ClassAwarenessBundleVerifyFailed
+            - ClassAwarenessBundleSourceUnavailable
+      enforcement: |
+        - VerifyBundle runs manifest verification, tar-safety scan, and
+          sha256 verification before any filesystem mutation outside staging.
+        - PullBundle requires a non-nil ClusterCAPool. Nil pool returns
+          ErrPeerTLSUnverified before any network call. There is no
+          InsecureSkipVerify path for authoritative bundle installs.
+        - InstallBundle re-runs Verify before extracting. Extraction goes
+          to a unique staging dir; only after validateExtracted passes does
+          the staging tree atomically rename into the immutable versioned
+          path; only after that does the current symlink switch via tmp-then-
+          rename. Crash between rename and symlink swap is recoverable
+          (idempotent re-run completes the swap).
+        - ExtractTarSafe re-classifies every entry per ValidateTarSafe rules
+          during extraction. First unsafe entry stops extraction and removes
+          the staging tree.
+        - DiscoverSources filters peers by build_id match (and optional
+          cluster_id, recency, RUNNING status) before they are even tried.
+        - EnsureAwarenessBundle never inherits trust from a peer's claim;
+          PullBundle re-verifies the manifest against the caller's expected
+          (version, build_id) regardless of what discovery selected.
+        - Classifier.Classify sets Readiness[LevelAwarenessReady]=false when
+          the bundle is missing, stale, mismatched, schema-unsupported, or
+          verification-failed. Architecture-sensitive classifications
+          (SCYLLA_NOT_READY, ETCD_NOT_READY, etc.) are checked AFTER the
+          bundle gates; a stale graph cannot classify a runtime fault.
+        - DAY1_COMPLETE depends on AWARENESS_READY: a node never reports
+          DAY1_COMPLETE while the bundle is anything other than READY.
+      forbidden_fixes:
+        - install_bundle_whose_build_id_differs_from_release_index
+        - install_bundle_with_unsupported_schema_version
+        - skip_sha256_verification_to_recover_a_pull
+        - install_bundle_pulled_over_unverified_tls
+        - extract_tar_entries_with_absolute_paths_or_traversal
+        - mark_awareness_ready_after_failed_verification
+        - mark_day1_complete_with_stale_or_missing_bundle
+        - rebuild_graph_on_runtime_node_to_recover_from_stale
+        - bypass_atomic_install_to_speed_up_recovery
+        - delete_prior_active_bundle_on_install_to_save_disk
+        - treat_a_node_serving_a_bundle_as_proof_the_bundle_is_trusted
+      required_tests:
+        - TestValidBundlePasses
+        - TestWrongVersionFails
+        - TestWrongBuildIDFails
+        - TestWrongSHA256Fails
+        - TestUnsupportedSchemaFails
+        - TestTarTraversalFails
+        - TestAbsoluteTarPathFails
+        - TestSymlinkEscapeFails
+        - TestDeviceFileFails
+        - TestExistingCurrentUntouchedOnFailure
+        - TestInstallBundleFreshInstall
+        - TestInstallBundleIdempotentReinstall
+        - TestInstallBundleVerifyFailureNoInstall
+        - TestInstallBundleUnsafeTarEntryNoInstall
+        - TestInstallBundleRecoversFromCrashAfterRename
+        - TestPullBundleHappyPath
+        - TestPullBundleRejectsWrongBuildID
+        - TestPullBundleRejectsUntrustedTLS
+        - TestPullBundleRejectsSHA256Mismatch
+        - TestPullBundleRequiresClusterCAPool
+        - TestPullBundleRejectsUnsafeTar
+        - TestPullBundleRejectsSchemaUnsupported
+        - TestEnsureLocalCacheFastPath
+        - TestEnsureSinglePeerSucceeds
+        - TestEnsureSequentialFallback
+        - TestEnsureAllPeersFail
+        - TestEnsureNoCandidates
+        - TestSpec1_MissingBundleAutoSyncFromTrustedPeer
+        - TestSpec2_WrongBuildIDRejected
+        - TestSpec3_UntrustedTLSSourceRejected
+        - TestSpec6_UnsafeTarRejected
+        - TestSpec7_InstallIsAtomic
+        - TestSpec8_SyncCommandEndToEnd
+        - TestDay1RefusesReadyWhenBundleMissing
+        - TestDay1RefusesReadyWhenBundleStale
+        - TestDay1RefusesReadyWhenBundleMismatched
+        - TestArchitectureClassificationBlockedByStaleBundle

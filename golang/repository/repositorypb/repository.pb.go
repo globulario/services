@@ -33,6 +33,7 @@ const (
 	ArtifactKind_SUBSYSTEM                 ArtifactKind = 4
 	ArtifactKind_INFRASTRUCTURE            ArtifactKind = 5
 	ArtifactKind_COMMAND                   ArtifactKind = 6 // CLI tools (ffmpeg, rclone, restic, mc, etc.)
+	ArtifactKind_AWARENESS_BUNDLE          ArtifactKind = 7 // compiled awareness graph + YAML knowledge base
 )
 
 // Enum value maps for ArtifactKind.
@@ -45,6 +46,7 @@ var (
 		4: "SUBSYSTEM",
 		5: "INFRASTRUCTURE",
 		6: "COMMAND",
+		7: "AWARENESS_BUNDLE",
 	}
 	ArtifactKind_value = map[string]int32{
 		"ARTIFACT_KIND_UNSPECIFIED": 0,
@@ -54,6 +56,7 @@ var (
 		"SUBSYSTEM":                 4,
 		"INFRASTRUCTURE":            5,
 		"COMMAND":                   6,
+		"AWARENESS_BUNDLE":          7,
 	}
 )
 

@@ -178,13 +178,40 @@ func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter ev
 			}
 			node.BlockedReason = ""
 			node.BlockedDetails = ""
-			if nodeNeedsStorageJoin(node) {
-				node.BootstrapPhase = BootstrapStorageJoining
-				node.BootstrapStartedAt = now
+			// Advance to awareness_ready — node-agent will fetch the awareness bundle
+			// and report its build_id in installed_build_ids["awareness_bundle"].
+			node.BootstrapPhase = BootstrapAwarenessReady
+			node.BootstrapStartedAt = now
+			node.BootstrapError = ""
+			dirty = true
+
+		case BootstrapAwarenessReady:
+			// Wait for node-agent to fetch and install the awareness bundle.
+			// The node-agent autonomously fetches the latest AWARENESS_BUNDLE from
+			// the repository and reports its build_id in InstalledBuildIDs.
+			// If no awareness bundle has been published yet, this phase times out
+			// gracefully and advances — the bundle is not a hard cluster dependency.
+			if node.InstalledBuildIDs[bootstrapAwarenessKey] != "" {
+				node.BlockedReason = ""
+				node.BlockedDetails = ""
 				node.BootstrapError = ""
+				if nodeNeedsStorageJoin(node) {
+					node.BootstrapPhase = BootstrapStorageJoining
+				} else {
+					node.BootstrapPhase = BootstrapWorkloadReady
+				}
+				node.BootstrapStartedAt = now
 				dirty = true
-			} else {
-				node.BootstrapPhase = BootstrapWorkloadReady
+			} else if phaseTimedOut(node, now) {
+				// No awareness bundle available — log and continue without it.
+				// The node is not blocked; it simply operates with a degraded awareness graph.
+				log.Printf("bootstrap: node %s (%s) awareness bundle not available — advancing without it",
+					node.NodeID, node.Identity.Hostname)
+				if nodeNeedsStorageJoin(node) {
+					node.BootstrapPhase = BootstrapStorageJoining
+				} else {
+					node.BootstrapPhase = BootstrapWorkloadReady
+				}
 				node.BootstrapStartedAt = now
 				node.BootstrapError = ""
 				dirty = true
@@ -284,11 +311,10 @@ func advancePastXds(node *nodeState, now time.Time) BootstrapPhase {
 }
 
 // advancePastEnvoy returns the next phase after skipping Envoy.
+// Routes through awareness_ready so the bundle fetch runs even on nodes
+// without Envoy/gateway profile.
 func advancePastEnvoy(node *nodeState) BootstrapPhase {
-	if nodeNeedsStorageJoin(node) {
-		return BootstrapStorageJoining
-	}
-	return BootstrapWorkloadReady
+	return BootstrapAwarenessReady
 }
 
 // --- Profile and unit helpers ---

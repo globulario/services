@@ -37,12 +37,26 @@ func registerAwarenessTools(s *server) {
 
 	dbPath := cfg.DBPath
 	if dbPath == "" {
-		// Prefer system install path; fall back to repo-relative for dev mode.
-		const systemDir = "/var/lib/globular/awareness"
-		if _, err := os.Stat(systemDir); err == nil {
-			dbPath = systemDir + "/graph.db"
+		// Resolution order (most authoritative first):
+		// 1. /var/lib/globular/awareness/current/graph.db  — active release bundle (symlink)
+		// 2. /var/lib/globular/awareness/graph.db           — legacy system build
+		// 3. <repoRoot>/.globular/awareness/graph.db        — dev-machine fallback
+		const bundlePath = "/var/lib/globular/awareness/current/graph.db"
+		const systemPath = "/var/lib/globular/awareness/graph.db"
+		if _, err := os.Stat(bundlePath); err == nil {
+			dbPath = bundlePath
+		} else if _, err := os.Stat(systemPath); err == nil {
+			dbPath = systemPath
 		} else if repoRoot != "" {
 			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+		}
+	}
+
+	// Prefer docs dir from the installed bundle, then from the repo checkout.
+	if docsDir == "" || !dirExists(docsDir) {
+		const bundleDocsDir = "/var/lib/globular/awareness/current/docs"
+		if dirExists(bundleDocsDir) {
+			docsDir = bundleDocsDir
 		}
 	}
 
@@ -98,6 +112,17 @@ func registerAwarenessTools(s *server) {
 	registerAwarenessCoordinationTools(s, st)
 	registerAwarenessFailureTools(s, st)
 	registerAwarenessFailureLearningTools(s, st)
+	registerAwarenessEvidenceTools(s, st)
+	// Phase B serve tools: independent of the awareness graph state, they
+	// only read /var/lib/globular/awareness/current. Registered here so
+	// they ship with the rest of the awareness tool group.
+	registerAwarenessBundleServeTools(s)
+}
+
+// dirExists returns true if path exists and is a directory.
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 // awarGitRoot returns the git repository root via git rev-parse.

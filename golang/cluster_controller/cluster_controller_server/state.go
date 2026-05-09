@@ -156,8 +156,9 @@ const (
 	BootstrapEtcdReady      BootstrapPhase = "etcd_ready"      // Phase 3: etcd verified, discovery live
 	BootstrapXdsReady       BootstrapPhase = "xds_ready"       // Phase 4: xDS connected to etcd
 	BootstrapEnvoyReady     BootstrapPhase = "envoy_ready"     // Phase 5: Envoy healthy
-	BootstrapWorkloadReady  BootstrapPhase = "workload_ready"  // Phase 6: normal service reconcile
-	BootstrapStorageJoining BootstrapPhase = "storage_joining" // Phase 7: optional storage join
+	BootstrapAwarenessReady BootstrapPhase = "awareness_ready"  // Phase 6: awareness bundle installed and verified
+	BootstrapWorkloadReady  BootstrapPhase = "workload_ready"   // Phase 7: normal service reconcile
+	BootstrapStorageJoining BootstrapPhase = "storage_joining"  // Phase 8: optional storage join
 	BootstrapFailed         BootstrapPhase = "bootstrap_failed"
 )
 
@@ -166,6 +167,10 @@ const (
 func bootstrapPhaseReady(phase BootstrapPhase) bool {
 	return phase == BootstrapNone || phase == BootstrapWorkloadReady || phase == BootstrapStorageJoining
 }
+
+// bootstrapAwarenessKey is the key used in InstalledBuildIDs to report the
+// installed awareness bundle build_id.
+const bootstrapAwarenessKey = "awareness_bundle"
 
 // bootstrapInfraReady returns true if the node's infra mesh is up (Envoy is
 // active) and control-plane-critical workloads may be dispatched. This is a
@@ -176,6 +181,7 @@ func bootstrapInfraReady(phase BootstrapPhase) bool {
 	return phase == BootstrapNone ||
 		phase == BootstrapWorkloadReady ||
 		phase == BootstrapStorageJoining ||
+		phase == BootstrapAwarenessReady ||
 		phase == BootstrapEnvoyReady
 }
 

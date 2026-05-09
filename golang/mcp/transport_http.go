@@ -293,6 +293,12 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 		s.handleStreamablePost(w, r)
 	})
 
+	// Awareness bundle stream endpoint (Phase B). Serves only the active
+	// bundle at /var/lib/globular/awareness/current/bundle.tar.gz as
+	// application/octet-stream — never base64 in JSON.
+	mux.HandleFunc(awarenessBundleStreamPath, s.awarenessBundleHTTPHandler)
+	mux.HandleFunc(awarenessBundleManifestPath, s.awarenessManifestHTTPHandler)
+
 	// Health endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -354,6 +360,13 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 		scheme = "https"
 	}
 	updateMCPJsonFiles(actualPort, scheme, advertiseHost)
+
+	// Publish this node's MCP endpoint to /globular/mcp/nodes/<node-id> so the
+	// cluster aggregator can find us with the actual port (not just the canonical 10260).
+	// Only when the aggregator group is enabled — otherwise we don't pretend to be discoverable.
+	if s.cfg.ToolGroups.Aggregator {
+		publishMCPNodeRegistry(ctx, scheme, advertiseHost, actualPort)
+	}
 
 	// Signal readiness to systemd and start the watchdog loop.
 	// No-op when NOTIFY_SOCKET is not set (Type=simple or non-systemd envs).
