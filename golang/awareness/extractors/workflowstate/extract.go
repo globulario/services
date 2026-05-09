@@ -163,7 +163,26 @@ func Collect(ctx context.Context, g *graph.Graph, factory GRPCConnFactory, docsA
 	diagResults := diagnoseRuns(ctx, g, runs, docsAwarenessDir, now)
 	health.NodesEmitted += diagResults.nodesEmitted
 
-	// Run incident candidate generation.
+	// Collect step proof (receipts) via ListStepOutcomes for each unique workflow.
+	wfNames := uniqueWorkflowNames(runs)
+	for _, wfName := range wfNames {
+		n, warnings := CollectStepProof(ctx, g, client, wfName, now)
+		health.NodesEmitted += n
+		health.Notes = append(health.Notes, warnings...)
+	}
+	// Cross-link receipts to runs.
+	for _, wfName := range wfNames {
+		linkReceiptsToRuns(ctx, g, wfName)
+	}
+
+	// Emit typed impact edges for failed runs.
+	for _, run := range runs {
+		if run.GetStatus() == workflowpb.RunStatus_RUN_STATUS_FAILED {
+			emitTypedFailureEdges(ctx, g, run, now)
+		}
+	}
+
+	// Run incident candidate generation — only from fresh evidence.
 	candidates := generateCandidates(runs, summaries, now)
 	for _, c := range candidates {
 		if err := emitIncidentCandidate(ctx, g, c, now); err == nil {
@@ -171,9 +190,103 @@ func Collect(ctx context.Context, g *graph.Graph, factory GRPCConnFactory, docsA
 		}
 	}
 
-	health.Status = "ok"
+	// Run workflow overlay integrity check and emit findings.
+	integrityResult := CheckWorkflowOverlayIntegrity(ctx, g, now)
+	emitted := EmitIntegrityFindings(ctx, g, integrityResult, now)
+	health.NodesEmitted += emitted
+	if integrityResult.CriticalCount > 0 {
+		health.Notes = append(health.Notes, fmt.Sprintf("integrity: %d critical, %d warning findings", integrityResult.CriticalCount, integrityResult.WarningCount))
+		health.Status = "partial"
+	}
+
+	if health.Status != "partial" {
+		health.Status = "ok"
+	}
 	health.Coverage = "checked_with_matches"
 	return health, nil
+}
+
+// emitTypedFailureEdges emits precise typed edges from a failed run:
+//   workflow_run → workflow_run_has_step_run → workflow_step_run
+//   workflow_step_run → workflow_step_run_failed_with_error → workflow_error
+//   workflow_run → workflow_run_forbids_action → action:blind_retry (when retry_count > 3)
+func emitTypedFailureEdges(ctx context.Context, g *graph.Graph, run *workflowpb.WorkflowRun, now time.Time) {
+	runID := "workflow_run:" + run.GetId()
+
+	// Emit workflow_error node and wire typed edges.
+	if run.GetErrorMessage() != "" {
+		errID := fmt.Sprintf("workflow_error:%s", run.GetId()[:8])
+		expiresAt := now.Add(ttlFailedRun * time.Second)
+		_ = g.AddNode(ctx, graph.Node{
+			ID:      errID,
+			Type:    graph.NodeTypeWorkflowError,
+			Name:    "error:" + run.GetWorkflowName(),
+			Summary: run.GetErrorMessage(),
+			Metadata: func() map[string]any {
+				m := liveNodeMeta("workflow_error", now, expiresAt, ttlFailedRun, "high")
+				m["failure_class"] = run.GetFailureClass().String()
+				m["error_message"] = run.GetErrorMessage()
+				return m
+			}(),
+		})
+		// step_run → failed_with_error → workflow_error.
+		stepRunID := "workflow_step_run:" + run.GetId() + ".failed_step"
+		if n, _ := g.FindNode(ctx, stepRunID); n != nil {
+			_ = g.AddEdge(ctx, graph.Edge{
+				Src: stepRunID, Kind: graph.EdgeWorkflowStepRunFailedWithError, Dst: errID, Phase: "live",
+			})
+		}
+		// run → has_step_run.
+		_ = g.AddEdge(ctx, graph.Edge{
+			Src: runID, Kind: graph.EdgeWorkflowRunHasStepRun, Dst: stepRunID, Phase: "live",
+		})
+	}
+
+	// Emit forbidden blind-retry action edge when retry count is high.
+	if run.GetRetryCount() > 3 {
+		actionID := "action:blind_retry_without_terminal_classification"
+		_ = g.AddNode(ctx, graph.Node{
+			ID:   actionID,
+			Type: graph.NodeTypeForbiddenFix,
+			Name: "blind_retry_without_terminal_classification",
+		})
+		_ = g.AddEdge(ctx, graph.Edge{
+			Src: runID, Kind: graph.EdgeWorkflowRunForbidsAction, Dst: actionID, Phase: "live",
+		})
+	}
+
+	// Wire step_run → instantiates → static workflow_step (when wait_reason provides step name).
+	if run.GetWaitReason() != "" && run.GetWorkflowName() != "" {
+		stepRunID := "workflow_step_run:" + run.GetId() + ".failed_step"
+		staticStepID := "workflow_step:" + run.GetWorkflowName() + "." + run.GetWaitReason()
+		if existing, _ := g.FindNode(ctx, staticStepID); existing != nil {
+			_ = g.AddEdge(ctx, graph.Edge{
+				Src: stepRunID, Kind: graph.EdgeWorkflowStepRunInstantiatesStep, Dst: staticStepID, Phase: "live",
+			})
+			// step → verifies → invariant via static step metadata.
+			stepEdges, _ := g.OutgoingEdges(ctx, staticStepID)
+			for _, e := range stepEdges {
+				if e.Kind == graph.EdgeRequires {
+					_ = g.AddEdge(ctx, graph.Edge{
+						Src: stepRunID, Kind: graph.EdgeWorkflowStepVerifiesInvariant, Dst: e.Dst, Phase: "live",
+					})
+				}
+			}
+		}
+	}
+}
+
+// uniqueWorkflowNames returns deduped workflow names from a run list.
+func uniqueWorkflowNames(runs []*workflowpb.WorkflowRun) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, r := range runs {
+		if n := r.GetWorkflowName(); n != "" && !seen[n] {
+			seen[n] = true
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // indexRun emits a workflow_run node and links it to its static definition.

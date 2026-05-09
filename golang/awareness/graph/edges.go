@@ -160,9 +160,25 @@ const (
 	EdgeWorkflowRunInstantiates    = "workflow_run_instantiates_definition"
 	EdgeWorkflowRunTargetsService  = "workflow_run_targets_service"
 	EdgeWorkflowRunTargetsNode     = "workflow_run_targets_node"
+	EdgeWorkflowRunTargetsPackage  = "workflow_run_targets_package"
 	EdgeWorkflowRunFailedAtStep    = "workflow_run_failed_at_step"
 	EdgeWorkflowFailureIndicates   = "workflow_failure_indicates_failure_mode"
 	EdgeWorkflowFailureRisksInvariant = "workflow_failure_risks_invariant"
+
+	// Typed workflow execution proof edges (precise semantics, preferred over owns/depends_on).
+	EdgeWorkflowRunHasStepRun            = "workflow_run_has_step_run"
+	EdgeWorkflowStepRunInstantiatesStep  = "workflow_step_run_instantiates_step"
+	EdgeWorkflowStepVerifiesInvariant    = "workflow_step_verifies_invariant"
+	EdgeWorkflowStepTargetsState         = "workflow_step_targets_state"
+	EdgeWorkflowStepRunFailedWithError   = "workflow_step_run_failed_with_error"
+	EdgeWorkflowErrorMatchesFailureMode  = "workflow_error_matches_failure_mode"
+	EdgeWorkflowRunForbidsAction         = "workflow_run_forbids_action"
+	EdgeWorkflowRunRecommendsDiagnostic  = "workflow_run_recommends_diagnostic"
+	EdgeWorkflowReceiptProvesStepEffect  = "workflow_receipt_proves_step_effect"
+	EdgeWorkflowStepRunEmittedReceipt    = "workflow_step_run_emitted_receipt"
+	EdgeWorkflowReceiptVerifiesInvariant = "workflow_receipt_verifies_invariant"
+	EdgeWorkflowReceiptRecordsError      = "workflow_receipt_records_error"
+	EdgeWorkflowReceiptVerifiesAction    = "workflow_receipt_verifies_action"
 
 	// DNS / network edge kinds.
 	EdgeDNSRecordResolvesTo       = "dns_record_resolves_to"

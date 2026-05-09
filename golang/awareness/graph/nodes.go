@@ -142,10 +142,14 @@ const (
 	NodeTypeServiceIdentity = "service_identity"
 
 	// Workflow execution node types.
-	NodeTypeWorkflowRun          = "workflow_run"
-	NodeTypeWorkflowStepRun      = "workflow_step_run"
-	NodeTypeWorkflowBlockedReason = "workflow_blocked_reason"
-	NodeTypeWorkflowRetryRecord  = "workflow_retry_record"
+	NodeTypeWorkflowRun                 = "workflow_run"
+	NodeTypeWorkflowStepRun             = "workflow_step_run"
+	NodeTypeWorkflowBlockedReason       = "workflow_blocked_reason"
+	NodeTypeWorkflowRetryRecord         = "workflow_retry_record"
+	NodeTypeWorkflowError               = "workflow_error"
+	NodeTypeWorkflowStepEffect          = "workflow_step_effect"
+	NodeTypeWorkflowVerificationRecord  = "workflow_verification_record"
+	NodeTypeWorkflowIntegrityFinding    = "workflow_integrity_finding"
 
 	// DNS / network node types.
 	NodeTypeDNSZone       = "dns_zone"
