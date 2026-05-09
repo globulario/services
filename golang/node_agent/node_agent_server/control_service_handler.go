@@ -19,6 +19,14 @@ var allowedUnitPrefixes = []string{
 	"scylla-manager",
 }
 
+// runSystemctlFn and getUnitStateFn are seams for tests to substitute the
+// real systemctl invocations. Production points at the real implementations
+// in this file / server.go.
+var (
+	runSystemctlFn = runSystemctl
+	getUnitStateFn = getUnitState
+)
+
 func isAllowedUnit(unit string) bool {
 	for _, prefix := range allowedUnitPrefixes {
 		if strings.HasPrefix(unit, prefix) {
@@ -80,7 +88,26 @@ func (srv *NodeAgentServer) ControlService(ctx context.Context, req *node_agentp
 
 	switch action {
 	case "restart", "stop", "start":
-		if err := runSystemctl(systemctl, action, unit); err != nil {
+		// Idempotency guard: skip systemctl when already in the target state.
+		// Concurrent start invocations were causing a race storm on units with
+		// destructive ExecStartPre (pkill of orphans), where each "start" of an
+		// already-active unit would re-trigger ExecStartPre and kill the live
+		// process. Restart is intentionally never skipped — the caller asked
+		// for a recycle.
+		if action == "start" || action == "stop" {
+			state := getUnitStateFn(systemctl, unit)
+			if isInTargetState(action, state) {
+				return &node_agentpb.ControlServiceResponse{
+					Ok:      true,
+					Unit:    unit,
+					Action:  action,
+					State:   state,
+					Message: fmt.Sprintf("%s skipped: already %s", action, state),
+				}, nil
+			}
+		}
+
+		if err := runSystemctlFn(systemctl, action, unit); err != nil {
 			return &node_agentpb.ControlServiceResponse{
 				Ok:      false,
 				Unit:    unit,
@@ -90,7 +117,7 @@ func (srv *NodeAgentServer) ControlService(ctx context.Context, req *node_agentp
 		}
 
 		// Get state after action
-		state := getUnitState(systemctl, unit)
+		state := getUnitStateFn(systemctl, unit)
 		return &node_agentpb.ControlServiceResponse{
 			Ok:      true,
 			Unit:    unit,
@@ -100,7 +127,7 @@ func (srv *NodeAgentServer) ControlService(ctx context.Context, req *node_agentp
 		}, nil
 
 	case "status":
-		state := getUnitState(systemctl, unit)
+		state := getUnitStateFn(systemctl, unit)
 		return &node_agentpb.ControlServiceResponse{
 			Ok:      true,
 			Unit:    unit,
@@ -121,4 +148,22 @@ func getUnitState(systemctl, unit string) string {
 		return "unknown"
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// isInTargetState reports whether the unit's current ActiveState already
+// satisfies the requested action and the systemctl call can be skipped.
+//
+// "start"  → active or activating already produces the desired outcome
+// "stop"   → inactive, deactivating, or failed already produces the desired outcome
+//
+// "unknown" is treated as not-in-target — let systemctl run and report the
+// real failure.
+func isInTargetState(action, state string) bool {
+	switch action {
+	case "start":
+		return state == "active" || state == "activating"
+	case "stop":
+		return state == "inactive" || state == "deactivating" || state == "failed"
+	}
+	return false
 }

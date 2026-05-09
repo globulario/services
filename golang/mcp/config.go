@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -205,10 +207,21 @@ func loadConfig() *MCPConfig {
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		log.Println("mcp: no config file found, writing defaults to " + configPath)
 		// Enable TLS by default when certs are present.
 		_ = maybeEnableTLSFromServiceCert(cfg)
-		writeConfig(configPath, cfg)
+
+		// If the config file just doesn't exist yet, try to seed defaults to
+		// disk. If the directory isn't writable by this process (common when
+		// the service user lacks ownership of the config dir), fall back to
+		// in-memory defaults silently — the next start re-derives them.
+		if errors.Is(err, fs.ErrNotExist) {
+			log.Println("mcp: no config file found, writing defaults to " + configPath)
+			writeConfig(configPath, cfg)
+		} else if errors.Is(err, fs.ErrPermission) {
+			log.Printf("mcp: config %s not readable (running with in-memory defaults)", configPath)
+		} else {
+			log.Printf("mcp: config %s unreadable: %v (running with in-memory defaults)", configPath, err)
+		}
 		return cfg
 	}
 
@@ -274,6 +287,10 @@ func applyToolGroupDefaults(rawJSON []byte, cfg *MCPConfig) {
 func writeConfig(path string, cfg *MCPConfig) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0750); err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			log.Printf("mcp: config dir %s not writable (running with in-memory defaults)", dir)
+			return
+		}
 		log.Printf("mcp: cannot create config dir %s: %v", dir, err)
 		return
 	}
@@ -283,6 +300,10 @@ func writeConfig(path string, cfg *MCPConfig) {
 		return
 	}
 	if err := os.WriteFile(path, data, 0640); err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			log.Printf("mcp: config %s not writable (running with in-memory defaults)", path)
+			return
+		}
 		log.Printf("mcp: cannot write config to %s: %v", path, err)
 	}
 }
