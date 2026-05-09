@@ -35,4 +35,16 @@ const (
 	// Graph Go-file coverage
 	CodeGraphCoverageLow      = "GRAPH_COVERAGE_LOW"
 	CodeGraphCoverageCritical = "GRAPH_COVERAGE_CRITICAL"
+
+	// Invariant shape integrity codes.
+	CodeInvariantNoImplementation    = "INVARIANT_NO_IMPLEMENTATION"
+	CodeInvariantNoTestCoverage      = "INVARIANT_NO_TEST_COVERAGE"
+	CodeInvariantNoFailureMode       = "INVARIANT_NO_FAILURE_MODE"
+	CodeInvariantNoForbiddenFix      = "INVARIANT_NO_FORBIDDEN_FIX"
+	CodeInvariantOrphanImpl          = "INVARIANT_ORPHAN_IMPLEMENTATION"
+	CodeInvariantMissingAuthority    = "INVARIANT_MISSING_AUTHORITY"
+	CodeInvariantUnverifiedImpl      = "INVARIANT_UNVERIFIED_IMPLEMENTATION"
+	CodeInvariantGuardsUnreachable   = "INVARIANT_GUARDS_ACTION_UNREACHABLE"
+	CodeInvariantViolatedNoTest      = "INVARIANT_VIOLATED_NO_TEST"
+	CodeInvariantForbiddenFixNoGuard = "INVARIANT_FORBIDDEN_FIX_NO_GUARD"
 )

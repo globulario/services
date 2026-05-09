@@ -47,6 +47,10 @@ var impactEdgeKinds = map[string]bool{
 	graph.EdgeObserves:      true,
 	graph.EdgeConfigures:    true,
 	graph.EdgeMayAffect:     true,
+	// Invariant implementation graph edges.
+	graph.EdgePartiallyImplements: true,
+	graph.EdgeVerifies:            true,
+	graph.EdgeViolates:            true,
 }
 
 // highValueNodeTypes are node types that represent meaningful impact targets.
@@ -195,12 +199,21 @@ func edgeTrust(kind string, isTyped bool) string {
 		return TrustInferred
 	}
 	switch kind {
-	case graph.EdgeVerifiedBy, graph.EdgeTestedBy:
+	case graph.EdgeVerifiedBy, graph.EdgeTestedBy, graph.EdgeVerifies:
+		// verifies is a direct test-proof edge — same trust as tested_by.
 		return TrustVerified
 	case graph.EdgeImplements, graph.EdgeFixes, graph.EdgeProtects, graph.EdgeEnforces:
 		return TrustDeclared
 	case graph.EdgeConfigures, graph.EdgeObserves:
 		return TrustDeclared
+	case graph.EdgePartiallyImplements, graph.EdgeBlocksForbiddenAction:
+		// Declared in YAML (protects.files and forbidden_fixes respectively).
+		return TrustDeclared
+	case graph.EdgeReadsAuthority, graph.EdgeWritesState, graph.EdgeGuardsAction:
+		// May come from YAML (declared) or AST extraction (inferred).
+		// Default to inferred — the YAML loader carries metadata trust_level
+		// which callers can use to promote if needed.
+		return TrustInferred
 	case graph.EdgeMayAffect:
 		return TrustInferred
 	default:

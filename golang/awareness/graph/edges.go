@@ -104,6 +104,19 @@ const (
 	EdgeImplementedBy    = "implemented_by"      // rpc_method → symbol (Go method)
 	EdgeGovernedBy       = "governed_by"         // rpc_method → invariant
 	EdgeProvidesService  = "provides_service"    // package → proto_service
+
+	// Invariant implementation graph edge kinds.
+	// These edges wire source code, tests, and authority data to invariant nodes,
+	// forming an "invariant implementation graph" that agents can traverse to
+	// understand what enforces an invariant, how it is tested, and what breaks it.
+	EdgePartiallyImplements   = "partially_implements"    // source_file → invariant (weaker than implements)
+	EdgeReadsAuthority        = "reads_authority"         // function/file → invariant authority source
+	EdgeWritesState           = "writes_state"            // function/file → state artifact it mutates
+	EdgeGuardsAction          = "guards_action"           // function/file → action it gates/transacts
+	EdgeBlocksForbiddenAction = "blocks_forbidden_action" // forbidden_fix → invariant it guards
+	EdgeVerifies              = "verifies"                // test → invariant (direct test proof)
+	EdgeConstrainsActionFor   = "constrains_action_for"   // invariant → action it constrains at runtime
+	EdgeHasEvidence           = "has_evidence"            // any node → evidence artifact
 )
 
 // EdgeClass distinguishes decision-relevant edges from contextual information edges.
@@ -125,6 +138,8 @@ var decisionEdgeKinds = map[string]bool{
 	EdgeUnsafeWhen: true, EdgeViolates: true, EdgeEnforces: true,
 	EdgeRequiresTest: true, EdgeGovernedBy: true, EdgeCausedBy: true,
 	EdgeFixedBy: true, EdgeRemediatedBy: true, EdgeUnblocks: true,
+	// Invariant implementation graph — decision-class.
+	EdgeGuardsAction: true, EdgeBlocksForbiddenAction: true, EdgeConstrainsActionFor: true,
 }
 
 // structuralEdgeKinds lists edge kinds classified as structural-class.
@@ -133,6 +148,8 @@ var structuralEdgeKinds = map[string]bool{
 	EdgeReads: true, EdgeWrites: true, EdgeDefines: true, EdgeProduces: true,
 	EdgeEmits: true, EdgeTestedBy: true, EdgeImplements: true, EdgeControls: true,
 	EdgeImplementedBy: true, EdgeCurrentStatusOf: true, EdgeRuntimeDependsOn: true,
+	// Invariant implementation graph — structural-class.
+	EdgePartiallyImplements: true, EdgeReadsAuthority: true, EdgeWritesState: true, EdgeVerifies: true,
 }
 
 // classifyEdge returns the edge_class and weight for an edge kind.

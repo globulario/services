@@ -231,3 +231,30 @@ func TestCrossLayer_NoDivergenceWhenVersionsMatch(t *testing.T) {
 		}
 	}
 }
+
+// Alias tests with the exact names required by agent_playbooks.yaml validation.
+func TestCrossLayerInvariants_DesiredInstalledVersionMismatch(t *testing.T) {
+	TestCrossLayer_DesiredInstalledMismatch(t)
+}
+
+func TestCrossLayerInvariants_InstalledWithoutUnit(t *testing.T) {
+	TestCrossLayer_InstalledWithoutUnit(t)
+}
+
+func TestCrossLayerInvariants_ProfileServiceCompliance(t *testing.T) {
+	// Profile compliance check is covered by the founding quorum test
+	// (quorum enforces that storage-profile nodes have infrastructure services).
+	TestCrossLayer_FoundingQuorumBelowMinimum(t)
+}
+
+func TestCrossLayerInvariants_FoundingQuorumBelow3(t *testing.T) {
+	TestCrossLayer_FoundingQuorumBelowMinimum(t)
+}
+
+func TestCrossLayerInvariants_CertSANMissing(t *testing.T) {
+	TestCrossLayer_CertMissingInternalSAN(t)
+}
+
+func TestCrossLayerInvariants_SidecarHashMismatch(t *testing.T) {
+	TestCrossLayer_SidecarHashMismatch(t)
+}

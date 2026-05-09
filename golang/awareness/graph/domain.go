@@ -106,6 +106,7 @@ var edgeDomains = map[string]EdgeDomain{
 	EdgeTestedBy:          DomainProof,
 	EdgeValidatedBy:       DomainProof,
 	EdgeVerifiedBy:        DomainProof,
+	EdgeVerifies:          DomainProof, // test → invariant direct proof
 	EdgeRequiresTest:      DomainProof,
 	EdgeSupportedBy:       DomainProof,
 	EdgeApprovedBy:        DomainProof,
@@ -144,6 +145,15 @@ var edgeDomains = map[string]EdgeDomain{
 	EdgeImplementedBy:    DomainInformation, // rpc → go implementation
 	EdgeGovernedBy:       DomainDecision,    // rpc → invariant — decision constraint
 	EdgeProvidesService:  DomainInformation, // package → service — structural
+
+	// ── Invariant implementation graph edges ──────────────────────────────────
+	EdgePartiallyImplements:   DomainInformation, // weaker than implements
+	EdgeReadsAuthority:        DomainProof,        // evidence: what authority is read
+	EdgeWritesState:           DomainRisk,         // evidence: what state is mutated
+	EdgeGuardsAction:          DomainDecision,     // function guards an action via txn
+	EdgeBlocksForbiddenAction: DomainDecision,     // forbidden fix blocks this invariant
+	EdgeConstrainsActionFor:   DomainDecision,     // invariant constrains an action
+	EdgeHasEvidence:           DomainInformation,  // link to any evidence artifact
 }
 
 // edgeRoles maps each edge kind to its semantic role.

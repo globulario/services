@@ -256,9 +256,18 @@ func lowestTrustInChain(steps []integrity.ImpactStep) string {
 		}
 		return len(order)
 	}
-	worst := integrity.TrustDeclared
+	// Start at the best possible trust level; walk down to the actual minimum.
+	// This allows strict_verified and verified paths to get their full weight
+	// bonus, not just the declared baseline.
+	worst := integrity.TrustStrictVerified
+	if len(steps) == 0 {
+		return integrity.TrustDeclared
+	}
 	worstRank := rank(worst)
 	for _, s := range steps {
+		if s.Trust == "" {
+			continue
+		}
 		if r := rank(s.Trust); r > worstRank {
 			worst = s.Trust
 			worstRank = r

@@ -119,6 +119,12 @@ func extractFile(ctx context.Context, g *graph.Graph, absPath, relPath string) e
 			if err := processAnnotations(ctx, g, symID, d.Doc); err != nil {
 				return err
 			}
+			// Extract etcd call evidence (reads_authority / writes_state / guards_action).
+			if d.Body != nil {
+				if err := extractEtcdEvidence(ctx, g, symID, d.Body); err != nil {
+					return err
+				}
+			}
 
 		case *ast.GenDecl:
 			for _, spec := range d.Specs {
@@ -299,6 +305,88 @@ func ExtractTests(ctx context.Context, g *graph.Graph, walkDir, pathRoot string)
 		}
 		return extractTestFile(ctx, g, path, rel)
 	})
+}
+
+// extractEtcdEvidence walks a function body looking for etcd client calls and
+// emits inferred implementation graph edges:
+//   - receiver.Get(ctx, key)  → reads_authority edge from ownerID to authority:<key>
+//   - receiver.Put(ctx, key, val) → writes_state edge from ownerID to state:<key>
+//   - receiver.Txn(ctx) / txn.Commit(ctx) → guards_action edge from ownerID to action:<receiver>
+//
+// Scope is limited to receiver names that look like etcd or kv clients
+// (contains "etcd", "kv", "client", or "cli") to reduce false positives.
+// All emitted edges carry trust_level="inferred" and confidence=0.4.
+func extractEtcdEvidence(ctx context.Context, g *graph.Graph, ownerID string, body *ast.BlockStmt) error {
+	ast.Inspect(body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		recvIdent, ok := sel.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		recvName := strings.ToLower(recvIdent.Name)
+		method := sel.Sel.Name
+
+		// Only process receivers that look like etcd/kv clients.
+		isEtcdReceiver := strings.Contains(recvName, "etcd") ||
+			strings.Contains(recvName, "kv") ||
+			strings.Contains(recvName, "client") ||
+			strings.Contains(recvName, "cli") ||
+			strings.Contains(recvName, "txn")
+
+		if !isEtcdReceiver {
+			return true
+		}
+
+		meta := map[string]any{"trust_level": "inferred", "confidence": 0.4}
+
+		switch method {
+		case "Get":
+			// Extract key string literal if available (first non-ctx arg).
+			key := extractStringArg(call, 1)
+			if key == "" {
+				key = recvName + ".Get"
+			}
+			authID := "authority:" + key
+			_ = g.AddNode(ctx, graph.Node{ID: authID, Type: "authority_source", Name: key})
+			_ = g.AddEdge(ctx, graph.Edge{Src: ownerID, Kind: graph.EdgeReadsAuthority, Dst: authID, Metadata: meta})
+
+		case "Put":
+			key := extractStringArg(call, 1)
+			if key == "" {
+				key = recvName + ".Put"
+			}
+			stateID := "state:" + key
+			_ = g.AddNode(ctx, graph.Node{ID: stateID, Type: "state_artifact", Name: key})
+			_ = g.AddEdge(ctx, graph.Edge{Src: ownerID, Kind: graph.EdgeWritesState, Dst: stateID, Metadata: meta})
+
+		case "Txn", "Commit":
+			actionID := "action:" + recvName + "." + method
+			_ = g.AddNode(ctx, graph.Node{ID: actionID, Type: "guarded_action", Name: recvName + "." + method})
+			_ = g.AddEdge(ctx, graph.Edge{Src: ownerID, Kind: graph.EdgeGuardsAction, Dst: actionID, Metadata: meta})
+		}
+		return true
+	})
+	return nil
+}
+
+// extractStringArg returns the string literal value of the nth argument (0-indexed)
+// in a call expression, or "" if the argument is not a string literal.
+func extractStringArg(call *ast.CallExpr, n int) string {
+	if n >= len(call.Args) {
+		return ""
+	}
+	lit, ok := call.Args[n].(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return ""
+	}
+	return strings.Trim(lit.Value, `"`)
 }
 
 func extractTestFile(ctx context.Context, g *graph.Graph, absPath, relPath string) error {

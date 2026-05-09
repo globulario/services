@@ -16,6 +16,23 @@ type invariantFile struct {
 	Invariants []yamlInvariant `yaml:"invariants"`
 }
 
+// yamlImplementedBy is one entry in implemented_by[].
+type yamlImplementedBy struct {
+	File          string   `yaml:"file"`
+	Function      string   `yaml:"function"`       // optional — Go function name
+	Trust         string   `yaml:"trust"`          // trust level: strict_verified/verified/declared/inferred
+	ReadsAuthority []string `yaml:"reads_authority"` // etcd keys or config paths this fn reads
+	WritesState   []string `yaml:"writes_state"`   // etcd keys or state artifacts this fn writes
+	GuardsAction  []string `yaml:"guards_action"`  // actions/RPCs this fn gates via txn/guard
+}
+
+// yamlInvAuthority is one entry in authority[] of an invariant.
+type yamlInvAuthority struct {
+	Source     string `yaml:"source"`     // etcd key path, config file, or proto field
+	Kind       string `yaml:"kind"`       // etcd_key / config_file / proto_field / runtime_state
+	Confidence string `yaml:"confidence"` // high / medium / low
+}
+
 type yamlInvariant struct {
 	ID       string `yaml:"id"`
 	Title    string `yaml:"title"`
@@ -24,7 +41,7 @@ type yamlInvariant struct {
 	Summary  string `yaml:"summary"`
 	Protects struct {
 		State           []string `yaml:"state"`
-		Files           []string `yaml:"files"`           // → implements (core logic)
+		Files           []string `yaml:"files"`           // → implements + partially_implements (backward compat)
 		EnforcesFiles   []string `yaml:"enforces_files"`  // → enforces (validation/blocking)
 		ConfiguresFiles []string `yaml:"configures_files"` // → configures (data/config/YAML)
 		ObservesFiles   []string `yaml:"observes_files"`  // → observes (detection/reporting)
@@ -32,9 +49,15 @@ type yamlInvariant struct {
 		Symbols         []string `yaml:"symbols"`
 		SystemdUnits    []string `yaml:"systemd_units"`
 	} `yaml:"protects"`
-	ForbiddenFixes    []string `yaml:"forbidden_fixes"`
-	RequiredTests     []string `yaml:"required_tests"`
-	RelatedFailureModes []string `yaml:"related_failure_modes"`
+	ForbiddenFixes      []string            `yaml:"forbidden_fixes"`
+	RequiredTests       []string            `yaml:"required_tests"`
+	RelatedFailureModes []string            `yaml:"related_failure_modes"`
+	// Invariant implementation graph fields (new schema).
+	ImplementedBy    []yamlImplementedBy `yaml:"implemented_by"`
+	Authority        []yamlInvAuthority  `yaml:"authority"`
+	VerifiedBy       []string            `yaml:"verified_by"`       // test function names with direct proof
+	ViolatedBy       []string            `yaml:"violated_by"`       // failure mode IDs that violate this
+	DecisionGuidance []string            `yaml:"decision_guidance"` // agent-readable guidance sentences
 }
 
 // LoadInvariants loads invariants.yaml or convergence_rules.yaml into g.
@@ -54,14 +77,14 @@ func LoadInvariants(ctx context.Context, g *graph.Graph, path string) error {
 	}
 
 	for _, inv := range f.Invariants {
-		if err := loadInvariant(ctx, g, inv); err != nil {
+		if err := loadInvariant(ctx, g, inv, path); err != nil {
 			return fmt.Errorf("LoadInvariants %s: %w", inv.ID, err)
 		}
 	}
 	return nil
 }
 
-func loadInvariant(ctx context.Context, g *graph.Graph, inv yamlInvariant) error {
+func loadInvariant(ctx context.Context, g *graph.Graph, inv yamlInvariant, path string) error {
 	nodeID := "invariant:" + inv.ID
 
 	if err := g.AddNode(ctx, graph.Node{
@@ -230,7 +253,7 @@ func loadInvariant(ctx context.Context, g *graph.Graph, inv yamlInvariant) error
 		}
 	}
 
-	// Forbidden fixes → forbidden_fix nodes + forbids edges.
+	// Forbidden fixes → forbidden_fix nodes + forbids edges + reverse blocks_forbidden_action.
 	for _, fix := range inv.ForbiddenFixes {
 		fixID := "forbidden_fix:" + fix
 		if err := g.AddNode(ctx, graph.Node{
@@ -243,9 +266,18 @@ func loadInvariant(ctx context.Context, g *graph.Graph, inv yamlInvariant) error
 		if err := g.AddEdge(ctx, graph.Edge{Src: nodeID, Kind: graph.EdgeForbids, Dst: fixID}); err != nil {
 			return err
 		}
+		// Reverse: forbidden_fix → blocks_forbidden_action → invariant.
+		if err := g.AddEdge(ctx, graph.Edge{
+			Src:      fixID,
+			Kind:     graph.EdgeBlocksForbiddenAction,
+			Dst:      nodeID,
+			Metadata: map[string]any{"source_file": path, "trust_level": "declared"},
+		}); err != nil {
+			return err
+		}
 	}
 
-	// Required tests → test nodes + tested_by edges.
+	// Required tests → test nodes + tested_by edges + reverse verifies.
 	for _, test := range inv.RequiredTests {
 		testID := "test:" + test
 		if err := g.AddNode(ctx, graph.Node{
@@ -256,6 +288,15 @@ func loadInvariant(ctx context.Context, g *graph.Graph, inv yamlInvariant) error
 			return err
 		}
 		if err := g.AddEdge(ctx, graph.Edge{Src: nodeID, Kind: graph.EdgeTestedBy, Dst: testID}); err != nil {
+			return err
+		}
+		// Reverse: test → verifies → invariant (test proves invariant holds).
+		if err := g.AddEdge(ctx, graph.Edge{
+			Src:      testID,
+			Kind:     graph.EdgeVerifies,
+			Dst:      nodeID,
+			Metadata: map[string]any{"source_file": path, "trust_level": "declared"},
+		}); err != nil {
 			return err
 		}
 	}
@@ -272,6 +313,189 @@ func loadInvariant(ctx context.Context, g *graph.Graph, inv yamlInvariant) error
 			return err
 		}
 		if err := g.AddEdge(ctx, graph.Edge{Src: nodeID, Kind: graph.EdgeAffects, Dst: fmNodeID}); err != nil {
+			return err
+		}
+		// Reverse: failure_mode → violates → invariant.
+		if err := g.AddEdge(ctx, graph.Edge{
+			Src:      fmNodeID,
+			Kind:     graph.EdgeViolates,
+			Dst:      nodeID,
+			Metadata: map[string]any{"source_file": path, "trust_level": "declared"},
+		}); err != nil {
+			return err
+		}
+	}
+
+	// ── New invariant implementation graph edges ─────────────────────────────
+
+	// protects.files also emit partially_implements (backward-compat, trust=declared).
+	for _, file := range inv.Protects.Files {
+		fileID := "source_file:" + file
+		if err := g.AddEdge(ctx, graph.Edge{
+			Src:      fileID,
+			Kind:     graph.EdgePartiallyImplements,
+			Dst:      nodeID,
+			Metadata: map[string]any{"source_file": path, "trust_level": "declared", "weight_reason": "protects.files backward compat"},
+		}); err != nil {
+			return err
+		}
+	}
+
+	// implemented_by[] → full implementation evidence with reads_authority/writes_state/guards_action.
+	for _, impl := range inv.ImplementedBy {
+		fileID := "source_file:" + impl.File
+		if err := g.AddNode(ctx, graph.Node{
+			ID:   fileID,
+			Type: graph.NodeTypeSourceFile,
+			Name: impl.File,
+			Path: impl.File,
+		}); err != nil {
+			return err
+		}
+		trust := impl.Trust
+		if trust == "" {
+			trust = "declared"
+		}
+		implMeta := map[string]any{
+			"source_file": path,
+			"trust_level": trust,
+		}
+		if impl.Function != "" {
+			implMeta["function"] = impl.Function
+		}
+		if err := g.AddEdge(ctx, graph.Edge{
+			Src:      fileID,
+			Kind:     graph.EdgeImplements,
+			Dst:      nodeID,
+			Metadata: implMeta,
+		}); err != nil {
+			return err
+		}
+		// reads_authority sub-edges.
+		for _, auth := range impl.ReadsAuthority {
+			authID := "authority:" + auth
+			if err := g.AddNode(ctx, graph.Node{ID: authID, Type: "authority_source", Name: auth}); err != nil {
+				return err
+			}
+			if err := g.AddEdge(ctx, graph.Edge{
+				Src:      fileID,
+				Kind:     graph.EdgeReadsAuthority,
+				Dst:      authID,
+				Metadata: map[string]any{"source_file": path, "trust_level": trust},
+			}); err != nil {
+				return err
+			}
+		}
+		// writes_state sub-edges.
+		for _, ws := range impl.WritesState {
+			wsID := "state:" + ws
+			if err := g.AddNode(ctx, graph.Node{ID: wsID, Type: "state_artifact", Name: ws}); err != nil {
+				return err
+			}
+			if err := g.AddEdge(ctx, graph.Edge{
+				Src:      fileID,
+				Kind:     graph.EdgeWritesState,
+				Dst:      wsID,
+				Metadata: map[string]any{"source_file": path, "trust_level": trust},
+			}); err != nil {
+				return err
+			}
+		}
+		// guards_action sub-edges.
+		for _, ga := range impl.GuardsAction {
+			gaID := "action:" + ga
+			if err := g.AddNode(ctx, graph.Node{ID: gaID, Type: "guarded_action", Name: ga}); err != nil {
+				return err
+			}
+			if err := g.AddEdge(ctx, graph.Edge{
+				Src:      fileID,
+				Kind:     graph.EdgeGuardsAction,
+				Dst:      gaID,
+				Metadata: map[string]any{"source_file": path, "trust_level": trust},
+			}); err != nil {
+				return err
+			}
+		}
+	}
+
+	// authority[] → authority_source nodes + reads_authority edges from the invariant node.
+	for _, auth := range inv.Authority {
+		authID := "authority:" + auth.Source
+		kind := auth.Kind
+		if kind == "" {
+			kind = "etcd_key"
+		}
+		conf := auth.Confidence
+		if conf == "" {
+			conf = "medium"
+		}
+		if err := g.AddNode(ctx, graph.Node{
+			ID:      authID,
+			Type:    "authority_source",
+			Name:    auth.Source,
+			Metadata: map[string]any{"kind": kind, "confidence": conf},
+		}); err != nil {
+			return err
+		}
+		if err := g.AddEdge(ctx, graph.Edge{
+			Src:      nodeID,
+			Kind:     graph.EdgeReadsAuthority,
+			Dst:      authID,
+			Metadata: map[string]any{"source_file": path, "kind": kind, "confidence": conf},
+		}); err != nil {
+			return err
+		}
+	}
+
+	// verified_by[] → test → verifies → invariant (higher trust than required_tests).
+	for _, test := range inv.VerifiedBy {
+		testID := "test:" + test
+		if err := g.AddNode(ctx, graph.Node{
+			ID:   testID,
+			Type: graph.NodeTypeTest,
+			Name: test,
+		}); err != nil {
+			return err
+		}
+		if err := g.AddEdge(ctx, graph.Edge{
+			Src:      testID,
+			Kind:     graph.EdgeVerifies,
+			Dst:      nodeID,
+			Metadata: map[string]any{"source_file": path, "trust_level": "verified"},
+		}); err != nil {
+			return err
+		}
+	}
+
+	// violated_by[] → failure_mode → violates → invariant (declarative override).
+	for _, fmID := range inv.ViolatedBy {
+		fmNodeID := "failure_mode:" + fmID
+		if err := g.AddNode(ctx, graph.Node{
+			ID:   fmNodeID,
+			Type: graph.NodeTypeFailureMode,
+			Name: fmID,
+		}); err != nil {
+			return err
+		}
+		if err := g.AddEdge(ctx, graph.Edge{
+			Src:      fmNodeID,
+			Kind:     graph.EdgeViolates,
+			Dst:      nodeID,
+			Metadata: map[string]any{"source_file": path, "trust_level": "declared"},
+		}); err != nil {
+			return err
+		}
+	}
+
+	// decision_guidance[] → stored in invariant node metadata (no new graph edge needed).
+	if len(inv.DecisionGuidance) > 0 {
+		if err := g.AddNode(ctx, graph.Node{
+			ID:       nodeID,
+			Type:     graph.NodeTypeInvariant,
+			Name:     inv.ID,
+			Summary:  inv.Summary,
+			Metadata: map[string]any{"decision_guidance": inv.DecisionGuidance},
+		}); err != nil {
 			return err
 		}
 	}

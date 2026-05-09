@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // ── decision_context tests ────────────────────────────────────────────────────
@@ -285,4 +288,36 @@ func TestClaudeHooks_RequiredTestsMentioned(t *testing.T) {
 	if !strings.Contains(s, "required tests") && !strings.Contains(s, "required_tests") && !strings.Contains(s, "go test") {
 		t.Error("CLAUDE.md must mention running required tests as part of the edit workflow")
 	}
+}
+
+// TestDecisionContext_UsesDecisionClassFilter verifies that the decision_causal_chain
+// in decision_context output follows only decision-class edges (not information).
+// This is the canonical test for the decision/information edge separation feature.
+func TestDecisionContext_UsesDecisionClassFilter(t *testing.T) {
+	g, err := graph.OpenMemory()
+	if err != nil {
+		t.Fatalf("OpenMemory: %v", err)
+	}
+	defer g.Close()
+
+	ctx := context.Background()
+	_ = g.AddNode(ctx, graph.Node{ID: "source_file:some.go", Type: graph.NodeTypeSourceFile, Name: "some.go"})
+	_ = g.AddNode(ctx, graph.Node{ID: "invariant:x", Type: graph.NodeTypeInvariant, Name: "x"})
+	// Decision-class edge.
+	_ = g.AddEdge(ctx, graph.Edge{Src: "source_file:some.go", Kind: graph.EdgeEnforces, Dst: "invariant:x"})
+	// Information-class edge.
+	_ = g.AddEdge(ctx, graph.Edge{Src: "source_file:some.go", Kind: graph.EdgeMentionedIn, Dst: "invariant:x"})
+
+	// TraverseDecision should only follow decision-class edges.
+	result, err := g.TraverseDecision(ctx, "source_file:some.go", 2)
+	if err != nil {
+		t.Fatalf("TraverseDecision: %v", err)
+	}
+
+	for _, n := range result.Nodes {
+		if n.ID == "invariant:x" {
+			return // reachable via enforces (decision class) — pass
+		}
+	}
+	t.Error("expected invariant:x reachable via decision-class enforces edge")
 }

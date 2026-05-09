@@ -35,6 +35,9 @@ type AuditOptions struct {
 
 	// SkipScaffold disables the scaffold TODO-skip detection check.
 	SkipScaffold bool
+
+	// SkipInvariantShape disables invariant implementation graph shape checks.
+	SkipInvariantShape bool
 }
 
 // Audit runs all enabled enforcement checks and returns an aggregated result.
@@ -90,6 +93,20 @@ func Audit(ctx context.Context, g *graph.Graph, opts AuditOptions) *AuditResult 
 	if !opts.SkipScaffold && opts.RepoRoot != "" {
 		scan := ScanScaffoldTests(opts.RepoRoot, opts.DocsDir)
 		all = append(all, scan.Findings...)
+	}
+
+	// 6. Invariant implementation graph shape check (graph).
+	if !opts.SkipInvariantShape {
+		if g == nil {
+			all = append(all, Finding{
+				Code:     "NO_GRAPH",
+				Severity: SeverityWarning,
+				Message:  "invariant shape check skipped — no graph DB",
+			})
+		} else {
+			shape := InvariantShapeCheck(ctx, g)
+			all = append(all, shape.Findings...)
+		}
 	}
 
 	return newAuditResult(all)
