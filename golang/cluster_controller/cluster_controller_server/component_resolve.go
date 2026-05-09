@@ -80,7 +80,12 @@ type BlockedWorkload struct {
 func ResolveNodeIntent(nodeID string, profiles []string, units []unitStatusRecord, installedVersions map[string]string) (*NodeIntent, error) {
 	normalized := normalizeProfiles(profiles)
 	if len(normalized) == 0 {
-		normalized = []string{"core"}
+		// A node with no profile is a Day-0 trap, not a "core node by
+		// default" — silently coercing to ["core"] hides the bug from
+		// the operator and ships an under-specified install set. The
+		// join handler must guarantee a profile (enforceFoundingProfiles
+		// for the first 3 nodes; explicit assignment after).
+		return nil, fmt.Errorf("node %s has no profiles assigned: every node must have a profile (the join handler is the source of truth — check handlers_join.go)", nodeID)
 	}
 
 	// Validate profiles.

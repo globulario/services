@@ -840,7 +840,12 @@ func ValidateProfile(profile string) error {
 }
 
 // ValidateCatalog checks the catalog for internal consistency:
-// no duplicate names/units, all dep references resolve, no cycles.
+// no duplicate names/units, all dep references resolve, no cycles, and the
+// profile↔component bijection (every defined profile claims at least one
+// component, every component-referenced profile is defined). The bijection
+// is the architectural invariant: "a profile with no services is not a
+// profile" — it must be enforced at startup, not discovered at runtime when
+// a node tries to converge against an empty catalog slice.
 func ValidateCatalog() error {
 	names := make(map[string]bool)
 	units := make(map[string]bool)
@@ -876,6 +881,31 @@ func ValidateCatalog() error {
 	for _, c := range catalog {
 		if err := checkCycle(c.Name, nil); err != nil {
 			return err
+		}
+	}
+
+	// Profile↔Component bijection.
+	//
+	// Every profile in ProfileCapabilities must have at least one component
+	// claiming it. An empty profile is a Day-0 trap: the catalog admits the
+	// profile name but the reconciler resolves it to an empty install set,
+	// so the node bootstraps and waits forever for services that were never
+	// going to come. Fail at startup instead.
+	profileMembers := make(map[string]int, len(ProfileCapabilities))
+	for p := range ProfileCapabilities {
+		profileMembers[p] = 0
+	}
+	for _, c := range catalog {
+		for _, p := range c.Profiles {
+			if _, defined := ProfileCapabilities[p]; !defined {
+				return fmt.Errorf("component %q lists undefined profile %q (must be added to ProfileCapabilities)", c.Name, p)
+			}
+			profileMembers[p]++
+		}
+	}
+	for p, count := range profileMembers {
+		if count == 0 {
+			return fmt.Errorf("profile %q has no components: a profile with no services is not a profile (add components or remove the profile)", p)
 		}
 	}
 

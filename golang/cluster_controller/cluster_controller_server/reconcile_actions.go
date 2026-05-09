@@ -211,7 +211,15 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 		srv.mergeInfraDesiredInto(ctx, desiredCanon)
 
 		// Scope desired to this node's resolved intent.
-		intent, _ := ResolveNodeIntent(node.NodeID, node.Profiles, node.Units, node.InstalledVersions)
+		// If the node has no profiles, ResolveNodeIntent returns an error and
+		// nil intent — FilterDesiredByIntent then no-ops and we drift-scan the
+		// full desired set. That's not silent core fallback, just a permissive
+		// drift scan; the real "node has no profile" error already surfaces in
+		// the main reconciler at reconcile_nodes.go.
+		intent, intentErr := ResolveNodeIntent(node.NodeID, node.Profiles, node.Units, node.InstalledVersions)
+		if intentErr != nil {
+			log.Printf("reconcile-workflow: scan_drift: node %s intent resolution failed: %v (drift scan will not filter)", node.NodeID, intentErr)
+		}
 		desiredCanon = FilterDesiredByIntent(desiredCanon, intent)
 
 		for svc, desiredVer := range desiredCanon {
