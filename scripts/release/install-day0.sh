@@ -46,6 +46,33 @@ is_loopback_ip() {
   [[ "$1" =~ ^127\. ]] || [[ "$1" == "::1" ]]
 }
 
+# wait_scylla_write_ready HOST
+# Waits until ScyllaDB accepts DDL write operations (CREATE KEYSPACE), not just
+# reads. The SELECT probe passes while Scylla is still in a pre-write state, so
+# services like persistence (which create keyspaces on first start) would fail
+# immediately after the read probe succeeded.
+wait_scylla_write_ready() {
+  local host="${1:-localhost}"
+  log_substep "Waiting for ScyllaDB write readiness (DDL probe) on ${host}:9042..."
+  local ok=0
+  for _i in $(seq 1 60); do
+    if cqlsh "$host" 9042 <<'CQL' &>/dev/null
+CREATE KEYSPACE IF NOT EXISTS globular_install_probe WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
+DROP KEYSPACE IF EXISTS globular_install_probe;
+CQL
+    then
+      ok=1
+      break
+    fi
+    sleep 2
+  done
+  if [[ $ok -eq 1 ]]; then
+    log_success "ScyllaDB write-ready (DDL probe passed after ~$((_i * 2))s)"
+  else
+    log_warn "ScyllaDB DDL probe did not pass after 120s — downstream schema creation may fail on first attempt"
+  fi
+}
+
 # ── Workflow trace log ─────────────────────────────────────────────────────
 # Writes JSON-lines to DAY0_TRACE_LOG. The workflow service imports this on
 # startup to create a proper workflow run visible in the admin UI.
@@ -545,6 +572,7 @@ if systemctl list-unit-files 2>/dev/null | grep -q "^scylla-server.service"; the
   done
   if [[ $SCYLLA_READY -eq 1 ]]; then
     log_success "ScyllaDB ready (took ${i}s)"
+    wait_scylla_write_ready "$SCYLLA_CQL_HOST"
   else
     log_substep "Warning: ScyllaDB not accepting connections after 90s"
   fi
@@ -613,6 +641,7 @@ else
   done
   if [[ $SCYLLA_READY -eq 1 ]]; then
     log_success "ScyllaDB installed and ready (took ${i}s)"
+    wait_scylla_write_ready "$SCYLLA_CQL_HOST"
   else
     log_substep "Warning: ScyllaDB started but not yet accepting connections after 90s"
     log_substep "Downstream services may fail on first attempt — re-run installer to retry"
@@ -624,6 +653,10 @@ fi
 # Fix ownership NOW, before any globular-user service tries to read them.
 if id globular >/dev/null 2>&1 && [[ -d /var/lib/globular/pki ]]; then
   chown -R globular:globular /var/lib/globular/pki
+  # chown -R resets directory execute bits via root's umask — restore them so
+  # globular and world can traverse into pki/ subdirs (issued/, issued/services/).
+  chmod o+rx /var/lib/globular /var/lib/globular/pki 2>/dev/null || true
+  find /var/lib/globular/pki -type d -exec chmod o+rx {} + 2>/dev/null || true
   log_substep "TLS files ownership set to globular:globular (pre-infra)"
 fi
 

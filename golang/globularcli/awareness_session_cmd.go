@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/globulario/services/golang/awareness/preflight"
 	"github.com/spf13/cobra"
 )
 
@@ -75,8 +76,10 @@ type cliSessionResult struct {
 	CheckedAt            string                 `json:"checked_at"`
 	Graph                cliSessionGraph        `json:"graph"`
 	Runtime              cliSessionRuntime      `json:"runtime"`
+	WorkflowHealth       cliWorkflowHealth      `json:"workflow_health"`
 	CI                   cliSessionCI           `json:"ci"`
 	ProposalQueue        cliSessionQueue        `json:"proposal_queue"`
+	TopFindings          []string               `json:"top_findings"`
 	TopGuardrails        []string               `json:"top_guardrails"`
 	BlindSpots           []string               `json:"blind_spots"`
 	RecommendedNextAction string                `json:"recommended_next_action"`
@@ -95,6 +98,12 @@ type cliSessionRuntime struct {
 	Status string `json:"status"` // live | partial | noop | unavailable
 }
 
+type cliWorkflowHealth struct {
+	Verdict    string `json:"verdict"` // healthy | degraded | unknown
+	Reason     string `json:"reason"`
+	NextAction string `json:"next_action"`
+}
+
 type cliSessionCI struct {
 	StrictVerifiedAvailable bool   `json:"strict_verified_available"`
 	LastTestResultsFile     string `json:"last_test_results_file,omitempty"`
@@ -105,6 +114,7 @@ type cliSessionQueue struct {
 	Status     string `json:"status"` // healthy | needs_review | stale | blocked
 	DraftCount int    `json:"draft_count"`
 	StaleCount int    `json:"stale_count"`
+	NextAction string `json:"next_action,omitempty"`
 }
 
 func buildCLISessionStart(repoRoot, docsDir, dbPath string) cliSessionResult {
@@ -123,6 +133,7 @@ func buildCLISessionStart(repoRoot, docsDir, dbPath string) cliSessionResult {
 
 	// Graph section.
 	gs := cliSessionGraph{}
+	var grefreshed *preflight.LiveOverlayFreshness
 	g, err := openAwarenessGraph(dbPath, awareCfg.repoPath)
 	if err == nil && g != nil {
 		defer g.Close()
@@ -142,6 +153,7 @@ func buildCLISessionStart(repoRoot, docsDir, dbPath string) cliSessionResult {
 					"Graph stale: "+f.StaleReason+" — rebuild before relying on preflight.")
 			}
 		}
+		grefreshed = preflight.ComputeLiveOverlayFreshness(context.Background(), g, now)
 	} else {
 		gs.Available = false
 		gs.RebuildRecommended = true
@@ -151,15 +163,35 @@ func buildCLISessionStart(repoRoot, docsDir, dbPath string) cliSessionResult {
 	}
 	result.Graph = gs
 
-	// Runtime section — heuristic: check etcd config to guess reachability.
+	// Runtime section — prefer live overlay evidence when available.
 	runtimeStatus := "noop"
-	if _, err := os.Stat("/var/lib/globular/config/etcd.yaml"); err == nil {
-		runtimeStatus = "partial" // config exists → cluster may be reachable
+	if grefreshed != nil {
+		switch grefreshed.Status {
+		case "fresh":
+			runtimeStatus = "live"
+		case "partial", "failed", "stale":
+			runtimeStatus = "partial"
+		}
 	}
+	if runtimeStatus == "noop" {
+		if _, err := os.Stat("/var/lib/globular/config/etcd.yaml"); err == nil {
+			runtimeStatus = "partial" // config exists → cluster may be reachable
+		}
+	}
+	result.WorkflowHealth = deriveCLIWorkflowHealth(runtimeStatus, grefreshed)
 	result.Runtime = cliSessionRuntime{Status: runtimeStatus}
 	if runtimeStatus == "noop" {
+		if result.Status == "ready" {
+			result.Status = "warning"
+		}
 		result.BlindSpots = append(result.BlindSpots,
 			"Runtime is noop — no live cluster config detected. Static checks only.")
+	} else if grefreshed != nil && grefreshed.Status == "stale" {
+		if result.Status == "ready" {
+			result.Status = "warning"
+		}
+		result.BlindSpots = append(result.BlindSpots,
+			"Runtime live overlay is stale — refresh runtime evidence before high-risk changes.")
 	}
 
 	// CI section.
@@ -185,11 +217,102 @@ func buildCLISessionStart(repoRoot, docsDir, dbPath string) cliSessionResult {
 		result.RecommendedNextAction = "Run 'globular awareness build' to index the codebase."
 	} else if gs.Stale {
 		result.RecommendedNextAction = "Rebuild graph ('globular awareness build'), then run 'globular awareness impact --file <path>' before editing."
+	} else if runtimeStatus == "noop" || (grefreshed != nil && grefreshed.Status == "stale") {
+		result.RecommendedNextAction = "Run 'globular awareness live-snapshot' (or 'globular awareness runtime-snapshot --write-graph') to collect live evidence, then continue."
+	} else if result.ProposalQueue.Status == "stale" {
+		result.RecommendedNextAction = "Run 'globular awareness list-proposals' to triage stale drafts, then approve/promote or close each stale item."
 	} else {
 		result.RecommendedNextAction = "Run 'globular awareness impact --file <path>' for each file you plan to edit."
 	}
+	result.TopFindings = deriveSessionTopFindings(result)
 
 	return result
+}
+
+func deriveSessionTopFindings(r cliSessionResult) []string {
+	findings := []string{}
+	if !r.Graph.Available {
+		findings = append(findings, "Graph unavailable: awareness tools run degraded; rebuild required.")
+	} else if r.Graph.Stale {
+		findings = append(findings, "Graph stale: preflight/impact confidence reduced until rebuild.")
+	}
+
+	if r.Runtime.Status == "noop" {
+		findings = append(findings, "Runtime evidence missing: cluster health cannot be inferred from static graph.")
+	}
+	if r.Runtime.Status == "partial" {
+		for _, b := range r.BlindSpots {
+			if b == "Runtime live overlay is stale — refresh runtime evidence before high-risk changes." {
+				findings = append(findings, "Runtime evidence stale/partial: refresh live snapshot before risky edits.")
+				break
+			}
+		}
+	}
+	if r.WorkflowHealth.Verdict == "degraded" {
+		findings = append(findings, "Workflow degraded: backend/workflow runtime collector reported failures.")
+	} else if r.WorkflowHealth.Verdict == "unknown" && r.Runtime.Status != "noop" {
+		findings = append(findings, "Workflow health unknown: no workflow runtime collector evidence yet.")
+	}
+
+	if !r.CI.StrictVerifiedAvailable {
+		findings = append(findings, "Strict CI evidence missing: no .awareness/test-results.json found.")
+	}
+	if r.ProposalQueue.Status == "stale" {
+		findings = append(findings, "Knowledge queue stale: run 'globular awareness list-proposals' and resolve stale drafts.")
+	}
+	if r.ProposalQueue.Status == "needs_review" {
+		findings = append(findings, "Knowledge queue large: review pending DRAFT proposals.")
+	}
+
+	if len(findings) > 3 {
+		findings = findings[:3]
+	}
+	return findings
+}
+
+func deriveCLIWorkflowHealth(runtimeStatus string, liveOverlay *preflight.LiveOverlayFreshness) cliWorkflowHealth {
+	if runtimeStatus == "noop" {
+		return cliWorkflowHealth{
+			Verdict:    "unknown",
+			Reason:     "No runtime evidence is available.",
+			NextAction: "Run 'globular awareness live-snapshot --collect-workflow --workflow-addr <host:port>' and re-check.",
+		}
+	}
+	if liveOverlay == nil {
+		return cliWorkflowHealth{
+			Verdict:    "unknown",
+			Reason:     "No live overlay record found.",
+			NextAction: "Run 'globular awareness live-snapshot' and re-check workflow health.",
+		}
+	}
+	for _, c := range liveOverlay.Collectors {
+		if c.CollectorID != "workflow_execution" {
+			continue
+		}
+		switch c.Status {
+		case "ok", "checked_clean", "checked_with_matches":
+			return cliWorkflowHealth{
+				Verdict:    "healthy",
+				Reason:     "Workflow runtime collector reported healthy evidence.",
+				NextAction: "Continue with workflow-aware preflight checks before edits.",
+			}
+		default:
+			reason := "Workflow runtime collector reported degraded status."
+			if c.Error != "" {
+				reason = "Workflow runtime collector error: " + c.Error
+			}
+			return cliWorkflowHealth{
+				Verdict:    "degraded",
+				Reason:     reason,
+				NextAction: "Stabilize workflow backend/control-plane first, then re-run live snapshot.",
+			}
+		}
+	}
+	return cliWorkflowHealth{
+		Verdict:    "unknown",
+		Reason:     "Live overlay exists but has no workflow collector evidence.",
+		NextAction: "Run 'globular awareness live-snapshot --collect-workflow --workflow-addr <host:port>' and re-check.",
+	}
 }
 
 func buildCLIQueueSection(docsDir string) cliSessionQueue {
@@ -228,7 +351,15 @@ func buildCLIQueueSection(docsDir string) cliSessionQueue {
 		status = "needs_review"
 	}
 
-	return cliSessionQueue{Status: status, DraftCount: total, StaleCount: stale}
+	nextAction := ""
+	switch status {
+	case "stale":
+		nextAction = "Run 'globular awareness list-proposals' to triage stale drafts."
+	case "needs_review":
+		nextAction = "Run 'globular awareness list-proposals' to review and prune proposal backlog."
+	}
+
+	return cliSessionQueue{Status: status, DraftCount: total, StaleCount: stale, NextAction: nextAction}
 }
 
 func printSessionStartTable(r cliSessionResult) {
@@ -257,6 +388,7 @@ func printSessionStartTable(r cliSessionResult) {
 
 	// Runtime.
 	fmt.Printf("  runtime:  %s\n", r.Runtime.Status)
+	fmt.Printf("  workflow: %s (%s)\n", r.WorkflowHealth.Verdict, r.WorkflowHealth.Reason)
 
 	// CI.
 	if r.CI.StrictVerifiedAvailable {
@@ -267,6 +399,17 @@ func printSessionStartTable(r cliSessionResult) {
 
 	// Queue.
 	fmt.Printf("  proposals: %s (%d total, %d stale)\n", r.ProposalQueue.Status, r.ProposalQueue.DraftCount, r.ProposalQueue.StaleCount)
+	if r.ProposalQueue.NextAction != "" {
+		fmt.Printf("             %s\n", r.ProposalQueue.NextAction)
+	}
+
+	// Guardrails.
+	if len(r.TopFindings) > 0 {
+		fmt.Println("\n  Top findings:")
+		for _, f := range r.TopFindings {
+			fmt.Printf("    ! %s\n", f)
+		}
+	}
 
 	// Guardrails.
 	fmt.Println("\n  Top guardrails:")

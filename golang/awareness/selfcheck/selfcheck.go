@@ -441,9 +441,9 @@ func checkSmoke(ctx context.Context, g *graph.Graph, opts Options, sc SmokeCase)
 	}
 
 	// Check expected forbidden fixes.
-	ffSet := strSet(r.ForbiddenFixes)
+	ffSet := normalizeSet(r.ForbiddenFixes)
 	for _, expected := range sc.ExpectedForbidden {
-		if !ffSet[expected] {
+		if !ffSet[normalizeToken(expected)] {
 			cr.FalseSilences = append(cr.FalseSilences,
 				fmt.Sprintf("smoke:%s — expected forbidden fix %q not surfaced for task %q", sc.Name, expected, sc.Task))
 		}
@@ -469,27 +469,46 @@ func checkNodeContext(ctx context.Context, g *graph.Graph, opts Options) CheckRe
 		return cr
 	}
 
-	// Use a task known to hit etcd/heartbeat invariants.
-	_, result, err := analysis.GenerateAgentContext(ctx, g,
+	// Use tasks known to hit heartbeat/authority invariants.
+	tasks := []string{
 		"heartbeat writes desired state — authority violation",
-		analysis.AgentContextHints{})
-	if err != nil {
-		cr.Status = StatusFail
-		cr.Detail = fmt.Sprintf("GenerateAgentContext: %v", err)
-		return cr
+		"runtime promoted to desired heartbeat authority",
 	}
-
-	if len(result.InvariantIDs) == 0 && len(result.FailureModeIDs) == 0 {
-		cr.Status = StatusWeak
-		cr.Detail = "node-context smoke returned no invariants or failure modes — possible false silence for architectural task"
-		cr.FalseSilences = []string{"node_context_smoke: no context returned for heartbeat-authority task"}
-		return cr
+	var result analysis.AgentContextResult
+	var err error
+	for _, task := range tasks {
+		_, result, err = analysis.GenerateAgentContext(ctx, g, task, analysis.AgentContextHints{})
+		if err != nil {
+			cr.Status = StatusFail
+			cr.Detail = fmt.Sprintf("GenerateAgentContext: %v", err)
+			return cr
+		}
+		if len(result.InvariantIDs) > 0 || len(result.FailureModeIDs) > 0 {
+			cr.Status = StatusPass
+			cr.Detail = fmt.Sprintf("node context returned %d invariants, %d failure modes",
+				len(result.InvariantIDs), len(result.FailureModeIDs))
+			return cr
+		}
 	}
-
-	cr.Status = StatusPass
-	cr.Detail = fmt.Sprintf("node context returned %d invariants, %d failure modes",
-		len(result.InvariantIDs), len(result.FailureModeIDs))
+	cr.Status = StatusWeak
+	cr.Detail = "node-context smoke returned no invariants or failure modes — possible false silence for architectural task"
+	cr.FalseSilences = []string{"node_context_smoke: no context returned for heartbeat-authority task"}
 	return cr
+}
+
+func normalizeSet(items []string) map[string]bool {
+	out := make(map[string]bool, len(items))
+	for _, it := range items {
+		out[normalizeToken(it)] = true
+	}
+	return out
+}
+
+func normalizeToken(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.ReplaceAll(s, "-", "_")
+	s = strings.ReplaceAll(s, " ", "_")
+	return s
 }
 
 func checkSemanticPath(ctx context.Context, g *graph.Graph) CheckResult {

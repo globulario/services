@@ -136,3 +136,79 @@ func TestAgentFormatIncludesFalseSilenceWarning(t *testing.T) {
 		t.Fatalf("expected false-silence warning in agent format, got: %s", out)
 	}
 }
+
+func TestAgentFormatSummarizesLongLists(t *testing.T) {
+	r := makeTestReport()
+	r.ForbiddenFixes = []string{
+		"f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
+	}
+	out, err := preflight.Render(r, preflight.FormatAgent)
+	if err != nil {
+		t.Fatalf("Render agent: %v", err)
+	}
+	if !strings.Contains(out, "- f8") {
+		t.Fatalf("expected top list item in output, got: %s", out)
+	}
+	if strings.Contains(out, "- f10") {
+		t.Fatalf("expected long list truncation in output, got: %s", out)
+	}
+	if !strings.Contains(out, "... 2 more (use --format json for full list)") {
+		t.Fatalf("expected truncation summary in output, got: %s", out)
+	}
+}
+
+func TestAgentFormatFullVerbosityShowsAllItems(t *testing.T) {
+	r := makeTestReport()
+	r.ForbiddenFixes = []string{
+		"f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
+	}
+	out, err := preflight.RenderWithOptions(r, preflight.FormatAgent, preflight.RenderOptions{
+		Verbosity: preflight.VerbosityFull,
+	})
+	if err != nil {
+		t.Fatalf("Render agent: %v", err)
+	}
+	if !strings.Contains(out, "- f10") {
+		t.Fatalf("expected full list item in output, got: %s", out)
+	}
+	if strings.Contains(out, "more (use --format json for full list)") {
+		t.Fatalf("did not expect truncation summary in full mode, got: %s", out)
+	}
+}
+
+func TestAgentFormatShowsStaticOnlyConfidenceBanner(t *testing.T) {
+	r := makeTestReport()
+	r.Coverage.Runtime = preflight.CoverageNoop
+	r.Coverage.IncidentStore = preflight.CoverageNotChecked
+	out, err := preflight.Render(r, preflight.FormatAgent)
+	if err != nil {
+		t.Fatalf("Render agent: %v", err)
+	}
+	if !strings.Contains(out, "Static-only confidence: runtime/incident evidence not fully checked in this run.") {
+		t.Fatalf("expected static-only confidence banner, got: %s", out)
+	}
+}
+
+func TestAgentFormatRanksTaskRelevantItemsFirst(t *testing.T) {
+	r := makeTestReport()
+	r.Task = "mcp orphan port issue"
+	r.ForbiddenFixes = []string{
+		"generic_unrelated_fix",
+		"restart_mcp_without_killing_orphan",
+		"another_unrelated_fix",
+	}
+	out, err := preflight.RenderWithOptions(r, preflight.FormatAgent, preflight.RenderOptions{
+		Verbosity: preflight.VerbosityCompact,
+	})
+	if err != nil {
+		t.Fatalf("Render agent: %v", err)
+	}
+	idxRelevant := strings.Index(out, "restart_mcp_without_killing_orphan")
+	idxUnrelated := strings.Index(out, "generic_unrelated_fix")
+	if idxRelevant == -1 || idxUnrelated == -1 {
+		t.Fatalf("missing expected items in output: %s", out)
+	}
+	if idxRelevant > idxUnrelated {
+		t.Fatalf("expected relevant item ranked before unrelated item, got: %s", out)
+	}
+}

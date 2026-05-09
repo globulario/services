@@ -13,8 +13,9 @@ import (
 
 // Config holds thresholds and flags passed to invariant Evaluate calls.
 type Config struct {
-	HeartbeatStale  time.Duration
-	EmitAuditEvents bool
+	HeartbeatStale     time.Duration
+	EmitAuditEvents    bool
+	AwarenessGraphPath string // optional; enables awareness.incident_pattern rule
 }
 
 // InvariantState is the Go-level verdict for a single invariant check.

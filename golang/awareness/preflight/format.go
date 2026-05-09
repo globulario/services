@@ -3,6 +3,7 @@ package preflight
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -15,13 +16,38 @@ const (
 	FormatAgent    Format = "agent"
 )
 
+const (
+	agentTopRootCauseLimit     = 8
+	agentTopForbiddenLimit     = 8
+	agentTopCodeSmellsLimit    = 8
+	agentTopInspectLimit       = 8
+	agentTopRequiredTestsLimit = 12
+)
+
+type Verbosity string
+
+const (
+	VerbosityCompact  Verbosity = "compact"
+	VerbosityStandard Verbosity = "standard"
+	VerbosityFull     Verbosity = "full"
+)
+
+type RenderOptions struct {
+	Verbosity Verbosity
+}
+
 // Render formats a Report for the given output format.
 func Render(r *Report, format Format) (string, error) {
+	return RenderWithOptions(r, format, RenderOptions{Verbosity: VerbosityStandard})
+}
+
+// RenderWithOptions formats a Report for the given output format and render options.
+func RenderWithOptions(r *Report, format Format, opts RenderOptions) (string, error) {
 	switch format {
 	case FormatJSON:
 		return renderJSON(r)
 	case FormatAgent:
-		return renderAgent(r), nil
+		return renderAgent(r, opts), nil
 	default:
 		return renderMarkdown(r), nil
 	}
@@ -295,8 +321,12 @@ func renderMarkdown(r *Report) string {
 }
 
 // renderAgent formats the report as a directive agent instruction block.
-func renderAgent(r *Report) string {
+func renderAgent(r *Report, opts RenderOptions) string {
 	var sb strings.Builder
+	verbosity := opts.Verbosity
+	if verbosity == "" {
+		verbosity = VerbosityStandard
+	}
 
 	sb.WriteString("AGENT PREFLIGHT RESULT\n\n")
 
@@ -314,25 +344,25 @@ func renderAgent(r *Report) string {
 		sb.WriteString("Dependency cycle detected — resolve the cycle before any code change.\n")
 	}
 	sb.WriteString("\n")
+	if r.Coverage.Runtime == CoverageNoop || r.Coverage.IncidentStore == CoverageNotChecked {
+		sb.WriteString("Static-only confidence: runtime/incident evidence not fully checked in this run.\n\n")
+	}
 
 	// Likely root-cause areas from invariants and failure modes.
-	if len(r.Invariants) > 0 || len(r.FailureModes) > 0 {
+	rootCause := append([]string{}, r.Invariants...)
+	rootCause = append(rootCause, r.FailureModes...)
+	if len(rootCause) > 0 {
 		sb.WriteString("Likely root-cause area:\n")
-		for _, inv := range r.Invariants {
-			sb.WriteString("- " + inv + "\n")
-		}
-		for _, fm := range r.FailureModes {
-			sb.WriteString("- " + fm + "\n")
-		}
+		rootCause = rankForTask(rootCause, r.Task, r.Files, r.Packages)
+		writeAgentTopList(&sb, rootCause, agentLimit(verbosity, agentTopRootCauseLimit, 5))
 		sb.WriteString("\n")
 	}
 
 	// Forbidden fixes.
 	if len(r.ForbiddenFixes) > 0 {
 		sb.WriteString("Forbidden fixes:\n")
-		for _, ff := range r.ForbiddenFixes {
-			sb.WriteString("- " + ff + "\n")
-		}
+		forbidden := rankForTask(r.ForbiddenFixes, r.Task, r.Files, r.Packages)
+		writeAgentTopList(&sb, forbidden, agentLimit(verbosity, agentTopForbiddenLimit, 5))
 		sb.WriteString("\n")
 	}
 
@@ -355,9 +385,8 @@ func renderAgent(r *Report) string {
 	// Code smells.
 	if len(r.CodeSmells) > 0 {
 		sb.WriteString("Code smells:\n")
-		for _, s := range r.CodeSmells {
-			sb.WriteString("- " + s + "\n")
-		}
+		smells := rankForTask(r.CodeSmells, r.Task, r.Files, r.Packages)
+		writeAgentTopList(&sb, smells, agentLimit(verbosity, agentTopCodeSmellsLimit, 5))
 		sb.WriteString("\n")
 	}
 
@@ -373,18 +402,16 @@ func renderAgent(r *Report) string {
 	// You must inspect.
 	if len(r.RequiredSearches) > 0 {
 		sb.WriteString("You must inspect:\n")
-		for _, s := range r.RequiredSearches {
-			sb.WriteString("- " + s + "\n")
-		}
+		searches := rankForTask(r.RequiredSearches, r.Task, r.Files, r.Packages)
+		writeAgentTopList(&sb, searches, agentLimit(verbosity, agentTopInspectLimit, 5))
 		sb.WriteString("\n")
 	}
 
 	// You must run.
 	if len(r.RequiredTests) > 0 {
 		sb.WriteString("You must run:\n")
-		for _, t := range r.RequiredTests {
-			sb.WriteString("- " + t + "\n")
-		}
+		tests := rankForTask(r.RequiredTests, r.Task, r.Files, r.Packages)
+		writeAgentTopList(&sb, tests, agentLimit(verbosity, agentTopRequiredTestsLimit, 8))
 		sb.WriteString("\n")
 	}
 
@@ -477,4 +504,87 @@ func orEmpty(in []string) []string {
 		return []string{}
 	}
 	return in
+}
+
+func writeAgentTopList(sb *strings.Builder, items []string, limit int) {
+	if len(items) == 0 {
+		return
+	}
+	if limit <= 0 || len(items) <= limit {
+		for _, item := range items {
+			sb.WriteString("- " + item + "\n")
+		}
+		return
+	}
+	for _, item := range items[:limit] {
+		sb.WriteString("- " + item + "\n")
+	}
+	sb.WriteString(fmt.Sprintf("- ... %d more (use --format json for full list)\n", len(items)-limit))
+}
+
+func agentLimit(v Verbosity, standard, compact int) int {
+	switch v {
+	case VerbosityFull:
+		return 0
+	case VerbosityCompact:
+		return compact
+	default:
+		return standard
+	}
+}
+
+func rankForTask(items []string, task string, files, packages []string) []string {
+	if len(items) <= 1 {
+		return items
+	}
+	tokens := make(map[string]struct{})
+	for _, tok := range splitTokens(task) {
+		tokens[tok] = struct{}{}
+	}
+	for _, f := range files {
+		for _, tok := range splitTokens(f) {
+			tokens[tok] = struct{}{}
+		}
+	}
+	for _, p := range packages {
+		for _, tok := range splitTokens(p) {
+			tokens[tok] = struct{}{}
+		}
+	}
+	type scored struct {
+		item  string
+		score int
+	}
+	out := make([]scored, 0, len(items))
+	for _, item := range items {
+		score := 0
+		for _, tok := range splitTokens(item) {
+			if _, ok := tokens[tok]; ok {
+				score++
+			}
+		}
+		out = append(out, scored{item: item, score: score})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].score > out[j].score
+	})
+	ordered := make([]string, 0, len(out))
+	for _, s := range out {
+		ordered = append(ordered, s.item)
+	}
+	return ordered
+}
+
+func splitTokens(s string) []string {
+	raw := strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'))
+	})
+	out := make([]string, 0, len(raw))
+	for _, tok := range raw {
+		if len(tok) < 3 {
+			continue
+		}
+		out = append(out, tok)
+	}
+	return out
 }

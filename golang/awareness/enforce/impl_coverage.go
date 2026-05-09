@@ -161,6 +161,14 @@ func InvariantImplementationCoverage(ctx context.Context, g *graph.Graph, opts I
 	if res.Total > 0 {
 		res.ImplementedPercent = float64(res.Implemented) / float64(res.Total) * 100
 	}
+	if res.Total == 0 {
+		res.Findings = append(res.Findings, Finding{
+			Code:     CodeNoGraph,
+			Severity: SeverityWarning,
+			Message:  "invariant implementation coverage check could not run — graph has zero invariant nodes (rebuild awareness graph)",
+		})
+		return res
+	}
 
 	// Threshold check.
 	if res.Threshold.Enforced && res.ImplementedPercent < res.Threshold.MinPercent {

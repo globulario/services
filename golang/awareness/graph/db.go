@@ -152,6 +152,609 @@ CREATE TABLE IF NOT EXISTS agent_usage_events (
 
 CREATE INDEX IF NOT EXISTS idx_agent_usage_time ON agent_usage_events(event_time DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_usage_tool ON agent_usage_events(tool);
+
+CREATE TABLE IF NOT EXISTS context_reads (
+    id            TEXT PRIMARY KEY,
+    session_id    TEXT NOT NULL,
+    path          TEXT NOT NULL,
+    fingerprint   TEXT NOT NULL,
+    size_bytes    INTEGER NOT NULL DEFAULT 0,
+    mod_time_unix INTEGER NOT NULL DEFAULT 0,
+    git_commit    TEXT NOT NULL DEFAULT '',
+    read_reason   TEXT NOT NULL DEFAULT '',
+    read_tool     TEXT NOT NULL DEFAULT '',
+    turn_index    INTEGER NOT NULL DEFAULT 0,
+    created_at    INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_context_reads_session     ON context_reads(session_id);
+CREATE INDEX IF NOT EXISTS idx_context_reads_path        ON context_reads(path);
+CREATE INDEX IF NOT EXISTS idx_context_reads_fingerprint ON context_reads(fingerprint);
+
+CREATE TABLE IF NOT EXISTS file_snapshots (
+    path          TEXT PRIMARY KEY,
+    fingerprint   TEXT NOT NULL,
+    size_bytes    INTEGER NOT NULL DEFAULT 0,
+    mod_time_unix INTEGER NOT NULL DEFAULT 0,
+    git_commit    TEXT NOT NULL DEFAULT '',
+    updated_at    INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_file_snapshots_fingerprint ON file_snapshots(fingerprint);
+
+CREATE TABLE IF NOT EXISTS stale_context_warnings (
+    id                  TEXT PRIMARY KEY,
+    session_id          TEXT NOT NULL,
+    path                TEXT NOT NULL,
+    read_fingerprint    TEXT NOT NULL,
+    current_fingerprint TEXT NOT NULL,
+    read_turn_index     INTEGER NOT NULL DEFAULT 0,
+    current_turn_index  INTEGER NOT NULL DEFAULT 0,
+    severity            TEXT NOT NULL,
+    message             TEXT NOT NULL,
+    created_at          INTEGER NOT NULL,
+    acknowledged_at     INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_stale_context_session ON stale_context_warnings(session_id);
+CREATE INDEX IF NOT EXISTS idx_stale_context_path    ON stale_context_warnings(path);
+
+-- Incident Pattern Matching tables
+CREATE TABLE IF NOT EXISTS incident_patterns (
+    id           TEXT PRIMARY KEY,
+    incident_id  TEXT NOT NULL,
+    title        TEXT NOT NULL,
+    summary      TEXT NOT NULL DEFAULT '',
+    severity     TEXT NOT NULL DEFAULT 'warning',
+    status       TEXT NOT NULL DEFAULT 'active',
+    failure_mode TEXT NOT NULL DEFAULT '',
+    root_cause   TEXT NOT NULL DEFAULT '',
+    lesson       TEXT NOT NULL DEFAULT '',
+    created_at   INTEGER NOT NULL,
+    updated_at   INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_incident_patterns_incident_id  ON incident_patterns(incident_id);
+CREATE INDEX IF NOT EXISTS idx_incident_patterns_failure_mode ON incident_patterns(failure_mode);
+CREATE INDEX IF NOT EXISTS idx_incident_patterns_status       ON incident_patterns(status);
+
+CREATE TABLE IF NOT EXISTS incident_pattern_files (
+    pattern_id TEXT NOT NULL,
+    path       TEXT NOT NULL,
+    role       TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (pattern_id, path)
+);
+CREATE INDEX IF NOT EXISTS idx_incident_pattern_files_path ON incident_pattern_files(path);
+
+CREATE TABLE IF NOT EXISTS incident_pattern_symbols (
+    pattern_id TEXT NOT NULL,
+    symbol     TEXT NOT NULL,
+    role       TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (pattern_id, symbol)
+);
+CREATE INDEX IF NOT EXISTS idx_incident_pattern_symbols_symbol ON incident_pattern_symbols(symbol);
+
+CREATE TABLE IF NOT EXISTS incident_pattern_invariants (
+    pattern_id   TEXT NOT NULL,
+    invariant_id TEXT NOT NULL,
+    relationship TEXT NOT NULL DEFAULT 'violated',
+    PRIMARY KEY (pattern_id, invariant_id)
+);
+
+CREATE TABLE IF NOT EXISTS incident_pattern_failed_fixes (
+    id            TEXT PRIMARY KEY,
+    pattern_id    TEXT NOT NULL,
+    proposal_id   TEXT NOT NULL DEFAULT '',
+    commit_hash   TEXT NOT NULL DEFAULT '',
+    description   TEXT NOT NULL,
+    reverted      INTEGER NOT NULL DEFAULT 0,
+    revert_reason TEXT NOT NULL DEFAULT '',
+    created_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_incident_failed_fixes_pattern ON incident_pattern_failed_fixes(pattern_id);
+
+CREATE TABLE IF NOT EXISTS incident_pattern_edit_shapes (
+    id          TEXT PRIMARY KEY,
+    pattern_id  TEXT NOT NULL,
+    shape_kind  TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    dangerous   INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_incident_edit_shapes_pattern ON incident_pattern_edit_shapes(pattern_id);
+
+CREATE TABLE IF NOT EXISTS incident_pattern_proposals (
+    pattern_id   TEXT NOT NULL,
+    proposal_id  TEXT NOT NULL,
+    relationship TEXT NOT NULL,
+    reason       TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (pattern_id, proposal_id)
+);
+
+CREATE TABLE IF NOT EXISTS incident_pattern_acknowledgements (
+    id                  TEXT PRIMARY KEY,
+    session_id          TEXT NOT NULL,
+    incident_id         TEXT NOT NULL,
+    acknowledged_reason TEXT NOT NULL DEFAULT '',
+    created_at          INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_incident_ack_session  ON incident_pattern_acknowledgements(session_id);
+CREATE INDEX IF NOT EXISTS idx_incident_ack_incident ON incident_pattern_acknowledgements(incident_id);
+
+-- Session Resumption Oracle --------------------------------------------------
+CREATE TABLE IF NOT EXISTS agent_sessions (
+    id                TEXT PRIMARY KEY,
+    title             TEXT NOT NULL DEFAULT '',
+    objective         TEXT NOT NULL DEFAULT '',
+    actor             TEXT NOT NULL DEFAULT 'claude',
+    status            TEXT NOT NULL,
+    started_at        INTEGER NOT NULL,
+    ended_at          INTEGER,
+    parent_session_id TEXT,
+    repo_root         TEXT NOT NULL DEFAULT '',
+    branch            TEXT NOT NULL DEFAULT '',
+    git_commit_start  TEXT NOT NULL DEFAULT '',
+    git_commit_end    TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_agent_sessions_status  ON agent_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_agent_sessions_started ON agent_sessions(started_at);
+
+CREATE TABLE IF NOT EXISTS session_events (
+    id           TEXT PRIMARY KEY,
+    session_id   TEXT NOT NULL,
+    turn_index   INTEGER,
+    event_type   TEXT NOT NULL,
+    title        TEXT NOT NULL DEFAULT '',
+    body         TEXT NOT NULL DEFAULT '',
+    payload_json TEXT NOT NULL DEFAULT '',
+    created_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_session_events_session ON session_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_session_events_type    ON session_events(event_type);
+
+CREATE TABLE IF NOT EXISTS session_file_touches (
+    id                 TEXT PRIMARY KEY,
+    session_id         TEXT NOT NULL,
+    path               TEXT NOT NULL,
+    action             TEXT NOT NULL,
+    sequence           INTEGER NOT NULL,
+    fingerprint_before TEXT NOT NULL DEFAULT '',
+    fingerprint_after  TEXT NOT NULL DEFAULT '',
+    reason             TEXT NOT NULL DEFAULT '',
+    created_at         INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_session_file_touches_session ON session_file_touches(session_id);
+CREATE INDEX IF NOT EXISTS idx_session_file_touches_path    ON session_file_touches(path);
+
+CREATE TABLE IF NOT EXISTS session_decisions (
+    id                      TEXT PRIMARY KEY,
+    session_id              TEXT NOT NULL,
+    title                   TEXT NOT NULL,
+    decision                TEXT NOT NULL,
+    rationale               TEXT NOT NULL,
+    alternatives_considered TEXT NOT NULL DEFAULT '',
+    related_files           TEXT NOT NULL DEFAULT '',
+    related_invariants      TEXT NOT NULL DEFAULT '',
+    related_incidents       TEXT NOT NULL DEFAULT '',
+    confidence              TEXT NOT NULL DEFAULT 'medium',
+    created_at              INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_session_decisions_session ON session_decisions(session_id);
+
+CREATE TABLE IF NOT EXISTS session_assumptions (
+    id              TEXT PRIMARY KEY,
+    session_id      TEXT NOT NULL,
+    assumption      TEXT NOT NULL,
+    basis           TEXT NOT NULL DEFAULT '',
+    status          TEXT NOT NULL DEFAULT 'unverified',
+    validation_plan TEXT NOT NULL DEFAULT '',
+    related_files   TEXT NOT NULL DEFAULT '',
+    created_at      INTEGER NOT NULL,
+    resolved_at     INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_session_assumptions_session ON session_assumptions(session_id);
+CREATE INDEX IF NOT EXISTS idx_session_assumptions_status  ON session_assumptions(status);
+
+CREATE TABLE IF NOT EXISTS session_unfinished_work (
+    id                TEXT PRIMARY KEY,
+    session_id        TEXT NOT NULL,
+    title             TEXT NOT NULL,
+    description       TEXT NOT NULL,
+    priority          TEXT NOT NULL DEFAULT 'medium',
+    reason_unfinished TEXT NOT NULL DEFAULT '',
+    next_action       TEXT NOT NULL DEFAULT '',
+    related_files     TEXT NOT NULL DEFAULT '',
+    related_tests     TEXT NOT NULL DEFAULT '',
+    related_incidents TEXT NOT NULL DEFAULT '',
+    status            TEXT NOT NULL DEFAULT 'open',
+    created_at        INTEGER NOT NULL,
+    closed_at         INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_session_unfinished_session ON session_unfinished_work(session_id);
+CREATE INDEX IF NOT EXISTS idx_session_unfinished_status  ON session_unfinished_work(status);
+
+CREATE TABLE IF NOT EXISTS session_warnings (
+    id               TEXT PRIMARY KEY,
+    session_id       TEXT NOT NULL,
+    warning_type     TEXT NOT NULL,
+    severity         TEXT NOT NULL,
+    message          TEXT NOT NULL,
+    related_file     TEXT NOT NULL DEFAULT '',
+    related_incident TEXT NOT NULL DEFAULT '',
+    acknowledged     INTEGER NOT NULL DEFAULT 0,
+    created_at       INTEGER NOT NULL,
+    acknowledged_at  INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_session_warnings_session ON session_warnings(session_id);
+
+CREATE TABLE IF NOT EXISTS session_test_results (
+    id             TEXT PRIMARY KEY,
+    session_id     TEXT NOT NULL,
+    command        TEXT NOT NULL,
+    status         TEXT NOT NULL,
+    summary        TEXT NOT NULL DEFAULT '',
+    output_excerpt TEXT NOT NULL DEFAULT '',
+    related_files  TEXT NOT NULL DEFAULT '',
+    created_at     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_session_tests_session ON session_test_results(session_id);
+
+CREATE TABLE IF NOT EXISTS session_resume_snapshots (
+    id                      TEXT PRIMARY KEY,
+    session_id              TEXT NOT NULL,
+    summary                 TEXT NOT NULL,
+    objective               TEXT NOT NULL DEFAULT '',
+    files_touched_json      TEXT NOT NULL DEFAULT '',
+    decisions_json          TEXT NOT NULL DEFAULT '',
+    unfinished_json         TEXT NOT NULL DEFAULT '',
+    warnings_json           TEXT NOT NULL DEFAULT '',
+    tests_json              TEXT NOT NULL DEFAULT '',
+    recommended_next_action TEXT NOT NULL DEFAULT '',
+    created_at              INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_session_resume_session ON session_resume_snapshots(session_id);
+
+-- Live Cluster Signal Integration --------------------------------------------
+CREATE TABLE IF NOT EXISTS cluster_signal_snapshots (
+    id                TEXT PRIMARY KEY,
+    cluster_id        TEXT NOT NULL DEFAULT '',
+    node_id           TEXT NOT NULL DEFAULT '',
+    collected_at      INTEGER NOT NULL,
+    collector_version TEXT NOT NULL DEFAULT '1',
+    status            TEXT NOT NULL,
+    summary           TEXT NOT NULL DEFAULT '',
+    payload_json      TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_cluster_signal_cluster    ON cluster_signal_snapshots(cluster_id);
+CREATE INDEX IF NOT EXISTS idx_cluster_signal_collected  ON cluster_signal_snapshots(collected_at);
+
+CREATE TABLE IF NOT EXISTS service_live_states (
+    id                   TEXT PRIMARY KEY,
+    snapshot_id          TEXT NOT NULL,
+    service_name         TEXT NOT NULL,
+    component            TEXT NOT NULL DEFAULT '',
+    node_id              TEXT NOT NULL DEFAULT '',
+    status               TEXT NOT NULL,
+    health               TEXT NOT NULL,
+    heartbeat_age_seconds INTEGER,
+    readiness            TEXT NOT NULL DEFAULT '',
+    dependency_state     TEXT NOT NULL DEFAULT '',
+    last_error           TEXT NOT NULL DEFAULT '',
+    updated_at           INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_service_live_snapshot ON service_live_states(snapshot_id);
+CREATE INDEX IF NOT EXISTS idx_service_live_service  ON service_live_states(service_name);
+CREATE INDEX IF NOT EXISTS idx_service_live_health   ON service_live_states(health);
+
+CREATE TABLE IF NOT EXISTS recent_error_signatures (
+    id                TEXT PRIMARY KEY,
+    snapshot_id       TEXT NOT NULL,
+    service_name      TEXT NOT NULL DEFAULT '',
+    component         TEXT NOT NULL DEFAULT '',
+    node_id           TEXT NOT NULL DEFAULT '',
+    signature         TEXT NOT NULL,
+    severity          TEXT NOT NULL,
+    count             INTEGER NOT NULL DEFAULT 1,
+    first_seen        INTEGER,
+    last_seen         INTEGER,
+    sample            TEXT NOT NULL DEFAULT '',
+    related_files     TEXT NOT NULL DEFAULT '',
+    related_invariants TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_recent_error_snapshot   ON recent_error_signatures(snapshot_id);
+CREATE INDEX IF NOT EXISTS idx_recent_error_service    ON recent_error_signatures(service_name);
+CREATE INDEX IF NOT EXISTS idx_recent_error_signature  ON recent_error_signatures(signature);
+
+CREATE TABLE IF NOT EXISTS runtime_convergence_states (
+    id                 TEXT PRIMARY KEY,
+    snapshot_id        TEXT NOT NULL,
+    component          TEXT NOT NULL,
+    desired_state      TEXT NOT NULL DEFAULT '',
+    installed_state    TEXT NOT NULL DEFAULT '',
+    runtime_state      TEXT NOT NULL DEFAULT '',
+    convergence_status TEXT NOT NULL,
+    blocked_reason     TEXT NOT NULL DEFAULT '',
+    retry_count        INTEGER NOT NULL DEFAULT 0,
+    age_seconds        INTEGER NOT NULL DEFAULT 0,
+    related_key        TEXT NOT NULL DEFAULT '',
+    updated_at         INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_convergence_snapshot   ON runtime_convergence_states(snapshot_id);
+CREATE INDEX IF NOT EXISTS idx_convergence_component  ON runtime_convergence_states(component);
+CREATE INDEX IF NOT EXISTS idx_convergence_status     ON runtime_convergence_states(convergence_status);
+
+CREATE TABLE IF NOT EXISTS active_cluster_incidents (
+    id           TEXT PRIMARY KEY,
+    snapshot_id  TEXT NOT NULL,
+    incident_id  TEXT NOT NULL DEFAULT '',
+    source       TEXT NOT NULL,
+    title        TEXT NOT NULL,
+    severity     TEXT NOT NULL,
+    status       TEXT NOT NULL,
+    component    TEXT NOT NULL DEFAULT '',
+    service_name TEXT NOT NULL DEFAULT '',
+    node_id      TEXT NOT NULL DEFAULT '',
+    summary      TEXT NOT NULL DEFAULT '',
+    started_at   INTEGER,
+    updated_at   INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_active_incidents_snapshot  ON active_cluster_incidents(snapshot_id);
+CREATE INDEX IF NOT EXISTS idx_active_incidents_component ON active_cluster_incidents(component);
+CREATE INDEX IF NOT EXISTS idx_active_incidents_service   ON active_cluster_incidents(service_name);
+
+CREATE TABLE IF NOT EXISTS live_preflight_results (
+    id                 TEXT PRIMARY KEY,
+    session_id         TEXT NOT NULL DEFAULT '',
+    task               TEXT NOT NULL DEFAULT '',
+    files_json         TEXT NOT NULL DEFAULT '',
+    components_json    TEXT NOT NULL DEFAULT '',
+    static_result_id   TEXT NOT NULL DEFAULT '',
+    signal_snapshot_id TEXT NOT NULL DEFAULT '',
+    verdict            TEXT NOT NULL,
+    severity           TEXT NOT NULL,
+    summary            TEXT NOT NULL,
+    blockers_json      TEXT NOT NULL DEFAULT '',
+    warnings_json      TEXT NOT NULL DEFAULT '',
+    confirmations_json TEXT NOT NULL DEFAULT '',
+    created_at         INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_live_preflight_session ON live_preflight_results(session_id);
+CREATE INDEX IF NOT EXISTS idx_live_preflight_verdict ON live_preflight_results(verdict);
+
+CREATE TABLE IF NOT EXISTS semantic_diff_reports (
+    id               TEXT PRIMARY KEY,
+    session_id       TEXT,
+    diff_source      TEXT NOT NULL,
+    git_base         TEXT,
+    git_head         TEXT,
+    task             TEXT,
+    verdict          TEXT NOT NULL,
+    severity         TEXT NOT NULL,
+    summary          TEXT NOT NULL,
+    diff_fingerprint TEXT,
+    created_at       INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_semantic_diff_session ON semantic_diff_reports(session_id);
+CREATE INDEX IF NOT EXISTS idx_semantic_diff_verdict ON semantic_diff_reports(verdict);
+
+CREATE TABLE IF NOT EXISTS semantic_diff_findings (
+    id             TEXT PRIMARY KEY,
+    report_id      TEXT NOT NULL,
+    kind           TEXT NOT NULL,
+    severity       TEXT NOT NULL,
+    file_path      TEXT,
+    symbol         TEXT,
+    layer_from     TEXT,
+    layer_to       TEXT,
+    authority_from TEXT,
+    authority_to   TEXT,
+    invariant_id   TEXT,
+    message        TEXT NOT NULL,
+    evidence       TEXT,
+    recommendation TEXT,
+    created_at     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_semantic_findings_report     ON semantic_diff_findings(report_id);
+CREATE INDEX IF NOT EXISTS idx_semantic_findings_kind       ON semantic_diff_findings(kind);
+CREATE INDEX IF NOT EXISTS idx_semantic_findings_file       ON semantic_diff_findings(file_path);
+CREATE INDEX IF NOT EXISTS idx_semantic_findings_invariant  ON semantic_diff_findings(invariant_id);
+
+CREATE TABLE IF NOT EXISTS semantic_diff_atoms (
+    id             TEXT PRIMARY KEY,
+    report_id      TEXT NOT NULL,
+    file_path      TEXT NOT NULL,
+    symbol         TEXT,
+    atom_kind      TEXT NOT NULL,
+    before_summary TEXT,
+    after_summary  TEXT,
+    confidence     TEXT NOT NULL,
+    evidence       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_semantic_atoms_report ON semantic_diff_atoms(report_id);
+CREATE INDEX IF NOT EXISTS idx_semantic_atoms_kind   ON semantic_diff_atoms(atom_kind);
+
+CREATE TABLE IF NOT EXISTS semantic_layer_transitions (
+    id              TEXT PRIMARY KEY,
+    report_id       TEXT NOT NULL,
+    file_path       TEXT,
+    symbol          TEXT,
+    layer_from      TEXT,
+    layer_to        TEXT,
+    transition_kind TEXT NOT NULL,
+    allowed         INTEGER NOT NULL,
+    reason          TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_layer_transitions_report ON semantic_layer_transitions(report_id);
+
+CREATE TABLE IF NOT EXISTS coordination_runs (
+    id               TEXT PRIMARY KEY,
+    title            TEXT NOT NULL,
+    objective        TEXT NOT NULL,
+    status           TEXT NOT NULL,
+    owner_agent_id   TEXT,
+    repo_root        TEXT,
+    branch           TEXT,
+    git_commit_start TEXT,
+    git_commit_end   TEXT,
+    created_at       INTEGER NOT NULL,
+    updated_at       INTEGER NOT NULL,
+    closed_at        INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_coordination_runs_status ON coordination_runs(status);
+CREATE INDEX IF NOT EXISTS idx_coordination_runs_repo   ON coordination_runs(repo_root);
+
+CREATE TABLE IF NOT EXISTS agent_participants (
+    id           TEXT PRIMARY KEY,
+    run_id       TEXT NOT NULL,
+    agent_name   TEXT NOT NULL,
+    agent_kind   TEXT NOT NULL,
+    session_id   TEXT,
+    role         TEXT,
+    status       TEXT NOT NULL,
+    heartbeat_at INTEGER,
+    created_at   INTEGER NOT NULL,
+    updated_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_agent_participants_run    ON agent_participants(run_id);
+CREATE INDEX IF NOT EXISTS idx_agent_participants_status ON agent_participants(status);
+
+CREATE TABLE IF NOT EXISTS coordination_work_items (
+    id                  TEXT PRIMARY KEY,
+    run_id              TEXT NOT NULL,
+    title               TEXT NOT NULL,
+    description         TEXT,
+    status              TEXT NOT NULL,
+    priority            TEXT NOT NULL,
+    assigned_agent_id   TEXT,
+    claimed_by_agent_id TEXT,
+    related_files       TEXT,
+    related_components  TEXT,
+    related_invariants  TEXT,
+    related_incidents   TEXT,
+    created_at          INTEGER NOT NULL,
+    updated_at          INTEGER NOT NULL,
+    closed_at           INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_coordination_work_run    ON coordination_work_items(run_id);
+CREATE INDEX IF NOT EXISTS idx_coordination_work_status ON coordination_work_items(status);
+CREATE INDEX IF NOT EXISTS idx_coordination_work_agent  ON coordination_work_items(assigned_agent_id);
+
+CREATE TABLE IF NOT EXISTS coordination_file_claims (
+    id          TEXT PRIMARY KEY,
+    run_id      TEXT NOT NULL,
+    agent_id    TEXT NOT NULL,
+    path        TEXT NOT NULL,
+    claim_kind  TEXT NOT NULL,
+    reason      TEXT,
+    status      TEXT NOT NULL,
+    created_at  INTEGER NOT NULL,
+    expires_at  INTEGER,
+    released_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_file_claims_run   ON coordination_file_claims(run_id);
+CREATE INDEX IF NOT EXISTS idx_file_claims_path  ON coordination_file_claims(path);
+CREATE INDEX IF NOT EXISTS idx_file_claims_agent ON coordination_file_claims(agent_id);
+
+CREATE TABLE IF NOT EXISTS coordination_file_locks (
+    id                  TEXT PRIMARY KEY,
+    run_id              TEXT NOT NULL,
+    agent_id            TEXT NOT NULL,
+    path                TEXT NOT NULL,
+    lock_kind           TEXT NOT NULL,
+    reason              TEXT NOT NULL,
+    fingerprint_at_lock TEXT,
+    status              TEXT NOT NULL,
+    created_at          INTEGER NOT NULL,
+    expires_at          INTEGER NOT NULL,
+    released_at         INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_file_locks_run   ON coordination_file_locks(run_id, path);
+CREATE INDEX IF NOT EXISTS idx_file_locks_agent ON coordination_file_locks(agent_id);
+CREATE INDEX IF NOT EXISTS idx_file_locks_path  ON coordination_file_locks(path);
+
+CREATE TABLE IF NOT EXISTS coordination_decisions (
+    id                 TEXT PRIMARY KEY,
+    run_id             TEXT NOT NULL,
+    agent_id           TEXT NOT NULL,
+    title              TEXT NOT NULL,
+    decision           TEXT NOT NULL,
+    rationale          TEXT NOT NULL,
+    scope              TEXT NOT NULL,
+    related_files      TEXT,
+    related_components TEXT,
+    related_invariants TEXT,
+    related_incidents  TEXT,
+    binding            INTEGER NOT NULL DEFAULT 0,
+    superseded_by      TEXT,
+    created_at         INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_coord_decisions_run   ON coordination_decisions(run_id);
+CREATE INDEX IF NOT EXISTS idx_coord_decisions_scope ON coordination_decisions(scope);
+
+CREATE TABLE IF NOT EXISTS coordination_assumptions (
+    id              TEXT PRIMARY KEY,
+    run_id          TEXT NOT NULL,
+    agent_id        TEXT NOT NULL,
+    assumption      TEXT NOT NULL,
+    basis           TEXT,
+    status          TEXT NOT NULL,
+    validation_plan TEXT,
+    related_files   TEXT,
+    created_at      INTEGER NOT NULL,
+    resolved_at     INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_coord_assumptions_run    ON coordination_assumptions(run_id);
+CREATE INDEX IF NOT EXISTS idx_coord_assumptions_status ON coordination_assumptions(status);
+
+CREATE TABLE IF NOT EXISTS coordination_warnings (
+    id                 TEXT PRIMARY KEY,
+    run_id             TEXT NOT NULL,
+    agent_id           TEXT,
+    warning_type       TEXT NOT NULL,
+    severity           TEXT NOT NULL,
+    message            TEXT NOT NULL,
+    related_file       TEXT,
+    related_component  TEXT,
+    related_incident   TEXT,
+    status             TEXT NOT NULL,
+    created_at         INTEGER NOT NULL,
+    acknowledged_at    INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_coord_warnings_run    ON coordination_warnings(run_id);
+CREATE INDEX IF NOT EXISTS idx_coord_warnings_file   ON coordination_warnings(related_file);
+CREATE INDEX IF NOT EXISTS idx_coord_warnings_status ON coordination_warnings(status);
+
+CREATE TABLE IF NOT EXISTS coordination_handoff_notes (
+    id            TEXT PRIMARY KEY,
+    run_id        TEXT NOT NULL,
+    from_agent_id TEXT NOT NULL,
+    to_agent_id   TEXT,
+    work_item_id  TEXT,
+    title         TEXT NOT NULL,
+    body          TEXT NOT NULL,
+    related_files TEXT,
+    created_at    INTEGER NOT NULL,
+    read_at       INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_handoff_run      ON coordination_handoff_notes(run_id);
+CREATE INDEX IF NOT EXISTS idx_handoff_to_agent ON coordination_handoff_notes(to_agent_id);
+
+CREATE TABLE IF NOT EXISTS coordination_conflicts (
+    id            TEXT PRIMARY KEY,
+    run_id        TEXT NOT NULL,
+    conflict_type TEXT NOT NULL,
+    severity      TEXT NOT NULL,
+    agent_a       TEXT,
+    agent_b       TEXT,
+    path          TEXT,
+    symbol        TEXT,
+    message       TEXT NOT NULL,
+    resolution    TEXT,
+    status        TEXT NOT NULL,
+    created_at    INTEGER NOT NULL,
+    resolved_at   INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_coord_conflicts_run    ON coordination_conflicts(run_id);
+CREATE INDEX IF NOT EXISTS idx_coord_conflicts_status ON coordination_conflicts(status);
 `
 
 // Graph is the central awareness graph handle backed by SQLite.

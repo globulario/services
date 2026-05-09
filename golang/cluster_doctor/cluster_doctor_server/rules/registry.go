@@ -149,6 +149,9 @@ func NewRegistry(cfg Config) *Registry {
 		dnsServingLastKnownGood{},
 		// Reconcile lane status fallback from etcd (when Prometheus unavailable).
 		reconcileLaneStatusEtcd{},
+		// Awareness: historical incident pattern matching. Degrades gracefully
+		// when AwarenessGraphPath is unset or the graph is unavailable.
+		incidentPatternAwareness{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)
