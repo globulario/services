@@ -937,6 +937,7 @@ func init() {
 	awarenessCmd.AddCommand(awarenessPackageContextCmd)
 	awarenessCmd.AddCommand(awarenessAdmitPackageCmd)
 	awarenessCmd.AddCommand(awarenessReviewServiceCmd)
+	awarenessCmd.AddCommand(awarenessLiveSnapshotCmd)
 
 	// Register top-level command.
 	rootCmd.AddCommand(awarenessCmd)

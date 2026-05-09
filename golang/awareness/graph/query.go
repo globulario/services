@@ -62,12 +62,27 @@ type BuildRecord struct {
 	CollectorHealth  []CollectorHealthItem
 }
 
-// LatestBuildRecord returns the most recent graph_builds row, or (nil, nil) if none.
+// LatestBuildRecord returns the most recent static graph build row (excludes live snapshots), or (nil, nil) if none.
 func (g *Graph) LatestBuildRecord(ctx context.Context) (*BuildRecord, error) {
 	row := g.db.QueryRowContext(ctx, `
 		SELECT id, repo_root, git_commit, release_id, created_at, stats_json,
 		       COALESCE(collector_health_json, '[]')
-		FROM graph_builds ORDER BY created_at DESC LIMIT 1
+		FROM graph_builds WHERE id != 'live-snapshot' ORDER BY created_at DESC LIMIT 1
+	`)
+	return scanBuildRecord(row)
+}
+
+// LiveSnapshotBuildID is the fixed build ID used for live overlay refresh records.
+// It is always overwritten (upserted) on each live-snapshot run.
+const LiveSnapshotBuildID = "live-snapshot"
+
+// LatestLiveSnapshotRecord returns the most recent live mirror refresh record,
+// or (nil, nil) if no live-snapshot has been run.
+func (g *Graph) LatestLiveSnapshotRecord(ctx context.Context) (*BuildRecord, error) {
+	row := g.db.QueryRowContext(ctx, `
+		SELECT id, repo_root, git_commit, release_id, created_at, stats_json,
+		       COALESCE(collector_health_json, '[]')
+		FROM graph_builds WHERE id = 'live-snapshot'
 	`)
 	return scanBuildRecord(row)
 }

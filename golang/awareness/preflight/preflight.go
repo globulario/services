@@ -30,6 +30,7 @@ type Options struct {
 	Bridge         *runtime.RuntimeBridge // optional: if nil and IncludeRuntime, uses noop bridge
 	WriteAudit     bool                   // if true, persist a PreflightAuditRecord to the graph DB after the run
 	GitSHA         string                 // optional: current git commit SHA for the audit record
+	Now            time.Time              // injectable clock for tests; zero → time.Now()
 }
 
 // Run executes the full preflight and returns a structured report.
@@ -245,7 +246,24 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 		}
 	}
 
-	// 18b. Risk tier and optional low-risk fast path.
+	// 18b. Live overlay freshness — separate from graph freshness.
+	// Missing or stale live overlay is a blind spot for runtime-sensitive tasks.
+	if g != nil {
+		r.LiveOverlay = ComputeLiveOverlayFreshness(ctx, g, opts.Now)
+		if r.LiveOverlay.Status == "absent" {
+			r.BlindSpots = append(r.BlindSpots,
+				"live overlay absent — run 'globular awareness live-snapshot' or enable systemd timer for scheduled refresh")
+		} else if r.LiveOverlay.Status == "stale" {
+			r.Warnings = append(r.Warnings,
+				fmt.Sprintf("LIVE_OVERLAY_STALE: live mirror is %.0fs old (threshold %ds) — runtime evidence may be outdated",
+					r.LiveOverlay.AgeSeconds, LiveOverlayStaleSeconds))
+		} else if r.LiveOverlay.Status == "failed" || r.LiveOverlay.Status == "partial" {
+			r.BlindSpots = append(r.BlindSpots,
+				fmt.Sprintf("live overlay %s — some collectors could not refresh runtime evidence", r.LiveOverlay.Status))
+		}
+	}
+
+	// 18c. Risk tier and optional low-risk fast path.
 	r.RiskTier = computeRiskTier(r, g)
 	r.FastPathApplied = applyLowRiskFastPath(r)
 
@@ -1256,4 +1274,58 @@ func buildWorkflowRuntimeSection(ctx context.Context, g *graph.Graph) *WorkflowR
 	}
 
 	return ws
+}
+
+// ComputeLiveOverlayFreshness checks when the last live-snapshot was run
+// and returns a freshness report. Returns status "absent" if never run.
+// Exported so tests in other packages can call it directly.
+func ComputeLiveOverlayFreshness(ctx context.Context, g *graph.Graph, now time.Time) *LiveOverlayFreshness {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	rec, err := g.LatestLiveSnapshotRecord(ctx)
+	if err != nil || rec == nil {
+		return &LiveOverlayFreshness{Status: "absent"}
+	}
+
+	age := now.Unix() - rec.CreatedAt
+	ageSeconds := float64(age)
+
+	status := "fresh"
+	if ageSeconds > float64(LiveOverlayStaleSeconds) {
+		status = "absent"
+	} else if ageSeconds > float64(LiveOverlayTTLSeconds) {
+		status = "stale"
+	}
+
+	// Derive status from collector health if any collectors failed.
+	okCount, failCount := 0, 0
+	var collectors []CollectorHealthSummary
+	for _, ch := range rec.CollectorHealth {
+		c := CollectorHealthSummary{
+			CollectorID:  ch.CollectorID,
+			Status:       ch.Status,
+			NodesEmitted: ch.NodesEmitted,
+			Error:        ch.Error,
+		}
+		collectors = append(collectors, c)
+		if ch.Status == "error" || ch.Status == "failed" {
+			failCount++
+		} else {
+			okCount++
+		}
+	}
+	if status == "fresh" && failCount > 0 && okCount == 0 {
+		status = "failed"
+	} else if status == "fresh" && failCount > 0 {
+		status = "partial"
+	}
+
+	collectedAt := time.Unix(rec.CreatedAt, 0).UTC().Format(time.RFC3339)
+	return &LiveOverlayFreshness{
+		Status:      status,
+		AgeSeconds:  ageSeconds,
+		CollectedAt: collectedAt,
+		Collectors:  collectors,
+	}
 }

@@ -228,6 +228,21 @@ type DegradedModePlaybook struct {
 	StopConditions   []string `json:"stop_conditions,omitempty"`
 }
 
+// LiveOverlayFreshness reports the current freshness of the live mirror overlay.
+// It is separate from graph freshness: the graph can be fresh (recently built)
+// while the live overlay is stale (no recent live-snapshot run).
+type LiveOverlayFreshness struct {
+	Status     string                   `json:"status"`               // "fresh" | "stale" | "absent" | "failed" | "partial"
+	AgeSeconds float64                  `json:"age_seconds"`
+	CollectedAt string                  `json:"collected_at,omitempty"`
+	Collectors []CollectorHealthSummary `json:"collectors,omitempty"`
+}
+
+// LiveOverlayTTLSeconds is how long a live snapshot stays "fresh".
+const LiveOverlayTTLSeconds = 300 // 5 minutes
+// LiveOverlayStaleSeconds is when a live snapshot is considered "stale" but not absent.
+const LiveOverlayStaleSeconds = 900 // 15 minutes
+
 // Report is the complete output of a preflight run.
 type Report struct {
 	Task                string                   `json:"task"`
@@ -274,4 +289,5 @@ type Report struct {
 	RiskTier                  RiskTier             `json:"risk_tier"`
 	FastPathApplied           bool                 `json:"fast_path_applied"`
 	GoFileCoverage            *GoFileCoverageReport `json:"go_file_coverage,omitempty"`
+	LiveOverlay               *LiveOverlayFreshness `json:"live_overlay,omitempty"`
 }
