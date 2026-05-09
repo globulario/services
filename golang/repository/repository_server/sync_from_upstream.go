@@ -560,36 +560,51 @@ func (srv *server) processSyncEntry(
 		// rebuild the artifact key for the state record at that build.
 		existingKey := artifactKeyWithBuild(ref, existing.GetBuildNumber())
 		if blobPresent {
-			stateOK, currentState := srv.canSkipDueToExistingState(ctx, existingKey)
-			if !stateOK {
-				logBlobSkipDecision(src.GetName(), n.Publisher, n.Name, n.Version, n.Platform,
-					n.BuildID, existing.GetBuildNumber(), n.Digest, blobKey,
-					"reprocess", "pipeline_state_not_publishable:"+string(currentState))
-				slog.Info("repository sync: scylla blob present but artifact_state not publishable; reprocessing",
-					"source", src.GetName(), "artifact_key", existingKey,
-					"artifact_state", string(currentState))
-				if repairReason == "" {
-					repairReason = "pipeline_state:" + string(currentState)
+			// Idempotent skip ONLY when the upstream build_number matches the
+			// existing one. If they differ (e.g. bootstrap published build_number=1
+			// before sync ran, but the BOM uses build_number=171), we must import
+			// at n.BuildNumber so the controller can satisfy its requirement.
+			if existing.GetBuildNumber() == n.BuildNumber {
+				stateOK, currentState := srv.canSkipDueToExistingState(ctx, existingKey)
+				if !stateOK {
+					logBlobSkipDecision(src.GetName(), n.Publisher, n.Name, n.Version, n.Platform,
+						n.BuildID, existing.GetBuildNumber(), n.Digest, blobKey,
+						"reprocess", "pipeline_state_not_publishable:"+string(currentState))
+					slog.Info("repository sync: scylla blob present but artifact_state not publishable; reprocessing",
+						"source", src.GetName(), "artifact_key", existingKey,
+						"artifact_state", string(currentState))
+					if repairReason == "" {
+						repairReason = "pipeline_state:" + string(currentState)
+					}
+				} else {
+					logBlobSkipDecision(src.GetName(), n.Publisher, n.Name, n.Version, n.Platform,
+						n.BuildID, existing.GetBuildNumber(), n.Digest, blobKey, "skip", "scylla_match_blob_verified")
+					skipFields := stateFields
+					skipFields.BlobKey = blobKey
+					skipFields.SizeBytes = existing.GetSizeBytes()
+					skipFields.BuildNumber = existing.GetBuildNumber()
+					_ = srv.transitionArtifactState(ctx, existingKey, PipelinePublished,
+						"sync_skip_idempotent", workflowRunID, skipFields)
+					detail := fmt.Sprintf("already present with matching digest at build %d (%s); blob verified",
+						existing.GetBuildNumber(), state.String())
+					if dryRun {
+						result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
+					} else {
+						result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
+					}
+					result.Detail = detail
+					result.Action = "up_to_date"
+					return result
 				}
 			} else {
-				logBlobSkipDecision(src.GetName(), n.Publisher, n.Name, n.Version, n.Platform,
-					n.BuildID, existing.GetBuildNumber(), n.Digest, blobKey, "skip", "scylla_match_blob_verified")
-				skipFields := stateFields
-				skipFields.BlobKey = blobKey
-				skipFields.SizeBytes = existing.GetSizeBytes()
-				skipFields.BuildNumber = existing.GetBuildNumber()
-				_ = srv.transitionArtifactState(ctx, existingKey, PipelinePublished,
-					"sync_skip_idempotent", workflowRunID, skipFields)
-				detail := fmt.Sprintf("already present with matching digest at build %d (%s); blob verified",
-					existing.GetBuildNumber(), state.String())
-				if dryRun {
-					result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
-				} else {
-					result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
-				}
-				result.Detail = detail
-				result.Action = "up_to_date"
-				return result
+				// Same digest but different build_number: import at the upstream's
+				// build_number so the BOM's build_number becomes resolvable.
+				slog.Info("repository sync: same digest exists at different build_number — importing at upstream build_number",
+					"source", src.GetName(), "publisher", n.Publisher,
+					"name", n.Name, "version", n.Version, "platform", n.Platform,
+					"existing_build_number", existing.GetBuildNumber(),
+					"upstream_build_number", n.BuildNumber,
+					"digest", truncDigest(n.Digest))
 			}
 		} else {
 			// Scylla/manifest record found but the blob is missing or wrong
@@ -735,33 +750,49 @@ func (srv *server) importUpstreamArtifact(
 		// matches the recorded size. Otherwise fall through to re-create it.
 		blobPresent, blobReason := srv.artifactBlobStatus(ctx, ref, existing.GetBuildNumber(), existing.GetSizeBytes())
 		if blobPresent {
-			// Already-published idempotent case. If the existing row's
-			// pipeline state isn't PUBLISHED yet, lift it now.
-			existingKey := artifactKeyWithBuild(ref, existing.GetBuildNumber())
-			if curr := srv.readArtifactState(ctx, existingKey); curr == PipelineUnspecified || curr == PipelinePublished {
-				idemFields := stateFields
-				idemFields.BuildNumber = existing.GetBuildNumber()
-				idemFields.SizeBytes = existing.GetSizeBytes()
-				_ = srv.transitionArtifactState(ctx, existingKey, PipelinePublished,
-					"import_idempotent_skip", workflowRunID, idemFields)
+			// Idempotent skip ONLY when the build_number also matches. If the
+			// upstream's build_number differs from the existing one (e.g. a local
+			// bootstrap publish created build_number=1 before the sync ran, but the
+			// BOM records build_number=171), we must still import at n.BuildNumber
+			// so the controller can satisfy its build_number requirement. The blob
+			// bytes are the same — only the metadata record differs.
+			if existing.GetBuildNumber() == n.BuildNumber {
+				existingKey := artifactKeyWithBuild(ref, existing.GetBuildNumber())
+				if curr := srv.readArtifactState(ctx, existingKey); curr == PipelineUnspecified || curr == PipelinePublished {
+					idemFields := stateFields
+					idemFields.BuildNumber = existing.GetBuildNumber()
+					idemFields.SizeBytes = existing.GetSizeBytes()
+					_ = srv.transitionArtifactState(ctx, existingKey, PipelinePublished,
+						"import_idempotent_skip", workflowRunID, idemFields)
+				}
+				slog.Info("upstream: identical artifact already exists (blob verified), skipping import",
+					"source", src.GetName(), "publisher", n.Publisher,
+					"name", n.Name, "version", n.Version, "platform", n.Platform,
+					"build_number", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),
+					"digest", truncDigest(digest),
+					"blob_key", blobKeyForRef(ref, existing.GetBuildNumber()),
+					"publish_state", state.String())
+				return nil
 			}
-			slog.Info("upstream: identical artifact already exists (blob verified), skipping import",
+			// Same digest but different build_number: the upstream release index
+			// uses a different build_number than what was locally published. Import
+			// at the upstream's build_number so it is discoverable by the BOM.
+			slog.Info("upstream: same digest exists at different build_number — importing at upstream build_number",
+				"source", src.GetName(), "publisher", n.Publisher,
+				"name", n.Name, "version", n.Version, "platform", n.Platform,
+				"existing_build_number", existing.GetBuildNumber(),
+				"upstream_build_number", n.BuildNumber,
+				"digest", truncDigest(digest))
+		} else {
+			slog.Info("repository sync: metadata exists but blob missing; re-importing",
 				"source", src.GetName(), "publisher", n.Publisher,
 				"name", n.Name, "version", n.Version, "platform", n.Platform,
 				"build_number", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),
 				"digest", truncDigest(digest),
 				"blob_key", blobKeyForRef(ref, existing.GetBuildNumber()),
-				"publish_state", state.String())
-			return nil
+				"blob_status", blobReason,
+				"context", "importUpstreamArtifact")
 		}
-		slog.Info("repository sync: metadata exists but blob missing; re-importing",
-			"source", src.GetName(), "publisher", n.Publisher,
-			"name", n.Name, "version", n.Version, "platform", n.Platform,
-			"build_number", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),
-			"digest", truncDigest(digest),
-			"blob_key", blobKeyForRef(ref, existing.GetBuildNumber()),
-			"blob_status", blobReason,
-			"context", "importUpstreamArtifact")
 	}
 
 	// Write binary atomically to the local POSIX CAS.

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -68,6 +70,13 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 			// Non-fatal: record generation anyway; workflow verifies MinIO health.
 		}
 	}
+
+	// 6b. Refresh the SHA-256 sidecar for the main unit file whenever it is
+	// missing or stale. The sidecar is written at install time, but older
+	// versions of the reconciler wrote directly to the main unit file without
+	// updating the sidecar — leaving it permanently mismatched. This step is
+	// idempotent: it only writes when the sidecar is absent or wrong.
+	refreshMinioUnitSidecar()
 
 	// 7. Report rendered generation + fingerprint to etcd.
 	//    Workflow reads both to gate the coordinated restart.
@@ -408,6 +417,46 @@ func (srv *NodeAgentServer) clearMinioSysForModeChange(state *config.ObjectStore
 		} else {
 			log.Printf("minio-systemd: cleared %s — MinIO will reinitialise on next start", minioSys)
 		}
+	}
+}
+
+// refreshMinioUnitSidecar reads /etc/systemd/system/globular-minio.service,
+// computes its SHA-256, and rewrites the sidecar file if it is absent or stale.
+//
+// Rationale: older versions of this reconciler wrote directly to the main unit
+// file without regenerating the sidecar, leaving the checkUnitHashDrift heartbeat
+// check permanently broken. This is a recovery step — the main unit file is
+// managed by the installer and should not change between reconcile cycles.
+func refreshMinioUnitSidecar() {
+	const unitPath = "/etc/systemd/system/globular-minio.service"
+	sidecarPath := unitPath + ".sha256"
+
+	data, err := os.ReadFile(unitPath)
+	if err != nil {
+		return // unit file not installed yet — nothing to do
+	}
+
+	sum := sha256.Sum256(data)
+	want := hex.EncodeToString(sum[:])
+
+	if existing, err := os.ReadFile(sidecarPath); err == nil {
+		if strings.TrimSpace(string(existing)) == want {
+			return // sidecar is correct — no write needed
+		}
+		log.Printf("minio-systemd: sidecar mismatch detected for %s — regenerating (was %s, now %s)",
+			unitPath, strings.TrimSpace(string(existing))[:8], want[:8])
+	} else {
+		log.Printf("minio-systemd: sidecar missing for %s — writing now", unitPath)
+	}
+
+	tmp := sidecarPath + ".tmp"
+	if err := os.WriteFile(tmp, []byte(want+"\n"), 0o644); err != nil {
+		log.Printf("minio-systemd: failed to write sidecar tmp %s: %v", tmp, err)
+		return
+	}
+	if err := os.Rename(tmp, sidecarPath); err != nil {
+		log.Printf("minio-systemd: failed to rename sidecar %s: %v", sidecarPath, err)
+		_ = os.Remove(tmp)
 	}
 }
 
