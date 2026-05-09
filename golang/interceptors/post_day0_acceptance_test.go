@@ -52,7 +52,6 @@ func TestAcceptance_AnonymousMutatingPostDay0_Unauthenticated(t *testing.T) {
 		"/cluster_controller.ClusterControllerService/UpsertDesiredService",
 		"/cluster_controller.ClusterControllerService/RemoveDesiredService",
 		"/cluster_controller.ClusterControllerService/SetNodeProfiles",
-		"/discovery.PackageDiscovery/PublishService",
 		"/repository.PackageRepository/UploadArtifact",
 		"/dns.DnsService/SetA",
 		"/rbac.RbacService/CreateAccount",

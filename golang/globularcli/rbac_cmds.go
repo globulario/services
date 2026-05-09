@@ -417,7 +417,7 @@ func discoverInstalledServices() []string {
 	// Well-known service names that may have generated policy files.
 	candidates := []string{
 		"authentication", "backup_manager", "blog", "catalog",
-		"conversation", "discovery", "dns", "echo", "event",
+		"conversation", "dns", "echo", "event",
 		"file", "ldap", "log", "mail", "media", "monitoring",
 		"persistence", "rbac", "repository", "resource", "search",
 		"spc", "sql", "storage", "title", "torrent",

@@ -596,7 +596,7 @@ func repositoryAddrForSpec(spec *cluster_controllerpb.ServiceReleaseSpec) string
 // depend on and should be installed first (event bus, dns, rbac, file).
 func isFoundationalService(name string) bool {
 	switch name {
-	case "event", "dns", "rbac", "file", "discovery", "monitoring", "repository", "resource", "authentication":
+	case "event", "dns", "rbac", "file", "monitoring", "repository", "resource", "authentication":
 		return true
 	}
 	return false

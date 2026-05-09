@@ -10,7 +10,6 @@
         "cluster-doctor",
         "resource",
         "dns",
-        "discovery",
         "config"
       ],
       "description": "Tier-0 DNS resolver IP list. JSON array of IPv4 addresses. Cannot use DNS to discover DNS.",
@@ -155,7 +154,6 @@
       "readers": [
         "gateway",
         "xds",
-        "discovery",
         "config"
       ],
       "description": "Per-service configuration. JSON with Name, Port, Protocol, TLS, Address, etc. Written by node-agent during install; read by gateway/xDS for routing.",
@@ -171,7 +169,6 @@
       "readers": [
         "gateway",
         "xds",
-        "discovery",
         "config"
       ],
       "description": "Per-node service instance registration. JSON with node-specific address, port, process ID. Written by node-agent on service start; read by gateway/xDS for load balancing.",

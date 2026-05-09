@@ -59,7 +59,7 @@ var (
 // all regular services succeed. They are the cluster's nervous system.
 var controlPlaneServices = map[string]bool{
 	"node-agent": true, "cluster-controller": true, "repository": true,
-	"workflow": true, "dns": true, "discovery": true,
+	"workflow": true, "dns": true,
 }
 
 func init() {

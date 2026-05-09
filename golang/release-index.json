@@ -282,28 +282,6 @@
       ]
     },
     {
-      "name": "discovery",
-      "kind": "service",
-      "version": "1.2.7",
-      "build_number": 151,
-      "build_id": "9c5dccb9-1f1e-40cf-ac2e-bf9d34296f72",
-      "platform": "linux_amd64",
-      "publisher": "core@globular.io",
-      "channel": "stable",
-      "package_contract_digest": "sha256:3e6434b121cdfe7af3c0950d8370d9c264751573c572cda70f62602d32d93560",
-      "package_digest": "sha256:8478795eca34f49c16516bf379c33bb10a9373e519304b71400f6b20e96f3a00",
-      "entrypoint_checksum": "sha256:41e3f16e16685ee3f41f88a2146e6d1d16dc1b43924145ff60ce5cc47611d2b1",
-      "asset_url": "https://github.com/globulario/services/releases/download/v1.2.7/discovery_1.2.7_linux_amd64.tgz",
-      "filename": "discovery_1.2.7_linux_amd64.tgz",
-      "origin_release": "v1.2.7",
-      "changed_in_release": false,
-      "profiles": [
-        "core",
-        "compute",
-        "control-plane"
-      ]
-    },
-    {
       "name": "dns",
       "kind": "service",
       "version": "1.2.7",

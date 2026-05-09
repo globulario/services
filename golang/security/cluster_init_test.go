@@ -37,7 +37,6 @@ func TestIsMutatingRPC(t *testing.T) {
 		{"/clustercontroller.ResourcesService/DeleteServiceRelease", true},
 		{"/clustercontroller.ClusterControllerService/ApplyNodePlan", true},
 		{"/clustercontroller.ClusterControllerService/RemoveNode", true},
-		{"/discovery.PackageDiscovery/PublishService", true},
 		{"/repository.PackageRepository/UploadArtifact", true},
 		{"/dns.DnsService/SetA", true},
 		{"/dns.DnsService/RemoveA", true},

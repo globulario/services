@@ -41,7 +41,6 @@ func NewStaticDependencySource() DependencySource {
 		deps: map[string][]ServiceDependency{
 			// Core infrastructure — no service dependencies
 			"event":      nil,
-			"discovery":  nil,
 			"dns":        nil,
 			"monitoring": nil,
 

@@ -140,10 +140,6 @@ const csharpManifestTemplate = `{
     "enabled": true,
     "mode": "grpc"
   },
-  "discovery": {
-    "enabled": false,
-    "registerOnStartup": false
-  },
   "lifecycle": {
     "keepAlive": true,
     "restartPolicy": "on-failure"

@@ -226,7 +226,6 @@ func TestNodeExecutorCannotPublish(t *testing.T) {
 	publishMethods := []string{
 		"/repository.PackageRepository/UploadArtifact",
 		"/repository.PackageRepository/UploadBundle",
-		"/discovery.PackageDiscovery/PublishService",
 	}
 	for _, method := range publishMethods {
 		if HasRolePermission([]string{RoleNodeExecutor}, method) {

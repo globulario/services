@@ -45,7 +45,7 @@ func TestRecoverySnapshotRequiresInstalledInventory(t *testing.T) {
 func TestRecoveryPlannerOrdersInfraBeforeServices(t *testing.T) {
 	artifacts := []cluster_controllerpb.SnapshotArtifact{
 		{Name: "my-app", Kind: "APPLICATION", Version: "1.0.0"},
-		{Name: "discovery", Kind: "SERVICE", Version: "1.0.0"},
+		{Name: "log", Kind: "SERVICE", Version: "1.0.0"},
 		{Name: "etcd", Kind: "INFRASTRUCTURE", Version: "3.5.0"},
 		{Name: "scylladb", Kind: "INFRASTRUCTURE", Version: "5.0.0"},
 		{Name: "authentication", Kind: "SERVICE", Version: "1.0.0"},
@@ -58,7 +58,7 @@ func TestRecoveryPlannerOrdersInfraBeforeServices(t *testing.T) {
 		t.Fatalf("sorted length mismatch: got %d, want %d", len(sorted), len(artifacts))
 	}
 
-	// etcd and scylladb must appear before authentication / discovery.
+	// etcd and scylladb must appear before authentication / log.
 	pos := func(name string) int {
 		for i, a := range sorted {
 			if a.Name == name {
@@ -71,8 +71,8 @@ func TestRecoveryPlannerOrdersInfraBeforeServices(t *testing.T) {
 	if pos("etcd") >= pos("authentication") {
 		t.Errorf("etcd should be before authentication: etcd=%d auth=%d", pos("etcd"), pos("authentication"))
 	}
-	if pos("scylladb") >= pos("discovery") {
-		t.Errorf("scylladb should be before discovery: scylladb=%d discovery=%d", pos("scylladb"), pos("discovery"))
+	if pos("scylladb") >= pos("log") {
+		t.Errorf("scylladb should be before log: scylladb=%d log=%d", pos("scylladb"), pos("log"))
 	}
 	if pos("authentication") >= pos("my-app") {
 		t.Errorf("authentication should be before my-app: auth=%d app=%d", pos("authentication"), pos("my-app"))
@@ -110,7 +110,7 @@ func TestRecoveryPlannerFailsOnMissingExactBuildInStrictMode(t *testing.T) {
 	snap := &cluster_controllerpb.NodeRecoverySnapshot{
 		Artifacts: []cluster_controllerpb.SnapshotArtifact{
 			{Name: "etcd", Kind: "INFRASTRUCTURE", Version: "3.5.0", BuildID: "bld-001"},
-			{Name: "discovery", Kind: "SERVICE", Version: "1.0.0"}, // no build_id
+			{Name: "log", Kind: "SERVICE", Version: "1.0.0"}, // no build_id
 		},
 	}
 
@@ -127,7 +127,7 @@ func TestRecoveryPlannerAllowsFallbackWhenConfigured(t *testing.T) {
 	snap := &cluster_controllerpb.NodeRecoverySnapshot{
 		Artifacts: []cluster_controllerpb.SnapshotArtifact{
 			{Name: "etcd", Kind: "INFRASTRUCTURE", Version: "3.5.0", BuildID: "bld-001"},
-			{Name: "discovery", Kind: "SERVICE", Version: "1.0.0"}, // no build_id
+			{Name: "log", Kind: "SERVICE", Version: "1.0.0"}, // no build_id
 		},
 	}
 
@@ -139,16 +139,16 @@ func TestRecoveryPlannerAllowsFallbackWhenConfigured(t *testing.T) {
 		t.Fatalf("expected 2 planned artifacts, got %d", len(plan))
 	}
 
-	// Find discovery artifact.
+	// Find log artifact.
 	for _, p := range plan {
-		if p.Name == "discovery" {
+		if p.Name == "log" {
 			if p.Source != "REPOSITORY_RESOLVED" {
-				t.Errorf("expected discovery source=REPOSITORY_RESOLVED, got %q", p.Source)
+				t.Errorf("expected log source=REPOSITORY_RESOLVED, got %q", p.Source)
 			}
 			return
 		}
 	}
-	t.Error("discovery artifact not found in plan")
+	t.Error("log artifact not found in plan")
 }
 
 // TestRecoveryPlannerExactBuildArtifactSource verifies that artifacts with a
@@ -194,8 +194,8 @@ func TestValidateNoReseedCycle_DetectsCycle(t *testing.T) {
 func TestValidateNoReseedCycle_AcceptsDAG(t *testing.T) {
 	artifacts := []cluster_controllerpb.SnapshotArtifact{
 		{Name: "etcd", Kind: "INFRASTRUCTURE"},
-		{Name: "discovery", Kind: "SERVICE", Requires: []string{"etcd"}},
-		{Name: "workflow", Kind: "SERVICE", Requires: []string{"discovery", "etcd"}},
+		{Name: "log", Kind: "SERVICE", Requires: []string{"etcd"}},
+		{Name: "workflow", Kind: "SERVICE", Requires: []string{"log", "etcd"}},
 		{Name: "my-app", Kind: "APPLICATION", Requires: []string{"workflow"}},
 	}
 

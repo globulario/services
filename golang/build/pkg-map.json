@@ -6,7 +6,6 @@
   "cluster-controller":   {"binary": "cluster_controller_server",   "go_target": "cluster_controller/cluster_controller_server",     "kind": "service",        "platform_version": true},
   "cluster-doctor":       {"binary": "cluster_doctor_server",       "go_target": "cluster_doctor/cluster_doctor_server",             "kind": "service",        "platform_version": true},
   "conversation":         {"binary": "conversation_server",         "go_target": "conversation/conversation_server",                 "kind": "service",        "platform_version": true},
-  "discovery":            {"binary": "discovery_server",            "go_target": "discovery/discovery_server",                       "kind": "service",        "platform_version": true},
   "dns":                  {"binary": "dns_server",                  "go_target": "dns/dns_server",                                   "kind": "service",        "platform_version": true},
   "echo":                 {"binary": "echo_server",                 "go_target": "echo/echo_server",                                 "kind": "service",        "platform_version": true},
   "event":                {"binary": "event_server",                "go_target": "event/event_server",                               "kind": "service",        "platform_version": true},

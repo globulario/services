@@ -183,15 +183,14 @@ func (srv *NodeAgentServer) writeNetworkSpecSnapshot(data string) error {
 
 func orderRestartUnits(units []string) []string {
 	priority := map[string]int{
-		"globular-etcd.service":      1,
-		"globular-minio.service":     2,
-		"scylladb.service":           3,
-		"globular-dns.service":       4,
-		"globular-discovery.service": 5,
-		"globular-xds.service":       6,
-		"globular-envoy.service":     7,
-		"globular-gateway.service":   8,
-		"globular-storage.service":   9,
+		"globular-etcd.service":    1,
+		"globular-minio.service":   2,
+		"scylladb.service":         3,
+		"globular-dns.service":     4,
+		"globular-xds.service":     6,
+		"globular-envoy.service":   7,
+		"globular-gateway.service": 8,
+		"globular-storage.service": 9,
 	}
 	seen := map[string]struct{}{}
 	type pair struct {
@@ -234,9 +233,8 @@ func resolveUnits(units []string, exists func(string) bool) []string {
 		"globular-xds.service":       {"xds.service", "globular-xds.service"},
 		"globular-etcd.service":      {"etcd.service", "globular-etcd.service"},
 		"globular-minio.service":     {"minio.service", "globular-minio.service"},
-		"globular-dns.service":       {"dns.service", "globular-dns.service"},
-		"globular-discovery.service": {"discovery.service", "globular-discovery.service"},
-		"globular-storage.service":   {"storage.service", "globular-storage.service"},
+		"globular-dns.service":     {"dns.service", "globular-dns.service"},
+		"globular-storage.service": {"storage.service", "globular-storage.service"},
 	}
 	resolved := []string{}
 	seen := map[string]struct{}{}

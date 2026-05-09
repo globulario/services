@@ -366,7 +366,7 @@ func TestFilterIntentByDesiredRemovesUndesiredCatalogWorkloads(t *testing.T) {
 
 	filtered := FilterIntentByDesired(intent, map[string]string{
 		"dns":            "1.0.56+b1",
-		"discovery":      "1.0.56+b1",
+		"log":            "1.0.56+b1",
 		"event":          "1.0.56+b1",
 		"rbac":           "1.0.56+b1",
 		"resource":       "1.0.56+b1",
@@ -388,7 +388,7 @@ func TestFilterIntentByDesiredRemovesUndesiredCatalogWorkloads(t *testing.T) {
 func TestDay1Phase_FilteredIntentIgnoresUndesiredCatalogWorkloads(t *testing.T) {
 	units := []unitStatusRecord{
 		{Name: "globular-dns.service", State: "active"},
-		{Name: "globular-discovery.service", State: "active"},
+		{Name: "globular-log.service", State: "active"},
 		{Name: "globular-event.service", State: "active"},
 		{Name: "globular-rbac.service", State: "active"},
 		{Name: "globular-resource.service", State: "active"},
@@ -404,7 +404,7 @@ func TestDay1Phase_FilteredIntentIgnoresUndesiredCatalogWorkloads(t *testing.T) 
 	}
 	intent = FilterIntentByDesired(intent, map[string]string{
 		"dns":            "1.0.56+b1",
-		"discovery":      "1.0.56+b1",
+		"log":            "1.0.56+b1",
 		"event":          "1.0.56+b1",
 		"rbac":           "1.0.56+b1",
 		"resource":       "1.0.56+b1",

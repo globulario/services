@@ -802,7 +802,6 @@ func detectUnits(ctx context.Context) []*node_agentpb.UnitStatus {
 	baseline := []string{
 		"globular-etcd.service",
 		"globular-dns.service",
-		"globular-discovery.service",
 		"globular-event.service",
 		"globular-rbac.service",
 		"globular-file.service",

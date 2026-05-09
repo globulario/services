@@ -90,7 +90,7 @@ func TestDerivedProfileUnitMap(t *testing.T) {
 	mustContain := map[string][]string{
 		"core":          coreUnits,
 		"compute":       coreUnits,
-		"control-plane": {"globular-etcd.service", "globular-dns.service", "globular-discovery.service"},
+		"control-plane": {"globular-etcd.service", "globular-dns.service"},
 		"gateway":       {"globular-gateway.service", "globular-envoy.service"},
 		"storage":       {"globular-minio.service", "globular-file.service"},
 		"dns":           {"globular-dns.service"},
@@ -140,7 +140,6 @@ func TestDerivedUnitPriority(t *testing.T) {
 	oldPriority := map[string]int{
 		"globular-etcd.service":       1,
 		"globular-dns.service":        2,
-		"globular-discovery.service":  3,
 		"globular-event.service":      4,
 		"globular-rbac.service":       5,
 		"globular-minio.service":      6,

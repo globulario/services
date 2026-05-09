@@ -1399,7 +1399,6 @@ func restartUnitsForSpec(spec *cluster_controllerpb.ClusterNetworkSpec) []string
 	units := []string{
 		"globular-etcd.service",
 		"globular-dns.service",
-		"globular-discovery.service",
 		"globular-xds.service",
 		"globular-envoy.service",
 		"globular-gateway.service",

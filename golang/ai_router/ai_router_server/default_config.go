@@ -15,7 +15,6 @@ func defaultClassifications() map[string]ai_routerpb.ServiceClass {
 		// CONTROL_PLANE: must always be reachable, minimum weight enforced
 		"clustercontroller.ClusterControllerService": ai_routerpb.ServiceClass_CONTROL_PLANE,
 		"nodeagent.NodeAgentService":                 ai_routerpb.ServiceClass_CONTROL_PLANE,
-		"discovery.DiscoveryService":                 ai_routerpb.ServiceClass_CONTROL_PLANE,
 		"dns.DnsService":                             ai_routerpb.ServiceClass_CONTROL_PLANE,
 
 		// DEPLOYMENT_SENSITIVE: needs warm-up after restart

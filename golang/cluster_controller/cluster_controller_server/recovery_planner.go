@@ -8,7 +8,7 @@ package main
 // Ordering model (bootstrap class + kind + priority + lexical tiebreaker):
 //
 //   BOOTSTRAP_FOUNDATION    (0) — etcd, scylladb, minio
-//   BOOTSTRAP_CORE_CONTROL  (1) — auth, rbac, resource, discovery, dns, repository,
+//   BOOTSTRAP_CORE_CONTROL  (1) — auth, rbac, resource, dns, repository,
 //                                  workflow, cluster-controller, node-agent
 //   BOOTSTRAP_SUPPORTING    (2) — monitoring, event, envoy, log, xds, keepalived
 //   BOOTSTRAP_WORKLOAD      (3) — applications, other services, commands
@@ -52,8 +52,6 @@ func bootstrapClassOf(name, kind string) bootstrapClass {
 		"rbac-server":          true,
 		"resource":             true,
 		"resource-server":      true,
-		"discovery":            true,
-		"discovery-server":     true,
 		"dns":                  true,
 		"dns-server":           true,
 		"repository":           true,

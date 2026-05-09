@@ -237,7 +237,6 @@ var unitProfileMap = map[string]string{
 	"globular-authentication":     "control-plane",
 	"globular-rbac":               "control-plane",
 	"globular-resource":           "control-plane",
-	"globular-discovery":          "control-plane",
 	"globular-event":              "control-plane",
 	"globular-log":                "control-plane",
 	"globular-xds":                "control-plane",

@@ -47,19 +47,10 @@ func (p pendingInvariant) Evaluate(_ *collector.Snapshot, _ Config) []Finding {
 
 // pendingInvariants returns the set of invariants that require upstream RPC additions.
 func pendingInvariants() []Invariant {
-	return []Invariant{
-		// cluster.repo.reachable — RESOLVED. GetRepositoryStatus() is now live
-		// on repository.PackageRepository. Replaced by repositoryOperationalMode
-		// in repository_status.go and wired into the collector via WithRepositoryClient.
-		pendingInvariant{
-			id:              "cluster.discovery.consistent",
-			category:        "discovery",
-			scope:           "cluster",
-			summary:         "Discovery consistency check pending: GetDiscoveryStatus() not yet available",
-			proposedRPC:     "GetDiscoveryStatus()",
-			proposedService: "ClusterControllerService or DiscoveryService",
-		},
-		// security.certs.* — implemented in certificate_health.go
-		// (expiry, SAN coverage, chain validity).
-	}
+	// cluster.repo.reachable — RESOLVED. GetRepositoryStatus() is now live
+	// on repository.PackageRepository.
+	// cluster.discovery.consistent — RETIRED. Discovery service removed;
+	// service endpoints resolve from etcd, mesh routes via xDS/Envoy.
+	// security.certs.* — implemented in certificate_health.go.
+	return nil
 }

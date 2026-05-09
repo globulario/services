@@ -64,14 +64,6 @@ var registry = func() map[string]ServiceIdentity {
 			Aliases:    []string{"globular-dns", "globular-dns.service", "dns.dnsservice"},
 		},
 		{
-			Key:        "discovery",
-			BundleName: "discovery",
-			UnitName:   "globular-discovery.service",
-			GrpcFull:   "discovery.DiscoveryService",
-			Binary:     "discovery_server",
-			Aliases:    []string{"globular-discovery", "globular-discovery.service", "discovery.discoveryservice"},
-		},
-		{
 			Key:        "file",
 			BundleName: "file",
 			UnitName:   "globular-file.service",

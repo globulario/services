@@ -371,25 +371,9 @@ services:
         required: true
         reason: Persists DNS zone records.
 
-  - id: discovery
-    name: discovery
-    summary: Package discovery service — resolves and announces available packages.
-    systemd_unit: globular-discovery.service
-    proto_service: discovery.PackageDiscovery
-    proto_file: proto/discovery.proto
-    implementation:
-      - golang/discovery/discovery_server/server.go
-      - golang/discovery/discovery_server/handlers.go
-      - golang/discovery/discovery_server/config.go
-    depends_on:
-      - service: etcd
-        phase: startup
-        required: true
-        reason: Reads service config and endpoint registry.
-      - service: repository
-        phase: package_query
-        required: true
-        reason: Queries repository for available package versions.
+  # discovery: RETIRED — service registry/endpoint resolution moved to etcd
+  # (/globular/services/{id}/config); package version queries go through the
+  # repository service directly. Removed in commit deleting golang/discovery/.
 
   # ── Package registry ──────────────────────────────────────────────────────
 

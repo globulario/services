@@ -21,7 +21,6 @@ type Capability string
 const (
 	CapConfigStore      Capability = "config-store"
 	CapDNS              Capability = "dns"
-	CapServiceDiscovery Capability = "service-discovery"
 	CapEventBus         Capability = "event-bus"
 	CapObjectStore      Capability = "object-store"
 	CapLocalDB          Capability = "local-db"
@@ -39,7 +38,7 @@ var ProfileCapabilities = map[string][]Capability{
 	"core":          {CapConfigStore, CapDNS, CapEventBus, CapObjectStore, CapMonitoring},
 	"compute":       {CapConfigStore, CapDNS, CapEventBus, CapObjectStore, CapMonitoring},
 	// control-plane extends core and adds xds/envoy/gateway + local-db (ScyllaDB).
-	"control-plane": {CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapMonitoring, CapLocalDB, CapHTTPProxy, CapServiceMesh, CapGateway},
+	"control-plane": {CapConfigStore, CapDNS, CapEventBus, CapObjectStore, CapMonitoring, CapLocalDB, CapHTTPProxy, CapServiceMesh, CapGateway},
 	"gateway":       {CapHTTPProxy, CapServiceMesh, CapGateway},
 	"storage":       {CapObjectStore},
 	"dns":           {CapDNS},
@@ -210,16 +209,6 @@ func buildCatalog() []*Component {
 			ProvidesCapabilities: []Capability{CapDNS},
 			ManagedUnit:          true,
 			HealthCheck:          &HealthCheckHintC{Unit: "globular-dns.service", Port: 10006},
-		},
-		{
-			Name:                 "discovery",
-			Unit:                 "globular-discovery.service",
-			Kind:                 KindWorkload,
-			Priority:             3,
-			Profiles:             []string{"control-plane"},
-			ProvidesCapabilities: []Capability{CapServiceDiscovery},
-			ManagedUnit:          true,
-			HealthCheck:          &HealthCheckHintC{Unit: "globular-discovery.service"},
 		},
 		{
 			Name:                 "event",

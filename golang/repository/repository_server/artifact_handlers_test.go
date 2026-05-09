@@ -403,7 +403,7 @@ func TestFindExistingArtifactByDigestIgnoresBuildNumber(t *testing.T) {
 	srv := newTestServer(t)
 	ref := &repopb.ArtifactRef{
 		PublisherId: "core@globular.io",
-		Name:        "discovery",
+		Name:        "log",
 		Version:     "1.0.53",
 		Platform:    "linux_amd64",
 		Kind:        repopb.ArtifactKind_SERVICE,
