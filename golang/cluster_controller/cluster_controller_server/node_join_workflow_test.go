@@ -38,8 +38,8 @@ func TestNodeJoinWorkflowIncludesRepoInstallableProfilePackages(t *testing.T) {
 		"database":      true,
 	}
 	for _, comp := range catalog {
-		if comp.Kind == KindInfrastructure && comp.InstallMode == InstallModeDay0Join {
-			continue
+		if comp.InstallMode == InstallModeDay0Join {
+			continue // bootstrapped by join script, not installed by the workflow
 		}
 		include := false
 		for _, profile := range comp.Profiles {

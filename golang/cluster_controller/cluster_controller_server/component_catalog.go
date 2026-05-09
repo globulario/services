@@ -526,16 +526,17 @@ func buildCatalog() []*Component {
 			RuntimeLocalDependencies: []string{"event"},
 		},
 
-		// node-agent: Globular gRPC microservice installed from the repository.
-		// Absent from service_catalog.yaml auto-generation because it self-upgrades,
-		// but it IS a SERVICE and must be classified as such.
+		// node-agent: bootstrapped by the Day-0 join script, not by the join workflow.
+		// Listed here for kind classification only so the doctor rule emits SERVICE,
+		// not INFRASTRUCTURE. InstallModeDay0Join prevents the join-workflow coverage test
+		// from requiring it in node.join.yaml.
 		{
-			Name:                     "node-agent",
-			Unit:                     "globular-node-agent.service",
-			Kind:                     KindWorkload,
-			Priority:                 1000,
-			Profiles:                 []string{"core", "compute"},
-			RuntimeLocalDependencies: []string{"event"},
+			Name:        "node-agent",
+			Unit:        "globular-node-agent.service",
+			Kind:        KindWorkload,
+			InstallMode: InstallModeDay0Join,
+			Priority:    1000,
+			Profiles:    []string{"core", "compute"},
 		},
 
 		// ---------------------------------------------------------------

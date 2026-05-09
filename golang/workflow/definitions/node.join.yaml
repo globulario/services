@@ -64,6 +64,7 @@ spec:
           - { name: prometheus, kind: INFRASTRUCTURE }
           - { name: alertmanager, kind: INFRASTRUCTURE }
           - { name: xds, kind: INFRASTRUCTURE }
+          - { name: keepalived, kind: INFRASTRUCTURE }
       timeout: $.install_timeout
       execution:
         idempotency: verify_then_continue
@@ -81,6 +82,7 @@ spec:
             - { name: prometheus, kind: INFRASTRUCTURE }
             - { name: alertmanager, kind: INFRASTRUCTURE }
             - { name: xds, kind: INFRASTRUCTURE }
+            - { name: keepalived, kind: INFRASTRUCTURE }
         success:
           expr: all_installed == true
 
@@ -327,6 +329,10 @@ spec:
           - { name: mc, kind: COMMAND }
           - { name: sctool, kind: COMMAND }
           - { name: ffmpeg, kind: COMMAND }
+          - { name: cli, kind: COMMAND }
+          - { name: sha256sum, kind: COMMAND }
+          - { name: yt-dlp, kind: COMMAND }
+          - { name: claude, kind: COMMAND }
       timeout: 2m
       execution:
         idempotency: verify_then_continue
@@ -345,6 +351,10 @@ spec:
             - { name: mc, kind: COMMAND }
             - { name: sctool, kind: COMMAND }
             - { name: ffmpeg, kind: COMMAND }
+            - { name: cli, kind: COMMAND }
+            - { name: sha256sum, kind: COMMAND }
+            - { name: yt-dlp, kind: COMMAND }
+            - { name: claude, kind: COMMAND }
         success:
           expr: all_installed == true
 
