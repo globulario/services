@@ -18,6 +18,7 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/component_catalog"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/security"
@@ -147,9 +148,40 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 		},
 
 		InstallProfileSets: func(ctx context.Context, profiles []string) error {
-			// Profile-based installation is resolved by the controller.
-			// During Day-0, packages are installed explicitly in prior steps.
-			log.Printf("day0: install profile sets %v (no-op, packages installed explicitly)", profiles)
+			// Day-0 install set is derived from the bootstrap node's
+			// profiles, not from a hardcoded YAML list. The shared
+			// profile→packages map (component_catalog package) is
+			// validated against the controller's rich catalog at build
+			// time (TestProfileMap_ConsistentWithCatalog), so what we
+			// install here is exactly what the controller will later
+			// reconcile as desired state.
+			//
+			// Empty profiles is a hard error — every node must have a
+			// profile (the architectural invariant enforced cluster-wide
+			// in ResolveNodeIntent).
+			if len(profiles) == 0 {
+				return fmt.Errorf("day0 install_profile_sets: profiles must not be empty (every node must have a profile)")
+			}
+			for _, p := range profiles {
+				if !component_catalog.HasProfile(p) {
+					return fmt.Errorf("day0 install_profile_sets: unknown profile %q (known: %v)", p, component_catalog.ProfileNames())
+				}
+			}
+			packages := component_catalog.PackagesForProfiles(profiles)
+			if len(packages) == 0 {
+				return fmt.Errorf("day0 install_profile_sets: profiles %v resolved to zero packages — catalog/profilemap is in a broken state", profiles)
+			}
+			log.Printf("day0: install_profile_sets profiles=%v → %d packages", profiles, len(packages))
+			var errs []string
+			for _, pkg := range packages {
+				kind := inferPackageKind(pkg)
+				if err := srv.InstallPackage(ctx, pkg, kind, repoAddr, "", "", ""); err != nil {
+					errs = append(errs, fmt.Sprintf("%s: %v", pkg, err))
+				}
+			}
+			if len(errs) > 0 {
+				return fmt.Errorf("install failures: %s", strings.Join(errs, "; "))
+			}
 			return nil
 		},
 
