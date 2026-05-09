@@ -23,6 +23,7 @@ spec:
       - bootstrap_node_id
       - bootstrap_node_hostname
       - domain
+      - bootstrap_node_profiles
     properties:
       cluster_id: { type: string }
       bootstrap_node_id: { type: string }
@@ -31,6 +32,15 @@ spec:
       domain: { type: string }
       install_timeout: { type: string, default: 20m }
       health_timeout: { type: string, default: 10m }
+      # Profiles assigned to the bootstrap node. The profile-driven install
+      # step (verify_profile_install_set) derives its package set from
+      # these — it must match what the explicit install_* steps installed,
+      # so the catalog and the YAML are kept honest. Founding nodes are
+      # always [core, control-plane, storage] (enforceFoundingProfiles).
+      bootstrap_node_profiles:
+        type: array
+        items: { type: string }
+        minItems: 1
   defaults:
     install_timeout: 20m
     health_timeout: 10m
@@ -243,10 +253,34 @@ spec:
         idempotency: verify_then_continue
         resume_policy: verify_effect
 
+    # ── Tier 8.5: Profile-driven install backstop ───────────────────────
+    # Re-derives the install set from the bootstrap node's profiles via
+    # the shared component_catalog.PackagesForProfiles map. Installs are
+    # idempotent: if every package the catalog assigns to these profiles
+    # was already installed by the explicit tiers above, this step is a
+    # no-op. If anything is missing — i.e. the catalog and the hardcoded
+    # YAML lists have drifted — this step closes the gap and the failure
+    # is visible in the workflow log.
+    #
+    # The architectural intent: profiles are foundational. The hardcoded
+    # tiers above carry strict ordering for boot correctness, but the
+    # profile-driven step is the source of truth for completeness.
+    - id: verify_profile_install_set
+      title: Verify install set matches catalog for bootstrap node profiles
+      dependsOn: [install_workload_services, install_cli_tools]
+      actor: installer
+      action: installer.install_profile_sets
+      with:
+        profiles: $.bootstrap_node_profiles
+      timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
     # ── Tier 9: Post-install ────────────────────────────────────────────
     - id: validate_cluster_health
       title: Validate cluster health and conformance
-      dependsOn: [install_workload_services, install_cli_tools]
+      dependsOn: [verify_profile_install_set]
       actor: installer
       action: installer.validate_cluster_health
       timeout: $.health_timeout

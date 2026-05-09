@@ -129,10 +129,13 @@ func TestDay0BootstrapWorkflow(t *testing.T) {
 
 	run, err := eng.Execute(ctx, def, map[string]any{
 		"cluster_id":              "globular.internal",
-		"bootstrap_node_id":      "node-0",
+		"bootstrap_node_id":       "node-0",
 		"bootstrap_node_hostname": "bootstrap-host",
-		"repository_address":     "10.0.0.1:443",
-		"domain":                 "globular.internal",
+		"repository_address":      "10.0.0.1:443",
+		"domain":                  "globular.internal",
+		// Founding bootstrap node profiles — required by the workflow
+		// to derive the verify_profile_install_set step's package list.
+		"bootstrap_node_profiles": []any{"core", "control-plane", "storage"},
 	})
 
 	if err != nil {
