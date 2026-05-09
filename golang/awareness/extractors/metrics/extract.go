@@ -51,6 +51,9 @@ type metricWarningMapping struct {
 	FailureModes []string
 	// Invariants is a list of invariant IDs (without "invariant:" prefix).
 	Invariants []string
+	// DecisionRules is a list of decision rule IDs (without "decision_rule:" prefix)
+	// that this metric warning should trigger as evidence.
+	DecisionRules []string
 	// Explanation is a human-readable sentence for the warning rule.
 	Explanation string
 }
@@ -60,18 +63,20 @@ type metricWarningMapping struct {
 // coverage — no YAML file changes required.
 var metricWarningMappings = []metricWarningMapping{
 	{
-		QueryID:      "etcd_fsync_latency_ms",
-		ThresholdKey: "etcd:fsync_latency_ms",
-		FailureModes: []string{"etcd.leader_instability", "service.endpoint.etcd_address_reachability"},
-		Invariants:   []string{"service.endpoint.etcd_address_reachability"},
-		Explanation:  "High etcd fsync latency risks leader election instability and workflow dispatch timeouts",
+		QueryID:       "etcd_fsync_latency_ms",
+		ThresholdKey:  "etcd:fsync_latency_ms",
+		FailureModes:  []string{"etcd.leader_instability", "service.endpoint.etcd_address_reachability"},
+		Invariants:    []string{"service.endpoint.etcd_address_reachability"},
+		DecisionRules: []string{"leader_only_reconcilers_must_gate_on_leadership"},
+		Explanation:   "High etcd fsync latency risks leader election instability and workflow dispatch timeouts",
 	},
 	{
-		QueryID:      "etcd_disk_percent",
-		ThresholdKey: "etcd:disk_percent",
-		FailureModes: []string{"etcd.nospace_alarm", "control_plane.convergence_blocked"},
-		Invariants:   []string{"service.endpoint.etcd_address_reachability"},
-		Explanation:  "etcd disk full triggers NOSPACE alarm, blocks all writes, halts convergence",
+		QueryID:       "etcd_disk_percent",
+		ThresholdKey:  "etcd:disk_percent",
+		FailureModes:  []string{"etcd.nospace_alarm", "control_plane.convergence_blocked"},
+		Invariants:    []string{"service.endpoint.etcd_address_reachability"},
+		DecisionRules: []string{"service_notify_ready_before_etcd_write"},
+		Explanation:   "etcd disk full triggers NOSPACE alarm, blocks all writes, halts convergence",
 	},
 	{
 		QueryID:      "workflow_failed_runs_15m",
@@ -81,11 +86,12 @@ var metricWarningMappings = []metricWarningMapping{
 		Explanation:  "Workflow failures indicate convergence risk and may threaten reconcile fairness",
 	},
 	{
-		QueryID:      "minio_offline_disks",
-		ThresholdKey: "minio:offline_disks",
-		FailureModes: []string{"objectstore.availability_degraded"},
-		Invariants:   []string{"objectstore.topology_contract"},
-		Explanation:  "Offline MinIO disks risk artifact availability and violate topology contract",
+		QueryID:       "minio_offline_disks",
+		ThresholdKey:  "minio:offline_disks",
+		FailureModes:  []string{"objectstore.availability_degraded"},
+		Invariants:    []string{"objectstore.topology_contract"},
+		DecisionRules: []string{"minio_topology_requires_three_storage_nodes"},
+		Explanation:   "Offline MinIO disks risk artifact availability and violate topology contract",
 	},
 	{
 		QueryID:      "scylla_disk_percent",
@@ -387,8 +393,28 @@ func createWarningRule(ctx context.Context, g *graph.Graph, m metricWarningMappi
 		linkedInvs++
 	}
 
+	// Link warning rule → decision rules (best-effort).
+	linkedDRs := 0
+	missingDRs := 0
+	for _, drID := range m.DecisionRules {
+		drNodeID := "decision_rule:" + drID
+		n, err := g.FindNode(ctx, drNodeID)
+		if err != nil || n == nil {
+			missingDRs++
+			continue
+		}
+		if err := g.AddEdge(ctx, graph.Edge{
+			Src:  ruleID,
+			Kind: graph.EdgeMetricWarningTriggerRule,
+			Dst:  drNodeID,
+		}); err != nil {
+			return fmt.Errorf("link warning rule to decision rule %s: %w", drID, err)
+		}
+		linkedDRs++
+	}
+
 	// Update node metadata with linkage stats so coverage reports can surface gaps.
-	if missingFMs > 0 || missingInvs > 0 {
+	if missingFMs > 0 || missingInvs > 0 || missingDRs > 0 {
 		if err := g.AddNode(ctx, graph.Node{
 			ID:      ruleID,
 			Type:    graph.NodeTypeMetricWarningRule,
@@ -404,6 +430,8 @@ func createWarningRule(ctx context.Context, g *graph.Graph, m metricWarningMappi
 				"missing_fms":    missingFMs,
 				"linked_invs":    linkedInvs,
 				"missing_invs":   missingInvs,
+				"linked_drs":     linkedDRs,
+				"missing_drs":    missingDRs,
 			},
 		}); err != nil {
 			return fmt.Errorf("update metric_warning_rule metadata: %w", err)

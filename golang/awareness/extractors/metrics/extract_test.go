@@ -208,3 +208,59 @@ func TestExtract_MissingFilesSkippedGracefully(t *testing.T) {
 		t.Errorf("expected nil error when YAML files missing, got: %v", err)
 	}
 }
+
+// TestMetricWarning_ProducesRecommendedDiagnostic verifies that when a
+// decision_rule node already exists in the graph, Extract emits an
+// EdgeMetricWarningTriggerRule edge from the metric_warning_rule to the
+// decision_rule. This ensures the metrics-to-invariant decision linkage is
+// wired at extraction time, not just defined in the mapping struct.
+func TestMetricWarning_ProducesRecommendedDiagnostic(t *testing.T) {
+	ctx := context.Background()
+	g := openGraph(t)
+
+	// Pre-seed the decision rule node that minio_offline_disks links to.
+	drID := "decision_rule:minio_topology_requires_three_storage_nodes"
+	if err := g.AddNode(ctx, graph.Node{
+		ID:   drID,
+		Type: graph.NodeTypeDesignRule,
+		Name: "minio_topology_requires_three_storage_nodes",
+	}); err != nil {
+		t.Fatalf("AddNode decision_rule: %v", err)
+	}
+
+	if err := metrics.Extract(ctx, g, realDocsDir()); err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+
+	// Verify the metric_warning_rule for minio_offline_disks was created.
+	ruleID := "metric_warning_rule:minio_offline_disks"
+	ruleNode, err := g.FindNode(ctx, ruleID)
+	if err != nil {
+		t.Fatalf("FindNode %s: %v", ruleID, err)
+	}
+	if ruleNode == nil {
+		t.Fatalf("metric_warning_rule:minio_offline_disks not found — check YAML mappings")
+	}
+
+	// Verify EdgeMetricWarningTriggerRule edge exists from rule → decision rule.
+	edges, err := g.Neighbors(ctx, ruleID, "outbound")
+	if err != nil {
+		t.Fatalf("Neighbors(%s): %v", ruleID, err)
+	}
+	found := false
+	for _, e := range edges {
+		if e.Dst == drID && e.Kind == graph.EdgeMetricWarningTriggerRule {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected EdgeMetricWarningTriggerRule edge from %s → %s, not found in outbound edges", ruleID, drID)
+	}
+
+	// Verify metadata records the linked decision rule count.
+	linkedDRs, _ := ruleNode.Metadata["linked_drs"].(float64)
+	if linkedDRs < 1 {
+		t.Errorf("expected linked_drs >= 1 in node metadata, got %v", ruleNode.Metadata["linked_drs"])
+	}
+}
