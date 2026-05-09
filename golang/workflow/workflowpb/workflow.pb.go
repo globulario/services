@@ -183,6 +183,11 @@ const (
 	RunStatus_RUN_STATUS_CANCELED    RunStatus = 10 // terminal, operator-initiated
 	RunStatus_RUN_STATUS_ROLLED_BACK RunStatus = 11 // terminal, rolled back to prior state
 	RunStatus_RUN_STATUS_SUPERSEDED  RunStatus = 12 // terminal, replaced by newer run (see superseded_by)
+	// Non-terminal: a step exhausted its in-run retry budget. The run is
+	// returned to the scheduler queue with defer_until set; the executor slot
+	// is released so other runs can make progress. After max_defers cycles a
+	// deferred run becomes RUN_STATUS_FAILED with reason="abandoned".
+	RunStatus_RUN_STATUS_DEFERRED RunStatus = 13
 )
 
 // Enum value maps for RunStatus.
@@ -198,6 +203,7 @@ var (
 		10: "RUN_STATUS_CANCELED",
 		11: "RUN_STATUS_ROLLED_BACK",
 		12: "RUN_STATUS_SUPERSEDED",
+		13: "RUN_STATUS_DEFERRED",
 	}
 	RunStatus_value = map[string]int32{
 		"RUN_STATUS_UNKNOWN":     0,
@@ -210,6 +216,7 @@ var (
 		"RUN_STATUS_CANCELED":    10,
 		"RUN_STATUS_ROLLED_BACK": 11,
 		"RUN_STATUS_SUPERSEDED":  12,
+		"RUN_STATUS_DEFERRED":    13,
 	}
 )
 
@@ -7076,7 +7083,7 @@ const file_workflow_proto_rawDesc = "" +
 	"\rPHASE_PUBLISH\x10\t\x12\x12\n" +
 	"\x0ePHASE_COMPLETE\x10\n" +
 	"\"\x04\b\x02\x10\x02\"\x04\b\x03\x10\x03*\n" +
-	"PHASE_PLAN*\x0ePHASE_DISPATCH*\xe2\x02\n" +
+	"PHASE_PLAN*\x0ePHASE_DISPATCH*\xfb\x02\n" +
 	"\tRunStatus\x12\x16\n" +
 	"\x12RUN_STATUS_UNKNOWN\x10\x00\x12\x16\n" +
 	"\x12RUN_STATUS_PENDING\x10\x01\x12\x18\n" +
@@ -7088,7 +7095,8 @@ const file_workflow_proto_rawDesc = "" +
 	"\x13RUN_STATUS_CANCELED\x10\n" +
 	"\x12\x1a\n" +
 	"\x16RUN_STATUS_ROLLED_BACK\x10\v\x12\x19\n" +
-	"\x15RUN_STATUS_SUPERSEDED\x10\f\"\x04\b\x02\x10\x02\"\x04\b\x03\x10\x03\"\x04\b\x04\x10\x04*\x13RUN_STATUS_PLANNING*\x1bRUN_STATUS_WAITING_FOR_SLOT*\x15RUN_STATUS_DISPATCHED*\xbc\x01\n" +
+	"\x15RUN_STATUS_SUPERSEDED\x10\f\x12\x17\n" +
+	"\x13RUN_STATUS_DEFERRED\x10\r\"\x04\b\x02\x10\x02\"\x04\b\x03\x10\x03\"\x04\b\x04\x10\x04*\x13RUN_STATUS_PLANNING*\x1bRUN_STATUS_WAITING_FOR_SLOT*\x15RUN_STATUS_DISPATCHED*\xbc\x01\n" +
 	"\n" +
 	"StepStatus\x12\x17\n" +
 	"\x13STEP_STATUS_UNKNOWN\x10\x00\x12\x17\n" +

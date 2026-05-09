@@ -215,9 +215,19 @@ spec:
             package_name: $.package_name
             package_kind: $.package_kind
             runtime_check: $.runtime_check
+          # WF-DEFER: short in-run retry, then yield to scheduler. The
+          # scheduler honours `defer.cooldown` unless an external event
+          # matches a blocker tag (see DeferPolicy). Replaces the previous
+          # 60×5s = 5min synchronous hammer that held the executor slot.
           retry:
-            maxAttempts: 60
+            maxAttempts: 5
             backoff: 5s
+          defer:
+            cooldown: 60s
+            maxDefers: 5
+            blockerTags:
+              - "runtime.active:{{ .target.node_id }}:{{ .package_name }}"
+              - "deps.installed:{{ .target.node_id }}:{{ .package_name }}"
           timeout: $.verify_timeout
           execution:
             idempotency: safe_retry

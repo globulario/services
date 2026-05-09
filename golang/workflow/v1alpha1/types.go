@@ -76,6 +76,37 @@ type WorkflowStepSpec struct {
 	Execution    *StepExecution    `json:"execution,omitempty" yaml:"execution,omitempty"`
 	Verification *StepVerification `json:"verification,omitempty" yaml:"verification,omitempty"`
 	Compensation *StepCompensation `json:"compensation,omitempty" yaml:"compensation,omitempty"`
+
+	// Defer policy (WF-DEFER). When the step exhausts its in-run retry budget,
+	// the run yields its executor slot and is rescheduled with a cooldown.
+	// External events that touch any of the run's blocker_tags clear the
+	// cooldown immediately (event-driven wakeup). After MaxDefers cycles the
+	// run is failed with reason="abandoned".
+	Defer *DeferPolicy `json:"defer,omitempty" yaml:"defer,omitempty"`
+}
+
+// DeferPolicy controls how a step's exhausted-retry transitions into a
+// scheduler-level deferral. A run with deferred steps releases its slot and
+// is re-queued. The scheduler honours Cooldown unless an external event
+// matches one of the rendered BlockerTags.
+type DeferPolicy struct {
+	// Cooldown is the minimum wall-clock wait before the deferred run is
+	// re-eligible. May be cleared early by event-driven wakeup. Default 60s.
+	Cooldown *ScalarString `json:"cooldown,omitempty" yaml:"cooldown,omitempty"`
+
+	// MaxDefers is how many times a single run may defer before being
+	// abandoned (terminal RUN_STATUS_FAILED with reason="abandoned").
+	// Default 5.
+	MaxDefers int `json:"maxDefers,omitempty" yaml:"maxDefers,omitempty"`
+
+	// BlockerTags are templated strings rendered with the step's input
+	// context, used to invalidate the cooldown when matching events fire.
+	// Examples (after rendering):
+	//   "runtime.active:keepalived.service@<node_id>"
+	//   "deps.installed:minio@<node_id>"
+	//   "topology.node_count>=3"
+	// An empty list means "time-only retry" (no event wakeup).
+	BlockerTags []string `json:"blockerTags,omitempty" yaml:"blockerTags,omitempty"`
 }
 
 // ── Workflow hardening types (WH-1) ──────────────────────────────────────────

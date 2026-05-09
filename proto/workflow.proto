@@ -58,6 +58,11 @@ enum RunStatus {
   RUN_STATUS_CANCELED         = 10; // terminal, operator-initiated
   RUN_STATUS_ROLLED_BACK      = 11; // terminal, rolled back to prior state
   RUN_STATUS_SUPERSEDED       = 12; // terminal, replaced by newer run (see superseded_by)
+  // Non-terminal: a step exhausted its in-run retry budget. The run is
+  // returned to the scheduler queue with defer_until set; the executor slot
+  // is released so other runs can make progress. After max_defers cycles a
+  // deferred run becomes RUN_STATUS_FAILED with reason="abandoned".
+  RUN_STATUS_DEFERRED         = 13;
 }
 
 // StepStatus is the lifecycle state of a workflow step.

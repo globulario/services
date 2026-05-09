@@ -147,3 +147,64 @@ spec:
 		t.Error("legacy step should have nil compensation")
 	}
 }
+
+// TestDeferPolicyParse exercises the new defer: block (WF-DEFER). A step
+// without a defer block must keep nil — backwards compatible.
+func TestDeferPolicyParse(t *testing.T) {
+	deferYAML := `
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: test.defer
+spec:
+  strategy:
+    mode: single
+  steps:
+    - id: runtime_check
+      actor: node-agent
+      action: node.verify_package_runtime
+      retry:
+        maxAttempts: 5
+        backoff: 5s
+      defer:
+        cooldown: 60s
+        maxDefers: 5
+        blockerTags:
+          - "runtime.active:keepalived.service@nuc"
+          - "deps.installed:minio@nuc"
+
+    - id: legacy_step_no_defer
+      actor: node-agent
+      action: node.verify_services_active
+`
+	loader := NewLoader()
+	def, err := loader.LoadBytes([]byte(deferYAML))
+	if err != nil {
+		t.Fatalf("parse defer YAML: %v", err)
+	}
+	if len(def.Spec.Steps) != 2 {
+		t.Fatalf("expected 2 steps, got %d", len(def.Spec.Steps))
+	}
+
+	s := def.Spec.Steps[0]
+	if s.Defer == nil {
+		t.Fatal("expected non-nil Defer on runtime_check step")
+	}
+	if s.Defer.MaxDefers != 5 {
+		t.Errorf("Defer.MaxDefers = %d, want 5", s.Defer.MaxDefers)
+	}
+	if s.Defer.Cooldown == nil || s.Defer.Cooldown.String() != "60s" {
+		t.Errorf("Defer.Cooldown not parsed correctly: %+v", s.Defer.Cooldown)
+	}
+	if len(s.Defer.BlockerTags) != 2 {
+		t.Errorf("expected 2 blocker tags, got %d", len(s.Defer.BlockerTags))
+	}
+	if s.Defer.BlockerTags[0] != "runtime.active:keepalived.service@nuc" {
+		t.Errorf("BlockerTags[0] = %q", s.Defer.BlockerTags[0])
+	}
+
+	// Backwards-compat: a step without defer: must have nil Defer.
+	if def.Spec.Steps[1].Defer != nil {
+		t.Error("legacy step (no defer block) should have nil Defer")
+	}
+}
