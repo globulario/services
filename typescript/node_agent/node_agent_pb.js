@@ -11075,7 +11075,15 @@ expectedSha256: jspb.Message.getFieldWithDefault(msg, 7, ""),
 operationId: jspb.Message.getFieldWithDefault(msg, 8, ""),
 repositoryAddr: jspb.Message.getFieldWithDefault(msg, 9, ""),
 buildNumber: jspb.Message.getFieldWithDefault(msg, 10, 0),
-buildId: jspb.Message.getFieldWithDefault(msg, 11, "")
+buildId: jspb.Message.getFieldWithDefault(msg, 11, ""),
+rollbackMode: jspb.Message.getBooleanFieldWithDefault(msg, 12, false),
+rollbackReason: jspb.Message.getFieldWithDefault(msg, 13, ""),
+workflowRunId: jspb.Message.getFieldWithDefault(msg, 14, ""),
+targetRevisionId: jspb.Message.getFieldWithDefault(msg, 15, ""),
+preserveConfigs: jspb.Message.getBooleanFieldWithDefault(msg, 16, false),
+restoreConfigSnapshot: jspb.Message.getBooleanFieldWithDefault(msg, 17, false),
+allowDowngrade: jspb.Message.getBooleanFieldWithDefault(msg, 18, false),
+previousRevisionId: jspb.Message.getFieldWithDefault(msg, 19, "")
   };
 
   if (includeInstance) {
@@ -11155,6 +11163,38 @@ proto.node_agent.ApplyPackageReleaseRequest.deserializeBinaryFromReader = functi
     case 11:
       var value = /** @type {string} */ (reader.readString());
       msg.setBuildId(value);
+      break;
+    case 12:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setRollbackMode(value);
+      break;
+    case 13:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRollbackReason(value);
+      break;
+    case 14:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setWorkflowRunId(value);
+      break;
+    case 15:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTargetRevisionId(value);
+      break;
+    case 16:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setPreserveConfigs(value);
+      break;
+    case 17:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setRestoreConfigSnapshot(value);
+      break;
+    case 18:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setAllowDowngrade(value);
+      break;
+    case 19:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPreviousRevisionId(value);
       break;
     default:
       reader.skipField();
@@ -11259,6 +11299,62 @@ proto.node_agent.ApplyPackageReleaseRequest.serializeBinaryToWriter = function(m
   if (f.length > 0) {
     writer.writeString(
       11,
+      f
+    );
+  }
+  f = message.getRollbackMode();
+  if (f) {
+    writer.writeBool(
+      12,
+      f
+    );
+  }
+  f = message.getRollbackReason();
+  if (f.length > 0) {
+    writer.writeString(
+      13,
+      f
+    );
+  }
+  f = message.getWorkflowRunId();
+  if (f.length > 0) {
+    writer.writeString(
+      14,
+      f
+    );
+  }
+  f = message.getTargetRevisionId();
+  if (f.length > 0) {
+    writer.writeString(
+      15,
+      f
+    );
+  }
+  f = message.getPreserveConfigs();
+  if (f) {
+    writer.writeBool(
+      16,
+      f
+    );
+  }
+  f = message.getRestoreConfigSnapshot();
+  if (f) {
+    writer.writeBool(
+      17,
+      f
+    );
+  }
+  f = message.getAllowDowngrade();
+  if (f) {
+    writer.writeBool(
+      18,
+      f
+    );
+  }
+  f = message.getPreviousRevisionId();
+  if (f.length > 0) {
+    writer.writeString(
+      19,
       f
     );
   }
@@ -11460,6 +11556,150 @@ proto.node_agent.ApplyPackageReleaseRequest.prototype.getBuildId = function() {
  */
 proto.node_agent.ApplyPackageReleaseRequest.prototype.setBuildId = function(value) {
   return jspb.Message.setProto3StringField(this, 11, value);
+};
+
+
+/**
+ * optional bool rollback_mode = 12;
+ * @return {boolean}
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.getRollbackMode = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 12, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.node_agent.ApplyPackageReleaseRequest} returns this
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.setRollbackMode = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 12, value);
+};
+
+
+/**
+ * optional string rollback_reason = 13;
+ * @return {string}
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.getRollbackReason = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 13, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.node_agent.ApplyPackageReleaseRequest} returns this
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.setRollbackReason = function(value) {
+  return jspb.Message.setProto3StringField(this, 13, value);
+};
+
+
+/**
+ * optional string workflow_run_id = 14;
+ * @return {string}
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.getWorkflowRunId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 14, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.node_agent.ApplyPackageReleaseRequest} returns this
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.setWorkflowRunId = function(value) {
+  return jspb.Message.setProto3StringField(this, 14, value);
+};
+
+
+/**
+ * optional string target_revision_id = 15;
+ * @return {string}
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.getTargetRevisionId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 15, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.node_agent.ApplyPackageReleaseRequest} returns this
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.setTargetRevisionId = function(value) {
+  return jspb.Message.setProto3StringField(this, 15, value);
+};
+
+
+/**
+ * optional bool preserve_configs = 16;
+ * @return {boolean}
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.getPreserveConfigs = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 16, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.node_agent.ApplyPackageReleaseRequest} returns this
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.setPreserveConfigs = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 16, value);
+};
+
+
+/**
+ * optional bool restore_config_snapshot = 17;
+ * @return {boolean}
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.getRestoreConfigSnapshot = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 17, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.node_agent.ApplyPackageReleaseRequest} returns this
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.setRestoreConfigSnapshot = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 17, value);
+};
+
+
+/**
+ * optional bool allow_downgrade = 18;
+ * @return {boolean}
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.getAllowDowngrade = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 18, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.node_agent.ApplyPackageReleaseRequest} returns this
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.setAllowDowngrade = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 18, value);
+};
+
+
+/**
+ * optional string previous_revision_id = 19;
+ * @return {string}
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.getPreviousRevisionId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 19, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.node_agent.ApplyPackageReleaseRequest} returns this
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.setPreviousRevisionId = function(value) {
+  return jspb.Message.setProto3StringField(this, 19, value);
 };
 
 

@@ -33,7 +33,7 @@ const (
 	ArtifactKind_SUBSYSTEM                 ArtifactKind = 4
 	ArtifactKind_INFRASTRUCTURE            ArtifactKind = 5
 	ArtifactKind_COMMAND                   ArtifactKind = 6 // CLI tools (ffmpeg, rclone, restic, mc, etc.)
-	ArtifactKind_AWARENESS_BUNDLE          ArtifactKind = 7 // compiled awareness graph + YAML knowledge base
+	ArtifactKind_AWARENESS_BUNDLE          ArtifactKind = 7 // compiled awareness graph + YAML knowledge base — distributed as a release artifact
 )
 
 // Enum value maps for ArtifactKind.
@@ -9909,7 +9909,7 @@ const file_repository_proto_rawDesc = "" +
 	"\x06reason\x18\x03 \x01(\tR\x06reason\x12E\n" +
 	"\fdependencies\x18\x04 \x03(\v2!.repository.DependencyHealthProtoR\fdependencies\x12E\n" +
 	"\fcapabilities\x18\x05 \x03(\v2!.repository.CapabilityHealthProtoR\fcapabilities\x12(\n" +
-	"\x10observed_at_unix\x18\x06 \x01(\x03R\x0eobservedAtUnix*\x86\x01\n" +
+	"\x10observed_at_unix\x18\x06 \x01(\x03R\x0eobservedAtUnix*\x9c\x01\n" +
 	"\fArtifactKind\x12\x1d\n" +
 	"\x19ARTIFACT_KIND_UNSPECIFIED\x10\x00\x12\v\n" +
 	"\aSERVICE\x10\x01\x12\x0f\n" +
@@ -9917,7 +9917,8 @@ const file_repository_proto_rawDesc = "" +
 	"\x05AGENT\x10\x03\x12\r\n" +
 	"\tSUBSYSTEM\x10\x04\x12\x12\n" +
 	"\x0eINFRASTRUCTURE\x10\x05\x12\v\n" +
-	"\aCOMMAND\x10\x06*c\n" +
+	"\aCOMMAND\x10\x06\x12\x14\n" +
+	"\x10AWARENESS_BUNDLE\x10\a*c\n" +
 	"\x0fArtifactChannel\x12\x11\n" +
 	"\rCHANNEL_UNSET\x10\x00\x12\n" +
 	"\n" +

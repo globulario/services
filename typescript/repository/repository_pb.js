@@ -35,9 +35,15 @@ goog.exportSymbol('proto.repository.ArtifactKind', null, global);
 goog.exportSymbol('proto.repository.ArtifactManifest', null, global);
 goog.exportSymbol('proto.repository.ArtifactManifest.TypeDetailCase', null, global);
 goog.exportSymbol('proto.repository.ArtifactRef', null, global);
+goog.exportSymbol('proto.repository.ArtifactSignature', null, global);
+goog.exportSymbol('proto.repository.ArtifactVerifyStatus', null, global);
 goog.exportSymbol('proto.repository.BundleSummary', null, global);
+goog.exportSymbol('proto.repository.CapabilityHealthProto', null, global);
+goog.exportSymbol('proto.repository.ConfigKind', null, global);
+goog.exportSymbol('proto.repository.ConfigReceiptAction', null, global);
 goog.exportSymbol('proto.repository.DeleteArtifactRequest', null, global);
 goog.exportSymbol('proto.repository.DeleteArtifactResponse', null, global);
+goog.exportSymbol('proto.repository.DependencyHealthProto', null, global);
 goog.exportSymbol('proto.repository.DescribePackageRequest', null, global);
 goog.exportSymbol('proto.repository.DescribePackageResponse', null, global);
 goog.exportSymbol('proto.repository.DesiredInfo', null, global);
@@ -45,43 +51,84 @@ goog.exportSymbol('proto.repository.DownloadArtifactRequest', null, global);
 goog.exportSymbol('proto.repository.DownloadArtifactResponse', null, global);
 goog.exportSymbol('proto.repository.DownloadBundleRequest', null, global);
 goog.exportSymbol('proto.repository.DownloadBundleResponse', null, global);
+goog.exportSymbol('proto.repository.ExplainArtifactRequest', null, global);
+goog.exportSymbol('proto.repository.ExplainArtifactResponse', null, global);
 goog.exportSymbol('proto.repository.GetArtifactManifestRequest', null, global);
 goog.exportSymbol('proto.repository.GetArtifactManifestResponse', null, global);
 goog.exportSymbol('proto.repository.GetArtifactVersionsRequest', null, global);
 goog.exportSymbol('proto.repository.GetArtifactVersionsResponse', null, global);
 goog.exportSymbol('proto.repository.GetNamespaceRequest', null, global);
 goog.exportSymbol('proto.repository.GetNamespaceResponse', null, global);
+goog.exportSymbol('proto.repository.GetRepositoryStatusRequest', null, global);
+goog.exportSymbol('proto.repository.GetRepositoryStatusResponse', null, global);
 goog.exportSymbol('proto.repository.ImportProvisionalRequest', null, global);
 goog.exportSymbol('proto.repository.ImportProvisionalResponse', null, global);
 goog.exportSymbol('proto.repository.InfrastructureDetail', null, global);
+goog.exportSymbol('proto.repository.InstalledPackageRevision', null, global);
+goog.exportSymbol('proto.repository.ListArtifactSignaturesRequest', null, global);
+goog.exportSymbol('proto.repository.ListArtifactSignaturesResponse', null, global);
 goog.exportSymbol('proto.repository.ListArtifactsRequest', null, global);
 goog.exportSymbol('proto.repository.ListArtifactsResponse', null, global);
 goog.exportSymbol('proto.repository.ListBundlesRequest', null, global);
 goog.exportSymbol('proto.repository.ListBundlesResponse', null, global);
+goog.exportSymbol('proto.repository.ListConfigReceiptsRequest', null, global);
+goog.exportSymbol('proto.repository.ListConfigReceiptsResponse', null, global);
+goog.exportSymbol('proto.repository.ListInstalledRevisionsRequest', null, global);
+goog.exportSymbol('proto.repository.ListInstalledRevisionsResponse', null, global);
+goog.exportSymbol('proto.repository.ListRepositoryFindingsRequest', null, global);
+goog.exportSymbol('proto.repository.ListRepositoryFindingsResponse', null, global);
+goog.exportSymbol('proto.repository.ListRollbackCandidatesRequest', null, global);
+goog.exportSymbol('proto.repository.ListRollbackCandidatesResponse', null, global);
+goog.exportSymbol('proto.repository.ListTrustedPublishersRequest', null, global);
+goog.exportSymbol('proto.repository.ListTrustedPublishersResponse', null, global);
 goog.exportSymbol('proto.repository.ListUpstreamsRequest', null, global);
 goog.exportSymbol('proto.repository.ListUpstreamsResponse', null, global);
+goog.exportSymbol('proto.repository.MergeStrategy', null, global);
 goog.exportSymbol('proto.repository.NamespaceInfo', null, global);
 goog.exportSymbol('proto.repository.NodeInstallation', null, global);
+goog.exportSymbol('proto.repository.PackageConfigFile', null, global);
+goog.exportSymbol('proto.repository.PackageConfigReceipt', null, global);
 goog.exportSymbol('proto.repository.PackageInfo', null, global);
 goog.exportSymbol('proto.repository.PromoteArtifactRequest', null, global);
 goog.exportSymbol('proto.repository.PromoteArtifactResponse', null, global);
 goog.exportSymbol('proto.repository.ProvenanceRecord', null, global);
 goog.exportSymbol('proto.repository.PublishState', null, global);
+goog.exportSymbol('proto.repository.RecordConfigReceiptRequest', null, global);
+goog.exportSymbol('proto.repository.RecordConfigReceiptResponse', null, global);
+goog.exportSymbol('proto.repository.RecordInstalledRevisionRequest', null, global);
+goog.exportSymbol('proto.repository.RecordInstalledRevisionResponse', null, global);
+goog.exportSymbol('proto.repository.RegisterArtifactSignatureRequest', null, global);
+goog.exportSymbol('proto.repository.RegisterArtifactSignatureResponse', null, global);
 goog.exportSymbol('proto.repository.RegisterUpstreamRequest', null, global);
 goog.exportSymbol('proto.repository.RegisterUpstreamResponse', null, global);
 goog.exportSymbol('proto.repository.RemoveUpstreamRequest', null, global);
 goog.exportSymbol('proto.repository.RemoveUpstreamResponse', null, global);
+goog.exportSymbol('proto.repository.RepairArtifactRequest', null, global);
+goog.exportSymbol('proto.repository.RepairArtifactResponse', null, global);
+goog.exportSymbol('proto.repository.RepositoryFinding', null, global);
+goog.exportSymbol('proto.repository.RepositoryFindingKind', null, global);
+goog.exportSymbol('proto.repository.RepositoryFindingSeverity', null, global);
 goog.exportSymbol('proto.repository.ResolveArtifactRequest', null, global);
 goog.exportSymbol('proto.repository.ResolveArtifactResponse', null, global);
 goog.exportSymbol('proto.repository.ResolveByEntrypointChecksumRequest', null, global);
 goog.exportSymbol('proto.repository.ResolveByEntrypointChecksumResponse', null, global);
+goog.exportSymbol('proto.repository.RevokePublisherKeyRequest', null, global);
+goog.exportSymbol('proto.repository.RevokePublisherKeyResponse', null, global);
+goog.exportSymbol('proto.repository.RollbackCandidate', null, global);
+goog.exportSymbol('proto.repository.RollbackEligibility', null, global);
 goog.exportSymbol('proto.repository.SearchArtifactsRequest', null, global);
 goog.exportSymbol('proto.repository.SearchArtifactsResponse', null, global);
 goog.exportSymbol('proto.repository.ServiceDetail', null, global);
 goog.exportSymbol('proto.repository.SetArtifactStateRequest', null, global);
 goog.exportSymbol('proto.repository.SetArtifactStateResponse', null, global);
+goog.exportSymbol('proto.repository.SignaturePolicy', null, global);
+goog.exportSymbol('proto.repository.SignatureStatus', null, global);
 goog.exportSymbol('proto.repository.SyncFromUpstreamRequest', null, global);
 goog.exportSymbol('proto.repository.SyncFromUpstreamResponse', null, global);
+goog.exportSymbol('proto.repository.TrustPublisherRequest', null, global);
+goog.exportSymbol('proto.repository.TrustPublisherResponse', null, global);
+goog.exportSymbol('proto.repository.TrustState', null, global);
+goog.exportSymbol('proto.repository.TrustedPublisher', null, global);
 goog.exportSymbol('proto.repository.UpdateArtifactBinaryHeader', null, global);
 goog.exportSymbol('proto.repository.UpdateArtifactBinaryRequest', null, global);
 goog.exportSymbol('proto.repository.UpdateArtifactBinaryRequest.PayloadCase', null, global);
@@ -95,6 +142,10 @@ goog.exportSymbol('proto.repository.UpstreamSource', null, global);
 goog.exportSymbol('proto.repository.UpstreamSourceType', null, global);
 goog.exportSymbol('proto.repository.UpstreamSyncResult', null, global);
 goog.exportSymbol('proto.repository.UpstreamSyncStatus', null, global);
+goog.exportSymbol('proto.repository.VerifyArtifactRequest', null, global);
+goog.exportSymbol('proto.repository.VerifyArtifactResponse', null, global);
+goog.exportSymbol('proto.repository.VerifyArtifactSignatureRequest', null, global);
+goog.exportSymbol('proto.repository.VerifyArtifactSignatureResponse', null, global);
 goog.exportSymbol('proto.repository.VersionIntent', null, global);
 /**
  * Generated by JsPbCodeGenerator.
@@ -946,6 +997,132 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
+proto.repository.VerifyArtifactRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.VerifyArtifactRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.VerifyArtifactRequest.displayName = 'proto.repository.VerifyArtifactRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.VerifyArtifactResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.VerifyArtifactResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.VerifyArtifactResponse.displayName = 'proto.repository.VerifyArtifactResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.RepairArtifactRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.RepairArtifactRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.RepairArtifactRequest.displayName = 'proto.repository.RepairArtifactRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.RepairArtifactResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.RepairArtifactResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.RepairArtifactResponse.displayName = 'proto.repository.RepairArtifactResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ExplainArtifactRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.ExplainArtifactRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ExplainArtifactRequest.displayName = 'proto.repository.ExplainArtifactRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ExplainArtifactResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.repository.ExplainArtifactResponse.repeatedFields_, null);
+};
+goog.inherits(proto.repository.ExplainArtifactResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ExplainArtifactResponse.displayName = 'proto.repository.ExplainArtifactResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
 proto.repository.ResolveArtifactRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
@@ -1461,6 +1638,783 @@ if (goog.DEBUG && !COMPILED) {
    */
   proto.repository.ArchiveUnreachableArtifactsResponse.displayName = 'proto.repository.ArchiveUnreachableArtifactsResponse';
 }
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.PackageConfigFile = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.PackageConfigFile, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.PackageConfigFile.displayName = 'proto.repository.PackageConfigFile';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.TrustedPublisher = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.TrustedPublisher, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.TrustedPublisher.displayName = 'proto.repository.TrustedPublisher';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ArtifactSignature = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.ArtifactSignature, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ArtifactSignature.displayName = 'proto.repository.ArtifactSignature';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.TrustPublisherRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.TrustPublisherRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.TrustPublisherRequest.displayName = 'proto.repository.TrustPublisherRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.TrustPublisherResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.TrustPublisherResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.TrustPublisherResponse.displayName = 'proto.repository.TrustPublisherResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.RevokePublisherKeyRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.RevokePublisherKeyRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.RevokePublisherKeyRequest.displayName = 'proto.repository.RevokePublisherKeyRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.RevokePublisherKeyResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.RevokePublisherKeyResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.RevokePublisherKeyResponse.displayName = 'proto.repository.RevokePublisherKeyResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ListTrustedPublishersRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.ListTrustedPublishersRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ListTrustedPublishersRequest.displayName = 'proto.repository.ListTrustedPublishersRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ListTrustedPublishersResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.repository.ListTrustedPublishersResponse.repeatedFields_, null);
+};
+goog.inherits(proto.repository.ListTrustedPublishersResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ListTrustedPublishersResponse.displayName = 'proto.repository.ListTrustedPublishersResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.RegisterArtifactSignatureRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.RegisterArtifactSignatureRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.RegisterArtifactSignatureRequest.displayName = 'proto.repository.RegisterArtifactSignatureRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.RegisterArtifactSignatureResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.RegisterArtifactSignatureResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.RegisterArtifactSignatureResponse.displayName = 'proto.repository.RegisterArtifactSignatureResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.VerifyArtifactSignatureRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.VerifyArtifactSignatureRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.VerifyArtifactSignatureRequest.displayName = 'proto.repository.VerifyArtifactSignatureRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.VerifyArtifactSignatureResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.VerifyArtifactSignatureResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.VerifyArtifactSignatureResponse.displayName = 'proto.repository.VerifyArtifactSignatureResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ListArtifactSignaturesRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.ListArtifactSignaturesRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ListArtifactSignaturesRequest.displayName = 'proto.repository.ListArtifactSignaturesRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ListArtifactSignaturesResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.repository.ListArtifactSignaturesResponse.repeatedFields_, null);
+};
+goog.inherits(proto.repository.ListArtifactSignaturesResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ListArtifactSignaturesResponse.displayName = 'proto.repository.ListArtifactSignaturesResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.InstalledPackageRevision = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.InstalledPackageRevision, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.InstalledPackageRevision.displayName = 'proto.repository.InstalledPackageRevision';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.RecordInstalledRevisionRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.RecordInstalledRevisionRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.RecordInstalledRevisionRequest.displayName = 'proto.repository.RecordInstalledRevisionRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.RecordInstalledRevisionResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.RecordInstalledRevisionResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.RecordInstalledRevisionResponse.displayName = 'proto.repository.RecordInstalledRevisionResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ListInstalledRevisionsRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.ListInstalledRevisionsRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ListInstalledRevisionsRequest.displayName = 'proto.repository.ListInstalledRevisionsRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ListInstalledRevisionsResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.repository.ListInstalledRevisionsResponse.repeatedFields_, null);
+};
+goog.inherits(proto.repository.ListInstalledRevisionsResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ListInstalledRevisionsResponse.displayName = 'proto.repository.ListInstalledRevisionsResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.RollbackEligibility = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.RollbackEligibility, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.RollbackEligibility.displayName = 'proto.repository.RollbackEligibility';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.RollbackCandidate = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.RollbackCandidate, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.RollbackCandidate.displayName = 'proto.repository.RollbackCandidate';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ListRollbackCandidatesRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.ListRollbackCandidatesRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ListRollbackCandidatesRequest.displayName = 'proto.repository.ListRollbackCandidatesRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ListRollbackCandidatesResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.repository.ListRollbackCandidatesResponse.repeatedFields_, null);
+};
+goog.inherits(proto.repository.ListRollbackCandidatesResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ListRollbackCandidatesResponse.displayName = 'proto.repository.ListRollbackCandidatesResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.SignaturePolicy = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.repository.SignaturePolicy.repeatedFields_, null);
+};
+goog.inherits(proto.repository.SignaturePolicy, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.SignaturePolicy.displayName = 'proto.repository.SignaturePolicy';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.PackageConfigReceipt = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.PackageConfigReceipt, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.PackageConfigReceipt.displayName = 'proto.repository.PackageConfigReceipt';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.RecordConfigReceiptRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.RecordConfigReceiptRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.RecordConfigReceiptRequest.displayName = 'proto.repository.RecordConfigReceiptRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.RecordConfigReceiptResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.RecordConfigReceiptResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.RecordConfigReceiptResponse.displayName = 'proto.repository.RecordConfigReceiptResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ListConfigReceiptsRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.ListConfigReceiptsRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ListConfigReceiptsRequest.displayName = 'proto.repository.ListConfigReceiptsRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ListConfigReceiptsResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.repository.ListConfigReceiptsResponse.repeatedFields_, null);
+};
+goog.inherits(proto.repository.ListConfigReceiptsResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ListConfigReceiptsResponse.displayName = 'proto.repository.ListConfigReceiptsResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.RepositoryFinding = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.RepositoryFinding, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.RepositoryFinding.displayName = 'proto.repository.RepositoryFinding';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ListRepositoryFindingsRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.ListRepositoryFindingsRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ListRepositoryFindingsRequest.displayName = 'proto.repository.ListRepositoryFindingsRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.ListRepositoryFindingsResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.repository.ListRepositoryFindingsResponse.repeatedFields_, null);
+};
+goog.inherits(proto.repository.ListRepositoryFindingsResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.ListRepositoryFindingsResponse.displayName = 'proto.repository.ListRepositoryFindingsResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.DependencyHealthProto = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.repository.DependencyHealthProto.repeatedFields_, null);
+};
+goog.inherits(proto.repository.DependencyHealthProto, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.DependencyHealthProto.displayName = 'proto.repository.DependencyHealthProto';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.CapabilityHealthProto = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.CapabilityHealthProto, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.CapabilityHealthProto.displayName = 'proto.repository.CapabilityHealthProto';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.GetRepositoryStatusRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.repository.GetRepositoryStatusRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.GetRepositoryStatusRequest.displayName = 'proto.repository.GetRepositoryStatusRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.repository.GetRepositoryStatusResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.repository.GetRepositoryStatusResponse.repeatedFields_, null);
+};
+goog.inherits(proto.repository.GetRepositoryStatusResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.repository.GetRepositoryStatusResponse.displayName = 'proto.repository.GetRepositoryStatusResponse';
+}
 
 
 
@@ -1877,7 +2831,7 @@ proto.repository.ArtifactDependencyRef.prototype.setPublisherId = function(value
  * @private {!Array<number>}
  * @const
  */
-proto.repository.ArtifactManifest.repeatedFields_ = [10,11,13,15,50,55,56,59,60];
+proto.repository.ArtifactManifest.repeatedFields_ = [10,11,13,15,50,55,56,59,60,70];
 
 /**
  * Oneof group definitions for this message. Each group defines the field
@@ -1978,7 +2932,10 @@ buildId: jspb.Message.getFieldWithDefault(msg, 42, ""),
 provisional: jspb.Message.getBooleanFieldWithDefault(msg, 43, false),
 upstreamImport: (f = msg.getUpstreamImport()) && proto.repository.UpstreamImportRecord.toObject(includeInstance, f),
 entrypointChecksum: jspb.Message.getFieldWithDefault(msg, 44, ""),
-channel: jspb.Message.getFieldWithDefault(msg, 45, 0)
+channel: jspb.Message.getFieldWithDefault(msg, 45, 0),
+configsList: jspb.Message.toObjectList(msg.getConfigsList(),
+    proto.repository.PackageConfigFile.toObject, includeInstance),
+signatureKeyId: jspb.Message.getFieldWithDefault(msg, 71, "")
   };
 
   if (includeInstance) {
@@ -2187,6 +3144,15 @@ proto.repository.ArtifactManifest.deserializeBinaryFromReader = function(msg, re
     case 45:
       var value = /** @type {!proto.repository.ArtifactChannel} */ (reader.readEnum());
       msg.setChannel(value);
+      break;
+    case 70:
+      var value = new proto.repository.PackageConfigFile;
+      reader.readMessage(value,proto.repository.PackageConfigFile.deserializeBinaryFromReader);
+      msg.addConfigs(value);
+      break;
+    case 71:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setSignatureKeyId(value);
       break;
     default:
       reader.skipField();
@@ -2505,6 +3471,21 @@ proto.repository.ArtifactManifest.serializeBinaryToWriter = function(message, wr
   if (f !== 0.0) {
     writer.writeEnum(
       45,
+      f
+    );
+  }
+  f = message.getConfigsList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      70,
+      f,
+      proto.repository.PackageConfigFile.serializeBinaryToWriter
+    );
+  }
+  f = message.getSignatureKeyId();
+  if (f.length > 0) {
+    writer.writeString(
+      71,
       f
     );
   }
@@ -3537,6 +4518,62 @@ proto.repository.ArtifactManifest.prototype.getChannel = function() {
  */
 proto.repository.ArtifactManifest.prototype.setChannel = function(value) {
   return jspb.Message.setProto3EnumField(this, 45, value);
+};
+
+
+/**
+ * repeated PackageConfigFile configs = 70;
+ * @return {!Array<!proto.repository.PackageConfigFile>}
+ */
+proto.repository.ArtifactManifest.prototype.getConfigsList = function() {
+  return /** @type{!Array<!proto.repository.PackageConfigFile>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.repository.PackageConfigFile, 70));
+};
+
+
+/**
+ * @param {!Array<!proto.repository.PackageConfigFile>} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+*/
+proto.repository.ArtifactManifest.prototype.setConfigsList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 70, value);
+};
+
+
+/**
+ * @param {!proto.repository.PackageConfigFile=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.repository.PackageConfigFile}
+ */
+proto.repository.ArtifactManifest.prototype.addConfigs = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 70, opt_value, proto.repository.PackageConfigFile, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.clearConfigsList = function() {
+  return this.setConfigsList([]);
+};
+
+
+/**
+ * optional string signature_key_id = 71;
+ * @return {string}
+ */
+proto.repository.ArtifactManifest.prototype.getSignatureKeyId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 71, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setSignatureKeyId = function(value) {
+  return jspb.Message.setProto3StringField(this, 71, value);
 };
 
 
@@ -11579,6 +12616,2528 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
+proto.repository.VerifyArtifactRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.VerifyArtifactRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.VerifyArtifactRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.VerifyArtifactRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+ref: (f = msg.getRef()) && proto.repository.ArtifactRef.toObject(includeInstance, f),
+buildNumber: jspb.Message.getFieldWithDefault(msg, 2, 0),
+buildId: jspb.Message.getFieldWithDefault(msg, 3, ""),
+verifyDigest: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+verifySignature: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
+includeLedger: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
+includeManifest: jspb.Message.getBooleanFieldWithDefault(msg, 7, false),
+includeBlob: jspb.Message.getBooleanFieldWithDefault(msg, 8, false)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.VerifyArtifactRequest}
+ */
+proto.repository.VerifyArtifactRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.VerifyArtifactRequest;
+  return proto.repository.VerifyArtifactRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.VerifyArtifactRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.VerifyArtifactRequest}
+ */
+proto.repository.VerifyArtifactRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.ArtifactRef;
+      reader.readMessage(value,proto.repository.ArtifactRef.deserializeBinaryFromReader);
+      msg.setRef(value);
+      break;
+    case 2:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBuildId(value);
+      break;
+    case 4:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setVerifyDigest(value);
+      break;
+    case 5:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setVerifySignature(value);
+      break;
+    case 6:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setIncludeLedger(value);
+      break;
+    case 7:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setIncludeManifest(value);
+      break;
+    case 8:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setIncludeBlob(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.VerifyArtifactRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.VerifyArtifactRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.VerifyArtifactRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.VerifyArtifactRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRef();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.ArtifactRef.serializeBinaryToWriter
+    );
+  }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      2,
+      f
+    );
+  }
+  f = message.getBuildId();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getVerifyDigest();
+  if (f) {
+    writer.writeBool(
+      4,
+      f
+    );
+  }
+  f = message.getVerifySignature();
+  if (f) {
+    writer.writeBool(
+      5,
+      f
+    );
+  }
+  f = message.getIncludeLedger();
+  if (f) {
+    writer.writeBool(
+      6,
+      f
+    );
+  }
+  f = message.getIncludeManifest();
+  if (f) {
+    writer.writeBool(
+      7,
+      f
+    );
+  }
+  f = message.getIncludeBlob();
+  if (f) {
+    writer.writeBool(
+      8,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional ArtifactRef ref = 1;
+ * @return {?proto.repository.ArtifactRef}
+ */
+proto.repository.VerifyArtifactRequest.prototype.getRef = function() {
+  return /** @type{?proto.repository.ArtifactRef} */ (
+    jspb.Message.getWrapperField(this, proto.repository.ArtifactRef, 1));
+};
+
+
+/**
+ * @param {?proto.repository.ArtifactRef|undefined} value
+ * @return {!proto.repository.VerifyArtifactRequest} returns this
+*/
+proto.repository.VerifyArtifactRequest.prototype.setRef = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.VerifyArtifactRequest} returns this
+ */
+proto.repository.VerifyArtifactRequest.prototype.clearRef = function() {
+  return this.setRef(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.VerifyArtifactRequest.prototype.hasRef = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional int64 build_number = 2;
+ * @return {number}
+ */
+proto.repository.VerifyArtifactRequest.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.VerifyArtifactRequest} returns this
+ */
+proto.repository.VerifyArtifactRequest.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 2, value);
+};
+
+
+/**
+ * optional string build_id = 3;
+ * @return {string}
+ */
+proto.repository.VerifyArtifactRequest.prototype.getBuildId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.VerifyArtifactRequest} returns this
+ */
+proto.repository.VerifyArtifactRequest.prototype.setBuildId = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional bool verify_digest = 4;
+ * @return {boolean}
+ */
+proto.repository.VerifyArtifactRequest.prototype.getVerifyDigest = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 4, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.VerifyArtifactRequest} returns this
+ */
+proto.repository.VerifyArtifactRequest.prototype.setVerifyDigest = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 4, value);
+};
+
+
+/**
+ * optional bool verify_signature = 5;
+ * @return {boolean}
+ */
+proto.repository.VerifyArtifactRequest.prototype.getVerifySignature = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 5, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.VerifyArtifactRequest} returns this
+ */
+proto.repository.VerifyArtifactRequest.prototype.setVerifySignature = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 5, value);
+};
+
+
+/**
+ * optional bool include_ledger = 6;
+ * @return {boolean}
+ */
+proto.repository.VerifyArtifactRequest.prototype.getIncludeLedger = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 6, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.VerifyArtifactRequest} returns this
+ */
+proto.repository.VerifyArtifactRequest.prototype.setIncludeLedger = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 6, value);
+};
+
+
+/**
+ * optional bool include_manifest = 7;
+ * @return {boolean}
+ */
+proto.repository.VerifyArtifactRequest.prototype.getIncludeManifest = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 7, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.VerifyArtifactRequest} returns this
+ */
+proto.repository.VerifyArtifactRequest.prototype.setIncludeManifest = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 7, value);
+};
+
+
+/**
+ * optional bool include_blob = 8;
+ * @return {boolean}
+ */
+proto.repository.VerifyArtifactRequest.prototype.getIncludeBlob = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 8, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.VerifyArtifactRequest} returns this
+ */
+proto.repository.VerifyArtifactRequest.prototype.setIncludeBlob = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 8, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.VerifyArtifactResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.VerifyArtifactResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.VerifyArtifactResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.VerifyArtifactResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+ref: (f = msg.getRef()) && proto.repository.ArtifactRef.toObject(includeInstance, f),
+artifactKey: jspb.Message.getFieldWithDefault(msg, 2, ""),
+artifactState: jspb.Message.getFieldWithDefault(msg, 3, ""),
+publishState: jspb.Message.getFieldWithDefault(msg, 4, 0),
+installable: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
+status: jspb.Message.getFieldWithDefault(msg, 6, 0),
+reason: jspb.Message.getFieldWithDefault(msg, 7, ""),
+blobKey: jspb.Message.getFieldWithDefault(msg, 8, ""),
+expectedSize: jspb.Message.getFieldWithDefault(msg, 9, 0),
+actualSize: jspb.Message.getFieldWithDefault(msg, 10, 0),
+expectedDigest: jspb.Message.getFieldWithDefault(msg, 11, ""),
+actualDigest: jspb.Message.getFieldWithDefault(msg, 12, ""),
+signatureStatus: jspb.Message.getFieldWithDefault(msg, 13, ""),
+provenanceStatus: jspb.Message.getFieldWithDefault(msg, 14, ""),
+repairable: jspb.Message.getBooleanFieldWithDefault(msg, 15, false),
+recommendedAction: jspb.Message.getFieldWithDefault(msg, 16, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.VerifyArtifactResponse}
+ */
+proto.repository.VerifyArtifactResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.VerifyArtifactResponse;
+  return proto.repository.VerifyArtifactResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.VerifyArtifactResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.VerifyArtifactResponse}
+ */
+proto.repository.VerifyArtifactResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.ArtifactRef;
+      reader.readMessage(value,proto.repository.ArtifactRef.deserializeBinaryFromReader);
+      msg.setRef(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setArtifactKey(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setArtifactState(value);
+      break;
+    case 4:
+      var value = /** @type {!proto.repository.PublishState} */ (reader.readEnum());
+      msg.setPublishState(value);
+      break;
+    case 5:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setInstallable(value);
+      break;
+    case 6:
+      var value = /** @type {!proto.repository.ArtifactVerifyStatus} */ (reader.readEnum());
+      msg.setStatus(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setReason(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBlobKey(value);
+      break;
+    case 9:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setExpectedSize(value);
+      break;
+    case 10:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setActualSize(value);
+      break;
+    case 11:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setExpectedDigest(value);
+      break;
+    case 12:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setActualDigest(value);
+      break;
+    case 13:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setSignatureStatus(value);
+      break;
+    case 14:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setProvenanceStatus(value);
+      break;
+    case 15:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setRepairable(value);
+      break;
+    case 16:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRecommendedAction(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.VerifyArtifactResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.VerifyArtifactResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.VerifyArtifactResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.VerifyArtifactResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRef();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.ArtifactRef.serializeBinaryToWriter
+    );
+  }
+  f = message.getArtifactKey();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getArtifactState();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getPublishState();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      4,
+      f
+    );
+  }
+  f = message.getInstallable();
+  if (f) {
+    writer.writeBool(
+      5,
+      f
+    );
+  }
+  f = message.getStatus();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      6,
+      f
+    );
+  }
+  f = message.getReason();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
+      f
+    );
+  }
+  f = message.getBlobKey();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
+      f
+    );
+  }
+  f = message.getExpectedSize();
+  if (f !== 0) {
+    writer.writeInt64(
+      9,
+      f
+    );
+  }
+  f = message.getActualSize();
+  if (f !== 0) {
+    writer.writeInt64(
+      10,
+      f
+    );
+  }
+  f = message.getExpectedDigest();
+  if (f.length > 0) {
+    writer.writeString(
+      11,
+      f
+    );
+  }
+  f = message.getActualDigest();
+  if (f.length > 0) {
+    writer.writeString(
+      12,
+      f
+    );
+  }
+  f = message.getSignatureStatus();
+  if (f.length > 0) {
+    writer.writeString(
+      13,
+      f
+    );
+  }
+  f = message.getProvenanceStatus();
+  if (f.length > 0) {
+    writer.writeString(
+      14,
+      f
+    );
+  }
+  f = message.getRepairable();
+  if (f) {
+    writer.writeBool(
+      15,
+      f
+    );
+  }
+  f = message.getRecommendedAction();
+  if (f.length > 0) {
+    writer.writeString(
+      16,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional ArtifactRef ref = 1;
+ * @return {?proto.repository.ArtifactRef}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getRef = function() {
+  return /** @type{?proto.repository.ArtifactRef} */ (
+    jspb.Message.getWrapperField(this, proto.repository.ArtifactRef, 1));
+};
+
+
+/**
+ * @param {?proto.repository.ArtifactRef|undefined} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+*/
+proto.repository.VerifyArtifactResponse.prototype.setRef = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.clearRef = function() {
+  return this.setRef(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.VerifyArtifactResponse.prototype.hasRef = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional string artifact_key = 2;
+ * @return {string}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getArtifactKey = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setArtifactKey = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string artifact_state = 3;
+ * @return {string}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getArtifactState = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setArtifactState = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional PublishState publish_state = 4;
+ * @return {!proto.repository.PublishState}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getPublishState = function() {
+  return /** @type {!proto.repository.PublishState} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {!proto.repository.PublishState} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setPublishState = function(value) {
+  return jspb.Message.setProto3EnumField(this, 4, value);
+};
+
+
+/**
+ * optional bool installable = 5;
+ * @return {boolean}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getInstallable = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 5, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setInstallable = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 5, value);
+};
+
+
+/**
+ * optional ArtifactVerifyStatus status = 6;
+ * @return {!proto.repository.ArtifactVerifyStatus}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getStatus = function() {
+  return /** @type {!proto.repository.ArtifactVerifyStatus} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
+};
+
+
+/**
+ * @param {!proto.repository.ArtifactVerifyStatus} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setStatus = function(value) {
+  return jspb.Message.setProto3EnumField(this, 6, value);
+};
+
+
+/**
+ * optional string reason = 7;
+ * @return {string}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getReason = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setReason = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional string blob_key = 8;
+ * @return {string}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getBlobKey = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setBlobKey = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
+};
+
+
+/**
+ * optional int64 expected_size = 9;
+ * @return {number}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getExpectedSize = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 9, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setExpectedSize = function(value) {
+  return jspb.Message.setProto3IntField(this, 9, value);
+};
+
+
+/**
+ * optional int64 actual_size = 10;
+ * @return {number}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getActualSize = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 10, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setActualSize = function(value) {
+  return jspb.Message.setProto3IntField(this, 10, value);
+};
+
+
+/**
+ * optional string expected_digest = 11;
+ * @return {string}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getExpectedDigest = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setExpectedDigest = function(value) {
+  return jspb.Message.setProto3StringField(this, 11, value);
+};
+
+
+/**
+ * optional string actual_digest = 12;
+ * @return {string}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getActualDigest = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 12, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setActualDigest = function(value) {
+  return jspb.Message.setProto3StringField(this, 12, value);
+};
+
+
+/**
+ * optional string signature_status = 13;
+ * @return {string}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getSignatureStatus = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 13, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setSignatureStatus = function(value) {
+  return jspb.Message.setProto3StringField(this, 13, value);
+};
+
+
+/**
+ * optional string provenance_status = 14;
+ * @return {string}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getProvenanceStatus = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 14, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setProvenanceStatus = function(value) {
+  return jspb.Message.setProto3StringField(this, 14, value);
+};
+
+
+/**
+ * optional bool repairable = 15;
+ * @return {boolean}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getRepairable = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 15, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setRepairable = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 15, value);
+};
+
+
+/**
+ * optional string recommended_action = 16;
+ * @return {string}
+ */
+proto.repository.VerifyArtifactResponse.prototype.getRecommendedAction = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 16, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.VerifyArtifactResponse} returns this
+ */
+proto.repository.VerifyArtifactResponse.prototype.setRecommendedAction = function(value) {
+  return jspb.Message.setProto3StringField(this, 16, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.RepairArtifactRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.RepairArtifactRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.RepairArtifactRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RepairArtifactRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+ref: (f = msg.getRef()) && proto.repository.ArtifactRef.toObject(includeInstance, f),
+buildNumber: jspb.Message.getFieldWithDefault(msg, 2, 0),
+dryRun: jspb.Message.getBooleanFieldWithDefault(msg, 3, false),
+force: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+allowQuarantineOverride: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
+operatorSubject: jspb.Message.getFieldWithDefault(msg, 6, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.RepairArtifactRequest}
+ */
+proto.repository.RepairArtifactRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.RepairArtifactRequest;
+  return proto.repository.RepairArtifactRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.RepairArtifactRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.RepairArtifactRequest}
+ */
+proto.repository.RepairArtifactRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.ArtifactRef;
+      reader.readMessage(value,proto.repository.ArtifactRef.deserializeBinaryFromReader);
+      msg.setRef(value);
+      break;
+    case 2:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
+      break;
+    case 3:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setDryRun(value);
+      break;
+    case 4:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setForce(value);
+      break;
+    case 5:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setAllowQuarantineOverride(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setOperatorSubject(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.RepairArtifactRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.RepairArtifactRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.RepairArtifactRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RepairArtifactRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRef();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.ArtifactRef.serializeBinaryToWriter
+    );
+  }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      2,
+      f
+    );
+  }
+  f = message.getDryRun();
+  if (f) {
+    writer.writeBool(
+      3,
+      f
+    );
+  }
+  f = message.getForce();
+  if (f) {
+    writer.writeBool(
+      4,
+      f
+    );
+  }
+  f = message.getAllowQuarantineOverride();
+  if (f) {
+    writer.writeBool(
+      5,
+      f
+    );
+  }
+  f = message.getOperatorSubject();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional ArtifactRef ref = 1;
+ * @return {?proto.repository.ArtifactRef}
+ */
+proto.repository.RepairArtifactRequest.prototype.getRef = function() {
+  return /** @type{?proto.repository.ArtifactRef} */ (
+    jspb.Message.getWrapperField(this, proto.repository.ArtifactRef, 1));
+};
+
+
+/**
+ * @param {?proto.repository.ArtifactRef|undefined} value
+ * @return {!proto.repository.RepairArtifactRequest} returns this
+*/
+proto.repository.RepairArtifactRequest.prototype.setRef = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.RepairArtifactRequest} returns this
+ */
+proto.repository.RepairArtifactRequest.prototype.clearRef = function() {
+  return this.setRef(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.RepairArtifactRequest.prototype.hasRef = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional int64 build_number = 2;
+ * @return {number}
+ */
+proto.repository.RepairArtifactRequest.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.RepairArtifactRequest} returns this
+ */
+proto.repository.RepairArtifactRequest.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 2, value);
+};
+
+
+/**
+ * optional bool dry_run = 3;
+ * @return {boolean}
+ */
+proto.repository.RepairArtifactRequest.prototype.getDryRun = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 3, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.RepairArtifactRequest} returns this
+ */
+proto.repository.RepairArtifactRequest.prototype.setDryRun = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 3, value);
+};
+
+
+/**
+ * optional bool force = 4;
+ * @return {boolean}
+ */
+proto.repository.RepairArtifactRequest.prototype.getForce = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 4, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.RepairArtifactRequest} returns this
+ */
+proto.repository.RepairArtifactRequest.prototype.setForce = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 4, value);
+};
+
+
+/**
+ * optional bool allow_quarantine_override = 5;
+ * @return {boolean}
+ */
+proto.repository.RepairArtifactRequest.prototype.getAllowQuarantineOverride = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 5, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.RepairArtifactRequest} returns this
+ */
+proto.repository.RepairArtifactRequest.prototype.setAllowQuarantineOverride = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 5, value);
+};
+
+
+/**
+ * optional string operator_subject = 6;
+ * @return {string}
+ */
+proto.repository.RepairArtifactRequest.prototype.getOperatorSubject = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RepairArtifactRequest} returns this
+ */
+proto.repository.RepairArtifactRequest.prototype.setOperatorSubject = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.RepairArtifactResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.RepairArtifactResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.RepairArtifactResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RepairArtifactResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+ref: (f = msg.getRef()) && proto.repository.ArtifactRef.toObject(includeInstance, f),
+artifactKey: jspb.Message.getFieldWithDefault(msg, 2, ""),
+action: jspb.Message.getFieldWithDefault(msg, 3, ""),
+detail: jspb.Message.getFieldWithDefault(msg, 4, ""),
+artifactStateBefore: jspb.Message.getFieldWithDefault(msg, 5, ""),
+artifactStateAfter: jspb.Message.getFieldWithDefault(msg, 6, ""),
+workflowRunId: jspb.Message.getFieldWithDefault(msg, 7, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.RepairArtifactResponse}
+ */
+proto.repository.RepairArtifactResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.RepairArtifactResponse;
+  return proto.repository.RepairArtifactResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.RepairArtifactResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.RepairArtifactResponse}
+ */
+proto.repository.RepairArtifactResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.ArtifactRef;
+      reader.readMessage(value,proto.repository.ArtifactRef.deserializeBinaryFromReader);
+      msg.setRef(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setArtifactKey(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAction(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDetail(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setArtifactStateBefore(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setArtifactStateAfter(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setWorkflowRunId(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.RepairArtifactResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.RepairArtifactResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.RepairArtifactResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RepairArtifactResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRef();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.ArtifactRef.serializeBinaryToWriter
+    );
+  }
+  f = message.getArtifactKey();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getAction();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getDetail();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getArtifactStateBefore();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getArtifactStateAfter();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+  f = message.getWorkflowRunId();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional ArtifactRef ref = 1;
+ * @return {?proto.repository.ArtifactRef}
+ */
+proto.repository.RepairArtifactResponse.prototype.getRef = function() {
+  return /** @type{?proto.repository.ArtifactRef} */ (
+    jspb.Message.getWrapperField(this, proto.repository.ArtifactRef, 1));
+};
+
+
+/**
+ * @param {?proto.repository.ArtifactRef|undefined} value
+ * @return {!proto.repository.RepairArtifactResponse} returns this
+*/
+proto.repository.RepairArtifactResponse.prototype.setRef = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.RepairArtifactResponse} returns this
+ */
+proto.repository.RepairArtifactResponse.prototype.clearRef = function() {
+  return this.setRef(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.RepairArtifactResponse.prototype.hasRef = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional string artifact_key = 2;
+ * @return {string}
+ */
+proto.repository.RepairArtifactResponse.prototype.getArtifactKey = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RepairArtifactResponse} returns this
+ */
+proto.repository.RepairArtifactResponse.prototype.setArtifactKey = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string action = 3;
+ * @return {string}
+ */
+proto.repository.RepairArtifactResponse.prototype.getAction = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RepairArtifactResponse} returns this
+ */
+proto.repository.RepairArtifactResponse.prototype.setAction = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string detail = 4;
+ * @return {string}
+ */
+proto.repository.RepairArtifactResponse.prototype.getDetail = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RepairArtifactResponse} returns this
+ */
+proto.repository.RepairArtifactResponse.prototype.setDetail = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional string artifact_state_before = 5;
+ * @return {string}
+ */
+proto.repository.RepairArtifactResponse.prototype.getArtifactStateBefore = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RepairArtifactResponse} returns this
+ */
+proto.repository.RepairArtifactResponse.prototype.setArtifactStateBefore = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional string artifact_state_after = 6;
+ * @return {string}
+ */
+proto.repository.RepairArtifactResponse.prototype.getArtifactStateAfter = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RepairArtifactResponse} returns this
+ */
+proto.repository.RepairArtifactResponse.prototype.setArtifactStateAfter = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional string workflow_run_id = 7;
+ * @return {string}
+ */
+proto.repository.RepairArtifactResponse.prototype.getWorkflowRunId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RepairArtifactResponse} returns this
+ */
+proto.repository.RepairArtifactResponse.prototype.setWorkflowRunId = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ExplainArtifactRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ExplainArtifactRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ExplainArtifactRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ExplainArtifactRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+ref: (f = msg.getRef()) && proto.repository.ArtifactRef.toObject(includeInstance, f),
+buildNumber: jspb.Message.getFieldWithDefault(msg, 2, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ExplainArtifactRequest}
+ */
+proto.repository.ExplainArtifactRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ExplainArtifactRequest;
+  return proto.repository.ExplainArtifactRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ExplainArtifactRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ExplainArtifactRequest}
+ */
+proto.repository.ExplainArtifactRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.ArtifactRef;
+      reader.readMessage(value,proto.repository.ArtifactRef.deserializeBinaryFromReader);
+      msg.setRef(value);
+      break;
+    case 2:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ExplainArtifactRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ExplainArtifactRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ExplainArtifactRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ExplainArtifactRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRef();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.ArtifactRef.serializeBinaryToWriter
+    );
+  }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional ArtifactRef ref = 1;
+ * @return {?proto.repository.ArtifactRef}
+ */
+proto.repository.ExplainArtifactRequest.prototype.getRef = function() {
+  return /** @type{?proto.repository.ArtifactRef} */ (
+    jspb.Message.getWrapperField(this, proto.repository.ArtifactRef, 1));
+};
+
+
+/**
+ * @param {?proto.repository.ArtifactRef|undefined} value
+ * @return {!proto.repository.ExplainArtifactRequest} returns this
+*/
+proto.repository.ExplainArtifactRequest.prototype.setRef = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.ExplainArtifactRequest} returns this
+ */
+proto.repository.ExplainArtifactRequest.prototype.clearRef = function() {
+  return this.setRef(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.ExplainArtifactRequest.prototype.hasRef = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional int64 build_number = 2;
+ * @return {number}
+ */
+proto.repository.ExplainArtifactRequest.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.ExplainArtifactRequest} returns this
+ */
+proto.repository.ExplainArtifactRequest.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 2, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.repository.ExplainArtifactResponse.repeatedFields_ = [19];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ExplainArtifactResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ExplainArtifactResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ExplainArtifactResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ExplainArtifactResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+ref: (f = msg.getRef()) && proto.repository.ArtifactRef.toObject(includeInstance, f),
+artifactKey: jspb.Message.getFieldWithDefault(msg, 2, ""),
+artifactState: jspb.Message.getFieldWithDefault(msg, 3, ""),
+publishState: jspb.Message.getFieldWithDefault(msg, 4, 0),
+blobKey: jspb.Message.getFieldWithDefault(msg, 5, ""),
+blobPresent: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
+expectedSize: jspb.Message.getFieldWithDefault(msg, 7, 0),
+actualSize: jspb.Message.getFieldWithDefault(msg, 8, 0),
+expectedDigest: jspb.Message.getFieldWithDefault(msg, 9, ""),
+actualDigest: jspb.Message.getFieldWithDefault(msg, 10, ""),
+ledgerPresent: jspb.Message.getBooleanFieldWithDefault(msg, 11, false),
+manifestPresent: jspb.Message.getBooleanFieldWithDefault(msg, 12, false),
+signatureStatus: jspb.Message.getFieldWithDefault(msg, 13, ""),
+installable: jspb.Message.getBooleanFieldWithDefault(msg, 14, false),
+recommendedAction: jspb.Message.getFieldWithDefault(msg, 15, ""),
+relatedWorkflowRunId: jspb.Message.getFieldWithDefault(msg, 16, ""),
+verifyStatus: jspb.Message.getFieldWithDefault(msg, 17, 0),
+detail: jspb.Message.getFieldWithDefault(msg, 18, ""),
+sourceAvailabilityList: (f = jspb.Message.getRepeatedField(msg, 19)) == null ? undefined : f,
+repairable: jspb.Message.getBooleanFieldWithDefault(msg, 20, false)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ExplainArtifactResponse}
+ */
+proto.repository.ExplainArtifactResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ExplainArtifactResponse;
+  return proto.repository.ExplainArtifactResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ExplainArtifactResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ExplainArtifactResponse}
+ */
+proto.repository.ExplainArtifactResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.ArtifactRef;
+      reader.readMessage(value,proto.repository.ArtifactRef.deserializeBinaryFromReader);
+      msg.setRef(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setArtifactKey(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setArtifactState(value);
+      break;
+    case 4:
+      var value = /** @type {!proto.repository.PublishState} */ (reader.readEnum());
+      msg.setPublishState(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBlobKey(value);
+      break;
+    case 6:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setBlobPresent(value);
+      break;
+    case 7:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setExpectedSize(value);
+      break;
+    case 8:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setActualSize(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setExpectedDigest(value);
+      break;
+    case 10:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setActualDigest(value);
+      break;
+    case 11:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setLedgerPresent(value);
+      break;
+    case 12:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setManifestPresent(value);
+      break;
+    case 13:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setSignatureStatus(value);
+      break;
+    case 14:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setInstallable(value);
+      break;
+    case 15:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRecommendedAction(value);
+      break;
+    case 16:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRelatedWorkflowRunId(value);
+      break;
+    case 17:
+      var value = /** @type {!proto.repository.ArtifactVerifyStatus} */ (reader.readEnum());
+      msg.setVerifyStatus(value);
+      break;
+    case 18:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDetail(value);
+      break;
+    case 19:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addSourceAvailability(value);
+      break;
+    case 20:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setRepairable(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ExplainArtifactResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ExplainArtifactResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ExplainArtifactResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ExplainArtifactResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRef();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.ArtifactRef.serializeBinaryToWriter
+    );
+  }
+  f = message.getArtifactKey();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getArtifactState();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getPublishState();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      4,
+      f
+    );
+  }
+  f = message.getBlobKey();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getBlobPresent();
+  if (f) {
+    writer.writeBool(
+      6,
+      f
+    );
+  }
+  f = message.getExpectedSize();
+  if (f !== 0) {
+    writer.writeInt64(
+      7,
+      f
+    );
+  }
+  f = message.getActualSize();
+  if (f !== 0) {
+    writer.writeInt64(
+      8,
+      f
+    );
+  }
+  f = message.getExpectedDigest();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
+      f
+    );
+  }
+  f = message.getActualDigest();
+  if (f.length > 0) {
+    writer.writeString(
+      10,
+      f
+    );
+  }
+  f = message.getLedgerPresent();
+  if (f) {
+    writer.writeBool(
+      11,
+      f
+    );
+  }
+  f = message.getManifestPresent();
+  if (f) {
+    writer.writeBool(
+      12,
+      f
+    );
+  }
+  f = message.getSignatureStatus();
+  if (f.length > 0) {
+    writer.writeString(
+      13,
+      f
+    );
+  }
+  f = message.getInstallable();
+  if (f) {
+    writer.writeBool(
+      14,
+      f
+    );
+  }
+  f = message.getRecommendedAction();
+  if (f.length > 0) {
+    writer.writeString(
+      15,
+      f
+    );
+  }
+  f = message.getRelatedWorkflowRunId();
+  if (f.length > 0) {
+    writer.writeString(
+      16,
+      f
+    );
+  }
+  f = message.getVerifyStatus();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      17,
+      f
+    );
+  }
+  f = message.getDetail();
+  if (f.length > 0) {
+    writer.writeString(
+      18,
+      f
+    );
+  }
+  f = message.getSourceAvailabilityList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      19,
+      f
+    );
+  }
+  f = message.getRepairable();
+  if (f) {
+    writer.writeBool(
+      20,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional ArtifactRef ref = 1;
+ * @return {?proto.repository.ArtifactRef}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getRef = function() {
+  return /** @type{?proto.repository.ArtifactRef} */ (
+    jspb.Message.getWrapperField(this, proto.repository.ArtifactRef, 1));
+};
+
+
+/**
+ * @param {?proto.repository.ArtifactRef|undefined} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+*/
+proto.repository.ExplainArtifactResponse.prototype.setRef = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.clearRef = function() {
+  return this.setRef(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.ExplainArtifactResponse.prototype.hasRef = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional string artifact_key = 2;
+ * @return {string}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getArtifactKey = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setArtifactKey = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string artifact_state = 3;
+ * @return {string}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getArtifactState = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setArtifactState = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional PublishState publish_state = 4;
+ * @return {!proto.repository.PublishState}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getPublishState = function() {
+  return /** @type {!proto.repository.PublishState} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {!proto.repository.PublishState} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setPublishState = function(value) {
+  return jspb.Message.setProto3EnumField(this, 4, value);
+};
+
+
+/**
+ * optional string blob_key = 5;
+ * @return {string}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getBlobKey = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setBlobKey = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional bool blob_present = 6;
+ * @return {boolean}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getBlobPresent = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 6, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setBlobPresent = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 6, value);
+};
+
+
+/**
+ * optional int64 expected_size = 7;
+ * @return {number}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getExpectedSize = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 7, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setExpectedSize = function(value) {
+  return jspb.Message.setProto3IntField(this, 7, value);
+};
+
+
+/**
+ * optional int64 actual_size = 8;
+ * @return {number}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getActualSize = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 8, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setActualSize = function(value) {
+  return jspb.Message.setProto3IntField(this, 8, value);
+};
+
+
+/**
+ * optional string expected_digest = 9;
+ * @return {string}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getExpectedDigest = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setExpectedDigest = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
+};
+
+
+/**
+ * optional string actual_digest = 10;
+ * @return {string}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getActualDigest = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setActualDigest = function(value) {
+  return jspb.Message.setProto3StringField(this, 10, value);
+};
+
+
+/**
+ * optional bool ledger_present = 11;
+ * @return {boolean}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getLedgerPresent = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 11, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setLedgerPresent = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 11, value);
+};
+
+
+/**
+ * optional bool manifest_present = 12;
+ * @return {boolean}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getManifestPresent = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 12, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setManifestPresent = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 12, value);
+};
+
+
+/**
+ * optional string signature_status = 13;
+ * @return {string}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getSignatureStatus = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 13, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setSignatureStatus = function(value) {
+  return jspb.Message.setProto3StringField(this, 13, value);
+};
+
+
+/**
+ * optional bool installable = 14;
+ * @return {boolean}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getInstallable = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 14, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setInstallable = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 14, value);
+};
+
+
+/**
+ * optional string recommended_action = 15;
+ * @return {string}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getRecommendedAction = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 15, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setRecommendedAction = function(value) {
+  return jspb.Message.setProto3StringField(this, 15, value);
+};
+
+
+/**
+ * optional string related_workflow_run_id = 16;
+ * @return {string}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getRelatedWorkflowRunId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 16, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setRelatedWorkflowRunId = function(value) {
+  return jspb.Message.setProto3StringField(this, 16, value);
+};
+
+
+/**
+ * optional ArtifactVerifyStatus verify_status = 17;
+ * @return {!proto.repository.ArtifactVerifyStatus}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getVerifyStatus = function() {
+  return /** @type {!proto.repository.ArtifactVerifyStatus} */ (jspb.Message.getFieldWithDefault(this, 17, 0));
+};
+
+
+/**
+ * @param {!proto.repository.ArtifactVerifyStatus} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setVerifyStatus = function(value) {
+  return jspb.Message.setProto3EnumField(this, 17, value);
+};
+
+
+/**
+ * optional string detail = 18;
+ * @return {string}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getDetail = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 18, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setDetail = function(value) {
+  return jspb.Message.setProto3StringField(this, 18, value);
+};
+
+
+/**
+ * repeated string source_availability = 19;
+ * @return {!Array<string>}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getSourceAvailabilityList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 19));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setSourceAvailabilityList = function(value) {
+  return jspb.Message.setField(this, 19, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.addSourceAvailability = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 19, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.clearSourceAvailabilityList = function() {
+  return this.setSourceAvailabilityList([]);
+};
+
+
+/**
+ * optional bool repairable = 20;
+ * @return {boolean}
+ */
+proto.repository.ExplainArtifactResponse.prototype.getRepairable = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 20, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.ExplainArtifactResponse} returns this
+ */
+proto.repository.ExplainArtifactResponse.prototype.setRepairable = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 20, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
 proto.repository.ResolveArtifactRequest.prototype.toObject = function(opt_includeInstance) {
   return proto.repository.ResolveArtifactRequest.toObject(opt_includeInstance, this);
 };
@@ -18243,6 +21802,9148 @@ proto.repository.ArchiveUnreachableArtifactsResponse.prototype.clearArchivedList
 };
 
 
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.PackageConfigFile.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.PackageConfigFile.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.PackageConfigFile} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.PackageConfigFile.toObject = function(includeInstance, msg) {
+  var f, obj = {
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+configKind: jspb.Message.getFieldWithDefault(msg, 2, 0),
+ownerPackage: jspb.Message.getFieldWithDefault(msg, 3, ""),
+checksumAtInstall: jspb.Message.getFieldWithDefault(msg, 4, ""),
+currentChecksum: jspb.Message.getFieldWithDefault(msg, 5, ""),
+lastModifiedUnix: jspb.Message.getFieldWithDefault(msg, 6, 0),
+mergeStrategy: jspb.Message.getFieldWithDefault(msg, 7, 0),
+preserveOnUpgrade: jspb.Message.getBooleanFieldWithDefault(msg, 8, false),
+restoreOnRollback: jspb.Message.getBooleanFieldWithDefault(msg, 9, false),
+sensitive: jspb.Message.getBooleanFieldWithDefault(msg, 10, false)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.PackageConfigFile}
+ */
+proto.repository.PackageConfigFile.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.PackageConfigFile;
+  return proto.repository.PackageConfigFile.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.PackageConfigFile} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.PackageConfigFile}
+ */
+proto.repository.PackageConfigFile.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPath(value);
+      break;
+    case 2:
+      var value = /** @type {!proto.repository.ConfigKind} */ (reader.readEnum());
+      msg.setConfigKind(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setOwnerPackage(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setChecksumAtInstall(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setCurrentChecksum(value);
+      break;
+    case 6:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setLastModifiedUnix(value);
+      break;
+    case 7:
+      var value = /** @type {!proto.repository.MergeStrategy} */ (reader.readEnum());
+      msg.setMergeStrategy(value);
+      break;
+    case 8:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setPreserveOnUpgrade(value);
+      break;
+    case 9:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setRestoreOnRollback(value);
+      break;
+    case 10:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setSensitive(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.PackageConfigFile.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.PackageConfigFile.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.PackageConfigFile} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.PackageConfigFile.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getPath();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getConfigKind();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      2,
+      f
+    );
+  }
+  f = message.getOwnerPackage();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getChecksumAtInstall();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getCurrentChecksum();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getLastModifiedUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      6,
+      f
+    );
+  }
+  f = message.getMergeStrategy();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      7,
+      f
+    );
+  }
+  f = message.getPreserveOnUpgrade();
+  if (f) {
+    writer.writeBool(
+      8,
+      f
+    );
+  }
+  f = message.getRestoreOnRollback();
+  if (f) {
+    writer.writeBool(
+      9,
+      f
+    );
+  }
+  f = message.getSensitive();
+  if (f) {
+    writer.writeBool(
+      10,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string path = 1;
+ * @return {string}
+ */
+proto.repository.PackageConfigFile.prototype.getPath = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.PackageConfigFile} returns this
+ */
+proto.repository.PackageConfigFile.prototype.setPath = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional ConfigKind config_kind = 2;
+ * @return {!proto.repository.ConfigKind}
+ */
+proto.repository.PackageConfigFile.prototype.getConfigKind = function() {
+  return /** @type {!proto.repository.ConfigKind} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {!proto.repository.ConfigKind} value
+ * @return {!proto.repository.PackageConfigFile} returns this
+ */
+proto.repository.PackageConfigFile.prototype.setConfigKind = function(value) {
+  return jspb.Message.setProto3EnumField(this, 2, value);
+};
+
+
+/**
+ * optional string owner_package = 3;
+ * @return {string}
+ */
+proto.repository.PackageConfigFile.prototype.getOwnerPackage = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.PackageConfigFile} returns this
+ */
+proto.repository.PackageConfigFile.prototype.setOwnerPackage = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string checksum_at_install = 4;
+ * @return {string}
+ */
+proto.repository.PackageConfigFile.prototype.getChecksumAtInstall = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.PackageConfigFile} returns this
+ */
+proto.repository.PackageConfigFile.prototype.setChecksumAtInstall = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional string current_checksum = 5;
+ * @return {string}
+ */
+proto.repository.PackageConfigFile.prototype.getCurrentChecksum = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.PackageConfigFile} returns this
+ */
+proto.repository.PackageConfigFile.prototype.setCurrentChecksum = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional int64 last_modified_unix = 6;
+ * @return {number}
+ */
+proto.repository.PackageConfigFile.prototype.getLastModifiedUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.PackageConfigFile} returns this
+ */
+proto.repository.PackageConfigFile.prototype.setLastModifiedUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 6, value);
+};
+
+
+/**
+ * optional MergeStrategy merge_strategy = 7;
+ * @return {!proto.repository.MergeStrategy}
+ */
+proto.repository.PackageConfigFile.prototype.getMergeStrategy = function() {
+  return /** @type {!proto.repository.MergeStrategy} */ (jspb.Message.getFieldWithDefault(this, 7, 0));
+};
+
+
+/**
+ * @param {!proto.repository.MergeStrategy} value
+ * @return {!proto.repository.PackageConfigFile} returns this
+ */
+proto.repository.PackageConfigFile.prototype.setMergeStrategy = function(value) {
+  return jspb.Message.setProto3EnumField(this, 7, value);
+};
+
+
+/**
+ * optional bool preserve_on_upgrade = 8;
+ * @return {boolean}
+ */
+proto.repository.PackageConfigFile.prototype.getPreserveOnUpgrade = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 8, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.PackageConfigFile} returns this
+ */
+proto.repository.PackageConfigFile.prototype.setPreserveOnUpgrade = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 8, value);
+};
+
+
+/**
+ * optional bool restore_on_rollback = 9;
+ * @return {boolean}
+ */
+proto.repository.PackageConfigFile.prototype.getRestoreOnRollback = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 9, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.PackageConfigFile} returns this
+ */
+proto.repository.PackageConfigFile.prototype.setRestoreOnRollback = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 9, value);
+};
+
+
+/**
+ * optional bool sensitive = 10;
+ * @return {boolean}
+ */
+proto.repository.PackageConfigFile.prototype.getSensitive = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 10, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.PackageConfigFile} returns this
+ */
+proto.repository.PackageConfigFile.prototype.setSensitive = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 10, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.TrustedPublisher.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.TrustedPublisher.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.TrustedPublisher} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.TrustedPublisher.toObject = function(includeInstance, msg) {
+  var f, obj = {
+publisherId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+publicKeyId: jspb.Message.getFieldWithDefault(msg, 2, ""),
+publicKeyPem: msg.getPublicKeyPem_asB64(),
+trustState: jspb.Message.getFieldWithDefault(msg, 4, 0),
+validFromUnix: jspb.Message.getFieldWithDefault(msg, 5, 0),
+validUntilUnix: jspb.Message.getFieldWithDefault(msg, 6, 0),
+createdBy: jspb.Message.getFieldWithDefault(msg, 7, ""),
+createdUnix: jspb.Message.getFieldWithDefault(msg, 8, 0),
+algorithm: jspb.Message.getFieldWithDefault(msg, 9, ""),
+notes: jspb.Message.getFieldWithDefault(msg, 10, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.TrustedPublisher}
+ */
+proto.repository.TrustedPublisher.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.TrustedPublisher;
+  return proto.repository.TrustedPublisher.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.TrustedPublisher} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.TrustedPublisher}
+ */
+proto.repository.TrustedPublisher.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublisherId(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublicKeyId(value);
+      break;
+    case 3:
+      var value = /** @type {!Uint8Array} */ (reader.readBytes());
+      msg.setPublicKeyPem(value);
+      break;
+    case 4:
+      var value = /** @type {!proto.repository.TrustState} */ (reader.readEnum());
+      msg.setTrustState(value);
+      break;
+    case 5:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setValidFromUnix(value);
+      break;
+    case 6:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setValidUntilUnix(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setCreatedBy(value);
+      break;
+    case 8:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setCreatedUnix(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAlgorithm(value);
+      break;
+    case 10:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNotes(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.TrustedPublisher.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.TrustedPublisher.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.TrustedPublisher} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.TrustedPublisher.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getPublisherId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getPublicKeyId();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getPublicKeyPem_asU8();
+  if (f.length > 0) {
+    writer.writeBytes(
+      3,
+      f
+    );
+  }
+  f = message.getTrustState();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      4,
+      f
+    );
+  }
+  f = message.getValidFromUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      5,
+      f
+    );
+  }
+  f = message.getValidUntilUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      6,
+      f
+    );
+  }
+  f = message.getCreatedBy();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
+      f
+    );
+  }
+  f = message.getCreatedUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      8,
+      f
+    );
+  }
+  f = message.getAlgorithm();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
+      f
+    );
+  }
+  f = message.getNotes();
+  if (f.length > 0) {
+    writer.writeString(
+      10,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string publisher_id = 1;
+ * @return {string}
+ */
+proto.repository.TrustedPublisher.prototype.getPublisherId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.TrustedPublisher} returns this
+ */
+proto.repository.TrustedPublisher.prototype.setPublisherId = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string public_key_id = 2;
+ * @return {string}
+ */
+proto.repository.TrustedPublisher.prototype.getPublicKeyId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.TrustedPublisher} returns this
+ */
+proto.repository.TrustedPublisher.prototype.setPublicKeyId = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional bytes public_key_pem = 3;
+ * @return {string}
+ */
+proto.repository.TrustedPublisher.prototype.getPublicKeyPem = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * optional bytes public_key_pem = 3;
+ * This is a type-conversion wrapper around `getPublicKeyPem()`
+ * @return {string}
+ */
+proto.repository.TrustedPublisher.prototype.getPublicKeyPem_asB64 = function() {
+  return /** @type {string} */ (jspb.Message.bytesAsB64(
+      this.getPublicKeyPem()));
+};
+
+
+/**
+ * optional bytes public_key_pem = 3;
+ * Note that Uint8Array is not supported on all browsers.
+ * @see http://caniuse.com/Uint8Array
+ * This is a type-conversion wrapper around `getPublicKeyPem()`
+ * @return {!Uint8Array}
+ */
+proto.repository.TrustedPublisher.prototype.getPublicKeyPem_asU8 = function() {
+  return /** @type {!Uint8Array} */ (jspb.Message.bytesAsU8(
+      this.getPublicKeyPem()));
+};
+
+
+/**
+ * @param {!(string|Uint8Array)} value
+ * @return {!proto.repository.TrustedPublisher} returns this
+ */
+proto.repository.TrustedPublisher.prototype.setPublicKeyPem = function(value) {
+  return jspb.Message.setProto3BytesField(this, 3, value);
+};
+
+
+/**
+ * optional TrustState trust_state = 4;
+ * @return {!proto.repository.TrustState}
+ */
+proto.repository.TrustedPublisher.prototype.getTrustState = function() {
+  return /** @type {!proto.repository.TrustState} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {!proto.repository.TrustState} value
+ * @return {!proto.repository.TrustedPublisher} returns this
+ */
+proto.repository.TrustedPublisher.prototype.setTrustState = function(value) {
+  return jspb.Message.setProto3EnumField(this, 4, value);
+};
+
+
+/**
+ * optional int64 valid_from_unix = 5;
+ * @return {number}
+ */
+proto.repository.TrustedPublisher.prototype.getValidFromUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.TrustedPublisher} returns this
+ */
+proto.repository.TrustedPublisher.prototype.setValidFromUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 5, value);
+};
+
+
+/**
+ * optional int64 valid_until_unix = 6;
+ * @return {number}
+ */
+proto.repository.TrustedPublisher.prototype.getValidUntilUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.TrustedPublisher} returns this
+ */
+proto.repository.TrustedPublisher.prototype.setValidUntilUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 6, value);
+};
+
+
+/**
+ * optional string created_by = 7;
+ * @return {string}
+ */
+proto.repository.TrustedPublisher.prototype.getCreatedBy = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.TrustedPublisher} returns this
+ */
+proto.repository.TrustedPublisher.prototype.setCreatedBy = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional int64 created_unix = 8;
+ * @return {number}
+ */
+proto.repository.TrustedPublisher.prototype.getCreatedUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 8, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.TrustedPublisher} returns this
+ */
+proto.repository.TrustedPublisher.prototype.setCreatedUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 8, value);
+};
+
+
+/**
+ * optional string algorithm = 9;
+ * @return {string}
+ */
+proto.repository.TrustedPublisher.prototype.getAlgorithm = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.TrustedPublisher} returns this
+ */
+proto.repository.TrustedPublisher.prototype.setAlgorithm = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
+};
+
+
+/**
+ * optional string notes = 10;
+ * @return {string}
+ */
+proto.repository.TrustedPublisher.prototype.getNotes = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.TrustedPublisher} returns this
+ */
+proto.repository.TrustedPublisher.prototype.setNotes = function(value) {
+  return jspb.Message.setProto3StringField(this, 10, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ArtifactSignature.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ArtifactSignature.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ArtifactSignature} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ArtifactSignature.toObject = function(includeInstance, msg) {
+  var f, obj = {
+artifactKey: jspb.Message.getFieldWithDefault(msg, 1, ""),
+digest: jspb.Message.getFieldWithDefault(msg, 2, ""),
+algorithm: jspb.Message.getFieldWithDefault(msg, 3, ""),
+signatureBytes: msg.getSignatureBytes_asB64(),
+publicKeyId: jspb.Message.getFieldWithDefault(msg, 5, ""),
+signedBy: jspb.Message.getFieldWithDefault(msg, 6, ""),
+signedAtUnix: jspb.Message.getFieldWithDefault(msg, 7, 0),
+provenanceRef: jspb.Message.getFieldWithDefault(msg, 8, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ArtifactSignature}
+ */
+proto.repository.ArtifactSignature.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ArtifactSignature;
+  return proto.repository.ArtifactSignature.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ArtifactSignature} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ArtifactSignature}
+ */
+proto.repository.ArtifactSignature.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setArtifactKey(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDigest(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAlgorithm(value);
+      break;
+    case 4:
+      var value = /** @type {!Uint8Array} */ (reader.readBytes());
+      msg.setSignatureBytes(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublicKeyId(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setSignedBy(value);
+      break;
+    case 7:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setSignedAtUnix(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setProvenanceRef(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ArtifactSignature.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ArtifactSignature.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ArtifactSignature} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ArtifactSignature.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getArtifactKey();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getDigest();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getAlgorithm();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getSignatureBytes_asU8();
+  if (f.length > 0) {
+    writer.writeBytes(
+      4,
+      f
+    );
+  }
+  f = message.getPublicKeyId();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getSignedBy();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+  f = message.getSignedAtUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      7,
+      f
+    );
+  }
+  f = message.getProvenanceRef();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string artifact_key = 1;
+ * @return {string}
+ */
+proto.repository.ArtifactSignature.prototype.getArtifactKey = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ArtifactSignature} returns this
+ */
+proto.repository.ArtifactSignature.prototype.setArtifactKey = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string digest = 2;
+ * @return {string}
+ */
+proto.repository.ArtifactSignature.prototype.getDigest = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ArtifactSignature} returns this
+ */
+proto.repository.ArtifactSignature.prototype.setDigest = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string algorithm = 3;
+ * @return {string}
+ */
+proto.repository.ArtifactSignature.prototype.getAlgorithm = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ArtifactSignature} returns this
+ */
+proto.repository.ArtifactSignature.prototype.setAlgorithm = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional bytes signature_bytes = 4;
+ * @return {string}
+ */
+proto.repository.ArtifactSignature.prototype.getSignatureBytes = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * optional bytes signature_bytes = 4;
+ * This is a type-conversion wrapper around `getSignatureBytes()`
+ * @return {string}
+ */
+proto.repository.ArtifactSignature.prototype.getSignatureBytes_asB64 = function() {
+  return /** @type {string} */ (jspb.Message.bytesAsB64(
+      this.getSignatureBytes()));
+};
+
+
+/**
+ * optional bytes signature_bytes = 4;
+ * Note that Uint8Array is not supported on all browsers.
+ * @see http://caniuse.com/Uint8Array
+ * This is a type-conversion wrapper around `getSignatureBytes()`
+ * @return {!Uint8Array}
+ */
+proto.repository.ArtifactSignature.prototype.getSignatureBytes_asU8 = function() {
+  return /** @type {!Uint8Array} */ (jspb.Message.bytesAsU8(
+      this.getSignatureBytes()));
+};
+
+
+/**
+ * @param {!(string|Uint8Array)} value
+ * @return {!proto.repository.ArtifactSignature} returns this
+ */
+proto.repository.ArtifactSignature.prototype.setSignatureBytes = function(value) {
+  return jspb.Message.setProto3BytesField(this, 4, value);
+};
+
+
+/**
+ * optional string public_key_id = 5;
+ * @return {string}
+ */
+proto.repository.ArtifactSignature.prototype.getPublicKeyId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ArtifactSignature} returns this
+ */
+proto.repository.ArtifactSignature.prototype.setPublicKeyId = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional string signed_by = 6;
+ * @return {string}
+ */
+proto.repository.ArtifactSignature.prototype.getSignedBy = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ArtifactSignature} returns this
+ */
+proto.repository.ArtifactSignature.prototype.setSignedBy = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional int64 signed_at_unix = 7;
+ * @return {number}
+ */
+proto.repository.ArtifactSignature.prototype.getSignedAtUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 7, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.ArtifactSignature} returns this
+ */
+proto.repository.ArtifactSignature.prototype.setSignedAtUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 7, value);
+};
+
+
+/**
+ * optional string provenance_ref = 8;
+ * @return {string}
+ */
+proto.repository.ArtifactSignature.prototype.getProvenanceRef = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ArtifactSignature} returns this
+ */
+proto.repository.ArtifactSignature.prototype.setProvenanceRef = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.TrustPublisherRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.TrustPublisherRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.TrustPublisherRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.TrustPublisherRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+publisherId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+publicKeyId: jspb.Message.getFieldWithDefault(msg, 2, ""),
+publicKeyPem: msg.getPublicKeyPem_asB64(),
+algorithm: jspb.Message.getFieldWithDefault(msg, 4, ""),
+validUntilUnix: jspb.Message.getFieldWithDefault(msg, 5, 0),
+notes: jspb.Message.getFieldWithDefault(msg, 6, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.TrustPublisherRequest}
+ */
+proto.repository.TrustPublisherRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.TrustPublisherRequest;
+  return proto.repository.TrustPublisherRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.TrustPublisherRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.TrustPublisherRequest}
+ */
+proto.repository.TrustPublisherRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublisherId(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublicKeyId(value);
+      break;
+    case 3:
+      var value = /** @type {!Uint8Array} */ (reader.readBytes());
+      msg.setPublicKeyPem(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAlgorithm(value);
+      break;
+    case 5:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setValidUntilUnix(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNotes(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.TrustPublisherRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.TrustPublisherRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.TrustPublisherRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.TrustPublisherRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getPublisherId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getPublicKeyId();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getPublicKeyPem_asU8();
+  if (f.length > 0) {
+    writer.writeBytes(
+      3,
+      f
+    );
+  }
+  f = message.getAlgorithm();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getValidUntilUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      5,
+      f
+    );
+  }
+  f = message.getNotes();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string publisher_id = 1;
+ * @return {string}
+ */
+proto.repository.TrustPublisherRequest.prototype.getPublisherId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.TrustPublisherRequest} returns this
+ */
+proto.repository.TrustPublisherRequest.prototype.setPublisherId = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string public_key_id = 2;
+ * @return {string}
+ */
+proto.repository.TrustPublisherRequest.prototype.getPublicKeyId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.TrustPublisherRequest} returns this
+ */
+proto.repository.TrustPublisherRequest.prototype.setPublicKeyId = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional bytes public_key_pem = 3;
+ * @return {string}
+ */
+proto.repository.TrustPublisherRequest.prototype.getPublicKeyPem = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * optional bytes public_key_pem = 3;
+ * This is a type-conversion wrapper around `getPublicKeyPem()`
+ * @return {string}
+ */
+proto.repository.TrustPublisherRequest.prototype.getPublicKeyPem_asB64 = function() {
+  return /** @type {string} */ (jspb.Message.bytesAsB64(
+      this.getPublicKeyPem()));
+};
+
+
+/**
+ * optional bytes public_key_pem = 3;
+ * Note that Uint8Array is not supported on all browsers.
+ * @see http://caniuse.com/Uint8Array
+ * This is a type-conversion wrapper around `getPublicKeyPem()`
+ * @return {!Uint8Array}
+ */
+proto.repository.TrustPublisherRequest.prototype.getPublicKeyPem_asU8 = function() {
+  return /** @type {!Uint8Array} */ (jspb.Message.bytesAsU8(
+      this.getPublicKeyPem()));
+};
+
+
+/**
+ * @param {!(string|Uint8Array)} value
+ * @return {!proto.repository.TrustPublisherRequest} returns this
+ */
+proto.repository.TrustPublisherRequest.prototype.setPublicKeyPem = function(value) {
+  return jspb.Message.setProto3BytesField(this, 3, value);
+};
+
+
+/**
+ * optional string algorithm = 4;
+ * @return {string}
+ */
+proto.repository.TrustPublisherRequest.prototype.getAlgorithm = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.TrustPublisherRequest} returns this
+ */
+proto.repository.TrustPublisherRequest.prototype.setAlgorithm = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional int64 valid_until_unix = 5;
+ * @return {number}
+ */
+proto.repository.TrustPublisherRequest.prototype.getValidUntilUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.TrustPublisherRequest} returns this
+ */
+proto.repository.TrustPublisherRequest.prototype.setValidUntilUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 5, value);
+};
+
+
+/**
+ * optional string notes = 6;
+ * @return {string}
+ */
+proto.repository.TrustPublisherRequest.prototype.getNotes = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.TrustPublisherRequest} returns this
+ */
+proto.repository.TrustPublisherRequest.prototype.setNotes = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.TrustPublisherResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.TrustPublisherResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.TrustPublisherResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.TrustPublisherResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+publisher: (f = msg.getPublisher()) && proto.repository.TrustedPublisher.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.TrustPublisherResponse}
+ */
+proto.repository.TrustPublisherResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.TrustPublisherResponse;
+  return proto.repository.TrustPublisherResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.TrustPublisherResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.TrustPublisherResponse}
+ */
+proto.repository.TrustPublisherResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.TrustedPublisher;
+      reader.readMessage(value,proto.repository.TrustedPublisher.deserializeBinaryFromReader);
+      msg.setPublisher(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.TrustPublisherResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.TrustPublisherResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.TrustPublisherResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.TrustPublisherResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getPublisher();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.TrustedPublisher.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional TrustedPublisher publisher = 1;
+ * @return {?proto.repository.TrustedPublisher}
+ */
+proto.repository.TrustPublisherResponse.prototype.getPublisher = function() {
+  return /** @type{?proto.repository.TrustedPublisher} */ (
+    jspb.Message.getWrapperField(this, proto.repository.TrustedPublisher, 1));
+};
+
+
+/**
+ * @param {?proto.repository.TrustedPublisher|undefined} value
+ * @return {!proto.repository.TrustPublisherResponse} returns this
+*/
+proto.repository.TrustPublisherResponse.prototype.setPublisher = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.TrustPublisherResponse} returns this
+ */
+proto.repository.TrustPublisherResponse.prototype.clearPublisher = function() {
+  return this.setPublisher(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.TrustPublisherResponse.prototype.hasPublisher = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.RevokePublisherKeyRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.RevokePublisherKeyRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.RevokePublisherKeyRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RevokePublisherKeyRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+publisherId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+publicKeyId: jspb.Message.getFieldWithDefault(msg, 2, ""),
+reason: jspb.Message.getFieldWithDefault(msg, 3, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.RevokePublisherKeyRequest}
+ */
+proto.repository.RevokePublisherKeyRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.RevokePublisherKeyRequest;
+  return proto.repository.RevokePublisherKeyRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.RevokePublisherKeyRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.RevokePublisherKeyRequest}
+ */
+proto.repository.RevokePublisherKeyRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublisherId(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublicKeyId(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setReason(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.RevokePublisherKeyRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.RevokePublisherKeyRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.RevokePublisherKeyRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RevokePublisherKeyRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getPublisherId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getPublicKeyId();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getReason();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string publisher_id = 1;
+ * @return {string}
+ */
+proto.repository.RevokePublisherKeyRequest.prototype.getPublisherId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RevokePublisherKeyRequest} returns this
+ */
+proto.repository.RevokePublisherKeyRequest.prototype.setPublisherId = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string public_key_id = 2;
+ * @return {string}
+ */
+proto.repository.RevokePublisherKeyRequest.prototype.getPublicKeyId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RevokePublisherKeyRequest} returns this
+ */
+proto.repository.RevokePublisherKeyRequest.prototype.setPublicKeyId = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string reason = 3;
+ * @return {string}
+ */
+proto.repository.RevokePublisherKeyRequest.prototype.getReason = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RevokePublisherKeyRequest} returns this
+ */
+proto.repository.RevokePublisherKeyRequest.prototype.setReason = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.RevokePublisherKeyResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.RevokePublisherKeyResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.RevokePublisherKeyResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RevokePublisherKeyResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+publisher: (f = msg.getPublisher()) && proto.repository.TrustedPublisher.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.RevokePublisherKeyResponse}
+ */
+proto.repository.RevokePublisherKeyResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.RevokePublisherKeyResponse;
+  return proto.repository.RevokePublisherKeyResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.RevokePublisherKeyResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.RevokePublisherKeyResponse}
+ */
+proto.repository.RevokePublisherKeyResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.TrustedPublisher;
+      reader.readMessage(value,proto.repository.TrustedPublisher.deserializeBinaryFromReader);
+      msg.setPublisher(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.RevokePublisherKeyResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.RevokePublisherKeyResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.RevokePublisherKeyResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RevokePublisherKeyResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getPublisher();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.TrustedPublisher.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional TrustedPublisher publisher = 1;
+ * @return {?proto.repository.TrustedPublisher}
+ */
+proto.repository.RevokePublisherKeyResponse.prototype.getPublisher = function() {
+  return /** @type{?proto.repository.TrustedPublisher} */ (
+    jspb.Message.getWrapperField(this, proto.repository.TrustedPublisher, 1));
+};
+
+
+/**
+ * @param {?proto.repository.TrustedPublisher|undefined} value
+ * @return {!proto.repository.RevokePublisherKeyResponse} returns this
+*/
+proto.repository.RevokePublisherKeyResponse.prototype.setPublisher = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.RevokePublisherKeyResponse} returns this
+ */
+proto.repository.RevokePublisherKeyResponse.prototype.clearPublisher = function() {
+  return this.setPublisher(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.RevokePublisherKeyResponse.prototype.hasPublisher = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ListTrustedPublishersRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ListTrustedPublishersRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ListTrustedPublishersRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListTrustedPublishersRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+publisherId: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ListTrustedPublishersRequest}
+ */
+proto.repository.ListTrustedPublishersRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ListTrustedPublishersRequest;
+  return proto.repository.ListTrustedPublishersRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ListTrustedPublishersRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ListTrustedPublishersRequest}
+ */
+proto.repository.ListTrustedPublishersRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublisherId(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ListTrustedPublishersRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ListTrustedPublishersRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ListTrustedPublishersRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListTrustedPublishersRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getPublisherId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string publisher_id = 1;
+ * @return {string}
+ */
+proto.repository.ListTrustedPublishersRequest.prototype.getPublisherId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ListTrustedPublishersRequest} returns this
+ */
+proto.repository.ListTrustedPublishersRequest.prototype.setPublisherId = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.repository.ListTrustedPublishersResponse.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ListTrustedPublishersResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ListTrustedPublishersResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ListTrustedPublishersResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListTrustedPublishersResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+publishersList: jspb.Message.toObjectList(msg.getPublishersList(),
+    proto.repository.TrustedPublisher.toObject, includeInstance)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ListTrustedPublishersResponse}
+ */
+proto.repository.ListTrustedPublishersResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ListTrustedPublishersResponse;
+  return proto.repository.ListTrustedPublishersResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ListTrustedPublishersResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ListTrustedPublishersResponse}
+ */
+proto.repository.ListTrustedPublishersResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.TrustedPublisher;
+      reader.readMessage(value,proto.repository.TrustedPublisher.deserializeBinaryFromReader);
+      msg.addPublishers(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ListTrustedPublishersResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ListTrustedPublishersResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ListTrustedPublishersResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListTrustedPublishersResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getPublishersList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      1,
+      f,
+      proto.repository.TrustedPublisher.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * repeated TrustedPublisher publishers = 1;
+ * @return {!Array<!proto.repository.TrustedPublisher>}
+ */
+proto.repository.ListTrustedPublishersResponse.prototype.getPublishersList = function() {
+  return /** @type{!Array<!proto.repository.TrustedPublisher>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.repository.TrustedPublisher, 1));
+};
+
+
+/**
+ * @param {!Array<!proto.repository.TrustedPublisher>} value
+ * @return {!proto.repository.ListTrustedPublishersResponse} returns this
+*/
+proto.repository.ListTrustedPublishersResponse.prototype.setPublishersList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 1, value);
+};
+
+
+/**
+ * @param {!proto.repository.TrustedPublisher=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.repository.TrustedPublisher}
+ */
+proto.repository.ListTrustedPublishersResponse.prototype.addPublishers = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.repository.TrustedPublisher, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.ListTrustedPublishersResponse} returns this
+ */
+proto.repository.ListTrustedPublishersResponse.prototype.clearPublishersList = function() {
+  return this.setPublishersList([]);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.RegisterArtifactSignatureRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.RegisterArtifactSignatureRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RegisterArtifactSignatureRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+ref: (f = msg.getRef()) && proto.repository.ArtifactRef.toObject(includeInstance, f),
+buildNumber: jspb.Message.getFieldWithDefault(msg, 2, 0),
+algorithm: jspb.Message.getFieldWithDefault(msg, 3, ""),
+publicKeyId: jspb.Message.getFieldWithDefault(msg, 4, ""),
+signatureBytes: msg.getSignatureBytes_asB64(),
+provenanceRef: jspb.Message.getFieldWithDefault(msg, 6, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.RegisterArtifactSignatureRequest}
+ */
+proto.repository.RegisterArtifactSignatureRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.RegisterArtifactSignatureRequest;
+  return proto.repository.RegisterArtifactSignatureRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.RegisterArtifactSignatureRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.RegisterArtifactSignatureRequest}
+ */
+proto.repository.RegisterArtifactSignatureRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.ArtifactRef;
+      reader.readMessage(value,proto.repository.ArtifactRef.deserializeBinaryFromReader);
+      msg.setRef(value);
+      break;
+    case 2:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAlgorithm(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublicKeyId(value);
+      break;
+    case 5:
+      var value = /** @type {!Uint8Array} */ (reader.readBytes());
+      msg.setSignatureBytes(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setProvenanceRef(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.RegisterArtifactSignatureRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.RegisterArtifactSignatureRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RegisterArtifactSignatureRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRef();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.ArtifactRef.serializeBinaryToWriter
+    );
+  }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      2,
+      f
+    );
+  }
+  f = message.getAlgorithm();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getPublicKeyId();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getSignatureBytes_asU8();
+  if (f.length > 0) {
+    writer.writeBytes(
+      5,
+      f
+    );
+  }
+  f = message.getProvenanceRef();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional ArtifactRef ref = 1;
+ * @return {?proto.repository.ArtifactRef}
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.getRef = function() {
+  return /** @type{?proto.repository.ArtifactRef} */ (
+    jspb.Message.getWrapperField(this, proto.repository.ArtifactRef, 1));
+};
+
+
+/**
+ * @param {?proto.repository.ArtifactRef|undefined} value
+ * @return {!proto.repository.RegisterArtifactSignatureRequest} returns this
+*/
+proto.repository.RegisterArtifactSignatureRequest.prototype.setRef = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.RegisterArtifactSignatureRequest} returns this
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.clearRef = function() {
+  return this.setRef(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.hasRef = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional int64 build_number = 2;
+ * @return {number}
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.RegisterArtifactSignatureRequest} returns this
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 2, value);
+};
+
+
+/**
+ * optional string algorithm = 3;
+ * @return {string}
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.getAlgorithm = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RegisterArtifactSignatureRequest} returns this
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.setAlgorithm = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string public_key_id = 4;
+ * @return {string}
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.getPublicKeyId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RegisterArtifactSignatureRequest} returns this
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.setPublicKeyId = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional bytes signature_bytes = 5;
+ * @return {string}
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.getSignatureBytes = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * optional bytes signature_bytes = 5;
+ * This is a type-conversion wrapper around `getSignatureBytes()`
+ * @return {string}
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.getSignatureBytes_asB64 = function() {
+  return /** @type {string} */ (jspb.Message.bytesAsB64(
+      this.getSignatureBytes()));
+};
+
+
+/**
+ * optional bytes signature_bytes = 5;
+ * Note that Uint8Array is not supported on all browsers.
+ * @see http://caniuse.com/Uint8Array
+ * This is a type-conversion wrapper around `getSignatureBytes()`
+ * @return {!Uint8Array}
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.getSignatureBytes_asU8 = function() {
+  return /** @type {!Uint8Array} */ (jspb.Message.bytesAsU8(
+      this.getSignatureBytes()));
+};
+
+
+/**
+ * @param {!(string|Uint8Array)} value
+ * @return {!proto.repository.RegisterArtifactSignatureRequest} returns this
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.setSignatureBytes = function(value) {
+  return jspb.Message.setProto3BytesField(this, 5, value);
+};
+
+
+/**
+ * optional string provenance_ref = 6;
+ * @return {string}
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.getProvenanceRef = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RegisterArtifactSignatureRequest} returns this
+ */
+proto.repository.RegisterArtifactSignatureRequest.prototype.setProvenanceRef = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.RegisterArtifactSignatureResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.RegisterArtifactSignatureResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.RegisterArtifactSignatureResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RegisterArtifactSignatureResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+signature: (f = msg.getSignature()) && proto.repository.ArtifactSignature.toObject(includeInstance, f),
+status: jspb.Message.getFieldWithDefault(msg, 2, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.RegisterArtifactSignatureResponse}
+ */
+proto.repository.RegisterArtifactSignatureResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.RegisterArtifactSignatureResponse;
+  return proto.repository.RegisterArtifactSignatureResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.RegisterArtifactSignatureResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.RegisterArtifactSignatureResponse}
+ */
+proto.repository.RegisterArtifactSignatureResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.ArtifactSignature;
+      reader.readMessage(value,proto.repository.ArtifactSignature.deserializeBinaryFromReader);
+      msg.setSignature(value);
+      break;
+    case 2:
+      var value = /** @type {!proto.repository.SignatureStatus} */ (reader.readEnum());
+      msg.setStatus(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.RegisterArtifactSignatureResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.RegisterArtifactSignatureResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.RegisterArtifactSignatureResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RegisterArtifactSignatureResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getSignature();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.ArtifactSignature.serializeBinaryToWriter
+    );
+  }
+  f = message.getStatus();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional ArtifactSignature signature = 1;
+ * @return {?proto.repository.ArtifactSignature}
+ */
+proto.repository.RegisterArtifactSignatureResponse.prototype.getSignature = function() {
+  return /** @type{?proto.repository.ArtifactSignature} */ (
+    jspb.Message.getWrapperField(this, proto.repository.ArtifactSignature, 1));
+};
+
+
+/**
+ * @param {?proto.repository.ArtifactSignature|undefined} value
+ * @return {!proto.repository.RegisterArtifactSignatureResponse} returns this
+*/
+proto.repository.RegisterArtifactSignatureResponse.prototype.setSignature = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.RegisterArtifactSignatureResponse} returns this
+ */
+proto.repository.RegisterArtifactSignatureResponse.prototype.clearSignature = function() {
+  return this.setSignature(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.RegisterArtifactSignatureResponse.prototype.hasSignature = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional SignatureStatus status = 2;
+ * @return {!proto.repository.SignatureStatus}
+ */
+proto.repository.RegisterArtifactSignatureResponse.prototype.getStatus = function() {
+  return /** @type {!proto.repository.SignatureStatus} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {!proto.repository.SignatureStatus} value
+ * @return {!proto.repository.RegisterArtifactSignatureResponse} returns this
+ */
+proto.repository.RegisterArtifactSignatureResponse.prototype.setStatus = function(value) {
+  return jspb.Message.setProto3EnumField(this, 2, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.VerifyArtifactSignatureRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.VerifyArtifactSignatureRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.VerifyArtifactSignatureRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.VerifyArtifactSignatureRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+ref: (f = msg.getRef()) && proto.repository.ArtifactRef.toObject(includeInstance, f),
+buildNumber: jspb.Message.getFieldWithDefault(msg, 2, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.VerifyArtifactSignatureRequest}
+ */
+proto.repository.VerifyArtifactSignatureRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.VerifyArtifactSignatureRequest;
+  return proto.repository.VerifyArtifactSignatureRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.VerifyArtifactSignatureRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.VerifyArtifactSignatureRequest}
+ */
+proto.repository.VerifyArtifactSignatureRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.ArtifactRef;
+      reader.readMessage(value,proto.repository.ArtifactRef.deserializeBinaryFromReader);
+      msg.setRef(value);
+      break;
+    case 2:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.VerifyArtifactSignatureRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.VerifyArtifactSignatureRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.VerifyArtifactSignatureRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.VerifyArtifactSignatureRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRef();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.ArtifactRef.serializeBinaryToWriter
+    );
+  }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional ArtifactRef ref = 1;
+ * @return {?proto.repository.ArtifactRef}
+ */
+proto.repository.VerifyArtifactSignatureRequest.prototype.getRef = function() {
+  return /** @type{?proto.repository.ArtifactRef} */ (
+    jspb.Message.getWrapperField(this, proto.repository.ArtifactRef, 1));
+};
+
+
+/**
+ * @param {?proto.repository.ArtifactRef|undefined} value
+ * @return {!proto.repository.VerifyArtifactSignatureRequest} returns this
+*/
+proto.repository.VerifyArtifactSignatureRequest.prototype.setRef = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.VerifyArtifactSignatureRequest} returns this
+ */
+proto.repository.VerifyArtifactSignatureRequest.prototype.clearRef = function() {
+  return this.setRef(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.VerifyArtifactSignatureRequest.prototype.hasRef = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional int64 build_number = 2;
+ * @return {number}
+ */
+proto.repository.VerifyArtifactSignatureRequest.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.VerifyArtifactSignatureRequest} returns this
+ */
+proto.repository.VerifyArtifactSignatureRequest.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 2, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.VerifyArtifactSignatureResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.VerifyArtifactSignatureResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.VerifyArtifactSignatureResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.VerifyArtifactSignatureResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+status: jspb.Message.getFieldWithDefault(msg, 1, 0),
+reason: jspb.Message.getFieldWithDefault(msg, 2, ""),
+signature: (f = msg.getSignature()) && proto.repository.ArtifactSignature.toObject(includeInstance, f),
+publisher: (f = msg.getPublisher()) && proto.repository.TrustedPublisher.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.VerifyArtifactSignatureResponse}
+ */
+proto.repository.VerifyArtifactSignatureResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.VerifyArtifactSignatureResponse;
+  return proto.repository.VerifyArtifactSignatureResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.VerifyArtifactSignatureResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.VerifyArtifactSignatureResponse}
+ */
+proto.repository.VerifyArtifactSignatureResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {!proto.repository.SignatureStatus} */ (reader.readEnum());
+      msg.setStatus(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setReason(value);
+      break;
+    case 3:
+      var value = new proto.repository.ArtifactSignature;
+      reader.readMessage(value,proto.repository.ArtifactSignature.deserializeBinaryFromReader);
+      msg.setSignature(value);
+      break;
+    case 4:
+      var value = new proto.repository.TrustedPublisher;
+      reader.readMessage(value,proto.repository.TrustedPublisher.deserializeBinaryFromReader);
+      msg.setPublisher(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.VerifyArtifactSignatureResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.VerifyArtifactSignatureResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.VerifyArtifactSignatureResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.VerifyArtifactSignatureResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getStatus();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      1,
+      f
+    );
+  }
+  f = message.getReason();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getSignature();
+  if (f != null) {
+    writer.writeMessage(
+      3,
+      f,
+      proto.repository.ArtifactSignature.serializeBinaryToWriter
+    );
+  }
+  f = message.getPublisher();
+  if (f != null) {
+    writer.writeMessage(
+      4,
+      f,
+      proto.repository.TrustedPublisher.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional SignatureStatus status = 1;
+ * @return {!proto.repository.SignatureStatus}
+ */
+proto.repository.VerifyArtifactSignatureResponse.prototype.getStatus = function() {
+  return /** @type {!proto.repository.SignatureStatus} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+};
+
+
+/**
+ * @param {!proto.repository.SignatureStatus} value
+ * @return {!proto.repository.VerifyArtifactSignatureResponse} returns this
+ */
+proto.repository.VerifyArtifactSignatureResponse.prototype.setStatus = function(value) {
+  return jspb.Message.setProto3EnumField(this, 1, value);
+};
+
+
+/**
+ * optional string reason = 2;
+ * @return {string}
+ */
+proto.repository.VerifyArtifactSignatureResponse.prototype.getReason = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.VerifyArtifactSignatureResponse} returns this
+ */
+proto.repository.VerifyArtifactSignatureResponse.prototype.setReason = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional ArtifactSignature signature = 3;
+ * @return {?proto.repository.ArtifactSignature}
+ */
+proto.repository.VerifyArtifactSignatureResponse.prototype.getSignature = function() {
+  return /** @type{?proto.repository.ArtifactSignature} */ (
+    jspb.Message.getWrapperField(this, proto.repository.ArtifactSignature, 3));
+};
+
+
+/**
+ * @param {?proto.repository.ArtifactSignature|undefined} value
+ * @return {!proto.repository.VerifyArtifactSignatureResponse} returns this
+*/
+proto.repository.VerifyArtifactSignatureResponse.prototype.setSignature = function(value) {
+  return jspb.Message.setWrapperField(this, 3, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.VerifyArtifactSignatureResponse} returns this
+ */
+proto.repository.VerifyArtifactSignatureResponse.prototype.clearSignature = function() {
+  return this.setSignature(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.VerifyArtifactSignatureResponse.prototype.hasSignature = function() {
+  return jspb.Message.getField(this, 3) != null;
+};
+
+
+/**
+ * optional TrustedPublisher publisher = 4;
+ * @return {?proto.repository.TrustedPublisher}
+ */
+proto.repository.VerifyArtifactSignatureResponse.prototype.getPublisher = function() {
+  return /** @type{?proto.repository.TrustedPublisher} */ (
+    jspb.Message.getWrapperField(this, proto.repository.TrustedPublisher, 4));
+};
+
+
+/**
+ * @param {?proto.repository.TrustedPublisher|undefined} value
+ * @return {!proto.repository.VerifyArtifactSignatureResponse} returns this
+*/
+proto.repository.VerifyArtifactSignatureResponse.prototype.setPublisher = function(value) {
+  return jspb.Message.setWrapperField(this, 4, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.VerifyArtifactSignatureResponse} returns this
+ */
+proto.repository.VerifyArtifactSignatureResponse.prototype.clearPublisher = function() {
+  return this.setPublisher(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.VerifyArtifactSignatureResponse.prototype.hasPublisher = function() {
+  return jspb.Message.getField(this, 4) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ListArtifactSignaturesRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ListArtifactSignaturesRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ListArtifactSignaturesRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListArtifactSignaturesRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+ref: (f = msg.getRef()) && proto.repository.ArtifactRef.toObject(includeInstance, f),
+buildNumber: jspb.Message.getFieldWithDefault(msg, 2, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ListArtifactSignaturesRequest}
+ */
+proto.repository.ListArtifactSignaturesRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ListArtifactSignaturesRequest;
+  return proto.repository.ListArtifactSignaturesRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ListArtifactSignaturesRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ListArtifactSignaturesRequest}
+ */
+proto.repository.ListArtifactSignaturesRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.ArtifactRef;
+      reader.readMessage(value,proto.repository.ArtifactRef.deserializeBinaryFromReader);
+      msg.setRef(value);
+      break;
+    case 2:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ListArtifactSignaturesRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ListArtifactSignaturesRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ListArtifactSignaturesRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListArtifactSignaturesRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRef();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.ArtifactRef.serializeBinaryToWriter
+    );
+  }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional ArtifactRef ref = 1;
+ * @return {?proto.repository.ArtifactRef}
+ */
+proto.repository.ListArtifactSignaturesRequest.prototype.getRef = function() {
+  return /** @type{?proto.repository.ArtifactRef} */ (
+    jspb.Message.getWrapperField(this, proto.repository.ArtifactRef, 1));
+};
+
+
+/**
+ * @param {?proto.repository.ArtifactRef|undefined} value
+ * @return {!proto.repository.ListArtifactSignaturesRequest} returns this
+*/
+proto.repository.ListArtifactSignaturesRequest.prototype.setRef = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.ListArtifactSignaturesRequest} returns this
+ */
+proto.repository.ListArtifactSignaturesRequest.prototype.clearRef = function() {
+  return this.setRef(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.ListArtifactSignaturesRequest.prototype.hasRef = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional int64 build_number = 2;
+ * @return {number}
+ */
+proto.repository.ListArtifactSignaturesRequest.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.ListArtifactSignaturesRequest} returns this
+ */
+proto.repository.ListArtifactSignaturesRequest.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 2, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.repository.ListArtifactSignaturesResponse.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ListArtifactSignaturesResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ListArtifactSignaturesResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ListArtifactSignaturesResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListArtifactSignaturesResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+signaturesList: jspb.Message.toObjectList(msg.getSignaturesList(),
+    proto.repository.ArtifactSignature.toObject, includeInstance)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ListArtifactSignaturesResponse}
+ */
+proto.repository.ListArtifactSignaturesResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ListArtifactSignaturesResponse;
+  return proto.repository.ListArtifactSignaturesResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ListArtifactSignaturesResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ListArtifactSignaturesResponse}
+ */
+proto.repository.ListArtifactSignaturesResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.ArtifactSignature;
+      reader.readMessage(value,proto.repository.ArtifactSignature.deserializeBinaryFromReader);
+      msg.addSignatures(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ListArtifactSignaturesResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ListArtifactSignaturesResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ListArtifactSignaturesResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListArtifactSignaturesResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getSignaturesList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      1,
+      f,
+      proto.repository.ArtifactSignature.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * repeated ArtifactSignature signatures = 1;
+ * @return {!Array<!proto.repository.ArtifactSignature>}
+ */
+proto.repository.ListArtifactSignaturesResponse.prototype.getSignaturesList = function() {
+  return /** @type{!Array<!proto.repository.ArtifactSignature>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.repository.ArtifactSignature, 1));
+};
+
+
+/**
+ * @param {!Array<!proto.repository.ArtifactSignature>} value
+ * @return {!proto.repository.ListArtifactSignaturesResponse} returns this
+*/
+proto.repository.ListArtifactSignaturesResponse.prototype.setSignaturesList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 1, value);
+};
+
+
+/**
+ * @param {!proto.repository.ArtifactSignature=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.repository.ArtifactSignature}
+ */
+proto.repository.ListArtifactSignaturesResponse.prototype.addSignatures = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.repository.ArtifactSignature, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.ListArtifactSignaturesResponse} returns this
+ */
+proto.repository.ListArtifactSignaturesResponse.prototype.clearSignaturesList = function() {
+  return this.setSignaturesList([]);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.InstalledPackageRevision.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.InstalledPackageRevision.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.InstalledPackageRevision} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.InstalledPackageRevision.toObject = function(includeInstance, msg) {
+  var f, obj = {
+publisherId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+kind: jspb.Message.getFieldWithDefault(msg, 3, 0),
+version: jspb.Message.getFieldWithDefault(msg, 4, ""),
+buildId: jspb.Message.getFieldWithDefault(msg, 5, ""),
+buildNumber: jspb.Message.getFieldWithDefault(msg, 6, 0),
+platform: jspb.Message.getFieldWithDefault(msg, 7, ""),
+checksum: jspb.Message.getFieldWithDefault(msg, 8, ""),
+installedAtUnix: jspb.Message.getFieldWithDefault(msg, 9, 0),
+installedByWorkflowRunId: jspb.Message.getFieldWithDefault(msg, 10, ""),
+nodeId: jspb.Message.getFieldWithDefault(msg, 11, ""),
+previousRevisionId: jspb.Message.getFieldWithDefault(msg, 12, ""),
+configSnapshotId: jspb.Message.getFieldWithDefault(msg, 13, ""),
+serviceStatusBefore: jspb.Message.getFieldWithDefault(msg, 14, ""),
+serviceStatusAfter: jspb.Message.getFieldWithDefault(msg, 15, ""),
+revisionId: jspb.Message.getFieldWithDefault(msg, 16, ""),
+action: jspb.Message.getFieldWithDefault(msg, 17, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.InstalledPackageRevision}
+ */
+proto.repository.InstalledPackageRevision.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.InstalledPackageRevision;
+  return proto.repository.InstalledPackageRevision.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.InstalledPackageRevision} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.InstalledPackageRevision}
+ */
+proto.repository.InstalledPackageRevision.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublisherId(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setName(value);
+      break;
+    case 3:
+      var value = /** @type {!proto.repository.ArtifactKind} */ (reader.readEnum());
+      msg.setKind(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setVersion(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBuildId(value);
+      break;
+    case 6:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPlatform(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setChecksum(value);
+      break;
+    case 9:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setInstalledAtUnix(value);
+      break;
+    case 10:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setInstalledByWorkflowRunId(value);
+      break;
+    case 11:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNodeId(value);
+      break;
+    case 12:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPreviousRevisionId(value);
+      break;
+    case 13:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setConfigSnapshotId(value);
+      break;
+    case 14:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setServiceStatusBefore(value);
+      break;
+    case 15:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setServiceStatusAfter(value);
+      break;
+    case 16:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRevisionId(value);
+      break;
+    case 17:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAction(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.InstalledPackageRevision.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.InstalledPackageRevision.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.InstalledPackageRevision} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.InstalledPackageRevision.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getPublisherId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getName();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getKind();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      3,
+      f
+    );
+  }
+  f = message.getVersion();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getBuildId();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      6,
+      f
+    );
+  }
+  f = message.getPlatform();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
+      f
+    );
+  }
+  f = message.getChecksum();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
+      f
+    );
+  }
+  f = message.getInstalledAtUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      9,
+      f
+    );
+  }
+  f = message.getInstalledByWorkflowRunId();
+  if (f.length > 0) {
+    writer.writeString(
+      10,
+      f
+    );
+  }
+  f = message.getNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      11,
+      f
+    );
+  }
+  f = message.getPreviousRevisionId();
+  if (f.length > 0) {
+    writer.writeString(
+      12,
+      f
+    );
+  }
+  f = message.getConfigSnapshotId();
+  if (f.length > 0) {
+    writer.writeString(
+      13,
+      f
+    );
+  }
+  f = message.getServiceStatusBefore();
+  if (f.length > 0) {
+    writer.writeString(
+      14,
+      f
+    );
+  }
+  f = message.getServiceStatusAfter();
+  if (f.length > 0) {
+    writer.writeString(
+      15,
+      f
+    );
+  }
+  f = message.getRevisionId();
+  if (f.length > 0) {
+    writer.writeString(
+      16,
+      f
+    );
+  }
+  f = message.getAction();
+  if (f.length > 0) {
+    writer.writeString(
+      17,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string publisher_id = 1;
+ * @return {string}
+ */
+proto.repository.InstalledPackageRevision.prototype.getPublisherId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setPublisherId = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string name = 2;
+ * @return {string}
+ */
+proto.repository.InstalledPackageRevision.prototype.getName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setName = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional ArtifactKind kind = 3;
+ * @return {!proto.repository.ArtifactKind}
+ */
+proto.repository.InstalledPackageRevision.prototype.getKind = function() {
+  return /** @type {!proto.repository.ArtifactKind} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+};
+
+
+/**
+ * @param {!proto.repository.ArtifactKind} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setKind = function(value) {
+  return jspb.Message.setProto3EnumField(this, 3, value);
+};
+
+
+/**
+ * optional string version = 4;
+ * @return {string}
+ */
+proto.repository.InstalledPackageRevision.prototype.getVersion = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setVersion = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional string build_id = 5;
+ * @return {string}
+ */
+proto.repository.InstalledPackageRevision.prototype.getBuildId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setBuildId = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional int64 build_number = 6;
+ * @return {number}
+ */
+proto.repository.InstalledPackageRevision.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 6, value);
+};
+
+
+/**
+ * optional string platform = 7;
+ * @return {string}
+ */
+proto.repository.InstalledPackageRevision.prototype.getPlatform = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setPlatform = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional string checksum = 8;
+ * @return {string}
+ */
+proto.repository.InstalledPackageRevision.prototype.getChecksum = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setChecksum = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
+};
+
+
+/**
+ * optional int64 installed_at_unix = 9;
+ * @return {number}
+ */
+proto.repository.InstalledPackageRevision.prototype.getInstalledAtUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 9, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setInstalledAtUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 9, value);
+};
+
+
+/**
+ * optional string installed_by_workflow_run_id = 10;
+ * @return {string}
+ */
+proto.repository.InstalledPackageRevision.prototype.getInstalledByWorkflowRunId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setInstalledByWorkflowRunId = function(value) {
+  return jspb.Message.setProto3StringField(this, 10, value);
+};
+
+
+/**
+ * optional string node_id = 11;
+ * @return {string}
+ */
+proto.repository.InstalledPackageRevision.prototype.getNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 11, value);
+};
+
+
+/**
+ * optional string previous_revision_id = 12;
+ * @return {string}
+ */
+proto.repository.InstalledPackageRevision.prototype.getPreviousRevisionId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 12, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setPreviousRevisionId = function(value) {
+  return jspb.Message.setProto3StringField(this, 12, value);
+};
+
+
+/**
+ * optional string config_snapshot_id = 13;
+ * @return {string}
+ */
+proto.repository.InstalledPackageRevision.prototype.getConfigSnapshotId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 13, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setConfigSnapshotId = function(value) {
+  return jspb.Message.setProto3StringField(this, 13, value);
+};
+
+
+/**
+ * optional string service_status_before = 14;
+ * @return {string}
+ */
+proto.repository.InstalledPackageRevision.prototype.getServiceStatusBefore = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 14, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setServiceStatusBefore = function(value) {
+  return jspb.Message.setProto3StringField(this, 14, value);
+};
+
+
+/**
+ * optional string service_status_after = 15;
+ * @return {string}
+ */
+proto.repository.InstalledPackageRevision.prototype.getServiceStatusAfter = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 15, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setServiceStatusAfter = function(value) {
+  return jspb.Message.setProto3StringField(this, 15, value);
+};
+
+
+/**
+ * optional string revision_id = 16;
+ * @return {string}
+ */
+proto.repository.InstalledPackageRevision.prototype.getRevisionId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 16, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setRevisionId = function(value) {
+  return jspb.Message.setProto3StringField(this, 16, value);
+};
+
+
+/**
+ * optional string action = 17;
+ * @return {string}
+ */
+proto.repository.InstalledPackageRevision.prototype.getAction = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 17, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.InstalledPackageRevision} returns this
+ */
+proto.repository.InstalledPackageRevision.prototype.setAction = function(value) {
+  return jspb.Message.setProto3StringField(this, 17, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.RecordInstalledRevisionRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.RecordInstalledRevisionRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.RecordInstalledRevisionRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RecordInstalledRevisionRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+revision: (f = msg.getRevision()) && proto.repository.InstalledPackageRevision.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.RecordInstalledRevisionRequest}
+ */
+proto.repository.RecordInstalledRevisionRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.RecordInstalledRevisionRequest;
+  return proto.repository.RecordInstalledRevisionRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.RecordInstalledRevisionRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.RecordInstalledRevisionRequest}
+ */
+proto.repository.RecordInstalledRevisionRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.InstalledPackageRevision;
+      reader.readMessage(value,proto.repository.InstalledPackageRevision.deserializeBinaryFromReader);
+      msg.setRevision(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.RecordInstalledRevisionRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.RecordInstalledRevisionRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.RecordInstalledRevisionRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RecordInstalledRevisionRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRevision();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.InstalledPackageRevision.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional InstalledPackageRevision revision = 1;
+ * @return {?proto.repository.InstalledPackageRevision}
+ */
+proto.repository.RecordInstalledRevisionRequest.prototype.getRevision = function() {
+  return /** @type{?proto.repository.InstalledPackageRevision} */ (
+    jspb.Message.getWrapperField(this, proto.repository.InstalledPackageRevision, 1));
+};
+
+
+/**
+ * @param {?proto.repository.InstalledPackageRevision|undefined} value
+ * @return {!proto.repository.RecordInstalledRevisionRequest} returns this
+*/
+proto.repository.RecordInstalledRevisionRequest.prototype.setRevision = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.RecordInstalledRevisionRequest} returns this
+ */
+proto.repository.RecordInstalledRevisionRequest.prototype.clearRevision = function() {
+  return this.setRevision(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.RecordInstalledRevisionRequest.prototype.hasRevision = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.RecordInstalledRevisionResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.RecordInstalledRevisionResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.RecordInstalledRevisionResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RecordInstalledRevisionResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+revisionId: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.RecordInstalledRevisionResponse}
+ */
+proto.repository.RecordInstalledRevisionResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.RecordInstalledRevisionResponse;
+  return proto.repository.RecordInstalledRevisionResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.RecordInstalledRevisionResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.RecordInstalledRevisionResponse}
+ */
+proto.repository.RecordInstalledRevisionResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRevisionId(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.RecordInstalledRevisionResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.RecordInstalledRevisionResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.RecordInstalledRevisionResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RecordInstalledRevisionResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRevisionId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string revision_id = 1;
+ * @return {string}
+ */
+proto.repository.RecordInstalledRevisionResponse.prototype.getRevisionId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RecordInstalledRevisionResponse} returns this
+ */
+proto.repository.RecordInstalledRevisionResponse.prototype.setRevisionId = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ListInstalledRevisionsRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ListInstalledRevisionsRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ListInstalledRevisionsRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListInstalledRevisionsRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+publisherId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+kind: jspb.Message.getFieldWithDefault(msg, 3, 0),
+platform: jspb.Message.getFieldWithDefault(msg, 4, ""),
+nodeId: jspb.Message.getFieldWithDefault(msg, 5, ""),
+limit: jspb.Message.getFieldWithDefault(msg, 6, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ListInstalledRevisionsRequest}
+ */
+proto.repository.ListInstalledRevisionsRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ListInstalledRevisionsRequest;
+  return proto.repository.ListInstalledRevisionsRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ListInstalledRevisionsRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ListInstalledRevisionsRequest}
+ */
+proto.repository.ListInstalledRevisionsRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublisherId(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setName(value);
+      break;
+    case 3:
+      var value = /** @type {!proto.repository.ArtifactKind} */ (reader.readEnum());
+      msg.setKind(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPlatform(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNodeId(value);
+      break;
+    case 6:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setLimit(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ListInstalledRevisionsRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ListInstalledRevisionsRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ListInstalledRevisionsRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListInstalledRevisionsRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getPublisherId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getName();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getKind();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      3,
+      f
+    );
+  }
+  f = message.getPlatform();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getLimit();
+  if (f !== 0) {
+    writer.writeInt32(
+      6,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string publisher_id = 1;
+ * @return {string}
+ */
+proto.repository.ListInstalledRevisionsRequest.prototype.getPublisherId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ListInstalledRevisionsRequest} returns this
+ */
+proto.repository.ListInstalledRevisionsRequest.prototype.setPublisherId = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string name = 2;
+ * @return {string}
+ */
+proto.repository.ListInstalledRevisionsRequest.prototype.getName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ListInstalledRevisionsRequest} returns this
+ */
+proto.repository.ListInstalledRevisionsRequest.prototype.setName = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional ArtifactKind kind = 3;
+ * @return {!proto.repository.ArtifactKind}
+ */
+proto.repository.ListInstalledRevisionsRequest.prototype.getKind = function() {
+  return /** @type {!proto.repository.ArtifactKind} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+};
+
+
+/**
+ * @param {!proto.repository.ArtifactKind} value
+ * @return {!proto.repository.ListInstalledRevisionsRequest} returns this
+ */
+proto.repository.ListInstalledRevisionsRequest.prototype.setKind = function(value) {
+  return jspb.Message.setProto3EnumField(this, 3, value);
+};
+
+
+/**
+ * optional string platform = 4;
+ * @return {string}
+ */
+proto.repository.ListInstalledRevisionsRequest.prototype.getPlatform = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ListInstalledRevisionsRequest} returns this
+ */
+proto.repository.ListInstalledRevisionsRequest.prototype.setPlatform = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional string node_id = 5;
+ * @return {string}
+ */
+proto.repository.ListInstalledRevisionsRequest.prototype.getNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ListInstalledRevisionsRequest} returns this
+ */
+proto.repository.ListInstalledRevisionsRequest.prototype.setNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional int32 limit = 6;
+ * @return {number}
+ */
+proto.repository.ListInstalledRevisionsRequest.prototype.getLimit = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.ListInstalledRevisionsRequest} returns this
+ */
+proto.repository.ListInstalledRevisionsRequest.prototype.setLimit = function(value) {
+  return jspb.Message.setProto3IntField(this, 6, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.repository.ListInstalledRevisionsResponse.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ListInstalledRevisionsResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ListInstalledRevisionsResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ListInstalledRevisionsResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListInstalledRevisionsResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+revisionsList: jspb.Message.toObjectList(msg.getRevisionsList(),
+    proto.repository.InstalledPackageRevision.toObject, includeInstance)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ListInstalledRevisionsResponse}
+ */
+proto.repository.ListInstalledRevisionsResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ListInstalledRevisionsResponse;
+  return proto.repository.ListInstalledRevisionsResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ListInstalledRevisionsResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ListInstalledRevisionsResponse}
+ */
+proto.repository.ListInstalledRevisionsResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.InstalledPackageRevision;
+      reader.readMessage(value,proto.repository.InstalledPackageRevision.deserializeBinaryFromReader);
+      msg.addRevisions(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ListInstalledRevisionsResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ListInstalledRevisionsResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ListInstalledRevisionsResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListInstalledRevisionsResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRevisionsList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      1,
+      f,
+      proto.repository.InstalledPackageRevision.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * repeated InstalledPackageRevision revisions = 1;
+ * @return {!Array<!proto.repository.InstalledPackageRevision>}
+ */
+proto.repository.ListInstalledRevisionsResponse.prototype.getRevisionsList = function() {
+  return /** @type{!Array<!proto.repository.InstalledPackageRevision>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.repository.InstalledPackageRevision, 1));
+};
+
+
+/**
+ * @param {!Array<!proto.repository.InstalledPackageRevision>} value
+ * @return {!proto.repository.ListInstalledRevisionsResponse} returns this
+*/
+proto.repository.ListInstalledRevisionsResponse.prototype.setRevisionsList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 1, value);
+};
+
+
+/**
+ * @param {!proto.repository.InstalledPackageRevision=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.repository.InstalledPackageRevision}
+ */
+proto.repository.ListInstalledRevisionsResponse.prototype.addRevisions = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.repository.InstalledPackageRevision, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.ListInstalledRevisionsResponse} returns this
+ */
+proto.repository.ListInstalledRevisionsResponse.prototype.clearRevisionsList = function() {
+  return this.setRevisionsList([]);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.RollbackEligibility.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.RollbackEligibility.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.RollbackEligibility} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RollbackEligibility.toObject = function(includeInstance, msg) {
+  var f, obj = {
+eligible: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
+reason: jspb.Message.getFieldWithDefault(msg, 2, ""),
+verifyStatus: jspb.Message.getFieldWithDefault(msg, 3, 0),
+signatureStatus: jspb.Message.getFieldWithDefault(msg, 4, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.RollbackEligibility}
+ */
+proto.repository.RollbackEligibility.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.RollbackEligibility;
+  return proto.repository.RollbackEligibility.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.RollbackEligibility} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.RollbackEligibility}
+ */
+proto.repository.RollbackEligibility.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setEligible(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setReason(value);
+      break;
+    case 3:
+      var value = /** @type {!proto.repository.ArtifactVerifyStatus} */ (reader.readEnum());
+      msg.setVerifyStatus(value);
+      break;
+    case 4:
+      var value = /** @type {!proto.repository.SignatureStatus} */ (reader.readEnum());
+      msg.setSignatureStatus(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.RollbackEligibility.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.RollbackEligibility.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.RollbackEligibility} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RollbackEligibility.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getEligible();
+  if (f) {
+    writer.writeBool(
+      1,
+      f
+    );
+  }
+  f = message.getReason();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getVerifyStatus();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      3,
+      f
+    );
+  }
+  f = message.getSignatureStatus();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      4,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional bool eligible = 1;
+ * @return {boolean}
+ */
+proto.repository.RollbackEligibility.prototype.getEligible = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 1, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.RollbackEligibility} returns this
+ */
+proto.repository.RollbackEligibility.prototype.setEligible = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 1, value);
+};
+
+
+/**
+ * optional string reason = 2;
+ * @return {string}
+ */
+proto.repository.RollbackEligibility.prototype.getReason = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RollbackEligibility} returns this
+ */
+proto.repository.RollbackEligibility.prototype.setReason = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional ArtifactVerifyStatus verify_status = 3;
+ * @return {!proto.repository.ArtifactVerifyStatus}
+ */
+proto.repository.RollbackEligibility.prototype.getVerifyStatus = function() {
+  return /** @type {!proto.repository.ArtifactVerifyStatus} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+};
+
+
+/**
+ * @param {!proto.repository.ArtifactVerifyStatus} value
+ * @return {!proto.repository.RollbackEligibility} returns this
+ */
+proto.repository.RollbackEligibility.prototype.setVerifyStatus = function(value) {
+  return jspb.Message.setProto3EnumField(this, 3, value);
+};
+
+
+/**
+ * optional SignatureStatus signature_status = 4;
+ * @return {!proto.repository.SignatureStatus}
+ */
+proto.repository.RollbackEligibility.prototype.getSignatureStatus = function() {
+  return /** @type {!proto.repository.SignatureStatus} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {!proto.repository.SignatureStatus} value
+ * @return {!proto.repository.RollbackEligibility} returns this
+ */
+proto.repository.RollbackEligibility.prototype.setSignatureStatus = function(value) {
+  return jspb.Message.setProto3EnumField(this, 4, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.RollbackCandidate.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.RollbackCandidate.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.RollbackCandidate} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RollbackCandidate.toObject = function(includeInstance, msg) {
+  var f, obj = {
+revision: (f = msg.getRevision()) && proto.repository.InstalledPackageRevision.toObject(includeInstance, f),
+targetRef: (f = msg.getTargetRef()) && proto.repository.ArtifactRef.toObject(includeInstance, f),
+eligibility: (f = msg.getEligibility()) && proto.repository.RollbackEligibility.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.RollbackCandidate}
+ */
+proto.repository.RollbackCandidate.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.RollbackCandidate;
+  return proto.repository.RollbackCandidate.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.RollbackCandidate} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.RollbackCandidate}
+ */
+proto.repository.RollbackCandidate.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.InstalledPackageRevision;
+      reader.readMessage(value,proto.repository.InstalledPackageRevision.deserializeBinaryFromReader);
+      msg.setRevision(value);
+      break;
+    case 2:
+      var value = new proto.repository.ArtifactRef;
+      reader.readMessage(value,proto.repository.ArtifactRef.deserializeBinaryFromReader);
+      msg.setTargetRef(value);
+      break;
+    case 3:
+      var value = new proto.repository.RollbackEligibility;
+      reader.readMessage(value,proto.repository.RollbackEligibility.deserializeBinaryFromReader);
+      msg.setEligibility(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.RollbackCandidate.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.RollbackCandidate.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.RollbackCandidate} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RollbackCandidate.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRevision();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.InstalledPackageRevision.serializeBinaryToWriter
+    );
+  }
+  f = message.getTargetRef();
+  if (f != null) {
+    writer.writeMessage(
+      2,
+      f,
+      proto.repository.ArtifactRef.serializeBinaryToWriter
+    );
+  }
+  f = message.getEligibility();
+  if (f != null) {
+    writer.writeMessage(
+      3,
+      f,
+      proto.repository.RollbackEligibility.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional InstalledPackageRevision revision = 1;
+ * @return {?proto.repository.InstalledPackageRevision}
+ */
+proto.repository.RollbackCandidate.prototype.getRevision = function() {
+  return /** @type{?proto.repository.InstalledPackageRevision} */ (
+    jspb.Message.getWrapperField(this, proto.repository.InstalledPackageRevision, 1));
+};
+
+
+/**
+ * @param {?proto.repository.InstalledPackageRevision|undefined} value
+ * @return {!proto.repository.RollbackCandidate} returns this
+*/
+proto.repository.RollbackCandidate.prototype.setRevision = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.RollbackCandidate} returns this
+ */
+proto.repository.RollbackCandidate.prototype.clearRevision = function() {
+  return this.setRevision(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.RollbackCandidate.prototype.hasRevision = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional ArtifactRef target_ref = 2;
+ * @return {?proto.repository.ArtifactRef}
+ */
+proto.repository.RollbackCandidate.prototype.getTargetRef = function() {
+  return /** @type{?proto.repository.ArtifactRef} */ (
+    jspb.Message.getWrapperField(this, proto.repository.ArtifactRef, 2));
+};
+
+
+/**
+ * @param {?proto.repository.ArtifactRef|undefined} value
+ * @return {!proto.repository.RollbackCandidate} returns this
+*/
+proto.repository.RollbackCandidate.prototype.setTargetRef = function(value) {
+  return jspb.Message.setWrapperField(this, 2, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.RollbackCandidate} returns this
+ */
+proto.repository.RollbackCandidate.prototype.clearTargetRef = function() {
+  return this.setTargetRef(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.RollbackCandidate.prototype.hasTargetRef = function() {
+  return jspb.Message.getField(this, 2) != null;
+};
+
+
+/**
+ * optional RollbackEligibility eligibility = 3;
+ * @return {?proto.repository.RollbackEligibility}
+ */
+proto.repository.RollbackCandidate.prototype.getEligibility = function() {
+  return /** @type{?proto.repository.RollbackEligibility} */ (
+    jspb.Message.getWrapperField(this, proto.repository.RollbackEligibility, 3));
+};
+
+
+/**
+ * @param {?proto.repository.RollbackEligibility|undefined} value
+ * @return {!proto.repository.RollbackCandidate} returns this
+*/
+proto.repository.RollbackCandidate.prototype.setEligibility = function(value) {
+  return jspb.Message.setWrapperField(this, 3, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.RollbackCandidate} returns this
+ */
+proto.repository.RollbackCandidate.prototype.clearEligibility = function() {
+  return this.setEligibility(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.RollbackCandidate.prototype.hasEligibility = function() {
+  return jspb.Message.getField(this, 3) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ListRollbackCandidatesRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ListRollbackCandidatesRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ListRollbackCandidatesRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListRollbackCandidatesRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+publisherId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+kind: jspb.Message.getFieldWithDefault(msg, 3, 0),
+platform: jspb.Message.getFieldWithDefault(msg, 4, ""),
+nodeId: jspb.Message.getFieldWithDefault(msg, 5, ""),
+limit: jspb.Message.getFieldWithDefault(msg, 6, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ListRollbackCandidatesRequest}
+ */
+proto.repository.ListRollbackCandidatesRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ListRollbackCandidatesRequest;
+  return proto.repository.ListRollbackCandidatesRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ListRollbackCandidatesRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ListRollbackCandidatesRequest}
+ */
+proto.repository.ListRollbackCandidatesRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublisherId(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setName(value);
+      break;
+    case 3:
+      var value = /** @type {!proto.repository.ArtifactKind} */ (reader.readEnum());
+      msg.setKind(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPlatform(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNodeId(value);
+      break;
+    case 6:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setLimit(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ListRollbackCandidatesRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ListRollbackCandidatesRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ListRollbackCandidatesRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListRollbackCandidatesRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getPublisherId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getName();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getKind();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      3,
+      f
+    );
+  }
+  f = message.getPlatform();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getLimit();
+  if (f !== 0) {
+    writer.writeInt32(
+      6,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string publisher_id = 1;
+ * @return {string}
+ */
+proto.repository.ListRollbackCandidatesRequest.prototype.getPublisherId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ListRollbackCandidatesRequest} returns this
+ */
+proto.repository.ListRollbackCandidatesRequest.prototype.setPublisherId = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string name = 2;
+ * @return {string}
+ */
+proto.repository.ListRollbackCandidatesRequest.prototype.getName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ListRollbackCandidatesRequest} returns this
+ */
+proto.repository.ListRollbackCandidatesRequest.prototype.setName = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional ArtifactKind kind = 3;
+ * @return {!proto.repository.ArtifactKind}
+ */
+proto.repository.ListRollbackCandidatesRequest.prototype.getKind = function() {
+  return /** @type {!proto.repository.ArtifactKind} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+};
+
+
+/**
+ * @param {!proto.repository.ArtifactKind} value
+ * @return {!proto.repository.ListRollbackCandidatesRequest} returns this
+ */
+proto.repository.ListRollbackCandidatesRequest.prototype.setKind = function(value) {
+  return jspb.Message.setProto3EnumField(this, 3, value);
+};
+
+
+/**
+ * optional string platform = 4;
+ * @return {string}
+ */
+proto.repository.ListRollbackCandidatesRequest.prototype.getPlatform = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ListRollbackCandidatesRequest} returns this
+ */
+proto.repository.ListRollbackCandidatesRequest.prototype.setPlatform = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional string node_id = 5;
+ * @return {string}
+ */
+proto.repository.ListRollbackCandidatesRequest.prototype.getNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ListRollbackCandidatesRequest} returns this
+ */
+proto.repository.ListRollbackCandidatesRequest.prototype.setNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional int32 limit = 6;
+ * @return {number}
+ */
+proto.repository.ListRollbackCandidatesRequest.prototype.getLimit = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.ListRollbackCandidatesRequest} returns this
+ */
+proto.repository.ListRollbackCandidatesRequest.prototype.setLimit = function(value) {
+  return jspb.Message.setProto3IntField(this, 6, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.repository.ListRollbackCandidatesResponse.repeatedFields_ = [2];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ListRollbackCandidatesResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ListRollbackCandidatesResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ListRollbackCandidatesResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListRollbackCandidatesResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+currentRef: (f = msg.getCurrentRef()) && proto.repository.ArtifactRef.toObject(includeInstance, f),
+candidatesList: jspb.Message.toObjectList(msg.getCandidatesList(),
+    proto.repository.RollbackCandidate.toObject, includeInstance)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ListRollbackCandidatesResponse}
+ */
+proto.repository.ListRollbackCandidatesResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ListRollbackCandidatesResponse;
+  return proto.repository.ListRollbackCandidatesResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ListRollbackCandidatesResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ListRollbackCandidatesResponse}
+ */
+proto.repository.ListRollbackCandidatesResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.ArtifactRef;
+      reader.readMessage(value,proto.repository.ArtifactRef.deserializeBinaryFromReader);
+      msg.setCurrentRef(value);
+      break;
+    case 2:
+      var value = new proto.repository.RollbackCandidate;
+      reader.readMessage(value,proto.repository.RollbackCandidate.deserializeBinaryFromReader);
+      msg.addCandidates(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ListRollbackCandidatesResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ListRollbackCandidatesResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ListRollbackCandidatesResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListRollbackCandidatesResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getCurrentRef();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.ArtifactRef.serializeBinaryToWriter
+    );
+  }
+  f = message.getCandidatesList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      2,
+      f,
+      proto.repository.RollbackCandidate.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional ArtifactRef current_ref = 1;
+ * @return {?proto.repository.ArtifactRef}
+ */
+proto.repository.ListRollbackCandidatesResponse.prototype.getCurrentRef = function() {
+  return /** @type{?proto.repository.ArtifactRef} */ (
+    jspb.Message.getWrapperField(this, proto.repository.ArtifactRef, 1));
+};
+
+
+/**
+ * @param {?proto.repository.ArtifactRef|undefined} value
+ * @return {!proto.repository.ListRollbackCandidatesResponse} returns this
+*/
+proto.repository.ListRollbackCandidatesResponse.prototype.setCurrentRef = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.ListRollbackCandidatesResponse} returns this
+ */
+proto.repository.ListRollbackCandidatesResponse.prototype.clearCurrentRef = function() {
+  return this.setCurrentRef(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.ListRollbackCandidatesResponse.prototype.hasCurrentRef = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * repeated RollbackCandidate candidates = 2;
+ * @return {!Array<!proto.repository.RollbackCandidate>}
+ */
+proto.repository.ListRollbackCandidatesResponse.prototype.getCandidatesList = function() {
+  return /** @type{!Array<!proto.repository.RollbackCandidate>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.repository.RollbackCandidate, 2));
+};
+
+
+/**
+ * @param {!Array<!proto.repository.RollbackCandidate>} value
+ * @return {!proto.repository.ListRollbackCandidatesResponse} returns this
+*/
+proto.repository.ListRollbackCandidatesResponse.prototype.setCandidatesList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 2, value);
+};
+
+
+/**
+ * @param {!proto.repository.RollbackCandidate=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.repository.RollbackCandidate}
+ */
+proto.repository.ListRollbackCandidatesResponse.prototype.addCandidates = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 2, opt_value, proto.repository.RollbackCandidate, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.ListRollbackCandidatesResponse} returns this
+ */
+proto.repository.ListRollbackCandidatesResponse.prototype.clearCandidatesList = function() {
+  return this.setCandidatesList([]);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.repository.SignaturePolicy.repeatedFields_ = [4];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.SignaturePolicy.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.SignaturePolicy.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.SignaturePolicy} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.SignaturePolicy.toObject = function(includeInstance, msg) {
+  var f, obj = {
+requireSignaturesForCore: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
+requireSignaturesForAll: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
+allowUnsignedLocalDevelopment: jspb.Message.getBooleanFieldWithDefault(msg, 3, false),
+trustedCorePublishersList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
+quarantineOnInvalidSignature: jspb.Message.getBooleanFieldWithDefault(msg, 5, false)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.SignaturePolicy}
+ */
+proto.repository.SignaturePolicy.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.SignaturePolicy;
+  return proto.repository.SignaturePolicy.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.SignaturePolicy} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.SignaturePolicy}
+ */
+proto.repository.SignaturePolicy.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setRequireSignaturesForCore(value);
+      break;
+    case 2:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setRequireSignaturesForAll(value);
+      break;
+    case 3:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setAllowUnsignedLocalDevelopment(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addTrustedCorePublishers(value);
+      break;
+    case 5:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setQuarantineOnInvalidSignature(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.SignaturePolicy.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.SignaturePolicy.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.SignaturePolicy} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.SignaturePolicy.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRequireSignaturesForCore();
+  if (f) {
+    writer.writeBool(
+      1,
+      f
+    );
+  }
+  f = message.getRequireSignaturesForAll();
+  if (f) {
+    writer.writeBool(
+      2,
+      f
+    );
+  }
+  f = message.getAllowUnsignedLocalDevelopment();
+  if (f) {
+    writer.writeBool(
+      3,
+      f
+    );
+  }
+  f = message.getTrustedCorePublishersList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      4,
+      f
+    );
+  }
+  f = message.getQuarantineOnInvalidSignature();
+  if (f) {
+    writer.writeBool(
+      5,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional bool require_signatures_for_core = 1;
+ * @return {boolean}
+ */
+proto.repository.SignaturePolicy.prototype.getRequireSignaturesForCore = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 1, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.SignaturePolicy} returns this
+ */
+proto.repository.SignaturePolicy.prototype.setRequireSignaturesForCore = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 1, value);
+};
+
+
+/**
+ * optional bool require_signatures_for_all = 2;
+ * @return {boolean}
+ */
+proto.repository.SignaturePolicy.prototype.getRequireSignaturesForAll = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 2, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.SignaturePolicy} returns this
+ */
+proto.repository.SignaturePolicy.prototype.setRequireSignaturesForAll = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 2, value);
+};
+
+
+/**
+ * optional bool allow_unsigned_local_development = 3;
+ * @return {boolean}
+ */
+proto.repository.SignaturePolicy.prototype.getAllowUnsignedLocalDevelopment = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 3, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.SignaturePolicy} returns this
+ */
+proto.repository.SignaturePolicy.prototype.setAllowUnsignedLocalDevelopment = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 3, value);
+};
+
+
+/**
+ * repeated string trusted_core_publishers = 4;
+ * @return {!Array<string>}
+ */
+proto.repository.SignaturePolicy.prototype.getTrustedCorePublishersList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.repository.SignaturePolicy} returns this
+ */
+proto.repository.SignaturePolicy.prototype.setTrustedCorePublishersList = function(value) {
+  return jspb.Message.setField(this, 4, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.repository.SignaturePolicy} returns this
+ */
+proto.repository.SignaturePolicy.prototype.addTrustedCorePublishers = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.SignaturePolicy} returns this
+ */
+proto.repository.SignaturePolicy.prototype.clearTrustedCorePublishersList = function() {
+  return this.setTrustedCorePublishersList([]);
+};
+
+
+/**
+ * optional bool quarantine_on_invalid_signature = 5;
+ * @return {boolean}
+ */
+proto.repository.SignaturePolicy.prototype.getQuarantineOnInvalidSignature = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 5, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.SignaturePolicy} returns this
+ */
+proto.repository.SignaturePolicy.prototype.setQuarantineOnInvalidSignature = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 5, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.PackageConfigReceipt.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.PackageConfigReceipt.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.PackageConfigReceipt} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.PackageConfigReceipt.toObject = function(includeInstance, msg) {
+  var f, obj = {
+nodeId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+publisherId: jspb.Message.getFieldWithDefault(msg, 2, ""),
+name: jspb.Message.getFieldWithDefault(msg, 3, ""),
+platform: jspb.Message.getFieldWithDefault(msg, 4, ""),
+buildNumber: jspb.Message.getFieldWithDefault(msg, 5, 0),
+path: jspb.Message.getFieldWithDefault(msg, 6, ""),
+configKind: jspb.Message.getFieldWithDefault(msg, 7, 0),
+mergeStrategy: jspb.Message.getFieldWithDefault(msg, 8, 0),
+checksumBefore: jspb.Message.getFieldWithDefault(msg, 9, ""),
+checksumAfter: jspb.Message.getFieldWithDefault(msg, 10, ""),
+action: jspb.Message.getFieldWithDefault(msg, 11, 0),
+snapshotId: jspb.Message.getFieldWithDefault(msg, 12, ""),
+workflowRunId: jspb.Message.getFieldWithDefault(msg, 13, ""),
+timestampUnix: jspb.Message.getFieldWithDefault(msg, 14, 0),
+reason: jspb.Message.getFieldWithDefault(msg, 15, ""),
+sensitive: jspb.Message.getBooleanFieldWithDefault(msg, 16, false)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.PackageConfigReceipt}
+ */
+proto.repository.PackageConfigReceipt.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.PackageConfigReceipt;
+  return proto.repository.PackageConfigReceipt.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.PackageConfigReceipt} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.PackageConfigReceipt}
+ */
+proto.repository.PackageConfigReceipt.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNodeId(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublisherId(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setName(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPlatform(value);
+      break;
+    case 5:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPath(value);
+      break;
+    case 7:
+      var value = /** @type {!proto.repository.ConfigKind} */ (reader.readEnum());
+      msg.setConfigKind(value);
+      break;
+    case 8:
+      var value = /** @type {!proto.repository.MergeStrategy} */ (reader.readEnum());
+      msg.setMergeStrategy(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setChecksumBefore(value);
+      break;
+    case 10:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setChecksumAfter(value);
+      break;
+    case 11:
+      var value = /** @type {!proto.repository.ConfigReceiptAction} */ (reader.readEnum());
+      msg.setAction(value);
+      break;
+    case 12:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setSnapshotId(value);
+      break;
+    case 13:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setWorkflowRunId(value);
+      break;
+    case 14:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setTimestampUnix(value);
+      break;
+    case 15:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setReason(value);
+      break;
+    case 16:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setSensitive(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.PackageConfigReceipt.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.PackageConfigReceipt.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.PackageConfigReceipt} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.PackageConfigReceipt.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getPublisherId();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getName();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getPlatform();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      5,
+      f
+    );
+  }
+  f = message.getPath();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+  f = message.getConfigKind();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      7,
+      f
+    );
+  }
+  f = message.getMergeStrategy();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      8,
+      f
+    );
+  }
+  f = message.getChecksumBefore();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
+      f
+    );
+  }
+  f = message.getChecksumAfter();
+  if (f.length > 0) {
+    writer.writeString(
+      10,
+      f
+    );
+  }
+  f = message.getAction();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      11,
+      f
+    );
+  }
+  f = message.getSnapshotId();
+  if (f.length > 0) {
+    writer.writeString(
+      12,
+      f
+    );
+  }
+  f = message.getWorkflowRunId();
+  if (f.length > 0) {
+    writer.writeString(
+      13,
+      f
+    );
+  }
+  f = message.getTimestampUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      14,
+      f
+    );
+  }
+  f = message.getReason();
+  if (f.length > 0) {
+    writer.writeString(
+      15,
+      f
+    );
+  }
+  f = message.getSensitive();
+  if (f) {
+    writer.writeBool(
+      16,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string node_id = 1;
+ * @return {string}
+ */
+proto.repository.PackageConfigReceipt.prototype.getNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string publisher_id = 2;
+ * @return {string}
+ */
+proto.repository.PackageConfigReceipt.prototype.getPublisherId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setPublisherId = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string name = 3;
+ * @return {string}
+ */
+proto.repository.PackageConfigReceipt.prototype.getName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setName = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string platform = 4;
+ * @return {string}
+ */
+proto.repository.PackageConfigReceipt.prototype.getPlatform = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setPlatform = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional int64 build_number = 5;
+ * @return {number}
+ */
+proto.repository.PackageConfigReceipt.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 5, value);
+};
+
+
+/**
+ * optional string path = 6;
+ * @return {string}
+ */
+proto.repository.PackageConfigReceipt.prototype.getPath = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setPath = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional ConfigKind config_kind = 7;
+ * @return {!proto.repository.ConfigKind}
+ */
+proto.repository.PackageConfigReceipt.prototype.getConfigKind = function() {
+  return /** @type {!proto.repository.ConfigKind} */ (jspb.Message.getFieldWithDefault(this, 7, 0));
+};
+
+
+/**
+ * @param {!proto.repository.ConfigKind} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setConfigKind = function(value) {
+  return jspb.Message.setProto3EnumField(this, 7, value);
+};
+
+
+/**
+ * optional MergeStrategy merge_strategy = 8;
+ * @return {!proto.repository.MergeStrategy}
+ */
+proto.repository.PackageConfigReceipt.prototype.getMergeStrategy = function() {
+  return /** @type {!proto.repository.MergeStrategy} */ (jspb.Message.getFieldWithDefault(this, 8, 0));
+};
+
+
+/**
+ * @param {!proto.repository.MergeStrategy} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setMergeStrategy = function(value) {
+  return jspb.Message.setProto3EnumField(this, 8, value);
+};
+
+
+/**
+ * optional string checksum_before = 9;
+ * @return {string}
+ */
+proto.repository.PackageConfigReceipt.prototype.getChecksumBefore = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setChecksumBefore = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
+};
+
+
+/**
+ * optional string checksum_after = 10;
+ * @return {string}
+ */
+proto.repository.PackageConfigReceipt.prototype.getChecksumAfter = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setChecksumAfter = function(value) {
+  return jspb.Message.setProto3StringField(this, 10, value);
+};
+
+
+/**
+ * optional ConfigReceiptAction action = 11;
+ * @return {!proto.repository.ConfigReceiptAction}
+ */
+proto.repository.PackageConfigReceipt.prototype.getAction = function() {
+  return /** @type {!proto.repository.ConfigReceiptAction} */ (jspb.Message.getFieldWithDefault(this, 11, 0));
+};
+
+
+/**
+ * @param {!proto.repository.ConfigReceiptAction} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setAction = function(value) {
+  return jspb.Message.setProto3EnumField(this, 11, value);
+};
+
+
+/**
+ * optional string snapshot_id = 12;
+ * @return {string}
+ */
+proto.repository.PackageConfigReceipt.prototype.getSnapshotId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 12, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setSnapshotId = function(value) {
+  return jspb.Message.setProto3StringField(this, 12, value);
+};
+
+
+/**
+ * optional string workflow_run_id = 13;
+ * @return {string}
+ */
+proto.repository.PackageConfigReceipt.prototype.getWorkflowRunId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 13, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setWorkflowRunId = function(value) {
+  return jspb.Message.setProto3StringField(this, 13, value);
+};
+
+
+/**
+ * optional int64 timestamp_unix = 14;
+ * @return {number}
+ */
+proto.repository.PackageConfigReceipt.prototype.getTimestampUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 14, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setTimestampUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 14, value);
+};
+
+
+/**
+ * optional string reason = 15;
+ * @return {string}
+ */
+proto.repository.PackageConfigReceipt.prototype.getReason = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 15, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setReason = function(value) {
+  return jspb.Message.setProto3StringField(this, 15, value);
+};
+
+
+/**
+ * optional bool sensitive = 16;
+ * @return {boolean}
+ */
+proto.repository.PackageConfigReceipt.prototype.getSensitive = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 16, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.PackageConfigReceipt} returns this
+ */
+proto.repository.PackageConfigReceipt.prototype.setSensitive = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 16, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.RecordConfigReceiptRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.RecordConfigReceiptRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.RecordConfigReceiptRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RecordConfigReceiptRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+receipt: (f = msg.getReceipt()) && proto.repository.PackageConfigReceipt.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.RecordConfigReceiptRequest}
+ */
+proto.repository.RecordConfigReceiptRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.RecordConfigReceiptRequest;
+  return proto.repository.RecordConfigReceiptRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.RecordConfigReceiptRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.RecordConfigReceiptRequest}
+ */
+proto.repository.RecordConfigReceiptRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.PackageConfigReceipt;
+      reader.readMessage(value,proto.repository.PackageConfigReceipt.deserializeBinaryFromReader);
+      msg.setReceipt(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.RecordConfigReceiptRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.RecordConfigReceiptRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.RecordConfigReceiptRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RecordConfigReceiptRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getReceipt();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.repository.PackageConfigReceipt.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional PackageConfigReceipt receipt = 1;
+ * @return {?proto.repository.PackageConfigReceipt}
+ */
+proto.repository.RecordConfigReceiptRequest.prototype.getReceipt = function() {
+  return /** @type{?proto.repository.PackageConfigReceipt} */ (
+    jspb.Message.getWrapperField(this, proto.repository.PackageConfigReceipt, 1));
+};
+
+
+/**
+ * @param {?proto.repository.PackageConfigReceipt|undefined} value
+ * @return {!proto.repository.RecordConfigReceiptRequest} returns this
+*/
+proto.repository.RecordConfigReceiptRequest.prototype.setReceipt = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.RecordConfigReceiptRequest} returns this
+ */
+proto.repository.RecordConfigReceiptRequest.prototype.clearReceipt = function() {
+  return this.setReceipt(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.RecordConfigReceiptRequest.prototype.hasReceipt = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.RecordConfigReceiptResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.RecordConfigReceiptResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.RecordConfigReceiptResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RecordConfigReceiptResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.RecordConfigReceiptResponse}
+ */
+proto.repository.RecordConfigReceiptResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.RecordConfigReceiptResponse;
+  return proto.repository.RecordConfigReceiptResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.RecordConfigReceiptResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.RecordConfigReceiptResponse}
+ */
+proto.repository.RecordConfigReceiptResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.RecordConfigReceiptResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.RecordConfigReceiptResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.RecordConfigReceiptResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RecordConfigReceiptResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ListConfigReceiptsRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ListConfigReceiptsRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ListConfigReceiptsRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListConfigReceiptsRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+publisherId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+platform: jspb.Message.getFieldWithDefault(msg, 3, ""),
+nodeId: jspb.Message.getFieldWithDefault(msg, 4, ""),
+actionFilter: jspb.Message.getFieldWithDefault(msg, 5, 0),
+limit: jspb.Message.getFieldWithDefault(msg, 6, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ListConfigReceiptsRequest}
+ */
+proto.repository.ListConfigReceiptsRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ListConfigReceiptsRequest;
+  return proto.repository.ListConfigReceiptsRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ListConfigReceiptsRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ListConfigReceiptsRequest}
+ */
+proto.repository.ListConfigReceiptsRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublisherId(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setName(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPlatform(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNodeId(value);
+      break;
+    case 5:
+      var value = /** @type {!proto.repository.ConfigReceiptAction} */ (reader.readEnum());
+      msg.setActionFilter(value);
+      break;
+    case 6:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setLimit(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ListConfigReceiptsRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ListConfigReceiptsRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ListConfigReceiptsRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListConfigReceiptsRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getPublisherId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getName();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getPlatform();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getActionFilter();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      5,
+      f
+    );
+  }
+  f = message.getLimit();
+  if (f !== 0) {
+    writer.writeInt32(
+      6,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string publisher_id = 1;
+ * @return {string}
+ */
+proto.repository.ListConfigReceiptsRequest.prototype.getPublisherId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ListConfigReceiptsRequest} returns this
+ */
+proto.repository.ListConfigReceiptsRequest.prototype.setPublisherId = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string name = 2;
+ * @return {string}
+ */
+proto.repository.ListConfigReceiptsRequest.prototype.getName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ListConfigReceiptsRequest} returns this
+ */
+proto.repository.ListConfigReceiptsRequest.prototype.setName = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string platform = 3;
+ * @return {string}
+ */
+proto.repository.ListConfigReceiptsRequest.prototype.getPlatform = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ListConfigReceiptsRequest} returns this
+ */
+proto.repository.ListConfigReceiptsRequest.prototype.setPlatform = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string node_id = 4;
+ * @return {string}
+ */
+proto.repository.ListConfigReceiptsRequest.prototype.getNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ListConfigReceiptsRequest} returns this
+ */
+proto.repository.ListConfigReceiptsRequest.prototype.setNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional ConfigReceiptAction action_filter = 5;
+ * @return {!proto.repository.ConfigReceiptAction}
+ */
+proto.repository.ListConfigReceiptsRequest.prototype.getActionFilter = function() {
+  return /** @type {!proto.repository.ConfigReceiptAction} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+};
+
+
+/**
+ * @param {!proto.repository.ConfigReceiptAction} value
+ * @return {!proto.repository.ListConfigReceiptsRequest} returns this
+ */
+proto.repository.ListConfigReceiptsRequest.prototype.setActionFilter = function(value) {
+  return jspb.Message.setProto3EnumField(this, 5, value);
+};
+
+
+/**
+ * optional int32 limit = 6;
+ * @return {number}
+ */
+proto.repository.ListConfigReceiptsRequest.prototype.getLimit = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.ListConfigReceiptsRequest} returns this
+ */
+proto.repository.ListConfigReceiptsRequest.prototype.setLimit = function(value) {
+  return jspb.Message.setProto3IntField(this, 6, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.repository.ListConfigReceiptsResponse.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ListConfigReceiptsResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ListConfigReceiptsResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ListConfigReceiptsResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListConfigReceiptsResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+receiptsList: jspb.Message.toObjectList(msg.getReceiptsList(),
+    proto.repository.PackageConfigReceipt.toObject, includeInstance)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ListConfigReceiptsResponse}
+ */
+proto.repository.ListConfigReceiptsResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ListConfigReceiptsResponse;
+  return proto.repository.ListConfigReceiptsResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ListConfigReceiptsResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ListConfigReceiptsResponse}
+ */
+proto.repository.ListConfigReceiptsResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.PackageConfigReceipt;
+      reader.readMessage(value,proto.repository.PackageConfigReceipt.deserializeBinaryFromReader);
+      msg.addReceipts(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ListConfigReceiptsResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ListConfigReceiptsResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ListConfigReceiptsResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListConfigReceiptsResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getReceiptsList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      1,
+      f,
+      proto.repository.PackageConfigReceipt.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * repeated PackageConfigReceipt receipts = 1;
+ * @return {!Array<!proto.repository.PackageConfigReceipt>}
+ */
+proto.repository.ListConfigReceiptsResponse.prototype.getReceiptsList = function() {
+  return /** @type{!Array<!proto.repository.PackageConfigReceipt>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.repository.PackageConfigReceipt, 1));
+};
+
+
+/**
+ * @param {!Array<!proto.repository.PackageConfigReceipt>} value
+ * @return {!proto.repository.ListConfigReceiptsResponse} returns this
+*/
+proto.repository.ListConfigReceiptsResponse.prototype.setReceiptsList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 1, value);
+};
+
+
+/**
+ * @param {!proto.repository.PackageConfigReceipt=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.repository.PackageConfigReceipt}
+ */
+proto.repository.ListConfigReceiptsResponse.prototype.addReceipts = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.repository.PackageConfigReceipt, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.ListConfigReceiptsResponse} returns this
+ */
+proto.repository.ListConfigReceiptsResponse.prototype.clearReceiptsList = function() {
+  return this.setReceiptsList([]);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.RepositoryFinding.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.RepositoryFinding.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.RepositoryFinding} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RepositoryFinding.toObject = function(includeInstance, msg) {
+  var f, obj = {
+kind: jspb.Message.getFieldWithDefault(msg, 1, 0),
+severity: jspb.Message.getFieldWithDefault(msg, 2, 0),
+artifactKey: jspb.Message.getFieldWithDefault(msg, 3, ""),
+ref: (f = msg.getRef()) && proto.repository.ArtifactRef.toObject(includeInstance, f),
+nodeId: jspb.Message.getFieldWithDefault(msg, 5, ""),
+currentState: jspb.Message.getFieldWithDefault(msg, 6, ""),
+expectedState: jspb.Message.getFieldWithDefault(msg, 7, ""),
+reason: jspb.Message.getFieldWithDefault(msg, 8, ""),
+recommendedCommand: jspb.Message.getFieldWithDefault(msg, 9, ""),
+evidenceMap: (f = msg.getEvidenceMap()) ? f.toObject(includeInstance, undefined) : [],
+observedAtUnix: jspb.Message.getFieldWithDefault(msg, 11, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.RepositoryFinding}
+ */
+proto.repository.RepositoryFinding.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.RepositoryFinding;
+  return proto.repository.RepositoryFinding.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.RepositoryFinding} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.RepositoryFinding}
+ */
+proto.repository.RepositoryFinding.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {!proto.repository.RepositoryFindingKind} */ (reader.readEnum());
+      msg.setKind(value);
+      break;
+    case 2:
+      var value = /** @type {!proto.repository.RepositoryFindingSeverity} */ (reader.readEnum());
+      msg.setSeverity(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setArtifactKey(value);
+      break;
+    case 4:
+      var value = new proto.repository.ArtifactRef;
+      reader.readMessage(value,proto.repository.ArtifactRef.deserializeBinaryFromReader);
+      msg.setRef(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNodeId(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setCurrentState(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setExpectedState(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setReason(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRecommendedCommand(value);
+      break;
+    case 10:
+      var value = msg.getEvidenceMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
+         });
+      break;
+    case 11:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setObservedAtUnix(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.RepositoryFinding.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.RepositoryFinding.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.RepositoryFinding} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.RepositoryFinding.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getKind();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      1,
+      f
+    );
+  }
+  f = message.getSeverity();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      2,
+      f
+    );
+  }
+  f = message.getArtifactKey();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getRef();
+  if (f != null) {
+    writer.writeMessage(
+      4,
+      f,
+      proto.repository.ArtifactRef.serializeBinaryToWriter
+    );
+  }
+  f = message.getNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getCurrentState();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+  f = message.getExpectedState();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
+      f
+    );
+  }
+  f = message.getReason();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
+      f
+    );
+  }
+  f = message.getRecommendedCommand();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
+      f
+    );
+  }
+  f = message.getEvidenceMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(10, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
+  }
+  f = message.getObservedAtUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      11,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional RepositoryFindingKind kind = 1;
+ * @return {!proto.repository.RepositoryFindingKind}
+ */
+proto.repository.RepositoryFinding.prototype.getKind = function() {
+  return /** @type {!proto.repository.RepositoryFindingKind} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+};
+
+
+/**
+ * @param {!proto.repository.RepositoryFindingKind} value
+ * @return {!proto.repository.RepositoryFinding} returns this
+ */
+proto.repository.RepositoryFinding.prototype.setKind = function(value) {
+  return jspb.Message.setProto3EnumField(this, 1, value);
+};
+
+
+/**
+ * optional RepositoryFindingSeverity severity = 2;
+ * @return {!proto.repository.RepositoryFindingSeverity}
+ */
+proto.repository.RepositoryFinding.prototype.getSeverity = function() {
+  return /** @type {!proto.repository.RepositoryFindingSeverity} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {!proto.repository.RepositoryFindingSeverity} value
+ * @return {!proto.repository.RepositoryFinding} returns this
+ */
+proto.repository.RepositoryFinding.prototype.setSeverity = function(value) {
+  return jspb.Message.setProto3EnumField(this, 2, value);
+};
+
+
+/**
+ * optional string artifact_key = 3;
+ * @return {string}
+ */
+proto.repository.RepositoryFinding.prototype.getArtifactKey = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RepositoryFinding} returns this
+ */
+proto.repository.RepositoryFinding.prototype.setArtifactKey = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional ArtifactRef ref = 4;
+ * @return {?proto.repository.ArtifactRef}
+ */
+proto.repository.RepositoryFinding.prototype.getRef = function() {
+  return /** @type{?proto.repository.ArtifactRef} */ (
+    jspb.Message.getWrapperField(this, proto.repository.ArtifactRef, 4));
+};
+
+
+/**
+ * @param {?proto.repository.ArtifactRef|undefined} value
+ * @return {!proto.repository.RepositoryFinding} returns this
+*/
+proto.repository.RepositoryFinding.prototype.setRef = function(value) {
+  return jspb.Message.setWrapperField(this, 4, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.repository.RepositoryFinding} returns this
+ */
+proto.repository.RepositoryFinding.prototype.clearRef = function() {
+  return this.setRef(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.repository.RepositoryFinding.prototype.hasRef = function() {
+  return jspb.Message.getField(this, 4) != null;
+};
+
+
+/**
+ * optional string node_id = 5;
+ * @return {string}
+ */
+proto.repository.RepositoryFinding.prototype.getNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RepositoryFinding} returns this
+ */
+proto.repository.RepositoryFinding.prototype.setNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional string current_state = 6;
+ * @return {string}
+ */
+proto.repository.RepositoryFinding.prototype.getCurrentState = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RepositoryFinding} returns this
+ */
+proto.repository.RepositoryFinding.prototype.setCurrentState = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional string expected_state = 7;
+ * @return {string}
+ */
+proto.repository.RepositoryFinding.prototype.getExpectedState = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RepositoryFinding} returns this
+ */
+proto.repository.RepositoryFinding.prototype.setExpectedState = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional string reason = 8;
+ * @return {string}
+ */
+proto.repository.RepositoryFinding.prototype.getReason = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RepositoryFinding} returns this
+ */
+proto.repository.RepositoryFinding.prototype.setReason = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
+};
+
+
+/**
+ * optional string recommended_command = 9;
+ * @return {string}
+ */
+proto.repository.RepositoryFinding.prototype.getRecommendedCommand = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.RepositoryFinding} returns this
+ */
+proto.repository.RepositoryFinding.prototype.setRecommendedCommand = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
+};
+
+
+/**
+ * map<string, string> evidence = 10;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,string>}
+ */
+proto.repository.RepositoryFinding.prototype.getEvidenceMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,string>} */ (
+      jspb.Message.getMapField(this, 10, opt_noLazyCreate,
+      null));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.repository.RepositoryFinding} returns this
+ */
+proto.repository.RepositoryFinding.prototype.clearEvidenceMap = function() {
+  this.getEvidenceMap().clear();
+  return this;
+};
+
+
+/**
+ * optional int64 observed_at_unix = 11;
+ * @return {number}
+ */
+proto.repository.RepositoryFinding.prototype.getObservedAtUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 11, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.RepositoryFinding} returns this
+ */
+proto.repository.RepositoryFinding.prototype.setObservedAtUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 11, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ListRepositoryFindingsRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ListRepositoryFindingsRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ListRepositoryFindingsRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListRepositoryFindingsRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+kindFilter: jspb.Message.getFieldWithDefault(msg, 1, 0),
+limit: jspb.Message.getFieldWithDefault(msg, 2, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ListRepositoryFindingsRequest}
+ */
+proto.repository.ListRepositoryFindingsRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ListRepositoryFindingsRequest;
+  return proto.repository.ListRepositoryFindingsRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ListRepositoryFindingsRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ListRepositoryFindingsRequest}
+ */
+proto.repository.ListRepositoryFindingsRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {!proto.repository.RepositoryFindingKind} */ (reader.readEnum());
+      msg.setKindFilter(value);
+      break;
+    case 2:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setLimit(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ListRepositoryFindingsRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ListRepositoryFindingsRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ListRepositoryFindingsRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListRepositoryFindingsRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getKindFilter();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      1,
+      f
+    );
+  }
+  f = message.getLimit();
+  if (f !== 0) {
+    writer.writeInt32(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional RepositoryFindingKind kind_filter = 1;
+ * @return {!proto.repository.RepositoryFindingKind}
+ */
+proto.repository.ListRepositoryFindingsRequest.prototype.getKindFilter = function() {
+  return /** @type {!proto.repository.RepositoryFindingKind} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+};
+
+
+/**
+ * @param {!proto.repository.RepositoryFindingKind} value
+ * @return {!proto.repository.ListRepositoryFindingsRequest} returns this
+ */
+proto.repository.ListRepositoryFindingsRequest.prototype.setKindFilter = function(value) {
+  return jspb.Message.setProto3EnumField(this, 1, value);
+};
+
+
+/**
+ * optional int32 limit = 2;
+ * @return {number}
+ */
+proto.repository.ListRepositoryFindingsRequest.prototype.getLimit = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.ListRepositoryFindingsRequest} returns this
+ */
+proto.repository.ListRepositoryFindingsRequest.prototype.setLimit = function(value) {
+  return jspb.Message.setProto3IntField(this, 2, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.repository.ListRepositoryFindingsResponse.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.ListRepositoryFindingsResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.ListRepositoryFindingsResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.ListRepositoryFindingsResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListRepositoryFindingsResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+findingsList: jspb.Message.toObjectList(msg.getFindingsList(),
+    proto.repository.RepositoryFinding.toObject, includeInstance),
+generatedAtUnix: jspb.Message.getFieldWithDefault(msg, 2, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.ListRepositoryFindingsResponse}
+ */
+proto.repository.ListRepositoryFindingsResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.ListRepositoryFindingsResponse;
+  return proto.repository.ListRepositoryFindingsResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.ListRepositoryFindingsResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.ListRepositoryFindingsResponse}
+ */
+proto.repository.ListRepositoryFindingsResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.repository.RepositoryFinding;
+      reader.readMessage(value,proto.repository.RepositoryFinding.deserializeBinaryFromReader);
+      msg.addFindings(value);
+      break;
+    case 2:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setGeneratedAtUnix(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.ListRepositoryFindingsResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.ListRepositoryFindingsResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.ListRepositoryFindingsResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.ListRepositoryFindingsResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getFindingsList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      1,
+      f,
+      proto.repository.RepositoryFinding.serializeBinaryToWriter
+    );
+  }
+  f = message.getGeneratedAtUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * repeated RepositoryFinding findings = 1;
+ * @return {!Array<!proto.repository.RepositoryFinding>}
+ */
+proto.repository.ListRepositoryFindingsResponse.prototype.getFindingsList = function() {
+  return /** @type{!Array<!proto.repository.RepositoryFinding>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.repository.RepositoryFinding, 1));
+};
+
+
+/**
+ * @param {!Array<!proto.repository.RepositoryFinding>} value
+ * @return {!proto.repository.ListRepositoryFindingsResponse} returns this
+*/
+proto.repository.ListRepositoryFindingsResponse.prototype.setFindingsList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 1, value);
+};
+
+
+/**
+ * @param {!proto.repository.RepositoryFinding=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.repository.RepositoryFinding}
+ */
+proto.repository.ListRepositoryFindingsResponse.prototype.addFindings = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.repository.RepositoryFinding, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.ListRepositoryFindingsResponse} returns this
+ */
+proto.repository.ListRepositoryFindingsResponse.prototype.clearFindingsList = function() {
+  return this.setFindingsList([]);
+};
+
+
+/**
+ * optional int64 generated_at_unix = 2;
+ * @return {number}
+ */
+proto.repository.ListRepositoryFindingsResponse.prototype.getGeneratedAtUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.ListRepositoryFindingsResponse} returns this
+ */
+proto.repository.ListRepositoryFindingsResponse.prototype.setGeneratedAtUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 2, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.repository.DependencyHealthProto.repeatedFields_ = [5];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.DependencyHealthProto.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.DependencyHealthProto.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.DependencyHealthProto} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.DependencyHealthProto.toObject = function(includeInstance, msg) {
+  var f, obj = {
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+kind: jspb.Message.getFieldWithDefault(msg, 2, ""),
+status: jspb.Message.getFieldWithDefault(msg, 3, ""),
+reason: jspb.Message.getFieldWithDefault(msg, 4, ""),
+affectsCapabilitiesList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.DependencyHealthProto}
+ */
+proto.repository.DependencyHealthProto.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.DependencyHealthProto;
+  return proto.repository.DependencyHealthProto.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.DependencyHealthProto} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.DependencyHealthProto}
+ */
+proto.repository.DependencyHealthProto.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setName(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setKind(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setStatus(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setReason(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addAffectsCapabilities(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.DependencyHealthProto.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.DependencyHealthProto.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.DependencyHealthProto} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.DependencyHealthProto.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getName();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getKind();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getStatus();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getReason();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getAffectsCapabilitiesList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      5,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string name = 1;
+ * @return {string}
+ */
+proto.repository.DependencyHealthProto.prototype.getName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.DependencyHealthProto} returns this
+ */
+proto.repository.DependencyHealthProto.prototype.setName = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string kind = 2;
+ * @return {string}
+ */
+proto.repository.DependencyHealthProto.prototype.getKind = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.DependencyHealthProto} returns this
+ */
+proto.repository.DependencyHealthProto.prototype.setKind = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string status = 3;
+ * @return {string}
+ */
+proto.repository.DependencyHealthProto.prototype.getStatus = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.DependencyHealthProto} returns this
+ */
+proto.repository.DependencyHealthProto.prototype.setStatus = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string reason = 4;
+ * @return {string}
+ */
+proto.repository.DependencyHealthProto.prototype.getReason = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.DependencyHealthProto} returns this
+ */
+proto.repository.DependencyHealthProto.prototype.setReason = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * repeated string affects_capabilities = 5;
+ * @return {!Array<string>}
+ */
+proto.repository.DependencyHealthProto.prototype.getAffectsCapabilitiesList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.repository.DependencyHealthProto} returns this
+ */
+proto.repository.DependencyHealthProto.prototype.setAffectsCapabilitiesList = function(value) {
+  return jspb.Message.setField(this, 5, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.repository.DependencyHealthProto} returns this
+ */
+proto.repository.DependencyHealthProto.prototype.addAffectsCapabilities = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.DependencyHealthProto} returns this
+ */
+proto.repository.DependencyHealthProto.prototype.clearAffectsCapabilitiesList = function() {
+  return this.setAffectsCapabilitiesList([]);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.CapabilityHealthProto.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.CapabilityHealthProto.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.CapabilityHealthProto} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.CapabilityHealthProto.toObject = function(includeInstance, msg) {
+  var f, obj = {
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+status: jspb.Message.getFieldWithDefault(msg, 2, ""),
+mode: jspb.Message.getFieldWithDefault(msg, 3, ""),
+reason: jspb.Message.getFieldWithDefault(msg, 4, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.CapabilityHealthProto}
+ */
+proto.repository.CapabilityHealthProto.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.CapabilityHealthProto;
+  return proto.repository.CapabilityHealthProto.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.CapabilityHealthProto} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.CapabilityHealthProto}
+ */
+proto.repository.CapabilityHealthProto.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setName(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setStatus(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMode(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setReason(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.CapabilityHealthProto.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.CapabilityHealthProto.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.CapabilityHealthProto} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.CapabilityHealthProto.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getName();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getStatus();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getMode();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getReason();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string name = 1;
+ * @return {string}
+ */
+proto.repository.CapabilityHealthProto.prototype.getName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.CapabilityHealthProto} returns this
+ */
+proto.repository.CapabilityHealthProto.prototype.setName = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string status = 2;
+ * @return {string}
+ */
+proto.repository.CapabilityHealthProto.prototype.getStatus = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.CapabilityHealthProto} returns this
+ */
+proto.repository.CapabilityHealthProto.prototype.setStatus = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string mode = 3;
+ * @return {string}
+ */
+proto.repository.CapabilityHealthProto.prototype.getMode = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.CapabilityHealthProto} returns this
+ */
+proto.repository.CapabilityHealthProto.prototype.setMode = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string reason = 4;
+ * @return {string}
+ */
+proto.repository.CapabilityHealthProto.prototype.getReason = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.CapabilityHealthProto} returns this
+ */
+proto.repository.CapabilityHealthProto.prototype.setReason = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.GetRepositoryStatusRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.GetRepositoryStatusRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.GetRepositoryStatusRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.GetRepositoryStatusRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.GetRepositoryStatusRequest}
+ */
+proto.repository.GetRepositoryStatusRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.GetRepositoryStatusRequest;
+  return proto.repository.GetRepositoryStatusRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.GetRepositoryStatusRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.GetRepositoryStatusRequest}
+ */
+proto.repository.GetRepositoryStatusRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.GetRepositoryStatusRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.GetRepositoryStatusRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.GetRepositoryStatusRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.GetRepositoryStatusRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.repository.GetRepositoryStatusResponse.repeatedFields_ = [4,5];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.repository.GetRepositoryStatusResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.repository.GetRepositoryStatusResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.GetRepositoryStatusResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+service: jspb.Message.getFieldWithDefault(msg, 1, ""),
+mode: jspb.Message.getFieldWithDefault(msg, 2, ""),
+reason: jspb.Message.getFieldWithDefault(msg, 3, ""),
+dependenciesList: jspb.Message.toObjectList(msg.getDependenciesList(),
+    proto.repository.DependencyHealthProto.toObject, includeInstance),
+capabilitiesList: jspb.Message.toObjectList(msg.getCapabilitiesList(),
+    proto.repository.CapabilityHealthProto.toObject, includeInstance),
+observedAtUnix: jspb.Message.getFieldWithDefault(msg, 6, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.repository.GetRepositoryStatusResponse}
+ */
+proto.repository.GetRepositoryStatusResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.repository.GetRepositoryStatusResponse;
+  return proto.repository.GetRepositoryStatusResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.repository.GetRepositoryStatusResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.repository.GetRepositoryStatusResponse}
+ */
+proto.repository.GetRepositoryStatusResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setService(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMode(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setReason(value);
+      break;
+    case 4:
+      var value = new proto.repository.DependencyHealthProto;
+      reader.readMessage(value,proto.repository.DependencyHealthProto.deserializeBinaryFromReader);
+      msg.addDependencies(value);
+      break;
+    case 5:
+      var value = new proto.repository.CapabilityHealthProto;
+      reader.readMessage(value,proto.repository.CapabilityHealthProto.deserializeBinaryFromReader);
+      msg.addCapabilities(value);
+      break;
+    case 6:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setObservedAtUnix(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.repository.GetRepositoryStatusResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.repository.GetRepositoryStatusResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.repository.GetRepositoryStatusResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getService();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getMode();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getReason();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getDependenciesList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      4,
+      f,
+      proto.repository.DependencyHealthProto.serializeBinaryToWriter
+    );
+  }
+  f = message.getCapabilitiesList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      5,
+      f,
+      proto.repository.CapabilityHealthProto.serializeBinaryToWriter
+    );
+  }
+  f = message.getObservedAtUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      6,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string service = 1;
+ * @return {string}
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.getService = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.GetRepositoryStatusResponse} returns this
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.setService = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string mode = 2;
+ * @return {string}
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.getMode = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.GetRepositoryStatusResponse} returns this
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.setMode = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string reason = 3;
+ * @return {string}
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.getReason = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.GetRepositoryStatusResponse} returns this
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.setReason = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * repeated DependencyHealthProto dependencies = 4;
+ * @return {!Array<!proto.repository.DependencyHealthProto>}
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.getDependenciesList = function() {
+  return /** @type{!Array<!proto.repository.DependencyHealthProto>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.repository.DependencyHealthProto, 4));
+};
+
+
+/**
+ * @param {!Array<!proto.repository.DependencyHealthProto>} value
+ * @return {!proto.repository.GetRepositoryStatusResponse} returns this
+*/
+proto.repository.GetRepositoryStatusResponse.prototype.setDependenciesList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 4, value);
+};
+
+
+/**
+ * @param {!proto.repository.DependencyHealthProto=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.repository.DependencyHealthProto}
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.addDependencies = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 4, opt_value, proto.repository.DependencyHealthProto, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.GetRepositoryStatusResponse} returns this
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.clearDependenciesList = function() {
+  return this.setDependenciesList([]);
+};
+
+
+/**
+ * repeated CapabilityHealthProto capabilities = 5;
+ * @return {!Array<!proto.repository.CapabilityHealthProto>}
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.getCapabilitiesList = function() {
+  return /** @type{!Array<!proto.repository.CapabilityHealthProto>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.repository.CapabilityHealthProto, 5));
+};
+
+
+/**
+ * @param {!Array<!proto.repository.CapabilityHealthProto>} value
+ * @return {!proto.repository.GetRepositoryStatusResponse} returns this
+*/
+proto.repository.GetRepositoryStatusResponse.prototype.setCapabilitiesList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 5, value);
+};
+
+
+/**
+ * @param {!proto.repository.CapabilityHealthProto=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.repository.CapabilityHealthProto}
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.addCapabilities = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 5, opt_value, proto.repository.CapabilityHealthProto, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.GetRepositoryStatusResponse} returns this
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.clearCapabilitiesList = function() {
+  return this.setCapabilitiesList([]);
+};
+
+
+/**
+ * optional int64 observed_at_unix = 6;
+ * @return {number}
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.getObservedAtUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.GetRepositoryStatusResponse} returns this
+ */
+proto.repository.GetRepositoryStatusResponse.prototype.setObservedAtUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 6, value);
+};
+
+
 /**
  * @enum {number}
  */
@@ -18253,7 +30954,8 @@ proto.repository.ArtifactKind = {
   AGENT: 3,
   SUBSYSTEM: 4,
   INFRASTRUCTURE: 5,
-  COMMAND: 6
+  COMMAND: 6,
+  AWARENESS_BUNDLE: 7
 };
 
 /**
@@ -18284,6 +30986,24 @@ proto.repository.PublishState = {
   REVOKED: 9,
   CORRUPTED: 10,
   ARCHIVED: 11
+};
+
+/**
+ * @enum {number}
+ */
+proto.repository.ArtifactVerifyStatus = {
+  ARTIFACT_VERIFY_STATUS_UNSPECIFIED: 0,
+  ARTIFACT_VERIFY_OK: 1,
+  ARTIFACT_VERIFY_BROKEN_MISSING_BLOB: 2,
+  ARTIFACT_VERIFY_BROKEN_CHECKSUM_MISMATCH: 3,
+  ARTIFACT_VERIFY_BROKEN_LEDGER_MISSING: 4,
+  ARTIFACT_VERIFY_BROKEN_MANIFEST_MISSING: 5,
+  ARTIFACT_VERIFY_BROKEN_SIGNATURE_MISSING: 6,
+  ARTIFACT_VERIFY_BROKEN_SIGNATURE_INVALID: 7,
+  ARTIFACT_VERIFY_BROKEN_PROVENANCE_INVALID: 8,
+  ARTIFACT_VERIFY_QUARANTINED: 9,
+  ARTIFACT_VERIFY_REVOKED: 10,
+  ARTIFACT_VERIFY_INCONCLUSIVE: 11
 };
 
 /**
@@ -18320,6 +31040,102 @@ proto.repository.UpstreamSyncStatus = {
   SYNC_WOULD_SKIP: 5,
   SYNC_WOULD_REJECT: 6,
   SYNC_WOULD_FAIL: 7
+};
+
+/**
+ * @enum {number}
+ */
+proto.repository.MergeStrategy = {
+  MERGE_STRATEGY_UNSPECIFIED: 0,
+  MERGE_REPLACE: 1,
+  MERGE_PRESERVE: 2,
+  MERGE_THREE_WAY: 3,
+  MERGE_TEMPLATE_RENDER: 4,
+  MERGE_APPEND_ONLY: 5,
+  MERGE_FAIL_ON_LOCAL_MODIFICATION: 6,
+  MERGE_SECRET_EXTERNAL: 7
+};
+
+/**
+ * @enum {number}
+ */
+proto.repository.ConfigKind = {
+  CONFIG_KIND_UNSPECIFIED: 0,
+  CONFIG_DEFAULT: 1,
+  CONFIG_OPERATOR_OVERRIDE: 2,
+  CONFIG_GENERATED: 3,
+  CONFIG_SECRET: 4,
+  CONFIG_RUNTIME_STATE: 5
+};
+
+/**
+ * @enum {number}
+ */
+proto.repository.TrustState = {
+  TRUST_STATE_UNSPECIFIED: 0,
+  TRUST_TRUSTED: 1,
+  TRUST_UNTRUSTED: 2,
+  TRUST_REVOKED: 3,
+  TRUST_EXPIRED: 4
+};
+
+/**
+ * @enum {number}
+ */
+proto.repository.SignatureStatus = {
+  SIGNATURE_STATUS_UNSPECIFIED: 0,
+  SIGNATURE_OK: 1,
+  SIGNATURE_MISSING: 2,
+  SIGNATURE_INVALID: 3,
+  SIGNATURE_UNTRUSTED_PUBLISHER: 4,
+  SIGNATURE_REVOKED_KEY: 5,
+  SIGNATURE_EXPIRED_KEY: 6,
+  SIGNATURE_DIGEST_MISMATCH: 7,
+  SIGNATURE_INCONCLUSIVE: 8
+};
+
+/**
+ * @enum {number}
+ */
+proto.repository.ConfigReceiptAction = {
+  CONFIG_RECEIPT_ACTION_UNSPECIFIED: 0,
+  CONFIG_RECEIPT_PRESERVED: 1,
+  CONFIG_RECEIPT_REPLACED: 2,
+  CONFIG_RECEIPT_GENERATED: 3,
+  CONFIG_RECEIPT_MERGED: 4,
+  CONFIG_RECEIPT_CONFLICT: 5,
+  CONFIG_RECEIPT_RESTORED: 6,
+  CONFIG_RECEIPT_SKIPPED_SECRET: 7,
+  CONFIG_RECEIPT_FAILED: 8
+};
+
+/**
+ * @enum {number}
+ */
+proto.repository.RepositoryFindingKind = {
+  REPOSITORY_FINDING_UNSPECIFIED: 0,
+  REPO_FIND_PUBLISHED_MISSING_BLOB: 1,
+  REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH: 2,
+  REPO_FIND_PUBLISHED_UNSIGNED_REQUIRED: 3,
+  REPO_FIND_REVOKED_INSTALLABLE: 4,
+  REPO_FIND_QUARANTINED_INSTALLABLE: 5,
+  REPO_FIND_CONFIG_CONFLICT: 6,
+  REPO_FIND_ROLLBACK_FAILED: 7,
+  REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT: 10,
+  REPO_FIND_MINIO_BLOCKS_REPOSITORY: 11,
+  REPO_FIND_SOURCE_CHAIN_UNAVAILABLE: 12,
+  REPO_FIND_LOCAL_CACHE_CORRUPTION: 13
+};
+
+/**
+ * @enum {number}
+ */
+proto.repository.RepositoryFindingSeverity = {
+  REPO_FIND_SEVERITY_UNSPECIFIED: 0,
+  REPO_FIND_INFO: 1,
+  REPO_FIND_WARN: 2,
+  REPO_FIND_ERROR: 3,
+  REPO_FIND_CRITICAL: 4
 };
 
 goog.object.extend(exports, proto.repository);

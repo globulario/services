@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,15 +16,62 @@ import (
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-// newAggTestServer creates an httptest server that responds to POST /mcp with
-// standard JSON-RPC MCP responses. handlers maps tool name to return value.
+// newAggTestServer creates an httptest server that mirrors the production
+// MCP HTTP transport's session protocol: every non-"initialize" request must
+// carry an Mcp-Session-Id minted by an earlier initialize call. handlers maps
+// tool name to return value.
+//
+// Session lifecycle (matches transport_http.go):
+//   - POST /mcp method=initialize     → mints sid, returns it via header + result.sessionId
+//   - POST /mcp method=ping           → no session required (production allows
+//                                         this implicitly because pingRemoteMCP
+//                                         treats any response as reachable)
+//   - POST /mcp method=tools/call     → requires Mcp-Session-Id header
+//   - DELETE /mcp                     → releases the session
 func newAggTestServer(t *testing.T, handlers map[string]interface{}) *httptest.Server {
 	t.Helper()
+
+	var (
+		sessionMu sync.Mutex
+		sessions  = map[string]bool{}
+	)
+	mintSession := func() string {
+		sessionMu.Lock()
+		defer sessionMu.Unlock()
+		sid := fmt.Sprintf("test-sess-%d", len(sessions)+1)
+		sessions[sid] = true
+		return sid
+	}
+	hasSession := func(sid string) bool {
+		sessionMu.Lock()
+		defer sessionMu.Unlock()
+		return sessions[sid]
+	}
+	dropSession := func(sid string) {
+		sessionMu.Lock()
+		defer sessionMu.Unlock()
+		delete(sessions, sid)
+	}
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/mcp" || r.Method != http.MethodPost {
+		if r.URL.Path != "/mcp" {
 			http.NotFound(w, r)
 			return
 		}
+
+		// DELETE releases a session.
+		if r.Method == http.MethodDelete {
+			if sid := r.Header.Get("Mcp-Session-Id"); sid != "" {
+				dropSession(sid)
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
 		var req aggRPCRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "bad json", http.StatusBadRequest)
@@ -31,6 +79,45 @@ func newAggTestServer(t *testing.T, handlers map[string]interface{}) *httptest.S
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+
+		// Session enforcement matches production: every non-initialize
+		// request must carry a valid session id, except "ping" which is
+		// best-effort and may return either the result or a session error.
+		// The aggregator client treats either response as "reachable."
+		if req.Method != "initialize" && req.Method != "ping" {
+			sid := r.Header.Get("Mcp-Session-Id")
+			if sid == "" || !hasSession(sid) {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"jsonrpc": "2.0",
+					"id":      req.ID,
+					"error": map[string]interface{}{
+						"code":    -32600,
+						"message": "missing Mcp-Session-Id",
+					},
+				})
+				return
+			}
+		}
+
+		if req.Method == "initialize" {
+			sid := mintSession()
+			w.Header().Set("Mcp-Session-Id", sid)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result": map[string]interface{}{
+					"sessionId":       sid,
+					"protocolVersion": "2024-11-05",
+					"capabilities":    map[string]interface{}{},
+					"serverInfo": map[string]interface{}{
+						"name":    "test-server",
+						"version": "0.0.0",
+					},
+				},
+			})
+			return
+		}
 
 		if req.Method == "ping" {
 			json.NewEncoder(w).Encode(map[string]interface{}{
@@ -182,7 +269,7 @@ func TestRemotePingSuccess(t *testing.T) {
 
 	// Call doRemoteCall directly (bypasses registry + TLS layer).
 	req := aggRPCRequest{JSONRPC: "2.0", ID: 1, Method: "ping"}
-	resp, _, err := sendHTTPMCPRequest(ctx, mcpURL+"/mcp", mustMarshal(req), aggPingTimeout, true)
+	resp, _, _, err := sendHTTPMCPRequest(ctx, mcpURL+"/mcp", mustMarshal(req), "", aggPingTimeout, true)
 	if err != nil {
 		t.Fatalf("ping failed: %v", err)
 	}

@@ -19,7 +19,7 @@ require (
 	github.com/emersion/go-imap v1.2.1
 	github.com/emersion/go-message v0.18.1
 	github.com/emicklei/proto v1.13.2
-	github.com/globulario/globular-installer v0.0.0-20260430033156-1129d5c3a9d4
+	github.com/globulario/globular-installer v0.0.0-20260509204407-fb4d24c77766
 	github.com/globulario/utility v0.1.9
 	github.com/go-ldap/ldap/v3 v3.4.8
 	github.com/go-sql-driver/mysql v1.8.1

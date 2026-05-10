@@ -1348,5 +1348,981 @@ proto.repository.PackageRepositoryPromiseClient.prototype.syncFromUpstream =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.VerifyArtifactRequest,
+ *   !proto.repository.VerifyArtifactResponse>}
+ */
+const methodDescriptor_PackageRepository_VerifyArtifact = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/VerifyArtifact',
+  grpc.web.MethodType.UNARY,
+  proto.repository.VerifyArtifactRequest,
+  proto.repository.VerifyArtifactResponse,
+  /**
+   * @param {!proto.repository.VerifyArtifactRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.VerifyArtifactResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.VerifyArtifactRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.VerifyArtifactResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.VerifyArtifactResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.verifyArtifact =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/VerifyArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_VerifyArtifact,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.VerifyArtifactRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.VerifyArtifactResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.verifyArtifact =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/VerifyArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_VerifyArtifact);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.RepairArtifactRequest,
+ *   !proto.repository.RepairArtifactResponse>}
+ */
+const methodDescriptor_PackageRepository_RepairArtifact = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/RepairArtifact',
+  grpc.web.MethodType.UNARY,
+  proto.repository.RepairArtifactRequest,
+  proto.repository.RepairArtifactResponse,
+  /**
+   * @param {!proto.repository.RepairArtifactRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.RepairArtifactResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.RepairArtifactRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.RepairArtifactResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.RepairArtifactResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.repairArtifact =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/RepairArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_RepairArtifact,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.RepairArtifactRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.RepairArtifactResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.repairArtifact =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/RepairArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_RepairArtifact);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.ExplainArtifactRequest,
+ *   !proto.repository.ExplainArtifactResponse>}
+ */
+const methodDescriptor_PackageRepository_ExplainArtifact = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/ExplainArtifact',
+  grpc.web.MethodType.UNARY,
+  proto.repository.ExplainArtifactRequest,
+  proto.repository.ExplainArtifactResponse,
+  /**
+   * @param {!proto.repository.ExplainArtifactRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.ExplainArtifactResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.ExplainArtifactRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.ExplainArtifactResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.ExplainArtifactResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.explainArtifact =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/ExplainArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ExplainArtifact,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.ExplainArtifactRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.ExplainArtifactResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.explainArtifact =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/ExplainArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ExplainArtifact);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.TrustPublisherRequest,
+ *   !proto.repository.TrustPublisherResponse>}
+ */
+const methodDescriptor_PackageRepository_TrustPublisher = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/TrustPublisher',
+  grpc.web.MethodType.UNARY,
+  proto.repository.TrustPublisherRequest,
+  proto.repository.TrustPublisherResponse,
+  /**
+   * @param {!proto.repository.TrustPublisherRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.TrustPublisherResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.TrustPublisherRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.TrustPublisherResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.TrustPublisherResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.trustPublisher =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/TrustPublisher',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_TrustPublisher,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.TrustPublisherRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.TrustPublisherResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.trustPublisher =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/TrustPublisher',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_TrustPublisher);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.RevokePublisherKeyRequest,
+ *   !proto.repository.RevokePublisherKeyResponse>}
+ */
+const methodDescriptor_PackageRepository_RevokePublisherKey = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/RevokePublisherKey',
+  grpc.web.MethodType.UNARY,
+  proto.repository.RevokePublisherKeyRequest,
+  proto.repository.RevokePublisherKeyResponse,
+  /**
+   * @param {!proto.repository.RevokePublisherKeyRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.RevokePublisherKeyResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.RevokePublisherKeyRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.RevokePublisherKeyResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.RevokePublisherKeyResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.revokePublisherKey =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/RevokePublisherKey',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_RevokePublisherKey,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.RevokePublisherKeyRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.RevokePublisherKeyResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.revokePublisherKey =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/RevokePublisherKey',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_RevokePublisherKey);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.ListTrustedPublishersRequest,
+ *   !proto.repository.ListTrustedPublishersResponse>}
+ */
+const methodDescriptor_PackageRepository_ListTrustedPublishers = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/ListTrustedPublishers',
+  grpc.web.MethodType.UNARY,
+  proto.repository.ListTrustedPublishersRequest,
+  proto.repository.ListTrustedPublishersResponse,
+  /**
+   * @param {!proto.repository.ListTrustedPublishersRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.ListTrustedPublishersResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.ListTrustedPublishersRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.ListTrustedPublishersResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.ListTrustedPublishersResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.listTrustedPublishers =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/ListTrustedPublishers',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListTrustedPublishers,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.ListTrustedPublishersRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.ListTrustedPublishersResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.listTrustedPublishers =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/ListTrustedPublishers',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListTrustedPublishers);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.RegisterArtifactSignatureRequest,
+ *   !proto.repository.RegisterArtifactSignatureResponse>}
+ */
+const methodDescriptor_PackageRepository_RegisterArtifactSignature = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/RegisterArtifactSignature',
+  grpc.web.MethodType.UNARY,
+  proto.repository.RegisterArtifactSignatureRequest,
+  proto.repository.RegisterArtifactSignatureResponse,
+  /**
+   * @param {!proto.repository.RegisterArtifactSignatureRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.RegisterArtifactSignatureResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.RegisterArtifactSignatureRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.RegisterArtifactSignatureResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.RegisterArtifactSignatureResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.registerArtifactSignature =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/RegisterArtifactSignature',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_RegisterArtifactSignature,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.RegisterArtifactSignatureRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.RegisterArtifactSignatureResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.registerArtifactSignature =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/RegisterArtifactSignature',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_RegisterArtifactSignature);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.VerifyArtifactSignatureRequest,
+ *   !proto.repository.VerifyArtifactSignatureResponse>}
+ */
+const methodDescriptor_PackageRepository_VerifyArtifactSignature = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/VerifyArtifactSignature',
+  grpc.web.MethodType.UNARY,
+  proto.repository.VerifyArtifactSignatureRequest,
+  proto.repository.VerifyArtifactSignatureResponse,
+  /**
+   * @param {!proto.repository.VerifyArtifactSignatureRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.VerifyArtifactSignatureResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.VerifyArtifactSignatureRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.VerifyArtifactSignatureResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.VerifyArtifactSignatureResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.verifyArtifactSignature =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/VerifyArtifactSignature',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_VerifyArtifactSignature,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.VerifyArtifactSignatureRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.VerifyArtifactSignatureResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.verifyArtifactSignature =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/VerifyArtifactSignature',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_VerifyArtifactSignature);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.ListArtifactSignaturesRequest,
+ *   !proto.repository.ListArtifactSignaturesResponse>}
+ */
+const methodDescriptor_PackageRepository_ListArtifactSignatures = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/ListArtifactSignatures',
+  grpc.web.MethodType.UNARY,
+  proto.repository.ListArtifactSignaturesRequest,
+  proto.repository.ListArtifactSignaturesResponse,
+  /**
+   * @param {!proto.repository.ListArtifactSignaturesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.ListArtifactSignaturesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.ListArtifactSignaturesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.ListArtifactSignaturesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.ListArtifactSignaturesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.listArtifactSignatures =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/ListArtifactSignatures',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListArtifactSignatures,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.ListArtifactSignaturesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.ListArtifactSignaturesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.listArtifactSignatures =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/ListArtifactSignatures',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListArtifactSignatures);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.RecordInstalledRevisionRequest,
+ *   !proto.repository.RecordInstalledRevisionResponse>}
+ */
+const methodDescriptor_PackageRepository_RecordInstalledRevision = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/RecordInstalledRevision',
+  grpc.web.MethodType.UNARY,
+  proto.repository.RecordInstalledRevisionRequest,
+  proto.repository.RecordInstalledRevisionResponse,
+  /**
+   * @param {!proto.repository.RecordInstalledRevisionRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.RecordInstalledRevisionResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.RecordInstalledRevisionRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.RecordInstalledRevisionResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.RecordInstalledRevisionResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.recordInstalledRevision =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/RecordInstalledRevision',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_RecordInstalledRevision,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.RecordInstalledRevisionRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.RecordInstalledRevisionResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.recordInstalledRevision =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/RecordInstalledRevision',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_RecordInstalledRevision);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.ListInstalledRevisionsRequest,
+ *   !proto.repository.ListInstalledRevisionsResponse>}
+ */
+const methodDescriptor_PackageRepository_ListInstalledRevisions = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/ListInstalledRevisions',
+  grpc.web.MethodType.UNARY,
+  proto.repository.ListInstalledRevisionsRequest,
+  proto.repository.ListInstalledRevisionsResponse,
+  /**
+   * @param {!proto.repository.ListInstalledRevisionsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.ListInstalledRevisionsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.ListInstalledRevisionsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.ListInstalledRevisionsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.ListInstalledRevisionsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.listInstalledRevisions =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/ListInstalledRevisions',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListInstalledRevisions,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.ListInstalledRevisionsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.ListInstalledRevisionsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.listInstalledRevisions =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/ListInstalledRevisions',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListInstalledRevisions);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.ListRollbackCandidatesRequest,
+ *   !proto.repository.ListRollbackCandidatesResponse>}
+ */
+const methodDescriptor_PackageRepository_ListRollbackCandidates = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/ListRollbackCandidates',
+  grpc.web.MethodType.UNARY,
+  proto.repository.ListRollbackCandidatesRequest,
+  proto.repository.ListRollbackCandidatesResponse,
+  /**
+   * @param {!proto.repository.ListRollbackCandidatesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.ListRollbackCandidatesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.ListRollbackCandidatesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.ListRollbackCandidatesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.ListRollbackCandidatesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.listRollbackCandidates =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/ListRollbackCandidates',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListRollbackCandidates,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.ListRollbackCandidatesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.ListRollbackCandidatesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.listRollbackCandidates =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/ListRollbackCandidates',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListRollbackCandidates);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.RecordConfigReceiptRequest,
+ *   !proto.repository.RecordConfigReceiptResponse>}
+ */
+const methodDescriptor_PackageRepository_RecordConfigReceipt = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/RecordConfigReceipt',
+  grpc.web.MethodType.UNARY,
+  proto.repository.RecordConfigReceiptRequest,
+  proto.repository.RecordConfigReceiptResponse,
+  /**
+   * @param {!proto.repository.RecordConfigReceiptRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.RecordConfigReceiptResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.RecordConfigReceiptRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.RecordConfigReceiptResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.RecordConfigReceiptResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.recordConfigReceipt =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/RecordConfigReceipt',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_RecordConfigReceipt,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.RecordConfigReceiptRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.RecordConfigReceiptResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.recordConfigReceipt =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/RecordConfigReceipt',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_RecordConfigReceipt);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.ListConfigReceiptsRequest,
+ *   !proto.repository.ListConfigReceiptsResponse>}
+ */
+const methodDescriptor_PackageRepository_ListConfigReceipts = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/ListConfigReceipts',
+  grpc.web.MethodType.UNARY,
+  proto.repository.ListConfigReceiptsRequest,
+  proto.repository.ListConfigReceiptsResponse,
+  /**
+   * @param {!proto.repository.ListConfigReceiptsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.ListConfigReceiptsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.ListConfigReceiptsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.ListConfigReceiptsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.ListConfigReceiptsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.listConfigReceipts =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/ListConfigReceipts',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListConfigReceipts,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.ListConfigReceiptsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.ListConfigReceiptsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.listConfigReceipts =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/ListConfigReceipts',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListConfigReceipts);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.ListRepositoryFindingsRequest,
+ *   !proto.repository.ListRepositoryFindingsResponse>}
+ */
+const methodDescriptor_PackageRepository_ListRepositoryFindings = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/ListRepositoryFindings',
+  grpc.web.MethodType.UNARY,
+  proto.repository.ListRepositoryFindingsRequest,
+  proto.repository.ListRepositoryFindingsResponse,
+  /**
+   * @param {!proto.repository.ListRepositoryFindingsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.ListRepositoryFindingsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.ListRepositoryFindingsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.ListRepositoryFindingsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.ListRepositoryFindingsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.listRepositoryFindings =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/ListRepositoryFindings',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListRepositoryFindings,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.ListRepositoryFindingsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.ListRepositoryFindingsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.listRepositoryFindings =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/ListRepositoryFindings',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListRepositoryFindings);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.GetRepositoryStatusRequest,
+ *   !proto.repository.GetRepositoryStatusResponse>}
+ */
+const methodDescriptor_PackageRepository_GetRepositoryStatus = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/GetRepositoryStatus',
+  grpc.web.MethodType.UNARY,
+  proto.repository.GetRepositoryStatusRequest,
+  proto.repository.GetRepositoryStatusResponse,
+  /**
+   * @param {!proto.repository.GetRepositoryStatusRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.GetRepositoryStatusResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.GetRepositoryStatusRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.GetRepositoryStatusResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.GetRepositoryStatusResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.getRepositoryStatus =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/GetRepositoryStatus',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_GetRepositoryStatus,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.GetRepositoryStatusRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.GetRepositoryStatusResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.getRepositoryStatus =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/GetRepositoryStatus',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_GetRepositoryStatus);
+};
+
+
 module.exports = proto.repository;
 
