@@ -17,6 +17,75 @@ import (
 	"github.com/globulario/services/golang/awareness/graph"
 )
 
+// YAMLRole classifies a YAML file under docs/awareness/ by how it contributes
+// (or not) to the awareness graph. Used by the assurance freshness layer to
+// distinguish "I don't know what this file is" from "I know exactly what it
+// is and that it doesn't affect graph staleness."
+type YAMLRole string
+
+const (
+	// YAMLRoleGraph: top-level key is in dispatchTable. The file builds graph
+	// nodes and edges. Edits to it must mark the graph stale.
+	YAMLRoleGraph YAMLRole = "graph"
+	// YAMLRoleConfig: top-level key is in configOnlyKeys. The file is loaded
+	// by some subsystem but does not contribute graph nodes/edges. Edits do
+	// NOT need to mark the graph stale.
+	YAMLRoleConfig YAMLRole = "config"
+	// YAMLRoleUnknown: top-level key is neither. We can't classify the file
+	// without human input. Treated conservatively (assumes graph-contributing
+	// for safety).
+	YAMLRoleUnknown YAMLRole = "unknown"
+)
+
+// GraphYAMLKeys returns the set of top-level YAML keys whose files are
+// graph-contributing (have a registered loader).
+func GraphYAMLKeys() map[string]bool {
+	out := make(map[string]bool, len(dispatchTable))
+	for k := range dispatchTable {
+		out[k] = true
+	}
+	return out
+}
+
+// ConfigYAMLKeys returns the set of top-level YAML keys whose files are
+// explicitly config-only (loaded by some subsystem but not graph-contributing).
+func ConfigYAMLKeys() map[string]bool {
+	out := make(map[string]bool, len(configOnlyKeys))
+	for k := range configOnlyKeys {
+		out[k] = true
+	}
+	return out
+}
+
+// externallyHandledGraphKeys lists top-level YAML keys that are graph-
+// contributing but loaded by extractors OUTSIDE the manual package (the
+// failuregraph extractor, the doctor mapping extractor, contract loaders,
+// etc.). Edits to such files must mark the graph stale, but the manual
+// loader's dispatchTable does not know how to load them — by design.
+//
+// Add a key here when a new subsystem starts shipping graph-contributing
+// YAMLs that don't go through the manual loader.
+var externallyHandledGraphKeys = map[string]bool{
+	"id":                true, // failuregraph_seeds/*.yaml — loaded by failurelearning.RebuildFromSeeds
+	"detector_mappings": true, // detector_mapping.yaml — loaded by doctor mapping extractor
+}
+
+// ClassifyYAMLByTopKey returns the role for a top-level YAML key. Use this
+// when you've already parsed the key (e.g. inside a file walker that needs
+// to read content anyway).
+func ClassifyYAMLByTopKey(topKey string) YAMLRole {
+	if dispatchTable[topKey] != nil {
+		return YAMLRoleGraph
+	}
+	if externallyHandledGraphKeys[topKey] {
+		return YAMLRoleGraph
+	}
+	if configOnlyKeys[topKey] {
+		return YAMLRoleConfig
+	}
+	return YAMLRoleUnknown
+}
+
 // dispatchTable maps top-level YAML keys to the loader that handles them.
 var dispatchTable = map[string]func(context.Context, *graph.Graph, string) error{
 	"invariants":      LoadInvariants,
@@ -50,6 +119,7 @@ var configOnlyKeys = map[string]bool{
 	"incident_id":  true, // incidents/*.yaml — dynamic incident records
 	"proposal":     true, // proposals/*.yaml — proposal pipeline records
 	"last_updated": true, // status_tracker.yaml — operational status
+	"version":      true, // contracts/*.yaml — data contract docs, no graph loader
 }
 
 // UnindexedFile describes a YAML file whose top-level key has no registered loader.
@@ -82,6 +152,9 @@ func WalkUnindexed(docsDir string) ([]UnindexedFile, error) {
 		if _, known := dispatchTable[key]; !known {
 			if configOnlyKeys[key] {
 				return nil // intentional config-only file — not a coverage gap
+			}
+			if externallyHandledGraphKeys[key] {
+				return nil // graph-contributing but loaded by another extractor — not a coverage gap
 			}
 			rel, err := filepath.Rel(docsDir, path)
 			if err != nil {
@@ -131,6 +204,11 @@ func dispatchFile(ctx context.Context, g *graph.Graph, path string) error {
 	}
 	return loader(ctx, g, path)
 }
+
+// TopLevelKey returns the first key in the top-level YAML mapping of data.
+// Exported so callers (e.g. the assurance freshness layer) can classify
+// already-loaded YAML content without re-reading the file from disk.
+func TopLevelKey(data []byte) (string, error) { return topLevelKey(data) }
 
 // topLevelKey returns the first key in the top-level YAML mapping of data.
 func topLevelKey(data []byte) (string, error) {
