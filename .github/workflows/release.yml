@@ -890,7 +890,11 @@ jobs:
           set -euo pipefail
 
           CHANGED_COUNT=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['changed_count'])")
-          ASSET_COUNT=$(ls dist/packages/*.tgz 2>/dev/null | wc -l)
+          # `find` not `ls *.tgz` — ls returns non-zero when the glob has no
+          # match, which combined with `set -e -o pipefail` aborts before the
+          # comparison fires. find returns 0 even on zero matches, so the
+          # 0-changed-packages case (release with shell-only changes) works.
+          ASSET_COUNT=$(find dist/packages -maxdepth 1 -name '*.tgz' 2>/dev/null | wc -l)
           UNCHANGED_COUNT=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['unchanged_count'])")
 
           echo "BOM Delta Verification"
