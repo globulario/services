@@ -34,6 +34,12 @@ jobs:
           repository: globulario/globular-installer
           path: globular-installer
 
+      - name: Checkout packages
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/packages
+          path: packages
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -61,6 +67,22 @@ jobs:
 
       - name: Build awareness CI tools
         run: go build -o bin/globular ./globularcli
+
+      - name: Validate awareness contracts against code (depends_on drift)
+        # Walks every packages/metadata/<svc>/awareness.yaml, parses depends_on,
+        # and confirms each claimed dependency has evidence in golang/<svc>/.
+        # Catches the failure mode where awareness.yaml says "depends on
+        # ScyllaDB" but the code actually uses Badger / Mongo / etcd / etc.
+        #
+        # Currently warn-only (continue-on-error) because 6 known contracts
+        # drift today. Flip to hard-fail once those are fixed — the validator
+        # already exits non-zero when drift exists, so removing the
+        # continue-on-error line is the only change.
+        continue-on-error: true
+        run: |
+          go build -o bin/validate-deps ./awareness/cmd/validate-deps
+          ./bin/validate-deps --services .. --packages ../../packages
+        working-directory: services/golang
 
       - name: Run awareness tests and generate CI evidence
         run: |
