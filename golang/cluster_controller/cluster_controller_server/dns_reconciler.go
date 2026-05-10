@@ -107,6 +107,7 @@ func discoverDNSEndpoints(srv *server) []string {
 	}
 
 	srv.lock("dns-discover-endpoints")
+	clusterVIP := srv.clusterVIP()
 	defer srv.unlock()
 
 	var endpoints []string
@@ -118,14 +119,12 @@ func discoverDNSEndpoints(srv *server) []string {
 		if !nodeHasProfile(member, profilesForDNS) {
 			continue
 		}
-		// Prefer the node's FQDN over PrimaryIP(). PrimaryIP() can return the
-		// floating VIP (e.g. 10.0.0.100) which is not in the service cert's
-		// SANs, causing TLS failures when the reconciler dials that endpoint.
-		// The FQDN resolves to the node's stable IP via cluster DNS and the
-		// service cert is always valid for the hostname.
+		// Prefer the node's FQDN. When falling back to an IP, use StableIP so
+		// the floating VIP (e.g. 10.0.0.100) is never selected — it is not in
+		// the service cert's SANs and would cause TLS failures here.
 		addr := node.AdvertiseFqdn
 		if addr == "" {
-			addr = node.PrimaryIP()
+			addr = node.StableIP(clusterVIP)
 		}
 		if addr == "" {
 			continue
@@ -293,6 +292,7 @@ func (r *DNSReconciler) reconcile() error {
 	// Compute FQDN from hostname + cluster domain if AdvertiseFqdn is not set
 	// (backfill for nodes admitted before this field was populated).
 	clusterDomain := strings.TrimSuffix(strings.TrimSpace(spec.ClusterDomain), ".")
+	clusterVIP := r.srv.clusterVIP()
 	nodeInfos := make([]NodeInfo, 0, len(nodes))
 	nodeByFQDN := make(map[string]string) // FQDN -> node FQDN for service routing
 	for _, node := range nodes {
@@ -304,8 +304,10 @@ func (r *DNSReconciler) reconcile() error {
 			FQDN:     fqdn,
 			Profiles: node.Profiles,
 		}
-		// Never publish loopback into cluster DNS records. Use routable primary IP.
-		if ipv4 := strings.TrimSpace(node.PrimaryIP()); ipv4 != "" {
+		// Never publish loopback or the floating VIP into per-node DNS records.
+		// StableIP skips the VIP so per-node FQDNs always resolve to the node's
+		// own routable IP, not the loopback that lands on the current VIP holder.
+		if ipv4 := strings.TrimSpace(node.StableIP(clusterVIP)); ipv4 != "" {
 			if parsed := net.ParseIP(ipv4); parsed != nil && !parsed.IsLoopback() {
 				info.IPv4 = ipv4
 			}
@@ -399,10 +401,13 @@ func (r *DNSReconciler) collectPoolMemberships() map[string][]string {
 		// MinioPoolNodes stores FQDNs (e.g. "node-2.globular.internal").
 		// DNS A records require IPv4 addresses. Resolve each FQDN to
 		// its IP from the controller's node state.
+		clusterVIP := r.srv.clusterVIP()
 		fqdnToIP := make(map[string]string)
 		for _, node := range r.srv.state.Nodes {
-			if node != nil && node.AdvertiseFqdn != "" && node.PrimaryIP() != "" {
-				fqdnToIP[node.AdvertiseFqdn] = node.PrimaryIP()
+			if node != nil && node.AdvertiseFqdn != "" {
+				if ip := node.StableIP(clusterVIP); ip != "" {
+					fqdnToIP[node.AdvertiseFqdn] = ip
+				}
 			}
 		}
 		var ips []string
@@ -942,6 +947,7 @@ func (r *DNSReconciler) publishExternalDNS(ctx context.Context, spec *cluster_co
 // publishGateway publishes gateway.<domain> record (PR8)
 func (r *DNSReconciler) publishGateway(ctx context.Context, domain string, nodesMap map[string]*nodeState, ttl int) error {
 	// Find nodes with gateway profile
+	clusterVIP := r.srv.clusterVIP()
 	var ips []net.IP
 	for _, node := range nodesMap {
 		if node == nil {
@@ -955,7 +961,9 @@ func (r *DNSReconciler) publishGateway(ctx context.Context, domain string, nodes
 			}
 		}
 		if hasGateway {
-			primary := strings.TrimSpace(node.PrimaryIP())
+			// Skip the floating VIP — it would duplicate across every gateway
+			// node that currently holds it, polluting the public A record.
+			primary := strings.TrimSpace(node.StableIP(clusterVIP))
 			if primary == "" {
 				continue
 			}
@@ -983,6 +991,7 @@ func (r *DNSReconciler) publishGateway(ctx context.Context, domain string, nodes
 // publishController publishes controller.<domain> record (PR8)
 func (r *DNSReconciler) publishController(ctx context.Context, domain string, nodesMap map[string]*nodeState, ttl int) error {
 	// Find nodes with controller profile
+	clusterVIP := r.srv.clusterVIP()
 	var ips []net.IP
 	for _, node := range nodesMap {
 		if node == nil {
@@ -996,7 +1005,8 @@ func (r *DNSReconciler) publishController(ctx context.Context, domain string, no
 			}
 		}
 		if hasController {
-			primary := strings.TrimSpace(node.PrimaryIP())
+			// Skip the floating VIP — same rationale as publishGateway above.
+			primary := strings.TrimSpace(node.StableIP(clusterVIP))
 			if primary == "" {
 				continue
 			}

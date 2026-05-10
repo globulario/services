@@ -1233,14 +1233,15 @@ func (srv *server) snapshotClusterMembership() *clusterMembership {
 		Nodes:     make([]memberNode, 0, len(srv.state.Nodes)),
 	}
 
+	clusterVIP := srv.clusterVIP()
 	for _, node := range srv.state.Nodes {
 		if node == nil {
 			continue
 		}
-		var ip string
-		if len(node.Identity.Ips) > 0 {
-			ip = node.Identity.Ips[0]
-		}
+		// Use StableIP to avoid populating member records with the floating VIP
+		// (which can be the first entry in node.Identity.Ips on the VIP holder).
+		// Falls back to PrimaryIP() when no VIP is configured.
+		ip := node.StableIP(clusterVIP)
 		membership.Nodes = append(membership.Nodes, memberNode{
 			NodeID:   node.NodeID,
 			Hostname: node.Identity.Hostname,
@@ -1273,10 +1274,8 @@ func (srv *server) renderedConfigForNode(node *nodeState) map[string]string {
 	}
 
 	if currentMember == nil {
-		var ip string
-		if len(node.Identity.Ips) > 0 {
-			ip = node.Identity.Ips[0]
-		}
+		// Same VIP-aware IP selection as snapshotClusterMembership above.
+		ip := node.StableIP(srv.clusterVIP())
 		currentMember = &memberNode{
 			NodeID:   node.NodeID,
 			Hostname: node.Identity.Hostname,

@@ -1458,7 +1458,9 @@ func (srv *server) publishScyllaHostsIfNeeded(ctx context.Context) {
 
 // clusterVIPFromSpec reads the cluster VIP from the ingress spec stored in etcd.
 // Returns "" if the spec is absent, malformed, or no VIP is configured.
-// Safe to call without holding srv.mu.
+// The CIDR suffix (if any, e.g. "/24") is stripped so the returned value is a
+// bare IP suitable for string equality comparison against node.Identity.Ips
+// (which carry bare IPs without a mask). Safe to call without holding srv.mu.
 func (srv *server) clusterVIPFromSpec(ctx context.Context) string {
 	if srv.etcdClient == nil {
 		return ""
@@ -1475,7 +1477,22 @@ func (srv *server) clusterVIPFromSpec(ctx context.Context) string {
 		return ""
 	}
 	vip, _ := spec.VIPFailover["vip"].(string)
-	return strings.TrimSpace(vip)
+	vip = strings.TrimSpace(vip)
+	// Strip CIDR mask if present so callers can compare with bare IPs
+	// from node.Identity.Ips.
+	if idx := strings.IndexByte(vip, '/'); idx >= 0 {
+		vip = vip[:idx]
+	}
+	return vip
+}
+
+// clusterVIP returns the cluster VIP using a short-lived background context.
+// Use this from non-ctx call sites (snapshotClusterMembership, renderedConfigForNode).
+// Returns "" if the VIP cannot be read within 2 seconds.
+func (srv *server) clusterVIP() string {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return srv.clusterVIPFromSpec(ctx)
 }
 
 func protoToStoredIdentity(pi *cluster_controllerpb.NodeIdentity) storedIdentity {
