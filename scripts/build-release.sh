@@ -210,6 +210,35 @@ done
 
 ok "${pkg_count} packages created"
 
+# ── Build awareness bundle ───────────────────────────────────────────────────
+# The awareness bundle ships graph.db + invariants/failure-modes YAML + seeds.
+# It is shipped INSIDE the release tarball so install-day0.sh can extract it
+# locally before any awareness-classifier check runs. Without it, Phase 8
+# (Day-1 readiness gate) reports AWARENESS_BUNDLE_MISSING on every Day-1
+# check until node-agent successfully fetches a bundle from the repository.
+section "Building Awareness Bundle"
+
+AWARENESS_BUNDLE_DIR="${DIST_DIR}/awareness-tmp"
+rm -rf "${AWARENESS_BUNDLE_DIR}"
+mkdir -p "${AWARENESS_BUNDLE_DIR}"
+
+# Build graph.db from current source. Deterministic given the repo state.
+info "Building awareness graph.db..."
+"${DIST_DIR}/bin/globularcli" awareness build >/dev/null 2>&1 || \
+  die "globular awareness build failed — required to produce graph.db before bundle"
+
+# Build the bundle tar.gz. Version matches the release version so the
+# classifier's release-index ↔ bundle version match check passes.
+info "Building awareness bundle v${VERSION}..."
+"${DIST_DIR}/bin/globularcli" awareness bundle build \
+  --version "${VERSION}" \
+  --output-dir "${AWARENESS_BUNDLE_DIR}" >/dev/null 2>&1 || \
+  die "awareness bundle build failed"
+
+awareness_bundle_file="$(ls "${AWARENESS_BUNDLE_DIR}"/awareness-bundle-*.tar.gz 2>/dev/null | head -1)"
+[[ -n "${awareness_bundle_file}" ]] || die "awareness bundle not produced at ${AWARENESS_BUNDLE_DIR}"
+ok "awareness bundle: $(basename "${awareness_bundle_file}") ($(du -sh "${awareness_bundle_file}" | cut -f1))"
+
 # ── Assemble release tarball ─────────────────────────────────────────────────
 section "Assembling Release Tarball"
 
@@ -218,6 +247,10 @@ RELEASE_DIR="${DIST_DIR}/${RELEASE_NAME}"
 
 mkdir -p "${RELEASE_DIR}/packages"
 mkdir -p "${RELEASE_DIR}/scripts" "${RELEASE_DIR}/workflows"
+mkdir -p "${RELEASE_DIR}/awareness"
+
+cp "${awareness_bundle_file}" "${RELEASE_DIR}/awareness/"
+ok "awareness bundle staged: ${RELEASE_DIR}/awareness/$(basename "${awareness_bundle_file}")"
 
 cp "${DIST_DIR}/bin/globular"   "${RELEASE_DIR}/globular"
 chmod 755 "${RELEASE_DIR}/globular"
