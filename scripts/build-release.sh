@@ -103,7 +103,6 @@ declare -A BIN_MAP=(
   [cluster-controller]=cluster_controller_server
   [cluster-doctor]=cluster_doctor_server
   [conversation]=conversation_server
-  [discovery]=discovery_server
   [dns]=dns_server
   [echo]=echo_server
   [event]=event_server

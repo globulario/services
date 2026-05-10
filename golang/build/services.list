@@ -4,7 +4,6 @@
 ./catalog/catalog_server | usr/local/bin/catalog_server
 ./blog/blog_server | usr/local/bin/blog_server
 ./conversation/conversation_server | usr/local/bin/conversation_server
-./discovery/discovery_server | usr/local/bin/discovery_server
 ./dns/dns_server | usr/local/bin/dns_server
 ./echo/echo_server | usr/local/bin/echo_server
 ./event/event_server | usr/local/bin/event_server
