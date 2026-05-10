@@ -152,6 +152,12 @@ func NewRegistry(cfg Config) *Registry {
 		// Awareness: historical incident pattern matching. Degrades gracefully
 		// when AwarenessGraphPath is unset or the graph is unavailable.
 		incidentPatternAwareness{},
+		// WF-DEFER B3: surface workflow correlations that have been
+		// auto-abandoned after hitting max_defers. Each is one operator
+		// story (release.apply.package for keepalived, etc.) where the
+		// underlying blocker has not converged across multiple defer
+		// cycles and automatic retry has been suspended.
+		workflowCorrelationAbandoned{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)

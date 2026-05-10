@@ -79,6 +79,12 @@ type Snapshot struct {
 	DriftUnresolved   []*workflowpb.DriftUnresolved
 	BlockedRuns       []*workflowpb.WorkflowRun // MC-4: runs paused for operator approval
 
+	// WF-DEFER B3: persistent across-runs defer counters that hit
+	// max_defers and were marked abandoned. Each entry needs operator
+	// action — automatic re-dispatch is suspended until the row is
+	// cleared via WorkflowService.ClearCorrelationDeferState.
+	AbandonedDeferCorrelations []*workflowpb.CorrelationDeferStateRecord
+
 	// Prometheus-derived control-plane signals (optional)
 	PromMetrics map[string]float64 // small, fixed key set
 	PromTS      time.Time          // scrape timestamp

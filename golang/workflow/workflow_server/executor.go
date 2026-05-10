@@ -80,7 +80,35 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		return nil, fmt.Errorf("compile definition %s: %w", req.WorkflowName, compileErr)
 	}
 
-	// ── WF-DEFER: skip if a prior run for this correlation_id is still
+	// ── WF-DEFER B3: persistent abandonment check. If this correlation
+	// has hit MaxDefers across runs, refuse dispatch permanently
+	// (until an operator clears the row). Per the awareness invariants
+	// `convergence.no_infinite_retry` and the awareness pattern of a
+	// per-correlation circuit breaker (NOT a global one — other
+	// correlations continue dispatching unaffected).
+	if req.CorrelationId != "" && srv.deferStore != nil {
+		if state, err := srv.deferStore.Get(ctx, req.ClusterId, req.CorrelationId); err == nil && shouldSkipForAbandoned(state) {
+			logger.Warn("executor: refusing dispatch — correlation ABANDONED after max defers",
+				"workflow", req.WorkflowName,
+				"correlation_id", req.CorrelationId,
+				"defer_count", state.DeferCount,
+				"max_defers", state.MaxDefers,
+				"last_step_id", state.LastStepID,
+				"last_reason", state.LastReason,
+				"last_blocker_tags", state.LastBlockerTags,
+				"abandoned_at", state.AbandonedAt,
+				"operator_action", "globular workflow defer-state clear --correlation-id "+req.CorrelationId,
+			)
+			return &workflowpb.ExecuteWorkflowResponse{
+				RunId:  req.CorrelationId,
+				Status: workflowpb.RunStatus_RUN_STATUS_FAILED.String(),
+				Error: fmt.Sprintf("ABANDONED after %d/%d defers on step %s: %s — operator must clear with `globular workflow defer-state clear --correlation-id %s`",
+					state.DeferCount, state.MaxDefers, state.LastStepID, state.LastReason, req.CorrelationId),
+			}, nil
+		}
+	}
+
+	// ── WF-DEFER B2: skip if a prior run for this correlation_id is still
 	// in defer cooldown. Preserves all other dispatch ordering — only
 	// fires when both correlation_id is set AND a deferred record is
 	// found whose backoff hasn't elapsed.
@@ -295,7 +323,7 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	status := workflowpb.RunStatus_RUN_STATUS_SUCCEEDED
 	var errMsg string
 	if run != nil && run.Status == engine.RunDeferred && run.Defer != nil {
-		// WF-DEFER: a step yielded its slot. Persist defer_until +
+		// WF-DEFER B2: a step yielded its slot. Persist defer_until +
 		// defer_count via a direct UPDATE — FinishRun's path is for
 		// terminal/blocked outcomes and overwriting the row here would
 		// drop our backoff fields.
@@ -303,6 +331,43 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		errMsg = run.Defer.Reason
 		if rerr := srv.recordRunDeferred(ctx, req.ClusterId, runID, run.Defer); rerr != nil {
 			logger.Warn("executor: failed to record deferred run", "run_id", runID, "err", rerr)
+		}
+		// WF-DEFER B3: increment the persistent across-runs counter.
+		// Once defer_count >= max_defers, the store flips abandoned=true
+		// and the next dispatch attempt for this correlation_id is
+		// refused permanently (until operator clear).
+		if req.CorrelationId != "" && srv.deferStore != nil {
+			if state, derr := srv.deferStore.RecordDefer(ctx, req.ClusterId, req.CorrelationId, run.Defer); derr != nil {
+				logger.Warn("executor: failed to record persistent defer state",
+					"correlation_id", req.CorrelationId, "err", derr)
+			} else if state != nil {
+				logger.Info("executor: defer state updated",
+					"correlation_id", req.CorrelationId,
+					"defer_count", state.DeferCount,
+					"max_defers", state.MaxDefers,
+					"abandoned", state.Abandoned,
+					"last_step_id", state.LastStepID,
+					"last_blocker_tags", state.LastBlockerTags,
+				)
+				if state.Abandoned {
+					logger.Warn("executor: correlation now ABANDONED — auto-retry stopped, operator action required",
+						"correlation_id", req.CorrelationId,
+						"defer_count", state.DeferCount,
+						"max_defers", state.MaxDefers,
+						"last_step_id", state.LastStepID,
+						"last_reason", state.LastReason,
+					)
+					publishWorkflowEvent("workflow.correlation.abandoned", map[string]interface{}{
+						"correlation_id":    req.CorrelationId,
+						"workflow":          req.WorkflowName,
+						"defer_count":       state.DeferCount,
+						"max_defers":        state.MaxDefers,
+						"last_step_id":      state.LastStepID,
+						"last_reason":       state.LastReason,
+						"last_blocker_tags": state.LastBlockerTags,
+					})
+				}
+			}
 		}
 	} else if run != nil && run.BlockedStepID != "" {
 		// MC-3: Run is blocked waiting for operator approval.
@@ -326,6 +391,21 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 			ErrorMessage: errMsg,
 		}); err != nil {
 			logger.Warn("executor: failed to record run finish", "run_id", runID, "err", err)
+		}
+	}
+
+	// WF-DEFER B3: clear the persistent defer counter on a clean
+	// success. A correlation that deferred N times and finally
+	// converged should get a full retry budget on its NEXT failure
+	// rather than starting at N — otherwise a single transient blip
+	// during the year could quietly burn the whole budget. Hard
+	// failures leave the counter alone (a deferred condition is a
+	// distinct mode from a hard failure mode).
+	if status == workflowpb.RunStatus_RUN_STATUS_SUCCEEDED &&
+		req.CorrelationId != "" && srv.deferStore != nil {
+		if cerr := srv.deferStore.ClearOnSuccess(ctx, req.ClusterId, req.CorrelationId); cerr != nil {
+			logger.Warn("executor: failed to clear persistent defer state on success",
+				"correlation_id", req.CorrelationId, "err", cerr)
 		}
 	}
 

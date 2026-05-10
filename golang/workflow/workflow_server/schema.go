@@ -288,6 +288,45 @@ CREATE TABLE IF NOT EXISTS workflow.incident_actions (
 ) WITH CLUSTERING ORDER BY (action_at DESC, action_id ASC)
 `
 
+// correlation_defer_state — WF-DEFER B3 persistent across-runs counter.
+//
+// Workflow runs share a correlation_id (one operator story). When a
+// run defers, the engine returns RunDeferred and the executor parks
+// the *run* with backoff_until_ms in workflow_runs. That handles the
+// in-cooldown case (B2). For the across-runs case — same condition
+// keeps deferring across many fresh runs — we need a counter that
+// survives runs and survives workflow_server restart so we can stop
+// retrying forever and surface an abandoned state to the operator.
+//
+// One row per (cluster_id, correlation_id). The row is created on
+// first defer, incremented on each subsequent defer, transitions to
+// abandoned=true once defer_count >= max_defers, and is cleared on
+// either a successful run completion or an explicit operator clear.
+//
+// Invariants enforced by the workflow_server (see executor):
+//   convergence.no_infinite_retry         (the central goal)
+//   services.drift_must_age_and_escalate  (escalate to operator)
+//   derived_state.must_not_block_authority (abandonment is per-correlation,
+//                                           NOT a global dispatch lock)
+const createCorrelationDeferStateTableCQL = `
+CREATE TABLE IF NOT EXISTS workflow.correlation_defer_state (
+    cluster_id           text,
+    correlation_id       text,
+    defer_count          int,
+    max_defers           int,
+    last_step_id         text,
+    last_reason          text,
+    last_blocker_tags    set<text>,
+    last_defer_until_ms  bigint,
+    abandoned            boolean,
+    abandoned_at         timestamp,
+    cleared_at           timestamp,
+    cleared_by           text,
+    updated_at           timestamp,
+    PRIMARY KEY ((cluster_id), correlation_id)
+)
+`
+
 var schemaCQLStatements = []string{
 	createRunsTableCQL,
 	createRunsByNodeTableCQL,
@@ -303,4 +342,5 @@ var schemaCQLStatements = []string{
 	createIncidentActionsTableCQL,
 	createExecutorLeasesTableCQL,
 	createStepReceiptsTableCQL,
+	createCorrelationDeferStateTableCQL,
 }

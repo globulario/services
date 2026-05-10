@@ -579,6 +579,19 @@ func (c *Collector) fetchWorkflowTelemetry(ctx context.Context, snap *Snapshot) 
 		snap.BlockedRuns = blockedResp.GetRuns()
 		snap.addSource("workflow.ListRuns(BLOCKED)")
 	}
+
+	// WF-DEFER B3: fetch correlations that have been auto-abandoned
+	// after hitting max_defers. Each surfaces as a doctor finding
+	// requiring operator action (clear via WorkflowService).
+	if abResp, err := c.workflowClient.ListCorrelationDeferState(wfCtx, &workflowpb.ListCorrelationDeferStateRequest{
+		ClusterId:     c.clusterID,
+		AbandonedOnly: true,
+	}); err != nil {
+		snap.addError("workflow", "ListCorrelationDeferState(abandoned)", err)
+	} else {
+		snap.AbandonedDeferCorrelations = abResp.GetRecords()
+		snap.addSource("workflow.ListCorrelationDeferState(abandoned)")
+	}
 }
 
 func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {

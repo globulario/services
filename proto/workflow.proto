@@ -1121,6 +1121,32 @@ service WorkflowService {
       default_role_hint: "operator"
     };
   };
+
+  // ── WF-DEFER B3 — persistent across-runs defer state ──────────────
+  // ListCorrelationDeferState surfaces the persistent defer counters
+  // for cluster_doctor / admin UI / operator tooling. Each row is one
+  // workflow correlation_id with its current defer_count, max_defers,
+  // last blocker tags, and abandoned flag.
+  rpc ListCorrelationDeferState(ListCorrelationDeferStateRequest) returns (ListCorrelationDeferStateResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.read"
+      permission: "read"
+      collection_template: "/workflow/defer-state"
+      default_role_hint: "viewer"
+    };
+  };
+  // ClearCorrelationDeferState resets defer_count and abandoned for a
+  // specific correlation_id. Operator-initiated unblock when a doctor
+  // finding has been investigated and the underlying condition has
+  // been addressed (or operator wants to retry anyway).
+  rpc ClearCorrelationDeferState(ClearCorrelationDeferStateRequest) returns (ClearCorrelationDeferStateResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      resource_template: "/workflow/defer-state/{correlation_id}"
+      default_role_hint: "admin"
+    };
+  };
 }
 
 // ─── Workflow Definition messages ─────────────────────────────────────────
@@ -1168,6 +1194,46 @@ message ExecuteWorkflowResponse {
   string status       = 2;   // terminal: "SUCCEEDED" or "FAILED"
   string error        = 3;   // empty on success
   string outputs_json = 4;   // JSON-encoded accumulated step outputs
+}
+
+// ─── WF-DEFER B3 — persistent across-runs defer state ────────────────────
+
+// CorrelationDeferStateRecord mirrors the workflow.correlation_defer_state
+// row. One per correlation_id (one operator story).
+message CorrelationDeferStateRecord {
+  string cluster_id            = 1;
+  string correlation_id        = 2;
+  int32  defer_count           = 3;
+  int32  max_defers            = 4;
+  string last_step_id          = 5;
+  string last_reason           = 6;
+  repeated string last_blocker_tags = 7;
+  int64  last_defer_until_ms   = 8;
+  bool   abandoned             = 9;
+  google.protobuf.Timestamp abandoned_at = 10;
+  google.protobuf.Timestamp cleared_at   = 11;
+  string cleared_by            = 12;
+  google.protobuf.Timestamp updated_at   = 13;
+}
+
+message ListCorrelationDeferStateRequest {
+  string cluster_id     = 1;
+  // If true, only abandoned correlations are returned (the doctor view).
+  bool   abandoned_only = 2;
+}
+
+message ListCorrelationDeferStateResponse {
+  repeated CorrelationDeferStateRecord records = 1;
+}
+
+message ClearCorrelationDeferStateRequest {
+  string cluster_id     = 1;
+  string correlation_id = 2;
+  string operator       = 3; // identity recorded in cleared_by
+}
+
+message ClearCorrelationDeferStateResponse {
+  bool   cleared = 1;
 }
 
 // ─── Actor callback service ──────────────────────────────────────────────

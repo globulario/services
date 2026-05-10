@@ -114,6 +114,12 @@ type server struct {
 	// Dependency health watchdog (gates RPCs when ScyllaDB is down).
 	depHealth *dephealth.Watchdog
 
+	// WF-DEFER B3: persistent across-runs defer counter store. Default
+	// implementation is Scylla-backed (newScyllaDeferStateStore wired
+	// in main); tests can inject memoryDeferStateStore. Nil means the
+	// B3 abandonment path is disabled — B2 cooldown still works.
+	deferStore DeferStateStore
+
 	// Metrics bookkeeping (low cardinality, held locally)
 	metricsMu    sync.Mutex
 	runStart     map[string]time.Time // run_id -> start time
@@ -422,6 +428,12 @@ func (srv *server) Init() error {
 	// Initialize executor lease manager for HA run ownership.
 	srv.leaseManager = newExecutorLeaseManager(srv)
 	srv.leaseManager.StartOrphanScanner(context.Background())
+
+	// WF-DEFER B3: persistent across-runs defer counter, Scylla-backed.
+	// Wired only when not already overridden (tests inject in-memory).
+	if srv.deferStore == nil {
+		srv.deferStore = newScyllaDeferStateStore(srv.getSession)
+	}
 
 	// AL-1: Connect to ai-memory for incident projection.
 	// Best-effort — if ai-memory is unavailable, incidents are skipped.
