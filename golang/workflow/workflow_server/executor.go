@@ -80,6 +80,28 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		return nil, fmt.Errorf("compile definition %s: %w", req.WorkflowName, compileErr)
 	}
 
+	// ── WF-DEFER: skip if a prior run for this correlation_id is still
+	// in defer cooldown. Preserves all other dispatch ordering — only
+	// fires when both correlation_id is set AND a deferred record is
+	// found whose backoff hasn't elapsed.
+	if req.CorrelationId != "" {
+		if dr := srv.findActiveDeferredRun(req.ClusterId, req.CorrelationId, time.Now()); dr != nil {
+			logger.Info("executor: skipping dispatch — prior run is deferred",
+				"workflow", req.WorkflowName,
+				"correlation_id", req.CorrelationId,
+				"deferred_run_id", dr.GetId(),
+				"backoff_until_ms", dr.GetBackoffUntilMs(),
+				"defer_count", dr.GetRetryAttempt(),
+			)
+			return &workflowpb.ExecuteWorkflowResponse{
+				RunId:  dr.GetId(),
+				Status: dr.GetStatus().String(),
+				Error: fmt.Sprintf("dispatch skipped: prior run %s deferred until %d (defer_count=%d): %s",
+					dr.GetId(), dr.GetBackoffUntilMs(), dr.GetRetryAttempt(), dr.GetErrorMessage()),
+			}, nil
+		}
+	}
+
 	// ── 2. Deserialize inputs ────────────────────────────────────────────
 	inputs := make(map[string]any)
 	if req.InputsJson != "" {
@@ -272,7 +294,17 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	// ── 7. Record run finish ─────────────────────────────────────────────
 	status := workflowpb.RunStatus_RUN_STATUS_SUCCEEDED
 	var errMsg string
-	if run != nil && run.BlockedStepID != "" {
+	if run != nil && run.Status == engine.RunDeferred && run.Defer != nil {
+		// WF-DEFER: a step yielded its slot. Persist defer_until +
+		// defer_count via a direct UPDATE — FinishRun's path is for
+		// terminal/blocked outcomes and overwriting the row here would
+		// drop our backoff fields.
+		status = workflowpb.RunStatus_RUN_STATUS_DEFERRED
+		errMsg = run.Defer.Reason
+		if rerr := srv.recordRunDeferred(ctx, req.ClusterId, runID, run.Defer); rerr != nil {
+			logger.Warn("executor: failed to record deferred run", "run_id", runID, "err", rerr)
+		}
+	} else if run != nil && run.BlockedStepID != "" {
 		// MC-3: Run is blocked waiting for operator approval.
 		status = workflowpb.RunStatus_RUN_STATUS_BLOCKED
 		errMsg = run.BlockedReason
@@ -282,14 +314,19 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	}
 
 	summary := fmt.Sprintf("%s: %s", req.WorkflowName, status.String())
-	if _, err := srv.FinishRun(ctx, &workflowpb.FinishRunRequest{
-		Id:           runID,
-		ClusterId:    req.ClusterId,
-		Status:       status,
-		Summary:      summary,
-		ErrorMessage: errMsg,
-	}); err != nil {
-		logger.Warn("executor: failed to record run finish", "run_id", runID, "err", err)
+	// FinishRun handles terminal+BLOCKED status writes. DEFERRED was
+	// already persisted above with backoff fields; calling FinishRun
+	// here would overwrite the row without those fields.
+	if status != workflowpb.RunStatus_RUN_STATUS_DEFERRED {
+		if _, err := srv.FinishRun(ctx, &workflowpb.FinishRunRequest{
+			Id:           runID,
+			ClusterId:    req.ClusterId,
+			Status:       status,
+			Summary:      summary,
+			ErrorMessage: errMsg,
+		}); err != nil {
+			logger.Warn("executor: failed to record run finish", "run_id", runID, "err", err)
+		}
 	}
 
 	logger.Info("executor: workflow finished",
