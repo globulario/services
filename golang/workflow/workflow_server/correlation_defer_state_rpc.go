@@ -1,17 +1,21 @@
-// correlation_defer_state_rpc.go — WF-DEFER B3 read/clear RPCs.
+// correlation_defer_state_rpc.go — WF-DEFER B3/B4 RPCs.
 //
-// ListCorrelationDeferState surfaces the persistent defer counters so
-// cluster_doctor can emit findings, the admin UI can show abandoned
-// correlations, and operators can answer "why isn't this re-trying?".
+// B3:
+//   ListCorrelationDeferState   — read counters (doctor / admin UI)
+//   ClearCorrelationDeferState  — operator reset
 //
-// ClearCorrelationDeferState lets an operator reset a row after they've
-// addressed (or accepted) the underlying blocker. Resets defer_count
-// to 0 and abandoned to false; recorded with the operator's identity.
+// B4:
+//   WakeDeferredRunsByBlockerTag — event-driven cooldown shortcut
+//
+// Cooldown remains the floor (B2). Wake just collapses backoff_until_ms
+// to "now" so the next dispatch attempt proceeds without waiting out
+// the rest of the window. defer_count is preserved.
 package main
 
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -68,6 +72,73 @@ func (srv *server) ClearCorrelationDeferState(ctx context.Context, req *workflow
 		"operator":       operator,
 	})
 	return &workflowpb.ClearCorrelationDeferStateResponse{Cleared: true}, nil
+}
+
+// WakeDeferredRunsByBlockerTag finds non-abandoned correlations whose
+// last_blocker_tags contains the given tag and clears the cooldown
+// floor on each one's active deferred run. Idempotent: callable
+// repeatedly with no extra side-effects.
+//
+// What this does NOT do:
+//   - Touch defer_count (B3 budget continues to count down).
+//   - Wake abandoned correlations (operator must clear first).
+//   - Restart the run itself — the next ExecuteWorkflow caller picks
+//     it back up. We just remove the "still in cooldown" reason to
+//     skip dispatch.
+func (srv *server) WakeDeferredRunsByBlockerTag(ctx context.Context, req *workflowpb.WakeDeferredRunsByBlockerTagRequest) (*workflowpb.WakeDeferredRunsByBlockerTagResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
+	if req == nil || req.ClusterId == "" || req.BlockerTag == "" {
+		return nil, fmt.Errorf("cluster_id and blocker_tag are required")
+	}
+	source := req.Source
+	if source == "" {
+		source = "unknown"
+	}
+	resp := &workflowpb.WakeDeferredRunsByBlockerTagResponse{}
+	if srv.deferStore == nil {
+		return resp, nil
+	}
+	waker, ok := srv.deferStore.(wakingDeferStateStore)
+	if !ok {
+		return nil, fmt.Errorf("defer store does not support wake-by-tag")
+	}
+	rows, err := waker.FindByBlockerTag(ctx, req.ClusterId, req.BlockerTag)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	for _, r := range rows {
+		runID, woke, werr := srv.wakeActiveDeferredRun(ctx, req.ClusterId, r.CorrelationID, now)
+		if werr != nil {
+			logger.Warn("executor: wake-by-tag failed for correlation",
+				"correlation_id", r.CorrelationID, "blocker_tag", req.BlockerTag, "err", werr)
+			continue
+		}
+		if !woke {
+			// No active deferred run — counter row exists but the run
+			// already advanced past cooldown. Nothing to do; skip.
+			continue
+		}
+		resp.Woken++
+		resp.CorrelationIds = append(resp.CorrelationIds, r.CorrelationID)
+		logger.Info("executor: woke deferred correlation by blocker tag",
+			"correlation_id", r.CorrelationID,
+			"blocker_tag", req.BlockerTag,
+			"run_id", runID,
+			"source", source,
+		)
+		publishWorkflowEvent("workflow.run_woken", map[string]interface{}{
+			"correlation_id": r.CorrelationID,
+			"blocker_tag":    req.BlockerTag,
+			"run_id":         runID,
+			"source":         source,
+			"defer_count":    r.DeferCount,
+			"max_defers":     r.MaxDefers,
+		})
+	}
+	return resp, nil
 }
 
 // correlationDeferStateToProto maps the internal struct to the wire type.

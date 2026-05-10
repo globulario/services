@@ -447,3 +447,66 @@ type listingDeferStateStore interface {
 	DeferStateStore
 	listAll(ctx context.Context, clusterID string, abandonedOnly bool) ([]*CorrelationDeferState, error)
 }
+
+// ─── WF-DEFER B4 — wake-by-blocker-tag lookup ─────────────────────────────────
+
+// findByBlockerTag returns non-abandoned correlation rows in the
+// cluster whose LastBlockerTags contains the given tag. Used by the
+// wake-by-tag RPC to translate one event ("keepalived@nuc went
+// active") into the set of correlations whose cooldowns should be
+// shortened.
+//
+// Abandoned rows are filtered out: B4 is an acceleration path for
+// in-cooldown correlations only. Restoring an abandoned correlation
+// is an explicit operator decision (B3 Clear path).
+//
+// Pure scan over the cluster's correlation_defer_state partition. Not
+// optimized — correlation count is bounded by # operator stories
+// active concurrently. If that ever blows up, swap in a tag-keyed
+// secondary table; the interface stays the same.
+func findByBlockerTagFromList(rows []*CorrelationDeferState, tag string) []*CorrelationDeferState {
+	if tag == "" {
+		return nil
+	}
+	out := make([]*CorrelationDeferState, 0, len(rows))
+	for _, r := range rows {
+		if r == nil || r.Abandoned {
+			continue
+		}
+		for _, t := range r.LastBlockerTags {
+			if t == tag {
+				out = append(out, r)
+				break
+			}
+		}
+	}
+	return out
+}
+
+// FindByBlockerTag is the production lookup. Loads the cluster
+// partition once, then filters in-process. Memory and Scylla impls
+// share the helper.
+func (m *memoryDeferStateStore) FindByBlockerTag(ctx context.Context, clusterID, tag string) ([]*CorrelationDeferState, error) {
+	rows, err := m.listAll(ctx, clusterID, false)
+	if err != nil {
+		return nil, err
+	}
+	return findByBlockerTagFromList(rows, tag), nil
+}
+
+func (s *scyllaDeferStateStore) FindByBlockerTag(ctx context.Context, clusterID, tag string) ([]*CorrelationDeferState, error) {
+	rows, err := s.listAll(ctx, clusterID, false)
+	if err != nil {
+		return nil, err
+	}
+	return findByBlockerTagFromList(rows, tag), nil
+}
+
+// wakingDeferStateStore is the optional capability surface used by the
+// wake RPC. The two production stores implement it; gRPC handlers
+// type-assert and degrade gracefully when the store doesn't support
+// wake (e.g. a future read-only store).
+type wakingDeferStateStore interface {
+	DeferStateStore
+	FindByBlockerTag(ctx context.Context, clusterID, tag string) ([]*CorrelationDeferState, error)
+}

@@ -7,12 +7,14 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/globulario/services/golang/workflow/compiler"
@@ -61,7 +63,16 @@ const (
 
 // newStepDeferredError builds the deferred error from a compiled step
 // and the last error message. Defer fields use defaults when zero.
-func newStepDeferredError(step *compiler.CompiledStep, lastErr string) *StepDeferredError {
+//
+// WF-DEFER B4: blocker tags carry Go-template substitutions (e.g.
+// "runtime.active:{{ .target.node_id }}:{{ .package_name }}"). They are
+// rendered here against the run's input/output context so the
+// persisted tag is the literal "runtime.active:nuc-id:keepalived" the
+// scheduler can match against incoming wake events. If a tag fails to
+// render (missing field, bad template) we keep the raw template
+// string and log a warning — better an unrendered tag than no
+// abandonment record at all.
+func newStepDeferredError(step *compiler.CompiledStep, lastErr string, ctx map[string]any) *StepDeferredError {
 	cd := step.Defer
 	cooldown := cd.Cooldown
 	if cooldown <= 0 {
@@ -71,7 +82,7 @@ func newStepDeferredError(step *compiler.CompiledStep, lastErr string) *StepDefe
 	if max <= 0 {
 		max = defaultMaxDefers
 	}
-	tags := append([]string(nil), cd.BlockerTags...)
+	tags := renderBlockerTags(cd.BlockerTags, ctx)
 	return &StepDeferredError{
 		Info: DeferredStepInfo{
 			StepID:      step.ID,
@@ -81,6 +92,64 @@ func newStepDeferredError(step *compiler.CompiledStep, lastErr string) *StepDefe
 			LastError:   lastErr,
 		},
 	}
+}
+
+// deferRenderContext builds the data context Go-template blocker tags
+// are rendered against. It merges run.Inputs (already contains foreach
+// item context as `target`/`item`/etc. for sub-step runs) with
+// run.Outputs so tags can reference accumulated step exports.
+//
+// Inputs win on key collision — outputs are looked up only when the
+// tag references a name not present in inputs. This matches the way
+// resolveCompiledWith treats $.x lookups.
+func deferRenderContext(run *Run, _ *compiler.CompiledStep) map[string]any {
+	if run == nil {
+		return nil
+	}
+	out := make(map[string]any, len(run.Inputs)+len(run.Outputs))
+	run.outputMu.Lock()
+	for k, v := range run.Outputs {
+		out[k] = v
+	}
+	run.outputMu.Unlock()
+	for k, v := range run.Inputs {
+		out[k] = v
+	}
+	return out
+}
+
+// renderBlockerTags expands Go-template strings against the supplied
+// context. Used at defer time so persisted blocker tags carry concrete
+// values (node id, package name) rather than unrendered templates.
+//
+// Failures are logged and the raw template is preserved — a degraded
+// tag still lets the operator clear the abandonment manually, and the
+// next render attempt may succeed.
+func renderBlockerTags(raw []string, ctx map[string]any) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, t := range raw {
+		if !strings.Contains(t, "{{") {
+			out = append(out, t)
+			continue
+		}
+		tmpl, err := template.New("blocker_tag").Option("missingkey=zero").Parse(t)
+		if err != nil {
+			log.Printf("workflow: defer blocker_tag parse error (kept raw): %v — %q", err, t)
+			out = append(out, t)
+			continue
+		}
+		var buf bytes.Buffer
+		if err := tmpl.Execute(&buf, ctx); err != nil {
+			log.Printf("workflow: defer blocker_tag render error (kept raw): %v — %q", err, t)
+			out = append(out, t)
+			continue
+		}
+		out = append(out, buf.String())
+	}
+	return out
 }
 
 // --------------------------------------------------------------------------
@@ -663,7 +732,7 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 				st.FinishedAt = time.Now()
 				log.Printf("workflow: step %s DEFERRED after %d attempts: %v", step.ID, attempt, err)
 				e.notifyStep(run, st)
-				return newStepDeferredError(step, err.Error())
+				return newStepDeferredError(step, err.Error(), deferRenderContext(run, step))
 			}
 			st.Status = StepFailed
 			st.Error = err.Error()
@@ -696,7 +765,7 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 				st.FinishedAt = time.Now()
 				log.Printf("workflow: step %s DEFERRED after %d attempts: %s", step.ID, attempt, result.Message)
 				e.notifyStep(run, st)
-				return newStepDeferredError(step, result.Message)
+				return newStepDeferredError(step, result.Message, deferRenderContext(run, step))
 			}
 			st.Status = StepFailed
 			st.Error = result.Message

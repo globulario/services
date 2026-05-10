@@ -1147,6 +1147,25 @@ service WorkflowService {
       default_role_hint: "admin"
     };
   };
+
+  // ── WF-DEFER B4 — event-driven blocker-tag wakeup ─────────────────
+  // WakeDeferredRunsByBlockerTag accelerates redispatch for any
+  // deferred (non-abandoned) correlation whose last_blocker_tags
+  // contains the given tag. Sources: node-agent heartbeats (when a
+  // unit goes active), cluster_doctor (when an invariant flips
+  // green), or manual operator action. The cooldown floor is
+  // *cleared* (backoff_until_ms set to now) but defer_count is
+  // preserved — the next defer still counts toward max_defers and
+  // abandonment. Idempotent: safe to call repeatedly with the same
+  // tag.
+  rpc WakeDeferredRunsByBlockerTag(WakeDeferredRunsByBlockerTagRequest) returns (WakeDeferredRunsByBlockerTagResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.dispatch"
+      permission: "write"
+      collection_template: "/workflow/defer-state"
+      default_role_hint: "operator"
+    };
+  };
 }
 
 // ─── Workflow Definition messages ─────────────────────────────────────────
@@ -1234,6 +1253,29 @@ message ClearCorrelationDeferStateRequest {
 
 message ClearCorrelationDeferStateResponse {
   bool   cleared = 1;
+}
+
+// ─── WF-DEFER B4 — event-driven blocker-tag wakeup ──────────────────────
+
+message WakeDeferredRunsByBlockerTagRequest {
+  string cluster_id  = 1;
+  // Exactly one tag per call. Callers iterate when an event maps to
+  // multiple tags. Keeps the audit trail (one wake → one tag → N
+  // correlations) clean.
+  string blocker_tag = 2;
+  // source identifies what triggered the wake — "node-agent",
+  // "cluster-doctor", "operator:dave", etc. Recorded in the event
+  // payload for audit.
+  string source      = 3;
+}
+
+message WakeDeferredRunsByBlockerTagResponse {
+  // Number of (correlation_id) rows whose active deferred run had its
+  // backoff cleared. Zero is a normal outcome (no matching deferred
+  // correlation, or only abandoned ones — those are skipped).
+  int32           woken           = 1;
+  // Correlation ids that were woken, in scan order.
+  repeated string correlation_ids = 2;
 }
 
 // ─── Actor callback service ──────────────────────────────────────────────

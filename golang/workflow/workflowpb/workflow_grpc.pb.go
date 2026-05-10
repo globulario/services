@@ -20,44 +20,45 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	WorkflowService_StartRun_FullMethodName                   = "/workflow.WorkflowService/StartRun"
-	WorkflowService_UpdateRun_FullMethodName                  = "/workflow.WorkflowService/UpdateRun"
-	WorkflowService_FinishRun_FullMethodName                  = "/workflow.WorkflowService/FinishRun"
-	WorkflowService_RecordStep_FullMethodName                 = "/workflow.WorkflowService/RecordStep"
-	WorkflowService_UpdateStep_FullMethodName                 = "/workflow.WorkflowService/UpdateStep"
-	WorkflowService_FailStep_FullMethodName                   = "/workflow.WorkflowService/FailStep"
-	WorkflowService_AddArtifactRef_FullMethodName             = "/workflow.WorkflowService/AddArtifactRef"
-	WorkflowService_AppendEvent_FullMethodName                = "/workflow.WorkflowService/AppendEvent"
-	WorkflowService_GetRun_FullMethodName                     = "/workflow.WorkflowService/GetRun"
-	WorkflowService_ListRuns_FullMethodName                   = "/workflow.WorkflowService/ListRuns"
-	WorkflowService_GetRunEvents_FullMethodName               = "/workflow.WorkflowService/GetRunEvents"
-	WorkflowService_GetCurrentRunsForNode_FullMethodName      = "/workflow.WorkflowService/GetCurrentRunsForNode"
-	WorkflowService_GetComponentHistory_FullMethodName        = "/workflow.WorkflowService/GetComponentHistory"
-	WorkflowService_GetWorkflowGraph_FullMethodName           = "/workflow.WorkflowService/GetWorkflowGraph"
-	WorkflowService_WatchRun_FullMethodName                   = "/workflow.WorkflowService/WatchRun"
-	WorkflowService_WatchNodeRuns_FullMethodName              = "/workflow.WorkflowService/WatchNodeRuns"
-	WorkflowService_RetryRun_FullMethodName                   = "/workflow.WorkflowService/RetryRun"
-	WorkflowService_CancelRun_FullMethodName                  = "/workflow.WorkflowService/CancelRun"
-	WorkflowService_AcknowledgeRun_FullMethodName             = "/workflow.WorkflowService/AcknowledgeRun"
-	WorkflowService_DiagnoseRun_FullMethodName                = "/workflow.WorkflowService/DiagnoseRun"
-	WorkflowService_ListWorkflowDefinitions_FullMethodName    = "/workflow.WorkflowService/ListWorkflowDefinitions"
-	WorkflowService_GetWorkflowDefinition_FullMethodName      = "/workflow.WorkflowService/GetWorkflowDefinition"
-	WorkflowService_RecordOutcome_FullMethodName              = "/workflow.WorkflowService/RecordOutcome"
-	WorkflowService_ListWorkflowSummaries_FullMethodName      = "/workflow.WorkflowService/ListWorkflowSummaries"
-	WorkflowService_RecordStepOutcome_FullMethodName          = "/workflow.WorkflowService/RecordStepOutcome"
-	WorkflowService_ListStepOutcomes_FullMethodName           = "/workflow.WorkflowService/ListStepOutcomes"
-	WorkflowService_RecordPhaseTransition_FullMethodName      = "/workflow.WorkflowService/RecordPhaseTransition"
-	WorkflowService_ListPhaseTransitions_FullMethodName       = "/workflow.WorkflowService/ListPhaseTransitions"
-	WorkflowService_RecordDriftObservation_FullMethodName     = "/workflow.WorkflowService/RecordDriftObservation"
-	WorkflowService_ClearDriftObservation_FullMethodName      = "/workflow.WorkflowService/ClearDriftObservation"
-	WorkflowService_ListDriftUnresolved_FullMethodName        = "/workflow.WorkflowService/ListDriftUnresolved"
-	WorkflowService_ListIncidents_FullMethodName              = "/workflow.WorkflowService/ListIncidents"
-	WorkflowService_GetIncident_FullMethodName                = "/workflow.WorkflowService/GetIncident"
-	WorkflowService_ApplyIncidentAction_FullMethodName        = "/workflow.WorkflowService/ApplyIncidentAction"
-	WorkflowService_SubmitProposedFix_FullMethodName          = "/workflow.WorkflowService/SubmitProposedFix"
-	WorkflowService_ExecuteWorkflow_FullMethodName            = "/workflow.WorkflowService/ExecuteWorkflow"
-	WorkflowService_ListCorrelationDeferState_FullMethodName  = "/workflow.WorkflowService/ListCorrelationDeferState"
-	WorkflowService_ClearCorrelationDeferState_FullMethodName = "/workflow.WorkflowService/ClearCorrelationDeferState"
+	WorkflowService_StartRun_FullMethodName                     = "/workflow.WorkflowService/StartRun"
+	WorkflowService_UpdateRun_FullMethodName                    = "/workflow.WorkflowService/UpdateRun"
+	WorkflowService_FinishRun_FullMethodName                    = "/workflow.WorkflowService/FinishRun"
+	WorkflowService_RecordStep_FullMethodName                   = "/workflow.WorkflowService/RecordStep"
+	WorkflowService_UpdateStep_FullMethodName                   = "/workflow.WorkflowService/UpdateStep"
+	WorkflowService_FailStep_FullMethodName                     = "/workflow.WorkflowService/FailStep"
+	WorkflowService_AddArtifactRef_FullMethodName               = "/workflow.WorkflowService/AddArtifactRef"
+	WorkflowService_AppendEvent_FullMethodName                  = "/workflow.WorkflowService/AppendEvent"
+	WorkflowService_GetRun_FullMethodName                       = "/workflow.WorkflowService/GetRun"
+	WorkflowService_ListRuns_FullMethodName                     = "/workflow.WorkflowService/ListRuns"
+	WorkflowService_GetRunEvents_FullMethodName                 = "/workflow.WorkflowService/GetRunEvents"
+	WorkflowService_GetCurrentRunsForNode_FullMethodName        = "/workflow.WorkflowService/GetCurrentRunsForNode"
+	WorkflowService_GetComponentHistory_FullMethodName          = "/workflow.WorkflowService/GetComponentHistory"
+	WorkflowService_GetWorkflowGraph_FullMethodName             = "/workflow.WorkflowService/GetWorkflowGraph"
+	WorkflowService_WatchRun_FullMethodName                     = "/workflow.WorkflowService/WatchRun"
+	WorkflowService_WatchNodeRuns_FullMethodName                = "/workflow.WorkflowService/WatchNodeRuns"
+	WorkflowService_RetryRun_FullMethodName                     = "/workflow.WorkflowService/RetryRun"
+	WorkflowService_CancelRun_FullMethodName                    = "/workflow.WorkflowService/CancelRun"
+	WorkflowService_AcknowledgeRun_FullMethodName               = "/workflow.WorkflowService/AcknowledgeRun"
+	WorkflowService_DiagnoseRun_FullMethodName                  = "/workflow.WorkflowService/DiagnoseRun"
+	WorkflowService_ListWorkflowDefinitions_FullMethodName      = "/workflow.WorkflowService/ListWorkflowDefinitions"
+	WorkflowService_GetWorkflowDefinition_FullMethodName        = "/workflow.WorkflowService/GetWorkflowDefinition"
+	WorkflowService_RecordOutcome_FullMethodName                = "/workflow.WorkflowService/RecordOutcome"
+	WorkflowService_ListWorkflowSummaries_FullMethodName        = "/workflow.WorkflowService/ListWorkflowSummaries"
+	WorkflowService_RecordStepOutcome_FullMethodName            = "/workflow.WorkflowService/RecordStepOutcome"
+	WorkflowService_ListStepOutcomes_FullMethodName             = "/workflow.WorkflowService/ListStepOutcomes"
+	WorkflowService_RecordPhaseTransition_FullMethodName        = "/workflow.WorkflowService/RecordPhaseTransition"
+	WorkflowService_ListPhaseTransitions_FullMethodName         = "/workflow.WorkflowService/ListPhaseTransitions"
+	WorkflowService_RecordDriftObservation_FullMethodName       = "/workflow.WorkflowService/RecordDriftObservation"
+	WorkflowService_ClearDriftObservation_FullMethodName        = "/workflow.WorkflowService/ClearDriftObservation"
+	WorkflowService_ListDriftUnresolved_FullMethodName          = "/workflow.WorkflowService/ListDriftUnresolved"
+	WorkflowService_ListIncidents_FullMethodName                = "/workflow.WorkflowService/ListIncidents"
+	WorkflowService_GetIncident_FullMethodName                  = "/workflow.WorkflowService/GetIncident"
+	WorkflowService_ApplyIncidentAction_FullMethodName          = "/workflow.WorkflowService/ApplyIncidentAction"
+	WorkflowService_SubmitProposedFix_FullMethodName            = "/workflow.WorkflowService/SubmitProposedFix"
+	WorkflowService_ExecuteWorkflow_FullMethodName              = "/workflow.WorkflowService/ExecuteWorkflow"
+	WorkflowService_ListCorrelationDeferState_FullMethodName    = "/workflow.WorkflowService/ListCorrelationDeferState"
+	WorkflowService_ClearCorrelationDeferState_FullMethodName   = "/workflow.WorkflowService/ClearCorrelationDeferState"
+	WorkflowService_WakeDeferredRunsByBlockerTag_FullMethodName = "/workflow.WorkflowService/WakeDeferredRunsByBlockerTag"
 )
 
 // WorkflowServiceClient is the client API for WorkflowService service.
@@ -122,6 +123,17 @@ type WorkflowServiceClient interface {
 	// finding has been investigated and the underlying condition has
 	// been addressed (or operator wants to retry anyway).
 	ClearCorrelationDeferState(ctx context.Context, in *ClearCorrelationDeferStateRequest, opts ...grpc.CallOption) (*ClearCorrelationDeferStateResponse, error)
+	// ── WF-DEFER B4 — event-driven blocker-tag wakeup ─────────────────
+	// WakeDeferredRunsByBlockerTag accelerates redispatch for any
+	// deferred (non-abandoned) correlation whose last_blocker_tags
+	// contains the given tag. Sources: node-agent heartbeats (when a
+	// unit goes active), cluster_doctor (when an invariant flips
+	// green), or manual operator action. The cooldown floor is
+	// *cleared* (backoff_until_ms set to now) but defer_count is
+	// preserved — the next defer still counts toward max_defers and
+	// abandonment. Idempotent: safe to call repeatedly with the same
+	// tag.
+	WakeDeferredRunsByBlockerTag(ctx context.Context, in *WakeDeferredRunsByBlockerTagRequest, opts ...grpc.CallOption) (*WakeDeferredRunsByBlockerTagResponse, error)
 }
 
 type workflowServiceClient struct {
@@ -530,8 +542,18 @@ func (c *workflowServiceClient) ClearCorrelationDeferState(ctx context.Context, 
 	return out, nil
 }
 
+func (c *workflowServiceClient) WakeDeferredRunsByBlockerTag(ctx context.Context, in *WakeDeferredRunsByBlockerTagRequest, opts ...grpc.CallOption) (*WakeDeferredRunsByBlockerTagResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WakeDeferredRunsByBlockerTagResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_WakeDeferredRunsByBlockerTag_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkflowServiceServer is the server API for WorkflowService service.
-// All implementations must embed UnimplementedWorkflowServiceServer
+// All implementations should embed UnimplementedWorkflowServiceServer
 // for forward compatibility.
 type WorkflowServiceServer interface {
 	// Write path — internal producers (controller, node-agent, installer)
@@ -592,10 +614,20 @@ type WorkflowServiceServer interface {
 	// finding has been investigated and the underlying condition has
 	// been addressed (or operator wants to retry anyway).
 	ClearCorrelationDeferState(context.Context, *ClearCorrelationDeferStateRequest) (*ClearCorrelationDeferStateResponse, error)
-	mustEmbedUnimplementedWorkflowServiceServer()
+	// ── WF-DEFER B4 — event-driven blocker-tag wakeup ─────────────────
+	// WakeDeferredRunsByBlockerTag accelerates redispatch for any
+	// deferred (non-abandoned) correlation whose last_blocker_tags
+	// contains the given tag. Sources: node-agent heartbeats (when a
+	// unit goes active), cluster_doctor (when an invariant flips
+	// green), or manual operator action. The cooldown floor is
+	// *cleared* (backoff_until_ms set to now) but defer_count is
+	// preserved — the next defer still counts toward max_defers and
+	// abandonment. Idempotent: safe to call repeatedly with the same
+	// tag.
+	WakeDeferredRunsByBlockerTag(context.Context, *WakeDeferredRunsByBlockerTagRequest) (*WakeDeferredRunsByBlockerTagResponse, error)
 }
 
-// UnimplementedWorkflowServiceServer must be embedded to have
+// UnimplementedWorkflowServiceServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -716,8 +748,10 @@ func (UnimplementedWorkflowServiceServer) ListCorrelationDeferState(context.Cont
 func (UnimplementedWorkflowServiceServer) ClearCorrelationDeferState(context.Context, *ClearCorrelationDeferStateRequest) (*ClearCorrelationDeferStateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ClearCorrelationDeferState not implemented")
 }
-func (UnimplementedWorkflowServiceServer) mustEmbedUnimplementedWorkflowServiceServer() {}
-func (UnimplementedWorkflowServiceServer) testEmbeddedByValue()                         {}
+func (UnimplementedWorkflowServiceServer) WakeDeferredRunsByBlockerTag(context.Context, *WakeDeferredRunsByBlockerTagRequest) (*WakeDeferredRunsByBlockerTagResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method WakeDeferredRunsByBlockerTag not implemented")
+}
+func (UnimplementedWorkflowServiceServer) testEmbeddedByValue() {}
 
 // UnsafeWorkflowServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to WorkflowServiceServer will
@@ -1407,6 +1441,24 @@ func _WorkflowService_ClearCorrelationDeferState_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkflowService_WakeDeferredRunsByBlockerTag_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WakeDeferredRunsByBlockerTagRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).WakeDeferredRunsByBlockerTag(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_WakeDeferredRunsByBlockerTag_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).WakeDeferredRunsByBlockerTag(ctx, req.(*WakeDeferredRunsByBlockerTagRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkflowService_ServiceDesc is the grpc.ServiceDesc for WorkflowService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1558,6 +1610,10 @@ var WorkflowService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ClearCorrelationDeferState",
 			Handler:    _WorkflowService_ClearCorrelationDeferState_Handler,
 		},
+		{
+			MethodName: "WakeDeferredRunsByBlockerTag",
+			Handler:    _WorkflowService_WakeDeferredRunsByBlockerTag_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -1611,7 +1667,7 @@ func (c *workflowActorServiceClient) ExecuteAction(ctx context.Context, in *Exec
 }
 
 // WorkflowActorServiceServer is the server API for WorkflowActorService service.
-// All implementations must embed UnimplementedWorkflowActorServiceServer
+// All implementations should embed UnimplementedWorkflowActorServiceServer
 // for forward compatibility.
 //
 // WorkflowActorService is implemented by any service that acts as a workflow
@@ -1622,10 +1678,9 @@ func (c *workflowActorServiceClient) ExecuteAction(ctx context.Context, in *Exec
 // Unknown actions MUST return an error, never a silent no-op.
 type WorkflowActorServiceServer interface {
 	ExecuteAction(context.Context, *ExecuteActionRequest) (*ExecuteActionResponse, error)
-	mustEmbedUnimplementedWorkflowActorServiceServer()
 }
 
-// UnimplementedWorkflowActorServiceServer must be embedded to have
+// UnimplementedWorkflowActorServiceServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -1635,8 +1690,7 @@ type UnimplementedWorkflowActorServiceServer struct{}
 func (UnimplementedWorkflowActorServiceServer) ExecuteAction(context.Context, *ExecuteActionRequest) (*ExecuteActionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExecuteAction not implemented")
 }
-func (UnimplementedWorkflowActorServiceServer) mustEmbedUnimplementedWorkflowActorServiceServer() {}
-func (UnimplementedWorkflowActorServiceServer) testEmbeddedByValue()                              {}
+func (UnimplementedWorkflowActorServiceServer) testEmbeddedByValue() {}
 
 // UnsafeWorkflowActorServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to WorkflowActorServiceServer will

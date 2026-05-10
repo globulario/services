@@ -263,3 +263,54 @@ func TestSchedulerOnlyConsidersDeferredStatus(t *testing.T) {
 		t.Errorf("PickEligibleDeferred = %v, want [live]", got)
 	}
 }
+
+// TestRenderBlockerTags_Templated verifies WF-DEFER B4: blocker tag
+// templates with {{ .target.node_id }} / {{ .package_name }} get
+// rendered against the run's input/output context at defer time.
+// Without this, persisted tags are useless for event-driven wakeup
+// because they still contain "{{ ... }}" rather than concrete values.
+func TestRenderBlockerTags_Templated(t *testing.T) {
+	ctx := map[string]any{
+		"package_name": "keepalived",
+		"target": map[string]any{
+			"node_id": "nuc-uuid-1",
+		},
+	}
+	raw := []string{
+		"runtime.active:{{ .target.node_id }}:{{ .package_name }}",
+		"deps.installed:{{ .target.node_id }}:{{ .package_name }}",
+		"static_tag_with_no_template",
+	}
+	got := renderBlockerTags(raw, ctx)
+	want := []string{
+		"runtime.active:nuc-uuid-1:keepalived",
+		"deps.installed:nuc-uuid-1:keepalived",
+		"static_tag_with_no_template",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("len got=%d want=%d (got=%v)", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("tag[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+// TestRenderBlockerTags_KeepsRawOnRenderError documents the resilient
+// fallback: if a template references a missing nested field, the raw
+// template string is preserved (not dropped). The persisted tag is
+// then operator-readable for manual diagnosis even if event matching
+// is degraded for that tag.
+func TestRenderBlockerTags_KeepsRawOnRenderError(t *testing.T) {
+	// `target` is missing entirely — accessing .target.node_id errors.
+	ctx := map[string]any{"package_name": "keepalived"}
+	raw := []string{"runtime.active:{{ .target.node_id }}:{{ .package_name }}"}
+	got := renderBlockerTags(raw, ctx)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 tag, got %d", len(got))
+	}
+	if got[0] != raw[0] {
+		t.Errorf("expected raw template kept on render error, got %q", got[0])
+	}
+}

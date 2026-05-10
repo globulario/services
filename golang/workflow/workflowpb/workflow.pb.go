@@ -6661,6 +6661,128 @@ func (x *ClearCorrelationDeferStateResponse) GetCleared() bool {
 	return false
 }
 
+type WakeDeferredRunsByBlockerTagRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	// Exactly one tag per call. Callers iterate when an event maps to
+	// multiple tags. Keeps the audit trail (one wake → one tag → N
+	// correlations) clean.
+	BlockerTag string `protobuf:"bytes,2,opt,name=blocker_tag,json=blockerTag,proto3" json:"blocker_tag,omitempty"`
+	// source identifies what triggered the wake — "node-agent",
+	// "cluster-doctor", "operator:dave", etc. Recorded in the event
+	// payload for audit.
+	Source        string `protobuf:"bytes,3,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WakeDeferredRunsByBlockerTagRequest) Reset() {
+	*x = WakeDeferredRunsByBlockerTagRequest{}
+	mi := &file_workflow_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WakeDeferredRunsByBlockerTagRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WakeDeferredRunsByBlockerTagRequest) ProtoMessage() {}
+
+func (x *WakeDeferredRunsByBlockerTagRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WakeDeferredRunsByBlockerTagRequest.ProtoReflect.Descriptor instead.
+func (*WakeDeferredRunsByBlockerTagRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *WakeDeferredRunsByBlockerTagRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *WakeDeferredRunsByBlockerTagRequest) GetBlockerTag() string {
+	if x != nil {
+		return x.BlockerTag
+	}
+	return ""
+}
+
+func (x *WakeDeferredRunsByBlockerTagRequest) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+type WakeDeferredRunsByBlockerTagResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Number of (correlation_id) rows whose active deferred run had its
+	// backoff cleared. Zero is a normal outcome (no matching deferred
+	// correlation, or only abandoned ones — those are skipped).
+	Woken int32 `protobuf:"varint,1,opt,name=woken,proto3" json:"woken,omitempty"`
+	// Correlation ids that were woken, in scan order.
+	CorrelationIds []string `protobuf:"bytes,2,rep,name=correlation_ids,json=correlationIds,proto3" json:"correlation_ids,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *WakeDeferredRunsByBlockerTagResponse) Reset() {
+	*x = WakeDeferredRunsByBlockerTagResponse{}
+	mi := &file_workflow_proto_msgTypes[76]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WakeDeferredRunsByBlockerTagResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WakeDeferredRunsByBlockerTagResponse) ProtoMessage() {}
+
+func (x *WakeDeferredRunsByBlockerTagResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[76]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WakeDeferredRunsByBlockerTagResponse.ProtoReflect.Descriptor instead.
+func (*WakeDeferredRunsByBlockerTagResponse) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{76}
+}
+
+func (x *WakeDeferredRunsByBlockerTagResponse) GetWoken() int32 {
+	if x != nil {
+		return x.Woken
+	}
+	return 0
+}
+
+func (x *WakeDeferredRunsByBlockerTagResponse) GetCorrelationIds() []string {
+	if x != nil {
+		return x.CorrelationIds
+	}
+	return nil
+}
+
 // ExecuteActionRequest is the callback payload sent from WorkflowService
 // to an actor service when a workflow step targets that actor.
 type ExecuteActionRequest struct {
@@ -6678,7 +6800,7 @@ type ExecuteActionRequest struct {
 
 func (x *ExecuteActionRequest) Reset() {
 	*x = ExecuteActionRequest{}
-	mi := &file_workflow_proto_msgTypes[75]
+	mi := &file_workflow_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6690,7 +6812,7 @@ func (x *ExecuteActionRequest) String() string {
 func (*ExecuteActionRequest) ProtoMessage() {}
 
 func (x *ExecuteActionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_workflow_proto_msgTypes[75]
+	mi := &file_workflow_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6703,7 +6825,7 @@ func (x *ExecuteActionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteActionRequest.ProtoReflect.Descriptor instead.
 func (*ExecuteActionRequest) Descriptor() ([]byte, []int) {
-	return file_workflow_proto_rawDescGZIP(), []int{75}
+	return file_workflow_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *ExecuteActionRequest) GetRunId() string {
@@ -6767,7 +6889,7 @@ type ExecuteActionResponse struct {
 
 func (x *ExecuteActionResponse) Reset() {
 	*x = ExecuteActionResponse{}
-	mi := &file_workflow_proto_msgTypes[76]
+	mi := &file_workflow_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6779,7 +6901,7 @@ func (x *ExecuteActionResponse) String() string {
 func (*ExecuteActionResponse) ProtoMessage() {}
 
 func (x *ExecuteActionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_workflow_proto_msgTypes[76]
+	mi := &file_workflow_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6792,7 +6914,7 @@ func (x *ExecuteActionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteActionResponse.ProtoReflect.Descriptor instead.
 func (*ExecuteActionResponse) Descriptor() ([]byte, []int) {
-	return file_workflow_proto_rawDescGZIP(), []int{76}
+	return file_workflow_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *ExecuteActionResponse) GetOk() bool {
@@ -7423,7 +7545,16 @@ const file_workflow_proto_rawDesc = "" +
 	"\x0ecorrelation_id\x18\x02 \x01(\tR\rcorrelationId\x12\x1a\n" +
 	"\boperator\x18\x03 \x01(\tR\boperator\">\n" +
 	"\"ClearCorrelationDeferStateResponse\x12\x18\n" +
-	"\acleared\x18\x01 \x01(\bR\acleared\"\xd5\x01\n" +
+	"\acleared\x18\x01 \x01(\bR\acleared\"}\n" +
+	"#WakeDeferredRunsByBlockerTagRequest\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12\x1f\n" +
+	"\vblocker_tag\x18\x02 \x01(\tR\n" +
+	"blockerTag\x12\x16\n" +
+	"\x06source\x18\x03 \x01(\tR\x06source\"e\n" +
+	"$WakeDeferredRunsByBlockerTagResponse\x12\x14\n" +
+	"\x05woken\x18\x01 \x01(\x05R\x05woken\x12'\n" +
+	"\x0fcorrelation_ids\x18\x02 \x03(\tR\x0ecorrelationIds\"\xd5\x01\n" +
 	"\x14ExecuteActionRequest\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x17\n" +
 	"\astep_id\x18\x02 \x01(\tR\x06stepId\x12\x14\n" +
@@ -7545,7 +7676,7 @@ const file_workflow_proto_rawDesc = "" +
 	"\x13FIX_STATUS_APPROVED\x10\x02\x12\x16\n" +
 	"\x12FIX_STATUS_APPLIED\x10\x03\x12\x17\n" +
 	"\x13FIX_STATUS_REJECTED\x10\x04\x12\x15\n" +
-	"\x11FIX_STATUS_FAILED\x10\x052\xc5+\n" +
+	"\x11FIX_STATUS_FAILED\x10\x052\x86-\n" +
 	"\x0fWorkflowService\x12p\n" +
 	"\bStartRun\x12\x19.workflow.StartRunRequest\x1a\x15.workflow.WorkflowRun\"2\x82\xb5\x18.\n" +
 	"\x0eworkflow.admin\x12\x05write\"\x0e/workflow/runs*\x05admin\x12x\n" +
@@ -7624,7 +7755,9 @@ const file_workflow_proto_rawDesc = "" +
 	"\x19ListCorrelationDeferState\x12*.workflow.ListCorrelationDeferStateRequest\x1a+.workflow.ListCorrelationDeferStateResponse\"8\x82\xb5\x184\n" +
 	"\rworkflow.read\x12\x04read\"\x15/workflow/defer-state*\x06viewer\x12\xc3\x01\n" +
 	"\x1aClearCorrelationDeferState\x12+.workflow.ClearCorrelationDeferStateRequest\x1a,.workflow.ClearCorrelationDeferStateResponse\"J\x82\xb5\x18F\n" +
-	"\x0eworkflow.admin\x12\x05write\x1a&/workflow/defer-state/{correlation_id}*\x05admin2\xae\x01\n" +
+	"\x0eworkflow.admin\x12\x05write\x1a&/workflow/defer-state/{correlation_id}*\x05admin\x12\xbe\x01\n" +
+	"\x1cWakeDeferredRunsByBlockerTag\x12-.workflow.WakeDeferredRunsByBlockerTagRequest\x1a..workflow.WakeDeferredRunsByBlockerTagResponse\"?\x82\xb5\x18;\n" +
+	"\x11workflow.dispatch\x12\x05write\"\x15/workflow/defer-state*\boperator2\xae\x01\n" +
 	"\x14WorkflowActorService\x12\x95\x01\n" +
 	"\rExecuteAction\x12\x1e.workflow.ExecuteActionRequest\x1a\x1f.workflow.ExecuteActionResponse\"C\x82\xb5\x18?\n" +
 	"\x0eworkflow.admin\x12\x05write\x1a\x1f/workflow/actor/{actor}/actions*\x05adminB;Z9github.com/globulario/services/golang/workflow/workflowpbb\x06proto3"
@@ -7642,101 +7775,103 @@ func file_workflow_proto_rawDescGZIP() []byte {
 }
 
 var file_workflow_proto_enumTypes = make([]protoimpl.EnumInfo, 12)
-var file_workflow_proto_msgTypes = make([]protoimpl.MessageInfo, 79)
+var file_workflow_proto_msgTypes = make([]protoimpl.MessageInfo, 81)
 var file_workflow_proto_goTypes = []any{
-	(WorkflowActor)(0),                         // 0: workflow.WorkflowActor
-	(WorkflowPhaseKind)(0),                     // 1: workflow.WorkflowPhaseKind
-	(RunStatus)(0),                             // 2: workflow.RunStatus
-	(StepStatus)(0),                            // 3: workflow.StepStatus
-	(FailureClass)(0),                          // 4: workflow.FailureClass
-	(ComponentKind)(0),                         // 5: workflow.ComponentKind
-	(TriggerReason)(0),                         // 6: workflow.TriggerReason
-	(ArtifactKind)(0),                          // 7: workflow.ArtifactKind
-	(IncidentStatus)(0),                        // 8: workflow.IncidentStatus
-	(IncidentSeverity)(0),                      // 9: workflow.IncidentSeverity
-	(Provenance)(0),                            // 10: workflow.Provenance
-	(FixStatus)(0),                             // 11: workflow.FixStatus
-	(*WorkflowContext)(nil),                    // 12: workflow.WorkflowContext
-	(*WorkflowRun)(nil),                        // 13: workflow.WorkflowRun
-	(*WorkflowStep)(nil),                       // 14: workflow.WorkflowStep
-	(*WorkflowArtifactRef)(nil),                // 15: workflow.WorkflowArtifactRef
-	(*WorkflowEvent)(nil),                      // 16: workflow.WorkflowEvent
-	(*WorkflowPhase)(nil),                      // 17: workflow.WorkflowPhase
-	(*WorkflowActorLane)(nil),                  // 18: workflow.WorkflowActorLane
-	(*WorkflowGraph)(nil),                      // 19: workflow.WorkflowGraph
-	(*WorkflowRunDetail)(nil),                  // 20: workflow.WorkflowRunDetail
-	(*StartRunRequest)(nil),                    // 21: workflow.StartRunRequest
-	(*UpdateRunRequest)(nil),                   // 22: workflow.UpdateRunRequest
-	(*FinishRunRequest)(nil),                   // 23: workflow.FinishRunRequest
-	(*RecordStepRequest)(nil),                  // 24: workflow.RecordStepRequest
-	(*UpdateStepRequest)(nil),                  // 25: workflow.UpdateStepRequest
-	(*FailStepRequest)(nil),                    // 26: workflow.FailStepRequest
-	(*AddArtifactRefRequest)(nil),              // 27: workflow.AddArtifactRefRequest
-	(*AppendEventRequest)(nil),                 // 28: workflow.AppendEventRequest
-	(*GetRunRequest)(nil),                      // 29: workflow.GetRunRequest
-	(*ListRunsRequest)(nil),                    // 30: workflow.ListRunsRequest
-	(*ListRunsResponse)(nil),                   // 31: workflow.ListRunsResponse
-	(*GetRunEventsRequest)(nil),                // 32: workflow.GetRunEventsRequest
-	(*GetRunEventsResponse)(nil),               // 33: workflow.GetRunEventsResponse
-	(*GetCurrentRunsForNodeRequest)(nil),       // 34: workflow.GetCurrentRunsForNodeRequest
-	(*GetComponentHistoryRequest)(nil),         // 35: workflow.GetComponentHistoryRequest
-	(*GetWorkflowGraphRequest)(nil),            // 36: workflow.GetWorkflowGraphRequest
-	(*WatchRunRequest)(nil),                    // 37: workflow.WatchRunRequest
-	(*WatchNodeRunsRequest)(nil),               // 38: workflow.WatchNodeRunsRequest
-	(*WorkflowEventEnvelope)(nil),              // 39: workflow.WorkflowEventEnvelope
-	(*RetryRunRequest)(nil),                    // 40: workflow.RetryRunRequest
-	(*CancelRunRequest)(nil),                   // 41: workflow.CancelRunRequest
-	(*AcknowledgeRunRequest)(nil),              // 42: workflow.AcknowledgeRunRequest
-	(*DiagnoseRunRequest)(nil),                 // 43: workflow.DiagnoseRunRequest
-	(*DiagnoseRunResponse)(nil),                // 44: workflow.DiagnoseRunResponse
-	(*WorkflowRunSummary)(nil),                 // 45: workflow.WorkflowRunSummary
-	(*RecordOutcomeRequest)(nil),               // 46: workflow.RecordOutcomeRequest
-	(*ListWorkflowSummariesRequest)(nil),       // 47: workflow.ListWorkflowSummariesRequest
-	(*ListWorkflowSummariesResponse)(nil),      // 48: workflow.ListWorkflowSummariesResponse
-	(*WorkflowStepOutcome)(nil),                // 49: workflow.WorkflowStepOutcome
-	(*RecordStepOutcomeRequest)(nil),           // 50: workflow.RecordStepOutcomeRequest
-	(*ListStepOutcomesRequest)(nil),            // 51: workflow.ListStepOutcomesRequest
-	(*ListStepOutcomesResponse)(nil),           // 52: workflow.ListStepOutcomesResponse
-	(*PhaseTransitionEvent)(nil),               // 53: workflow.PhaseTransitionEvent
-	(*RecordPhaseTransitionRequest)(nil),       // 54: workflow.RecordPhaseTransitionRequest
-	(*ListPhaseTransitionsRequest)(nil),        // 55: workflow.ListPhaseTransitionsRequest
-	(*ListPhaseTransitionsResponse)(nil),       // 56: workflow.ListPhaseTransitionsResponse
-	(*DriftUnresolved)(nil),                    // 57: workflow.DriftUnresolved
-	(*RecordDriftObservationRequest)(nil),      // 58: workflow.RecordDriftObservationRequest
-	(*ClearDriftObservationRequest)(nil),       // 59: workflow.ClearDriftObservationRequest
-	(*ListDriftUnresolvedRequest)(nil),         // 60: workflow.ListDriftUnresolvedRequest
-	(*ListDriftUnresolvedResponse)(nil),        // 61: workflow.ListDriftUnresolvedResponse
-	(*EvidenceItem)(nil),                       // 62: workflow.EvidenceItem
-	(*DiagnosisItem)(nil),                      // 63: workflow.DiagnosisItem
-	(*CodePatch)(nil),                          // 64: workflow.CodePatch
-	(*ConfigPatch)(nil),                        // 65: workflow.ConfigPatch
-	(*CommandList)(nil),                        // 66: workflow.CommandList
-	(*RestartAction)(nil),                      // 67: workflow.RestartAction
-	(*ProposedFix)(nil),                        // 68: workflow.ProposedFix
-	(*Incident)(nil),                           // 69: workflow.Incident
-	(*IncidentAction)(nil),                     // 70: workflow.IncidentAction
-	(*ListIncidentsRequest)(nil),               // 71: workflow.ListIncidentsRequest
-	(*ListIncidentsResponse)(nil),              // 72: workflow.ListIncidentsResponse
-	(*GetIncidentRequest)(nil),                 // 73: workflow.GetIncidentRequest
-	(*SubmitProposedFixRequest)(nil),           // 74: workflow.SubmitProposedFixRequest
-	(*ListWorkflowDefinitionsRequest)(nil),     // 75: workflow.ListWorkflowDefinitionsRequest
-	(*WorkflowDefinitionSummary)(nil),          // 76: workflow.WorkflowDefinitionSummary
-	(*ListWorkflowDefinitionsResponse)(nil),    // 77: workflow.ListWorkflowDefinitionsResponse
-	(*GetWorkflowDefinitionRequest)(nil),       // 78: workflow.GetWorkflowDefinitionRequest
-	(*GetWorkflowDefinitionResponse)(nil),      // 79: workflow.GetWorkflowDefinitionResponse
-	(*ExecuteWorkflowRequest)(nil),             // 80: workflow.ExecuteWorkflowRequest
-	(*ExecuteWorkflowResponse)(nil),            // 81: workflow.ExecuteWorkflowResponse
-	(*CorrelationDeferStateRecord)(nil),        // 82: workflow.CorrelationDeferStateRecord
-	(*ListCorrelationDeferStateRequest)(nil),   // 83: workflow.ListCorrelationDeferStateRequest
-	(*ListCorrelationDeferStateResponse)(nil),  // 84: workflow.ListCorrelationDeferStateResponse
-	(*ClearCorrelationDeferStateRequest)(nil),  // 85: workflow.ClearCorrelationDeferStateRequest
-	(*ClearCorrelationDeferStateResponse)(nil), // 86: workflow.ClearCorrelationDeferStateResponse
-	(*ExecuteActionRequest)(nil),               // 87: workflow.ExecuteActionRequest
-	(*ExecuteActionResponse)(nil),              // 88: workflow.ExecuteActionResponse
-	nil,                                        // 89: workflow.EvidenceItem.FactsEntry
-	nil,                                        // 90: workflow.ExecuteWorkflowRequest.ActorEndpointsEntry
-	(*timestamppb.Timestamp)(nil),              // 91: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                      // 92: google.protobuf.Empty
+	(WorkflowActor)(0),                           // 0: workflow.WorkflowActor
+	(WorkflowPhaseKind)(0),                       // 1: workflow.WorkflowPhaseKind
+	(RunStatus)(0),                               // 2: workflow.RunStatus
+	(StepStatus)(0),                              // 3: workflow.StepStatus
+	(FailureClass)(0),                            // 4: workflow.FailureClass
+	(ComponentKind)(0),                           // 5: workflow.ComponentKind
+	(TriggerReason)(0),                           // 6: workflow.TriggerReason
+	(ArtifactKind)(0),                            // 7: workflow.ArtifactKind
+	(IncidentStatus)(0),                          // 8: workflow.IncidentStatus
+	(IncidentSeverity)(0),                        // 9: workflow.IncidentSeverity
+	(Provenance)(0),                              // 10: workflow.Provenance
+	(FixStatus)(0),                               // 11: workflow.FixStatus
+	(*WorkflowContext)(nil),                      // 12: workflow.WorkflowContext
+	(*WorkflowRun)(nil),                          // 13: workflow.WorkflowRun
+	(*WorkflowStep)(nil),                         // 14: workflow.WorkflowStep
+	(*WorkflowArtifactRef)(nil),                  // 15: workflow.WorkflowArtifactRef
+	(*WorkflowEvent)(nil),                        // 16: workflow.WorkflowEvent
+	(*WorkflowPhase)(nil),                        // 17: workflow.WorkflowPhase
+	(*WorkflowActorLane)(nil),                    // 18: workflow.WorkflowActorLane
+	(*WorkflowGraph)(nil),                        // 19: workflow.WorkflowGraph
+	(*WorkflowRunDetail)(nil),                    // 20: workflow.WorkflowRunDetail
+	(*StartRunRequest)(nil),                      // 21: workflow.StartRunRequest
+	(*UpdateRunRequest)(nil),                     // 22: workflow.UpdateRunRequest
+	(*FinishRunRequest)(nil),                     // 23: workflow.FinishRunRequest
+	(*RecordStepRequest)(nil),                    // 24: workflow.RecordStepRequest
+	(*UpdateStepRequest)(nil),                    // 25: workflow.UpdateStepRequest
+	(*FailStepRequest)(nil),                      // 26: workflow.FailStepRequest
+	(*AddArtifactRefRequest)(nil),                // 27: workflow.AddArtifactRefRequest
+	(*AppendEventRequest)(nil),                   // 28: workflow.AppendEventRequest
+	(*GetRunRequest)(nil),                        // 29: workflow.GetRunRequest
+	(*ListRunsRequest)(nil),                      // 30: workflow.ListRunsRequest
+	(*ListRunsResponse)(nil),                     // 31: workflow.ListRunsResponse
+	(*GetRunEventsRequest)(nil),                  // 32: workflow.GetRunEventsRequest
+	(*GetRunEventsResponse)(nil),                 // 33: workflow.GetRunEventsResponse
+	(*GetCurrentRunsForNodeRequest)(nil),         // 34: workflow.GetCurrentRunsForNodeRequest
+	(*GetComponentHistoryRequest)(nil),           // 35: workflow.GetComponentHistoryRequest
+	(*GetWorkflowGraphRequest)(nil),              // 36: workflow.GetWorkflowGraphRequest
+	(*WatchRunRequest)(nil),                      // 37: workflow.WatchRunRequest
+	(*WatchNodeRunsRequest)(nil),                 // 38: workflow.WatchNodeRunsRequest
+	(*WorkflowEventEnvelope)(nil),                // 39: workflow.WorkflowEventEnvelope
+	(*RetryRunRequest)(nil),                      // 40: workflow.RetryRunRequest
+	(*CancelRunRequest)(nil),                     // 41: workflow.CancelRunRequest
+	(*AcknowledgeRunRequest)(nil),                // 42: workflow.AcknowledgeRunRequest
+	(*DiagnoseRunRequest)(nil),                   // 43: workflow.DiagnoseRunRequest
+	(*DiagnoseRunResponse)(nil),                  // 44: workflow.DiagnoseRunResponse
+	(*WorkflowRunSummary)(nil),                   // 45: workflow.WorkflowRunSummary
+	(*RecordOutcomeRequest)(nil),                 // 46: workflow.RecordOutcomeRequest
+	(*ListWorkflowSummariesRequest)(nil),         // 47: workflow.ListWorkflowSummariesRequest
+	(*ListWorkflowSummariesResponse)(nil),        // 48: workflow.ListWorkflowSummariesResponse
+	(*WorkflowStepOutcome)(nil),                  // 49: workflow.WorkflowStepOutcome
+	(*RecordStepOutcomeRequest)(nil),             // 50: workflow.RecordStepOutcomeRequest
+	(*ListStepOutcomesRequest)(nil),              // 51: workflow.ListStepOutcomesRequest
+	(*ListStepOutcomesResponse)(nil),             // 52: workflow.ListStepOutcomesResponse
+	(*PhaseTransitionEvent)(nil),                 // 53: workflow.PhaseTransitionEvent
+	(*RecordPhaseTransitionRequest)(nil),         // 54: workflow.RecordPhaseTransitionRequest
+	(*ListPhaseTransitionsRequest)(nil),          // 55: workflow.ListPhaseTransitionsRequest
+	(*ListPhaseTransitionsResponse)(nil),         // 56: workflow.ListPhaseTransitionsResponse
+	(*DriftUnresolved)(nil),                      // 57: workflow.DriftUnresolved
+	(*RecordDriftObservationRequest)(nil),        // 58: workflow.RecordDriftObservationRequest
+	(*ClearDriftObservationRequest)(nil),         // 59: workflow.ClearDriftObservationRequest
+	(*ListDriftUnresolvedRequest)(nil),           // 60: workflow.ListDriftUnresolvedRequest
+	(*ListDriftUnresolvedResponse)(nil),          // 61: workflow.ListDriftUnresolvedResponse
+	(*EvidenceItem)(nil),                         // 62: workflow.EvidenceItem
+	(*DiagnosisItem)(nil),                        // 63: workflow.DiagnosisItem
+	(*CodePatch)(nil),                            // 64: workflow.CodePatch
+	(*ConfigPatch)(nil),                          // 65: workflow.ConfigPatch
+	(*CommandList)(nil),                          // 66: workflow.CommandList
+	(*RestartAction)(nil),                        // 67: workflow.RestartAction
+	(*ProposedFix)(nil),                          // 68: workflow.ProposedFix
+	(*Incident)(nil),                             // 69: workflow.Incident
+	(*IncidentAction)(nil),                       // 70: workflow.IncidentAction
+	(*ListIncidentsRequest)(nil),                 // 71: workflow.ListIncidentsRequest
+	(*ListIncidentsResponse)(nil),                // 72: workflow.ListIncidentsResponse
+	(*GetIncidentRequest)(nil),                   // 73: workflow.GetIncidentRequest
+	(*SubmitProposedFixRequest)(nil),             // 74: workflow.SubmitProposedFixRequest
+	(*ListWorkflowDefinitionsRequest)(nil),       // 75: workflow.ListWorkflowDefinitionsRequest
+	(*WorkflowDefinitionSummary)(nil),            // 76: workflow.WorkflowDefinitionSummary
+	(*ListWorkflowDefinitionsResponse)(nil),      // 77: workflow.ListWorkflowDefinitionsResponse
+	(*GetWorkflowDefinitionRequest)(nil),         // 78: workflow.GetWorkflowDefinitionRequest
+	(*GetWorkflowDefinitionResponse)(nil),        // 79: workflow.GetWorkflowDefinitionResponse
+	(*ExecuteWorkflowRequest)(nil),               // 80: workflow.ExecuteWorkflowRequest
+	(*ExecuteWorkflowResponse)(nil),              // 81: workflow.ExecuteWorkflowResponse
+	(*CorrelationDeferStateRecord)(nil),          // 82: workflow.CorrelationDeferStateRecord
+	(*ListCorrelationDeferStateRequest)(nil),     // 83: workflow.ListCorrelationDeferStateRequest
+	(*ListCorrelationDeferStateResponse)(nil),    // 84: workflow.ListCorrelationDeferStateResponse
+	(*ClearCorrelationDeferStateRequest)(nil),    // 85: workflow.ClearCorrelationDeferStateRequest
+	(*ClearCorrelationDeferStateResponse)(nil),   // 86: workflow.ClearCorrelationDeferStateResponse
+	(*WakeDeferredRunsByBlockerTagRequest)(nil),  // 87: workflow.WakeDeferredRunsByBlockerTagRequest
+	(*WakeDeferredRunsByBlockerTagResponse)(nil), // 88: workflow.WakeDeferredRunsByBlockerTagResponse
+	(*ExecuteActionRequest)(nil),                 // 89: workflow.ExecuteActionRequest
+	(*ExecuteActionResponse)(nil),                // 90: workflow.ExecuteActionResponse
+	nil,                                          // 91: workflow.EvidenceItem.FactsEntry
+	nil,                                          // 92: workflow.ExecuteWorkflowRequest.ActorEndpointsEntry
+	(*timestamppb.Timestamp)(nil),                // 93: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                        // 94: google.protobuf.Empty
 }
 var file_workflow_proto_depIdxs = []int32{
 	5,   // 0: workflow.WorkflowContext.component_kind:type_name -> workflow.ComponentKind
@@ -7745,22 +7880,22 @@ var file_workflow_proto_depIdxs = []int32{
 	2,   // 3: workflow.WorkflowRun.status:type_name -> workflow.RunStatus
 	0,   // 4: workflow.WorkflowRun.current_actor:type_name -> workflow.WorkflowActor
 	4,   // 5: workflow.WorkflowRun.failure_class:type_name -> workflow.FailureClass
-	91,  // 6: workflow.WorkflowRun.acknowledged_at:type_name -> google.protobuf.Timestamp
-	91,  // 7: workflow.WorkflowRun.started_at:type_name -> google.protobuf.Timestamp
-	91,  // 8: workflow.WorkflowRun.updated_at:type_name -> google.protobuf.Timestamp
-	91,  // 9: workflow.WorkflowRun.finished_at:type_name -> google.protobuf.Timestamp
+	93,  // 6: workflow.WorkflowRun.acknowledged_at:type_name -> google.protobuf.Timestamp
+	93,  // 7: workflow.WorkflowRun.started_at:type_name -> google.protobuf.Timestamp
+	93,  // 8: workflow.WorkflowRun.updated_at:type_name -> google.protobuf.Timestamp
+	93,  // 9: workflow.WorkflowRun.finished_at:type_name -> google.protobuf.Timestamp
 	0,   // 10: workflow.WorkflowStep.actor:type_name -> workflow.WorkflowActor
 	1,   // 11: workflow.WorkflowStep.phase:type_name -> workflow.WorkflowPhaseKind
 	3,   // 12: workflow.WorkflowStep.status:type_name -> workflow.StepStatus
-	91,  // 13: workflow.WorkflowStep.created_at:type_name -> google.protobuf.Timestamp
-	91,  // 14: workflow.WorkflowStep.started_at:type_name -> google.protobuf.Timestamp
-	91,  // 15: workflow.WorkflowStep.finished_at:type_name -> google.protobuf.Timestamp
+	93,  // 13: workflow.WorkflowStep.created_at:type_name -> google.protobuf.Timestamp
+	93,  // 14: workflow.WorkflowStep.started_at:type_name -> google.protobuf.Timestamp
+	93,  // 15: workflow.WorkflowStep.finished_at:type_name -> google.protobuf.Timestamp
 	0,   // 16: workflow.WorkflowStep.source_actor:type_name -> workflow.WorkflowActor
 	0,   // 17: workflow.WorkflowStep.target_actor:type_name -> workflow.WorkflowActor
 	7,   // 18: workflow.WorkflowArtifactRef.kind:type_name -> workflow.ArtifactKind
-	91,  // 19: workflow.WorkflowArtifactRef.created_at:type_name -> google.protobuf.Timestamp
+	93,  // 19: workflow.WorkflowArtifactRef.created_at:type_name -> google.protobuf.Timestamp
 	0,   // 20: workflow.WorkflowEvent.actor:type_name -> workflow.WorkflowActor
-	91,  // 21: workflow.WorkflowEvent.created_at:type_name -> google.protobuf.Timestamp
+	93,  // 21: workflow.WorkflowEvent.created_at:type_name -> google.protobuf.Timestamp
 	1,   // 22: workflow.WorkflowPhase.kind:type_name -> workflow.WorkflowPhaseKind
 	3,   // 23: workflow.WorkflowPhase.status:type_name -> workflow.StepStatus
 	14,  // 24: workflow.WorkflowPhase.steps:type_name -> workflow.WorkflowStep
@@ -7792,57 +7927,57 @@ var file_workflow_proto_depIdxs = []int32{
 	16,  // 50: workflow.WorkflowEventEnvelope.event:type_name -> workflow.WorkflowEvent
 	2,   // 51: workflow.WorkflowEventEnvelope.run_status:type_name -> workflow.RunStatus
 	2,   // 52: workflow.WorkflowRunSummary.last_run_status:type_name -> workflow.RunStatus
-	91,  // 53: workflow.WorkflowRunSummary.last_started_at:type_name -> google.protobuf.Timestamp
-	91,  // 54: workflow.WorkflowRunSummary.last_finished_at:type_name -> google.protobuf.Timestamp
-	91,  // 55: workflow.WorkflowRunSummary.last_success_at:type_name -> google.protobuf.Timestamp
-	91,  // 56: workflow.WorkflowRunSummary.last_failure_at:type_name -> google.protobuf.Timestamp
-	91,  // 57: workflow.WorkflowRunSummary.updated_at:type_name -> google.protobuf.Timestamp
+	93,  // 53: workflow.WorkflowRunSummary.last_started_at:type_name -> google.protobuf.Timestamp
+	93,  // 54: workflow.WorkflowRunSummary.last_finished_at:type_name -> google.protobuf.Timestamp
+	93,  // 55: workflow.WorkflowRunSummary.last_success_at:type_name -> google.protobuf.Timestamp
+	93,  // 56: workflow.WorkflowRunSummary.last_failure_at:type_name -> google.protobuf.Timestamp
+	93,  // 57: workflow.WorkflowRunSummary.updated_at:type_name -> google.protobuf.Timestamp
 	2,   // 58: workflow.RecordOutcomeRequest.status:type_name -> workflow.RunStatus
-	91,  // 59: workflow.RecordOutcomeRequest.started_at:type_name -> google.protobuf.Timestamp
-	91,  // 60: workflow.RecordOutcomeRequest.finished_at:type_name -> google.protobuf.Timestamp
+	93,  // 59: workflow.RecordOutcomeRequest.started_at:type_name -> google.protobuf.Timestamp
+	93,  // 60: workflow.RecordOutcomeRequest.finished_at:type_name -> google.protobuf.Timestamp
 	45,  // 61: workflow.ListWorkflowSummariesResponse.summaries:type_name -> workflow.WorkflowRunSummary
 	3,   // 62: workflow.WorkflowStepOutcome.last_status:type_name -> workflow.StepStatus
-	91,  // 63: workflow.WorkflowStepOutcome.last_started_at:type_name -> google.protobuf.Timestamp
-	91,  // 64: workflow.WorkflowStepOutcome.last_finished_at:type_name -> google.protobuf.Timestamp
-	91,  // 65: workflow.WorkflowStepOutcome.first_seen_at:type_name -> google.protobuf.Timestamp
-	91,  // 66: workflow.WorkflowStepOutcome.updated_at:type_name -> google.protobuf.Timestamp
+	93,  // 63: workflow.WorkflowStepOutcome.last_started_at:type_name -> google.protobuf.Timestamp
+	93,  // 64: workflow.WorkflowStepOutcome.last_finished_at:type_name -> google.protobuf.Timestamp
+	93,  // 65: workflow.WorkflowStepOutcome.first_seen_at:type_name -> google.protobuf.Timestamp
+	93,  // 66: workflow.WorkflowStepOutcome.updated_at:type_name -> google.protobuf.Timestamp
 	3,   // 67: workflow.RecordStepOutcomeRequest.status:type_name -> workflow.StepStatus
-	91,  // 68: workflow.RecordStepOutcomeRequest.started_at:type_name -> google.protobuf.Timestamp
-	91,  // 69: workflow.RecordStepOutcomeRequest.finished_at:type_name -> google.protobuf.Timestamp
+	93,  // 68: workflow.RecordStepOutcomeRequest.started_at:type_name -> google.protobuf.Timestamp
+	93,  // 69: workflow.RecordStepOutcomeRequest.finished_at:type_name -> google.protobuf.Timestamp
 	49,  // 70: workflow.ListStepOutcomesResponse.outcomes:type_name -> workflow.WorkflowStepOutcome
-	91,  // 71: workflow.PhaseTransitionEvent.event_at:type_name -> google.protobuf.Timestamp
+	93,  // 71: workflow.PhaseTransitionEvent.event_at:type_name -> google.protobuf.Timestamp
 	53,  // 72: workflow.ListPhaseTransitionsResponse.events:type_name -> workflow.PhaseTransitionEvent
-	91,  // 73: workflow.DriftUnresolved.first_observed_at:type_name -> google.protobuf.Timestamp
-	91,  // 74: workflow.DriftUnresolved.last_observed_at:type_name -> google.protobuf.Timestamp
+	93,  // 73: workflow.DriftUnresolved.first_observed_at:type_name -> google.protobuf.Timestamp
+	93,  // 74: workflow.DriftUnresolved.last_observed_at:type_name -> google.protobuf.Timestamp
 	57,  // 75: workflow.ListDriftUnresolvedResponse.items:type_name -> workflow.DriftUnresolved
 	10,  // 76: workflow.EvidenceItem.provenance:type_name -> workflow.Provenance
-	89,  // 77: workflow.EvidenceItem.facts:type_name -> workflow.EvidenceItem.FactsEntry
-	91,  // 78: workflow.EvidenceItem.observed_at:type_name -> google.protobuf.Timestamp
+	91,  // 77: workflow.EvidenceItem.facts:type_name -> workflow.EvidenceItem.FactsEntry
+	93,  // 78: workflow.EvidenceItem.observed_at:type_name -> google.protobuf.Timestamp
 	9,   // 79: workflow.DiagnosisItem.severity:type_name -> workflow.IncidentSeverity
-	91,  // 80: workflow.DiagnosisItem.diagnosed_at:type_name -> google.protobuf.Timestamp
+	93,  // 80: workflow.DiagnosisItem.diagnosed_at:type_name -> google.protobuf.Timestamp
 	64,  // 81: workflow.ProposedFix.code_patch:type_name -> workflow.CodePatch
 	65,  // 82: workflow.ProposedFix.config_patch:type_name -> workflow.ConfigPatch
 	66,  // 83: workflow.ProposedFix.command_list:type_name -> workflow.CommandList
 	67,  // 84: workflow.ProposedFix.restart_action:type_name -> workflow.RestartAction
 	11,  // 85: workflow.ProposedFix.status:type_name -> workflow.FixStatus
-	91,  // 86: workflow.ProposedFix.applied_at:type_name -> google.protobuf.Timestamp
-	91,  // 87: workflow.ProposedFix.proposed_at:type_name -> google.protobuf.Timestamp
+	93,  // 86: workflow.ProposedFix.applied_at:type_name -> google.protobuf.Timestamp
+	93,  // 87: workflow.ProposedFix.proposed_at:type_name -> google.protobuf.Timestamp
 	8,   // 88: workflow.Incident.status:type_name -> workflow.IncidentStatus
 	9,   // 89: workflow.Incident.severity:type_name -> workflow.IncidentSeverity
-	91,  // 90: workflow.Incident.first_seen_at:type_name -> google.protobuf.Timestamp
-	91,  // 91: workflow.Incident.last_seen_at:type_name -> google.protobuf.Timestamp
+	93,  // 90: workflow.Incident.first_seen_at:type_name -> google.protobuf.Timestamp
+	93,  // 91: workflow.Incident.last_seen_at:type_name -> google.protobuf.Timestamp
 	62,  // 92: workflow.Incident.evidence:type_name -> workflow.EvidenceItem
 	63,  // 93: workflow.Incident.diagnoses:type_name -> workflow.DiagnosisItem
 	68,  // 94: workflow.Incident.proposed_fixes:type_name -> workflow.ProposedFix
-	91,  // 95: workflow.Incident.acknowledged_at:type_name -> google.protobuf.Timestamp
+	93,  // 95: workflow.Incident.acknowledged_at:type_name -> google.protobuf.Timestamp
 	8,   // 96: workflow.ListIncidentsRequest.status:type_name -> workflow.IncidentStatus
 	69,  // 97: workflow.ListIncidentsResponse.incidents:type_name -> workflow.Incident
 	68,  // 98: workflow.SubmitProposedFixRequest.fix:type_name -> workflow.ProposedFix
 	76,  // 99: workflow.ListWorkflowDefinitionsResponse.definitions:type_name -> workflow.WorkflowDefinitionSummary
-	90,  // 100: workflow.ExecuteWorkflowRequest.actor_endpoints:type_name -> workflow.ExecuteWorkflowRequest.ActorEndpointsEntry
-	91,  // 101: workflow.CorrelationDeferStateRecord.abandoned_at:type_name -> google.protobuf.Timestamp
-	91,  // 102: workflow.CorrelationDeferStateRecord.cleared_at:type_name -> google.protobuf.Timestamp
-	91,  // 103: workflow.CorrelationDeferStateRecord.updated_at:type_name -> google.protobuf.Timestamp
+	92,  // 100: workflow.ExecuteWorkflowRequest.actor_endpoints:type_name -> workflow.ExecuteWorkflowRequest.ActorEndpointsEntry
+	93,  // 101: workflow.CorrelationDeferStateRecord.abandoned_at:type_name -> google.protobuf.Timestamp
+	93,  // 102: workflow.CorrelationDeferStateRecord.cleared_at:type_name -> google.protobuf.Timestamp
+	93,  // 103: workflow.CorrelationDeferStateRecord.updated_at:type_name -> google.protobuf.Timestamp
 	82,  // 104: workflow.ListCorrelationDeferStateResponse.records:type_name -> workflow.CorrelationDeferStateRecord
 	21,  // 105: workflow.WorkflowService.StartRun:input_type -> workflow.StartRunRequest
 	22,  // 106: workflow.WorkflowService.UpdateRun:input_type -> workflow.UpdateRunRequest
@@ -7882,48 +8017,50 @@ var file_workflow_proto_depIdxs = []int32{
 	80,  // 140: workflow.WorkflowService.ExecuteWorkflow:input_type -> workflow.ExecuteWorkflowRequest
 	83,  // 141: workflow.WorkflowService.ListCorrelationDeferState:input_type -> workflow.ListCorrelationDeferStateRequest
 	85,  // 142: workflow.WorkflowService.ClearCorrelationDeferState:input_type -> workflow.ClearCorrelationDeferStateRequest
-	87,  // 143: workflow.WorkflowActorService.ExecuteAction:input_type -> workflow.ExecuteActionRequest
-	13,  // 144: workflow.WorkflowService.StartRun:output_type -> workflow.WorkflowRun
-	92,  // 145: workflow.WorkflowService.UpdateRun:output_type -> google.protobuf.Empty
-	92,  // 146: workflow.WorkflowService.FinishRun:output_type -> google.protobuf.Empty
-	14,  // 147: workflow.WorkflowService.RecordStep:output_type -> workflow.WorkflowStep
-	92,  // 148: workflow.WorkflowService.UpdateStep:output_type -> google.protobuf.Empty
-	92,  // 149: workflow.WorkflowService.FailStep:output_type -> google.protobuf.Empty
-	92,  // 150: workflow.WorkflowService.AddArtifactRef:output_type -> google.protobuf.Empty
-	92,  // 151: workflow.WorkflowService.AppendEvent:output_type -> google.protobuf.Empty
-	20,  // 152: workflow.WorkflowService.GetRun:output_type -> workflow.WorkflowRunDetail
-	31,  // 153: workflow.WorkflowService.ListRuns:output_type -> workflow.ListRunsResponse
-	33,  // 154: workflow.WorkflowService.GetRunEvents:output_type -> workflow.GetRunEventsResponse
-	31,  // 155: workflow.WorkflowService.GetCurrentRunsForNode:output_type -> workflow.ListRunsResponse
-	31,  // 156: workflow.WorkflowService.GetComponentHistory:output_type -> workflow.ListRunsResponse
-	19,  // 157: workflow.WorkflowService.GetWorkflowGraph:output_type -> workflow.WorkflowGraph
-	39,  // 158: workflow.WorkflowService.WatchRun:output_type -> workflow.WorkflowEventEnvelope
-	39,  // 159: workflow.WorkflowService.WatchNodeRuns:output_type -> workflow.WorkflowEventEnvelope
-	13,  // 160: workflow.WorkflowService.RetryRun:output_type -> workflow.WorkflowRun
-	92,  // 161: workflow.WorkflowService.CancelRun:output_type -> google.protobuf.Empty
-	92,  // 162: workflow.WorkflowService.AcknowledgeRun:output_type -> google.protobuf.Empty
-	44,  // 163: workflow.WorkflowService.DiagnoseRun:output_type -> workflow.DiagnoseRunResponse
-	77,  // 164: workflow.WorkflowService.ListWorkflowDefinitions:output_type -> workflow.ListWorkflowDefinitionsResponse
-	79,  // 165: workflow.WorkflowService.GetWorkflowDefinition:output_type -> workflow.GetWorkflowDefinitionResponse
-	92,  // 166: workflow.WorkflowService.RecordOutcome:output_type -> google.protobuf.Empty
-	48,  // 167: workflow.WorkflowService.ListWorkflowSummaries:output_type -> workflow.ListWorkflowSummariesResponse
-	92,  // 168: workflow.WorkflowService.RecordStepOutcome:output_type -> google.protobuf.Empty
-	52,  // 169: workflow.WorkflowService.ListStepOutcomes:output_type -> workflow.ListStepOutcomesResponse
-	92,  // 170: workflow.WorkflowService.RecordPhaseTransition:output_type -> google.protobuf.Empty
-	56,  // 171: workflow.WorkflowService.ListPhaseTransitions:output_type -> workflow.ListPhaseTransitionsResponse
-	92,  // 172: workflow.WorkflowService.RecordDriftObservation:output_type -> google.protobuf.Empty
-	92,  // 173: workflow.WorkflowService.ClearDriftObservation:output_type -> google.protobuf.Empty
-	61,  // 174: workflow.WorkflowService.ListDriftUnresolved:output_type -> workflow.ListDriftUnresolvedResponse
-	72,  // 175: workflow.WorkflowService.ListIncidents:output_type -> workflow.ListIncidentsResponse
-	69,  // 176: workflow.WorkflowService.GetIncident:output_type -> workflow.Incident
-	92,  // 177: workflow.WorkflowService.ApplyIncidentAction:output_type -> google.protobuf.Empty
-	68,  // 178: workflow.WorkflowService.SubmitProposedFix:output_type -> workflow.ProposedFix
-	81,  // 179: workflow.WorkflowService.ExecuteWorkflow:output_type -> workflow.ExecuteWorkflowResponse
-	84,  // 180: workflow.WorkflowService.ListCorrelationDeferState:output_type -> workflow.ListCorrelationDeferStateResponse
-	86,  // 181: workflow.WorkflowService.ClearCorrelationDeferState:output_type -> workflow.ClearCorrelationDeferStateResponse
-	88,  // 182: workflow.WorkflowActorService.ExecuteAction:output_type -> workflow.ExecuteActionResponse
-	144, // [144:183] is the sub-list for method output_type
-	105, // [105:144] is the sub-list for method input_type
+	87,  // 143: workflow.WorkflowService.WakeDeferredRunsByBlockerTag:input_type -> workflow.WakeDeferredRunsByBlockerTagRequest
+	89,  // 144: workflow.WorkflowActorService.ExecuteAction:input_type -> workflow.ExecuteActionRequest
+	13,  // 145: workflow.WorkflowService.StartRun:output_type -> workflow.WorkflowRun
+	94,  // 146: workflow.WorkflowService.UpdateRun:output_type -> google.protobuf.Empty
+	94,  // 147: workflow.WorkflowService.FinishRun:output_type -> google.protobuf.Empty
+	14,  // 148: workflow.WorkflowService.RecordStep:output_type -> workflow.WorkflowStep
+	94,  // 149: workflow.WorkflowService.UpdateStep:output_type -> google.protobuf.Empty
+	94,  // 150: workflow.WorkflowService.FailStep:output_type -> google.protobuf.Empty
+	94,  // 151: workflow.WorkflowService.AddArtifactRef:output_type -> google.protobuf.Empty
+	94,  // 152: workflow.WorkflowService.AppendEvent:output_type -> google.protobuf.Empty
+	20,  // 153: workflow.WorkflowService.GetRun:output_type -> workflow.WorkflowRunDetail
+	31,  // 154: workflow.WorkflowService.ListRuns:output_type -> workflow.ListRunsResponse
+	33,  // 155: workflow.WorkflowService.GetRunEvents:output_type -> workflow.GetRunEventsResponse
+	31,  // 156: workflow.WorkflowService.GetCurrentRunsForNode:output_type -> workflow.ListRunsResponse
+	31,  // 157: workflow.WorkflowService.GetComponentHistory:output_type -> workflow.ListRunsResponse
+	19,  // 158: workflow.WorkflowService.GetWorkflowGraph:output_type -> workflow.WorkflowGraph
+	39,  // 159: workflow.WorkflowService.WatchRun:output_type -> workflow.WorkflowEventEnvelope
+	39,  // 160: workflow.WorkflowService.WatchNodeRuns:output_type -> workflow.WorkflowEventEnvelope
+	13,  // 161: workflow.WorkflowService.RetryRun:output_type -> workflow.WorkflowRun
+	94,  // 162: workflow.WorkflowService.CancelRun:output_type -> google.protobuf.Empty
+	94,  // 163: workflow.WorkflowService.AcknowledgeRun:output_type -> google.protobuf.Empty
+	44,  // 164: workflow.WorkflowService.DiagnoseRun:output_type -> workflow.DiagnoseRunResponse
+	77,  // 165: workflow.WorkflowService.ListWorkflowDefinitions:output_type -> workflow.ListWorkflowDefinitionsResponse
+	79,  // 166: workflow.WorkflowService.GetWorkflowDefinition:output_type -> workflow.GetWorkflowDefinitionResponse
+	94,  // 167: workflow.WorkflowService.RecordOutcome:output_type -> google.protobuf.Empty
+	48,  // 168: workflow.WorkflowService.ListWorkflowSummaries:output_type -> workflow.ListWorkflowSummariesResponse
+	94,  // 169: workflow.WorkflowService.RecordStepOutcome:output_type -> google.protobuf.Empty
+	52,  // 170: workflow.WorkflowService.ListStepOutcomes:output_type -> workflow.ListStepOutcomesResponse
+	94,  // 171: workflow.WorkflowService.RecordPhaseTransition:output_type -> google.protobuf.Empty
+	56,  // 172: workflow.WorkflowService.ListPhaseTransitions:output_type -> workflow.ListPhaseTransitionsResponse
+	94,  // 173: workflow.WorkflowService.RecordDriftObservation:output_type -> google.protobuf.Empty
+	94,  // 174: workflow.WorkflowService.ClearDriftObservation:output_type -> google.protobuf.Empty
+	61,  // 175: workflow.WorkflowService.ListDriftUnresolved:output_type -> workflow.ListDriftUnresolvedResponse
+	72,  // 176: workflow.WorkflowService.ListIncidents:output_type -> workflow.ListIncidentsResponse
+	69,  // 177: workflow.WorkflowService.GetIncident:output_type -> workflow.Incident
+	94,  // 178: workflow.WorkflowService.ApplyIncidentAction:output_type -> google.protobuf.Empty
+	68,  // 179: workflow.WorkflowService.SubmitProposedFix:output_type -> workflow.ProposedFix
+	81,  // 180: workflow.WorkflowService.ExecuteWorkflow:output_type -> workflow.ExecuteWorkflowResponse
+	84,  // 181: workflow.WorkflowService.ListCorrelationDeferState:output_type -> workflow.ListCorrelationDeferStateResponse
+	86,  // 182: workflow.WorkflowService.ClearCorrelationDeferState:output_type -> workflow.ClearCorrelationDeferStateResponse
+	88,  // 183: workflow.WorkflowService.WakeDeferredRunsByBlockerTag:output_type -> workflow.WakeDeferredRunsByBlockerTagResponse
+	90,  // 184: workflow.WorkflowActorService.ExecuteAction:output_type -> workflow.ExecuteActionResponse
+	145, // [145:185] is the sub-list for method output_type
+	105, // [105:145] is the sub-list for method input_type
 	105, // [105:105] is the sub-list for extension type_name
 	105, // [105:105] is the sub-list for extension extendee
 	0,   // [0:105] is the sub-list for field type_name
@@ -7940,7 +8077,7 @@ func file_workflow_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_workflow_proto_rawDesc), len(file_workflow_proto_rawDesc)),
 			NumEnums:      12,
-			NumMessages:   79,
+			NumMessages:   81,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

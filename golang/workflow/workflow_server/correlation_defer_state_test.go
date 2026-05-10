@@ -313,3 +313,180 @@ func TestDispatchOrderAbandonedBeforeCooldown(t *testing.T) {
 	// The dispatch test (executor_defer_test) covers the runtime
 	// ordering once integrated.
 }
+
+// ─── WF-DEFER B4 — wake-by-blocker-tag pure logic ────────────────────────────
+
+// TestFindByBlockerTag_MatchesNonAbandoned: wake should target rows
+// whose tags contain the wake key AND are not abandoned. Abandoned
+// rows are skipped — the operator-clear path is the only way to
+// resume an abandoned correlation.
+func TestFindByBlockerTag_MatchesNonAbandoned(t *testing.T) {
+	tag := "runtime.active:nuc:keepalived"
+	rows := []*CorrelationDeferState{
+		{
+			CorrelationID:    "match-A",
+			LastBlockerTags:  []string{tag, "deps.installed:nuc:keepalived"},
+		},
+		{
+			CorrelationID:    "match-B",
+			LastBlockerTags:  []string{tag},
+		},
+		{
+			CorrelationID:    "non-match",
+			LastBlockerTags:  []string{"runtime.active:dell:scylla"},
+		},
+		{
+			CorrelationID:    "abandoned-with-tag",
+			LastBlockerTags:  []string{tag},
+			Abandoned:        true,
+		},
+		nil,
+	}
+	out := findByBlockerTagFromList(rows, tag)
+	if len(out) != 2 {
+		t.Fatalf("matched %d, want 2", len(out))
+	}
+	got := map[string]bool{}
+	for _, r := range out {
+		got[r.CorrelationID] = true
+	}
+	if !got["match-A"] || !got["match-B"] {
+		t.Errorf("missing expected matches: got %v", got)
+	}
+	if got["abandoned-with-tag"] {
+		t.Errorf("abandoned correlation must not be returned for wake")
+	}
+	if got["non-match"] {
+		t.Errorf("non-matching tag must not be returned")
+	}
+}
+
+// TestFindByBlockerTag_EmptyTagIsNoop: callers pass exactly one tag
+// per wake call. An empty tag is a programming error but must not
+// match every row — the safer behavior is "match none".
+func TestFindByBlockerTag_EmptyTagIsNoop(t *testing.T) {
+	rows := []*CorrelationDeferState{
+		{CorrelationID: "x", LastBlockerTags: []string{"some.tag"}},
+	}
+	if out := findByBlockerTagFromList(rows, ""); len(out) != 0 {
+		t.Errorf("empty tag matched %d rows; want 0", len(out))
+	}
+}
+
+// TestMemoryStoreFindByBlockerTag: integration test against the
+// in-memory store. Records two defers with rendered tags, then asks
+// the store to find them by tag. Documents the production read flow.
+func TestMemoryStoreFindByBlockerTag(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryDeferStateStore()
+
+	store.RecordDefer(ctx, "c1", "rel/keepalived/nuc", &engine.DeferState{
+		StepID:      "verify_runtime",
+		DeferUntil:  time.Now().Add(60 * time.Second),
+		BlockerTags: []string{"runtime.active:nuc:keepalived"},
+	})
+	store.RecordDefer(ctx, "c1", "rel/keepalived/ryzen", &engine.DeferState{
+		StepID:      "verify_runtime",
+		DeferUntil:  time.Now().Add(60 * time.Second),
+		BlockerTags: []string{"runtime.active:ryzen:keepalived"},
+	})
+	store.RecordDefer(ctx, "c1", "rel/scylla/dell", &engine.DeferState{
+		StepID:      "verify_runtime",
+		DeferUntil:  time.Now().Add(60 * time.Second),
+		BlockerTags: []string{"runtime.active:dell:scylla"},
+	})
+
+	rows, err := store.FindByBlockerTag(ctx, "c1", "runtime.active:nuc:keepalived")
+	if err != nil {
+		t.Fatalf("FindByBlockerTag: %v", err)
+	}
+	if len(rows) != 1 || rows[0].CorrelationID != "rel/keepalived/nuc" {
+		t.Errorf("FindByBlockerTag = %v; want [rel/keepalived/nuc]", rows)
+	}
+
+	// A wake tag matching nothing is fine — wakes are noisy by design.
+	rows, _ = store.FindByBlockerTag(ctx, "c1", "runtime.active:does-not-exist")
+	if len(rows) != 0 {
+		t.Errorf("non-matching tag returned %d rows; want 0", len(rows))
+	}
+
+	// Cluster scoping: a tag that exists in c1 must not leak into c2.
+	rows, _ = store.FindByBlockerTag(ctx, "c2", "runtime.active:nuc:keepalived")
+	if len(rows) != 0 {
+		t.Errorf("cluster scoping leaked: %v", rows)
+	}
+}
+
+// TestWakePreservesDeferCount: the wake API explicitly does NOT
+// decrement defer_count. Operator stories: a transient blip wakes the
+// run, it succeeds, ClearOnSuccess resets the counter (existing path).
+// If the blip wakes the run but the underlying condition is still
+// bad, the next defer keeps counting toward abandonment — the
+// max_defers budget is the same whether we waited the full cooldown
+// or a wake fired early.
+func TestWakePreservesDeferCount(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryDeferStateStore()
+	state, _ := store.RecordDefer(ctx, "c1", "rel/x", &engine.DeferState{
+		StepID:      "verify_runtime",
+		DeferUntil:  time.Now().Add(60 * time.Second),
+		BlockerTags: []string{"runtime.active:x"},
+	})
+	if state.DeferCount != 1 {
+		t.Fatalf("setup: DeferCount = %d, want 1", state.DeferCount)
+	}
+
+	// Simulate the wake path: FindByBlockerTag returns the row, the
+	// caller (WakeDeferredRunsByBlockerTag handler) clears
+	// backoff_until_ms on workflow_runs. The B3 row stays put.
+	matches, _ := store.FindByBlockerTag(ctx, "c1", "runtime.active:x")
+	if len(matches) != 1 {
+		t.Fatalf("setup: expected 1 match, got %d", len(matches))
+	}
+	post, _ := store.Get(ctx, "c1", "rel/x")
+	if post.DeferCount != 1 {
+		t.Errorf("DeferCount changed after FindByBlockerTag: %d (want 1)", post.DeferCount)
+	}
+
+	// And a second defer (e.g. wake fired but condition still bad)
+	// continues counting.
+	state2, _ := store.RecordDefer(ctx, "c1", "rel/x", &engine.DeferState{
+		StepID:      "verify_runtime",
+		DeferUntil:  time.Now().Add(60 * time.Second),
+		BlockerTags: []string{"runtime.active:x"},
+	})
+	if state2.DeferCount != 2 {
+		t.Errorf("DeferCount after second defer = %d; want 2 (budget preserved through wake)", state2.DeferCount)
+	}
+}
+
+// TestWakeIgnoresAbandoned: a tag matching an abandoned row must not
+// produce a wake match. B3 abandonment is the explicit "stop trying"
+// signal; B4 wake is acceleration *within* the budget, not a
+// resurrection mechanism. Operator must Clear an abandoned
+// correlation explicitly.
+func TestWakeIgnoresAbandoned(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryDeferStateStore()
+	// Burn the budget to force abandoned=true.
+	for i := 0; i < defaultB3MaxDefers; i++ {
+		store.RecordDefer(ctx, "c1", "rel/dead", &engine.DeferState{
+			StepID:      "verify_runtime",
+			DeferUntil:  time.Now().Add(60 * time.Second),
+			BlockerTags: []string{"runtime.active:dead:thing"},
+		})
+	}
+	state, _ := store.Get(ctx, "c1", "rel/dead")
+	if !state.Abandoned {
+		t.Fatalf("setup: expected abandoned=true after %d defers (got count=%d max=%d)",
+			defaultB3MaxDefers, state.DeferCount, state.MaxDefers)
+	}
+
+	matches, err := store.FindByBlockerTag(ctx, "c1", "runtime.active:dead:thing")
+	if err != nil {
+		t.Fatalf("FindByBlockerTag: %v", err)
+	}
+	if len(matches) != 0 {
+		t.Errorf("wake matched abandoned correlation; want 0 matches, got %d", len(matches))
+	}
+}

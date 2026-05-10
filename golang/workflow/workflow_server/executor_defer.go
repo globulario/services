@@ -103,6 +103,42 @@ func (srv *server) findActiveDeferredRun(clusterID, correlationID string, now ti
 	return latest
 }
 
+// wakeActiveDeferredRun is the WF-DEFER B4 redispatch primitive. It
+// finds the active deferred run for (clusterID, correlationID) and
+// sets backoff_until_ms to the wake instant — collapsing the cooldown
+// window. defer_count and retry_attempt are preserved: the budget
+// continues to count down toward abandonment if the wake fires
+// prematurely. If no deferred run exists (already eligible, never
+// deferred, or the run finished), this is a no-op success.
+//
+// Source-of-truth choice: B2's cooldown lives on workflow_runs (not
+// the B3 row), so the wake also writes to workflow_runs. The B3
+// counter row stays untouched.
+func (srv *server) wakeActiveDeferredRun(ctx context.Context, clusterID, correlationID string, now time.Time) (string, bool, error) {
+	dr := srv.findActiveDeferredRun(clusterID, correlationID, now)
+	if dr == nil {
+		return "", false, nil
+	}
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return dr.GetId(), false, err
+	}
+	if err := srv.updateRunByID(sess, clusterID, dr.GetId(), func(startedAt time.Time) error {
+		return sess.Query(`
+			UPDATE workflow_runs SET
+				backoff_until_ms=?,
+				updated_at=?
+			WHERE cluster_id=? AND started_at=? AND id=?`,
+			now.UnixMilli(),
+			now,
+			clusterID, startedAt, dr.GetId(),
+		).Exec()
+	}); err != nil {
+		return dr.GetId(), false, err
+	}
+	return dr.GetId(), true, nil
+}
+
 // recordRunDeferred persists Run.Defer state onto the workflow_runs row
 // for the given run id. Called after the engine returns a deferred run.
 //
