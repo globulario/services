@@ -196,6 +196,26 @@ func compileSubSteps(steps []v1alpha1.WorkflowStepSpec) (*CompiledWorkflow, []Di
 		if s.Strategy != nil {
 			cs.Strategy = compileStrategy(*s.Strategy)
 		}
+		// WF-DEFER (B2 fix): substeps live inside foreach blocks (e.g.
+		// release.apply.package's apply_per_node). Without this they
+		// silently drop the defer: policy and the engine takes the
+		// FAILED path on retry exhaustion. Mirrors the top-level
+		// compile in Compile().
+		if s.Defer != nil {
+			cd := &CompiledDefer{
+				MaxDefers:   s.Defer.MaxDefers,
+				BlockerTags: append([]string(nil), s.Defer.BlockerTags...),
+			}
+			if s.Defer.Cooldown != nil {
+				if d, err := time.ParseDuration(s.Defer.Cooldown.String()); err == nil {
+					cd.Cooldown = d
+				} else {
+					diags = append(diags, Diagnostic{SeverityWarning, "sub_steps." + s.ID + ".defer.cooldown",
+						"invalid_duration", "defer.cooldown not parseable: " + s.Defer.Cooldown.String()})
+				}
+			}
+			cs.Defer = cd
+		}
 		sub.Steps[cs.ID] = cs
 	}
 

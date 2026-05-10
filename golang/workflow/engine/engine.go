@@ -1026,9 +1026,38 @@ func (e *Engine) executeForeachWithSubSteps(ctx context.Context, run *Run, step 
 	}
 
 	if failed > 0 {
+		// WF-DEFER: if any sub-DAG returned StepDeferredError, propagate
+		// it up so the run-level catch in ExecuteCompiled can park the
+		// run with RunDeferred. Otherwise the deferred signal would be
+		// swallowed by the generic "N/M items failed" wrap and the run
+		// would be recorded FAILED (which is what we observed live on
+		// keepalived during the WF-DEFER smoke test).
+		var firstDeferred *StepDeferredError
+		hardFailures := 0
+		for _, r := range results {
+			if r.err == nil {
+				continue
+			}
+			var sde *StepDeferredError
+			if errors.As(r.err, &sde) {
+				if firstDeferred == nil {
+					firstDeferred = sde
+				}
+				continue
+			}
+			hardFailures++
+		}
 		st.Status = StepFailed
 		st.Error = fmt.Sprintf("%d/%d items failed", failed, len(items))
 		e.notifyStep(run, st)
+		if firstDeferred != nil && hardFailures == 0 {
+			// All failures were deferrals — yield the slot. Use the
+			// first deferred item's policy; the scheduler retries the
+			// whole foreach after cooldown, at which point any other
+			// items that also wanted to defer will defer again
+			// naturally on their next attempt.
+			return firstDeferred
+		}
 		return fmt.Errorf("step %s: %d/%d items failed", step.ID, failed, len(items))
 	}
 

@@ -174,6 +174,68 @@ func TestSchedulerResumesAfterDeferUntil(t *testing.T) {
 	}
 }
 
+// TestForeachWithDeferYieldsRunDeferred is the regression test for the
+// WF-DEFER B2 hot-deploy live miss: when a foreach sub-DAG step defers,
+// the foreach aggregator was wrapping the StepDeferredError in a
+// generic "N/M items failed" string, which broke errors.As at the
+// run-level catch and produced RunFailed instead of RunDeferred. Lock
+// it down — any deferred sub-DAG must propagate as deferred when
+// no item hard-failed.
+func TestForeachWithDeferYieldsRunDeferred(t *testing.T) {
+	def := &v1alpha1.WorkflowDefinition{
+		APIVersion: v1alpha1.APIVersion,
+		Kind:       v1alpha1.Kind,
+		Metadata:   v1alpha1.WorkflowMetadata{Name: "test-foreach-defer"},
+		Spec: v1alpha1.WorkflowDefinitionSpec{
+			Strategy: v1alpha1.ExecutionStrategy{Mode: v1alpha1.StrategySingle},
+			Defaults: map[string]any{"items": []any{"a", "b"}},
+			Steps: []v1alpha1.WorkflowStepSpec{
+				{
+					ID:      "outer",
+					Foreach: &v1alpha1.ScalarString{Raw: "$.items"},
+					Steps: []v1alpha1.WorkflowStepSpec{
+						{
+							ID:     "inner_fails",
+							Actor:  v1alpha1.ActorInstaller,
+							Action: "installer.fail",
+							Retry: &v1alpha1.RetryPolicy{
+								MaxAttempts: 2,
+								Backoff:     &v1alpha1.ScalarString{Raw: "1ms"},
+							},
+							Defer: &v1alpha1.DeferPolicy{
+								Cooldown:    &v1alpha1.ScalarString{Raw: "30s"},
+								MaxDefers:   3,
+								BlockerTags: []string{"runtime.active:thing"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	router := NewRouter()
+	router.Register(v1alpha1.ActorInstaller, "installer.fail", func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		return nil, fmt.Errorf("nope")
+	})
+	eng := &Engine{Router: router}
+	run, err := eng.Execute(context.Background(), def, nil)
+	if err != nil {
+		t.Fatalf("Execute should swallow defer (returned ok), got err: %v", err)
+	}
+	if run.Status != RunDeferred {
+		t.Fatalf("expected RunDeferred from foreach with all-deferred items, got %s", run.Status)
+	}
+	if run.Defer == nil {
+		t.Fatal("expected non-nil Run.Defer")
+	}
+	if run.Defer.StepID != "inner_fails" {
+		t.Errorf("Defer.StepID = %q, want inner_fails (the deferred sub-step)", run.Defer.StepID)
+	}
+	if len(run.Defer.BlockerTags) != 1 || run.Defer.BlockerTags[0] != "runtime.active:thing" {
+		t.Errorf("BlockerTags = %v, want [runtime.active:thing]", run.Defer.BlockerTags)
+	}
+}
+
 // TestSchedulerOnlyConsidersDeferredStatus verifies that PickEligibleDeferred
 // ignores runs in other statuses, even if a Defer struct is left lying
 // around (e.g. a run that previously deferred and then succeeded on

@@ -257,6 +257,68 @@ func TestCompileSubSteps_PreservesStrategy(t *testing.T) {
 	}
 }
 
+// TestCompileSubSteps_PreservesDeferPolicy is the regression test for
+// the WF-DEFER B2 hot-deploy live miss: sub-steps inside a foreach
+// (e.g. release.apply.package's apply_per_node) silently dropped the
+// defer: block, so the engine took the FAILED path on retry exhaustion
+// rather than the DEFERRED path. Lock it down.
+func TestCompileSubSteps_PreservesDeferPolicy(t *testing.T) {
+	def := &v1alpha1.WorkflowDefinition{
+		APIVersion: v1alpha1.APIVersion,
+		Kind:       v1alpha1.Kind,
+		Metadata:   v1alpha1.WorkflowMetadata{Name: "substeps-defer"},
+		Spec: v1alpha1.WorkflowDefinitionSpec{
+			Steps: []v1alpha1.WorkflowStepSpec{
+				{
+					ID:      "outer",
+					Foreach: &v1alpha1.ScalarString{Raw: "$.items"},
+					Steps: []v1alpha1.WorkflowStepSpec{
+						{
+							ID:     "inner_verify",
+							Actor:  "node-agent",
+							Action: "node.verify",
+							Retry: &v1alpha1.RetryPolicy{
+								MaxAttempts: 5,
+								Backoff:     &v1alpha1.ScalarString{Raw: "5s"},
+							},
+							Defer: &v1alpha1.DeferPolicy{
+								Cooldown:    &v1alpha1.ScalarString{Raw: "60s"},
+								MaxDefers:   5,
+								BlockerTags: []string{"runtime.active:keepalived@nuc"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cw, diags, err := Compile(context.Background(), def)
+	if err != nil {
+		t.Fatalf("compile: %v (diags: %v)", err, diags)
+	}
+	outer := cw.Steps["outer"]
+	if outer == nil || outer.SubSteps == nil {
+		t.Fatal("expected compiled sub-steps on outer")
+	}
+	inner := outer.SubSteps.Steps["inner_verify"]
+	if inner == nil {
+		t.Fatal("expected inner sub-step")
+	}
+	if inner.Defer == nil {
+		t.Fatal("inner step lost its Defer policy through compileSubSteps — engine will take FAILED path instead of DEFERRED")
+	}
+	if inner.Defer.Cooldown != 60*time.Second {
+		t.Errorf("inner.Defer.Cooldown = %v, want 60s", inner.Defer.Cooldown)
+	}
+	if inner.Defer.MaxDefers != 5 {
+		t.Errorf("inner.Defer.MaxDefers = %d, want 5", inner.Defer.MaxDefers)
+	}
+	if len(inner.Defer.BlockerTags) != 1 || inner.Defer.BlockerTags[0] != "runtime.active:keepalived@nuc" {
+		t.Errorf("inner.Defer.BlockerTags = %v, want [runtime.active:keepalived@nuc]", inner.Defer.BlockerTags)
+	}
+}
+
 func TestCompileValidationErrors(t *testing.T) {
 	// Missing name.
 	def := &v1alpha1.WorkflowDefinition{
