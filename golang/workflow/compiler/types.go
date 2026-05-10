@@ -59,6 +59,29 @@ type CompiledStep struct {
 	Execution    *CompiledExecution    `json:"execution,omitempty"`
 	Verification *CompiledVerification `json:"verification,omitempty"`
 	Compensation *CompiledCompensation `json:"compensation,omitempty"`
+
+	// WF-DEFER: optional. When set and the step exhausts its retry budget,
+	// the engine returns ErrStepDeferred so the run executor can park the
+	// run with defer_until + defer_count instead of marking FAILED.
+	Defer *CompiledDefer `json:"defer,omitempty"`
+}
+
+// CompiledDefer is the resolved deferral policy for a step (WF-DEFER).
+type CompiledDefer struct {
+	// Cooldown is the minimum wall-clock wait before this deferred run is
+	// re-eligible. Default 60s if zero.
+	Cooldown time.Duration `json:"cooldown,omitempty"`
+
+	// MaxDefers is how many times one run may defer before being abandoned.
+	// Default 5 if zero.
+	MaxDefers int `json:"max_defers,omitempty"`
+
+	// BlockerTags are templated strings the scheduler will match against
+	// inbound events (service.active, deps.installed, etc.) to clear the
+	// cooldown early. Templating happens at execution time using the step's
+	// resolved With map; the engine emits the rendered list with the
+	// deferred run's metadata.
+	BlockerTags []string `json:"blocker_tags,omitempty"`
 }
 
 // ── Workflow hardening compiled types ─────────────────────────────────────────

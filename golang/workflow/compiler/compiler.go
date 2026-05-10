@@ -114,6 +114,23 @@ func Compile(ctx context.Context, def *v1alpha1.WorkflowDefinition) (*CompiledWo
 				With:    compileWith(s.Compensation.With),
 			}
 		}
+		// WF-DEFER: optional deferral policy. The engine inspects this on
+		// retry exhaustion to decide whether to FAIL the run or DEFER it.
+		if s.Defer != nil {
+			cd := &CompiledDefer{
+				MaxDefers:   s.Defer.MaxDefers,
+				BlockerTags: append([]string(nil), s.Defer.BlockerTags...),
+			}
+			if s.Defer.Cooldown != nil {
+				if d, err := time.ParseDuration(s.Defer.Cooldown.String()); err == nil {
+					cd.Cooldown = d
+				} else {
+					diags = append(diags, Diagnostic{SeverityWarning, "spec.steps." + s.ID + ".defer.cooldown",
+						"invalid_duration", "defer.cooldown not parseable: " + s.Defer.Cooldown.String()})
+				}
+			}
+			cs.Defer = cd
+		}
 		cw.Steps[cs.ID] = cs
 	}
 

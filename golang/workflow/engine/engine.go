@@ -8,6 +8,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -17,6 +18,70 @@ import (
 	"github.com/globulario/services/golang/workflow/compiler"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
 )
+
+// ErrStepDeferred is the sentinel returned (via errors.Is matching) when
+// a step exhausts its in-run retry budget AND has a Defer policy set.
+// The run executor catches this and parks the run with RUN_STATUS_DEFERRED
+// instead of marking it FAILED. See WF-DEFER design (workflow.proto).
+var ErrStepDeferred = errors.New("step deferred: retry budget exhausted, scheduler should re-queue")
+
+// DeferredStepInfo carries the metadata a run executor needs to park a
+// deferred run: which step deferred, how long to wait, and the rendered
+// blocker tags the scheduler will match against incoming events.
+type DeferredStepInfo struct {
+	StepID      string
+	Cooldown    time.Duration
+	MaxDefers   int
+	BlockerTags []string
+	LastError   string
+}
+
+// StepDeferredError is the concrete error returned on retry exhaustion
+// of a step with a Defer policy. It carries the DeferredStepInfo for
+// the run executor to consume via errors.As, and matches the
+// ErrStepDeferred sentinel via errors.Is.
+type StepDeferredError struct {
+	Info DeferredStepInfo
+}
+
+func (e *StepDeferredError) Error() string {
+	return fmt.Sprintf("step %s deferred after retries: %s", e.Info.StepID, e.Info.LastError)
+}
+
+// Is satisfies errors.Is so callers can match the sentinel without
+// caring about the concrete type.
+func (e *StepDeferredError) Is(target error) bool { return target == ErrStepDeferred }
+
+// defaultDeferCooldown / defaultMaxDefers are the WF-DEFER fallbacks
+// when a step's Defer block omits the corresponding field.
+const (
+	defaultDeferCooldown = 60 * time.Second
+	defaultMaxDefers     = 5
+)
+
+// newStepDeferredError builds the deferred error from a compiled step
+// and the last error message. Defer fields use defaults when zero.
+func newStepDeferredError(step *compiler.CompiledStep, lastErr string) *StepDeferredError {
+	cd := step.Defer
+	cooldown := cd.Cooldown
+	if cooldown <= 0 {
+		cooldown = defaultDeferCooldown
+	}
+	max := cd.MaxDefers
+	if max <= 0 {
+		max = defaultMaxDefers
+	}
+	tags := append([]string(nil), cd.BlockerTags...)
+	return &StepDeferredError{
+		Info: DeferredStepInfo{
+			StepID:      step.ID,
+			Cooldown:    cooldown,
+			MaxDefers:   max,
+			BlockerTags: tags,
+			LastError:   lastErr,
+		},
+	}
+}
 
 // --------------------------------------------------------------------------
 // Actor dispatch
@@ -154,7 +219,24 @@ const (
 	RunRunning   RunStatus = "RUNNING"
 	RunSucceeded RunStatus = "SUCCEEDED"
 	RunFailed    RunStatus = "FAILED"
+	// RunDeferred (WF-DEFER): a step exhausted its retry budget AND had a
+	// Defer policy set. The run yields its executor slot. The scheduler
+	// must skip the run until DeferState.DeferUntil. Maps to proto
+	// RUN_STATUS_DEFERRED.
+	RunDeferred RunStatus = "DEFERRED"
 )
+
+// DeferState captures why and until-when a Run is parked. Populated by
+// the engine when a step returns ErrStepDeferred. Persistence layers
+// must round-trip these fields so the scheduler can resume correctly
+// after process restart.
+type DeferState struct {
+	StepID      string    // step that triggered the defer
+	DeferUntil  time.Time // earliest wall-clock time the run is eligible again
+	DeferCount  int       // number of times this run has deferred (incremented before persist)
+	BlockerTags []string  // rendered tags the scheduler matches against events
+	Reason      string    // last step error message, for observability
+}
 
 type Run struct {
 	ID         string
@@ -173,6 +255,34 @@ type Run struct {
 	// or inconclusive+manual_approval during resume.
 	BlockedStepID string // step that caused the block
 	BlockedReason string // human-readable reason
+
+	// WF-DEFER: set when Status == RunDeferred. Nil otherwise.
+	Defer *DeferState
+}
+
+// IsDeferEligible reports whether a deferred run may be re-picked by the
+// scheduler at the given moment. Runs in any other status are not
+// affected by this check (callers should filter by Status first).
+func (r *Run) IsDeferEligible(now time.Time) bool {
+	if r == nil || r.Status != RunDeferred || r.Defer == nil {
+		return false
+	}
+	return !now.Before(r.Defer.DeferUntil)
+}
+
+// PickEligibleDeferred filters a slice of runs to those whose defer
+// cooldown has elapsed at the given moment. Useful for a tiny scheduler
+// that walks deferred runs and re-queues the eligible ones. The
+// workflow_server scheduler should embed this check; tests call it
+// directly.
+func PickEligibleDeferred(runs []*Run, now time.Time) []*Run {
+	out := make([]*Run, 0, len(runs))
+	for _, r := range runs {
+		if r.IsDeferEligible(now) {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // --------------------------------------------------------------------------
@@ -276,6 +386,37 @@ func (e *Engine) ExecuteCompiled(ctx context.Context, cw *compiler.CompiledWorkf
 	run.FinishedAt = time.Now()
 	duration := run.FinishedAt.Sub(run.StartedAt)
 	if err != nil {
+		// WF-DEFER: a step exhausted its retry budget AND had a Defer
+		// policy. Park the run; the scheduler re-queues after cooldown.
+		var sde *StepDeferredError
+		if errors.As(err, &sde) {
+			run.Status = RunDeferred
+			run.Error = err.Error()
+			now := time.Now()
+			prevCount := 0
+			if run.Defer != nil {
+				prevCount = run.Defer.DeferCount
+			}
+			run.Defer = &DeferState{
+				StepID:      sde.Info.StepID,
+				DeferUntil:  now.Add(sde.Info.Cooldown),
+				DeferCount:  prevCount + 1,
+				BlockerTags: append([]string(nil), sde.Info.BlockerTags...),
+				Reason:      sde.Info.LastError,
+			}
+			e.emitEvent(ctx, "workflow.run_deferred", map[string]any{
+				"workflow":     cw.Name,
+				"run_id":       run.ID,
+				"step_id":      sde.Info.StepID,
+				"cooldown_ms":  sde.Info.Cooldown.Milliseconds(),
+				"defer_count":  run.Defer.DeferCount,
+				"defer_until":  run.Defer.DeferUntil.UnixMilli(),
+				"blocker_tags": run.Defer.BlockerTags,
+				"reason":       sde.Info.LastError,
+				"duration_ms":  duration.Milliseconds(),
+			})
+			return run, nil
+		}
 		run.Status = RunFailed
 		run.Error = err.Error()
 		e.emitEvent(ctx, "workflow.run_failed", map[string]any{
@@ -513,6 +654,17 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 				}
 				continue
 			}
+			// WF-DEFER: retry budget exhausted. If a Defer policy is set,
+			// yield via StepDeferredError so the run executor parks the
+			// run instead of marking FAILED.
+			if step.Defer != nil {
+				st.Status = StepFailed
+				st.Error = err.Error()
+				st.FinishedAt = time.Now()
+				log.Printf("workflow: step %s DEFERRED after %d attempts: %v", step.ID, attempt, err)
+				e.notifyStep(run, st)
+				return newStepDeferredError(step, err.Error())
+			}
 			st.Status = StepFailed
 			st.Error = err.Error()
 			st.FinishedAt = time.Now()
@@ -536,6 +688,15 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 				case <-time.After(backoff):
 				}
 				continue
+			}
+			// WF-DEFER: same exhaustion handling as the err branch above.
+			if step.Defer != nil {
+				st.Status = StepFailed
+				st.Error = result.Message
+				st.FinishedAt = time.Now()
+				log.Printf("workflow: step %s DEFERRED after %d attempts: %s", step.ID, attempt, result.Message)
+				e.notifyStep(run, st)
+				return newStepDeferredError(step, result.Message)
 			}
 			st.Status = StepFailed
 			st.Error = result.Message
