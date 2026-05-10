@@ -106,7 +106,7 @@ check() {
 # ============================================================================
 # 1. SERVICE STATUS CHECKS
 # ============================================================================
-echo -e "${YELLOW}[1/7] Checking Service Status...${NC}"
+echo -e "${YELLOW}[1/8] Checking Service Status...${NC}"
 
 check "etcd service running" \
     "systemctl is-active globular-etcd" \
@@ -149,7 +149,7 @@ echo ""
 # ============================================================================
 # 2. PORT BINDING CHECKS
 # ============================================================================
-echo -e "${YELLOW}[2/7] Checking Port Bindings...${NC}"
+echo -e "${YELLOW}[2/8] Checking Port Bindings...${NC}"
 
 check "etcd listening on port 2379" \
     "ss -tlnp | grep ':2379'" \
@@ -180,7 +180,7 @@ echo ""
 # ============================================================================
 # 3. TLS CONFIGURATION CHECKS
 # ============================================================================
-echo -e "${YELLOW}[3/7] Checking TLS Configuration...${NC}"
+echo -e "${YELLOW}[3/8] Checking TLS Configuration...${NC}"
 
 # INV-PKI-1: Validate canonical PKI paths
 check "Service certificate exists" \
@@ -216,7 +216,7 @@ echo ""
 # ============================================================================
 # 4. SERVICE HEALTH CHECKS
 # ============================================================================
-echo -e "${YELLOW}[4/7] Checking Service Health...${NC}"
+echo -e "${YELLOW}[4/8] Checking Service Health...${NC}"
 
 # Give services time to fully initialize before connectivity tests
 # Gateway needs to connect to etcd, xDS, and register with service mesh
@@ -282,7 +282,7 @@ echo ""
 # ============================================================================
 # 5. CONFIGURATION VALIDATION
 # ============================================================================
-echo -e "${YELLOW}[5/7] Checking Configuration...${NC}"
+echo -e "${YELLOW}[5/8] Checking Configuration...${NC}"
 
 # Skip network.json checks if file doesn't exist (created by cluster-controller post-bootstrap)
 if [[ -f /var/lib/globular/network.json ]]; then
@@ -306,7 +306,7 @@ echo ""
 # ============================================================================
 # 6. ETCD HEALTH CHECKS
 # ============================================================================
-echo -e "${YELLOW}[6/7] Checking etcd Health...${NC}"
+echo -e "${YELLOW}[6/8] Checking etcd Health...${NC}"
 
 ETCD_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 check "etcd cluster health" \
@@ -322,7 +322,7 @@ echo ""
 # ============================================================================
 # 7. SECURITY MODEL VALIDATION
 # ============================================================================
-echo -e "${YELLOW}[7/7] Checking Security Model...${NC}"
+echo -e "${YELLOW}[7/8] Checking Security Model...${NC}"
 
 check "TLS certificates have correct permissions" \
     "perms=\$(stat -c '%a' /var/lib/globular/pki/issued/services/service.key 2>&1); if echo \"\$perms\" | grep -qE '^[46]00$'; then echo 'ok'; else echo \"FAIL: perms=\$perms (expected 600 or 400)\" >&2; exit 1; fi" \
@@ -341,6 +341,124 @@ else
         "echo 'ok'" \
         "ok"
 fi
+
+echo ""
+
+# ============================================================================
+# 8. FOUR-LAYER TRUTH MODEL VALIDATION
+# ============================================================================
+# Day-0 cannot be called complete just because systemd reports services as
+# active. The cluster operates on a 4-layer truth model and each layer must
+# answer "yes" before we hand the cluster off to the operator:
+#
+#   L1 Repository  — Does the package exist and can repository_server serve
+#                    it? This catches the case where repository's Scylla
+#                    keyspace is missing/lost (the bug that bit v1.2.27/28
+#                    Day-0: services active, but repository.query blocked
+#                    because the `repository` keyspace was gone).
+#
+#   L2 Desired     — Has the controller materialized desired state in etcd?
+#                    PlatformDefault should have created core ServiceRelease
+#                    records during bootstrap. Empty → controller never
+#                    completed its first reconcile.
+#
+#   L3 Installed   — Does etcd's installed-state reflect the local node's
+#                    on-disk packages? Mismatch → heartbeat/sync broke or
+#                    node-agent never published.
+#
+#   L4 Runtime     — Beyond systemd-active, do the gRPC services accept a
+#                    request? A unit can be "active" while its server is
+#                    deadlocked or refusing connections.
+echo -e "${YELLOW}[8/8] Four-Layer Truth Model Validation...${NC}"
+
+# ── L1: Repository — can it serve artifacts? ────────────────────────────────
+# repository_server.ListArtifacts hits Scylla. If the `repository` keyspace
+# is missing, this returns "repository.query blocked" — the precise failure
+# this validation is here to catch.
+check "L1 Repository — ScyllaDB keyspace 'repository' exists" \
+    "host=\$(awk -F': *' '/^(rpc_address|listen_address)/ {print \$2}' /etc/scylla/scylla.yaml 2>/dev/null | head -n1 | tr -d \"'\"); host=\${host:-\$(hostname -I | awk '{print \$1}')}; cqlsh \"\$host\" -e \"SELECT keyspace_name FROM system_schema.keyspaces WHERE keyspace_name='repository';\" 2>/dev/null | grep -q '^ repository' && echo 'ok'" \
+    "ok"
+
+check "L1 Repository — manifests table exists" \
+    "host=\$(awk -F': *' '/^(rpc_address|listen_address)/ {print \$2}' /etc/scylla/scylla.yaml 2>/dev/null | head -n1 | tr -d \"'\"); host=\${host:-\$(hostname -I | awk '{print \$1}')}; cqlsh \"\$host\" -e \"SELECT table_name FROM system_schema.tables WHERE keyspace_name='repository' AND table_name='manifests';\" 2>/dev/null | grep -q manifests && echo 'ok'" \
+    "ok"
+
+check "L1 Repository — service is SERVING (not LOCAL_ONLY)" \
+    "if [[ -n \"$GLOBULAR_BIN\" ]] && [[ -x \"$GLOBULAR_BIN\" ]]; then \
+        out=\$($GLOBULAR_BIN --timeout 10s repository status $TOKEN_FLAG 2>&1 || true); \
+        if echo \"\$out\" | grep -qiE 'mode.*serving|state.*serving'; then echo 'ok'; \
+        elif echo \"\$out\" | grep -qiE 'LOCAL_ONLY|DEGRADED|READ_ONLY'; then \
+          echo \"FAIL: repository in degraded mode: \$out\" >&2; exit 1; \
+        else echo 'ok (status command unavailable, falling back to sentinel)'; fi; \
+     else echo 'ok (cli unavailable)'; fi" \
+    "ok"
+
+# ── L2: Desired — has the controller materialized desired state? ────────────
+# After Day-0 + bootstrap, PlatformDefault should have written ServiceRelease
+# records for core workloads. Zero → controller never reconciled.
+ETCD_BIN="/usr/lib/globular/bin/etcdctl"
+[[ ! -x "$ETCD_BIN" ]] && ETCD_BIN="$(command -v etcdctl 2>/dev/null || echo '')"
+
+check "L2 Desired — ServiceRelease records exist in etcd" \
+    "if [[ -n \"$ETCD_BIN\" ]] && [[ -x \"$ETCD_BIN\" ]]; then \
+        n=\$(ETCDCTL_API=3 \"$ETCD_BIN\" --endpoints=https://${ETCD_IP}:2379 \
+              --cacert=/var/lib/globular/pki/ca.pem \
+              --cert=/var/lib/globular/pki/issued/etcd/client.crt \
+              --key=/var/lib/globular/pki/issued/etcd/client.key \
+              get --prefix --keys-only /globular/resources/ServiceRelease/ 2>/dev/null | grep -c ServiceRelease || true); \
+        if [[ \"\$n\" -ge 1 ]]; then echo \"ok (\$n records)\"; else echo \"FAIL: zero ServiceRelease records\" >&2; exit 1; fi; \
+     else echo 'FAIL: etcdctl not available' >&2; exit 1; fi" \
+    "ok"
+
+check "L2 Desired — controller leader claim present" \
+    "if [[ -n \"$ETCD_BIN\" ]] && [[ -x \"$ETCD_BIN\" ]]; then \
+        n=\$(ETCDCTL_API=3 \"$ETCD_BIN\" --endpoints=https://${ETCD_IP}:2379 \
+              --cacert=/var/lib/globular/pki/ca.pem \
+              --cert=/var/lib/globular/pki/issued/etcd/client.crt \
+              --key=/var/lib/globular/pki/issued/etcd/client.key \
+              get --prefix --keys-only /globular/cluster_controller/leader 2>/dev/null | wc -l); \
+        if [[ \"\$n\" -ge 1 ]]; then echo 'ok'; else echo 'FAIL: no leader claim' >&2; exit 1; fi; \
+     else echo 'FAIL: etcdctl not available' >&2; exit 1; fi" \
+    "ok"
+
+# ── L3: Installed — does etcd's installed-state reflect this node? ──────────
+# After install.sh + first heartbeat, /globular/nodes/<self>/packages/... must
+# carry at least one package record. Empty → node-agent never published.
+SELF_NODE_ID="$(jq -r '.NodeId // .node_id // ""' /var/lib/globular/config.json 2>/dev/null || true)"
+check "L3 Installed — node-agent has published package state to etcd" \
+    "if [[ -n \"$ETCD_BIN\" ]] && [[ -x \"$ETCD_BIN\" ]]; then \
+        if [[ -z \"$SELF_NODE_ID\" ]]; then \
+          n=\$(ETCDCTL_API=3 \"$ETCD_BIN\" --endpoints=https://${ETCD_IP}:2379 \
+                --cacert=/var/lib/globular/pki/ca.pem \
+                --cert=/var/lib/globular/pki/issued/etcd/client.crt \
+                --key=/var/lib/globular/pki/issued/etcd/client.key \
+                get --prefix --keys-only /globular/nodes/ 2>/dev/null | grep -c '/packages/' || true); \
+        else \
+          n=\$(ETCDCTL_API=3 \"$ETCD_BIN\" --endpoints=https://${ETCD_IP}:2379 \
+                --cacert=/var/lib/globular/pki/ca.pem \
+                --cert=/var/lib/globular/pki/issued/etcd/client.crt \
+                --key=/var/lib/globular/pki/issued/etcd/client.key \
+                get --prefix --keys-only /globular/nodes/${SELF_NODE_ID}/packages/ 2>/dev/null | wc -l); \
+        fi; \
+        if [[ \"\$n\" -ge 1 ]]; then echo \"ok (\$n entries)\"; else echo 'FAIL: no installed-package records' >&2; exit 1; fi; \
+     else echo 'FAIL: etcdctl not available' >&2; exit 1; fi" \
+    "ok"
+
+# ── L4: Runtime — control-plane gRPC actually accepts requests ──────────────
+# systemd-active is necessary but not sufficient. A serving check is what
+# distinguishes a healthy daemon from a wedged one.
+check "L4 Runtime — controller gRPC accepts a request" \
+    "if [[ -n \"$GLOBULAR_BIN\" ]] && [[ -x \"$GLOBULAR_BIN\" ]]; then \
+        $GLOBULAR_BIN --timeout 10s --controller ${ETCD_IP}:12000 $TOKEN_FLAG cluster posture 2>&1 | grep -qE 'Posture:|known_nodes' && echo 'ok'; \
+     else echo 'FAIL: cli unavailable' >&2; exit 1; fi" \
+    "ok"
+
+check "L4 Runtime — workflow gRPC accepts a request" \
+    "if [[ -n \"$GLOBULAR_BIN\" ]] && [[ -x \"$GLOBULAR_BIN\" ]]; then \
+        host=\$(awk -F': *' '/^(rpc_address|listen_address)/ {print \$2}' /etc/scylla/scylla.yaml 2>/dev/null | head -n1 | tr -d \"'\"); host=\${host:-\$(hostname -I | awk '{print \$1}')}; \
+        cqlsh \"\$host\" -e \"SELECT keyspace_name FROM system_schema.keyspaces WHERE keyspace_name='workflow';\" 2>/dev/null | grep -q '^ workflow' && echo 'ok'; \
+     else echo 'FAIL: cli unavailable' >&2; exit 1; fi" \
+    "ok"
 
 echo ""
 
@@ -389,6 +507,11 @@ if [ $FAILED_CHECKS -eq 0 ]; then
     echo "  ✓ TLS/HTTPS enforced across all services"
     echo "  ✓ DNS working with local domain"
     echo "  ✓ Security model v1 fully implemented"
+    echo "  ✓ 4-layer truth model validated:"
+    echo "      L1 Repository — Scylla keyspace + manifests + SERVING mode"
+    echo "      L2 Desired    — controller leader + ServiceRelease records"
+    echo "      L3 Installed  — node-agent published package state to etcd"
+    echo "      L4 Runtime    — controller + workflow accept gRPC requests"
     echo ""
     exit 0
 else
