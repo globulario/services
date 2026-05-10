@@ -896,6 +896,53 @@ CREATE TABLE IF NOT EXISTS failure_seed_sync (
     updated_at   INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_failure_seed_sync_proposal ON failure_seed_sync(proposal_id);
+
+CREATE TABLE IF NOT EXISTS experience_entries (
+    id                TEXT PRIMARY KEY,
+    kind              TEXT NOT NULL DEFAULT '',
+    domain            TEXT NOT NULL DEFAULT '',
+    capability        TEXT NOT NULL DEFAULT '',
+    status            TEXT NOT NULL DEFAULT '',
+    summary           TEXT NOT NULL DEFAULT '',
+    goal_original     TEXT NOT NULL DEFAULT '',
+    goal_normalized   TEXT NOT NULL DEFAULT '',
+    goal_verb         TEXT NOT NULL DEFAULT '',
+    goal_object       TEXT NOT NULL DEFAULT '',
+    strategy_id       TEXT NOT NULL DEFAULT '',
+    lesson            TEXT NOT NULL DEFAULT '',
+    next_time_hint    TEXT NOT NULL DEFAULT '',
+    created_by        TEXT NOT NULL DEFAULT '',
+    reviewed_by       TEXT NOT NULL DEFAULT '',
+    created_at        INTEGER NOT NULL DEFAULT 0,
+    updated_at        INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_experience_entries_domain ON experience_entries(domain);
+CREATE INDEX IF NOT EXISTS idx_experience_entries_capability ON experience_entries(capability);
+CREATE INDEX IF NOT EXISTS idx_experience_entries_status ON experience_entries(status);
+
+CREATE TABLE IF NOT EXISTS experience_attempts (
+    id             TEXT PRIMARY KEY,
+    experience_id  TEXT NOT NULL,
+    strategy_id    TEXT NOT NULL DEFAULT '',
+    action         TEXT NOT NULL DEFAULT '',
+    rationale      TEXT NOT NULL DEFAULT '',
+    outcome        TEXT NOT NULL DEFAULT '',
+    status         TEXT NOT NULL DEFAULT '',
+    created_at     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_experience_attempts_exp ON experience_attempts(experience_id);
+
+CREATE TABLE IF NOT EXISTS experience_observations (
+    id             TEXT PRIMARY KEY,
+    experience_id  TEXT NOT NULL,
+    attempt_id     TEXT NOT NULL DEFAULT '',
+    type           TEXT NOT NULL DEFAULT '',
+    summary        TEXT NOT NULL DEFAULT '',
+    source         TEXT NOT NULL DEFAULT '',
+    confidence     REAL NOT NULL DEFAULT 0.0,
+    created_at     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_experience_observations_exp ON experience_observations(experience_id);
 `
 
 // Graph is the central awareness graph handle backed by SQLite.

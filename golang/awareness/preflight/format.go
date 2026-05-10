@@ -102,6 +102,7 @@ func renderJSON(r *Report) (string, error) {
 		DegradedMode              DegradedModePlaybook     `json:"degraded_mode"`
 		RiskTier                  RiskTier                 `json:"risk_tier"`
 		FastPathApplied           bool                     `json:"fast_path_applied"`
+		ExperienceHints           []ExperienceHint         `json:"experience_hints,omitempty"`
 	}
 
 	jr := jsonReport{
@@ -143,6 +144,7 @@ func renderJSON(r *Report) (string, error) {
 		DegradedMode:              r.DegradedMode,
 		RiskTier:                  r.RiskTier,
 		FastPathApplied:           r.FastPathApplied,
+		ExperienceHints:           r.ExperienceHints,
 	}
 
 	b, err := json.MarshalIndent(jr, "", "  ")
@@ -244,6 +246,41 @@ func renderMarkdown(r *Report) string {
 
 	// Impacted files.
 	writeListSection(&sb, "## Impacted files\n\n", r.Files, "No files provided.")
+
+	if len(r.ExperienceHints) > 0 {
+		sb.WriteString("## Similar experiences\n\n")
+		for i, h := range r.ExperienceHints {
+			sb.WriteString(fmt.Sprintf("%d. `%s` (score %.2f)\n", i+1, h.ExperienceID, h.Score))
+			if h.Strategy != "" {
+				sb.WriteString("   - strategy: " + h.Strategy + "\n")
+			}
+			if h.Hint != "" {
+				sb.WriteString("   - hint: " + h.Hint + "\n")
+			}
+			if h.Summary != "" {
+				sb.WriteString("   - summary: " + h.Summary + "\n")
+			}
+			if h.Verdict != "" {
+				sb.WriteString("   - verdict: " + h.Verdict + "\n")
+			}
+			if h.FinalScore > 0 {
+				sb.WriteString(fmt.Sprintf("   - final score: %.2f\n", h.FinalScore))
+			}
+			if len(h.Reasons) > 0 {
+				sb.WriteString("   - reasons: " + strings.Join(h.Reasons, ", ") + "\n")
+			}
+			if len(h.WorkedPaths) > 0 {
+				sb.WriteString("   - worked paths: " + strings.Join(h.WorkedPaths, " | ") + "\n")
+			}
+			if len(h.FailedPaths) > 0 {
+				sb.WriteString("   - failed paths: " + strings.Join(h.FailedPaths, " | ") + "\n")
+			}
+			if len(h.EvidenceTypes) > 0 {
+				sb.WriteString("   - expected evidence: " + strings.Join(h.EvidenceTypes, ", ") + "\n")
+			}
+		}
+		sb.WriteString("\n")
+	}
 
 	// Package admission.
 	sb.WriteString("## Package admission\n\n")
@@ -395,6 +432,37 @@ func renderAgent(r *Report, opts RenderOptions) string {
 		sb.WriteString(fmt.Sprintf("Did-we-fix status: %s\n", r.DidWeFix.Status))
 		if r.DidWeFix.NextAction != "" {
 			sb.WriteString("Next action: " + r.DidWeFix.NextAction + "\n")
+		}
+		sb.WriteString("\n")
+	}
+	if len(r.ExperienceHints) > 0 {
+		sb.WriteString("Similar experiences:\n")
+		for _, h := range r.ExperienceHints {
+			sb.WriteString(fmt.Sprintf("- %s (score %.2f)\n", h.ExperienceID, h.Score))
+			if h.Strategy != "" {
+				sb.WriteString("  strategy: " + h.Strategy + "\n")
+			}
+			if h.Hint != "" {
+				sb.WriteString("  hint: " + h.Hint + "\n")
+			}
+			if h.Verdict != "" {
+				sb.WriteString("  verdict: " + h.Verdict + "\n")
+			}
+			if h.FinalScore > 0 {
+				sb.WriteString(fmt.Sprintf("  final score: %.2f\n", h.FinalScore))
+			}
+			if len(h.Reasons) > 0 {
+				sb.WriteString("  reasons: " + strings.Join(h.Reasons, ", ") + "\n")
+			}
+			if len(h.WorkedPaths) > 0 {
+				sb.WriteString("  worked paths: " + strings.Join(h.WorkedPaths, " | ") + "\n")
+			}
+			if len(h.FailedPaths) > 0 {
+				sb.WriteString("  failed paths: " + strings.Join(h.FailedPaths, " | ") + "\n")
+			}
+			if len(h.EvidenceTypes) > 0 {
+				sb.WriteString("  expected evidence: " + strings.Join(h.EvidenceTypes, ", ") + "\n")
+			}
 		}
 		sb.WriteString("\n")
 	}

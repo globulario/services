@@ -113,6 +113,7 @@ func registerAwarenessTools(s *server) {
 	registerAwarenessFailureTools(s, st)
 	registerAwarenessFailureLearningTools(s, st)
 	registerAwarenessEvidenceTools(s, st)
+	registerAwarenessExperienceTools(s, st)
 	// Phase B serve tools: independent of the awareness graph state, they
 	// only read /var/lib/globular/awareness/current. Registered here so
 	// they ship with the rest of the awareness tool group.

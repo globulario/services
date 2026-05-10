@@ -127,3 +127,98 @@ See `docs/awareness/claude_hooks.md` for full hook configuration.
 | learn_from_fix | Fix is not remembered — same pattern recurs in next incident |
 
 None of these risks are hypothetical. All four have caused regressions in this codebase.
+
+---
+
+## Experience Ledger Workflow
+
+Use this when you want reusable strategy memory, not just bug closure.
+
+### 1) Start an experience for the goal
+
+```bash
+globular awareness experience start \
+  --id exp.workflow.defer.example \
+  --goal "workflow retry loop after failed package install" \
+  --domain workflow \
+  --capability workflow.defer \
+  --strategy trace_typed_error_across_boundaries
+```
+
+### 2) Record attempts and observations during work
+
+```bash
+globular awareness experience record-attempt \
+  --experience exp.workflow.defer.example \
+  --strategy trace_typed_error_across_boundaries \
+  --action "inspect foreach aggregator error wrapping" \
+  --status success
+```
+
+```bash
+globular awareness experience add-observation \
+  --experience exp.workflow.defer.example \
+  --type test \
+  --summary "TestForeachWithDeferYieldsRunDeferred failed before fix and passed after fix" \
+  --confidence 0.9
+```
+
+### 3) Close with reusable lesson + hint
+
+```bash
+globular awareness experience close \
+  --experience exp.workflow.defer.example \
+  --status success \
+  --lesson "Trace typed semantic errors across compiler/executor/aggregation/persistence boundaries." \
+  --next-time-hint "Inspect typed error propagation before changing retry timing."
+```
+
+### 4) Link closure, invariants, forbidden-fix handling, files, symbols
+
+```bash
+globular awareness experience link-artifacts \
+  --experience exp.workflow.defer.example \
+  --closure-entry CLOSE-2026-0001 \
+  --invariant convergence.no_infinite_retry \
+  --avoided-forbidden-fix retry_hammer.increase_timeout_only \
+  --file golang/workflow/engine/engine.go \
+  --symbol engine.compileSubSteps
+```
+
+### 5) Governance checks before promotion
+
+```bash
+globular awareness experience promotion-check --experience exp.workflow.defer.example
+```
+
+If `ready=false`, promotion is blocked until reasons are resolved (for example:
+missing lesson/evidence, weak verdict, contradiction links).
+
+### 6) Promotion candidate (review-gated)
+
+```bash
+globular awareness experience promote-lesson \
+  --experience exp.workflow.defer.example \
+  --to forbidden_fix \
+  --summary "Do not fix retry hammer by increasing retry interval only."
+```
+
+This records a candidate node. It does not auto-promote into hard policy.
+
+### 7) Retrieve similar experiences before editing
+
+```bash
+globular awareness experience search-similar \
+  --goal "workflow retry loop after failed package install" \
+  --domain workflow \
+  --capability workflow.defer \
+  --file golang/workflow/engine/engine.go \
+  --invariant convergence.no_infinite_retry \
+  --forbidden-fix retry_hammer.increase_timeout_only \
+  --format json
+```
+
+Look for:
+- `reasons` (why it matched)
+- `worked_paths` and `failed_paths`
+- `evidence_types` (what proof is expected)

@@ -170,6 +170,41 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 	}
 
 	// 14. Build recommended investigation order.
+	if g != nil {
+		domain := inferExperienceDomain(r)
+		capability := inferExperienceCapability(r)
+		hits, err := g.SearchSimilarExperiences(ctx, graph.ExperienceSearchQuery{
+			Goal:            opts.Task,
+			Domain:          domain,
+			Capability:      capability,
+			Files:           opts.Files,
+			InvariantIDs:    r.Invariants,
+			ForbiddenFixIDs: r.ForbiddenFixes,
+			Limit:           3,
+		})
+		if err != nil {
+			r.Warnings = append(r.Warnings, "experience search failed: "+err.Error())
+		} else {
+			for _, h := range hits {
+				r.ExperienceHints = append(r.ExperienceHints, ExperienceHint{
+					ExperienceID:  h.ExperienceID,
+					Score:         h.Score,
+					Strategy:      h.StrategyID,
+					Hint:          h.Hint,
+					Status:        h.Status,
+					Summary:       h.Summary,
+					Verdict:       h.Verdict,
+					FinalScore:    h.FinalScore,
+					Reasons:       h.Reasons,
+					WorkedPaths:   h.WorkedPaths,
+					FailedPaths:   h.FailedPaths,
+					EvidenceTypes: h.EvidenceTypes,
+				})
+			}
+		}
+	}
+
+	// 14. Build recommended investigation order.
 	r.RecommendedOrder = buildInvestigationOrder(r)
 
 	// 15. Build agent instruction.
@@ -289,6 +324,35 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 	}
 
 	return r, nil
+}
+
+func inferExperienceDomain(r *Report) string {
+	for _, s := range r.Services {
+		switch strings.ToLower(s) {
+		case "workflow":
+			return "workflow"
+		case "repository":
+			return "repository"
+		case "cluster-controller", "cluster":
+			return "cluster"
+		}
+	}
+	if len(r.Classification) > 0 {
+		switch r.Classification[0] {
+		case ClassRuntimeIncident, ClassRetryLoop, ClassRestartStorm:
+			return "workflow"
+		}
+	}
+	return ""
+}
+
+func inferExperienceCapability(r *Report) string {
+	for _, s := range r.Services {
+		if strings.EqualFold(s, "workflow") {
+			return "workflow.defer"
+		}
+	}
+	return ""
 }
 
 func formatTime(t time.Time) string {

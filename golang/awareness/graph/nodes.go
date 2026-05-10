@@ -45,6 +45,17 @@ const (
 	NodeTypeEvidence          = "evidence"
 	NodeTypeManualRepair      = "manual_repair"
 
+	// Experience ledger node types.
+	NodeTypeExperience     = "experience"
+	NodeTypeGoalPattern    = "goal_pattern"
+	NodeTypeStrategy       = "strategy"
+	NodeTypeAttempt        = "attempt"
+	NodeTypeObservation    = "observation"
+	NodeTypeLesson         = "lesson"
+	NodeTypeNextTimeHint   = "next_time_hint"
+	NodeTypeEvidenceBundle = "evidence_bundle"
+	NodeTypeScorecard      = "scorecard"
+
 	// Fix ledger node types (Task 4).
 	NodeTypeFixCase              = "fix_case"
 	NodeTypeGuardrail            = "guardrail"
@@ -112,13 +123,13 @@ const (
 	NodeTypeClusterSystemConfig   = "cluster_system_config"
 
 	// Convergence delta node types.
-	NodeTypeConvergenceRecord  = "convergence_record"
-	NodeTypeDesiredStateRecord = "desired_state_record"
+	NodeTypeConvergenceRecord    = "convergence_record"
+	NodeTypeDesiredStateRecord   = "desired_state_record"
 	NodeTypeInstalledStateRecord = "installed_state_record"
-	NodeTypeRuntimeStateRecord = "runtime_state_record"
-	NodeTypeDriftRecord        = "drift_record"
-	NodeTypeReleaseAction      = "release_action"
-	NodeTypeVerificationRecord = "verification_record"
+	NodeTypeRuntimeStateRecord   = "runtime_state_record"
+	NodeTypeDriftRecord          = "drift_record"
+	NodeTypeReleaseAction        = "release_action"
+	NodeTypeVerificationRecord   = "verification_record"
 
 	// Metrics node types.
 	NodeTypeMetricQuery       = "metric_query"
@@ -134,28 +145,28 @@ const (
 	NodeTypeCertExpiryWarning    = "certificate_expiry_warning"
 
 	// RBAC policy node types.
-	NodeTypeRBACPolicyFile = "rbac_policy_file"
-	NodeTypeRBACRole       = "rbac_role"
-	NodeTypeRBACPermission = "rbac_permission"
-	NodeTypeRBACSubject    = "rbac_subject"
-	NodeTypeRBACBinding    = "rbac_binding"
+	NodeTypeRBACPolicyFile  = "rbac_policy_file"
+	NodeTypeRBACRole        = "rbac_role"
+	NodeTypeRBACPermission  = "rbac_permission"
+	NodeTypeRBACSubject     = "rbac_subject"
+	NodeTypeRBACBinding     = "rbac_binding"
 	NodeTypeServiceIdentity = "service_identity"
 
 	// Workflow execution node types.
-	NodeTypeWorkflowRun                 = "workflow_run"
-	NodeTypeWorkflowStepRun             = "workflow_step_run"
-	NodeTypeWorkflowBlockedReason       = "workflow_blocked_reason"
-	NodeTypeWorkflowRetryRecord         = "workflow_retry_record"
-	NodeTypeWorkflowError               = "workflow_error"
-	NodeTypeWorkflowStepEffect          = "workflow_step_effect"
-	NodeTypeWorkflowVerificationRecord  = "workflow_verification_record"
-	NodeTypeWorkflowIntegrityFinding    = "workflow_integrity_finding"
+	NodeTypeWorkflowRun                = "workflow_run"
+	NodeTypeWorkflowStepRun            = "workflow_step_run"
+	NodeTypeWorkflowBlockedReason      = "workflow_blocked_reason"
+	NodeTypeWorkflowRetryRecord        = "workflow_retry_record"
+	NodeTypeWorkflowError              = "workflow_error"
+	NodeTypeWorkflowStepEffect         = "workflow_step_effect"
+	NodeTypeWorkflowVerificationRecord = "workflow_verification_record"
+	NodeTypeWorkflowIntegrityFinding   = "workflow_integrity_finding"
 
 	// DNS / network node types.
-	NodeTypeDNSZone       = "dns_zone"
-	NodeTypeDNSRecord     = "dns_record"
+	NodeTypeDNSZone         = "dns_zone"
+	NodeTypeDNSRecord       = "dns_record"
 	NodeTypeServiceEndpoint = "service_endpoint"
-	NodeTypeDomainSpec    = "domain_spec"
+	NodeTypeDomainSpec      = "domain_spec"
 )
 
 // Node is a vertex in the awareness graph.

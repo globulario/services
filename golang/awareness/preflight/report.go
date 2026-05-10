@@ -23,7 +23,7 @@ const (
 // Populated from the most recent graph_builds.collector_health_json record.
 type CollectorHealthSummary struct {
 	CollectorID  string `json:"collector_id"`
-	Status       string `json:"status"`           // "ok" | "skipped" | "error"
+	Status       string `json:"status"` // "ok" | "skipped" | "error"
 	NodesEmitted int    `json:"nodes_emitted"`
 	Error        string `json:"error,omitempty"`
 }
@@ -142,15 +142,15 @@ const (
 
 // WorkflowRuntimeSection summarises live workflow execution coverage in the preflight.
 type WorkflowRuntimeSection struct {
-	Coverage       string `json:"coverage"`       // checked_clean | checked_with_matches | failed | stale | disabled | not_checked
-	Freshness      string `json:"freshness"`      // fresh | stale | unknown
-	Source         string `json:"source"`         // workflow_service_grpc | graph_cache | none
-	RunsSeen       int    `json:"runs_seen"`
-	FailedRuns     int    `json:"failed_runs"`
-	BlockedRuns    int    `json:"blocked_runs"`
-	RetryStorms    int    `json:"retry_storms"`
-	CollectedAt    string `json:"collected_at,omitempty"`
-	TTLSeconds     int    `json:"ttl_seconds,omitempty"`
+	Coverage        string `json:"coverage"`  // checked_clean | checked_with_matches | failed | stale | disabled | not_checked
+	Freshness       string `json:"freshness"` // fresh | stale | unknown
+	Source          string `json:"source"`    // workflow_service_grpc | graph_cache | none
+	RunsSeen        int    `json:"runs_seen"`
+	FailedRuns      int    `json:"failed_runs"`
+	BlockedRuns     int    `json:"blocked_runs"`
+	RetryStorms     int    `json:"retry_storms"`
+	CollectedAt     string `json:"collected_at,omitempty"`
+	TTLSeconds      int    `json:"ttl_seconds,omitempty"`
 	CollectorStatus string `json:"collector_status,omitempty"` // ok | partial | failed | disabled
 }
 
@@ -181,13 +181,13 @@ type GraphFreshnessReport struct {
 // preflight. It mirrors enforce.GoFileCoverageResult but lives here to avoid a
 // circular import (enforce imports preflight via strict.go).
 type GoFileCoverageReport struct {
-	EligibleGoFilesTotal        int      `json:"eligible_go_files_total"`
-	IndexedGoFilesTotal         int      `json:"indexed_go_files_total"`
-	CoveragePercentGoFiles      float64  `json:"coverage_percent_go_files"`
-	EligibleNonTestGoFiles      int      `json:"eligible_non_test_go_files_total"`
-	IndexedNonTestGoFiles       int      `json:"indexed_non_test_go_files_total"`
-	MissingFiles                []string `json:"missing_files,omitempty"`
-	BlindSpots                  []string `json:"blind_spots,omitempty"`
+	EligibleGoFilesTotal   int      `json:"eligible_go_files_total"`
+	IndexedGoFilesTotal    int      `json:"indexed_go_files_total"`
+	CoveragePercentGoFiles float64  `json:"coverage_percent_go_files"`
+	EligibleNonTestGoFiles int      `json:"eligible_non_test_go_files_total"`
+	IndexedNonTestGoFiles  int      `json:"indexed_non_test_go_files_total"`
+	MissingFiles           []string `json:"missing_files,omitempty"`
+	BlindSpots             []string `json:"blind_spots,omitempty"`
 	// ConfidenceImpact: none | low | medium | high
 	ConfidenceImpact string `json:"confidence_impact"`
 }
@@ -232,16 +232,32 @@ type DegradedModePlaybook struct {
 // It is separate from graph freshness: the graph can be fresh (recently built)
 // while the live overlay is stale (no recent live-snapshot run).
 type LiveOverlayFreshness struct {
-	Status     string                   `json:"status"`               // "fresh" | "stale" | "absent" | "failed" | "partial"
-	AgeSeconds float64                  `json:"age_seconds"`
-	CollectedAt string                  `json:"collected_at,omitempty"`
-	Collectors []CollectorHealthSummary `json:"collectors,omitempty"`
+	Status      string                   `json:"status"` // "fresh" | "stale" | "absent" | "failed" | "partial"
+	AgeSeconds  float64                  `json:"age_seconds"`
+	CollectedAt string                   `json:"collected_at,omitempty"`
+	Collectors  []CollectorHealthSummary `json:"collectors,omitempty"`
 }
 
 // LiveOverlayTTLSeconds is how long a live snapshot stays "fresh".
 const LiveOverlayTTLSeconds = 300 // 5 minutes
 // LiveOverlayStaleSeconds is when a live snapshot is considered "stale" but not absent.
 const LiveOverlayStaleSeconds = 900 // 15 minutes
+
+// ExperienceHint is a compact similar-experience suggestion shown during preflight.
+type ExperienceHint struct {
+	ExperienceID  string   `json:"experience_id"`
+	Score         float64  `json:"score"`
+	Strategy      string   `json:"strategy"`
+	Hint          string   `json:"hint"`
+	Status        string   `json:"status"`
+	Summary       string   `json:"summary"`
+	Verdict       string   `json:"verdict,omitempty"`
+	FinalScore    float64  `json:"final_score,omitempty"`
+	Reasons       []string `json:"reasons,omitempty"`
+	WorkedPaths   []string `json:"worked_paths,omitempty"`
+	FailedPaths   []string `json:"failed_paths,omitempty"`
+	EvidenceTypes []string `json:"evidence_types,omitempty"`
+}
 
 // Report is the complete output of a preflight run.
 type Report struct {
@@ -277,17 +293,18 @@ type Report struct {
 	GraphFreshness      *GraphFreshnessReport    `json:"graph_freshness,omitempty"`
 
 	// Graph coverage detail — tells callers WHY a result has no/few matches.
-	GraphAvailable            bool                 `json:"graph_available"`
-	GraphDBPath               string               `json:"graph_db_path,omitempty"`
-	GraphMatchCount           int                  `json:"graph_match_count"`
-	GraphFilteredByTrustCount int                  `json:"graph_filtered_by_trust_count"`
-	RawYAMLMatchCount         int                  `json:"raw_yaml_match_count"`
-	FilteredMatches           []FilteredMatch      `json:"filtered_matches,omitempty"`
-	ConfidenceFactors         ConfidenceFactors    `json:"confidence_factors"`
-	SafetyStatus              SafetyStatus         `json:"safety_status"`
-	DegradedMode              DegradedModePlaybook `json:"degraded_mode"`
-	RiskTier                  RiskTier             `json:"risk_tier"`
-	FastPathApplied           bool                 `json:"fast_path_applied"`
+	GraphAvailable            bool                  `json:"graph_available"`
+	GraphDBPath               string                `json:"graph_db_path,omitempty"`
+	GraphMatchCount           int                   `json:"graph_match_count"`
+	GraphFilteredByTrustCount int                   `json:"graph_filtered_by_trust_count"`
+	RawYAMLMatchCount         int                   `json:"raw_yaml_match_count"`
+	FilteredMatches           []FilteredMatch       `json:"filtered_matches,omitempty"`
+	ConfidenceFactors         ConfidenceFactors     `json:"confidence_factors"`
+	SafetyStatus              SafetyStatus          `json:"safety_status"`
+	DegradedMode              DegradedModePlaybook  `json:"degraded_mode"`
+	RiskTier                  RiskTier              `json:"risk_tier"`
+	FastPathApplied           bool                  `json:"fast_path_applied"`
 	GoFileCoverage            *GoFileCoverageReport `json:"go_file_coverage,omitempty"`
 	LiveOverlay               *LiveOverlayFreshness `json:"live_overlay,omitempty"`
+	ExperienceHints           []ExperienceHint      `json:"experience_hints,omitempty"`
 }

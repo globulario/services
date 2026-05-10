@@ -81,15 +81,33 @@ const (
 	EdgeGeneralizesTo = "generalizes_to"
 	EdgeSpecializes   = "specializes"
 
+	// Experience ledger edge kinds.
+	EdgePursuedGoal                   = "pursued_goal"
+	EdgeUsedStrategy                  = "used_strategy"
+	EdgeHasAttempt                    = "has_attempt"
+	EdgeFailedBecause                 = "failed_because"
+	EdgeSucceededBecause              = "succeeded_because"
+	EdgeProducedLesson                = "produced_lesson"
+	EdgeWarnsAgainst                  = "warns_against"
+	EdgeSuggestsNext                  = "suggests_next"
+	EdgeRelatedToCapability           = "related_to_capability"
+	EdgeChangedSymbol                 = "changed_symbol"
+	EdgeAvoidedForbiddenFix           = "avoided_forbidden_fix"
+	EdgeProducedForbiddenFixCandidate = "produced_forbidden_fix_candidate"
+	EdgeProducedInvariantCandidate    = "produced_invariant_candidate"
+	EdgeClosedBy                      = "closed_by"
+	EdgeSimilarTo                     = "similar_to"
+	EdgeContradictedBy                = "contradicted_by"
+
 	// Runtime bridge edge kinds (Task 6).
-	EdgeCapturedIn = "captured_in"
-	EdgeReports           = "reports"
-	EdgeEvidences         = "evidences"
-	EdgeMatchesInvariant  = "matches_invariant"
+	EdgeCapturedIn         = "captured_in"
+	EdgeReports            = "reports"
+	EdgeEvidences          = "evidences"
+	EdgeMatchesInvariant   = "matches_invariant"
 	EdgeMatchesFailureMode = "matches_failure_mode"
-	EdgeHasStateDelta     = "has_state_delta"
-	EdgeCurrentStatusOf   = "current_status_of"
-	EdgeRuntimeDependsOn  = "runtime_depends_on"
+	EdgeHasStateDelta      = "has_state_delta"
+	EdgeCurrentStatusOf    = "current_status_of"
+	EdgeRuntimeDependsOn   = "runtime_depends_on"
 
 	// Observation edge kinds.
 	EdgeObserves = "observes" // source_file observes/detects an invariant (diagnostic/reporting)
@@ -100,10 +118,10 @@ const (
 
 	// Service design graph edge kinds (Phase 2-8).
 	EdgeHasAuthz         = "has_authz"          // rpc_method → authz_annotation
-	EdgeHasStreamingMode = "has_streaming_mode"  // rpc_method → streaming_mode
-	EdgeImplementedBy    = "implemented_by"      // rpc_method → symbol (Go method)
-	EdgeGovernedBy       = "governed_by"         // rpc_method → invariant
-	EdgeProvidesService  = "provides_service"    // package → proto_service
+	EdgeHasStreamingMode = "has_streaming_mode" // rpc_method → streaming_mode
+	EdgeImplementedBy    = "implemented_by"     // rpc_method → symbol (Go method)
+	EdgeGovernedBy       = "governed_by"        // rpc_method → invariant
+	EdgeProvidesService  = "provides_service"   // package → proto_service
 
 	// Invariant implementation graph edge kinds.
 	// These edges wire source code, tests, and authority data to invariant nodes,
@@ -119,14 +137,14 @@ const (
 	EdgeHasEvidence           = "has_evidence"            // any node → evidence artifact
 
 	// Live etcd / cluster state edge kinds.
-	EdgeEtcdSnapshotContainsKey    = "etcd_snapshot_contains_key"
-	EdgeKeyDeclaresResource        = "key_declares_resource"
-	EdgeDesiredTargetsService      = "desired_targets_service"
-	EdgeDesiredTargetsNode         = "desired_targets_node"
-	EdgeReleaseHasBuildID          = "release_has_build_id"
+	EdgeEtcdSnapshotContainsKey     = "etcd_snapshot_contains_key"
+	EdgeKeyDeclaresResource         = "key_declares_resource"
+	EdgeDesiredTargetsService       = "desired_targets_service"
+	EdgeDesiredTargetsNode          = "desired_targets_node"
+	EdgeReleaseHasBuildID           = "release_has_build_id"
 	EdgeNodeReportsInstalledPackage = "node_reports_installed_package"
-	EdgeNodeReportsRuntimeStatus   = "node_reports_runtime_status"
-	EdgeServiceConfigDeclEndpoint  = "service_config_declares_endpoint"
+	EdgeNodeReportsRuntimeStatus    = "node_reports_runtime_status"
+	EdgeServiceConfigDeclEndpoint   = "service_config_declares_endpoint"
 
 	// Convergence delta edge kinds.
 	EdgeDesiredComparesToInstalled = "desired_compares_to_installed"
@@ -135,34 +153,34 @@ const (
 	EdgeDriftDetectedBetween       = "drift_detected_between"
 
 	// Metrics edge kinds.
-	EdgeMetricQueryObservesService     = "metric_query_observes_service"
-	EdgeMetricThresholdAppliesToService = "metric_threshold_applies_to_service"
+	EdgeMetricQueryObservesService        = "metric_query_observes_service"
+	EdgeMetricThresholdAppliesToService   = "metric_threshold_applies_to_service"
 	EdgeMetricWarningIndicatesFailureMode = "metric_warning_indicates_failure_mode"
-	EdgeMetricWarningRisksInvariant    = "metric_warning_risks_invariant"
-	EdgeMetricWarningTriggerRule       = "metric_warning_triggers_decision_rule"
+	EdgeMetricWarningRisksInvariant       = "metric_warning_risks_invariant"
+	EdgeMetricWarningTriggerRule          = "metric_warning_triggers_decision_rule"
 
 	// PKI / certificate edge kinds.
-	EdgeCertIssuedBy         = "certificate_issued_by"
-	EdgeCertHasSAN           = "certificate_has_san"
-	EdgeCertUsedByService    = "certificate_used_by_service"
-	EdgeCertCoversEndpoint   = "certificate_covers_endpoint"
-	EdgeCertRisksInvariant   = "certificate_risks_invariant"
+	EdgeCertIssuedBy       = "certificate_issued_by"
+	EdgeCertHasSAN         = "certificate_has_san"
+	EdgeCertUsedByService  = "certificate_used_by_service"
+	EdgeCertCoversEndpoint = "certificate_covers_endpoint"
+	EdgeCertRisksInvariant = "certificate_risks_invariant"
 
 	// RBAC edge kinds.
-	EdgeRoleGrantsPermission   = "role_grants_permission"
-	EdgeSubjectBoundToRole     = "subject_bound_to_role"
+	EdgeRoleGrantsPermission      = "role_grants_permission"
+	EdgeSubjectBoundToRole        = "subject_bound_to_role"
 	EdgeServiceRequiresPermission = "service_requires_permission"
-	EdgeServiceHasIdentity     = "service_has_identity"
-	EdgePermissionAllowsAction = "permission_allows_action"
-	EdgePermissionRisksInvariant = "permission_risks_invariant"
+	EdgeServiceHasIdentity        = "service_has_identity"
+	EdgePermissionAllowsAction    = "permission_allows_action"
+	EdgePermissionRisksInvariant  = "permission_risks_invariant"
 
 	// Workflow execution edge kinds.
-	EdgeWorkflowRunInstantiates    = "workflow_run_instantiates_definition"
-	EdgeWorkflowRunTargetsService  = "workflow_run_targets_service"
-	EdgeWorkflowRunTargetsNode     = "workflow_run_targets_node"
-	EdgeWorkflowRunTargetsPackage  = "workflow_run_targets_package"
-	EdgeWorkflowRunFailedAtStep    = "workflow_run_failed_at_step"
-	EdgeWorkflowFailureIndicates   = "workflow_failure_indicates_failure_mode"
+	EdgeWorkflowRunInstantiates       = "workflow_run_instantiates_definition"
+	EdgeWorkflowRunTargetsService     = "workflow_run_targets_service"
+	EdgeWorkflowRunTargetsNode        = "workflow_run_targets_node"
+	EdgeWorkflowRunTargetsPackage     = "workflow_run_targets_package"
+	EdgeWorkflowRunFailedAtStep       = "workflow_run_failed_at_step"
+	EdgeWorkflowFailureIndicates      = "workflow_failure_indicates_failure_mode"
 	EdgeWorkflowFailureRisksInvariant = "workflow_failure_risks_invariant"
 
 	// Typed workflow execution proof edges (precise semantics, preferred over owns/depends_on).
@@ -181,10 +199,10 @@ const (
 	EdgeWorkflowReceiptVerifiesAction    = "workflow_receipt_verifies_action"
 
 	// DNS / network edge kinds.
-	EdgeDNSRecordResolvesTo       = "dns_record_resolves_to"
-	EdgeServiceEndpointAdvertisedBy = "service_endpoint_advertised_by"
-	EdgeDomainSpecDeclaresRecord  = "domain_spec_declares_record"
-	EdgeDNSRecordRisksInvariant   = "dns_record_risks_invariant"
+	EdgeDNSRecordResolvesTo          = "dns_record_resolves_to"
+	EdgeServiceEndpointAdvertisedBy  = "service_endpoint_advertised_by"
+	EdgeDomainSpecDeclaresRecord     = "domain_spec_declares_record"
+	EdgeDNSRecordRisksInvariant      = "dns_record_risks_invariant"
 	EdgeServiceEndpointCoveredByCert = "service_endpoint_covered_by_cert"
 )
 
@@ -242,10 +260,10 @@ type Edge struct {
 	Confidence float64
 	// Class is the edge classification: decision, structural, or information.
 	// Auto-classified from Kind if empty.
-	Class  string
+	Class string
 	// Weight is the traversal weight (0.0–1.0). Auto-set from Class if 0.
-	Weight float64
-	Metadata   map[string]any
+	Weight   float64
+	Metadata map[string]any
 }
 
 // ProvenanceEdge is an Edge that carries full provenance metadata describing
