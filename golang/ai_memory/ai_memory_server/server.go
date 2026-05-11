@@ -357,6 +357,22 @@ func (srv *server) Store(ctx context.Context, req *ai_memorypb.StoreRqst) (*ai_m
 		return nil, fmt.Errorf("project is required")
 	}
 
+	// If the caller supplied an explicit id, ScyllaDB INSERT will upsert
+	// against any existing row with the same partition key. Block that
+	// from silently overwriting a protected seed entry — only the seed
+	// admin may rewrite seed rows. Storing with a server-allocated UUID
+	// (id == "" on the request) cannot collide, so we skip the check.
+	if req.GetMemory().GetId() != "" && !authorizedSeedMutator(ctx) {
+		if existing, err := srv.Get(ctx, &ai_memorypb.GetRqst{Id: id, Project: project}); err == nil {
+			if err := guardSeedMutation(ctx, existing.GetMemory(), "store"); err != nil {
+				return nil, err
+			}
+		}
+		// Get error means the row doesn't exist (or read failed) —
+		// in either case let the INSERT proceed and surface the real
+		// error from the write path.
+	}
+
 	now := time.Now().Unix()
 	if m.GetCreatedAt() == 0 {
 		m.CreatedAt = now
@@ -573,6 +589,12 @@ func (srv *server) Update(ctx context.Context, req *ai_memorypb.UpdateRqst) (*ai
 		return nil, fmt.Errorf("update: fetch existing: %w", err)
 	}
 
+	// Reject mutations against protected operational-knowledge seed
+	// entries unless the caller is the seed admin.
+	if err := guardSeedMutation(ctx, existing.GetMemory(), "update"); err != nil {
+		return nil, err
+	}
+
 	merged := existing.GetMemory()
 
 	// Merge non-empty fields.
@@ -641,6 +663,12 @@ func (srv *server) Delete(ctx context.Context, req *ai_memorypb.DeleteRqst) (*ai
 	existing, err := srv.Get(ctx, &ai_memorypb.GetRqst{Id: id, Project: project})
 	if err != nil {
 		return nil, fmt.Errorf("delete: fetch existing: %w", err)
+	}
+
+	// Reject deletes against protected operational-knowledge seed
+	// entries unless the caller is the seed admin.
+	if err := guardSeedMutation(ctx, existing.GetMemory(), "delete"); err != nil {
+		return nil, err
 	}
 
 	m := existing.GetMemory()
