@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/awareness/analysis"
+	"github.com/globulario/services/golang/awareness/assurance"
+	"github.com/globulario/services/golang/awareness/bundlesync"
 	"github.com/globulario/services/golang/awareness/extractors/packages"
 	"github.com/globulario/services/golang/awareness/fixledger"
 	"github.com/globulario/services/golang/awareness/graph"
@@ -19,18 +21,19 @@ import (
 
 // Options configures a preflight run.
 type Options struct {
-	Task           string                 // required: task description
-	Files          []string               // optional: files to run impact analysis on
-	PackagePath    string                 // optional: path to package dir with awareness.yaml
-	Phase          string                 // optional: dependency phase filter for cycle detection
-	DocsDir        string                 // path to docs/awareness (aliases, fix_cases, guardrails)
-	RepoRoot       string                 // optional: repo root for Go file coverage computation
-	IncludeRuntime bool                   // collect live runtime snapshot
-	RuntimeWindow  time.Duration          // lookback window for events/workflows (default 15m)
-	Bridge         *runtime.RuntimeBridge // optional: if nil and IncludeRuntime, uses noop bridge
-	WriteAudit     bool                   // if true, persist a PreflightAuditRecord to the graph DB after the run
-	GitSHA         string                 // optional: current git commit SHA for the audit record
-	Now            time.Time              // injectable clock for tests; zero → time.Now()
+	Task               string                 // required: task description
+	Files              []string               // optional: files to run impact analysis on
+	PackagePath        string                 // optional: path to package dir with awareness.yaml
+	Phase              string                 // optional: dependency phase filter for cycle detection
+	DocsDir            string                 // path to docs/awareness (aliases, fix_cases, guardrails)
+	RepoRoot           string                 // optional: repo root for Go file coverage computation
+	IncludeRuntime     bool                   // collect live runtime snapshot
+	RuntimeWindow      time.Duration          // lookback window for events/workflows (default 15m)
+	Bridge             *runtime.RuntimeBridge // optional: if nil and IncludeRuntime, uses noop bridge
+	WriteAudit         bool                   // if true, persist a PreflightAuditRecord to the graph DB after the run
+	GitSHA             string                 // optional: current git commit SHA for the audit record
+	Now                time.Time              // injectable clock for tests; zero → time.Now()
+	BundleManifestPath string                 // optional: path to installed awareness-bundle manifest.json; populates Staleness.BundlePresent
 }
 
 // Run executes the full preflight and returns a structured report.
@@ -322,8 +325,89 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 		r.Warnings = append(r.Warnings,
 			"UNKNOWN_NOT_SAFE: evidence is incomplete for a sensitive task. Rebuild graph and collect runtime evidence before code changes.")
 	}
+	r.Trust = computeTrustEnvelope(ctx, g, opts, r)
 
 	return r, nil
+}
+
+func computeTrustEnvelope(ctx context.Context, g *graph.Graph, opts Options, r *Report) *assurance.TrustEnvelope {
+	if r == nil {
+		return nil
+	}
+	// PrimaryMatchKind picks the most-specific match kind so the trust
+	// envelope's reason text stays honest. Order matters: failure_mode wins
+	// when both are present (it's the most actionable axis); raw YAML is a
+	// last-resort fallback. See docs/awareness/composed_path_failures.md
+	// (TrustEnvelope match-kind).
+	primaryKind := ""
+	switch {
+	case len(r.FailureModes) > 0:
+		primaryKind = assurance.MatchKindFailureMode
+	case len(r.Invariants) > 0:
+		primaryKind = assurance.MatchKindInvariant
+	case len(r.ForbiddenFixes) > 0:
+		primaryKind = assurance.MatchKindForbiddenFix
+	case len(r.RawKnowledgeMatches) > 0:
+		primaryKind = assurance.MatchKindRawYAML
+	}
+	in := assurance.ComposeInputs{
+		MatchFound:       len(r.Invariants) > 0 || len(r.FailureModes) > 0 || len(r.ForbiddenFixes) > 0 || len(r.RawKnowledgeMatches) > 0,
+		PrimaryMatchKind: primaryKind,
+	}
+	if g != nil {
+		stOpts := assurance.Options{DocsDir: opts.DocsDir}
+		// Resolve the manifest path: explicit caller value first, then the
+		// canonical install path. This makes the joined freshness pipeline
+		// usable by every caller (CLI, MCP, in-process) without each one
+		// having to re-derive the path. A missing/unreadable manifest is
+		// silently OK — Staleness.BundlePresent stays false and the verdict
+		// reflects the gap honestly.
+		manifestPath := opts.BundleManifestPath
+		if manifestPath == "" {
+			manifestPath = bundlesync.DefaultManifestPath()
+		}
+		if m, mErr := bundlesync.LoadManifest(manifestPath); mErr == nil {
+			stOpts.Manifest = m
+		}
+		if st, err := assurance.CheckStaleness(ctx, g, stOpts); err == nil {
+			in.Staleness = st
+		}
+		if len(r.FailureModes) > 0 {
+			if cov, err := assurance.ComputeCoverage(ctx, g); err == nil {
+				in.PerFailureMode = chooseFailureModeCoverage(cov, r.FailureModes)
+			}
+		}
+	}
+	env := assurance.Compose(in)
+	return &env
+}
+
+func chooseFailureModeCoverage(cov *assurance.CoverageReport, matched []string) *assurance.FailureModeCoverage {
+	if cov == nil || len(cov.PerFailureMode) == 0 {
+		return nil
+	}
+	matchSet := map[string]bool{}
+	for _, id := range matched {
+		matchSet[id] = true
+	}
+	priority := map[string]int{"ORPHAN": 0, "PARTIAL": 1, "DETECTED": 2, "TESTED": 3, "ENFORCED": 4, "DEPRECATED": 5, "INTENTIONAL_GAP": 6}
+	var best *assurance.FailureModeCoverage
+	bestRank := 99
+	for i := range cov.PerFailureMode {
+		fm := cov.PerFailureMode[i]
+		if !matchSet[fm.ID] {
+			continue
+		}
+		rank := 99
+		if r, ok := priority[fm.State]; ok {
+			rank = r
+		}
+		if best == nil || rank < bestRank {
+			best = &cov.PerFailureMode[i]
+			bestRank = rank
+		}
+	}
+	return best
 }
 
 func inferExperienceDomain(r *Report) string {

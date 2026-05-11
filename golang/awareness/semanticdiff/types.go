@@ -1,6 +1,10 @@
 package semanticdiff
 
-import "context"
+import (
+	"context"
+
+	"github.com/globulario/services/golang/awareness/assurance"
+)
 
 // Layer names.
 const (
@@ -42,20 +46,43 @@ type SemanticDiffRequest struct {
 
 // SemanticDiffReport is the full output of a semantic diff interpretation.
 type SemanticDiffReport struct {
-	ID          string
-	SessionID   string
-	Task        string
-	DiffSource  string
-	GitBase     string
-	GitHead     string
-	Verdict     string
-	Severity    string
-	Summary     string
-	Fingerprint string
-	Findings    []SemanticDiffFinding
-	Atoms       []SemanticDiffAtom
-	Transitions []LayerTransition
-	CreatedAt   int64
+	ID              string
+	SessionID       string
+	Task            string
+	DiffSource      string
+	GitBase         string
+	GitHead         string
+	Verdict         string
+	Severity        string
+	Summary         string
+	Fingerprint     string
+	Findings        []SemanticDiffFinding
+	Atoms           []SemanticDiffAtom
+	Transitions     []LayerTransition
+	AuthorityChange *AuthorityChange         `json:"authority_change,omitempty"`
+	AuthorityBudget *AuthorityBudget         `json:"authority_budget,omitempty"`
+	Trust           *assurance.TrustEnvelope `json:"trust,omitempty"`
+	CreatedAt       int64
+}
+
+// AuthorityChange describes the highest-risk detected movement across
+// Globular's state authority layers for this diff.
+type AuthorityChange struct {
+	Detected       bool   `json:"detected"`
+	FromLayer      string `json:"from_layer,omitempty"`
+	ToLayer        string `json:"to_layer,omitempty"`
+	Risk           string `json:"risk"` // none|medium|high|critical
+	RequiresReview bool   `json:"requires_review"`
+}
+
+// AuthorityBudget states what minimum trust posture is required before the
+// semantic diff can be treated as safe for authority-affecting changes.
+type AuthorityBudget struct {
+	LayerChanged              bool   `json:"layer_changed"`
+	SourceLayer               string `json:"source_layer,omitempty"`
+	TargetLayer               string `json:"target_layer,omitempty"`
+	AllowedWithoutReview      bool   `json:"allowed_without_review"`
+	RequiredAwarenessCoverage string `json:"required_awareness_coverage"` // baseline|sufficient|strong
 }
 
 // SemanticDiffFinding is a structured violation or observation.
@@ -113,7 +140,7 @@ type DiffFile struct {
 
 // DiffHunk is a single change hunk within a file.
 type DiffHunk struct {
-	Symbol       string   // function/method name from @@ context hint
+	Symbol       string // function/method name from @@ context hint
 	AddedLines   []string
 	RemovedLines []string
 }

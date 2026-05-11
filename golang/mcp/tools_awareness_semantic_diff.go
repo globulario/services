@@ -79,14 +79,17 @@ func registerAwarenessSemanticDiffTools(s *server, st *awarenessState) {
 			})
 		}
 		return map[string]interface{}{
-			"report_id":   report.ID,
-			"verdict":     report.Verdict,
-			"severity":    report.Severity,
-			"summary":     report.Summary,
-			"findings":    findings,
-			"atom_count":  len(report.Atoms),
-			"fingerprint": report.Fingerprint,
-			"formatted":   semanticdiff.FormatReport(report),
+			"report_id":        report.ID,
+			"verdict":          report.Verdict,
+			"severity":         report.Severity,
+			"summary":          report.Summary,
+			"authority_change": report.AuthorityChange,
+			"authority_budget": report.AuthorityBudget,
+			"trust":            report.Trust,
+			"findings":         findings,
+			"atom_count":       len(report.Atoms),
+			"fingerprint":      report.Fingerprint,
+			"formatted":        semanticdiff.FormatReport(report),
 		}, nil
 	})
 
@@ -177,14 +180,17 @@ func registerAwarenessSemanticDiffTools(s *server, st *awarenessState) {
 			})
 		}
 		return map[string]interface{}{
-			"report_id":   report.ID,
-			"verdict":     report.Verdict,
-			"severity":    report.Severity,
-			"summary":     report.Summary,
-			"findings":    findings,
-			"atom_count":  len(report.Atoms),
-			"fingerprint": report.Fingerprint,
-			"formatted":   semanticdiff.FormatReport(report),
+			"report_id":        report.ID,
+			"verdict":          report.Verdict,
+			"severity":         report.Severity,
+			"summary":          report.Summary,
+			"authority_change": report.AuthorityChange,
+			"authority_budget": report.AuthorityBudget,
+			"trust":            report.Trust,
+			"findings":         findings,
+			"atom_count":       len(report.Atoms),
+			"fingerprint":      report.Fingerprint,
+			"formatted":        semanticdiff.FormatReport(report),
 		}, nil
 	})
 

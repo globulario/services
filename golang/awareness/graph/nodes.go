@@ -182,6 +182,13 @@ type Node struct {
 }
 
 // AddNode upserts a node by ID. Existing nodes are updated in-place.
+//
+// AddNode is destructive: the upsert replaces every column including
+// metadata_json. Callers that only want to STUB a node (so an edge has a
+// valid target) and must NOT clobber a richer node already written by
+// another extractor MUST use EnsureNode instead. See
+// docs/awareness/composed_path_failures.md (2026-05-10 lifecycle metadata
+// loss) for the incident that produced this distinction.
 func (g *Graph) AddNode(ctx context.Context, n Node) error {
 	meta, err := marshalMeta(n.Metadata)
 	if err != nil {
@@ -201,6 +208,38 @@ func (g *Graph) AddNode(ctx context.Context, n Node) error {
 	`, n.ID, n.Type, n.Name, n.Path, n.Summary, meta, now, now)
 	if err != nil {
 		return fmt.Errorf("AddNode %s: %w", n.ID, err)
+	}
+	return nil
+}
+
+// EnsureNode inserts a node only if no node with the same ID exists.
+// If the node already exists, EnsureNode is a no-op — the existing row's
+// metadata, summary, type, and name are preserved.
+//
+// Use EnsureNode when an extractor needs to make sure an edge target is
+// present but does NOT itself own the node's authoritative content. The
+// canonical example is "I'm the design_patterns loader and my YAML
+// references a failure_mode by id; I want the failure_mode loader's
+// metadata to win." Calling AddNode in that situation silently clobbers
+// lifecycle hints (deprecated, intentional_gap), as documented in
+// docs/awareness/composed_path_failures.md.
+//
+// If you DO own the node's content (you're the canonical loader), use
+// AddNode. The two functions are intentionally distinct so the call site
+// expresses the intent.
+func (g *Graph) EnsureNode(ctx context.Context, n Node) error {
+	meta, err := marshalMeta(n.Metadata)
+	if err != nil {
+		return fmt.Errorf("EnsureNode %s: %w", n.ID, err)
+	}
+	now := time.Now().Unix()
+	_, err = g.db.ExecContext(ctx, `
+		INSERT INTO nodes (id, type, name, path, summary, metadata_json, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO NOTHING
+	`, n.ID, n.Type, n.Name, n.Path, n.Summary, meta, now, now)
+	if err != nil {
+		return fmt.Errorf("EnsureNode %s: %w", n.ID, err)
 	}
 	return nil
 }

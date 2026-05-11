@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/globulario/services/golang/awareness/failuregraph"
 	"github.com/globulario/services/golang/awareness/failurelearning"
 	"github.com/globulario/services/golang/awareness/graph"
@@ -356,5 +358,174 @@ func TestWrongFixPreservedAfterApply(t *testing.T) {
 	}
 	if !foundWrong {
 		t.Error("expected wrong fix node in proposal patch or extracted wrong fixes")
+	}
+}
+
+// learningLoopFixture mirrors testdata/learning_loop/retry_storm_incident.yaml.
+// Loading from a fixture file (instead of inline strings) means future loop
+// scenarios can be added by dropping a new YAML in testdata/, and a human can
+// read the test scenario without scrolling through Go test code.
+type learningLoopFixture struct {
+	SourceID            string   `yaml:"source_id"`
+	SourceType          string   `yaml:"source_type"`
+	CreatedBy           string   `yaml:"created_by"`
+	RawErrors           []string `yaml:"raw_errors"`
+	RootCauses          []string `yaml:"root_causes"`
+	Resolutions         []string `yaml:"resolutions"`
+	WrongFixes          []string `yaml:"wrong_fixes"`
+	RegressionTests     []string `yaml:"regression_tests"`
+	RelatedInvariants   []string `yaml:"related_invariants"`
+	RecurrenceRawError  string   `yaml:"recurrence_raw_error"`
+}
+
+func loadLearningLoopFixture(t *testing.T, path string) learningLoopFixture {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read fixture %s: %v", path, err)
+	}
+	var fx learningLoopFixture
+	if err := yaml.Unmarshal(data, &fx); err != nil {
+		t.Fatalf("parse fixture %s: %v", path, err)
+	}
+	if len(fx.RawErrors) == 0 || fx.RecurrenceRawError == "" {
+		t.Fatalf("fixture %s incomplete: raw_errors=%d recurrence=%q",
+			path, len(fx.RawErrors), fx.RecurrenceRawError)
+	}
+	return fx
+}
+
+// TestLearningLoopClosesOnReoccurrence proves the failure-learning loop is
+// load-bearing: an incident with an unknown error must be turned into a
+// CreateCategory proposal, applied, and then a SECOND incident with the SAME
+// failure pattern against the freshly-applied category must be matched (not
+// re-created).
+//
+// This is the regression test that fails the moment any link in
+// extract → propose → apply → match drops the signal. Without it the loop
+// can quietly become a one-shot proposal generator and still claim to
+// "close" closures.
+//
+// Scenario is loaded from testdata/learning_loop/retry_storm_incident.yaml.
+func TestLearningLoopClosesOnReoccurrence(t *testing.T) {
+	ctx := context.Background()
+	_, fg, s := openTestStores(t)
+
+	fx := loadLearningLoopFixture(t, "testdata/learning_loop/retry_storm_incident.yaml")
+	rawErr := fx.RawErrors[0]
+	rootCause := fx.RootCauses[0]
+	resolution := fx.Resolutions[0]
+
+	// --- Stage 1: first incident ------------------------------------------------
+	first, err := failurelearning.ProposeUpdate(ctx, failurelearning.ProposeRequest{
+		SourceType:  failurelearning.SourceIncident,
+		SourceID:    fx.SourceID,
+		CreatedBy:   fx.CreatedBy,
+		RawErrors:   fx.RawErrors,
+		RootCauses:  fx.RootCauses,
+		Resolutions: fx.Resolutions,
+		WrongFixes:  fx.WrongFixes,
+		Tests:       fx.RegressionTests,
+		Invariants:  fx.RelatedInvariants,
+	}, s, fg)
+	if err != nil {
+		t.Fatalf("first ProposeUpdate: %v", err)
+	}
+	if first.ProposalKind != failurelearning.KindCreateCategory {
+		t.Fatalf("stage 1: expected first proposal to be %s, got %s — the loop "+
+			"already had a category, so the test cannot prove anything",
+			failurelearning.KindCreateCategory, first.ProposalKind)
+	}
+
+	// --- Stage 2: review + apply -----------------------------------------------
+	if _, err := failurelearning.ReviewProposal(ctx, first.ID, "loop-test",
+		failurelearning.DecisionApprove, "looks good", nil, s); err != nil {
+		t.Fatalf("ReviewProposal: %v", err)
+	}
+	applied, err := failurelearning.ApplyProposal(ctx, first.ID, s, fg, "")
+	if err != nil {
+		t.Fatalf("ApplyProposal: %v", err)
+	}
+	if applied.CreatedNodes == 0 {
+		t.Fatalf("stage 2: ApplyProposal created 0 nodes — apply did not persist anything")
+	}
+
+	// Direct proof the failure graph now has the category. If MatchError
+	// returns nil here the loop is broken at apply.
+	exp, err := failuregraph.MatchError(ctx, fg, failuregraph.MatchErrorRequest{
+		RawError: rawErr,
+	})
+	if err != nil {
+		t.Fatalf("MatchError after apply: %v", err)
+	}
+	if exp == nil {
+		t.Fatalf("stage 3: MatchError returned no explanation after applying the proposal — "+
+			"the freshly-learned category is not findable, so the loop did not close. " +
+			"Common causes: ApplyProposal didn't write the signature, normalization differs " +
+			"between propose and match, or the category id was lost.")
+	}
+	appliedCategoryID := exp.Category.ID
+
+	// --- Stage 3: second incident, recurring failure mode ----------------------
+	// A different SourceID so the dedup-by-source short-circuit cannot hide the
+	// fact that this is a new proposal flow. We use the fixture's
+	// recurrence_raw_error so the scenario reflects "the same bug, different
+	// numbers" (different retry count / time) — exactly how recurrences look
+	// in the wild.
+	second, err := failurelearning.ProposeUpdate(ctx, failurelearning.ProposeRequest{
+		SourceType:  failurelearning.SourceIncident,
+		SourceID:    fx.SourceID + "-RECURRENCE",
+		CreatedBy:   fx.CreatedBy,
+		RawErrors:   []string{fx.RecurrenceRawError},
+		RootCauses:  []string{rootCause},
+		Resolutions: []string{resolution},
+	}, s, fg)
+	if err != nil {
+		t.Fatalf("second ProposeUpdate: %v", err)
+	}
+
+	// The second incident MUST be recognised as the same failure mode the
+	// loop just learned. If we get CreateCategory again, the loop is open
+	// (we'd be creating a fresh category every time the same bug recurs).
+	if second.ProposalKind == failurelearning.KindCreateCategory {
+		t.Fatalf("stage 4: second incident produced %s — the loop did NOT close. "+
+			"The applied category should have been matched, but ProposeUpdate "+
+			"created a new one instead. Applied category=%s.",
+			second.ProposalKind, appliedCategoryID)
+	}
+	if second.TargetCategoryID != appliedCategoryID {
+		t.Errorf("stage 4: second proposal targeted category=%q, want the freshly-applied %q",
+			second.TargetCategoryID, appliedCategoryID)
+	}
+
+	// --- Stage 5: closure verdict after review ---------------------------------
+	// Approving the second proposal must make CheckClosure read clean. This
+	// asserts the *outer* loop closes — not just "we made a proposal" but
+	// "the proposal made it past review and is durable."
+	if _, err := failurelearning.ReviewProposal(ctx, second.ID, fx.CreatedBy,
+		failurelearning.DecisionApprove, "recurrence confirmed", nil, s); err != nil {
+		t.Fatalf("ReviewProposal (second): %v", err)
+	}
+	verdict, err := failurelearning.CheckClosure(ctx, failurelearning.ClosureInfo{
+		ClosureID:     second.SourceID,
+		SourceType:    failurelearning.SourceIncident,
+		HasRootCause:  true,
+		HasResolution: true,
+		HasProof:      true,
+		RawErrors:     []string{fx.RecurrenceRawError},
+		RootCauses:    []string{rootCause},
+		Resolutions:   []string{resolution},
+	}, s, fg)
+	if err != nil {
+		t.Fatalf("CheckClosure: %v", err)
+	}
+	if verdict.RequiresLearning {
+		t.Errorf("stage 5: CheckClosure says RequiresLearning=true even after the "+
+			"second-incident proposal was approved — the loop's review→closure "+
+			"link is broken. status=%s reason=%s", verdict.Status, verdict.Reason)
+	}
+	if verdict.ExistingProposalID != second.ID {
+		t.Errorf("stage 5: CheckClosure pointed to proposal %q, want the just-approved %q",
+			verdict.ExistingProposalID, second.ID)
 	}
 }

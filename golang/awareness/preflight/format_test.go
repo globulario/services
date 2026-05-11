@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/globulario/services/golang/awareness/assurance"
 	"github.com/globulario/services/golang/awareness/preflight"
 )
 
@@ -62,6 +63,33 @@ func TestJSONOutputIsValidAndStable(t *testing.T) {
 	out2, _ := preflight.Render(r, preflight.FormatJSON)
 	if out != out2 {
 		t.Error("JSON render is not stable across two calls")
+	}
+}
+
+func TestJSONOutputIncludesTrustEnvelope(t *testing.T) {
+	r := makeTestReport()
+	r.Trust = &assurance.TrustEnvelope{
+		Verdict:         assurance.TrustLimited,
+		Confidence:      assurance.ConfidenceLow,
+		Freshness:       assurance.FreshnessStaleUnknown,
+		Coverage:        assurance.TrustCoveragePartial,
+		Limitations:     []string{"graph stale"},
+		RequiredActions: []string{"rebuild graph"},
+	}
+	out, err := preflight.Render(r, preflight.FormatJSON)
+	if err != nil {
+		t.Fatalf("Render JSON: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(out), &m); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	tr, ok := m["trust"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing trust object: %v", m["trust"])
+	}
+	if tr["verdict"] != string(assurance.TrustLimited) {
+		t.Fatalf("trust.verdict=%v", tr["verdict"])
 	}
 }
 

@@ -264,6 +264,13 @@ type Edge struct {
 	// Weight is the traversal weight (0.0–1.0). Auto-set from Class if 0.
 	Weight   float64
 	Metadata map[string]any
+	// Provenance describes where this edge came from (source_type, source_file,
+	// created_by, verification_level, …). Stored in the dedicated
+	// edges.provenance_json column — distinct from Metadata, which is for
+	// caller-supplied edge attributes. The column is the canonical home of
+	// provenance; do not write or read provenance via Metadata. See
+	// docs/awareness/composed_path_failures.md (edge provenance home).
+	Provenance map[string]any
 }
 
 // ProvenanceEdge is an Edge that carries full provenance metadata describing
@@ -290,12 +297,11 @@ type ProvenanceEdge struct {
 }
 
 // AddEdgeWithProvenance writes an edge with full provenance metadata.
-// The provenance is encoded in the edge's metadata_json under "provenance_json".
+// Provenance lands in the dedicated edges.provenance_json column, NOT in
+// metadata_json. See docs/awareness/composed_path_failures.md (edge
+// provenance home) for why these two homes were consolidated to one.
 func (g *Graph) AddEdgeWithProvenance(ctx context.Context, pe ProvenanceEdge) error {
-	if pe.Edge.Metadata == nil {
-		pe.Edge.Metadata = make(map[string]any)
-	}
-	prov := map[string]any{
+	pe.Edge.Provenance = map[string]any{
 		"source_type":        pe.SourceType,
 		"source_file":        pe.SourceFile,
 		"source_commit":      pe.SourceCommit,
@@ -305,20 +311,24 @@ func (g *Graph) AddEdgeWithProvenance(ctx context.Context, pe ProvenanceEdge) er
 		"verification_level": pe.VerificationLevel,
 		"stale_policy":       pe.StalePolicy,
 	}
-	provJSON, err := marshalMeta(prov)
-	if err != nil {
-		return fmt.Errorf("AddEdgeWithProvenance: encode provenance: %w", err)
-	}
-	pe.Edge.Metadata["provenance_json"] = provJSON
 	return g.AddEdge(ctx, pe.Edge)
 }
 
 // AddEdge upserts an edge. The (src, kind, dst, phase) tuple is the primary key.
 // edge_class and weight are auto-classified from Kind when not explicitly set.
+//
+// Provenance, when supplied via e.Provenance, is written to the canonical
+// edges.provenance_json column. Empty Provenance writes "{}" (matching the
+// schema default), so existing rows are not mutated by callers that don't
+// touch provenance.
 func (g *Graph) AddEdge(ctx context.Context, e Edge) error {
 	meta, err := marshalMeta(e.Metadata)
 	if err != nil {
 		return fmt.Errorf("AddEdge %s -[%s]-> %s: %w", e.Src, e.Kind, e.Dst, err)
+	}
+	prov, err := marshalMeta(e.Provenance)
+	if err != nil {
+		return fmt.Errorf("AddEdge %s -[%s]-> %s: encode provenance: %w", e.Src, e.Kind, e.Dst, err)
 	}
 	conf := e.Confidence
 	if conf == 0 {
@@ -339,16 +349,35 @@ func (g *Graph) AddEdge(ctx context.Context, e Edge) error {
 			weight = w
 		}
 	}
-	_, err = g.db.ExecContext(ctx, `
-		INSERT INTO edges (src, kind, dst, phase, required, confidence, metadata_json, edge_class, weight)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(src, kind, dst, phase) DO UPDATE SET
-			required      = excluded.required,
-			confidence    = excluded.confidence,
-			metadata_json = excluded.metadata_json,
-			edge_class    = excluded.edge_class,
-			weight        = excluded.weight
-	`, e.Src, e.Kind, e.Dst, e.Phase, req, conf, meta, class, weight)
+	// On UPSERT, only overwrite provenance_json when the caller actually
+	// supplied one. This preserves provenance written by an earlier
+	// AddEdgeWithProvenance call when a later AddEdge (without provenance)
+	// touches the same (src,kind,dst,phase) tuple.
+	providedProv := len(e.Provenance) > 0
+	if providedProv {
+		_, err = g.db.ExecContext(ctx, `
+			INSERT INTO edges (src, kind, dst, phase, required, confidence, metadata_json, edge_class, weight, provenance_json)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(src, kind, dst, phase) DO UPDATE SET
+				required        = excluded.required,
+				confidence      = excluded.confidence,
+				metadata_json   = excluded.metadata_json,
+				edge_class      = excluded.edge_class,
+				weight          = excluded.weight,
+				provenance_json = excluded.provenance_json
+		`, e.Src, e.Kind, e.Dst, e.Phase, req, conf, meta, class, weight, prov)
+	} else {
+		_, err = g.db.ExecContext(ctx, `
+			INSERT INTO edges (src, kind, dst, phase, required, confidence, metadata_json, edge_class, weight, provenance_json)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')
+			ON CONFLICT(src, kind, dst, phase) DO UPDATE SET
+				required      = excluded.required,
+				confidence    = excluded.confidence,
+				metadata_json = excluded.metadata_json,
+				edge_class    = excluded.edge_class,
+				weight        = excluded.weight
+		`, e.Src, e.Kind, e.Dst, e.Phase, req, conf, meta, class, weight)
+	}
 	if err != nil {
 		return fmt.Errorf("AddEdge %s -[%s]-> %s: %w", e.Src, e.Kind, e.Dst, err)
 	}

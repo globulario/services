@@ -285,12 +285,15 @@ func addDecisionNode(ctx context.Context, g *graph.Graph, fm *FrontMatter, relPa
 // findOrSynthesize returns the ID of an existing node by name, or creates a
 // stub node if none exists. This lets decision edges point to nodes that may
 // not yet be in the graph (they'll be populated by other extractors).
+//
+// Uses EnsureNode (not AddNode) so that if a canonical loader has already
+// populated this node's metadata, we don't clobber it. See
+// docs/awareness/composed_path_failures.md (lifecycle metadata loss).
 func findOrSynthesize(ctx context.Context, g *graph.Graph, nodeType, name string) string {
 	existing, _ := g.FindNodeByTypeAndName(ctx, nodeType, name)
 	if existing != nil {
 		return existing.ID
 	}
-	// Synthesize a stub with a deterministic ID.
 	stubID := nodeType + ":" + name
 	stub := graph.Node{
 		ID:      stubID,
@@ -298,7 +301,7 @@ func findOrSynthesize(ctx context.Context, g *graph.Graph, nodeType, name string
 		Name:    name,
 		Summary: "(stub — populated by other extractors)",
 	}
-	_ = g.AddNode(ctx, stub)
+	_ = g.EnsureNode(ctx, stub)
 	return stubID
 }
 

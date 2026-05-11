@@ -30,6 +30,7 @@ import (
 	"github.com/globulario/services/golang/awareness/extractors/clusterspec"
 	"github.com/globulario/services/golang/awareness/extractors/clusterstate"
 	"github.com/globulario/services/golang/awareness/extractors/docs"
+	"github.com/globulario/services/golang/awareness/extractors/doctor"
 	"github.com/globulario/services/golang/awareness/extractors/goast"
 	"github.com/globulario/services/golang/awareness/extractors/manual"
 	"github.com/globulario/services/golang/awareness/extractors/metrics"
@@ -165,6 +166,23 @@ var awarenessBuildCmd = &cobra.Command{
 		} else {
 			for _, w := range warnings {
 				fmt.Fprintf(os.Stderr, "warning: docs extractor: %s\n", w)
+			}
+		}
+
+		// Doctor rule extractor — surfaces every cluster_doctor rule as a
+		// detector node, and joins them to failure_modes via
+		// docs/awareness/detector_mapping.yaml so failure_modes can flip from
+		// TESTED to DETECTED in the assurance coverage report.
+		fmt.Fprintf(os.Stdout, "Extracting cluster_doctor rules ...\n")
+		rulesDir := filepath.Join(repoRoot, "golang", "cluster_doctor", "cluster_doctor_server", "rules")
+		mappingPath := filepath.Join(repoRoot, "docs", "awareness", "detector_mapping.yaml")
+		if dr, err := doctor.Extract(ctx, g, rulesDir, repoRoot, mappingPath); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: doctor extractor: %v\n", err)
+		} else {
+			fmt.Fprintf(os.Stdout, "  doctor: extracted %d rules, applied %d mappings\n",
+				len(dr.Rules), dr.MappingsApplied)
+			for _, skipped := range dr.MappingsSkipped {
+				fmt.Fprintf(os.Stderr, "warning: doctor mapping skipped: %s\n", skipped)
 			}
 		}
 
@@ -945,19 +963,90 @@ func init() {
 
 const systemAwarenessDir = "/var/lib/globular/awareness"
 
-// resolveAwarenessDBPath returns the canonical graph.db path.
-// Resolution order:
-//  1. /var/lib/globular/awareness/graph.db  (system install — preferred)
-//  2. repoRoot/.globular/awareness/graph.db (dev fallback)
+// resolveAwarenessDBPath returns the canonical graph.db path for the
+// current process. Resolution order:
+//  1. /var/lib/globular/awareness/graph.db when accessible — the system
+//     install location used by services and root-equivalent operators.
+//  2. $HOME/.globular/awareness/graph.db when (1) is present but not
+//     readable/writable by the current user. Surfaces with a stderr
+//     warning so the fallback isn't silent.
+//  3. repoRoot/.globular/awareness/graph.db when no system install exists
+//     (developer working in a fresh checkout).
 //
-// The system directory is used whenever it exists, even if graph.db has not
-// been built yet, so that `globular awareness build` always writes to the
-// system location on installed nodes.
+// The user fallback is for local CLI ergonomics only. Cluster service
+// behaviour is unchanged: services run as root or globular and always hit
+// path (1).
 func resolveAwarenessDBPath(repoRoot string) string {
-	if _, err := os.Stat(systemAwarenessDir); err == nil {
-		return filepath.Join(systemAwarenessDir, "graph.db")
+	home, _ := os.UserHomeDir()
+	return resolveAwarenessDBPathFor(systemAwarenessDir, home, repoRoot, defaultAwarenessFallbackWarner)
+}
+
+// defaultAwarenessFallbackWarner prints a single line to stderr explaining
+// why the user DB is being used. We don't dedupe across CLI invocations —
+// each invocation that fell back gets the warning, so the friction stays
+// visible until the perms are fixed.
+func defaultAwarenessFallbackWarner(msg string) {
+	fmt.Fprintf(os.Stderr, "warning: %s\n", msg)
+}
+
+// resolveAwarenessDBPathFor is the testable form of resolveAwarenessDBPath.
+// systemDir, homeDir, and repoRoot are injected so tests can simulate any
+// of the three resolution branches without touching the real filesystem.
+// warn is called once if the user fallback is selected; pass nil to suppress.
+func resolveAwarenessDBPathFor(systemDir, homeDir, repoRoot string, warn func(string)) string {
+	sysPath := filepath.Join(systemDir, "graph.db")
+	if isUsableAwarenessDB(sysPath) {
+		return sysPath
 	}
+	// System path is present-but-inaccessible OR not present at all.
+	// Prefer the user fallback when we have a home directory, since it's
+	// stable across repos and works even outside a git checkout.
+	if homeDir != "" {
+		userDir := filepath.Join(homeDir, ".globular", "awareness")
+		if err := os.MkdirAll(userDir, 0o755); err == nil {
+			userPath := filepath.Join(userDir, "graph.db")
+			if warn != nil {
+				warn(fmt.Sprintf(
+					"Default awareness DB %s is not accessible; using user DB at %s",
+					sysPath, userPath))
+			}
+			return userPath
+		}
+	}
+	// No home or couldn't mkdir — fall through to repo-local.
 	return filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+}
+
+// isUsableAwarenessDB returns true when the current process can read AND
+// write the graph.db at path (or create one in its parent directory if the
+// file doesn't exist yet). The check is conservative: if any test fails,
+// we treat the path as unusable and fall back. The classic dev-machine
+// failure mode is "/var/lib/globular/awareness/graph.db owned by root,
+// mode 0644" — readable but not writable to the dev user.
+func isUsableAwarenessDB(path string) bool {
+	if info, err := os.Stat(path); err == nil && !info.IsDir() {
+		f, openErr := os.OpenFile(path, os.O_RDWR, 0)
+		if openErr != nil {
+			return false
+		}
+		_ = f.Close()
+		return true
+	}
+	// File doesn't exist — check whether we could create it. The probe
+	// avoids partial writes by using O_EXCL and removes the probe on success.
+	parent := filepath.Dir(path)
+	info, err := os.Stat(parent)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+	probe := filepath.Join(parent, ".globular-awareness-probe")
+	f, err := os.OpenFile(probe, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o644)
+	if err != nil {
+		return false
+	}
+	_ = f.Close()
+	_ = os.Remove(probe)
+	return true
 }
 
 // resolveAwarenessTrendPath returns the canonical audit-trend.jsonl path,

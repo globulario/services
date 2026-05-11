@@ -17,16 +17,22 @@ type failureModeFile struct {
 }
 
 type yamlFailureMode struct {
-	ID              string   `yaml:"id"`
-	Title           string   `yaml:"title"`
-	Severity        string   `yaml:"severity"`
-	Symptoms        []string `yaml:"symptoms"`
-	RootCause       string   `yaml:"root_cause"`
-	ArchitectureFix string   `yaml:"architecture_fix"`
-	ForbiddenFixes  []string `yaml:"forbidden_fixes"`
+	ID                string   `yaml:"id"`
+	Title             string   `yaml:"title"`
+	Severity          string   `yaml:"severity"`
+	Symptoms          []string `yaml:"symptoms"`
+	RootCause         string   `yaml:"root_cause"`
+	ArchitectureFix   string   `yaml:"architecture_fix"`
+	ForbiddenFixes    []string `yaml:"forbidden_fixes"`
 	RelatedInvariants []string `yaml:"related_invariants"`
 	RelatedServices   []string `yaml:"related_services"`
 	RequiredTests     []string `yaml:"required_tests"`
+	Mitigates         []string `yaml:"mitigates"`
+	Detectors         []string `yaml:"detectors"`
+	RelatedIncidents  []string `yaml:"related_incidents"`
+	CoverageState     string   `yaml:"coverage_state"`
+	Deprecated        bool     `yaml:"deprecated"`
+	IntentionalGap    bool     `yaml:"intentional_gap"`
 }
 
 // LoadFailureModes loads failure_modes.yaml into g.
@@ -61,6 +67,12 @@ func loadFailureMode(ctx context.Context, g *graph.Graph, fm yamlFailureMode) er
 		Type:    graph.NodeTypeFailureMode,
 		Name:    fm.ID,
 		Summary: fm.RootCause,
+		Metadata: map[string]any{
+			"severity":        fm.Severity,
+			"coverage_state":  fm.CoverageState,
+			"deprecated":      fm.Deprecated,
+			"intentional_gap": fm.IntentionalGap,
+		},
 	}); err != nil {
 		return err
 	}
@@ -132,6 +144,54 @@ func loadFailureMode(ctx context.Context, g *graph.Graph, fm yamlFailureMode) er
 			return err
 		}
 		if err := g.AddEdge(ctx, graph.Edge{Src: nodeID, Kind: graph.EdgeTestedBy, Dst: testID}); err != nil {
+			return err
+		}
+		if err := g.AddEdge(ctx, graph.Edge{Src: testID, Kind: graph.EdgeVerifies, Dst: nodeID}); err != nil {
+			return err
+		}
+	}
+
+	// Mitigations → design_pattern nodes + mitigates edges.
+	for _, pattern := range fm.Mitigates {
+		patternID := "design_pattern:" + pattern
+		if err := g.AddNode(ctx, graph.Node{
+			ID:   patternID,
+			Type: graph.NodeTypeDesignPattern,
+			Name: pattern,
+		}); err != nil {
+			return err
+		}
+		if err := g.AddEdge(ctx, graph.Edge{Src: patternID, Kind: graph.EdgeMitigates, Dst: nodeID}); err != nil {
+			return err
+		}
+	}
+
+	// Detectors → detector nodes + matches_failure_mode edges.
+	for _, detector := range fm.Detectors {
+		detectorID := "detector:" + detector
+		if err := g.AddNode(ctx, graph.Node{
+			ID:   detectorID,
+			Type: graph.NodeTypeDoctorEvidence,
+			Name: detector,
+		}); err != nil {
+			return err
+		}
+		if err := g.AddEdge(ctx, graph.Edge{Src: detectorID, Kind: graph.EdgeMatchesFailureMode, Dst: nodeID}); err != nil {
+			return err
+		}
+	}
+
+	// Related incidents → incident nodes + caused_by edges.
+	for _, incident := range fm.RelatedIncidents {
+		incidentID := "incident:" + incident
+		if err := g.AddNode(ctx, graph.Node{
+			ID:   incidentID,
+			Type: graph.NodeTypeIncident,
+			Name: incident,
+		}); err != nil {
+			return err
+		}
+		if err := g.AddEdge(ctx, graph.Edge{Src: incidentID, Kind: graph.EdgeCausedBy, Dst: nodeID}); err != nil {
 			return err
 		}
 	}

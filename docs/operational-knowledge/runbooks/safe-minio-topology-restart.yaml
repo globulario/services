@@ -1,0 +1,181 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Safe MinIO restart when topology has changed"
+  description: |
+    A MinIO restart on a node whose drive-count argv disagrees with the
+    on-disk format.json is a destructive operation: MinIO either fails to
+    start (FATAL on format mismatch) OR reaches quorum with the OTHER drives
+    and reformats every drive in the new topology, silently destroying all
+    object data. This runbook captures the safe procedure and the pre-flight
+    checks that distinguish a routine restart from a destructive one.
+  source_documents:
+    - docs/operational-knowledge/stages/day-1-objectstore.yaml
+    - docs/operational-knowledge/runbooks/republish-artifact-data-after-pool-change.yaml
+
+entries:
+
+  - id: ops.runbook.safe-minio-topology-restart
+    type: SKILL
+    title: "Safe MinIO restart when topology (drive count) has changed"
+    tags: [day-2, objectstore, hazard, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller]
+    content: |
+      USE THIS BEFORE running `systemctl restart globular-minio.service` on
+      ANY storage-pool node where the topology has been changed (node added,
+      node removed, drive count changed, pool mode changed standalone↔distributed).
+
+      WHY THIS RUNBOOK EXISTS — incident 2026-05-10:
+        Operator restarted MinIO on ryzen+dell to pick up a new 3-node
+        env config, expecting Kubernetes-style rolling restart semantics.
+        MinIO instead reformatted all three drives into a fresh deployment
+        (new deployment ID), wiping 921 MiB / 203 objects. The original
+        data persisted ONLY because the repository service holds a local
+        POSIX CAS copy independent of MinIO. Without that, the loss would
+        have been complete and unrecoverable.
+
+      WHY MinIO IS NOT KUBERNETES PODS:
+        MinIO requires format consistency across the whole erasure set.
+        When argv-drives disagrees with on-disk format-drives:
+          a. Most common: FATAL "drive already used in another erasure
+             deployment. (Number of drives specified: N but the number of
+             drives found in the Kth drive's format.json: M)" — service
+             enters restart loop.
+          b. If the new-config nodes reach quorum first (≥ ceil(N/2)
+             drives online with the new argv), MinIO will REFORMAT every
+             drive in the set into the new deployment, generating a new
+             deployment ID. format.json is rewritten on every drive.
+             Bucket directories persist but are empty. Object data gone.
+        Path (b) is silent — no big warning, no operator confirmation.
+
+      THE GOLDEN RULE:
+        Before restarting MinIO on a node where topology has changed:
+          1. Compare argv-drives vs on-disk format-drives.
+          2. If they differ, take an `mc mirror` backup FIRST.
+          3. Stop ALL MinIO instances (not rolling).
+          4. Reformat using the documented full-pool procedure.
+          5. Restore data via `mc mirror` after the new pool is healthy.
+
+      The "rolling restart" mental model from Kubernetes / etcd / ScyllaDB
+      does NOT apply to MinIO when drive count changes.
+    links:
+      awareness_failure_modes:
+        - vip_contamination.node_routable_ip_returns_vip
+      runbooks:
+        - runbooks/republish-artifact-data-after-pool-change.yaml
+        - runbooks/add-node-to-minio-pool.yaml
+    procedure:
+      - phase: observe
+        description: "Compare argv-drive-count vs on-disk format-drive-count on every storage node"
+        commands:
+          - cmd: "for HOST in <storage-nodes>; do echo \"=== $HOST ===\"; ssh dave@$HOST 'ps aux | grep -E \"minio.*server\" | grep -v grep | head -1' ; done"
+            expect: "running argv showing N drive endpoints (https://.../mnt/data/data x N)"
+            note: |
+              Count the https://...:9000/mnt/data/data tokens — that's the
+              argv-drive-count. Compare across all nodes; they should agree.
+              If they disagree (split-brain) you ALREADY have a problem and
+              this runbook may not be enough — investigate why.
+          - cmd: "for HOST in <storage-nodes>; do echo \"=== $HOST ===\"; ssh dave@$HOST 'sudo cat /mnt/data/data/.minio.sys/format.json | jq \".xl.sets[0] | length\"' ; done"
+            expect: "an integer per node — the on-disk format-drive-count"
+          - cmd: "for HOST in <storage-nodes>; do echo \"=== $HOST ===\"; ssh dave@$HOST 'sudo stat /var/lib/globular/minio/minio.env | grep Modify; echo \"---\"; sudo cat /var/lib/globular/minio/minio.env | grep VOLUMES'; done"
+            expect: |
+              Each env file's mtime + the MINIO_VOLUMES line.
+              If mtime is RECENT (newer than the running MinIO process start
+              time) and MINIO_VOLUMES has more endpoints than the running
+              argv, the node-agent re-rendered but didn't restart — you are
+              about to step on the incident scenario.
+
+      - phase: plan
+        description: "Decide which class of restart this is"
+        commands:
+          - cmd: "echo 'Decision tree:'"
+            note: |
+              CASE A — argv-count == format-count == env-count, ALL nodes agree:
+                Routine restart. systemctl restart is safe (no data risk).
+                The pool will momentarily lose write quorum during the
+                rolling restart (~30s per node) but all drives keep their
+                format. Skip to phase verify.
+
+              CASE B — env-count > argv-count on some nodes, format-count
+                still matches argv-count:
+                THIS IS THE DESTRUCTIVE CASE. The env file says "topology
+                grew" but the running process and format.json still
+                describe the OLD topology. A simple restart will hit
+                FATAL on the first attempt and then reformat on the second
+                attempt once N/2 new-config drives reach quorum.
+                Use the SAFE PROCEDURE below.
+
+              CASE C — format-count differs across nodes:
+                Split-brain on disk. This is a recovery scenario, not a
+                topology change. Engage incident response — do not
+                experimentally restart anything until you understand
+                which drive set is authoritative.
+
+      - phase: act
+        description: "CASE B — safe procedure (full backup + coordinated stop + reformat + restore)"
+        commands:
+          - cmd: "# 1. Snapshot every bucket BEFORE touching MinIO."
+            note: ""
+          - cmd: "for BUCKET in $(mc ls glob/ | awk '{print $NF}'); do mc mirror glob/$BUCKET /var/backups/minio-pre-restart/$BUCKET --insecure; done"
+            expect: "All bucket contents copied to a local backup directory on the operator's host. Verify size matches mc admin info Used."
+            note: |
+              Choose a backup target with enough free space. /var/backups/
+              is typical; for very large pools use an external mount or a
+              second MinIO target on a different host.
+          - cmd: "# 2. Stop ALL MinIO instances simultaneously (NOT rolling)."
+            note: ""
+          - cmd: "for HOST in <storage-nodes>; do ssh dave@$HOST 'echo PASSWORD | sudo -S systemctl stop globular-minio.service' & done; wait"
+            expect: "all instances stopped"
+          - cmd: "# 3. Verify format.json on every node is gone or marked for reset."
+            note: |
+              For an N→N+1 topology change, the safe approach is to wipe
+              the cluster's format and let MinIO write fresh. Removing
+              .minio.sys/format.json on every drive forces MinIO to
+              format on next start. ONLY do this AFTER the backup in
+              step 1 succeeded.
+          - cmd: "for HOST in <storage-nodes>; do ssh dave@$HOST 'echo PASSWORD | sudo -S rm /mnt/data/data/.minio.sys/format.json'; done"
+            expect: "format.json removed on each node"
+          - cmd: "# 4. Start ALL MinIO instances simultaneously."
+            note: ""
+          - cmd: "for HOST in <storage-nodes>; do ssh dave@$HOST 'echo PASSWORD | sudo -S systemctl start globular-minio.service' & done; wait"
+            expect: "all instances start; MinIO performs first-time format with the new N+1 layout"
+          - cmd: "# 5. Wait for the pool to converge."
+            note: ""
+          - cmd: "sleep 30; mc admin info glob --insecure"
+            expect: "all N+1 drives online, 1/1 OK each, 0 objects (fresh format), correct erasure stripe size"
+          - cmd: "# 6. Restore objects from the backup."
+            note: ""
+          - cmd: "for BUCKET in /var/backups/minio-pre-restart/*; do BN=$(basename $BUCKET); mc mb glob/$BN --insecure || true; mc mirror $BUCKET glob/$BN --insecure --overwrite; done"
+            expect: "all buckets recreated, all objects restored, mc admin info Used matches the pre-restart Used"
+
+      - phase: act
+        description: "CASE A — routine rolling restart (no topology change)"
+        commands:
+          - cmd: "# Restart one node at a time, wait for it to rejoin the pool before the next."
+            note: ""
+          - cmd: "for HOST in <storage-nodes>; do ssh dave@$HOST 'echo PASSWORD | sudo -S systemctl restart globular-minio.service'; sleep 20; mc admin info glob --insecure | head -10; done"
+            expect: "each node briefly drops then rejoins; pool stays at write_quorum throughout"
+
+      - phase: verify
+        description: "Confirm pool health and data integrity"
+        commands:
+          - cmd: "mc admin info glob --insecure"
+            expect: "all N drives online, all 1/1 OK, no offline nodes, Used matches expectation"
+          - cmd: "for HOST in <storage-nodes>; do echo \"=== $HOST ===\"; ssh dave@$HOST 'cat /mnt/data/data/.minio.sys/format.json | jq \".id\"' ; done"
+            expect: "all nodes report the SAME deployment ID — confirms the pool is single-deployment, not split-brain"
+          - cmd: "/tmp/globular-test --controller globule-ryzen.globular.internal repository explain core@globular.io/<a-known-service> <version>"
+            expect: "blob_present=true, verify_status=OK, sources include minio-mirror=PRESENT (was ABSENT during the destructive case)"
+          - cmd: "/tmp/globular-test --controller globule-ryzen.globular.internal doctor report cluster --fresh | grep objectstore"
+            expect: "no objectstore CRITICAL findings; pre-existing architectural WARNs (zero_write_fault_tolerance for small pools) are expected"
+
+    related_ids:
+      - ops.day-1.minio.topology-contract
+      - ops.day-1.minio.apply-flow
+      - ops.day-1.minio.vip-contamination
+      - ops.runbook.republish-artifact-data-after-pool-change
+      - ops.runbook.add-node-to-minio-pool
+    provenance:
+      source: seed
+      immutable: true

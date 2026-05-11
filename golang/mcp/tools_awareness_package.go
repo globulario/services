@@ -172,6 +172,7 @@ func registerAwarenessPackageTools(s *server, st *awarenessState) {
 					"runtime not collected",
 				},
 				"recommended_next_action": "Run 'globular awareness build' to index the codebase, then retry.",
+				"trust":                  awarenessTrustMap(st, false),
 			}, nil
 		}
 
@@ -262,6 +263,7 @@ func registerAwarenessPackageTools(s *server, st *awarenessState) {
 			},
 			"blind_spots":             blindSpots,
 			"recommended_next_action": recommendedAction,
+			"trust":                   trustFromConfidenceCoverage(st, confidence, graphCov, hasMatches, blindSpots),
 		}, nil
 	})
 }

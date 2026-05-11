@@ -245,7 +245,13 @@ func extractEntry(tr *tar.Reader, hdr *tar.Header, destDir string) error {
 
 	switch hdr.Typeflag {
 	case tar.TypeDir:
-		if err := os.MkdirAll(target, mode|0700); err != nil {
+		// Bundles are non-secret knowledge artifacts: service users (the
+		// globular user running mcp / awareness CLI) must be able to traverse
+		// into them to read the manifest and graph. mode|0700 was too
+		// restrictive and silently broke freshness wiring — preflight could
+		// not load /var/lib/globular/awareness/current/manifest.json because
+		// the parent dir was 0700 root:root. Use 0755 to keep traversal open.
+		if err := os.MkdirAll(target, mode|0755); err != nil {
 			return err
 		}
 

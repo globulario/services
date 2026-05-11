@@ -220,3 +220,65 @@ func TestLatestBuildTime_WithBuilds(t *testing.T) {
 		t.Errorf("expected latest build at %d, got %d", now, builtAt.Unix())
 	}
 }
+
+// TestKnowledgeFiles_IncludesServicesYaml pins the canonical knowledge_files
+// list so a regression that drops a graph-contributing YAML (e.g. services.yaml)
+// from staleness tracking cannot land silently. Edit this test only when
+// adding a new graph-contributing YAML to the dispatch table.
+func TestKnowledgeFiles_IncludesServicesYaml(t *testing.T) {
+	files := KnowledgeFiles()
+	required := []string{
+		"failure_modes.yaml",
+		"invariants.yaml",
+		"convergence_rules.yaml",
+		"forbidden_fixes.yaml",
+		"design_patterns.yaml",
+		"patterns.yaml",
+		"services.yaml",
+	}
+	have := make(map[string]bool, len(files))
+	for _, f := range files {
+		have[f] = true
+	}
+	for _, want := range required {
+		if !have[want] {
+			t.Errorf("KnowledgeFiles() missing %q — staleness check will not detect edits to this graph-contributing YAML",
+				want)
+		}
+	}
+}
+
+// TestFreshness_StaleWhenServicesYamlNewerThanGraph: the regression that
+// motivated this work — services.yaml is graph-contributing but the original
+// canonical list omitted it, so edits did not mark the graph stale. This test
+// fails if that drops out again.
+func TestFreshness_StaleWhenServicesYamlNewerThanGraph(t *testing.T) {
+	g, err := OpenMemory()
+	if err != nil {
+		t.Fatalf("OpenMemory: %v", err)
+	}
+	defer g.Close()
+	ctx := context.Background()
+
+	past := time.Now().Add(-30 * time.Second).Unix()
+	_, dbErr := g.db.ExecContext(ctx,
+		`INSERT INTO graph_builds (id, repo_root, git_commit, release_id, created_at, stats_json)
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at`,
+		"build-services-test", "/r", "commit", "", past, `{}`)
+	if dbErr != nil {
+		t.Fatalf("insert build: %v", dbErr)
+	}
+
+	docsDir := t.TempDir()
+	servicesPath := filepath.Join(docsDir, "services.yaml")
+	if err := os.WriteFile(servicesPath, []byte("services:\n  - id: x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// File mtime is "now" — newer than the build at `past`.
+
+	f := g.Freshness(ctx, docsDir)
+	if !f.Stale {
+		t.Errorf("expected Stale=true after editing services.yaml; got reason=%q", f.StaleReason)
+	}
+}

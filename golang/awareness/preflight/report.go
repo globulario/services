@@ -2,6 +2,8 @@
 // agent-facing report. No new graph theory — pure composition.
 package preflight
 
+import "github.com/globulario/services/golang/awareness/assurance"
+
 // TaskClass labels the nature of a task for agent routing.
 type TaskClass string
 
@@ -293,18 +295,19 @@ type Report struct {
 	GraphFreshness      *GraphFreshnessReport    `json:"graph_freshness,omitempty"`
 
 	// Graph coverage detail — tells callers WHY a result has no/few matches.
-	GraphAvailable            bool                  `json:"graph_available"`
-	GraphDBPath               string                `json:"graph_db_path,omitempty"`
-	GraphMatchCount           int                   `json:"graph_match_count"`
-	GraphFilteredByTrustCount int                   `json:"graph_filtered_by_trust_count"`
-	RawYAMLMatchCount         int                   `json:"raw_yaml_match_count"`
-	FilteredMatches           []FilteredMatch       `json:"filtered_matches,omitempty"`
-	ConfidenceFactors         ConfidenceFactors     `json:"confidence_factors"`
-	SafetyStatus              SafetyStatus          `json:"safety_status"`
-	DegradedMode              DegradedModePlaybook  `json:"degraded_mode"`
-	RiskTier                  RiskTier              `json:"risk_tier"`
-	FastPathApplied           bool                  `json:"fast_path_applied"`
-	GoFileCoverage            *GoFileCoverageReport `json:"go_file_coverage,omitempty"`
-	LiveOverlay               *LiveOverlayFreshness `json:"live_overlay,omitempty"`
-	ExperienceHints           []ExperienceHint      `json:"experience_hints,omitempty"`
+	GraphAvailable            bool                     `json:"graph_available"`
+	GraphDBPath               string                   `json:"graph_db_path,omitempty"`
+	GraphMatchCount           int                      `json:"graph_match_count"`
+	GraphFilteredByTrustCount int                      `json:"graph_filtered_by_trust_count"`
+	RawYAMLMatchCount         int                      `json:"raw_yaml_match_count"`
+	FilteredMatches           []FilteredMatch          `json:"filtered_matches,omitempty"`
+	ConfidenceFactors         ConfidenceFactors        `json:"confidence_factors"`
+	SafetyStatus              SafetyStatus             `json:"safety_status"`
+	DegradedMode              DegradedModePlaybook     `json:"degraded_mode"`
+	RiskTier                  RiskTier                 `json:"risk_tier"`
+	FastPathApplied           bool                     `json:"fast_path_applied"`
+	GoFileCoverage            *GoFileCoverageReport    `json:"go_file_coverage,omitempty"`
+	LiveOverlay               *LiveOverlayFreshness    `json:"live_overlay,omitempty"`
+	ExperienceHints           []ExperienceHint         `json:"experience_hints,omitempty"`
+	Trust                     *assurance.TrustEnvelope `json:"trust,omitempty"`
 }

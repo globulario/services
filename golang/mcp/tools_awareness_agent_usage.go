@@ -67,12 +67,27 @@ Also records a pre_edit_context usage event to the agent usage log.`,
 
 		if st.g == nil {
 			return map[string]interface{}{
-				"file":       file,
-				"error":      "graph unavailable — run 'globular awareness build' first",
+				"file":        file,
+				"error":       "graph unavailable — run 'globular awareness build' first",
 				"blind_spots": []string{"graph not available — static file analysis only"},
+				"trust":       awarenessTrustMap(st, false),
 			}, nil
 		}
-		return buildFileInvariantContext(ctx, st.g, file)
+		out, err := buildFileInvariantContext(ctx, st.g, file)
+		if err != nil {
+			return nil, err
+		}
+		// Match-found = at least one invariant linked to the file. The
+		// "warning: file not indexed" path returns invariants=[] which yields
+		// match_found=false, so verdict is unknown — never trusted.
+		matchFound := false
+		if invs, ok := out["invariants"].([]map[string]interface{}); ok {
+			matchFound = len(invs) > 0
+		} else if invs, ok := out["invariants"].([]interface{}); ok {
+			matchFound = len(invs) > 0
+		}
+		out["trust"] = awarenessTrustMap(st, matchFound)
+		return out, nil
 	})
 }
 

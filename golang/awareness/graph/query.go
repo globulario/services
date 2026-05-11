@@ -184,17 +184,17 @@ func (g *Graph) Neighbors(ctx context.Context, id, direction string) ([]Edge, er
 	switch direction {
 	case "in":
 		rows, err = g.db.QueryContext(ctx, `
-			SELECT src, kind, dst, phase, required, confidence, metadata_json
+			SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json
 			FROM edges WHERE dst = ?
 		`, id)
 	case "out":
 		rows, err = g.db.QueryContext(ctx, `
-			SELECT src, kind, dst, phase, required, confidence, metadata_json
+			SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json
 			FROM edges WHERE src = ?
 		`, id)
 	default:
 		rows, err = g.db.QueryContext(ctx, `
-			SELECT src, kind, dst, phase, required, confidence, metadata_json
+			SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json
 			FROM edges WHERE src = ? OR dst = ?
 		`, id, id)
 	}
@@ -210,7 +210,7 @@ func (g *Graph) Neighbors(ctx context.Context, id, direction string) ([]Edge, er
 // Falls back to all neighbors if edge_class column is missing (pre-migration DBs).
 func (g *Graph) NeighborsByClass(ctx context.Context, id, class string) ([]Edge, error) {
 	rows, err := g.db.QueryContext(ctx, `
-		SELECT src, kind, dst, phase, required, confidence, metadata_json
+		SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json
 		FROM edges WHERE src = ? AND edge_class = ?
 	`, id, class)
 	if err != nil {
@@ -224,7 +224,7 @@ func (g *Graph) NeighborsByClass(ctx context.Context, id, class string) ([]Edge,
 // EdgesByClass returns all edges in the graph with the given edge_class.
 func (g *Graph) EdgesByClass(ctx context.Context, class string) ([]Edge, error) {
 	rows, err := g.db.QueryContext(ctx, `
-		SELECT src, kind, dst, phase, required, confidence, metadata_json
+		SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json
 		FROM edges WHERE edge_class = ?
 	`, class)
 	if err != nil {
@@ -286,7 +286,7 @@ func (g *Graph) TraverseDecision(ctx context.Context, startID string, maxDepth i
 // AllEdges returns every edge in the graph (used by cycle detection).
 func (g *Graph) AllEdges(ctx context.Context) ([]Edge, error) {
 	rows, err := g.db.QueryContext(ctx, `
-		SELECT src, kind, dst, phase, required, confidence, metadata_json FROM edges
+		SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json FROM edges
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("AllEdges: %w", err)
@@ -298,7 +298,7 @@ func (g *Graph) AllEdges(ctx context.Context) ([]Edge, error) {
 // OutgoingEdges returns all edges where src == nodeID.
 func (g *Graph) OutgoingEdges(ctx context.Context, nodeID string) ([]Edge, error) {
 	rows, err := g.db.QueryContext(ctx, `
-		SELECT src, kind, dst, phase, required, confidence, metadata_json
+		SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json
 		FROM edges WHERE src = ?
 	`, nodeID)
 	if err != nil {
@@ -311,7 +311,7 @@ func (g *Graph) OutgoingEdges(ctx context.Context, nodeID string) ([]Edge, error
 // EdgesByKind returns all edges of the given kind.
 func (g *Graph) EdgesByKind(ctx context.Context, kind string) ([]Edge, error) {
 	rows, err := g.db.QueryContext(ctx, `
-		SELECT src, kind, dst, phase, required, confidence, metadata_json
+		SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json
 		FROM edges WHERE kind = ?
 	`, kind)
 	if err != nil {
@@ -728,12 +728,13 @@ func scanEdges(rows *sql.Rows) ([]Edge, error) {
 	for rows.Next() {
 		var e Edge
 		var req int
-		var meta string
-		if err := rows.Scan(&e.Src, &e.Kind, &e.Dst, &e.Phase, &req, &e.Confidence, &meta); err != nil {
+		var meta, prov string
+		if err := rows.Scan(&e.Src, &e.Kind, &e.Dst, &e.Phase, &req, &e.Confidence, &meta, &prov); err != nil {
 			return nil, err
 		}
 		e.Required = req == 1
 		e.Metadata = unmarshalMeta(meta)
+		e.Provenance = unmarshalMeta(prov)
 		out = append(out, e)
 	}
 	return out, rows.Err()

@@ -64,6 +64,20 @@ const (
 // BundleName is the canonical manifest.name value. Any other name fails verification.
 const BundleName = "globular-awareness-bundle"
 
+// DefaultBundleRoot is the production install root for the awareness bundle.
+// <DefaultBundleRoot>/current is a symlink to the active versioned dir, and
+// <DefaultBundleRoot>/current/manifest.json is the default location preflight
+// readers (CLI + MCP) consult to populate Staleness.BundlePresent.
+const DefaultBundleRoot = "/var/lib/globular/awareness"
+
+// DefaultManifestPath returns the canonical filesystem path of the active
+// bundle manifest. Callers that don't override BundleManifestPath in
+// preflight.Options should pass this so the joined freshness pipeline can
+// resolve to "fresh" instead of "stale_unknown".
+func DefaultManifestPath() string {
+	return DefaultBundleRoot + "/current/manifest.json"
+}
+
 // SupportedSchemaVersions enumerates the bundle schemas this binary can load.
 // Phase A supports only v1; bumping requires explicit code support for the
 // new schema, never silent acceptance.

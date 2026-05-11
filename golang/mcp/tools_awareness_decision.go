@@ -108,6 +108,14 @@ func decisionContextNoGraph(goal string, files []string) map[string]interface{} 
 		},
 		"recommended_next_action": "Run 'globular awareness build' to index the codebase, then retry awareness.decision_context.",
 		"warning":                 "NO_MATCH does not mean safe — the graph must be available before editing high-risk files",
+		"trust": map[string]interface{}{
+			"verdict":         "unknown",
+			"confidence":      "none",
+			"freshness":       "unknown",
+			"coverage":        "none",
+			"limitations":     []string{"graph unavailable — decision context cannot be verified"},
+			"required_action": []string{"run 'globular awareness build' and retry awareness.decision_context"},
+		},
 	}
 }
 
@@ -250,6 +258,7 @@ func buildDecisionContext(
 		"blind_spots":              blindSpots,
 		"decision_causal_chain":    decisionTraversalNodes,
 		"warning":                  "NO_MATCH does not mean safe — check coverage.graph and blind_spots",
+		"trust":                    trustFromConfidenceCoverage(st, confidence, graphCoverage, len(decisionPaths)+len(infoPaths) > 0, blindSpots),
 	}, nil
 }
 

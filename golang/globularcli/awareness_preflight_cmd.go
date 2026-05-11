@@ -18,19 +18,20 @@ import (
 )
 
 var preflightCfg = struct {
-	task                string
-	files               []string
-	packagePath         string
-	phase               string
-	format              string
-	verbosity           string
-	includeRuntime      bool
-	runtimeWindow       time.Duration
-	writeAudit          bool
-	gitSHA              string
-	semanticDiff        bool
-	diffFile            string
+	task                 string
+	files                []string
+	packagePath          string
+	phase                string
+	format               string
+	verbosity            string
+	includeRuntime       bool
+	runtimeWindow        time.Duration
+	writeAudit           bool
+	gitSHA               string
+	semanticDiff         bool
+	diffFile             string
 	requireSemanticClean bool
+	bundleManifestPath   string
 }{}
 
 var awarenessPreflightCmd = &cobra.Command{
@@ -86,15 +87,16 @@ Examples:
 		}
 
 		opts := preflight.Options{
-			Task:           preflightCfg.task,
-			Files:          preflightCfg.files,
-			PackagePath:    preflightCfg.packagePath,
-			Phase:          preflightCfg.phase,
-			DocsDir:        docsDir,
-			IncludeRuntime: preflightCfg.includeRuntime,
-			RuntimeWindow:  preflightCfg.runtimeWindow,
-			WriteAudit:     preflightCfg.writeAudit,
-			GitSHA:         preflightCfg.gitSHA,
+			Task:               preflightCfg.task,
+			Files:              preflightCfg.files,
+			PackagePath:        preflightCfg.packagePath,
+			Phase:              preflightCfg.phase,
+			DocsDir:            docsDir,
+			IncludeRuntime:     preflightCfg.includeRuntime,
+			RuntimeWindow:      preflightCfg.runtimeWindow,
+			WriteAudit:         preflightCfg.writeAudit,
+			GitSHA:             preflightCfg.gitSHA,
+			BundleManifestPath: preflightCfg.bundleManifestPath,
 		}
 
 		if preflightCfg.includeRuntime {
@@ -183,6 +185,7 @@ func init() {
 	awarenessPreflightCmd.Flags().BoolVar(&preflightCfg.semanticDiff, "semantic-diff", false, "Run semantic diff on 'git diff HEAD' and append to preflight output")
 	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.diffFile, "diff-file", "", "Path to unified diff file for semantic interpretation (or - for stdin)")
 	awarenessPreflightCmd.Flags().BoolVar(&preflightCfg.requireSemanticClean, "require-semantic-clean", false, "Exit non-zero if semantic diff verdict is block")
+	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.bundleManifestPath, "bundle-manifest", "", "Path to the installed awareness-bundle manifest.json (default: /var/lib/globular/awareness/current/manifest.json if it exists)")
 
 	awarenessCmd.AddCommand(awarenessPreflightCmd)
 }

@@ -144,7 +144,12 @@ func registerAwarenessIncidentPatternTools(s *server, st *awarenessState) {
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 		if st.g == nil {
-			return map[string]interface{}{"has_warning": false, "matches": []interface{}{}, "status": "degraded"}, nil
+			return map[string]interface{}{
+				"has_warning": false,
+				"matches":     []interface{}{},
+				"status":      "degraded",
+				"trust":       awarenessTrustMap(st, false),
+			}, nil
 		}
 
 		req := incidentpattern.IncidentMatchRequest{
@@ -177,6 +182,7 @@ func registerAwarenessIncidentPatternTools(s *server, st *awarenessState) {
 			"has_warning": hasWarning,
 			"block":       block,
 			"matches":     matchesToMaps(matches),
+			"trust":       awarenessTrustMap(st, hasWarning),
 		}, nil
 	})
 

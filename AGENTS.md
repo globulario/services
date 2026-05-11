@@ -8,6 +8,7 @@ globular awareness preflight --task "<task>" --format agent
 
 Preferred when available:
 - MCP tool `awareness.preflight`
+- MCP tools `memory_query`, `memory_get` (for operational awareness context)
 
 CLI fallback:
 - `globular awareness preflight --task "<task>" --format agent`
@@ -46,6 +47,31 @@ You must not implement a local retry/restart fix until preflight has identified:
 - did-we-fix status
 - required tests
 
+## Operational Awareness (AI Memory) - required each session
+
+Before proposing or applying an operational fix, load project memory for this repo context:
+
+Project:
+- `globular-services`
+
+Preferred query order (MCP):
+1. `memory_query(project="globular-services", type="debug", tags="objectstore,minio", limit=10)`
+2. `memory_query(project="globular-services", type="decision", tags="operational,awareness", limit=10)`
+3. `memory_query(project="globular-services", type="architecture", tags="invariants", limit=10)`
+4. For high-signal hits, call `memory_get` for full details before editing.
+
+Minimum required understanding before edits:
+- impacted invariants from memory and preflight agree (or mismatch is called out)
+- known failure modes include cluster/desire/runtime layer location
+- forbidden fixes include local restarts/retries at the wrong layer
+- did-we-fix status from prior incidents is reviewed
+- required tests are identified (or explicitly marked unknown)
+
+Operational memory discipline:
+- Prefer memory entries tagged with: `operational`, `awareness`, `objectstore`, `minio`, `quorum`, `topology`, `fingerprint`, `desired_state`.
+- If memory conflicts with live state, treat memory as context and verify using current cluster evidence.
+- After significant incident handling, write back concise lessons with `memory_store`.
+
 ## Required output at end of every answer
 
 Every final answer must include:
@@ -60,6 +86,9 @@ Awareness used:
 - required tests: <list or none>
 - tests run: <list or none>
 - audit result: <PASS|FAIL|skipped>
+- memory loaded: <yes/no>
+- memory queries run: <list or none>
+- memory ids reviewed: <list or none>
 ```
 
 ## Why this matters

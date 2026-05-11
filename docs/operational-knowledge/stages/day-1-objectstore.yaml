@@ -173,3 +173,90 @@ entries:
       - NFS-mounted MinIO data (locking semantics broken)
       - Loop device with deleted backing file (ghost-allocated, data vanishes on reboot)
       - Sharing the OS root fs (root fills up → MinIO degrades unpredictably)
+
+  - id: ops.day-1.minio.restart-hazard
+    type: DEBUG
+    title: "MinIO restart with mismatched format.json wipes data — NOT a rolling restart"
+    tags: [day-1, objectstore, minio, hazard, incident-2026-05-10]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller]
+    content: |
+      **READ BEFORE running `systemctl restart globular-minio.service`** on
+      any storage node where the topology has changed (node added, node
+      removed, drive count changed, pool mode changed).
+
+      MinIO is NOT Kubernetes pods. The "rolling restart" mental model
+      that works for stateless services and even for etcd / ScyllaDB
+      does NOT apply to MinIO when drive count changes.
+
+      ## What MinIO does when argv-drive-count != on-disk-format-drive-count
+
+      Two outcomes, both bad:
+
+      1. **FATAL on startup** — most common path. Service logs:
+         `FATAL Unable to initialize backend: /mnt/data/data drive is
+         already being used in another erasure deployment. (Number of
+         drives specified: N but the number of drives found in the
+         Kth drive's format.json: M)`. The service enters a restart
+         loop and the node is unavailable until you intervene.
+
+      2. **Silent reformat** — the destructive path. If at least
+         ceil(N/2) drives reach quorum with the new argv before the
+         old-format drives come online, MinIO REFORMATS every drive in
+         the new deployment. format.json is rewritten with a new
+         deployment ID. Bucket directories persist on disk but are
+         empty. **All object data is gone, no warning, no operator
+         confirmation.**
+
+      ## Pre-flight check (mandatory before any topology-affecting restart)
+
+          # 1. argv-drives — count "https://...:9000/mnt/data/data" tokens
+          ps aux | grep "minio.*server" | grep -v grep
+
+          # 2. format-drives — read directly from the on-disk format.json
+          sudo cat /mnt/data/data/.minio.sys/format.json | jq '.xl.sets[0] | length'
+
+          # 3. env-drives — what the next restart WILL pick up
+          sudo cat /var/lib/globular/minio/minio.env | grep VOLUMES
+
+      If all three agree → routine restart, safe.
+      If env-drives > argv-drives, format-drives still matches argv-drives
+      → DESTRUCTIVE case. STOP. Take an `mc mirror` backup first, then
+      follow the safe procedure in
+      runbooks/safe-minio-topology-restart.yaml.
+
+      ## Why the topology "CONVERGED" status can lie
+
+      `globular objectstore topology status` reports CONVERGED when the
+      env file's contents match the expected fingerprint on every node.
+      It does NOT cross-check the running process's argv. So a node
+      whose env was re-rendered but service NOT restarted will report
+      RENDERED_GEN=2 ✓ FINGERPRINT_MATCH=✓ even though the running
+      process is still on the old generation. Trust `mc admin info`
+      and the running argv before you trust the topology status.
+
+      ## What survived the 2026-05-10 incident (and only because of it)
+
+      The repository service holds a local POSIX CAS at
+      /var/lib/globular/repository/artifacts/ that is independent of
+      MinIO. After the silent reformat wiped 921 MiB / 203 objects from
+      the MinIO mirror, all artifacts remained installable from the
+      local CAS. Without that secondary truth source, the loss would
+      have been complete.
+
+      Lesson: design every MinIO consumer to assume MinIO can vanish.
+      Local CAS, restic backups, mc-mirror to external pool —
+      something. MinIO is fast and durable but its topology surgery
+      is brittle.
+    links:
+      runbooks:
+        - runbooks/safe-minio-topology-restart.yaml
+        - runbooks/republish-artifact-data-after-pool-change.yaml
+    related_ids:
+      - ops.day-1.minio.topology-contract
+      - ops.day-1.minio.apply-flow
+      - ops.runbook.safe-minio-topology-restart
+    provenance:
+      source: seed
+      immutable: true

@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,13 +22,16 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/globulario/services/golang/awareness/analysis"
+	"github.com/globulario/services/golang/awareness/assurance"
 	"github.com/globulario/services/golang/awareness/graph"
 )
 
 var impactCICfg = struct {
-	files  []string
-	repo   string
-	dbPath string
+	files      []string
+	repo       string
+	dbPath     string
+	jsonOutput bool
+	minTrust   string
 }{}
 
 var awarenessImpactCICmd = &cobra.Command{
@@ -39,7 +43,7 @@ present in the test suite.
 
 Exit codes:
   0 — all mandatory findings are backed by present tests
-  1 — at least one mandatory finding has missing required tests`,
+  1 — at least one mandatory finding has missing required tests or trust is below threshold`,
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -66,18 +70,63 @@ Exit codes:
 		}
 
 		totalFailures := 0
+		matchCount := 0
+		minTrust, err := parseTrustVerdict(impactCICfg.minTrust)
+		if err != nil {
+			return err
+		}
+		docsDir := filepath.Join(repoRoot, "docs", "awareness")
+		staleness, _ := assurance.CheckStaleness(ctx, g, assurance.Options{DocsDir: docsDir})
+		worst := assurance.Compose(assurance.ComposeInputs{MatchFound: false, Staleness: staleness})
 
 		for _, file := range impactCICfg.files {
-			failures, err := checkFileImpact(ctx, g, file, scanDirs)
+			failures, trust, matched, err := checkFileImpact(ctx, g, file, scanDirs, staleness)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "warning: %s: %v\n", file, err)
 				continue
 			}
 			totalFailures += failures
+			if matched {
+				matchCount++
+			}
+			if trustRank(trust.Verdict) < trustRank(worst.Verdict) {
+				worst = trust
+			}
+			if impactCICfg.jsonOutput {
+				_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"file": file, "trust": trust})
+			}
+		}
+		if impactCICfg.jsonOutput {
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]any{
+				"summary": map[string]any{
+					"files":         len(impactCICfg.files),
+					"matched_files": matchCount,
+					"missing_tests": totalFailures,
+					"trust":         worst,
+					"min_trust":     minTrust,
+				},
+			})
+		} else {
+			fmt.Fprintf(os.Stdout, "trust: verdict=%s confidence=%s freshness=%s coverage=%s\n",
+				worst.Verdict, worst.Confidence, worst.Freshness, worst.Coverage)
+			fmt.Fprintf(os.Stdout, "min_trust: %s\n", minTrust)
+			if worst.Reason != "" {
+				fmt.Fprintf(os.Stdout, "trust_reason: %s\n", worst.Reason)
+			}
+			if len(worst.Limitations) > 0 {
+				fmt.Fprintf(os.Stdout, "trust_limitations: %s\n", strings.Join(worst.Limitations, "; "))
+			}
+			if len(worst.RequiredActions) > 0 {
+				fmt.Fprintf(os.Stdout, "trust_required_actions: %s\n", strings.Join(worst.RequiredActions, "; "))
+			}
 		}
 
 		if totalFailures > 0 {
 			fmt.Fprintf(os.Stderr, "\nFAIL: %d mandatory finding(s) have missing required tests\n", totalFailures)
+			os.Exit(1)
+		}
+		if trustRank(worst.Verdict) < trustRank(minTrust) {
+			fmt.Fprintf(os.Stderr, "\nFAIL: trust verdict %s is below minimum required %s\n", worst.Verdict, minTrust)
 			os.Exit(1)
 		}
 		fmt.Fprintf(os.Stdout, "OK: all mandatory findings have required tests present\n")
@@ -87,17 +136,17 @@ Exit codes:
 
 // checkFileImpact runs explained impact analysis on one file and prints findings.
 // Returns the number of mandatory findings with missing tests.
-func checkFileImpact(ctx context.Context, g *graph.Graph, file string, scanDirs []string) (int, error) {
+func checkFileImpact(ctx context.Context, g *graph.Graph, file string, scanDirs []string, staleness *assurance.Staleness) (int, assurance.TrustEnvelope, bool, error) {
 	result, err := analysis.ExplainImpactByFile(ctx, g, file)
 	if err != nil {
-		return 0, fmt.Errorf("ExplainImpactByFile: %w", err)
+		return 0, assurance.TrustEnvelope{}, false, fmt.Errorf("ExplainImpactByFile: %w", err)
 	}
 
 	failures := 0
 
 	if len(result.MissingLinks) > 0 {
 		fmt.Fprintf(os.Stdout, "%s: no graph nodes found — run 'globular awareness build'\n", file)
-		return 0, nil
+		return 0, assurance.Compose(assurance.ComposeInputs{MatchFound: false, Staleness: staleness}), false, nil
 	}
 
 	// Check required tests for mandatory forbidden fixes.
@@ -136,7 +185,7 @@ func checkFileImpact(ctx context.Context, g *graph.Graph, file string, scanDirs 
 		printFinding(file, "invariant", f)
 	}
 
-	return failures, nil
+	return failures, assurance.Compose(assurance.ComposeInputs{MatchFound: true, Staleness: staleness}), true, nil
 }
 
 // printFinding prints a single explained finding to stdout.
@@ -157,6 +206,9 @@ func init() {
 		"Files to analyse (comma or space separated; can be specified multiple times)")
 	awarenessImpactCICmd.Flags().StringVar(&impactCICfg.repo, "repo", "", "Repo root (default: auto-detected from git)")
 	awarenessImpactCICmd.Flags().StringVar(&impactCICfg.dbPath, "db", "", "Path to graph.db")
+	awarenessImpactCICmd.Flags().BoolVar(&impactCICfg.jsonOutput, "json", false, "Emit trust envelope output as JSON lines")
+	awarenessImpactCICmd.Flags().StringVar(&impactCICfg.minTrust, "min-trust", string(assurance.TrustStale),
+		"Minimum allowed trust verdict: unsafe|unknown|stale|limited|usable|trusted")
 
 	awarenessCmd.AddCommand(awarenessImpactCICmd)
 }
@@ -173,4 +225,34 @@ func splitFiles(raw []string) []string {
 		}
 	}
 	return out
+}
+
+func trustRank(v assurance.TrustVerdict) int {
+	switch v {
+	case assurance.TrustUnsafe:
+		return 0
+	case assurance.TrustUnknown:
+		return 1
+	case assurance.TrustStale:
+		return 2
+	case assurance.TrustLimited:
+		return 3
+	case assurance.TrustUsable:
+		return 4
+	case assurance.TrustTrusted:
+		return 5
+	default:
+		return 0
+	}
+}
+
+func parseTrustVerdict(raw string) (assurance.TrustVerdict, error) {
+	v := assurance.TrustVerdict(strings.TrimSpace(strings.ToLower(raw)))
+	switch v {
+	case assurance.TrustUnsafe, assurance.TrustUnknown, assurance.TrustStale,
+		assurance.TrustLimited, assurance.TrustUsable, assurance.TrustTrusted:
+		return v, nil
+	default:
+		return "", fmt.Errorf("invalid --min-trust %q (allowed: unsafe, unknown, stale, limited, usable, trusted)", raw)
+	}
 }

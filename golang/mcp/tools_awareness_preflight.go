@@ -185,6 +185,7 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 					"code violation scan not run — use awareness.scan_violations",
 				},
 				"warnings": []string{"no graph DB — run 'globular awareness build' first"},
+				"trust":    awarenessTrustMap(st, false),
 			}, nil
 		}
 
@@ -223,6 +224,7 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 				"queue_status":      queueSection.QueueStatus,
 				"status":            queueSection.Status,
 			},
+			"trust": awarenessTrustMap(st, len(result.InvariantIDs)+len(result.FailureModeIDs)+len(result.ForbiddenFixes)+len(result.RequiredTests) > 0),
 		}
 		if len(failureKnowledge) > 0 {
 			out["relevant_failure_knowledge"] = failureKnowledge

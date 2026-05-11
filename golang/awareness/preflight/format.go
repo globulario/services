@@ -103,6 +103,7 @@ func renderJSON(r *Report) (string, error) {
 		RiskTier                  RiskTier                 `json:"risk_tier"`
 		FastPathApplied           bool                     `json:"fast_path_applied"`
 		ExperienceHints           []ExperienceHint         `json:"experience_hints,omitempty"`
+		Trust                     interface{}              `json:"trust,omitempty"`
 	}
 
 	jr := jsonReport{
@@ -145,6 +146,7 @@ func renderJSON(r *Report) (string, error) {
 		RiskTier:                  r.RiskTier,
 		FastPathApplied:           r.FastPathApplied,
 		ExperienceHints:           r.ExperienceHints,
+		Trust:                     r.Trust,
 	}
 
 	b, err := json.MarshalIndent(jr, "", "  ")
@@ -177,6 +179,23 @@ func renderMarkdown(r *Report) string {
 
 	sb.WriteString(fmt.Sprintf("Risk tier: `%s`\n\n", r.RiskTier))
 	sb.WriteString(fmt.Sprintf("Fast path applied: `%t`\n\n", r.FastPathApplied))
+	if r.Trust != nil {
+		sb.WriteString("## Trust\n\n")
+		sb.WriteString(fmt.Sprintf("- verdict: `%s`\n", r.Trust.Verdict))
+		sb.WriteString(fmt.Sprintf("- confidence: `%s`\n", r.Trust.Confidence))
+		sb.WriteString(fmt.Sprintf("- freshness: `%s`\n", r.Trust.Freshness))
+		sb.WriteString(fmt.Sprintf("- coverage: `%s`\n", r.Trust.Coverage))
+		if r.Trust.Reason != "" {
+			sb.WriteString("- reason: " + r.Trust.Reason + "\n")
+		}
+		if len(r.Trust.Limitations) > 0 {
+			sb.WriteString("- limitations: " + strings.Join(r.Trust.Limitations, "; ") + "\n")
+		}
+		if len(r.Trust.RequiredActions) > 0 {
+			sb.WriteString("- required_action: " + strings.Join(r.Trust.RequiredActions, "; ") + "\n")
+		}
+		sb.WriteString("\n")
+	}
 
 	// Immediate warnings.
 	if len(r.Warnings) > 0 {
@@ -522,6 +541,26 @@ func renderAgent(r *Report, opts RenderOptions) string {
 	sb.WriteString(fmt.Sprintf("Safety status: %s\n", r.SafetyStatus))
 	sb.WriteString(fmt.Sprintf("Confidence: %s (%s)\n\n", r.Confidence, r.ConfidenceReason))
 	sb.WriteString(fmt.Sprintf("Risk tier: %s (fast path: %t)\n\n", r.RiskTier, r.FastPathApplied))
+	if r.Trust != nil {
+		sb.WriteString("Trust envelope:\n")
+		sb.WriteString(fmt.Sprintf("  verdict: %s\n", r.Trust.Verdict))
+		sb.WriteString(fmt.Sprintf("  confidence: %s\n", r.Trust.Confidence))
+		sb.WriteString(fmt.Sprintf("  freshness: %s\n", r.Trust.Freshness))
+		sb.WriteString(fmt.Sprintf("  coverage: %s\n", r.Trust.Coverage))
+		if len(r.Trust.Limitations) > 0 {
+			sb.WriteString("  limitations:\n")
+			for _, l := range r.Trust.Limitations {
+				sb.WriteString("  - " + l + "\n")
+			}
+		}
+		if len(r.Trust.RequiredActions) > 0 {
+			sb.WriteString("  required_action:\n")
+			for _, a := range r.Trust.RequiredActions {
+				sb.WriteString("  - " + a + "\n")
+			}
+		}
+		sb.WriteString("\n")
+	}
 	if r.DegradedMode.Enabled {
 		sb.WriteString("Degraded-mode playbook:\n")
 		if r.DegradedMode.Reason != "" {

@@ -6,6 +6,50 @@ This file is read automatically by Claude Code at the start of every session. It
 
 ## PRIME RULES FOR AI AGENTS
 
+## COMPOSED-PATH FAILURE LOG — REQUIRED BEFORE EDITING SHARED CONCEPTS
+
+Before any edit that touches **graph identity**, **lifecycle metadata**
+(`deprecated`, `intentional_gap`, `coverage_state`), **freshness**
+(graph staleness, bundle age, manifest source), **coverage** (mitigation/
+test/detector legs, classification), or **trust semantics** (verdict,
+confidence, freshness, coverage axes), you MUST read:
+
+```
+docs/awareness/composed_path_failures.md
+```
+
+For each such edit ask in order:
+
+1. Is this bug a repeat of an existing entry's consolidation candidate?
+   If yes, **consolidate** — promote the candidate to a shared primitive.
+   The patch IS the consolidation; do not add another local workaround.
+2. Is it a new shape? **Record it using the schema** before shipping.
+   The log entry is part of the change, not an afterthought.
+3. If you're tempted to add a new subsystem, verb, or vocabulary, stop.
+   Re-read the log first — the answer is almost always to consolidate
+   something already there.
+
+**Rule**: No expansion unless repetition earns it. Drift is the danger;
+the log is where repetition is recorded, so it's the only honest place
+to make that call.
+
+### Choosing the next stabilization work
+
+Do not pick by taste. Pick from evidence. In strict priority order:
+
+1. Anything that **repeats an existing composed-path-failure candidate**
+   in `docs/awareness/composed_path_failures.md`. Two incidents on the
+   same candidate is the trigger to consolidate.
+2. Anything that touches one of the **five tripwire subjects** (graph
+   identity, lifecycle metadata, freshness, coverage, trust semantics).
+3. Anything that changes the **live verdict path from `git diff` to
+   the TrustEnvelope**.
+
+Everything else waits. Do not invent work because it sounds reasonable.
+If neither the log nor `globular awareness prefix-audit` surfaces a
+candidate, the right move is to run the system as-is for a cycle —
+stabilization includes restraint.
+
 ## AWARENESS PREFLIGHT — REQUIRED BEFORE CODE EDITS
 
 Before editing Globular code, you MUST run awareness preflight.

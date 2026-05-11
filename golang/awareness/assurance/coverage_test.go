@@ -1,0 +1,248 @@
+package assurance_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/services/golang/awareness/assurance"
+)
+
+func openSeededGraph(t *testing.T) *graph.Graph {
+	t.Helper()
+	g, err := graph.OpenMemory()
+	if err != nil {
+		t.Fatalf("OpenMemory: %v", err)
+	}
+	t.Cleanup(func() { g.Close() })
+	return g
+}
+
+// addFailureMode mirrors what the manual extractor does on a real build:
+// inserts a row into the failure_modes table AND creates a graph node with
+// the canonical "failure_mode:" prefix. Tests must use fmNode(id) when
+// constructing edge destinations so the wiring matches production.
+func addFailureMode(t *testing.T, g *graph.Graph, id, title string) {
+	t.Helper()
+	if err := g.UpsertFailureMode(context.Background(), graph.FailureMode{ID: id, Title: title}); err != nil {
+		t.Fatalf("UpsertFailureMode %s: %v", id, err)
+	}
+	if err := g.AddNode(context.Background(), graph.Node{
+		ID:   fmNode(id),
+		Type: graph.NodeTypeFailureMode,
+		Name: id,
+	}); err != nil {
+		t.Fatalf("AddNode %s: %v", fmNode(id), err)
+	}
+}
+
+// fmNode returns the graph node id for a failure_mode, matching the
+// manual extractor's prefix convention.
+func fmNode(id string) string { return "failure_mode:" + id }
+
+func addNode(t *testing.T, g *graph.Graph, id, ntype, name string) {
+	t.Helper()
+	err := g.AddNode(context.Background(), graph.Node{ID: id, Type: ntype, Name: name})
+	if err != nil {
+		t.Fatalf("AddNode %s: %v", id, err)
+	}
+}
+
+func addEdge(t *testing.T, g *graph.Graph, src, kind, dst string) {
+	t.Helper()
+	err := g.AddEdge(context.Background(), graph.Edge{Src: src, Kind: kind, Dst: dst})
+	if err != nil {
+		t.Fatalf("AddEdge %s -%s-> %s: %v", src, kind, dst, err)
+	}
+}
+
+// TestComputeCoverage_OrphanFailureMode: a failure_mode with zero inbound
+// edges is classified as orphan, never as well_covered or partial.
+func TestComputeCoverage_OrphanFailureMode(t *testing.T) {
+	g := openSeededGraph(t)
+	addFailureMode(t, g, "FM-orphan", "Lonely failure")
+
+	report, err := assurance.ComputeCoverage(context.Background(), g)
+	if err != nil {
+		t.Fatalf("ComputeCoverage: %v", err)
+	}
+	if report.FailureModesTotal != 1 {
+		t.Fatalf("FailureModesTotal=%d, want 1", report.FailureModesTotal)
+	}
+	if report.OrphanCount != 1 {
+		t.Errorf("OrphanCount=%d, want 1", report.OrphanCount)
+	}
+	if got := report.PerFailureMode[0].Level; got != assurance.CoverageOrphan {
+		t.Errorf("orphan FM level=%s, want orphan", got)
+	}
+	if len(report.PerFailureMode[0].Reasons) == 0 {
+		t.Error("expected at least one reason for orphan classification")
+	}
+}
+
+// TestComputeCoverage_WellCovered: a failure_mode with mitigation + test +
+// detector should classify as well_covered.
+func TestComputeCoverage_WellCovered(t *testing.T) {
+	g := openSeededGraph(t)
+	addFailureMode(t, g, "FM-good", "Well covered failure")
+	addNode(t, g, "DP-1", graph.NodeTypeDesignPattern, "design pattern")
+	addNode(t, g, "TEST-1", graph.NodeTypeTest, "test_case")
+	addNode(t, g, "RT-1", graph.NodeTypeRuntimeState, "runtime observation")
+
+	addEdge(t, g, "DP-1", graph.EdgeMitigates, fmNode("FM-good"))
+	addEdge(t, g, "DP-1", graph.EdgeTestedBy, "TEST-1")
+	addEdge(t, g, "RT-1", graph.EdgeMatchesFailureMode, fmNode("FM-good"))
+
+	report, err := assurance.ComputeCoverage(context.Background(), g)
+	if err != nil {
+		t.Fatalf("ComputeCoverage: %v", err)
+	}
+	if report.WellCoveredCount != 1 {
+		t.Fatalf("WellCoveredCount=%d, want 1; per-fm=%+v", report.WellCoveredCount, report.PerFailureMode)
+	}
+	fmc := report.PerFailureMode[0]
+	if fmc.Mitigations != 1 || fmc.Tests != 1 || fmc.Detectors != 1 {
+		t.Errorf("counts wrong: mitigations=%d tests=%d detectors=%d",
+			fmc.Mitigations, fmc.Tests, fmc.Detectors)
+	}
+}
+
+// TestComputeCoverage_TheoreticalOnly: only learning entries / decision paths
+// — no enforcement — must be classified as theoretical.
+func TestComputeCoverage_TheoreticalOnly(t *testing.T) {
+	g := openSeededGraph(t)
+	addFailureMode(t, g, "FM-theoretical", "Documented but unguarded")
+	addNode(t, g, "FF-1", graph.NodeTypeForbiddenFix, "forbidden fix")
+
+	addEdge(t, g, "FF-1", graph.EdgeForbids, fmNode("FM-theoretical"))
+
+	report, err := assurance.ComputeCoverage(context.Background(), g)
+	if err != nil {
+		t.Fatalf("ComputeCoverage: %v", err)
+	}
+	if report.TheoreticalCount != 1 {
+		t.Fatalf("TheoreticalCount=%d, want 1; per-fm=%+v", report.TheoreticalCount, report.PerFailureMode)
+	}
+	if report.PerFailureMode[0].Level != assurance.CoverageTheoretical {
+		t.Errorf("level=%s, want theoretical", report.PerFailureMode[0].Level)
+	}
+}
+
+// TestComputeCoverage_PartialMissingDetector: mitigation + test but no
+// detector → partial, with a reason naming the missing leg.
+func TestComputeCoverage_PartialMissingDetector(t *testing.T) {
+	g := openSeededGraph(t)
+	addFailureMode(t, g, "FM-partial", "Partial coverage")
+	addNode(t, g, "DP-2", graph.NodeTypeDesignPattern, "dp")
+	addNode(t, g, "TEST-2", graph.NodeTypeTest, "t")
+
+	addEdge(t, g, "DP-2", graph.EdgeMitigates, fmNode("FM-partial"))
+	addEdge(t, g, "DP-2", graph.EdgeTestedBy, "TEST-2")
+
+	report, err := assurance.ComputeCoverage(context.Background(), g)
+	if err != nil {
+		t.Fatalf("ComputeCoverage: %v", err)
+	}
+	if report.PartialCount != 1 {
+		t.Fatalf("PartialCount=%d, want 1", report.PartialCount)
+	}
+	fmc := report.PerFailureMode[0]
+	if fmc.Level != assurance.CoveragePartial {
+		t.Errorf("level=%s, want partial", fmc.Level)
+	}
+	foundDetectorReason := false
+	for _, r := range fmc.Reasons {
+		if r != "" && containsAny(r, []string{"detector"}) {
+			foundDetectorReason = true
+		}
+	}
+	if !foundDetectorReason {
+		t.Errorf("expected a reason mentioning 'detector', got %v", fmc.Reasons)
+	}
+}
+
+// TestComputeCoverage_DetectorOnly_OnUnseededFM: a detector edge pointing at a
+// failure_mode that was never seeded should still be reported, so we don't
+// hide signals from runtime that the YAML does not yet describe.
+func TestComputeCoverage_DetectorOnly_OnUnseededFM(t *testing.T) {
+	g := openSeededGraph(t)
+	// No seeded failure_mode — only a runtime detector mentions FM-runtime.
+	addNode(t, g, "RT-2", graph.NodeTypeRuntimeState, "rt")
+	// Synthesised failure_mode (no UpsertFailureMode call). The detector edge
+	// uses the canonical prefix so coverage's lazy-register path lands on the
+	// same key it would for a seeded mode.
+	addEdge(t, g, "RT-2", graph.EdgeMatchesFailureMode, fmNode("FM-runtime"))
+
+	report, err := assurance.ComputeCoverage(context.Background(), g)
+	if err != nil {
+		t.Fatalf("ComputeCoverage: %v", err)
+	}
+	if report.FailureModesTotal != 1 {
+		t.Fatalf("FailureModesTotal=%d, want 1 (synthesised from detector)", report.FailureModesTotal)
+	}
+	if report.PerFailureMode[0].ID != "FM-runtime" {
+		t.Errorf("got id=%s, want FM-runtime", report.PerFailureMode[0].ID)
+	}
+}
+
+// TestComputeCoverage_AggregatePercents: sanity-check the aggregate metrics.
+func TestComputeCoverage_AggregatePercents(t *testing.T) {
+	g := openSeededGraph(t)
+	addFailureMode(t, g, "fm-1", "1")
+	addFailureMode(t, g, "fm-2", "2")
+	addFailureMode(t, g, "fm-3", "3")
+	addFailureMode(t, g, "fm-4", "4")
+
+	addNode(t, g, "dp-1", graph.NodeTypeDesignPattern, "dp")
+	addNode(t, g, "test-1", graph.NodeTypeTest, "t")
+	addNode(t, g, "rt-1", graph.NodeTypeRuntimeState, "rt")
+	addEdge(t, g, "dp-1", graph.EdgeMitigates, fmNode("fm-1"))
+	addEdge(t, g, "dp-1", graph.EdgeTestedBy, "test-1")
+	addEdge(t, g, "rt-1", graph.EdgeMatchesFailureMode, fmNode("fm-1"))
+
+	addNode(t, g, "dp-2", graph.NodeTypeDesignPattern, "dp2")
+	addEdge(t, g, "dp-2", graph.EdgeMitigates, fmNode("fm-2"))
+
+	addNode(t, g, "ff-1", graph.NodeTypeForbiddenFix, "ff")
+	addEdge(t, g, "ff-1", graph.EdgeForbids, fmNode("fm-3"))
+	// fm-4 is orphan.
+
+	report, err := assurance.ComputeCoverage(context.Background(), g)
+	if err != nil {
+		t.Fatalf("ComputeCoverage: %v", err)
+	}
+	if report.WellCoveredCount != 1 || report.PartialCount != 1 ||
+		report.TheoreticalCount != 1 || report.OrphanCount != 1 {
+		t.Errorf("counts wrong: well=%d partial=%d theoretical=%d orphan=%d (per-fm=%+v)",
+			report.WellCoveredCount, report.PartialCount, report.TheoreticalCount,
+			report.OrphanCount, report.PerFailureMode)
+	}
+	if report.WellCoveredPercent != 25.0 {
+		t.Errorf("WellCoveredPercent=%.2f, want 25.0", report.WellCoveredPercent)
+	}
+	if report.CoveragePercent != 50.0 {
+		t.Errorf("CoveragePercent=%.2f, want 50.0", report.CoveragePercent)
+	}
+}
+
+func containsAny(s string, needles []string) bool {
+	for _, n := range needles {
+		if n != "" && stringContains(s, n) {
+			return true
+		}
+	}
+	return false
+}
+
+// avoid pulling strings just for this single use.
+func stringContains(haystack, needle string) bool {
+	if needle == "" {
+		return true
+	}
+	for i := 0; i+len(needle) <= len(haystack); i++ {
+		if haystack[i:i+len(needle)] == needle {
+			return true
+		}
+	}
+	return false
+}

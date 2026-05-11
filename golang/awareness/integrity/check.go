@@ -248,9 +248,11 @@ func checkEdgeProvenance(ctx context.Context, g *graph.Graph) []ProvenanceIssue 
 		if !criticalEdgeTypes[e.Kind] {
 			continue
 		}
-		// Check if provenance_json is present in metadata.
-		prov := e.Metadata["provenance_json"]
-		if prov == nil || prov == "" || prov == "{}" {
+		// Provenance is canonically on e.Provenance (backed by the
+		// edges.provenance_json column). Empty map means the writer
+		// supplied no provenance — treat as missing for critical edges.
+		// See docs/awareness/composed_path_failures.md (edge provenance home).
+		if len(e.Provenance) == 0 {
 			issues = append(issues, ProvenanceIssue{
 				Src:   e.Src,
 				Kind:  e.Kind,

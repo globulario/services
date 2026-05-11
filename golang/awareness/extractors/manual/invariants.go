@@ -312,8 +312,8 @@ func loadInvariant(ctx context.Context, g *graph.Graph, inv yamlInvariant, path 
 	// Related failure modes → best-effort edges (failure mode nodes may not exist yet).
 	for _, fmID := range inv.RelatedFailureModes {
 		fmNodeID := "failure_mode:" + fmID
-		// Ensure the node exists so the edge target is valid.
-		if err := g.AddNode(ctx, graph.Node{
+		// EnsureNode preserves the canonical failure_modes loader's metadata.
+		if err := g.EnsureNode(ctx, graph.Node{
 			ID:   fmNodeID,
 			Type: graph.NodeTypeFailureMode,
 			Name: fmID,
@@ -499,7 +499,7 @@ func loadInvariant(ctx context.Context, g *graph.Graph, inv yamlInvariant, path 
 	// violated_by[] → failure_mode → violates → invariant (declarative override).
 	for _, fmID := range inv.ViolatedBy {
 		fmNodeID := "failure_mode:" + fmID
-		if err := g.AddNode(ctx, graph.Node{
+		if err := g.EnsureNode(ctx, graph.Node{
 			ID:   fmNodeID,
 			Type: graph.NodeTypeFailureMode,
 			Name: fmID,

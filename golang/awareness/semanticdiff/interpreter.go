@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/awareness/assurance"
 	"github.com/google/uuid"
 )
 
@@ -39,9 +40,48 @@ func InterpretSemanticDiff(ctx context.Context, req SemanticDiffRequest) (*Seman
 		Findings:    findings,
 		CreatedAt:   time.Now().Unix(),
 	}
+	report.AuthorityChange, report.AuthorityBudget = computeAuthorityBudget(report.Transitions, report.Findings)
 
 	report.Verdict, report.Severity, report.Summary = EvaluateSemanticVerdict(report)
+	report.Trust = semanticDiffTrust(report)
 	return report, nil
+}
+
+func semanticDiffTrust(r *SemanticDiffReport) *assurance.TrustEnvelope {
+	if r == nil {
+		return nil
+	}
+	env := &assurance.TrustEnvelope{
+		Freshness: assurance.FreshnessUnknown,
+	}
+	switch r.Verdict {
+	case VerdictBlock:
+		env.Verdict = assurance.TrustUnsafe
+		env.Confidence = assurance.ConfidenceHigh
+		env.Coverage = assurance.TrustCoverageNone
+		env.Reason = "semantic diff found forbidden/critical authority movement"
+		env.Limitations = []string{"semantic diff is unsafe until violations are removed"}
+		env.RequiredActions = []string{"remove forbidden layer transition", "add required proofs/guards before retry"}
+	case VerdictAllowWithWarnings:
+		env.Verdict = assurance.TrustLimited
+		env.Confidence = assurance.ConfidenceMedium
+		env.Coverage = assurance.TrustCoveragePartial
+		env.Reason = "semantic diff allowed with warnings; safety signal is partial"
+		env.Limitations = []string{"warnings present in semantic diff findings"}
+		env.RequiredActions = []string{"address warning findings before treating as trusted"}
+	default:
+		env.Verdict = assurance.TrustUsable
+		env.Confidence = assurance.ConfidenceMedium
+		env.Coverage = assurance.TrustCoverageSufficient
+		env.Reason = "no forbidden semantic diff findings detected"
+		if r.AuthorityChange != nil && r.AuthorityChange.Detected {
+			env.Verdict = assurance.TrustLimited
+			env.Coverage = assurance.TrustCoveragePartial
+			env.Limitations = []string{"authority layer movement detected"}
+			env.RequiredActions = []string{"require explicit review for authority-layer changes"}
+		}
+	}
+	return env
 }
 
 // InferLayerTransitions derives explicit layer transition records from atoms.
@@ -89,6 +129,16 @@ func atomToLayerTransition(a SemanticDiffAtom) *LayerTransition {
 			Allowed:        false,
 			Reason:         "Artifact metadata may not produce Installed state without resolved build_id and install action.",
 		}
+	case "installed_state_treated_as_desired":
+		return &LayerTransition{
+			FilePath:       a.FilePath,
+			Symbol:         a.Symbol,
+			LayerFrom:      LayerInstalled,
+			LayerTo:        LayerDesired,
+			TransitionKind: a.AtomKind,
+			Allowed:        false,
+			Reason:         "Installed state cannot rewrite Desired without explicit controller authority.",
+		}
 	case "state_transition_atomicity_added":
 		return &LayerTransition{
 			FilePath:       a.FilePath,
@@ -107,6 +157,68 @@ func atomToLayerTransition(a SemanticDiffAtom) *LayerTransition {
 		}
 	}
 	return nil
+}
+
+func computeAuthorityBudget(transitions []LayerTransition, findings []SemanticDiffFinding) (*AuthorityChange, *AuthorityBudget) {
+	ac := &AuthorityChange{Detected: false, Risk: "none", RequiresReview: false}
+	ab := &AuthorityBudget{LayerChanged: false, AllowedWithoutReview: true, RequiredAwarenessCoverage: "baseline"}
+	if len(transitions) == 0 {
+		return ac, ab
+	}
+
+	riskRank := map[string]int{"none": 0, "medium": 1, "high": 2, "critical": 3}
+	bestRisk := "none"
+	bestFrom, bestTo := "", ""
+	requiresReview := false
+
+	for _, t := range transitions {
+		if t.LayerFrom == "" || t.LayerTo == "" || t.LayerFrom == t.LayerTo {
+			continue
+		}
+		ab.LayerChanged = true
+		ab.SourceLayer = t.LayerFrom
+		ab.TargetLayer = t.LayerTo
+		risk := "high"
+		if !t.Allowed {
+			risk = "critical"
+			requiresReview = true
+		}
+		if riskRank[risk] > riskRank[bestRisk] {
+			bestRisk = risk
+			bestFrom = t.LayerFrom
+			bestTo = t.LayerTo
+		}
+	}
+
+	if bestRisk == "none" {
+		for _, f := range findings {
+			if f.LayerFrom != "" && f.LayerTo != "" && f.LayerFrom != f.LayerTo {
+				ab.LayerChanged = true
+				ab.SourceLayer = f.LayerFrom
+				ab.TargetLayer = f.LayerTo
+				bestFrom = f.LayerFrom
+				bestTo = f.LayerTo
+				if f.Severity == SeverityForbidden || f.Severity == SeverityCritical {
+					bestRisk = "critical"
+					requiresReview = true
+				} else {
+					bestRisk = "high"
+				}
+				break
+			}
+		}
+	}
+
+	if ab.LayerChanged {
+		ab.AllowedWithoutReview = false
+		ab.RequiredAwarenessCoverage = "strong"
+		ac.Detected = true
+		ac.FromLayer = bestFrom
+		ac.ToLayer = bestTo
+		ac.Risk = bestRisk
+		ac.RequiresReview = requiresReview || bestRisk == "high" || bestRisk == "critical"
+	}
+	return ac, ab
 }
 
 // AtomsToFindings converts semantic atoms into structured findings.

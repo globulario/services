@@ -75,8 +75,9 @@ func LoadPatterns(ctx context.Context, g *graph.Graph, path string) error {
 				continue
 			}
 			invNodeID := "invariant:" + invID
-			// Ensure stub invariant node exists so the edge target is always valid.
-			if err := g.AddNode(ctx, graph.Node{
+			// EnsureNode (not AddNode): canonical invariant loader owns the
+			// metadata; the patterns loader only needs the edge target.
+			if err := g.EnsureNode(ctx, graph.Node{
 				ID:      invNodeID,
 				Type:    graph.NodeTypeInvariant,
 				Name:    invID,

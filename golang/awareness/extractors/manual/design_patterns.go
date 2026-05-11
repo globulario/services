@@ -117,8 +117,8 @@ func loadOneDesignPattern(ctx context.Context, g *graph.Graph, p yamlDesignPatte
 			continue
 		}
 		invNodeID := "invariant:" + invID
-		// Ensure stub invariant node so the edge target is always valid.
-		if err := g.AddNode(ctx, graph.Node{
+		// EnsureNode: invariant loader owns metadata; we only need an edge target.
+		if err := g.EnsureNode(ctx, graph.Node{
 			ID:      invNodeID,
 			Type:    graph.NodeTypeInvariant,
 			Name:    invID,
@@ -146,7 +146,10 @@ func loadOneDesignPattern(ctx context.Context, g *graph.Graph, p yamlDesignPatte
 			continue
 		}
 		fmNodeID := "failure_mode:" + fmID
-		if err := g.AddNode(ctx, graph.Node{
+		// Stub the failure_mode node only if it doesn't exist yet. EnsureNode
+		// is a no-op when the canonical failure_modes loader has already
+		// populated metadata (deprecated, intentional_gap, severity).
+		if err := g.EnsureNode(ctx, graph.Node{
 			ID:      fmNodeID,
 			Type:    graph.NodeTypeFailureMode,
 			Name:    fmID,
@@ -176,7 +179,8 @@ func loadOneDesignPattern(ctx context.Context, g *graph.Graph, p yamlDesignPatte
 			continue
 		}
 		ffNodeID := "forbidden_fix:" + ffID
-		if err := g.AddNode(ctx, graph.Node{
+		// EnsureNode: forbidden_fix loader owns metadata.
+		if err := g.EnsureNode(ctx, graph.Node{
 			ID:      ffNodeID,
 			Type:    graph.NodeTypeForbiddenFix,
 			Name:    ffID,
@@ -199,7 +203,8 @@ func loadOneDesignPattern(ctx context.Context, g *graph.Graph, p yamlDesignPatte
 			continue
 		}
 		testNodeID := "test:" + testName
-		if err := g.AddNode(ctx, graph.Node{
+		// EnsureNode: goast/test extractor owns canonical test metadata.
+		if err := g.EnsureNode(ctx, graph.Node{
 			ID:      testNodeID,
 			Type:    graph.NodeTypeTest,
 			Name:    testName,
@@ -222,7 +227,9 @@ func loadOneDesignPattern(ctx context.Context, g *graph.Graph, p yamlDesignPatte
 			continue
 		}
 		fileNodeID := "source_file:" + path
-		if err := g.AddNode(ctx, graph.Node{
+		// EnsureNode: goast extractor owns canonical source_file metadata
+		// (path-relative-to-repo, language, line-count, AST hashes).
+		if err := g.EnsureNode(ctx, graph.Node{
 			ID:      fileNodeID,
 			Type:    graph.NodeTypeSourceFile,
 			Name:    path,

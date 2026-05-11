@@ -208,6 +208,10 @@ func main() {
 		"controller", resolvedCC,
 		"version", Version,
 	)
+	// Signal systemd readiness for Type=notify units. No-op outside systemd.
+	globular_service.SdNotify("READY=1\nSTATUS=serving")
+	// Keep systemd watchdog alive when WatchdogSec is configured.
+	globular_service.SdWatchdogLoop()
 
 	// Graceful shutdown on SIGTERM / SIGINT — block main here.
 	stop := make(chan os.Signal, 1)

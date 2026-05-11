@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/globulario/services/golang/awareness/graph"
 	"github.com/globulario/services/golang/awareness/preflight"
@@ -368,6 +369,61 @@ func TestPreflightNilGraphProducesWarning(t *testing.T) {
 	}
 	if !hasWarning {
 		t.Errorf("expected 'no graph DB' warning, got: %v", r.Warnings)
+	}
+}
+
+// TestPreflightOrdering_StaleGraphProducesUnknownNotSafe pins the implicit
+// ordering contract documented in docs/awareness/composed_path_failures.md
+// (2026-05-10 preflight ordering): Coverage MUST be assigned before
+// SafetyStatus and DegradedMode are computed. Both helpers read
+// r.Coverage.Graph; if they run on a zero-valued Coverage, they silently
+// skip the stale-graph branch and the report lies about safety.
+//
+// Fixture: graph_builds row 25h old → triggers MaxAgeExceeded → graph
+// freshness reports Stale → computeConfidence sets Coverage.Graph =
+// CoverageStale. Architecture-sensitive task + no runtime included +
+// stale graph must produce SafetyStatusUnknownNotSafe and
+// DegradedMode.Enabled = true.
+//
+// If this test ever fails, the joined report is lying about safety on a
+// stale graph; the ordering has been broken or the helpers stopped reading
+// Coverage. Fix it before shipping.
+func TestPreflightOrdering_StaleGraphProducesUnknownNotSafe(t *testing.T) {
+	ctx := context.Background()
+	g := seedPreflightGraph(t)
+	docsDir := setupPreflightDocsDir(t)
+
+	// Insert a graph_builds row 25h old so freshness flags MaxAgeExceeded.
+	staleTs := time.Now().Add(-25 * time.Hour).Unix()
+	if _, err := g.DB().ExecContext(ctx,
+		`INSERT INTO graph_builds (id, repo_root, git_commit, release_id, created_at, stats_json)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		"ordering-test-stale", "/r", "deadbeef", "", staleTs, `{}`,
+	); err != nil {
+		t.Fatalf("insert stale graph_builds: %v", err)
+	}
+
+	r, err := preflight.Run(ctx, preflight.Options{
+		// Architecture-sensitive task → triggers the sensitive branch
+		// inside computeSafetyStatus + computeDegradedMode.
+		Task:           "reconcile desired installed runtime convergence for component foo",
+		DocsDir:        docsDir,
+		IncludeRuntime: false, // runtime is noop → graphStaleNoRuntime triggers
+	}, g)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if r.Coverage.Graph != preflight.CoverageStale {
+		t.Errorf("Coverage.Graph = %s, want %s — ordering must compute Coverage before SafetyStatus/DegradedMode read it",
+			r.Coverage.Graph, preflight.CoverageStale)
+	}
+	if r.SafetyStatus != preflight.SafetyStatusUnknownNotSafe {
+		t.Errorf("SafetyStatus = %s, want %s on stale-graph architecture-sensitive task with no runtime",
+			r.SafetyStatus, preflight.SafetyStatusUnknownNotSafe)
+	}
+	if !r.DegradedMode.Enabled {
+		t.Errorf("DegradedMode.Enabled = false; want true on stale graph + UNKNOWN_NOT_SAFE")
 	}
 }
 

@@ -59,6 +59,9 @@ func TestDesiredToInstalledForbidden(t *testing.T) {
 	if !found {
 		t.Errorf("expected finding desired_state_promoted_to_installed_without_proof, findings: %+v", report.Findings)
 	}
+	if report.Trust == nil || report.Trust.Verdict != "unsafe" {
+		t.Errorf("expected trust unsafe for blocked diff, got %+v", report.Trust)
+	}
 }
 
 // Test 2: Runtime → Desired assignment is forbidden.
@@ -286,6 +289,9 @@ func TestSafeRefactorAllows(t *testing.T) {
 	if len(report.Findings) != 0 {
 		t.Errorf("expected no findings, got %d: %+v", len(report.Findings), report.Findings)
 	}
+	if report.Trust == nil {
+		t.Fatal("expected trust envelope")
+	}
 }
 
 // Test 10: Storage round-trip — store and reload.
@@ -325,5 +331,30 @@ func TestStorageRoundtrip(t *testing.T) {
 	}
 	if len(loaded.Findings) != len(report.Findings) {
 		t.Errorf("findings count mismatch: got %d, want %d", len(loaded.Findings), len(report.Findings))
+	}
+}
+
+func TestAuthorityBudget_RuntimeToDesiredRequiresStrongCoverage(t *testing.T) {
+	diff := makeUnifiedDiff(nil, []string{
+		" desired.State = runtimeObs.State",
+	})
+	report, err := semanticdiff.InterpretSemanticDiff(context.Background(), semanticdiff.SemanticDiffRequest{
+		DiffText:   diff,
+		DiffSource: "test",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if report.AuthorityChange == nil || !report.AuthorityChange.Detected {
+		t.Fatalf("expected detected authority change, got %+v", report.AuthorityChange)
+	}
+	if report.AuthorityChange.FromLayer != semanticdiff.LayerRuntime || report.AuthorityChange.ToLayer != semanticdiff.LayerDesired {
+		t.Fatalf("unexpected layer movement: %+v", report.AuthorityChange)
+	}
+	if report.AuthorityBudget == nil || !report.AuthorityBudget.LayerChanged {
+		t.Fatalf("expected authority budget with layer_changed=true, got %+v", report.AuthorityBudget)
+	}
+	if report.AuthorityBudget.RequiredAwarenessCoverage != "strong" {
+		t.Fatalf("required awareness coverage=%q want strong", report.AuthorityBudget.RequiredAwarenessCoverage)
 	}
 }

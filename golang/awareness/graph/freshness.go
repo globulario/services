@@ -62,15 +62,57 @@ func (n *nullInt64) Scan(src interface{}) error {
 	return nil
 }
 
-// knowledgeFiles are the 6 canonical YAML files that make up the awareness knowledge base.
+// knowledgeFiles are the canonical YAML files that contribute graph nodes
+// and edges to the awareness knowledge base.
+//
+// Every entry must correspond to a top-level YAML key that the manual loader
+// (extractors/manual/load.go dispatchTable) recognises and turns into graph
+// nodes/edges. Files that only configure subsystems (learning_rules,
+// guardrails, audit_suppressions, etc.) are intentionally NOT in this list —
+// they are picked up by assurance.CheckStaleness's UntrackedYAMLCount alarm
+// instead, which tracks "visible but not graph-contributing" inputs.
+//
+// Adding a new entry here means: edits to that file should make the graph
+// stale and trigger a rebuild prompt.
 var knowledgeFiles = []string{
 	"failure_modes.yaml", "invariants.yaml", "convergence_rules.yaml",
 	"forbidden_fixes.yaml", "design_patterns.yaml", "patterns.yaml",
+	"services.yaml",
+	"detector_mapping.yaml",
+}
+
+// KnowledgeFiles returns a copy of the canonical list. Exposed for callers
+// (e.g. assurance.CheckStaleness) that need to classify on-disk YAML as
+// tracked vs visible-but-untracked.
+func KnowledgeFiles() []string {
+	out := make([]string, len(knowledgeFiles))
+	copy(out, knowledgeFiles)
+	return out
 }
 
 // Freshness computes graph freshness relative to the knowledge YAML files in docsDir.
 // docsDir is the docs/awareness directory (e.g. /path/to/docs/awareness).
+//
+// Uses time.Now() as the clock. Tests and orchestrators that need a
+// deterministic clock should call FreshnessAt directly. The two functions
+// resolve to the same outcome when now == time.Now().
 func (g *Graph) Freshness(ctx context.Context, docsDir string) GraphFreshness {
+	return g.FreshnessAt(ctx, docsDir, time.Now())
+}
+
+// FreshnessAt is the clock-injectable form of Freshness. The age comparison
+// is computed as now.Sub(builtAt) instead of time.Since(builtAt) so that
+// freshness checks are reproducible across processes that share a clock.
+//
+// Consolidation 2026-05-10 (P1): the outer assurance.CheckStaleness exposed
+// Options.Now but the graph leg ignored it, producing two clocks for one
+// concept — see docs/awareness/composed_path_failures.md (freshness clocks).
+// CheckStaleness now threads its clock through this function so a single
+// "now" governs both legs of the freshness check.
+func (g *Graph) FreshnessAt(ctx context.Context, docsDir string, now time.Time) GraphFreshness {
+	if now.IsZero() {
+		now = time.Now()
+	}
 	builtAt, ok, _ := g.LatestBuildTime(ctx)
 	if !ok {
 		return GraphFreshness{
@@ -81,9 +123,9 @@ func (g *Graph) Freshness(ctx context.Context, docsDir string) GraphFreshness {
 	}
 
 	f := GraphFreshness{
-		BuiltAt:    builtAt,
+		BuiltAt:     builtAt,
 		BuiltAtUnix: builtAt.Unix(),
-		AgeSeconds: time.Since(builtAt).Seconds(),
+		AgeSeconds:  now.Sub(builtAt).Seconds(),
 	}
 
 	// Check max age (24h).

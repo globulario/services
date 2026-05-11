@@ -107,6 +107,8 @@ func (s *Store) GetReport(ctx context.Context, reportID string) (*SemanticDiffRe
 	}
 	r.Findings, _ = s.loadFindings(ctx, reportID)
 	r.Atoms, _ = s.loadAtoms(ctx, reportID)
+	r.Transitions, _ = s.loadTransitions(ctx, reportID)
+	r.AuthorityChange, r.AuthorityBudget = computeAuthorityBudget(r.Transitions, r.Findings)
 	return &r, nil
 }
 
@@ -152,6 +154,28 @@ func (s *Store) loadAtoms(ctx context.Context, reportID string) ([]SemanticDiffA
 	}
 	rows.Close()
 	return atoms, rows.Err()
+}
+
+func (s *Store) loadTransitions(ctx context.Context, reportID string) ([]LayerTransition, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT file_path,symbol,layer_from,layer_to,transition_kind,allowed,reason
+		FROM semantic_layer_transitions WHERE report_id=?`, reportID)
+	if err != nil {
+		return nil, err
+	}
+	var out []LayerTransition
+	for rows.Next() {
+		var t LayerTransition
+		var allowed int
+		if err := rows.Scan(&t.FilePath, &t.Symbol, &t.LayerFrom, &t.LayerTo, &t.TransitionKind, &allowed, &t.Reason); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		t.Allowed = allowed != 0
+		out = append(out, t)
+	}
+	rows.Close()
+	return out, rows.Err()
 }
 
 // IsReportStale returns true if the current diff fingerprint doesn't match the report's.

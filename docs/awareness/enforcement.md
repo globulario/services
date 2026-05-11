@@ -92,3 +92,42 @@ Or use the provided script directly:
 ```
 
 The script exits 1 if any ERROR findings are found, making it a hard CI gate.
+
+## Coverage ratchet (separate gate)
+
+`awareness-ci.sh` checks annotations and audit findings. The orthogonal
+question — *has coverage of failure_modes regressed?* — is handled by
+a second small script:
+
+```bash
+./scripts/awareness-ci-check.sh
+```
+
+This calls `globular awareness meta-check` with thresholds that match
+the current cluster state on the date the script was last updated. The
+intent is a ratchet: the gate fails only when coverage drops below the
+known-good floor, never when coverage is honestly limited.
+
+Floors live as constants at the top of the script:
+
+| Variable           | Meaning                                                |
+|--------------------|--------------------------------------------------------|
+| `MIN_WELL_COVERED` | Minimum well_covered failure_mode count (3 legs)       |
+| `MIN_DETECTED`     | Minimum DETECTED+ENFORCED count (runtime-observable)   |
+| `BASELINE_ORPHANS` | Maximum orphan count tolerated                         |
+
+When real coverage improves (new mitigation + test + detector lands for
+a previously-partial failure_mode), raise the corresponding floor in
+the same PR that adds the new enforcement. The script ratchets, it does
+not aspire — never set a floor higher than the current count.
+
+To wire into CI later (no workflow committed yet):
+
+```yaml
+- name: Awareness coverage ratchet
+  run: ./scripts/awareness-ci-check.sh
+```
+
+`--strict` additionally fails on any orphan failure_mode. Default mode
+fails only on regressions below the pinned floors. Pair with
+`awareness-ci.sh` for a complete annotation + audit + coverage gate.
