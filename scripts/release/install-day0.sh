@@ -1717,6 +1717,51 @@ else
   log_warn "Run manually after bootstrap: globular services seed"
 fi
 
+# ── Initialize AI operational memory (ops-knowledge seed) ───────────────────
+# Day-0 must preload operational knowledge so AI agents have baseline runbooks,
+# invariants and known failure modes before first intervention.
+log_step "Initializing AI Operational Memory"
+if [[ -x "$GLOBULAR_CLI" ]]; then
+  BOOTSTRAP_SA_CRED="${BOOTSTRAP_SA_CRED:-/var/lib/globular/.bootstrap-sa-password}"
+  BOOTSTRAP_PASSWORD=""
+  if [[ -f "$BOOTSTRAP_SA_CRED" ]]; then
+    BOOTSTRAP_PASSWORD="$(cat "$BOOTSTRAP_SA_CRED" 2>/dev/null || true)"
+  fi
+  BOOTSTRAP_PASSWORD="${BOOTSTRAP_PASSWORD:-adminadmin}"
+
+  log_substep "Authenticating as bootstrap SA user for ops-knowledge seed..."
+  _OPS_TOKEN="$("$GLOBULAR_CLI" auth login --user sa --password "$BOOTSTRAP_PASSWORD" 2>/dev/null | sed -n 's/^Token: //p' | head -n1 || true)"
+  [[ -n "$_OPS_TOKEN" ]] || die "Failed to get auth token for ops-knowledge seed"
+
+  log_substep "Seeding operational knowledge into AI memory..."
+  if "$GLOBULAR_CLI" ops-knowledge seed --token "$_OPS_TOKEN" \
+      2>&1 | while IFS= read -r line; do echo "  [ops-seed] $line"; done; then
+    log_success "Operational knowledge seed completed"
+  else
+    die "ops-knowledge seed failed"
+  fi
+
+  log_substep "Verifying seeded knowledge integrity..."
+  if "$GLOBULAR_CLI" ops-knowledge verify --token "$_OPS_TOKEN" \
+      2>&1 | while IFS= read -r line; do echo "  [ops-verify] $line"; done; then
+    log_success "Operational knowledge integrity verified"
+  else
+    die "ops-knowledge verify reported drift"
+  fi
+
+  log_substep "Validating AI operational-awareness availability..."
+  _OPS_COUNT="$("$GLOBULAR_CLI" ops-knowledge list --token "$_OPS_TOKEN" 2>/dev/null | awk 'NR>1 {c++} END {print c+0}')"
+  if [[ "${_OPS_COUNT:-0}" -lt 10 ]]; then
+    die "Operational knowledge appears incomplete (entries=${_OPS_COUNT:-0})"
+  fi
+  if ! "$GLOBULAR_CLI" ops-knowledge list --token "$_OPS_TOKEN" 2>/dev/null | grep -q "ops.role.ai-memory"; then
+    die "Operational knowledge missing critical ai-memory role entry"
+  fi
+  log_success "AI operational-awareness available (${_OPS_COUNT} entries loaded)"
+else
+  die "globular CLI not found at $GLOBULAR_CLI — cannot initialize AI operational memory"
+fi
+
 # ── Final permission hardening ───────────────────────────────────────────────
 # Package installation can chown/chmod state dirs. Re-enforce the permissions
 # that matter for non-root tooling (Claude Code MCP, CLI as regular user):

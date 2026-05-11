@@ -724,9 +724,12 @@ func (srv *server) resolveWorkloadVersion(componentName string) (version, source
 		return current
 	}
 
+	canonComponent := canonicalServiceName(componentName)
+
 	// Build node readiness ranks from controller state:
 	// rank 1 = ready + Day1Ready, rank 2 = ready, rank 3 = fallback.
 	nodeRank := make(map[string]int)
+	heartbeatVersionByNode := make(map[string]string)
 	srv.lock("resolveWorkloadVersion")
 	for nodeID, node := range srv.state.Nodes {
 		rank := 3
@@ -737,8 +740,54 @@ func (srv *server) resolveWorkloadVersion(componentName string) (version, source
 			}
 		}
 		nodeRank[nodeID] = rank
+		if node == nil || len(node.InstalledVersions) == 0 {
+			continue
+		}
+		for k, v := range node.InstalledVersions {
+			name := canonicalServiceName(strings.TrimSpace(k))
+			if name != canonComponent {
+				continue
+			}
+			ver := strings.TrimSpace(v)
+			if ver == "" || ver == "unknown" {
+				continue
+			}
+			heartbeatVersionByNode[nodeID] = ver
+			break
+		}
 	}
 	srv.unlock()
+
+	// Fast path: controller heartbeat map. This is the same source used by infra
+	// version resolution and avoids blocking Day-1 workload seeding when the
+	// installed_state registry has not yet caught up for a recently joined node.
+	if len(heartbeatVersionByNode) > 0 {
+		bestRank := 99
+		bestVersion := ""
+		bestSource := ""
+		for nodeID, v := range heartbeatVersionByNode {
+			rank := 3
+			if r, ok := nodeRank[nodeID]; ok {
+				rank = r
+			}
+			if rank < bestRank {
+				bestRank = rank
+				bestVersion = v
+				bestSource = "heartbeat:" + nodeID
+				continue
+			}
+			if rank == bestRank {
+				selected := selectBest(bestVersion, v)
+				if selected != bestVersion {
+					bestVersion = selected
+					bestSource = "heartbeat:" + nodeID
+				}
+			}
+		}
+		if bestVersion != "" {
+			return bestVersion, bestSource
+		}
+	}
 
 	// Source of truth: installed_state registry in etcd.
 	qctx1, qcancel1 := withBounded(boundedMedium)
@@ -753,7 +802,7 @@ func (srv *server) resolveWorkloadVersion(componentName string) (version, source
 				continue
 			}
 			name := canonicalServiceName(strings.TrimSpace(pkg.GetName()))
-			if name != canonicalServiceName(componentName) {
+			if name != canonComponent {
 				continue
 			}
 			v := strings.TrimSpace(pkg.GetVersion())

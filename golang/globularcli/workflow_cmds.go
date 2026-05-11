@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/globulario/services/golang/config"
 	workflowpb "github.com/globulario/services/golang/workflow/workflowpb"
 )
 
@@ -44,7 +45,7 @@ var workflowListCmd = &cobra.Command{
 }
 
 func runWorkflowList(cmd *cobra.Command, args []string) error {
-	addr := pick(workflowAddr, rootCfg.controllerAddr)
+	addr := workflowEndpoint()
 	cc, err := dialGRPC(addr)
 	if err != nil {
 		return fmt.Errorf("connect to workflow service: %w", err)
@@ -119,6 +120,7 @@ func runWorkflowList(cmd *cobra.Command, args []string) error {
 
 	if len(resp.GetRuns()) == 0 {
 		fmt.Println("No workflow runs found.")
+		fmt.Println("Note: this command lists persisted workflow-run history; service release status may still show EXECUTING from controller state.")
 	}
 	return nil
 }
@@ -135,7 +137,7 @@ var workflowGetCmd = &cobra.Command{
 func runWorkflowGet(cmd *cobra.Command, args []string) error {
 	runID := args[0]
 
-	addr := pick(workflowAddr, rootCfg.controllerAddr)
+	addr := workflowEndpoint()
 	cc, err := dialGRPC(addr)
 	if err != nil {
 		return fmt.Errorf("connect to workflow service: %w", err)
@@ -255,7 +257,7 @@ var workflowCancelCmd = &cobra.Command{
 }
 
 func runWorkflowCancel(cmd *cobra.Command, args []string) error {
-	addr := pick(workflowAddr, rootCfg.controllerAddr)
+	addr := workflowEndpoint()
 	cc, err := dialGRPC(addr)
 	if err != nil {
 		return fmt.Errorf("connect to workflow service: %w", err)
@@ -282,7 +284,7 @@ var workflowRetryCmd = &cobra.Command{
 }
 
 func runWorkflowRetry(cmd *cobra.Command, args []string) error {
-	addr := pick(workflowAddr, rootCfg.controllerAddr)
+	addr := workflowEndpoint()
 	cc, err := dialGRPC(addr)
 	if err != nil {
 		return fmt.Errorf("connect to workflow service: %w", err)
@@ -311,7 +313,7 @@ var workflowDiagnoseCmd = &cobra.Command{
 }
 
 func runWorkflowDiagnose(cmd *cobra.Command, args []string) error {
-	addr := pick(workflowAddr, rootCfg.controllerAddr)
+	addr := workflowEndpoint()
 	cc, err := dialGRPC(addr)
 	if err != nil {
 		return fmt.Errorf("connect: %w", err)
@@ -368,4 +370,14 @@ func fmtTimeAgo(t time.Time) string {
 	default:
 		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
 	}
+}
+
+func workflowEndpoint() string {
+	if addr := strings.TrimSpace(workflowAddr); addr != "" {
+		return addr
+	}
+	if addr := strings.TrimSpace(config.ResolveServiceAddr("workflow.WorkflowService", "")); addr != "" {
+		return addr
+	}
+	return rootCfg.controllerAddr
 }

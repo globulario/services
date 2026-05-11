@@ -205,7 +205,7 @@ func runPkgRollback(cmd *cobra.Command, args []string) error {
 	// workflow run will block at the install_target_package step waiting on
 	// the node-agent actor. The CLI returns the run id so operators can
 	// inspect progress with `globular workflow get <run-id>`.
-	addr := pick(workflowAddr, rootCfg.controllerAddr)
+	addr := workflowEndpoint()
 	cc, err := dialGRPC(addr)
 	if err != nil {
 		return fmt.Errorf("connect to workflow service: %w", err)

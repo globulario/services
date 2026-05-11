@@ -271,6 +271,41 @@ func TestResolveInfraVersion_CommandKindFromHeartbeat(t *testing.T) {
 	}
 }
 
+// TestResolveWorkloadVersion_UsesHeartbeatState verifies that platform-default
+// workloads such as monitoring can resolve versions from controller heartbeat
+// state when installed_state registry rows are not yet available.
+func TestResolveWorkloadVersion_UsesHeartbeatState(t *testing.T) {
+	srv := &server{}
+	srv.state = &controllerState{
+		Nodes: map[string]*nodeState{
+			"ready-node": {
+				NodeID:    "ready-node",
+				Status:    "ready",
+				Day1Phase: Day1Ready,
+				InstalledVersions: map[string]string{
+					"monitoring": "1.2.33+b1",
+				},
+			},
+			"joining-node": {
+				NodeID:    "joining-node",
+				Status:    "converging",
+				Day1Phase: Day1IdentityReady,
+				InstalledVersions: map[string]string{
+					"monitoring": "1.2.30+b1",
+				},
+			},
+		},
+	}
+
+	version, source := srv.resolveWorkloadVersion("monitoring")
+	if version != "1.2.33+b1" {
+		t.Fatalf("resolveWorkloadVersion(monitoring) = %q, want %q", version, "1.2.33+b1")
+	}
+	if source != "heartbeat:ready-node" {
+		t.Fatalf("source = %q, want %q", source, "heartbeat:ready-node")
+	}
+}
+
 // makeStaleServices creates a map of N services all reporting "" fallback
 // version, simulating old node-agent behavior.
 func makeStaleServices(n int) map[string]string {
