@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
@@ -193,6 +194,23 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	} else {
 		logger.Info("repository endpoint not in etcd — repository invariants disabled (pre-bootstrap)")
 		col.SetRepositoryEndpointMissing()
+	}
+
+	// Attach ai-memory client so the seed-integrity rule can detect drift
+	// between what the active awareness bundle declares and what's actually
+	// loaded into ai-memory. Optional — if unreachable, the rule falls
+	// back to bundle-only verification.
+	memEndpoint := config.ResolveServiceAddr("ai_memory.AiMemoryService", "")
+	if memEndpoint != "" {
+		memTarget := config.ResolveDialTarget(memEndpoint)
+		if memConn, memErr := grpc.NewClient(memTarget.Address,
+			grpc.WithTransportCredentials(buildClientTLSCreds(memTarget.ServerName))); memErr == nil {
+			col.WithAiMemoryClient(ai_memorypb.NewAiMemoryServiceClient(memConn))
+		} else {
+			logger.Warn("ai-memory client init failed — seed drift detection disabled", "err", memErr)
+		}
+	} else {
+		logger.Info("ai-memory endpoint not in etcd — seed drift detection disabled (pre-Day-1)")
 	}
 
 	reg := rules.NewRegistry(rules.Config{

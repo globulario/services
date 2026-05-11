@@ -170,6 +170,102 @@ func TestOpsKnowledgeSeedIntegrity_MissingFile_Error(t *testing.T) {
 	}
 }
 
+func TestOpsKnowledgeSeedIntegrity_AiMemoryMissing_Warn(t *testing.T) {
+	yaml, hash := validSeedYAML(t)
+	withBundleDir(t, makeBundle(t, yaml, hash, nil, nil))
+	// ai-memory queried (non-nil map) but does not have the entry the
+	// manifest declares — auto-seeder hasn't run yet.
+	snap := &collector.Snapshot{
+		OpsKnowledgeMemoryEntries: map[string]string{},
+	}
+	got := opsKnowledgeSeedIntegrity{}.Evaluate(snap, Config{})
+	if len(got) != 1 {
+		t.Fatalf("expected 1 finding for ai-memory missing, got %d", len(got))
+	}
+	if got[0].Severity != cluster_doctorpb.Severity_SEVERITY_WARN {
+		t.Errorf("expected WARN for memory-missing-only, got %v", got[0].Severity)
+	}
+	if !strings.Contains(got[0].Summary, "ai-memory diverges") {
+		t.Errorf("summary should call out ai-memory: %q", got[0].Summary)
+	}
+	if got[0].EntityRef != "ai_memory" {
+		t.Errorf("EntityRef should be ai_memory, got %q", got[0].EntityRef)
+	}
+}
+
+func TestOpsKnowledgeSeedIntegrity_AiMemoryDrifted_Error(t *testing.T) {
+	yaml, hash := validSeedYAML(t)
+	withBundleDir(t, makeBundle(t, yaml, hash, nil, nil))
+	snap := &collector.Snapshot{
+		OpsKnowledgeMemoryEntries: map[string]string{
+			"ops.test.fixture": "WRONG_HASH",
+		},
+	}
+	got := opsKnowledgeSeedIntegrity{}.Evaluate(snap, Config{})
+	if len(got) != 1 {
+		t.Fatalf("expected 1 finding for memory drift, got %d", len(got))
+	}
+	if got[0].Severity != cluster_doctorpb.Severity_SEVERITY_ERROR {
+		t.Errorf("expected ERROR for memory drift, got %v", got[0].Severity)
+	}
+	if !strings.Contains(got[0].Summary, "drifted") {
+		t.Errorf("summary should call out drift: %q", got[0].Summary)
+	}
+}
+
+func TestOpsKnowledgeSeedIntegrity_AiMemoryHealthy_NoFindings(t *testing.T) {
+	yaml, hash := validSeedYAML(t)
+	withBundleDir(t, makeBundle(t, yaml, hash, nil, nil))
+	snap := &collector.Snapshot{
+		OpsKnowledgeMemoryEntries: map[string]string{
+			"ops.test.fixture": hash, // matches manifest
+		},
+	}
+	got := opsKnowledgeSeedIntegrity{}.Evaluate(snap, Config{})
+	if len(got) != 0 {
+		t.Fatalf("healthy bundle + healthy memory must produce 0 findings, got %d: %+v", len(got), got)
+	}
+}
+
+func TestOpsKnowledgeSeedIntegrity_NilMemoryMap_BundleOnly(t *testing.T) {
+	yaml, hash := validSeedYAML(t)
+	withBundleDir(t, makeBundle(t, yaml, hash, nil, nil))
+	// nil OpsKnowledgeMemoryEntries means the collector did not query
+	// ai-memory — fall back to bundle-only verification.
+	snap := &collector.Snapshot{}
+	got := opsKnowledgeSeedIntegrity{}.Evaluate(snap, Config{})
+	if len(got) != 0 {
+		t.Fatalf("nil memory map must skip drift check, got %d findings", len(got))
+	}
+}
+
+func TestOpsKnowledgeSeedIntegrity_BothBundleAndMemoryDrift_TwoFindings(t *testing.T) {
+	yaml, hash := validSeedYAML(t)
+	mutated := strings.Replace(yaml, "test content for the fixture", "MUTATED", 1)
+	withBundleDir(t, makeBundle(t, mutated, hash, nil, nil))
+	snap := &collector.Snapshot{
+		OpsKnowledgeMemoryEntries: map[string]string{
+			"ops.test.fixture": "WRONG_HASH",
+		},
+	}
+	got := opsKnowledgeSeedIntegrity{}.Evaluate(snap, Config{})
+	if len(got) != 2 {
+		t.Fatalf("bundle+memory both drifted should produce 2 findings, got %d", len(got))
+	}
+	// One bundle finding, one memory finding.
+	var bundleFinding, memFinding *Finding
+	for i := range got {
+		if got[i].EntityRef == "ai_memory" {
+			memFinding = &got[i]
+		} else {
+			bundleFinding = &got[i]
+		}
+	}
+	if bundleFinding == nil || memFinding == nil {
+		t.Fatalf("expected one bundle + one memory finding, got %+v", got)
+	}
+}
+
 func TestOpsKnowledgeSeedIntegrity_BadManifest_Unknown(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte("{not json"), 0o644); err != nil {

@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
@@ -38,8 +39,9 @@ type Collector struct {
 	cfg                 CollectorConfig
 	controllerClient    cluster_controllerpb.ClusterControllerServiceClient
 	workflowClient      workflowpb.WorkflowServiceClient
-	repoClient          repopb.PackageRepositoryClient // optional; nil until WithRepositoryClient
-	repoEndpointMissing bool                           // true when etcd has no entry for repository.PackageRepository
+	repoClient          repopb.PackageRepositoryClient    // optional; nil until WithRepositoryClient
+	repoEndpointMissing bool                              // true when etcd has no entry for repository.PackageRepository
+	aiMemoryClient      ai_memorypb.AiMemoryServiceClient // optional; nil until WithAiMemoryClient
 	clusterID           string
 	cache               *SnapshotCache
 
@@ -84,6 +86,17 @@ func (c *Collector) WithWorkflowClient(wf workflowpb.WorkflowServiceClient, clus
 // Optional — if nil, repository invariants produce no findings.
 func (c *Collector) WithRepositoryClient(repo repopb.PackageRepositoryClient) *Collector {
 	c.repoClient = repo
+	return c
+}
+
+// WithAiMemoryClient attaches an ai-memory client so the collector can pull
+// the operational-knowledge seed entries currently stored in ai-memory and
+// stuff their {id, seed_sha256} pairs into the snapshot. Used by the
+// "ops_knowledge.seed_integrity" rule to detect drift between what the
+// active awareness bundle declares and what ai-memory actually has.
+// Optional — if nil, the rule falls back to bundle-only verification.
+func (c *Collector) WithAiMemoryClient(mem ai_memorypb.AiMemoryServiceClient) *Collector {
+	c.aiMemoryClient = mem
 	return c
 }
 
@@ -521,7 +534,54 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 	// ── 7. Prometheus control-plane signals (best-effort) ───────────────────
 	c.fetchPrometheus(ctx, snap)
 
+	// ── 8. ai-memory ops-knowledge seed entries (optional) ──────────────────
+	if c.aiMemoryClient != nil {
+		c.fetchOpsKnowledgeMemoryEntries(ctx, snap)
+	}
+
 	return snap, nil
+}
+
+// fetchOpsKnowledgeMemoryEntries pulls every operational-knowledge seed
+// entry currently stored in ai-memory and stuffs the {id, seed_sha256}
+// pairs into the snapshot. Used by the doctor's
+// "ops_knowledge.seed_integrity" rule to detect drift between the
+// active awareness bundle and what ai-memory actually has.
+func (c *Collector) fetchOpsKnowledgeMemoryEntries(ctx context.Context, snap *Snapshot) {
+	const (
+		project   = "globular-services"
+		seedTag   = "seed"
+		queryCap  = 1000 // generous; current bundle has 64 entries
+	)
+	qctx, cancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+	defer cancel()
+
+	resp, err := c.aiMemoryClient.Query(qctx, &ai_memorypb.QueryRqst{
+		Project: project,
+		Tags:    []string{seedTag},
+		Limit:   queryCap,
+	})
+	if err != nil {
+		snap.addError("ai_memory", "Query(seed)", err)
+		return
+	}
+
+	out := make(map[string]string, len(resp.GetMemories()))
+	for _, m := range resp.GetMemories() {
+		md := m.GetMetadata()
+		if md == nil {
+			continue
+		}
+		// Only count rows the seeder owns. metadata.source=seed prevents
+		// a non-seed row that happens to carry the seed tag from
+		// poisoning the drift comparison.
+		if md["source"] != "seed" {
+			continue
+		}
+		out[m.GetId()] = md["seed_sha256"]
+	}
+	snap.OpsKnowledgeMemoryEntries = out
+	snap.addSource("ai_memory.Query(seed)")
 }
 
 // fetchWorkflowTelemetry pulls bounded convergence signals from the workflow

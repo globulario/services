@@ -50,6 +50,18 @@ type Snapshot struct {
 	// node's running binary, etc).
 	IntegrityReports map[string]*IntegrityReport
 
+	// OpsKnowledgeMemoryEntries maps each operational-knowledge seed
+	// entry id (as ai-memory currently has it) to the seed_sha256
+	// stamped in the row's metadata. Populated by the collector when
+	// aiMemoryClient is wired; nil otherwise. Consumed by the
+	// "ops_knowledge.seed_integrity" rule to compare ai-memory's
+	// stored hashes against what the active awareness bundle declares.
+	//
+	// nil = collector did not query ai-memory (no client configured,
+	// or the call failed). Empty map = ai-memory was queried but
+	// returned zero seed entries (Day-1 fresh, autoseed has not run).
+	OpsKnowledgeMemoryEntries map[string]string
+
 	// Repository-level findings, populated from the repository service's
 	// ListRepositoryFindings RPC. Cluster-scoped (not per-node). Consumed
 	// by the "repository.*" invariant family in rules/ to surface broken
