@@ -1,0 +1,153 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Restore cluster state from backup"
+  description: |
+    Disaster recovery for catastrophic loss of one or more truth-bearing data
+    stores: etcd (cluster config + service registry), ScyllaDB (ai-memory,
+    workflow history, repository index), MinIO (artifact blobs). Each store is
+    independent and is restored from its own backup with its own procedure;
+    they MUST be restored in order so dependents see consistent upstream state.
+  source_documents:
+    - docs/operational-knowledge/service-roles/repository.yaml
+    - docs/operational-knowledge/service-roles/ai-memory.yaml
+    - docs/operational-knowledge/stages/day-1-objectstore.yaml
+
+entries:
+
+  - id: ops.runbook.restore-from-backup
+    type: SKILL
+    title: "Restore cluster state from backup (etcd / ScyllaDB / MinIO)"
+    tags: [day-2, disaster-recovery, runbook]
+    applies_when:
+      cluster_phases: [day-2]
+      services_present: [cluster-controller]
+    content: |
+      Use this runbook when you have lost one or more of:
+        - etcd (cluster config + service registry, founding-quorum dependency)
+        - ScyllaDB (ai-memory, workflow correlation state, repository index)
+        - MinIO (artifact blobs and any user-data buckets)
+
+      Constraints (read these before touching anything):
+
+        - Restore order is STRICT: etcd → ScyllaDB → MinIO. Higher layers
+          read from lower layers; restoring out of order produces dangling
+          references the system will then try to "self-heal" by deleting
+          things you just restored.
+
+        - Each store has its own backup mechanism. There is NO unified
+          "globular cluster restore" command — that intentional gap forces
+          the operator to think about which truth is being recovered.
+
+        - Repository index (Scylla) and artifact CAS (MinIO) MUST be
+          restored from backups taken at the same point in time, or the
+          repository's local-receipts reconciler will quarantine artifacts
+          whose blob is missing.
+
+        - ai-memory seed entries (metadata.source=seed) are reseeded
+          automatically from the awareness bundle on the next ai-memory
+          start — you do NOT need to restore them. But user/runtime
+          memories (source=agent or human) DO need a Scylla backup.
+
+      Mental model: walk the four truth layers bottom-up.
+        Layer 0 (PKI + bootstrap) is on local disk under /var/lib/globular/pki/
+          — restore from filesystem backup or re-bootstrap if first 3 nodes
+          come up clean.
+        Layer 1 (etcd) — restore from etcd snapshot, then start exactly one
+          node, verify, expand the cluster.
+        Layer 2 (ScyllaDB) — restore via scylla-manager from the matching
+          backup_id. RF rules apply: a 3-node restore needs all 3 nodes up
+          before reads return correct data.
+        Layer 3 (MinIO) — restore from `mc mirror` backup or external object
+          replica. Repository's local-receipts loop will re-validate.
+        Layer 4 (workload services) — restart in dependency order; the
+          release reconciler will reconcile from the active BOM.
+    links:
+      awareness_invariants:
+        - founding.quorum.three_nodes_required
+      awareness_failure_modes:
+        - ops_knowledge.seed_drift_post_install
+      runbooks:
+        - runbooks/recover-day-0-bootstrap-failure.yaml
+        - runbooks/recover-etcd-member-eviction.yaml
+    procedure:
+      - phase: observe
+        description: "Identify what is actually lost vs. what is degraded"
+        commands:
+          - cmd: "etcdctl --endpoints=<each-node-ip>:2379 endpoint health 2>&1"
+            expect: "endpoint up | down per node"
+            note: "If every endpoint is down, etcd is gone — start at the etcd phase."
+          - cmd: "for HOST in <nodes>; do ssh dave@$HOST 'systemctl is-active globular-scylla.service'; done"
+            expect: "active | failed per node"
+          - cmd: "mc admin info <minio-alias>"
+            expect: "pool members + drive health"
+
+      - phase: plan
+        description: "Pick the recovery scope"
+        commands:
+          - cmd: "echo 'Decision tree:'"
+            note: |
+              * Only one node lost (others healthy): replace the node and let
+                etcd-add / Scylla repair / MinIO re-balance handle it. Do not
+                restore from backup — the cluster has live truth.
+              * etcd quorum lost (>= 2 of 3 etcd members down):
+                MUST restore from etcd snapshot. Single-node bootstrap, then
+                add the others.
+              * ScyllaDB quorum lost (>= 2 of 3 nodes down):
+                MUST restore from scylla-manager backup. Sequential bring-up.
+              * MinIO unrecoverable (drives lost on majority of nodes):
+                Restore from external mirror. Repository quarantine will
+                surface every artifact that needs re-fetch from upstream.
+
+      - phase: act
+        description: "Restore in strict order: etcd → ScyllaDB → MinIO → services"
+        commands:
+          - cmd: "# === LAYER 1: etcd ==="
+            note: ""
+          - cmd: "ETCDCTL_API=3 etcdctl snapshot restore <snapshot.db> \\\n  --name globular-etcd-1 --initial-cluster globular-etcd-1=https://<this-node>:2380 \\\n  --initial-advertise-peer-urls https://<this-node>:2380 --data-dir /var/lib/etcd"
+            expect: "snapshot restored to local data dir"
+            note: "Run on ONE node only. Then start etcd as single-member cluster."
+          - cmd: "systemctl start etcd; etcdctl endpoint health"
+            expect: "this node healthy"
+          - cmd: "# Then `etcdctl member add` each remaining node and start them in turn."
+            note: ""
+          - cmd: "# === LAYER 2: ScyllaDB ==="
+            note: ""
+          - cmd: "ssh dave@<scylla-manager-host> 'sctool restore --cluster <cluster-id> --snapshot-tag <tag>'"
+            expect: "restore job started; track via sctool task progress"
+            note: "Restore runs across all 3 storage nodes. Wait for completion before next layer."
+          - cmd: "for HOST in <storage-nodes>; do ssh dave@$HOST 'nodetool status'; done"
+            expect: "all nodes UN (Up Normal); no UJ / DN states"
+          - cmd: "# === LAYER 3: MinIO ==="
+            note: ""
+          - cmd: "mc mirror --overwrite <backup-source>/ <minio-alias>/"
+            expect: "all buckets re-mirrored to the live pool"
+          - cmd: "# === LAYER 4: workload services ==="
+            note: ""
+          - cmd: "for HOST in <nodes>; do ssh dave@$HOST 'systemctl restart globular-cluster-controller.service'; done"
+            expect: "controllers re-elect leader, reconcilers run"
+          - cmd: "globular cluster service restart --service repository --service ai-memory --service workflow"
+            expect: "post-storage services come back; release reconciler converges from active BOM"
+
+      - phase: verify
+        description: "Confirm all four layers are consistent"
+        commands:
+          - cmd: "etcdctl endpoint status -w table; etcdctl endpoint health"
+            expect: "all members healthy + serving same revision"
+          - cmd: "for HOST in <storage-nodes>; do ssh dave@$HOST 'nodetool status'; done"
+            expect: "all UN, no schema disagreement"
+          - cmd: "mc admin info <minio-alias>"
+            expect: "pool healthy, all drives Ok"
+          - cmd: "globular doctor --output json | jq '.findings[] | select(.severity == \"SEVERITY_ERROR\")'"
+            expect: "empty (no ERROR findings) — WARNs OK while reconcilers catch up"
+          - cmd: "globular awareness preflight --task 'post-restore validation' --format agent"
+            expect: "no FAIL invariants on the disaster-recovery scope"
+
+    related_ids:
+      - ops.day-0.cluster.what-exists
+      - ops.day-1.join.founding-quorum-invariant
+      - ops.day-2.audit-and-event-stream
+      - ops.role.repository.dependencies
+    provenance:
+      source: seed
+      immutable: true

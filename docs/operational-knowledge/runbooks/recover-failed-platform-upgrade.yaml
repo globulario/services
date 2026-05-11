@@ -1,0 +1,125 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Recover from a failed platform upgrade"
+  description: |
+    `globular platform-upgrade vX.Y.Z` advances the active release BOM and triggers
+    per-package release workflows on every node. A failure in any one package can
+    leave the cluster in mixed state — some packages on the new version, some still
+    on the old, with the BOM pointing at the new release. This runbook restores
+    convergence without rolling back the BOM (which the system does not support).
+  source_documents:
+    - golang/cluster_controller/cluster_controller_server/workflow_release.go
+    - docs/operational-knowledge/stages/day-1-deploy-pipeline.yaml
+    - docs/operational-knowledge/runbooks/deploy-controller-fix-via-repository.yaml
+
+entries:
+
+  - id: ops.runbook.recover-failed-platform-upgrade
+    type: SKILL
+    title: "Recover from a failed platform upgrade"
+    tags: [day-2, deploy, incident-recovery, runbook]
+    applies_when:
+      cluster_phases: [day-2]
+      services_present: [cluster-controller, repository, workflow]
+      services_healthy: [cluster-controller]
+    content: |
+      Use this runbook when `globular platform-upgrade vX.Y.Z` reports failures
+      OR when a subset of packages stays on the previous version after the upgrade
+      command exits.
+
+      Symptoms:
+        - `globular cluster nodes status --output json` shows nodes with
+          mixed `installed_versions` across the cluster.
+        - `globular workflow runs --status FAILED --since 1h` lists release
+          workflows that did not reach SUCCEEDED.
+        - cluster-doctor surfaces `release.workflow.failed` or
+          `convergence.installed_versus_desired` findings.
+
+      Constraints:
+        - The release BOM at /globular/release/active is the desired-state
+          truth. We do NOT roll it back — a failed upgrade is recovered
+          forward (by retrying or by publishing a corrected release).
+        - Repository VERIFIED → INSTALLED is the only legal flow. Manual
+          installs that bypass the workflow leave installed_state unstamped
+          and cluster-doctor will flag the divergence.
+
+      Mental model:
+        Workflow failure usually means ONE of three things broke:
+          1. A node was unreachable when the per-package release-apply step
+             ran. Re-dispatching the workflow once the node is back is safe.
+          2. The artifact's signature/checksum could not be verified against
+             the repository. The workflow ABANDONED the package.
+          3. A health gate (e.g. controller leader handover) failed. The
+             workflow is BLOCKED waiting for operator unblock.
+    links:
+      awareness_failure_modes:
+        - service.endpoint.os_getenv_for_addresses
+      runbooks:
+        - runbooks/deploy-controller-fix-via-repository.yaml
+    procedure:
+      - phase: observe
+        description: "Identify which packages diverged and why"
+        commands:
+          - cmd: "globular cluster nodes status --output json | jq '.nodes[] | {node: .node_id, installed: .installed_versions}'"
+            expect: "JSON list of per-node installed versions"
+            note: |
+              Compare against the active release BOM:
+                etcdctl get /globular/release/active --print-value-only | jq .packages
+              Mismatches are the packages that need recovery.
+          - cmd: "globular workflow runs --status FAILED --since 1h --output json | jq '.runs[] | {id: .run_id, type: .type, error: .error_message}'"
+            expect: "FAILED release workflow runs with their error reasons"
+          - cmd: "globular workflow runs --status BLOCKED --output json | jq '.runs[] | {id: .run_id, blocked_reason: .blocked_reason}'"
+            expect: "any runs paused waiting for operator action"
+
+      - phase: plan
+        description: "Decide whether to retry, unblock, or republish"
+        commands:
+          - cmd: "echo 'Decision tree:'"
+            note: |
+              * If the cause was a transient unreachable node: retry the
+                workflow once the node is back (next phase, retry path).
+              * If the cause was a verification failure on the repository
+                side: the artifact is genuinely bad — republish a fixed
+                version with `--bump`, then re-run platform-upgrade with
+                the new vX.Y.Z+1.
+              * If the cause was a BLOCKED health gate: investigate the
+                gate (controller leader, ScyllaDB schema migration, etcd
+                quorum), let it converge, then unblock the run.
+
+      - phase: act
+        description: "Retry or republish per the decision in plan"
+        commands:
+          - cmd: "# Retry path — a single workflow that failed transiently:"
+            note: ""
+          - cmd: "globular workflow retry --run-id <run_id_from_observe>"
+            expect: "workflow re-dispatched; watch its status"
+          - cmd: "# Unblock path — a workflow paused waiting for operator action:"
+            note: ""
+          - cmd: "globular workflow unblock --run-id <run_id> --acknowledged"
+            expect: "workflow proceeds past the gate"
+          - cmd: "# Republish path — the artifact is bad and a new version is needed:"
+            note: ""
+          - cmd: "globular deploy --service <name> --bump"
+            expect: "repository allocates a new version, builds + publishes"
+          - cmd: "globular platform-upgrade <new-version>"
+            expect: "fresh release rolls out; failed workflows replaced by new ones"
+
+      - phase: verify
+        description: "Confirm convergence"
+        commands:
+          - cmd: "globular cluster nodes status --output json | jq '.nodes[] | {node: .node_id, installed: .installed_versions}'"
+            expect: "all nodes converged to the active release BOM versions"
+          - cmd: "globular doctor --output json | jq '.findings[] | select(.invariant_id | startswith(\"release.\") or startswith(\"convergence.\"))'"
+            expect: "empty list (no release/convergence findings remain)"
+          - cmd: "globular workflow runs --status FAILED --since 30m"
+            expect: "no failed release workflows"
+
+    related_ids:
+      - ops.day-1.deploy.pipeline-overview
+      - ops.day-1.deploy.platform-upgrade
+      - ops.day-1.deploy.version-reservation-lock
+      - ops.runbook.deploy-controller-fix
+    provenance:
+      source: seed
+      immutable: true
