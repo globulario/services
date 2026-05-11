@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"time"
+
+	"github.com/globulario/services/golang/config"
 )
 
 // minioJoinTimeout is the maximum time for a MinIO node to join the pool
@@ -233,7 +235,7 @@ func nodeAnyIPInPool(node *nodeState, pool []string) bool {
 		return false
 	}
 	for _, ip := range node.Identity.Ips {
-		if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+		if ip == "" || config.IsLoopbackEndpoint(ip) {
 			continue
 		}
 		if ipInPool(ip, pool) {
