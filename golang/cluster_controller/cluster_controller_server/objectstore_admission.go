@@ -41,6 +41,7 @@ import (
 	"strings"
 	"time"
 
+	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	configpkg "github.com/globulario/services/golang/config"
@@ -75,6 +76,26 @@ var objectstoreApplyCandidateLoader = func(ctx context.Context, nodeID string) (
 // startObjectStoreApplyWatcher starts a background goroutine that watches the
 // apply_request key and processes topology apply requests from the CLI.
 // Only the leader processes requests.
+//
+// Resilient against three failure modes:
+//
+//  1. mvcc compaction (`mvcc: required revision has been compacted`):
+//     etcd compacted past the rev we asked to watch from. The watch
+//     channel closes after delivering one WatchResponse with
+//     CompactRevision > 0. We re-establish the watch starting at
+//     CompactRevision+1 and re-drain the apply_request key in case the
+//     event that triggered processing happened during the gap.
+//
+//  2. transient watch cancellation (network blip, etcd leader change):
+//     the channel goes !ok / wr.Canceled. We back off and re-establish.
+//
+//  3. clean ctx.Done(): we exit.
+//
+// Prior to this, the loop did `continue` on watch error → next iteration
+// the channel was closed → goroutine exited silently → topology apply
+// requests sat in etcd forever until the next controller restart's
+// startup drain. Recovery required restarting controllers in sequence.
+// See docs/operational-knowledge/runbooks/recover-stuck-topology-apply.yaml.
 func (srv *server) startObjectStoreApplyWatcher(ctx context.Context) {
 	safeGo("objectstore-apply-watcher", func() {
 		cli, err := configpkg.GetEtcdClient()
@@ -83,35 +104,117 @@ func (srv *server) startObjectStoreApplyWatcher(ctx context.Context) {
 			return
 		}
 
-		// Drain any pending request on startup (in case of controller restart).
-		srv.drainObjectStoreApplyRequest(ctx, cli)
+		const (
+			minBackoff = 250 * time.Millisecond
+			maxBackoff = 30 * time.Second
+		)
+		backoff := minBackoff
 
-		watchCh := cli.Watch(ctx, configpkg.EtcdKeyObjectStoreApplyRequest)
+		// rev is the latest revision we've seen — used to resume past
+		// compactions. 0 means "watch from the current revision".
+		var rev int64
+
 		for {
-			select {
-			case <-ctx.Done():
+			if err := ctx.Err(); err != nil {
 				return
-			case ev, ok := <-watchCh:
-				if !ok {
+			}
+
+			// Drain any pending request before (re-)starting the watch.
+			// Idempotent: leader-gated, no-op if the key is empty.
+			srv.drainObjectStoreApplyRequest(ctx, cli)
+
+			opts := []clientv3.OpOption{}
+			if rev > 0 {
+				opts = append(opts, clientv3.WithRev(rev+1))
+			}
+			watchCh := cli.Watch(ctx, configpkg.EtcdKeyObjectStoreApplyRequest, opts...)
+
+			done := srv.runObjectStoreApplyWatchLoop(ctx, cli, watchCh, &rev)
+			switch done {
+			case watchExited:
+				return
+			case watchCompacted:
+				// Resume past the compacted rev — no backoff; this is a
+				// normal etcd housekeeping event.
+				backoff = minBackoff
+				continue
+			case watchTransientError:
+				// Backoff before reconnecting to avoid tight loops if
+				// etcd is flapping.
+				log.Printf("objectstore-apply-watcher: re-establishing watch in %s", backoff)
+				select {
+				case <-ctx.Done():
 					return
+				case <-time.After(backoff):
 				}
-				if ev.Err() != nil {
-					log.Printf("objectstore-apply-watcher: watch error: %v", ev.Err())
-					continue
+				backoff *= 2
+				if backoff > maxBackoff {
+					backoff = maxBackoff
 				}
-				for _, e := range ev.Events {
-					if e.Type != clientv3.EventTypePut {
-						continue
-					}
-					if !srv.isLeader() {
-						// Non-leader: ignore — the leader will handle it.
-						continue
-					}
-					srv.handleObjectStoreApplyRequest(ctx, cli, e.Kv.Value)
-				}
+				continue
 			}
 		}
 	})
+}
+
+// watchOutcome reports why runObjectStoreApplyWatchLoop returned, so the
+// outer loop can decide whether to exit, resume immediately past a
+// compaction, or back off and retry.
+type watchOutcome int
+
+const (
+	watchExited          watchOutcome = iota // ctx canceled — outer loop must return
+	watchCompacted                           // mvcc compacted; resume past CompactRevision+1
+	watchTransientError                      // channel closed or canceled; back off and retry
+)
+
+// runObjectStoreApplyWatchLoop reads from a single watch channel until
+// the channel ends. It updates *rev as events arrive so the caller can
+// resume from the right revision after a compaction or reconnect.
+func (srv *server) runObjectStoreApplyWatchLoop(
+	ctx context.Context,
+	cli *clientv3.Client,
+	watchCh clientv3.WatchChan,
+	rev *int64,
+) watchOutcome {
+	for {
+		select {
+		case <-ctx.Done():
+			return watchExited
+		case wr, ok := <-watchCh:
+			if !ok {
+				log.Printf("objectstore-apply-watcher: watch channel closed; will reconnect")
+				return watchTransientError
+			}
+			if wr.Canceled {
+				log.Printf("objectstore-apply-watcher: watch canceled by server: %v", wr.Err())
+				return watchTransientError
+			}
+			if wr.CompactRevision > 0 || wr.Err() == rpctypes.ErrCompacted {
+				log.Printf("objectstore-apply-watcher: mvcc compacted at rev %d; resuming past it",
+					wr.CompactRevision)
+				*rev = wr.CompactRevision
+				return watchCompacted
+			}
+			if wr.Err() != nil {
+				log.Printf("objectstore-apply-watcher: watch error: %v; will reconnect", wr.Err())
+				return watchTransientError
+			}
+			if wr.Header.GetRevision() > 0 {
+				*rev = wr.Header.GetRevision()
+			}
+			for _, e := range wr.Events {
+				if e.Type != clientv3.EventTypePut {
+					continue
+				}
+				if !srv.isLeader() {
+					// Non-leader: ignore — the leader will handle it.
+					continue
+				}
+				srv.handleObjectStoreApplyRequest(ctx, cli, e.Kv.Value)
+			}
+		}
+	}
 }
 
 // drainObjectStoreApplyRequest handles any apply_request that was written while

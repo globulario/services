@@ -3,9 +3,15 @@ file_kind: runbook
 metadata:
   title: "Runbook — Recover from a stuck objectstore topology apply"
   description: |
-    The objectstore-apply-watcher silently dies when its etcd watch returns 'mvcc compacted'.
-    The goroutine `continue`s on a dead channel and never re-establishes the watch. The leader
-    drains the queued request only on startup. This runbook covers the recovery flow.
+    Historical: the objectstore-apply-watcher silently died when its etcd watch returned
+    'mvcc compacted'. The goroutine `continue`d on a dead channel and never re-established
+    the watch — the leader drained the queued request only on startup, so recovery
+    required restarting controllers in sequence.
+
+    Fixed in cluster-controller post-1.2.28: the watcher now distinguishes
+    compaction (resume past CompactRevision+1, re-drain) from transient errors
+    (back off and reconnect) from clean ctx.Done (exit). This runbook is kept
+    for older deployments and as the procedure of last resort.
   source_documents:
     - golang/cluster_controller/cluster_controller_server/objectstore_admission.go
     - docs/operational-knowledge/stages/day-1-objectstore.yaml
