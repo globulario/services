@@ -1,0 +1,105 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Clean ghost loop devices"
+  description: |
+    During Day-0/Day-1 testing on nodes without dedicated MinIO disks, operators
+    sometimes back MinIO with a sparse file mounted via losetup. If the backing
+    file is later deleted without first detaching the loop device, the loop
+    device becomes a "ghost" — visible in /dev/loopN and `lsblk`, but with its
+    backing file pointing at "(deleted)". This wastes a kernel slot and can
+    confuse storage discovery in cluster-doctor and node-agent.
+  source_documents:
+    - docs/operational-knowledge/stages/day-1-objectstore.yaml
+    - docs/operational-knowledge/runbooks/repartition-shared-disk.yaml
+
+entries:
+
+  - id: ops.runbook.clean-ghost-loop-devices
+    type: SKILL
+    title: "Clean ghost loop devices left behind by deleted backing files"
+    tags: [day-2, storage, hygiene, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      Symptoms:
+
+        - `lsblk` shows /dev/loop0, /dev/loop1, ... entries with no
+          mountpoint and no clear purpose.
+        - `losetup -a` shows entries like
+            /dev/loop0: [BACKING_DEV]:INODE (/path/to/file (deleted))
+        - cluster-doctor's storage discovery may surface unexplained
+          block devices in node inventory snapshots.
+
+      Why this happens: a previous test setup ran
+        `dd if=/dev/zero of=/var/data/minio.img bs=1G count=20`
+        `losetup -fP /var/data/minio.img`
+        ... then `rm /var/data/minio.img` without first running
+        `losetup -d /dev/loopN`. The loop device retains an open inode
+        reference, so the file is removed from the directory but the
+        bytes stay on disk until the loop device is detached.
+
+      Constraints:
+
+        - DO NOT detach a loop device that is currently in use. Check
+          `lsblk` for any mounted child devices, swap entries, or
+          MD/LVM members before running losetup -d.
+        - Production MinIO uses a real partition (e.g. /dev/sda3 mounted
+          at /mnt/globular-minio). It does NOT use loop devices. Any
+          loop device on a production node is by definition either a
+          test artifact or a leak and is safe to remove after the
+          in-use check.
+    links:
+      runbooks:
+        - runbooks/repartition-shared-disk.yaml
+    procedure:
+      - phase: observe
+        description: "Identify ghost loop devices on each affected node"
+        commands:
+          - cmd: "ssh dave@<node> 'losetup -a'"
+            expect: |
+              List of all loop devices with their backing files. Look for
+              "(deleted)" suffixes — those are the ghosts.
+          - cmd: "ssh dave@<node> 'lsblk | grep loop'"
+            expect: "loop devices visible in block-device tree, no mountpoint"
+          - cmd: "ssh dave@<node> 'mount | grep loop'"
+            expect: "EMPTY — if non-empty the loop device is in use; do NOT detach"
+          - cmd: "ssh dave@<node> 'sudo lsof /dev/loopN'"
+            expect: "EMPTY for ghosts; non-empty means another process is reading from the loop"
+
+      - phase: plan
+        description: "List which loops to detach"
+        commands:
+          - cmd: "echo 'For each loopN where:'"
+            note: |
+              * losetup -a shows '(deleted)' OR
+              * mount returns nothing for /dev/loopN AND
+              * lsof returns nothing for /dev/loopN
+              detach it. Anything in use must be left alone.
+
+      - phase: act
+        description: "Detach the ghost loops"
+        commands:
+          - cmd: "ssh dave@<node> 'sudo losetup -d /dev/loopN'"
+            expect: "no output on success; non-zero exit if device is busy"
+            note: "Repeat per ghost. Use `losetup -D` to detach ALL unused loops at once if you have audited."
+          - cmd: "ssh dave@<node> 'losetup -a'"
+            expect: "ghosts gone, only legitimately-mounted loops remain"
+
+      - phase: verify
+        description: "Confirm no orphan loops survive"
+        commands:
+          - cmd: "ssh dave@<node> 'lsblk | grep loop || echo CLEAN'"
+            expect: "CLEAN — no loop devices visible"
+          - cmd: "ssh dave@<node> 'sudo systemctl status globular-minio.service | head'"
+            expect: "active (running) — confirm nothing depending on a real disk was disturbed"
+          - cmd: "globular doctor --output json | jq '.findings[] | select(.category == \"storage\")'"
+            expect: "no storage findings related to mystery block devices"
+
+    related_ids:
+      - ops.runbook.repartition-shared-disk
+      - ops.day-1.minio.path-recommendation
+    provenance:
+      source: seed
+      immutable: true

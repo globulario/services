@@ -1,0 +1,138 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Re-publish artifact data after a MinIO pool topology change"
+  description: |
+    When the MinIO topology changes (standalone → distributed, or pool growth
+    that adds erasure-coding members), MinIO does not automatically migrate
+    existing object data into the new pool layout. Buckets and objects from
+    the previous topology become orphaned: they still exist in the on-disk
+    storage of the old pool members but are unreachable through the new
+    pool's gateway. This runbook covers the recovery / republish flow.
+  source_documents:
+    - docs/operational-knowledge/stages/day-1-objectstore.yaml
+    - docs/operational-knowledge/runbooks/add-node-to-minio-pool.yaml
+
+entries:
+
+  - id: ops.runbook.republish-artifact-data-after-pool-change
+    type: SKILL
+    title: "Re-publish artifact data after a MinIO pool topology change"
+    tags: [day-2, objectstore, repository, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, repository, workflow]
+      services_healthy: [cluster-controller]
+    content: |
+      Use this runbook after `globular objectstore topology apply` has
+      successfully reformed the pool (standalone → distributed, or
+      adding nodes). Symptoms that you need this:
+
+        - `globular package list --kind SERVICE` shows fewer artifacts
+          than the repository's Scylla index claims should exist.
+        - `globular package install <name>` fails with "blob not found"
+          for artifacts that the repository says are PUBLISHED.
+        - `mc ls <minio-alias>/artifacts` returns empty or shows fewer
+          objects than `cqlsh -e 'SELECT COUNT(*) FROM repository.artifacts'`.
+
+      Three orthogonal sources of truth here — keep them straight:
+
+        1. Repository Scylla index (`repository.artifacts` table) — the
+           catalog of "what artifacts the repository thinks exist".
+        2. MinIO blob storage (`artifacts/` bucket) — the actual bytes.
+           AUTHORITATIVE for whether an artifact is installable.
+        3. Local POSIX CAS (`/var/lib/globular/repository/blobs/`) — the
+           per-node receipt cache that the repository's local-receipts
+           reconciler uses to verify MinIO contents.
+
+      A topology change does NOT touch (1) — the Scylla index is
+      independent of MinIO topology — but it CAN orphan (2). The
+      local-receipts reconciler will eventually flag every PUBLISHED
+      artifact whose blob no longer resolves through the new pool, and
+      the repository will surface those as findings.
+    links:
+      awareness_invariants:
+        - founding.quorum.three_nodes_required
+      runbooks:
+        - runbooks/add-node-to-minio-pool.yaml
+    procedure:
+      - phase: observe
+        description: "Confirm what was orphaned"
+        commands:
+          - cmd: "mc admin info <minio-alias>"
+            expect: "post-topology-change pool layout (e.g. 3-node distributed)"
+            note: "If still showing standalone, the topology apply did not finish — see add-node-to-minio-pool runbook."
+          - cmd: "mc ls <minio-alias>/artifacts | wc -l"
+            expect: "object count in the post-change pool"
+          - cmd: "for HOST in <pre-change-pool-nodes>; do ssh dave@$HOST 'sudo find /mnt/globular-minio -type d -name artifacts'; done"
+            expect: "physical paths where the OLD pool stored artifacts (these are the orphan candidates)"
+          - cmd: "globular doctor --output json | jq '.findings[] | select(.invariant_id | startswith(\"repository.\"))'"
+            expect: "repository.local_blob_missing or repository.artifact_not_in_minio findings, one per orphaned artifact"
+
+      - phase: plan
+        description: "Decide how to re-publish"
+        commands:
+          - cmd: "echo 'Decision tree:'"
+            note: |
+              * If the source artifacts still exist in `~/globular-build/`
+                or CI artifact storage: republish via the deploy pipeline.
+                This is the cleanest path — it re-runs the canonical
+                Scylla-write → blob-upload → finalize transition.
+              * If only the orphaned MinIO data exists (no source):
+                copy from the old pool path into the new pool via mc cp,
+                then run repository's reconcile RPC to re-stamp local
+                receipts. Riskier — bypasses the deploy pipeline's
+                checksum and signature verification.
+              * If neither exists: the artifacts are LOST. The repository
+                will quarantine them on the next reconcile cycle. Affected
+                services will fail to install on new nodes; existing
+                installs continue to run from local on-disk binaries.
+
+      - phase: act
+        description: "Republish via the deploy pipeline (preferred)"
+        commands:
+          - cmd: "# For each affected service, re-deploy to allocate a new version + republish:"
+            note: ""
+          - cmd: "globular deploy --service <name> --bump"
+            expect: "repository allocates new version, builds + uploads to the NEW pool"
+          - cmd: "globular package list --name <name> --output json | jq '.[] | {version, build_id, status}'"
+            expect: "newly-bumped version with status=PUBLISHED"
+          - cmd: "# After all services are re-deployed:"
+            note: ""
+          - cmd: "globular platform-upgrade <new-release-tag>"
+            expect: "active BOM advances to the new release; nodes pick up rebuilt artifacts"
+
+      - phase: act
+        description: "Alternate: copy orphaned data into the new pool (fallback only)"
+        commands:
+          - cmd: "# Mount the old standalone path on a host that can also reach the new pool:"
+            note: ""
+          - cmd: "mc alias set old-pool http://<old-pool-host>:9000 <accessKey> <secretKey>"
+            expect: "alias registered"
+          - cmd: "mc ls old-pool/artifacts | head"
+            expect: "list of orphaned objects"
+          - cmd: "mc mirror old-pool/artifacts <minio-alias>/artifacts --overwrite"
+            expect: "objects copied into the new pool's erasure-coded layout"
+          - cmd: "globular repository reconcile --rebuild-receipts"
+            expect: "local POSIX receipts re-stamped against the new pool's contents"
+
+      - phase: verify
+        description: "Confirm convergence"
+        commands:
+          - cmd: "globular doctor --output json | jq '.findings[] | select(.invariant_id | startswith(\"repository.\"))'"
+            expect: "empty (no repository findings remain)"
+          - cmd: "globular package install --dry-run <previously-orphaned-service>"
+            expect: "succeeds (artifact resolves through the new pool)"
+          - cmd: "mc ls <minio-alias>/artifacts | wc -l"
+            expect: "object count matches Scylla index count"
+          - cmd: "cqlsh -e 'SELECT COUNT(*) FROM repository.artifacts WHERE publish_state = '\\''PUBLISHED'\\'' ALLOW FILTERING;'"
+            expect: "count matches the mc ls count above"
+
+    related_ids:
+      - ops.day-1.minio.topology-contract
+      - ops.day-1.minio.apply-flow
+      - ops.role.repository
+      - ops.role.repository.dependencies
+    provenance:
+      source: seed
+      immutable: true
