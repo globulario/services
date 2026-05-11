@@ -1,0 +1,92 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Recover from a lost or flapping keepalived VIP"
+  description: |
+    The cluster VIP is missing (no node holds it) or flapping between nodes. External
+    traffic is broken or unreliable. This runbook walks through diagnosis and the safest
+    recovery path for each cause.
+  source_documents:
+    - docs/operational-knowledge/stages/day-1-keepalived.yaml
+    - docs/operators/keepalived-and-ingress.md
+
+entries:
+
+  - id: ops.runbook.recover-keepalived-vip-loss
+    type: SKILL
+    title: "Recover from a lost or flapping keepalived VIP"
+    tags: [day-1, day-2, keepalived, vip, incident-recovery, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [keepalived, cluster-controller]
+    content: |
+      Symptom: external traffic to https://<VIP>:443 fails (timeout, refused, or wrong cert).
+      OR: the VIP is bouncing between two nodes faster than ~1 transition per minute.
+
+      Three common causes:
+      1. **No node is healthy enough to win the election** — all keepalived health checks
+         failing → no MASTER → VIP unassigned
+      2. **Cert SAN mismatch** — VIP holder serves a cert without the VIP in SANs → external
+         clients see x509 errors → looks like a VIP failure but isn't
+      3. **VRRP partition** — interface change, firewall rule, or VLAN issue is preventing
+         VRRP advertisements from being seen → split brain (multiple MASTERs)
+    links:
+      awareness_invariants:
+        - keepalived.health_gated_failover
+      awareness_failure_modes:
+        - vip_contamination.node_routable_ip_returns_vip
+    procedure:
+      - phase: observe
+        description: "Find out which case this is"
+        commands:
+          - cmd: "for HOST in <all-keepalived-nodes>; do ssh dave@$HOST 'ip addr show | grep <vip>'; done"
+            expect: "exactly one node should have the VIP. If zero: cause #1. If two+: cause #3."
+          - cmd: "for HOST in <all-keepalived-nodes>; do ssh dave@$HOST 'sudo systemctl is-active keepalived.service'; done"
+            expect: "active on every keepalived-eligible node. If failed anywhere: investigate that node."
+          - cmd: "for HOST in <all-keepalived-nodes>; do echo \"--- $HOST ---\"; ssh dave@$HOST 'sudo journalctl -u keepalived.service --since \"5 min ago\" --no-pager | grep -iE \"transition|priority|vrrp_script|FAULT\" | tail'; done"
+            expect: "look for repeated transitions; FAULT state means health check failing"
+          - cmd: "openssl s_client -connect <vip>:443 -servername <cluster-domain> < /dev/null 2>&1 | grep -A1 'Subject Alternative Name'"
+            expect: "VIP must appear in SAN list. If not: cause #2."
+
+      - phase: case-1-no-master
+        description: "CASE 1 — All health checks failing, no MASTER"
+        commands:
+          - cmd: "for HOST in <all-nodes>; do ssh dave@$HOST 'sudo systemctl status globular-gateway.service --no-pager | head -5'; done"
+            expect: "gateway healthy on at least one node — if not, that's the root cause"
+            note: |
+              keepalived's vrrp_script typically checks gateway responsiveness.
+              If gateway is down everywhere, fix gateway first; VIP will assign automatically.
+          - cmd: "globular --controller globule-<leader>.globular.internal cluster doctor --filter keepalived"
+            expect: "doctor should show specific finding (e.g., gateway.unreachable on node X)"
+          - cmd: "<follow doctor's remediation hints; restart unhealthy services as needed>"
+
+      - phase: case-2-cert-san
+        description: "CASE 2 — VIP IS held but cert is wrong"
+        commands:
+          - cmd: "ssh dave@<vip-holder> 'openssl x509 -in /var/lib/globular/pki/issued/services/service.crt -noout -text | grep -A1 \"Subject Alternative Name\"'"
+            expect: "VIP must appear in SAN. If missing → re-issue cert."
+          - cmd: "ssh dave@<vip-holder> 'sudo systemctl restart globular-node-agent.service'"
+            note: "node-agent's reconcileTLS will re-issue the cert from cluster CA, including the VIP if the controller publishes it correctly"
+          - cmd: "globular --controller <leader> cluster doctor --filter cert"
+            expect: "should clear after node-agent's next reconcile"
+
+      - phase: case-3-vrrp-partition
+        description: "CASE 3 — Multiple MASTERs (split brain)"
+        warning: "Split brain means VRRP packets aren't reaching all nodes. Fix the network FIRST. Mass-restarting keepalived only re-elects briefly before splitting again."
+        commands:
+          - cmd: "for HOST in <all-keepalived-nodes>; do ssh dave@$HOST 'sudo tcpdump -ni <interface> vrrp 2>/dev/null | head -3'; done"
+            expect: "every node should see VRRP packets from every other keepalived node. Missing pkts = network partition."
+          - cmd: "<diagnose: switch port? VLAN? firewall? router?>"
+          - cmd: "<after network fix>: for HOST in <all-keepalived-nodes>; do ssh dave@$HOST 'sudo systemctl restart keepalived.service'; sleep 5; done"
+            note: "Restarts cause election in sequence; one will win cleanly"
+
+    success_criteria:
+      - "Exactly ONE node has the VIP assigned (verify with ip addr show)"
+      - "openssl s_client to https://<vip>:443 succeeds with valid cert chain"
+      - "External traffic to https://<vip>:443 reaches the controller's gateway"
+      - "doctor reports no keepalived.* findings"
+
+    follow_up:
+      - "If cert SAN was the cause: file an incident — controller's cert-issuance code missed the VIP. Past fix in session_vip_cert_fix in user memory."
+      - "If split brain: document the network change that caused it. Update inventory."
+      - "If recurring (>1 incident per week): consider increasing health-check tolerance OR investigating why health checks flap."

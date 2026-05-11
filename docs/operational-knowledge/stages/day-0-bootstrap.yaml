@@ -1,0 +1,172 @@
+schema_version: 1
+file_kind: stage
+metadata:
+  title: "Day-0 — Initial cluster bootstrap"
+  description: |
+    What is true about a cluster immediately after `globular cluster bootstrap` on the first node.
+    These entries describe the baseline state, the services that exist, and what does NOT yet work
+    (so future AI sessions don't assume capabilities the cluster hasn't reached yet).
+  source_documents:
+    - docs/operators/day-0-1-2-operations.md
+    - docs/operators/installation.md
+    - docs/operators/bootstrap-security.md
+
+entries:
+
+  - id: ops.day-0.cluster.what-exists
+    type: ARCHITECTURE
+    title: "Day-0 cluster: what is running"
+    tags: [day-0, bootstrap, baseline]
+    applies_when:
+      cluster_phases: [day-0]
+      services_present: []
+    content: |
+      After `globular cluster bootstrap` on the founding node, the cluster has:
+
+      - **One node** (the founding node), with profiles `core`, `control-plane`, `storage`.
+      - **etcd**: single-node, listening on this node only (no quorum yet).
+      - **cluster-controller**: leader of itself, port 12000.
+      - **node-agent**: port 11000, supervises systemd units on this node.
+      - **workflow**: port 10004, but it cannot dispatch across nodes (only one).
+      - **PKI**: cluster CA generated under `/var/lib/globular/pki/`. Service certs issued.
+      - **A bootstrap flag file** at `/var/lib/globular/bootstrap.enabled` with a 30-min TTL.
+
+      What does NOT yet exist:
+      - ScyllaDB quorum (needs 3 storage nodes)
+      - MinIO distributed pool (needs 3 storage nodes admitted)
+      - keepalived VIP (manual enable on day-1)
+      - ai-memory, ai-watcher, ai-executor, ai-router (depend on ScyllaDB)
+      - Any user-data buckets in MinIO
+
+      Implication for AI sessions: do NOT query `ai-memory` or `cluster-doctor` at this stage —
+      they are not running. Use the on-disk operational knowledge bundle directly.
+    links:
+      awareness_invariants:
+        - founding.quorum.three_nodes_required
+      cli_commands:
+        - "globular cluster bootstrap"
+        - "globular cluster nodes list"
+
+  - id: ops.day-0.bootstrap.flag-and-ttl
+    type: REFERENCE
+    title: "Bootstrap mode flag and its TTL"
+    tags: [day-0, bootstrap, security]
+    applies_when:
+      cluster_phases: [day-0]
+      services_present: []
+    content: |
+      Bootstrap mode is gated by `/var/lib/globular/bootstrap.enabled`. While present and within its
+      30-minute TTL, the cluster accepts unauthenticated localhost-only RPCs to set initial state
+      (root password, CA, etc.).
+
+      Once the flag expires or is removed, all RPCs require an authenticated `sa` (super-admin) token.
+      Default sa password is `adminadmin` — MUST be changed via `globular auth root-passwd` before
+      day-1 join.
+
+      If you find a cluster post-day-1 that still has bootstrap.enabled present: that is a
+      **security incident** — log it as a doctor finding and disable.
+    links:
+      awareness_failure_modes:
+        - bootstrap.flag_persists_post_day_1
+      cli_commands:
+        - "globular auth login --user sa --password <sa-password>"
+        - "globular auth root-passwd"
+
+  - id: ops.day-0.pki.locations
+    type: REFERENCE
+    title: "PKI material — file locations on every node"
+    tags: [day-0, pki, security, always]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Every Globular node has the same PKI layout. Memorize these paths — many failures look like
+      "permission denied" or "x509 unknown authority" until you check the file is where it should be.
+
+      | What | Path |
+      |---|---|
+      | CA certificate | /var/lib/globular/pki/ca.crt |
+      | CA private key | /var/lib/globular/pki/ca.key |
+      | Service cert (used by all gRPC servers) | /var/lib/globular/pki/issued/services/service.crt |
+      | Service private key | /var/lib/globular/pki/issued/services/service.key |
+      | Ed25519 signing keys | /var/lib/globular/keys/<id>_private |
+
+      `/etc/globular/creds/` does NOT exist. If you see a doc reference to that path it is wrong.
+    links:
+      awareness_invariants:
+        - pki.ca_metadata_must_be_published
+
+  - id: ops.day-0.etcd.single-node-warning
+    type: DECISION
+    title: "Day-0 etcd is a single point of failure — by design, briefly"
+    tags: [day-0, etcd, baseline]
+    applies_when:
+      cluster_phases: [day-0]
+      services_present: []
+    content: |
+      The day-0 etcd is **single-node**. There is no quorum, no replication, no failover.
+      Power-loss on the founding node before day-1 means losing the entire cluster state.
+
+      This is intentional and brief — day-1 join completes the transition to 3-node quorum.
+
+      Implication: do NOT promise "production-ready" or "highly available" until day-1 is complete
+      and three storage nodes are visible in `globular cluster nodes list`. The founding-quorum
+      invariant is enforced at join time and cannot be bypassed.
+    links:
+      awareness_invariants:
+        - founding.quorum.three_nodes_required
+        - etcd.endpoint_reachability
+
+  - id: ops.day-0.config.etcd-only
+    type: ARCHITECTURE
+    title: "etcd is the sole source of truth — even on day-0"
+    tags: [day-0, etcd, configuration, always]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Globular has zero configuration via environment variables or hardcoded addresses.
+      All service endpoints, ports, and config come from etcd at runtime.
+
+      On day-0, etcd is single-node, but it IS the source of truth. If a service can't reach etcd
+      it errors out — there are no silent fallbacks to defaults. The few exceptions:
+
+      - Standard protocol ports (443, 53, 2379) — these are protocol definitions, not config
+      - `localhost` — only for: etcdctl pointing to local etcd, or local DNS resolver in resolv.conf
+      - `0.0.0.0` — only for bind/listen operations
+
+      Implication: if a fresh AI session is tempted to write `os.Getenv("CLUSTER_ENDPOINT")` —
+      stop. That is a forbidden fix. Resolve from etcd or error.
+    links:
+      awareness_invariants:
+        - service.endpoint.etcd_address_reachability
+      awareness_failure_modes:
+        - service.endpoint.os_getenv_for_addresses
+
+  - id: ops.day-0.observability.dark
+    type: REFERENCE
+    title: "Day-0: cluster-doctor and AI services are dark"
+    tags: [day-0, observability, ai-services]
+    applies_when:
+      cluster_phases: [day-0]
+      services_present: []
+    content: |
+      On day-0, the following are NOT yet running and cannot be queried:
+
+      - `cluster-doctor` — depends on cluster-controller's full state; only meaningful with multi-node
+      - `ai-memory` — backend ScyllaDB has no quorum
+      - `ai-watcher` — needs ai-memory
+      - `ai-executor` — needs ai-memory + ai-watcher
+      - `ai-router` — needs ai-memory
+
+      An AI session entering at day-0 must rely on:
+      1. The on-disk operational knowledge bundle at `/var/lib/globular/operational-knowledge/`
+      2. The awareness graph at `/var/lib/globular/awareness/current/`
+      3. Direct etcd reads (with the cluster CA + service cert)
+      4. systemd unit status (`systemctl status globular-*`)
+
+      Do NOT attempt to call MCP tools that require ai-memory at this stage.
+    links:
+      cli_commands:
+        - "ls /var/lib/globular/operational-knowledge/"
+        - "globular awareness status"

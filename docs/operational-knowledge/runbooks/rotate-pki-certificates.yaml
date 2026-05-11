@@ -1,0 +1,122 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Rotate PKI certificates (CA and per-service)"
+  description: |
+    Two distinct rotations: per-service certs (auto-handled, but documented for visibility)
+    and the cluster CA itself (rare, manual, requires care). Both follow the principle that
+    no two consecutive certs should ever differ in trust chain — old must trust new.
+  source_documents:
+    - docs/operators/certificate-lifecycle.md
+    - docs/operators/dns-and-pki.md
+
+entries:
+
+  - id: ops.runbook.rotate-pki-certificates
+    type: SKILL
+    title: "Rotate PKI certificates — service certs and the cluster CA"
+    tags: [day-2, pki, security, runbook]
+    applies_when:
+      cluster_phases: [day-2]
+      services_present: [cluster-controller, node-agent]
+    content: |
+      Two scenarios, very different processes:
+
+      **Service cert rotation (automatic, every ~1 year)**:
+      - Each node-agent's `reconcileTLS` loop checks cert expiry every cycle
+      - Renews when remaining TTL < 40% of original
+      - Uses the cluster CA at `/var/lib/globular/pki/ca.crt`
+      - You don't initiate this; you VERIFY it happens
+
+      **Cluster CA rotation (manual, infrequent — every few years or on suspected compromise)**:
+      - The CA is the trust anchor for ALL cluster-internal mTLS
+      - Naive rotation = every cert becomes untrusted simultaneously = total cluster outage
+      - Must use overlap rotation: new CA exists alongside old; new certs issued from new
+        CA; both CAs trusted in trust bundle; old certs expire naturally; eventually old
+        CA can be removed
+    links:
+      awareness_invariants:
+        - pki.ca_metadata_must_be_published
+    procedure_service_cert_rotation:
+      - phase: observe
+        description: "Verify auto-rotation is happening"
+        commands:
+          - cmd: |
+              for HOST in <all-nodes>; do
+                ssh dave@$HOST "openssl x509 -in /var/lib/globular/pki/issued/services/service.crt -noout -dates"
+              done
+            expect: "notBefore within last 12 months; notAfter > 6 months out (auto-renew threshold)"
+          - cmd: "ssh dave@<any-node> 'sudo journalctl -u globular-node-agent.service --since \"7 days ago\" --no-pager | grep -i \"reconcileTLS\" | tail'"
+            expect: "periodic 'reconcileTLS: cert valid' messages; renewals when triggered"
+
+      - phase: force-rotation-if-needed
+        description: "Force a service cert renewal (e.g., after CA rotation)"
+        commands:
+          - cmd: "ssh dave@<node> 'sudo rm /var/lib/globular/pki/issued/services/service.crt /var/lib/globular/pki/issued/services/service.key'"
+            warning: "Removes the cert; node-agent must re-issue immediately"
+          - cmd: "ssh dave@<node> 'sudo systemctl restart globular-node-agent.service'"
+            expect: "On restart, node-agent will request a fresh cert from the controller"
+          - cmd: "ssh dave@<node> 'openssl x509 -in /var/lib/globular/pki/issued/services/service.crt -noout -dates'"
+            expect: "fresh notBefore (today)"
+
+    procedure_ca_rotation:
+      - phase: prepare-new-ca
+        description: "Generate the new cluster CA OUTSIDE the running cluster"
+        warning: "DO NOT touch /var/lib/globular/pki/ca.{crt,key} on running nodes yet."
+        commands:
+          - cmd: "openssl genrsa -out new-ca.key 4096"
+            expect: "new RSA key generated"
+          - cmd: "openssl req -x509 -new -nodes -key new-ca.key -sha256 -days 3650 -out new-ca.crt -subj '/CN=Globular Cluster CA <new-version>'"
+            expect: "self-signed CA cert generated, 10-year TTL"
+          - cmd: "openssl x509 -in new-ca.crt -noout -text | head -20"
+            expect: "verify CN, validity, key size before deploying"
+
+      - phase: deploy-overlap-trust-bundle
+        description: "Make every node TRUST both old AND new CA"
+        commands:
+          - cmd: "for HOST in <all-nodes>; do scp new-ca.crt dave@$HOST:/tmp/; done"
+          - cmd: "for HOST in <all-nodes>; do ssh dave@$HOST 'sudo cp /var/lib/globular/pki/ca.crt /var/lib/globular/pki/ca.crt.old && sudo cat /tmp/new-ca.crt /var/lib/globular/pki/ca.crt.old > /tmp/bundle.crt && sudo mv /tmp/bundle.crt /var/lib/globular/pki/ca.crt'; done"
+            warning: "TRUST bundle now contains BOTH CAs. Service certs from EITHER CA are accepted."
+          - cmd: "for HOST in <all-nodes>; do ssh dave@$HOST 'sudo systemctl restart globular-node-agent.service'; sleep 5; done"
+            expect: "every node-agent picks up the new trust bundle"
+
+      - phase: switch-issuance-to-new-ca
+        description: "Make controller issue NEW certs from the new CA"
+        commands:
+          - cmd: "scp new-ca.crt new-ca.key dave@<controller-node>:/tmp/"
+          - cmd: "ssh dave@<controller-node> 'sudo mv /tmp/new-ca.{crt,key} /var/lib/globular/pki/ && sudo chmod 600 /var/lib/globular/pki/new-ca.key'"
+          - cmd: "<edit cluster-controller config to use new-ca.{crt,key} for issuance — TODO: surface as a CLI command in a follow-up>"
+          - cmd: "ssh dave@<controller-node> 'sudo systemctl restart globular-cluster-controller.service'"
+            expect: "controller restarts; future cert issuances use new CA"
+
+      - phase: rotate-service-certs
+        description: "Force every node to re-request a cert from the new CA"
+        commands:
+          - cmd: "for HOST in <all-nodes>; do ssh dave@$HOST 'sudo rm /var/lib/globular/pki/issued/services/service.{crt,key} && sudo systemctl restart globular-node-agent.service'; sleep 10; done"
+            expect: "every node gets a fresh cert signed by the new CA"
+          - cmd: "for HOST in <all-nodes>; do ssh dave@$HOST 'openssl x509 -in /var/lib/globular/pki/issued/services/service.crt -noout -issuer'; done"
+            expect: "Issuer=CN=Globular Cluster CA <new-version> on every node"
+
+      - phase: remove-old-ca
+        description: "After ALL old service certs expire, remove the old CA from trust bundle"
+        warning: "Wait at least 7 days after the last service cert was issued from the old CA before doing this. Verify with `openssl x509 ... -noout -issuer` on every node."
+        commands:
+          - cmd: "for HOST in <all-nodes>; do ssh dave@$HOST 'sudo cp /var/lib/globular/pki/new-ca.crt /var/lib/globular/pki/ca.crt && sudo systemctl restart globular-node-agent.service'; sleep 5; done"
+            expect: "trust bundle now contains ONLY new CA"
+          - cmd: "for HOST in <all-nodes>; do ssh dave@$HOST 'sudo rm /var/lib/globular/pki/ca.crt.old'; done"
+
+    success_criteria:
+      - "Every node's service.crt is signed by the new CA"
+      - "Every node's trust bundle contains the new CA"
+      - "All inter-service mTLS continues to succeed (no x509 errors in any service log)"
+      - "Old CA artifacts removed after the safety window"
+
+    important_warnings:
+      - "NEVER do CA rotation in a single step (replace ca.crt directly). Every cert becomes untrusted at the same instant = full cluster outage."
+      - "External-facing ACME certs (Let's Encrypt) follow a SEPARATE lifecycle and are not affected by cluster CA rotation."
+      - "If you suspect CA compromise: time is more important than overlap. Accept the brief outage and rotate fast. Document the incident."
+
+    follow_up:
+      - "File a TODO to surface the controller's 'switch CA' step as a typed RPC / CLI command instead of a config edit"
+      - "Update cluster inventory with new CA fingerprint"
+      - "Verify the awareness invariant pki.ca_metadata_must_be_published is satisfied (publish new CA fingerprint to etcd /globular/pki/ca/metadata)"

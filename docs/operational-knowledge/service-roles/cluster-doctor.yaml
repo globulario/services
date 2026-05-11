@@ -1,0 +1,108 @@
+schema_version: 1
+file_kind: service-role
+metadata:
+  title: "Service role — cluster-doctor"
+  description: |
+    What cluster-doctor IS (the operational awareness layer), what it OWNS (findings, severity,
+    remediation hints), and how it integrates with ai-watcher → ai-executor → ai-memory.
+  source_documents:
+    - docs/operators/cluster-doctor.md
+    - docs/ai/ai-services.md
+
+entries:
+
+  - id: ops.role.cluster-doctor
+    type: ARCHITECTURE
+    title: "cluster-doctor — operational awareness for the cluster"
+    tags: [day-1, day-2, cluster-doctor, role, operational-awareness]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      **What it is**: The diagnostic engine. Continuously checks invariants across the
+      cluster and emits structured findings with severity, category, evidence, and
+      remediation hints.
+
+      **Port**: 12005 (gRPC over mTLS).
+
+      **What it OWNS**:
+      - Finding catalog (every diagnostic check has a stable `finding_id`, e.g.,
+        `objectstore.minio.contract_missing`, `objectstore_topology_mismatch`,
+        `etcd.member.split_brain`, `keepalived.vip_unassigned`)
+      - Per-cycle scan results with freshness metadata (snapshot_age_seconds, source,
+        observed_at)
+      - Plan generation: for findings with safe remediations, generates a plan with risk
+        assessment that ai-executor can execute (Tier 1) or escalate (Tier 2)
+
+      **What it MUST NOT do**:
+      - Apply remediations directly (that's ai-executor's role)
+      - Hide findings (every finding must be visible regardless of severity)
+      - Gate cluster reconciliation on its own findings (advisory only — see
+        `convergence.no_infinite_retry`)
+      - Treat its own findings as authoritative TRUTH; doctor reflects observed state, the
+        underlying state is in etcd / systemd / live process
+
+      **The three tiers** (see ai-executor):
+      - Tier 0 (OBSERVE) — read-only diagnosis; always safe; doctor's primary mode
+      - Tier 1 (AUTO_REMEDIATE) — pre-approved actions like restart-service,
+        clear-stale-cache; ai-executor runs without human approval
+      - Tier 2 (REQUIRE_APPROVAL) — destructive or wide-blast-radius; human approval gate
+    links:
+      awareness_invariants:
+        - convergence.no_infinite_retry
+
+  - id: ops.role.cluster-doctor.feedback-loop
+    type: ARCHITECTURE
+    title: "doctor → ai-watcher → ai-executor → ai-memory feedback loop"
+    tags: [day-1, day-2, cluster-doctor, ai-services, observability]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-doctor, ai-watcher, ai-executor, ai-memory]
+    content: |
+      The closed loop that turns operational events into accumulated knowledge:
+
+      1. **doctor** runs invariant checks, emits findings to its event stream and to etcd.
+      2. **ai-watcher** subscribes to doctor's event stream + systemd events from node-agent.
+         Filters/aggregates into incidents with confidence scores.
+      3. **ai-executor** receives incidents, classifies action tier (0/1/2), executes Tier 1
+         immediately, escalates Tier 2, observes outcome.
+      4. **ai-memory** records: incident + classification + action + outcome + timestamp.
+         Subsequent sessions can query these as `tags=incident,<finding-id>`.
+
+      The operational session-start (planned, not yet built) will:
+      - Read doctor's current findings (current cluster state)
+      - Query ai-memory for prior incidents matching those finding-ids (have we seen this
+        before? what worked?)
+      - Surface both to the operator / AI agent at the start of work
+
+      Today's session showed the gap: doctor was overloaded (couldn't respond), and ai-memory
+      had only 1 entry. The pipeline EXISTS but isn't running consistently. See
+      `failure_modes.yaml: ops_knowledge.seeder_workflow_skipped` for one part of the gap.
+
+  - id: ops.role.cluster-doctor.failure-modes
+    type: DEBUG
+    title: "cluster-doctor — common failure modes"
+    tags: [day-1, day-2, cluster-doctor, debug]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-doctor]
+    content: |
+      **Symptom: doctor RPCs time out (both `fresh` and `cached`)**
+      → Doctor's worker pool is starved. Most common cause: a flooding workflow loop in
+        cluster-controller (e.g., release-workflow firing every ~30ms with RUN_STATUS_FAILED)
+        is saturating the controller and choking doctor's snapshot generation. Fix the
+        upstream loop first; doctor recovers when it can complete a snapshot.
+
+      **Symptom: doctor reports findings that are clearly stale**
+      → snapshot_age_seconds in the response will reveal it. If old, force fresh:
+        `cluster_get_doctor_report freshness=fresh`. If still stale, check doctor's own
+        cycle timer is running.
+
+      **Symptom: doctor reports a finding repeatedly, ai-executor never auto-remediates**
+      → Either the finding's tier is not in ai-executor's allowlist, OR ai-executor is
+        unhealthy. Inspect ai-executor logs and its action history.
+
+      **Symptom: same finding-id keeps appearing across many sessions, never closed out**
+      → The auto-remediation isn't sufficient OR the underlying invariant isn't being
+        addressed. Promote it to a failure_mode in `docs/awareness/failure_modes.yaml` so
+        future preflight surfaces the pattern at code-edit time.

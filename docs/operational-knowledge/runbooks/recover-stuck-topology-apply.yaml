@@ -1,0 +1,95 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Recover from a stuck objectstore topology apply"
+  description: |
+    The objectstore-apply-watcher silently dies when its etcd watch returns 'mvcc compacted'.
+    The goroutine `continue`s on a dead channel and never re-establishes the watch. The leader
+    drains the queued request only on startup. This runbook covers the recovery flow.
+  source_documents:
+    - golang/cluster_controller/cluster_controller_server/objectstore_admission.go
+    - docs/operational-knowledge/stages/day-1-objectstore.yaml
+
+entries:
+
+  - id: ops.runbook.recover-stuck-topology-apply
+    type: SKILL
+    title: "Recover from a stuck objectstore topology apply"
+    tags: [day-1, day-2, objectstore, incident-recovery, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller]
+    content: |
+      Use this runbook when `globular objectstore topology apply` returns:
+        Error: timeout waiting for controller to process apply request
+
+      The CLI submitted the request to etcd at /globular/objectstore/topology/apply_request,
+      but the controller's apply-watcher goroutine is dead on every node. The drain only fires
+      on a leader's controller startup — so we restart controllers in sequence until the new
+      leader's drain catches the queued request.
+    links:
+      awareness_failure_modes:
+        - cluster_controller.objectstore_apply_watcher_dies_silently
+      runbooks:
+        - runbooks/add-node-to-minio-pool.yaml
+    procedure:
+      - phase: observe
+        description: "Confirm the watcher is dead, not just slow"
+        commands:
+          - cmd: "etcdctl ... get /globular/objectstore/topology/apply_request --print-value-only | jq ."
+            expect: "the request JSON exists with the proposal_id you submitted"
+          - cmd: "etcdctl ... get /globular/objectstore/topology/apply_result --print-value-only"
+            expect: "EMPTY (this is the failure signal)"
+            note: "If non-empty with a matching request_id, the watcher worked — re-check status"
+          - cmd: "journalctl -u globular-cluster-controller.service --since '5 minutes ago' | grep -iE 'objectstore-apply'"
+            expect: "no recent 'objectstore-apply: processing request' lines"
+          - cmd: "journalctl -u globular-cluster-controller.service | grep -i 'mvcc: required revision has been compacted' | tail"
+            expect: "almost certainly present — this is what killed the watcher"
+
+      - phase: plan
+        description: "Identify current leader and the controllers that need restart"
+        commands:
+          - cmd: "etcdctl ... get /globular/clustercontroller/leader/addr --print-value-only"
+            expect: "host:port of the current leader (e.g. 10.0.0.8:12000)"
+          - cmd: "for HOST in <all-nodes>; do ssh dave@$HOST 'systemctl show globular-cluster-controller.service --no-pager | grep ActiveEnterTimestamp'; done"
+            expect: "every controller's start time"
+            note: |
+              Identify which controllers were started AFTER the apply_request was put.
+              Those are guaranteed to have run drain on the apply already (and either
+              processed it as leader or returned early as follower).
+
+      - phase: execute
+        description: "Restart the non-leader controllers first, then the leader last"
+        warning: |
+          Each restart triggers a leader election (~5-15s). During election, no leader-only
+          functions execute. Other services keep running. The whole sequence is ~1-2 min of
+          mild controller-tier disruption.
+        commands:
+          - cmd: "for HOST in <all-non-leader-nodes>; do ssh dave@$HOST 'sudo systemctl restart globular-cluster-controller.service'; sleep 15; done"
+            note: |
+              Restart followers first so they have fresh apply-watchers. Then restart the
+              leader last — its restart triggers election among 4 fresh-watcher candidates,
+              and the new leader drains the queued apply_request on startup.
+          - cmd: "ssh dave@<leader-host> 'sudo systemctl restart globular-cluster-controller.service'"
+          - cmd: "etcdctl ... put /globular/objectstore/topology/apply_request \"$(etcdctl ... get /globular/objectstore/topology/apply_request --print-value-only)\""
+            note: |
+              Re-PUT the request value to fire a fresh etcd Watch event. The new leader's
+              fresh watcher catches the PUT, sees 'I am leader', processes the apply.
+
+      - phase: verify
+        description: "Confirm the apply was accepted and the workflow ran"
+        commands:
+          - cmd: "etcdctl ... get /globular/objectstore/topology/apply_result --print-value-only | jq ."
+            expect: "JSON with status='accepted' and a generation > previous"
+          - cmd: "globular --controller globule-<leader>.globular.internal objectstore topology status"
+            expect: "Desired generation incremented; Pending: YES → NO; Applied: matches Desired"
+
+    success_criteria:
+      - "apply_result key contains a JSON with status=accepted matching the request_id"
+      - "topology status shows the new generation as Applied"
+      - "No 'mvcc compacted' errors in the controller log for the last 5 minutes"
+
+    follow_up_required:
+      - "File the watcher bug as a code fix — the watch should re-establish from latest revision on 'mvcc compacted', not 'continue' on a dead channel"
+      - "Affected file: golang/cluster_controller/cluster_controller_server/objectstore_admission.go (startObjectStoreApplyWatcher)"
+      - "Same pattern likely exists in other etcd-watching goroutines in the controller; audit when fixing"

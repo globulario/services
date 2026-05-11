@@ -1,0 +1,121 @@
+schema_version: 1
+file_kind: service-role
+metadata:
+  title: "Service role — node-agent"
+  description: |
+    What node-agent IS, what it OWNS on each node, what it executes vs delegates upward,
+    and the heartbeat / sync-ticker rhythms that govern its behavior.
+  source_documents:
+    - docs/operators/architecture-overview.md
+    - golang/node_agent/node_agent_server/
+
+entries:
+
+  - id: ops.role.node-agent
+    type: ARCHITECTURE
+    title: "node-agent — per-node executor"
+    tags: [always, node-agent, role]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      **What it is**: The hands of the cluster on every node. Receives RPCs from
+      cluster-controller and workflow service; executes them locally.
+
+      **Port**: 11000 (gRPC over mTLS). DNS: `<hostname>.globular.internal:11000`.
+
+      **What it OWNS** (sole authority for these on its own node):
+      - Local systemd unit lifecycle (`os/exec` is allowed ONLY here, scoped to
+        `internal/supervisor/`)
+      - Local package installation under `/var/lib/globular/packages/` and `/usr/lib/globular/`
+      - Heartbeats to controller (every 30s) and disk inventory rescan (every 5min syncTicker)
+      - Local rendering of MinIO config (`distributed.conf` etc.) from etcd
+        ObjectStoreDesiredState
+      - Reporting installed-state to etcd (per-package metadata under
+        `/globular/nodes/<node-id>/packages/<kind>/<name>`)
+      - Enforcing the topology contract: starts MinIO ONLY when this node is in the
+        published pool; stops MinIO when not
+
+      **What it MUST NOT do**:
+      - Make decisions about cluster-wide state (delegate to controller via RPC)
+      - Write `/globular/objectstore/config` or other controller-owned etcd keys
+      - Infer pool membership from local disk state (e.g., presence of `.minio.sys`)
+      - Promote runtime observation to desired state (heartbeat is OBSERVATIONAL only)
+
+      **Cadence**:
+      - Heartbeat: every 30s (reports node identity, profiles, status, last error)
+      - syncTicker: every 5min (re-reads installed packages, reconciles MinIO systemd config,
+        rescans disks, fetches awareness bundle if stale)
+      - Watcher events: continuous (systemd unit state changes published as service.* events)
+    links:
+      awareness_invariants:
+        - infra.heartbeat_not_desired_authority
+        - objectstore.topology_contract
+
+  - id: ops.role.node-agent.dependencies
+    type: ARCHITECTURE
+    title: "node-agent — what it depends on, what depends on it"
+    tags: [always, node-agent, dependencies]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      **node-agent depends on**:
+      - etcd (read its own service config; write installed-state and disk candidates)
+      - cluster-controller (callback target for heartbeats; receives release-workflow RPCs)
+      - workflow service (executes apply-package workflows dispatched here)
+      - local PKI material at `/var/lib/globular/pki/` (mTLS server identity)
+
+      **node-agent does NOT depend on** (so day-0 bring-up works):
+      - ai-memory, ai-watcher, ai-executor (AI tier is downstream of node-agent)
+      - cluster-doctor (advisory; doctor reads node-agent state, not the reverse)
+      - MinIO / object store (node-agent installs MinIO; the reverse would create a recovery
+        deadlock — see failure_modes.yaml: repository.minio.recovery_cycle)
+
+      **Services that depend on node-agent**:
+      - cluster-controller (heartbeat liveness; release dispatch target)
+      - workflow service (executes workloads on the local node)
+      - cluster-doctor (reads installed-state, unit state)
+
+      The asymmetry matters at day-0: node-agent must come up FIRST on the founding node,
+      with NO dependencies on cluster services. Once it's up, it bootstraps everything else.
+
+  - id: ops.role.node-agent.failure-modes
+    type: DEBUG
+    title: "node-agent — common failure modes & first-look diagnostics"
+    tags: [always, node-agent, debug]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: [node-agent]
+    content: |
+      **Symptom: a node never appears in `globular cluster nodes list`**
+      → Heartbeat isn't reaching the controller. Check on the node:
+        - `systemctl status globular-node-agent.service` (running?)
+        - `journalctl -u globular-node-agent.service | grep -i 'heartbeat'` (failures?)
+        - DNS / mTLS: `globular cluster info` — does this node resolve `globular.internal`?
+        - From the controller side: TLS SAN mismatch warnings if cert doesn't include
+          this node's hostname (similar to the SAN issue noted earlier this session)
+
+      **Symptom: a recently-attached disk doesn't show in `objectstore disk scan`**
+      → syncTicker hasn't fired yet (5min interval). Either wait or restart node-agent.
+        Loop devices are filtered out by design — never appear as eligible.
+
+      **Symptom: MinIO won't start on a node that's in the pool**
+      → minio-topology-gate logs explain why. Likely either (a) topology_contract holding it
+        because the published desired-state is stale, or (b) `MinIO data directory not found`
+        — verify `/mnt/data` exists and is owned by `globular:globular`.
+
+      **Symptom: 'unit_hash_drift' status on globular-node-agent.service**
+      → systemd unit content drift detected. Either someone hand-edited the unit file, or
+        the package install left a stale drop-in. Re-deploy the node-agent package to
+        re-render the canonical unit.
+
+      **Symptom: 'pkill: not found' or 'self-SIGKILL on ExecStartPre'**
+      → Known historical class. ExecStartPre uses `pkill -x <binary>` (NOT `-f`). `-f`
+        matches the parent shell's argv → self-kill. The systemd unit lives in
+        `globulario/packages/metadata/<svc>/{specs,systemd}/`, NOT just in the services
+        repo. Sweeps in services don't reach package metadata — fix BOTH.
+    links:
+      awareness_failure_modes:
+        - infra.heartbeat_not_desired_authority
+        - objectstore.local_membership_inference

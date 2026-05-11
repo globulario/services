@@ -1,0 +1,127 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Repartition a shared disk for MinIO data"
+  description: |
+    Safe, in-place procedure to shrink an NTFS partition (Windows data) and create a new ext4
+    partition for MinIO use, on a disk that is not the OS root. Captures the ntfsresize → parted
+    → mkfs flow plus the systemd/fstab integration.
+  source_documents:
+    - docs/operational-knowledge/stages/day-1-objectstore.yaml
+
+entries:
+
+  - id: ops.runbook.repartition-shared-disk
+    type: SKILL
+    title: "Repartition a shared NTFS disk to free ext4 space for MinIO"
+    tags: [day-1, day-2, hardware, filesystem, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      Use this runbook when a cluster node has a non-OS disk that contains a Windows/NTFS
+      partition you want to shrink to free space for a new ext4 partition (typically for
+      MinIO at /mnt/data).
+
+      Tools required: `ntfs-3g` package (for ntfsresize, ntfsfix), `parted`, `e2fsprogs`
+      (for mkfs.ext4). All present on Globular nodes by default.
+
+      WORKS ON: a non-root disk (the OS lives on a different physical device).
+      DOES NOT APPLY TO: the OS root disk; LVM volumes; disks currently in use by another
+      Globular service (you'd need to stop that service first).
+    links:
+      runbooks:
+        - runbooks/add-node-to-minio-pool.yaml
+    procedure:
+      - phase: observe
+        description: "Read the disk layout and verify preconditions"
+        commands:
+          - cmd: "lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINT,LABEL,UUID"
+            expect: "target disk visible; OS root is on a DIFFERENT disk"
+          - cmd: "sudo fdisk -l /dev/<target-disk>"
+            expect: "GPT or MBR layout; existing partitions listed with start/end sectors"
+          - cmd: "df -h <current-mount-point>"
+            expect: "current usage is well under the new target size"
+            note: "If you want to shrink to 500 GB, current usage must be << 500 GB or shrink will fail"
+
+      - phase: plan
+        description: "Compute the target geometry"
+        commands:
+          - cmd: "echo 'NTFS shrink target: 500 GB. New ext4 partition gets the remainder.'"
+            note: |
+              Pick a target NTFS size with at least 30-50% headroom over current usage. Plan
+              the new ext4 partition to start AT THE END of the shrunk NTFS, ext4 to 100% of
+              remaining disk space.
+
+      - phase: execute
+        description: "Unmount, shrink NTFS, resize partition, create ext4"
+        warning: |
+          Each step is reversible only up to the previous step's success. ntfsresize is the
+          single risky step — it edits the filesystem in place. ntfsfix first guards against
+          a dirty NTFS journal (Windows fastboot/hibernate sets a check flag that ntfsresize
+          will refuse without --force).
+        commands:
+          - cmd: "sudo umount /dev/<target-partition>"
+            expect: "exit 0 (no processes were holding the mount)"
+          - cmd: "sudo ntfsfix /dev/<target-partition>"
+            expect: "'NTFS partition ... was processed successfully' — clears the chkdsk flag"
+          - cmd: "sudo ntfsresize --no-action --force --size 500G /dev/<target-partition>"
+            expect: "'The read-only test run ended successfully' — confirms it CAN shrink"
+            note: "DRY RUN. No changes made yet. If this fails, DO NOT proceed."
+          - cmd: "sudo ntfsresize --force --size 500G /dev/<target-partition>"
+            expect: "'Successfully resized NTFS on device'"
+            note: |
+              Real shrink. After this, the FILESYSTEM is 500 GB but the PARTITION TABLE
+              still says the partition is the original size — must fix next.
+          - cmd: "printf 'Yes\\n' | sudo parted ---pretend-input-tty /dev/<target-disk> resizepart <part-num> 501GB"
+            expect: "Information: You may need to update /etc/fstab"
+            note: |
+              Use 501GB (slightly larger than the 500GB NTFS) to allow for partition-start
+              offset (~17 MB). parted's resizepart sets END position from disk start, not size.
+          - cmd: "sudo parted -s /dev/<target-disk> mkpart primary ext4 501GB 100%"
+            expect: "exit 0; new partition created in remaining space"
+          - cmd: "sudo partprobe /dev/<target-disk>"
+            expect: "kernel re-reads partition table"
+          - cmd: "sudo mkfs.ext4 -L globular-data -F /dev/<new-partition>"
+            expect: "filesystem created with the label 'globular-data'"
+
+      - phase: integrate
+        description: "Mount the new partition persistently and set ownership"
+        commands:
+          - cmd: "sudo blkid /dev/<new-partition>"
+            expect: "UUID printed — copy this for the fstab entry"
+          - cmd: "sudo cp /etc/fstab /etc/fstab.bak.$(date +%Y%m%d-%H%M%S)"
+            expect: "backup created"
+          - cmd: "echo 'UUID=<the-uuid>  /mnt/data  ext4  defaults,nofail  0  2' | sudo tee -a /etc/fstab"
+            expect: "appended; nofail prevents boot hang if disk fails later"
+            note: "If a previous (broken) /mnt/data entry exists in fstab, comment it out FIRST."
+          - cmd: "sudo systemctl daemon-reload"
+            expect: "exit 0"
+          - cmd: "sudo findmnt --verify --verbose | grep -A2 /mnt/data"
+            expect: "'translated to /dev/<new-partition>' and 'source ... exists'"
+          - cmd: "sudo umount /mnt/data 2>/dev/null; sudo mount /mnt/data && ls -la /mnt/data/"
+            expect: "mount succeeds; only lost+found in the new dir"
+            note: "If /mnt/data was previously a loop or NFS mount, umount FIRST."
+          - cmd: "sudo chown globular:globular /mnt/data"
+            expect: "MinIO can now write here when added to the pool"
+
+    success_criteria:
+      - "lsblk shows the new ext4 partition mounted at /mnt/data"
+      - "df -h /mnt/data shows expected free space"
+      - "mount survives a reboot (verify with `sudo systemctl daemon-reload && sudo mount -a` for now)"
+      - "/mnt/data is owned by globular:globular"
+
+    follow_up:
+      - "Add this disk to the MinIO pool via runbooks/add-node-to-minio-pool.yaml"
+      - "Document the disk on the node in inventory"
+
+    known_pitfalls:
+      - description: "ntfsresize refuses with 'Volume is scheduled for check'"
+        cause: "Windows fastboot or hibernate set the chkdsk flag"
+        fix: "Add --force flag (the error message itself recommends this); ntfsfix beforehand also helps"
+      - description: "parted resizepart with -s still prompts and exits 1"
+        cause: "Some parted versions ignore -s for the shrink-warning prompt"
+        fix: "Pipe answer: printf 'Yes\\n' | sudo parted ---pretend-input-tty /dev/sda resizepart 2 501GB"
+      - description: "Loop device at /mnt/data with deleted backing file"
+        cause: "Earlier setup created a file-backed loop and the file was unlinked"
+        fix: "umount /mnt/data; the kernel auto-detaches the loop. Then mount /dev/<new-partition> there. NEVER use loop-backed storage for MinIO authoritative data."

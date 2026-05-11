@@ -1,0 +1,175 @@
+schema_version: 1
+file_kind: stage
+metadata:
+  title: "Day-1 — Object store (MinIO) topology"
+  description: |
+    Knowledge needed to operate, expand, or recover the MinIO object store after day-1 is reached.
+    Captures the topology contract, the apply flow, the VIP-contamination class, and the chicken-
+    and-egg patterns this subsystem is prone to.
+  source_documents:
+    - docs/operators/day-0-1-2-operations.md
+    - docs/awareness/invariants.yaml
+    - golang/cluster_controller/cluster_controller_server/objectstore_admission.go
+    - golang/cluster_controller/cluster_controller_server/minio_pools.go
+
+entries:
+
+  - id: ops.day-1.minio.topology-contract
+    type: ARCHITECTURE
+    title: "MinIO topology contract — controller is sole authority"
+    tags: [day-1, objectstore, minio, contract]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, repository]
+    content: |
+      The MinIO topology has ONE authority: `cluster-controller`. It owns:
+
+      - `/globular/objectstore/config` — the published desired state (mode, pool nodes, drives, endpoint, volumes hash)
+      - The decision of WHICH nodes are pool members
+      - The transition from standalone → distributed (and any future expansion)
+
+      Node-agents:
+      - May only START MinIO when their node is in `ObjectStoreDesiredState.Nodes`
+      - Must NEVER infer pool membership from local disk state (presence of `.minio.sys`)
+      - Must NEVER write to `/globular/objectstore/config` directly
+
+      The contract is enforced at:
+      - `golang/config/minio_runtime_render.go::enforceMinioHeld`
+      - `golang/cluster_controller/cluster_controller_server/objectstore_admission.go`
+
+      Forbidden fixes:
+      - `start_minio_from_local_health_check`
+      - `infer_minio_membership_from_disk`
+      - `wipe_minio_sys_without_approved_transition`
+      - `round_robin_dns_for_minio_writes`
+    links:
+      awareness_invariants:
+        - objectstore.topology_contract
+        - objectstore.desired_state_must_be_registry_governed
+      awareness_failure_modes:
+        - objectstore.local_membership_inference
+        - objectstore.no_desired_state_governance
+
+  - id: ops.day-1.minio.apply-flow
+    type: SKILL
+    title: "Standard MinIO topology apply flow"
+    tags: [day-1, objectstore, minio, runbook-summary]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, repository]
+    content: |
+      The four steps to apply a new MinIO topology (covers add-node and disk-change):
+
+      1. `globular objectstore disk scan` — node-agents report eligible disks every 5 minutes via
+         syncTicker. If you just attached a disk, you may need to wait up to 5 min OR restart node-agent.
+         Loop devices are filtered out — they are NOT eligible for MinIO authoritative storage.
+
+      2. `globular objectstore disk approve --node <id> --node-ip <STABLE-IP> --path /mnt/data`
+         — operator consent for one (node, path) pair. CRITICAL: pass the STABLE interface IP
+         (e.g. 10.0.0.8 for nuc), NEVER the VIP (e.g. 10.0.0.100). See ops.day-1.minio.vip-contamination.
+
+      3. `globular objectstore topology plan` — computes a proposal from admitted disks. Review
+         pool nodes, drives/node, destructiveness reasons, expected fingerprint.
+
+      4. `globular objectstore topology apply --proposal <id> --i-understand-data-reset`
+         — DESTRUCTIVE. Stops MinIO on all pool nodes, wipes `.minio.sys`, restarts in new
+         distributed config. ALL existing bucket data on the OLD pool becomes inaccessible.
+         Re-publish via `globular deploy --all --bump patch` and re-upload webroot/users after.
+
+      The CLI request goes to etcd at `/globular/objectstore/topology/apply_request`. The current
+      leader's apply-watcher picks it up and runs `applyObjectStoreTopologyRequest`.
+    links:
+      awareness_invariants:
+        - objectstore.topology_contract
+      runbooks:
+        - runbooks/add-node-to-minio-pool.yaml
+      cli_commands:
+        - "globular objectstore disk scan"
+        - "globular objectstore disk approve --node <id> --node-ip <ip> --path /mnt/data"
+        - "globular objectstore topology plan"
+        - "globular objectstore topology apply --proposal <id> --i-understand-data-reset"
+        - "globular objectstore topology status"
+
+  - id: ops.day-1.minio.vip-contamination
+    type: DEBUG
+    title: "VIP-contamination — node stuck at MinioJoinNonMember after apply"
+    tags: [day-1, objectstore, keepalived, vip-contamination, debug]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, keepalived]
+    content: |
+      **Symptom**: After a successful `globular objectstore topology apply`, the published
+      `/globular/objectstore/config` is missing one node. That node's `minio_join_phase` is
+      `non_member` and never transitions, even though MinIO is installed and the node is healthy.
+
+      **Cause**: The node holds the keepalived VIP. `node.Identity.Ips` lists the floating VIP
+      (e.g. 10.0.0.100) BEFORE the stable interface IP (e.g. 10.0.0.8). `nodeRoutableIP()` returns
+      the first non-loopback IP — which is the VIP. The pool list contains the stable IP from the
+      apply, so `ipInPool(VIP, [stable, ...])` is false → the node never transitions out of
+      `MinioJoinNonMember`. The publish filter then excludes that node forever (chicken-and-egg).
+
+      **Diagnosis**: Run `globular cluster nodes get <node_id>` and inspect `identity.ips`. If the
+      VIP appears (typically 10.0.0.100), this is the pattern.
+
+      **Fix (in code)**: Match by ANY of the node's IPs, not just `nodeRoutableIP`. See
+      `nodeAnyIPInPool` in `minio_pools.go` — pattern mirrors `nodeAnyIPIsEtcdMember`.
+
+      **Fix (operationally, before code lands)**: There is no good operational workaround. The
+      published state is filtered server-side; restarting the node-agent does not change the phase
+      because the node-agent correctly evaluates "I'm not in the desired pool, so I'm non_member".
+      Code fix + redeploy is required.
+
+      Same VIP-contamination pattern has hit etcd member eviction and DNS reconciliation. Common
+      fix recipe: replace `node.PrimaryIP()` / `node.Identity.Ips[0]` / `nodeRoutableIP(node)`
+      with `node.StableIP(clusterVIP)` OR a `nodeAny<X>Has<Y>` helper that matches against all IPs.
+    links:
+      awareness_failure_modes:
+        - vip_contamination.node_routable_ip_returns_vip
+      cli_commands:
+        - "globular cluster nodes get <node_id>"
+
+  - id: ops.day-1.minio.minimum-3-storage-nodes
+    type: DECISION
+    title: "MinIO requires 3 storage nodes for distributed mode"
+    tags: [day-1, objectstore, minio, founding-quorum]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      Distributed MinIO requires a minimum of 3 nodes with the `storage` profile. EC:1 with 3
+      drives can lose 1 node. With fewer than 3 storage nodes, the cluster operates standalone
+      (single point of failure) — this is the day-0 baseline.
+
+      The first 3 nodes of any cluster MUST have profiles `core`, `control-plane`, `storage`.
+      This is enforced at join in `enforceFoundingProfiles()` and cannot be bypassed. If a storage
+      node leaves, another must replace it before MinIO topology can be modified.
+
+      Loop-device-backed `/mnt/data` (a file mounted as a fake block device) is technically
+      possible but NOT recommended for production — the backing file lives on root fs and a
+      reboot can lose data if the file was deleted while held open.
+    links:
+      awareness_invariants:
+        - founding.quorum.three_nodes_required
+
+  - id: ops.day-1.minio.path-recommendation
+    type: REFERENCE
+    title: "MinIO data disk recommendations"
+    tags: [day-1, objectstore, minio, hardware]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      MinIO official guidance plus what we've validated in production:
+
+      - Dedicated physical disk per node (NOT shared with OS)
+      - Filesystem: ext4 or xfs (NOT NTFS/exFAT, NOT NFS, NOT loop-device-backed)
+      - Mount path convention: `/mnt/data`
+      - Stable mount via `/etc/fstab` with UUID (NOT device path — sda may renumber)
+      - Owner: `globular:globular`
+      - Pre-existing `.minio.sys` from a previous pool will be wiped on apply (this is what
+        `--i-understand-data-reset` confirms)
+
+      Bad ideas observed in our cluster history:
+      - NFS-mounted MinIO data (locking semantics broken)
+      - Loop device with deleted backing file (ghost-allocated, data vanishes on reboot)
+      - Sharing the OS root fs (root fills up → MinIO degrades unpredictably)

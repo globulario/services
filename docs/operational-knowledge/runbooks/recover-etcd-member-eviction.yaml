@@ -1,0 +1,123 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Recover from an evicted or stale etcd member"
+  description: |
+    A healthy etcd member was evicted (often due to VIP-contamination or a removed node).
+    This runbook walks through verifying the eviction, restoring the member if possible, and
+    when re-bootstrapping the etcd member from peers is the safer path.
+  source_documents:
+    - docs/operational-knowledge/stages/day-1-join.yaml
+    - docs/operational-knowledge/stages/day-1-keepalived.yaml
+
+entries:
+
+  - id: ops.runbook.recover-etcd-member-eviction
+    type: SKILL
+    title: "Recover from an evicted or stale etcd member"
+    tags: [day-1, day-2, etcd, incident-recovery, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller]
+    content: |
+      Symptom: a node that should be in the etcd cluster is missing from `etcdctl member list`,
+      OR is listed but `unstarted`. Possibly accompanied by:
+      - Cluster running fine on the remaining members
+      - The "missing" node's globular-etcd.service is failing or running but cannot rejoin
+      - cluster-doctor finding `etcd.member.missing` or `etcd.cluster.under_quorum`
+
+      The 2026-05-10 keepalived-enable incident is the canonical example: a healthy etcd
+      member was evicted by removeStaleMembers because PrimaryIP() returned the floating VIP
+      (not the stable member URL), and the legacy bootstrap name didn't match the modern
+      sanitized hostname. The member was wrongly classified as stale.
+    links:
+      awareness_failure_modes:
+        - vip_contamination.node_routable_ip_returns_vip
+      runbooks:
+        - runbooks/recover-keepalived-vip-loss.yaml
+    procedure:
+      - phase: observe
+        description: "Confirm the eviction and identify root cause"
+        commands:
+          - cmd: |
+              sudo etcdctl --endpoints=https://<live-member>:2379 \
+                --cacert=/var/lib/globular/pki/ca.crt \
+                --cert=/var/lib/globular/pki/issued/services/service.crt \
+                --key=/var/lib/globular/pki/issued/services/service.key \
+                member list -w table
+            expect: "table of members with PEER URLS; the missing/affected node should be absent or unstarted"
+          - cmd: "ssh dave@<affected-node> 'sudo systemctl status globular-etcd.service --no-pager | head -20'"
+            expect: "if ACTIVE: it's running but not in the cluster (stale data dir, mismatched cluster ID). If FAILED: read journal for cause."
+          - cmd: "ssh dave@<affected-node> 'sudo journalctl -u globular-etcd.service --since \"30 min ago\" --no-pager | grep -iE \"fatal|cluster ID mismatch|cannot find member|failed to start\" | head'"
+            expect: "specific error message"
+          - cmd: "globular --controller globule-<live-leader>.globular.internal cluster doctor --filter etcd"
+            expect: "doctor's analysis of the etcd cluster state, including suggested remediation"
+
+      - phase: classify
+        description: "Pick a recovery path"
+        note: |
+          Two paths, mutually exclusive:
+          A. Member is recoverable — etcd data dir is intact and matches the cluster ID.
+             Re-add the member and let it sync.
+          B. Member is corrupted/desynced — the node's etcd data dir has the wrong cluster
+             ID or is too far behind. WIPE the local etcd data dir and re-bootstrap from peers.
+
+      - phase: path-A-readd
+        description: "PATH A — Re-add the recoverable member"
+        commands:
+          - cmd: |
+              sudo etcdctl --endpoints=https://<live-member>:2379 ... \
+                member add <hostname-sanitized> --peer-urls=https://<stable-ip>:2380
+            expect: "ETCD_INITIAL_CLUSTER and friends printed — copy these"
+            note: "STABLE-IP, NOT the VIP. Hostname sanitized = no special chars, lowercase."
+          - cmd: "ssh dave@<affected-node> 'sudo systemctl start globular-etcd.service'"
+            expect: "etcd starts and joins; logs show 'published' eventually"
+          - cmd: "sudo etcdctl ... member list -w table"
+            expect: "all 3 members present, status started"
+
+      - phase: path-B-rebootstrap
+        description: "PATH B — Wipe and re-bootstrap from peers"
+        warning: |
+          WIPES the affected node's etcd data. Other members must be HEALTHY and have a
+          coherent view of the cluster. Do NOT do this on the only remaining etcd member.
+        commands:
+          - cmd: "ssh dave@<affected-node> 'sudo systemctl stop globular-etcd.service'"
+          - cmd: "ssh dave@<affected-node> 'sudo rm -rf /var/lib/globular/etcd/'"
+            warning: "Wipes data; only safe if other members are healthy"
+          - cmd: |
+              sudo etcdctl --endpoints=https://<live-member>:2379 ... \
+                member remove <old-member-id>
+            note: "Remove the stale entry FIRST; then add fresh."
+          - cmd: |
+              sudo etcdctl ... member add <hostname-sanitized> \
+                --peer-urls=https://<stable-ip>:2380
+          - cmd: "ssh dave@<affected-node> 'sudo systemctl start globular-etcd.service'"
+            expect: "etcd starts fresh, syncs from peers (~minutes for empty cluster, longer if data heavy)"
+
+      - phase: verify
+        description: "Confirm cluster health"
+        commands:
+          - cmd: "sudo etcdctl ... member list -w table"
+            expect: "exactly N members, all started, all peer URLs reachable"
+          - cmd: "sudo etcdctl ... endpoint status -w table --cluster"
+            expect: "every endpoint healthy, similar applied/raft index"
+          - cmd: "globular --controller <leader> cluster doctor --filter etcd"
+            expect: "no etcd.* findings remaining"
+          - cmd: "globular cluster nodes get <affected-node-id> --output json | jq '.metadata.etcd_join_phase'"
+            expect: "verified"
+
+    success_criteria:
+      - "All N expected etcd members are listed and started"
+      - "etcdctl endpoint health returns 'healthy' for every endpoint"
+      - "All Globular services on the affected node can write to etcd successfully"
+      - "doctor reports no etcd.* findings"
+
+    follow_up:
+      - "If root cause was VIP-contamination: confirm the relevant fix is deployed (commit a4ea9ef1 or later); audit OTHER subsystems for the same class"
+      - "Document the eviction in cluster history; consider adding a per-cluster invariant test"
+      - "If recurring: investigate WHY removeStaleMembers misclassified — usually a legacy bootstrap name OR a VIP appearing in the IP list"
+
+    important_warnings:
+      - "Never `etcdctl member remove` on a leader without a quorum of remaining members — losing both is catastrophic"
+      - "Never wipe ALL etcd data dirs at the same time — that's a full cluster loss; restore from backup instead"
+      - "If the affected node was the leader: leadership transfers BEFORE eviction; verify with `etcdctl endpoint status` first"

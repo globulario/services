@@ -1,0 +1,113 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Add a node to an existing MinIO pool"
+  description: |
+    Phased procedure to expand an existing distributed MinIO pool with one additional node.
+    Captures the destructive nature of the apply step, the VIP-contamination class, and the
+    recovery path if the apply-watcher silently dies.
+  source_documents:
+    - docs/operators/day-0-1-2-operations.md
+    - docs/operational-knowledge/stages/day-1-objectstore.yaml
+
+entries:
+
+  - id: ops.runbook.minio.add-node-to-pool
+    type: SKILL
+    title: "Add a node to the MinIO pool"
+    tags: [day-1, objectstore, minio, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, repository, node-agent]
+      services_healthy: [cluster-controller]
+    content: |
+      Use this runbook to add a new node to an existing MinIO distributed pool, OR to transition
+      from standalone to distributed by including the founding node plus N new ones.
+
+      The apply step is **destructive on existing MinIO data** — the artifact bucket, webroot,
+      and users data on the OLD pool become inaccessible. Plan for a re-publish.
+    links:
+      awareness_invariants:
+        - objectstore.topology_contract
+        - founding.quorum.three_nodes_required
+      awareness_failure_modes:
+        - objectstore.local_membership_inference
+        - vip_contamination.node_routable_ip_returns_vip
+      runbooks:
+        - runbooks/recover-stuck-topology-apply.yaml
+    procedure:
+      - phase: observe
+        description: "Confirm preconditions"
+        commands:
+          - cmd: "globular cluster nodes list --output json"
+            expect: "target node is in 'ready' state and has 'storage' profile"
+          - cmd: "globular --controller globule-<leader>.globular.internal objectstore disk scan"
+            expect: "target node's data mount appears with ELIGIBLE=yes"
+            note: "If absent, wait up to 5 min (node-agent syncTicker) or restart the node-agent"
+          - cmd: "ssh <node> 'systemctl is-active globular-minio.service'"
+            expect: "either 'inactive' (held out) or 'active' (already in pool); never 'failed'"
+
+      - phase: plan
+        description: "Capture stable IP and prepare disk admission"
+        commands:
+          - cmd: "globular cluster nodes get <node_id> --output json | jq '.identity.ips'"
+            expect: "list of IPs; pick the STABLE interface IP, NOT the keepalived VIP"
+            note: |
+              VIP (typically 10.0.0.100) appears first when the node is the keepalived MASTER.
+              Pass the real interface IP (e.g. 10.0.0.8) to --node-ip below.
+
+      - phase: execute
+        description: "Approve disks on every pool node, generate proposal, apply"
+        warning: |
+          The apply step wipes .minio.sys on every pool node. ALL existing buckets become
+          inaccessible. Back up first if needed:
+            sudo mkdir -p /tmp/minio-backup-$(date +%F)
+            sudo rsync -a /var/lib/globular/minio/data/ /tmp/minio-backup-$(date +%F)/
+        commands:
+          - cmd: "globular --controller globule-<leader>.globular.internal objectstore disk approve --node <id> --node-ip <stable-ip> --path /mnt/data"
+            note: "Repeat for every node that will be in the new pool"
+          - cmd: "globular --controller globule-<leader>.globular.internal objectstore disk approve --node <id> --node-ip <ip> --path /mnt/data --force-existing-data"
+            note: "Use --force-existing-data when the disk already has stale .minio.sys"
+          - cmd: "globular --controller globule-<leader>.globular.internal objectstore topology plan"
+            expect: "proposal lists exactly the intended pool nodes; volumes_hash printed"
+          - cmd: "globular --controller globule-<leader>.globular.internal objectstore topology apply --proposal <id> --i-understand-data-reset"
+            expect: "✓ Topology applied: generation=<n>"
+
+      - phase: verify
+        description: "Confirm convergence on all pool nodes"
+        commands:
+          - cmd: "globular --controller globule-<leader>.globular.internal objectstore topology status"
+            expect: "Overall: ✓ CONVERGED, all pool nodes show RENDERED_GEN matching desired"
+          - cmd: "globular cluster nodes get <new_node_id> --output json | jq '.metadata.minio_join_phase'"
+            expect: "verified"
+          - cmd: |
+              for ip in <pool_ips>; do
+                curl -sk https://$ip:9000/minio/health/live -o /dev/null -w "$ip: HTTP %{http_code}\n"
+              done
+            expect: "every pool node returns HTTP 200"
+
+      - phase: recover-if-needed
+        description: "If apply hangs or topology never converges"
+        commands:
+          - cmd: "etcdctl ... get /globular/objectstore/topology/apply_result"
+            expect: "should contain a result JSON within 60s of the apply"
+            note: |
+              Empty for >60s typically means the apply-watcher goroutine died on a
+              prior etcd 'mvcc compacted' error. See runbooks/recover-stuck-topology-apply.yaml.
+          - cmd: "globular cluster nodes get <new_node_id> --output json | jq '.metadata.minio_join_phase'"
+            expect: "should reach 'verified' within ~30s of MinIO becoming active"
+            note: |
+              If stuck at 'non_member' even though the apply succeeded, suspect VIP-contamination.
+              See ops.day-1.minio.vip-contamination in stages/day-1-objectstore.yaml.
+
+    success_criteria:
+      - "Topology status shows ✓ CONVERGED at the new desired generation"
+      - "Every pool node returns HTTP 200 from /minio/health/live"
+      - "Every pool node's minio_join_phase = verified"
+      - "ai-memory query for project=globular-services tags=objectstore,topology returns the new pool layout (auto-recorded by ai-watcher → ai-executor)"
+
+    post_apply_data_repopulation:
+      - "globular deploy --all --bump patch — re-publishes every service to the new artifact bucket"
+      - "mc mb local/globular — recreate the artifact bucket if needed (deploy will do this implicitly)"
+      - "mc cp --recursive ./dist/ local/globular/<cluster-domain>/webroot/ — re-upload admin console static files"
+      - "User-uploaded files in users/ must be restored from backup (the rsync step in execute.warning above)"

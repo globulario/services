@@ -1,0 +1,122 @@
+schema_version: 1
+file_kind: service-role
+metadata:
+  title: "Service role — cluster-controller"
+  description: |
+    What cluster-controller IS, what it OWNS, what it MUST NOT do, and how to recognize it
+    misbehaving. The single source of operational truth for this service in the seed.
+  source_documents:
+    - docs/operators/architecture-overview.md
+    - golang/cluster_controller/cluster_controller_server/
+
+entries:
+
+  - id: ops.role.cluster-controller
+    type: ARCHITECTURE
+    title: "cluster-controller — central control plane"
+    tags: [always, cluster-controller, role]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      **What it is**: The decision-making brain of the cluster. Runs on every `control-plane`
+      profile node; one is elected leader via etcd lease.
+
+      **Port**: 12000 (gRPC over mTLS). DNS: `<hostname>.globular.internal:12000`.
+
+      **What it OWNS** (sole authority — no other service writes these):
+      - Cluster membership state (which nodes exist, their profiles, status)
+      - Desired releases per service (what version SHOULD be running where)
+      - ObjectStoreDesiredState at `/globular/objectstore/config`
+      - Topology transition records and apply-request processing
+      - Release reconciliation dispatching workflows to nodes
+      - ACME cert management (via embedded `domain` package)
+
+      **What it MUST NOT do** (security boundary, enforced by `make check-services`):
+      - `os/exec` of any kind (no shell-out)
+      - `syscall` use (no direct kernel calls)
+      - `systemctl` invocation (delegate to node-agent)
+      - Direct package installation (delegate to node-agent)
+      - Bypass the workflow service for cluster mutations
+
+      **Decides, does not execute**: The architecture pattern is "controller decides, workflow
+      coordinates, node-agent executes". Anything mutating systemd, packages, or the local
+      filesystem on a node MUST go through node-agent.
+
+      **High availability**: Multi-leader-eligible via etcd lease at `/globular/clustercontroller/leader/`.
+      Leader address published at `/globular/clustercontroller/leader/addr`. Followers proxy
+      writes to the current leader.
+
+      **Critical state in etcd**:
+      - `/globular/clustercontroller/state` — full in-memory mirror, periodically flushed
+      - `/globular/clustercontroller/leader/<lease-id>` — current leader's lease
+      - `/globular/clustercontroller/leader/addr` — current leader's host:port
+      - `/globular/clustercontroller/epoch` — election epoch counter
+    links:
+      awareness_invariants:
+        - install.result.atomic_commit
+        - convergence.no_infinite_retry
+
+  - id: ops.role.cluster-controller.failure-modes
+    type: DEBUG
+    title: "cluster-controller — common failure modes & first-look diagnostics"
+    tags: [always, cluster-controller, debug]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      **Symptom: workflow says 'no leader available'**
+      → Read `/globular/clustercontroller/leader/addr`. If empty, etcd lease expired and
+        election is in progress (~10s). If non-empty but the address is unreachable, that
+        node is down — restart its controller and a new election fires.
+
+      **Symptom: "release-workflow ... RUN_STATUS_FAILED" loop in journal (every ~30ms)**
+      → A package release is failing fast and being retried unbounded. Check the workflow
+        service logs for the specific failure cause. Common: missing artifact in repository,
+        node-agent unreachable, package metadata mismatch. Until the underlying cause is
+        fixed, this loop saturates the controller's CPU and may starve other goroutines
+        (apply-watchers, reconcilers).
+
+      **Symptom: an etcd-watching goroutine silently dies**
+      → Search for `watch error` in the controller log. If etcd emits "mvcc compacted",
+        many goroutines `continue` on the now-dead channel and never re-establish the watch.
+        Recovery: restart the leader controller (drain runs on startup). See
+        `runbooks/recover-stuck-topology-apply.yaml`. CODE FIX REQUIRED in each watch
+        goroutine.
+
+      **Symptom: split-brain — etcd says X is leader, but X's log says 'not leader'**
+      → X's controller restarted recently; etcd lease still belongs to X but X hasn't
+        re-claimed leadership in-memory yet. If it persists for >30s, restart X.
+
+      **Symptom: a node's MinioJoinPhase is stuck at non_member after apply**
+      → VIP-contamination class. See `failure_modes.yaml: vip_contamination.node_routable_ip_returns_vip`.
+    links:
+      awareness_failure_modes:
+        - cluster_controller.objectstore_apply_watcher_dies_silently
+        - vip_contamination.node_routable_ip_returns_vip
+      runbooks:
+        - runbooks/recover-stuck-topology-apply.yaml
+
+  - id: ops.role.cluster-controller.restart-safe-policy
+    type: DECISION
+    title: "When restarting a controller is safe vs requires care"
+    tags: [always, cluster-controller, recovery]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller]
+    content: |
+      **Safe to restart any time**: a non-leader controller. Election is already in equilibrium;
+      restarting a follower triggers no leadership change. ~10s of leader-proxy reconnect noise.
+
+      **Safe with brief disruption**: the leader controller. Restart triggers election (~10-15s
+      with no leader). During that window: workflow dispatches queue, ACME refresh defers, drift
+      reconciler pauses. Most user-facing services don't notice.
+
+      **Requires sequence**: when multiple controllers need to be bounced (e.g., to recover
+      stuck etcd watchers across all of them). Restart followers first so they have fresh
+      goroutines, THEN restart the leader last — election picks among fresh-watcher candidates,
+      and the new leader's drain catches any queued requests on startup.
+
+      **Never bypass HA**: do NOT stop a leader without restarting it; do NOT delete the etcd
+      leader key manually unless explicitly recovering from a stuck state (the leader key is
+      lease-bound; deleting it just hastens election by a few seconds anyway).

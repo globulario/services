@@ -1,0 +1,113 @@
+schema_version: 1
+file_kind: service-role
+metadata:
+  title: "Service role — repository"
+  description: |
+    What the repository service IS, what it OWNS, the trust boundary between metadata (Scylla)
+    and content (MinIO local CAS), and how it integrates with deploy / release reconciler.
+  source_documents:
+    - golang/repository/repository_server/
+    - docs/operators/deploying-applications.md
+
+entries:
+
+  - id: ops.role.repository
+    type: ARCHITECTURE
+    title: "repository — package registry, MinIO-backed, ScyllaDB-indexed"
+    tags: [day-1, day-2, repository, role]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      **What it is**: The package registry for the cluster. Source of truth for "this version
+      of this service exists, here is its content".
+
+      **What it OWNS**:
+      - Artifact metadata in ScyllaDB (publisher, name, version, build_id, build_number,
+        platform, kind, sha256, size, dependencies, comment, publish_state)
+      - Artifact CONTENT in the local MinIO `globular` bucket (immutable, content-addressed
+        by build_id + version + platform)
+      - Version allocation (`AllocateUpload` reserves the next `--bump` version with a
+        5-minute TTL)
+      - Upload, download, list, search, verify RPCs
+      - Local installable receipts at `/var/lib/globular/repository/installable/` —
+        operating-system-truth that "I have this version locally"
+      - Quarantine state for untrusted upstream sources
+
+      **Trust model** (per session_scylla_trust_model in user memory):
+      - Scylla = INDEX (fast lookup, but never authoritative for "is this installed?")
+      - Local POSIX CAS in MinIO = installable truth (the bytes either exist locally or
+        they don't)
+      - Upstream sources (e.g. GitHub releases) are quarantine-by-default; require explicit
+        trust grant per-publisher
+
+      **What it MUST NOT do**:
+      - Mark a release as "available" or "installable" based on remote-only existence
+      - Promote artifact metadata before the bytes are confirmed in local CAS
+      - Bypass quarantine for any upstream source (even "trusted" ones must explicitly opt-in)
+    links:
+      awareness_invariants:
+        - install.result.atomic_commit
+        - repository.metadata_first
+
+  - id: ops.role.repository.dependencies
+    type: ARCHITECTURE
+    title: "repository — dependencies and the recovery-cycle hazard"
+    tags: [day-1, repository, dependencies]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      **repository depends on**:
+      - MinIO distributed pool (for blob storage)
+      - ScyllaDB (for the metadata index)
+
+      **Recovery deadlock hazard**:
+      - node-agent depends on repository during package_install (RECOVERY phase)
+      - repository depends on MinIO for blob reads
+      - MinIO depends on node-agent to install its binary
+
+      This forms a cycle during cluster recovery. The architectural fix:
+      1. Repository MUST be able to serve metadata WITHOUT MinIO (metadata_first invariant) —
+         ScyllaDB index alone is sufficient for "does this version exist".
+      2. node-agent bootstrap uses `local_bom_cache` during recovery, NOT network repository.
+      3. MinIO bootstrap uses a local BOM cache path, NOT network repository.
+
+      Implication: never add a repository dependency on MinIO health for the read path.
+      Never gate metadata responses on MinIO availability. The recovery cycle is real and
+      has bitten the cluster before.
+    links:
+      awareness_failure_modes:
+        - repository.minio.recovery_cycle
+
+  - id: ops.role.repository.failure-modes
+    type: DEBUG
+    title: "repository — common failure modes"
+    tags: [day-1, repository, debug]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [repository]
+    content: |
+      **Symptom: deploy fails with `Unauthenticated`**
+      → Token expired or missing. `globular auth login --user sa --password <pwd>`.
+
+      **Symptom: deploy fails with `ResourceExhausted: version X already reserved`**
+      → A previous deploy reserved that version and didn't complete. Wait for the printed
+        TTL to expire (5min default), then retry. There's no early-release operator command.
+
+      **Symptom: artifact appears in repository but never propagates to nodes**
+      → release reconciler in cluster-controller is responsible. Check:
+        - cluster-controller is healthy and is leader
+        - `journalctl -u globular-cluster-controller.service | grep release-workflow.*<service>`
+        - if no log entries appear, the controller didn't notice the new artifact;
+          re-running deploy will trigger fresh dispatch
+
+      **Symptom: download/install fails with sha256 mismatch**
+      → The local CAS bytes drifted from the metadata. Either ScyllaDB schema corruption
+        (rare) or someone manually wrote to the MinIO bucket. Run
+        `globular repository repair-artifact` and investigate audit logs.
+
+      **Symptom: 'CORRUPTED' state on a build**
+      → entrypoint_checksum verification failed at install time. Triggered by the per-binary
+        signing pipeline (cluster-controller signs build artifacts; node-agent verifies on
+        install). See session_entrypoint_checksum_invariants in user memory.

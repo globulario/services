@@ -1,0 +1,127 @@
+schema_version: 1
+file_kind: service-role
+metadata:
+  title: "Service role — ai-memory"
+  description: |
+    What ai-memory IS, the schema, the seed-vs-organic distinction, and the immutability
+    layer that protects seed entries from runtime tampering.
+  source_documents:
+    - docs/ai/ai-services.md
+    - docs/operational-knowledge/README.md
+
+entries:
+
+  - id: ops.role.ai-memory
+    type: ARCHITECTURE
+    title: "ai-memory — persistent cluster knowledge base"
+    tags: [day-1, day-2, ai-memory, role]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      **What it is**: Durable, queryable knowledge store for everything the cluster has
+      learned about itself. Backed by ScyllaDB (RF=3) so it survives single-node failure.
+
+      **Port**: 10200 (gRPC over mTLS).
+
+      **What it OWNS**:
+      - Memory entries with rich metadata: id (UUID), project, type (one of 10), title,
+        content (markdown), tags, metadata (KV map), related_ids (bidirectional graph),
+        reference_count, created_at, updated_at, ttl_seconds (optional)
+      - Full-text search across title and content
+      - Project namespacing (multiple projects per cluster, e.g. `globular-services`,
+        `customer-app-foo`)
+      - Bidirectional linking — set `related_ids` on one entry, the reverse link is
+        materialized automatically
+
+      **Memory types** (per docs/ai/ai-services.md):
+      - FEEDBACK — user correction or validation
+      - ARCHITECTURE — what the cluster IS (definitional, durable)
+      - DECISION — choices made and their rationale
+      - DEBUG — observed bug + diagnosis + fix (incident-level)
+      - SESSION — conversational context, resumable
+      - USER — preferences and profile of an operator
+      - PROJECT — context about the work the operator is doing
+      - REFERENCE — pointers to external systems (Linear, Grafana, etc.)
+      - SCRATCH — ephemeral notes (TTL'd, low confidence)
+      - SKILL — codified procedure / runbook
+
+      **Provenance** (every entry MUST declare):
+      - `source` — one of: `seed` (from operational-knowledge bundle), `incident` (from
+        ai-watcher → ai-executor pipeline), `session` (saved by an operator/agent),
+        `human` (direct write, audit-logged)
+      - For `source = seed`: also `seed_version` and `seed_sha256` for integrity verification
+    links:
+      awareness_invariants:
+        - ops_knowledge.seed_integrity
+
+  - id: ops.role.ai-memory.immutability-layer
+    type: ARCHITECTURE
+    title: "ai-memory immutability — seed entries are protected"
+    tags: [day-1, day-2, ai-memory, integrity, security]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      Seed entries (provenance.source == "seed") are IMMUTABLE at runtime. The ai-memory
+      Update and Delete RPCs MUST reject requests that target a seed entry unless the
+      caller's gRPC principal is exactly `seeder` (the day-1 seeder workflow's service
+      account).
+
+      Why: operational knowledge is the AI's source of truth for incident response. A
+      poisoned seed entry could cause future AI sessions to recommend wrong remediations.
+      The seed must be cryptographically verifiable against the awareness bundle.
+
+      Allowed write paths to seed entries:
+      - SeederWorkflow with `seeder` principal — runs after every awareness bundle install
+        OR awareness bundle version change. Idempotent: same id + same sha256 = noop;
+        same id + new sha256 = upsert.
+
+      Forbidden write paths (return PERMISSION_DENIED with audit log):
+      - Any human-direct write (operator, sa, admin role) — even sa cannot mutate seed
+        entries; the design is "ship a new awareness bundle to change the seed"
+      - Any write from ai-executor — incident remediations create new memories with
+        `source = incident`, never overwrite seed knowledge
+      - Any write from CLI tools that don't carry the `seeder` principal
+
+      Drift detection:
+      - cluster-doctor runs the `ops_knowledge.seed_integrity` invariant every cycle
+      - For each seed-source entry, recompute SHA256 of the canonical-form content,
+        compare to the awareness bundle's manifest
+      - On drift: emit `ops_knowledge.seed_drift_post_install` finding (severity=warning,
+        ADVISORY, never gates reconciliation)
+    links:
+      awareness_invariants:
+        - ops_knowledge.seed_integrity
+      awareness_failure_modes:
+        - ops_knowledge.seed_drift_post_install
+        - ops_knowledge.unauthorized_seed_mutation
+        - ops_knowledge.seeder_workflow_skipped
+
+  - id: ops.role.ai-memory.failure-modes
+    type: DEBUG
+    title: "ai-memory — common failure modes"
+    tags: [day-1, day-2, ai-memory, debug]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [ai-memory]
+    content: |
+      **Symptom: ai-memory RPCs hang or return Unavailable**
+      → ScyllaDB lost quorum. Memory cannot serve writes (CL=QUORUM by default). Restore
+        ScyllaDB before troubleshooting ai-memory itself.
+
+      **Symptom: `globular memory query --tags seed` returns empty**
+      → Seeder workflow has not run. See failure_mode `ops_knowledge.seeder_workflow_skipped`.
+        Check controller scheduled the seeder; check workflow service shows the run; check
+        ai-memory was healthy at run time.
+
+      **Symptom: `globular memory query` returns entries but they're missing recent incidents**
+      → ai-watcher → ai-executor → ai-memory pipeline broken. Check ai-watcher is subscribed
+        to doctor and node-agent events; check ai-executor is processing incidents and
+        writing back. See ops.role.cluster-doctor.feedback-loop.
+
+      **Symptom: doctor reports `ops_knowledge.seed_drift_post_install`**
+      → A seed entry's content drifted from the bundle's manifest. Either someone bypassed
+        the immutability layer (investigate audit log) OR the on-disk YAML at
+        `/var/lib/globular/operational-knowledge/` was hand-edited (re-install the
+        awareness bundle). Re-running the seeder heals the entry.

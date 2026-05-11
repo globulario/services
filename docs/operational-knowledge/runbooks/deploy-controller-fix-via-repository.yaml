@@ -1,0 +1,103 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Deploy a controller code fix via the repository pipeline"
+  description: |
+    Concrete step-by-step procedure to take a code change in `golang/cluster_controller/`,
+    push it through `globular deploy`, and watch the propagation across all controller-
+    bearing nodes. Captures the exact sequence + every gotcha hit in the 2026-05-10 session.
+  source_documents:
+    - docs/operational-knowledge/stages/day-1-deploy-pipeline.yaml
+    - golang/deploy/deploy.go
+
+entries:
+
+  - id: ops.runbook.deploy-controller-fix
+    type: SKILL
+    title: "Deploy a controller code fix via the repository pipeline"
+    tags: [day-1, day-2, deploy, repository, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, repository, authentication, node-agent, workflow]
+      services_healthy: [repository, authentication]
+    content: |
+      Use this runbook when you've fixed a bug in cluster-controller (or any service) and
+      want it propagated to every node via the official release pipeline. NOT for hand-built
+      binaries — those break checksum verification and the convergence committer.
+    links:
+      awareness_invariants:
+        - install.result.atomic_commit
+        - repository.metadata_first
+      runbooks:
+        - runbooks/recover-stuck-topology-apply.yaml
+    procedure:
+      - phase: observe
+        description: "Confirm the change is correct and tested locally"
+        commands:
+          - cmd: "cd golang && go build ./<service-package>/"
+            expect: "exit 0; build clean"
+          - cmd: "cd golang && go test ./<service-package>/ -race"
+            expect: "all tests PASS, including any new regression test for the fix"
+          - cmd: "cd golang && go test ./..."
+            expect: "no other package breaks because of this change (sanity)"
+            note: "Optional but recommended for changes in cross-cutting packages"
+
+      - phase: plan
+        description: "Authenticate and verify deploy preconditions"
+        commands:
+          - cmd: "ls ~/.config/globular/ -la"
+            expect: "directory owned by current user (NOT root from prior sudo deploy)"
+            note: "If root-owned: sudo chown -R <user>:<user> ~/.config/globular/"
+          - cmd: "globular --controller globule-<leader>.globular.internal auth login --user sa --password <SA-PASSWORD>"
+            expect: "Authenticated as 'sa'"
+            note: "Default sa password is 'adminadmin' — change before production exposure"
+          - cmd: "ls -la generated/"
+            expect: "directory exists, owned by current user"
+            note: "If missing: mkdir generated. If root-owned: sudo chown -R <user>:<user> generated/"
+
+      - phase: execute
+        description: "Deploy and watch the pipeline"
+        commands:
+          - cmd: "globular --controller globule-<leader>.globular.internal deploy <service> --bump patch --comment 'fix: <one-line summary>'"
+            expect: |
+              ━━━ Deploy: <service> ━━━
+              → Step 1: Building binary...      ✓
+              → Step 2: Querying repository...  ✓ Allocated: version=X.Y.Z build=N
+              → Step 3: Publishing (full)...    ✓ Published to <repo>:443
+              → Step 4: Updating desired state... ✓
+              ━━━ Deployed ━━━
+            note: |
+              On 'permission denied' writing the .tgz: retry as `sudo globular ... deploy ...`.
+              On 'ResourceExhausted: version X already reserved': wait the printed expiry, then retry.
+
+      - phase: verify
+        description: "Confirm propagation to every target node"
+        commands:
+          - cmd: "sudo journalctl -u globular-cluster-controller.service --since '2 minutes ago' | grep -iE 'release-workflow.*<service>'"
+            expect: |
+              "ServiceRelease ... dispatching release workflow across N nodes (v=X.Y.Z)"
+              one "installing <service>@X.Y.Z" line per node
+              one "node <id> succeeded for ... v=X.Y.Z" per node
+          - cmd: "globular --controller globule-<leader>.globular.internal cluster nodes get <node_id> --output json | jq '.metadata'"
+            expect: "installed package metadata reflects the new version (NOT the binary --version output, which is a separate gap)"
+
+      - phase: verify-fix
+        description: "Confirm the fix is doing what it's supposed to do"
+        commands:
+          - cmd: "<service-specific health check>"
+            note: |
+              For controller fixes, also check that previously-failing operations now succeed.
+              Example for the 2026-05-10 MinIO VIP fix: the affected node should transition
+              from MinioJoinPhase=non_member to verified within ~30s of the new controller
+              taking over leadership.
+
+    success_criteria:
+      - "deploy command exits 0 with 'Published' and 'Updated desired state'"
+      - "every target node logs 'release-workflow: node <id> succeeded'"
+      - "convergence-committer logs the new version per node"
+      - "the symptom the fix was meant to address is no longer reproducible"
+
+    follow_up:
+      - "Commit the source change with a message referencing the deployed version"
+      - "If this fix uncovered a class of bug, add a failure_mode to docs/awareness/failure_modes.yaml and re-run awareness build"
+      - "If this fix established a new operational procedure, update the relevant runbook in docs/operational-knowledge/runbooks/"

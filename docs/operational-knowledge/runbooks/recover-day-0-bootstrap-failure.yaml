@@ -1,0 +1,133 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Recover from a failed day-0 bootstrap"
+  description: |
+    Day-0 bootstrap can fail at several distinct points. This runbook walks through diagnosing
+    where it failed and the safest recovery path for each. Day-0 has no AI services, no doctor,
+    no quorum — the recovery path is mostly direct etcd / systemd / filesystem inspection.
+  source_documents:
+    - docs/operational-knowledge/stages/day-0-bootstrap.yaml
+    - docs/operators/installation.md
+
+entries:
+
+  - id: ops.runbook.recover-day-0-bootstrap-failure
+    type: SKILL
+    title: "Recover from a failed day-0 bootstrap"
+    tags: [day-0, recovery, bootstrap, runbook]
+    applies_when:
+      cluster_phases: [day-0]
+      services_present: []
+    content: |
+      Day-0 bootstrap has 4 distinct phases that can fail independently:
+
+      1. **PKI generation** — CA + service certs created under /var/lib/globular/pki/
+      2. **etcd start** — single-node etcd with TLS on 2379
+      3. **node-agent start** — systemd unit, mTLS-enabled, listens on 11000
+      4. **cluster-controller start** — leader-of-self, listens on 12000, writes its own
+         service config to etcd
+
+      Identify WHICH phase failed before attempting recovery — fixing the wrong layer
+      compounds the failure.
+    links:
+      awareness_failure_modes:
+        - bootstrap.flag_persists_post_day_1
+    procedure:
+      - phase: observe
+        description: "Find out where bootstrap stopped"
+        commands:
+          - cmd: "ls -la /var/lib/globular/pki/"
+            expect: |
+              Expect: ca.crt, ca.key, issued/services/{service.crt,service.key}.
+              Missing CA → phase 1 failed; missing service certs → phase 2 hadn't yet
+              run (or phase 1 succeeded but cert issuance step crashed).
+          - cmd: "systemctl status globular-etcd.service --no-pager | head -20"
+            expect: "active (running). If not, check the next command."
+          - cmd: "journalctl -u globular-etcd.service --no-pager | tail -30"
+            expect: "diagnose: TLS errors? port-bind failure? data dir issue?"
+          - cmd: "systemctl status globular-node-agent.service globular-cluster-controller.service --no-pager | head -40"
+            expect: |
+              Both should be 'active (running)' once bootstrap succeeded.
+              If node-agent is failing: TLS handshake usually — see PKI files.
+              If controller is failing: probably cannot reach etcd — check etcd first.
+          - cmd: "ls -la /var/lib/globular/bootstrap.enabled 2>/dev/null"
+            expect: "present and recent (mtime within ~30min) means bootstrap mode is still ON"
+            note: |
+              If absent and bootstrap was attempted, the TTL expired. You can re-create
+              the flag (touch the file) but be aware: SECURITY RISK if cluster has any
+              network reachability beyond loopback.
+
+      - phase: classify
+        description: "Determine the recovery path based on what's broken"
+        note: |
+          Choose ONE recovery path below based on the failure point.
+
+      - phase: recover-pki
+        description: "PHASE 1 — PKI generation failed"
+        commands:
+          - cmd: "ls /var/lib/globular/pki/"
+            expect: "absent or partial"
+          - cmd: "sudo systemctl stop globular-cluster-controller globular-node-agent globular-etcd 2>/dev/null"
+            note: "Stop dependent services that may have started but be broken"
+          - cmd: "sudo rm -rf /var/lib/globular/pki/"
+            warning: "Destructive — all certs lost. ONLY do this on a fresh day-0 attempt."
+          - cmd: "sudo touch /var/lib/globular/bootstrap.enabled"
+            note: "Re-arm bootstrap mode (loopback-only acceptance)"
+          - cmd: "sudo globular cluster bootstrap"
+            expect: "fresh PKI generation; all services come up clean"
+
+      - phase: recover-etcd
+        description: "PHASE 2 — etcd failed to start"
+        commands:
+          - cmd: "sudo cat /var/lib/globular/config/etcd.yaml"
+            expect: "valid YAML; data-dir, peer/listen URLs, TLS cert paths point to /var/lib/globular/pki/"
+          - cmd: "sudo ls -la /var/lib/globular/etcd/"
+            expect: "data dir exists and is owned by globular:globular"
+          - cmd: "sudo journalctl -u globular-etcd.service --no-pager | tail -40"
+            expect: "look for TLS errors, port-bind 'address already in use', or 'cluster ID mismatch'"
+            note: |
+              Cluster ID mismatch on day-0 means you have leftover etcd data from a previous
+              cluster. Either rm -rf /var/lib/globular/etcd/ (DESTRUCTIVE — data lost) or
+              restart fresh.
+          - cmd: "sudo systemctl restart globular-etcd && sleep 5 && sudo systemctl status globular-etcd --no-pager | head -10"
+            expect: "active (running)"
+
+      - phase: recover-node-agent
+        description: "PHASE 3 — node-agent won't start"
+        commands:
+          - cmd: "sudo journalctl -u globular-node-agent.service --no-pager | tail -30"
+            expect: "diagnose: PKI? port? etcd reachability?"
+          - cmd: "sudo /usr/lib/globular/bin/node_agent_server --version 2>&1 | tail -3"
+            expect: "binary present and reports version (may be 0.0.0-dev — that's normal)"
+          - cmd: "sudo -u globular curl -k https://localhost:2379/health"
+            expect: "etcd responds (else fix etcd first)"
+          - cmd: "sudo systemctl restart globular-node-agent && sleep 5 && systemctl is-active globular-node-agent"
+            expect: "active"
+
+      - phase: recover-controller
+        description: "PHASE 4 — cluster-controller won't start"
+        commands:
+          - cmd: "sudo journalctl -u globular-cluster-controller.service --no-pager | tail -50 | grep -iE 'fatal|error|cannot'"
+            expect: "specific error driving the failure"
+          - cmd: "sudo /usr/lib/globular/bin/cluster_controller_server --version 2>&1 | tail -3"
+            expect: "binary present"
+          - cmd: "globular cluster info 2>&1 | head -10"
+            expect: "if controller IS running, this returns; if not, fix the etcd/node-agent prerequisites first"
+          - cmd: "sudo systemctl restart globular-cluster-controller && sleep 10 && systemctl is-active globular-cluster-controller"
+            expect: "active"
+
+    success_criteria:
+      - "globular cluster info returns: 1 node, profiles=[core,control-plane,storage]"
+      - "globular cluster nodes list shows the founding node in 'ready' state"
+      - "/var/lib/globular/bootstrap.enabled is still present (within TTL) — required to do day-1 join"
+
+    important:
+      - "BEFORE day-1 join: change the sa root password with `globular auth root-passwd`"
+      - "BEFORE day-1 join: confirm /var/lib/globular/bootstrap.enabled flag is still present (TTL extends with bootstrap-mode RPCs)"
+      - "AFTER day-1 join completes: bootstrap.enabled MUST be removed automatically; verify it is gone"
+
+    if_all_else_fails:
+      - "Last resort: full nuke and re-bootstrap. sudo systemctl stop globular-* && sudo rm -rf /var/lib/globular/{pki,etcd,packages,domains}/ && sudo touch /var/lib/globular/bootstrap.enabled && sudo globular cluster bootstrap"
+      - "ONLY do this on a node with no production data."
+      - "If the node has joined a multi-node cluster: nuke is much more involved — needs etcd member removal first."

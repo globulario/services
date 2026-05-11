@@ -1,0 +1,84 @@
+schema_version: 1
+file_kind: service-role
+metadata:
+  title: "Service role — workflow"
+  description: |
+    What the workflow service IS, the idempotency contract, and why every cluster mutation
+    flows through it.
+  source_documents:
+    - docs/operators/workflow-service.md
+    - golang/workflow/workflow_server/
+
+entries:
+
+  - id: ops.role.workflow
+    type: ARCHITECTURE
+    title: "workflow — the only path for cluster mutations"
+    tags: [day-1, day-2, workflow, role]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      **What it is**: The execution engine for state-changing cluster operations. Every
+      meaningful cluster mutation (package installs, topology changes, certificate rotations,
+      etcd member changes) MUST flow through a workflow run.
+
+      **Port**: 10004 (gRPC over mTLS).
+
+      **Why workflows, not direct RPCs**:
+      - Idempotent — safe to replay on partial failure
+      - Durable — run state persisted in etcd; survives controller restart
+      - Auditable — every step recorded with timestamp + outcome
+      - Coordinated — controller decides, workflow coordinates, node-agents execute
+      - Terminal — every workflow reaches SUCCEEDED or FAILED (no zombies)
+
+      **Workflow run states**:
+      - PENDING — created, awaiting dispatch
+      - DISPATCHING — in-flight to executor
+      - RUNNING — executor (usually node-agent) is processing
+      - SUCCEEDED — terminal; correlates with the convergence-committer writing installed-state
+      - FAILED — terminal; the workflow's failure mode determines retry policy
+      - DEFERRED — awaiting an event (per WF-DEFER B3/B4 — counter-tracked, ABANDONED if max attempts reached)
+
+      **What it MUST NOT do**:
+      - Spin forever — every workflow MUST terminate within its declared timeout
+      - Bypass the controller's authority — workflows execute decisions, don't make them
+      - Skip the convergence committer — installed-state is committed atomically with
+        workflow success (see invariant `install.result.atomic_commit`)
+    links:
+      awareness_invariants:
+        - install.result.atomic_commit
+        - convergence.no_infinite_retry
+
+  - id: ops.role.workflow.failure-modes
+    type: DEBUG
+    title: "workflow — common failure modes"
+    tags: [day-1, day-2, workflow, debug]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [workflow]
+    content: |
+      **Symptom: workflow stuck in DISPATCHING for >1 minute**
+      → executor lease stall. The previous executor crashed without releasing its lease.
+        Lease TTL is ~15 min; it auto-recovers but blocks all retries until then. Operational
+        workaround: restart the workflow service to clear leases (use sparingly).
+
+      **Symptom: same workflow correlation re-runs every ~30ms**
+      → tight retry loop. The workflow's failure isn't being classified as deterministic.
+        Look at the failure_mode in the workflow's last attempt. Common cause: missing
+        artifact in repository, or node-agent unreachable. Fix the upstream cause; the
+        workflow's retry stops naturally.
+
+      **Symptom: workflow status SUCCEEDED but installed-state in etcd doesn't reflect it**
+      → broke the atomic_commit invariant. Either the workflow lied about success, or the
+        convergence-committer crashed mid-write. Force a re-run; if it persists, file a bug.
+
+      **Symptom: workflow correlation marked ABANDONED**
+      → max-attempt counter exceeded (per WF-DEFER B3 design). The workflow is permanently
+        stuck. Investigate the underlying blocker; once cleared, manually clear the
+        ABANDONED state via `globular workflow clear-abandoned <correlation>`.
+
+      **Symptom: dispatch timeout under high control-plane churn**
+      → control plane (controller + workflow + etcd) is overloaded. Look for the upstream
+        cause (deploy storm? failed reconcile loop?). Workflow service is downstream of the
+        controller's choices; fixing the controller's issue usually unblocks workflow.

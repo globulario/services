@@ -1,0 +1,116 @@
+schema_version: 1
+file_kind: service-role
+metadata:
+  title: "Service role — ai-executor"
+  description: |
+    What ai-executor IS, the three-tier permission model, the typed-actions-only rule, and
+    how it bridges incident → action → memory.
+  source_documents:
+    - docs/ai/ai-services.md
+    - docs/ai/ai-rules.md
+    - docs/ai/ai-operating-rules.md
+
+entries:
+
+  - id: ops.role.ai-executor
+    type: ARCHITECTURE
+    title: "ai-executor — diagnoses, acts (within bounds), records"
+    tags: [day-1, day-2, ai-executor, role]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      **What it is**: The acting hand of the AI tier. Receives incidents from ai-watcher,
+      classifies them, executes auto-remediation when safe, escalates when not, records the
+      outcome to ai-memory.
+
+      **Port**: 10230 (gRPC over mTLS).
+
+      **What it OWNS**:
+      - Incident classification by tier (0/1/2)
+      - Action execution via typed gRPC RPCs (NEVER shell-out)
+      - Outcome recording to ai-memory (the single auto-write path that today's session
+        observed)
+      - Escalation to operator for Tier 2 incidents
+
+      **What it MUST NOT do**:
+      - Construct shell commands — typed RPCs only. If an action lacks a typed API, it MUST
+        NOT be done by AI. This is the strongest rule in `ai-operating-rules.md`.
+      - Bypass RBAC — ai-executor has its own service account with scoped permissions; it
+        cannot escalate
+      - Take Tier 2 actions without explicit human approval — even a Tier 2 plan goes through
+        a gate
+      - Write to AI Memory entries with `provenance.source = seed` (those are immutable)
+    links:
+      awareness_invariants:
+        - ops_knowledge.seed_integrity
+
+  - id: ops.role.ai-executor.three-tier-permissions
+    type: ARCHITECTURE
+    title: "Three-tier permission model"
+    tags: [day-1, day-2, ai-executor, security, tiers]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [ai-executor]
+    content: |
+      Every action has a TIER that determines who can execute and when:
+
+      **Tier 0 — OBSERVE** (always safe, AI may do freely):
+      - Read-only: doctor reports, node-agent inventory, etcd reads, log queries
+      - No state mutation
+      - Used during diagnosis phase before any action
+
+      **Tier 1 — AUTO_REMEDIATE** (pre-approved, AI executes without human in the loop):
+      - Restart a single service unit (`globular cluster service restart <name>`)
+      - Clear a stale local cache
+      - Re-trigger a workflow that was correctly converged but locally evicted
+      - Idempotent and reversible operations
+
+      **Tier 2 — REQUIRE_APPROVAL** (always needs human gate, even from AI):
+      - Anything destructive: wipe a disk, delete a cluster member, force-rollback a release
+      - Anything wide-blast-radius: stop a leader controller, change topology, rotate the CA
+      - Anything that affects external state: Let's Encrypt cert rotation, DNS provider change
+
+      **Failsafe rule**: if AI services are down, the cluster keeps running through
+      deterministic convergence. AI is supplementary, never required. Operationally, the
+      tier model means: a critical alert isn't blocked by ai-executor being down — it
+      surfaces in doctor findings and waits for human action.
+
+  - id: ops.role.ai-executor.action-recording
+    type: ARCHITECTURE
+    title: "Every action produces a memory entry"
+    tags: [day-1, day-2, ai-executor, ai-memory, audit]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [ai-executor, ai-memory]
+    content: |
+      The single sanctioned write path from runtime cluster events into AI Memory:
+
+      ```
+      doctor finding / node-agent event
+                     ↓
+                ai-watcher (subscribe + aggregate)
+                     ↓
+                ai-executor (classify + act + record)
+                     ↓
+                ai-memory.Store(type=DEBUG, tags=[incident, <finding-id>],
+                                metadata={action:..., outcome:..., principal:'ai-executor'})
+      ```
+
+      Every entry's `provenance.source = "incident"` (NOT "seed"). The principal in
+      metadata is "ai-executor" so future audit can distinguish auto-recorded from
+      seed entries from session entries from human entries.
+
+      Today's session observed exactly ONE such entry (scylla-manager-agent crash → restart
+      → succeeded), proving the pipeline works but doesn't fire consistently. Most cluster
+      events are NOT today reaching ai-watcher — see `failure_modes.yaml:
+      ops_knowledge.seeder_workflow_skipped` for one part of the gap (doctor was overloaded).
+
+      Operator query for these auto-recorded incidents:
+      ```
+      globular memory query --project globular-services --tags incident
+      ```
+      Or via MCP:
+      ```
+      mcp__globular__memory_query(project="globular-services", tags="incident")
+      ```

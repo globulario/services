@@ -1,0 +1,156 @@
+schema_version: 1
+file_kind: stage
+metadata:
+  title: "Day-1 — keepalived (VIP) enable"
+  description: |
+    What changes when keepalived is enabled, the floating-VIP semantics, and the entire class
+    of "VIP contamination" bugs that have hit (and continue to hit) downstream subsystems.
+  source_documents:
+    - docs/operators/keepalived-and-ingress.md
+    - docs/operators/high-availability.md
+
+entries:
+
+  - id: ops.day-1.keepalived.what-changes
+    type: ARCHITECTURE
+    title: "keepalived enable — what changes when the VIP starts floating"
+    tags: [day-1, keepalived, vip, ha]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [keepalived]
+    content: |
+      Before keepalived: each node is reachable only at its stable interface IP. External
+      traffic targets one specific node; if that node fails, external clients break.
+
+      After keepalived enable: a floating VIP (e.g. 10.0.0.100) is held by ONE node at a time
+      (the keepalived MASTER). Failover via VRRP: if the MASTER stops advertising health, a
+      BACKUP takes the VIP. External traffic always hits whichever node currently holds it.
+
+      Cluster spec lives in etcd at `/globular/ingress/v1/spec` (VIP, VRID, interface,
+      priority per node). Per-node VRRP state at `/globular/ingress/v1/status/<node-id>`.
+
+      What this UNLOCKS:
+      - DMZ external routing — router forwards external traffic to a single VIP, not 5 IPs
+      - Single TLS cert with the VIP in SANs serves all external traffic
+      - DNS A records for external FQDNs point to the VIP (one record, automatic failover)
+
+      What it INTRODUCES:
+      - Every node's `node.Identity.Ips` now MAY include the VIP (in addition to its stable
+        interface IP). Specifically, the MASTER node will have BOTH the VIP and the stable IP
+        in its reported list.
+      - Health-gated failover: keepalived only advertises health if local checks pass
+        (gateway responsive, etc.). A node with broken gateway loses the VIP.
+    links:
+      awareness_invariants:
+        - keepalived.health_gated_failover
+
+  - id: ops.day-1.keepalived.vip-contamination-class
+    type: DEBUG
+    title: "VIP contamination — a recurring class of bug"
+    tags: [day-1, day-2, keepalived, vip-contamination, class-of-bug]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [keepalived]
+    content: |
+      The VIP appears in `node.Identity.Ips` whenever a node holds it. Any code that picks a
+      single representative IP from that list — `node.PrimaryIP()`, `node.Identity.Ips[0]`,
+      `nodeRoutableIP(node)` — returns the VIP whenever the node is the keepalived MASTER.
+
+      Anything downstream that compares that representative IP against a curated list of
+      stable IPs (etcd peer URLs, MinIO pool nodes, controller pool nodes, DNS A records)
+      will fail to match. Result: the node is treated as "unknown" / "stale" / "non-member"
+      depending on the consumer.
+
+      Subsystems known to have hit this class (and how):
+      - **etcd member eviction** (2026-05-10): `removeStaleMembers` evicted a healthy member
+        when its `memberNode.IP` came back as the VIP. Fixed in commit a4ea9ef1 with
+        `node.StableIP(clusterVIP)`.
+      - **dns reconciler**: per-node A records contained both real IP and VIP. Fixed in
+        the same commit.
+      - **publishGateway / publishController**: gateway/controller external DNS records
+        mixed VIP among stable node IPs. Fixed in the same commit.
+      - **MinIO pool publish filter** (2026-05-10): `nodeRoutableIP` returned VIP, the IP
+        wasn't in the admitted pool list, the node got stuck at `MinioJoinPhase=non_member`
+        forever. Fixed in 1.2.28 with `nodeAnyIPInPool` (the AnyIP pattern).
+      - **scylla/hosts publish**: `publishScyllaHostsIfNeeded` was bitten too; uses
+        `StableIP(clusterVIP)` now.
+      - **WriteInstalledPackage / heartbeat Phase 2 / SyncInstalledPackage build_id**: misc
+        related sites — see session_vip_contamination_fix in user memory.
+
+      Two valid fix recipes (use one consistently within a code path):
+      1. `node.StableIP(clusterVIP)` — explicitly excludes the VIP. Best when picking ONE
+         representative IP for publishing or addressing.
+      2. `nodeAny<X>(node, list)` helpers — match against ANY of `node.Identity.Ips`. Best
+         when CHECKING membership in a stable list.
+
+      Forbidden non-fixes:
+      - Filtering the VIP out of `node.Identity.Ips` (the node legitimately HAS that IP)
+      - Special-casing keepalived MASTER as an exception (creates worse coupling)
+      - Hardcoding node-to-pool mappings to avoid the filter
+    links:
+      awareness_failure_modes:
+        - vip_contamination.node_routable_ip_returns_vip
+
+  - id: ops.day-1.keepalived.cert-san-requirement
+    type: REFERENCE
+    title: "TLS cert MUST include VIP in SANs"
+    tags: [day-1, keepalived, pki, certificates]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [keepalived]
+    content: |
+      External clients hitting `https://<VIP>:443` get a TLS handshake against the cert held
+      by whichever node currently has the VIP. If the VIP is NOT in the cert's SANs, the
+      handshake fails with `x509: certificate is valid for ..., not <VIP>` and the operator
+      sees mysterious silent outages on failover.
+
+      Specifically: the SAN list MUST include:
+      - The cluster VIP (e.g. 10.0.0.100)
+      - Every node's hostname.cluster-domain (e.g. globule-ryzen.globular.internal)
+      - The cluster domain itself (e.g. globular.internal)
+      - "localhost" (for local-loopback bind/listen)
+
+      Historical incident (16h silent nuc outage) was caused exactly by VIP missing from
+      SANs. The 4-commit fix added: prevention at issuance, validation at issuance, TLS
+      error surfacing in logs, and a doctor invariant for cert health. See
+      session_vip_cert_fix in user memory.
+
+      Quick check on a running node:
+      ```
+      openssl x509 -in /var/lib/globular/pki/issued/services/service.crt -noout -text | grep -A1 'Subject Alternative Name'
+      ```
+    links:
+      cli_commands:
+        - "openssl x509 -in /var/lib/globular/pki/issued/services/service.crt -noout -text | grep -A1 'Subject Alternative Name'"
+
+  - id: ops.day-1.keepalived.health-gated-failover
+    type: ARCHITECTURE
+    title: "Health-gated failover — VIP only goes to healthy nodes"
+    tags: [day-1, day-2, keepalived, ha]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [keepalived, gateway]
+    content: |
+      keepalived runs a `vrrp_script` per node that checks local service health (gateway
+      reachable, controller responsive, etc.). If any check fails, the node DEMOTES itself
+      (drops priority by `weight`), letting another node win the VRRP election.
+
+      Implication: if you're debugging "the VIP keeps moving", the cause is almost always
+      a health check failing on the current MASTER. Check:
+
+      ```
+      systemctl status keepalived.service
+      journalctl -u keepalived.service --since '5 minutes ago' | grep -iE 'transition|priority|vrrp_script'
+      cat /globular/ingress/v1/status/<node-id>  # what the node thinks it is (MASTER / BACKUP / FAULT)
+      ```
+
+      The operational interaction with cluster-doctor: a flapping VIP triggers
+      `keepalived.flapping` finding (severity=warning if rate > 1/min). The remediation
+      hint usually points at the failing local service.
+
+      Common gotchas:
+      - keepalived's interface name in /etc/keepalived/keepalived.conf must match the actual
+        interface — RHEL uses ens33, Debian 12 sometimes enp1s0
+      - The VIP must NOT be the network's gateway IP (router conflict)
+      - VRID must be unique per VLAN — two clusters on the same VLAN with the same VRID will
+        fight for the VIP

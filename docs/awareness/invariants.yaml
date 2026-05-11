@@ -1776,3 +1776,185 @@ invariants:
         - TestDay1RefusesReadyWhenBundleStale
         - TestDay1RefusesReadyWhenBundleMismatched
         - TestArchitectureClassificationBlockedByStaleBundle
+
+
+    - id: ops_knowledge.seed_integrity
+      title: Operational-knowledge seed entries in AI Memory must match the SHA256 stamped in the awareness bundle manifest
+      severity: warning
+      status: active
+      summary: |
+        Operational knowledge ships as YAML in `docs/operational-knowledge/`, gets bundled into
+        the signed awareness bundle, and is loaded into AI Memory at day-1 by the seeder workflow.
+        Each seed entry carries `provenance.source = "seed"` plus a `provenance.seed_sha256` that
+        the build tool stamps from the canonical-form YAML.
+
+        At runtime, the doctor MUST periodically verify: for each AI Memory entry where
+        provenance.source = "seed", does the stored content's canonical SHA256 still match the
+        seed_sha256 in the active awareness bundle's manifest? Drift means either the bundle
+        was tampered with post-install OR ai-memory's immutability layer failed to reject a
+        write to a seed entry. Both are integrity violations worth surfacing.
+
+        This invariant is ADVISORY (severity=warning), per `convergence.no_infinite_retry`.
+        It must not gate cluster reconciliation — the seed is for AI assistance, not for
+        cluster correctness. A drifted seed degrades AI session quality but does not break
+        the cluster.
+      protects:
+        state:
+            - /var/lib/globular/operational-knowledge/                # on-disk YAML cache
+            - /var/lib/globular/awareness/current/manifest.json       # bundle manifest with seed_sha256 entries
+            - "ai-memory rows where metadata.source = 'seed'"
+        files:
+            - docs/operational-knowledge/                              # source of truth
+            - golang/ai_memory/ai_memory_server/server.go              # immutability enforcement
+            - golang/awareness/bundlesync/install.go                   # bundle install includes seed dir
+            - golang/cluster_doctor/cluster_doctor_server/             # invariant runtime check
+        symbols:
+            - SeedEntry                          # struct (planned)
+            - SeederWorkflow                     # workflow (planned)
+            - VerifySeedIntegrity                # doctor check (planned)
+            - aiMemoryRejectsSeedMutation        # storage guard (planned)
+      enforcement: |
+        - Build pipeline computes seed_sha256 over canonical-form YAML for each entry; stamps
+          it into provenance.seed_sha256 in the bundled file; emits the same hash into the
+          awareness bundle manifest under entries[].seed_sha256.
+        - InstallBundle extracts docs/operational-knowledge/ to /var/lib/globular/operational-
+          knowledge/ as part of the atomic bundle install.
+        - SeederWorkflow runs once per cluster after ai-memory becomes verified. For each YAML
+          entry: compute SHA256, compare to manifest, abort the workflow with FAILED status on
+          mismatch. On match: upsert into ai-memory with metadata.source="seed",
+          metadata.seed_version, metadata.seed_sha256, metadata.immutable=true.
+        - ai-memory's Update and Delete RPCs MUST reject any request targeting an entry with
+          metadata.source = "seed" unless the gRPC principal is "seeder". Returns
+          PERMISSION_DENIED. Exception: the seeder workflow itself may upsert when the
+          seed_sha256 changes (bundle upgraded).
+        - Doctor invariant: every doctor cycle, list all ai-memory entries where source=seed.
+          For each: re-canonicalize the content, recompute SHA256, compare to the manifest.
+          Drift → emit ops_knowledge.seed_drift finding (severity=warning) with the entry id
+          and observed-vs-expected hashes. Never gates reconciliation.
+      forbidden_fixes:
+        - mutate_seed_entry_via_human_principal             # only the seeder may write seed entries
+        - silently_overwrite_drift_without_doctor_finding   # drift must always be visible
+        - circuit_breaker_block_reconciliation_on_drift     # advisory only, must not gate
+        - skip_sha256_verification_for_seed_load            # cryptographic check is the whole point
+      related_failure_modes:
+        - ops_knowledge.seed_drift_post_install
+        - ops_knowledge.unauthorized_seed_mutation
+        - ops_knowledge.seeder_workflow_skipped
+      implemented_by:
+        - file: golang/ai_memory/ai_memory_server/server.go
+          functions:
+            - aiMemoryRejectsSeedMutation
+        - file: golang/cluster_doctor/cluster_doctor_server/ops_knowledge_check.go
+          functions:
+            - VerifySeedIntegrity
+      required_tests:
+        - TestSeedEntryIsImmutableViaHumanPrincipal
+        - TestSeederWorkflowUpsertsOnHashChange
+        - TestSeederWorkflowAbortsOnHashMismatch
+        - TestDoctorEmitsDriftFindingButDoesNotGate
+        - TestSeedSha256IsCanonicalAndStable
+
+    - id: founding.quorum.three_nodes_required
+      title: First 3 nodes of any cluster MUST have profiles core+control-plane+storage to satisfy etcd / ScyllaDB / MinIO quorum
+      severity: critical
+      status: active
+      summary: |
+        Globular's three core stateful services (etcd, ScyllaDB, MinIO) all require a minimum
+        of 3 nodes to operate without single-point-of-failure. The first three nodes of any
+        cluster MUST therefore carry the `core`, `control-plane`, AND `storage` profiles.
+
+        Enforced at join in `enforceFoundingProfiles()` in cluster_controller and CANNOT be
+        bypassed. Also enforced on profile change: SetNodeProfiles refuses to remove `storage`
+        from a node if the cluster would drop below 3 storage-profile nodes.
+
+        Until founding quorum is met, the cluster is operating in degraded day-0 mode: etcd
+        single-node, no ScyllaDB quorum, MinIO standalone. Day-1 is not complete until all
+        three founding nodes are joined and verified.
+      protects:
+        state:
+            - "/globular/nodes/<id> with profiles list"
+            - "/globular/clustercontroller/state.Nodes profiles per node"
+        files:
+            - golang/cluster_controller/cluster_controller_server/founding_profiles.go
+            - golang/cluster_controller/cluster_controller_server/server.go
+        symbols:
+            - enforceFoundingProfiles
+            - SetNodeProfiles
+      enforcement: |
+        - Join RPC rejects a new node whose proposed profiles, when added to the existing
+          cluster, would leave fewer than 3 nodes carrying core+control-plane+storage.
+        - SetNodeProfiles applies the same check before persisting a profile change.
+        - Day-1 phase classifier remains at `infra_installing` until 3 fully-profiled nodes
+          are present and verified.
+      forbidden_fixes:
+        - allow_join_without_storage_profile_when_quorum_below_three
+        - bypass_founding_check_for_special_node_kinds
+      required_tests:
+        - TestJoinRefusedBelowFoundingQuorum
+        - TestSetNodeProfilesRefusesStorageRemovalBelowQuorum
+
+    - id: etcd.endpoint_reachability
+      title: Every Globular service must be able to reach its configured etcd endpoint at startup; no silent fallback
+      severity: critical
+      status: active
+      summary: |
+        Every service resolves its config from etcd at startup. If etcd is unreachable, the
+        service MUST error out — there is no silent fallback to defaults, env vars, or local
+        files. This is a corollary of the "etcd is the sole source of truth" rule.
+
+        On day-0 the etcd is a single-node deployment on the founding node. On day-1+ it is
+        a 3+ member cluster. The endpoint each service uses is read from `/etc/globular/`
+        local seed file at first boot, then from etcd thereafter.
+      protects:
+        state:
+            - /globular/system/config
+            - "/globular/services/<id>/config"
+        files:
+            - golang/config/etcd_client.go
+        symbols:
+            - GetEtcdClient
+            - resolveEtcdEndpoints
+      forbidden_fixes:
+        - silently_fall_back_to_localhost_when_etcd_unreachable
+        - swallow_etcd_unavailable_in_critical_startup_path
+        - cache_etcd_response_so_long_startup_succeeds_after_outage
+      required_tests:
+        - TestServiceErrorsWhenEtcdUnreachable
+        - TestNoFallbackToEnvVarConfig
+
+    - id: keepalived.health_gated_failover
+      title: keepalived MUST only advertise as MASTER when local services are healthy; failover triggered by health check failure
+      severity: warning
+      status: active
+      summary: |
+        Each keepalived-bearing node runs vrrp_script health checks (gateway responsive,
+        controller reachable). If checks fail, the node demotes itself by lowering its VRRP
+        priority via `weight`, causing another node to win the election and take the VIP.
+
+        This prevents a sick node from holding the VIP and routing external traffic to itself
+        while broken. A node with broken local gateway should LOSE the VIP, not keep it.
+      protects:
+        state:
+            - /etc/keepalived/keepalived.conf
+            - /globular/ingress/v1/spec
+            - "/globular/ingress/v1/status/<node-id>"
+        files:
+            - golang/node_agent/internal/supervisor/keepalived_render.go
+        symbols:
+            - renderKeepalivedConfig
+            - vrrpScriptForCluster
+      enforcement: |
+        - The keepalived config rendered by node-agent MUST include a vrrp_script block per
+          health-check target.
+        - The interval/fall/rise parameters MUST be tuned to detect failure within ~3-5
+          seconds without flapping on transient blips.
+        - The VRRP priority + weight MUST be sized so that a single failed check drops a
+          MASTER below the next BACKUP's priority.
+      forbidden_fixes:
+        - skip_vrrp_script_to_avoid_flapping
+        - hardcode_master_priority_so_one_node_always_wins
+      related_failure_modes:
+        - vip_contamination.node_routable_ip_returns_vip
+      required_tests:
+        - TestKeepalivedConfigContainsHealthScript
+        - TestUnhealthyMasterLosesPriorityBelowBackup

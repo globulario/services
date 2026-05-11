@@ -1,0 +1,169 @@
+schema_version: 1
+file_kind: stage
+metadata:
+  title: "Day-1 — Multi-node join and founding quorum"
+  description: |
+    What it takes to grow from a single founding node (day-0) to the 3-node founding quorum
+    that day-1 requires. Covers the join script, the founding-profile invariant, the etcd add
+    sequence, and the ScyllaDB join discipline.
+  source_documents:
+    - docs/operators/day-0-1-2-operations.md
+    - docs/operators/adding-nodes.md
+    - docs/operators/installation.md
+
+entries:
+
+  - id: ops.day-1.join.founding-quorum-invariant
+    type: ARCHITECTURE
+    title: "Founding quorum — first 3 nodes MUST be core+control-plane+storage"
+    tags: [day-1, join, founding-quorum, etcd, scylla, minio]
+    applies_when:
+      cluster_phases: [day-1]
+      services_present: []
+    content: |
+      Globular's founding-quorum invariant is non-negotiable: the FIRST THREE nodes of any
+      cluster MUST carry profiles `core`, `control-plane`, AND `storage`. Why:
+
+      - **etcd**: needs 3 voting members for quorum (loses 1 = still operational)
+      - **ScyllaDB**: needs 3 nodes for the default replication factor of 3 (RF=3 with QUORUM
+        consistency = lose 1 = still operational)
+      - **MinIO**: needs 3 drives for distributed mode with EC:1 (lose 1 = degraded but readable)
+
+      Without all three, you have no real high availability. The founding-quorum invariant is
+      enforced in `enforceFoundingProfiles()` and CANNOT be bypassed at join time. Even later,
+      `SetNodeProfiles` will refuse to remove `storage` from a node if it would drop below 3
+      storage nodes.
+
+      Implication: don't add `compute`-only nodes (analytics workers, GPU nodes, etc.) until
+      the founding quorum is solid. They can join freely AFTER.
+    links:
+      awareness_invariants:
+        - founding.quorum.three_nodes_required
+      awareness_failure_modes:
+        - bootstrap.flag_persists_post_day_1
+
+  - id: ops.day-1.join.curl-script-not-tarball
+    type: SKILL
+    title: "Day-1 join is `curl gateway-script | bash`, NOT a tarball copy"
+    tags: [day-1, join, gateway, install]
+    applies_when:
+      cluster_phases: [day-1]
+      services_present: [cluster-controller, gateway]
+    content: |
+      The join flow is operator-friendly. On the new node:
+
+      ```
+      curl -sfL https://<controller-fqdn>:8443/join -k | sudo bash -s -- --token <JOIN_TOKEN>
+      ```
+
+      How it works:
+      - The controller's gateway exposes a dynamically-generated install script at /join.
+      - The script downloads the node-agent binary, installs systemd units, configures TLS,
+        and contacts the controller with the join token.
+      - The controller verifies the token, issues a node-id and TLS cert, adds the node to
+        cluster state, and the script triggers a heartbeat.
+
+      Generate the join token first on the controller:
+      ```
+      globular --controller globule-<leader>.globular.internal cluster token create --profiles core,control-plane,storage --ttl 30m
+      ```
+
+      What you do NOT do:
+      - Manually scp the node-agent binary — bypasses TLS and version pinning
+      - Edit /etc/hosts to redirect the controller — breaks mTLS SAN verification
+      - Run `globular cluster join` directly without the script — the script handles
+        prerequisites the bare command doesn't (system user, mounts, certs)
+    links:
+      cli_commands:
+        - "globular cluster token create --profiles core,control-plane,storage --ttl 30m"
+        - "curl -sfL https://<controller>:8443/join -k | sudo bash -s -- --token <token>"
+
+  - id: ops.day-1.join.etcd-add-discipline
+    type: ARCHITECTURE
+    title: "etcd add sequence — sequential, not parallel"
+    tags: [day-1, join, etcd]
+    applies_when:
+      cluster_phases: [day-1]
+      services_present: [cluster-controller]
+    content: |
+      etcd cluster expansion is SEQUENTIAL by design — adding two members in parallel can
+      cause a partition. The join flow respects this:
+
+      1. Controller adds the new member to etcd with `MemberAdd` (single-RPC, atomic)
+      2. Controller waits for the new member to report HEALTHY
+      3. Only then does it process the next pending join
+
+      Operational implication: if you have a script that runs join on 2 nodes simultaneously,
+      you get inconsistent results — sometimes both succeed, sometimes one is silently rejected
+      and ends up not in the cluster. Always join nodes one at a time.
+
+      Key etcd state in /var/lib/globular:
+      - /var/lib/globular/etcd/ — data dir (per node)
+      - /var/lib/globular/config/etcd.yaml — config (TLS paths, peer URLs)
+
+      Failure pattern observed historically: VIP-contamination caused etcd member eviction
+      during keepalived enable. See `failure_modes.yaml: vip_contamination.node_routable_ip_returns_vip`.
+    links:
+      awareness_invariants:
+        - etcd.endpoint_reachability
+      awareness_failure_modes:
+        - vip_contamination.node_routable_ip_returns_vip
+
+  - id: ops.day-1.join.scylla-sequential-join
+    type: ARCHITECTURE
+    title: "ScyllaDB Raft join is sequential too — second node stalls if first hasn't completed"
+    tags: [day-1, join, scylla]
+    applies_when:
+      cluster_phases: [day-1]
+      services_present: []
+    content: |
+      ScyllaDB's Raft-based group0 join is sequential. The second joining node waits for the
+      first to complete its bootstrap before starting its own. The join script should sequence,
+      not parallelize.
+
+      Symptoms of accidental parallel join:
+      - Second node hangs at "joining group0" forever
+      - First node's CPU spikes from constant Raft re-election
+      - `nodetool status` shows both nodes as `UJ` (joining) for >5 minutes
+
+      Recovery: kill the second node's scylla, wait for the first to reach `UN` (up-normal),
+      then restart the second. Avoid by running join script on one node at a time.
+
+      Bootstrap detail: the founding node's seed config is special — it's its own seed.
+      Joining nodes use the founding node as the seed via etcd-discovered hosts.
+      `publishScyllaHostsIfNeeded` writes seed addresses to /globular/scylla/hosts; this MUST
+      use `StableIP(clusterVIP)` (NOT `PrimaryIP()` which would return the VIP).
+    links:
+      awareness_failure_modes:
+        - vip_contamination.node_routable_ip_returns_vip
+
+  - id: ops.day-1.join.completion-checklist
+    type: REFERENCE
+    title: "How to know day-1 is actually done"
+    tags: [day-1, join, completion]
+    applies_when:
+      cluster_phases: [day-1]
+      services_present: [cluster-controller]
+    content: |
+      You're done with day-1 when ALL of these are true:
+
+      - [ ] `globular cluster nodes list` returns exactly 3 nodes, all with profiles
+            `core`, `control-plane`, `storage`
+      - [ ] All 3 nodes show `status = ready` (not `converging`, not `unreachable`)
+      - [ ] `etcdctl member list` shows 3 members all `started` (not `unstarted`)
+      - [ ] `nodetool status` (on any node) shows 3 nodes `UN` (up-normal)
+      - [ ] `globular objectstore topology status` shows mode=distributed with 3 pool nodes
+            and `Overall: ✓ CONVERGED` (per the MinIO add-node runbook)
+      - [ ] `/var/lib/globular/bootstrap.enabled` is GONE on the founding node (controller
+            removes it post-join)
+      - [ ] `globular auth login --user sa --password <new-password>` works (default
+            password should already be changed)
+
+      Until all checks pass, do NOT call this cluster "production-ready". Day-2 maintenance
+      assumes all of the above.
+    links:
+      cli_commands:
+        - "globular cluster nodes list"
+        - "etcdctl ... member list"
+        - "nodetool status"
+        - "globular objectstore topology status"

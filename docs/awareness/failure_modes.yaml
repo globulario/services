@@ -269,6 +269,9 @@ failure_modes:
     - id: annotation_scanner_false_positive
       title: Text-based annotation scanner flags string literal content as real annotations
       severity: MEDIUM
+      intentional_gap: true
+      intentional_gap_reason: "Awareness-internal CI false-positive class, not a runtime concern. Architecture fix is a one-line WalkDir filter and the regression test (TestValidateAnnotationsSkipsTestFiles) prevents reoccurrence. A doctor rule would add ceremony without operational signal — this never reaches production behavior."
+      intentional_gap_review_after: "2026-08-10"
       symptoms:
         - awareness audit reports ERRORs from _test.go files, not production code
         - 'Flagged lines are inside backtick string literals that embed intentionally-malformed //globular: patterns'
@@ -461,6 +464,9 @@ failure_modes:
     - id: derived_state.projection_blocks_authority
       title: Projection failure prevents authoritative state publication
       severity: high
+      intentional_gap: true
+      intentional_gap_reason: "Architecture fix has shipped (authority publishes first; projection failure only marks projection degraded) and TestProjectionScanHangAllowsIngressRepublish guards regression. A live doctor rule that watches projection-lane stuck while authority pending would be belt-and-suspenders, not load-bearing. Acknowledge the gap honestly until operational evidence shows we need the runtime signal."
+      intentional_gap_review_after: "2026-08-10"
       symptoms:
         - ingress spec not republished when projection scan is stuck
         - objectstore config stale despite controller having fresh state
@@ -833,6 +839,9 @@ failure_modes:
     - id: failure_mode.inc_2026_0002
       title: MCP service orphaned processes hold port 10260, blocking WaitActive and install convergence
       severity: HIGH
+      deprecated: true
+      deprecated_reason: "Incident-named placeholder. The same root cause and symptoms are captured by mcp.orphan_port_hold (proper-named, with the same architecture fix and forbidden_fixes). Keep this id only as a redirect so historical incidents that reference it still resolve."
+      replacement: mcp.orphan_port_hold
       symptoms:
         - globular-mcp.service stays in 'activating (start)' indefinitely, never reaching 'active (running)'
         - systemd kills mcp_server after TimeoutStartSec (90s) with 'start operation timed out'
@@ -964,3 +973,251 @@ failure_modes:
       required_tests:
         - TestPackageKindFromCanonicalRegistry
         - TestXDSConvergesAfterKindMismatchFixed
+
+    - id: ops_knowledge.seed_drift_post_install
+      title: An AI Memory entry with provenance.source=seed has content that no longer matches the awareness bundle's manifest hash
+      severity: warning
+      symptoms:
+        - "doctor finding ops_knowledge.seed_drift fires for one or more entry ids"
+        - "globular ops-knowledge verify reports drift between disk YAML and ai-memory rows"
+        - "AI sessions get inconsistent operational guidance from the seed (rare; usually noticed via doctor first)"
+      root_cause: |
+        Either:
+        1. A privileged caller bypassed the seeder principal and wrote a seed-tagged entry directly
+           (immutability layer broken or RBAC misconfigured), OR
+        2. The on-disk YAML at /var/lib/globular/operational-knowledge/ was modified post-install
+           without re-running the bundle install path (manual edit), OR
+        3. ScyllaDB row corruption (very rare; would also affect non-seed memories).
+      architecture_fix: |
+        Treat ai-memory as the canonical store and the bundle as the authoritative source. On
+        drift, trust the bundle: re-run the seeder workflow which upserts back to the bundle's
+        sha256. Investigate WHY the drift happened — usually a misconfigured CLI tool or a
+        bypassed RBAC check. ai-memory's immutability layer should be tested every release.
+      forbidden_fixes:
+        - allow_human_to_overwrite_seed_to_silence_finding
+        - increase_drift_threshold_to_hide_low_severity_drift
+      related_invariants:
+        - ops_knowledge.seed_integrity
+      related_services:
+        - ai-memory
+        - cluster-doctor
+        - awareness
+      required_tests:
+        - TestDoctorDetectsSeedDriftWithinOneCycle
+        - TestSeederUpsertHealsDrift
+
+    - id: ops_knowledge.unauthorized_seed_mutation
+      title: A non-seeder principal attempted (and was allowed) to UPDATE or DELETE an AI Memory entry tagged provenance.source=seed
+      severity: critical
+      symptoms:
+        - "audit log shows memory_update / memory_delete on a seed entry from a principal other than 'seeder'"
+        - "ai-memory write succeeded but the value diverges from the bundle manifest"
+      root_cause: |
+        The immutability check in ai-memory's Update/Delete handlers either was not implemented,
+        was bypassed by a debug/admin path, or the RBAC policy granted seed-write to too broad
+        a role (e.g., 'admin' instead of just 'seeder').
+
+        Critical because operational knowledge is the AI's source of truth for incident response.
+        A poisoned seed entry could cause future AI sessions to recommend wrong remediations.
+      architecture_fix: |
+        Reject all writes to entries with metadata.source = "seed" unless principal is exactly
+        "seeder". Log all such attempts at WARN level with principal id + entry id. Doctor
+        emits ops_knowledge.unauthorized_seed_mutation finding with severity=critical until
+        the next clean seeder run heals the entry.
+      forbidden_fixes:
+        - widen_seeder_role_to_admin
+        - silently_swallow_permission_denied_in_audit_log
+        - skip_immutability_check_for_test_environments     # tests should set up a 'seeder' service-account, not bypass
+      related_invariants:
+        - ops_knowledge.seed_integrity
+      related_services:
+        - ai-memory
+        - rbac
+      required_tests:
+        - TestAdminPrincipalCannotMutateSeed
+        - TestSeederPrincipalCanUpsertSeed
+        - TestUnauthorizedAttemptIsLoggedAndRejected
+
+    - id: ops_knowledge.seeder_workflow_skipped
+      title: AI Memory has zero seed-source entries even though the awareness bundle is installed and verified
+      severity: warning
+      symptoms:
+        - "globular memory query --tags seed returns empty"
+        - "doctor finding ops_knowledge.seed_missing fires"
+        - "fresh AI sessions have no operational baseline (Claude asks the same questions every session)"
+      root_cause: |
+        The day-1 seeder workflow either never ran or failed silently. Causes:
+        - ai-memory was unhealthy when the seeder workflow was scheduled and the workflow
+          gave up without retry
+        - the workflow was disabled or removed
+        - a release upgrade introduced new seed entries but the seeder didn't detect bundle
+          version change and skipped the upsert
+      architecture_fix: |
+        Seeder runs as a proper Workflow Service workflow with idempotent semantics, bounded
+        retry, and a terminal state (SUCCEEDED/FAILED). On every controller startup, check if
+        the bundle's seed_version differs from what's in ai-memory's metadata; if so, schedule
+        the seeder. Log success at INFO with entries-upserted count.
+      forbidden_fixes:
+        - run_seeder_inline_in_controller_startup_without_workflow_service
+        - skip_seeder_silently_if_ai_memory_unhealthy   # must surface as a finding instead
+      related_invariants:
+        - ops_knowledge.seed_integrity
+      related_services:
+        - workflow
+        - ai-memory
+        - cluster-controller
+      required_tests:
+        - TestSeederSchedulesOnBundleVersionChange
+        - TestSeederRetriesOnTransientAIMemoryFailure
+        - TestSeederTerminatesAfterMaxAttempts
+
+    - id: vip_contamination.node_routable_ip_returns_vip
+      title: nodeRoutableIP() returns the keepalived VIP for the VIP-holder, leading to misclassification across multiple subsystems
+      severity: critical
+      symptoms:
+        - "an etcd member is wrongly evicted as 'stale' immediately after keepalived enable"
+        - "DNS per-node A records contain both the real IP and the VIP for every per-node FQDN"
+        - "MinIO publish filter excludes the VIP-holder from ObjectStoreDesiredState.Nodes (chicken-and-egg with MinioJoinPhase=non_member)"
+        - "publishGateway / publishController DNS records mix the VIP among gateway/controller node IPs"
+      root_cause: |
+        node.Identity.Ips lists ALL the node's IPs. For the keepalived MASTER, the floating
+        VIP appears (typically as the first or among the first entries). Helpers that pick a
+        single representative IP — node.PrimaryIP(), node.Identity.Ips[0], nodeRoutableIP() —
+        return the VIP whenever the node holds it.
+
+        Anything downstream that COMPARES that representative IP against a curated, stable IP
+        list (etcd peer URLs, MinIO pool nodes, controller pool nodes, DNS records) fails to
+        find a match — and treats the node as unknown / stale / non-member.
+      architecture_fix: |
+        Two patterns work:
+        1. node.StableIP(clusterVIP) — explicitly excludes the cluster VIP. Use when picking
+           a single representative IP for publication / addressing.
+        2. nodeAny<X>(node, list) helpers — match against ANY of node.Identity.Ips. Use when
+           CHECKING membership in a stable list.
+
+        The recent fix in commit a4ea9ef1 covered etcd memberNode/dns/gateway paths via
+        StableIP. The MinIO pool path was missed (separate fix landed in 1.2.28 via
+        nodeAnyIPInPool in minio_pools.go).
+      forbidden_fixes:
+        - hardcode_node_to_pool_mapping_to_avoid_filter
+        - filter_out_vip_in_node_identity_ips             # the node legitimately HAS that IP; filter at the consumer instead
+        - special_case_keepalived_master_as_an_exception
+      related_invariants:
+        - objectstore.topology_contract
+        - etcd.endpoint_reachability
+      related_services:
+        - cluster-controller
+        - keepalived
+        - dns
+        - ai-memory
+      required_tests:
+        - TestMinioJoin_VIPHolder_MatchesByAnyIP
+        - TestEtcdMemberMatchAcceptsAnyOfNodeIps
+        - TestDNSReconcilerExcludesVIPFromPerNodeARecords
+        - TestPublishGatewayUsesStableIP
+
+    - id: cluster_controller.objectstore_apply_watcher_dies_silently
+      title: objectstore-apply-watcher exits its goroutine when etcd watch returns 'mvcc compacted'; not re-established
+      severity: critical
+      symptoms:
+        - "globular objectstore topology apply times out with 'timeout waiting for controller to process apply request'"
+        - "/globular/objectstore/topology/apply_request key exists in etcd but apply_result is empty"
+        - "controller log shows 'objectstore-apply-watcher: watch error: etcdserver: mvcc: required revision has been compacted' some time before the apply was attempted"
+        - "no 'objectstore-apply: processing request' log lines for hours after the watcher's last error"
+      root_cause: |
+        startObjectStoreApplyWatcher's loop handles ev.Err() with `continue`, then keeps
+        ranging over the same etcd Watch channel. Once etcd emits 'mvcc compacted', the
+        channel closes; the next select returns ok=false and the goroutine `return`s.
+        safeGo doesn't re-spawn it.
+
+        Because the drain on startup is the only other ingestion path, and drain only runs
+        for the leader, the only operational recovery is: restart all controllers in sequence
+        so a freshly-started controller wins the next election and drains the queued request.
+      architecture_fix: |
+        On any watch error or channel-closed event, sleep with bounded backoff and re-establish
+        the Watch from the latest revision (Watch with WithRev(currentRev+1) after re-reading
+        the key). Log at WARN. The same pattern likely exists in other Watch-based goroutines
+        in the controller — audit and fix together.
+
+        Until fixed in code, the recovery runbook is:
+        docs/operational-knowledge/runbooks/recover-stuck-topology-apply.yaml
+      forbidden_fixes:
+        - swallow_compacted_error_silently
+        - skip_apply_request_processing_when_watch_died        # this is the current bug
+        - require_human_to_restart_controller_for_every_apply  # only acceptable as a temporary workaround
+      related_invariants:
+        - objectstore.topology_contract
+        - convergence.no_infinite_retry
+      related_services:
+        - cluster-controller
+        - etcd
+      required_tests:
+        - TestApplyWatcherRecoversFromCompactedRevision
+        - TestApplyWatcherReestablishesWithLatestRev
+        - TestDrainOnStartupCatchesQueuedRequest
+
+    - id: bootstrap.flag_persists_post_day_1
+      title: /var/lib/globular/bootstrap.enabled flag found on a node after day-1 join completed — security regression
+      severity: critical
+      symptoms:
+        - "ls /var/lib/globular/bootstrap.enabled returns a file on a post-day-1 cluster"
+        - "loopback-only RPCs continue to bypass auth"
+        - "doctor finding bootstrap.flag_persists_post_day_1 fires"
+      root_cause: |
+        Bootstrap mode is gated by a flag file with a 30-min TTL. The day-1 join flow is
+        responsible for removing the flag once the cluster reaches founding quorum. If the
+        join completed but the flag wasn't cleaned up, the cluster is in a permanent
+        bootstrap-mode state — any localhost connection can perform unauthenticated mutations.
+
+        Causes observed:
+        - Crash in the day-1 finalize step before the cleanup ran
+        - Manual operator intervention that re-created the flag without intent
+        - Bug in the founding-quorum classifier that left day-1 in a partial state
+      architecture_fix: |
+        Day-1 finalize MUST atomically clear the bootstrap flag as the LAST step (after
+        founding quorum verified, after sa password changed, after CA rotated). On controller
+        startup, if day1_phase == ready AND bootstrap.enabled present, controller logs a
+        critical warning, refuses to accept loopback RPCs, and emits the doctor finding.
+      forbidden_fixes:
+        - silently_remove_flag_on_doctor_finding
+        - widen_bootstrap_ttl_to_avoid_re_creation
+      related_invariants:
+        - founding.quorum.three_nodes_required
+      related_services:
+        - cluster-controller
+        - node-agent
+      required_tests:
+        - TestDay1FinalizeClearsBootstrapFlag
+        - TestControllerRefusesLoopbackWhenFlagPersistsPostDay1
+
+    - id: service.endpoint.os_getenv_for_addresses
+      title: A service uses os.Getenv() to resolve a cluster address — bypasses etcd source-of-truth
+      severity: critical
+      symptoms:
+        - "service config code contains os.Getenv(\"...ENDPOINT...\") or similar"
+        - "service ignores etcd config when an env var is set"
+        - "behaviour differs across nodes due to local env var differences"
+      root_cause: |
+        A developer added an env-var fallback for "easier local testing" or to "avoid the
+        etcd dependency at startup". This violates the etcd-is-sole-source-of-truth rule:
+        env-var-driven config is per-node mutable, untracked, and breaks reproducibility.
+
+        Symptom that triggers detection: two nodes with identical Globular config behave
+        differently because one has an env var set.
+      architecture_fix: |
+        Remove the os.Getenv() call. Resolve from etcd via config.GetServiceConfigurationById
+        or similar. If etcd is unreachable, ERROR — do not fall back to defaults.
+
+        For local dev environments: use a local etcd seed via the same code path as production.
+      forbidden_fixes:
+        - keep_env_var_as_fallback_for_dev_only
+        - silently_prefer_env_var_when_set
+        - widen_to_other_env_vars_to_be_consistent
+      related_invariants:
+        - service.endpoint.etcd_address_reachability
+        - etcd.endpoint_reachability
+      related_services:
+        - "*"  # any service that resolves cluster addresses
+      required_tests:
+        - TestServiceConfigSourceIsAlwaysEtcd
+        - TestNoOsGetenvInServiceServerCode

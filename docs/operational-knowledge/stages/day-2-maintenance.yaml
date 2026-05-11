@@ -1,0 +1,132 @@
+schema_version: 1
+file_kind: stage
+metadata:
+  title: "Day-2 — Routine cluster operation"
+  description: |
+    What "normal" looks like, what cadences matter, and how to keep the cluster healthy over
+    months without intervention. The day-2 perspective is: most of the time, just leave it
+    alone. The cluster self-heals. Doctor surfaces what needs attention.
+  source_documents:
+    - docs/operators/day-0-1-2-operations.md
+    - docs/operators/cluster-self-healing.md
+    - docs/operators/certificate-lifecycle.md
+
+entries:
+
+  - id: ops.day-2.normal-state
+    type: ARCHITECTURE
+    title: "Day-2 normal state — what 'healthy' looks like"
+    tags: [day-2, baseline, observability]
+    applies_when:
+      cluster_phases: [day-2]
+      services_present: [cluster-controller, cluster-doctor]
+    content: |
+      A healthy day-2 cluster shows:
+
+      - All nodes `status = ready` in `globular cluster nodes list`
+      - `globular objectstore topology status` → `Overall: ✓ CONVERGED`
+      - `globular cluster nodes get <id>` for every node:
+        - `day1_phase = ready`
+        - `etcd_join_phase = verified`
+        - `scylla_join_phase = verified`
+        - `minio_join_phase = verified` (for storage nodes only)
+      - `cluster-doctor` returns no findings of severity > info
+      - `journalctl -u globular-cluster-controller --since '5 min ago'` is QUIET (heartbeats
+        and periodic loops only — no tight retry loops, no panics)
+      - `ai-memory query --tags incident,recent` returns the EXPECTED operations log (small,
+        understood entries — not a flood)
+
+      Anti-signals (something to investigate):
+      - Any "release-workflow ... RUN_STATUS_FAILED" loop firing repeatedly (>1/min)
+      - Any `unit_hash_drift` on a critical service unit
+      - Doctor freshness > 60s (snapshot stale)
+      - ai-memory empty for >24h (the watcher → executor → memory pipeline is dark)
+      - `bootstrap.enabled` flag present on any node post-day-1
+
+  - id: ops.day-2.cert-lifecycle
+    type: REFERENCE
+    title: "Certificate lifecycle — what auto-renews vs requires intervention"
+    tags: [day-2, pki, certificates]
+    applies_when:
+      cluster_phases: [day-2]
+      services_present: [cluster-controller]
+    content: |
+      Globular has TWO cert hierarchies that follow different lifecycles:
+
+      **Cluster-internal mTLS certs** (controller-managed, auto-renewed):
+      - Issued from the cluster CA at /var/lib/globular/pki/ca.crt
+      - Service certs at /var/lib/globular/pki/issued/services/service.{crt,key}
+      - TTL: typically 1 year, but auto-renewed at 60% of TTL
+      - Automatic on every node by node-agent's reconcileTLS loop
+      - YOU should not touch these manually unless rotating the CA
+
+      **External-facing ACME certs** (Let's Encrypt, controller-managed, auto-renewed):
+      - Stored at /var/lib/globular/domains/<fqdn>/fullchain.pem + privkey.pem
+      - For external FQDNs registered via `globular dns register`
+      - TTL: 90 days (Let's Encrypt), auto-renewed at 30 days remaining
+      - Symlinked from /var/lib/globular/config/tls/acme/<fqdn>/ for envoy/xDS to load
+      - Failure surfaces as `acme.cert_expiring` finding in cluster-doctor
+
+      Operator action items:
+      - If you change DNS provider config, re-trigger ACME with `globular domain refresh <fqdn>`
+      - If a node's TLS cert is found expired, restart node-agent → reconcileTLS will reissue
+      - To rotate the CA itself, see `runbooks/rotate-pki-certificates.yaml`
+
+  - id: ops.day-2.routine-deploy-cadence
+    type: REFERENCE
+    title: "Routine service deploys — what's safe at any time vs requires care"
+    tags: [day-2, deploy, change-management]
+    applies_when:
+      cluster_phases: [day-2]
+      services_present: [cluster-controller, repository]
+    content: |
+      Most service deploys are SAFE AT ANY TIME thanks to per-service rolling reconcile:
+
+      - User services (file, blog, search, title, media, etc.) — rolling restart, no downtime
+      - AI services (ai-memory, ai-watcher, ai-executor, ai-router) — rolling, no downtime
+      - cluster-doctor, monitoring, log — rolling, brief observability gap acceptable
+
+      Requires CARE (do during low-traffic window, monitor closely):
+      - cluster-controller — leader changes during rolling restart; brief workflow queue;
+        ~10s decision-tier pause per node restart
+      - workflow service — in-flight workflows pause; check no critical workflow is mid-flight
+      - node-agent — local supervised services restart-detect; brief ~30s blip per node
+      - dns — short-lived DNS resolution gap on the affected node
+
+      Requires PLANNING (downtime announcement, backup beforehand):
+      - etcd — sequential, manual, careful (use platform-upgrade, not deploy)
+      - scylla — same
+      - minio — same; topology changes are destructive (see add-node-to-minio-pool runbook)
+      - keepalived — VIP movement during restart; clients in mid-call may break
+
+  - id: ops.day-2.audit-and-event-stream
+    type: REFERENCE
+    title: "Audit log and event stream — what's recorded, where to find it"
+    tags: [day-2, audit, observability]
+    applies_when:
+      cluster_phases: [day-2]
+      services_present: []
+    content: |
+      Three streams to know about for day-2 forensics:
+
+      **gRPC audit log** (auth → rbac → audit interceptor chain):
+      - Every authenticated RPC is logged
+      - Includes principal, method, resource, allow/deny verdict, timestamp
+      - Backend: ScyllaDB; queryable via `log` service
+      - Use when investigating "who changed X"
+
+      **Event stream** (per-service event publishers):
+      - Service lifecycle events: service.started, service.stopped, service.crashed
+      - Workflow events: workflow.started, workflow.succeeded, workflow.failed
+      - Topology events: objectstore.topology_change, etcd.member_change
+      - Subscribed by: ai-watcher, cluster-doctor
+
+      **Doctor finding history**:
+      - Every finding emit recorded with severity, category, evidence
+      - Resolved findings keep their history (queryable via `cluster-doctor history`)
+      - Used by ai-watcher to detect "this finding repeats every X" (chronic patterns)
+
+      **NOT routinely recorded** (be aware):
+      - Read-only RPC bodies (only metadata logged)
+      - Internal health-probe RPCs (rate-limit floor; only failures logged)
+      - SSH sessions (those are systemd journal, not Globular audit)

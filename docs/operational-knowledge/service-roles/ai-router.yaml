@@ -1,0 +1,61 @@
+schema_version: 1
+file_kind: service-role
+metadata:
+  title: "Service role — ai-router"
+  description: |
+    What ai-router IS, what it routes, and how it integrates with the AI tier.
+  source_documents:
+    - docs/ai/ai-services.md
+    - docs/ai/ai-overview.md
+
+entries:
+
+  - id: ops.role.ai-router
+    type: ARCHITECTURE
+    title: "ai-router — dynamic LLM/MCP routing for AI requests"
+    tags: [day-1, day-2, ai-router, role]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      **What it is**: Routes AI requests (from operators, agents, or other Globular services)
+      to the appropriate downstream — local MCP tools, remote MCP peers, LLM providers, or
+      cluster-internal AI services.
+
+      **Port**: 10220 (gRPC over mTLS).
+
+      **What it OWNS**:
+      - Provider catalog (Anthropic, OpenAI, local Ollama, etc.) — per-cluster config
+      - Tool/MCP routing table (which MCP server has which tools)
+      - Per-request quota enforcement and cost tracking
+      - Fallback ordering when a primary provider fails
+
+      **What it DOES NOT do**:
+      - Store request content (that goes to ai-memory if the caller asks)
+      - Make decisions about WHICH AI service to invoke (that's the caller's job)
+      - Bypass auth — every routed request carries the original principal forward
+
+      **Why it exists**: prevents every Globular service from needing direct LLM SDKs and
+      direct provider credentials. Providers are configured centrally; rotation, quota, and
+      cost tracking are all in one place.
+
+  - id: ops.role.ai-router.failure-modes
+    type: DEBUG
+    title: "ai-router — common failure modes"
+    tags: [day-1, day-2, ai-router, debug]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [ai-router]
+    content: |
+      **Symptom: AI requests fail with "no provider available"**
+      → All configured providers are down or over quota. Check `globular ai-router status`.
+        If Anthropic/OpenAI is the primary, verify network reachability AND credentials.
+
+      **Symptom: requests routed to a removed MCP server**
+      → Routing table is stale. ai-router subscribes to /globular/mcp/nodes/ in etcd; if
+        the watcher died (similar pattern to the objectstore-apply-watcher we hit), the
+        routing table never updates. Restart ai-router to force refresh.
+
+      **Symptom: cost/quota mismatches reality**
+      → ai-router's local accumulator may have lost a tick during a restart. Reconcile via
+        `globular ai-router reconcile-quota` (Tier 2 — needs operator approval).

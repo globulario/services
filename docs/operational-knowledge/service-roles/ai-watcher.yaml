@@ -1,0 +1,68 @@
+schema_version: 1
+file_kind: service-role
+metadata:
+  title: "Service role — ai-watcher"
+  description: |
+    What ai-watcher IS, what events it subscribes to, and how it bridges raw cluster events
+    into incidents that ai-executor can act on.
+  source_documents:
+    - docs/ai/ai-services.md
+    - docs/ai/ai-overview.md
+
+entries:
+
+  - id: ops.role.ai-watcher
+    type: ARCHITECTURE
+    title: "ai-watcher — event bridge between cluster and AI tier"
+    tags: [day-1, day-2, ai-watcher, role]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      **What it is**: The eyes of the AI tier. Subscribes to streams from cluster-doctor and
+      node-agent event publishers, aggregates raw events into structured incidents, and
+      forwards incidents to ai-executor.
+
+      **Port**: 10210 (gRPC over mTLS).
+
+      **What it OWNS**:
+      - Subscriptions to upstream event streams (doctor's findings, node-agent service.*
+        events, workflow events)
+      - Incident aggregation rules (e.g., "5 service.crashed in 30s = crash-loop incident")
+      - Confidence scoring (single event → low; pattern match → medium; doctor-correlated → high)
+      - Forwarding to ai-executor with classification hints
+
+      **What it DOES NOT do**:
+      - Take action — ai-watcher is OBSERVATIONAL only
+      - Modify cluster state
+      - Make decisions about what to remediate
+      - Write to ai-memory directly (ai-executor records the incident outcome)
+
+      **Failure modes**:
+      - If ai-watcher is down: ai-executor sees no events; incident pipeline goes dark
+      - If subscriptions are dropped: events accumulate in upstream services until they GC;
+        on reconnect, ai-watcher does NOT replay history — events between are lost. The
+        doctor finding catalog is the authoritative state for "what's wrong now".
+
+  - id: ops.role.ai-watcher.aggregation-discipline
+    type: DECISION
+    title: "ai-watcher aggregation rules — avoid event flooding ai-executor"
+    tags: [day-1, day-2, ai-watcher, throttling]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [ai-watcher, ai-executor]
+    content: |
+      Without aggregation, a flapping service would generate hundreds of incidents per
+      minute, each prompting ai-executor to act. The aggregation discipline:
+
+      - **Rate limit per finding-id**: same finding-id within 60s is folded into one incident
+      - **Crash-loop detection**: 5+ service.crashed for the same unit in 5min → one
+        crash-loop incident; subsequent crashes are correlated to that incident, not new ones
+      - **Doctor correlation**: if a doctor finding fires AND a related node-agent event
+        fires within 30s, fold them into one incident with both as evidence
+      - **Confidence threshold**: only forward incidents with confidence >= MEDIUM unless the
+        finding has severity=critical (then forward immediately)
+
+      Operator implication: if you see ai-executor "doing nothing" about a clear problem,
+      check ai-watcher's aggregation. The incident may be queued waiting for the rate-limit
+      window to close, or the confidence might be below threshold.
