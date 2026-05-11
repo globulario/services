@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/opsknowledge"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
@@ -34,6 +35,23 @@ type awarenessBundleManifest struct {
 	BuiltAt string `json:"built_at"`
 	BuiltBy string `json:"built_by,omitempty"`
 	SHA256  string `json:"sha256,omitempty"`
+
+	// OpsKnowledgeEntries records the per-entry canonical SHA256 of every
+	// operational-knowledge seed entry packed into ops-knowledge/. The
+	// hash matches what golang/opsknowledge.HashEntry produces, and what
+	// the seed CLI stamps into ai-memory's metadata.seed_sha256. Lets a
+	// runtime check verify ai-memory has not drifted from the bundle.
+	OpsKnowledgeEntries []opsKnowledgeManifestEntry `json:"ops_knowledge_entries,omitempty"`
+}
+
+// opsKnowledgeManifestEntry is one row in the bundle manifest's
+// ops_knowledge_entries list.
+type opsKnowledgeManifestEntry struct {
+	ID         string `json:"id"`
+	FilePath   string `json:"file_path"` // relative to ops-knowledge/, e.g. "stages/day-0-bootstrap.yaml"
+	Type       string `json:"type"`
+	Title      string `json:"title"`
+	SeedSHA256 string `json:"seed_sha256"`
 }
 
 var bundleCfg = struct {
@@ -144,6 +162,40 @@ Prerequisites:
 				})
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "warning: docs walk: %v\n", err)
+				}
+			}
+		}
+
+		// docs/operational-knowledge/{stages,runbooks,service-roles}/*.yaml
+		// + per-entry canonical SHA256 stamped into the manifest so the
+		// bundle is self-describing for ai-memory drift checks.
+		if repoRoot != "" {
+			opsDir := filepath.Join(repoRoot, "docs", "operational-knowledge")
+			if info, err := os.Stat(opsDir); err == nil && info.IsDir() {
+				files, err := opsknowledge.LoadDir(opsDir)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "warning: ops-knowledge load: %v\n", err)
+				}
+				for _, f := range files {
+					rel, _ := filepath.Rel(opsDir, f.Path)
+					entries = append(entries, entry{
+						srcPath: f.Path,
+						arcPath: filepath.Join("ops-knowledge", rel),
+					})
+					for _, e := range f.Entries {
+						hash, err := opsknowledge.HashEntry(e)
+						if err != nil {
+							fmt.Fprintf(os.Stderr, "warning: hash %s: %v\n", e.ID, err)
+							continue
+						}
+						manifest.OpsKnowledgeEntries = append(manifest.OpsKnowledgeEntries, opsKnowledgeManifestEntry{
+							ID:         e.ID,
+							FilePath:   filepath.ToSlash(rel),
+							Type:       e.Type,
+							Title:      e.Title,
+							SeedSHA256: hash,
+						})
+					}
 				}
 			}
 		}
@@ -277,6 +329,12 @@ var awarenessBundleInspectCmd = &cobra.Command{
 			fmt.Fprintf(os.Stdout, "  built_by: %s\n", manifest.BuiltBy)
 		}
 		fmt.Fprintf(os.Stdout, "  sha256:   %s\n", hex.EncodeToString(h[:]))
+		if n := len(manifest.OpsKnowledgeEntries); n > 0 {
+			fmt.Fprintf(os.Stdout, "\nOperational-knowledge seed (%d entries):\n", n)
+			for _, e := range manifest.OpsKnowledgeEntries {
+				fmt.Fprintf(os.Stdout, "  %s  %s  %s\n", e.SeedSHA256[:12], e.Type, e.ID)
+			}
+		}
 		fmt.Fprintf(os.Stdout, "\nContents (%d files):\n", len(files))
 		for _, f := range files {
 			fmt.Fprintf(os.Stdout, "  %s\n", f)
