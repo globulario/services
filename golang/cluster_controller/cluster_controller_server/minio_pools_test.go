@@ -261,6 +261,56 @@ func TestMinioJoin_TopologyContract_AfterApplyTopology(t *testing.T) {
 	}
 }
 
+// TestMinioJoin_VIPHolder_MatchesByAnyIP verifies a regression: when the
+// keepalived MASTER node holds the floating VIP, node.Identity.Ips lists the
+// VIP first. nodeRoutableIP returns the VIP, which is never the IP recorded
+// in MinioPoolNodes (apply-topology admits the stable interface IP). Without
+// matching against ANY of the node's IPs, the node is forever stuck at
+// MinioJoinNonMember even after apply-topology added its stable IP to the pool.
+func TestMinioJoin_VIPHolder_MatchesByAnyIP(t *testing.T) {
+	mgr := newMinioPoolManager()
+
+	state := &controllerState{
+		MinioPoolNodes:        []string{"10.0.0.63"},
+		ObjectStoreGeneration: 1,
+		MinioCredentials:      generateMinioCredentials(),
+	}
+
+	// VIP holder: VIP is first in Identity.Ips, stable IP is second.
+	vipHolder := &nodeState{
+		NodeID: "n-vip",
+		Identity: storedIdentity{
+			Hostname: "vip-master",
+			Ips:      []string{"10.0.0.100", "10.0.0.8", "10.0.0.214"}, // VIP first
+		},
+		Profiles:       []string{"storage"},
+		Units:          []unitStatusRecord{{Name: "globular-minio.service", State: "active"}},
+		BootstrapPhase: BootstrapWorkloadReady,
+	}
+	nodes := []*nodeState{vipHolder}
+
+	// Held before apply-topology — node not in pool.
+	mgr.reconcileMinioJoinPhases(nodes, state)
+	if vipHolder.MinioJoinPhase != MinioJoinNonMember {
+		t.Fatalf("expected non_member before apply-topology, got %s", vipHolder.MinioJoinPhase)
+	}
+
+	// Apply-topology admits the STABLE IP (10.0.0.8), not the VIP.
+	state.MinioPoolNodes = append(state.MinioPoolNodes, "10.0.0.8")
+	state.ObjectStoreGeneration = 2
+
+	dirty := mgr.reconcileMinioJoinPhases(nodes, state)
+	if !dirty {
+		t.Fatal("expected dirty after apply-topology added stable IP")
+	}
+	// Pre-fix bug: nodeRoutableIP returns 10.0.0.100 (VIP), ipInPool fails,
+	// node stays at MinioJoinNonMember forever.
+	// Fix: nodeAnyIPInPool matches 10.0.0.8 and node fast-forwards to verified.
+	if vipHolder.MinioJoinPhase != MinioJoinVerified {
+		t.Errorf("VIP holder should reach verified via stable IP match, got %s", vipHolder.MinioJoinPhase)
+	}
+}
+
 // TestMinioJoin_TopologyContract_PreparedStateResets verifies the defensive
 // guard: if a node is somehow in MinioJoinPrepared with a non-empty pool
 // (e.g., persisted state from before a code deploy), it is reset to None

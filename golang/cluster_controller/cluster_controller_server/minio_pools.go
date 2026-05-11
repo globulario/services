@@ -108,10 +108,13 @@ func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *c
 			if !nodeIsPreparedForMinioJoin(node) {
 				continue
 			}
-			ip := nodeRoutableIP(node)
 
-			// Check if already in the pool list.
-			if ipInPool(ip, state.MinioPoolNodes) {
+			// Check if already in the pool list. Use ANY of the node's IPs,
+			// not just nodeRoutableIP — on a VIP holder (keepalived MASTER),
+			// nodeRoutableIP returns the floating VIP, which is never the IP
+			// recorded in MinioPoolNodes. The apply path admits the stable IP,
+			// so we must match against any of the node's reported IPs.
+			if nodeAnyIPInPool(node, state.MinioPoolNodes) {
 				// Already in pool — fast-forward based on service state.
 				if nodeHasMinioRunning(node) {
 					node.MinioJoinPhase = MinioJoinVerified
@@ -219,6 +222,25 @@ func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *c
 	}
 
 	return dirty
+}
+
+// nodeAnyIPInPool checks if ANY of the node's IPs is already in the MinIO
+// pool list. Mirrors nodeAnyIPIsEtcdMember — a VIP-holding node reports
+// multiple IPs (VIP + stable interface IPs) and nodeRoutableIP may return
+// the VIP, which never matches the stable IP recorded in MinioPoolNodes.
+func nodeAnyIPInPool(node *nodeState, pool []string) bool {
+	if node == nil {
+		return false
+	}
+	for _, ip := range node.Identity.Ips {
+		if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+			continue
+		}
+		if ipInPool(ip, pool) {
+			return true
+		}
+	}
+	return false
 }
 
 // ipInPool checks if an IP is already in the pool list.
