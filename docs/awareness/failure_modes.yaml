@@ -1072,41 +1072,67 @@ failure_modes:
         - TestSeederTerminatesAfterMaxAttempts
 
     - id: vip_contamination.node_routable_ip_returns_vip
-      title: nodeRoutableIP() returns the keepalived VIP for the VIP-holder, leading to misclassification across multiple subsystems
+      title: Single-IP node identity reads cause VIP-contamination misclassification across multiple subsystems
       severity: critical
       symptoms:
         - "an etcd member is wrongly evicted as 'stale' immediately after keepalived enable"
         - "DNS per-node A records contain both the real IP and the VIP for every per-node FQDN"
         - "MinIO publish filter excludes the VIP-holder from ObjectStoreDesiredState.Nodes (chicken-and-egg with MinioJoinPhase=non_member)"
         - "publishGateway / publishController DNS records mix the VIP among gateway/controller node IPs"
+        - "cluster-doctor objectstore.write_quorum_lost CRITICAL active_drives=0 even when MinIO is healthy on every storage node (live mc admin info shows 3/3 drives Ok)"
+        - "cluster-doctor objectstore.minio.unapproved_path CRITICAL on every admitted disk after a topology apply that previously succeeded"
+        - "cluster-doctor objectstore.minio.active_on_non_member silently misses real violations (false-NEGATIVE — rule continues on empty IP rather than firing)"
       root_cause: |
+        Two distinct failure mechanisms in the same class — both stem from reducing a multi-IP
+        node identity to a single IP for comparison against a curated stable IP list.
+
+        Mechanism A — first-IP-is-VIP:
         node.Identity.Ips lists ALL the node's IPs. For the keepalived MASTER, the floating
         VIP appears (typically as the first or among the first entries). Helpers that pick a
         single representative IP — node.PrimaryIP(), node.Identity.Ips[0], nodeRoutableIP() —
-        return the VIP whenever the node holds it.
+        return the VIP whenever the node holds it. Comparing that VIP against a stable-IP
+        pool list never matches.
 
-        Anything downstream that COMPARES that representative IP against a curated, stable IP
-        list (etcd peer URLs, MinIO pool nodes, controller pool nodes, DNS records) fails to
-        find a match — and treats the node as unknown / stale / non-member.
+        Mechanism B — AdvertiseIp-is-empty:
+        NodeIdentity has a separate single-string field `AdvertiseIp` distinct from the
+        repeated `Ips` list. The controller does not currently populate AdvertiseIp (verified
+        live 2026-05-10 — empty on every node in a 5-node cluster). Consumers that compare
+        `n.GetIdentity().GetAdvertiseIp() == ip` get `"" == "10.0.0.x"` → false, which
+        either produces a false-positive ("node not in pool" → write_quorum_lost,
+        unapproved_path) OR a silent false-negative ("can't determine IP, skip" — real
+        violations missed in active_on_non_member).
+
+        Anything downstream that COMPARES that single representative IP against a curated,
+        stable IP list (etcd peer URLs, MinIO pool nodes, controller pool nodes, DNS
+        records, admitted disks, doctor invariants) fails to match — and treats the node as
+        unknown / stale / non-member / down.
       architecture_fix: |
-        Two patterns work:
+        Three patterns work:
         1. node.StableIP(clusterVIP) — explicitly excludes the cluster VIP. Use when picking
            a single representative IP for publication / addressing.
         2. nodeAny<X>(node, list) helpers — match against ANY of node.Identity.Ips. Use when
            CHECKING membership in a stable list.
+        3. nodeIDByPoolIP(snap.Nodes, poolIPs) — bulk-build a poolIP→nodeID map by iterating
+           every node's full Identity.Ips list. Use when a rule needs to resolve multiple
+           pool IPs to nodeIDs in one pass.
 
-        The recent fix in commit a4ea9ef1 covered etcd memberNode/dns/gateway paths via
-        StableIP. The MinIO pool path was missed (separate fix landed in 1.2.28 via
-        nodeAnyIPInPool in minio_pools.go).
+        Fixes landed:
+        - a4ea9ef1: etcd memberNode/dns/gateway paths via StableIP
+        - ead2bb94 (1.2.28): MinIO pool admission via nodeAnyIPInPool in minio_pools.go
+        - <next commit>: cluster-doctor's 5 sites (write_quorum_lost, format_heal_deadlock,
+          duplicate_physical_path, active_on_non_member, poolEndpoints) via
+          nodeIDByPoolIP / nodeHasIP helpers in node_ip_matching.go
       forbidden_fixes:
         - hardcode_node_to_pool_mapping_to_avoid_filter
         - filter_out_vip_in_node_identity_ips             # the node legitimately HAS that IP; filter at the consumer instead
         - special_case_keepalived_master_as_an_exception
+        - read_advertise_ip_without_falling_through_to_ips_list   # AdvertiseIp is empty in production; a fallback-less read is broken by definition
       related_invariants:
         - objectstore.topology_contract
         - etcd.endpoint_reachability
       related_services:
         - cluster-controller
+        - cluster-doctor
         - keepalived
         - dns
         - ai-memory
@@ -1115,6 +1141,10 @@ failure_modes:
         - TestEtcdMemberMatchAcceptsAnyOfNodeIps
         - TestDNSReconcilerExcludesVIPFromPerNodeARecords
         - TestPublishGatewayUsesStableIP
+        - TestNodeIDByPoolIP_MatchesByAnyIP
+        - TestNodeIDByPoolIP_EmptyAdvertiseIpDoesNotPoison
+        - TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
+        - TestWriteQuorumLost_VIPHolder_RealDowntimeStillFires
 
     - id: cluster_controller.objectstore_apply_watcher_dies_silently
       title: objectstore-apply-watcher exits its goroutine when etcd watch returns 'mvcc compacted'; not re-established

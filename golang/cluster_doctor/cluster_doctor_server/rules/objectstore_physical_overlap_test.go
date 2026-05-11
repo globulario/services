@@ -14,8 +14,29 @@ import (
 
 func nodeRecord(id, ip string) *cluster_controllerpb.NodeRecord {
 	return &cluster_controllerpb.NodeRecord{
-		NodeId:   id,
-		Identity: &cluster_controllerpb.NodeIdentity{AdvertiseIp: ip},
+		NodeId: id,
+		// Populate BOTH AdvertiseIp and Ips so legacy tests that only set
+		// AdvertiseIp still work, AND new VIP-aware code that iterates Ips
+		// also matches. AdvertiseIp is empty in production; Ips is the
+		// canonical source — see node_ip_matching.go.
+		Identity: &cluster_controllerpb.NodeIdentity{
+			AdvertiseIp: ip,
+			Ips:         []string{ip},
+		},
+	}
+}
+
+// nodeRecordWithIPs builds a NodeRecord whose Identity carries multiple
+// IPs (e.g. a keepalived VIP holder reporting both the floating VIP and
+// its stable interface IPs). AdvertiseIp is left empty to mirror what
+// the controller currently produces in the live cluster — this is the
+// shape that exposed the bug fixed in node_ip_matching.go.
+func nodeRecordWithIPs(id string, ips ...string) *cluster_controllerpb.NodeRecord {
+	return &cluster_controllerpb.NodeRecord{
+		NodeId: id,
+		Identity: &cluster_controllerpb.NodeIdentity{
+			Ips: ips,
+		},
 	}
 }
 

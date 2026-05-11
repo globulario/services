@@ -104,13 +104,10 @@ func poolEndpoints(snap *collector.Snapshot, desired *config.ObjectStoreDesiredS
 	if desired == nil {
 		return nil
 	}
-	nodeIPByID := make(map[string]string, len(snap.Nodes))
-	nodeIDByIP := make(map[string]string, len(snap.Nodes))
-	for _, n := range snap.Nodes {
-		ip := n.GetIdentity().GetAdvertiseIp()
-		nodeIPByID[n.GetNodeId()] = ip
-		nodeIDByIP[ip] = n.GetNodeId()
-	}
+	// Use the IP-list-aware lookup so VIP-holders (whose AdvertiseIp may be
+	// empty or the floating VIP) still resolve to their nodeID via any IP in
+	// their Identity.Ips list. See node_ip_matching.go for the rationale.
+	nodeIDByIP := nodeIDByPoolIP(snap.Nodes, desired.Nodes)
 	var out []poolEndpoint
 	for _, ip := range desired.Nodes {
 		path := desired.NodePaths[ip]
@@ -171,12 +168,6 @@ func (objectstoreDuplicatePhysicalPath) Evaluate(snap *collector.Snapshot, _ Con
 		return nil
 	}
 
-	// Build nodeID → nodeIP for the canonical key computation below.
-	nodeIPByID := make(map[string]string, len(snap.Nodes))
-	for _, n := range snap.Nodes {
-		nodeIPByID[n.GetNodeId()] = n.GetIdentity().GetAdvertiseIp()
-	}
-
 	// Group endpoints by canonical physical key.
 	//
 	// The canonical key normalises both local mounts and NFS mounts to the
@@ -216,12 +207,11 @@ func (objectstoreDuplicatePhysicalPath) Evaluate(snap *collector.Snapshot, _ Con
 			// (The NFS mount source already IS "10.0.0.20:/mnt/data", so
 			//  the above key is already the canonical form.)
 		} else {
-			// Canonical key for local block: "phys:{nodeIP}:{mountPath}"
-			nodeIP := nodeIPByID[ep.nodeID]
-			if nodeIP == "" {
-				nodeIP = ep.nodeID
-			}
-			key := "phys:" + nodeIP + ":" + dc.MountPath
+			// Canonical key for local block: "phys:{nodeIP}:{mountPath}".
+			// ep.nodeIP is the desired-pool IP (always populated); using it
+			// here both avoids the empty-AdvertiseIp pitfall and keeps the
+			// key readable (IP, not UUID).
+			key := "phys:" + ep.nodeIP + ":" + dc.MountPath
 			byPhysKey[key] = append(byPhysKey[key], fmt.Sprintf("%s:%s", ep.nodeIP, ep.path))
 
 			// Stable-ID key as secondary overlap detector (shared SAN, etc.)
@@ -467,16 +457,12 @@ func (objectstoreWriteQuorumLost) Evaluate(snap *collector.Snapshot, _ Config) [
 	writeQuorum := parity + 1
 
 	// Count active nodes (proxy for active drives when drives_per_node == 1).
+	// nodeIDByPoolIP iterates Identity.Ips so VIP-holders (whose AdvertiseIp
+	// is empty or the floating VIP) still resolve to their nodeID.
+	nodeIDByIP := nodeIDByPoolIP(snap.Nodes, desired.Nodes)
 	var activeNodes, downNodes []string
 	for _, ip := range desired.Nodes {
-		// Find nodeID for this IP.
-		var nodeID string
-		for _, n := range snap.Nodes {
-			if n.GetIdentity().GetAdvertiseIp() == ip {
-				nodeID = n.GetNodeId()
-				break
-			}
-		}
+		nodeID := nodeIDByIP[ip]
 		if nodeID == "" {
 			downNodes = append(downNodes, ip)
 			continue
@@ -570,14 +556,9 @@ func (objectstoreFormatHealDeadlock) Evaluate(snap *collector.Snapshot, _ Config
 		downNoSys     []string
 	)
 
+	formatHealNodeIDByIP := nodeIDByPoolIP(snap.Nodes, desired.Nodes)
 	for _, ip := range desired.Nodes {
-		var nodeID string
-		for _, n := range snap.Nodes {
-			if n.GetIdentity().GetAdvertiseIp() == ip {
-				nodeID = n.GetNodeId()
-				break
-			}
-		}
+		nodeID := formatHealNodeIDByIP[ip]
 		state := ""
 		if nodeID != "" {
 			state = minioServiceState(snap, nodeID)

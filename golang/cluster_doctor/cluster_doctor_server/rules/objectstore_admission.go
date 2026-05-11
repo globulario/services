@@ -133,19 +133,34 @@ func (objectstoreMinioActiveOnNonMember) Evaluate(snap *collector.Snapshot, _ Co
 		poolIPs[ip] = true
 	}
 
+	// Iterate Identity.Ips so VIP-holders (whose AdvertiseIp may be empty
+	// or report the floating VIP) still get correctly classified as
+	// in-pool or out-of-pool. The previous AdvertiseIp-based check was
+	// silently skipping every node that didn't populate AdvertiseIp,
+	// hiding real violations. See node_ip_matching.go for the rationale.
 	var violators []string
 	for _, n := range snap.Nodes {
 		nodeID := n.GetNodeId()
-		if minioServiceState(snap, nodeID) != "active" {
+		if nodeID == "" || minioServiceState(snap, nodeID) != "active" {
 			continue
 		}
-		nodeIP := n.GetIdentity().GetAdvertiseIp()
-		if nodeIP == "" {
-			continue // cannot determine IP — skip
+		// A node is "in-pool" if ANY of its IPs appears in the desired pool list.
+		var matchedPoolIP string
+		var anyIP string
+		for _, ip := range n.GetIdentity().GetIps() {
+			if anyIP == "" {
+				anyIP = ip
+			}
+			if poolIPs[ip] {
+				matchedPoolIP = ip
+				break
+			}
 		}
-		if !poolIPs[nodeIP] {
-			violators = append(violators, fmt.Sprintf("%s(%s)", nodeID[:8], nodeIP))
+		if matchedPoolIP != "" || anyIP == "" {
+			// Either matched the pool, or no IPs at all to compare — skip.
+			continue
 		}
+		violators = append(violators, fmt.Sprintf("%s(%s)", nodeID[:8], anyIP))
 	}
 
 	if len(violators) == 0 {
