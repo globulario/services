@@ -40,6 +40,27 @@ entries:
         reference, so the file is removed from the directory but the
         bytes stay on disk until the loop device is detached.
 
+      TWO DISTINCT VARIANTS — diagnose carefully:
+
+        VARIANT A — true ghost: losetup -a shows '(deleted)' AND
+        the loop is NOT mounted anywhere. Safe to detach.
+
+        VARIANT B — live mount with deleted backing: losetup -a shows
+        '(deleted)' AND the loop IS mounted (e.g. at /mnt/data). The
+        loop device is the ONLY thing keeping the inode alive. Detaching
+        OR unmounting destroys all data on the mount. After a reboot,
+        the mount is gone for good — there is no backing file path to
+        re-attach. This variant is a TIME BOMB, not a ghost. Recovery:
+        copy data to safety BEFORE unmounting, then re-create the
+        backing file properly (or migrate to a real partition).
+
+      Discovered on hp-01 (10.0.0.9) and lenovo (10.0.0.102) on
+      2026-05-10: both had loop0 mounted at /mnt/data with backing
+      file (/var/lib/globular/minio-disk.img (deleted)). Filesystem
+      usage was small (45M and 310M respectively) so data preservation
+      is low-stakes there, but the principle stands: confirm usage
+      AND mount state before any losetup -d.
+
       Constraints:
 
         - DO NOT detach a loop device that is currently in use. Check
@@ -79,13 +100,40 @@ entries:
               detach it. Anything in use must be left alone.
 
       - phase: act
-        description: "Detach the ghost loops"
+        description: "Variant A — true ghost: detach directly"
         commands:
           - cmd: "ssh dave@<node> 'sudo losetup -d /dev/loopN'"
             expect: "no output on success; non-zero exit if device is busy"
             note: "Repeat per ghost. Use `losetup -D` to detach ALL unused loops at once if you have audited."
           - cmd: "ssh dave@<node> 'losetup -a'"
             expect: "ghosts gone, only legitimately-mounted loops remain"
+
+      - phase: act
+        description: "Variant B — live mount with deleted backing: preserve data first"
+        commands:
+          - cmd: "# Confirm what's actually on the mount before doing ANYTHING destructive:"
+            note: ""
+          - cmd: "ssh dave@<node> 'sudo du -sh /mnt/<mount>; sudo ls -la /mnt/<mount>'"
+            expect: "size + top-level directory listing — judge whether the data matters"
+          - cmd: "# Decision: data is small AND not part of any active service:"
+            note: |
+              Stop service(s) that might write to it (none if it was an
+              orphaned MinIO test setup), unmount, detach, optionally
+              `rm -rf /mnt/<mount>` to remove the mount point.
+          - cmd: "ssh dave@<node> 'sudo systemctl stop <consuming-service>'"
+            expect: "service stopped if it was reading from /mnt/<mount>"
+            note: "Skip if no service consumes the mount."
+          - cmd: "ssh dave@<node> 'sudo umount /mnt/<mount>'"
+            expect: "no output on success"
+          - cmd: "ssh dave@<node> 'sudo losetup -d /dev/loopN'"
+            expect: "no output on success — the inode is finally freed"
+          - cmd: "# Decision: data IS large or in use — preserve before unmount:"
+            note: |
+              Re-create the backing file at the same size while the loop is
+              still attached, dd from the loop to the new file, then swap.
+              This requires brief downtime. Outside scope of the cleanup
+              runbook — see repartition-shared-disk for the migration
+              pattern.
 
       - phase: verify
         description: "Confirm no orphan loops survive"
