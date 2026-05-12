@@ -841,7 +841,7 @@ if [[ -f "$_MINIO_CRED_FILE" ]]; then
   _MINIO_AK=$(cut -d: -f1 "$_MINIO_CRED_FILE")
   _MINIO_SK=$(cut -d: -f2- "$_MINIO_CRED_FILE")
   if [[ -n "$_MINIO_AK" && -n "$_MINIO_SK" ]]; then
-    _MINIO_ETCD_VAL="{\"endpoint\":\"minio.${DOMAIN}:9000\",\"access_key\":\"$_MINIO_AK\",\"secret_key\":\"$_MINIO_SK\",\"secure\":true,\"bucket\":\"globular\",\"prefix\":\"${DOMAIN}\"}"
+    _MINIO_ETCD_VAL="{\"endpoint\":\"minio.${DOMAIN}:9000\",\"access_key\":\"$_MINIO_AK\",\"secret_key\":\"$_MINIO_SK\",\"secure\":true,\"bucket\":\"globular\",\"prefix\":\"${DOMAIN}\",\"webroot_dir\":\"webroot\"}"
     if etcdctl --endpoints="$_ETCD_ENDPOINTS" \
         --cacert="$_CA_CERT" --cert="$_CERT" --key="$_KEY" \
         put "/globular/cluster/minio/config" "$_MINIO_ETCD_VAL" >/dev/null 2>&1; then
@@ -928,18 +928,83 @@ install_list "${DATA_LAYER_PKGS[@]}"
 
 log_step "MinIO Bucket Setup"
 if [[ -x "$SCRIPT_DIR/setup-minio.sh" ]]; then
-  # Resolve webroot: bundled assets (webroot/ next to scripts/) take priority
-  # over an empty STATE_DIR/webroot. Pass inline to the subprocess — no export.
-  _BUNDLED_WEBROOT="$(dirname "$SCRIPT_DIR")/webroot"
-  if [[ -d "$_BUNDLED_WEBROOT" ]]; then
-    log_substep "Using bundled welcome page assets: $_BUNDLED_WEBROOT"
-    WEBROOT_DIR="$_BUNDLED_WEBROOT" "$SCRIPT_DIR/setup-minio.sh"
-  else
-    "$SCRIPT_DIR/setup-minio.sh"
-  fi
+  "$SCRIPT_DIR/setup-minio.sh"
   log_success "MinIO buckets configured"
 else
   log_substep "setup-minio.sh not found — bucket setup handled by package post-install"
+fi
+
+# Ensure local webroot exists immediately on Day-0.
+# Gateway serves /var/lib/globular/webroot directly, while webroot-sync may run
+# later. Materialize the bundled assets now to avoid first-boot 404s.
+log_step "Webroot Local Materialization"
+WEBROOT_DST="/var/lib/globular/webroot"
+WEBROOT_SRC=""
+for _wr in \
+    "$INSTALLER_ROOT/webroot" \
+    "$SCRIPT_DIR/../webroot" \
+    "$SCRIPT_DIR/../../webroot" \
+    "/usr/lib/globular/webroot" \
+    "/opt/globular/webroot"; do
+  if [[ -f "$_wr/index.html" ]]; then
+    WEBROOT_SRC="$_wr"
+    break
+  fi
+done
+if [[ -z "$WEBROOT_SRC" ]]; then
+  die "No bundled webroot found (expected index.html under installer webroot paths)"
+fi
+mkdir -p "$WEBROOT_DST"
+cp -a "${WEBROOT_SRC}/." "$WEBROOT_DST/"
+if [[ ! -f "${WEBROOT_DST}/logo.png" ]]; then
+  for _logo in "$INSTALLER_ROOT/assets/logo.png" "$SCRIPT_DIR/../assets/logo.png" "$SCRIPT_DIR/../../assets/logo.png"; do
+    if [[ -f "$_logo" ]]; then
+      cp -f "$_logo" "${WEBROOT_DST}/logo.png"
+      break
+    fi
+  done
+fi
+find "$WEBROOT_DST" -type d -exec chmod 755 {} \; 2>/dev/null || true
+find "$WEBROOT_DST" -type f -exec chmod 644 {} \; 2>/dev/null || true
+if id globular >/dev/null 2>&1; then
+  chown -R globular:globular "$WEBROOT_DST" 2>/dev/null || true
+fi
+[[ -f "${WEBROOT_DST}/index.html" ]] || die "webroot materialization failed: missing ${WEBROOT_DST}/index.html"
+[[ -f "${WEBROOT_DST}/logo.png" ]] || die "webroot materialization failed: missing ${WEBROOT_DST}/logo.png"
+log_success "Local webroot ready at ${WEBROOT_DST} (source: ${WEBROOT_SRC})"
+
+# Ensure gateway serves with canonical cluster identity from Day-0 onward.
+# Older/default package configs may keep Domain=localhost and Protocol=http.
+log_step "Gateway Runtime Config"
+GATEWAY_CFG="/var/lib/globular/services/gateway/config.json"
+if [[ -f "$GATEWAY_CFG" ]]; then
+  _GW_DOMAIN="$(hostname).${DOMAIN}"
+  if python3 - "$GATEWAY_CFG" "$_GW_DOMAIN" <<'PY'
+import json, sys
+p, domain = sys.argv[1], sys.argv[2]
+with open(p, "r", encoding="utf-8") as f:
+    d = json.load(f)
+changed = False
+if d.get("Domain") != domain:
+    d["Domain"] = domain
+    changed = True
+if str(d.get("Protocol", "")).lower() != "https":
+    d["Protocol"] = "https"
+    changed = True
+if changed:
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(d, f, indent=2)
+        f.write("\n")
+print("changed" if changed else "unchanged")
+PY
+  then
+    log_substep "Gateway config normalized (domain=${_GW_DOMAIN}, protocol=https)"
+    systemctl restart globular-gateway.service 2>/dev/null || true
+  else
+    log_substep "Warning: failed to normalize gateway config"
+  fi
+else
+  log_substep "Warning: gateway config not found at $GATEWAY_CFG"
 fi
 
 # ── Workflow definitions (always required) ────────────────────────────────
@@ -1787,21 +1852,59 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
     BOOTSTRAP_PASSWORD="$(cat "$BOOTSTRAP_SA_CRED" 2>/dev/null || true)"
   fi
   BOOTSTRAP_PASSWORD="${BOOTSTRAP_PASSWORD:-adminadmin}"
+  _OPS_CA="/var/lib/globular/pki/ca.crt"
 
   log_substep "Authenticating as bootstrap SA user for ops-knowledge seed..."
-  _OPS_TOKEN="$("$GLOBULAR_CLI" auth login --user sa --password "$BOOTSTRAP_PASSWORD" 2>/dev/null | sed -n 's/^Token: //p' | head -n1 || true)"
+  _OPS_TOKEN=""
+  for _ops_auth_try in $(seq 1 5); do
+    _LOGIN_OUT="$("$GLOBULAR_CLI" --ca "$_OPS_CA" auth login --user sa --password "$BOOTSTRAP_PASSWORD" 2>&1 || true)"
+    _OPS_TOKEN="$(echo "$_LOGIN_OUT" | sed -n 's/^Token: //p' | head -n1 || true)"
+    if [[ -z "$_OPS_TOKEN" && -f /root/.config/globular/token ]]; then
+      _OPS_TOKEN="$(cat /root/.config/globular/token 2>/dev/null || true)"
+    fi
+    if [[ -n "$_OPS_TOKEN" ]]; then
+      break
+    fi
+    log_substep "Auth not ready for ops seed (attempt ${_ops_auth_try}/5), retrying..."
+    sleep 2
+  done
   [[ -n "$_OPS_TOKEN" ]] || die "Failed to get auth token for ops-knowledge seed"
 
-  log_substep "Seeding operational knowledge into AI memory..."
-  if "$GLOBULAR_CLI" ops-knowledge seed --dir "$OPS_KNOWLEDGE_DIR" --token "$_OPS_TOKEN" \
-      2>&1 | while IFS= read -r line; do echo "  [ops-seed] $line"; done; then
-    log_success "Operational knowledge seed completed"
-  else
-    die "ops-knowledge seed failed"
+  # Day-0 DNS may not be ready yet. Resolve AI-memory endpoint directly
+  # (etcd first, then unit file, then local IP fallback) and pass --memory.
+  _OPS_IP="${_SEED_IP:-$(ip route get 8.8.8.8 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')}"
+  _OPS_IP="${_OPS_IP:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
+  _OPS_CERT="/var/lib/globular/pki/issued/services/service.crt"
+  _OPS_KEY="/var/lib/globular/pki/issued/services/service.key"
+  _OPS_ETCD="${ETCD_ENDPOINTS:-https://${_OPS_IP}:2379}"
+  _OPS_MEM_PORT="$(etcdctl --endpoints="$_OPS_ETCD" \
+    --cacert="$_OPS_CA" --cert="$_OPS_CERT" --key="$_OPS_KEY" \
+    get "/globular/services/ai_memory.AiMemoryService/config" \
+    --print-value-only 2>/dev/null | \
+    grep -oP '"Port"\s*:\s*\K[0-9]+' | head -1 || true)"
+  if [[ -z "$_OPS_MEM_PORT" ]]; then
+    _OPS_MEM_PORT="$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-ai-memory.service 2>/dev/null | head -1 || true)"
   fi
+  _OPS_MEM_PORT="${_OPS_MEM_PORT:-10200}"
+  _OPS_MEMORY="${_OPS_IP}:${_OPS_MEM_PORT}"
+  log_substep "Using direct ai-memory endpoint for seed: ${_OPS_MEMORY}"
+
+  log_substep "Seeding operational knowledge into AI memory..."
+  _ops_seed_ok=0
+  for _ops_seed_try in $(seq 1 5); do
+    if "$GLOBULAR_CLI" ops-knowledge seed --dir "$OPS_KNOWLEDGE_DIR" --memory "$_OPS_MEMORY" --token "$_OPS_TOKEN" \
+        2>&1 | while IFS= read -r line; do echo "  [ops-seed] $line"; done; then
+      _ops_seed_ok=1
+      break
+    fi
+    log_substep "ops-knowledge seed retry ${_ops_seed_try}/5..."
+    sleep 2
+  done
+  [[ "$_ops_seed_ok" -eq 1 ]] || die "ops-knowledge seed failed"
+  log_success "Operational knowledge seed completed"
 
   log_substep "Verifying seeded knowledge integrity..."
-  if "$GLOBULAR_CLI" ops-knowledge verify --dir "$OPS_KNOWLEDGE_DIR" --token "$_OPS_TOKEN" \
+  if "$GLOBULAR_CLI" ops-knowledge verify --dir "$OPS_KNOWLEDGE_DIR" --memory "$_OPS_MEMORY" --token "$_OPS_TOKEN" \
       2>&1 | while IFS= read -r line; do echo "  [ops-verify] $line"; done; then
     log_success "Operational knowledge integrity verified"
   else
@@ -1809,11 +1912,11 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
   fi
 
   log_substep "Validating AI operational-awareness availability..."
-  _OPS_COUNT="$("$GLOBULAR_CLI" ops-knowledge list --token "$_OPS_TOKEN" 2>/dev/null | awk 'NR>1 {c++} END {print c+0}')"
+  _OPS_COUNT="$("$GLOBULAR_CLI" ops-knowledge list --memory "$_OPS_MEMORY" --token "$_OPS_TOKEN" 2>/dev/null | awk 'NR>1 {c++} END {print c+0}')"
   if [[ "${_OPS_COUNT:-0}" -lt 10 ]]; then
     die "Operational knowledge appears incomplete (entries=${_OPS_COUNT:-0})"
   fi
-  if ! "$GLOBULAR_CLI" ops-knowledge list --token "$_OPS_TOKEN" 2>/dev/null | grep -q "ops.role.ai-memory"; then
+  if ! "$GLOBULAR_CLI" ops-knowledge list --memory "$_OPS_MEMORY" --token "$_OPS_TOKEN" 2>/dev/null | grep -q "ops.role.ai-memory"; then
     die "Operational knowledge missing critical ai-memory role entry"
   fi
   log_success "AI operational-awareness available (${_OPS_COUNT} entries loaded)"
