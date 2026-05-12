@@ -78,6 +78,39 @@ func installableBundle(t *testing.T, dir, version, buildID string) (string, stri
 	return bundlePath, manifestPath, m
 }
 
+func installableBundleEmbeddedManifestNoSidecar(t *testing.T, dir, version, buildID string) string {
+	t.Helper()
+	bundlePath := filepath.Join(dir, "awareness-bundle-"+strings.TrimPrefix(version, "v")+"-"+buildID+".tar.gz")
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	graph := []byte("graph for " + version + "/" + buildID)
+	if err := tw.WriteHeader(&tar.Header{Name: "graph.db", Mode: 0644, Size: int64(len(graph)), Typeflag: tar.TypeReg}); err != nil {
+		t.Fatalf("graph header: %v", err)
+	}
+	if _, err := tw.Write(graph); err != nil {
+		t.Fatalf("graph write: %v", err)
+	}
+	embedded := map[string]interface{}{
+		"name":     bundlesync.BundleName,
+		"version":  version,
+		"build_id": buildID,
+	}
+	mb, _ := json.Marshal(embedded)
+	if err := tw.WriteHeader(&tar.Header{Name: "manifest.json", Mode: 0644, Size: int64(len(mb)), Typeflag: tar.TypeReg}); err != nil {
+		t.Fatalf("manifest header: %v", err)
+	}
+	if _, err := tw.Write(mb); err != nil {
+		t.Fatalf("manifest write: %v", err)
+	}
+	_ = tw.Close()
+	_ = gz.Close()
+	if err := os.WriteFile(bundlePath, buf.Bytes(), 0644); err != nil {
+		t.Fatalf("bundle write: %v", err)
+	}
+	return bundlePath
+}
+
 func writeReleaseIndex(t *testing.T, dir string, ri bundlesync.ReleaseIndex) string {
 	t.Helper()
 	p := filepath.Join(dir, "release-index.json")
@@ -237,6 +270,47 @@ func TestAwarenessInstallSucceeds(t *testing.T) {
 	}
 }
 
+// 5b. install command — day-0 shape: no sidecar manifest next to bundle.
+func TestAwarenessInstallSucceedsWithoutSidecarManifest(t *testing.T) {
+	resetFlags(t)
+	scratch := t.TempDir()
+	version := "1.2.38"
+	buildID := "14c85fc1"
+	bp := installableBundleEmbeddedManifestNoSidecar(t, scratch, version, buildID)
+	bundleRoot := t.TempDir()
+	indexDir := t.TempDir()
+	riPath := writeReleaseIndex(t, indexDir, bundlesync.ReleaseIndex{Version: version, BuildID: buildID})
+
+	awarenessSyncCfg.bundleRoot = bundleRoot
+	awarenessSyncCfg.releaseIndex = riPath
+	awarenessSyncCfg.manifestPath = ""
+	awarenessSyncCfg.json = true
+
+	var out bytes.Buffer
+	awarenessInstallCmd.SetOut(&out)
+	awarenessInstallCmd.SetErr(&out)
+	if err := awarenessInstallCmd.RunE(awarenessInstallCmd, []string{bp}); err != nil {
+		t.Fatalf("install RunE: %v\nout=%s", err, out.String())
+	}
+
+	var res bundlesync.InstallResult
+	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
+		t.Fatalf("json: %v\nout=%s", err, out.String())
+	}
+	if !res.OK {
+		t.Errorf("install OK=false; state=%s reason=%s", res.State, res.Reason)
+	}
+	target, _ := os.Readlink(filepath.Join(bundleRoot, "current"))
+	want := filepath.Join(bundleRoot, "installed", version, buildID)
+	if target != want {
+		t.Errorf("current → %s, want %s", target, want)
+	}
+	synth := strings.TrimSuffix(bp, ".tar.gz") + ".manifest.json"
+	if _, err := os.Stat(synth); err != nil {
+		t.Fatalf("expected synthesized sidecar at %s: %v", synth, err)
+	}
+}
+
 // 6. install command — verify failure (wrong sha256 in manifest) returns error
 // and current symlink does not exist.
 func TestAwarenessInstallVerifyFailure(t *testing.T) {
@@ -329,6 +403,82 @@ func TestDefaultManifestSidecar(t *testing.T) {
 	wantSuffix := ".manifest.json"
 	if !strings.HasSuffix(got, wantSuffix) {
 		t.Errorf("got %s, want suffix %s", got, wantSuffix)
+	}
+}
+
+func TestResolveManifestSidecarSupportsTarGzSuffixManifest(t *testing.T) {
+	resetFlags(t)
+	dir := t.TempDir()
+	bundlePath := filepath.Join(dir, "bundle.tar.gz")
+	if err := os.WriteFile(bundlePath, []byte("not-a-real-bundle"), 0644); err != nil {
+		t.Fatalf("write bundle: %v", err)
+	}
+	sidecar := bundlePath + ".manifest.json"
+	if err := os.WriteFile(sidecar, []byte(`{"name":"globular-awareness-bundle","version":"v1.2.30","build_id":"abc123","schema_version":"awareness.bundle.v1","sha256":"deadbeef"}`), 0644); err != nil {
+		t.Fatalf("write sidecar: %v", err)
+	}
+	got, err := resolveManifestSidecar(bundlePath)
+	if err != nil {
+		t.Fatalf("resolveManifestSidecar: %v", err)
+	}
+	if got != sidecar {
+		t.Fatalf("got %s, want %s", got, sidecar)
+	}
+}
+
+func TestResolveManifestSidecarSynthesizesWhenMissing(t *testing.T) {
+	resetFlags(t)
+	dir := t.TempDir()
+	bundlePath := filepath.Join(dir, "awareness-bundle-1.2.38-14c85fc1.tar.gz")
+
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	graph := []byte("graph")
+	if err := tw.WriteHeader(&tar.Header{Name: "graph.db", Mode: 0644, Size: int64(len(graph)), Typeflag: tar.TypeReg}); err != nil {
+		t.Fatalf("graph header: %v", err)
+	}
+	if _, err := tw.Write(graph); err != nil {
+		t.Fatalf("graph write: %v", err)
+	}
+	embedded := map[string]interface{}{
+		"name":     bundlesync.BundleName,
+		"version":  "1.2.38",
+		"build_id": "14c85fc1",
+	}
+	mb, _ := json.Marshal(embedded)
+	if err := tw.WriteHeader(&tar.Header{Name: "manifest.json", Mode: 0644, Size: int64(len(mb)), Typeflag: tar.TypeReg}); err != nil {
+		t.Fatalf("manifest header: %v", err)
+	}
+	if _, err := tw.Write(mb); err != nil {
+		t.Fatalf("manifest write: %v", err)
+	}
+	_ = tw.Close()
+	_ = gz.Close()
+	if err := os.WriteFile(bundlePath, buf.Bytes(), 0644); err != nil {
+		t.Fatalf("bundle write: %v", err)
+	}
+
+	got, err := resolveManifestSidecar(bundlePath)
+	if err != nil {
+		t.Fatalf("resolveManifestSidecar: %v", err)
+	}
+	var m bundlesync.Manifest
+	data, err := os.ReadFile(got)
+	if err != nil {
+		t.Fatalf("read synthesized manifest: %v", err)
+	}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("unmarshal synthesized manifest: %v", err)
+	}
+	if m.Version != "1.2.38" || m.BuildID != "14c85fc1" {
+		t.Fatalf("unexpected synthesized manifest version/build_id: %+v", m)
+	}
+	if m.SchemaVersion != "awareness.bundle.v1" {
+		t.Fatalf("schema_version = %q, want awareness.bundle.v1", m.SchemaVersion)
+	}
+	if m.SHA256 == "" {
+		t.Fatal("sha256 was not synthesized")
 	}
 }
 

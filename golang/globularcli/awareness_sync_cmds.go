@@ -18,7 +18,11 @@ package main
 // All commands honor --json for machine-readable output.
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
@@ -160,7 +164,11 @@ Read-only — does not install or modify any path.`,
 		bundlePath := args[0]
 		manifestPath := awarenessSyncCfg.manifestPath
 		if manifestPath == "" {
-			manifestPath = defaultManifestSidecar(bundlePath)
+			var err error
+			manifestPath, err = resolveManifestSidecar(bundlePath)
+			if err != nil {
+				return err
+			}
 		}
 
 		ri, err := resolveExpectedRelease()
@@ -195,7 +203,11 @@ the new bundle.`,
 		bundlePath := args[0]
 		manifestPath := awarenessSyncCfg.manifestPath
 		if manifestPath == "" {
-			manifestPath = defaultManifestSidecar(bundlePath)
+			var err error
+			manifestPath, err = resolveManifestSidecar(bundlePath)
+			if err != nil {
+				return err
+			}
 		}
 
 		ri, err := resolveExpectedRelease()
@@ -405,6 +417,110 @@ func defaultManifestSidecar(bundlePath string) string {
 	}
 	// Fallback: same basename with .manifest.json suffix.
 	return strings.TrimSuffix(bundlePath, ".tar.gz") + ".manifest.json"
+}
+
+func resolveManifestSidecar(bundlePath string) (string, error) {
+	candidates := []string{
+		defaultManifestSidecar(bundlePath),
+		bundlePath + ".manifest.json",
+	}
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+	return synthesizeManifestSidecar(bundlePath)
+}
+
+func synthesizeManifestSidecar(bundlePath string) (string, error) {
+	f, err := os.Open(bundlePath)
+	if err != nil {
+		return "", fmt.Errorf("open bundle %s: %w", bundlePath, err)
+	}
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return "", fmt.Errorf("open bundle gzip %s: %w", bundlePath, err)
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	var embedded struct {
+		Name          string `json:"name"`
+		Version       string `json:"version"`
+		BuildID       string `json:"build_id"`
+		SchemaVersion string `json:"schema_version"`
+		SHA256        string `json:"sha256"`
+		SizeBytes     int64  `json:"size_bytes,omitempty"`
+		GraphHash     string `json:"graph_hash,omitempty"`
+		SourceCommit  string `json:"source_commit,omitempty"`
+	}
+	found := false
+	for {
+		hdr, rerr := tr.Next()
+		if errors.Is(rerr, io.EOF) {
+			break
+		}
+		if rerr != nil {
+			return "", fmt.Errorf("read bundle tar %s: %w", bundlePath, rerr)
+		}
+		if filepath.Base(hdr.Name) != "manifest.json" {
+			continue
+		}
+		blob, readErr := io.ReadAll(tr)
+		if readErr != nil {
+			return "", fmt.Errorf("read embedded manifest %s: %w", bundlePath, readErr)
+		}
+		if unmarshalErr := json.Unmarshal(blob, &embedded); unmarshalErr != nil {
+			return "", fmt.Errorf("parse embedded manifest %s: %w", bundlePath, unmarshalErr)
+		}
+		found = true
+		break
+	}
+	if !found {
+		return "", fmt.Errorf("embedded manifest.json not found in %s and no sidecar manifest found", bundlePath)
+	}
+
+	raw, err := os.ReadFile(bundlePath)
+	if err != nil {
+		return "", fmt.Errorf("read bundle %s: %w", bundlePath, err)
+	}
+	sum := sha256.Sum256(raw)
+	manifest := bundlesync.Manifest{
+		Name:          embedded.Name,
+		Version:       embedded.Version,
+		BuildID:       embedded.BuildID,
+		SchemaVersion: embedded.SchemaVersion,
+		SHA256:        embedded.SHA256,
+		SizeBytes:     embedded.SizeBytes,
+		GraphHash:     embedded.GraphHash,
+		SourceCommit:  embedded.SourceCommit,
+	}
+	if manifest.Name == "" {
+		manifest.Name = bundlesync.BundleName
+	}
+	if manifest.SchemaVersion == "" {
+		manifest.SchemaVersion = "awareness.bundle.v1"
+	}
+	if manifest.SHA256 == "" {
+		manifest.SHA256 = hex.EncodeToString(sum[:])
+	}
+	if manifest.SizeBytes == 0 {
+		manifest.SizeBytes = int64(len(raw))
+	}
+	if manifest.Version == "" || manifest.BuildID == "" {
+		return "", fmt.Errorf("embedded manifest in %s missing required version/build_id fields", bundlePath)
+	}
+
+	out := strings.TrimSuffix(bundlePath, ".tar.gz") + ".manifest.json"
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("encode synthesized manifest for %s: %w", bundlePath, err)
+	}
+	if err := os.WriteFile(out, data, 0644); err != nil {
+		return "", fmt.Errorf("write synthesized manifest %s: %w", out, err)
+	}
+	return out, nil
 }
 
 // statusReport is the JSON shape printed by `awareness status`.

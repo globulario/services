@@ -1745,10 +1745,19 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
         _AW_VERSION=$(basename "$_AWARENESS_BUNDLE" | sed -n 's/^awareness-bundle-\([0-9][0-9.]*\)-[A-Za-z0-9._-]\+\.tar\.gz$/\1/p')
       fi
       _AW_BUILD_ID=$(basename "$_AWARENESS_BUNDLE" | sed -n 's/^awareness-bundle-[0-9][0-9.]*-\([A-Za-z0-9._-]\+\)\.tar\.gz$/\1/p')
+      _AW_MANIFEST=""
+      if [[ -f "$(dirname "$_AWARENESS_BUNDLE")/manifest.json" ]]; then
+        _AW_MANIFEST="$(dirname "$_AWARENESS_BUNDLE")/manifest.json"
+      elif [[ -f "${_AWARENESS_BUNDLE}.manifest.json" ]]; then
+        _AW_MANIFEST="${_AWARENESS_BUNDLE}.manifest.json"
+      elif [[ -f "${_AWARENESS_BUNDLE%.tar.gz}.manifest.json" ]]; then
+        _AW_MANIFEST="${_AWARENESS_BUNDLE%.tar.gz}.manifest.json"
+      fi
 
       _AWARENESS_INSTALL_ARGS=()
       [[ -n "$_AW_VERSION" ]] && _AWARENESS_INSTALL_ARGS+=(--version "$_AW_VERSION")
       [[ -n "$_AW_BUILD_ID" ]] && _AWARENESS_INSTALL_ARGS+=(--build-id "$_AW_BUILD_ID")
+      [[ -n "$_AW_MANIFEST" ]] && _AWARENESS_INSTALL_ARGS+=(--manifest "$_AW_MANIFEST")
       [[ -f "${STATE_DIR}/release-index.json" ]] && _AWARENESS_INSTALL_ARGS+=(--release-index "${STATE_DIR}/release-index.json")
 
       log_substep "Installing awareness bundle from ${_AWARENESS_BUNDLE}..."
