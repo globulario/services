@@ -48,6 +48,17 @@ log_success() { echo "  ✓ $*"; }
 log_warn()    { echo "  ⚠ $*"; }
 log_fail()    { echo "  ✗ $*" >&2; }
 
+is_unusable_etcd_host() {
+  local host="${1:-}"
+  [[ -z "$host" ]] && return 0
+  [[ "$host" == "localhost" ]] && return 0
+  [[ "$host" =~ ^127\. ]] && return 0
+  [[ "$host" =~ ^169\.254\. ]] && return 0
+  [[ "$host" =~ ^172\.17\. ]] && return 0
+  [[ "$host" == "0.0.0.0" ]] && return 0
+  return 1
+}
+
 # ── Configuration ────────────────────────────────────────────────────────────
 
 PKG_DIR="${1:-}"
@@ -138,9 +149,17 @@ CORE_PACKAGES=(
 
 # ── Step 1: Discover repository endpoint ─────────────────────────────────────
 
-# Routable node IP — never loopback.
+# Routable node IP — never loopback/bridge. Prefer route source, then global
+# interface scan excluding common virtual bridge adapters.
 NODE_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')
+if [[ -z "${NODE_IP}" ]]; then
+  NODE_IP=$(ip -o -4 addr show up scope global 2>/dev/null \
+    | awk '$2 !~ /^(docker|br-|veth|cni|flannel|virbr|zt|tailscale)/ {split($4,a,"/"); print a[1]; exit}')
+fi
 NODE_IP="${NODE_IP:-$(hostname -I | awk '{print $1}')}"
+if is_unusable_etcd_host "$NODE_IP"; then
+  log_warn "Resolved NODE_IP looks non-routable for control-plane use: $NODE_IP"
+fi
 
 # Locate the CA cert. This script runs as root (via sudo), so root's home
 # and /var/lib/globular/ are both accessible.
@@ -162,6 +181,33 @@ if [[ -z "$CA_CERT" ]]; then
   exit 1
 fi
 log_info "Using CA cert: $CA_CERT"
+
+# Heal local etcd endpoint list used by config.GetEtcdClient().
+# Prevent bridge/loopback endpoints from poisoning local CLI operations.
+ETCD_ENDPOINTS_FILE="${STATE_DIR}/config/etcd_endpoints"
+PREFERRED_ETCD_ENDPOINT="https://${NODE_IP}:2379"
+mkdir -p "$(dirname "$ETCD_ENDPOINTS_FILE")" 2>/dev/null || true
+
+declare -a _etcd_eps
+_etcd_eps+=("$PREFERRED_ETCD_ENDPOINT")
+if [[ -f "$ETCD_ENDPOINTS_FILE" ]]; then
+  while IFS= read -r _line; do
+    _line="$(echo "$_line" | xargs)"
+    [[ -z "$_line" ]] && continue
+    _host="${_line#*://}"; _host="${_host%%:*}"
+    if is_unusable_etcd_host "$_host"; then
+      continue
+    fi
+    [[ "$_line" == "$PREFERRED_ETCD_ENDPOINT" ]] && continue
+    _etcd_eps+=("$_line")
+  done < "$ETCD_ENDPOINTS_FILE"
+fi
+{
+  for _ep in "${_etcd_eps[@]}"; do
+    printf "%s\n" "$_ep"
+  done
+} > "$ETCD_ENDPOINTS_FILE"
+log_info "Normalized etcd endpoints file: $ETCD_ENDPOINTS_FILE (primary: $PREFERRED_ETCD_ENDPOINT)"
 
 if [[ -z "$REPO_ADDR" ]]; then
   log_info "Discovering repository service endpoint from etcd..."

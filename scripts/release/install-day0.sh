@@ -1736,8 +1736,24 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
       fi
     done
     if [[ -n "$_AWARENESS_BUNDLE" ]]; then
+      _AW_VERSION=""
+      _AW_BUILD_ID=""
+      if [[ -f "${STATE_DIR}/release-index.json" ]]; then
+        _AW_VERSION=$(python3 -c "import json; d=json.load(open('${STATE_DIR}/release-index.json')); print((d.get('platform_release') or d.get('release_tag','').lstrip('v')).strip())" 2>/dev/null || true)
+      fi
+      if [[ -z "$_AW_VERSION" ]]; then
+        _AW_VERSION=$(basename "$_AWARENESS_BUNDLE" | sed -n 's/^awareness-bundle-\([0-9][0-9.]*\)-[A-Za-z0-9._-]\+\.tar\.gz$/\1/p')
+      fi
+      _AW_BUILD_ID=$(basename "$_AWARENESS_BUNDLE" | sed -n 's/^awareness-bundle-[0-9][0-9.]*-\([A-Za-z0-9._-]\+\)\.tar\.gz$/\1/p')
+
+      _AWARENESS_INSTALL_ARGS=()
+      [[ -n "$_AW_VERSION" ]] && _AWARENESS_INSTALL_ARGS+=(--version "$_AW_VERSION")
+      [[ -n "$_AW_BUILD_ID" ]] && _AWARENESS_INSTALL_ARGS+=(--build-id "$_AW_BUILD_ID")
+      [[ -f "${STATE_DIR}/release-index.json" ]] && _AWARENESS_INSTALL_ARGS+=(--release-index "${STATE_DIR}/release-index.json")
+
       log_substep "Installing awareness bundle from ${_AWARENESS_BUNDLE}..."
       if "$GLOBULAR_CLI" awareness install "$_AWARENESS_BUNDLE" \
+          "${_AWARENESS_INSTALL_ARGS[@]}" \
           2>&1 | while IFS= read -r line; do echo "  [awareness-install] $line"; done; then
         log_success "Awareness bundle installed"
       else
