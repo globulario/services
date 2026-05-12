@@ -46,6 +46,23 @@ is_loopback_ip() {
   [[ "$1" =~ ^127\. ]] || [[ "$1" == "::1" ]]
 }
 
+# Normalize metadata values read from JSON/CLI so sentinel text does not get
+# treated as real identity values.
+normalize_meta_value() {
+  local v="${1:-}"
+  v="$(printf '%s' "$v" | tr -d '\r\n' | xargs 2>/dev/null || true)"
+  local lower
+  lower="$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')"
+  case "$lower" in
+    ""|"unknown"|"null"|"none"|"n/a"|"na"|"-")
+      echo ""
+      ;;
+    *)
+      echo "$v"
+      ;;
+  esac
+}
+
 # wait_scylla_write_ready HOST
 # Waits until ScyllaDB accepts DDL write operations (CREATE KEYSPACE), not just
 # reads. The SELECT probe passes while Scylla is still in a pre-write state, so
@@ -1809,6 +1826,7 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
       if [[ -f "${STATE_DIR}/release-index.json" ]]; then
         _AW_VERSION=$(python3 -c "import json; d=json.load(open('${STATE_DIR}/release-index.json')); print((d.get('platform_release') or d.get('release_tag','').lstrip('v')).strip())" 2>/dev/null || true)
       fi
+      _AW_VERSION="$(normalize_meta_value "$_AW_VERSION")"
       if [[ -z "$_AW_VERSION" ]]; then
         _AW_VERSION=$(basename "$_AWARENESS_BUNDLE" | sed -n 's/^awareness-bundle-\([0-9][0-9.]*\)-[A-Za-z0-9._-]\+\.tar\.gz$/\1/p')
       fi
@@ -1823,6 +1841,7 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
       fi
       if [[ -n "$_AW_MANIFEST" ]]; then
         _AW_MANIFEST_BUILD_ID="$(python3 -c "import json; d=json.load(open('${_AW_MANIFEST}')); print((d.get('build_id') or '').strip())" 2>/dev/null || true)"
+        _AW_MANIFEST_BUILD_ID="$(normalize_meta_value "$_AW_MANIFEST_BUILD_ID")"
         [[ -n "$_AW_MANIFEST_BUILD_ID" ]] && _AW_BUILD_ID="$_AW_MANIFEST_BUILD_ID"
       fi
       if [[ -z "$_AW_BUILD_ID" && -n "$_AW_FILENAME_BUILD_ID" ]]; then
@@ -1830,6 +1849,7 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
       fi
       if [[ -f "${STATE_DIR}/release-index.json" ]]; then
         _AW_INDEX_BUILD_ID="$(python3 -c "import json; d=json.load(open('${STATE_DIR}/release-index.json')); print((d.get('build_id') or '').strip())" 2>/dev/null || true)"
+        _AW_INDEX_BUILD_ID="$(normalize_meta_value "$_AW_INDEX_BUILD_ID")"
       fi
 
       _AWARENESS_INSTALL_ARGS=()
@@ -1839,6 +1859,8 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
       if [[ -f "${STATE_DIR}/release-index.json" ]]; then
         if [[ -n "$_AW_INDEX_BUILD_ID" && -n "$_AW_BUILD_ID" && "$_AW_INDEX_BUILD_ID" == "$_AW_BUILD_ID" ]]; then
           _AWARENESS_INSTALL_ARGS+=(--release-index "${STATE_DIR}/release-index.json")
+        elif [[ -z "$_AW_INDEX_BUILD_ID" ]]; then
+          log_warn "Skipping --release-index for awareness install: release-index build_id unavailable"
         else
           log_warn "Skipping --release-index for awareness install: build_id mismatch (release-index='${_AW_INDEX_BUILD_ID:-unknown}' manifest='${_AW_MANIFEST_BUILD_ID:-unknown}')"
         fi
