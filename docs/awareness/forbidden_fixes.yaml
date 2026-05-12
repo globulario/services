@@ -155,6 +155,19 @@ forbidden_fixes:
     uses the pre-resolved ID only, never resolves its own.
 
     '
+- id: derive_build_id_from_bundle_filename
+  summary: 'Derive awareness bundle build_id from the tarball filename token (short/hash-like suffix) and pass it to install
+    verification as if it were the authoritative UUID build_id.
+
+    '
+  related_invariants:
+  - awareness.auto_install_requires_verification
+  - desired.build_id_immutable
+  safe_alternative: 'Treat manifest.build_id (UUID) and release-index.build_id as the only authoritative identities. Never pass
+    filename-derived tokens as --build-id. If manifest build_id is unavailable, fail closed or install without overriding expected
+    build_id.
+
+    '
 - id: dispatch_workflow_when_scylla_down
   summary: 'Dispatch a workflow when the Scylla backend is known to be unavailable or degraded, producing orphaned workflow
     records.

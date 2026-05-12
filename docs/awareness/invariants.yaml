@@ -1728,6 +1728,7 @@ invariants:
           DAY1_COMPLETE while the bundle is anything other than READY.
       forbidden_fixes:
         - install_bundle_whose_build_id_differs_from_release_index
+        - derive_build_id_from_bundle_filename
         - install_bundle_with_unsupported_schema_version
         - skip_sha256_verification_to_recover_a_pull
         - install_bundle_pulled_over_unverified_tls

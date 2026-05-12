@@ -251,6 +251,15 @@ mkdir -p "${RELEASE_DIR}/awareness"
 
 cp "${awareness_bundle_file}" "${RELEASE_DIR}/awareness/"
 ok "awareness bundle staged: ${RELEASE_DIR}/awareness/$(basename "${awareness_bundle_file}")"
+if [[ -f "${awareness_bundle_file}.manifest.json" ]]; then
+  cp "${awareness_bundle_file}.manifest.json" "${RELEASE_DIR}/awareness/"
+  ok "awareness bundle manifest staged: ${RELEASE_DIR}/awareness/$(basename "${awareness_bundle_file}.manifest.json")"
+elif [[ -f "${awareness_bundle_file%.tar.gz}.manifest.json" ]]; then
+  cp "${awareness_bundle_file%.tar.gz}.manifest.json" "${RELEASE_DIR}/awareness/"
+  ok "awareness bundle manifest staged: ${RELEASE_DIR}/awareness/$(basename "${awareness_bundle_file%.tar.gz}.manifest.json")"
+else
+  info "awareness bundle manifest not found beside bundle; install will rely on embedded/default metadata"
+fi
 
 cp "${DIST_DIR}/bin/globular"   "${RELEASE_DIR}/globular"
 chmod 755 "${RELEASE_DIR}/globular"

@@ -1803,6 +1803,7 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
     if [[ -n "$_AWARENESS_BUNDLE" ]]; then
       _AW_VERSION=""
       _AW_BUILD_ID=""
+      _AW_FILENAME_BUILD_ID=""
       _AW_MANIFEST_BUILD_ID=""
       _AW_INDEX_BUILD_ID=""
       if [[ -f "${STATE_DIR}/release-index.json" ]]; then
@@ -1811,7 +1812,7 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
       if [[ -z "$_AW_VERSION" ]]; then
         _AW_VERSION=$(basename "$_AWARENESS_BUNDLE" | sed -n 's/^awareness-bundle-\([0-9][0-9.]*\)-[A-Za-z0-9._-]\+\.tar\.gz$/\1/p')
       fi
-      _AW_BUILD_ID=$(basename "$_AWARENESS_BUNDLE" | sed -n 's/^awareness-bundle-[0-9][0-9.]*-\([A-Za-z0-9._-]\+\)\.tar\.gz$/\1/p')
+      _AW_FILENAME_BUILD_ID=$(basename "$_AWARENESS_BUNDLE" | sed -n 's/^awareness-bundle-[0-9][0-9.]*-\([A-Za-z0-9._-]\+\)\.tar\.gz$/\1/p')
       _AW_MANIFEST=""
       if [[ -f "$(dirname "$_AWARENESS_BUNDLE")/manifest.json" ]]; then
         _AW_MANIFEST="$(dirname "$_AWARENESS_BUNDLE")/manifest.json"
@@ -1823,6 +1824,9 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
       if [[ -n "$_AW_MANIFEST" ]]; then
         _AW_MANIFEST_BUILD_ID="$(python3 -c "import json; d=json.load(open('${_AW_MANIFEST}')); print((d.get('build_id') or '').strip())" 2>/dev/null || true)"
         [[ -n "$_AW_MANIFEST_BUILD_ID" ]] && _AW_BUILD_ID="$_AW_MANIFEST_BUILD_ID"
+      fi
+      if [[ -z "$_AW_BUILD_ID" && -n "$_AW_FILENAME_BUILD_ID" ]]; then
+        log_warn "Awareness manifest build_id unavailable; not passing --build-id (filename token='${_AW_FILENAME_BUILD_ID}')"
       fi
       if [[ -f "${STATE_DIR}/release-index.json" ]]; then
         _AW_INDEX_BUILD_ID="$(python3 -c "import json; d=json.load(open('${STATE_DIR}/release-index.json')); print((d.get('build_id') or '').strip())" 2>/dev/null || true)"
@@ -1836,7 +1840,7 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
         if [[ -n "$_AW_INDEX_BUILD_ID" && -n "$_AW_BUILD_ID" && "$_AW_INDEX_BUILD_ID" == "$_AW_BUILD_ID" ]]; then
           _AWARENESS_INSTALL_ARGS+=(--release-index "${STATE_DIR}/release-index.json")
         else
-          log_warn "Skipping --release-index for awareness install: build_id mismatch (release-index='${_AW_INDEX_BUILD_ID:-unknown}' manifest='${_AW_BUILD_ID:-unknown}')"
+          log_warn "Skipping --release-index for awareness install: build_id mismatch (release-index='${_AW_INDEX_BUILD_ID:-unknown}' manifest='${_AW_MANIFEST_BUILD_ID:-unknown}')"
         fi
       fi
 
