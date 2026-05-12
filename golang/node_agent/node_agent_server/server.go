@@ -811,7 +811,6 @@ func detectUnits(ctx context.Context) []*node_agentpb.UnitStatus {
 		"globular-envoy.service",
 		"scylla-server.service",
 		"keepalived.service",
-		"globular-monitoring.service",
 	}
 
 	// Dynamic discovery: find all installed globular-*.service unit files.

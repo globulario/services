@@ -13,6 +13,7 @@ import (
 
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/operator"
 	"github.com/globulario/services/golang/installed_state"
+	"github.com/globulario/services/golang/repository/repositorypb"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -843,6 +844,28 @@ func (srv *server) resolveWorkloadVersion(componentName string) (version, source
 			if sdv, ok := obj.(*cluster_controllerpb.ServiceDesiredVersion); ok && sdv.Spec != nil && sdv.Spec.Version != "" {
 				return sdv.Spec.Version, "desired:" + canon
 			}
+		}
+	}
+
+	// Final fallback: resolve latest published workload artifact from repository.
+	// This closes the Day-1 bootstrap gap where a profile-default workload
+	// (e.g. monitoring) is in catalog intent but absent from both heartbeat and
+	// desired state, leaving it permanently unresolved and never materialized.
+	repoAddr := strings.TrimSpace(resolveRepositoryInfo().Address)
+	if repoAddr != "" {
+		qctx3, qcancel3 := withBounded(boundedMedium)
+		defer qcancel3()
+		resolver := &ReleaseResolver{
+			RepositoryAddr: repoAddr,
+			ArtifactKind:   repositorypb.ArtifactKind_SERVICE,
+		}
+		resolved, err := resolver.Resolve(qctx3, &cluster_controllerpb.ServiceReleaseSpec{
+			PublisherID: defaultPublisherID(),
+			ServiceName: canonComponent,
+			Platform:    "linux_amd64",
+		})
+		if err == nil && resolved != nil && strings.TrimSpace(resolved.Version) != "" {
+			return strings.TrimSpace(resolved.Version), "repo-latest:" + canonComponent
 		}
 	}
 	return "", "unresolved"

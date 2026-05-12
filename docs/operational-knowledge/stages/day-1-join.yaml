@@ -56,6 +56,10 @@ entries:
       curl -sfL https://<controller-fqdn>:8443/join -k | sudo bash -s -- --token <JOIN_TOKEN>
       ```
 
+      Important: `--token` here is a JOIN TOKEN, not an auth JWT from `globular auth login`.
+      Keep the join command isolated on its own line. Do not append unrelated commands to the
+      token argument.
+
       How it works:
       - The controller's gateway exposes a dynamically-generated install script at /join.
       - The script downloads the node-agent binary, installs systemd units, configures TLS,
@@ -65,18 +69,32 @@ entries:
 
       Generate the join token first on the controller:
       ```
-      globular --controller globule-<leader>.globular.internal cluster token create --profiles core,control-plane,storage --ttl 30m
+      globular cluster token create --controller <controller-ip>:12000 --token <AUTH_JWT> --insecure --expires 30m
       ```
+
+      Then run join on the new node with the returned token:
+      ```
+      curl -sfL https://<controller-ip>:8443/join -k | sudo bash -s -- --token <JOIN_TOKEN>
+      ```
+
+      If a prior join attempt failed after creating local etcd state, rerun explicitly with:
+      ```
+      curl -sfL https://<controller-ip>:8443/join -k | sudo bash -s -- --token <JOIN_TOKEN> --repair-etcd
+      ```
+      `--repair-etcd` authorizes backup + wipe of local etcd data; never use it blindly.
 
       What you do NOT do:
       - Manually scp the node-agent binary — bypasses TLS and version pinning
       - Edit /etc/hosts to redirect the controller — breaks mTLS SAN verification
       - Run `globular cluster join` directly without the script — the script handles
         prerequisites the bare command doesn't (system user, mounts, certs)
+      - Paste extra shell text into the token argument (for example appending `systemctl ...`)
+        because it turns the token into garbage and join fails
     links:
       cli_commands:
-        - "globular cluster token create --profiles core,control-plane,storage --ttl 30m"
-        - "curl -sfL https://<controller>:8443/join -k | sudo bash -s -- --token <token>"
+        - "globular cluster token create --controller <controller-ip>:12000 --token <auth-jwt> --insecure --expires 30m"
+        - "curl -sfL https://<controller-ip>:8443/join -k | sudo bash -s -- --token <join-token>"
+        - "curl -sfL https://<controller-ip>:8443/join -k | sudo bash -s -- --token <join-token> --repair-etcd"
 
   - id: ops.day-1.join.etcd-add-discipline
     type: ARCHITECTURE
