@@ -31,9 +31,7 @@ func (srv *server) fallbackNodeAgentEndpointFromState(nodeID, current string) st
 		return ""
 	}
 
-	candidates := []string{
-		strings.TrimSpace(node.PrimaryIP()),
-	}
+	candidates := make([]string, 0, len(node.Identity.Ips))
 	for _, ip := range node.Identity.Ips {
 		candidates = append(candidates, strings.TrimSpace(ip))
 	}

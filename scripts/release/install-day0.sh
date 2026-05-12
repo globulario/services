@@ -1722,6 +1722,40 @@ fi
 # invariants and known failure modes before first intervention.
 log_step "Initializing AI Operational Memory"
 if [[ -x "$GLOBULAR_CLI" ]]; then
+  # Prefer seeded entries from the installed awareness bundle (release artifact).
+  # Fallback to source-tree docs path for dev/checkouts.
+  OPS_KNOWLEDGE_DIR="/var/lib/globular/awareness/current/ops-knowledge"
+  if [[ ! -d "$OPS_KNOWLEDGE_DIR" ]]; then
+    _AWARENESS_BUNDLE=""
+    for _ab in \
+      "$INSTALLER_ROOT/awareness"/awareness-bundle-*.tar.gz \
+      "/var/lib/globular/awareness"/awareness-bundle-*.tar.gz; do
+      if [[ -f "$_ab" ]]; then
+        _AWARENESS_BUNDLE="$_ab"
+        break
+      fi
+    done
+    if [[ -n "$_AWARENESS_BUNDLE" ]]; then
+      log_substep "Installing awareness bundle from ${_AWARENESS_BUNDLE}..."
+      if "$GLOBULAR_CLI" awareness install "$_AWARENESS_BUNDLE" \
+          2>&1 | while IFS= read -r line; do echo "  [awareness-install] $line"; done; then
+        log_success "Awareness bundle installed"
+      else
+        die "awareness bundle install failed"
+      fi
+    fi
+  fi
+  if [[ ! -d "$OPS_KNOWLEDGE_DIR" ]]; then
+    if [[ -d "$INSTALLER_ROOT/docs/operational-knowledge" ]]; then
+      OPS_KNOWLEDGE_DIR="$INSTALLER_ROOT/docs/operational-knowledge"
+    elif [[ -d "docs/operational-knowledge" ]]; then
+      OPS_KNOWLEDGE_DIR="$(pwd)/docs/operational-knowledge"
+    else
+      die "operational-knowledge directory not found (expected /var/lib/globular/awareness/current/ops-knowledge)"
+    fi
+  fi
+  log_substep "Operational knowledge source: ${OPS_KNOWLEDGE_DIR}"
+
   BOOTSTRAP_SA_CRED="${BOOTSTRAP_SA_CRED:-/var/lib/globular/.bootstrap-sa-password}"
   BOOTSTRAP_PASSWORD=""
   if [[ -f "$BOOTSTRAP_SA_CRED" ]]; then
@@ -1734,7 +1768,7 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
   [[ -n "$_OPS_TOKEN" ]] || die "Failed to get auth token for ops-knowledge seed"
 
   log_substep "Seeding operational knowledge into AI memory..."
-  if "$GLOBULAR_CLI" ops-knowledge seed --token "$_OPS_TOKEN" \
+  if "$GLOBULAR_CLI" ops-knowledge seed --dir "$OPS_KNOWLEDGE_DIR" --token "$_OPS_TOKEN" \
       2>&1 | while IFS= read -r line; do echo "  [ops-seed] $line"; done; then
     log_success "Operational knowledge seed completed"
   else
@@ -1742,7 +1776,7 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
   fi
 
   log_substep "Verifying seeded knowledge integrity..."
-  if "$GLOBULAR_CLI" ops-knowledge verify --token "$_OPS_TOKEN" \
+  if "$GLOBULAR_CLI" ops-knowledge verify --dir "$OPS_KNOWLEDGE_DIR" --token "$_OPS_TOKEN" \
       2>&1 | while IFS= read -r line; do echo "  [ops-verify] $line"; done; then
     log_success "Operational knowledge integrity verified"
   else

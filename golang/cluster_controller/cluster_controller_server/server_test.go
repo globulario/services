@@ -303,6 +303,7 @@ func TestReconcileAdvanceInfraJoinsPrunesStaleEtcdMembers(t *testing.T) {
 		},
 		Profiles: []string{"core"},
 		Status:   "healthy",
+		LastSeen: time.Now(),
 	}
 	srv := newTestServer(t, state)
 	mgr := &recordingEtcdMembershipManager{}
@@ -316,6 +317,30 @@ func TestReconcileAdvanceInfraJoinsPrunesStaleEtcdMembers(t *testing.T) {
 	}
 	if len(mgr.lastDesired) != 1 || mgr.lastDesired[0].NodeID != "node-1" {
 		t.Fatalf("unexpected desired etcd membership during reconcile: %+v", mgr.lastDesired)
+	}
+}
+
+func TestReconcileAdvanceInfraJoinsSkipsStaleEtcdPruneWhenNodeUnresponsive(t *testing.T) {
+	state := newControllerState()
+	state.Nodes["node-1"] = &nodeState{
+		NodeID: "node-1",
+		Identity: storedIdentity{
+			Hostname: "host-1",
+			Ips:      []string{"10.0.0.1"},
+		},
+		Profiles: []string{"core"},
+		Status:   "offline",
+		LastSeen: time.Now().Add(-10 * time.Minute),
+	}
+	srv := newTestServer(t, state)
+	mgr := &recordingEtcdMembershipManager{}
+	srv.etcdMembers = mgr
+
+	if err := srv.reconcileAdvanceInfraJoins(context.Background(), state.ClusterId); err != nil {
+		t.Fatalf("reconcileAdvanceInfraJoins error: %v", err)
+	}
+	if len(mgr.removeCalls) != 0 {
+		t.Fatalf("expected stale-member prune to be skipped for unresponsive node, got %d calls", len(mgr.removeCalls))
 	}
 }
 

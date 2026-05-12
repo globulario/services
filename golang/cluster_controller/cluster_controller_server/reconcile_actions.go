@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -75,9 +76,13 @@ func (srv *server) reconcileAdvanceInfraJoins(ctx context.Context, clusterID str
 	if srv.etcdMembers != nil {
 		membership := srv.snapshotClusterMembership()
 		if membership != nil {
-			desiredEtcdNodes := filterNodesByProfile(membership, profilesForEtcd)
-			if err := srv.etcdMembers.removeStaleMembers(ctx, desiredEtcdNodes); err != nil {
-				log.Printf("reconcile-workflow: etcd stale-member prune failed: %v", err)
+			if ok, reason := shouldPruneEtcdStaleMembers(time.Now(), nodes); ok {
+				desiredEtcdNodes := filterNodesByProfile(membership, profilesForEtcd)
+				if err := srv.etcdMembers.removeStaleMembers(ctx, desiredEtcdNodes); err != nil {
+					log.Printf("reconcile-workflow: etcd stale-member prune failed: %v", err)
+				}
+			} else {
+				log.Printf("reconcile-workflow: skipping etcd stale-member prune (safety gate): %s", reason)
 			}
 		}
 		if dirty := srv.etcdMembers.reconcileEtcdJoinPhases(ctx, nodes); dirty {
@@ -129,6 +134,39 @@ func (srv *server) reconcileAdvanceInfraJoins(ctx context.Context, clusterID str
 
 	log.Printf("reconcile-workflow: advance_infra_joins completed for %d nodes", len(nodes))
 	return nil
+}
+
+const etcdPruneSafetyStaleness = 3 * time.Minute
+
+func shouldPruneEtcdStaleMembers(now time.Time, nodes []*nodeState) (bool, string) {
+	hasEtcdNode := false
+	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
+		if !nodeHasProfile(&memberNode{Profiles: node.Profiles}, profilesForEtcd) {
+			continue
+		}
+		hasEtcdNode = true
+		if node.LastSeen.IsZero() {
+			return false, fmt.Sprintf("node %s has zero LastSeen", node.NodeID)
+		}
+		if now.Sub(node.LastSeen) > etcdPruneSafetyStaleness {
+			return false, fmt.Sprintf("node %s last seen %s ago", node.NodeID, now.Sub(node.LastSeen).Round(time.Second))
+		}
+		switch node.EtcdJoinPhase {
+		case EtcdJoinMemberAdded, EtcdJoinStarted, EtcdJoinRejoinInProgress:
+			return false, fmt.Sprintf("node %s in etcd join phase %s", node.NodeID, node.EtcdJoinPhase)
+		}
+		status := strings.ToLower(strings.TrimSpace(node.Status))
+		if status == "offline" || status == "unresponsive" || status == "unknown" {
+			return false, fmt.Sprintf("node %s status=%s", node.NodeID, node.Status)
+		}
+	}
+	if !hasEtcdNode {
+		return false, "no etcd-profile nodes"
+	}
+	return true, ""
 }
 
 // reconcileScanDrift scans the cluster for drift items that need remediation.

@@ -834,6 +834,10 @@ jobs:
           # Scripts from globular-installer
           cp -r globular-installer/scripts "${RELEASE_DIR}/scripts"
           chmod +x "${RELEASE_DIR}/scripts"/*.sh 2>/dev/null || true
+          # Overlay canonical release scripts from this repo to avoid drift
+          # with the external globular-installer checkout.
+          cp -f services/scripts/release/*.sh "${RELEASE_DIR}/scripts/"
+          chmod +x "${RELEASE_DIR}/scripts"/*.sh 2>/dev/null || true
 
           # Workflow YAML definitions
           mkdir -p "${RELEASE_DIR}/workflows"

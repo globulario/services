@@ -290,6 +290,31 @@ func TestNodeRoutableIP(t *testing.T) {
 	}
 }
 
+func TestNodeAllRoutableIPs(t *testing.T) {
+	tests := []struct {
+		name string
+		node *nodeState
+		want []string
+	}{
+		{"nil node", nil, nil},
+		{"empty", &nodeState{}, nil},
+		{"filters loopbacks and deduplicates", &nodeState{Identity: storedIdentity{Ips: []string{"127.0.0.1", "10.0.0.20", "::1", "10.0.0.20", "10.0.0.21"}}}, []string{"10.0.0.20", "10.0.0.21"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := nodeAllRoutableIPs(tt.node)
+			if len(got) != len(tt.want) {
+				t.Fatalf("nodeAllRoutableIPs() len=%d, want %d (%v)", len(got), len(tt.want), got)
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Fatalf("nodeAllRoutableIPs()[%d]=%q, want %q (all=%v)", i, got[i], tt.want[i], got)
+				}
+			}
+		})
+	}
+}
+
 // TestEtcdJoin_SingleNodePlusPreparedNode tests the happy path:
 // single-node cluster + new prepared node → MemberAdd + eventual start → verified.
 func TestEtcdJoin_SingleNodePlusPreparedNode(t *testing.T) {

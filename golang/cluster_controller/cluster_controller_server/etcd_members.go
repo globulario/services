@@ -113,6 +113,25 @@ func nodeRoutableIP(node *nodeState) string {
 	return ""
 }
 
+func nodeAllRoutableIPs(node *nodeState) []string {
+	if node == nil {
+		return nil
+	}
+	out := make([]string, 0, len(node.Identity.Ips))
+	seen := make(map[string]struct{}, len(node.Identity.Ips))
+	for _, ip := range node.Identity.Ips {
+		if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+			continue
+		}
+		if _, ok := seen[ip]; ok {
+			continue
+		}
+		seen[ip] = struct{}{}
+		out = append(out, ip)
+	}
+	return out
+}
+
 // nodeAnyIPIsEtcdMember checks if ANY of the node's IPs matches an existing
 // etcd member peer URL. This prevents phase oscillation on multi-IP nodes
 // where the etcd join used a different IP than nodeRoutableIP returns.
@@ -579,9 +598,14 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 	// we must not remove it from the etcd cluster.
 	desiredPeerURLs := make(map[string]bool, len(desiredEtcdNodes))
 	desiredHostnames := make(map[string]bool, len(desiredEtcdNodes))
+	desiredPeerURLByHostname := make(map[string]string, len(desiredEtcdNodes))
 	for _, node := range desiredEtcdNodes {
 		if node.IP != "" {
-			desiredPeerURLs[fmt.Sprintf("https://%s:2380", node.IP)] = true
+			peerURL := fmt.Sprintf("https://%s:2380", node.IP)
+			desiredPeerURLs[peerURL] = true
+			if node.Hostname != "" {
+				desiredPeerURLByHostname[sanitizeEtcdName(node.Hostname)] = peerURL
+			}
 		}
 		if node.Hostname != "" {
 			desiredHostnames[sanitizeEtcdName(node.Hostname)] = true
@@ -591,6 +615,29 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 	for _, member := range resp.Members {
 		if member.Name == "" {
 			continue // unstarted member — might be mid-join, don't remove
+		}
+		if expectedPeerURL, ok := desiredPeerURLByHostname[member.Name]; ok && expectedPeerURL != "" {
+			hasExpected := false
+			for _, purl := range member.PeerURLs {
+				if purl == expectedPeerURL {
+					hasExpected = true
+					break
+				}
+			}
+			if !hasExpected {
+				updCtx, updCancel := context.WithTimeout(ctx, 10*time.Second)
+				_, updErr := m.client.MemberUpdate(updCtx, member.ID, []string{expectedPeerURL})
+				updCancel()
+				if updErr != nil {
+					log.Printf("etcd member-update: failed to update member %s (id=%d) peerURLs from %v to %s: %v",
+						member.Name, member.ID, member.PeerURLs, expectedPeerURL, updErr)
+				} else {
+					log.Printf("etcd member-update: updated member %s (id=%d) peerURLs from %v to %s",
+						member.Name, member.ID, member.PeerURLs, expectedPeerURL)
+				}
+			}
+			// Same logical node (hostname match): never treat as stale.
+			continue
 		}
 		isDesired := false
 		for _, purl := range member.PeerURLs {
@@ -638,8 +685,16 @@ func seedEtcdEndpointsFromState(state *controllerState, logger *slog.Logger) {
 	localIP, _ := config.GetRoutableIP()
 	var eps []string
 	for _, node := range state.Nodes {
-		ip := node.PrimaryIP()
-		if ip == "" || ip == localIP {
+		routableIPs := nodeAllRoutableIPs(node)
+		ip := ""
+		for _, candidate := range routableIPs {
+			if candidate == localIP {
+				continue
+			}
+			ip = candidate
+			break
+		}
+		if ip == "" {
 			continue // skip missing and local (possibly down) endpoint
 		}
 		// Only include nodes that have a core or control-plane profile —
@@ -711,7 +766,7 @@ func (m *etcdMemberManager) reconcileEtcdAutoRejoin(ctx context.Context, nodes [
 			dirty = true
 			continue
 		}
-		ip := node.PrimaryIP()
+		ip := nodeRoutableIP(node)
 		if ip == "" {
 			continue // can't re-add without an IP
 		}
