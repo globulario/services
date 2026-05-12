@@ -255,8 +255,16 @@ jobs:
           chmod +x yt-dlp
 
           echo "-> ffmpeg (stable static build via BtbN)..."
-          FFMPEG_URL=$(curl -fsSL "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest" \
-            | python3 -c "import json,sys; d=json.load(sys.stdin); assets=sorted(a['browser_download_url'] for a in d['assets'] if 'linux64-gpl' in a['name'] and 'shared' not in a['name'] and a['name'].endswith('.tar.xz') and not a['name'].startswith('ffmpeg-N-')); print(assets[-1])")
+          FFMPEG_URL="$(curl -fsSL \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            -H 'Authorization: Bearer ${{ github.token }}' \
+            "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); assets=sorted(a['browser_download_url'] for a in d.get('assets', []) if 'linux64-gpl' in a.get('name','') and 'shared' not in a.get('name','') and a.get('name','').endswith('.tar.xz') and not a.get('name','').startswith('ffmpeg-N-')); print(assets[-1] if assets else '')" || true)"
+          if [[ -z "${FFMPEG_URL}" ]]; then
+            FFMPEG_URL="$(gh api repos/BtbN/FFmpeg-Builds/releases/latest --jq '.assets[] | select((.name | contains("linux64-gpl")) and (.name | endswith(".tar.xz")) and ((.name | contains("shared")) | not) and ((.name | startswith("ffmpeg-N-")) | not)) | .browser_download_url' | tail -n1 || true)"
+          fi
+          [[ -n "${FFMPEG_URL}" ]] || { echo "ERROR: could not resolve ffmpeg download URL"; exit 1; }
           curl -fsSL "${FFMPEG_URL}" | tar xJf - --strip-components=2 --wildcards "*/bin/ffmpeg"
           chmod +x ffmpeg
 
