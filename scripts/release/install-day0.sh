@@ -1475,7 +1475,7 @@ if [[ -x "$VALIDATION_SCRIPT" ]]; then
   echo ""
 
   # Run validation and capture exit code
-  if "$VALIDATION_SCRIPT"; then
+  if "$VALIDATION_SCRIPT" --day0; then
     VALIDATION_PASSED=1
   else
     VALIDATION_PASSED=0
