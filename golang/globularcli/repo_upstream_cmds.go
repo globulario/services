@@ -205,8 +205,10 @@ func runRepoRegisterUpstream(cmd *cobra.Command, args []string) error {
 		if upstreamURL == "" && upstreamRepoURL == "" {
 			return fmt.Errorf("--url, --repo-url, or --local-root is required")
 		}
-		if upstreamURL != "" && !strings.Contains(upstreamURL, "{tag}") {
-			return fmt.Errorf("--url must contain a {tag} placeholder")
+		if upstreamURL != "" {
+			if err := upstream.ValidateIndexURLTemplate(upstreamURL); err != nil {
+				return fmt.Errorf("--url invalid: %w", err)
+			}
 		}
 	}
 

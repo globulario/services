@@ -80,3 +80,43 @@ func TestDeriveIndexURL(t *testing.T) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
+
+func TestValidateIndexURLTemplate(t *testing.T) {
+	tests := []struct {
+		name  string
+		url   string
+		valid bool
+	}{
+		{
+			name:  "valid github template",
+			url:   "https://github.com/globulario/services/releases/download/{tag}/release-index.json",
+			valid: true,
+		},
+		{
+			name:  "missing placeholder",
+			url:   "https://github.com/globulario/services/releases/download/v1.2.37/release-index.json",
+			valid: false,
+		},
+		{
+			name:  "trailing stray brace",
+			url:   "https://github.com/globulario/services/releases/download/{tag}/release-index.json}",
+			valid: false,
+		},
+		{
+			name:  "unbalanced brace",
+			url:   "https://github.com/globulario/services/releases/download/{tag/release-index.json",
+			valid: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateIndexURLTemplate(tc.url)
+			if tc.valid && err != nil {
+				t.Fatalf("expected valid template, got error: %v", err)
+			}
+			if !tc.valid && err == nil {
+				t.Fatalf("expected validation error for %q", tc.url)
+			}
+		})
+	}
+}

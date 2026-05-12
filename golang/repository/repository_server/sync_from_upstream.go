@@ -76,6 +76,9 @@ func (srv *server) RegisterUpstream(ctx context.Context, req *repopb.RegisterUps
 	if src.GetIndexUrl() == "" {
 		return nil, status.Error(codes.InvalidArgument, "source.index_url is required")
 	}
+	if err := upstream.ValidateIndexURLTemplate(src.GetIndexUrl()); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "source.index_url invalid: %v", err)
+	}
 
 	cli, err := config.GetEtcdClient()
 	if err != nil {

@@ -5,20 +5,31 @@ STATE_DIR="/var/lib/globular"
 CONTRACT_FILE="${STATE_DIR}/objectstore/minio.json"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RELEASE_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-WEBROOT_DIR="${RELEASE_ROOT}/webroot"
+SOURCE_WEBROOT_DIR=""
+for _wr in \
+  "${RELEASE_ROOT}/webroot" \
+  "${SCRIPT_DIR}/../webroot" \
+  "${SCRIPT_DIR}/../../webroot" \
+  "/usr/lib/globular/webroot" \
+  "/opt/globular/webroot"; do
+  if [[ -f "${_wr}/index.html" ]]; then
+    SOURCE_WEBROOT_DIR="${_wr}"
+    break
+  fi
+done
 
 [[ -f "${CONTRACT_FILE}" ]] || {
   echo "[setup-minio] missing contract: ${CONTRACT_FILE}" >&2
   exit 1
 }
 
-if [[ ! -d "${WEBROOT_DIR}" ]]; then
-  echo "[setup-minio] missing bundled webroot: ${WEBROOT_DIR}" >&2
+if [[ -z "${SOURCE_WEBROOT_DIR}" ]] || [[ ! -d "${SOURCE_WEBROOT_DIR}" ]]; then
+  echo "[setup-minio] missing bundled webroot (checked installer and system paths)" >&2
   exit 1
 fi
 
-if [[ -z "$(find "${WEBROOT_DIR}" -type f -print -quit 2>/dev/null)" ]]; then
-  echo "[setup-minio] bundled webroot is empty: ${WEBROOT_DIR}" >&2
+if [[ -z "$(find "${SOURCE_WEBROOT_DIR}" -type f -print -quit 2>/dev/null)" ]]; then
+  echo "[setup-minio] bundled webroot is empty: ${SOURCE_WEBROOT_DIR}" >&2
   exit 1
 fi
 
@@ -50,6 +61,7 @@ BUCKET="${CONTRACT_FIELDS[1]:-globular}"
 PREFIX="${CONTRACT_FIELDS[2]:-}"
 SECURE="${CONTRACT_FIELDS[3]:-true}"
 CRED_FILE="${CONTRACT_FIELDS[4]:-/var/lib/globular/minio/credentials}"
+DEST_WEBROOT_DIR="webroot"
 
 if [[ -z "${ENDPOINT}" ]]; then
   echo "[setup-minio] contract endpoint is empty" >&2
@@ -83,21 +95,40 @@ mc alias rm "${ALIAS}" >/dev/null 2>&1 || true
 mc alias set "${ALIAS}" "${SCHEME}://${ENDPOINT}" "${ACCESS_KEY}" "${SECRET_KEY}" --api s3v4 >/dev/null
 mc mb --ignore-existing "${ALIAS}/${BUCKET}" >/dev/null
 
+if command -v etcdctl >/dev/null 2>&1 && [[ -f "/var/lib/globular/pki/ca.crt" && -f "/var/lib/globular/pki/issued/services/service.crt" && -f "/var/lib/globular/pki/issued/services/service.key" ]]; then
+  ETCD_WEBROOT="$(etcdctl \
+    --endpoints="https://127.0.0.1:2379" \
+    --cacert="/var/lib/globular/pki/ca.crt" \
+    --cert="/var/lib/globular/pki/issued/services/service.crt" \
+    --key="/var/lib/globular/pki/issued/services/service.key" \
+    get "/globular/cluster/minio/config" --print-value-only 2>/dev/null | \
+    python3 -c 'import json,sys; d=(sys.stdin.read() or "").strip(); print((json.loads(d).get("webroot_dir","") if d else "").strip())' 2>/dev/null || true)"
+  if [[ -n "${ETCD_WEBROOT}" ]]; then
+    DEST_WEBROOT_DIR="${ETCD_WEBROOT#/}"
+    DEST_WEBROOT_DIR="${DEST_WEBROOT_DIR%/}"
+  fi
+fi
+
 upload_tree() {
   local key_prefix="$1"
-  mc mirror --overwrite "${WEBROOT_DIR}/" "${ALIAS}/${BUCKET}/${key_prefix}/" >/dev/null
+  mc mirror --overwrite "${SOURCE_WEBROOT_DIR}/" "${ALIAS}/${BUCKET}/${key_prefix}/" >/dev/null
   printf 'keep\n' | mc pipe "${ALIAS}/${BUCKET}/${key_prefix}/.keep" >/dev/null
 }
 
-upload_tree "webroot"
+# Publish at bucket root for legacy gateway welcome-page lookups.
+mc mirror --overwrite "${SOURCE_WEBROOT_DIR}/" "${ALIAS}/${BUCKET}/" >/dev/null
+upload_tree "${DEST_WEBROOT_DIR}"
 printf 'keep\n' | mc pipe "${ALIAS}/${BUCKET}/users/.keep" >/dev/null
 
 if [[ -n "${PREFIX}" ]]; then
-  upload_tree "${PREFIX}/webroot"
+  mc mirror --overwrite "${SOURCE_WEBROOT_DIR}/" "${ALIAS}/${BUCKET}/${PREFIX}/" >/dev/null
+  upload_tree "${PREFIX}/${DEST_WEBROOT_DIR}"
   printf 'keep\n' | mc pipe "${ALIAS}/${BUCKET}/${PREFIX}/users/.keep" >/dev/null
 fi
 
-mc stat "${ALIAS}/${BUCKET}/webroot/index.html" >/dev/null
-mc stat "${ALIAS}/${BUCKET}/webroot/logo.png" >/dev/null
+mc stat "${ALIAS}/${BUCKET}/index.html" >/dev/null
+mc stat "${ALIAS}/${BUCKET}/logo.png" >/dev/null
+mc stat "${ALIAS}/${BUCKET}/${DEST_WEBROOT_DIR}/index.html" >/dev/null
+mc stat "${ALIAS}/${BUCKET}/${DEST_WEBROOT_DIR}/logo.png" >/dev/null
 
-echo "[setup-minio] seeded ${BUCKET}/webroot and bundled assets from ${WEBROOT_DIR}"
+echo "[setup-minio] seeded ${BUCKET}/ and ${BUCKET}/${DEST_WEBROOT_DIR} from ${SOURCE_WEBROOT_DIR}"

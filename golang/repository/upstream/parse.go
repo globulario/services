@@ -68,3 +68,26 @@ func RedactAssetURL(rawURL string) string {
 func DeriveIndexURL(owner, repo string) string {
 	return fmt.Sprintf("https://github.com/%s/%s/releases/download/{tag}/release-index.json", owner, repo)
 }
+
+// ValidateIndexURLTemplate validates an upstream index URL template.
+// Rules:
+// - must include "{tag}" placeholder
+// - braces must be balanced
+// - no stray braces outside "{tag}"
+func ValidateIndexURLTemplate(raw string) error {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return fmt.Errorf("index_url is empty")
+	}
+	if !strings.Contains(s, "{tag}") {
+		return fmt.Errorf("index_url must contain a {tag} placeholder")
+	}
+	if strings.Count(s, "{") != strings.Count(s, "}") {
+		return fmt.Errorf("index_url has unbalanced braces")
+	}
+	withoutTag := strings.ReplaceAll(s, "{tag}", "")
+	if strings.Contains(withoutTag, "{") || strings.Contains(withoutTag, "}") {
+		return fmt.Errorf("index_url contains stray braces outside {tag}")
+	}
+	return nil
+}
