@@ -292,6 +292,22 @@ fi
 
 log_success "Repository endpoint: $REPO_ADDR"
 
+# Resolve local controller address to avoid mesh-only routing during Day-0.
+CTRL_PORT_LOCAL="$(etcdctl \
+    --endpoints="https://${NODE_IP}:2379" \
+    --cacert="${STATE_DIR}/pki/ca.crt" \
+    --cert="${STATE_DIR}/pki/issued/services/service.crt" \
+    --key="${STATE_DIR}/pki/issued/services/service.key" \
+    get "/globular/services/cluster_controller.ClusterControllerService/config" \
+    --print-value-only 2>/dev/null | \
+    grep -oP '"Port"\s*:\s*\K[0-9]+' | head -1 || true)"
+if [[ -z "$CTRL_PORT_LOCAL" ]]; then
+  CTRL_PORT_LOCAL="$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-cluster-controller.service 2>/dev/null | head -1 || true)"
+fi
+CTRL_PORT_LOCAL="${CTRL_PORT_LOCAL:-12000}"
+CTRL_ADDR_LOCAL="${NODE_IP}:${CTRL_PORT_LOCAL}"
+log_info "Using direct controller endpoint for repo ops: ${CTRL_ADDR_LOCAL}"
+
 # ── Step 2: Acquire auth token ───────────────────────────────────────────────
 
 BOOTSTRAP_CRED_GLOBAL="/var/lib/globular/.bootstrap-sa-password"
@@ -363,6 +379,11 @@ parse_pkg_label() {
   echo "${name} ${version}"
 }
 
+is_transient_publish_error() {
+  local msg="${1:-}"
+  echo "$msg" | grep -qiE "EOF|code = Unavailable|connection refused|reset before headers|transport failure|i/o timeout|deadline exceeded|context deadline exceeded|timeout"
+}
+
 PUBLISHED=0
 SKIPPED=0
 FAILED=0
@@ -414,14 +435,22 @@ for pattern in "${CORE_PACKAGES[@]}"; do
 
   # Publish — no --force so the repository doesn't bump the version counter
   # if the binary is already there under a different version label.
+  # Retry transient transport failures (EOF/Unavailable/connection reset).
   PUBLISH_ERR_FILE="/tmp/publish-err-$$.log"
-  PUBLISH_JSON=$("$GLOBULAR_CLI" --ca "$CA_CERT" --timeout 60s --token "$GLOBULAR_TOKEN" pkg publish \
-    --file "$PACKAGE" \
-    --repository "$REPO_ADDR" \
-    --output json 2>"$PUBLISH_ERR_FILE") || true
+  PUBLISH_JSON=""
+  STATUS=""
+  DESC_ACTION=""
+  ERR_MSG=""
+  STDERR_LINE=""
+  for _publish_try in $(seq 1 4); do
+    : > "$PUBLISH_ERR_FILE"
+    PUBLISH_JSON=$("$GLOBULAR_CLI" --ca "$CA_CERT" --timeout 60s --token "$GLOBULAR_TOKEN" pkg publish \
+      --file "$PACKAGE" \
+      --repository "$REPO_ADDR" \
+      --output json 2>"$PUBLISH_ERR_FILE") || true
 
-  # Parse status and descriptor_action from JSON response.
-  read -r STATUS DESC_ACTION < <(echo "$PUBLISH_JSON" | python3 -c "
+    # Parse status and descriptor_action from JSON response.
+    read -r STATUS DESC_ACTION < <(echo "$PUBLISH_JSON" | python3 -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
@@ -429,6 +458,33 @@ try:
 except:
     print('', '')
 " 2>/dev/null || echo " ")
+
+    ERR_MSG=$(echo "$PUBLISH_JSON" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    e = data.get('error', {})
+    print(e.get('message', '') or e.get('code', ''))
+except:
+    print('')
+" 2>/dev/null || true)
+    STDERR_LINE="$(head -1 "$PUBLISH_ERR_FILE" 2>/dev/null || true)"
+
+    if [[ "$STATUS" == "success" ]]; then
+      break
+    fi
+    if is_transient_publish_error "$ERR_MSG $STDERR_LINE" && [[ "$_publish_try" -lt 4 ]]; then
+      log_info "    transient publish error (${SVC_NAME}@${SVC_VER}, attempt ${_publish_try}/4), retrying..."
+      # Refresh token before retry in case auth state changed.
+      _fresh=$("$GLOBULAR_CLI" --ca "$CA_CERT" auth login \
+        --user "$GLOBULAR_USER" --password "$GLOBULAR_PASSWORD" 2>/dev/null \
+        | grep "^Token:" | sed 's/^Token: //' || true)
+      [[ -n "$_fresh" ]] && GLOBULAR_TOKEN="$_fresh"
+      sleep $(( _publish_try * 2 ))
+      continue
+    fi
+    break
+  done
 
   if [[ "$STATUS" == "success" ]]; then
     if [[ "$DESC_ACTION" == "unchanged" || "$DESC_ACTION" == "skipped" ]]; then
@@ -451,18 +507,7 @@ except:
     else
       log_fail "$(printf '%-28s %s — publish failed' "$SVC_NAME" "$SVC_VER")"
       # Log the actual error for diagnostics.
-      if [[ -n "$PUBLISH_JSON" ]]; then
-        ERR_MSG=$(echo "$PUBLISH_JSON" | python3 -c "
-import sys, json
-try:
-    data = json.load(sys.stdin)
-    e = data.get('error', {})
-    print(e.get('message', '') or e.get('code', ''))
-except:
-    print('')
-" 2>/dev/null || true)
-        [[ -n "$ERR_MSG" ]] && log_info "    error: $ERR_MSG"
-      fi
+      [[ -n "$ERR_MSG" ]] && log_info "    error: $ERR_MSG"
       if [[ -s "$PUBLISH_ERR_FILE" ]]; then
         log_info "    stderr: $(head -1 "$PUBLISH_ERR_FILE")"
       fi
@@ -508,6 +553,24 @@ UPSTREAM_URL="${GLOBULAR_UPSTREAM_URL:-https://github.com/globulario/services/re
 UPSTREAM_CHANNEL="${GLOBULAR_UPSTREAM_CHANNEL:-stable}"
 UPSTREAM_PLATFORM="${GLOBULAR_UPSTREAM_PLATFORM:-linux_amd64}"
 UPSTREAM_KEY="/globular/repository/upstreams/${UPSTREAM_NAME}"
+
+# register-upstream requires a {tag} placeholder for URL-based providers.
+if [[ "$UPSTREAM_TYPE" == "github" || "$UPSTREAM_TYPE" == "http" ]]; then
+  if [[ "$UPSTREAM_URL" != *"{tag}"* ]]; then
+    log_warn "Upstream URL missing {tag} placeholder; normalizing automatically"
+    if [[ "$UPSTREAM_TYPE" == "github" ]] && [[ "$UPSTREAM_URL" =~ ^https://github\.com/([^/]+)/([^/]+)/releases/download/ ]]; then
+      _gh_owner="${BASH_REMATCH[1]}"
+      _gh_repo="${BASH_REMATCH[2]}"
+      UPSTREAM_URL="https://github.com/${_gh_owner}/${_gh_repo}/releases/download/{tag}/release-index.json"
+    elif [[ "$UPSTREAM_URL" == */release-index.json ]]; then
+      _base="${UPSTREAM_URL%/release-index.json}"
+      UPSTREAM_URL="${_base}/{tag}/release-index.json"
+    else
+      UPSTREAM_URL="${UPSTREAM_URL%/}/{tag}"
+    fi
+    log_info "Normalized upstream URL: ${UPSTREAM_URL}"
+  fi
+fi
 
 # Build CLI flags based on provider type.
 CLI_FLAGS=(
@@ -555,11 +618,25 @@ case "$UPSTREAM_TYPE" in
 esac
 
 # Primary path: RegisterUpstream RPC via CLI.
-UPSTREAM_CLI_OUT=$("$GLOBULAR_CLI" \
-    --ca "$CA_CERT" \
-    --timeout 30s \
-    --token "$GLOBULAR_TOKEN" \
-    repo register-upstream "${CLI_FLAGS[@]}" 2>&1) && _upstream_ok=true || _upstream_ok=false
+_upstream_ok=false
+UPSTREAM_CLI_OUT=""
+for _upstream_try in $(seq 1 3); do
+  UPSTREAM_CLI_OUT=$("$GLOBULAR_CLI" \
+      --ca "$CA_CERT" \
+      --controller "$CTRL_ADDR_LOCAL" \
+      --timeout 30s \
+      --token "$GLOBULAR_TOKEN" \
+      repo register-upstream "${CLI_FLAGS[@]}" 2>&1) && _upstream_ok=true || _upstream_ok=false
+  if $_upstream_ok; then
+    break
+  fi
+  if echo "$UPSTREAM_CLI_OUT" | grep -qiE "code = Unavailable|connection refused|EOF|reset before headers|transport failure"; then
+    log_info "register-upstream transient failure (attempt ${_upstream_try}/3), retrying..."
+    sleep $(( _upstream_try * 2 ))
+    continue
+  fi
+  break
+done
 
 if $_upstream_ok; then
   log_success "Upstream source '${UPSTREAM_NAME}' registered (type: ${UPSTREAM_TYPE})"
@@ -570,9 +647,17 @@ else
   # Build provider-neutral JSON.
   UPSTREAM_JSON=$(python3 -c "
 import json, os
+src_type = '${UPSTREAM_TYPE}'.strip().lower()
+enum_map = {
+    'github': 'GITHUB_RELEASE',
+    'http': 'HTTP_INDEX',
+    'local-dir': 'LOCAL_DIR',
+    'local_dir': 'LOCAL_DIR',
+    'git': 'GIT_INDEX',
+}
 d = {
     'name': '${UPSTREAM_NAME}',
-    'type': '${UPSTREAM_TYPE}'.upper().replace('-','_').replace('GITHUB','GITHUB_RELEASE').replace('HTTP','HTTP_INDEX').replace('LOCAL_DIR','LOCAL_DIR').replace('GIT','GIT_INDEX'),
+    'type': enum_map.get(src_type, src_type.upper().replace('-', '_')),
     'indexUrl': '${UPSTREAM_URL}',
     'channel': '${UPSTREAM_CHANNEL}',
     'platform': '${UPSTREAM_PLATFORM}',
@@ -628,6 +713,7 @@ SYNC_TAG=""
 
 RELEASE_INDEX=""
 for _ri in \
+    "/var/lib/globular/release-index.json" \
     "$PKG_DIR/../release-index.json" \
     "$PKG_DIR/../../release-index.json" \
     "${SCRIPT_DIR}/../release-index.json" \
@@ -682,13 +768,27 @@ else
   log_info "Syncing packages from upstream '${UPSTREAM_NAME}' @ ${SYNC_TAG} (direct)..."
   # `repo sync` calls SyncFromUpstream directly on the repository service —
   # no WorkflowService or ClusterController required.
-  SYNC_OUT=$("$GLOBULAR_CLI" \
-      --ca "$CA_CERT" \
-      --timeout 300s \
-      --token "$GLOBULAR_TOKEN" \
-      repo sync \
-      --source "$UPSTREAM_NAME" \
-      --tag "$SYNC_TAG" 2>&1) && _sync_ok=true || _sync_ok=false
+  _sync_ok=false
+  SYNC_OUT=""
+  for _sync_try in $(seq 1 3); do
+    SYNC_OUT=$("$GLOBULAR_CLI" \
+        --ca "$CA_CERT" \
+        --controller "$CTRL_ADDR_LOCAL" \
+        --timeout 300s \
+        --token "$GLOBULAR_TOKEN" \
+        repo sync \
+        --source "$UPSTREAM_NAME" \
+        --tag "$SYNC_TAG" 2>&1) && _sync_ok=true || _sync_ok=false
+    if $_sync_ok; then
+      break
+    fi
+    if echo "$SYNC_OUT" | grep -qiE "code = Unavailable|connection termination|reset before headers|transport failure|EOF|deadline exceeded"; then
+      log_info "repo sync transient failure (attempt ${_sync_try}/3), retrying..."
+      sleep $(( _sync_try * 2 ))
+      continue
+    fi
+    break
+  done
 
   if $_sync_ok; then
     log_success "Upstream sync completed: ${SYNC_TAG}"
