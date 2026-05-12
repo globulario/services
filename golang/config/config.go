@@ -583,11 +583,15 @@ func GetHostname() (string, error) {
 // Suitable for service registry entries where Envoy needs a routable address.
 // Resolves hostname to IPv4, falling back to interface scanning.
 func GetRoutableIPv4() string {
+	if ip := outboundSourceIPv4(); ip != "" {
+		return ip
+	}
+
 	host, _ := os.Hostname()
 	if host != "" {
 		if addrs, err := net.LookupIP(host); err == nil {
 			for _, a := range addrs {
-				if ip4 := a.To4(); ip4 != nil && !ip4.IsLoopback() {
+				if ip4 := a.To4(); isUsableRoutableIPv4(ip4) {
 					return ip4.String()
 				}
 			}
@@ -606,28 +610,95 @@ func GetLocalInterfaceIPv4(excludeIP string) string {
 
 func getInterfaceIPv4(excludeIP string) string {
 	excludeIP = strings.TrimSpace(excludeIP)
+	type candidate struct {
+		ip    string
+		wired bool
+	}
+	var candidates []candidate
 	if ifaces, err := net.Interfaces(); err == nil {
 		for _, iface := range ifaces {
 			if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 				continue
 			}
+			if isExcludedInterfaceName(iface.Name) {
+				continue
+			}
+			wired := strings.HasPrefix(iface.Name, "eth") ||
+				strings.HasPrefix(iface.Name, "eno") ||
+				strings.HasPrefix(iface.Name, "enp") ||
+				strings.HasPrefix(iface.Name, "ens") ||
+				strings.HasPrefix(iface.Name, "enx")
 			if addrs, err := iface.Addrs(); err == nil {
 				for _, addr := range addrs {
 					if ipnet, ok := addr.(*net.IPNet); ok {
 						ip4 := ipnet.IP.To4()
-						if ip4 == nil || ip4.IsLoopback() || ip4.IsLinkLocalUnicast() {
+						if !isUsableRoutableIPv4(ip4) {
 							continue
 						}
 						if excludeIP != "" && ip4.String() == excludeIP {
 							continue
 						}
-						return ip4.String()
+						candidates = append(candidates, candidate{ip: ip4.String(), wired: wired})
 					}
 				}
 			}
 		}
 	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		if candidates[i].wired != candidates[j].wired {
+			return candidates[i].wired
+		}
+		return candidates[i].ip < candidates[j].ip
+	})
+	if len(candidates) > 0 {
+		return candidates[0].ip
+	}
 	return ""
+}
+
+func outboundSourceIPv4() string {
+	targets := []string{"8.8.8.8:53", "1.1.1.1:53"}
+	for _, target := range targets {
+		conn, err := net.DialTimeout("udp", target, 500*time.Millisecond)
+		if err != nil {
+			continue
+		}
+		local := conn.LocalAddr()
+		_ = conn.Close()
+		udpAddr, ok := local.(*net.UDPAddr)
+		if !ok || !isUsableRoutableIPv4(udpAddr.IP) {
+			continue
+		}
+		return udpAddr.IP.String()
+	}
+	return ""
+}
+
+func isUsableRoutableIPv4(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	ip = ip.To4()
+	if ip == nil {
+		return false
+	}
+	return !ip.IsLoopback() && !ip.IsLinkLocalUnicast()
+}
+
+func isExcludedInterfaceName(name string) bool {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	if lower == "" {
+		return false
+	}
+	prefixes := []string{
+		"docker", "br-", "veth", "cni", "flannel", "virbr", "zt", "tailscale", "lo",
+	}
+	for _, p := range prefixes {
+		if strings.HasPrefix(lower, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // ============================================================================
