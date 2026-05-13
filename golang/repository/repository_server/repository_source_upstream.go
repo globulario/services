@@ -133,7 +133,18 @@ func (s *UpstreamRepositorySource) openViaIndex(ctx context.Context, req Artifac
 		return nil, fmt.Errorf("%w: %s parse release-index %s: %v", ErrSourceMisconfigured, s.Name(), tag, parseErr)
 	}
 
-	n := s.findEntry(idx, req)
+	var aliasRec *releaseBuildAliasRecord
+	if req.BuildNumber > 0 {
+		ref := &repopb.ArtifactRef{
+			PublisherId: req.PublisherID,
+			Name:        req.Name,
+			Version:     req.Version,
+			Platform:    req.Platform,
+		}
+		aliasRec, _ = s.srv.loadReleaseBuildAlias(ctx, ref, tag, req.BuildNumber)
+	}
+
+	n := s.findEntry(idx, req, aliasRec)
 	if n == nil {
 		return nil, fmt.Errorf("%w: %s release %s has no entry for %s/%s/%s",
 			ErrArtifactNotFound, s.Name(), tag, req.Name, req.Version, req.Platform)
@@ -180,7 +191,7 @@ func (s *UpstreamRepositorySource) openViaIndex(ctx context.Context, req Artifac
 	}, nil
 }
 
-func (s *UpstreamRepositorySource) findEntry(idx *releaseIndex, req ArtifactRequest) *normalizedEntry {
+func (s *UpstreamRepositorySource) findEntry(idx *releaseIndex, req ArtifactRequest, aliasRec *releaseBuildAliasRecord) *normalizedEntry {
 	for _, entry := range idx.Packages {
 		if !strings.EqualFold(entry.Name, req.Name) {
 			continue
@@ -194,6 +205,16 @@ func (s *UpstreamRepositorySource) findEntry(idx *releaseIndex, req ArtifactRequ
 		}
 		if req.Sha256 != "" && n.Digest != "" && n.Digest != req.Sha256 {
 			continue
+		}
+		if req.BuildID != "" && n.BuildID != req.BuildID {
+			// Alias-aware match: allow upstream build_id when alias maps this
+			// release_tag/build_number locator to the requested canonical build_id.
+			if aliasRec == nil ||
+				aliasRec.CanonicalBuildID != req.BuildID ||
+				aliasRec.UpstreamBuildID == "" ||
+				aliasRec.UpstreamBuildID != n.BuildID {
+				continue
+			}
 		}
 		return n
 	}

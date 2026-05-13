@@ -104,3 +104,24 @@ func (srv *server) ensureReleaseBuildAlias(
 	}
 	return nil
 }
+
+func (srv *server) loadReleaseBuildAlias(
+	ctx context.Context,
+	ref *repopb.ArtifactRef,
+	releaseTag string,
+	buildNumber int64,
+) (*releaseBuildAliasRecord, error) {
+	if ref == nil || strings.TrimSpace(releaseTag) == "" || buildNumber <= 0 {
+		return nil, nil
+	}
+	storageKey := aliasStorageKey(ref, releaseTag, buildNumber)
+	raw, err := srv.Storage().ReadFile(ctx, storageKey)
+	if err != nil || len(raw) == 0 {
+		return nil, nil
+	}
+	var out releaseBuildAliasRecord
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("alias read %q: %w", storageKey, err)
+	}
+	return &out, nil
+}
