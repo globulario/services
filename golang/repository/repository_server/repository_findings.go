@@ -134,6 +134,14 @@ func (srv *server) ListRepositoryFindings(ctx context.Context, req *repopb.ListR
 			resp.Findings = append(resp.Findings, f)
 		}
 	}
+	for _, f := range srv.evalVersionResolutionAmbiguity(rows, now) {
+		if len(resp.Findings) >= limit {
+			break
+		}
+		if matchKindFilter(kindFilter, f.GetKind()) {
+			resp.Findings = append(resp.Findings, f)
+		}
+	}
 
 	return resp, nil
 }
@@ -297,6 +305,71 @@ func (srv *server) evalBuildIDChecksumConflicts(rows []manifestRow, now int64) [
 				},
 			})
 		}
+	}
+	return out
+}
+
+func (srv *server) evalVersionResolutionAmbiguity(rows []manifestRow, now int64) []*repopb.RepositoryFinding {
+	type key struct {
+		Publisher string
+		Name      string
+		Version   string
+		Platform  string
+	}
+	groups := make(map[key]map[string]manifestRow) // identity -> build_id -> sample row
+	for _, row := range rows {
+		if row.PublishState != repopb.PublishState_PUBLISHED.String() {
+			continue
+		}
+		m, _, err := manifestFromRow(row)
+		if err != nil || m == nil {
+			continue
+		}
+		bid := strings.TrimSpace(m.GetBuildId())
+		if bid == "" {
+			continue
+		}
+		k := key{
+			Publisher: row.PublisherID,
+			Name:      row.Name,
+			Version:   row.Version,
+			Platform:  row.Platform,
+		}
+		if _, ok := groups[k]; !ok {
+			groups[k] = make(map[string]manifestRow)
+		}
+		groups[k][bid] = row
+	}
+
+	var out []*repopb.RepositoryFinding
+	for k, builds := range groups {
+		if len(builds) < 2 {
+			continue
+		}
+		var sample manifestRow
+		for _, row := range builds {
+			sample = row
+			break
+		}
+		out = append(out, &repopb.RepositoryFinding{
+			Kind:               repopb.RepositoryFindingKind_REPO_FIND_CONFIG_CONFLICT,
+			Severity:           repopb.RepositoryFindingSeverity_REPO_FIND_ERROR,
+			ArtifactKey:        sample.ArtifactKey,
+			Ref:                &repopb.ArtifactRef{PublisherId: k.Publisher, Name: k.Name, Version: k.Version, Platform: k.Platform},
+			CurrentState:       "multiple published build_ids exist for same package version/platform",
+			ExpectedState:      "desired-state and installs must pin build_id for deterministic resolution",
+			Reason:             "repository.identity.version_resolution_ambiguous",
+			RecommendedCommand: "globular repository doctor identity",
+			ObservedAtUnix:     now,
+			Evidence: map[string]string{
+				"publisher":       k.Publisher,
+				"name":            k.Name,
+				"version":         k.Version,
+				"platform":        k.Platform,
+				"published_builds": fmt.Sprintf("%d", len(builds)),
+				"invariant":       "version_resolution_requires_build_id_pin",
+			},
+		})
 	}
 	return out
 }
