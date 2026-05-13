@@ -137,6 +137,11 @@ func (jr *joinRequestRecord) statusMessage() string {
 			return "rejected: " + jr.Reason
 		}
 		return "rejected"
+	case "blocked":
+		if jr.Reason != "" {
+			return "blocked: " + jr.Reason
+		}
+		return "blocked"
 	default:
 		return "pending approval"
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"net"
 	"sort"
 	"strings"
 	"time"
@@ -85,17 +86,26 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 	}
 	srv.state.JoinRequests[reqID] = jr
 
-	// A valid token is proof the operator authorised this join. Auto-approve
-	// immediately instead of queuing for manual review. The request stays
-	// "pending" only if approveJoinRecordLocked somehow fails (shouldn't
-	// happen), in which case the operator can approve manually.
-	srv.approveJoinRecordLocked(jr, nil)
+	// A valid token authorizes a join ATTEMPT only. Admission into active node
+	// membership requires preflight checks to pass first.
+	preflightOK, preflightReason := srv.evaluateJoinPreflightLocked(jr)
+	if preflightOK {
+		// Auto-approve after preflight passes.
+		srv.approveJoinRecordLocked(jr, nil)
+	} else {
+		jr.Status = "blocked"
+		jr.Reason = preflightReason
+	}
 
 	if err := srv.persistStateLocked(true); err != nil {
 		srv.unlock()
 		return nil, status.Errorf(codes.Internal, "persist join request: %v", err)
 	}
 	srv.unlock()
+
+	if !preflightOK {
+		return nil, status.Errorf(codes.FailedPrecondition, "join preflight blocked: %s", preflightReason)
+	}
 
 	// Async side-effects (RBAC binding + bootstrap workflow trigger) must run
 	// outside the lock because they re-acquire it internally.
@@ -106,6 +116,53 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 		Status:    jr.Status,
 		Message:   jr.statusMessage(),
 	}, nil
+}
+
+func (srv *server) evaluateJoinPreflightLocked(jr *joinRequestRecord) (bool, string) {
+	if jr == nil {
+		return false, "empty join request"
+	}
+	hostname := strings.TrimSpace(jr.Identity.Hostname)
+	if hostname == "" {
+		return false, "missing stable node identity: hostname is required"
+	}
+
+	primaryIP := ""
+	for _, raw := range jr.Identity.Ips {
+		ip := strings.TrimSpace(raw)
+		if ip == "" {
+			continue
+		}
+		parsed := net.ParseIP(ip)
+		if parsed == nil || parsed.IsLoopback() {
+			continue
+		}
+		primaryIP = ip
+		break
+	}
+	if primaryIP == "" {
+		return false, "missing stable node identity: routable non-loopback IP is required"
+	}
+
+	for _, n := range srv.state.Nodes {
+		if n == nil {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(n.Identity.Hostname), hostname) {
+			return false, "node identity conflict: hostname already present"
+		}
+		for _, existingIP := range n.Identity.Ips {
+			if strings.TrimSpace(existingIP) == primaryIP {
+				return false, "node identity conflict: IP already present"
+			}
+		}
+	}
+
+	// TODO(day1): add stronger preflight checks before admission:
+	// - repository active release index/build-id resolvable
+	// - etcd endpoint reachability with approved endpoint set
+	// - CA fingerprint match against cluster CA metadata
+	return true, ""
 }
 
 func (srv *server) ListJoinRequests(ctx context.Context, req *cluster_controllerpb.ListJoinRequestsRequest) (*cluster_controllerpb.ListJoinRequestsResponse, error) {

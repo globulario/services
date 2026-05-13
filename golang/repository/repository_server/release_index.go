@@ -299,6 +299,43 @@ func ValidateReleaseIndex(idx *releaseIndex) error {
 			return err
 		}
 	}
+	if isV2 {
+		if err := validateNoConflictingDuplicateArtifactDigest(idx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ValidateReleaseIndexForInstall applies stricter requirements for official
+// Day-0/Day-1 install flows where release-index mistakes must fail closed.
+func ValidateReleaseIndexForInstall(idx *releaseIndex) error {
+	if err := ValidateReleaseIndex(idx); err != nil {
+		return err
+	}
+	if idx == nil || idx.parsedSchemaVersion != SchemaVersionV2 {
+		return nil
+	}
+	for i, e := range idx.Packages {
+		if strings.TrimSpace(e.Kind) == "" {
+			return fmt.Errorf("packages[%d] (%s): kind is required for install validation", i, e.Name)
+		}
+		if strings.TrimSpace(e.Publisher) == "" {
+			return fmt.Errorf("packages[%d] (%s): publisher is required for install validation", i, e.Name)
+		}
+		if strings.TrimSpace(e.BuildID) == "" {
+			return fmt.Errorf("packages[%d] (%s): build_id is required for install validation", i, e.Name)
+		}
+		if isNumericOnly(strings.TrimSpace(e.BuildID)) {
+			return fmt.Errorf("packages[%d] (%s): numeric-only build_id is not allowed for install validation", i, e.Name)
+		}
+		if e.BuildNumber <= 0 {
+			return fmt.Errorf("packages[%d] (%s): build_number must be > 0 for install validation", i, e.Name)
+		}
+		if strings.TrimSpace(e.ArtifactSha256) == "" {
+			return fmt.Errorf("packages[%d] (%s): artifact_sha256 is required for install validation", i, e.Name)
+		}
+	}
 	return nil
 }
 
@@ -355,6 +392,50 @@ func validateReleaseIndexEntry(e *releaseIndexEntry, idx int, isV2 bool) error {
 		}
 	}
 
+	return nil
+}
+
+func isNumericOnly(v string) bool {
+	if v == "" {
+		return false
+	}
+	for _, r := range v {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func validateNoConflictingDuplicateArtifactDigest(idx *releaseIndex) error {
+	type identity struct {
+		buildID     string
+		buildNumber int64
+		version     string
+	}
+	seen := make(map[string]identity)
+	for _, e := range idx.Packages {
+		digest := strings.ToLower(strings.TrimSpace(e.ArtifactSha256))
+		if digest == "" {
+			continue
+		}
+		key := strings.ToLower(strings.TrimSpace(e.Publisher)) + "|" +
+			strings.ToLower(strings.TrimSpace(e.Name)) + "|" +
+			strings.ToLower(strings.TrimSpace(e.Platform)) + "|" + digest
+		curr := identity{
+			buildID:     strings.TrimSpace(e.BuildID),
+			buildNumber: e.BuildNumber,
+			version:     strings.TrimSpace(e.Version),
+		}
+		if prev, ok := seen[key]; ok {
+			if prev.buildID != curr.buildID || prev.buildNumber != curr.buildNumber || prev.version != curr.version {
+				return fmt.Errorf("duplicate artifact_sha256 for same publisher/name/platform with different build_id/version/build_number: publisher=%s name=%s platform=%s digest=%s",
+					e.Publisher, e.Name, e.Platform, digest)
+			}
+			continue
+		}
+		seen[key] = curr
+	}
 	return nil
 }
 

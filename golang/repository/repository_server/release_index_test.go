@@ -498,3 +498,100 @@ func TestForceFullRebuildV2_Valid(t *testing.T) {
 		t.Fatalf("expected reason, got %q", idx.ForceFullRebuildReason)
 	}
 }
+
+func TestReleaseIndexV2InstallRejectsMissingBuildID(t *testing.T) {
+	idx := validV2Index()
+	idx.Packages[0].BuildID = ""
+	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "build_id is required") {
+		t.Fatalf("expected missing build_id rejection, got: %v", err)
+	}
+}
+
+func TestReleaseIndexV2InstallRejectsNumericBuildID(t *testing.T) {
+	idx := validV2Index()
+	idx.Packages[0].BuildID = "204"
+	idx.Packages[1].BuildID = "205"
+	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "numeric-only build_id") {
+		t.Fatalf("expected numeric build_id rejection, got: %v", err)
+	}
+}
+
+func TestReleaseIndexV2InstallRejectsMissingArtifactSha256(t *testing.T) {
+	idx := validV2Index()
+	for _, p := range idx.Packages {
+		p.BuildID = "upstream-abc123"
+		p.ArtifactSha256 = ""
+	}
+	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "artifact_sha256 is required") {
+		t.Fatalf("expected artifact_sha256 rejection, got: %v", err)
+	}
+}
+
+func TestReleaseIndexV2InstallRejectsBuildNumberZero(t *testing.T) {
+	idx := validV2Index()
+	for _, p := range idx.Packages {
+		p.BuildID = "upstream-abc123"
+		p.ArtifactSha256 = p.PackageDigest
+	}
+	idx.Packages[0].BuildNumber = 0
+	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "build_number must be > 0") {
+		t.Fatalf("expected build_number rejection, got: %v", err)
+	}
+}
+
+func TestReleaseIndexV2AllowsExplicitUnchangedOriginRelease(t *testing.T) {
+	idx := validV2Index()
+	for _, p := range idx.Packages {
+		p.BuildID = "upstream-abc123"
+		p.ArtifactSha256 = p.PackageDigest
+	}
+	if err := ValidateReleaseIndexForInstall(idx); err != nil {
+		t.Fatalf("expected valid strict install index, got: %v", err)
+	}
+}
+
+func TestReleaseIndexRejectsDuplicateDigestDifferentBuildIDInV2(t *testing.T) {
+	idx := validV2Index()
+	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	idx.Packages = []*releaseIndexEntry{
+		{
+			Name: "dns", Kind: "SERVICE", Publisher: "core@globular.io",
+			Version: "1.2.31", BuildNumber: 100, BuildID: "build-A",
+			Platform: "linux_amd64", ArtifactSha256: digest, PackageDigest: digest,
+			Filename: "dns-v1.2.31.tgz", ChangedInRelease: boolPtr(true), OriginRelease: "v1.2.43",
+		},
+		{
+			Name: "dns", Kind: "SERVICE", Publisher: "core@globular.io",
+			Version: "1.2.31", BuildNumber: 101, BuildID: "build-B",
+			Platform: "linux_amd64", ArtifactSha256: digest, PackageDigest: digest,
+			Filename: "dns-v1.2.32.tgz", ChangedInRelease: boolPtr(true), OriginRelease: "v1.2.43",
+		},
+	}
+	err := ValidateReleaseIndex(idx)
+	if err == nil || !strings.Contains(err.Error(), "duplicate artifact_sha256") {
+		t.Fatalf("expected duplicate digest rejection, got: %v", err)
+	}
+}
+
+func TestReleaseIndexRejectsDuplicateDigestDifferentVersionInV2(t *testing.T) {
+	idx := validV2Index()
+	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	idx.Packages = []*releaseIndexEntry{
+		{
+			Name: "dns", Kind: "SERVICE", Publisher: "core@globular.io",
+			Version: "1.2.31", BuildNumber: 100, BuildID: "build-A",
+			Platform: "linux_amd64", ArtifactSha256: digest, PackageDigest: digest,
+			Filename: "dns-v1.2.31.tgz", ChangedInRelease: boolPtr(true), OriginRelease: "v1.2.43",
+		},
+		{
+			Name: "dns", Kind: "SERVICE", Publisher: "core@globular.io",
+			Version: "1.2.32", BuildNumber: 100, BuildID: "build-A",
+			Platform: "linux_amd64", ArtifactSha256: digest, PackageDigest: digest,
+			Filename: "dns-v1.2.32.tgz", ChangedInRelease: boolPtr(true), OriginRelease: "v1.2.43",
+		},
+	}
+	err := ValidateReleaseIndex(idx)
+	if err == nil || !strings.Contains(err.Error(), "duplicate artifact_sha256") {
+		t.Fatalf("expected duplicate digest rejection, got: %v", err)
+	}
+}

@@ -1063,6 +1063,9 @@ func parseReleaseIndex(data []byte) (*releaseIndex, error) {
 	if err := ValidateReleaseIndex(&idx); err != nil {
 		return nil, err
 	}
+	if err := ValidateReleaseIndexForInstall(&idx); err != nil {
+		return nil, err
+	}
 	return &idx, nil
 }
 

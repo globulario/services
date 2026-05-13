@@ -211,9 +211,12 @@ func ComputeDesiredStateWithPools(domain string, nodes []NodeInfo, services []Se
 		}
 	}
 
-	// Add dns.<domain> — multi-A pointing to all nodes running DNS (core profile)
+	// Add dns.<domain> — multi-A pointing only to DNS-capable nodes.
 	dnsFQDN := fmt.Sprintf("dns.%s", domain)
 	for _, node := range nodes {
+		if !node.HasProfile("dns") && !node.HasProfile("core") {
+			continue
+		}
 		if node.IPv4 != "" {
 			state.Records = append(state.Records, DNSRecord{
 				Name: dnsFQDN, Type: RecordTypeA, Value: node.IPv4, TTL: 60,

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"strings"
@@ -10,6 +12,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/cluster_controller/resourcestore"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -18,6 +21,92 @@ import (
 // hashEnqueueCooldown debounces per-node hash-change re-enqueue.
 // Prevents reconcile storms when delayed heartbeats arrive in bursts.
 var hashEnqueueCooldown sync.Map
+
+var criticalReleaseNames = map[string]bool{
+	"etcd":               true,
+	"dns":                true,
+	"repository":         true,
+	"gateway":            true,
+	"envoy":              true,
+	"node-agent":         true,
+	"cluster-controller": true,
+	"workflow":           true,
+	"scylladb":           true,
+	"minio":              true,
+	"pki":                true,
+	"objectstore":        true,
+	"networking":         true,
+	"ingress":            true,
+	"vip":                true,
+}
+
+func releaseComponentFromName(name string) string {
+	name = strings.TrimSpace(strings.ToLower(name))
+	if i := strings.LastIndex(name, "/"); i >= 0 && i+1 < len(name) {
+		name = name[i+1:]
+	}
+	return name
+}
+
+func (srv *server) requireCriticalReleaseDeleteApproval(ctx context.Context, typeName, name string) error {
+	component := releaseComponentFromName(name)
+	if !criticalReleaseNames[component] {
+		return nil
+	}
+	obj, _, err := srv.resources.Get(ctx, typeName, name)
+	if err != nil {
+		return status.Errorf(codes.Internal, "critical delete approval: get %s/%s: %v", typeName, name, err)
+	}
+	if obj == nil {
+		return status.Errorf(codes.NotFound, "%s %q not found", strings.ToLower(typeName), name)
+	}
+	var meta *cluster_controllerpb.ObjectMeta
+	switch v := obj.(type) {
+	case *cluster_controllerpb.ServiceRelease:
+		meta = v.Meta
+	case *cluster_controllerpb.ApplicationRelease:
+		meta = v.Meta
+	case *cluster_controllerpb.InfrastructureRelease:
+		meta = v.Meta
+	default:
+		return status.Errorf(codes.FailedPrecondition, "critical delete approval: unsupported resource type %s", typeName)
+	}
+	if meta == nil {
+		return status.Errorf(codes.FailedPrecondition, "critical delete approval: %s/%s has no metadata", typeName, name)
+	}
+	prefix := fmt.Sprintf("/globular/approvals/delete/release/%s/%s/", strings.ToLower(typeName), name)
+	kv := srv.kv
+	if kv == nil {
+		kv = srv.etcdClient
+	}
+	if kv == nil {
+		return status.Errorf(codes.FailedPrecondition, "critical delete approval required for %s/%s but etcd client unavailable", typeName, name)
+	}
+	resp, err := kv.Get(ctx, prefix, clientv3.WithPrefix())
+	if err != nil {
+		return status.Errorf(codes.Internal, "critical delete approval lookup failed: %v", err)
+	}
+	if len(resp.Kvs) == 0 {
+		return status.Errorf(codes.FailedPrecondition, "critical delete approval required for %s/%s", typeName, name)
+	}
+	now := time.Now().Unix()
+	for _, kvv := range resp.Kvs {
+		var a criticalKeyDeleteApproval
+		if err := json.Unmarshal(kvv.Value, &a); err != nil {
+			continue
+		}
+		if !isValidDeleteApproval(a, now, approvalMaxAge) {
+			continue
+		}
+		if a.Generation != meta.Generation {
+			return status.Errorf(codes.FailedPrecondition,
+				"critical delete approval generation mismatch for %s/%s: approved=%d current=%d",
+				typeName, name, a.Generation, meta.Generation)
+		}
+		return nil
+	}
+	return status.Errorf(codes.FailedPrecondition, "critical delete approval required for %s/%s", typeName, name)
+}
 
 func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controllerpb.ReportNodeStatusRequest) (*cluster_controllerpb.ReportNodeStatusResponse, error) {
 	if !srv.isLeader() {
@@ -632,6 +721,9 @@ func (srv *server) DeleteServiceRelease(ctx context.Context, req *cluster_contro
 	if name == "" {
 		return nil, status.Error(codes.InvalidArgument, "name is required")
 	}
+	if err := srv.requireCriticalReleaseDeleteApproval(ctx, "ServiceRelease", name); err != nil {
+		return nil, err
+	}
 	if err := srv.resources.Delete(ctx, "ServiceRelease", name); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete service release: %v", err)
 	}
@@ -719,6 +811,9 @@ func (srv *server) DeleteApplicationRelease(ctx context.Context, req *cluster_co
 	if name == "" {
 		return nil, status.Error(codes.InvalidArgument, "name is required")
 	}
+	if err := srv.requireCriticalReleaseDeleteApproval(ctx, "ApplicationRelease", name); err != nil {
+		return nil, err
+	}
 	if err := srv.resources.Delete(ctx, "ApplicationRelease", name); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete application release: %v", err)
 	}
@@ -805,6 +900,9 @@ func (srv *server) DeleteInfrastructureRelease(ctx context.Context, req *cluster
 	name := strings.TrimSpace(req.GetName())
 	if name == "" {
 		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	if err := srv.requireCriticalReleaseDeleteApproval(ctx, "InfrastructureRelease", name); err != nil {
+		return nil, err
 	}
 	if err := srv.resources.Delete(ctx, "InfrastructureRelease", name); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete infrastructure release: %v", err)

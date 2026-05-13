@@ -151,3 +151,37 @@ func TestLoadDNSInitConfigWithLKGPath_FileThenFallback(t *testing.T) {
 		t.Fatalf("unexpected lkg fallback: cfg=%+v source=%s", got2, source2)
 	}
 }
+
+func TestDNSSync_PublishesOnlyOwnFQDN(t *testing.T) {
+	recs := buildNodeFQDNRecords("node-1", "globular.internal", "10.0.0.10", "2001:db8::10")
+	if len(recs) != 2 {
+		t.Fatalf("expected A+AAAA records for own fqdn, got %d", len(recs))
+	}
+	for _, r := range recs {
+		if r.name != "node-1.globular.internal" {
+			t.Fatalf("expected only node fqdn record, got %q", r.name)
+		}
+	}
+}
+
+func TestDNSSync_DoesNotPublishGatewayRecord(t *testing.T) {
+	recs := buildNodeFQDNRecords("node-1", "globular.internal", "10.0.0.10", "")
+	for _, r := range recs {
+		if strings.HasPrefix(r.name, "gateway.") {
+			t.Fatalf("node agent must not publish gateway role records, got %q", r.name)
+		}
+	}
+}
+
+func TestDNSSync_DoesNotPublishRoleRecordsDuringDay1(t *testing.T) {
+	recs := buildNodeFQDNRecords("joiner-1", "globular.internal", "10.0.0.20", "")
+	for _, r := range recs {
+		if strings.HasPrefix(r.name, "gateway.") ||
+			strings.HasPrefix(r.name, "dns.") ||
+			strings.HasPrefix(r.name, "api.") ||
+			strings.HasPrefix(r.name, "controller.") ||
+			strings.HasPrefix(r.name, "*.") {
+			t.Fatalf("node agent must not publish role record during day1: %q", r.name)
+		}
+	}
+}

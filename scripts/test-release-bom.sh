@@ -73,6 +73,55 @@ for name, pkg in idx_by_name.items():
         print(f"FAIL: '{name}' is unchanged but has no origin_release")
         errors += 1
 
+# 7. Strict v2 install checks.
+schema = index.get("schema_version")
+if schema == "globular.repository.index/v2":
+    for name, pkg in idx_by_name.items():
+        bid = str(pkg.get("build_id", "")).strip()
+        if not bid:
+            print(f"FAIL: '{name}' missing build_id (v2 strict install)")
+            errors += 1
+        elif bid.isdigit():
+            print(f"FAIL: '{name}' has numeric-only build_id '{bid}' (v2 strict install)")
+            errors += 1
+
+        bn = pkg.get("build_number", 0)
+        if not isinstance(bn, int) or bn <= 0:
+            print(f"FAIL: '{name}' has invalid build_number={bn} (must be > 0)")
+            errors += 1
+
+        art = str(pkg.get("artifact_sha256", "")).strip()
+        if not art:
+            print(f"FAIL: '{name}' missing artifact_sha256 (v2 strict install)")
+            errors += 1
+
+    # Reject duplicate artifact bytes with conflicting identity tuple.
+    seen = {}
+    for pkg in index["packages"]:
+        digest = str(pkg.get("artifact_sha256", "")).strip().lower()
+        if not digest:
+            continue
+        key = (
+            str(pkg.get("publisher", "")).strip().lower(),
+            str(pkg.get("name", "")).strip().lower(),
+            str(pkg.get("platform", "")).strip().lower(),
+            digest,
+        )
+        ident = (
+            str(pkg.get("build_id", "")).strip(),
+            str(pkg.get("version", "")).strip(),
+            int(pkg.get("build_number", 0) or 0),
+        )
+        if key in seen and seen[key] != ident:
+            print(
+                "FAIL: duplicate artifact_sha256 for same publisher/name/platform "
+                "with different build_id/version/build_number "
+                f"(publisher={key[0]} name={key[1]} platform={key[2]} digest={digest})"
+            )
+            errors += 1
+        else:
+            seen[key] = ident
+
 # Summary
 total = len(idx_by_name)
 changed = sum(1 for p in idx_by_name.values() if p.get("changed_in_release"))

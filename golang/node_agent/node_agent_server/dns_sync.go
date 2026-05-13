@@ -63,22 +63,17 @@ func (srv *NodeAgentServer) syncDNS(spec *cluster_controllerpb.ClusterNetworkSpe
 		return fmt.Errorf("unable to determine node IPv4 address (use --dns-ipv4 or --dns-iface flags)")
 	}
 
-	hostFQDN := fmt.Sprintf("%s.%s", hostname, domain)
-	gateway := fmt.Sprintf("gateway.%s", domain)
-
-	if _, err := client.SetA(token, gateway, ipv4, dnsDefaultTTL); err != nil {
-		return fmt.Errorf("set A %s: %w", gateway, err)
-	}
-	if _, err := client.SetA(token, hostFQDN, ipv4, dnsDefaultTTL); err != nil {
-		return fmt.Errorf("set A %s: %w", hostFQDN, err)
-	}
-
-	if ipv6 != "" {
-		if _, err := client.SetAAAA(token, gateway, ipv6, dnsDefaultTTL); err != nil {
-			return fmt.Errorf("set AAAA %s: %w", gateway, err)
-		}
-		if _, err := client.SetAAAA(token, hostFQDN, ipv6, dnsDefaultTTL); err != nil {
-			return fmt.Errorf("set AAAA %s: %w", hostFQDN, err)
+	records := buildNodeFQDNRecords(hostname, domain, ipv4, ipv6)
+	for _, rec := range records {
+		switch rec.typ {
+		case "A":
+			if _, err := client.SetA(token, rec.name, rec.value, dnsDefaultTTL); err != nil {
+				return fmt.Errorf("set A %s: %w", rec.name, err)
+			}
+		case "AAAA":
+			if _, err := client.SetAAAA(token, rec.name, rec.value, dnsDefaultTTL); err != nil {
+				return fmt.Errorf("set AAAA %s: %w", rec.name, err)
+			}
 		}
 	}
 
@@ -90,6 +85,24 @@ func (srv *NodeAgentServer) syncDNS(spec *cluster_controllerpb.ClusterNetworkSpe
 	}
 
 	return nil
+}
+
+type fqdnRecord struct {
+	name  string
+	typ   string
+	value string
+}
+
+func buildNodeFQDNRecords(hostname, domain, ipv4, ipv6 string) []fqdnRecord {
+	hostFQDN := fmt.Sprintf("%s.%s", hostname, domain)
+	out := make([]fqdnRecord, 0, 2)
+	if ipv4 != "" {
+		out = append(out, fqdnRecord{name: hostFQDN, typ: "A", value: ipv4})
+	}
+	if ipv6 != "" {
+		out = append(out, fqdnRecord{name: hostFQDN, typ: "AAAA", value: ipv6})
+	}
+	return out
 }
 
 // dnsInitConfig represents the DNS initialization configuration rendered by cluster controller.

@@ -289,8 +289,15 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		log.Printf("grpc-workflow: install-package %s (%s)", pkgName, pkgKind)
 	}
 	start := time.Now()
-
-	err := srv.InstallPackage(ctx, pkgName, pkgKind, "", desiredVersion, buildID, desiredHash)
+	applyResp, err := srv.ApplyPackageRelease(ctx, &node_agentpb.ApplyPackageReleaseRequest{
+		PackageName:    pkgName,
+		PackageKind:    pkgKind,
+		Version:        desiredVersion,
+		Publisher:      defaultPublisherID,
+		ExpectedSha256: desiredHash,
+		OperationId:    inputs["workflow_id"],
+		BuildId:        buildID,
+	})
 	elapsed := time.Since(start)
 
 	wfIDFull := inputs["workflow_id"]
@@ -318,10 +325,46 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 			SourceComponent: "node-agent",
 			Evidence:        map[string]string{"kind": pkgKind, "error": err.Error()},
 		})
+	} else if applyResp == nil {
+		resp.Status = "FAILED"
+		resp.Error = "apply package returned nil response"
+		resp.StepsFailed = 1
+		log.Printf("grpc-workflow: install-package %s FAILED (%v): nil apply response", pkgName, elapsed)
+		srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
+			ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
+			WorkflowID:      wfIDFull,
+			Package:         pkgName,
+			NodeID:          srv.nodeID,
+			DesiredVersion:  desiredVersion,
+			DesiredBuildID:  buildID,
+			Outcome:         installed_state.OutcomeFailedTransient,
+			SourceComponent: "node-agent",
+			Evidence:        map[string]string{"kind": pkgKind, "error": "nil apply response"},
+		})
+	} else if !applyResp.GetOk() {
+		resp.Status = "FAILED"
+		if applyResp.GetErrorDetail() != "" {
+			resp.Error = applyResp.GetErrorDetail()
+		} else {
+			resp.Error = applyResp.GetMessage()
+		}
+		resp.StepsFailed = 1
+		log.Printf("grpc-workflow: install-package %s FAILED (%v): %s", pkgName, elapsed, resp.Error)
+		srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
+			ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
+			WorkflowID:      wfIDFull,
+			Package:         pkgName,
+			NodeID:          srv.nodeID,
+			DesiredVersion:  desiredVersion,
+			DesiredBuildID:  buildID,
+			Outcome:         installed_state.OutcomeFailedTransient,
+			SourceComponent: "node-agent",
+			Evidence:        map[string]string{"kind": pkgKind, "error": resp.Error},
+		})
 	} else {
 		resp.Status = "SUCCEEDED"
 		resp.StepsSucceeded = 1
-		log.Printf("grpc-workflow: install-package %s SUCCEEDED (%v)", pkgName, elapsed)
+		log.Printf("grpc-workflow: install-package %s SUCCEEDED (%v, status=%s)", pkgName, elapsed, applyResp.GetStatus())
 		srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
 			ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
 			WorkflowID:      wfIDFull,
@@ -338,40 +381,6 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 			SourceComponent: "node-agent",
 			Evidence:        map[string]string{"kind": pkgKind},
 		})
-
-		// Restart / start the systemd unit so the new binary takes effect.
-		//
-		// SERVICE: always restart (re-enable first in case crash-loop suppression
-		// disabled the unit).
-		//
-		// INFRASTRUCTURE: the install action stops the service to replace the
-		// binary. systemd won't auto-restart on a clean SIGTERM exit (Restart=on-failure
-		// only). Start the unit here so the service comes back up after install.
-		if unit := packageUnit(pkgName); unit != "" {
-			restartCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			switch strings.ToUpper(pkgKind) {
-			case "SERVICE":
-				// Re-enable in case crash-loop suppression disabled the unit.
-				if enErr := supervisor.Enable(restartCtx, unit); enErr != nil {
-					log.Printf("grpc-workflow: enable %s failed (proceeding to restart): %v", unit, enErr)
-				}
-				if rsErr := supervisor.Restart(restartCtx, unit); rsErr != nil {
-					log.Printf("grpc-workflow: restart %s failed: %v", unit, rsErr)
-				} else {
-					log.Printf("grpc-workflow: restarted %s after install", unit)
-				}
-			case "INFRASTRUCTURE":
-				active, _ := supervisor.IsActive(restartCtx, unit)
-				if !active {
-					if startErr := supervisor.Start(restartCtx, unit); startErr != nil {
-						log.Printf("grpc-workflow: start %s after INFRASTRUCTURE install failed: %v", unit, startErr)
-					} else {
-						log.Printf("grpc-workflow: started %s after INFRASTRUCTURE install", unit)
-					}
-				}
-			}
-		}
 
 		// Stamp the convergence hash for INFRASTRUCTURE packages. The controller's
 		// classifyPackageConvergence compares pkg.Checksum against
