@@ -8,6 +8,7 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
@@ -53,6 +54,55 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 			return err == nil && resp.GetStatus() == "SUCCEEDED"
 		},
 	})
+	// Wire read-only verification handlers used by node.join verification blocks
+	// and resume-policy verify_effect checks.
+	engine.RegisterNodeVerificationActions(router, engine.NodeVerificationConfig{
+		VerifyPackagesInstalled: func(ctx context.Context, nodeID string, packages []any) (bool, error) {
+			targetNodeID := strings.TrimSpace(nodeID)
+			if targetNodeID == "" {
+				targetNodeID = strings.TrimSpace(srv.nodeID)
+			}
+			if targetNodeID == "" {
+				return false, fmt.Errorf("node_id is required")
+			}
+			for _, raw := range packages {
+				pkgMap, ok := raw.(map[string]any)
+				if !ok {
+					return false, fmt.Errorf("invalid package descriptor type %T", raw)
+				}
+				name := strings.TrimSpace(fmt.Sprint(pkgMap["name"]))
+				if name == "" {
+					return false, fmt.Errorf("package.name is required")
+				}
+				kind := strings.ToUpper(strings.TrimSpace(fmt.Sprint(pkgMap["kind"])))
+				kinds := []string{kind}
+				if kind == "" || kind == "<nil>" {
+					// Be permissive for workflows that omit kind in verify blocks.
+					kinds = []string{"SERVICE", "INFRASTRUCTURE", "COMMAND", "APPLICATION"}
+				}
+				foundInstalled := false
+				for _, k := range kinds {
+					pkg, err := installed_state.GetInstalledPackage(ctx, targetNodeID, k, name)
+					if err != nil || pkg == nil {
+						continue
+					}
+					if strings.EqualFold(pkg.GetStatus(), "installed") {
+						foundInstalled = true
+						break
+					}
+				}
+				if !foundInstalled {
+					return false, nil
+				}
+			}
+			return true, nil
+		},
+		VerifyInstalledStateSynced: func(ctx context.Context, nodeID string) (bool, error) {
+			// Best-effort sync: if sync succeeds, effect is present.
+			srv.syncInstalledStateToEtcd(ctx)
+			return true, nil
+		},
+	})
 
 	// Wire controller actions (called remotely via the controller client).
 	engine.RegisterControllerActions(router, engine.ControllerConfig{
@@ -91,6 +141,28 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 				return fmt.Errorf("emit event %s: %w", eventType, err)
 			}
 			return nil
+		},
+	})
+	engine.RegisterControllerVerificationActions(router, engine.ControllerVerificationConfig{
+		VerifyBootstrapPhase: func(ctx context.Context, nodeID, expectedPhase string) (bool, error) {
+			if err := srv.ensureControllerClient(ctx); err != nil {
+				return false, fmt.Errorf("controller client: %w", err)
+			}
+			rpcCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			resp, err := srv.controllerClient.ListNodes(rpcCtx, &cluster_controllerpb.ListNodesRequest{})
+			if err != nil {
+				return false, fmt.Errorf("list nodes: %w", err)
+			}
+			expected := strings.TrimSpace(expectedPhase)
+			for _, n := range resp.GetNodes() {
+				if strings.TrimSpace(n.GetNodeId()) != strings.TrimSpace(nodeID) {
+					continue
+				}
+				actual := strings.TrimSpace(n.GetMetadata()["bootstrap_phase"])
+				return actual == expected, nil
+			}
+			return false, fmt.Errorf("node %s not found", nodeID)
 		},
 	})
 
@@ -151,4 +223,3 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 
 	return run, err
 }
-
