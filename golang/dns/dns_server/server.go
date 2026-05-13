@@ -521,7 +521,17 @@ func (srv *server) requireHealthy() error {
 	if srv.depHealth == nil {
 		return nil
 	}
-	return srv.depHealth.RequireHealthy()
+	// Day-1/bootstrap safety: DNS must remain callable (at least for bootstrap
+	// records and degraded read paths) even when Scylla quorum is transiently
+	// unavailable, otherwise join/recovery can deadlock on DNS health gating.
+	//
+	// Keep dependency health visible via logs/operational status, but do not
+	// hard-fail every DNS RPC at this layer.
+	if err := srv.depHealth.RequireHealthy(); err != nil {
+		srv.Logger.Warn("dns dependency degraded; allowing request in degraded mode", "err", err)
+		return nil
+	}
+	return nil
 }
 
 // loadDomainsFromStore reads the domain list from ScyllaDB on demand.
