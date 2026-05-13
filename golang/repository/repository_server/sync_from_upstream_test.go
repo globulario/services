@@ -129,6 +129,51 @@ func TestProcessSyncEntryDedupesDifferentBuildNumber(t *testing.T) {
 	}
 }
 
+func TestProcessSyncEntryRejectsOnAliasConflict(t *testing.T) {
+	srv := newTestServer(t)
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "workflow",
+		Version:     "1.0.53",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 1,
+		BuildId:     "canonical-a",
+		Checksum:    "sha256:same-content",
+		SizeBytes:   100,
+	})
+	// Pre-existing conflicting alias for the same release/build locator.
+	if err := srv.ensureReleaseBuildAlias(context.Background(), ref, "v1.0.53", 67, "upstream-67", "canonical-b", "sha256:same-content", "v1.0.53", "test-source"); err != nil {
+		t.Fatalf("seed alias: %v", err)
+	}
+
+	prov, pOpts := testProvider()
+	result := srv.processSyncEntry(
+		context.Background(),
+		&releaseIndexEntry{
+			Name:          "workflow",
+			Publisher:     "core@globular.io",
+			Version:       "1.0.53",
+			BuildID:       "upstream-67",
+			BuildNumber:   67,
+			Platform:      "linux_amd64",
+			PackageDigest: "sha256:same-content",
+			AssetURL:      "https://example.invalid/workflow.tgz",
+		},
+		&repopb.UpstreamSource{Name: "test-source"},
+		prov, pOpts,
+		"v1.0.53",
+		false,
+		"",
+	)
+	if result.GetStatus() != repopb.UpstreamSyncStatus_SYNC_REJECTED {
+		t.Fatalf("expected SYNC_REJECTED on alias conflict, got %s: %s", result.GetStatus().String(), result.GetDetail())
+	}
+}
+
 func TestProcessSyncEntrySkipsWhenSameBuildIDAlreadyAtHigherBuildNumber(t *testing.T) {
 	srv := newTestServer(t)
 	ref := &repopb.ArtifactRef{

@@ -12,6 +12,10 @@ import (
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
+func isAliasConflictError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "alias conflict")
+}
+
 type releaseBuildAliasRecord struct {
 	PublisherID      string `json:"publisher_id"`
 	Name             string `json:"name"`

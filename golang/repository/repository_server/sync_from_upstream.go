@@ -645,6 +645,16 @@ func (srv *server) processSyncEntry(
 					result.Detail = detail
 					result.Action = "up_to_date"
 					if err := srv.ensureReleaseBuildAlias(ctx, ref, releaseTag, n.BuildNumber, n.BuildID, existing.GetBuildId(), n.Digest, n.OriginRelease, src.GetName()); err != nil {
+						if isAliasConflictError(err) {
+							if dryRun {
+								result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_REJECT
+							} else {
+								result.Status = repopb.UpstreamSyncStatus_SYNC_REJECTED
+							}
+							result.Action = "conflict"
+							result.Detail = fmt.Sprintf("alias conflict for %s build_number=%d: %v", releaseTag, n.BuildNumber, err)
+							return result
+						}
 						slog.Warn("repository sync: failed to persist release/build alias", "err", err,
 							"release_tag", releaseTag, "build_number", n.BuildNumber, "canonical_build_id", existing.GetBuildId())
 					}
@@ -670,6 +680,16 @@ func (srv *server) processSyncEntry(
 				result.Detail = detail
 				result.Action = "up_to_date"
 				if err := srv.ensureReleaseBuildAlias(ctx, ref, releaseTag, n.BuildNumber, n.BuildID, existing.GetBuildId(), n.Digest, n.OriginRelease, src.GetName()); err != nil {
+					if isAliasConflictError(err) {
+						if dryRun {
+							result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_REJECT
+						} else {
+							result.Status = repopb.UpstreamSyncStatus_SYNC_REJECTED
+						}
+						result.Action = "conflict"
+						result.Detail = fmt.Sprintf("alias conflict for %s build_number=%d: %v", releaseTag, n.BuildNumber, err)
+						return result
+					}
 					slog.Warn("repository sync: failed to persist release/build alias", "err", err,
 						"release_tag", releaseTag, "build_number", n.BuildNumber, "canonical_build_id", existing.GetBuildId())
 				}
@@ -837,6 +857,9 @@ func (srv *server) importUpstreamArtifact(
 					"upstream_build_number", n.BuildNumber,
 					"publish_state", stateByID.String())
 				if err := srv.ensureReleaseBuildAlias(ctx, ref, releaseTag, n.BuildNumber, n.BuildID, existingByID.GetBuildId(), digest, n.OriginRelease, src.GetName()); err != nil {
+					if isAliasConflictError(err) {
+						return fmt.Errorf("alias conflict for %s build_number=%d: %w", releaseTag, n.BuildNumber, err)
+					}
 					slog.Warn("upstream: failed to persist release/build alias", "err", err,
 						"release_tag", releaseTag, "build_number", n.BuildNumber, "canonical_build_id", existingByID.GetBuildId())
 				}
@@ -891,6 +914,9 @@ func (srv *server) importUpstreamArtifact(
 				"upstream_build_number", n.BuildNumber,
 				"digest", truncDigest(digest))
 			if err := srv.ensureReleaseBuildAlias(ctx, ref, releaseTag, n.BuildNumber, n.BuildID, existing.GetBuildId(), digest, n.OriginRelease, src.GetName()); err != nil {
+				if isAliasConflictError(err) {
+					return fmt.Errorf("alias conflict for %s build_number=%d: %w", releaseTag, n.BuildNumber, err)
+				}
 				slog.Warn("upstream: failed to persist release/build alias", "err", err,
 					"release_tag", releaseTag, "build_number", n.BuildNumber, "canonical_build_id", existing.GetBuildId())
 			}
@@ -1041,6 +1067,9 @@ func (srv *server) importUpstreamArtifact(
 	_ = srv.transitionArtifactState(ctx, key, PipelinePublished,
 		publishReason, workflowRunID, stateFields)
 	if err := srv.ensureReleaseBuildAlias(ctx, ref, releaseTag, n.BuildNumber, n.BuildID, n.BuildID, digest, n.OriginRelease, src.GetName()); err != nil {
+		if isAliasConflictError(err) {
+			return fmt.Errorf("alias conflict for %s build_number=%d: %w", releaseTag, n.BuildNumber, err)
+		}
 		slog.Warn("upstream: failed to persist release/build alias", "err", err,
 			"release_tag", releaseTag, "build_number", n.BuildNumber, "canonical_build_id", n.BuildID)
 	}
