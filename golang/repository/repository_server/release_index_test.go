@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -518,8 +519,8 @@ func TestReleaseIndexV2InstallRejectsNumericBuildID(t *testing.T) {
 
 func TestReleaseIndexV2InstallAllowsPackageDigestFallback(t *testing.T) {
 	idx := validV2Index()
-	for _, p := range idx.Packages {
-		p.BuildID = "upstream-abc123"
+	for i, p := range idx.Packages {
+		p.BuildID = fmt.Sprintf("upstream-abc%d", i+1)
 		p.ArtifactSha256 = ""
 	}
 	if err := ValidateReleaseIndexForInstall(idx); err != nil {
@@ -529,8 +530,8 @@ func TestReleaseIndexV2InstallAllowsPackageDigestFallback(t *testing.T) {
 
 func TestReleaseIndexV2InstallRejectsMissingAllDigestFields(t *testing.T) {
 	idx := validV2Index()
-	for _, p := range idx.Packages {
-		p.BuildID = "upstream-abc123"
+	for i, p := range idx.Packages {
+		p.BuildID = fmt.Sprintf("upstream-abc%d", i+1)
 		p.ArtifactSha256 = ""
 		p.PackageDigest = ""
 	}
@@ -562,7 +563,7 @@ func TestReleaseIndexV2AllowsExplicitUnchangedOriginRelease(t *testing.T) {
 	}
 }
 
-func TestReleaseIndexRejectsDuplicateDigestDifferentBuildIDInV2(t *testing.T) {
+func TestReleaseIndexAllowsDuplicateDigestDifferentBuildIDInV2(t *testing.T) {
 	idx := validV2Index()
 	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	idx.Packages = []*releaseIndexEntry{
@@ -580,12 +581,12 @@ func TestReleaseIndexRejectsDuplicateDigestDifferentBuildIDInV2(t *testing.T) {
 		},
 	}
 	err := ValidateReleaseIndex(idx)
-	if err == nil || !strings.Contains(err.Error(), "duplicate artifact_sha256") {
-		t.Fatalf("expected duplicate digest rejection, got: %v", err)
+	if err != nil {
+		t.Fatalf("expected duplicate digest across build_id to pass, got: %v", err)
 	}
 }
 
-func TestReleaseIndexRejectsDuplicateDigestDifferentVersionInV2(t *testing.T) {
+func TestReleaseIndexAllowsDuplicateDigestDifferentVersionInV2(t *testing.T) {
 	idx := validV2Index()
 	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	idx.Packages = []*releaseIndexEntry{
@@ -603,7 +604,29 @@ func TestReleaseIndexRejectsDuplicateDigestDifferentVersionInV2(t *testing.T) {
 		},
 	}
 	err := ValidateReleaseIndex(idx)
-	if err == nil || !strings.Contains(err.Error(), "duplicate artifact_sha256") {
-		t.Fatalf("expected duplicate digest rejection, got: %v", err)
+	if err != nil {
+		t.Fatalf("expected duplicate digest across versions to pass, got: %v", err)
+	}
+}
+
+func TestReleaseIndexRejectsSameBuildIDDifferentDigestInV2(t *testing.T) {
+	idx := validV2Index()
+	idx.Packages = []*releaseIndexEntry{
+		{
+			Name: "dns", Kind: "SERVICE", Publisher: "core@globular.io",
+			Version: "1.2.31", BuildNumber: 100, BuildID: "build-A",
+			Platform: "linux_amd64", ArtifactSha256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", PackageDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			Filename: "dns-v1.2.31.tgz", ChangedInRelease: boolPtr(true), OriginRelease: "v1.2.43",
+		},
+		{
+			Name: "dns", Kind: "SERVICE", Publisher: "core@globular.io",
+			Version: "1.2.31", BuildNumber: 101, BuildID: "build-A",
+			Platform: "linux_amd64", ArtifactSha256: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", PackageDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			Filename: "dns-v1.2.32.tgz", ChangedInRelease: boolPtr(true), OriginRelease: "v1.2.43",
+		},
+	}
+	err := ValidateReleaseIndex(idx)
+	if err == nil || !strings.Contains(err.Error(), "build_id conflict in release index") {
+		t.Fatalf("expected same-build_id different-digest rejection, got: %v", err)
 	}
 }

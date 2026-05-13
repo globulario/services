@@ -300,7 +300,7 @@ func ValidateReleaseIndex(idx *releaseIndex) error {
 		}
 	}
 	if isV2 {
-		if err := validateNoConflictingDuplicateArtifactDigest(idx); err != nil {
+		if err := validateNoConflictingBuildIDDigest(idx); err != nil {
 			return err
 		}
 	}
@@ -416,34 +416,29 @@ func isNumericOnly(v string) bool {
 	return true
 }
 
-func validateNoConflictingDuplicateArtifactDigest(idx *releaseIndex) error {
-	type identity struct {
-		buildID     string
-		buildNumber int64
-		version     string
-	}
-	seen := make(map[string]identity)
+// validateNoConflictingBuildIDDigest enforces the hard artifact-identity rule:
+// same build_id must never map to different digests within a release index.
+// Duplicate digests across different build_ids/build_numbers are allowed and
+// are deduped/aliased later in import resolution.
+func validateNoConflictingBuildIDDigest(idx *releaseIndex) error {
+	seen := make(map[string]string) // build_id -> digest
 	for _, e := range idx.Packages {
+		buildID := strings.TrimSpace(e.BuildID)
+		if buildID == "" {
+			continue
+		}
 		digest := strings.ToLower(strings.TrimSpace(e.ArtifactSha256))
+		if digest == "" {
+			digest = strings.ToLower(strings.TrimSpace(e.PackageDigest))
+		}
 		if digest == "" {
 			continue
 		}
-		key := strings.ToLower(strings.TrimSpace(e.Publisher)) + "|" +
-			strings.ToLower(strings.TrimSpace(e.Name)) + "|" +
-			strings.ToLower(strings.TrimSpace(e.Platform)) + "|" + digest
-		curr := identity{
-			buildID:     strings.TrimSpace(e.BuildID),
-			buildNumber: e.BuildNumber,
-			version:     strings.TrimSpace(e.Version),
+		if prev, ok := seen[buildID]; ok && prev != digest {
+			return fmt.Errorf("build_id conflict in release index: build_id=%s has multiple digests (%s vs %s)",
+				buildID, prev, digest)
 		}
-		if prev, ok := seen[key]; ok {
-			if prev.buildID != curr.buildID || prev.buildNumber != curr.buildNumber || prev.version != curr.version {
-				return fmt.Errorf("duplicate artifact_sha256 for same publisher/name/platform with different build_id/version/build_number: publisher=%s name=%s platform=%s digest=%s",
-					e.Publisher, e.Name, e.Platform, digest)
-			}
-			continue
-		}
-		seen[key] = curr
+		seen[buildID] = digest
 	}
 	return nil
 }
