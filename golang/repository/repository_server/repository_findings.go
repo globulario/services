@@ -390,6 +390,13 @@ func (srv *server) blobFindingSeverity(row *manifestRow) repopb.RepositoryFindin
 }
 
 func (srv *server) buildBlobFinding(row *manifestRow, ref *repopb.ArtifactRef, kind repopb.RepositoryFindingKind, reason string, now int64) *repopb.RepositoryFinding {
+	reasonCode := fmt.Sprintf("repository.identity.blob_integrity: %s", reason)
+	switch kind {
+	case repopb.RepositoryFindingKind_REPO_FIND_PUBLISHED_MISSING_BLOB:
+		reasonCode = "repository.identity.missing_blob_for_published_manifest"
+	case repopb.RepositoryFindingKind_REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH:
+		reasonCode = "repository.identity.checksum_mismatch"
+	}
 	return &repopb.RepositoryFinding{
 		Kind:               kind,
 		Severity:           srv.blobFindingSeverity(row),
@@ -397,7 +404,7 @@ func (srv *server) buildBlobFinding(row *manifestRow, ref *repopb.ArtifactRef, k
 		Ref:                ref,
 		CurrentState:       string(srv.readArtifactState(context.Background(), row.ArtifactKey)),
 		ExpectedState:      string(PipelinePublished) + " + local blob present + checksum verified",
-		Reason:             fmt.Sprintf("PUBLISHED row but local POSIX blob %s (Scylla alone is not proof of installability)", reason),
+		Reason:             reasonCode,
 		RecommendedCommand: fmt.Sprintf("globular repository repair %s/%s %s --platform %s",
 			ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform()),
 		Evidence: map[string]string{

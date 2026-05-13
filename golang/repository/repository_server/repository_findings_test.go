@@ -58,6 +58,9 @@ func TestListRepositoryFindings_PublishedMissingBlob(t *testing.T) {
 			if f.GetSeverity() != repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL {
 				t.Errorf("missing-blob severity: got %s, want CRITICAL", f.GetSeverity())
 			}
+			if got := f.GetReason(); got != "repository.identity.missing_blob_for_published_manifest" {
+				t.Errorf("reason=%q, want repository.identity.missing_blob_for_published_manifest", got)
+			}
 			if f.GetRecommendedCommand() == "" {
 				t.Error("recommended_command must be populated")
 			}
@@ -66,6 +69,50 @@ func TestListRepositoryFindings_PublishedMissingBlob(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected REPO_FIND_PUBLISHED_MISSING_BLOB in response")
+	}
+}
+
+func TestListRepositoryFindings_PublishedChecksumMismatch(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "echo",
+		Version: "1.0.0", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
+	}
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 1, BuildId: "v1",
+		Checksum: "sha256:abcd", SizeBytes: 100,
+	})
+	key := artifactKeyWithBuild(ref, 1)
+
+	// Force size mismatch by setting expected size different from on-disk blob size.
+	srv.scylla = &fakeLedger{
+		rows: map[string]*manifestRow{key: {
+			ArtifactKey:  key,
+			PublisherID:  "core@globular.io", Name: "echo",
+			Version: "1.0.0", Platform: "linux_amd64",
+			BuildNumber: 1, Checksum: "sha256:abcd", SizeBytes: 9999,
+			PublishState: repopb.PublishState_PUBLISHED.String(),
+		}},
+	}
+
+	resp, err := srv.ListRepositoryFindings(ctx, &repopb.ListRepositoryFindingsRequest{})
+	if err != nil {
+		t.Fatalf("ListRepositoryFindings: %v", err)
+	}
+	found := false
+	for _, f := range resp.GetFindings() {
+		if f.GetKind() == repopb.RepositoryFindingKind_REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH {
+			found = true
+			if got := f.GetReason(); got != "repository.identity.checksum_mismatch" {
+				t.Errorf("reason=%q, want repository.identity.checksum_mismatch", got)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH in response")
 	}
 }
 
