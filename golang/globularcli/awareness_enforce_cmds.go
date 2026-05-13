@@ -863,6 +863,25 @@ Exits 0 even when findings exist (informational hook, not a gate).`,
 			Files:   files,
 			DocsDir: docsDir,
 		}, g)
+		if preflightNeedsSelfHeal(pfr) {
+			fmt.Fprintln(os.Stdout, "\n## Awareness hook: self-heal")
+			fmt.Fprintln(os.Stdout, "- preflight is stale/UNKNOWN_NOT_SAFE; running awareness build --clean then retrying preflight once")
+			if err := runAwarenessSelfHealBuild(ctx, repoRoot, awareCfg.dbPath); err != nil {
+				fmt.Fprintf(os.Stdout, "- self-heal failed: %v\n", err)
+			} else {
+				g2, gErr := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
+				if gErr == nil {
+					defer g2.Close()
+				}
+				if pfr2, pErr := preflight.Run(ctx, preflight.Options{
+					Task:    awareCfg.task,
+					Files:   files,
+					DocsDir: docsDir,
+				}, g2); pErr == nil {
+					pfr = pfr2
+				}
+			}
+		}
 
 		fileAudit := enforce.AuditFiles(files)
 		refFindings := enforce.ValidateAnnotationReferences(ctx, g, files)

@@ -32,6 +32,7 @@ var preflightCfg = struct {
 	diffFile             string
 	requireSemanticClean bool
 	bundleManifestPath   string
+	selfHeal             bool
 }{}
 
 var awarenessPreflightCmd = &cobra.Command{
@@ -77,15 +78,6 @@ Examples:
 		if dbPath == "" {
 			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
 		}
-		g, graphErr := openAwarenessGraph(dbPath, awareCfg.repoPath)
-		if graphErr != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not open awareness graph (%v)\n", graphErr)
-			fmt.Fprintf(os.Stderr, "  run 'globular awareness build' to build the graph\n")
-			// g remains nil — preflight handles nil graph gracefully
-		} else {
-			defer g.Close()
-		}
-
 		opts := preflight.Options{
 			Task:               preflightCfg.task,
 			Files:              preflightCfg.files,
@@ -103,9 +95,38 @@ Examples:
 			opts.Bridge = runtime.NewBridge("", "")
 		}
 
-		r, err := preflight.Run(ctx, opts, g)
+		runOnce := func() (*preflight.Report, error) {
+			g, graphErr := openAwarenessGraph(dbPath, awareCfg.repoPath)
+			if graphErr != nil {
+				fmt.Fprintf(os.Stderr, "warning: could not open awareness graph (%v)\n", graphErr)
+				fmt.Fprintf(os.Stderr, "  run 'globular awareness build' to build the graph\n")
+			} else {
+				defer g.Close()
+			}
+			r, err := preflight.Run(ctx, opts, g)
+			if err != nil {
+				return nil, fmt.Errorf("preflight: %w", err)
+			}
+			return r, nil
+		}
+
+		r, err := runOnce()
 		if err != nil {
-			return fmt.Errorf("preflight: %w", err)
+			return err
+		}
+
+		if preflightCfg.selfHeal && preflightNeedsSelfHeal(r) {
+			fmt.Fprintln(os.Stderr, "awareness preflight self-heal: stale/unknown safety detected; rebuilding graph and retrying preflight")
+			if healErr := runAwarenessSelfHealBuild(ctx, repoRoot, dbPath); healErr != nil {
+				fmt.Fprintf(os.Stderr, "warning: awareness preflight self-heal failed: %v\n", healErr)
+			} else {
+				r2, rerunErr := runOnce()
+				if rerunErr != nil {
+					fmt.Fprintf(os.Stderr, "warning: awareness preflight rerun after self-heal failed: %v\n", rerunErr)
+				} else {
+					r = r2
+				}
+			}
 		}
 
 		format := preflight.Format(preflightCfg.format)
@@ -186,6 +207,7 @@ func init() {
 	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.diffFile, "diff-file", "", "Path to unified diff file for semantic interpretation (or - for stdin)")
 	awarenessPreflightCmd.Flags().BoolVar(&preflightCfg.requireSemanticClean, "require-semantic-clean", false, "Exit non-zero if semantic diff verdict is block")
 	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.bundleManifestPath, "bundle-manifest", "", "Path to the installed awareness-bundle manifest.json (default: /var/lib/globular/awareness/current/manifest.json if it exists)")
+	awarenessPreflightCmd.Flags().BoolVar(&preflightCfg.selfHeal, "self-heal", true, "When preflight is UNKNOWN_NOT_SAFE or stale, run awareness build --clean and retry once")
 
 	awarenessCmd.AddCommand(awarenessPreflightCmd)
 }
