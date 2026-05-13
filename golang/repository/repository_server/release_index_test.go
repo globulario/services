@@ -514,7 +514,7 @@ func TestForceFullRebuildV2_Valid(t *testing.T) {
 func TestReleaseIndexV2InstallRejectsMissingBuildID(t *testing.T) {
 	idx := validV2Index()
 	idx.Packages[0].BuildID = ""
-	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "build_id is required") {
+	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "repository.identity.release_index_missing_pins") || !strings.Contains(err.Error(), "build_id") {
 		t.Fatalf("expected missing build_id rejection, got: %v", err)
 	}
 }
@@ -560,8 +560,32 @@ func TestReleaseIndexV2InstallRejectsMissingAllDigestFields(t *testing.T) {
 		p.PackageDigest = ""
 		p.Checksum = ""
 	}
-	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "artifact_sha256, package_digest, or checksum is required") {
+	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "repository.identity.release_index_missing_pins") || !strings.Contains(err.Error(), "artifact_sha256") {
 		t.Fatalf("expected missing digest rejection, got: %v", err)
+	}
+}
+
+func TestReleaseIndexV2InstallRejectsMissingPinsSet(t *testing.T) {
+	idx := validV2Index()
+	idx.Packages[0].Kind = ""
+	idx.Packages[0].Publisher = ""
+	idx.Packages[0].BuildID = ""
+	idx.Packages[0].ArtifactSha256 = ""
+	idx.Packages[0].PackageDigest = ""
+	idx.Packages[0].Checksum = ""
+
+	err := ValidateReleaseIndexForInstall(idx)
+	if err == nil {
+		t.Fatal("expected missing pins rejection")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "repository.identity.release_index_missing_pins") {
+		t.Fatalf("expected missing-pins reason, got: %v", err)
+	}
+	for _, field := range []string{"kind", "publisher", "build_id", "artifact_sha256"} {
+		if !strings.Contains(msg, field) {
+			t.Fatalf("expected missing field %q in error, got: %v", field, err)
+		}
 	}
 }
 

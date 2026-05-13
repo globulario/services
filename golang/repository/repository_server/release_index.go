@@ -315,6 +315,20 @@ func ValidateReleaseIndex(idx *releaseIndex) error {
 // ValidateReleaseIndexForInstall applies stricter requirements for official
 // Day-0/Day-1 install flows where release-index mistakes must fail closed.
 func ValidateReleaseIndexForInstall(idx *releaseIndex) error {
+	if idx != nil {
+		v, _ := parseSchemaVersion(idx.SchemaVersion)
+		if v != SchemaVersionV2 {
+			v = idx.parsedSchemaVersion
+		}
+		if v == SchemaVersionV2 {
+			for i, e := range idx.Packages {
+				if missing := missingInstallPinFields(e); len(missing) > 0 {
+					return fmt.Errorf("packages[%d] (%s): repository.identity.release_index_missing_pins: missing required fields: %s",
+						i, e.Name, strings.Join(missing, ","))
+				}
+			}
+		}
+	}
 	if err := ValidateReleaseIndex(idx); err != nil {
 		return err
 	}
@@ -322,17 +336,8 @@ func ValidateReleaseIndexForInstall(idx *releaseIndex) error {
 		return nil
 	}
 	for i, e := range idx.Packages {
-		if strings.TrimSpace(e.Kind) == "" {
-			return fmt.Errorf("packages[%d] (%s): kind is required for install validation", i, e.Name)
-		}
 		if _, ok := kindFromArtifactKindString(strings.TrimSpace(e.Kind)); !ok {
 			return fmt.Errorf("packages[%d] (%s): kind %q is not supported for install validation", i, e.Name, e.Kind)
-		}
-		if strings.TrimSpace(e.Publisher) == "" {
-			return fmt.Errorf("packages[%d] (%s): publisher is required for install validation", i, e.Name)
-		}
-		if strings.TrimSpace(e.BuildID) == "" {
-			return fmt.Errorf("packages[%d] (%s): build_id is required for install validation", i, e.Name)
 		}
 		if isNumericOnly(strings.TrimSpace(e.BuildID)) {
 			return fmt.Errorf("packages[%d] (%s): numeric-only build_id is not allowed for install validation", i, e.Name)
@@ -357,6 +362,34 @@ func ValidateReleaseIndexForInstall(idx *releaseIndex) error {
 			}
 	}
 	return nil
+}
+
+func missingInstallPinFields(e *releaseIndexEntry) []string {
+	var missing []string
+	if strings.TrimSpace(e.Name) == "" {
+		missing = append(missing, "name")
+	}
+	if strings.TrimSpace(e.Platform) == "" {
+		missing = append(missing, "platform")
+	}
+	if strings.TrimSpace(e.Version) == "" {
+		missing = append(missing, "version")
+	}
+	if strings.TrimSpace(e.Kind) == "" {
+		missing = append(missing, "kind")
+	}
+	if strings.TrimSpace(e.Publisher) == "" {
+		missing = append(missing, "publisher")
+	}
+	if strings.TrimSpace(e.BuildID) == "" {
+		missing = append(missing, "build_id")
+	}
+	if strings.TrimSpace(e.ArtifactSha256) == "" &&
+		strings.TrimSpace(e.PackageDigest) == "" &&
+		strings.TrimSpace(e.Checksum) == "" {
+		missing = append(missing, "artifact_sha256")
+	}
+	return missing
 }
 
 // IsV2 returns true if the parsed schema version is v2.
