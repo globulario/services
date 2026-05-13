@@ -92,6 +92,10 @@ var (
 	repoDeletePublisher string
 	repoInspectBuildID  string
 	repoInspectJSON     bool
+	repoAliasesName     string
+	repoAliasesVersion  string
+	repoAliasesPlatform string
+	repoAliasesJSON     bool
 )
 
 var repoInspectCmd = &cobra.Command{
@@ -110,6 +114,17 @@ var repoDedupCmd = &cobra.Command{
 	Short: "Repository deduplication visibility commands",
 }
 
+var repoAliasesCmd = &cobra.Command{
+	Use:   "aliases",
+	Short: "Show upstream release/build alias mappings for a package identity",
+	Long: `Shows alias-style mappings inferred from artifact upstream-import metadata.
+
+Examples:
+  globular repository aliases --name dns --version 1.2.43 --platform linux_amd64
+  globular repository aliases --name dns --version 1.2.43 --platform linux_amd64 --json`,
+	RunE: runRepoAliases,
+}
+
 var repoDedupReportCmd = &cobra.Command{
 	Use:   "report",
 	Short: "Show duplicate artifact groups and checksum/build identity relationships",
@@ -126,6 +141,7 @@ func init() {
 	repoCmd.AddCommand(repoDeleteCmd)
 	repoCmd.AddCommand(repoInspectCmd)
 	repoCmd.AddCommand(repoDedupCmd)
+	repoCmd.AddCommand(repoAliasesCmd)
 	repoDedupCmd.AddCommand(repoDedupReportCmd)
 	repoScanCmd.Flags().StringVar(&repoScanPackage, "package", "", "Scan only this package name")
 	repoCleanupCmd.Flags().BoolVar(&repoCleanupDryRun, "dry-run", false, "Preview archiving without executing")
@@ -134,6 +150,13 @@ func init() {
 	repoInspectCmd.Flags().StringVar(&repoInspectBuildID, "build-id", "", "Exact build_id to inspect")
 	repoInspectCmd.Flags().BoolVar(&repoInspectJSON, "json", false, "Output JSON")
 	repoDedupReportCmd.Flags().StringVar(&repoScanPackage, "package", "", "Limit report to this package name")
+	repoAliasesCmd.Flags().StringVar(&repoAliasesName, "name", "", "Package name (required)")
+	repoAliasesCmd.Flags().StringVar(&repoAliasesVersion, "version", "", "Package version (required)")
+	repoAliasesCmd.Flags().StringVar(&repoAliasesPlatform, "platform", "", "Platform (required)")
+	repoAliasesCmd.Flags().BoolVar(&repoAliasesJSON, "json", false, "Output JSON")
+	_ = repoAliasesCmd.MarkFlagRequired("name")
+	_ = repoAliasesCmd.MarkFlagRequired("version")
+	_ = repoAliasesCmd.MarkFlagRequired("platform")
 }
 
 type artifactClassification struct {
@@ -628,6 +651,86 @@ func runRepoDedupReport(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Printf("Summary: dedupe_candidates=%d multi_build_versions=%d build_id_checksum_conflicts=%d\n",
 		dedupeCandidates, multiBuild, conflicts)
+	return nil
+}
+
+type aliasRow struct {
+	Publisher        string `json:"publisher"`
+	Name             string `json:"name"`
+	Version          string `json:"version"`
+	Platform         string `json:"platform"`
+	ReleaseTag       string `json:"release_tag"`
+	BuildNumber      int64  `json:"build_number"`
+	CanonicalBuildID string `json:"canonical_build_id"`
+	UpstreamSource   string `json:"upstream_source"`
+	Checksum         string `json:"checksum"`
+}
+
+func runRepoAliases(cmd *cobra.Command, args []string) error {
+	repoAddr := config.ResolveServiceAddr("repository.PackageRepository", "")
+	if repoAddr == "" {
+		return fmt.Errorf("cannot discover repository address")
+	}
+	client, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
+	if err != nil {
+		return fmt.Errorf("connect to repository: %w", err)
+	}
+	defer client.Close()
+	if token := rootCfg.token; token != "" {
+		client.SetToken(token)
+	}
+
+	manifests, err := client.ListArtifacts()
+	if err != nil {
+		return fmt.Errorf("list artifacts: %w", err)
+	}
+
+	var rows []aliasRow
+	for _, m := range manifests {
+		ref := m.GetRef()
+		if ref.GetName() != repoAliasesName || ref.GetVersion() != repoAliasesVersion || ref.GetPlatform() != repoAliasesPlatform {
+			continue
+		}
+		ui := m.GetUpstreamImport()
+		if ui == nil || strings.TrimSpace(ui.GetReleaseTag()) == "" || ui.GetBuildNumber() <= 0 {
+			continue
+		}
+		rows = append(rows, aliasRow{
+			Publisher:        ref.GetPublisherId(),
+			Name:             ref.GetName(),
+			Version:          ref.GetVersion(),
+			Platform:         ref.GetPlatform(),
+			ReleaseTag:       ui.GetReleaseTag(),
+			BuildNumber:      ui.GetBuildNumber(),
+			CanonicalBuildID: m.GetBuildId(),
+			UpstreamSource:   ui.GetSourceName(),
+			Checksum:         m.GetChecksum(),
+		})
+	}
+	if len(rows) == 0 {
+		return fmt.Errorf("no alias mappings found for %s@%s %s", repoAliasesName, repoAliasesVersion, repoAliasesPlatform)
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].ReleaseTag != rows[j].ReleaseTag {
+			return rows[i].ReleaseTag < rows[j].ReleaseTag
+		}
+		return rows[i].BuildNumber < rows[j].BuildNumber
+	})
+
+	if repoAliasesJSON {
+		out, err := json.MarshalIndent(rows, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshal aliases: %w", err)
+		}
+		fmt.Println(string(out))
+		return nil
+	}
+
+	fmt.Printf("Alias mappings for %s@%s %s\n\n", repoAliasesName, repoAliasesVersion, repoAliasesPlatform)
+	for _, r := range rows {
+		fmt.Printf("- release=%s build_number=%d source=%s -> canonical_build_id=%s checksum=%s\n",
+			r.ReleaseTag, r.BuildNumber, r.UpstreamSource, r.CanonicalBuildID, r.Checksum)
+	}
 	return nil
 }
 
