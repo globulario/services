@@ -151,7 +151,7 @@ func normalizeReleaseEntry(entry *releaseIndexEntry, src *repopb.UpstreamSource)
 		Publisher:             entry.Publisher,
 		Name:                  entry.Name,
 		Version:               entry.Version,
-		Platform:              entry.Platform,
+		Platform:              NormalizePlatform(entry.Platform),
 		Kind:                  entry.Kind,
 		AssetURL:              entry.AssetURL,
 		AssetPath:             entry.AssetPath,
@@ -164,12 +164,12 @@ func normalizeReleaseEntry(entry *releaseIndexEntry, src *repopb.UpstreamSource)
 
 	// Canonical download-verification digest: prefer artifact_sha256, then
 	// package_digest, then legacy checksum.
-	n.Digest = entry.ArtifactSha256
+	n.Digest = NormalizeChecksum(entry.ArtifactSha256)
 	if n.Digest == "" {
-		n.Digest = entry.PackageDigest
+		n.Digest = NormalizeChecksum(entry.PackageDigest)
 	}
 	if n.Digest == "" {
-		n.Digest = entry.Checksum
+		n.Digest = NormalizeChecksum(entry.Checksum)
 	}
 
 	// Origin release: explicit → release_tag
@@ -198,6 +198,10 @@ func normalizeReleaseEntry(entry *releaseIndexEntry, src *repopb.UpstreamSource)
 
 	n.BuildNumber = entry.BuildNumber
 	n.BuildID = strings.TrimSpace(entry.BuildID)
+	if ValidateBuildID(n.BuildID) != nil && !shouldDeriveUpstreamBuildID(n.BuildID) {
+		// Invalid upstream build_id format: derive canonical upstream id.
+		n.BuildID = ""
+	}
 	if shouldDeriveUpstreamBuildID(n.BuildID) {
 		n.BuildID = deriveUpstreamBuildID(n.Publisher, n.Name, n.Version, n.Platform, n.Digest)
 	}
