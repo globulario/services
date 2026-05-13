@@ -314,9 +314,6 @@ func isDiscoveryManifestValid(m *repopb.ArtifactManifest) bool {
 		strings.TrimSpace(ref.GetPlatform()) == "" {
 		return false
 	}
-	if m.GetBuildNumber() <= 0 {
-		return false
-	}
 	return true
 }
 

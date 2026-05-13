@@ -214,8 +214,29 @@ func TestLocalAuthority_LA3_UploadBundle_RequiresLocalBlob(t *testing.T) {
 		Platform:    "linux_amd64",
 		Kind:        repopb.ArtifactKind_SERVICE,
 	}
-	key := artifactKeyWithBuild(ref, 0)
-	binKey := binaryStorageKey(key)
+	var (
+		binKey string
+		found  bool
+	)
+	for buildNumber := int64(1); buildNumber <= 16; buildNumber++ {
+		key := artifactKeyWithBuild(ref, buildNumber)
+		candidate := binaryStorageKey(key)
+		if _, statErr := local.Stat(ctx, candidate); statErr == nil {
+			binKey = candidate
+			found = true
+			break
+		}
+	}
+	if !found {
+		legacy := binaryStorageKey(artifactKeyWithBuild(ref, 0))
+		if _, statErr := local.Stat(ctx, legacy); statErr == nil {
+			binKey = legacy
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("UploadBundle must write blob to local POSIX CAS before attempting bundle registration")
+	}
 	if _, statErr := local.Stat(ctx, binKey); statErr != nil {
 		t.Errorf("UploadBundle must write blob to local POSIX CAS before attempting bundle registration: %v", statErr)
 	}

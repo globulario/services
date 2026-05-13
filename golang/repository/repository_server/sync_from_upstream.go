@@ -481,16 +481,36 @@ func (srv *server) processSyncEntry(
 			return result
 		}
 		if existingByID.GetBuildNumber() >= n.BuildNumber {
-			result.LocalBuildNumber = existingByID.GetBuildNumber()
-			if dryRun {
-				result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
+			blobKey := blobKeyForRef(ref, existingByID.GetBuildNumber())
+			blobPresent, blobReason := srv.artifactBlobStatus(ctx, ref, existingByID.GetBuildNumber(), existingByID.GetSizeBytes())
+			if blobPresent {
+				stateOK, currentState := srv.canSkipDueToExistingState(ctx, artifactKeyWithBuild(ref, existingByID.GetBuildNumber()))
+				if !stateOK {
+					logBlobSkipDecision(src.GetName(), n.Publisher, n.Name, n.Version, n.Platform,
+						n.BuildID, existingByID.GetBuildNumber(), n.Digest, blobKey,
+						"reprocess", "pipeline_state_not_publishable:"+string(currentState))
+				} else {
+					logBlobSkipDecision(src.GetName(), n.Publisher, n.Name, n.Version, n.Platform,
+						n.BuildID, existingByID.GetBuildNumber(), n.Digest, blobKey,
+						"skip", "same_build_id_blob_verified")
+					result.LocalBuildNumber = existingByID.GetBuildNumber()
+					if dryRun {
+						result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
+					} else {
+						result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
+					}
+					result.Action = "up_to_date"
+					result.Detail = fmt.Sprintf("same build_id already present at build_number=%d (upstream=%d, state=%s); blob verified",
+						existingByID.GetBuildNumber(), n.BuildNumber, stateByID.String())
+					return result
+				}
 			} else {
-				result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
+				repairReason = blobReason
+				stateFields.SizeBytes = existingByID.GetSizeBytes()
+				srv.markBrokenForReason(ctx, artifactKeyWithBuild(ref, existingByID.GetBuildNumber()), blobReason, workflowRunID, stateFields)
+				logBlobSkipDecision(src.GetName(), n.Publisher, n.Name, n.Version, n.Platform,
+					n.BuildID, existingByID.GetBuildNumber(), n.Digest, blobKey, "repair_blob", blobReason)
 			}
-			result.Action = "up_to_date"
-			result.Detail = fmt.Sprintf("same build_id already present at build_number=%d (upstream=%d, state=%s)",
-				existingByID.GetBuildNumber(), n.BuildNumber, stateByID.String())
-			return result
 		}
 		// existing build_id is older build_number; proceed to import at upstream
 		// build_number so highest build_number is retained for this identity.
@@ -781,14 +801,31 @@ func (srv *server) importUpstreamArtifact(
 				n.BuildID, existingByID.GetChecksum(), digest)
 		}
 		if existingByID.GetBuildNumber() >= n.BuildNumber {
-			slog.Info("upstream: same build_id already present at equal/higher build_number, skipping import",
+			blobPresent, blobReason := srv.artifactBlobStatus(ctx, ref, existingByID.GetBuildNumber(), existingByID.GetSizeBytes())
+			if blobPresent {
+				if curr := srv.readArtifactState(ctx, artifactKeyWithBuild(ref, existingByID.GetBuildNumber())); curr == PipelineUnspecified || curr == PipelinePublished {
+					idemFields := stateFields
+					idemFields.BuildNumber = existingByID.GetBuildNumber()
+					idemFields.SizeBytes = existingByID.GetSizeBytes()
+					_ = srv.transitionArtifactState(ctx, artifactKeyWithBuild(ref, existingByID.GetBuildNumber()), PipelinePublished,
+						"import_idempotent_skip", workflowRunID, idemFields)
+				}
+				slog.Info("upstream: same build_id already present at equal/higher build_number, skipping import",
+					"source", src.GetName(), "publisher", n.Publisher,
+					"name", n.Name, "version", n.Version, "platform", n.Platform,
+					"build_id", n.BuildID,
+					"existing_build_number", existingByID.GetBuildNumber(),
+					"upstream_build_number", n.BuildNumber,
+					"publish_state", stateByID.String())
+				return nil
+			}
+			slog.Info("upstream: same build_id present but blob not healthy; continuing import for repair",
 				"source", src.GetName(), "publisher", n.Publisher,
 				"name", n.Name, "version", n.Version, "platform", n.Platform,
 				"build_id", n.BuildID,
 				"existing_build_number", existingByID.GetBuildNumber(),
 				"upstream_build_number", n.BuildNumber,
-				"publish_state", stateByID.String())
-			return nil
+				"blob_status", blobReason)
 		}
 	}
 
