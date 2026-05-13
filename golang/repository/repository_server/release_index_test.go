@@ -290,6 +290,17 @@ func TestNormalize_ArtifactSha256PreferredOverPackageDigest(t *testing.T) {
 	}
 }
 
+func TestNormalize_ChecksumFallbackWhenArtifactAndPackageDigestMissing(t *testing.T) {
+	entry := validEntry()
+	entry.ArtifactSha256 = ""
+	entry.PackageDigest = ""
+	entry.Checksum = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+	n := normalizeReleaseEntry(entry, &repopb.UpstreamSource{})
+	if n.Digest != entry.Checksum {
+		t.Fatalf("expected checksum fallback, got %q", n.Digest)
+	}
+}
+
 // ── Contract digest ─────────────────────────────────────────────────────────
 
 func TestComputeContractDigest_Deterministic(t *testing.T) {
@@ -528,14 +539,28 @@ func TestReleaseIndexV2InstallAllowsPackageDigestFallback(t *testing.T) {
 	}
 }
 
+func TestReleaseIndexV2InstallAllowsChecksumFallback(t *testing.T) {
+	idx := validV2Index()
+	for i, p := range idx.Packages {
+		p.BuildID = fmt.Sprintf("upstream-abc%d", i+1)
+		p.ArtifactSha256 = ""
+		p.PackageDigest = ""
+		p.Checksum = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	}
+	if err := ValidateReleaseIndexForInstall(idx); err != nil {
+		t.Fatalf("expected checksum fallback to pass, got: %v", err)
+	}
+}
+
 func TestReleaseIndexV2InstallRejectsMissingAllDigestFields(t *testing.T) {
 	idx := validV2Index()
 	for i, p := range idx.Packages {
 		p.BuildID = fmt.Sprintf("upstream-abc%d", i+1)
 		p.ArtifactSha256 = ""
 		p.PackageDigest = ""
+		p.Checksum = ""
 	}
-	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "package_digest or artifact_sha256 is required") {
+	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "artifact_sha256, package_digest, or checksum is required") {
 		t.Fatalf("expected missing digest rejection, got: %v", err)
 	}
 }

@@ -89,6 +89,7 @@ type releaseIndexEntry struct {
 	PackageContractDigest string `json:"package_contract_digest,omitempty"`
 	ArtifactSha256        string `json:"artifact_sha256,omitempty"`
 	PackageDigest         string `json:"package_digest"`
+	Checksum              string `json:"checksum,omitempty"` // legacy alias for artifact_sha256
 	EntrypointChecksum    string `json:"entrypoint_checksum"`
 	PackageManifestSha256 string `json:"package_manifest_sha256,omitempty"`
 
@@ -161,10 +162,14 @@ func normalizeReleaseEntry(entry *releaseIndexEntry, src *repopb.UpstreamSource)
 		ChangedInRelease:      entry.IsChanged(),
 	}
 
-	// Canonical download-verification digest: prefer artifact_sha256, fall back to package_digest.
+	// Canonical download-verification digest: prefer artifact_sha256, then
+	// package_digest, then legacy checksum.
 	n.Digest = entry.ArtifactSha256
 	if n.Digest == "" {
 		n.Digest = entry.PackageDigest
+	}
+	if n.Digest == "" {
+		n.Digest = entry.Checksum
 	}
 
 	// Origin release: explicit → release_tag
@@ -338,15 +343,18 @@ func ValidateReleaseIndexForInstall(idx *releaseIndex) error {
 		// Backward/forward compatibility:
 		// - v2 release indexes may provide package_digest (legacy alias) only.
 		// - install validation requires an immutable artifact digest either way.
-		if strings.TrimSpace(e.ArtifactSha256) == "" {
-			legacy := strings.TrimSpace(e.PackageDigest)
-			if legacy == "" {
-				return fmt.Errorf("packages[%d] (%s): artifact_sha256 or package_digest is required for install validation", i, e.Name)
+			if strings.TrimSpace(e.ArtifactSha256) == "" {
+				legacy := strings.TrimSpace(e.PackageDigest)
+				if legacy == "" {
+					legacy = strings.TrimSpace(e.Checksum)
+				}
+				if legacy == "" {
+					return fmt.Errorf("packages[%d] (%s): artifact_sha256, package_digest, or checksum is required for install validation", i, e.Name)
+				}
+				// Normalize in-memory so downstream install paths that read
+				// artifact_sha256 continue to work without special-casing.
+				e.ArtifactSha256 = legacy
 			}
-			// Normalize in-memory so downstream install paths that read
-			// artifact_sha256 continue to work without special-casing.
-			e.ArtifactSha256 = legacy
-		}
 	}
 	return nil
 }
@@ -374,13 +382,16 @@ func validateReleaseIndexEntry(e *releaseIndexEntry, idx int, isV2 bool) error {
 		return fmt.Errorf("packages[%d] (%s): asset_url, asset_path, or filename is required", idx, e.Name)
 	}
 
-	// Digest: at least one of package_digest or artifact_sha256 must be present.
+	// Digest: at least one of artifact_sha256, package_digest, or checksum must be present.
 	digest := e.ArtifactSha256
 	if digest == "" {
 		digest = e.PackageDigest
 	}
 	if digest == "" {
-		return fmt.Errorf("packages[%d] (%s): package_digest or artifact_sha256 is required", idx, e.Name)
+		digest = e.Checksum
+	}
+	if digest == "" {
+		return fmt.Errorf("packages[%d] (%s): artifact_sha256, package_digest, or checksum is required", idx, e.Name)
 	}
 	if !strings.HasPrefix(digest, "sha256:") {
 		return fmt.Errorf("packages[%d] (%s): digest must start with \"sha256:\" (got %q)", idx, e.Name, digest)
