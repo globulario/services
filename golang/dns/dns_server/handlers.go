@@ -162,22 +162,24 @@ func (srv *server) GetDomains(_ context.Context, _ *dnspb.GetDomainsRequest) (*d
 	if err := srv.requireHealthy(); err != nil {
 		return nil, err
 	}
-	domainsData, err := srv.store.GetItem("domains")
+	domains, err := srv.loadDomainsFromStore()
 	if err != nil {
-		srv.Logger.Error("GetDomains getItem", "err", err)
+		// Degraded-mode fallback: keep control-plane callers alive when Scylla
+		// quorum is transiently unavailable by serving in-memory cache first,
+		// then etcd-mirrored zones as a secondary fallback.
+		srv.mu.RLock()
+		cached := append([]string(nil), srv.Domains...)
+		srv.mu.RUnlock()
+		if len(cached) > 0 {
+			srv.Logger.Warn("GetDomains served from in-memory cache after store failure", "err", err, "count", len(cached))
+			return &dnspb.GetDomainsResponse{Domains: cached}, nil
+		}
+		if etcdDomains, etcdErr := srv.loadDomainListFromEtcd(); etcdErr == nil {
+			return &dnspb.GetDomainsResponse{Domains: etcdDomains}, nil
+		}
+		srv.Logger.Error("GetDomains store fallback failed", "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	// Missing "domains" key means no zones configured yet; return an empty list.
-	if len(domainsData) == 0 {
-		return &dnspb.GetDomainsResponse{Domains: []string{}}, nil
-	}
-	var domains []string
-	err = json.Unmarshal(domainsData, &domains)
-	if err != nil {
-		srv.Logger.Error("GetDomains unmarshal", "err", err)
-		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	return &dnspb.GetDomainsResponse{Domains: domains}, nil
 }
 

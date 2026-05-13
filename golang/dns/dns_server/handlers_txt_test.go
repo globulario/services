@@ -60,3 +60,20 @@ func TestGetTXT_EmptyStore_ReturnsEmptySlice(t *testing.T) {
 		})
 	}
 }
+
+func TestGetDomains_FallsBackToInMemoryCacheWhenStoreFails(t *testing.T) {
+	s := newTestServer(&stubStore{err: assertErr("scylla quorum unavailable")})
+	s.Domains = []string{"globular.internal.", "example.internal."}
+
+	resp, err := s.GetDomains(context.Background(), &dnspb.GetDomainsRequest{})
+	if err != nil {
+		t.Fatalf("GetDomains with store error: expected cache fallback, got err=%v", err)
+	}
+	if len(resp.GetDomains()) != 2 {
+		t.Fatalf("expected 2 cached domains, got %d", len(resp.GetDomains()))
+	}
+}
+
+type assertErr string
+
+func (e assertErr) Error() string { return string(e) }
