@@ -895,15 +895,22 @@ func (srv *server) importUpstreamArtifact(
 					_ = srv.transitionArtifactState(ctx, existingKey, PipelinePublished,
 						"import_idempotent_skip", workflowRunID, idemFields)
 				}
-				slog.Info("upstream: identical artifact already exists (blob verified), skipping import",
-					"source", src.GetName(), "publisher", n.Publisher,
-					"name", n.Name, "version", n.Version, "platform", n.Platform,
-					"build_number", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),
-					"digest", truncDigest(digest),
-					"blob_key", blobKeyForRef(ref, existing.GetBuildNumber()),
-					"publish_state", state.String())
-				return nil
-			}
+					slog.Info("upstream: identical artifact already exists (blob verified), skipping import",
+						"source", src.GetName(), "publisher", n.Publisher,
+						"name", n.Name, "version", n.Version, "platform", n.Platform,
+						"build_number", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),
+						"digest", truncDigest(digest),
+						"blob_key", blobKeyForRef(ref, existing.GetBuildNumber()),
+						"publish_state", state.String())
+					if err := srv.ensureReleaseBuildAlias(ctx, ref, releaseTag, n.BuildNumber, n.BuildID, existing.GetBuildId(), digest, n.OriginRelease, src.GetName()); err != nil {
+						if isAliasConflictError(err) {
+							return fmt.Errorf("alias conflict for %s build_number=%d: %w", releaseTag, n.BuildNumber, err)
+						}
+						slog.Warn("upstream: failed to persist release/build alias", "err", err,
+							"release_tag", releaseTag, "build_number", n.BuildNumber, "canonical_build_id", existing.GetBuildId())
+					}
+					return nil
+				}
 			// Same digest but different build_number is dedupe/alias territory.
 			// Keep canonical local artifact identity; do not duplicate rows only
 			// to mirror an upstream locator.

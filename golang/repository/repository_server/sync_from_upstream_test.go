@@ -174,6 +174,59 @@ func TestProcessSyncEntryRejectsOnAliasConflict(t *testing.T) {
 	}
 }
 
+func TestImportUpstreamArtifact_IdempotentSkipPersistsAlias(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "workflow",
+		Version:     "1.0.53",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 67,
+		BuildId:     "canonical-67",
+		Checksum:    "sha256:same-content",
+		SizeBytes:   100,
+	})
+
+	n := &normalizedEntry{
+		Publisher: "core@globular.io",
+		Name:      "workflow",
+		Version:   "1.0.53",
+		Platform:  "linux_amd64",
+		BuildID:   "upstream-67",
+		BuildNumber: 67,
+		Digest:    "sha256:same-content",
+		OriginRelease: "v1.0.53",
+	}
+	err := srv.importUpstreamArtifact(
+		ctx,
+		n,
+		[]byte("unused-for-idempotent-path"),
+		"sha256:same-content",
+		&repopb.UpstreamSource{Name: "test-source"},
+		"v1.0.53",
+		ArtifactStateFields{},
+		"",
+	)
+	if err != nil {
+		t.Fatalf("importUpstreamArtifact: %v", err)
+	}
+	alias, err := srv.loadReleaseBuildAlias(ctx, ref, "v1.0.53", 67)
+	if err != nil {
+		t.Fatalf("load alias: %v", err)
+	}
+	if alias == nil {
+		t.Fatal("expected alias record")
+	}
+	if alias.CanonicalBuildID != "canonical-67" {
+		t.Fatalf("canonical_build_id=%q, want canonical-67", alias.CanonicalBuildID)
+	}
+}
+
 func TestProcessSyncEntrySkipsWhenSameBuildIDAlreadyAtHigherBuildNumber(t *testing.T) {
 	srv := newTestServer(t)
 	ref := &repopb.ArtifactRef{
