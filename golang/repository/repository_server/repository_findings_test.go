@@ -134,6 +134,70 @@ func TestListRepositoryFindings_DuplicateChecksumWithoutAlias(t *testing.T) {
 	}
 }
 
+func TestListRepositoryFindings_BuildIDChecksumConflict(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "workflow",
+		Version: "1.0.53", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
+	}
+	m1 := &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 1, BuildId: "shared-build-id",
+		Checksum: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SizeBytes: 100,
+	}
+	m2 := &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 2, BuildId: "shared-build-id",
+		Checksum: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		SizeBytes: 100,
+	}
+	seedPublishedArtifact(t, srv, m1)
+	seedPublishedArtifact(t, srv, m2)
+	m1JSON, err := marshalManifestWithState(m1, repopb.PublishState_PUBLISHED)
+	if err != nil {
+		t.Fatalf("marshal m1: %v", err)
+	}
+	m2JSON, err := marshalManifestWithState(m2, repopb.PublishState_PUBLISHED)
+	if err != nil {
+		t.Fatalf("marshal m2: %v", err)
+	}
+
+	key1 := artifactKeyWithBuild(ref, 1)
+	key2 := artifactKeyWithBuild(ref, 2)
+	srv.scylla = &fakeLedger{
+		rows: map[string]*manifestRow{
+			key1: {
+				ArtifactKey: key1, PublisherID: ref.GetPublisherId(), Name: ref.GetName(), Version: ref.GetVersion(), Platform: ref.GetPlatform(),
+				BuildNumber: 1, Checksum: m1.GetChecksum(), SizeBytes: 100,
+				PublishState: repopb.PublishState_PUBLISHED.String(), ManifestJSON: m1JSON,
+			},
+			key2: {
+				ArtifactKey: key2, PublisherID: ref.GetPublisherId(), Name: ref.GetName(), Version: ref.GetVersion(), Platform: ref.GetPlatform(),
+				BuildNumber: 2, Checksum: m2.GetChecksum(), SizeBytes: 100,
+				PublishState: repopb.PublishState_PUBLISHED.String(), ManifestJSON: m2JSON,
+			},
+		},
+	}
+
+	resp, err := srv.ListRepositoryFindings(ctx, &repopb.ListRepositoryFindingsRequest{})
+	if err != nil {
+		t.Fatalf("ListRepositoryFindings: %v", err)
+	}
+	found := false
+	for _, f := range resp.GetFindings() {
+		if f.GetReason() == "repository.identity.build_id_checksum_conflict" {
+			found = true
+			if f.GetSeverity() != repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL {
+				t.Fatalf("severity=%s, want CRITICAL", f.GetSeverity())
+			}
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected build_id checksum conflict finding")
+	}
+}
+
 func TestListRepositoryFindings_PublishedUnsignedRequired(t *testing.T) {
 	srv := newTestServer(t)
 	srv.signaturePolicy.SetPolicyForTest(strictPolicy())

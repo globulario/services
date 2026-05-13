@@ -126,6 +126,14 @@ func (srv *server) ListRepositoryFindings(ctx context.Context, req *repopb.ListR
 			resp.Findings = append(resp.Findings, f)
 		}
 	}
+	for _, f := range srv.evalBuildIDChecksumConflicts(rows, now) {
+		if len(resp.Findings) >= limit {
+			break
+		}
+		if matchKindFilter(kindFilter, f.GetKind()) {
+			resp.Findings = append(resp.Findings, f)
+		}
+	}
 
 	return resp, nil
 }
@@ -234,6 +242,60 @@ func (srv *server) evalDuplicateChecksumAliasGaps(ctx context.Context, rows []ma
 					},
 				})
 			}
+		}
+	}
+	return out
+}
+
+func (srv *server) evalBuildIDChecksumConflicts(rows []manifestRow, now int64) []*repopb.RepositoryFinding {
+	type bidState struct {
+		manifest *repopb.ArtifactManifest
+		row      manifestRow
+	}
+	seen := make(map[string]map[string]bidState) // build_id -> checksum -> sample
+	for _, row := range rows {
+		if row.PublishState != repopb.PublishState_PUBLISHED.String() {
+			continue
+		}
+		m, _, err := manifestFromRow(row)
+		if err != nil || m == nil {
+			continue
+		}
+		bid := strings.TrimSpace(m.GetBuildId())
+		sum := strings.TrimSpace(m.GetChecksum())
+		if bid == "" || sum == "" {
+			continue
+		}
+		if _, ok := seen[bid]; !ok {
+			seen[bid] = make(map[string]bidState)
+		}
+		seen[bid][sum] = bidState{manifest: m, row: row}
+	}
+
+	var out []*repopb.RepositoryFinding
+	for bid, sums := range seen {
+		if len(sums) < 2 {
+			continue
+		}
+		for checksum, state := range sums {
+			ref := state.manifest.GetRef()
+			out = append(out, &repopb.RepositoryFinding{
+				Kind:               repopb.RepositoryFindingKind_REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH,
+				Severity:           repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL,
+				ArtifactKey:        state.row.ArtifactKey,
+				Ref:                ref,
+				CurrentState:       "same build_id appears with multiple checksums",
+				ExpectedState:      "build_id maps to exactly one checksum",
+				Reason:             "repository.identity.build_id_checksum_conflict",
+				RecommendedCommand: "globular repository doctor identity",
+				ObservedAtUnix:     now,
+				Evidence: map[string]string{
+					"build_id":  bid,
+					"checksum":  checksum,
+					"conflicts": fmt.Sprintf("%d", len(sums)),
+					"invariant": "build_id->single_checksum",
+				},
+			})
 		}
 	}
 	return out
