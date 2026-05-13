@@ -66,9 +66,27 @@ func ValidateBuildID(buildID string) error {
 	return nil
 }
 
-// CanonicalArtifactKey returns the canonical artifact identity storage key.
+// CanonicalArtifactKey returns the canonical artifact identity key.
+// Format: {publisher}%{name}%{version}%{platform}%{build_id}
+func CanonicalArtifactKey(ref *repopb.ArtifactRef, buildID string) string {
+	if ref == nil {
+		return ""
+	}
+	bid := strings.TrimSpace(buildID)
+	if bid == "" {
+		return ""
+	}
+	return strings.TrimSpace(ref.GetPublisherId()) + "%" +
+		strings.TrimSpace(ref.GetName()) + "%" +
+		strings.TrimSpace(ref.GetVersion()) + "%" +
+		strings.TrimSpace(ref.GetPlatform()) + "%" +
+		bid
+}
+
+// CanonicalArtifactStorageKeyByBuildNumber returns the transitional storage key
+// used by legacy manifest/blob paths.
 // Format: {publisher}%{name}%{version}%{platform}%{build_number}
-func CanonicalArtifactKey(ref *repopb.ArtifactRef, buildNumber int64) string {
+func CanonicalArtifactStorageKeyByBuildNumber(ref *repopb.ArtifactRef, buildNumber int64) string {
 	if ref == nil {
 		return ""
 	}
@@ -79,9 +97,9 @@ func CanonicalArtifactKey(ref *repopb.ArtifactRef, buildNumber int64) string {
 		strconv.FormatInt(buildNumber, 10)
 }
 
-// LegacyBuildAliasKey returns the legacy pre-build-number key.
+// LegacyArtifactIdentityKey returns the legacy pre-build-number key.
 // Format: {publisher}%{name}%{version}%{platform}
-func LegacyBuildAliasKey(ref *repopb.ArtifactRef) string {
+func LegacyArtifactIdentityKey(ref *repopb.ArtifactRef) string {
 	if ref == nil {
 		return ""
 	}
@@ -89,4 +107,17 @@ func LegacyBuildAliasKey(ref *repopb.ArtifactRef) string {
 		strings.TrimSpace(ref.GetName()) + "%" +
 		strings.TrimSpace(ref.GetVersion()) + "%" +
 		strings.TrimSpace(ref.GetPlatform())
+}
+
+// LegacyBuildAliasKey returns a release/build locator key used by alias mapping.
+// Format: {publisher}%{name}%{version}%{platform}%{release_tag}%{build_number}
+func LegacyBuildAliasKey(ref *repopb.ArtifactRef, buildNumber int64, releaseTag string) string {
+	if ref == nil {
+		return ""
+	}
+	rt := strings.TrimSpace(releaseTag)
+	if rt == "" || buildNumber <= 0 {
+		return ""
+	}
+	return LegacyArtifactIdentityKey(ref) + "%" + rt + "%" + strconv.FormatInt(buildNumber, 10)
 }

@@ -50,10 +50,16 @@ func TestCanonicalArtifactKeyAndLegacyAliasKey(t *testing.T) {
 		Version:     "1.2.3",
 		Platform:    "linux_amd64",
 	}
-	if got := CanonicalArtifactKey(ref, 7); got != "globular%dns%1.2.3%linux_amd64%7" {
+	if got := CanonicalArtifactKey(ref, "01JABCDEF0123456789"); got != "globular%dns%1.2.3%linux_amd64%01JABCDEF0123456789" {
 		t.Fatalf("CanonicalArtifactKey=%q", got)
 	}
-	if got := LegacyBuildAliasKey(ref); got != "globular%dns%1.2.3%linux_amd64" {
+	if got := CanonicalArtifactStorageKeyByBuildNumber(ref, 7); got != "globular%dns%1.2.3%linux_amd64%7" {
+		t.Fatalf("CanonicalArtifactStorageKeyByBuildNumber=%q", got)
+	}
+	if got := LegacyArtifactIdentityKey(ref); got != "globular%dns%1.2.3%linux_amd64" {
+		t.Fatalf("LegacyArtifactIdentityKey=%q", got)
+	}
+	if got := LegacyBuildAliasKey(ref, 171, "v1.2.44"); got != "globular%dns%1.2.3%linux_amd64%v1.2.44%171" {
 		t.Fatalf("LegacyBuildAliasKey=%q", got)
 	}
 }
