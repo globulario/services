@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -26,7 +27,6 @@ import (
 	"github.com/globulario/services/golang/versionutil"
 	"github.com/spf13/cobra"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"encoding/json"
 )
 
 var repoCmd = &cobra.Command{
@@ -90,16 +90,50 @@ Examples:
 var (
 	repoDeleteForce     bool
 	repoDeletePublisher string
+	repoInspectBuildID  string
+	repoInspectJSON     bool
 )
+
+var repoInspectCmd = &cobra.Command{
+	Use:   "inspect",
+	Short: "Inspect repository artifacts by identity",
+	Long: `Inspect repository artifacts with identity-focused filters.
+
+Examples:
+  globular repository inspect --build-id 01JABC...
+  globular repository inspect --build-id 01JABC... --json`,
+	RunE: runRepoInspect,
+}
+
+var repoDedupCmd = &cobra.Command{
+	Use:   "dedup",
+	Short: "Repository deduplication visibility commands",
+}
+
+var repoDedupReportCmd = &cobra.Command{
+	Use:   "report",
+	Short: "Show duplicate artifact groups and checksum/build identity relationships",
+	Long: `Reports duplicate groups in the repository:
+  - same checksum across multiple builds (dedupe/alias candidates)
+  - same package identity with different checksums (multiple real builds)
+  - same build_id reused across multiple checksums (identity conflict)`,
+	RunE: runRepoDedupReport,
+}
 
 func init() {
 	repoCmd.AddCommand(repoScanCmd)
 	repoCmd.AddCommand(repoCleanupCmd)
 	repoCmd.AddCommand(repoDeleteCmd)
+	repoCmd.AddCommand(repoInspectCmd)
+	repoCmd.AddCommand(repoDedupCmd)
+	repoDedupCmd.AddCommand(repoDedupReportCmd)
 	repoScanCmd.Flags().StringVar(&repoScanPackage, "package", "", "Scan only this package name")
 	repoCleanupCmd.Flags().BoolVar(&repoCleanupDryRun, "dry-run", false, "Preview archiving without executing")
 	repoDeleteCmd.Flags().BoolVar(&repoDeleteForce, "force", false, "Delete even if installed on nodes")
 	repoDeleteCmd.Flags().StringVar(&repoDeletePublisher, "publisher", "core@globular.io", "Publisher ID")
+	repoInspectCmd.Flags().StringVar(&repoInspectBuildID, "build-id", "", "Exact build_id to inspect")
+	repoInspectCmd.Flags().BoolVar(&repoInspectJSON, "json", false, "Output JSON")
+	repoDedupReportCmd.Flags().StringVar(&repoScanPackage, "package", "", "Limit report to this package name")
 }
 
 type artifactClassification struct {
@@ -409,6 +443,191 @@ func runRepoDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\nDeleted %d/%d artifacts.\n", deleted, len(matches))
+	return nil
+}
+
+func runRepoInspect(cmd *cobra.Command, args []string) error {
+	if strings.TrimSpace(repoInspectBuildID) == "" {
+		return fmt.Errorf("--build-id is required")
+	}
+
+	repoAddr := config.ResolveServiceAddr("repository.PackageRepository", "")
+	if repoAddr == "" {
+		return fmt.Errorf("cannot discover repository address")
+	}
+	client, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
+	if err != nil {
+		return fmt.Errorf("connect to repository: %w", err)
+	}
+	defer client.Close()
+
+	if token := rootCfg.token; token != "" {
+		client.SetToken(token)
+	}
+
+	manifests, err := client.ListArtifacts()
+	if err != nil {
+		return fmt.Errorf("list artifacts: %w", err)
+	}
+
+	var matches []*repopb.ArtifactManifest
+	for _, m := range manifests {
+		if strings.TrimSpace(m.GetBuildId()) == strings.TrimSpace(repoInspectBuildID) {
+			matches = append(matches, m)
+		}
+	}
+	if len(matches) == 0 {
+		return fmt.Errorf("no artifact found for build_id=%s", repoInspectBuildID)
+	}
+
+	if repoInspectJSON {
+		out, err := json.MarshalIndent(matches, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshal inspect result: %w", err)
+		}
+		fmt.Println(string(out))
+		return nil
+	}
+
+	fmt.Printf("Found %d artifact(s) for build_id=%s\n\n", len(matches), repoInspectBuildID)
+	for _, m := range matches {
+		ref := m.GetRef()
+		fmt.Printf("- %s/%s@%s %s\n",
+			ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform())
+		fmt.Printf("  build_id:            %s\n", m.GetBuildId())
+		fmt.Printf("  build_number:        %d\n", m.GetBuildNumber())
+		fmt.Printf("  publish_state:       %s\n", m.GetPublishState().String())
+		fmt.Printf("  checksum:            %s\n", m.GetChecksum())
+		fmt.Printf("  entrypoint_checksum: %s\n", m.GetEntrypointChecksum())
+		fmt.Printf("  channel:             %s\n", m.GetChannel().String())
+		fmt.Printf("  size_bytes:          %d\n", m.GetSizeBytes())
+		if ui := m.GetUpstreamImport(); ui != nil {
+			fmt.Printf("  upstream:            source=%s release=%s build_number=%d\n",
+				ui.GetSourceName(), ui.GetReleaseTag(), ui.GetBuildNumber())
+		}
+		fmt.Println()
+	}
+	return nil
+}
+
+func runRepoDedupReport(cmd *cobra.Command, args []string) error {
+	repoAddr := config.ResolveServiceAddr("repository.PackageRepository", "")
+	if repoAddr == "" {
+		return fmt.Errorf("cannot discover repository address")
+	}
+	client, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
+	if err != nil {
+		return fmt.Errorf("connect to repository: %w", err)
+	}
+	defer client.Close()
+	if token := rootCfg.token; token != "" {
+		client.SetToken(token)
+	}
+
+	manifests, err := client.ListArtifacts()
+	if err != nil {
+		return fmt.Errorf("list artifacts: %w", err)
+	}
+
+	type identityKey struct {
+		Publisher string
+		Name      string
+		Version   string
+		Platform  string
+	}
+	type digestKey struct {
+		identityKey
+		Checksum string
+	}
+	byIdentity := make(map[identityKey][]*repopb.ArtifactManifest)
+	byDigest := make(map[digestKey][]*repopb.ArtifactManifest)
+	byBuildID := make(map[string][]*repopb.ArtifactManifest)
+
+	for _, m := range manifests {
+		ref := m.GetRef()
+		if repoScanPackage != "" && ref.GetName() != repoScanPackage {
+			continue
+		}
+		idk := identityKey{
+			Publisher: ref.GetPublisherId(),
+			Name:      ref.GetName(),
+			Version:   ref.GetVersion(),
+			Platform:  ref.GetPlatform(),
+		}
+		byIdentity[idk] = append(byIdentity[idk], m)
+		byDigest[digestKey{identityKey: idk, Checksum: m.GetChecksum()}] = append(byDigest[digestKey{identityKey: idk, Checksum: m.GetChecksum()}], m)
+		if bid := strings.TrimSpace(m.GetBuildId()); bid != "" {
+			byBuildID[bid] = append(byBuildID[bid], m)
+		}
+	}
+
+	fmt.Println("=== Repository Dedup Report ===")
+	fmt.Println()
+
+	dedupeCandidates := 0
+	fmt.Println("same checksum across multiple builds (dedupe/alias candidates):")
+	for k, group := range byDigest {
+		if len(group) < 2 {
+			continue
+		}
+		dedupeCandidates++
+		fmt.Printf("- %s/%s@%s %s checksum=%s (%d builds)\n",
+			k.Publisher, k.Name, k.Version, k.Platform, k.Checksum, len(group))
+		for _, m := range group {
+			fmt.Printf("  build_id=%s build_number=%d state=%s\n",
+				m.GetBuildId(), m.GetBuildNumber(), m.GetPublishState().String())
+		}
+	}
+	if dedupeCandidates == 0 {
+		fmt.Println("- none")
+	}
+	fmt.Println()
+
+	multiBuild := 0
+	fmt.Println("same package identity with multiple checksums (real multi-build versions):")
+	for k, group := range byIdentity {
+		if len(group) < 2 {
+			continue
+		}
+		seenChecksums := map[string]bool{}
+		for _, m := range group {
+			seenChecksums[m.GetChecksum()] = true
+		}
+		if len(seenChecksums) < 2 {
+			continue
+		}
+		multiBuild++
+		fmt.Printf("- %s/%s@%s %s (%d checksums, %d builds)\n",
+			k.Publisher, k.Name, k.Version, k.Platform, len(seenChecksums), len(group))
+	}
+	if multiBuild == 0 {
+		fmt.Println("- none")
+	}
+	fmt.Println()
+
+	conflicts := 0
+	fmt.Println("same build_id mapped to multiple checksums (identity conflict):")
+	for bid, group := range byBuildID {
+		if len(group) < 2 {
+			continue
+		}
+		seenChecksums := map[string]bool{}
+		for _, m := range group {
+			seenChecksums[m.GetChecksum()] = true
+		}
+		if len(seenChecksums) < 2 {
+			continue
+		}
+		conflicts++
+		fmt.Printf("- build_id=%s has %d checksums\n", bid, len(seenChecksums))
+	}
+	if conflicts == 0 {
+		fmt.Println("- none")
+	}
+
+	fmt.Println()
+	fmt.Printf("Summary: dedupe_candidates=%d multi_build_versions=%d build_id_checksum_conflicts=%d\n",
+		dedupeCandidates, multiBuild, conflicts)
 	return nil
 }
 
