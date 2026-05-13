@@ -14,6 +14,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/operational"
@@ -116,6 +117,15 @@ func (srv *server) ListRepositoryFindings(ctx context.Context, req *repopb.ListR
 			resp.Findings = append(resp.Findings, f)
 		}
 	}
+	// Emit identity findings for duplicate checksum rows missing alias linkage.
+	for _, f := range srv.evalDuplicateChecksumAliasGaps(ctx, rows, now) {
+		if len(resp.Findings) >= limit {
+			break
+		}
+		if matchKindFilter(kindFilter, f.GetKind()) {
+			resp.Findings = append(resp.Findings, f)
+		}
+	}
 
 	return resp, nil
 }
@@ -135,6 +145,98 @@ func shouldEmit(filter repopb.RepositoryFindingKind, kinds ...repopb.RepositoryF
 
 func matchKindFilter(filter, k repopb.RepositoryFindingKind) bool {
 	return filter == repopb.RepositoryFindingKind_REPOSITORY_FINDING_UNSPECIFIED || filter == k
+}
+
+func (srv *server) evalDuplicateChecksumAliasGaps(ctx context.Context, rows []manifestRow, now int64) []*repopb.RepositoryFinding {
+	type groupKey struct {
+		Publisher string
+		Name      string
+		Version   string
+		Platform  string
+		Checksum  string
+	}
+	groups := make(map[groupKey][]manifestRow)
+	for _, row := range rows {
+		if row.PublishState != repopb.PublishState_PUBLISHED.String() || strings.TrimSpace(row.Checksum) == "" {
+			continue
+		}
+		k := groupKey{
+			Publisher: row.PublisherID,
+			Name:      row.Name,
+			Version:   row.Version,
+			Platform:  row.Platform,
+			Checksum:  row.Checksum,
+		}
+		groups[k] = append(groups[k], row)
+	}
+
+	var out []*repopb.RepositoryFinding
+	for k, group := range groups {
+		if len(group) < 2 {
+			continue
+		}
+		seenBID := map[string]bool{}
+		for _, r := range group {
+			m, _, err := manifestFromRow(r)
+			if err != nil || m == nil || strings.TrimSpace(m.GetBuildId()) == "" {
+				continue
+			}
+			if bid := strings.TrimSpace(m.GetBuildId()); bid != "" {
+				seenBID[bid] = true
+			}
+		}
+		if len(seenBID) < 2 {
+			continue
+		}
+		for _, row := range group {
+			manifest, _, err := manifestFromRow(row)
+			if err != nil || manifest == nil || manifest.GetUpstreamImport() == nil {
+				out = append(out, &repopb.RepositoryFinding{
+					Kind:           repopb.RepositoryFindingKind_REPO_FIND_CONFIG_CONFLICT,
+					Severity:       repopb.RepositoryFindingSeverity_REPO_FIND_WARN,
+					ArtifactKey:    row.ArtifactKey,
+					Ref:            &repopb.ArtifactRef{PublisherId: row.PublisherID, Name: row.Name, Version: row.Version, Platform: row.Platform},
+					CurrentState:   "duplicate checksum group without alias metadata",
+					ExpectedState:  "release/build alias must map to canonical build_id",
+					Reason:         "repository.identity.duplicate_checksum_without_alias: missing upstream import metadata for alias check",
+					ObservedAtUnix: now,
+					Evidence: map[string]string{
+						"publisher": k.Publisher,
+						"name":      k.Name,
+						"version":   k.Version,
+						"platform":  k.Platform,
+						"checksum":  k.Checksum,
+					},
+				})
+				continue
+			}
+			ui := manifest.GetUpstreamImport()
+			ref := manifest.GetRef()
+			alias, _ := srv.loadReleaseBuildAlias(ctx, ref, ui.GetReleaseTag(), ui.GetBuildNumber())
+			if alias == nil || strings.TrimSpace(alias.CanonicalBuildID) == "" {
+				out = append(out, &repopb.RepositoryFinding{
+					Kind:               repopb.RepositoryFindingKind_REPO_FIND_CONFIG_CONFLICT,
+					Severity:           repopb.RepositoryFindingSeverity_REPO_FIND_WARN,
+					ArtifactKey:        row.ArtifactKey,
+					Ref:                ref,
+					CurrentState:       "duplicate checksum group without alias",
+					ExpectedState:      "release/build alias must map to canonical build_id",
+					Reason:             "repository.identity.duplicate_checksum_without_alias: alias record missing",
+					RecommendedCommand: fmt.Sprintf("globular repository sync --source %s --tag %s", ui.GetSourceName(), ui.GetReleaseTag()),
+					ObservedAtUnix:     now,
+					Evidence: map[string]string{
+						"checksum":      row.Checksum,
+						"build_id":      manifest.GetBuildId(),
+						"build_number":  fmt.Sprintf("%d", row.BuildNumber),
+						"release_tag":   ui.GetReleaseTag(),
+						"source_name":   ui.GetSourceName(),
+						"identity_rule": "duplicate_checksum_requires_alias",
+					},
+				})
+			}
+		}
+	}
+	return out
 }
 
 // blobFindingSeverity returns WARNING when an upstream repair source is known,

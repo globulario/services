@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"testing"
+	"time"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
@@ -65,6 +66,71 @@ func TestListRepositoryFindings_PublishedMissingBlob(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected REPO_FIND_PUBLISHED_MISSING_BLOB in response")
+	}
+}
+
+func TestListRepositoryFindings_DuplicateChecksumWithoutAlias(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "workflow",
+		Version: "1.0.53", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
+	}
+	m1 := &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 1, BuildId: "canonical-1",
+		Checksum: "sha256:same", SizeBytes: 100,
+		UpstreamImport: &repopb.UpstreamImportRecord{
+			SourceName: "globulario-github", ReleaseTag: "v1.0.53", BuildNumber: 1, ImportedAt: time.Now().Unix(),
+		},
+	}
+	m2 := &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 67, BuildId: "upstream-67",
+		Checksum: "sha256:same", SizeBytes: 100,
+		UpstreamImport: &repopb.UpstreamImportRecord{
+			SourceName: "globulario-github", ReleaseTag: "v1.0.53", BuildNumber: 67, ImportedAt: time.Now().Unix(),
+		},
+	}
+	seedPublishedArtifact(t, srv, m1)
+	seedPublishedArtifact(t, srv, m2)
+	m1JSON, err := marshalManifestWithState(m1, repopb.PublishState_PUBLISHED)
+	if err != nil {
+		t.Fatalf("marshal m1: %v", err)
+	}
+	m2JSON, err := marshalManifestWithState(m2, repopb.PublishState_PUBLISHED)
+	if err != nil {
+		t.Fatalf("marshal m2: %v", err)
+	}
+	key1 := artifactKeyWithBuild(ref, 1)
+	key67 := artifactKeyWithBuild(ref, 67)
+	srv.scylla = &fakeLedger{
+		rows: map[string]*manifestRow{
+			key1: {
+				ArtifactKey: key1, PublisherID: ref.GetPublisherId(), Name: ref.GetName(), Version: ref.GetVersion(), Platform: ref.GetPlatform(),
+				BuildNumber: 1, Checksum: "sha256:same", SizeBytes: 100,
+				PublishState: repopb.PublishState_PUBLISHED.String(), ManifestJSON: m1JSON,
+			},
+			key67: {
+				ArtifactKey: key67, PublisherID: ref.GetPublisherId(), Name: ref.GetName(), Version: ref.GetVersion(), Platform: ref.GetPlatform(),
+				BuildNumber: 67, Checksum: "sha256:same", SizeBytes: 100,
+				PublishState: repopb.PublishState_PUBLISHED.String(), ManifestJSON: m2JSON,
+			},
+		},
+	}
+
+	resp, err := srv.ListRepositoryFindings(ctx, &repopb.ListRepositoryFindingsRequest{})
+	if err != nil {
+		t.Fatalf("ListRepositoryFindings: %v", err)
+	}
+	found := false
+	for _, f := range resp.GetFindings() {
+		if f.GetKind() == repopb.RepositoryFindingKind_REPO_FIND_CONFIG_CONFLICT &&
+			f.GetReason() == "repository.identity.duplicate_checksum_without_alias: alias record missing" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected duplicate checksum without alias finding")
 	}
 }
 
