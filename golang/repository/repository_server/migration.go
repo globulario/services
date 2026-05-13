@@ -150,6 +150,11 @@ func (srv *server) MigrateToTrustModel(ctx context.Context) {
 // ── Phase 2: build_id backfill ──────────────────────────────────────────────
 
 const buildIDMigrationMarker = "artifacts/.build-id-migration-complete"
+const buildIDMigrationVersion = "repository-identity-v1"
+
+func buildIDMigrationProvenanceKey(artifactKey string) string {
+	return artifactsDir + "/" + artifactKey + ".migration.json"
+}
 
 // MigrateBuildIDs ensures every artifact in the repository has a build_id.
 // New artifacts (uploaded after Phase 2 Step 2) already have a UUIDv7 build_id.
@@ -220,6 +225,20 @@ func (srv *server) MigrateBuildIDs(ctx context.Context) {
 		// Sync to ScyllaDB.
 		srv.syncManifestToScylla(ctx, key, m, state, mjson)
 
+		// Write non-destructive migration provenance sidecar.
+		provenance := map[string]any{
+			"migrated_from_legacy": true,
+			"legacy_path":          manifestStorageKey(key),
+			"migrated_at":          time.Now().UTC().Format(time.RFC3339),
+			"migration_version":    buildIDMigrationVersion,
+			"build_id":             syntheticID,
+		}
+		if p, perr := json.MarshalIndent(provenance, "", "  "); perr == nil {
+			if werr := srv.Storage().WriteFile(ctx, buildIDMigrationProvenanceKey(key), p, 0o644); werr != nil {
+				slog.Warn("build_id migration: provenance write failed", "key", key, "err", werr)
+			}
+		}
+
 		// Invalidate cache for this manifest.
 		if srv.cache != nil {
 			srv.cache.invalidateManifest(manifestStorageKey(key))
@@ -230,10 +249,11 @@ func (srv *server) MigrateBuildIDs(ctx context.Context) {
 
 	// Write marker file.
 	marker := map[string]any{
-		"migrated_at":  time.Now().UTC().Format(time.RFC3339),
-		"backfilled":   backfilled,
-		"already_set":  alreadySet,
-		"skipped":      skipped,
+		"migrated_at":       time.Now().UTC().Format(time.RFC3339),
+		"backfilled":        backfilled,
+		"already_set":       alreadySet,
+		"skipped":           skipped,
+		"migration_version": buildIDMigrationVersion,
 	}
 	data, _ := json.MarshalIndent(marker, "", "  ")
 	if err := srv.Storage().WriteFile(ctx, buildIDMigrationMarker, data, 0o644); err != nil {

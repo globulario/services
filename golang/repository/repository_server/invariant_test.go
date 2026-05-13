@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -707,5 +708,25 @@ func TestMigrateBuildIDs_Idempotent(t *testing.T) {
 		&repopb.GetArtifactManifestRequest{Ref: ref, BuildNumber: 1})
 	if m2.GetManifest().GetBuildId() != bid1 {
 		t.Errorf("build_id changed after re-migration: %s → %s", bid1, m2.GetManifest().GetBuildId())
+	}
+
+	// Verify migration provenance sidecar is written for legacy backfill.
+	key := artifactKeyWithBuild(ref, 1)
+	provBytes, err := srv.Storage().ReadFile(context.Background(), buildIDMigrationProvenanceKey(key))
+	if err != nil {
+		t.Fatalf("expected migration provenance sidecar: %v", err)
+	}
+	var prov map[string]any
+	if err := json.Unmarshal(provBytes, &prov); err != nil {
+		t.Fatalf("unmarshal migration provenance: %v", err)
+	}
+	if migrated, _ := prov["migrated_from_legacy"].(bool); !migrated {
+		t.Errorf("migrated_from_legacy = %v, want true", prov["migrated_from_legacy"])
+	}
+	if got, _ := prov["migration_version"].(string); got != buildIDMigrationVersion {
+		t.Errorf("migration_version = %q, want %q", got, buildIDMigrationVersion)
+	}
+	if legacyPath, _ := prov["legacy_path"].(string); legacyPath == "" {
+		t.Errorf("legacy_path = %q, want non-empty", legacyPath)
 	}
 }
