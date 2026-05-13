@@ -516,14 +516,26 @@ func TestReleaseIndexV2InstallRejectsNumericBuildID(t *testing.T) {
 	}
 }
 
-func TestReleaseIndexV2InstallRejectsMissingArtifactSha256(t *testing.T) {
+func TestReleaseIndexV2InstallAllowsPackageDigestFallback(t *testing.T) {
 	idx := validV2Index()
 	for _, p := range idx.Packages {
 		p.BuildID = "upstream-abc123"
 		p.ArtifactSha256 = ""
 	}
-	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "artifact_sha256 is required") {
-		t.Fatalf("expected artifact_sha256 rejection, got: %v", err)
+	if err := ValidateReleaseIndexForInstall(idx); err != nil {
+		t.Fatalf("expected package_digest fallback to pass, got: %v", err)
+	}
+}
+
+func TestReleaseIndexV2InstallRejectsMissingAllDigestFields(t *testing.T) {
+	idx := validV2Index()
+	for _, p := range idx.Packages {
+		p.BuildID = "upstream-abc123"
+		p.ArtifactSha256 = ""
+		p.PackageDigest = ""
+	}
+	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "package_digest or artifact_sha256 is required") {
+		t.Fatalf("expected missing digest rejection, got: %v", err)
 	}
 }
 

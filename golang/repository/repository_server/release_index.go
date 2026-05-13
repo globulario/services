@@ -332,8 +332,17 @@ func ValidateReleaseIndexForInstall(idx *releaseIndex) error {
 		if e.BuildNumber <= 0 {
 			return fmt.Errorf("packages[%d] (%s): build_number must be > 0 for install validation", i, e.Name)
 		}
+		// Backward/forward compatibility:
+		// - v2 release indexes may provide package_digest (legacy alias) only.
+		// - install validation requires an immutable artifact digest either way.
 		if strings.TrimSpace(e.ArtifactSha256) == "" {
-			return fmt.Errorf("packages[%d] (%s): artifact_sha256 is required for install validation", i, e.Name)
+			legacy := strings.TrimSpace(e.PackageDigest)
+			if legacy == "" {
+				return fmt.Errorf("packages[%d] (%s): artifact_sha256 or package_digest is required for install validation", i, e.Name)
+			}
+			// Normalize in-memory so downstream install paths that read
+			// artifact_sha256 continue to work without special-casing.
+			e.ArtifactSha256 = legacy
 		}
 	}
 	return nil
