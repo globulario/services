@@ -169,13 +169,13 @@ func canonicalizeRefVersion(ref *repopb.ArtifactRef) {
 // artifactKeyWithBuild returns a flat, filesystem-safe key including build_number.
 // Format: {publisherID}%{name}%{version}%{platform}%{buildNumber}
 func artifactKeyWithBuild(ref *repopb.ArtifactRef, buildNumber int64) string {
-	return ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform() + "%" + strconv.FormatInt(buildNumber, 10)
+	return CanonicalArtifactKey(ref, buildNumber)
 }
 
 // artifactKeyLegacy returns the old 4-field key without build_number.
 // Used for backward-compat reads of pre-build-number artifacts.
 func artifactKeyLegacy(ref *repopb.ArtifactRef) string {
-	return ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform()
+	return LegacyBuildAliasKey(ref)
 }
 
 func manifestStorageKey(key string) string { return artifactsDir + "/" + key + ".manifest.json" }

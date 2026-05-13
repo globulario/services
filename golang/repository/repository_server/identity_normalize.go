@@ -3,7 +3,10 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
+
+	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
 var buildIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:-]{2,127}$`)
@@ -63,3 +66,27 @@ func ValidateBuildID(buildID string) error {
 	return nil
 }
 
+// CanonicalArtifactKey returns the canonical artifact identity storage key.
+// Format: {publisher}%{name}%{version}%{platform}%{build_number}
+func CanonicalArtifactKey(ref *repopb.ArtifactRef, buildNumber int64) string {
+	if ref == nil {
+		return ""
+	}
+	return strings.TrimSpace(ref.GetPublisherId()) + "%" +
+		strings.TrimSpace(ref.GetName()) + "%" +
+		strings.TrimSpace(ref.GetVersion()) + "%" +
+		strings.TrimSpace(ref.GetPlatform()) + "%" +
+		strconv.FormatInt(buildNumber, 10)
+}
+
+// LegacyBuildAliasKey returns the legacy pre-build-number key.
+// Format: {publisher}%{name}%{version}%{platform}
+func LegacyBuildAliasKey(ref *repopb.ArtifactRef) string {
+	if ref == nil {
+		return ""
+	}
+	return strings.TrimSpace(ref.GetPublisherId()) + "%" +
+		strings.TrimSpace(ref.GetName()) + "%" +
+		strings.TrimSpace(ref.GetVersion()) + "%" +
+		strings.TrimSpace(ref.GetPlatform())
+}

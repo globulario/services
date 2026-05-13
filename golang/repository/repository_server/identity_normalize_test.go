@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	repopb "github.com/globulario/services/golang/repository/repositorypb"
+)
 
 func TestNormalizePlatform(t *testing.T) {
 	cases := map[string]string{
@@ -39,3 +43,17 @@ func TestValidateBuildID(t *testing.T) {
 	}
 }
 
+func TestCanonicalArtifactKeyAndLegacyAliasKey(t *testing.T) {
+	ref := &repopb.ArtifactRef{
+		PublisherId: "globular",
+		Name:        "dns",
+		Version:     "1.2.3",
+		Platform:    "linux_amd64",
+	}
+	if got := CanonicalArtifactKey(ref, 7); got != "globular%dns%1.2.3%linux_amd64%7" {
+		t.Fatalf("CanonicalArtifactKey=%q", got)
+	}
+	if got := LegacyBuildAliasKey(ref); got != "globular%dns%1.2.3%linux_amd64" {
+		t.Fatalf("LegacyBuildAliasKey=%q", got)
+	}
+}
