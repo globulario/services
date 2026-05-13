@@ -320,6 +320,9 @@ func ValidateReleaseIndexForInstall(idx *releaseIndex) error {
 		if strings.TrimSpace(e.Kind) == "" {
 			return fmt.Errorf("packages[%d] (%s): kind is required for install validation", i, e.Name)
 		}
+		if _, ok := kindFromArtifactKindString(strings.TrimSpace(e.Kind)); !ok {
+			return fmt.Errorf("packages[%d] (%s): kind %q is not supported for install validation", i, e.Name, e.Kind)
+		}
 		if strings.TrimSpace(e.Publisher) == "" {
 			return fmt.Errorf("packages[%d] (%s): publisher is required for install validation", i, e.Name)
 		}

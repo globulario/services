@@ -542,13 +542,25 @@ func TestReleaseIndexV2InstallRejectsMissingAllDigestFields(t *testing.T) {
 
 func TestReleaseIndexV2InstallRejectsBuildNumberZero(t *testing.T) {
 	idx := validV2Index()
-	for _, p := range idx.Packages {
-		p.BuildID = "upstream-abc123"
+	for i, p := range idx.Packages {
+		p.BuildID = fmt.Sprintf("upstream-abc%d", i+1)
 		p.ArtifactSha256 = p.PackageDigest
 	}
 	idx.Packages[0].BuildNumber = 0
 	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "build_number must be > 0") {
 		t.Fatalf("expected build_number rejection, got: %v", err)
+	}
+}
+
+func TestReleaseIndexV2InstallRejectsUnknownKind(t *testing.T) {
+	idx := validV2Index()
+	for i, p := range idx.Packages {
+		p.BuildID = fmt.Sprintf("upstream-abc%d", i+1)
+		p.ArtifactSha256 = p.PackageDigest
+	}
+	idx.Packages[0].Kind = "PLUGIN"
+	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "is not supported for install validation") {
+		t.Fatalf("expected unknown kind rejection, got: %v", err)
 	}
 }
 
