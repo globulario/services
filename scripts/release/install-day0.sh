@@ -1832,6 +1832,8 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
       fi
       _AW_FILENAME_BUILD_ID=$(basename "$_AWARENESS_BUNDLE" | sed -n 's/^awareness-bundle-[0-9][0-9.]*-\([A-Za-z0-9._-]\+\)\.tar\.gz$/\1/p')
       _AW_MANIFEST=""
+      _AW_EMBEDDED_VERSION=""
+      _AW_EMBEDDED_BUILD_ID=""
       if [[ -f "$(dirname "$_AWARENESS_BUNDLE")/manifest.json" ]]; then
         _AW_MANIFEST="$(dirname "$_AWARENESS_BUNDLE")/manifest.json"
       elif [[ -f "${_AWARENESS_BUNDLE}.manifest.json" ]]; then
@@ -1847,6 +1849,21 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
       if [[ -z "$_AW_BUILD_ID" && -n "$_AW_FILENAME_BUILD_ID" ]]; then
         log_warn "Awareness manifest build_id unavailable; not passing --build-id (filename token='${_AW_FILENAME_BUILD_ID}')"
       fi
+      # Fallback: extract metadata from manifest.json embedded in the bundle.
+      # This avoids depending on sidecar files and provides a full UUID build_id.
+      if [[ -z "$_AW_BUILD_ID" ]]; then
+        _AW_EMBEDDED_VERSION="$(tar -xOzf "$_AWARENESS_BUNDLE" manifest.json 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print((d.get('version') or '').strip())" 2>/dev/null || true)"
+        _AW_EMBEDDED_BUILD_ID="$(tar -xOzf "$_AWARENESS_BUNDLE" manifest.json 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print((d.get('build_id') or '').strip())" 2>/dev/null || true)"
+        _AW_EMBEDDED_VERSION="$(normalize_meta_value "$_AW_EMBEDDED_VERSION")"
+        _AW_EMBEDDED_BUILD_ID="$(normalize_meta_value "$_AW_EMBEDDED_BUILD_ID")"
+        if [[ -n "$_AW_EMBEDDED_BUILD_ID" ]]; then
+          _AW_BUILD_ID="$_AW_EMBEDDED_BUILD_ID"
+          log_substep "Using embedded awareness manifest build_id from bundle payload"
+        fi
+        if [[ -z "$_AW_VERSION" && -n "$_AW_EMBEDDED_VERSION" ]]; then
+          _AW_VERSION="$_AW_EMBEDDED_VERSION"
+        fi
+      fi
       if [[ -f "${STATE_DIR}/release-index.json" ]]; then
         _AW_INDEX_BUILD_ID="$(python3 -c "import json; d=json.load(open('${STATE_DIR}/release-index.json')); print((d.get('build_id') or '').strip())" 2>/dev/null || true)"
         _AW_INDEX_BUILD_ID="$(normalize_meta_value "$_AW_INDEX_BUILD_ID")"
@@ -1856,6 +1873,7 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
       [[ -n "$_AW_VERSION" ]] && _AWARENESS_INSTALL_ARGS+=(--version "$_AW_VERSION")
       [[ -n "$_AW_BUILD_ID" ]] && _AWARENESS_INSTALL_ARGS+=(--build-id "$_AW_BUILD_ID")
       [[ -n "$_AW_MANIFEST" ]] && _AWARENESS_INSTALL_ARGS+=(--manifest "$_AW_MANIFEST")
+      _AW_TEMP_RELEASE_INDEX=""
       if [[ -f "${STATE_DIR}/release-index.json" ]]; then
         if [[ -n "$_AW_INDEX_BUILD_ID" && -n "$_AW_BUILD_ID" && "$_AW_INDEX_BUILD_ID" == "$_AW_BUILD_ID" ]]; then
           _AWARENESS_INSTALL_ARGS+=(--release-index "${STATE_DIR}/release-index.json")
@@ -1865,6 +1883,18 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
           log_warn "Skipping --release-index for awareness install: build_id mismatch (release-index='${_AW_INDEX_BUILD_ID:-unknown}' manifest='${_AW_MANIFEST_BUILD_ID:-unknown}')"
         fi
       fi
+      # The awareness installer defaults to /var/lib/globular/release-index.json
+      # when --release-index is omitted. If that file is malformed or missing
+      # build metadata, install fails even with explicit --version/--build-id.
+      # Provide a minimal verified release-index when host metadata is unusable.
+      if [[ -n "$_AW_VERSION" && -n "$_AW_BUILD_ID" && ! " ${_AWARENESS_INSTALL_ARGS[*]} " =~ " --release-index " ]]; then
+        _AW_TEMP_RELEASE_INDEX="$(mktemp /tmp/awareness-release-index.XXXXXX.json)"
+        cat >"$_AW_TEMP_RELEASE_INDEX" <<EOF
+{"platform_release":"${_AW_VERSION}","release_tag":"v${_AW_VERSION}","build_id":"${_AW_BUILD_ID}"}
+EOF
+        _AWARENESS_INSTALL_ARGS+=(--release-index "$_AW_TEMP_RELEASE_INDEX")
+        log_substep "Using synthetic release-index for awareness install"
+      fi
 
       log_substep "Installing awareness bundle from ${_AWARENESS_BUNDLE}..."
       if "$GLOBULAR_CLI" awareness install "$_AWARENESS_BUNDLE" \
@@ -1872,8 +1902,10 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
           2>&1 | while IFS= read -r line; do echo "  [awareness-install] $line"; done; then
         log_success "Awareness bundle installed"
       else
+        [[ -n "$_AW_TEMP_RELEASE_INDEX" ]] && rm -f "$_AW_TEMP_RELEASE_INDEX" 2>/dev/null || true
         die "awareness bundle install failed"
       fi
+      [[ -n "$_AW_TEMP_RELEASE_INDEX" ]] && rm -f "$_AW_TEMP_RELEASE_INDEX" 2>/dev/null || true
     fi
   fi
   if [[ ! -d "$OPS_KNOWLEDGE_DIR" ]]; then
