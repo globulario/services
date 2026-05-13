@@ -644,6 +644,10 @@ func (srv *server) processSyncEntry(
 					}
 					result.Detail = detail
 					result.Action = "up_to_date"
+					if err := srv.ensureReleaseBuildAlias(ctx, ref, releaseTag, n.BuildNumber, n.BuildID, existing.GetBuildId(), n.Digest, n.OriginRelease, src.GetName()); err != nil {
+						slog.Warn("repository sync: failed to persist release/build alias", "err", err,
+							"release_tag", releaseTag, "build_number", n.BuildNumber, "canonical_build_id", existing.GetBuildId())
+					}
 					return result
 				}
 			} else {
@@ -665,6 +669,10 @@ func (srv *server) processSyncEntry(
 				}
 				result.Detail = detail
 				result.Action = "up_to_date"
+				if err := srv.ensureReleaseBuildAlias(ctx, ref, releaseTag, n.BuildNumber, n.BuildID, existing.GetBuildId(), n.Digest, n.OriginRelease, src.GetName()); err != nil {
+					slog.Warn("repository sync: failed to persist release/build alias", "err", err,
+						"release_tag", releaseTag, "build_number", n.BuildNumber, "canonical_build_id", existing.GetBuildId())
+				}
 				return result
 			}
 		} else {
@@ -828,6 +836,10 @@ func (srv *server) importUpstreamArtifact(
 					"existing_build_number", existingByID.GetBuildNumber(),
 					"upstream_build_number", n.BuildNumber,
 					"publish_state", stateByID.String())
+				if err := srv.ensureReleaseBuildAlias(ctx, ref, releaseTag, n.BuildNumber, n.BuildID, existingByID.GetBuildId(), digest, n.OriginRelease, src.GetName()); err != nil {
+					slog.Warn("upstream: failed to persist release/build alias", "err", err,
+						"release_tag", releaseTag, "build_number", n.BuildNumber, "canonical_build_id", existingByID.GetBuildId())
+				}
 				return nil
 			}
 			slog.Info("upstream: same build_id present but blob not healthy; continuing import for repair",
@@ -878,6 +890,10 @@ func (srv *server) importUpstreamArtifact(
 				"existing_build_number", existing.GetBuildNumber(),
 				"upstream_build_number", n.BuildNumber,
 				"digest", truncDigest(digest))
+			if err := srv.ensureReleaseBuildAlias(ctx, ref, releaseTag, n.BuildNumber, n.BuildID, existing.GetBuildId(), digest, n.OriginRelease, src.GetName()); err != nil {
+				slog.Warn("upstream: failed to persist release/build alias", "err", err,
+					"release_tag", releaseTag, "build_number", n.BuildNumber, "canonical_build_id", existing.GetBuildId())
+			}
 			return nil
 		} else {
 			slog.Info("repository sync: metadata exists but blob missing; re-importing",
@@ -1024,6 +1040,10 @@ func (srv *server) importUpstreamArtifact(
 	}
 	_ = srv.transitionArtifactState(ctx, key, PipelinePublished,
 		publishReason, workflowRunID, stateFields)
+	if err := srv.ensureReleaseBuildAlias(ctx, ref, releaseTag, n.BuildNumber, n.BuildID, n.BuildID, digest, n.OriginRelease, src.GetName()); err != nil {
+		slog.Warn("upstream: failed to persist release/build alias", "err", err,
+			"release_tag", releaseTag, "build_number", n.BuildNumber, "canonical_build_id", n.BuildID)
+	}
 	return nil
 }
 

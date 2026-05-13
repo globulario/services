@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -109,6 +110,22 @@ func TestProcessSyncEntryDedupesDifferentBuildNumber(t *testing.T) {
 	}
 	if !strings.Contains(result.GetDetail(), "deduped") {
 		t.Fatalf("expected dedupe detail, got: %s", result.GetDetail())
+	}
+
+	aliasKey := aliasStorageKey(ref, "v1.0.53", 67)
+	raw, err := srv.Storage().ReadFile(context.Background(), aliasKey)
+	if err != nil {
+		t.Fatalf("expected alias file %q, got err: %v", aliasKey, err)
+	}
+	var alias releaseBuildAliasRecord
+	if err := json.Unmarshal(raw, &alias); err != nil {
+		t.Fatalf("unmarshal alias: %v", err)
+	}
+	if alias.CanonicalBuildID != "019d0001-0000-7000-8000-000000000001" {
+		t.Fatalf("canonical_build_id=%q, want existing build id", alias.CanonicalBuildID)
+	}
+	if alias.BuildNumber != 67 || alias.ReleaseTag != "v1.0.53" {
+		t.Fatalf("unexpected alias locator: release=%q build_number=%d", alias.ReleaseTag, alias.BuildNumber)
 	}
 }
 
