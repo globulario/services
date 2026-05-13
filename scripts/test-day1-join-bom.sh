@@ -2,6 +2,8 @@
 set -euo pipefail
 
 # Validates that the join script serves all binaries required for Day-1 join.
+# For full Day-1 integrity (DNS/repository/build identity), run:
+#   bash scripts/doctor/day1-preflight.sh <release-index.json> <registry.yaml>
 # Usage: bash scripts/test-day1-join-bom.sh [gateway-address]
 #
 # If no gateway is provided, validates against the registry only (offline mode).
@@ -97,3 +99,4 @@ fi
 
 echo ""
 pass "Day-1 join BOM check complete"
+echo "Next: run scripts/doctor/day1-preflight.sh for full Day-1 integrity checks"

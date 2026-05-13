@@ -415,6 +415,41 @@ fi
 echo ""
 
 # ============================================================================
+# 9. DAY-1 STATE-INTEGRITY PREFLIGHT (post Day-0)
+# ============================================================================
+if [[ "$DAY0_MODE" == "1" ]]; then
+    echo -e "${YELLOW}[9/9] Day-1 State-Integrity Preflight...${NC}"
+    echo "  → SKIP during Day-0 install."
+    echo "    Run later:"
+    echo "      bash scripts/doctor/day1-preflight.sh <release-index.json> <registry.yaml>"
+    echo ""
+else
+    echo -e "${YELLOW}[9/9] Day-1 State-Integrity Preflight...${NC}"
+    if [[ -x scripts/doctor/day1-preflight.sh ]]; then
+        TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
+        printf "%-50s " "day1 state-integrity preflight script"
+        if bash scripts/doctor/day1-preflight.sh >/tmp/day1_preflight.out 2>/tmp/day1_preflight.err; then
+            echo -e "${GREEN}✓ PASS${NC}"
+            PASSED_CHECKS=$((PASSED_CHECKS + 1))
+        else
+            echo -e "${RED}✗ FAIL${NC}"
+            FAILED_CHECKS=$((FAILED_CHECKS + 1))
+            FAILURES+=("day1-preflight: $(tail -n 1 /tmp/day1_preflight.err 2>/dev/null || echo 'script failed')")
+            echo "  --- day1-preflight stdout ---"
+            cat /tmp/day1_preflight.out 2>/dev/null || true
+            echo "  --- day1-preflight stderr ---"
+            cat /tmp/day1_preflight.err 2>/dev/null || true
+        fi
+    else
+        warn_msg="scripts/doctor/day1-preflight.sh not found"
+        echo "  → SKIP: $warn_msg"
+        FAILED_CHECKS=$((FAILED_CHECKS + 1))
+        FAILURES+=("day1-preflight: $warn_msg")
+    fi
+    echo ""
+fi
+
+# ============================================================================
 # SUMMARY
 # ============================================================================
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
