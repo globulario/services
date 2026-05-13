@@ -647,14 +647,25 @@ func (srv *server) processSyncEntry(
 					return result
 				}
 			} else {
-				// Same digest but different build_number: import at the upstream's
-				// build_number so the BOM's build_number becomes resolvable.
-				slog.Info("repository sync: same digest exists at different build_number — importing at upstream build_number",
+				// Same digest at a different build_number is a dedupe/alias case.
+				// Canonical identity remains the existing build; do not duplicate
+				// artifact rows solely to mirror upstream build_number locators.
+				slog.Info("repository sync: same digest exists at different build_number — deduping to canonical local build",
 					"source", src.GetName(), "publisher", n.Publisher,
 					"name", n.Name, "version", n.Version, "platform", n.Platform,
 					"existing_build_number", existing.GetBuildNumber(),
 					"upstream_build_number", n.BuildNumber,
 					"digest", truncDigest(n.Digest))
+				detail := fmt.Sprintf("already present with matching digest at canonical build %d (upstream build_number=%d); deduped",
+					existing.GetBuildNumber(), n.BuildNumber)
+				if dryRun {
+					result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
+				} else {
+					result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
+				}
+				result.Detail = detail
+				result.Action = "up_to_date"
+				return result
 			}
 		} else {
 			// Scylla/manifest record found but the blob is missing or wrong
@@ -858,15 +869,16 @@ func (srv *server) importUpstreamArtifact(
 					"publish_state", state.String())
 				return nil
 			}
-			// Same digest but different build_number: the upstream release index
-			// uses a different build_number than what was locally published. Import
-			// at the upstream's build_number so it is discoverable by the BOM.
-			slog.Info("upstream: same digest exists at different build_number — importing at upstream build_number",
+			// Same digest but different build_number is dedupe/alias territory.
+			// Keep canonical local artifact identity; do not duplicate rows only
+			// to mirror an upstream locator.
+			slog.Info("upstream: same digest exists at different build_number — deduping to canonical local build",
 				"source", src.GetName(), "publisher", n.Publisher,
 				"name", n.Name, "version", n.Version, "platform", n.Platform,
 				"existing_build_number", existing.GetBuildNumber(),
 				"upstream_build_number", n.BuildNumber,
 				"digest", truncDigest(digest))
+			return nil
 		} else {
 			slog.Info("repository sync: metadata exists but blob missing; re-importing",
 				"source", src.GetName(), "publisher", n.Publisher,

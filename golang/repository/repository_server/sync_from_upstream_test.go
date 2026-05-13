@@ -63,13 +63,10 @@ func TestProcessSyncEntrySkipsExistingDigestSameBuildNumber(t *testing.T) {
 	}
 }
 
-// TestProcessSyncEntryImportsDifferentBuildNumber verifies that when a local
-// artifact exists with the same digest but a different build_number (e.g. a
-// bootstrap publish at build_number=1 before sync runs with build_number=171),
-// the sync proceeds to import at the upstream build_number rather than skipping.
-// With a no-op test provider the download fails, producing SYNC_FAILED — in a
-// real cluster with a live upstream, it would produce SYNC_IMPORTED.
-func TestProcessSyncEntryImportsDifferentBuildNumber(t *testing.T) {
+// TestProcessSyncEntryDedupesDifferentBuildNumber verifies that when a local
+// artifact exists with the same digest but a different build_number, sync
+// dedupes to the canonical local artifact and skips duplicate import.
+func TestProcessSyncEntryDedupesDifferentBuildNumber(t *testing.T) {
 	srv := newTestServer(t)
 	ref := &repopb.ArtifactRef{
 		PublisherId: "core@globular.io",
@@ -107,16 +104,11 @@ func TestProcessSyncEntryImportsDifferentBuildNumber(t *testing.T) {
 		"",
 	)
 
-	// Must NOT be SYNC_SKIPPED — a different build_number must not be silently
-	// ignored even when the binary bytes are identical. The controller looks up
-	// artifacts by exact build_number, so failing to register build_number=67
-	// would leave the BOM unsatisfiable.
-	if result.GetStatus() == repopb.UpstreamSyncStatus_SYNC_SKIPPED {
-		t.Fatalf("sync must not skip when build_number differs (existing=1, upstream=67): detail=%s", result.GetDetail())
+	if result.GetStatus() != repopb.UpstreamSyncStatus_SYNC_SKIPPED {
+		t.Fatalf("expected SYNC_SKIPPED for dedupe case, got %s: %s", result.GetStatus().String(), result.GetDetail())
 	}
-	// With a no-op provider the download fails, giving SYNC_FAILED.
-	if result.GetStatus() != repopb.UpstreamSyncStatus_SYNC_FAILED {
-		t.Logf("note: got %s (expected SYNC_FAILED with no-op provider)", result.GetStatus())
+	if !strings.Contains(result.GetDetail(), "deduped") {
+		t.Fatalf("expected dedupe detail, got: %s", result.GetDetail())
 	}
 }
 
