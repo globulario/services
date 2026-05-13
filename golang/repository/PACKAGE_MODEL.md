@@ -24,6 +24,47 @@ Core invariants:
 - same `publisher/name/version/platform/checksum` => dedupe to one canonical artifact
 - resolver/reconcile must converge on `build_id`, never on `build_number`
 
+## Globular Version vs Package Version
+
+- `globular_version` identifies a platform release (BOM/release-index scope).
+- `package version` identifies semantic compatibility of one package.
+- A platform release may include many package versions that do not equal the platform version.
+- Repository and reconcile flows must not auto-stamp package versions from platform version.
+
+## Release Index Pin Semantics
+
+Install/sync validation requires release-index package entries to include identity pins:
+
+- `name`
+- `version`
+- `platform`
+- `kind`
+- `build_id`
+- `artifact_sha256` (legacy fallback `checksum` accepted during migration windows)
+
+Resolution order:
+
+1. `build_id` exact match
+2. alias (`release_tag + build_number`)
+3. `publisher/name/version/platform` only when exactly one published build exists
+4. otherwise reject as ambiguous
+
+## Conflict Matrix
+
+| Case | Required behavior |
+|---|---|
+| same `build_id` + same checksum | idempotent |
+| same `build_id` + different checksum | hard conflict, reject/quarantine |
+| same package identity + same checksum + different `build_number` | dedupe + alias |
+| same package identity + same checksum + different `build_id` | dedupe/alias (no silent duplicate blob) |
+| same package identity + different checksum + different `build_id` | valid distinct builds |
+| missing `build_id` with multiple candidates | reject as ambiguous |
+
+## Date Fields Are Metadata Only
+
+- `generated_at`, `published_at`, `imported_at`, `modified_unix`, `published_unix` are operational metadata.
+- Date fields must never decide artifact identity or conflict resolution.
+
 ## Package Kinds
 
 ```

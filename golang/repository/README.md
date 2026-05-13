@@ -84,6 +84,7 @@ This service manages the lifecycle of deployable artifacts including services, a
 ### Artifact Reference
 
 ```protobuf
+// Legacy ref fields; canonical install identity also requires build_id.
 message ArtifactRef {
     string publisher_id = 1;  // e.g., "globular"
     string name = 2;          // e.g., "file-service"
@@ -99,6 +100,13 @@ Artifact resolution rules (current behavior):
 2. Version-only resolution is rejected when multiple published builds exist (ambiguous).
 3. Upstream sync dedupes identical checksums across build numbers/build IDs and persists alias records.
 4. Reconcile must converge on `build_id` (not `build_number`).
+
+Identity guidance:
+
+- `globular version` (release tag/BOM) is not package semantic `version`.
+- `build_id` is immutable artifact identity.
+- `build_number` is a release locator only.
+- `artifact_sha256` is exact byte identity; never used as a `build_id`.
 
 ## Usage Examples
 
@@ -188,6 +196,7 @@ Used by:
 - Same checksum under same package identity is deduped to a canonical artifact.
 - Alias records are written under:
   - `artifacts/aliases/<publisher>/<name>/<version>/<platform>/<release_tag>/<build_number>.json`
+- Release-index installs must be pinned (`build_id` + `artifact_sha256`) for deterministic resolution.
 
 ---
 
