@@ -333,26 +333,29 @@ func dedupeDiscoveryManifests(in []*repopb.ArtifactManifest) []*repopb.ArtifactM
 	out := make([]*repopb.ArtifactManifest, 0, len(in))
 	for _, m := range in {
 		ref := m.GetRef()
+		checksum := strings.ToLower(strings.TrimSpace(m.GetChecksum()))
+		if checksum != "" {
+			key := k{
+				publisher: strings.ToLower(ref.GetPublisherId()),
+				name:      strings.ToLower(ref.GetName()),
+				version:   ref.GetVersion(),
+				platform:  strings.ToLower(ref.GetPlatform()),
+				checksum:  checksum,
+			}
+			if cur, ok := seen[key]; !ok || m.GetBuildNumber() > cur.GetBuildNumber() {
+				seen[key] = m
+			}
+			continue
+		}
 		if bid := strings.TrimSpace(m.GetBuildId()); bid != "" {
 			if cur, ok := seenByBuildID[bid]; !ok || m.GetBuildNumber() > cur.GetBuildNumber() {
 				seenByBuildID[bid] = m
 			}
 			continue
 		}
-		checksum := strings.ToLower(strings.TrimSpace(m.GetChecksum()))
 		if checksum == "" {
 			out = append(out, m)
 			continue
-		}
-		key := k{
-			publisher: strings.ToLower(ref.GetPublisherId()),
-			name:      strings.ToLower(ref.GetName()),
-			version:   ref.GetVersion(),
-			platform:  strings.ToLower(ref.GetPlatform()),
-			checksum:  checksum,
-		}
-		if cur, ok := seen[key]; !ok || m.GetBuildNumber() > cur.GetBuildNumber() {
-			seen[key] = m
 		}
 	}
 	for _, m := range seen {

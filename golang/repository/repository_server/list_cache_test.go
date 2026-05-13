@@ -361,3 +361,44 @@ func TestListArtifacts_DedupesByBuildIDHighestBuildNumber(t *testing.T) {
 		t.Fatalf("expected 2 artifacts after build_id dedupe + checksum dedupe, got %d", len(resp.GetArtifacts()))
 	}
 }
+
+func TestListArtifacts_DedupesSameChecksumAcrossDifferentBuildIDs(t *testing.T) {
+	rows := []manifestRow{
+		{
+			ArtifactKey:  "glob%dns%1.2.43%linux_amd64%1",
+			PublishState: repopb.PublishState_PUBLISHED.String(),
+			PublisherID:  "glob",
+			Name:         "dns",
+			Version:      "1.2.43",
+			Platform:     "linux_amd64",
+			BuildNumber:  1,
+			Checksum:     "sha256:same",
+			ManifestJSON: []byte(`{"ref":{"publisherId":"glob","name":"dns","version":"1.2.43","platform":"linux_amd64","kind":"SERVICE"},"buildNumber":1,"buildId":"build-a","checksum":"sha256:same","publishState":"PUBLISHED"}`),
+		},
+		{
+			ArtifactKey:  "glob%dns%1.2.43%linux_amd64%203",
+			PublishState: repopb.PublishState_PUBLISHED.String(),
+			PublisherID:  "glob",
+			Name:         "dns",
+			Version:      "1.2.43",
+			Platform:     "linux_amd64",
+			BuildNumber:  203,
+			Checksum:     "sha256:same",
+			ManifestJSON: []byte(`{"ref":{"publisherId":"glob","name":"dns","version":"1.2.43","platform":"linux_amd64","kind":"SERVICE"},"buildNumber":203,"buildId":"build-b","checksum":"sha256:same","publishState":"PUBLISHED"}`),
+		},
+	}
+	srv := newScyllaServer(&stubLedger{
+		listFn: func(_ context.Context) ([]manifestRow, error) { return rows, nil },
+	})
+
+	resp, err := srv.ListArtifacts(context.Background(), &repopb.ListArtifactsRequest{})
+	if err != nil {
+		t.Fatalf("ListArtifacts: %v", err)
+	}
+	if len(resp.GetArtifacts()) != 1 {
+		t.Fatalf("expected 1 deduped artifact, got %d", len(resp.GetArtifacts()))
+	}
+	if got := resp.GetArtifacts()[0].GetBuildNumber(); got != 203 {
+		t.Fatalf("expected highest build_number=203 to survive dedupe, got %d", got)
+	}
+}
