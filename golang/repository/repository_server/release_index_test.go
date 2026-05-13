@@ -361,6 +361,54 @@ func TestComputeContractDigest_BinaryChangeMeansChanged(t *testing.T) {
 	}
 }
 
+func TestComputePackageContractDigest_Deterministic(t *testing.T) {
+	m := &repopb.ArtifactManifest{
+		Checksum:           "sha256:manifest-content",
+		EntrypointChecksum: "sha256:entrypoint-content",
+		Profiles:           []string{"core", "compute"},
+		Provides:           []string{"dns"},
+		Requires:           []string{"etcd"},
+		Defaults:           map[string]string{"A": "1", "B": "2"},
+		HardDeps: []*repopb.ArtifactDependencyRef{
+			{Name: "scylladb"},
+			{Name: "repository"},
+		},
+	}
+	d1 := ComputePackageContractDigest(m)
+	d2 := ComputePackageContractDigest(m)
+	if d1 != d2 {
+		t.Fatalf("digest should be deterministic: %s vs %s", d1, d2)
+	}
+}
+
+func TestComputePackageContractDigest_MatchesComponentDigest(t *testing.T) {
+	m := &repopb.ArtifactManifest{
+		Checksum:           "sha256:manifest-content",
+		EntrypointChecksum: "sha256:entrypoint-content",
+		Profiles:           []string{"compute", "core"},
+		Provides:           []string{"dns"},
+		Requires:           []string{"etcd"},
+		Defaults:           map[string]string{"B": "2", "A": "1"},
+		HardDeps: []*repopb.ArtifactDependencyRef{
+			{Name: "repository"},
+			{Name: "scylladb"},
+		},
+	}
+	got := ComputePackageContractDigest(m)
+	want := ComputeContractDigest(ContractComponents{
+		EntrypointChecksum: m.GetEntrypointChecksum(),
+		ManifestSha256:     m.GetChecksum(),
+		Profiles:           m.GetProfiles(),
+		HardDeps:           []string{"repository", "scylladb"},
+		Provides:           m.GetProvides(),
+		Requires:           m.GetRequires(),
+		Defaults:           m.GetDefaults(),
+	})
+	if got != want {
+		t.Fatalf("digest mismatch: got %s want %s", got, want)
+	}
+}
+
 func TestIsChanged_NilDefaultsTrue(t *testing.T) {
 	e := &releaseIndexEntry{}
 	if !e.IsChanged() {

@@ -587,6 +587,33 @@ type ContractComponents struct {
 	Defaults           map[string]string
 }
 
+// ComputePackageContractDigest computes the package contract digest directly
+// from an artifact manifest.
+func ComputePackageContractDigest(manifest *repopb.ArtifactManifest) string {
+	if manifest == nil {
+		return ComputeContractDigest(ContractComponents{})
+	}
+	hardDeps := make([]string, 0, len(manifest.GetHardDeps()))
+	for _, d := range manifest.GetHardDeps() {
+		if d == nil {
+			continue
+		}
+		name := strings.TrimSpace(d.GetName())
+		if name != "" {
+			hardDeps = append(hardDeps, name)
+		}
+	}
+	return ComputeContractDigest(ContractComponents{
+		EntrypointChecksum: manifest.GetEntrypointChecksum(),
+		ManifestSha256:     manifest.GetChecksum(),
+		Profiles:           manifest.GetProfiles(),
+		HardDeps:           hardDeps,
+		Provides:           manifest.GetProvides(),
+		Requires:           manifest.GetRequires(),
+		Defaults:           manifest.GetDefaults(),
+	})
+}
+
 func sortedCopy(s []string) []string {
 	out := make([]string, len(s))
 	copy(out, s)
