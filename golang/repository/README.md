@@ -16,6 +16,8 @@ This service manages the lifecycle of deployable artifacts including services, a
 - **Version Management** - Track multiple versions of artifacts
 - **Platform Support** - Platform-specific builds (linux/amd64, etc.)
 - **Checksum Verification** - Integrity validation
+- **Build Identity** - Immutable `build_id` for deterministic convergence
+- **Alias Mapping** - `release_tag + build_number -> canonical build_id`
 - **Bundle Support** - Multi-artifact deployment packages
 - **Streaming Transfers** - Efficient large file handling
 
@@ -90,6 +92,13 @@ message ArtifactRef {
     ArtifactKind kind = 5;    // SERVICE, APPLICATION, AGENT, SUBSYSTEM
 }
 ```
+
+Artifact resolution rules (current behavior):
+
+1. If `build_id` is provided, resolve exact build.
+2. Version-only resolution is rejected when multiple published builds exist (ambiguous).
+3. Upstream sync dedupes identical checksums across build numbers/build IDs and persists alias records.
+4. Reconcile must converge on `build_id` (not `build_number`).
 
 ## Usage Examples
 
@@ -171,6 +180,14 @@ Used by:
 - [Cluster Controller](../cluster_controller/README.md) - Upgrade artifacts
 - [Discovery Service](../discovery/README.md) - Package resolution
 - [Node Agent](../nodeagent/README.md) - Artifact downloads
+
+## Identity Notes
+
+- `build_id` is immutable artifact identity.
+- Same `build_id` with different checksum is a hard conflict.
+- Same checksum under same package identity is deduped to a canonical artifact.
+- Alias records are written under:
+  - `artifacts/aliases/<publisher>/<name>/<version>/<platform>/<release_tag>/<build_number>.json`
 
 ---
 

@@ -8,6 +8,22 @@ The package model is based on `ArtifactManifest` / `ArtifactRef` from `repositor
 The legacy `PackageBundle` / `PackageDescriptor` path (spread across Resource and Discovery)
 remains available for backward compatibility but is not the target architecture.
 
+## Layered Identity Model
+
+- `globular version`: platform/BOM release identity (`vX.Y.Z`)
+- `package version`: semantic compatibility of one package
+- `build_id`: immutable artifact identity (canonical install identity)
+- `build_number`: release/index locator (legacy-compatible locator, not canonical identity)
+- `checksum` (`artifact_sha256`): exact archive byte identity
+- `package_contract_digest`: normalized install/runtime contract identity
+- `entrypoint_checksum`: runtime executable fingerprint
+
+Core invariants:
+
+- same `build_id` + different checksum => hard conflict (reject/quarantine)
+- same `publisher/name/version/platform/checksum` => dedupe to one canonical artifact
+- resolver/reconcile must converge on `build_id`, never on `build_number`
+
 ## Package Kinds
 
 ```
@@ -27,7 +43,9 @@ Every package has an `ArtifactManifest` containing:
 | Field                  | Type              | Description                              |
 |------------------------|-------------------|------------------------------------------|
 | `ref`                  | ArtifactRef       | publisher, name, version, platform, kind |
-| `checksum`             | string            | SHA256 of archive                        |
+| `build_id`             | string            | Immutable build identity (UUID/derived)  |
+| `build_number`         | int64             | Build locator within a release/index     |
+| `checksum`             | string            | SHA256 of archive bytes                  |
 | `size_bytes`           | int64             | Archive size                             |
 | `modified_unix`        | int64             | Last modification timestamp              |
 | `published_unix`       | int64             | Publication timestamp                    |
@@ -94,8 +112,9 @@ New package lifecycle work should converge on the artifact path:
 ## Storage Layout
 
 ```
-artifacts/{publisher}%{name}%{version}%{platform}.manifest.json   – ArtifactManifest (JSON)
-artifacts/{publisher}%{name}%{version}%{platform}.bin              – Archive binary
+artifacts/{publisher}%{name}%{version}%{platform}%{build_number}.manifest.json   – ArtifactManifest (JSON)
+artifacts/{publisher}%{name}%{version}%{platform}%{build_number}.bin              – Archive binary
+artifacts/aliases/{publisher}/{name}/{version}/{platform}/{release_tag}/{build_number}.json
 packages-repository/{UUID}.tar.gz                                   – Legacy bundles (read-only compat)
 ```
 
