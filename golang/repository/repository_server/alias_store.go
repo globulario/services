@@ -33,15 +33,27 @@ type releaseBuildAliasRecord struct {
 }
 
 func aliasStorageKey(ref *repopb.ArtifactRef, releaseTag string, buildNumber int64) string {
+	locator := LegacyBuildAliasKey(ref, buildNumber, releaseTag)
+	parts := strings.Split(locator, "%")
+	if len(parts) != 6 {
+		parts = []string{
+			ref.GetPublisherId(),
+			ref.GetName(),
+			ref.GetVersion(),
+			ref.GetPlatform(),
+			releaseTag,
+			strconv.FormatInt(buildNumber, 10),
+		}
+	}
 	return path.Join(
 		artifactsDir,
 		"aliases",
-		sanitizeAliasPathSegment(ref.GetPublisherId()),
-		sanitizeAliasPathSegment(ref.GetName()),
-		sanitizeAliasPathSegment(ref.GetVersion()),
-		sanitizeAliasPathSegment(ref.GetPlatform()),
-		sanitizeAliasPathSegment(releaseTag),
-		strconv.FormatInt(buildNumber, 10)+".json",
+		sanitizeAliasPathSegment(parts[0]),
+		sanitizeAliasPathSegment(parts[1]),
+		sanitizeAliasPathSegment(parts[2]),
+		sanitizeAliasPathSegment(parts[3]),
+		sanitizeAliasPathSegment(parts[4]),
+		sanitizeAliasPathSegment(parts[5])+".json",
 	)
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
@@ -67,3 +68,16 @@ func TestEnsureReleaseBuildAliasRejectsCanonicalConflict(t *testing.T) {
 	}
 }
 
+func TestAliasStorageKey_UsesLegacyBuildAliasLocator(t *testing.T) {
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "workflow",
+		Version:     "1.0.53",
+		Platform:    "linux/amd64",
+	}
+	got := aliasStorageKey(ref, "v1.0.53", 67)
+	wantSuffix := "artifacts/aliases/core@globular.io/workflow/1.0.53/linux_amd64/v1.0.53/67.json"
+	if !strings.HasSuffix(got, wantSuffix) {
+		t.Fatalf("aliasStorageKey=%q, want suffix %q", got, wantSuffix)
+	}
+}
