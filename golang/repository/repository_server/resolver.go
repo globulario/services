@@ -209,13 +209,20 @@ func (srv *server) pickResolution(
 		return nil, status.Error(codes.NotFound, reason)
 	}
 
-	// If version was specified and multiple builds exist for that version,
-	// pick the highest build_number (most recent build of that version).
+	// If version was specified, resolution must be deterministic and explicit.
+	// More than one build for the same version is ambiguous by design; callers
+	// must pin build_id (or an alias that resolves to build_id) before reconcile.
 	if targetVersion != "" {
-		best := pickHighestBuild(candidates)
+		if len(candidates) > 1 {
+			top := pickHighestBuild(candidates)
+			return nil, status.Errorf(codes.FailedPrecondition,
+				"ambiguous resolution: multiple builds at %s/%s@%s (top build_number=%d) — specify build_id explicitly",
+				name, platform, targetVersion, top.GetBuildNumber())
+		}
+		best := candidates[0]
 		return &repopb.ResolveArtifactResponse{
 			Manifest:         best,
-			ResolutionSource: fmt.Sprintf("exact-version build_number=%d", best.GetBuildNumber()),
+			ResolutionSource: "exact-version",
 		}, nil
 	}
 

@@ -176,9 +176,9 @@ func TestResolveByBuildIDYankedNotReturned(t *testing.T) {
 	}
 }
 
-// TestResolveArtifactPicksHighestBuild verifies that when multiple builds exist
-// for the same version, the resolver picks the highest build_number.
-func TestResolveArtifactPicksHighestBuild(t *testing.T) {
+// TestResolveArtifactVersionAmbiguous verifies that version-only resolution is
+// rejected when multiple builds exist for the same version.
+func TestResolveArtifactVersionAmbiguous(t *testing.T) {
 	rows := []manifestRow{
 		publishedRow("glob", "echo", "1.0.0", "linux_amd64", 3, "build-c"),
 		publishedRow("glob", "echo", "1.0.0", "linux_amd64", 7, "build-g"),
@@ -186,15 +186,15 @@ func TestResolveArtifactPicksHighestBuild(t *testing.T) {
 	}
 	srv := buildResolverServer(t, rows)
 
-	resp, err := srv.ResolveArtifact(context.Background(), &repopb.ResolveArtifactRequest{
+	_, err := srv.ResolveArtifact(context.Background(), &repopb.ResolveArtifactRequest{
 		Name:     "echo",
 		Platform: "linux_amd64",
 		Version:  "1.0.0",
 	})
-	if err != nil {
-		t.Fatalf("ResolveArtifact: %v", err)
+	if err == nil {
+		t.Fatal("expected ambiguous resolution error, got nil")
 	}
-	if resp.GetManifest().GetBuildNumber() != 7 {
-		t.Errorf("expected highest build_number=7, got %d", resp.GetManifest().GetBuildNumber())
+	if code := status.Code(err); code != codes.FailedPrecondition {
+		t.Fatalf("expected codes.FailedPrecondition, got %v (err=%v)", code, err)
 	}
 }
