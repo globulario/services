@@ -73,6 +73,12 @@ func ClusterResolver() *net.Resolver {
 // Use this as http.Transport.DialContext to wire cluster-aware resolution
 // into any Go HTTP client (including the MinIO SDK).
 func ClusterDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 8*time.Second)
+		defer cancel()
+	}
+
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		// Not host:port — let the default dialer handle it.
@@ -81,14 +87,24 @@ func ClusterDialContext(ctx context.Context, network, addr string) (net.Conn, er
 	}
 	lowered := strings.ToLower(strings.TrimSuffix(host, "."))
 	if strings.HasSuffix(lowered, clusterDNSSuffix) || lowered == strings.TrimPrefix(clusterDNSSuffix, ".") {
-		// Resolve via cluster DNS first.
-		ips, err := ClusterResolver().LookupHost(ctx, host)
-		if err != nil {
-			// DNS service is unreachable — fall back to etcd-backed records.
-			log.Printf("cluster-dial: DNS lookup failed for %q (%v); trying etcd fallback", host, err)
-			ips, err = resolveClusterNameFromEtcd(host)
+		// For tier-0 services, prefer direct etcd-backed resolution first to avoid
+		// DNS self-dependency during recovery.
+		var ips []string
+		if isTier0ClusterServiceHost(host) {
+			if tier0, tErr := resolveClusterNameFromEtcd(host); tErr == nil && len(tier0) > 0 {
+				ips = tier0
+			}
+		}
+		if len(ips) == 0 {
+			// Resolve via cluster DNS.
+			ips, err = ClusterResolver().LookupHost(ctx, host)
 			if err != nil {
-				return nil, fmt.Errorf("cluster-dial: DNS and etcd fallback both failed for %q: %w", host, err)
+				// DNS service is unreachable — fall back to etcd-backed records.
+				log.Printf("cluster-dial: DNS lookup failed for %q (%v); trying etcd fallback", host, err)
+				ips, err = resolveClusterNameFromEtcd(host)
+				if err != nil {
+					return nil, fmt.Errorf("cluster-dial: DNS and etcd fallback both failed for %q: %w", host, err)
+				}
 			}
 		}
 		var lastErr error
@@ -111,6 +127,16 @@ func ClusterDialContext(ctx context.Context, network, addr string) (net.Conn, er
 	// Fall through to system resolver for non-cluster names.
 	d := net.Dialer{Timeout: 5 * time.Second}
 	return d.DialContext(ctx, network, addr)
+}
+
+func isTier0ClusterServiceHost(host string) bool {
+	normalized := strings.ToLower(strings.TrimSuffix(strings.TrimSuffix(host, "."), clusterDNSSuffix))
+	switch normalized {
+	case "minio", "scylla", "dns":
+		return true
+	default:
+		return false
+	}
 }
 
 // resolveClusterNameFromEtcd is the DNS fallback when the cluster DNS service is

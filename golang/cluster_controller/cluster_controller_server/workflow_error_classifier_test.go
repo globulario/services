@@ -88,6 +88,17 @@ func TestClassifyWorkflowError_PostureGate(t *testing.T) {
 	}
 }
 
+func TestClassifyWorkflowError_DependencyBlocked(t *testing.T) {
+	err := fmt.Errorf("WORKFLOW_DEPENDENCY_BLOCKED: dependency=scylla reason=circuit open")
+	transient, reason := classifyWorkflowError(err)
+	if !transient {
+		t.Error("dependency-blocked error must be transient")
+	}
+	if reason != "workflow_dependency_blocked" {
+		t.Errorf("reason = %q, want workflow_dependency_blocked", reason)
+	}
+}
+
 func TestClassifyWorkflowError_Permanent_ItemFailures(t *testing.T) {
 	err := fmt.Errorf("step apply_per_node: 1/2 items failed")
 	transient, reason := classifyWorkflowError(err)

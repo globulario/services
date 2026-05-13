@@ -204,3 +204,160 @@ func TestResolverNoStaleYanked(t *testing.T) {
 		}
 	}
 }
+
+func TestListArtifacts_FiltersInvalidAndDedupesSameChecksum(t *testing.T) {
+	rows := []manifestRow{
+		{
+			ArtifactKey:  "glob%repository%1.2.42%linux_amd64%1",
+			PublishState: repopb.PublishState_PUBLISHED.String(),
+			PublisherID:  "glob",
+			Name:         "repository",
+			Version:      "1.2.42",
+			Platform:     "linux_amd64",
+			BuildNumber:  1,
+			Checksum:     "sha256:abc",
+			ManifestJSON: minimalManifestJSON("glob", "repository", "1.2.42", "linux_amd64", 1, "PUBLISHED"),
+		},
+		{
+			ArtifactKey:  "glob%repository%1.2.42%linux_amd64%201",
+			PublishState: repopb.PublishState_PUBLISHED.String(),
+			PublisherID:  "glob",
+			Name:         "repository",
+			Version:      "1.2.42",
+			Platform:     "linux_amd64",
+			BuildNumber:  201,
+			Checksum:     "sha256:abc",
+			ManifestJSON: minimalManifestJSON("glob", "repository", "1.2.42", "linux_amd64", 201, "PUBLISHED"),
+		},
+		{
+			ArtifactKey:  "glob%repository%%linux_amd64%0",
+			PublishState: repopb.PublishState_PUBLISH_STATE_UNSPECIFIED.String(),
+			PublisherID:  "glob",
+			Name:         "repository",
+			Version:      "",
+			Platform:     "linux_amd64",
+			BuildNumber:  0,
+			Checksum:     "",
+			ManifestJSON: minimalManifestJSON("glob", "repository", "", "linux_amd64", 0, "PUBLISH_STATE_UNSPECIFIED"),
+		},
+	}
+	srv := newScyllaServer(&stubLedger{
+		listFn: func(_ context.Context) ([]manifestRow, error) { return rows, nil },
+	})
+
+	resp, err := srv.ListArtifacts(context.Background(), &repopb.ListArtifactsRequest{})
+	if err != nil {
+		t.Fatalf("ListArtifacts: %v", err)
+	}
+	if len(resp.GetArtifacts()) != 1 {
+		t.Fatalf("expected 1 artifact after filter+dedupe, got %d", len(resp.GetArtifacts()))
+	}
+	if got := resp.GetArtifacts()[0].GetBuildNumber(); got != 201 {
+		t.Fatalf("expected deduped highest build_number=201, got %d", got)
+	}
+}
+
+func TestGetArtifactVersions_FiltersInvalidAndDedupesSameChecksum(t *testing.T) {
+	rows := []manifestRow{
+		{
+			ArtifactKey:  "glob%repository%1.2.42%linux_amd64%1",
+			PublishState: repopb.PublishState_PUBLISHED.String(),
+			PublisherID:  "glob",
+			Name:         "repository",
+			Version:      "1.2.42",
+			Platform:     "linux_amd64",
+			BuildNumber:  1,
+			Checksum:     "sha256:abc",
+			ManifestJSON: minimalManifestJSON("glob", "repository", "1.2.42", "linux_amd64", 1, "PUBLISHED"),
+		},
+		{
+			ArtifactKey:  "glob%repository%1.2.42%linux_amd64%201",
+			PublishState: repopb.PublishState_PUBLISHED.String(),
+			PublisherID:  "glob",
+			Name:         "repository",
+			Version:      "1.2.42",
+			Platform:     "linux_amd64",
+			BuildNumber:  201,
+			Checksum:     "sha256:abc",
+			ManifestJSON: minimalManifestJSON("glob", "repository", "1.2.42", "linux_amd64", 201, "PUBLISHED"),
+		},
+		{
+			ArtifactKey:  "glob%repository%%linux_amd64%0",
+			PublishState: repopb.PublishState_PUBLISH_STATE_UNSPECIFIED.String(),
+			PublisherID:  "glob",
+			Name:         "repository",
+			Version:      "",
+			Platform:     "linux_amd64",
+			BuildNumber:  0,
+			Checksum:     "",
+			ManifestJSON: minimalManifestJSON("glob", "repository", "", "linux_amd64", 0, "PUBLISH_STATE_UNSPECIFIED"),
+		},
+	}
+	srv := newScyllaServer(&stubLedger{
+		listFn: func(_ context.Context) ([]manifestRow, error) { return rows, nil },
+	})
+
+	resp, err := srv.GetArtifactVersions(context.Background(), &repopb.GetArtifactVersionsRequest{
+		PublisherId: "glob",
+		Name:        "repository",
+		Platform:    "linux_amd64",
+	})
+	if err != nil {
+		t.Fatalf("GetArtifactVersions: %v", err)
+	}
+	if len(resp.GetVersions()) != 1 {
+		t.Fatalf("expected 1 version after filter+dedupe, got %d", len(resp.GetVersions()))
+	}
+	if got := resp.GetVersions()[0].GetBuildNumber(); got != 201 {
+		t.Fatalf("expected deduped highest build_number=201, got %d", got)
+	}
+}
+
+func TestListArtifacts_DedupesByBuildIDHighestBuildNumber(t *testing.T) {
+	rows := []manifestRow{
+		{
+			ArtifactKey:  "glob%repository%1.2.42%linux_amd64%1",
+			PublishState: repopb.PublishState_PUBLISHED.String(),
+			PublisherID:  "glob",
+			Name:         "repository",
+			Version:      "1.2.42",
+			Platform:     "linux_amd64",
+			BuildNumber:  1,
+			Checksum:     "sha256:aaa",
+			ManifestJSON: minimalManifestJSON("glob", "repository", "1.2.42", "linux_amd64", 1, "PUBLISHED"),
+		},
+		{
+			ArtifactKey:  "glob%repository%1.2.42%linux_amd64%204",
+			PublishState: repopb.PublishState_PUBLISHED.String(),
+			PublisherID:  "glob",
+			Name:         "repository",
+			Version:      "1.2.42",
+			Platform:     "linux_amd64",
+			BuildNumber:  204,
+			Checksum:     "sha256:bbb",
+			ManifestJSON: []byte(`{"ref":{"publisherId":"glob","name":"repository","version":"1.2.42","platform":"linux_amd64","kind":"SERVICE"},"buildNumber":204,"buildId":"same-build-id","publishState":"PUBLISHED"}`),
+		},
+		{
+			ArtifactKey:  "glob%repository%1.2.42%linux_amd64%1",
+			PublishState: repopb.PublishState_PUBLISHED.String(),
+			PublisherID:  "glob",
+			Name:         "repository",
+			Version:      "1.2.42",
+			Platform:     "linux_amd64",
+			BuildNumber:  1,
+			Checksum:     "sha256:aaa",
+			ManifestJSON: []byte(`{"ref":{"publisherId":"glob","name":"repository","version":"1.2.42","platform":"linux_amd64","kind":"SERVICE"},"buildNumber":1,"buildId":"same-build-id","publishState":"PUBLISHED"}`),
+		},
+	}
+	srv := newScyllaServer(&stubLedger{
+		listFn: func(_ context.Context) ([]manifestRow, error) { return rows, nil },
+	})
+
+	resp, err := srv.ListArtifacts(context.Background(), &repopb.ListArtifactsRequest{})
+	if err != nil {
+		t.Fatalf("ListArtifacts: %v", err)
+	}
+	if len(resp.GetArtifacts()) != 2 {
+		t.Fatalf("expected 2 artifacts after build_id dedupe + checksum dedupe, got %d", len(resp.GetArtifacts()))
+	}
+}

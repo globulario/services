@@ -20,6 +20,7 @@ import (
 //	workflow_deadline          — DeadlineExceeded
 //	workflow_handler_missing   — preflight / no registered handler (bootstrap transient)
 //	workflow_posture_gate      — posture gate: RECOVERY_ONLY
+//	workflow_dependency_blocked — backend dependency gate blocked dispatch
 func classifyWorkflowError(err error) (transient bool, reason string) {
 	if err == nil {
 		return false, ""
@@ -56,6 +57,8 @@ func classifyWorkflowError(err error) (transient bool, reason string) {
 		return true, "workflow_handler_missing"
 	case strings.Contains(msg, "posture gate"):
 		return true, "workflow_posture_gate"
+	case strings.Contains(msg, "WORKFLOW_DEPENDENCY_BLOCKED"):
+		return true, "workflow_dependency_blocked"
 	}
 
 	return false, ""

@@ -193,13 +193,16 @@ func TestSearchArtifacts_Pagination(t *testing.T) {
 func TestGetArtifactVersions(t *testing.T) {
 	srv := newTestServer(t)
 	seedArtifact(t, srv, &repopb.ArtifactManifest{
-		Ref: &repopb.ArtifactRef{PublisherId: "glob", Name: "gateway", Version: "1.0.0", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE},
+		Ref:         &repopb.ArtifactRef{PublisherId: "glob", Name: "gateway", Version: "1.0.0", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE},
+		BuildNumber: 1,
 	})
 	seedArtifact(t, srv, &repopb.ArtifactManifest{
-		Ref: &repopb.ArtifactRef{PublisherId: "glob", Name: "gateway", Version: "1.1.0", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE},
+		Ref:         &repopb.ArtifactRef{PublisherId: "glob", Name: "gateway", Version: "1.1.0", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE},
+		BuildNumber: 1,
 	})
 	seedArtifact(t, srv, &repopb.ArtifactManifest{
-		Ref: &repopb.ArtifactRef{PublisherId: "glob", Name: "rbac", Version: "1.0.0", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE},
+		Ref:         &repopb.ArtifactRef{PublisherId: "glob", Name: "rbac", Version: "1.0.0", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE},
+		BuildNumber: 1,
 	})
 
 	resp, err := srv.GetArtifactVersions(context.Background(), &repopb.GetArtifactVersionsRequest{

@@ -402,6 +402,9 @@ func (srv *server) StartService() error {
 	if srv.DnsPort == 0 {
 		srv.DnsPort = 53
 	}
+	if err := srv.ensureScyllaReadyForStartup(); err != nil {
+		return err
+	}
 
 	go func(port int) {
 		if err := ServeDns(port); err != nil && logger != nil {
@@ -460,6 +463,20 @@ func (srv *server) openConnection() error {
 		return fmt.Errorf("scylla dns store: %w", err)
 	}
 	srv.connection_is_open = true
+	return nil
+}
+
+func (srv *server) ensureScyllaReadyForStartup() error {
+	if err := srv.openConnection(); err != nil {
+		return fmt.Errorf("dns startup blocked: scylla not ready: %w", err)
+	}
+	if srv.store == nil {
+		return fmt.Errorf("dns startup blocked: scylla store unavailable after connect")
+	}
+	// Read a known key to validate query path, not only TCP port readiness.
+	if _, err := srv.store.GetItem("domains"); err != nil {
+		return fmt.Errorf("dns startup blocked: scylla query check failed: %w", err)
+	}
 	return nil
 }
 

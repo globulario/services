@@ -108,3 +108,21 @@ func TestControllerToNodeSkipsDNSOnLookupFailure(t *testing.T) {
 		t.Errorf("expected 'no etcd fallback' in error, got: %v", err)
 	}
 }
+
+func TestIsTier0ClusterServiceHost(t *testing.T) {
+	cases := []struct {
+		host string
+		want bool
+	}{
+		{host: "minio.globular.internal", want: true},
+		{host: "scylla.globular.internal.", want: true},
+		{host: "dns.globular.internal", want: true},
+		{host: "gateway.globular.internal", want: false},
+		{host: "example.com", want: false},
+	}
+	for _, tc := range cases {
+		if got := isTier0ClusterServiceHost(tc.host); got != tc.want {
+			t.Fatalf("isTier0ClusterServiceHost(%q) = %v, want %v", tc.host, got, tc.want)
+		}
+	}
+}

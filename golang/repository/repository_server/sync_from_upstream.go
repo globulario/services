@@ -469,6 +469,33 @@ func (srv *server) processSyncEntry(
 		Platform:    n.Platform,
 	}
 
+	// Build-ID identity gate: same build_id is the same artifact identity.
+	// Never create duplicate rows for an already-known build_id when the local
+	// build_number is already equal or newer.
+	if existingByID, stateByID, _, ok := srv.findExistingArtifactByBuildID(ctx, ref, n.BuildID); ok {
+		if !digestEqual(existingByID.GetChecksum(), n.Digest) {
+			result.Status = repopb.UpstreamSyncStatus_SYNC_REJECTED
+			result.Detail = fmt.Sprintf("build_id conflict: same build_id=%s but digest differs local=%s... upstream=%s...",
+				n.BuildID, truncDigest(existingByID.GetChecksum()), truncDigest(n.Digest))
+			result.Action = "conflict"
+			return result
+		}
+		if existingByID.GetBuildNumber() >= n.BuildNumber {
+			result.LocalBuildNumber = existingByID.GetBuildNumber()
+			if dryRun {
+				result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
+			} else {
+				result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
+			}
+			result.Action = "up_to_date"
+			result.Detail = fmt.Sprintf("same build_id already present at build_number=%d (upstream=%d, state=%s)",
+				existingByID.GetBuildNumber(), n.BuildNumber, stateByID.String())
+			return result
+		}
+		// existing build_id is older build_number; proceed to import at upstream
+		// build_number so highest build_number is retained for this identity.
+	}
+
 	if ledger != nil {
 		for _, r := range ledger.Releases {
 			if r.Version == n.Version && r.BuildID == n.BuildID && r.Platform == n.Platform {
@@ -747,6 +774,23 @@ func (srv *server) importUpstreamArtifact(
 		Platform:    n.Platform,
 	}
 	key := artifactKeyWithBuild(ref, n.BuildNumber)
+
+	if existingByID, stateByID, _, ok := srv.findExistingArtifactByBuildID(ctx, ref, n.BuildID); ok {
+		if !digestEqual(existingByID.GetChecksum(), digest) {
+			return fmt.Errorf("build_id conflict: same build_id=%s has different digest local=%s upstream=%s",
+				n.BuildID, existingByID.GetChecksum(), digest)
+		}
+		if existingByID.GetBuildNumber() >= n.BuildNumber {
+			slog.Info("upstream: same build_id already present at equal/higher build_number, skipping import",
+				"source", src.GetName(), "publisher", n.Publisher,
+				"name", n.Name, "version", n.Version, "platform", n.Platform,
+				"build_id", n.BuildID,
+				"existing_build_number", existingByID.GetBuildNumber(),
+				"upstream_build_number", n.BuildNumber,
+				"publish_state", stateByID.String())
+			return nil
+		}
+	}
 
 	if existing, state, _, ok := srv.findExistingArtifactByDigest(ctx, ref, digest); ok {
 		// Verify the exact binary blob exists at the matching build_number AND

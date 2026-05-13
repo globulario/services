@@ -11,11 +11,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/versionutil"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	resourcepb "github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/google/uuid"
 	Utility "github.com/globulario/utility"
 )
 
@@ -203,6 +205,10 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 	// Compute artifact key and write to the artifacts/ directory.
 	id := bundleID(bundle.PackageDescriptor, bundle.Plaform)
 	d := bundle.PackageDescriptor
+	if strings.TrimSpace(d.Version) == "" {
+		_ = stream.SendAndClose(&repopb.UploadBundleResponse{}) // best-effort close
+		return errors.New("package descriptor version is required")
+	}
 	aRef := &repopb.ArtifactRef{
 		Name:        d.Name,
 		Version:     d.Version,
@@ -210,7 +216,9 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 		PublisherId: d.PublisherID,
 		Kind:        repopb.ArtifactKind_SERVICE,
 	}
-	aKey := artifactKeyWithBuild(aRef, 0)
+	buildNumber := srv.resolveLatestBuildNumber(stream.Context(), aRef) + 1
+	buildID := uuid.Must(uuid.NewV7()).String()
+	aKey := artifactKeyWithBuild(aRef, buildNumber)
 
 	// Write binary to local POSIX CAS first — local CAS is the installability authority.
 	bundle.Checksum = checksumBytes(bundle.Binairies)
@@ -242,6 +250,8 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 	// Build manifest and promote to PUBLISHED (verifies local CAS + writes Scylla + manifest).
 	manifest := &repopb.ArtifactManifest{
 		Ref:          aRef,
+		BuildNumber:  buildNumber,
+		BuildId:      buildID,
 		Checksum:     bundle.Checksum,
 		SizeBytes:    int64(bundle.Size),
 		ModifiedUnix: bundle.Modified,

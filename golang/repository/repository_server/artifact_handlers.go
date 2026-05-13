@@ -267,11 +267,104 @@ func manifestFromRow(row manifestRow) (*repopb.ArtifactManifest, repopb.PublishS
 	}
 	m.PublishState = state
 	if ref := m.GetRef(); ref != nil {
+		if strings.TrimSpace(ref.GetPublisherId()) == "" {
+			ref.PublisherId = row.PublisherID
+		}
+		if strings.TrimSpace(ref.GetName()) == "" {
+			ref.Name = row.Name
+		}
+		if strings.TrimSpace(ref.GetVersion()) == "" {
+			ref.Version = row.Version
+		}
+		if strings.TrimSpace(ref.GetPlatform()) == "" {
+			ref.Platform = row.Platform
+		}
 		if corrected := inferCorrectKind(ref.GetName(), ref.GetKind()); corrected != ref.GetKind() {
 			ref.Kind = corrected
 		}
 	}
+	if m.GetBuildNumber() <= 0 && row.BuildNumber > 0 {
+		m.BuildNumber = row.BuildNumber
+	}
+	if strings.TrimSpace(m.GetChecksum()) == "" && strings.TrimSpace(row.Checksum) != "" {
+		m.Checksum = row.Checksum
+	}
+	if strings.TrimSpace(m.GetEntrypointChecksum()) == "" && strings.TrimSpace(row.EntrypointChecksum) != "" {
+		m.EntrypointChecksum = row.EntrypointChecksum
+	}
+	if m.GetSizeBytes() <= 0 && row.SizeBytes > 0 {
+		m.SizeBytes = row.SizeBytes
+	}
+	if m.GetModifiedUnix() <= 0 && row.ModifiedUnix > 0 {
+		m.ModifiedUnix = row.ModifiedUnix
+	}
 	return m, state, nil
+}
+
+// isDiscoveryManifestValid enforces minimum identity integrity for display and
+// version-list APIs. Install resolution has stricter gates elsewhere.
+func isDiscoveryManifestValid(m *repopb.ArtifactManifest) bool {
+	if m == nil || m.GetRef() == nil {
+		return false
+	}
+	ref := m.GetRef()
+	if strings.TrimSpace(ref.GetPublisherId()) == "" ||
+		strings.TrimSpace(ref.GetName()) == "" ||
+		strings.TrimSpace(ref.GetVersion()) == "" ||
+		strings.TrimSpace(ref.GetPlatform()) == "" {
+		return false
+	}
+	if m.GetBuildNumber() <= 0 {
+		return false
+	}
+	return true
+}
+
+// dedupeDiscoveryManifests keeps one row per identical identity+content tuple,
+// preferring the highest build_number. This avoids duplicate UI rows when
+// upstream/local imports register identical artifacts under multiple build ids.
+func dedupeDiscoveryManifests(in []*repopb.ArtifactManifest) []*repopb.ArtifactManifest {
+	type k struct {
+		publisher string
+		name      string
+		version   string
+		platform  string
+		checksum  string
+	}
+	seen := make(map[k]*repopb.ArtifactManifest, len(in))
+	seenByBuildID := make(map[string]*repopb.ArtifactManifest, len(in))
+	out := make([]*repopb.ArtifactManifest, 0, len(in))
+	for _, m := range in {
+		ref := m.GetRef()
+		if bid := strings.TrimSpace(m.GetBuildId()); bid != "" {
+			if cur, ok := seenByBuildID[bid]; !ok || m.GetBuildNumber() > cur.GetBuildNumber() {
+				seenByBuildID[bid] = m
+			}
+			continue
+		}
+		checksum := strings.ToLower(strings.TrimSpace(m.GetChecksum()))
+		if checksum == "" {
+			out = append(out, m)
+			continue
+		}
+		key := k{
+			publisher: strings.ToLower(ref.GetPublisherId()),
+			name:      strings.ToLower(ref.GetName()),
+			version:   ref.GetVersion(),
+			platform:  strings.ToLower(ref.GetPlatform()),
+			checksum:  checksum,
+		}
+		if cur, ok := seen[key]; !ok || m.GetBuildNumber() > cur.GetBuildNumber() {
+			seen[key] = m
+		}
+	}
+	for _, m := range seen {
+		out = append(out, m)
+	}
+	for _, m := range seenByBuildID {
+		out = append(out, m)
+	}
+	return out
 }
 
 // readManifestByKey reads and unmarshals a single manifest JSON from storage.
@@ -579,6 +672,73 @@ func (srv *server) findExistingArtifactByDigest(ctx context.Context, ref *repopb
 	return best, bestState, bestKey, true
 }
 
+// findExistingArtifactByBuildID returns an existing artifact with the exact
+// build_id under the same package identity.
+func (srv *server) findExistingArtifactByBuildID(ctx context.Context, ref *repopb.ArtifactRef, buildID string) (*repopb.ArtifactManifest, repopb.PublishState, string, bool) {
+	if ref == nil || strings.TrimSpace(buildID) == "" {
+		return nil, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, "", false
+	}
+
+	if srv.scylla != nil {
+		rows, err := srv.scylla.ListManifests(ctx)
+		if err == nil {
+			var best *repopb.ArtifactManifest
+			var bestState repopb.PublishState
+			var bestKey string
+			for _, row := range rows {
+				if !strings.EqualFold(row.PublisherID, ref.GetPublisherId()) ||
+					!strings.EqualFold(row.Name, ref.GetName()) ||
+					!strings.EqualFold(row.Version, ref.GetVersion()) ||
+					!strings.EqualFold(row.Platform, ref.GetPlatform()) {
+					continue
+				}
+				m, state, parseErr := manifestFromRow(row)
+				if parseErr != nil || m.GetBuildId() != buildID {
+					continue
+				}
+				if best == nil || m.GetBuildNumber() > best.GetBuildNumber() {
+					best = m
+					bestState = state
+					bestKey = row.ArtifactKey
+				}
+			}
+			if best != nil {
+				return best, bestState, bestKey, true
+			}
+			return nil, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, "", false
+		}
+	}
+
+	names := srv.cachedDirNames(ctx)
+	if names == nil {
+		return nil, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, "", false
+	}
+	prefix := ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform() + "%"
+	suffix := ".manifest.json"
+	var best *repopb.ArtifactManifest
+	var bestState repopb.PublishState
+	var bestKey string
+	for _, name := range names {
+		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
+			continue
+		}
+		key := strings.TrimSuffix(name, suffix)
+		_, state, m, err := srv.readManifestAndStateByKey(ctx, key)
+		if err != nil || m == nil || m.GetBuildId() != buildID {
+			continue
+		}
+		if best == nil || m.GetBuildNumber() > best.GetBuildNumber() {
+			best = m
+			bestState = state
+			bestKey = key
+		}
+	}
+	if best == nil {
+		return nil, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, "", false
+	}
+	return best, bestState, bestKey, true
+}
+
 // cachedDirNames returns the artifact directory entry names, using the cache
 // when available.
 func (srv *server) cachedDirNames(ctx context.Context) []string {
@@ -856,6 +1016,10 @@ func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsReq
 				slog.Warn("skipping unreadable ledger row", "key", row.ArtifactKey, "err", parseErr)
 				continue
 			}
+			if !isDiscoveryManifestValid(m) {
+				slog.Warn("skipping invalid discovery manifest row", "key", row.ArtifactKey)
+				continue
+			}
 			if repopb.IsDiscoveryHidden(state) && !isAdmin {
 				if authCtx == nil || !srv.isNamespaceOwner(ctx, m.GetRef().GetPublisherId(), authCtx.Subject) {
 					continue
@@ -863,6 +1027,7 @@ func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsReq
 			}
 			manifests = append(manifests, m)
 		}
+		manifests = dedupeDiscoveryManifests(manifests)
 		sortManifestsByVersionDesc(manifests)
 		return &repopb.ListArtifactsResponse{Artifacts: manifests}, nil
 	}
@@ -885,6 +1050,9 @@ func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsReq
 			slog.Warn("skipping unreadable manifest", "key", key, "err", readErr)
 			continue
 		}
+		if !isDiscoveryManifestValid(m) {
+			continue
+		}
 		if repopb.IsDiscoveryHidden(state) && !isAdmin {
 			if authCtx == nil || !srv.isNamespaceOwner(ctx, m.GetRef().GetPublisherId(), authCtx.Subject) {
 				continue
@@ -892,6 +1060,7 @@ func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsReq
 		}
 		manifests = append(manifests, m)
 	}
+	manifests = dedupeDiscoveryManifests(manifests)
 	sortManifestsByVersionDesc(manifests)
 	return &repopb.ListArtifactsResponse{Artifacts: manifests}, nil
 }
@@ -1318,8 +1487,13 @@ func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtif
 				slog.Warn("skipping unreadable ledger row in GetArtifactVersions", "key", row.ArtifactKey, "err", parseErr)
 				continue
 			}
+			if !isDiscoveryManifestValid(m) {
+				slog.Warn("skipping invalid version row in GetArtifactVersions", "key", row.ArtifactKey)
+				continue
+			}
 			versions = append(versions, m)
 		}
+		versions = dedupeDiscoveryManifests(versions)
 		sortManifestsByVersionDesc(versions)
 		return &repopb.GetArtifactVersionsResponse{Versions: versions}, nil
 	}
@@ -1341,6 +1515,9 @@ func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtif
 			continue
 		}
 		ref := m.GetRef()
+		if !isDiscoveryManifestValid(m) {
+			continue
+		}
 		if !strings.EqualFold(ref.GetName(), name) {
 			continue
 		}
@@ -1352,6 +1529,7 @@ func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtif
 		}
 		versions = append(versions, m)
 	}
+	versions = dedupeDiscoveryManifests(versions)
 	sortManifestsByVersionDesc(versions)
 	return &repopb.GetArtifactVersionsResponse{Versions: versions}, nil
 }

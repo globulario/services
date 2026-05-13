@@ -120,6 +120,132 @@ func TestProcessSyncEntryImportsDifferentBuildNumber(t *testing.T) {
 	}
 }
 
+func TestProcessSyncEntrySkipsWhenSameBuildIDAlreadyAtHigherBuildNumber(t *testing.T) {
+	srv := newTestServer(t)
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "workflow",
+		Version:     "1.0.53",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 204,
+		BuildId:     "upstream:same-id",
+		Checksum:    "sha256:same-content",
+		SizeBytes:   100,
+	})
+
+	prov, pOpts := testProvider()
+	result := srv.processSyncEntry(
+		context.Background(),
+		&releaseIndexEntry{
+			Name:          "workflow",
+			Publisher:     "core@globular.io",
+			Version:       "1.0.53",
+			BuildID:       "upstream:same-id",
+			BuildNumber:   1,
+			Platform:      "linux_amd64",
+			PackageDigest: "sha256:same-content",
+			AssetURL:      "https://example.invalid/workflow.tgz",
+		},
+		&repopb.UpstreamSource{Name: "test-source"},
+		prov, pOpts,
+		"v1.0.53",
+		false,
+		"",
+	)
+	if result.GetStatus() != repopb.UpstreamSyncStatus_SYNC_SKIPPED {
+		t.Fatalf("expected SYNC_SKIPPED, got %s (%s)", result.GetStatus().String(), result.GetDetail())
+	}
+}
+
+func TestProcessSyncEntryRejectsSameBuildIDDifferentDigest(t *testing.T) {
+	srv := newTestServer(t)
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "workflow",
+		Version:     "1.0.53",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 50,
+		BuildId:     "upstream:same-id",
+		Checksum:    "sha256:local",
+		SizeBytes:   100,
+	})
+
+	prov, pOpts := testProvider()
+	result := srv.processSyncEntry(
+		context.Background(),
+		&releaseIndexEntry{
+			Name:          "workflow",
+			Publisher:     "core@globular.io",
+			Version:       "1.0.53",
+			BuildID:       "upstream:same-id",
+			BuildNumber:   204,
+			Platform:      "linux_amd64",
+			PackageDigest: "sha256:upstream",
+			AssetURL:      "https://example.invalid/workflow.tgz",
+		},
+		&repopb.UpstreamSource{Name: "test-source"},
+		prov, pOpts,
+		"v1.0.53",
+		false,
+		"",
+	)
+	if result.GetStatus() != repopb.UpstreamSyncStatus_SYNC_REJECTED {
+		t.Fatalf("expected SYNC_REJECTED, got %s (%s)", result.GetStatus().String(), result.GetDetail())
+	}
+	if result.GetAction() != "conflict" {
+		t.Fatalf("expected conflict action, got %q", result.GetAction())
+	}
+}
+
+func TestProcessSyncEntryImportsWhenSameBuildIDHasLowerBuildNumber(t *testing.T) {
+	srv := newTestServer(t)
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "workflow",
+		Version:     "1.0.53",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 1,
+		BuildId:     "upstream:same-id",
+		Checksum:    "sha256:same-content",
+		SizeBytes:   100,
+	})
+
+	prov, pOpts := testProvider()
+	result := srv.processSyncEntry(
+		context.Background(),
+		&releaseIndexEntry{
+			Name:          "workflow",
+			Publisher:     "core@globular.io",
+			Version:       "1.0.53",
+			BuildID:       "upstream:same-id",
+			BuildNumber:   204,
+			Platform:      "linux_amd64",
+			PackageDigest: "sha256:same-content",
+			AssetURL:      "https://example.invalid/workflow.tgz",
+		},
+		&repopb.UpstreamSource{Name: "test-source"},
+		prov, pOpts,
+		"v1.0.53",
+		false,
+		"",
+	)
+	if result.GetStatus() == repopb.UpstreamSyncStatus_SYNC_SKIPPED {
+		t.Fatalf("must not skip when same build_id has lower local build_number: %s", result.GetDetail())
+	}
+}
+
 // ── Policy rejection tests ──────────────────────────────────────────────────
 
 func TestCheckImportPolicy_AllowedPublishers(t *testing.T) {

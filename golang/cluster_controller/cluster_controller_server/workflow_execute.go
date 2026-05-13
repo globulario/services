@@ -56,7 +56,7 @@ func (srv *server) executeWorkflowCentralized(
 				"severity": "WARNING",
 				"message":  err.Error(),
 			})
-			return nil, err
+			return nil, fmt.Errorf("WORKFLOW_DEPENDENCY_BLOCKED: dependency=scylla reason=%w", err)
 		}
 	}
 
