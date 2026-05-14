@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/globulario/services/golang/awareness/graph"
 )
@@ -53,6 +54,8 @@ type FailureModeCoverage struct {
 	// Inbound edge counts by category.
 	Mitigations     int `json:"mitigations"`      // design_pattern → mitigates → fm
 	Detectors       int `json:"detectors"`        // runtime/metric/workflow → matches/indicates → fm
+	ActiveDetectors int `json:"active_detectors"` // P1-1: detectors observed within the active window
+	WiredDetectors  int `json:"wired_detectors"`  // P1-1: detector edges that have never fired (mapping exists, no observation)
 	Tests           int `json:"tests"`            // mitigation paths that lead to a test
 	LearningEntries int `json:"learning_entries"` // incident_patterns + applied proposals naming this fm
 	DecisionPaths   int `json:"decision_paths"`   // forbidden_fixes / patterns referencing this fm
@@ -123,6 +126,15 @@ var detectorEdgeKinds = []string{
 // failure_mode in the failure_modes table. The traversal is bounded — we read
 // every Edge and bucket it by destination. Reads are O(N+E).
 func ComputeCoverage(ctx context.Context, g *graph.Graph) (*CoverageReport, error) {
+	return ComputeCoverageAt(ctx, g, time.Now())
+}
+
+// ComputeCoverageAt is ComputeCoverage with an injectable clock. Test code
+// that wants to assert detector-lifecycle behaviour (active vs wired) at a
+// specific point in time passes a fixed `now`; production code always uses
+// the wrapper above. The active-window check for detectors is the only
+// place the clock is consulted today.
+func ComputeCoverageAt(ctx context.Context, g *graph.Graph, now time.Time) (*CoverageReport, error) {
 	if g == nil {
 		return nil, fmt.Errorf("assurance: nil graph")
 	}
@@ -217,6 +229,17 @@ func ComputeCoverage(ctx context.Context, g *graph.Graph) (*CoverageReport, erro
 			mitigationSources[e.Dst][e.Src] = true
 		case detectorSet[e.Kind]:
 			entry.Detectors++
+			// P1-1: split into active vs wired-only. A detector edge
+			// without a last_observed_at stamp (or with a stale one)
+			// is treated as wired-only — the mapping exists but the
+			// rule has never fired in production. RecordDetectorObservation
+			// is responsible for stamping the timestamp; the classifier
+			// only reads it.
+			if IsDetectorActive(*e, now, DefaultDetectorActiveWindow) {
+				entry.ActiveDetectors++
+			} else {
+				entry.WiredDetectors++
+			}
 		case e.Kind == graph.EdgeForbids,
 			e.Kind == graph.EdgeBlocksForbiddenAction,
 			e.Kind == graph.EdgeCoversPattern:
@@ -335,7 +358,13 @@ func classifyCoverage(fmc FailureModeCoverage) (CoverageLevel, []string, string)
 	}
 	hasMitigation := fmc.Mitigations > 0
 	hasTest := fmc.Tests > 0
-	hasDetector := fmc.Detectors > 0
+	// P1-1: only ACTIVE detectors (observed within the active window)
+	// count toward the well_covered leg. A failure_mode with only wired-
+	// but-never-fired detector mappings is honest about its coverage
+	// gap. WiredDetectors stays surfaced in the report so operators
+	// can see "the mapping exists, we just haven't observed it yet."
+	hasDetector := fmc.ActiveDetectors > 0
+	hasWiredDetector := fmc.WiredDetectors > 0 && fmc.ActiveDetectors == 0
 
 	legs := 0
 	for _, leg := range []bool{hasMitigation, hasTest, hasDetector} {
@@ -363,7 +392,13 @@ func classifyCoverage(fmc FailureModeCoverage) (CoverageLevel, []string, string)
 			reasons = append(reasons, "no test reachable through a mitigation source")
 		}
 		if !hasDetector {
-			reasons = append(reasons, "no runtime/metric/workflow detector edges target this failure_mode")
+			if hasWiredDetector {
+				reasons = append(reasons, fmt.Sprintf(
+					"%d detector mapping(s) wired but never observed — flip to active when cluster-doctor records the first finding",
+					fmc.WiredDetectors))
+			} else {
+				reasons = append(reasons, "no runtime/metric/workflow detector edges target this failure_mode")
+			}
 		}
 		if hasTest && hasDetector {
 			return CoveragePartial, reasons, "DETECTED"

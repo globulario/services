@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/globulario/services/golang/awareness/assurance"
 	"github.com/globulario/services/golang/awareness/extractors/manual"
@@ -49,6 +50,17 @@ func TestComputeCoverage_RecognisesExtractorWiring(t *testing.T) {
 	}
 	if err := manual.LoadFailureModes(ctx, g, yamlPath); err != nil {
 		t.Fatalf("LoadFailureModes: %v", err)
+	}
+
+	// P1-1: the failure_modes.yaml extractor only wires the detector edge —
+	// the rule has never fired yet. Simulate cluster-doctor observing the
+	// detector once so the edge is treated as ACTIVE and the failure_mode
+	// classifies as well_covered (otherwise it stays partial, which is the
+	// honest answer when no observation has occurred).
+	if err := assurance.RecordDetectorObservation(ctx, g,
+		"detector:detector.coverage_integration", "fm.coverage.integration",
+		"doctor", graph.EdgeMatchesFailureMode, time.Now()); err != nil {
+		t.Fatalf("RecordDetectorObservation: %v", err)
 	}
 
 	report, err := assurance.ComputeCoverage(ctx, g)

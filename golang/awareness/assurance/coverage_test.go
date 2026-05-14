@@ -3,6 +3,7 @@ package assurance_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/globulario/services/golang/awareness/graph"
 	"github.com/globulario/services/golang/awareness/assurance"
@@ -91,7 +92,15 @@ func TestComputeCoverage_WellCovered(t *testing.T) {
 
 	addEdge(t, g, "DP-1", graph.EdgeMitigates, fmNode("FM-good"))
 	addEdge(t, g, "DP-1", graph.EdgeTestedBy, "TEST-1")
-	addEdge(t, g, "RT-1", graph.EdgeMatchesFailureMode, fmNode("FM-good"))
+	// P1-1: stamp the detector edge as recently observed so it counts
+	// toward the "has detector" leg. A wired-only detector mapping
+	// (no observation) demotes the failure_mode to partial — see
+	// TestComputeCoverage_WiredDetectorOnlyIsPartial.
+	if err := assurance.RecordDetectorObservation(context.Background(), g,
+		"RT-1", "FM-good", "doctor",
+		graph.EdgeMatchesFailureMode, time.Now()); err != nil {
+		t.Fatalf("RecordDetectorObservation: %v", err)
+	}
 
 	report, err := assurance.ComputeCoverage(context.Background(), g)
 	if err != nil {
@@ -198,7 +207,12 @@ func TestComputeCoverage_AggregatePercents(t *testing.T) {
 	addNode(t, g, "rt-1", graph.NodeTypeRuntimeState, "rt")
 	addEdge(t, g, "dp-1", graph.EdgeMitigates, fmNode("fm-1"))
 	addEdge(t, g, "dp-1", graph.EdgeTestedBy, "test-1")
-	addEdge(t, g, "rt-1", graph.EdgeMatchesFailureMode, fmNode("fm-1"))
+	// P1-1: well_covered requires an ACTIVE detector observation.
+	if err := assurance.RecordDetectorObservation(context.Background(), g,
+		"rt-1", "fm-1", "doctor",
+		graph.EdgeMatchesFailureMode, time.Now()); err != nil {
+		t.Fatalf("RecordDetectorObservation: %v", err)
+	}
 
 	addNode(t, g, "dp-2", graph.NodeTypeDesignPattern, "dp2")
 	addEdge(t, g, "dp-2", graph.EdgeMitigates, fmNode("fm-2"))

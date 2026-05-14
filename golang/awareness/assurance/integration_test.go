@@ -141,7 +141,14 @@ func setupIntegrationFixture(t *testing.T, fx integrationFixture) (*graph.Graph,
 			addNode(t, g, "RT-scylla", graph.NodeTypeRuntimeState, "scylla retry counter")
 			addEdge(t, g, "DP-scylla", graph.EdgeMitigates, fmNode(integrationFMID))
 			addEdge(t, g, "DP-scylla", graph.EdgeTestedBy, "TEST-scylla")
-			addEdge(t, g, "RT-scylla", graph.EdgeMatchesFailureMode, fmNode(integrationFMID))
+			// P1-1: stamp the detector edge as freshly observed so it
+			// counts as ACTIVE (well_covered requires an active detector,
+			// not just a wired mapping).
+			if err := assurance.RecordDetectorObservation(context.Background(), g,
+				"RT-scylla", integrationFMID, "doctor",
+				graph.EdgeMatchesFailureMode, time.Now()); err != nil {
+				t.Fatalf("RecordDetectorObservation: %v", err)
+			}
 		case "partial":
 			addNode(t, g, "DP-scylla", graph.NodeTypeDesignPattern, "scylla backoff")
 			addEdge(t, g, "DP-scylla", graph.EdgeMitigates, fmNode(integrationFMID))
