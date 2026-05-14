@@ -64,9 +64,19 @@ func (m *MockCollector) Available(_ context.Context) bool {
 	return m.status == "ok" || m.status == "degraded"
 }
 
-func (m *MockCollector) Collect(req CollectSignalsRequest) (*SignalSourceResult, error) {
+func (m *MockCollector) Collect(ctx context.Context, req CollectSignalsRequest) (*SignalSourceResult, error) {
 	if m.sleep > 0 {
-		time.Sleep(m.sleep)
+		select {
+		case <-time.After(m.sleep):
+		case <-ctx.Done():
+			return &SignalSourceResult{
+				Source: SignalSourceStatus{
+					Name:        m.name,
+					Status:      "timeout",
+					CollectedAt: time.Now().Unix(),
+				},
+			}, ctx.Err()
+		}
 	}
 	return &SignalSourceResult{
 		Source: SignalSourceStatus{

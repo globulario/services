@@ -48,9 +48,21 @@ func CollectClusterSignals(ctx context.Context, req CollectSignalsRequest, colle
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, ccancel := context.WithTimeout(totalCtx, collectorTimeout)
+			cctx, ccancel := context.WithTimeout(totalCtx, collectorTimeout)
 			defer ccancel()
-			r, err := c.Collect(req)
+			r, err := c.Collect(cctx, req)
+			if err != nil && r == nil {
+				// Synthesize an unavailable source so callers see why the
+				// collector dropped out instead of a silent disappearance.
+				r = &SignalSourceResult{
+					Source: SignalSourceStatus{
+						Name:        c.Name(),
+						Status:      "unavailable",
+						Message:     err.Error(),
+						CollectedAt: time.Now().Unix(),
+					},
+				}
+			}
 			ch <- result{r, err}
 		}()
 	}

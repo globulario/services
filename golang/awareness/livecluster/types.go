@@ -136,10 +136,14 @@ type LivePreflightFinding struct {
 }
 
 // SignalCollector is the interface for modular live signal sources.
+//
+// Collect receives a per-collector context with the collector timeout
+// already applied. Implementations must honor cancellation so the snapshot
+// loop can degrade individual sources without blocking the whole call.
 type SignalCollector interface {
 	Name() string
 	Available(ctx context.Context) bool
-	Collect(req CollectSignalsRequest) (*SignalSourceResult, error)
+	Collect(ctx context.Context, req CollectSignalsRequest) (*SignalSourceResult, error)
 }
 
 // SignalSourceResult carries what a single collector found.

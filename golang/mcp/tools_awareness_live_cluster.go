@@ -5,7 +5,32 @@ import (
 	"fmt"
 
 	"github.com/globulario/services/golang/awareness/livecluster"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
+
+// liveCollectors returns the live signal collectors the MCP server exposes.
+// They dial through the shared gRPC pool with the same auth context the
+// rest of the awareness tools use. Each collector degrades to "unavailable"
+// on transport failure — see livecluster.CollectClusterSignals.
+func liveCollectors(s *server) []livecluster.SignalCollector {
+	return []livecluster.SignalCollector{
+		livecluster.NewDoctorCollector("doctor", func(ctx context.Context) (cluster_doctorpb.ClusterDoctorServiceClient, func(), error) {
+			conn, err := s.clients.get(ctx, doctorEndpoint())
+			if err != nil {
+				return nil, nil, err
+			}
+			return cluster_doctorpb.NewClusterDoctorServiceClient(conn), nil, nil
+		}),
+		livecluster.NewControllerCollector("controller", func(ctx context.Context) (cluster_controllerpb.ClusterControllerServiceClient, func(), error) {
+			conn, err := s.clients.get(ctx, controllerEndpoint())
+			if err != nil {
+				return nil, nil, err
+			}
+			return cluster_controllerpb.NewClusterControllerServiceClient(conn), nil, nil
+		}),
+	}
+}
 
 func registerAwarenessLiveClusterTools(s *server, st *awarenessState) {
 	s.register(toolDef{
@@ -38,9 +63,7 @@ func registerAwarenessLiveClusterTools(s *server, st *awarenessState) {
 			LookbackHours:   intArgDefault(args, "lookback_hours", 24),
 			RequireLiveData: boolArg(args, "require_live_data"),
 		}
-		// No real collectors in MCP context — MCP is a read-only query tool.
-		// Real collector implementations are wired by cluster-aware services.
-		snap, err := livecluster.CollectClusterSignals(ctx, req, nil)
+		snap, err := livecluster.CollectClusterSignals(authCtx(ctx), req, liveCollectors(s))
 		if err != nil {
 			return nil, err
 		}
@@ -89,7 +112,7 @@ func registerAwarenessLiveClusterTools(s *server, st *awarenessState) {
 			RequireLiveData: boolArg(args, "require_live_data"),
 		}
 		st2 := livecluster.NewStore(st.g)
-		r, err := livecluster.RunLivePreflight(ctx, st.g, st2, nil, req)
+		r, err := livecluster.RunLivePreflight(authCtx(ctx), st.g, st2, liveCollectors(s), req)
 		if err != nil {
 			return nil, err
 		}

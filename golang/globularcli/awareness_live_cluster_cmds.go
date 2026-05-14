@@ -6,6 +6,7 @@ package main
 // have been persisted by the live preflight system.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -13,6 +14,9 @@ import (
 
 	"github.com/globulario/services/golang/awareness/graph"
 	"github.com/globulario/services/golang/awareness/livecluster"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/spf13/cobra"
 )
 
@@ -52,6 +56,39 @@ func livGraphPath() string {
 	return ""
 }
 
+// liveCollectors builds the doctor + controller collectors the CLI passes
+// to livecluster.CollectClusterSignals / RunLivePreflight. Each factory
+// dials a fresh gRPC connection (the CLI is short-lived) and registers
+// the conn for close on collector release. Transport failures degrade
+// the source to "unavailable"; they never error the snapshot.
+func liveCollectors() []livecluster.SignalCollector {
+	return []livecluster.SignalCollector{
+		livecluster.NewDoctorCollector("doctor", func(ctx context.Context) (cluster_doctorpb.ClusterDoctorServiceClient, func(), error) {
+			addr, err := resolveDoctorEndpoint("")
+			if err != nil {
+				return nil, nil, err
+			}
+			cc, err := dialGRPC(addr)
+			if err != nil {
+				return nil, nil, err
+			}
+			return cluster_doctorpb.NewClusterDoctorServiceClient(cc), func() { _ = cc.Close() }, nil
+		}),
+		livecluster.NewControllerCollector("controller", func(ctx context.Context) (cluster_controllerpb.ClusterControllerServiceClient, func(), error) {
+			addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", "")
+			if addr == "" {
+				return nil, nil, fmt.Errorf("cluster-controller endpoint not found in etcd")
+			}
+			cc, err := dialGRPC(addr)
+			if err != nil {
+				return nil, nil, err
+			}
+			return cluster_controllerpb.NewClusterControllerServiceClient(cc), func() { _ = cc.Close() }, nil
+		}),
+	}
+}
+
+
 // ── collect ───────────────────────────────────────────────────────────────────
 
 var liveCollectCfg = struct {
@@ -83,7 +120,7 @@ var liveCollectCmd = &cobra.Command{
 			LookbackHours:   liveCollectCfg.lookbackHours,
 			RequireLiveData: liveCollectCfg.requireLive,
 		}
-		snap, err := livecluster.CollectClusterSignals(ctx, req, nil)
+		snap, err := livecluster.CollectClusterSignals(ctx, req, liveCollectors())
 		if err != nil {
 			return err
 		}
@@ -151,7 +188,7 @@ var livePreflightCmd = &cobra.Command{
 			LookbackHours:   livePreflightCfg.lookbackHours,
 			RequireLiveData: livePreflightCfg.requireLive,
 		}
-		r, err := livecluster.RunLivePreflight(ctx, g, st, nil, req)
+		r, err := livecluster.RunLivePreflight(ctx, g, st, liveCollectors(), req)
 		if err != nil {
 			return err
 		}
