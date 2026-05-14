@@ -107,6 +107,7 @@ func TestToolsListIncludesAwarenessWhenEnabled(t *testing.T) {
 	registerAwarenessPackageTools(s, st)
 	registerAwarenessLearningTools(s, st)
 	registerAwarenessNodeContextTools(s, st)
+	registerAwarenessContextNavTools(s, st)
 	registerAwarenessSemanticTools(s, st)
 	registerAwarenessDebugSessionTool(s, st)
 
@@ -128,6 +129,8 @@ func TestToolsListIncludesAwarenessWhenEnabled(t *testing.T) {
 		"awareness.node_context",
 		"awareness.neighborhood",
 		"awareness.explain_node",
+		"awareness.decision_trace",
+		"awareness.finding_context",
 		"awareness.related",
 		"awareness.nearest",
 		"awareness.path",

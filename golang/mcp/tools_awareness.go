@@ -81,6 +81,7 @@ func registerAwarenessTools(s *server) {
 	registerAwarenessPackageTools(s, st)
 	registerAwarenessLearningTools(s, st)
 	registerAwarenessNodeContextTools(s, st)
+	registerAwarenessContextNavTools(s, st)
 	registerAwarenessSemanticTools(s, st)
 	registerAwarenessDebugSessionTool(s, st)
 	registerAwarenessIntegrityTools(s, st)
