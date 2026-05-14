@@ -369,6 +369,92 @@ log is where we earn the right to consolidate.
 
 ---
 
+## 2026-05-14 — release-index version field divergence
+
+- **Shared concept**: "the platform's release version" — the single
+  string the rest of the system uses to identify what is installed on
+  this node. Read by Day-1 classification, the awareness bundle
+  freshness check, and the runtime fact normalizer.
+- **Per-subsystem interpretation**:
+  - release-index writer (post-2026-05 build pipeline): emits the field
+    as `platform_release`. The keys `version`, `release_version`, and
+    `platform_version` are reserved in the schema but written as `null`.
+  - `evidence/collector.go::readReleaseIndex`: parsed only the field
+    `version`. With the writer's `version=null`, every read produced
+    an empty `ReleaseInfo.Version`.
+  - `evidence/normalizer.go::normalizeReleaseIndex`: treated empty
+    `Version` as "file missing" and emitted `RELEASE_INDEX_MISSING`
+    with detail "release-index.json not found".
+- **Why unit tests missed it**: the collector's tests built
+  `ReleaseInfo` literals in-memory and never round-tripped a real
+  on-disk release-index payload. The writer's tests asserted the
+  JSON keys they produced. Nothing tested the join: a real
+  release-index.json read by the collector. Each side held its own
+  contract; the contracts had drifted.
+- **End-to-end contract that should own it**: **Established
+  2026-05-14**. `ReleaseInfo` gains an explicit `Present bool` that
+  distinguishes "file absent" from "file present, version unreadable."
+  The new `parseReleaseIndex` accepts `platform_release` as canonical
+  and the legacy `version` as fallback, in one place. The normalizer
+  now keys off `Present`, not `Version`, so a parsed-but-empty file
+  no longer masquerades as a missing one.
+- **Did the fix simplify or special-case?** **Simplified.** Three
+  scattered assumptions (collector parses one field, normalizer
+  conflates absence with parse failure, writer drifts silently)
+  collapse to one shared primitive (`ReleaseInfo.Present`) read in
+  one place (`parseReleaseIndex`). Tests pin both the field-name
+  contract and the present-but-empty case so the next field rename
+  is a test failure, not a silent false positive.
+
+---
+
+## 2026-05-14 — collector probes loopback while services bind to node IP
+
+- **Shared concept**: "is this service's TCP port listening?" — the
+  primitive used to derive `FactScyllaCQLUnreachable`,
+  `FactEtcdUnreachable`, and the cascade
+  `FactWorkflowRemediationUnsafe`.
+- **Per-subsystem interpretation**:
+  - Architecture (`CLAUDE.md` hard rule #3): "NO localhost / 127.0.0.1
+    for remote addresses. For bind/listen, use 0.0.0.0." Cluster
+    services bind to the node's primary IP, never to loopback.
+  - `evidence/collector.go::collectPorts`: dialed
+    `127.0.0.1:<port>` with a 500ms TCP timeout. On a real cluster
+    where Scylla listens on `10.0.0.63:9042`, the dial refused.
+  - Normalizer: read the resulting `Listening=false` as evidence of an
+    outage, emitted `FactScyllaCQLUnreachable`, then cascaded into
+    `FactWorkflowRemediationUnsafe` because workflow depends on
+    Scylla.
+- **Why unit tests missed it**: every test in
+  `evidence_test.go` injected `PortObservation` values directly. The
+  collector's port-discovery primitive was never exercised against
+  a running system in tests; it was implicitly assumed correct. The
+  classifier and normalizer were both correct given their inputs.
+  Nothing checked that the collector's *inputs* were truthful on a
+  cluster that follows the no-localhost rule. A composed-path test
+  would have caught it instantly; the absence of one let the
+  primitive lie for as long as it took someone to query
+  `awareness.runtime_errors` from the field.
+- **End-to-end contract that should own it**: **Established
+  2026-05-14**. `collectPorts` reads `/proc/net/tcp{,6}` and reports
+  listener state by port number alone, independent of bind address.
+  Scylla on 10.0.0.63, etcd on 0.0.0.0, MinIO on the node IP, MCP on
+  127.0.0.1 — all are observed the same way. The split between
+  `parseListeningPorts` (pure parser over an `io.Reader`),
+  `listeningTCPPortsFromPaths` (file shim), and `procNetTCPPaths`
+  (injectable default) makes the primitive testable with synthetic
+  fixtures.
+- **Did the fix simplify or special-case?** **Simplified.** One
+  bind-address-agnostic primitive replaces a per-port loopback dial
+  loop. The new tests pin both the parser's handling of mixed bind
+  addresses (loopback, wildcard, node IP) and the
+  composed-path regression: a Scylla listener on the node IP must
+  NOT trip the workflow-remediation cascade. The next contributor
+  who adds a port to `knownPorts` cannot accidentally re-introduce
+  the loopback assumption.
+
+---
+
 ## How to add an entry
 
 1. Use the schema above. Do not skip the five fields.

@@ -24,7 +24,7 @@ import (
 // freshBundle returns a Day-1 healthy snapshot template with a fresh bundle.
 // Helper to keep the per-case tests focused on the one thing they vary.
 func freshBundle() (ReleaseInfo, AwarenessBundleStatus) {
-	return ReleaseInfo{Version: "1.2.30", BuildID: "abc123"},
+	return ReleaseInfo{Present: true, Version: "1.2.30", BuildID: "abc123"},
 		AwarenessBundleStatus{
 			Present: true, Status: "LOADED",
 			Version: "1.2.30", BuildID: "abc123",
@@ -282,7 +282,7 @@ func TestNormalizerEmitsStaleForBuildIDDriftOnly(t *testing.T) {
 		NodeID:      "node-a",
 		Phase:       PhaseDAY1,
 		CollectedAt: time.Now().UTC(),
-		Release:     ReleaseInfo{Version: "1.2.30", BuildID: "abc123"},
+		Release:     ReleaseInfo{Present: true, Version: "1.2.30", BuildID: "abc123"},
 		AwarenessBundle: AwarenessBundleStatus{
 			Present: true, Status: "LOADED",
 			Version: "1.2.30", BuildID: "old-build",
@@ -316,7 +316,7 @@ func TestNormalizerEmitsMismatchForVersionDrift(t *testing.T) {
 		NodeID:      "node-a",
 		Phase:       PhaseDAY1,
 		CollectedAt: time.Now().UTC(),
-		Release:     ReleaseInfo{Version: "1.2.30", BuildID: "abc123"},
+		Release:     ReleaseInfo{Present: true, Version: "1.2.30", BuildID: "abc123"},
 		AwarenessBundle: AwarenessBundleStatus{
 			Present: true, Status: "LOADED",
 			Version: "0.0.1", BuildID: "anything",

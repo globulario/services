@@ -67,19 +67,22 @@ func (n *Normalizer) normalizeBundleStatus(snap *NodeRuntimeSnapshot, nodeID str
 // ── release-index ────────────────────────────────────────────────────────────
 
 func (n *Normalizer) normalizeReleaseIndex(snap *NodeRuntimeSnapshot, nodeID string, now time.Time) []RuntimeFact {
-	if snap.Release.Version == "" {
-		return []RuntimeFact{{
-			Kind:       FactReleaseIndexMissing,
-			NodeID:     nodeID,
-			Phase:      snap.Phase,
-			Severity:   SeverityHigh,
-			Confidence: 1.0,
-			Timestamp:  now,
-			EvidenceRef: "file:" + releaseIndexPath,
-			Detail:     "release-index.json not found",
-		}}
+	// Only emit MISSING when the file truly isn't there. A present-but-empty
+	// payload (e.g. version field renamed upstream) is a different shape and
+	// produces no fact here — silence is honest until we add a dedicated kind.
+	if snap.Release.Present {
+		return nil
 	}
-	return nil
+	return []RuntimeFact{{
+		Kind:        FactReleaseIndexMissing,
+		NodeID:      nodeID,
+		Phase:       snap.Phase,
+		Severity:    SeverityHigh,
+		Confidence:  1.0,
+		Timestamp:   now,
+		EvidenceRef: "file:" + releaseIndexPath,
+		Detail:      "release-index.json not found",
+	}}
 }
 
 // ── bundle ↔ release-index version match ────────────────────────────────────

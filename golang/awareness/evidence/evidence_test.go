@@ -9,7 +9,7 @@ import (
 
 func TestAwarenessBundleMissingClassification(t *testing.T) {
 	snap := makeSnap("node-b", PhaseDAY1,
-		ReleaseInfo{Version: "1.2.0"},
+		ReleaseInfo{Present: true, Version: "1.2.0"},
 		AwarenessBundleStatus{Present: false, Status: "MISSING"},
 		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
 		ScyllaConfigObservation{},
@@ -46,7 +46,7 @@ func TestAwarenessBundleMissingClassification(t *testing.T) {
 
 func TestScyllaFailedBlocksDay1(t *testing.T) {
 	snap := makeSnap("node-b", PhaseDAY1,
-		ReleaseInfo{Version: "1.2.0"},
+		ReleaseInfo{Present: true, Version: "1.2.0"},
 		AwarenessBundleStatus{Present: true, Status: "LOADED", Version: "1.2.0", BuildID: "abc123"},
 		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
 		ScyllaConfigObservation{},
@@ -147,7 +147,7 @@ func TestNormalizerStartLimitHit(t *testing.T) {
 
 func TestHealthyNodePassesDay1(t *testing.T) {
 	snap := makeSnap("node-a", PhaseDAY1,
-		ReleaseInfo{Version: "1.2.0", BuildID: "abc"},
+		ReleaseInfo{Present: true, Version: "1.2.0", BuildID: "abc"},
 		AwarenessBundleStatus{Present: true, Status: "LOADED", Version: "1.2.0", BuildID: "abc"},
 		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
 		ScyllaConfigObservation{},
@@ -206,7 +206,7 @@ func TestPortClosedWithoutSystemdFailureEmitsFact(t *testing.T) {
 
 func TestWorkflowBlockedWhenScyllaDown(t *testing.T) {
 	snap := makeSnap("node-b", PhaseDAY1,
-		ReleaseInfo{Version: "1.2.0"},
+		ReleaseInfo{Present: true, Version: "1.2.0"},
 		AwarenessBundleStatus{Present: true, Status: "LOADED", Version: "1.2.0"},
 		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
 		ScyllaConfigObservation{},
@@ -256,7 +256,7 @@ func TestScyllaConfigAuthorityDrift(t *testing.T) {
 		CollectedAt: time.Now().UTC(),
 		AwarenessBundle: AwarenessBundleStatus{Present: true, Status: "LOADED", Version: "1.2.0"},
 		PKI:         PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
-		Release:     ReleaseInfo{Version: "1.2.0"},
+		Release:     ReleaseInfo{Present: true, Version: "1.2.0"},
 		ScyllaConfig: ScyllaConfigObservation{
 			Present: true,
 			// Seeds intentionally empty to simulate missing seed list.
@@ -289,7 +289,7 @@ func TestScyllaConfigAuthorityDrift(t *testing.T) {
 
 func TestMCPReachableAwarenessBundleMissing(t *testing.T) {
 	snap := makeSnap("node-b", PhaseDAY1,
-		ReleaseInfo{Version: "1.2.0"},
+		ReleaseInfo{Present: true, Version: "1.2.0"},
 		AwarenessBundleStatus{Present: false, Status: "MISSING"},
 		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
 		ScyllaConfigObservation{},
@@ -314,7 +314,7 @@ func TestMCPReachableAwarenessBundleMissing(t *testing.T) {
 
 func TestPKIMissingBlocksDay1(t *testing.T) {
 	snap := makeSnap("node-b", PhaseDAY1,
-		ReleaseInfo{Version: "1.2.0"},
+		ReleaseInfo{Present: true, Version: "1.2.0"},
 		AwarenessBundleStatus{Present: true, Status: "LOADED", Version: "1.2.0"},
 		// CA cert missing.
 		PKIObservation{CACertPresent: false, NodeCertPresent: true, NodeKeyPresent: true},
@@ -383,7 +383,7 @@ func TestAwarenessBundleVersionMismatch(t *testing.T) {
 		NodeID:      "node-c",
 		Phase:       PhaseDAY1,
 		CollectedAt: time.Now().UTC(),
-		Release:     ReleaseInfo{Version: "1.2.30", BuildID: "new-build"},
+		Release:     ReleaseInfo{Present: true, Version: "1.2.30", BuildID: "new-build"},
 		AwarenessBundle: AwarenessBundleStatus{
 			Present: true, Status: "LOADED", Version: "1.2.29", BuildID: "old-build",
 		},
@@ -430,7 +430,7 @@ func TestAwarenessBundleVersionMismatch(t *testing.T) {
 // (a) Runtime port closed but bundle is fresh — verdict must be runtime-side.
 func TestRuntimeFailureDoesNotStaleAFreshBundle(t *testing.T) {
 	snap := makeSnap("node-a", PhaseDAY1,
-		ReleaseInfo{Version: "1.2.30", BuildID: "abc123"},
+		ReleaseInfo{Present: true, Version: "1.2.30", BuildID: "abc123"},
 		AwarenessBundleStatus{
 			Present: true, Status: "LOADED",
 			Version: "1.2.30", BuildID: "abc123",
@@ -476,7 +476,7 @@ func TestRuntimeFailureDoesNotStaleAFreshBundle(t *testing.T) {
 // (b) Bundle stale but Scylla running fine — verdict must point at the bundle.
 func TestStaleBundleClassifiesIndependentlyOfRuntime(t *testing.T) {
 	snap := makeSnap("node-a", PhaseDAY1,
-		ReleaseInfo{Version: "1.2.30", BuildID: "abc123"},
+		ReleaseInfo{Present: true, Version: "1.2.30", BuildID: "abc123"},
 		AwarenessBundleStatus{
 			Present: true, Status: "LOADED",
 			Version: "1.2.30", BuildID: "old999", // build_id drift on same version

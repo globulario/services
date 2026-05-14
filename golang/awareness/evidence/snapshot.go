@@ -30,7 +30,10 @@ type AwarenessBundleStatus struct {
 }
 
 // ReleaseInfo is the platform version/build_id from the local release-index.
+// Present distinguishes "release-index.json absent" from "present but version
+// unreadable" — the two cases produce different facts in the normalizer.
 type ReleaseInfo struct {
+	Present bool   `json:"present"`
 	Version string `json:"version,omitempty"`
 	BuildID string `json:"build_id,omitempty"`
 }

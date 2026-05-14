@@ -4,8 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
-	"net"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -89,18 +88,38 @@ func (c *Collector) Collect(ctx context.Context) *NodeRuntimeSnapshot {
 }
 
 func (c *Collector) readReleaseIndex() ReleaseInfo {
-	data, err := os.ReadFile(releaseIndexPath)
+	return readReleaseIndexFrom(releaseIndexPath)
+}
+
+// readReleaseIndexFrom loads and parses a release-index.json from path.
+// Exposed for testability.
+func readReleaseIndexFrom(path string) ReleaseInfo {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return ReleaseInfo{}
+		return ReleaseInfo{} // Present=false
 	}
+	return parseReleaseIndex(data)
+}
+
+// parseReleaseIndex decodes a release-index.json payload.
+// The canonical field is platform_release (post-2026-05 release pipeline);
+// version is kept as a legacy fallback for older release-index payloads.
+// A malformed payload still returns Present=true — the file exists, it's
+// just unparseable. The caller distinguishes absence from empty version.
+func parseReleaseIndex(data []byte) ReleaseInfo {
 	var m struct {
-		Version string `json:"version"`
-		BuildID string `json:"build_id"`
+		PlatformRelease string `json:"platform_release"`
+		Version         string `json:"version"`
+		BuildID         string `json:"build_id"`
 	}
 	if err := json.Unmarshal(data, &m); err != nil {
-		return ReleaseInfo{}
+		return ReleaseInfo{Present: true}
 	}
-	return ReleaseInfo{Version: m.Version, BuildID: m.BuildID}
+	v := m.PlatformRelease
+	if v == "" {
+		v = m.Version
+	}
+	return ReleaseInfo{Present: true, Version: v, BuildID: m.BuildID}
 }
 
 func (c *Collector) readBundleStatus() AwarenessBundleStatus {
@@ -249,42 +268,91 @@ func (c *Collector) journalExcerpt(ctx context.Context, unit string, lines int) 
 	return strings.TrimSpace(string(out))
 }
 
-// collectPorts checks well-known Globular ports for listener state.
-func (c *Collector) collectPorts(_ context.Context) []PortObservation {
-	ports := []struct {
-		Port int
-	}{
-		{9042}, // scylla CQL
-		{9160}, // scylla thrift
-		{7000}, // scylla inter-node
-		{7001}, // scylla inter-node TLS
-		{7199}, // scylla JMX
-		{9100}, // prometheus node exporter
-		{9000}, // minio API
-		{9001}, // minio console
-		{2379}, // etcd client
-		{2380}, // etcd peer
-		{10004}, // workflow
-		{10260}, // MCP
-		{10101}, // authentication
-		{10104}, // rbac
-		{10006}, // dns
-		{12000}, // cluster-controller
-		{11000}, // node-agent
-	}
+// knownPorts are the well-known Globular ports the collector reports state for.
+// Bind address is irrelevant — the collector reads kernel socket tables so
+// the result is true whether the service binds to 0.0.0.0, the node IP, or
+// 127.0.0.1. Dialing 127.0.0.1 is wrong on this platform because services
+// bind to the node IP per CLAUDE.md hard rule #3 (no localhost for remote
+// addresses); a loopback dial would miss every Scylla, etcd, and MinIO
+// listener on a real cluster.
+var knownPorts = []int{
+	9042,  // scylla CQL
+	9160,  // scylla thrift
+	7000,  // scylla inter-node
+	7001,  // scylla inter-node TLS
+	7199,  // scylla JMX
+	9100,  // prometheus node exporter
+	9000,  // minio API
+	9001,  // minio console
+	2379,  // etcd client
+	2380,  // etcd peer
+	10004, // workflow
+	10260, // MCP
+	10101, // authentication
+	10104, // rbac
+	10006, // dns
+	12000, // cluster-controller
+	11000, // node-agent
+}
 
-	var out []PortObservation
-	for _, p := range ports {
-		obs := PortObservation{Port: p.Port, Protocol: "tcp"}
-		conn, err := net.DialTimeout("tcp",
-			fmt.Sprintf("127.0.0.1:%d", p.Port), 500*time.Millisecond)
-		if err == nil {
-			conn.Close()
-			obs.Listening = true
-		}
-		out = append(out, obs)
+// procNetTCPPaths is the default source list for listening-port enumeration.
+// Overridden in tests.
+var procNetTCPPaths = []string{"/proc/net/tcp", "/proc/net/tcp6"}
+
+// collectPorts reports listener state for every port in knownPorts.
+// Reads the kernel socket tables from /proc/net/tcp{,6}; bind-address agnostic.
+func (c *Collector) collectPorts(_ context.Context) []PortObservation {
+	listening := listeningTCPPortsFromPaths(procNetTCPPaths)
+	out := make([]PortObservation, 0, len(knownPorts))
+	for _, p := range knownPorts {
+		out = append(out, PortObservation{
+			Port:      p,
+			Protocol:  "tcp",
+			Listening: listening[p],
+		})
 	}
 	return out
+}
+
+// listeningTCPPortsFromPaths returns the set of TCP ports in LISTEN state.
+// Missing /proc/net/tcp6 (IPv6 disabled) is tolerated; any other read error
+// is silently swallowed — the caller treats absence of a port as
+// "not observed listening," same as the previous dial-based check on failure.
+func listeningTCPPortsFromPaths(paths []string) map[int]bool {
+	out := make(map[int]bool)
+	for _, path := range paths {
+		f, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		parseListeningPorts(f, out)
+		f.Close()
+	}
+	return out
+}
+
+// parseListeningPorts reads /proc/net/tcp-formatted lines from r and
+// adds every TCP port in LISTEN state (column 4 == "0A") to out.
+// Format: per-line whitespace-separated fields, column 2 is
+// "HEX_LOCAL_ADDR:HEX_PORT", column 4 is the connection state.
+func parseListeningPorts(r io.Reader, out map[int]bool) {
+	scanner := bufio.NewScanner(r)
+	scanner.Scan() // skip header
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 4 || fields[3] != "0A" {
+			continue
+		}
+		colon := strings.LastIndexByte(fields[1], ':')
+		if colon < 0 {
+			continue
+		}
+		port, err := strconv.ParseUint(fields[1][colon+1:], 16, 32)
+		if err != nil {
+			continue
+		}
+		out[int(port)] = true
+	}
 }
 
 // fileReadable returns true if path exists and is readable.
