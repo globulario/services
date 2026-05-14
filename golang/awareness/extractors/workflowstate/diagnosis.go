@@ -82,11 +82,21 @@ func diagnoseRuns(ctx context.Context, g *graph.Graph, runs []*workflowpb.Workfl
 			Src: runID, Kind: graph.EdgeWorkflowFailureIndicates, Dst: patternID, Phase: "live",
 		})
 
-		// Link pattern → matched failure mode nodes.
+		// Link pattern → matched failure mode nodes. P1-1: stamp with
+		// last_observed_at + observation_source so coverage classifies
+		// this as an ACTIVE detector. These edges are emitted at
+		// observation time (a failed run hit the pattern right now),
+		// so they're conceptually always-active. Stamping makes that
+		// explicit and lets the lifecycle window decay them later if
+		// the same pattern stops firing.
 		for _, fm := range matched {
 			fmID := "failure_mode:" + fm.ID
 			_ = g.AddEdge(ctx, graph.Edge{
 				Src: patternID, Kind: graph.EdgeWorkflowFailureIndicates, Dst: fmID, Phase: "live",
+				Metadata: map[string]any{
+					"last_observed_at":   now.Unix(),
+					"observation_source": "workflow",
+				},
 			})
 			// Link run → invariants at risk.
 			for _, inv := range fm.RelatedInvariants {

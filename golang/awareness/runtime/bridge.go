@@ -246,11 +246,21 @@ func (b *RuntimeBridge) WriteToGraph(ctx context.Context, snap *RuntimeSnapshot,
 	}
 
 	// Matched failure modes — link snapshot to failure mode nodes.
+	// P1-1: stamp with last_observed_at so coverage treats the edge as
+	// ACTIVE. A snapshot-level match IS an observation (the runtime
+	// just saw the failure_mode), so the edge should be active the
+	// moment it's emitted. The window-decay rule still applies — if
+	// a future ComputeCoverage runs after the active window, the
+	// edge will demote back to wired until the next snapshot.
 	for _, fmID := range snap.MatchedFailureModes {
 		_ = g.AddEdge(ctx, graph.Edge{
 			Src:  snapNodeID,
 			Kind: graph.EdgeMatchesFailureMode,
 			Dst:  "failure_mode:" + fmID,
+			Metadata: map[string]any{
+				"last_observed_at":   snap.CapturedAt.Unix(),
+				"observation_source": "runtime",
+			},
 		})
 	}
 
