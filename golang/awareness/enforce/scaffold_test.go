@@ -156,3 +156,21 @@ func TestSomeScaffold(t *testing.T) {
 		t.Error("expected SCAFFOLD_TODO_SKIP findings for CLI threshold gate")
 	}
 }
+
+// TestScaffoldScan_EmptyRepoRootReturnsUnverified pins that scanning with
+// no repoRoot yields Unverified=true with a reason — NOT a silent zero
+// result that downstream callers would read as "no scaffolds found." See
+// awareness.source_scan_requires_verified_repo_root and the 2026-05-14
+// composed-path failure entry.
+func TestScaffoldScan_EmptyRepoRootReturnsUnverified(t *testing.T) {
+	res := enforce.ScanScaffoldTests("", "")
+	if !res.Unverified {
+		t.Error("empty repoRoot must set Unverified=true")
+	}
+	if res.UnverifiedReason == "" {
+		t.Error("Unverified result must carry a non-empty UnverifiedReason")
+	}
+	if res.TotalScaffoldSkips != 0 {
+		t.Errorf("Unverified result must not invent counts, got TotalScaffoldSkips=%d", res.TotalScaffoldSkips)
+	}
+}

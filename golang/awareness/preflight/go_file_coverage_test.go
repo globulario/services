@@ -161,3 +161,41 @@ func findSubstr(s, sub string) bool {
 	}
 	return false
 }
+
+// TestPreflight_EmptyRepoRootReturnsUnknownConfidence pins the rule that
+// preflight.computeGoFileCoverage, when given an empty repoRoot (production
+// MCP host with no source on disk), returns ConfidenceImpact="unknown"
+// with a blind spot — NOT zero counts that downstream consumers would
+// collapse into a "0% coverage critical" finding.
+//
+// History: enforce.GoFileCoverage already had this guard;
+// preflight.computeGoFileCoverage is a deliberate duplicate (to avoid a
+// circular import) but had drifted without one. See
+// awareness.source_scan_requires_verified_repo_root and the 2026-05-14
+// composed-path failure entry.
+func TestPreflight_EmptyRepoRootReturnsUnknownConfidence(t *testing.T) {
+	ctx := context.Background()
+	g, err := graph.OpenMemory()
+	if err != nil {
+		t.Fatalf("OpenMemory: %v", err)
+	}
+	t.Cleanup(func() { g.Close() })
+
+	opts := preflight.Options{
+		Task:     "anything",
+		RepoRoot: "", // production-MCP shape: no source available
+	}
+	r, err := preflight.Run(ctx, opts, g)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if r.GoFileCoverage == nil {
+		t.Skip("preflight does not populate GoFileCoverage when RepoRoot is empty — acceptable; the gate is that NO false-critical is emitted")
+	}
+	if r.GoFileCoverage.ConfidenceImpact != "unknown" {
+		t.Errorf("empty RepoRoot must yield ConfidenceImpact=\"unknown\", got %q", r.GoFileCoverage.ConfidenceImpact)
+	}
+	if r.GoFileCoverage.EligibleGoFilesTotal != 0 {
+		t.Errorf("Unverified result must not invent counts, got EligibleGoFilesTotal=%d", r.GoFileCoverage.EligibleGoFilesTotal)
+	}
+}

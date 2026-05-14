@@ -1203,8 +1203,20 @@ var _ = analysis.AdmissionBlock
 // computeGoFileCoverage walks repoRoot to count eligible Go files and compares
 // them against source_file nodes indexed in g. Duplicates the core walk from
 // enforce.GoFileCoverage to avoid the circular import (enforce → preflight).
+//
+// Mirrors enforce.GoFileCoverage's empty-repoRoot guard: when no source is
+// available to walk, returns with ConfidenceImpact="unknown" and a blind
+// spot — never zero counts that downstream consumers can collapse into a
+// "0% coverage critical" finding. See
+// awareness.source_scan_requires_verified_repo_root.
 func computeGoFileCoverage(ctx context.Context, g *graph.Graph, repoRoot string) *GoFileCoverageReport {
 	res := &GoFileCoverageReport{}
+
+	if repoRoot == "" {
+		res.ConfidenceImpact = "unknown"
+		res.BlindSpots = []string{"repo root not provided — cannot measure Go file coverage"}
+		return res
+	}
 
 	excludedDirs := map[string]bool{
 		"vendor": true, ".git": true, "node_modules": true,

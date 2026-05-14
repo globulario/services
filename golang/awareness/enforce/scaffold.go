@@ -10,9 +10,17 @@ import (
 
 // ScaffoldScanResult holds counts and findings from a scaffold TODO-skip scan.
 type ScaffoldScanResult struct {
-	TotalScaffoldSkips          int
+	TotalScaffoldSkips           int
 	DoneFixcasesWithScaffoldOnly int
-	Findings                    []Finding
+	Findings                     []Finding
+	// Unverified is true when ScanScaffoldTests was called without a usable
+	// repoRoot (e.g. production MCP host with no source on disk). Callers
+	// must treat this as a telemetry-unavailable signal — NOT as evidence
+	// that there are zero scaffold skips. See
+	// awareness.source_scan_requires_verified_repo_root and the 2026-05-14
+	// composed-path failure entry.
+	Unverified       bool
+	UnverifiedReason string
 }
 
 // scaffoldMarkers are the patterns that identify a generated scaffold TODO skip.
@@ -30,8 +38,19 @@ var scaffoldMarkers = []string{
 //
 // docsDir may be "" — the DONE fix-case cross-reference is skipped but
 // scaffold skip counting still runs.
+//
+// When repoRoot is "", returns a result with Unverified=true (no source
+// to scan, this is the expected production-MCP case). Do NOT silently
+// return a zero-count result that downstream consumers will read as
+// "no scaffolds found."
 func ScanScaffoldTests(repoRoot, docsDir string) ScaffoldScanResult {
 	var res ScaffoldScanResult
+
+	if repoRoot == "" {
+		res.Unverified = true
+		res.UnverifiedReason = "repo root not provided — cannot scan for scaffold tests"
+		return res
+	}
 
 	// Build a set of test function names that are scaffold TODO skips.
 	scaffoldFuncs := map[string]bool{} // funcName → true
