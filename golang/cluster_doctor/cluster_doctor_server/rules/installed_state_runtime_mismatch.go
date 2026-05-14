@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -18,6 +19,18 @@ func (installedStateRuntimeMismatch) Scope() string    { return "node" }
 func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
 	var findings []Finding
 	now := time.Now()
+
+	// Opt-in packages whose runtime state is gated by an explicit cluster
+	// switch. "Installed but inactive" is the correct state for these when
+	// the gating spec is disabled — firing on them is a false positive.
+	//
+	// keepalived is gated by /globular/ingress/v1/spec.mode. When the spec
+	// is "disabled" (Day-0 bootstrap default, or explicit operator decision
+	// after `globular cluster network ...`), keepalived MUST NOT be running.
+	// The doctor used to fire on every cluster that hadn't yet configured a
+	// VIP, surfacing as ERROR installed_state_runtime_mismatch even though
+	// the cluster was healthy as designed.
+	ingressDisabled := ingressIsDisabled(snap)
 
 	for _, node := range snap.Nodes {
 		nodeID := node.GetNodeId()
@@ -50,6 +63,11 @@ func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Conf
 				continue
 			}
 			if packageIsCommand(canon, nodeKinds) {
+				continue
+			}
+			// Ingress-gated: keepalived is "installed but inactive" by
+			// design when the ingress spec is disabled. Skip — not a mismatch.
+			if canon == "keepalived" && ingressDisabled {
 				continue
 			}
 			unit := packageUnit(canon)
@@ -150,4 +168,28 @@ func packageUnit(name string) string {
 	default:
 		return "globular-" + name + ".service"
 	}
+}
+
+// ingressIsDisabled returns true when the cluster's ingress spec at
+// /globular/ingress/v1/spec is explicitly disabled. Conservative on
+// failure: if the spec is missing, malformed, or unreadable, returns
+// false so existing fail-open behavior is preserved. The caller MUST NOT
+// gate ERROR-severity rules on a "disabled" determination derived from
+// failure to read — only on a confirmed `mode: "disabled"`.
+func ingressIsDisabled(snap *collector.Snapshot) bool {
+	if snap == nil || !snap.IngressSpecPresent {
+		return false
+	}
+	raw := strings.TrimSpace(snap.IngressSpecRaw)
+	if raw == "" {
+		return false
+	}
+	var spec struct {
+		Mode             string `json:"mode"`
+		ExplicitDisabled bool   `json:"explicit_disabled"`
+	}
+	if err := json.Unmarshal([]byte(raw), &spec); err != nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(spec.Mode), "disabled") || spec.ExplicitDisabled
 }

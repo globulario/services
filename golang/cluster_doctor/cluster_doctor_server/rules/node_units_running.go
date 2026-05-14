@@ -17,6 +17,15 @@ func (nodeUnitsRunning) Scope() string    { return "node" }
 func (nodeUnitsRunning) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
 	var findings []Finding
 
+	// keepalived is ingress-gated. When /globular/ingress/v1/spec is
+	// "disabled" the unit must be installed-but-inactive — see the
+	// installed_state_runtime_mismatch rule for the full rationale. This
+	// secondary check exists because nodeUnitsRunning iterates the
+	// inventory directly and would otherwise emit a parallel WARN on the
+	// same package, doubling the dashboard noise on every healthy Day-0
+	// cluster.
+	ingressDisabled := ingressIsDisabled(snap)
+
 	for _, node := range snap.Nodes {
 		nodeID := node.GetNodeId()
 		inv, ok := snap.Inventories[nodeID]
@@ -27,6 +36,9 @@ func (nodeUnitsRunning) Evaluate(snap *collector.Snapshot, cfg Config) []Finding
 		for _, u := range inv.GetUnits() {
 			state := NormalizeUnitState(u.GetState())
 			if state != UnitStateFailed && state != UnitStateInactive {
+				continue
+			}
+			if u.GetName() == "keepalived.service" && ingressDisabled {
 				continue
 			}
 

@@ -224,3 +224,65 @@ func TestPackageIsCommand_DaemonIsNotCommand(t *testing.T) {
 		}
 	}
 }
+
+// ── Ingress-gated keepalived suppression ──────────────────────────────────
+//
+// keepalived is opt-in: it runs only when the cluster's ingress spec at
+// /globular/ingress/v1/spec declares a VIP. The Day-0 bootstrap writes
+// `mode: "disabled"` until an operator runs `globular cluster network ...`.
+// In that disabled state, keepalived MUST be installed (so it can be
+// enabled later without a re-install) but MUST NOT be running. Firing
+// installed_state_runtime_mismatch in that state is a false positive that
+// fills the dashboard with ERROR severity on a healthy-by-design cluster.
+
+func TestInstalledStateRuntimeMismatch_KeepalivedSilentWhenIngressDisabled(t *testing.T) {
+	snap := &collector.Snapshot{
+		Nodes:       []*cluster_controllerpb.NodeRecord{freshNodeRecord("n1")},
+		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{"n1": freshNodeHealth("n1", map[string]string{"keepalived": "0.0.1"})},
+		Inventories: map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits(unit("keepalived.service", "inactive"))},
+		// Day-0 bootstrap default — mode disabled, explicit_disabled true.
+		IngressSpecPresent: true,
+		IngressSpecRaw:     `{"version":"v1","mode":"disabled","explicit_disabled":true,"reason":"day0 bootstrap default"}`,
+	}
+	findings := (installedStateRuntimeMismatch{}).Evaluate(snap, testConfig())
+	if len(findings) != 0 {
+		t.Errorf("keepalived inactive must be silent when ingress is disabled; got %d findings: %+v", len(findings), findings)
+	}
+}
+
+func TestInstalledStateRuntimeMismatch_KeepalivedFiresWhenIngressActive(t *testing.T) {
+	// Mirror image of the disabled case: when ingress is configured (mode is
+	// anything other than disabled, and explicit_disabled is false), an
+	// inactive keepalived IS a real convergence problem and the rule MUST fire.
+	snap := &collector.Snapshot{
+		Nodes:              []*cluster_controllerpb.NodeRecord{freshNodeRecord("n1")},
+		NodeHealths:        map[string]*cluster_controllerpb.NodeHealth{"n1": freshNodeHealth("n1", map[string]string{"keepalived": "0.0.1"})},
+		Inventories:        map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits(unit("keepalived.service", "inactive"))},
+		IngressSpecPresent: true,
+		IngressSpecRaw:     `{"version":"v1","mode":"vip","explicit_disabled":false,"vip":"10.0.0.100"}`,
+	}
+	findings := (installedStateRuntimeMismatch{}).Evaluate(snap, testConfig())
+	if len(findings) == 0 {
+		t.Fatal("keepalived inactive with ingress active is a real mismatch — rule MUST fire")
+	}
+	if findings[0].InvariantID != "installed_state_runtime_mismatch" {
+		t.Errorf("wrong invariant id: %q", findings[0].InvariantID)
+	}
+}
+
+func TestInstalledStateRuntimeMismatch_KeepalivedFiresWhenIngressSpecMissing(t *testing.T) {
+	// Fail-open: when the ingress spec is missing or unreadable, do NOT
+	// silently suppress the keepalived finding. Missing spec is a SEPARATE
+	// problem (collector should have written it during Day-0), and pretending
+	// keepalived is fine because we couldn't read the spec would mask both bugs.
+	snap := &collector.Snapshot{
+		Nodes:       []*cluster_controllerpb.NodeRecord{freshNodeRecord("n1")},
+		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{"n1": freshNodeHealth("n1", map[string]string{"keepalived": "0.0.1"})},
+		Inventories: map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits(unit("keepalived.service", "inactive"))},
+		// IngressSpecPresent intentionally false — spec wasn't read.
+	}
+	findings := (installedStateRuntimeMismatch{}).Evaluate(snap, testConfig())
+	if len(findings) == 0 {
+		t.Error("missing ingress spec must NOT suppress the finding; fail-open is the contract")
+	}
+}
