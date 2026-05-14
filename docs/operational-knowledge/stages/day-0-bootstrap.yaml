@@ -27,7 +27,7 @@ entries:
       - **etcd**: single-node, listening on this node only (no quorum yet).
       - **cluster-controller**: leader of itself, port 12000.
       - **node-agent**: port 11000, supervises systemd units on this node.
-      - **workflow**: port 10004, but it cannot dispatch across nodes (only one).
+      - **workflow**: port 10220, but it cannot dispatch across nodes (only one).
       - **PKI**: cluster CA generated under `/var/lib/globular/pki/`. Service certs issued.
       - **A bootstrap flag file** at `/var/lib/globular/bootstrap.enabled` with a 30-min TTL.
 

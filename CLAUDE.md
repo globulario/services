@@ -232,7 +232,7 @@ services/
 ├── golang/                    # All Go services (33 binaries)
 │   ├── cluster_controller/    # Central control plane (port 12000)
 │   ├── node_agent/            # Node executor (port 11000)
-│   ├── workflow/              # Workflow engine (port 10004)
+│   ├── workflow/              # Workflow engine (port 10220)
 │   ├── cluster_doctor/        # Health analysis (port 12005)
 │   ├── repository/            # Package registry (MinIO-backed)
 │   ├── authentication/        # JWT tokens (port 10101)

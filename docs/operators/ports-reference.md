@@ -44,7 +44,7 @@ These ports must be open between cluster nodes:
 |------|----------|---------|---------|
 | 12000 | gRPC/TLS | Cluster Controller | Cluster management, desired state, node membership |
 | 11000 | gRPC/TLS | Node Agent | Local executor, workflow steps, package management |
-| 13000 | gRPC/TLS | Workflow Service | Workflow execution and tracking |
+| 10220 | gRPC/TLS | Workflow Service | Workflow execution and tracking |
 | 12005 | gRPC/TLS | Cluster Doctor | Health analysis, drift detection, remediation |
 
 ### Infrastructure

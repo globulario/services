@@ -187,7 +187,7 @@ Your Machine
 ├── etcd (2379)              — Cluster state, configuration
 ├── Cluster Controller (12000) — Desired state management
 ├── Node Agent (11000)       — Local service executor
-├── Workflow Service (13000) — Orchestration engine
+├── Workflow Service (10220) — Orchestration engine
 ├── Envoy Gateway (443/8443) — External traffic entry
 ├── xDS Server (8081)        — Gateway configuration
 ├── Authentication (10101)   — JWT tokens

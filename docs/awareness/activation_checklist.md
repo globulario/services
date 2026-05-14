@@ -255,7 +255,7 @@ sudo nano /var/lib/globular/mcp/config.json
 # "awareness": {
 #   "controller_addr": "globular.internal:12000",
 #   "doctor_addr":     "globular.internal:12005",
-#   "workflow_addr":   "globular.internal:10004",
+#   "workflow_addr":   "globular.internal:10220",
 #   "prometheus_addr": "http://globular.internal:9090",
 #   "ca_cert":         "/var/lib/globular/pki/ca.crt",
 #   "client_cert":     "/var/lib/globular/pki/issued/services/service.crt",
