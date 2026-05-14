@@ -312,7 +312,16 @@ func TestProcessSyncEntryRejectsSameBuildIDDifferentDigest(t *testing.T) {
 	}
 }
 
-func TestProcessSyncEntryImportsWhenSameBuildIDHasLowerBuildNumber(t *testing.T) {
+// TestProcessSyncEntryDedupesWhenSameBuildIDHasLowerBuildNumber: when the
+// local repo holds an artifact at build_number=1 with build_id=X checksum=Y,
+// and upstream advertises the same build_id+checksum at build_number=204, the
+// correct response is dedupe + alias — NOT a second import row. The doc's
+// conflict matrix (same identity + same checksum -> dedupe + alias) overrides
+// the older "import at higher build_number" intuition because build_number is
+// a locator, not canonical identity. The alias preserves the upstream
+// build_number reference so callers using (release_tag, build_number) can
+// still resolve to the canonical local build.
+func TestProcessSyncEntryDedupesWhenSameBuildIDHasLowerBuildNumber(t *testing.T) {
 	srv := newTestServer(t)
 	ref := &repopb.ArtifactRef{
 		PublisherId: "core@globular.io",
@@ -348,8 +357,24 @@ func TestProcessSyncEntryImportsWhenSameBuildIDHasLowerBuildNumber(t *testing.T)
 		false,
 		"",
 	)
-	if result.GetStatus() == repopb.UpstreamSyncStatus_SYNC_SKIPPED {
-		t.Fatalf("must not skip when same build_id has lower local build_number: %s", result.GetDetail())
+	if result.GetStatus() != repopb.UpstreamSyncStatus_SYNC_SKIPPED {
+		t.Fatalf("expected SYNC_SKIPPED (dedupe), got %s: %s",
+			result.GetStatus(), result.GetDetail())
+	}
+	if !strings.Contains(result.GetDetail(), "deduped") {
+		t.Errorf("expected dedupe detail, got: %s", result.GetDetail())
+	}
+	// Alias for upstream build_number=204 must resolve back to the existing
+	// canonical local build_id.
+	alias, err := srv.loadReleaseBuildAlias(context.Background(), ref, "v1.0.53", 204)
+	if err != nil {
+		t.Fatalf("loadReleaseBuildAlias: %v", err)
+	}
+	if alias == nil {
+		t.Fatal("expected alias for (v1.0.53, 204) pointing to canonical local build")
+	}
+	if alias.CanonicalBuildID != "upstream:same-id" {
+		t.Errorf("alias.CanonicalBuildID = %q, want %q", alias.CanonicalBuildID, "upstream:same-id")
 	}
 }
 
@@ -1307,18 +1332,128 @@ func TestResolveProvenanceAssetURL_Variants(t *testing.T) {
 // ── Integration scenarios from globular_repository_package_identity_fix ────
 //
 // These mirror the named scenarios in the design doc so the conflict-matrix
-// expectations are locked. Scenario C exercises the resolver and runs as-is.
-// Scenarios A, B, D run through processSyncEntry, which currently can't
-// resolve seeded artifacts to a "found" state in unit tests: NormalizePlatform
-// converts the canonical disk form `linux_amd64` to `linux/amd64`, so the
-// prefix-based lookups in findExistingArtifactByDigest /
-// findExistingArtifactByBuildID never match a manifest written with the
-// underscore form. That mismatch also breaks the pre-existing
-// TestProcessSyncEntry* tests at HEAD; they fail with the same "dial tcp"
-// error because the conflict gates never fire. The fix belongs in a separate
-// pass that normalizes platform consistently across upload, seed, and lookup
-// paths. Until that ships, these two scenarios are skipped to keep CI honest
-// without losing the design intent.
+// expectations are locked at the sync entry point. They use processSyncEntry
+// directly because the conflict gates fire before any network/download path,
+// so a no-op provider is sufficient.
+
+// Scenario A: duplicate upstream package.
+//
+//   local:    repository@0.3.4 linux_amd64 build_id=A build_number=100 checksum=X
+//   upstream: repository@0.3.4 linux_amd64 build_id=B build_number=101 checksum=X
+//
+// Expected: one canonical artifact, alias for build_number=101 -> canonical
+// build_id A, no second artifact row, sync reports SYNC_SKIPPED action=up_to_date.
+func TestScenarioA_DuplicateUpstreamPackage_DedupesWithAlias(t *testing.T) {
+	srv := newTestServer(t)
+
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "repository",
+		Version: "0.3.4", Platform: "linux_amd64",
+		Kind: repopb.ArtifactKind_SERVICE,
+	}
+	const sameChecksum = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	const localBuildID = "01JLOCALBUILDIDA"
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 100, BuildId: localBuildID,
+		Checksum: sameChecksum, SizeBytes: 11,
+	})
+
+	unchanged := false
+	entry := &releaseIndexEntry{
+		Name: "repository", Kind: "SERVICE", Publisher: "core@globular.io",
+		Version: "0.3.4", BuildNumber: 101, BuildID: "01JUPSTREAMBUILDIDB",
+		Platform:         "linux_amd64",
+		PackageDigest:    sameChecksum,
+		AssetURL:         "https://example.invalid/repository.tgz",
+		ReleaseTag:       "v1.2.32",
+		OriginRelease:    "v1.2.32",
+		ChangedInRelease: &unchanged,
+	}
+	src := &repopb.UpstreamSource{Name: "test-source"}
+	prov, pOpts := testProvider()
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.2.32", false, "")
+
+	if result.Status != repopb.UpstreamSyncStatus_SYNC_SKIPPED {
+		t.Fatalf("expected SYNC_SKIPPED, got %s: %s", result.Status, result.Detail)
+	}
+	if result.Action != "up_to_date" {
+		t.Errorf("expected action=up_to_date, got %q", result.Action)
+	}
+	// Alias for the upstream locator must resolve to the canonical local build_id.
+	alias, err := srv.loadReleaseBuildAlias(context.Background(), ref, "v1.2.32", 101)
+	if err != nil {
+		t.Fatalf("loadReleaseBuildAlias: %v", err)
+	}
+	if alias == nil {
+		t.Fatal("expected alias for (v1.2.32, 101) -> canonical local build")
+	}
+	if alias.CanonicalBuildID != localBuildID {
+		t.Errorf("alias.CanonicalBuildID = %q, want %q", alias.CanonicalBuildID, localBuildID)
+	}
+}
+
+// Scenario B: malicious/confused upstream build_id reuse.
+//
+//   local:    build_id=A checksum=X
+//   upstream: build_id=A checksum=Y
+//
+// Expected: reject, quarantine the incoming metadata, local artifact unchanged.
+func TestScenarioB_UpstreamBuildIDReuseRejected(t *testing.T) {
+	srv := newTestServer(t)
+
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "repository",
+		Version: "0.3.4", Platform: "linux_amd64",
+		Kind: repopb.ArtifactKind_SERVICE,
+	}
+	const localBuildID = "01JBUILDIDA"
+	const localChecksum = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	const conflictChecksum = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 100, BuildId: localBuildID,
+		Checksum: localChecksum, SizeBytes: 17,
+	})
+
+	entry := &releaseIndexEntry{
+		Name: "repository", Kind: "SERVICE", Publisher: "core@globular.io",
+		Version: "0.3.4", BuildNumber: 101, BuildID: localBuildID, // same build_id
+		Platform:      "linux_amd64",
+		PackageDigest: conflictChecksum,
+		AssetURL:      "https://example.invalid/repository-evil.tgz",
+		ReleaseTag:    "v1.2.32",
+	}
+	src := &repopb.UpstreamSource{Name: "test-source"}
+	prov, pOpts := testProvider()
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.2.32", false, "")
+
+	if result.Status != repopb.UpstreamSyncStatus_SYNC_REJECTED {
+		t.Fatalf("expected SYNC_REJECTED, got %s: %s", result.Status, result.Detail)
+	}
+	if result.Action != "conflict" {
+		t.Errorf("expected action=conflict, got %q", result.Action)
+	}
+	if !strings.Contains(result.Detail, "build_id conflict") {
+		t.Errorf("expected build_id conflict detail, got: %s", result.Detail)
+	}
+	// Local artifact must be unchanged -- checksum stays at localChecksum.
+	manifestResp, err := srv.GetArtifactManifest(context.Background(),
+		&repopb.GetArtifactManifestRequest{Ref: ref, BuildNumber: 100})
+	if err != nil {
+		t.Fatalf("get local manifest: %v", err)
+	}
+	if manifestResp.GetManifest().GetChecksum() != localChecksum {
+		t.Errorf("local checksum mutated: got %q, want %q",
+			manifestResp.GetManifest().GetChecksum(), localChecksum)
+	}
+	// No alias was created for the rejected upstream locator.
+	alias, err := srv.loadReleaseBuildAlias(context.Background(), ref, "v1.2.32", 101)
+	if err != nil {
+		t.Fatalf("loadReleaseBuildAlias: %v", err)
+	}
+	if alias != nil {
+		t.Errorf("unexpected alias for rejected upstream entry: %+v", alias)
+	}
+}
 
 // Scenario C: same version, real new build.
 //

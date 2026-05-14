@@ -11,19 +11,34 @@ import (
 
 var buildIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:-]{2,127}$`)
 
-// NormalizePlatform canonicalizes platform strings across legacy separators.
+// NormalizePlatform canonicalizes platform strings to the underscore form
+// used everywhere else in the codebase: the storage key construction
+// (artifactKeyWithBuild), the controller's normalizeArtifactPlatform, the
+// hardcoded defaults in release_resolver.go, and the manifests written by
+// every package.json. Cross-form aliases ("linux/amd64", "linux-amd64",
+// " Linux\\AMD64 ") all converge to "linux_amd64".
+//
+// Before 2026-05-13 this function produced the slash form and broke the
+// joined sync path: normalizeReleaseEntry stamped n.Platform = "linux/amd64"
+// into the prefix that findExistingArtifactByBuildID and
+// findExistingArtifactByDigest then searched for, but the on-disk keys used
+// "linux_amd64", so the prefix never matched and every sync re-downloaded.
+// Picking the underscore form keeps NormalizePlatform compatible with the
+// rest of the system instead of fighting it.
+//
 // Examples:
-//   linux_amd64 -> linux/amd64
-//   linux-amd64 -> linux/amd64
+//   linux/amd64 -> linux_amd64
+//   linux-amd64 -> linux_amd64
+//   linux_amd64 -> linux_amd64
 func NormalizePlatform(platform string) string {
 	p := strings.TrimSpace(strings.ToLower(platform))
-	p = strings.ReplaceAll(p, "_", "/")
-	p = strings.ReplaceAll(p, "-", "/")
-	p = strings.ReplaceAll(p, "\\", "/")
-	for strings.Contains(p, "//") {
-		p = strings.ReplaceAll(p, "//", "/")
+	p = strings.ReplaceAll(p, "\\", "_")
+	p = strings.ReplaceAll(p, "/", "_")
+	p = strings.ReplaceAll(p, "-", "_")
+	for strings.Contains(p, "__") {
+		p = strings.ReplaceAll(p, "__", "_")
 	}
-	return strings.Trim(p, "/")
+	return strings.Trim(p, "_")
 }
 
 // NormalizeChecksum canonicalizes checksum representation.

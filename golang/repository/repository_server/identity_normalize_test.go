@@ -7,11 +7,18 @@ import (
 )
 
 func TestNormalizePlatform(t *testing.T) {
+	// Canonical form is the underscore form ("linux_amd64") so the function's
+	// output can be substituted directly into storage keys and prefix
+	// lookups. See identity_normalize.go for the diagnosis that pinned this
+	// direction (the prior slash form broke joined sync lookups).
 	cases := map[string]string{
-		"linux_amd64":  "linux/amd64",
-		"linux-amd64":  "linux/amd64",
-		"linux/amd64":  "linux/amd64",
-		" Linux\\ARM ": "linux/arm",
+		"linux_amd64":  "linux_amd64",
+		"linux-amd64":  "linux_amd64",
+		"linux/amd64":  "linux_amd64",
+		" Linux\\ARM ": "linux_arm",
+		"linux//amd64": "linux_amd64",
+		"_linux_amd64": "linux_amd64",
+		"linux_amd64_": "linux_amd64",
 	}
 	for in, want := range cases {
 		if got := NormalizePlatform(in); got != want {

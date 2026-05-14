@@ -663,8 +663,15 @@ func TestReleaseIndexV2InstallRejectsUnknownKind(t *testing.T) {
 
 func TestReleaseIndexV2AllowsExplicitUnchangedOriginRelease(t *testing.T) {
 	idx := validV2Index()
-	for _, p := range idx.Packages {
-		p.BuildID = "upstream-abc123"
+	// Per the conflict matrix in
+	// globular_repository_package_identity_fix_instructions.md, build_id is
+	// immutable artifact identity: one build_id maps to exactly one artifact
+	// (and therefore one checksum). The two fixture packages have different
+	// digests, so they must get distinct build_ids -- collapsing them onto a
+	// shared literal would (correctly) trip the build_id_checksum_conflict
+	// validator and isn't what this test is meant to exercise.
+	for i, p := range idx.Packages {
+		p.BuildID = fmt.Sprintf("upstream-abc%d", i+1)
 		p.ArtifactSha256 = p.PackageDigest
 	}
 	if err := ValidateReleaseIndexForInstall(idx); err != nil {
