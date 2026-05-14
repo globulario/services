@@ -85,49 +85,21 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		fmt.Printf("  Comment: %s\n\n", opts.Comment)
 	}
 
-	fmt.Println("→ Step 1: Building binary...")
 	execName := entry.ExecName()
 	goPkgDir, err := paths.GoPackageDir(entry.Name, execName)
 	if err != nil {
 		return nil, err
 	}
-
 	binaryPath := filepath.Join(paths.StageBin, execName)
-	if opts.DryRun {
-		fmt.Printf("  [dry-run] Would build %s → %s\n", paths.GoPackageRelative(goPkgDir), binaryPath)
-	} else {
-		goPkgRel := paths.GoPackageRelative(goPkgDir)
-		cmd := exec.CommandContext(ctx, "go", "build", "-buildvcs=false", "-o", binaryPath, goPkgRel)
-		cmd.Dir = paths.Golang
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return nil, fmt.Errorf("go build %s: %w", goPkgRel, err)
-		}
-		fmt.Printf("  ✓ Built %s\n", execName)
-	}
 
-	// ── Step 1b: Pre-flight — verify the binary is not broken ──────────
-	// Run the binary with --describe (or --help) to verify it starts.
-	// This catches missing symbols, bad CGO links, and panic-at-init bugs
-	// BEFORE publishing to the repository (which triggers cluster-wide rollout).
-	if !opts.DryRun {
-		fmt.Print("  Verifying binary... ")
-		if err := verifyBinary(ctx, binaryPath); err != nil {
-			return nil, fmt.Errorf("pre-flight check failed — binary %s is broken: %w\n"+
-				"  NOT publishing to avoid corrupting the cluster", execName, err)
-		}
-		fmt.Println("✓")
-	}
-
-	// Compute checksum of new binary.
-	newChecksum, err := checksumFile(binaryPath)
-	if err != nil && !opts.DryRun {
-		return nil, fmt.Errorf("checksum binary: %w", err)
-	}
-
-	// ── Step 2: Connect to repository and determine action ──────────────
-	fmt.Println("\n→ Step 2: Querying repository...")
+	// ── Step 1: Connect to repository and allocate version (if --bump) ──
+	// Version must be known BEFORE the build so it can be injected via
+	// -ldflags -X main.Version. Without this step, every deployed binary
+	// reports the placeholder "0.0.0-dev" from zz_version_generated.go and
+	// runtime version reconciliation breaks. build-services.sh has always
+	// injected these symbols for CI builds; globular deploy was the only
+	// build path missing them.
+	fmt.Println("→ Step 1: Querying repository...")
 
 	repoAddr := opts.RepoAddr
 	if repoAddr == "" {
@@ -145,11 +117,11 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 			return nil, fmt.Errorf("generate spec: %w", serr)
 		}
 		fmt.Printf("  [dry-run] Generated spec (%d bytes)\n", len(specYAML))
+		fmt.Printf("  [dry-run] Would build %s → %s\n", paths.GoPackageRelative(goPkgDir), binaryPath)
 		return &DeployResult{
 			Service:  pkgName,
 			Version:  opts.Version,
 			Action:   "dry-run",
-			Checksum: newChecksum,
 			Duration: time.Since(start),
 		}, nil
 	}
@@ -209,7 +181,10 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		fmt.Printf("  Allocated: version=%s build=%d build_id=%s\n",
 			alloc.GetVersion(), nextBuild, allocatedBuildID[:8])
 
-		// Query previous checksum for delta detection.
+		// Query previous checksum for delta detection. In --bump mode the
+		// build always produces a different binary (new version embedded in
+		// ldflags), so the delta skip never fires after this fix; the query
+		// is preserved for the --Full == false / re-run telemetry case.
 		info, _ := QueryLatestBuild(ctx, client, opts.Publisher, pkgName, opts.Version, opts.Platform)
 		if info != nil {
 			prevChecksum = info.Checksum
@@ -222,6 +197,41 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 			return nil, fmt.Errorf("query build number: %w", err)
 		}
 		fmt.Printf("  Current build: %d → Next: %d\n", nextBuild-1, nextBuild)
+	}
+
+	// ── Step 2: Build binary with version stamped in via ldflags ────────
+	fmt.Println("\n→ Step 2: Building binary...")
+	goPkgRel := paths.GoPackageRelative(goPkgDir)
+	ldflags := buildLdflags(opts.Version, nextBuild)
+	cmd := exec.CommandContext(ctx, "go", "build",
+		"-buildvcs=false",
+		"-ldflags", ldflags,
+		"-o", binaryPath,
+		goPkgRel,
+	)
+	cmd.Dir = paths.Golang
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("go build %s: %w", goPkgRel, err)
+	}
+	fmt.Printf("  ✓ Built %s (version=%s build=%d)\n", execName, opts.Version, nextBuild)
+
+	// ── Step 2b: Pre-flight — verify the binary is not broken ──────────
+	// Run the binary with --describe (or --help) to verify it starts.
+	// This catches missing symbols, bad CGO links, and panic-at-init bugs
+	// BEFORE publishing to the repository (which triggers cluster-wide rollout).
+	fmt.Print("  Verifying binary... ")
+	if err := verifyBinary(ctx, binaryPath); err != nil {
+		return nil, fmt.Errorf("pre-flight check failed — binary %s is broken: %w\n"+
+			"  NOT publishing to avoid corrupting the cluster", execName, err)
+	}
+	fmt.Println("✓")
+
+	// Compute checksum of new binary.
+	newChecksum, err := checksumFile(binaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("checksum binary: %w", err)
 	}
 
 	// ── Step 3: Detect delta ────────────────────────────────────────────
@@ -537,6 +547,31 @@ func resolveRepoAddr() (string, error) {
 		return addr, nil
 	}
 	return "", fmt.Errorf("repository service not found in etcd — is the repository service running?")
+}
+
+// buildLdflags returns the -ldflags argument string used for the in-tree
+// `globular deploy` build. It mirrors build/build-services.sh:29 so binaries
+// produced by `globular deploy` self-report the same shape of metadata as
+// CI-built binaries. The four ldflags symbols are:
+//
+//	main.Version        — repository-allocated semantic version (e.g. "1.2.43")
+//	main.BuildTime      — RFC3339 UTC build timestamp
+//	main.GitCommit      — short git SHA at build time (best-effort, "unknown" otherwise)
+//	main.BuildNumberStr — build number as a string (per build, monotonic per version)
+//
+// Without this injection, every binary self-reports the zz_version_generated.go
+// placeholder "0.0.0-dev", which makes runtime version reconciliation lie.
+func buildLdflags(version string, buildNumber int64) string {
+	buildTime := time.Now().UTC().Format(time.RFC3339)
+	gitCommit := "unknown"
+	out, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
+	if err == nil {
+		gitCommit = strings.TrimSpace(string(out))
+	}
+	return fmt.Sprintf(
+		"-X main.Version=%s -X main.BuildTime=%s -X main.GitCommit=%s -X main.BuildNumberStr=%d",
+		version, buildTime, gitCommit, buildNumber,
+	)
 }
 
 func checksumFile(path string) (string, error) {

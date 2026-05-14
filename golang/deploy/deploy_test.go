@@ -355,3 +355,36 @@ func findTestCatalog(t *testing.T) string {
 		dir = parent
 	}
 }
+
+// TestBuildLdflags_InjectsAllFourSymbols pins the contract that the deploy
+// build path stamps the same metadata symbols build-services.sh uses. The
+// runtime reconciler treats main.Version as load-bearing — a regression
+// that dropped any of these would silently revert binaries to the
+// "0.0.0-dev" placeholder.
+func TestBuildLdflags_InjectsAllFourSymbols(t *testing.T) {
+	got := buildLdflags("1.2.43", 171)
+	for _, want := range []string{
+		"-X main.Version=1.2.43",
+		"-X main.BuildTime=",
+		"-X main.GitCommit=",
+		"-X main.BuildNumberStr=171",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("buildLdflags missing %q\n  full: %s", want, got)
+		}
+	}
+}
+
+// TestBuildLdflags_VersionLiteralPropagates protects against accidental
+// quoting / escape bugs — the version string must appear verbatim in the
+// output, not URL-encoded or surrounded by extra quotes, or `go build`
+// fails to parse the -X arguments.
+func TestBuildLdflags_VersionLiteralPropagates(t *testing.T) {
+	got := buildLdflags("99.99.99-test", 0)
+	if !strings.Contains(got, "-X main.Version=99.99.99-test") {
+		t.Errorf("version literal not preserved: %s", got)
+	}
+	if !strings.Contains(got, "-X main.BuildNumberStr=0") {
+		t.Errorf("build_number=0 not preserved: %s", got)
+	}
+}
