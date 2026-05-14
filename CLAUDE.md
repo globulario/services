@@ -96,6 +96,44 @@ globular awareness learn-from-fix --incident <id> --output json
 Run `awareness.decision_context` with your goal and the files you plan to edit.
 Read `top_decision_paths`, `forbidden_actions`, `required_tests`, and `blind_spots` before making any change.
 
+**Pivoting from a finding to its full context** — when preflight returns a
+matched finding and you want the decision trace alone (owner / pivots /
+falsifiers / next actions) without re-running full preflight:
+
+```bash
+# MCP: awareness.finding_context preferred when you know the id
+awareness.finding_context finding="failure_mode:workflow.resume_poisoning"
+# CLI fallback:
+globular awareness finding-context --finding failure_mode:<id> --format agent
+# Or full preflight, traces only:
+globular awareness decision-trace --task "<task>" --format agent
+```
+
+A `DecisionTrace` ships `matched_by` (graph / alias / runtime / raw_yaml /
+trust / fix_ledger / experience / metrics), `owner` (repository / desired /
+installed / runtime / workflow / pki / dns / rbac layer), ranked `pivots`,
+`next_actions` (all `safe_to_run`), and `falsifiers` (family-templated).
+Always read `falsifiers` before claiming a finding is real — they tell you
+what evidence would prove the diagnosis wrong.
+
+**Authority-crossing patches** — when a diff moves authority across the
+4-layer model (Repository → Desired → Installed → Runtime), CI runs:
+
+```bash
+globular awareness semantic-diff git --gate-on-authority-change --json
+```
+
+The gate fails when `AuthorityChange.RequiresReview=true` AND
+`Trust.Verdict != "trusted"`. The CI step is currently warn-only; flip
+`continue-on-error: false` in `.github/workflows/ci.yml` after a cycle of
+clean diagnostics. An absent trust envelope is never trusted.
+
+**YAML files under `docs/awareness/`** can declare their role explicitly
+with a top-level `awareness_role: graph|seed|config|none` key. The
+declaration wins over the top-key heuristic. Use `none` for scratch
+notes / draft proposals so they don't trip the unknown-role staleness
+alarm. Without a declaration, the legacy top-key heuristic still applies.
+
 **Rules:**
 - If graph is stale → rebuild: `globular awareness build`
 - If runtime is `noop` → do NOT infer live cluster health from static checks
