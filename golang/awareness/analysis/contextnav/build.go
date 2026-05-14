@@ -56,6 +56,37 @@ type BuildInputs struct {
 	Ctx   context.Context
 	Task  string
 	Files []string
+
+	// Phase 5: cross-cutting evidence sources. Each non-raw-knowledge
+	// trace gets a per-finding view of these so the agent doesn't have to
+	// separately consult Report.Trust / Report.DidWeFix / Report.ExperienceHints.
+
+	// TrustVerdict / TrustConfidence / TrustFreshness / TrustReason mirror
+	// the relevant fields on the TrustEnvelope. Empty when no trust
+	// envelope was computed.
+	TrustVerdict    string
+	TrustConfidence string
+	TrustFreshness  string
+	TrustReason     string
+
+	// FixCases is the fix_ledger lookup result. Status reflects whether
+	// the prior fix is complete, partial, or otherwise. First entry is
+	// used as the primary attribution.
+	FixCases []FixCaseRef
+
+	// FixLedgerGaps lists ids/labels of remaining_gap entries the fix
+	// ledger reported for this task. Used to distinguish "fully fixed
+	// before" from "fix exists but gaps remain".
+	FixLedgerGaps []string
+
+	// Experiences is the ranked list of similar-past-attempt hints. Build
+	// uses only the first entry today; later phases may surface more.
+	Experiences []ExperienceRef
+
+	// MetricWarnings is the live Prometheus warnings list as of the
+	// preflight run. Empty when no live overlay was collected or the
+	// overlay carried no warnings.
+	MetricWarnings []string
 }
 
 // RawKnowledgeRef captures the minimum information needed to render a
@@ -118,19 +149,30 @@ func Build(in BuildInputs) []DecisionTrace {
 		len(in.Invariants)+len(in.FailureModes)+len(in.ForbiddenFixes)+len(in.RawKnowledge))
 
 	for _, fmID := range in.FailureModes {
-		traces = append(traces, traceForFailureMode(&in, fmID, aliasSet, runtimeFMSet))
+		t := traceForFailureMode(&in, fmID, aliasSet, runtimeFMSet)
+		attachCrossCuttingEvidence(&t, &in)
+		traces = append(traces, t)
 	}
 	for _, invID := range in.Invariants {
-		traces = append(traces, traceForInvariant(&in, invID, aliasSet, runtimeInvSet))
+		t := traceForInvariant(&in, invID, aliasSet, runtimeInvSet)
+		attachCrossCuttingEvidence(&t, &in)
+		traces = append(traces, t)
 	}
 	for _, ffID := range in.ForbiddenFixes {
-		traces = append(traces, traceForForbiddenFix(&in, ffID, aliasSet))
+		t := traceForForbiddenFix(&in, ffID, aliasSet)
+		attachCrossCuttingEvidence(&t, &in)
+		traces = append(traces, t)
 	}
 	for _, raw := range in.RawKnowledge {
 		nsID := raw.Kind + ":" + raw.ID
 		if covered[nsID] {
 			continue
 		}
+		// Raw-knowledge traces intentionally skip cross-cutting evidence:
+		// graph missed the finding, so layering trust/fix/experience
+		// signals on top would compete with the trace's own fallback
+		// warning. The agent reads raw_yaml as "treat as hint", and the
+		// MatchedBy chain stays single-sourced to enforce that.
 		traces = append(traces, traceForRawKnowledge(&in, raw))
 	}
 
@@ -174,6 +216,17 @@ func Build(in BuildInputs) []DecisionTrace {
 	}
 
 	return traces
+}
+
+// attachCrossCuttingEvidence wires Phase 5 evidence sources (trust
+// envelope, fix ledger, experience store, metric warnings) onto a trace.
+// Each appender is a no-op when its input section is empty, so this is
+// safe to call unconditionally for non-raw-knowledge traces.
+func attachCrossCuttingEvidence(t *DecisionTrace, in *BuildInputs) {
+	appendTrustEvidence(t, in)
+	appendFixLedgerEvidence(t, in)
+	appendExperienceEvidence(t, in)
+	appendMetricsEvidence(t, in)
 }
 
 // pivotAnchorID returns the graph node id to walk from when generating
@@ -381,9 +434,12 @@ func traceForRawKnowledge(in *BuildInputs, raw RawKnowledgeRef) DecisionTrace {
 		Summary:     fmt.Sprintf("%s match from %s (graph missed; YAML caught it)", raw.Kind, raw.Source),
 		Confidence:  conf,
 		MatchedBy: []EvidenceRef{{
-			Source:     "raw_yaml",
-			NodeID:     raw.Kind + ":" + raw.ID,
-			Confidence: 0.5,
+			Source: "raw_yaml",
+			NodeID: raw.Kind + ":" + raw.ID,
+			// Per the Phase 5 confidence matrix: raw YAML fallback at
+			// 0.65 — strong enough to surface, low enough that the
+			// trace's Confidence=Low still gates downstream decisions.
+			Confidence: 0.65,
 			Reason:     fmt.Sprintf("matched %s in %s by terms: %v", raw.Kind, raw.Source, raw.MatchedTerms),
 		}},
 		Pivots:      []ContextPivot{},

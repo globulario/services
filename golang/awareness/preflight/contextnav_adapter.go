@@ -54,5 +54,33 @@ func buildContextnavInputs(ctx context.Context, r *Report, g *graph.Graph, task 
 	if r.LiveOverlay != nil {
 		in.LiveOverlayStatus = r.LiveOverlay.Status
 	}
+
+	// Phase 5: cross-cutting evidence sources.
+	if r.Trust != nil {
+		in.TrustVerdict = string(r.Trust.Verdict)
+		in.TrustConfidence = string(r.Trust.Confidence)
+		in.TrustFreshness = string(r.Trust.Freshness)
+		in.TrustReason = r.Trust.Reason
+	}
+	if r.DidWeFix != nil {
+		for _, fc := range r.DidWeFix.FixCases {
+			// fix_ledger reports fix_case ids as bare strings; status is not
+			// carried here, so the contextnav appender will treat them as
+			// status-unknown (downgrades confidence to 0.6).
+			in.FixCases = append(in.FixCases, contextnav.FixCaseRef{ID: fc})
+		}
+		in.FixLedgerGaps = append([]string(nil), r.DidWeFix.RemainingGaps...)
+	}
+	for _, h := range r.ExperienceHints {
+		in.Experiences = append(in.Experiences, contextnav.ExperienceRef{
+			ID:    h.ExperienceID,
+			Hint:  h.Hint,
+			Score: h.Score,
+		})
+	}
+	if r.Runtime != nil {
+		in.MetricWarnings = append([]string(nil), r.Runtime.MetricWarnings...)
+	}
+
 	return in
 }
