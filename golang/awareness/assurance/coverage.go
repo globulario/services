@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/globulario/services/golang/awareness/graph"
@@ -55,6 +56,14 @@ type FailureModeCoverage struct {
 	Tests           int `json:"tests"`            // mitigation paths that lead to a test
 	LearningEntries int `json:"learning_entries"` // incident_patterns + applied proposals naming this fm
 	DecisionPaths   int `json:"decision_paths"`   // forbidden_fixes / patterns referencing this fm
+
+	// Closure-loop provenance (P1-4). When the loop has produced a durable
+	// artifact for this failure_mode, we surface a single identifier so the
+	// trust envelope can explain WHY the verdict is partly load-bearing.
+	// Deterministic choice (smallest incident_id / test name) means callers
+	// don't see the field flicker across runs as new evidence appears.
+	LearnedFromIncident string `json:"learned_from_incident,omitempty"` // incident_patterns.incident_id (smallest by id)
+	FirstVerifyingTest  string `json:"first_verifying_test,omitempty"`  // test node id (no "test:" prefix) covering this fm
 
 	Level   CoverageLevel `json:"level"`
 	State   string        `json:"coverage_state,omitempty"`
@@ -253,10 +262,26 @@ func ComputeCoverage(ctx context.Context, g *graph.Graph) (*CoverageReport, erro
 		}
 	}
 
-	// Resolve the per-fm test sets into Tests counts.
+	// Resolve the per-fm test sets into Tests counts, and record the
+	// lexicographically-smallest test id as the regression-test pointer the
+	// envelope surfaces. The "test:" prefix is stripped so callers see the
+	// runnable test name (e.g. "TestResumeRequiresReceipt") not the graph
+	// node id. Smallest-by-id is a deterministic choice — agents need a
+	// stable pointer, not a ranked recommendation.
 	for fmKey, set := range testSets {
-		if entry, ok := bucket[fmKey]; ok {
-			entry.Tests = len(set)
+		entry, ok := bucket[fmKey]
+		if !ok {
+			continue
+		}
+		entry.Tests = len(set)
+		var first string
+		for testID := range set {
+			if first == "" || testID < first {
+				first = testID
+			}
+		}
+		if first != "" {
+			entry.FirstVerifyingTest = strings.TrimPrefix(first, "test:")
 		}
 	}
 
@@ -373,12 +398,19 @@ func lifecycleHintFromNodeMeta(meta map[string]any) string {
 }
 
 // countIncidentPatterns adds incident_patterns rows to the LearningEntries
-// counter. This table is queried directly because it is not represented as
-// graph edges (it lives next to the failure-graph store).
+// counter and records the smallest incident_id per failure_mode so the trust
+// envelope can name the incident that originally closed the learning loop on
+// this failure_mode. This table is queried directly because it is not
+// represented as graph edges (it lives next to the failure-graph store).
+//
+// "Smallest" is a deterministic choice rather than a quality one: it
+// stabilizes the envelope output across runs even as new incident_patterns
+// rows are added. The agent-facing meaning is "this failure_mode was learned
+// from at least one incident" — the specific id is provenance, not a ranking.
 func countIncidentPatterns(ctx context.Context, g *graph.Graph, bucket map[string]*FailureModeCoverage) error {
 	rows, err := g.DB().QueryContext(ctx,
-		`SELECT failure_mode, COUNT(*) FROM incident_patterns
-		 WHERE failure_mode != '' GROUP BY failure_mode`)
+		`SELECT failure_mode, COUNT(*), MIN(incident_id) FROM incident_patterns
+		 WHERE failure_mode != '' AND incident_id != '' GROUP BY failure_mode`)
 	if err != nil {
 		return fmt.Errorf("assurance: count incident_patterns: %w", err)
 	}
@@ -386,13 +418,17 @@ func countIncidentPatterns(ctx context.Context, g *graph.Graph, bucket map[strin
 	for rows.Next() {
 		var fm string
 		var count int
-		if err := rows.Scan(&fm, &count); err != nil {
+		var firstIncident string
+		if err := rows.Scan(&fm, &count, &firstIncident); err != nil {
 			return err
 		}
 		// incident_patterns.failure_mode stores the un-prefixed id; translate
 		// to the graph node id (prefixed) for the bucket lookup.
 		if entry, ok := bucket[graph.FailureModeNodeID(fm)]; ok {
 			entry.LearningEntries += count
+			if entry.LearnedFromIncident == "" && firstIncident != "" {
+				entry.LearnedFromIncident = firstIncident
+			}
 		}
 	}
 	return rows.Err()

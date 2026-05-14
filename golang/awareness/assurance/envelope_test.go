@@ -357,3 +357,105 @@ func TestCompose_UnknownRoleYAMLsCapTrust(t *testing.T) {
 		t.Fatalf("verdict=%s want stale when UnknownRoleYAMLCount=1", env.Verdict)
 	}
 }
+
+// TestCompose_ClosureLoopSurfacesIncidentAndTest is the P1-4 acceptance test:
+// when the matched failure_mode carries closure-loop provenance (a learned
+// incident_id and a verifying test), the envelope must surface both so the
+// agent reading "trusted" can see WHY the verdict is partly load-bearing.
+func TestCompose_ClosureLoopSurfacesIncidentAndTest(t *testing.T) {
+	fmc := &assurance.FailureModeCoverage{
+		ID:                  "FM-closed-loop",
+		Mitigations:         1,
+		Tests:               2,
+		Detectors:           1,
+		Level:               assurance.CoverageWellCovered,
+		LearnedFromIncident: "INC-2026-0007",
+		FirstVerifyingTest:  "TestResumeRequiresReceipt",
+	}
+	env := assurance.Compose(assurance.ComposeInputs{
+		MatchFound:       true,
+		PrimaryMatchKind: assurance.MatchKindFailureMode,
+		PerFailureMode:   fmc,
+		Staleness:        &assurance.Staleness{BundlePresent: true},
+	})
+	if env.LearnedFromIncident != "INC-2026-0007" {
+		t.Errorf("envelope.LearnedFromIncident = %q, want INC-2026-0007", env.LearnedFromIncident)
+	}
+	if env.RegressionTest != "TestResumeRequiresReceipt" {
+		t.Errorf("envelope.RegressionTest = %q, want TestResumeRequiresReceipt", env.RegressionTest)
+	}
+	if env.Verdict != assurance.TrustTrusted {
+		t.Errorf("verdict = %s, want trusted (closure-loop should not change verdict)", env.Verdict)
+	}
+}
+
+// TestCompose_ClosureLoopEmptyWhenNoPerFailureMode pins the negative
+// contract: invariant / forbidden_fix / raw_yaml matches do not carry
+// per-mode coverage data and therefore have no closure-loop pointer. Fields
+// must stay empty so the omitempty JSON tag drops them from output.
+func TestCompose_ClosureLoopEmptyWhenNoPerFailureMode(t *testing.T) {
+	env := assurance.Compose(assurance.ComposeInputs{
+		MatchFound:       true,
+		PrimaryMatchKind: assurance.MatchKindInvariant,
+		PerFailureMode:   nil,
+		Staleness:        &assurance.Staleness{BundlePresent: true},
+	})
+	if env.LearnedFromIncident != "" {
+		t.Errorf("LearnedFromIncident = %q, want empty (no per-mode data)", env.LearnedFromIncident)
+	}
+	if env.RegressionTest != "" {
+		t.Errorf("RegressionTest = %q, want empty (no per-mode data)", env.RegressionTest)
+	}
+}
+
+// TestCompose_ClosureLoopPartialPopulation: when the failure_mode has a
+// learned incident but no verifying test (or vice-versa), the populated
+// field is surfaced and the empty one stays empty rather than emitting a
+// placeholder. This protects against the "must always have both" rebuke
+// agents might apply if the envelope shape implied a tightly-coupled pair.
+func TestCompose_ClosureLoopPartialPopulation(t *testing.T) {
+	t.Run("IncidentOnly", func(t *testing.T) {
+		fmc := &assurance.FailureModeCoverage{
+			ID:                  "FM-partial-1",
+			Mitigations:         1,
+			Tests:               0,
+			Detectors:           1,
+			Level:               assurance.CoveragePartial,
+			LearnedFromIncident: "INC-2026-0042",
+		}
+		env := assurance.Compose(assurance.ComposeInputs{
+			MatchFound:       true,
+			PrimaryMatchKind: assurance.MatchKindFailureMode,
+			PerFailureMode:   fmc,
+			Staleness:        &assurance.Staleness{BundlePresent: true},
+		})
+		if env.LearnedFromIncident != "INC-2026-0042" {
+			t.Errorf("LearnedFromIncident = %q, want INC-2026-0042", env.LearnedFromIncident)
+		}
+		if env.RegressionTest != "" {
+			t.Errorf("RegressionTest = %q, want empty", env.RegressionTest)
+		}
+	})
+	t.Run("TestOnly", func(t *testing.T) {
+		fmc := &assurance.FailureModeCoverage{
+			ID:                 "FM-partial-2",
+			Mitigations:        1,
+			Tests:              1,
+			Detectors:          0,
+			Level:              assurance.CoveragePartial,
+			FirstVerifyingTest: "TestSomeInvariant",
+		}
+		env := assurance.Compose(assurance.ComposeInputs{
+			MatchFound:       true,
+			PrimaryMatchKind: assurance.MatchKindFailureMode,
+			PerFailureMode:   fmc,
+			Staleness:        &assurance.Staleness{BundlePresent: true},
+		})
+		if env.LearnedFromIncident != "" {
+			t.Errorf("LearnedFromIncident = %q, want empty", env.LearnedFromIncident)
+		}
+		if env.RegressionTest != "TestSomeInvariant" {
+			t.Errorf("RegressionTest = %q, want TestSomeInvariant", env.RegressionTest)
+		}
+	})
+}

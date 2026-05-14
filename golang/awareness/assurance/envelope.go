@@ -84,6 +84,20 @@ type TrustEnvelope struct {
 	// the verdict as stronger. Empty for a TrustTrusted envelope.
 	RequiredActions []string `json:"required_actions,omitempty" yaml:"required_actions,omitempty"`
 
+	// Closure-loop provenance (P1-4): when the matched failure_mode has a
+	// learning entry or a regression test wired into the graph, the agent
+	// gets to see WHY the verdict is partly load-bearing rather than just
+	// "trusted". Empty when no closure-loop evidence exists for the match.
+	//
+	// LearnedFromIncident: an incident_id (e.g. "INC-2026-0007") from
+	//   incident_patterns whose pattern names this failure_mode. Smallest by
+	//   id when multiple patterns exist — deterministic, stable across runs.
+	// RegressionTest: a test name (e.g. "TestResumeRequiresReceipt") for a
+	//   test that has a verifies/tested_by/validated_by edge to this
+	//   failure_mode. Smallest by id when multiple tests exist.
+	LearnedFromIncident string `json:"learned_from_incident,omitempty" yaml:"learned_from_incident,omitempty"`
+	RegressionTest      string `json:"regression_test,omitempty" yaml:"regression_test,omitempty"`
+
 	GeneratedAtUnix int64 `json:"generated_at_unix" yaml:"generated_at_unix"`
 }
 
@@ -148,6 +162,16 @@ func Compose(in ComposeInputs) TrustEnvelope {
 
 	// --- Limitations + RequiredActions ---------------------------------------
 	env.Limitations, env.RequiredActions = explainGaps(in, env.Freshness, env.Coverage, env.Verdict)
+
+	// --- Closure-loop provenance (P1-4) --------------------------------------
+	// Only meaningful when the match was a failure_mode: invariant /
+	// forbidden_fix / raw_yaml matches don't carry per-mode coverage data,
+	// so there's no closure-loop pointer to surface. Empty strings stay
+	// omitted via the `omitempty` JSON tag.
+	if in.PerFailureMode != nil {
+		env.LearnedFromIncident = in.PerFailureMode.LearnedFromIncident
+		env.RegressionTest = in.PerFailureMode.FirstVerifyingTest
+	}
 
 	return env
 }

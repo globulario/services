@@ -303,3 +303,82 @@ func TestCoverageFor_NilReceiverSafe(t *testing.T) {
 		t.Errorf("nil receiver CoverageFor = %+v, want nil", got)
 	}
 }
+
+// TestComputeCoverage_PopulatesClosureLoopProvenance is the P1-4 acceptance
+// test on the population side: when an incident_patterns row exists for a
+// failure_mode AND a test node has a verifies-edge to it, ComputeCoverage
+// surfaces the smallest incident_id and the smallest test name into the
+// FailureModeCoverage record so Compose() can carry them through to the
+// trust envelope.
+func TestComputeCoverage_PopulatesClosureLoopProvenance(t *testing.T) {
+	g := openSeededGraph(t)
+	addFailureMode(t, g, "FM-loop", "Closed loop fm")
+
+	// Two incident_patterns rows — smallest incident_id wins for determinism.
+	now := int64(1)
+	for _, p := range []struct {
+		id, incident string
+	}{
+		{"PAT-1", "INC-2026-0042"},
+		{"PAT-2", "INC-2026-0007"}, // smaller, should win
+	} {
+		_, err := g.DB().Exec(
+			`INSERT INTO incident_patterns
+			 (id, incident_id, title, summary, severity, status, failure_mode, root_cause, lesson, created_at, updated_at)
+			 VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+			p.id, p.incident, "t", "s", "warning", "active", "FM-loop", "", "", now, now)
+		if err != nil {
+			t.Fatalf("insert pattern %s: %v", p.id, err)
+		}
+	}
+
+	// Two tests verifying the failure_mode — smallest by id wins.
+	addNode(t, g, "test:TestZebra", graph.NodeTypeTest, "TestZebra")
+	addNode(t, g, "test:TestAlpha", graph.NodeTypeTest, "TestAlpha")
+	addEdge(t, g, "test:TestZebra", graph.EdgeVerifies, fmNode("FM-loop"))
+	addEdge(t, g, "test:TestAlpha", graph.EdgeVerifies, fmNode("FM-loop"))
+
+	report, err := assurance.ComputeCoverage(context.Background(), g)
+	if err != nil {
+		t.Fatalf("ComputeCoverage: %v", err)
+	}
+	fmc := report.CoverageFor("FM-loop")
+	if fmc == nil {
+		t.Fatal("CoverageFor returned nil for seeded failure_mode")
+	}
+	if fmc.LearnedFromIncident != "INC-2026-0007" {
+		t.Errorf("LearnedFromIncident = %q, want INC-2026-0007 (smallest by id)", fmc.LearnedFromIncident)
+	}
+	if fmc.FirstVerifyingTest != "TestAlpha" {
+		t.Errorf("FirstVerifyingTest = %q, want TestAlpha (smallest by id, prefix stripped)", fmc.FirstVerifyingTest)
+	}
+	if fmc.LearningEntries != 2 {
+		t.Errorf("LearningEntries = %d, want 2", fmc.LearningEntries)
+	}
+	if fmc.Tests != 2 {
+		t.Errorf("Tests = %d, want 2", fmc.Tests)
+	}
+}
+
+// TestComputeCoverage_ClosureLoopEmptyWhenNoEvidence: a plain orphan
+// failure_mode produces empty closure-loop fields so the envelope's
+// omitempty JSON tag drops them. No fabrication when no evidence exists.
+func TestComputeCoverage_ClosureLoopEmptyWhenNoEvidence(t *testing.T) {
+	g := openSeededGraph(t)
+	addFailureMode(t, g, "FM-empty", "No loop evidence")
+
+	report, err := assurance.ComputeCoverage(context.Background(), g)
+	if err != nil {
+		t.Fatalf("ComputeCoverage: %v", err)
+	}
+	fmc := report.CoverageFor("FM-empty")
+	if fmc == nil {
+		t.Fatal("CoverageFor returned nil for seeded failure_mode")
+	}
+	if fmc.LearnedFromIncident != "" {
+		t.Errorf("LearnedFromIncident = %q, want empty", fmc.LearnedFromIncident)
+	}
+	if fmc.FirstVerifyingTest != "" {
+		t.Errorf("FirstVerifyingTest = %q, want empty", fmc.FirstVerifyingTest)
+	}
+}
