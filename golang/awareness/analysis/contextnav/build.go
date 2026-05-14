@@ -292,7 +292,7 @@ func traceForFailureMode(in *BuildInputs, fmID string, aliasSet, runtimeFMSet ma
 		MatchedBy:   []EvidenceRef{},
 		Pivots:      []ContextPivot{},
 		NextActions: []DiagnosticAction{},
-		Falsifiers:  []Falsifier{genericFalsifier(in)},
+		Falsifiers:  falsifiersOrGeneric("failure_mode", fmID, in),
 	}
 
 	t.MatchedBy = append(t.MatchedBy, EvidenceRef{
@@ -355,7 +355,7 @@ func traceForInvariant(in *BuildInputs, invID string, aliasSet, runtimeInvSet ma
 		MatchedBy:   []EvidenceRef{},
 		Pivots:      []ContextPivot{},
 		NextActions: []DiagnosticAction{},
-		Falsifiers:  []Falsifier{genericFalsifier(in)},
+		Falsifiers:  falsifiersOrGeneric("invariant", invID, in),
 	}
 	t.MatchedBy = append(t.MatchedBy, EvidenceRef{
 		Source:     "graph",
@@ -412,7 +412,7 @@ func traceForForbiddenFix(in *BuildInputs, ffID string, aliasSet map[string]bool
 		}},
 		Pivots:      []ContextPivot{},
 		NextActions: []DiagnosticAction{},
-		Falsifiers:  []Falsifier{genericFalsifier(in)},
+		Falsifiers:  falsifiersOrGeneric("forbidden_fix", ffID, in),
 	}
 	if aliasSet[ffID] {
 		t.MatchedBy = append(t.MatchedBy, EvidenceRef{
@@ -452,6 +452,18 @@ func traceForRawKnowledge(in *BuildInputs, raw RawKnowledgeRef) DecisionTrace {
 		Warnings: []string{"fallback match — graph silence does not prove safety; treat as a hint, not proof"},
 	}
 	return t
+}
+
+// falsifiersOrGeneric returns the templated falsifiers for a finding's
+// family (Phase 6), or a single-entry generic-falsifier slice when no
+// template matches. Every DecisionTrace MUST carry at least one
+// falsifier — the design-doc contract is that an agent reads findings
+// as falsifiable claims, not as match output.
+func falsifiersOrGeneric(kind, id string, in *BuildInputs) []Falsifier {
+	if templated := falsifiersForFinding(kind, id); len(templated) > 0 {
+		return templated
+	}
+	return []Falsifier{genericFalsifier(in)}
 }
 
 func genericFalsifier(in *BuildInputs) Falsifier {
