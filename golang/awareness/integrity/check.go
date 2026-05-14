@@ -47,6 +47,7 @@ type IntegrityResult struct {
 	Contradictions         []Contradiction   `json:"contradictions,omitempty"`
 	OrphanNodes            []string          `json:"orphan_nodes,omitempty"`
 	EdgesWithoutProvenance []ProvenanceIssue `json:"edges_without_provenance,omitempty"`
+	CrossLinkDensity       CrossLinkDensity  `json:"cross_link_density"`
 	TrustLevels            TrustSummary      `json:"trust_levels"`
 	RecommendedActions     []string          `json:"recommended_actions"`
 	ExitCode               int               `json:"exit_code"`
@@ -140,6 +141,11 @@ func Check(ctx context.Context, opts Options, g *graph.Graph) (*IntegrityResult,
 
 		// Orphan node detection (nodes with no edges).
 		result.OrphanNodes = findOrphanNodes(ctx, g)
+
+		// Per-type cross-link density audit. Counts gaps that block
+		// contextnav's pivot inference (failure_mode missing tests /
+		// invariant links). Independent of the all-edges orphan check.
+		result.CrossLinkDensity = computeCrossLinkDensity(ctx, g)
 	}
 
 	// ── Compute summary counts ───────────────────────────────────────────────────
