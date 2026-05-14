@@ -151,16 +151,19 @@ func Build(in BuildInputs) []DecisionTrace {
 	for _, fmID := range in.FailureModes {
 		t := traceForFailureMode(&in, fmID, aliasSet, runtimeFMSet)
 		attachCrossCuttingEvidence(&t, &in)
+		t.NextActions = InferActions(&t, &in)
 		traces = append(traces, t)
 	}
 	for _, invID := range in.Invariants {
 		t := traceForInvariant(&in, invID, aliasSet, runtimeInvSet)
 		attachCrossCuttingEvidence(&t, &in)
+		t.NextActions = InferActions(&t, &in)
 		traces = append(traces, t)
 	}
 	for _, ffID := range in.ForbiddenFixes {
 		t := traceForForbiddenFix(&in, ffID, aliasSet)
 		attachCrossCuttingEvidence(&t, &in)
+		t.NextActions = InferActions(&t, &in)
 		traces = append(traces, t)
 	}
 	for _, raw := range in.RawKnowledge {
@@ -173,7 +176,9 @@ func Build(in BuildInputs) []DecisionTrace {
 		// signals on top would compete with the trace's own fallback
 		// warning. The agent reads raw_yaml as "treat as hint", and the
 		// MatchedBy chain stays single-sourced to enforce that.
-		traces = append(traces, traceForRawKnowledge(&in, raw))
+		t := traceForRawKnowledge(&in, raw)
+		t.NextActions = InferActions(&t, &in)
+		traces = append(traces, t)
 	}
 
 	sort.SliceStable(traces, func(i, j int) bool {
