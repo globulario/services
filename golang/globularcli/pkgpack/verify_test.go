@@ -188,3 +188,34 @@ func TestVerifyTGZ_TypeDefault(t *testing.T) {
 		t.Errorf("Type = %q, want service (default)", summary.Type)
 	}
 }
+
+// TestVerifyTGZ_AwarenessBundleShapeRejected pins the boundary between the
+// service-package publish path and the awareness-bundle publish path. An
+// awareness bundle ships manifest.json (not package.json) and has no
+// bin/specs layout, so VerifyTGZ MUST reject it — the bundle has its own
+// validator in golang/globularcli/awareness_bundle_publish.go. Without
+// this rejection, someone could run `globular pkg publish` on an
+// awareness bundle and the service path would attempt to register it as
+// a SERVICE artifact with no entrypoint, corrupting the catalog.
+func TestVerifyTGZ_AwarenessBundleShapeRejected(t *testing.T) {
+	dir := t.TempDir()
+	tgzPath := filepath.Join(dir, "awareness-bundle.tar.gz")
+
+	// Awareness manifest shape — not package.json.
+	awareness := map[string]string{
+		"name":     "globular-awareness-bundle",
+		"kind":     "AWARENESS_BUNDLE",
+		"version":  "0.0.1",
+		"build_id": "abc",
+	}
+	mdata, _ := json.Marshal(awareness)
+
+	writeTGZ(t, tgzPath, map[string][]byte{
+		"manifest.json": mdata,
+		"graph.db":      []byte("SQLite format 3\x00"),
+	})
+
+	if _, err := VerifyTGZ(tgzPath); err == nil {
+		t.Fatal("VerifyTGZ should reject an awareness bundle (no package.json) — use `awareness bundle publish` instead")
+	}
+}

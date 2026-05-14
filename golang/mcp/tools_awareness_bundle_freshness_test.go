@@ -316,3 +316,98 @@ func TestLoadReleaseIndexNestedActiveShape(t *testing.T) {
 		t.Errorf("got %+v, want v1.2.30/abc123", ri)
 	}
 }
+
+// TestLoadReleaseIndexBOMShape pins the contract that loadReleaseIndex
+// extracts the AWARENESS_BUNDLE entry out of the canonical BOM-shaped
+// release-index produced by the repository / CI release pipeline. Without
+// this case, every freshness check on a node that has a real
+// release-index.json returned AWARENESS_BUNDLE_VERIFY_FAILED — even after
+// a successful `awareness bundle publish` — because the flat shape parse
+// silently fell through.
+func TestLoadReleaseIndexBOMShape(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "release-index.json")
+	data := []byte(`{
+  "schema_version": "globular.repository.index/v2",
+  "release_tag": "v2026.05.14",
+  "packages": [
+    {
+      "name": "echo",
+      "kind": "SERVICE",
+      "version": "1.0.5",
+      "build_id": "service-build-id-aaa",
+      "platform": "linux_amd64",
+      "package_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "globular-awareness-bundle",
+      "kind": "AWARENESS_BUNDLE",
+      "version": "0.0.7",
+      "build_id": "bundle-build-id-xyz",
+      "platform": "any",
+      "package_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  ]
+}`)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	ri, err := loadReleaseIndex(path)
+	if err != nil {
+		t.Fatalf("loadReleaseIndex: %v", err)
+	}
+	if ri.Version != "0.0.7" || ri.BuildID != "bundle-build-id-xyz" {
+		t.Errorf("got %+v, want version=0.0.7 build_id=bundle-build-id-xyz", ri)
+	}
+}
+
+// TestLoadReleaseIndexBOMShapePrefersCanonicalName ensures a BOM with
+// multiple AWARENESS_BUNDLE entries (e.g. a third-party bundle and the
+// canonical globular-awareness-bundle) picks the canonical one — so a
+// rogue or test bundle in the index can never displace the official
+// freshness target.
+func TestLoadReleaseIndexBOMShapePrefersCanonicalName(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "release-index.json")
+	data := []byte(`{
+  "schema_version": "globular.repository.index/v2",
+  "release_tag": "v1",
+  "packages": [
+    {"name": "third-party-knowledge", "kind": "AWARENESS_BUNDLE", "version": "9.9.9", "build_id": "rogue"},
+    {"name": "globular-awareness-bundle", "kind": "AWARENESS_BUNDLE", "version": "0.0.7", "build_id": "official"}
+  ]
+}`)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	ri, err := loadReleaseIndex(path)
+	if err != nil {
+		t.Fatalf("loadReleaseIndex: %v", err)
+	}
+	if ri.Version != "0.0.7" || ri.BuildID != "official" {
+		t.Errorf("got %+v, want canonical entry (version=0.0.7 build_id=official)", ri)
+	}
+}
+
+// TestLoadReleaseIndexBOMShapeNoAwarenessFalls fails over to the flat
+// shape when a BOM is present but contains no AWARENESS_BUNDLE entry. The
+// existing freshness behaviour for that case is "no version found" which
+// surfaces as AWARENESS_BUNDLE_VERIFY_FAILED — this test pins that the
+// BOM-aware path doesn't silently fabricate a verdict.
+func TestLoadReleaseIndexBOMShapeNoAwarenessFalls(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "release-index.json")
+	data := []byte(`{
+  "schema_version": "globular.repository.index/v2",
+  "release_tag": "v1",
+  "packages": [
+    {"name": "echo", "kind": "SERVICE", "version": "1.0.5", "build_id": "svc"}
+  ]
+}`)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, err := loadReleaseIndex(path); err == nil {
+		t.Fatalf("expected error when BOM has no AWARENESS_BUNDLE entry")
+	}
+}

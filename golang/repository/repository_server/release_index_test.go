@@ -661,6 +661,45 @@ func TestReleaseIndexV2InstallRejectsUnknownKind(t *testing.T) {
 	}
 }
 
+// TestReleaseIndexAcceptsAwarenessBundleKind pins that AWARENESS_BUNDLE is
+// a first-class kind in install validation. Without this, the CI release
+// pipeline could write an awareness bundle into release-index.json and
+// every downstream node would reject the BOM with "kind is not supported
+// for install validation" — silently keeping clusters off the published
+// bundle. Mirrors TestReleaseIndexV2InstallRejectsUnknownKind in shape.
+func TestReleaseIndexAcceptsAwarenessBundleKind(t *testing.T) {
+	idx := validV2Index()
+	for i, p := range idx.Packages {
+		p.BuildID = fmt.Sprintf("upstream-abc%d", i+1)
+		p.ArtifactSha256 = p.PackageDigest
+	}
+	idx.Packages[0].Kind = "AWARENESS_BUNDLE"
+	idx.Packages[0].Platform = "any"
+	if err := ValidateReleaseIndexForInstall(idx); err != nil {
+		t.Fatalf("AWARENESS_BUNDLE kind should pass install validation, got: %v", err)
+	}
+}
+
+// TestKindFromArtifactKindString_AwarenessBundle pins the proto mapping
+// surface. The mapping function is the choke point that install
+// validation consults; if it ever stops recognising the kind, every
+// awareness bundle in a BOM trips the same "unknown kind" path.
+func TestKindFromArtifactKindString_AwarenessBundle(t *testing.T) {
+	got, ok := kindFromArtifactKindString("AWARENESS_BUNDLE")
+	if !ok {
+		t.Fatalf("AWARENESS_BUNDLE must map to a proto kind")
+	}
+	if got != repopb.ArtifactKind_AWARENESS_BUNDLE {
+		t.Errorf("expected ArtifactKind_AWARENESS_BUNDLE, got %v", got)
+	}
+	// Case-insensitive lookup is the contract documented by every other
+	// kind in this switch — pin it for AWARENESS_BUNDLE too so a
+	// lower-cased BOM entry doesn't slip through.
+	if _, ok := kindFromArtifactKindString("awareness_bundle"); !ok {
+		t.Errorf("AWARENESS_BUNDLE lookup must be case-insensitive")
+	}
+}
+
 func TestReleaseIndexV2AllowsExplicitUnchangedOriginRelease(t *testing.T) {
 	idx := validV2Index()
 	// Per the conflict matrix in

@@ -78,12 +78,26 @@ func DefaultManifestPath() string {
 	return DefaultBundleRoot + "/current/manifest.json"
 }
 
+// CurrentBundleSchemaVersion is the schema string that newly built bundles
+// stamp into manifest.json. Builders should write this value; consumers
+// should accept anything in SupportedSchemaVersions. The pair lets the
+// system roll forward one version ahead of the readers without breaking
+// older binaries — bump SupportedSchemaVersions first, then
+// CurrentBundleSchemaVersion.
+const CurrentBundleSchemaVersion = "awareness.bundle.v1"
+
 // SupportedSchemaVersions enumerates the bundle schemas this binary can load.
 // Phase A supports only v1; bumping requires explicit code support for the
 // new schema, never silent acceptance.
 var SupportedSchemaVersions = []string{
-	"awareness.bundle.v1",
+	CurrentBundleSchemaVersion,
 }
+
+// IsSupportedSchemaVersion reports whether v is one of the schema strings
+// this binary can load. Exposed so build/publish tools can validate a
+// schema_version they're about to write or upload without reaching for the
+// private supportsSchema helper.
+func IsSupportedSchemaVersion(v string) bool { return supportsSchema(v) }
 
 // Manifest describes a single awareness bundle as served by
 // mcp.awareness_bundle_manifest or saved alongside a pulled tarball.

@@ -128,6 +128,23 @@ func TestInstallBundleFreshInstall(t *testing.T) {
 		t.Errorf("nested file missing: %v", err)
 	}
 
+	// The original tar.gz must be retained alongside the extracted contents
+	// so MCP's awareness_bundle_stream / awareness_bundle_manifest tools can
+	// serve the archive to remote callers. Without this, peer pulls return
+	// AWARENESS_BUNDLE_MISSING even when the install succeeded.
+	bundleCopy := filepath.Join(wantDir, installedBundleFilename)
+	srcInfo, err := os.Stat(bp)
+	if err != nil {
+		t.Fatalf("stat source bundle: %v", err)
+	}
+	dstInfo, err := os.Stat(bundleCopy)
+	if err != nil {
+		t.Fatalf("retained bundle.tar.gz missing: %v", err)
+	}
+	if dstInfo.Size() != srcInfo.Size() {
+		t.Errorf("retained bundle size = %d, want %d (source)", dstInfo.Size(), srcInfo.Size())
+	}
+
 	// Symlink points at versioned dir.
 	target, err := os.Readlink(filepath.Join(bundleRoot, "current"))
 	if err != nil {

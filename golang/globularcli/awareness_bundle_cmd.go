@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/awareness/bundlesync"
 	"github.com/globulario/services/golang/opsknowledge"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -32,9 +33,17 @@ type awarenessBundleManifest struct {
 	Kind    string `json:"kind"`
 	Version string `json:"version"`
 	BuildID string `json:"build_id"`
-	BuiltAt string `json:"built_at"`
-	BuiltBy string `json:"built_by,omitempty"`
-	SHA256  string `json:"sha256,omitempty"`
+	// SchemaVersion identifies the bundle format. Set to
+	// bundlesync.CurrentBundleSchemaVersion at build time so consumers
+	// (mcp.awareness_freshness_status, bundlesync.LoadManifest, the
+	// runtime selfcheck) can detect format drift before activating an
+	// incompatible bundle. Older bundles wrote this field as empty; the
+	// publish command tolerates an empty value but rejects an explicit
+	// value outside SupportedSchemaVersions.
+	SchemaVersion string `json:"schema_version,omitempty"`
+	BuiltAt       string `json:"built_at"`
+	BuiltBy       string `json:"built_by,omitempty"`
+	SHA256        string `json:"sha256,omitempty"`
 
 	// OpsKnowledgeEntries records the per-entry canonical SHA256 of every
 	// operational-knowledge seed entry packed into ops-knowledge/. The
@@ -147,7 +156,7 @@ var awarenessBundleBuildCmd = &cobra.Command{
 into a distributable tar.gz with an embedded manifest.json.
 
 The output file is suitable for:
-  globular package publish --kind AWARENESS_BUNDLE --file <output>
+  globular awareness bundle publish --file <output> --repository <addr>
 
 Prerequisites:
   - graph.db must already be built: globular awareness build
@@ -178,12 +187,13 @@ Prerequisites:
 
 		hostname, _ := os.Hostname()
 		manifest := awarenessBundleManifest{
-			Name:    "globular-awareness-bundle",
-			Kind:    "AWARENESS_BUNDLE",
-			Version: version,
-			BuildID: buildID,
-			BuiltAt: time.Now().UTC().Format(time.RFC3339),
-			BuiltBy: hostname,
+			Name:          "globular-awareness-bundle",
+			Kind:          "AWARENESS_BUNDLE",
+			Version:       version,
+			BuildID:       buildID,
+			SchemaVersion: bundlesync.CurrentBundleSchemaVersion,
+			BuiltAt:       time.Now().UTC().Format(time.RFC3339),
+			BuiltBy:       hostname,
 		}
 
 		outputName := fmt.Sprintf("awareness-bundle-%s-%s.tar.gz", version, buildID[:8])
@@ -335,16 +345,17 @@ Prerequisites:
 
 		sha256sum := hex.EncodeToString(h.Sum(nil))
 
-		// Rewrite the manifest.json inside the archive with the sha256.
-		// For simplicity, we print it and the operator adds it when publishing.
+		// The bundle sha256 here covers the whole archive (manifest + content)
+		// and is what `awareness bundle publish` re-computes before upload.
+		// The repository will record this as the artifact checksum.
 		fmt.Fprintf(os.Stdout, "\nBundle ready:\n")
 		fmt.Fprintf(os.Stdout, "  file:     %s\n", outputName)
 		fmt.Fprintf(os.Stdout, "  sha256:   %s\n", sha256sum)
 		fmt.Fprintf(os.Stdout, "  build_id: %s\n", buildID)
 		fmt.Fprintf(os.Stdout, "  files:    %d entries\n", written+1)
 		fmt.Fprintf(os.Stdout, "\nTo publish:\n")
-		fmt.Fprintf(os.Stdout, "  globular package publish --name globular-awareness-bundle --kind AWARENESS_BUNDLE --version %s --build-id %s --file %s\n",
-			version, buildID, outputName)
+		fmt.Fprintf(os.Stdout, "  globular awareness bundle publish --file %s --repository <repository-address>\n",
+			outputName)
 		return nil
 	},
 }
@@ -367,15 +378,18 @@ var awarenessBundleInspectCmd = &cobra.Command{
 
 		h := sha256.Sum256(data)
 		fmt.Fprintf(os.Stdout, "Awareness bundle: %s\n\n", path)
-		fmt.Fprintf(os.Stdout, "  name:     %s\n", manifest.Name)
-		fmt.Fprintf(os.Stdout, "  kind:     %s\n", manifest.Kind)
-		fmt.Fprintf(os.Stdout, "  version:  %s\n", manifest.Version)
-		fmt.Fprintf(os.Stdout, "  build_id: %s\n", manifest.BuildID)
-		fmt.Fprintf(os.Stdout, "  built_at: %s\n", manifest.BuiltAt)
-		if manifest.BuiltBy != "" {
-			fmt.Fprintf(os.Stdout, "  built_by: %s\n", manifest.BuiltBy)
+		fmt.Fprintf(os.Stdout, "  name:           %s\n", manifest.Name)
+		fmt.Fprintf(os.Stdout, "  kind:           %s\n", manifest.Kind)
+		fmt.Fprintf(os.Stdout, "  version:        %s\n", manifest.Version)
+		fmt.Fprintf(os.Stdout, "  build_id:       %s\n", manifest.BuildID)
+		if manifest.SchemaVersion != "" {
+			fmt.Fprintf(os.Stdout, "  schema_version: %s\n", manifest.SchemaVersion)
 		}
-		fmt.Fprintf(os.Stdout, "  sha256:   %s\n", hex.EncodeToString(h[:]))
+		fmt.Fprintf(os.Stdout, "  built_at:       %s\n", manifest.BuiltAt)
+		if manifest.BuiltBy != "" {
+			fmt.Fprintf(os.Stdout, "  built_by:       %s\n", manifest.BuiltBy)
+		}
+		fmt.Fprintf(os.Stdout, "  sha256:         %s\n", hex.EncodeToString(h[:]))
 		if n := len(manifest.OpsKnowledgeEntries); n > 0 {
 			fmt.Fprintf(os.Stdout, "\nOperational-knowledge seed (%d entries):\n", n)
 			for _, e := range manifest.OpsKnowledgeEntries {

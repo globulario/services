@@ -793,6 +793,197 @@ call site (`awarGitRoot`) and the remaining sites become follow-up work.
 
 ---
 
+## 2026-05-14 — Awareness bundle build → publish → freshness contract drift
+
+This is the **second incident** on the "bundle pipeline contract
+fragmented across subsystems" shape; the first was the 2026-05-10
+"Bundle freshness contract" entry (which consolidated on
+`bundlesync.DefaultManifestPath`). Both incidents share the same
+root: the pipeline that creates an awareness bundle, the pipeline that
+publishes one, and the pipeline that verifies one were each authored
+with their own private assumption about what an "awareness bundle" is.
+
+- **Shared concept that fragmented**: a single end-to-end answer to
+  "what identifies an awareness bundle on this cluster?" — name, version,
+  build_id, schema_version, sha256 — that flows from `awareness bundle
+  build` through publish into the repository index and back out to every
+  freshness consumer.
+
+- **Per-subsystem interpretation**:
+  - `globular awareness bundle build` (`globularcli/awareness_bundle_cmd.go`):
+    wrote a cli-local `awarenessBundleManifest` struct with
+    `name/kind/version/build_id/built_at` but no `schema_version` and no
+    `sha256` field in the manifest. The build's "To publish" hint pointed
+    at `globular package publish --kind AWARENESS_BUNDLE`, a command
+    shape that did not exist (`pkg publish` has no `--kind` flag and
+    requires `package.json` via `pkgpack.VerifyTGZ`, which awareness
+    bundles do not ship).
+  - `globular pkg publish` (`globularcli/pkg_cmds.go`): inferred artifact
+    kind from `package.json::type`, so an awareness bundle (which has
+    `manifest.json` instead) failed validation at step 1.
+  - `repository.UploadArtifact` (`repository/repository_server/
+    artifact_handlers.go`): would have accepted the bundle — its
+    `extractPackageManifest` returns nil silently when there is no
+    `package.json`, and `ref.Kind` is honoured. No subsystem had wired the
+    CLI side to that capability.
+  - `ValidateReleaseIndexForInstall`
+    (`repository/repository_server/release_index.go`): rejected any
+    release-index entry whose `kind` was `AWARENESS_BUNDLE` because the
+    `kindFromArtifactKindString` switch did not list the kind. A
+    CI-generated BOM would have failed with "kind is not supported for
+    install validation" before reaching any node.
+  - MCP freshness loader (`mcp/tools_awareness_bundle_freshness.go`):
+    parsed `release-index.json` as either flat
+    (`{"version": ..., "build_id": ...}`) or nested
+    (`{"active": {...}}`). The canonical repository BOM shape
+    (`{"schema_version": ..., "packages": [...]}`) matched neither, so
+    every freshness check on a real cluster returned
+    `AWARENESS_BUNDLE_VERIFY_FAILED` regardless of whether a bundle had
+    actually been published.
+  - `bundlesync.Manifest` (consumer): required
+    `name/version/build_id/schema_version/sha256` non-empty. The cli's
+    build wrote none of `schema_version` or `sha256`. Any node that
+    activated a freshly built bundle would have surfaced
+    `AWARENESS_BUNDLE_SCHEMA_UNSUPPORTED`.
+
+- **Why unit tests missed it**: each subsystem's tests were correct
+  for its own slice. `awareness_bundle_cmd_test.go` proved the build
+  collected the right files into the tar. `pkg_cmds_test` / pkgpack
+  tests proved service publish validated package.json. The repository
+  release-index tests asserted that recognised kinds passed install
+  validation but never asserted that AWARENESS_BUNDLE in particular
+  did. The MCP freshness tests fed the loader the flat or nested
+  shapes it could already parse. None of these suites composed the
+  five layers into a single end-to-end test: build → publish →
+  release-index round-trip → freshness verdict.
+
+- **End-to-end contract that should own it**: **Partial — established
+  for kind and release-index shape; identity-flow consolidation owed.**
+  The fixes shipped here are:
+  1. `globular awareness bundle publish` (new CLI verb in
+     `golang/globularcli/awareness_bundle_publish.go`) reads the
+     bundle's own manifest.json, validates the identity fields,
+     computes the archive sha256, and uploads with `ref.Kind =
+     AWARENESS_BUNDLE`. The build hint now points here.
+  2. `kindFromArtifactKindString` learns `AWARENESS_BUNDLE` (and
+     `SUBSYSTEM`, which was also missing) so a release-index entry
+     for an awareness bundle passes install validation.
+  3. `loadReleaseIndex` in MCP gains a BOM-shape extractor that
+     finds the `AWARENESS_BUNDLE` entry in `packages[]` and prefers
+     the canonical `globular-awareness-bundle` name when several
+     bundles are present. Flat / nested shapes remain accepted.
+  4. `bundlesync.CurrentBundleSchemaVersion` is the single source of
+     truth for the schema string newly built bundles stamp into
+     manifest.json; build writes it, publish refuses to upload a
+     manifest whose `schema_version` is non-empty and unsupported.
+     `bundlesync.IsSupportedSchemaVersion` is the public predicate so
+     publish-time validation does not reach into a private helper.
+
+  What is **still owed**:
+  - The bundle manifest still has two shapes (cli's
+    `awarenessBundleManifest` vs `bundlesync.Manifest`) with
+    overlapping fields and different JSON tags (`built_at` vs
+    `created_at`, missing `size_bytes` and `graph_hash` on the cli
+    side). The fix here makes the divergence honest at the
+    schema_version axis; consolidating to a single shared
+    `bundlesync.BuildManifest` is still owed.
+  - The build does not currently write the archive's own sha256 into
+    the inner manifest. The publish path computes it on the fly so
+    the repository records a verified checksum, but a node that
+    activates a bundle then calls `bundlesync.VerifyManifest` will
+    see `SHA256 == ""` and either error out or skip the check. That
+    is freshness state machine territory — recorded here so the
+    next consolidator does not have to rediscover it.
+
+- **Did the fix simplify or special-case?** **Partial.** Three
+  scattered subsystems (release-index validation, MCP freshness, CLI
+  publish) now share one understanding of `AWARENESS_BUNDLE` as a
+  first-class kind with a documented schema version. That is one
+  concept replacing three private guesses. But the cli's bundle
+  manifest is still a distinct struct from the consumer's manifest;
+  the two will need to be merged before the next bundle-format
+  change. Tests pin: (a) `pkg publish` rejects awareness archives at
+  the boundary (`pkgpack/verify_test.go::AwarenessBundleShapeRejected`),
+  (b) the publish CLI accepts a build-shape archive end-to-end
+  (`globularcli/awareness_bundle_publish_test.go`), (c) release-index
+  install validation accepts the kind
+  (`repository/.../release_index_test.go::AcceptsAwarenessBundleKind`),
+  (d) the MCP freshness loader extracts a BOM-shape entry
+  (`mcp/tools_awareness_bundle_freshness_test.go::BOMShape`), and
+  (e) the schema_version round-trips through build → publish
+  (`globularcli/awareness_bundle_publish_test.go::SchemaVersion`).
+
+---
+
+## 2026-05-14 — Installer drops the bundle tarball; serve tools then lie
+
+End-to-end verification of the awareness bundle publish path surfaced this
+as a separate composed-path failure adjacent to the publish work. Same
+day, same domain, but a different shape from the publish/release-index
+divergence above.
+
+- **Shared concept that fragmented**: where the original `bundle.tar.gz`
+  archive lives after a successful install, and which subsystems need to
+  read it later. Two readers and one writer disagree.
+
+- **Per-subsystem interpretation**:
+  - `bundlesync.InstallBundle`: "I extract the bundle into
+    `installed/<version>/<build_id>/` and copy `manifest.json` next to
+    the unpacked contents. The source tar.gz is the caller's
+    responsibility; I do not retain it." Written before the MCP serve
+    tools existed.
+  - `mcp.awareness_bundle_manifest`
+    (`mcp/tools_awareness_bundle_serve.go`): "I open
+    `/var/lib/globular/awareness/current/bundle.tar.gz` to compute a
+    fresh sha256 over the bytes I would stream. If the file is missing,
+    the bundle is missing." Written assuming the installer retains the
+    tarball.
+  - `mcp.awareness_bundle_stream` and the corresponding HTTP handler:
+    "I serve `/var/lib/globular/awareness/current/bundle.tar.gz` to
+    remote pullers." Same assumption.
+  - `awareness.bundle_status`: "I read the manifest only; the bundle
+    file's presence is not part of my answer." A third reader with a
+    completely different contract.
+  - Live evidence on globule-ryzen as of 2026-05-14: `bundle_status`
+    reports `present: true, status: LOADED`, while
+    `mcp_awareness_bundle_manifest` reports
+    `state: AWARENESS_BUNDLE_MISSING` for the same physical bundle. The
+    two tools disagree on the same install, by design — one trusts the
+    manifest, the other trusts the tarball.
+
+- **Why unit tests missed it**: every install test ran in `t.TempDir()`
+  and asserted only on `graph.db` + the manifest sidecar
+  (`install_test.go::TestInstallBundleFreshInstall` etc.). No test
+  asserted that the source tarball survived the install. The MCP serve
+  tools' tests synthesized their own `bundle.tar.gz` at the active
+  bundle path, never running the installer first. The composition
+  (install → serve) was untested.
+
+- **End-to-end contract that should own it**: **Established
+  2026-05-14**. `installedBundleFilename` is a constant in the
+  `bundlesync` package documenting the one filename serve tools and
+  installer agree on. `InstallBundle` now copies `opts.BundlePath` into
+  the staging directory as `bundle.tar.gz` via `copyFileAtomic` before
+  the atomic rename, so the retained tarball lives in the same
+  versioned dir as the extracted contents. The `current` symlink
+  inherits it. MCP serve tools still read by the well-known filename;
+  one source of truth, one filesystem layout.
+
+- **Did the fix simplify or special-case?** **Simplified.** One install
+  step now retains the artifact every downstream serve tool already
+  expects to find. The retained copy lives inside the same
+  content-addressed `installed/<version>/<build_id>/` dir as the
+  extracted graph + manifest, so the symlink swap keeps it consistent
+  with everything else. Test
+  `TestInstallBundleFreshInstall` now asserts the retained bundle
+  exists and matches the source's byte count. A complementary
+  consolidation candidate — moving the literal `"bundle.tar.gz"` from
+  MCP's `activeBundleFilename` variable to the new
+  `bundlesync.installedBundleFilename` const — is owed (the literal is
+  still duplicated; the constant gives the right grep target).
+
+---
+
 ## How to add an entry
 
 1. Use the schema above. Do not skip the five fields.

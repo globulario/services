@@ -126,17 +126,39 @@ State mapping:
 // the binary doesn't recognize — only Version/BuildID are required for
 // freshness; the rest of the file (other releases, signatures, etc.) is
 // ignored.
+//
+// Three shapes are accepted, in priority order:
+//
+//  1. The canonical BOM produced by the repository / CI release pipeline
+//     ({"schema_version": "globular.repository.index/v{1,2}", "packages":
+//     [{"kind": "AWARENESS_BUNDLE", "version": ..., "build_id": ...}, ...]}).
+//     We pick the AWARENESS_BUNDLE entry; if multiple exist, the first one
+//     whose name matches bundlesync.BundleName wins, otherwise the first
+//     AWARENESS_BUNDLE entry by document order.
+//
+//  2. A flat shape used by older tooling and tests: {"version": ..., "build_id": ...}.
+//
+//  3. A nested {"active": {"version": ..., "build_id": ...}} shape some
+//     dev tooling emits.
+//
+// Order matters: the BOM is the source of truth on real clusters, and
+// previously a BOM-shaped file failed both flat and nested parses, so the
+// freshness verdict was AWARENESS_BUNDLE_VERIFY_FAILED on every node that
+// had a normal release-index.json even after a successful publish.
 func loadReleaseIndex(path string) (*bundlesync.ReleaseIndex, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read release-index %s: %w", path, err)
 	}
-	// Try a flat shape first: {"version":..., "build_id":...}
+	if ri, ok := releaseIndexFromBOM(data); ok {
+		return ri, nil
+	}
+	// Flat shape.
 	var flat bundlesync.ReleaseIndex
 	if err := json.Unmarshal(data, &flat); err == nil && flat.Version != "" {
 		return &flat, nil
 	}
-	// Some tooling writes {"active":{"version":..., "build_id":...}} — accept that too.
+	// Nested {"active": {...}} shape.
 	var nested struct {
 		Active *bundlesync.ReleaseIndex `json:"active"`
 	}
@@ -144,6 +166,43 @@ func loadReleaseIndex(path string) (*bundlesync.ReleaseIndex, error) {
 		return nested.Active, nil
 	}
 	return nil, fmt.Errorf("release-index %s: no usable version/build_id", path)
+}
+
+// releaseIndexFromBOM extracts the awareness bundle entry from a BOM-shaped
+// release-index. Returns ok=false when no AWARENESS_BUNDLE entry is present,
+// letting the caller fall back to the flat/nested shapes.
+func releaseIndexFromBOM(data []byte) (*bundlesync.ReleaseIndex, bool) {
+	var bom struct {
+		Packages []struct {
+			Name    string `json:"name"`
+			Kind    string `json:"kind"`
+			Version string `json:"version"`
+			BuildID string `json:"build_id"`
+		} `json:"packages"`
+	}
+	if err := json.Unmarshal(data, &bom); err != nil || len(bom.Packages) == 0 {
+		return nil, false
+	}
+	var first *bundlesync.ReleaseIndex
+	for _, p := range bom.Packages {
+		if !strings.EqualFold(strings.TrimSpace(p.Kind), "AWARENESS_BUNDLE") {
+			continue
+		}
+		if p.Version == "" {
+			continue
+		}
+		entry := &bundlesync.ReleaseIndex{Version: p.Version, BuildID: p.BuildID}
+		if strings.EqualFold(p.Name, bundlesync.BundleName) {
+			return entry, true
+		}
+		if first == nil {
+			first = entry
+		}
+	}
+	if first != nil {
+		return first, true
+	}
+	return nil, false
 }
 
 // readLocalBinaryInfo returns the running binary's release identity from

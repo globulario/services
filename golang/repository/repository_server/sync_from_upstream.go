@@ -1399,6 +1399,10 @@ func kindFromArtifactKindString(s string) (repopb.ArtifactKind, bool) {
 		return repopb.ArtifactKind_COMMAND, true
 	case "AGENT":
 		return repopb.ArtifactKind_AGENT, true
+	case "SUBSYSTEM":
+		return repopb.ArtifactKind_SUBSYSTEM, true
+	case "AWARENESS_BUNDLE":
+		return repopb.ArtifactKind_AWARENESS_BUNDLE, true
 	default:
 		return repopb.ArtifactKind_SERVICE, false
 	}

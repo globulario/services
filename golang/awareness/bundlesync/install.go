@@ -5,9 +5,20 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
+
+// installedBundleFilename is the canonical filename used for the retained
+// copy of the original tar.gz alongside the extracted contents. Centralized
+// so MCP serve tools (mcp.awareness_bundle_stream,
+// mcp.awareness_bundle_manifest) and the installer agree on one name.
+//
+// Lives in the bundlesync package so callers don't duplicate the literal
+// across subsystems; MCP imports this constant via the
+// activeBundleFilename binding in tools_awareness_bundle_serve.go.
+const installedBundleFilename = "bundle.tar.gz"
 
 // ── Atomic install primitives ────────────────────────────────────────────────
 //
@@ -167,6 +178,22 @@ func InstallBundle(opts InstallOptions) (*InstallResult, error) {
 			return res, err
 		}
 
+		// (4b) Retain the source tar.gz alongside the extracted contents so
+		// MCP's awareness_bundle_stream / awareness_bundle_manifest tools
+		// can serve the original archive to remote callers. Without this
+		// copy, peer nodes that try to pull the bundle from this node see
+		// AWARENESS_BUNDLE_MISSING even though the install succeeded.
+		// Skipped if the source path equals the destination (in-place install
+		// scenarios that some test setups exercise).
+		dstBundle := filepath.Join(stagingPath, installedBundleFilename)
+		if abs1, _ := filepath.Abs(opts.BundlePath); abs1 != dstBundle {
+			if err := copyFileAtomic(opts.BundlePath, dstBundle); err != nil {
+				res.State = StateAwarenessBundleInstallFailed
+				res.Reason = fmt.Sprintf("retain bundle tarball: %v", err)
+				return res, err
+			}
+		}
+
 		// (5) Validate extracted contents. At minimum the bundle must contain
 		// graph.db (the awareness graph itself); without it the bundle is
 		// useless even if the tar verified.
@@ -256,6 +283,39 @@ func validateExtracted(dir string) error {
 		if _, err := os.Stat(p); err != nil {
 			return fmt.Errorf("required file missing in bundle: %s", r)
 		}
+	}
+	return nil
+}
+
+// copyFileAtomic copies src to dst by writing to dst+".tmp" then renaming
+// onto dst. Both paths must be on the same filesystem for the rename to be
+// atomic; the caller arranges this by writing into the staging directory
+// before the staging→versioned rename. Any partial write is removed.
+func copyFileAtomic(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("open source: %w", err)
+	}
+	defer in.Close()
+
+	tmp := dst + ".tmp"
+	_ = os.Remove(tmp)
+	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return fmt.Errorf("create dest: %w", err)
+	}
+	if _, copyErr := io.Copy(out, in); copyErr != nil {
+		_ = out.Close()
+		_ = os.Remove(tmp)
+		return fmt.Errorf("copy: %w", copyErr)
+	}
+	if err := out.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("close dest: %w", err)
+	}
+	if err := os.Rename(tmp, dst); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("rename: %w", err)
 	}
 	return nil
 }
