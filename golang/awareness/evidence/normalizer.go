@@ -131,16 +131,10 @@ func (n *Normalizer) normalizeBundleVersionMatch(snap *NodeRuntimeSnapshot, node
 
 func (n *Normalizer) normalizePKI(snap *NodeRuntimeSnapshot, nodeID string, now time.Time) []RuntimeFact {
 	pki := snap.PKI
-	if !pki.CACertPresent || !pki.NodeCertPresent || !pki.NodeKeyPresent {
-		missing := ""
-		switch {
-		case !pki.CACertPresent:
-			missing = pkiCACertPath
-		case !pki.NodeCertPresent:
-			missing = pkiNodeCertPath
-		case !pki.NodeKeyPresent:
-			missing = pkiNodeKeyPath
-		}
+
+	// Missing wins over unreadable: a vanished file is a strictly worse
+	// state than a permission problem, and the remediations don't overlap.
+	if missingPath := firstMissingPKIPath(pki); missingPath != "" {
 		return []RuntimeFact{{
 			Kind:        FactPKIMissing,
 			NodeID:      nodeID,
@@ -150,11 +144,56 @@ func (n *Normalizer) normalizePKI(snap *NodeRuntimeSnapshot, nodeID string, now 
 			Blocks:      []string{"mcp", "grpc", "mesh", "node-agent"},
 			Confidence:  1.0,
 			Timestamp:   now,
-			EvidenceRef: "file:" + missing,
-			Detail:      "PKI artifact missing: " + missing,
+			EvidenceRef: "file:" + missingPath,
+			Detail:      "PKI artifact missing: " + missingPath,
+		}}
+	}
+	if unreadablePath := firstUnreadablePKIPath(pki); unreadablePath != "" {
+		return []RuntimeFact{{
+			Kind:        FactPKIUnreadable,
+			NodeID:      nodeID,
+			Service:     "pki",
+			Phase:       snap.Phase,
+			Severity:    SeverityHigh,
+			Blocks:      []string{"mcp", "grpc", "mesh", "node-agent"},
+			Confidence:  1.0,
+			Timestamp:   now,
+			EvidenceRef: "file:" + unreadablePath,
+			Detail: "PKI artifact present but not readable by collecting process: " +
+				unreadablePath +
+				" (check file ownership or verify collector is running as the service user)",
 		}}
 	}
 	return nil
+}
+
+// firstMissingPKIPath returns the path of the first PKI artifact that is
+// absent from disk, or "" if all three exist. Stable order: CA → cert → key.
+func firstMissingPKIPath(pki PKIObservation) string {
+	switch {
+	case !pki.CACertPresent:
+		return pkiCACertPath
+	case !pki.NodeCertPresent:
+		return pkiNodeCertPath
+	case !pki.NodeKeyPresent:
+		return pkiNodeKeyPath
+	}
+	return ""
+}
+
+// firstUnreadablePKIPath returns the path of the first PKI artifact that is
+// present on disk but not readable by the collecting process. Only called
+// after firstMissingPKIPath has confirmed all three are present.
+func firstUnreadablePKIPath(pki PKIObservation) string {
+	switch {
+	case !pki.CACertReadable:
+		return pkiCACertPath
+	case !pki.NodeCertReadable:
+		return pkiNodeCertPath
+	case !pki.NodeKeyReadable:
+		return pkiNodeKeyPath
+	}
+	return ""
 }
 
 // ── Scylla config authority ───────────────────────────────────────────────────

@@ -56,7 +56,7 @@ func TestDay1RefusesReadyWhenBundleMissing(t *testing.T) {
 
 	snap := makeSnap("node-a", PhaseDAY1, rel,
 		AwarenessBundleStatus{Present: false, Status: "MISSING"},
-		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		pkiAllReadable(),
 		ScyllaConfigObservation{},
 		healthyServices(), healthyPorts(),
 	)
@@ -86,7 +86,7 @@ func TestDay1RefusesReadyWhenBundleStale(t *testing.T) {
 	}
 
 	snap := makeSnap("node-a", PhaseDAY1, rel, stale,
-		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		pkiAllReadable(),
 		ScyllaConfigObservation{},
 		healthyServices(), healthyPorts(),
 	)
@@ -124,7 +124,7 @@ func TestDay1RefusesReadyWhenBundleMismatched(t *testing.T) {
 	}
 
 	snap := makeSnap("node-a", PhaseDAY1, rel, wrong,
-		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		pkiAllReadable(),
 		ScyllaConfigObservation{},
 		healthyServices(), healthyPorts(),
 	)
@@ -169,7 +169,7 @@ func TestArchitectureClassificationBlockedByStaleBundle(t *testing.T) {
 	}
 
 	snap := makeSnap("node-a", PhaseDAY1, rel, stale,
-		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		pkiAllReadable(),
 		ScyllaConfigObservation{},
 		scyllaDownServices, scyllaDownPorts,
 	)
@@ -214,7 +214,7 @@ func TestArchitectureClassificationBlockedByMismatchedBundle(t *testing.T) {
 	}
 
 	snap := makeSnap("node-a", PhaseDAY1, rel, wrong,
-		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		pkiAllReadable(),
 		ScyllaConfigObservation{},
 		healthyServices(), scyllaDownPorts,
 	)
@@ -238,7 +238,7 @@ func TestDay1RefusesReadyWhenBundleStatusNotLoaded(t *testing.T) {
 	}
 
 	snap := makeSnap("node-a", PhaseDAY1, rel, corrupt,
-		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		pkiAllReadable(),
 		ScyllaConfigObservation{},
 		healthyServices(), healthyPorts(),
 	)
@@ -258,7 +258,7 @@ func TestDay1PassesWhenBundleAndInfrastructureBothHealthy(t *testing.T) {
 	rel, fresh := freshBundle()
 
 	snap := makeSnap("node-a", PhaseDAY1, rel, fresh,
-		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		pkiAllReadable(),
 		ScyllaConfigObservation{},
 		healthyServices(), healthyPorts(),
 	)
@@ -287,7 +287,7 @@ func TestNormalizerEmitsStaleForBuildIDDriftOnly(t *testing.T) {
 			Present: true, Status: "LOADED",
 			Version: "1.2.30", BuildID: "old-build",
 		},
-		PKI: PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		PKI: pkiAllReadable(),
 	}
 	facts := (&Normalizer{}).Normalize(snap)
 
@@ -321,7 +321,7 @@ func TestNormalizerEmitsMismatchForVersionDrift(t *testing.T) {
 			Present: true, Status: "LOADED",
 			Version: "0.0.1", BuildID: "anything",
 		},
-		PKI: PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		PKI: pkiAllReadable(),
 	}
 	facts := (&Normalizer{}).Normalize(snap)
 

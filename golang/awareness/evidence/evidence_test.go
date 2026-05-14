@@ -11,7 +11,7 @@ func TestAwarenessBundleMissingClassification(t *testing.T) {
 	snap := makeSnap("node-b", PhaseDAY1,
 		ReleaseInfo{Present: true, Version: "1.2.0"},
 		AwarenessBundleStatus{Present: false, Status: "MISSING"},
-		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		pkiAllReadable(),
 		ScyllaConfigObservation{},
 		[]ServiceObservation{
 			{Name: "scylla", UnitName: "scylla-server.service", ActiveState: "active", SubState: "running"},
@@ -48,7 +48,7 @@ func TestScyllaFailedBlocksDay1(t *testing.T) {
 	snap := makeSnap("node-b", PhaseDAY1,
 		ReleaseInfo{Present: true, Version: "1.2.0"},
 		AwarenessBundleStatus{Present: true, Status: "LOADED", Version: "1.2.0", BuildID: "abc123"},
-		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		pkiAllReadable(),
 		ScyllaConfigObservation{},
 		[]ServiceObservation{
 			{Name: "scylla", UnitName: "scylla-server.service", ActiveState: "failed", SubState: "failed"},
@@ -149,7 +149,7 @@ func TestHealthyNodePassesDay1(t *testing.T) {
 	snap := makeSnap("node-a", PhaseDAY1,
 		ReleaseInfo{Present: true, Version: "1.2.0", BuildID: "abc"},
 		AwarenessBundleStatus{Present: true, Status: "LOADED", Version: "1.2.0", BuildID: "abc"},
-		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		pkiAllReadable(),
 		ScyllaConfigObservation{},
 		[]ServiceObservation{
 			{Name: "scylla", UnitName: "scylla-server.service", ActiveState: "active", SubState: "running"},
@@ -208,7 +208,7 @@ func TestWorkflowBlockedWhenScyllaDown(t *testing.T) {
 	snap := makeSnap("node-b", PhaseDAY1,
 		ReleaseInfo{Present: true, Version: "1.2.0"},
 		AwarenessBundleStatus{Present: true, Status: "LOADED", Version: "1.2.0"},
-		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		pkiAllReadable(),
 		ScyllaConfigObservation{},
 		[]ServiceObservation{
 			{Name: "scylla", UnitName: "scylla-server.service", ActiveState: "failed", SubState: "failed"},
@@ -255,7 +255,7 @@ func TestScyllaConfigAuthorityDrift(t *testing.T) {
 		Phase:       PhaseDAY1,
 		CollectedAt: time.Now().UTC(),
 		AwarenessBundle: AwarenessBundleStatus{Present: true, Status: "LOADED", Version: "1.2.0"},
-		PKI:         PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		PKI:         pkiAllReadable(),
 		Release:     ReleaseInfo{Present: true, Version: "1.2.0"},
 		ScyllaConfig: ScyllaConfigObservation{
 			Present: true,
@@ -291,7 +291,7 @@ func TestMCPReachableAwarenessBundleMissing(t *testing.T) {
 	snap := makeSnap("node-b", PhaseDAY1,
 		ReleaseInfo{Present: true, Version: "1.2.0"},
 		AwarenessBundleStatus{Present: false, Status: "MISSING"},
-		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		pkiAllReadable(),
 		ScyllaConfigObservation{},
 		[]ServiceObservation{},
 		[]PortObservation{{Port: 10260, Protocol: "tcp", Listening: true}},
@@ -317,7 +317,14 @@ func TestPKIMissingBlocksDay1(t *testing.T) {
 		ReleaseInfo{Present: true, Version: "1.2.0"},
 		AwarenessBundleStatus{Present: true, Status: "LOADED", Version: "1.2.0"},
 		// CA cert missing.
-		PKIObservation{CACertPresent: false, NodeCertPresent: true, NodeKeyPresent: true},
+		PKIObservation{
+			CACertPresent:    false,
+			CACertReadable:   false, // missing file is implicitly unreadable
+			NodeCertPresent:  true,
+			NodeCertReadable: true,
+			NodeKeyPresent:   true,
+			NodeKeyReadable:  true,
+		},
 		ScyllaConfigObservation{},
 		[]ServiceObservation{
 			{Name: "etcd", UnitName: "etcd.service", ActiveState: "active", SubState: "running"},
@@ -387,7 +394,7 @@ func TestAwarenessBundleVersionMismatch(t *testing.T) {
 		AwarenessBundle: AwarenessBundleStatus{
 			Present: true, Status: "LOADED", Version: "1.2.29", BuildID: "old-build",
 		},
-		PKI: PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		PKI: pkiAllReadable(),
 	}
 
 	facts := (&Normalizer{}).Normalize(snap)
@@ -435,7 +442,7 @@ func TestRuntimeFailureDoesNotStaleAFreshBundle(t *testing.T) {
 			Present: true, Status: "LOADED",
 			Version: "1.2.30", BuildID: "abc123",
 		},
-		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		pkiAllReadable(),
 		ScyllaConfigObservation{},
 		[]ServiceObservation{
 			{Name: "scylla", UnitName: "scylla-server.service", ActiveState: "active", SubState: "running"},
@@ -481,7 +488,7 @@ func TestStaleBundleClassifiesIndependentlyOfRuntime(t *testing.T) {
 			Present: true, Status: "LOADED",
 			Version: "1.2.30", BuildID: "old999", // build_id drift on same version
 		},
-		PKIObservation{CACertPresent: true, NodeCertPresent: true, NodeKeyPresent: true},
+		pkiAllReadable(),
 		ScyllaConfigObservation{},
 		[]ServiceObservation{
 			{Name: "scylla", UnitName: "scylla-server.service", ActiveState: "active", SubState: "running"},
@@ -601,6 +608,21 @@ func TestHighestReachedLevelStopsAtFirstFalse(t *testing.T) {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+
+// pkiAllReadable returns a PKIObservation where all three artifacts are
+// present on disk AND readable by the collecting process — the common
+// "healthy local PKI" fixture. Tests that need to vary one field can
+// take the result and mutate it.
+func pkiAllReadable() PKIObservation {
+	return PKIObservation{
+		CACertPresent:    true,
+		CACertReadable:   true,
+		NodeCertPresent:  true,
+		NodeCertReadable: true,
+		NodeKeyPresent:   true,
+		NodeKeyReadable:  true,
+	}
+}
 
 func makeSnap(
 	nodeID string, phase Phase,

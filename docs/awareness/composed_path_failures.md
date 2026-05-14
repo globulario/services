@@ -455,6 +455,59 @@ log is where we earn the right to consolidate.
 
 ---
 
+## 2026-05-14 — PKI fileReadable conflates missing with not-readable
+
+- **Shared concept**: "is this PKI artifact usable as a trust input?" The
+  answer is consumed by `normalizePKI` → `pkiReady` → Day-1 verdict →
+  remediation action.
+- **Per-subsystem interpretation**:
+  - `collector.collectPKI` (old): called `fileReadable(path)` and stored
+    the result as `*Present`. The bool collapsed "file exists" and
+    "current process can read file" into one signal.
+  - `normalizer.normalizePKI` (old): treated `!*Present` as evidence of
+    a missing artifact and emitted `FactPKIMissing` with detail
+    "PKI artifact missing: <path>".
+  - `classifier.classify`: routed `FactPKIMissing` to `ClassPKIMissing`,
+    whose AllowedActions are "request certificate issuance from
+    cluster CA" — a re-issue prescription.
+  - In production, the CLI invoked by user `dave` saw `service.key`
+    (mode 0400 owned by globular) as unreadable. The whole pipeline
+    reported `PKI_MISSING` and prescribed re-issuance for a file that
+    was perfectly intact.
+- **Why unit tests missed it**: every PKI test fixture constructed
+  `PKIObservation{CACertPresent: true, ...}` from already-decided
+  bools. The collector primitive (`fileReadable`) was never tested
+  against a file that *exists but is unreadable to the running uid* —
+  precisely the state that surfaces only when the verifier is a
+  different user than the service. The asymmetry between collector
+  context and service context wasn't part of any test's mental model.
+  This is the **second incident** of the same primitive-collapses-
+  two-conditions-into-one-bool shape; the first was the 127.0.0.1
+  dial in the port-listening primitive (also 2026-05-14). Per the
+  log's own rule, two incidents on the same shape is the trigger
+  to consolidate — which is what this entry does.
+- **End-to-end contract that should own it**: **Established
+  2026-05-14**. `observeFile(path) (exists, readable bool)` returns
+  the two states independently. `PKIObservation` carries them as
+  separate fields (`*Present`, `*Readable`). The normalizer emits
+  `FactPKIMissing` only when `!Present` and the new `FactPKIUnreadable`
+  when `Present && !Readable`. The classifier surfaces the new
+  `ClassPKIUnreadable` with a permissions/ownership remediation hint
+  and explicitly *forbids* re-issuance — the previous default action
+  for the unreadable case was wrong and lossy.
+- **Did the fix simplify or special-case?** **Simplified.** One
+  primitive that conflated two conditions becomes one primitive that
+  returns both states honestly. The contract is the same shape as the
+  release-index fix in the prior entry (`Present` separated from
+  parseability) and the port fix (bind-address agnosticism). Three
+  bug entries, one underlying pattern — collector primitives that
+  squashed multi-state observations into a single bool. Tests now
+  pin (a) `observeFile` returns the two states correctly, (b)
+  MISSING wins when both apply, (c) the classifier picks the right
+  verdict + forbids the wrong remediation.
+
+---
+
 ## How to add an entry
 
 1. Use the schema above. Do not skip the five fields.

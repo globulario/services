@@ -54,9 +54,11 @@ func (c *Classifier) Classify(snap *NodeRuntimeSnapshot) *Day1Verdict {
 	// Level 7: LOCAL_RUNTIME_OBSERVED — collector produced service observations.
 	v.Readiness[LevelLocalRuntimeObserved] = len(snap.Services) > 0
 
-	// Level 8: PKI_READY — no PKI_MISSING fact (normalizer emits this with Service="pki"
-	// when CA cert, node cert, or node key is missing).
-	pkiReady := !hasFact(snap.Facts, FactPKIMissing, "pki")
+	// Level 8: PKI_READY — neither PKI_MISSING nor PKI_UNREADABLE. Both block
+	// the service from completing mTLS; the verdict distinguishes them so the
+	// remediation hint differs (re-issue vs check ownership / run as service user).
+	pkiReady := !hasFact(snap.Facts, FactPKIMissing, "pki") &&
+		!hasFact(snap.Facts, FactPKIUnreadable, "pki")
 	v.Readiness[LevelPKIReady] = pkiReady
 
 	// Level 9: SCYLLA_READY — no Scylla CQL unreachable fact AND port 9042 listening.
@@ -143,7 +145,13 @@ func (c *Classifier) classify(snap *NodeRuntimeSnapshot, v *Day1Verdict) (Day1Cl
 		return ClassAwarenessBundleStale, "awareness bundle build_id drifted from release-index (same release line, older build)"
 	}
 	if !v.Readiness[LevelPKIReady] {
-		return ClassPKIMissing, "PKI artifacts missing (CA cert, node cert, or private key)"
+		// Missing is strictly worse than unreadable; missing wins when both
+		// would apply, in line with the normalizer's emission order.
+		if hasFact(snap.Facts, FactPKIMissing, "pki") {
+			return ClassPKIMissing, "PKI artifacts missing (CA cert, node cert, or private key)"
+		}
+		return ClassPKIUnreadable, "PKI artifacts present but unreadable by collecting process " +
+			"(check file ownership / verify collector is running as the service user)"
 	}
 	if !v.Readiness[LevelEtcdMemberReady] {
 		// Check if local runtime survived despite missing etcd authority.
@@ -260,6 +268,20 @@ func (c *Classifier) populateActions(v *Day1Verdict) {
 		v.ForbiddenActions = []string{
 			"mark node DAY1_COMPLETE",
 			"accept gRPC connections without mTLS",
+		}
+
+	case ClassPKIUnreadable:
+		// Files exist; remediation is permissions/ownership or running context,
+		// NOT re-issuance. Misdiagnosing this as MISSING wastes the CA and can
+		// rotate a healthy cert for no reason.
+		v.AllowedActions = []string{
+			"verify PKI file ownership (expect globular:globular)",
+			"verify collector is running as the service user",
+			"collect PKI diagnostics",
+		}
+		v.ForbiddenActions = []string{
+			"mark node DAY1_COMPLETE",
+			"re-issue PKI artifacts (files exist; rotation would be unnecessary)",
 		}
 
 	case ClassJoinedButDependencyBlocked, ClassScyllaNotReady:

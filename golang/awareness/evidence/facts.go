@@ -30,6 +30,11 @@ const (
 // ── PKI / identity / trust ───────────────────────────────────────────────────
 const (
 	FactPKIMissing               FactKind = "PKI_MISSING"
+	// FactPKIUnreadable: file exists on disk but the collecting process cannot
+	// read it. Different remediation from MISSING — either fix ownership/perms
+	// or accept that this collector is running as the wrong user (e.g. a CLI
+	// invoked by a developer hitting a service-user-only key file).
+	FactPKIUnreadable            FactKind = "PKI_UNREADABLE"
 	FactPKIExpired               FactKind = "PKI_EXPIRED"
 	FactPKISANMismatch           FactKind = "PKI_SAN_MISMATCH"
 	FactPKIClusterTrustMismatch  FactKind = "PKI_CLUSTER_TRUST_MISMATCH"

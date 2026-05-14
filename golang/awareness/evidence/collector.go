@@ -36,10 +36,19 @@ type bundleManifest struct {
 }
 
 // PKIObservation records the presence and basic health of local PKI artifacts.
+//
+// Present and Readable are independent: a file at mode 0400 owned by another
+// user is Present=true Readable=false from the current process's point of
+// view. Splitting them keeps the normalizer honest — "file gone" demands
+// re-issuance, "file present but unreadable" demands ownership/perm review
+// (or simply means the collector is running as the wrong user).
 type PKIObservation struct {
-	CACertPresent  bool `json:"ca_cert_present"`
-	NodeCertPresent bool `json:"node_cert_present"`
-	NodeKeyPresent  bool `json:"node_key_present"`
+	CACertPresent   bool `json:"ca_cert_present"`
+	CACertReadable  bool `json:"ca_cert_readable"`
+	NodeCertPresent  bool `json:"node_cert_present"`
+	NodeCertReadable bool `json:"node_cert_readable"`
+	NodeKeyPresent   bool `json:"node_key_present"`
+	NodeKeyReadable  bool `json:"node_key_readable"`
 	// CertExpired is true when we can determine the cert has expired.
 	// We do not parse ASN.1 here; the normalizer sets PKI_EXPIRED if openssl says so.
 	CertExpired bool `json:"cert_expired,omitempty"`
@@ -141,11 +150,31 @@ func (c *Collector) readBundleStatus() AwarenessBundleStatus {
 }
 
 func (c *Collector) collectPKI() PKIObservation {
+	caP, caR := observeFile(pkiCACertPath)
+	ncP, ncR := observeFile(pkiNodeCertPath)
+	nkP, nkR := observeFile(pkiNodeKeyPath)
 	return PKIObservation{
-		CACertPresent:   fileReadable(pkiCACertPath),
-		NodeCertPresent: fileReadable(pkiNodeCertPath),
-		NodeKeyPresent:  fileReadable(pkiNodeKeyPath),
+		CACertPresent:    caP,
+		CACertReadable:   caR,
+		NodeCertPresent:  ncP,
+		NodeCertReadable: ncR,
+		NodeKeyPresent:   nkP,
+		NodeKeyReadable:  nkR,
 	}
+}
+
+// observeFile returns (exists, readable) for path. The two states are
+// independent: a file owned by another user at mode 0400 reports
+// exists=true readable=false from a process that doesn't have read access.
+// Conflating them into one bool was the second composed-path failure in
+// the evidence collector (after the 127.0.0.1 dial); see
+// docs/awareness/composed_path_failures.md.
+func observeFile(path string) (exists, readable bool) {
+	if _, err := os.Stat(path); err == nil {
+		exists = true
+	}
+	readable = fileReadable(path)
+	return
 }
 
 // readScyllaConfig parses key fields from /etc/scylla/scylla.yaml without a YAML library.

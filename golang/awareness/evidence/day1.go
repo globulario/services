@@ -57,6 +57,7 @@ const (
 	ClassGatewayNotReady            Day1Classification = "GATEWAY_NOT_READY"
 	ClassWorkflowRemediationUnsafe  Day1Classification = "WORKFLOW_REMEDIATION_UNSAFE"
 	ClassPKIMissing                 Day1Classification = "PKI_MISSING"
+	ClassPKIUnreadable              Day1Classification = "PKI_UNREADABLE"
 	ClassMCPReachableButUntrusted   Day1Classification = "MCP_REACHABLE_BUT_UNTRUSTED"
 	ClassServiceFailed              Day1Classification = "SERVICE_FAILED"
 	ClassEtcdNotReady               Day1Classification = "ETCD_NOT_READY"

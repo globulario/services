@@ -266,3 +266,171 @@ func TestNormalizer_NoFalseScyllaCascade_WhenPortListeningOnNodeIP(t *testing.T)
 		}
 	}
 }
+
+// ── PKI file-state splitting (missing vs unreadable) ─────────────────────────
+//
+// Regression tests for the composed-path failure recorded under
+// "PKI fileReadable conflates missing with not-readable" in
+// docs/awareness/composed_path_failures.md.
+//
+// Before the fix, observeFile didn't exist; the collector only asked "can I
+// open this file?" That bool was wired straight through as `*Present`,
+// collapsing two operationally distinct states ("file gone" vs "file there
+// but I'm running as the wrong user") into one. Both rendered as
+// FactPKIMissing, prescribing the wrong remediation (re-issue from CA) for
+// the second case.
+
+func TestObserveFile_PresentAndReadable(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f")
+	if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exists, readable := observeFile(path)
+	if !exists || !readable {
+		t.Errorf("got exists=%v readable=%v, want both true", exists, readable)
+	}
+}
+
+func TestObserveFile_Absent(t *testing.T) {
+	exists, readable := observeFile(filepath.Join(t.TempDir(), "nope"))
+	if exists || readable {
+		t.Errorf("got exists=%v readable=%v, want both false", exists, readable)
+	}
+}
+
+func TestObserveFile_PresentButUnreadable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root — cannot exercise unreadable-by-current-process branch")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "locked")
+	if err := os.WriteFile(path, []byte("secret"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o000); err != nil {
+		t.Fatalf("chmod 0o000: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
+
+	exists, readable := observeFile(path)
+	if !exists {
+		t.Error("file with mode 0o000 must still be reported exists=true")
+	}
+	if readable {
+		t.Error("file with mode 0o000 must not be readable by the current process")
+	}
+}
+
+func TestNormalizer_PKIMissing_WhenFileAbsent(t *testing.T) {
+	snap := &NodeRuntimeSnapshot{
+		Phase: PhaseDAY1,
+		PKI: PKIObservation{
+			CACertPresent: false, CACertReadable: false,
+			NodeCertPresent: true, NodeCertReadable: true,
+			NodeKeyPresent: true, NodeKeyReadable: true,
+		},
+	}
+	facts := (&Normalizer{}).Normalize(snap)
+	if findFact(facts, FactPKIMissing) == nil {
+		t.Error("must emit FactPKIMissing when an artifact is absent")
+	}
+	if findFact(facts, FactPKIUnreadable) != nil {
+		t.Error("must NOT emit FactPKIUnreadable when the cause is absence — that would double-count")
+	}
+}
+
+func TestNormalizer_PKIUnreadable_WhenPresentButNotReadable(t *testing.T) {
+	snap := &NodeRuntimeSnapshot{
+		Phase: PhaseDAY1,
+		PKI: PKIObservation{
+			CACertPresent: true, CACertReadable: true,
+			NodeCertPresent: true, NodeCertReadable: true,
+			// Key is the most common case: mode 0400 owned by service user.
+			NodeKeyPresent: true, NodeKeyReadable: false,
+		},
+	}
+	facts := (&Normalizer{}).Normalize(snap)
+	if findFact(facts, FactPKIMissing) != nil {
+		t.Error("must NOT emit FactPKIMissing — file is present, just unreadable")
+	}
+	f := findFact(facts, FactPKIUnreadable)
+	if f == nil {
+		t.Fatal("must emit FactPKIUnreadable when an artifact is present but unreadable")
+	}
+	if !strings.Contains(f.Detail, "service user") {
+		t.Errorf("detail must guide toward ownership / running-as-service-user check; got: %q", f.Detail)
+	}
+}
+
+func TestNormalizer_PKIMissingWinsOverUnreadable(t *testing.T) {
+	// When one artifact is absent and another is unreadable, MISSING wins:
+	// the remediations don't overlap and re-issuance is the bigger fix.
+	snap := &NodeRuntimeSnapshot{
+		Phase: PhaseDAY1,
+		PKI: PKIObservation{
+			CACertPresent: false, CACertReadable: false,
+			NodeCertPresent: true, NodeCertReadable: true,
+			NodeKeyPresent: true, NodeKeyReadable: false,
+		},
+	}
+	facts := (&Normalizer{}).Normalize(snap)
+	if findFact(facts, FactPKIMissing) == nil {
+		t.Error("MISSING must win when both conditions apply")
+	}
+	if findFact(facts, FactPKIUnreadable) != nil {
+		t.Error("must not emit UNREADABLE when MISSING already covers the verdict")
+	}
+}
+
+func TestClassifier_PKIUnreadableBlocksDay1AndPicksRightClass(t *testing.T) {
+	snap := &NodeRuntimeSnapshot{
+		NodeID:          "node-x",
+		Phase:           PhaseDAY1,
+		Release:         ReleaseInfo{Present: true, Version: "1.2.44"},
+		AwarenessBundle: AwarenessBundleStatus{Present: true, Status: "LOADED", Version: "1.2.44"},
+		PKI: PKIObservation{
+			CACertPresent: true, CACertReadable: true,
+			NodeCertPresent: true, NodeCertReadable: true,
+			NodeKeyPresent: true, NodeKeyReadable: false, // the production bite shape
+		},
+		Services: []ServiceObservation{
+			{Name: "etcd", UnitName: "etcd.service", ActiveState: "active", SubState: "running"},
+		},
+		Ports: []PortObservation{{Port: 2379, Listening: true}},
+	}
+	snap.Facts = (&Normalizer{}).Normalize(snap)
+	verdict := (&Classifier{}).Classify(snap)
+
+	if verdict.Readiness[LevelPKIReady] {
+		t.Error("PKI_READY must be false when an artifact is unreadable")
+	}
+	if verdict.Classification != ClassPKIUnreadable {
+		t.Errorf("classification = %s, want %s", verdict.Classification, ClassPKIUnreadable)
+	}
+	if verdict.Verdict != "BLOCK" {
+		t.Errorf("verdict = %s, want BLOCK", verdict.Verdict)
+	}
+	// Forbidden actions must explicitly rule out re-issuance — that's the
+	// wrong remediation, and the bug we're guarding against was prescribing
+	// exactly that.
+	foundForbidden := false
+	for _, a := range verdict.ForbiddenActions {
+		if strings.Contains(a, "re-issue") {
+			foundForbidden = true
+			break
+		}
+	}
+	if !foundForbidden {
+		t.Errorf("ForbiddenActions must rule out re-issue under UNREADABLE; got %v", verdict.ForbiddenActions)
+	}
+}
+
+func findFact(facts []RuntimeFact, kind FactKind) *RuntimeFact {
+	for i, f := range facts {
+		if f.Kind == kind {
+			return &facts[i]
+		}
+	}
+	return nil
+}
