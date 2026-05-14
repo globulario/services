@@ -382,20 +382,20 @@ func computeTrustEnvelope(ctx context.Context, g *graph.Graph, opts Options, r *
 	return &env
 }
 
+// chooseFailureModeCoverage picks the worst-coverage entry among the matched
+// failure_modes, since the trust envelope must reflect the weakest link in the
+// match set. Uses CoverageReport.CoverageFor (O(1) per id) so the whole pass
+// is O(len(matched)) instead of O(len(PerFailureMode) * len(matched)).
 func chooseFailureModeCoverage(cov *assurance.CoverageReport, matched []string) *assurance.FailureModeCoverage {
-	if cov == nil || len(cov.PerFailureMode) == 0 {
+	if cov == nil || len(cov.PerFailureMode) == 0 || len(matched) == 0 {
 		return nil
-	}
-	matchSet := map[string]bool{}
-	for _, id := range matched {
-		matchSet[id] = true
 	}
 	priority := map[string]int{"ORPHAN": 0, "PARTIAL": 1, "DETECTED": 2, "TESTED": 3, "ENFORCED": 4, "DEPRECATED": 5, "INTENTIONAL_GAP": 6}
 	var best *assurance.FailureModeCoverage
 	bestRank := 99
-	for i := range cov.PerFailureMode {
-		fm := cov.PerFailureMode[i]
-		if !matchSet[fm.ID] {
+	for _, id := range matched {
+		fm := cov.CoverageFor(id)
+		if fm == nil {
 			continue
 		}
 		rank := 99
@@ -403,7 +403,7 @@ func chooseFailureModeCoverage(cov *assurance.CoverageReport, matched []string) 
 			rank = r
 		}
 		if best == nil || rank < bestRank {
-			best = &cov.PerFailureMode[i]
+			best = fm
 			bestRank = rank
 		}
 	}

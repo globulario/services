@@ -13,18 +13,18 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
+	"sync"
 
 	"github.com/globulario/services/golang/awareness/graph"
 )
 
-// failureModeNodePrefix is the prefix the manual extractor uses when stamping
-// graph node IDs for failure_modes (see extractors/manual/failure_modes.go).
-// The failure_modes TABLE stores ids without this prefix — the bucket must use
-// the prefixed form so edge.Dst lookups land on the right entry. Mismatching
-// the two used to make every failure_mode look orphan even when the extractor
-// had wired all three legs (regression: TestComputeCoverage_RecognisesExtractorWiring).
-const failureModeNodePrefix = "failure_mode:"
+// The failure_modes TABLE stores ids without the "failure_mode:" prefix; the
+// graph stamps every node id with that prefix. Joins between the two must
+// route through graph.FailureModeNodeID / graph.FailureModeIDFromNode so the
+// prefix-bug class (TestComputeCoverage_RecognisesExtractorWiring; see
+// docs/awareness/composed_path_failures.md Graph node id prefix) cannot
+// recur. Do not introduce a local alias for the prefix here — the shared
+// helper IS the contract.
 
 // CoverageLevel classifies how well a single failure_mode is covered by the
 // awareness graph.
@@ -74,6 +74,30 @@ type CoverageReport struct {
 	OrphanIDs          []string              `json:"orphan_ids,omitempty"`
 	TheoreticalIDs     []string              `json:"theoretical_ids,omitempty"`
 	PerFailureMode     []FailureModeCoverage `json:"per_failure_mode"`
+
+	// byIDOnce / byID memoize the failure-mode lookup map. CoverageFor builds
+	// it on first call so callers that only need one or two lookups don't pay
+	// for it, but a preflight loop or repeated MCP-call pattern stays O(1)
+	// per lookup. Skipped during JSON serialization (unexported).
+	byIDOnce sync.Once
+	byID     map[string]*FailureModeCoverage
+}
+
+// CoverageFor returns the coverage tuple for a single failure_mode by its
+// canonical (un-prefixed) id, or nil if no entry exists. Idempotent on the
+// id form: passing a graph node id with the "failure_mode:" prefix works too.
+// Cheap on repeat calls — the index is built once per CoverageReport.
+func (r *CoverageReport) CoverageFor(fmID string) *FailureModeCoverage {
+	if r == nil || fmID == "" {
+		return nil
+	}
+	r.byIDOnce.Do(func() {
+		r.byID = make(map[string]*FailureModeCoverage, len(r.PerFailureMode))
+		for i := range r.PerFailureMode {
+			r.byID[r.PerFailureMode[i].ID] = &r.PerFailureMode[i]
+		}
+	})
+	return r.byID[graph.FailureModeIDFromNode(fmID)]
 }
 
 // Edge kinds we treat as detectors (runtime / metric / workflow signals that
@@ -106,7 +130,7 @@ func ComputeCoverage(ctx context.Context, g *graph.Graph) (*CoverageReport, erro
 	// stays un-prefixed for callers.
 	bucket := make(map[string]*FailureModeCoverage, len(fms))
 	for _, fm := range fms {
-		nodeID := failureModeNodePrefix + fm.ID
+		nodeID := graph.FailureModeNodeID(fm.ID)
 		entry := &FailureModeCoverage{ID: fm.ID, Title: fm.Title}
 		if n, err := g.FindNode(ctx, nodeID); err == nil && n != nil {
 			entry.State = lifecycleHintFromNodeMeta(n.Metadata)
@@ -166,7 +190,7 @@ func ComputeCoverage(ctx context.Context, g *graph.Graph) (*CoverageReport, erro
 			// graph node id (prefixed); the display id strips the prefix.
 			if detectorSet[e.Kind] {
 				entry = &FailureModeCoverage{
-					ID:    strings.TrimPrefix(e.Dst, failureModeNodePrefix),
+					ID:    graph.FailureModeIDFromNode(e.Dst),
 					Title: "",
 				}
 				bucket[e.Dst] = entry
@@ -367,7 +391,7 @@ func countIncidentPatterns(ctx context.Context, g *graph.Graph, bucket map[strin
 		}
 		// incident_patterns.failure_mode stores the un-prefixed id; translate
 		// to the graph node id (prefixed) for the bucket lookup.
-		if entry, ok := bucket[failureModeNodePrefix+fm]; ok {
+		if entry, ok := bucket[graph.FailureModeNodeID(fm)]; ok {
 			entry.LearningEntries += count
 		}
 	}

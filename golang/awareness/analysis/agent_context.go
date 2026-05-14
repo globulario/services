@@ -183,7 +183,7 @@ func expandByAliases(ctx context.Context, g *graph.Graph, task string, aliases A
 			}
 			// If not in failure modes table, try graph node.
 			if !existingFMIDs[bareID] {
-				node, err := g.FindNode(ctx, "failure_mode:"+bareID)
+				node, err := g.FindNode(ctx, graph.FailureModeNodeID(bareID))
 				if err == nil && node != nil {
 					existingFMs = append(existingFMs, &graph.FailureMode{
 						ID:    bareID,
@@ -310,7 +310,7 @@ func expandFailureModesFromInvariants(ctx context.Context, g *graph.Graph, invs 
 			if e.Kind != graph.EdgeViolates {
 				continue
 			}
-			fmID := strings.TrimPrefix(e.Src, "failure_mode:")
+			fmID := graph.FailureModeIDFromNode(e.Src)
 			if existingIDs[fmID] {
 				continue
 			}
@@ -335,8 +335,11 @@ func expandFailureModesFromInvariants(ctx context.Context, g *graph.Graph, invs 
 			if e.Kind != graph.EdgeAffects {
 				continue
 			}
-			fmID := strings.TrimPrefix(e.Dst, "failure_mode:")
-			if existingIDs[fmID] || !strings.HasPrefix(e.Dst, "failure_mode:") {
+			if !graph.IsFailureModeNode(e.Dst) {
+				continue
+			}
+			fmID := graph.FailureModeIDFromNode(e.Dst)
+			if existingIDs[fmID] {
 				continue
 			}
 			allFMs, err := g.AllFailureModes(ctx)
@@ -361,7 +364,7 @@ func expandInvariantsFromFailureModes(ctx context.Context, g *graph.Graph, fms [
 		existingIDs[inv.ID] = true
 	}
 	for _, fm := range fms {
-		fmNodeID := "failure_mode:" + fm.ID
+		fmNodeID := graph.FailureModeNodeID(fm.ID)
 		edges, err := g.Neighbors(ctx, fmNodeID, "out")
 		if err != nil {
 			continue
@@ -415,7 +418,7 @@ func collectForbiddenFixes(ctx context.Context, g *graph.Graph, invs []*graph.In
 		addFixes("invariant:" + inv.ID)
 	}
 	for _, fm := range fms {
-		addFixes("failure_mode:" + fm.ID)
+		addFixes(graph.FailureModeNodeID(fm.ID))
 	}
 	return fixes
 }
@@ -445,7 +448,7 @@ func collectRequiredTests(ctx context.Context, g *graph.Graph, invs []*graph.Inv
 		addTests("invariant:" + inv.ID)
 	}
 	for _, fm := range fms {
-		addTests("failure_mode:" + fm.ID)
+		addTests(graph.FailureModeNodeID(fm.ID))
 	}
 	return tests
 }
@@ -481,7 +484,7 @@ func collectServices(ctx context.Context, g *graph.Graph, hints AgentContextHint
 
 	// From failure mode related services.
 	for _, fm := range fms {
-		edges, err := g.Neighbors(ctx, "failure_mode:"+fm.ID, "out")
+		edges, err := g.Neighbors(ctx, graph.FailureModeNodeID(fm.ID), "out")
 		if err != nil {
 			continue
 		}

@@ -246,3 +246,60 @@ func stringContains(haystack, needle string) bool {
 	}
 	return false
 }
+
+// TestCoverageFor_LookupByBareAndPrefixedID exercises both calling forms a
+// caller might use: the canonical un-prefixed failure_mode id (from a YAML
+// row or a preflight match list) and the prefixed graph node id (from an
+// edge endpoint). Both must resolve to the same entry.
+func TestCoverageFor_LookupByBareAndPrefixedID(t *testing.T) {
+	g := openSeededGraph(t)
+	addFailureMode(t, g, "FM-lookup", "Lookup test failure")
+
+	report, err := assurance.ComputeCoverage(context.Background(), g)
+	if err != nil {
+		t.Fatalf("ComputeCoverage: %v", err)
+	}
+	bare := report.CoverageFor("FM-lookup")
+	if bare == nil {
+		t.Fatal("CoverageFor(bare id) returned nil")
+	}
+	prefixed := report.CoverageFor("failure_mode:FM-lookup")
+	if prefixed == nil {
+		t.Fatal("CoverageFor(prefixed id) returned nil")
+	}
+	if bare != prefixed {
+		t.Errorf("bare and prefixed lookups returned different entries: %p vs %p", bare, prefixed)
+	}
+	if bare.ID != "FM-lookup" {
+		t.Errorf("entry.ID = %q, want FM-lookup", bare.ID)
+	}
+}
+
+// TestCoverageFor_UnknownReturnsNil pins the "ask honestly, get an honest
+// nil" contract — preflight relies on this to skip coverage influence when
+// the matched failure_mode is not in the graph.
+func TestCoverageFor_UnknownReturnsNil(t *testing.T) {
+	g := openSeededGraph(t)
+	addFailureMode(t, g, "FM-known", "Present")
+
+	report, err := assurance.ComputeCoverage(context.Background(), g)
+	if err != nil {
+		t.Fatalf("ComputeCoverage: %v", err)
+	}
+	if got := report.CoverageFor("FM-not-in-graph"); got != nil {
+		t.Errorf("CoverageFor(unknown) = %+v, want nil", got)
+	}
+	if got := report.CoverageFor(""); got != nil {
+		t.Errorf("CoverageFor(empty) = %+v, want nil", got)
+	}
+}
+
+// TestCoverageFor_NilReceiverSafe protects callers that may handle a nil
+// report (e.g. when ComputeCoverage failed and the caller still chose to
+// dispatch through the lookup helper).
+func TestCoverageFor_NilReceiverSafe(t *testing.T) {
+	var cov *assurance.CoverageReport
+	if got := cov.CoverageFor("anything"); got != nil {
+		t.Errorf("nil receiver CoverageFor = %+v, want nil", got)
+	}
+}
