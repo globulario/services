@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/globulario/services/golang/fsutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -56,7 +57,13 @@ func evaluateRuntimeActivation(cfg *runtimeSourcesConfig, checkCreds, checkConn 
 	if caPath == "" {
 		caPath = "/var/lib/globular/pki/ca.crt"
 	}
-	credentialsPresent := cfg.Insecure || fileReadable(caPath)
+	// Split exists vs readable so a permissions/ownership problem (running
+	// the check as a non-globular user against a 0640 globular:globular CA)
+	// produces a remediation that says "fix permissions / run as service
+	// user" instead of "reissue the CA". See composed-path failure log,
+	// 2026-05-14 — PKI fileReadable conflates missing with not-readable.
+	caExists, caReadable := fsutil.ObserveFile(caPath)
+	credentialsPresent := cfg.Insecure || caReadable
 
 	type sourceDef struct {
 		name           string
@@ -96,7 +103,7 @@ func evaluateRuntimeActivation(cfg *runtimeSourcesConfig, checkCreds, checkConn 
 			status.Transport = transport
 			if checkCreds && !cfg.Insecure && !credentialsPresent {
 				status.CredentialsPresent = false
-				status.LastError = "mTLS credentials missing or unreadable"
+				status.LastError = mtlsCredentialError(caPath, caExists)
 			}
 			if checkConn && (cfg.Insecure || credentialsPresent) {
 				connStatus, connErr := dialCheck(src.addr, 2*time.Second)
@@ -113,8 +120,8 @@ func evaluateRuntimeActivation(cfg *runtimeSourcesConfig, checkCreds, checkConn 
 		sources = append(sources, status)
 	}
 
-	if !cfg.Insecure && !fileReadable(caPath) {
-		missingConfig = append(missingConfig, fmt.Sprintf("CACert (not found: %s)", caPath))
+	if !cfg.Insecure && !caReadable {
+		missingConfig = append(missingConfig, mtlsMissingConfigEntry(caPath, caExists))
 	}
 
 	overallStatus := computeRuntimeStatus(configuredCount, len(sourceDefs), missingConfig, cfg.Insecure)
@@ -140,4 +147,25 @@ func evaluateRuntimeActivation(cfg *runtimeSourcesConfig, checkCreds, checkConn 
 		Confidence:             confidence,
 		EtcdResolution:         etcdResolution,
 	}
+}
+
+// mtlsCredentialError formats the per-source LastError for a CA that the
+// current process can't read. "missing" means reissuance; "unreadable"
+// means ownership/permissions or running-as-wrong-user — the remediations
+// are different, and a single conflated message has historically caused
+// the wrong remediation to be applied.
+func mtlsCredentialError(caPath string, exists bool) string {
+	if exists {
+		return fmt.Sprintf("mTLS CA at %s exists but is not readable by this process — check ownership/permissions or run as the service user", caPath)
+	}
+	return fmt.Sprintf("mTLS CA not found at %s — reissue from the cluster authority", caPath)
+}
+
+// mtlsMissingConfigEntry formats the entry appended to MissingConfig.
+// Same exists-vs-readable split as mtlsCredentialError.
+func mtlsMissingConfigEntry(caPath string, exists bool) string {
+	if exists {
+		return fmt.Sprintf("CACert (present at %s but not readable by this process — check ownership/permissions)", caPath)
+	}
+	return fmt.Sprintf("CACert (not found: %s)", caPath)
 }

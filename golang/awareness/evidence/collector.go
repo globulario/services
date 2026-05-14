@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/globulario/services/golang/fsutil"
 )
 
 const (
@@ -185,18 +187,13 @@ func (c *Collector) collectPKI() PKIObservation {
 	}
 }
 
-// observeFile returns (exists, readable) for path. The two states are
-// independent: a file owned by another user at mode 0400 reports
-// exists=true readable=false from a process that doesn't have read access.
-// Conflating them into one bool was the second composed-path failure in
-// the evidence collector (after the 127.0.0.1 dial); see
-// docs/awareness/composed_path_failures.md.
+// observeFile delegates to fsutil.ObserveFile — the canonical primitive
+// for the exists-vs-readable split. The conflation of these two states
+// into a single bool was the original composed-path failure in this
+// collector; the shared primitive consolidates that fix across mcp
+// runtime checks and any future caller. See composed-path failure log.
 func observeFile(path string) (exists, readable bool) {
-	if _, err := os.Stat(path); err == nil {
-		exists = true
-	}
-	readable = fileReadable(path)
-	return
+	return fsutil.ObserveFile(path)
 }
 
 // readScyllaConfig parses key fields from /etc/scylla/scylla.yaml without a YAML library.
@@ -406,12 +403,3 @@ func parseListeningPorts(r io.Reader, out map[int]bool) {
 	}
 }
 
-// fileReadable returns true if path exists and is readable.
-func fileReadable(path string) bool {
-	f, err := os.Open(path)
-	if err != nil {
-		return false
-	}
-	f.Close()
-	return true
-}

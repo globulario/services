@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/globulario/services/golang/fsutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -151,25 +152,47 @@ func detectGlobularConfig(configDir string, insecure bool) (bootstrapDetected, [
 		clientCert := filepath.Join(pkiDir, "issued", "services", "service.crt")
 		clientKey := filepath.Join(pkiDir, "issued", "services", "service.key")
 
-		if fileReadable(caCert) {
+		// Split exists vs readable per file. A 0400 service.key owned by
+		// globular reports exists=true, readable=false from any other
+		// uid — emitting "Client key not found" in that case sends the
+		// operator chasing reissuance when the actual fix is running
+		// the bootstrap as the service user. See composed-path failure
+		// log, 2026-05-14, PKI fileReadable conflation.
+		if caExists, caReadable := fsutil.ObserveFile(caCert); caReadable {
 			detected.CACert = caCert
 		} else {
-			warnings = append(warnings, fmt.Sprintf("CA cert not found at %s", caCert))
+			warnings = append(warnings, pkiCertWarning("CA cert", caCert, caExists))
 		}
-		if fileReadable(clientCert) {
+		if certExists, certReadable := fsutil.ObserveFile(clientCert); certReadable {
 			detected.ClientCert = clientCert
 		} else {
-			warnings = append(warnings, fmt.Sprintf("Client cert not found at %s", clientCert))
+			warnings = append(warnings, pkiCertWarning("Client cert", clientCert, certExists))
 		}
-		if fileReadable(clientKey) {
+		if keyExists, keyReadable := fsutil.ObserveFile(clientKey); keyReadable {
 			detected.ClientKey = "present" // never expose the path to the key in output
 		} else {
-			warnings = append(warnings, fmt.Sprintf("Client key not found at %s", clientKey))
-			detected.ClientKey = "missing"
+			warnings = append(warnings, pkiCertWarning("Client key", clientKey, keyExists))
+			if keyExists {
+				detected.ClientKey = "present-but-unreadable"
+			} else {
+				detected.ClientKey = "missing"
+			}
 		}
 	}
 
 	return detected, warnings
+}
+
+// pkiCertWarning formats the warning for a missing-or-unreadable PKI file
+// with two distinct messages. "Not found" guides toward reissuance from
+// the cluster authority; "exists but not readable" guides toward the
+// ownership/permissions or run-as-service-user fix. The two remediations
+// do not overlap, so the warnings must not be conflated.
+func pkiCertWarning(label, path string, exists bool) string {
+	if exists {
+		return fmt.Sprintf("%s at %s exists but is not readable by this process — check ownership/permissions or run as the service user", label, path)
+	}
+	return fmt.Sprintf("%s not found at %s", label, path)
 }
 
 func missingFields(d bootstrapDetected, insecure bool) []string {

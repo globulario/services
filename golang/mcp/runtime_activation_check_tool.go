@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"net"
-	"os"
 	"strings"
 	"time"
 )
@@ -79,18 +78,6 @@ func registerRuntimeActivationCheckTool(s *server, st *awarenessState) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-func fileReadable(path string) bool {
-	if path == "" {
-		return false
-	}
-	f, err := os.Open(path)
-	if err != nil {
-		return false
-	}
-	f.Close()
-	return true
-}
 
 func addrFieldName(source string) string {
 	switch source {

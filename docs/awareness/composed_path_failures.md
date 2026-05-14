@@ -631,6 +631,68 @@ signed bundle; this fix establishes where writes actually go.
 
 ---
 
+## 2026-05-14 — fileReadable conflation, consolidated as fsutil.ObserveFile
+
+Third incident on the "primitive collapses two conditions into one bool"
+shape, second incident triggering consolidation per the log's rule. The
+first was the PKI fileReadable bug in the awareness evidence collector
+(commit `be0a8f8c`). The second was discovered during an audit of other
+`fileReadable` callers and turned out to be latent in the MCP runtime
+checks.
+
+- **Shared concept that fragmented**: how a file's two independent
+  states — *is it on disk* and *can this process read it* — are
+  reported by helpers shared across subsystems. `os.Open` returns an
+  error for both "no such file" and "permission denied"; reducing
+  that to one bool conflates two operationally distinct conditions
+  with non-overlapping remediations.
+- **Per-subsystem interpretation**:
+  - `awareness/evidence` (pre-fix): "Can I open this PKI artifact?"
+    Result wired straight through as `*Present`. `false` meant either
+    "file gone" or "wrong user" — re-issuance and ownership-fix
+    collapsed into one remediation, almost always the wrong one.
+  - `mcp/runtime_activation_check_tool.go` (pre-fix): local
+    `fileReadable` with the same `os.Open`-returns-bool shape.
+  - `mcp/runtime_sources_config.go`: called fileReadable(caPath),
+    emitted "CACert (not found: %s)" when an operator running the
+    check as a non-globular user against a 0640 globular:globular
+    CA would actually hit "exists, but you can't read it".
+  - `mcp/runtime_config_bootstrap_tool.go`: three call sites for
+    CA cert, client cert, and client key with the same conflation.
+    The mode-0400 service.key is the most-likely live trigger: any
+    user other than globular sees "Client key not found at ...",
+    sending them to reissuance when the actual fix is to run the
+    bootstrap as the service user.
+- **Why unit tests missed it**: each subsystem's tests opened a fresh
+  `t.TempDir()` where the test process is the file owner. The
+  permissions-denied branch is only exercised by a `chmod 0o000` plus
+  a non-root euid, which only one suite (the evidence collector) ran
+  after the original PKI fix. The two MCP callers were never tested
+  against an unreadable file. The composed-path failure was the same
+  shape, just hiding behind tests that owned every file they checked.
+- **End-to-end contract that should own it**: **Established 2026-05-14**.
+  `golang/fsutil/ObserveFile(path) (exists, readable bool)` is the
+  shared primitive. `(true, false)` is the meaningful state that the
+  old bool collapsed; `(false, true)` is unreachable by construction.
+  Five tests pin the contract — present-and-readable, absent, present-
+  but-unreadable (skipped under root), empty path, and a dimensional
+  sweep proving (false, true) is unreachable. The MCP call sites now
+  emit two distinct messages (`mtlsCredentialError`,
+  `mtlsMissingConfigEntry`, `pkiCertWarning`) — "not found at X"
+  guides reissuance; "exists at X but not readable by this process"
+  guides ownership/permissions or running-as-service-user. The
+  evidence collector's `observeFile` now delegates to fsutil.
+- **Did the fix simplify or special-case?** **Simplified.** One
+  primitive replaces two independent fileReadable copies and an
+  open-coded check shape that was about to spread to a fourth call
+  site. Three different remediation strings collapse to two distinct
+  ones with clear ownership of which case is which. The bug shape
+  hasn't disappeared — any future caller could re-invent the
+  conflation — but the fix establishes the verb (`fsutil.ObserveFile`)
+  that future contributors will grep for instead.
+
+---
+
 ## How to add an entry
 
 1. Use the schema above. Do not skip the five fields.
