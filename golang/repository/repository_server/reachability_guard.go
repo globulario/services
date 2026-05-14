@@ -63,8 +63,21 @@ func collectInstalledBuildIDs(ctx context.Context) map[string]bool {
 }
 
 // collectDesiredBuildIDs returns build_ids pinned by desired-state resources.
-// Best-effort: callers combine this with installed-state roots so GC never
-// archives a build that the controller still intends to roll out.
+// Best-effort: callers combine this with installed-state roots so destructive
+// repository operations never archive/delete/revoke a build that the controller
+// still intends to roll out.
+//
+// All four desired-state etcd prefixes are scanned:
+//
+//   - /globular/resources/ServiceDesiredVersion/   (workload services)
+//   - /globular/resources/InfrastructureRelease/   (infrastructure releases)
+//   - /globular/resources/DesiredService/          (legacy / per-service intent)
+//   - /globular/resources/ServiceRelease/          (release tracking — resolved build_id)
+//
+// Missing any of these prefixes was the original bug: a build_id pinned by
+// ServiceRelease.Status.ResolvedBuildID could be archived even though the
+// controller still attempts to install it, producing the
+// "build_id not found for name=…" cascade observed in production.
 func collectDesiredBuildIDs(ctx context.Context) map[string]bool {
 	ids := map[string]bool{}
 	cli, err := config.GetEtcdClient()
@@ -72,48 +85,49 @@ func collectDesiredBuildIDs(ctx context.Context) map[string]bool {
 		return ids
 	}
 
-	type serviceSpec struct {
+	// Common shape: every desired-state record may pin a build_id in either
+	// Spec.BuildID or Status.ResolvedBuildID. We parse both and accept either.
+	type genericSpec struct {
 		BuildID string `json:"build_id"`
 	}
-	type serviceRec struct {
-		Spec *serviceSpec `json:"spec"`
+	type genericStatus struct {
+		ResolvedBuildID string `json:"resolved_build_id"`
+		BuildID         string `json:"build_id"`
 	}
-	if resp, err := cli.Get(ctx, "/globular/resources/ServiceDesiredVersion/",
-		clientv3.WithPrefix(), clientv3.WithLimit(500)); err == nil {
-		for _, kv := range resp.Kvs {
-			var rec serviceRec
-			if json.Unmarshal(kv.Value, &rec) == nil && rec.Spec != nil && rec.Spec.BuildID != "" {
-				ids[rec.Spec.BuildID] = true
-			}
-		}
+	type genericRec struct {
+		Spec   *genericSpec   `json:"spec"`
+		Status *genericStatus `json:"status"`
 	}
 
-	type infraSpec struct {
-		BuildID string `json:"build_id"`
-	}
-	type infraStatus struct {
-		ResolvedBuildID string `json:"resolved_build_id"`
-	}
-	type infraRec struct {
-		Spec   *infraSpec   `json:"spec"`
-		Status *infraStatus `json:"status"`
-	}
-	if resp, err := cli.Get(ctx, "/globular/resources/InfrastructureRelease/",
-		clientv3.WithPrefix(), clientv3.WithLimit(500)); err == nil {
+	collect := func(prefix string) {
+		resp, getErr := cli.Get(ctx, prefix,
+			clientv3.WithPrefix(), clientv3.WithLimit(500))
+		if getErr != nil {
+			return
+		}
 		for _, kv := range resp.Kvs {
-			var rec infraRec
+			var rec genericRec
 			if json.Unmarshal(kv.Value, &rec) != nil {
 				continue
 			}
-			if rec.Status != nil && rec.Status.ResolvedBuildID != "" {
-				ids[rec.Status.ResolvedBuildID] = true
-				continue
+			if rec.Status != nil {
+				if rec.Status.ResolvedBuildID != "" {
+					ids[rec.Status.ResolvedBuildID] = true
+				}
+				if rec.Status.BuildID != "" {
+					ids[rec.Status.BuildID] = true
+				}
 			}
 			if rec.Spec != nil && rec.Spec.BuildID != "" {
 				ids[rec.Spec.BuildID] = true
 			}
 		}
 	}
+
+	collect("/globular/resources/ServiceDesiredVersion/")
+	collect("/globular/resources/InfrastructureRelease/")
+	collect("/globular/resources/DesiredService/")
+	collect("/globular/resources/ServiceRelease/")
 
 	return ids
 }
@@ -155,34 +169,74 @@ func (srv *server) loadAllManifests(ctx context.Context) []*repopb.ArtifactManif
 
 // ── delete guard ──────────────────────────────────────────────────────────
 
+// PurgeBlockedReason identifies why a destructive repository operation was
+// blocked. Each value maps 1:1 to a structured error/finding so doctor and
+// awareness can reason about the failure without parsing strings.
+type PurgeBlockedReason string
+
+const (
+	PurgeBlockedNone                  PurgeBlockedReason = ""
+	PurgeBlockedReferencedByInstalled PurgeBlockedReason = "RepositoryPurgeBlockedReferencedBuild_installed"
+	PurgeBlockedReferencedByDesired   PurgeBlockedReason = "RepositoryPurgeBlockedReferencedBuild_desired"
+	PurgeBlockedRetentionWindow       PurgeBlockedReason = "RepositoryPurgeBlockedRetentionWindow"
+)
+
 // checkDeletionSafety reports whether the given manifest may be safely removed.
 //
-// Returns (safe=true, "") when deletion is allowed.
-// Returns (safe=false, reason) when the operation must be rejected or warned.
+// Returns (safe=true, "", "") when deletion is allowed.
+// Returns (safe=false, reason, code) when the operation must be rejected.
+// `code` is a stable PurgeBlockedReason so callers (doctor/awareness/CLI)
+// can branch without parsing the human reason.
+//
+// A build is treated as referenced when:
+//
+//   - its build_id is in the **installed** registry on any node (Layer 3), OR
+//   - its build_id is in the **desired** state (Layer 2) — pinned by an active
+//     ServiceDesiredVersion / InfrastructureRelease, even if not yet installed
+//     anywhere, OR
+//   - it is in the retention window (rollback safety).
+//
+// Desired references must block deletion: removing a desired-pinned build is
+// what produced the "build_id not found for name=…" cascade — the controller
+// keeps trying to install something the repository forgot.
 //
 // The caller decides what to do with force=true (typically bypass).
 func (srv *server) checkDeletionSafety(
 	ctx context.Context,
 	target *repopb.ArtifactManifest,
 	catalog []*repopb.ArtifactManifest,
-) (safe bool, reason string) {
+) (safe bool, reason string, code PurgeBlockedReason) {
 	rCfg := srv.reachabilityConfig()
-	explicit := collectInstalledBuildIDs(ctx)
+	installed := collectInstalledBuildIDs(ctx)
+	desired := collectDesiredBuildIDs(ctx)
+	explicit := mergeBuildIDRoots(installed, desired)
 	rs := ComputeReachable(catalog, explicit, rCfg)
 
 	if !rs.Contains(target) {
-		return true, ""
+		return true, "", PurgeBlockedNone
 	}
 
 	ref := target.GetRef()
+	buildID := target.GetBuildId()
 
-	// Determine WHY the artifact is reachable — gives a better error message.
-	if explicit[target.GetBuildId()] {
+	// Determine WHY the artifact is reachable — gives a better error message
+	// AND a stable structured code so doctor / CLI can react.
+	if installed[buildID] {
 		return false, fmt.Sprintf(
 			"%s/%s build_id=%s is currently installed on one or more cluster nodes "+
 				"— uninstall from all nodes before deleting from the repository",
-			ref.GetPublisherId(), ref.GetName(), target.GetBuildId(),
-		)
+			ref.GetPublisherId(), ref.GetName(), buildID,
+		), PurgeBlockedReferencedByInstalled
+	}
+
+	if desired[buildID] {
+		return false, fmt.Sprintf(
+			"%s/%s build_id=%s is pinned by active desired state "+
+				"(ServiceDesiredVersion or InfrastructureRelease). "+
+				"Deleting it would orphan the build_id and break installs. "+
+				"Roll desired state forward first, or use force=true (will trigger orphan finding).",
+			ref.GetPublisherId(), ref.GetName(), buildID,
+		), PurgeBlockedReferencedByDesired
 	}
 
 	// Reachable only via the retention window (not actively deployed).
@@ -192,39 +246,51 @@ func (srv *server) checkDeletionSafety(
 			"Publish a newer version to push it out, or use force=true to override.",
 		ref.GetPublisherId(), ref.GetName(), ref.GetVersion(),
 		target.GetBuildNumber(), rCfg.RetentionWindow,
-	)
+	), PurgeBlockedRetentionWindow
 }
 
 // ── revoke guard ──────────────────────────────────────────────────────────
 
 // checkRevokeSafety reports whether a REVOKE lifecycle transition is safe.
 //
-// Returns (blocked=true, reason) when the caller should be warned/blocked.
-// Returns (false, "") when the revoke is safe to proceed.
+// Returns (blocked=true, reason, code) when the caller should be warned/blocked.
+// Returns (false, "", "") when the revoke is safe to proceed.
 //
 // Revoking a retention-window-only artifact is always allowed — revoke is a
 // security action that intentionally overrides availability guarantees.
-// Revoking an actively-deployed artifact is blocked because it would:
-//   - Block downloads for nodes that need to re-install or verify the binary.
-//   - Potentially trigger infinite repair loops on affected nodes.
+// Revoking an actively-deployed OR desired-pinned artifact is blocked because:
+//   - It would block downloads for nodes that need to re-install or verify.
+//   - It would orphan the desired build_id and trigger install-storms / repair
+//     loops on every node still waiting to converge to that build (this is
+//     exactly the cascade we are fixing).
 //
 // Admin callers (subject="sa") bypass this check for security incident response.
 func (srv *server) checkRevokeSafety(
 	ctx context.Context,
 	target *repopb.ArtifactManifest,
 	isAdmin bool,
-) (blocked bool, reason string) {
+) (blocked bool, reason string, code PurgeBlockedReason) {
 	if isAdmin {
-		return false, "" // admin override for incident response
+		return false, "", PurgeBlockedNone
 	}
-	explicit := collectInstalledBuildIDs(ctx)
-	if !explicit[target.GetBuildId()] {
-		return false, "" // not actively deployed — revoke is fine
+	buildID := target.GetBuildId()
+	installed := collectInstalledBuildIDs(ctx)
+	if installed[buildID] {
+		return true, fmt.Sprintf(
+			"%s/%s build_id=%s is currently installed on one or more cluster nodes. "+
+				"Revoking it blocks downloads and may cause cluster repair loops. "+
+				"Uninstall from all nodes first. Administrators may revoke immediately.",
+			target.GetRef().GetPublisherId(), target.GetRef().GetName(), buildID,
+		), PurgeBlockedReferencedByInstalled
 	}
-	return true, fmt.Sprintf(
-		"%s/%s build_id=%s is currently installed on one or more cluster nodes. "+
-			"Revoking it blocks downloads and may cause cluster repair loops. "+
-			"Uninstall from all nodes first. Administrators may revoke immediately.",
-		target.GetRef().GetPublisherId(), target.GetRef().GetName(), target.GetBuildId(),
-	)
+	desired := collectDesiredBuildIDs(ctx)
+	if desired[buildID] {
+		return true, fmt.Sprintf(
+			"%s/%s build_id=%s is pinned by active desired state. "+
+				"Revoking it would orphan the build_id and break installs cluster-wide. "+
+				"Roll desired state forward first. Administrators may revoke immediately.",
+			target.GetRef().GetPublisherId(), target.GetRef().GetName(), buildID,
+		), PurgeBlockedReferencedByDesired
+	}
+	return false, "", PurgeBlockedNone
 }

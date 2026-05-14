@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -155,6 +156,19 @@ func TestResolveByBuildIDScyllaFirst_CollisionByName(t *testing.T) {
 
 // TestResolveByBuildIDYankedNotReturned verifies that a YANKED build_id is
 // never returned by the resolver even when explicitly requested.
+//
+// The error code is FailedPrecondition with a DesiredBuildIdOrphaned prefix —
+// NOT NotFound. The distinction matters operationally:
+//
+//   - NotFound: the repository has no manifest for this build_id. Caller
+//     (node-agent / installer) treats this as "never published / purged"
+//     and surfaces a release blocker.
+//   - FailedPrecondition(DesiredBuildIdOrphaned): the manifest EXISTS, the
+//     repository has deliberately demoted it (YANKED / REVOKED / ARCHIVED /
+//     QUARANTINED). Caller must NOT fall back to a local pinned tarball —
+//     doing so would install a build the repository explicitly stopped.
+//
+// Conflating these two codes was the original "build_id not found" cascade.
 func TestResolveByBuildIDYankedNotReturned(t *testing.T) {
 	const buildID = "019d0001-dead-beef-0000-000000000001"
 	row := publishedRow("glob", "echo", "1.0.0", "linux_amd64", 1, buildID)
@@ -169,10 +183,13 @@ func TestResolveByBuildIDYankedNotReturned(t *testing.T) {
 		BuildId:  buildID,
 	})
 	if err == nil {
-		t.Fatal("expected NotFound for YANKED build_id, got nil error")
+		t.Fatal("expected FailedPrecondition for YANKED build_id, got nil error")
 	}
-	if code := status.Code(err); code != codes.NotFound {
-		t.Errorf("expected codes.NotFound, got %v", code)
+	if code := status.Code(err); code != codes.FailedPrecondition {
+		t.Errorf("expected codes.FailedPrecondition for orphaned build, got %v", code)
+	}
+	if !strings.Contains(err.Error(), "DesiredBuildIdOrphaned") {
+		t.Errorf("expected error to carry DesiredBuildIdOrphaned prefix, got %q", err.Error())
 	}
 }
 

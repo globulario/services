@@ -251,16 +251,37 @@ func (srv *server) pickResolution(
 // resolveByBuildID finds an artifact by its exact build_id. Validates publisher/name/channel.
 // Scylla-first: when Scylla is available it scans the ledger directly — one round-trip
 // instead of N MinIO GetObject calls. Falls back to MinIO only when Scylla is nil.
+//
+// Error semantics — the caller (node-agent, controller, doctor, awareness) MUST
+// be able to tell these three outcomes apart, because each has a different fix:
+//
+//  1. SUCCESS                     — manifest returned.
+//  2. codes.FailedPrecondition    — manifest EXISTS but the row is not installable
+//                                   (ARCHIVED/YANKED/REVOKED/QUARANTINED/CORRUPTED
+//                                   /broken pipeline state). The build is "orphaned"
+//                                   in the sense that desired-state still points at
+//                                   it but the repository has demoted it. Error
+//                                   carries the stable prefix `DesiredBuildIdOrphaned`
+//                                   and includes the live publish_state /
+//                                   artifact_state so doctor can classify the cause.
+//                                   Conflating this with NotFound is what produced
+//                                   the production "build_id not found" install storm.
+//  3. codes.NotFound              — manifest does not exist for this build_id.
+//                                   Legitimate missing artifact / never-published /
+//                                   purged-without-being-pinned.
+//
+// The node-agent's fallback path consumes these codes: FailedPrecondition means
+// "do NOT silently install a local pinned tarball — the repository has explicitly
+// demoted this build", and the install must surface as a structured release
+// blocker, not a quiet local install.
 func (srv *server) resolveByBuildID(ctx context.Context, buildID, publisher, name, platform string, targetChannel repopb.ArtifactChannel) (*repopb.ResolveArtifactResponse, error) {
 	if srv.scylla != nil {
 		rows, scyllaErr := srv.scylla.ListManifests(ctx)
 		if scyllaErr != nil {
 			return nil, status.Errorf(codes.Unavailable, "artifact ledger unavailable: %v", scyllaErr)
 		}
-		for _, row := range rows {
-			if !isRowInstallable(&row) {
-				continue
-			}
+		var orphanRow *manifestRow
+		for i, row := range rows {
 			m, _, parseErr := manifestFromRow(row)
 			if parseErr != nil {
 				continue
@@ -271,12 +292,30 @@ func (srv *server) resolveByBuildID(ctx context.Context, buildID, publisher, nam
 			if !matchesResolveIdentity(m, publisher, name, platform, targetChannel) {
 				continue
 			}
+			if !isRowInstallable(&row) {
+				// Manifest exists for this identity but the row is not installable.
+				// Remember the first such row so we can raise a precise orphan error
+				// after we've finished scanning (in case a later row *is* installable
+				// for the same identity).
+				if orphanRow == nil {
+					orphanRow = &rows[i]
+				}
+				continue
+			}
 			return &repopb.ResolveArtifactResponse{
 				Manifest:         m,
 				ResolutionSource: "exact-build_id",
 			}, nil
 		}
-		return nil, status.Errorf(codes.NotFound, "build_id %q not found for name=%q publisher=%q platform=%q channel=%s", buildID, name, publisher, platform, targetChannel.String())
+		if orphanRow != nil {
+			return nil, status.Errorf(codes.FailedPrecondition,
+				"DesiredBuildIdOrphaned: build_id %q for name=%q publisher=%q platform=%q channel=%s exists in repository but is not installable (publish_state=%s, artifact_state=%s) — the build was demoted while desired state still pins it; roll desired state forward or run repair-index",
+				buildID, name, publisher, platform, targetChannel.String(),
+				strings.TrimSpace(orphanRow.PublishState), strings.TrimSpace(orphanRow.ArtifactState))
+		}
+		return nil, status.Errorf(codes.NotFound,
+			"build_id %q not found for name=%q publisher=%q platform=%q channel=%s",
+			buildID, name, publisher, platform, targetChannel.String())
 	}
 
 	// Legacy / single-node fallback: scan MinIO directory.
@@ -284,6 +323,8 @@ func (srv *server) resolveByBuildID(ctx context.Context, buildID, publisher, nam
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "read artifact catalog: %v", err)
 	}
+	var orphanState repopb.PublishState
+	orphanFound := false
 	for _, e := range entries {
 		fname := e.Name()
 		if !strings.HasSuffix(fname, ".manifest.json") {
@@ -291,11 +332,7 @@ func (srv *server) resolveByBuildID(ctx context.Context, buildID, publisher, nam
 		}
 		key := strings.TrimSuffix(fname, ".manifest.json")
 		_, state, m, readErr := srv.readManifestAndStateByKey(ctx, key)
-		if readErr != nil || state != repopb.PublishState_PUBLISHED {
-			continue
-		}
-		// Pipeline state gate: same install rule as the Scylla path above.
-		if !srv.isInstallableForRef(ctx, m.GetRef(), m.GetBuildNumber(), state) {
+		if readErr != nil {
 			continue
 		}
 		if m.GetBuildId() != buildID {
@@ -304,12 +341,27 @@ func (srv *server) resolveByBuildID(ctx context.Context, buildID, publisher, nam
 		if !matchesResolveIdentity(m, publisher, name, platform, targetChannel) {
 			continue
 		}
-		return &repopb.ResolveArtifactResponse{
-			Manifest:         m,
-			ResolutionSource: "exact-build_id",
-		}, nil
+		// Identity matches. Is it installable?
+		if state == repopb.PublishState_PUBLISHED && srv.isInstallableForRef(ctx, m.GetRef(), m.GetBuildNumber(), state) {
+			return &repopb.ResolveArtifactResponse{
+				Manifest:         m,
+				ResolutionSource: "exact-build_id",
+			}, nil
+		}
+		// Manifest exists for the identity but is demoted.
+		if !orphanFound {
+			orphanState = state
+			orphanFound = true
+		}
 	}
-	return nil, status.Errorf(codes.NotFound, "build_id %q not found for name=%q publisher=%q platform=%q channel=%s", buildID, name, publisher, platform, targetChannel.String())
+	if orphanFound {
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"DesiredBuildIdOrphaned: build_id %q for name=%q publisher=%q platform=%q channel=%s exists in repository but is not installable (publish_state=%s) — the build was demoted while desired state still pins it; roll desired state forward or run repair-index",
+			buildID, name, publisher, platform, targetChannel.String(), orphanState.String())
+	}
+	return nil, status.Errorf(codes.NotFound,
+		"build_id %q not found for name=%q publisher=%q platform=%q channel=%s",
+		buildID, name, publisher, platform, targetChannel.String())
 }
 
 func matchesResolveIdentity(m *repopb.ArtifactManifest, publisher, name, platform string, targetChannel repopb.ArtifactChannel) bool {

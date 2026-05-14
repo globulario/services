@@ -1557,3 +1557,152 @@ forbidden_fixes:
     `invalid_metadata` is a playbook-quality issue, not a missing
     test. The `default` branch should panic on an unknown status so
     a future addition to the status enum forces a conscious choice.
+
+- id: delete_desired_build_id_to_silence_install_storm
+  summary: |
+    When the controller install-storms against a build_id that the
+    repository can no longer resolve ("build_id X not found for
+    name=Y"), the operator deletes the ServiceDesiredVersion /
+    InfrastructureRelease row pinning build_id X to "clear the error".
+    The install loop stops, but desired state is now inconsistent
+    with the BOM and the orphaning continues silently — every later
+    cluster operation reads desired state and sees the wrong version.
+  related_invariants:
+    - repository.desired_build_id_must_resolve
+    - repository.purge_must_not_delete_active_desired_builds
+  safe_alternative: |
+    Repair the repository: run `globular repository repair-index
+    --from-all --dry-run` to identify reconstructable manifests; if
+    a manifest is genuinely lost, roll desired forward to a build_id
+    that exists (`globular services desired set <name> <new_version>`).
+    Desired-state edits are valid as forward rolls — never as silent
+    deletions to hide repository corruption.
+
+- id: relax_require_checksum_when_mirror_lookup_lacks_sha256
+  summary: |
+    When upstream mirror lookups fail with "require_checksum=true but
+    request has no sha256," the operator flips require_checksum off
+    in repository config to "make installs proceed." The cluster now
+    installs whatever bytes the mirror returns without verifying they
+    match the desired identity. This is the canonical wrong fix for
+    the build_id orphaning cascade — the missing manifest, not the
+    enforced checksum, is the actual bug.
+  related_invariants:
+    - repository.fallback_requires_manifest_and_checksum
+  safe_alternative: |
+    Leave require_checksum=true. If the upstream mirror genuinely
+    cannot provide sha256 in its responses, treat the mirror as
+    untrusted and configure trust policy to require local-only.
+    Repair the missing manifest with `repair-index` or roll the
+    desired build_id forward.
+
+- id: silent_fallback_to_latest_version_when_build_id_is_pinned
+  summary: |
+    The resolver returns "build_id not found" so the caller "helpfully"
+    falls back to ResolveArtifact with no build_id, picking up the
+    latest published build instead. The cluster silently installs the
+    wrong version everywhere; the pinned build_id in desired state
+    becomes a decorative annotation that nobody enforces.
+  related_invariants:
+    - repository.desired_build_id_must_resolve
+  safe_alternative: |
+    When a pinned build_id fails to resolve, surface the failure as
+    RELEASE_BLOCKED_REPOSITORY_ORPHANED_BUILD_ID. The controller
+    halts the release until either the repository is repaired or
+    desired state is explicitly rolled forward by an operator. No
+    silent version drift.
+
+- id: return_NotFound_for_yanked_revoked_or_archived_manifests
+  summary: |
+    resolveByBuildID returns codes.NotFound when the manifest exists
+    but its publish_state is YANKED/REVOKED/ARCHIVED/QUARANTINED.
+    The node-agent installer interprets NotFound as "build absent →
+    try local fallback," and installs a pinned tarball even though
+    the repository has explicitly demoted the build. The cluster ends
+    up running a build the repository said "stop on."
+  related_invariants:
+    - repository.desired_build_id_must_resolve
+    - repository.fallback_requires_manifest_and_checksum
+  safe_alternative: |
+    Return codes.FailedPrecondition with prefix DesiredBuildIdOrphaned
+    when the manifest exists but is not installable. Include the live
+    publish_state / artifact_state in the error message so the caller
+    (and doctor) can classify. Reserve NotFound for the case where the
+    manifest is genuinely absent from the catalog.
+
+- id: publish_dns_from_desired_or_profile_state
+  summary: |
+    Compute DNS records from Profile membership only — every node
+    with profile=gateway gets an entry in gateway.<domain> regardless
+    of whether the package is installed or the unit is running.
+    Clients hit dead endpoints on every TTL flip; new nodes appear in
+    DNS before they can serve traffic; nodes whose service crashed
+    silently stay in records until the next reconcile.
+  related_invariants:
+    - dns.records_must_be_installed_and_runtime_healthy
+  safe_alternative: |
+    Gate every service-bearing record by NodeInfo.ServiceReady which
+    consults InstalledServices (Layer 3) AND RuntimeHealthy (Layer 4)
+    before publication. Use ComputeDesiredStateWithFunnels and emit
+    WITHDREW log lines so the candidate funnel is visible.
+
+- id: rely_on_dns_to_recover_dns
+  summary: |
+    The DNS service itself is unhealthy on some nodes, so the operator
+    "fixes" it by editing dns.<domain> records to remove the bad
+    nodes. Now the DNS reconciler writes its own remediation back on
+    the next cycle because the records are computed from cluster
+    state, not from operator overrides. The records flap; clients see
+    both states in the same TTL window.
+  related_invariants:
+    - dns.records_must_be_installed_and_runtime_healthy
+  safe_alternative: |
+    Fix DNS at the source: reconciler gates dns.<domain> on the dns
+    service being installed AND healthy on each candidate. Bad nodes
+    drop out automatically. Do not edit records via the DNS RPC API
+    as a workaround for reconciler bugs — the reconciler is the
+    source of truth and will overwrite manual changes.
+
+- id: lower_dns_ttl_so_bad_resolutions_expire_faster
+  summary: |
+    A node's records keep pointing at a half-dead service, so the
+    operator lowers the TTL from 60s to 5s to "shorten the bad
+    window." Caching layers (resolver, OS, gRPC client connection
+    pool) still cache the bad answer for longer than the TTL; the
+    real bug — publishing the record at all — is unfixed; cluster-
+    wide query load multiplies.
+  related_invariants:
+    - dns.records_must_be_installed_and_runtime_healthy
+  safe_alternative: |
+    Gate publication on Installed + Runtime-healthy. Records for
+    unhealthy nodes never appear in the first place, so TTL becomes
+    a normal performance knob instead of a band-aid.
+
+- id: assume_installed_means_running
+  summary: |
+    A reconciler reads installed_state (Layer 3) and treats "installed"
+    as proof that the service is currently serving traffic. The
+    unit may be inactive (oom-killed, crashloop, never started). DNS
+    records computed from installed_state alone produce ghost records
+    for every unit that ever installed but isn't running right now.
+  related_invariants:
+    - dns.records_must_be_installed_and_runtime_healthy
+  safe_alternative: |
+    Always join Layer 3 with Layer 4 (systemd unit state) before
+    publishing anything that promises a live endpoint. Map each
+    package name to its systemd unit explicitly (dnsServiceUnitName);
+    `state == "active"` is the only proof of runtime health.
+
+- id: ignore_status_resolved_build_id_when_collecting_desired_roots
+  summary: |
+    collectDesiredBuildIDs scans only Spec.BuildID and forgets that
+    Status.ResolvedBuildID is also a live pin (the controller writes
+    it when resolving a version policy at dispatch time). The guard
+    blocks deletion of the SPEC build_id but happily archives the
+    RESOLVED one, breaking installs mid-rollout.
+  related_invariants:
+    - repository.purge_must_not_delete_active_desired_builds
+  safe_alternative: |
+    Collect BOTH Spec.BuildID and Status.ResolvedBuildID across all
+    four desired-state etcd prefixes. The reachability guard must
+    treat any pinned build_id — wherever pinned — as a hard root.

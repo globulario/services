@@ -1078,3 +1078,73 @@ The log accumulates evidence. The fixes that simplified the system are the
 ones the next bug won't relitigate. The ones that special-cased are debt
 the system pays interest on every time another contributor steps near
 the same shared concept.
+
+---
+
+## 2026-05-14 — Build-id orphaning + DNS profile-only publication
+
+- **Shared concept**: the **4-layer model** (Repository / Desired / Installed
+  / Runtime) — every reconciler, gate, and resolver must respect the same
+  ordering and never collapse adjacent layers.
+- **Per-subsystem interpretation**:
+  - `repository.reachability_guard`: "reachable = installed-build_id OR
+    inside retention window." Treated Desired as if collapsing into
+    Installed — never checked `/globular/resources/*` for pinned build_ids
+    before archiving.
+  - `repository.resolver`: "if the manifest is not in the installable set,
+    return codes.NotFound." Conflated "manifest absent" with "manifest
+    explicitly demoted (YANKED / REVOKED / ARCHIVED)."
+  - `node_agent.installer_api`: "if the repository call returns any error,
+    try the local pinned tarball." Treated NotFound and Unreachable
+    identically; would happily install a build the repository said "stop on."
+  - `cluster_controller.dns_state`: "if a node has profile=gateway, publish
+    it in gateway.<domain>." Read only Layer 2 (Desired/Profile). Ignored
+    Layer 3 (Installed) and Layer 4 (Runtime).
+  - `cluster_controller.handlers_node.cleanNodeFromReleases`: "when a node
+    is removed, scan /globular/resources/ and rewrite status entries."
+    Cascaded into a release purge with no reference safety check against
+    other desired-state shapes.
+- **Why unit tests missed it**: each subsystem owned its own slice of the
+  4-layer story. The repository tests checked GC against installed
+  build_ids; the resolver tests checked PUBLISHED-vs-YANKED; the DNS state
+  tests built NodeInfo from profiles only. Nothing exercised the join:
+  what happens when desired pins a build_id the repository has forgotten,
+  or when a node's gateway is profile-true but installed-false.
+- **End-to-end contract that should own it**: the **4-layer model itself**
+  is the contract, expressed as four invariants:
+  - `repository.purge_must_not_delete_active_desired_builds`
+  - `repository.desired_build_id_must_resolve`
+  - `repository.fallback_requires_manifest_and_checksum`
+  - `dns.records_must_be_installed_and_runtime_healthy`
+  Every reconciler / resolver / guard that takes inputs from one layer and
+  produces outputs that depend on another MUST consult the relevant
+  invariants. The doctor rules `repository.desired_build_ids_resolve` and
+  `dns.records_match_runtime_health` give the contract a live enforcement
+  arm. **Partially established** — invariants written, enforcement arms
+  added to the three subsystems that produced this incident; future
+  reconcilers will still need to be audited against the same checklist.
+- **Did the fix simplify or special-case?** **Mostly simplified.**
+  - Repository: extended `collectDesiredBuildIDs` to scan all four etcd
+    prefixes (was only two), added a structured `PurgeBlockedReason`
+    enum (was just a string), produced one shared safety contract that
+    DeleteArtifact, SetArtifactState→REVOKED, and ArchiveUnreachableArtifacts
+    all share. The merged installed+desired roots are computed once and
+    reused.
+  - Resolver: introduced a third outcome (FailedPrecondition +
+    `DesiredBuildIdOrphaned` prefix) so the NotFound / Demoted / Reachable
+    trichotomy is now structural rather than overloaded on one code.
+  - Node-agent: introduced three sentinel errors
+    (`ErrBuildIDOrphaned` / `ErrBuildIDNotFound` / `ErrRepositoryUnreachable`)
+    so installer_api branches on `errors.Is`, not string-match. Fallback
+    rules are stated in one place.
+  - DNS: introduced `NodeInfo.ServiceReady` + `gateForService` so every
+    record group runs the SAME funnel (Desired → Installed → Runtime). The
+    candidate funnel is observable in logs; the per-group tests share one
+    primitive. (Pool-based records still skip gating by design — pool
+    membership is owned elsewhere; that asymmetry is documented in code.)
+  - Consolidation candidate: **the 4-layer-model invariants in
+    `docs/awareness/invariants.yaml`** should be linked from every new
+    reconciler PR template. If a future reconciler reads from one layer
+    and writes about another without invoking the relevant invariant, that
+    is the next composed-path bug — and the next entry in this log will
+    promote the candidate to a static check.

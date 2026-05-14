@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -69,6 +70,7 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	}
 
 	fetched := false
+	var fetchErr error
 	if repositoryAddr != "" {
 		fetchHandler := actions.Get("artifact.fetch")
 		if fetchHandler != nil {
@@ -86,12 +88,34 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 			if err == nil {
 				log.Printf("installer-api: fetching %s (%s) build_id=%s from %s",
 					name, kind, buildID, repositoryAddr)
-				if _, err := fetchHandler.Apply(ctx, fetchArgs); err == nil {
+				if _, fe := fetchHandler.Apply(ctx, fetchArgs); fe == nil {
 					fetched = true
 				} else {
-					log.Printf("installer-api: repo fetch failed for %s: %v — trying local fallback", name, err)
+					fetchErr = fe
+					log.Printf("installer-api: repo fetch failed for %s: %v — trying local fallback", name, fe)
 				}
 			}
+		}
+	}
+
+	// Fallback fail-closed: if the repository told us this build_id is orphaned
+	// (demoted: archived/yanked/revoked) or not in the catalog at all, we must
+	// NOT install whatever .tgz happens to live in /var/lib/globular/packages/.
+	// Without a manifest+checksum proof, blind reuse of pinned bytes silently
+	// runs a build the repository said "stop on". This is the
+	// fallback.requires_manifest_checksum invariant.
+	//
+	// Network/TLS/auth failures (ErrRepositoryUnreachable) are recoverable —
+	// the local pinned tarball may still be the right bytes — and the existing
+	// fallback path continues unchanged for that case. The cache decision
+	// matrix in artifact.fetch will still refuse to reuse cached bytes without
+	// a checksum proof, so even the unreachable case can't silently install
+	// the wrong build.
+	if fetchErr != nil {
+		if errors.Is(fetchErr, actions.ErrBuildIDOrphaned) ||
+			errors.Is(fetchErr, actions.ErrBuildIDNotFound) {
+			return fmt.Errorf("install %s build_id=%s blocked: RELEASE_BLOCKED_REPOSITORY_ORPHANED_BUILD_ID — repository demoted or never published this build_id; refusing local fallback to avoid installing unverifiable bytes: %w",
+				name, buildID, fetchErr)
 		}
 	}
 

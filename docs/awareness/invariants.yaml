@@ -1959,3 +1959,227 @@ invariants:
       required_tests:
         - TestKeepalivedConfigContainsHealthScript
         - TestUnhealthyMasterLosesPriorityBelowBackup
+
+    - id: repository.purge_must_not_delete_active_desired_builds
+      title: Repository purge / GC / delete MUST refuse a build_id referenced by active desired state
+      severity: critical
+      status: active
+      summary: |
+        A build_id pinned by any of /globular/resources/{ServiceDesiredVersion,
+        InfrastructureRelease, DesiredService, ServiceRelease}/* — either in
+        Spec.BuildID or Status.ResolvedBuildID — is referenced by Layer 2
+        (Desired). Deleting it from the repository orphans the controller's
+        intent and produces an install-storm against a build_id that can no
+        longer be resolved. DeleteArtifact, GC archive, SetArtifactState→REVOKED,
+        and any future purge path MUST consult collectDesiredBuildIDs and refuse
+        with a structured PurgeBlockedReason code
+        (RepositoryPurgeBlockedReferencedBuild_desired). force=true bypass is
+        permitted only when the caller has rolled desired state forward first.
+      protects:
+        state:
+            - /globular/resources/ServiceDesiredVersion/
+            - /globular/resources/InfrastructureRelease/
+            - /globular/resources/DesiredService/
+            - /globular/resources/ServiceRelease/
+        files:
+            - golang/repository/repository_server/reachability_guard.go
+            - golang/repository/repository_server/gc.go
+            - golang/repository/repository_server/artifact_handlers.go
+        symbols:
+            - checkDeletionSafety
+            - checkRevokeSafety
+            - collectDesiredBuildIDs
+            - ArchiveUnreachableArtifacts
+      enforcement: |
+        - collectDesiredBuildIDs MUST scan all four desired-state prefixes.
+        - checkDeletionSafety and checkRevokeSafety MUST return a structured
+          PurgeBlockedReason code (not just a string), and the caller MUST emit
+          an audit event (repository.delete_blocked / repository.revoke_blocked)
+          carrying the code so doctor can branch deterministically.
+        - GC reachability already merges installed+desired roots — guard the
+          import so future code that adds new desired-state shapes is forced
+          to update collectDesiredBuildIDs.
+      forbidden_fixes:
+        - delete_desired_build_id_to_make_purge_succeed
+        - bypass_safety_check_with_unconditional_force_true
+        - ignore_status.resolved_build_id_when_collecting_desired_roots
+      related_failure_modes:
+        - repository.desired_build_id_orphaned
+      required_tests:
+        - TestDeletionSafety_DesiredBuildID_IsBlocked
+        - TestRevokeSafety_DesiredBuildID_IsBlocked
+        - TestCollectDesiredBuildIDs_ScansAllFourPrefixes
+        - TestPurgeBlockedAuditEventEmitted
+
+    - id: repository.desired_build_id_must_resolve
+      title: Every active desired build_id MUST resolve to an installable repository artifact
+      severity: critical
+      status: active
+      summary: |
+        Desired-state records (ServiceDesiredVersion, InfrastructureRelease,
+        DesiredService, ServiceRelease) pin immutable build_ids. The repository
+        MUST be able to resolve every active pin to a manifest in the installable
+        set (publish_state=PUBLISHED + artifact_state ∈ {PUBLISHED, ""}); any
+        unresolvable pin is a DesiredBuildIdOrphaned condition that produces
+        cluster-wide install loops. resolveByBuildID MUST distinguish the
+        "manifest absent" case (codes.NotFound) from the "manifest demoted"
+        case (codes.FailedPrecondition with prefix DesiredBuildIdOrphaned) so
+        the node-agent installer can refuse local fallback for both, but with
+        distinct telemetry.
+      protects:
+        state:
+            - artifact identity (publisher + name + platform + channel + version + build_id + checksum)
+        files:
+            - golang/repository/repository_server/resolver.go
+            - golang/cluster_doctor/cluster_doctor_server/rules/repository_dns_invariants.go
+        symbols:
+            - resolveByBuildID
+            - repositoryDesiredBuildIDsResolve
+      enforcement: |
+        - resolveByBuildID's Scylla and MinIO paths MUST scan the catalog once,
+          then categorize results into success / orphan / not-found rather than
+          returning the same NotFound code for both error cases.
+        - Doctor rule repository.desired_build_ids_resolve cross-checks
+          /globular/resources/* against per-node InstalledBuildIds, fires
+          CRITICAL when any active desired build_id has never been installed
+          anywhere — the strongest evidence the repository has lost it.
+      forbidden_fixes:
+        - silent_fallback_to_latest_version_when_build_id_is_pinned
+        - return_NotFound_for_yanked_revoked_or_archived_manifests
+        - rebuild_repository_index_without_validating_against_desired_state
+      related_failure_modes:
+        - repository.desired_build_id_orphaned
+      required_tests:
+        - TestResolveByBuildIDOrphaned_ReturnsFailedPrecondition
+        - TestResolveByBuildIDAbsent_ReturnsNotFound
+        - TestDoctorRule_RepositoryDesiredBuildIDsResolve
+
+    - id: repository.fallback_requires_manifest_and_checksum
+      title: Fallback sources MUST never fetch without manifest+checksum proof
+      severity: critical
+      status: active
+      summary: |
+        When ResolveArtifact fails for a pinned build_id, the node-agent must
+        NOT silently install a local pinned tarball whose checksum it cannot
+        verify against the repository manifest. Three cases:
+          - ErrBuildIDOrphaned  → repository explicitly demoted the build →
+                                  fallback FORBIDDEN (would install a build
+                                  the repository said "stop").
+          - ErrBuildIDNotFound  → repository has no manifest → no checksum to
+                                  verify against → fallback FORBIDDEN.
+          - ErrRepositoryUnreachable → transient → fallback permitted only if
+                                  the caller already has an independent
+                                  manifest/checksum proof.
+        Relaxing require_checksum on upstream mirrors to "fix" the install
+        storm is the canonical wrong fix.
+      protects:
+        files:
+            - golang/node_agent/node_agent_server/installer_api.go
+            - golang/node_agent/node_agent_server/internal/actions/artifact.go
+            - golang/repository/repository_server/resolver.go
+        symbols:
+            - resolveArtifactByBuildID
+            - artifactFetchAction.Apply
+            - InstallPackage
+            - ErrBuildIDOrphaned
+            - ErrBuildIDNotFound
+            - ErrRepositoryUnreachable
+      enforcement: |
+        - resolveArtifactByBuildID maps gRPC errors to the three sentinel error
+          types; callers MUST branch on errors.Is, never on string matching.
+        - InstallPackage MUST refuse fallback when the resolver error wraps
+          ErrBuildIDOrphaned or ErrBuildIDNotFound; the error message MUST
+          include RELEASE_BLOCKED_REPOSITORY_ORPHANED_BUILD_ID for the
+          workflow service to classify.
+        - Cache-decision matrix in artifact.fetch already requires expected_sha
+          OR a successful manifest lookup before reusing cached bytes; that
+          path stays unchanged.
+      forbidden_fixes:
+        - disable_require_checksum_to_allow_unverifiable_fallback
+        - blind_local_install_after_repository_returns_NotFound
+        - silently_install_pinned_tarball_when_manifest_missing
+      related_failure_modes:
+        - repository.desired_build_id_orphaned
+      required_tests:
+        - TestInstallerRefusesLocalFallbackOnOrphaned
+        - TestInstallerRefusesLocalFallbackOnNotFound
+        - TestInstallerAllowsLocalFallbackOnUnreachableWithCachedSHA
+
+    - id: dns.records_must_be_installed_and_runtime_healthy
+      title: A DNS record MUST point only at nodes where the promised service is installed AND runtime-healthy
+      severity: high
+      status: active
+      summary: |
+        Every record that promises a service (gateway.<domain>, api.<domain>,
+        dns.<domain>, scylla.<domain>, controller.<domain>,
+        _cluster-controller._tcp.<domain>, per-service SRV records) MUST be
+        gated by the 4-layer model:
+          desired (profile) AND installed (Layer 3) AND runtime healthy (Layer 4).
+        Nodes marked Draining or Quarantined are excluded regardless of
+        installed/health state. Per-node A/AAAA records (which describe the
+        NODE, not a service) are safe to publish from membership alone but
+        MUST be withdrawn when the node is Draining/Quarantined.
+      protects:
+        files:
+            - golang/cluster_controller/cluster_controller_server/dns_state.go
+            - golang/cluster_controller/cluster_controller_server/dns_readiness.go
+            - golang/cluster_controller/cluster_controller_server/dns_reconciler.go
+        symbols:
+            - NodeInfo.ServiceReady
+            - gateForService
+            - ComputeDesiredStateWithFunnels
+            - buildInstalledServiceSet
+            - buildRuntimeHealthySet
+      enforcement: |
+        - NodeInfo carries InstalledServices / RuntimeHealthy maps and
+          Draining / Quarantined flags. ComputeDesiredStateWithFunnels uses
+          gateForService to filter every service-bearing record group.
+        - When InstalledServices and RuntimeHealthy are both nil (cold start
+          / legacy callers), the gate falls through so bootstrap still works.
+          As soon as the heartbeat populates either map, the gate engages.
+        - The reconciler logs structured WITHDREW lines per group so operators
+          see the candidate funnel and can verify gating in action.
+      forbidden_fixes:
+        - publish_dns_from_desired_or_profile_state
+        - assume_installed_means_running
+        - fall_back_to_profile_when_health_data_arrives_late
+      related_failure_modes:
+        - dns.desired_ghost_records
+      required_tests:
+        - TestComputeDesiredState_PlannedNotInstalled_NoRecord
+        - TestComputeDesiredState_InstalledNotHealthy_NoRecord
+        - TestComputeDesiredState_HealthyNode_PublishesRecord
+        - TestComputeDesiredState_DrainingNode_WithdrawsRecords
+        - TestNodeInfo_ServiceReady_NilMaps_FallsThrough
+
+    - id: dns.wildcard_must_not_include_unhealthy_nodes
+      title: Wildcard (*.<domain>) and api.<domain> records MUST be gated identically to gateway.<domain>
+      severity: high
+      status: active
+      summary: |
+        The *.<domain> wildcard and api.<domain> alias both terminate at the
+        gateway. Their candidate set is identical to gateway.<domain> and MUST
+        be gated by the same rule: gateway service installed AND runtime-healthy
+        on each candidate node. A wildcard that includes a half-dead node
+        produces silent failures for every name the cluster resolves through
+        Envoy.
+      protects:
+        files:
+            - golang/cluster_controller/cluster_controller_server/dns_state.go
+        symbols:
+            - ComputeDesiredStateWithFunnels
+            - gateForService
+      enforcement: |
+        - gatewayKept derived once via gateForService("gateway", …); the
+          wildcard and api candidate sets reuse the same slice so divergence
+          is structurally impossible.
+        - Candidate funnel emits one entry per record name so the reconciler
+          log shows wildcard and gateway with identical kept/filtered counts.
+      forbidden_fixes:
+        - hardcode_wildcard_a_record_to_known_good_node
+        - skip_wildcard_gating_because_envoy_will_handle_dead_backend
+      related_failure_modes:
+        - dns.desired_ghost_records
+      required_tests:
+        - TestComputeDesiredState_WildcardExcludesUnhealthy
+        - TestComputeDesiredState_WildcardMatchesGatewayCandidateSet

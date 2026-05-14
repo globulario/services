@@ -303,6 +303,21 @@ func (r *DNSReconciler) reconcile() error {
 		info := NodeInfo{
 			FQDN:     fqdn,
 			Profiles: node.Profiles,
+			// Layer 3 (Installed) — derived from the node-agent's heartbeat,
+			// which writes InstalledVersions/InstalledBuildIDs back into the
+			// controller state. A key in InstalledVersions means "the package
+			// is locally installed on this node". Missing key → not installed.
+			InstalledServices: buildInstalledServiceSet(node),
+			// Layer 4 (Runtime healthy) — derived from the heartbeat's unit
+			// status report. A service is healthy iff its systemd unit is
+			// active. inactive/failed/missing all map to not-healthy.
+			RuntimeHealthy: buildRuntimeHealthySet(node),
+			// Layer 1.5 — operator/controller-driven removal signals. A node
+			// being removed must withdraw from DNS BEFORE its services stop
+			// answering, otherwise clients hit dead endpoints for one TTL
+			// after the node has actually left.
+			Draining:    isNodeDraining(node),
+			Quarantined: isNodeQuarantined(node),
 		}
 		// Never publish loopback or the floating VIP into per-node DNS records.
 		// StableIP skips the VIP so per-node FQDNs always resolve to the node's
@@ -367,7 +382,21 @@ func (r *DNSReconciler) reconcile() error {
 	pools := r.collectPoolMemberships()
 
 	for _, domain := range domains {
-		desired := ComputeDesiredStateWithPools(domain, nodeInfos, serviceInstances, leaderFQDN, pools, generation)
+		desired, funnels := ComputeDesiredStateWithFunnels(domain, nodeInfos, serviceInstances, leaderFQDN, pools, generation)
+		// Emit one structured log line per record group so operators can see
+		// the candidate funnel: desired → installed → runtime → published.
+		// Records that drop to zero published are the ones that would
+		// previously have advertised ghost endpoints; they now resolve to
+		// nothing (correct, withdrawal) instead of to a half-dead node.
+		for _, f := range funnels {
+			if f.Published == 0 && f.Desired > 0 {
+				log.Printf("dns reconciler: WITHDREW record=%s desired=%d installed=%d runtime=%d published=0 (filtered=%v)",
+					f.Record, f.Desired, f.Installed, f.Runtime, f.Filtered)
+			} else if len(f.Filtered) > 0 {
+				log.Printf("dns reconciler: gated record=%s desired=%d installed=%d runtime=%d published=%d (filtered=%v)",
+					f.Record, f.Desired, f.Installed, f.Runtime, f.Published, f.Filtered)
+			}
+		}
 		if err := r.applyDNSState(ctx, desired); err != nil {
 			atomic.AddUint64(&r.reconcileFailure, 1)
 			return fmt.Errorf("apply dns state for domain %s: %w", domain, err)

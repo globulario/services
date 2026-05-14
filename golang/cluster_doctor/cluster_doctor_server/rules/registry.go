@@ -157,6 +157,18 @@ func NewRegistry(cfg Config) *Registry {
 		// per-entry seed_sha256 declared in manifest.json. Degrades to
 		// silent when no bundle is installed yet.
 		opsKnowledgeSeedIntegrity{},
+		// 4-layer integrity rules for the repository/DNS join.
+		// repository.desired_build_ids_resolve fires when an active desired
+		// build_id has no installable artifact (root cause of the production
+		// install-storm).
+		// dns.records_match_runtime_health fires when a node would still be
+		// included in a profile-derived record despite failing the readiness
+		// gate — surfaces unpatched reconcilers and reconciler bugs.
+		// fallback.requires_manifest_checksum surfaces weakened checksum
+		// policy on upstream sources.
+		repositoryDesiredBuildIDsResolve{},
+		dnsRecordsMatchRuntimeHealth{},
+		fallbackRequiresManifestChecksum{},
 		// WF-DEFER B3: surface workflow correlations that have been
 		// auto-abandoned after hitting max_defers. Each is one operator
 		// story (release.apply.package for keepalived, etc.) where the

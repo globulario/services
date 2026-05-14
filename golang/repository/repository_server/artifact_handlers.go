@@ -1593,7 +1593,16 @@ func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifac
 	// force=true bypasses both conditions.
 	if targetManifest != nil && !req.GetForce() {
 		catalog := srv.loadAllManifests(ctx)
-		if safe, reason := srv.checkDeletionSafety(ctx, targetManifest, catalog); !safe {
+		if safe, reason, code := srv.checkDeletionSafety(ctx, targetManifest, catalog); !safe {
+			srv.publishAuditEvent(ctx, "repository.delete_blocked", map[string]any{
+				"build_id":  targetManifest.GetBuildId(),
+				"publisher": targetManifest.GetRef().GetPublisherId(),
+				"name":      targetManifest.GetRef().GetName(),
+				"version":   targetManifest.GetRef().GetVersion(),
+				"platform":  targetManifest.GetRef().GetPlatform(),
+				"reason":    reason,
+				"code":      string(code),
+			})
 			return &repopb.DeleteArtifactResponse{Result: false, Message: reason}, nil
 		}
 	}
@@ -1875,8 +1884,17 @@ func (srv *server) SetArtifactState(ctx context.Context, req *repopb.SetArtifact
 	// Retention-window-only artifacts may be revoked freely.
 	if targetState == repopb.PublishState_REVOKED {
 		isAdmin := authCtx != nil && authCtx.Subject == "sa"
-		if blocked, reason := srv.checkRevokeSafety(ctx, m, isAdmin); blocked {
-			return nil, status.Errorf(codes.FailedPrecondition, "revoke safety: %s", reason)
+		if blocked, reason, code := srv.checkRevokeSafety(ctx, m, isAdmin); blocked {
+			srv.publishAuditEvent(ctx, "repository.revoke_blocked", map[string]any{
+				"build_id":  m.GetBuildId(),
+				"publisher": m.GetRef().GetPublisherId(),
+				"name":      m.GetRef().GetName(),
+				"version":   m.GetRef().GetVersion(),
+				"platform":  m.GetRef().GetPlatform(),
+				"reason":    reason,
+				"code":      string(code),
+			})
+			return nil, status.Errorf(codes.FailedPrecondition, "revoke safety [%s]: %s", code, reason)
 		}
 	}
 

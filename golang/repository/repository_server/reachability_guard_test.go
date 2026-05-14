@@ -21,7 +21,7 @@ func TestDeletionSafety_UnreachableArtifact_IsAllowed(t *testing.T) {
 	target := catalog[0] // bid-1
 
 	srv := &server{}
-	safe, reason := srv.checkDeletionSafety(context.Background(), target, catalog)
+	safe, reason, _ := srv.checkDeletionSafety(context.Background(), target, catalog)
 	if !safe {
 		t.Errorf("expected safe=true for unreachable artifact, got reason: %s", reason)
 	}
@@ -36,7 +36,7 @@ func TestDeletionSafety_RetentionWindowArtifact_IsBlocked(t *testing.T) {
 	target := catalog[1] // bid-2, newest, in window
 
 	srv := &server{}
-	safe, reason := srv.checkDeletionSafety(context.Background(), target, catalog)
+	safe, reason, _ := srv.checkDeletionSafety(context.Background(), target, catalog)
 	if safe {
 		t.Error("expected safe=false for retention-window artifact")
 	}
@@ -65,7 +65,7 @@ func TestDeletionSafety_ActivelyDeployed_IsBlocked(t *testing.T) {
 	target := catalog[0]
 
 	srv := &server{}
-	safe, _ := srv.checkDeletionSafety(context.Background(), target, catalog)
+	safe, _, _ := srv.checkDeletionSafety(context.Background(), target, catalog)
 	// VERIFIED — not in retention window, no etcd roots → safe to delete.
 	if !safe {
 		t.Error("VERIFIED artifact outside retention should be safe to delete")
@@ -80,7 +80,7 @@ func TestDeletionSafety_SingleBuild_RetentionBlocks(t *testing.T) {
 	target := catalog[0]
 
 	srv := &server{}
-	safe, reason := srv.checkDeletionSafety(context.Background(), target, catalog)
+	safe, reason, _ := srv.checkDeletionSafety(context.Background(), target, catalog)
 	if safe {
 		t.Error("single published build should be protected by retention window")
 	}
@@ -93,7 +93,7 @@ func TestDeletionSafety_EmptyCatalog_IsAllowed(t *testing.T) {
 	// Empty catalog → empty reachable set → safe.
 	target := makePublishedManifest("core", "echo", "1.0.0", "linux_amd64", 1, "bid-x", nil)
 	srv := &server{}
-	safe, _ := srv.checkDeletionSafety(context.Background(), target, nil)
+	safe, _, _ := srv.checkDeletionSafety(context.Background(), target, nil)
 	if !safe {
 		t.Error("empty catalog should make target unreachable (safe to delete)")
 	}
@@ -105,7 +105,7 @@ func TestRevokeSafety_NotDeployed_IsAllowed(t *testing.T) {
 	// No etcd in unit tests → collectInstalledBuildIDs returns {} → not deployed → safe.
 	target := makePublishedManifest("core", "dns", "1.0.0", "linux_amd64", 1, "bid-dns", nil)
 	srv := &server{}
-	blocked, reason := srv.checkRevokeSafety(context.Background(), target, false)
+	blocked, reason, _ := srv.checkRevokeSafety(context.Background(), target, false)
 	if blocked {
 		t.Errorf("artifact not in installed state should be safe to revoke, got: %s", reason)
 	}
@@ -115,7 +115,7 @@ func TestRevokeSafety_Admin_Bypasses(t *testing.T) {
 	// Admin isAdmin=true should never be blocked even if deployed.
 	target := makePublishedManifest("core", "dns", "1.0.0", "linux_amd64", 1, "bid-dns", nil)
 	srv := &server{}
-	blocked, _ := srv.checkRevokeSafety(context.Background(), target, true /* isAdmin */)
+	blocked, _, _ := srv.checkRevokeSafety(context.Background(), target, true /* isAdmin */)
 	if blocked {
 		t.Error("admin should never be blocked by revoke safety check")
 	}

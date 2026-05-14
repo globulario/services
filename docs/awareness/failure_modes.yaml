@@ -1319,3 +1319,125 @@ failure_modes:
         - TestAwarGitRoot_NotInRepoReturnsEmpty
         - TestVerifyGapTests_EmptyRepoRootReturnsUnverified
         - TestCoverageReport_NoRepoRootIsUnverifiedNotCritical
+    - id: repository.desired_build_id_orphaned
+      title: package fetch returns NotFound for build_id referenced by desired state
+      severity: critical
+      symptoms:
+        - 'node-agent log: "build_id ... could not be resolved (repository unreachable)"'
+        - 'controller log: install workflows stuck in FAILED_TRANSIENT looping on the same build_id'
+        - 'doctor finding: repository.desired_build_ids_resolve fails for one or more services'
+        - install-storm against the repository (NotFound on every retry) without convergence
+        - DesiredService rows pin build_id=X, repository.ListArtifacts shows no entry for build_id=X
+        - new nodes hitting cold start cannot reach Applied — Layer 3 stays empty forever
+      root_cause: |
+        Repository metadata / Scylla index rows for a build_id were deleted while
+        desired state (ServiceDesiredVersion, InfrastructureRelease, ServiceRelease,
+        DesiredService) still pinned the immutable build_id. Once the index loses
+        the entry, ResolveArtifact returns NotFound, the fallback paths (POSIX CAS,
+        GitHub mirror, MinIO mirror) demand a sha256 they cannot synthesize without
+        the manifest, and the install-storm begins. The original incident was
+        triggered by a node-removal workflow ("N etcd keys cleaned, M releases
+        purged") that cascaded into a repository purge with no reference-safety
+        check against desired state.
+      architecture_fix: |
+        1. collectDesiredBuildIDs in golang/repository/repository_server/reachability_guard.go
+           must scan ALL four desired-state etcd prefixes:
+             /globular/resources/ServiceDesiredVersion/
+             /globular/resources/InfrastructureRelease/
+             /globular/resources/DesiredService/
+             /globular/resources/ServiceRelease/
+           and accept BOTH Spec.BuildID and Status.ResolvedBuildID.
+        2. checkDeletionSafety + checkRevokeSafety must consult both installed AND
+           desired build_id sets; block deletion with a stable PurgeBlockedReason
+           code (RepositoryPurgeBlockedReferencedBuild_desired) and an audit event.
+        3. resolveByBuildID must distinguish three outcomes — success, NotFound
+           (manifest absent), and DesiredBuildIdOrphaned/FailedPrecondition
+           (manifest exists but demoted). Conflating the last two is what produced
+           the install-storm.
+        4. node-agent fallback path must check the error sentinel: ErrBuildIDOrphaned
+           and ErrBuildIDNotFound BOTH forbid local-pinned-tarball fallback
+           (CannotFallbackWithoutManifestOrChecksum); only ErrRepositoryUnreachable
+           permits it.
+        5. Doctor invariant repository.desired_build_ids_resolve fires whenever an
+           active desired build_id is not represented by any node's installed
+           build_id set — surfaces the orphan before the install-storm kicks in.
+      forbidden_fixes:
+        - change_desired_version_or_build_id_by_hand_to_clear_error
+        - disable_require_checksum_to_allow_unverifiable_fallback
+        - manually_copy_package_blobs_without_index_repair
+        - restart_node_agent_repeatedly_hoping_repository_recovers
+        - delete_desired_build_id_to_silence_install_storm
+        - relax_require_checksum_when_mirror_lookup_lacks_sha256
+      related_invariants:
+        - repository.purge_must_not_delete_active_desired_builds
+        - repository.desired_build_id_must_resolve
+        - repository.fallback_requires_manifest_and_checksum
+      related_services:
+        - repository
+        - cluster-controller
+        - node-agent
+        - cluster-doctor
+      required_tests:
+        - TestDeletionSafety_DesiredBuildID_IsBlocked
+        - TestRevokeSafety_DesiredBuildID_IsBlocked
+        - TestCollectDesiredBuildIDs_ScansAllFourPrefixes
+        - TestResolveByBuildIDOrphaned_ReturnsFailedPrecondition
+        - TestInstallerRefusesLocalFallbackOnOrphaned
+        - TestDoctorRule_RepositoryDesiredBuildIDsResolve
+    - id: dns.desired_ghost_records
+      title: DNS records point to nodes where service is planned, inactive, or not installed
+      severity: high
+      symptoms:
+        - gateway.<domain>, api.<domain>, *.<domain>, dns.<domain> resolve to IPs whose owning node has the service "planned" or "inactive"
+        - client gRPC dials oscillate between success and TCP refused as the TTL flips between healthy and dead candidates
+        - _cluster-controller._tcp.<domain> SRV record contains nodes whose globular-cluster-controller.service is inactive or missing
+        - DNS reconciler log shows record-write loops without any "WITHDREW" lines despite stuck installs
+        - new node added to cluster appears in DNS records before its packages are installed
+      root_cause: |
+        The DNS reconciler in golang/cluster_controller/cluster_controller_server/dns_state.go
+        computed candidates from Profile (Layer 2 / Desired) alone — `node.HasProfile("gateway")`,
+        `node.HasProfile("control-plane")`, etc. It did NOT consult per-node
+        InstalledVersions (Layer 3) or systemd unit state (Layer 4) before
+        emitting A / SRV records. As a result, a node that was planned to run
+        gateway but hadn't completed installation, or whose gateway unit had
+        gone inactive, still appeared in gateway.<domain>. Clients then
+        load-balanced into a dead endpoint for each TTL.
+      architecture_fix: |
+        1. NodeInfo carries explicit readiness inputs: InstalledServices map
+           (Layer 3) and RuntimeHealthy map (Layer 4), plus Draining/Quarantined
+           lifecycle flags.
+        2. ComputeDesiredStateWithFunnels applies a gateForService funnel for
+           every record group that promises a service:
+              Desired (profile) → Installed → Runtime healthy → Published
+           A record is emitted ONLY when all three layers agree.
+        3. Per-node A/AAAA records (which describe the NODE, not a service) are
+           withdrawn when Draining/Quarantined.
+        4. The reconciler logs structured WITHDREW lines per record group so
+           operators can see the funnel and reason about ghost-record withdrawal.
+        5. Doctor invariant dns.records_match_runtime_health fires when any node
+           with a record-bearing profile has the corresponding service planned
+           but not installed, or installed but runtime-unhealthy — surfaces a
+           reconciler bug or an unpatched DNS server before clients notice.
+      forbidden_fixes:
+        - lower_dns_ttl_so_bad_resolutions_expire_faster
+        - restart_dns_only_to_force_record_refresh
+        - hardcode_known_good_nodes_in_dns_config
+        - remove_profile_from_node_to_hide_record
+        - publish_dns_from_desired_or_profile_state
+        - rely_on_dns_to_recover_dns
+      related_invariants:
+        - dns.records_must_be_installed_and_runtime_healthy
+        - dns.wildcard_must_not_include_unhealthy_nodes
+      related_services:
+        - cluster-controller
+        - dns
+        - gateway
+        - cluster-doctor
+      required_tests:
+        - TestComputeDesiredState_PlannedNotInstalled_NoRecord
+        - TestComputeDesiredState_InstalledNotHealthy_NoRecord
+        - TestComputeDesiredState_HealthyNode_PublishesRecord
+        - TestComputeDesiredState_DrainingNode_WithdrawsRecords
+        - TestComputeDesiredState_WildcardExcludesUnhealthy
+        - TestComputeDesiredState_ControllerSRVOnlyHealthy
+        - TestDoctorRule_DNSRecordsMatchRuntimeHealth

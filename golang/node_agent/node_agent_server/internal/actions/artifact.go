@@ -82,32 +82,57 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 	}
 
 	// build_id is the canonical artifact identity. When provided, resolve it
-	// to a concrete build_number+checksum before any fetch attempt. If the
-	// repository is unreachable, fail fast — the caller (installer_api.go)
-	// will use the local-package fallback path instead.
-	buildIDUnresolved := false
+	// to a concrete build_number+checksum before any fetch attempt.
+	//
+	// Failure modes here are NOT equivalent and must NOT be conflated:
+	//
+	//   - ErrBuildIDOrphaned     → the repository has explicitly demoted this
+	//                              build (archived/yanked/revoked/quarantined).
+	//                              FORBIDDEN to silently install local bytes —
+	//                              we'd be running a build the repository said
+	//                              "stop". Caller sees CannotFallbackWithoutManifestOrChecksum.
+	//   - ErrBuildIDNotFound     → no manifest in the catalog → no way to verify
+	//                              checksum of any local candidate → same: no fallback.
+	//   - ErrRepositoryUnreachable → network blip. Fallback is allowed iff the
+	//                              caller has an independent checksum / pinned proof.
+	//
+	// The legacy single "use local fallback" message is preserved for the
+	// unreachable case so installer_api.go's existing behaviour is unchanged
+	// there. Orphan / NotFound cases now return a distinct, non-recoverable
+	// error that installer_api.go will refuse to fallback on.
 	if buildID != "" {
 		if effectiveRepoAddr != "" && service != "" && platform != "" {
 			resolvedBN, resolvedChecksum, rerr := resolveArtifactByBuildID(ctx, effectiveRepoAddr, buildID, service, publisherID, platform)
 			if rerr != nil {
-				log.Printf("artifact.fetch: build_id=%s resolve failed (repo=%s): %v — aborting fetch",
-					buildID, effectiveRepoAddr, rerr)
-				buildIDUnresolved = true
-			} else {
-				log.Printf("artifact.fetch: resolved build_id=%s → build_number=%d checksum=%s",
-					buildID, resolvedBN, shortHash(resolvedChecksum))
-				buildNumber = resolvedBN
-				if expectedSHA == "" && resolvedChecksum != "" {
-					expectedSHA = resolvedChecksum
+				switch {
+				case errors.Is(rerr, ErrBuildIDOrphaned):
+					log.Printf("artifact.fetch: build_id=%s ORPHANED in repository — fallback FORBIDDEN (repository demoted this build): %v",
+						buildID, rerr)
+					return "", fmt.Errorf("artifact.fetch: build_id=%s is orphaned: CannotFallbackWithoutManifestOrChecksum: %w", buildID, rerr)
+				case errors.Is(rerr, ErrBuildIDNotFound):
+					log.Printf("artifact.fetch: build_id=%s NOT in repository catalog — fallback FORBIDDEN (no checksum proof): %v",
+						buildID, rerr)
+					return "", fmt.Errorf("artifact.fetch: build_id=%s not in catalog: CannotFallbackWithoutManifestOrChecksum: %w", buildID, rerr)
+				default:
+					log.Printf("artifact.fetch: build_id=%s resolve failed (repo=%s, transient): %v — aborting fetch",
+						buildID, effectiveRepoAddr, rerr)
+					return "", fmt.Errorf("artifact.fetch: build_id=%s could not be resolved (repository unreachable) — use local fallback: %w",
+						buildID, rerr)
 				}
 			}
+			log.Printf("artifact.fetch: resolved build_id=%s → build_number=%d checksum=%s",
+				buildID, resolvedBN, shortHash(resolvedChecksum))
+			buildNumber = resolvedBN
+			if expectedSHA == "" && resolvedChecksum != "" {
+				expectedSHA = resolvedChecksum
+			}
 		} else {
-			// Repository unreachable — cannot resolve build_id.
+			// No repository address available — this is the transient/bootstrap
+			// case. Caller may fallback to a locally pinned package, but only if
+			// it has an independent checksum proof (expected_sha256 set).
 			log.Printf("artifact.fetch: build_id=%s set but no repository reachable — aborting fetch", buildID)
-			buildIDUnresolved = true
-		}
-		if buildIDUnresolved {
-			return "", fmt.Errorf("artifact.fetch: build_id=%s could not be resolved (repository unreachable) — use local fallback", buildID)
+			return "", fmt.Errorf("artifact.fetch: build_id=%s could not be resolved (repository unreachable) — use local fallback: %w",
+				buildID, ErrRepositoryUnreachable)
 		}
 	}
 
@@ -367,18 +392,58 @@ func resolveArtifactEntrypointDigest(ctx context.Context, repoAddr, publisherID,
 	return digest, nil
 }
 
+// Sentinel errors raised by resolveArtifactByBuildID. Callers use errors.Is
+// to distinguish "repository is unreachable / network error" (local fallback
+// may be safe IF an alternate way to verify checksum exists) from "repository
+// is reachable and has explicitly demoted this build_id" (fallback would
+// silently install stale bytes — forbidden by fallback.requires_manifest_checksum).
+var (
+	// ErrBuildIDOrphaned: the repository returned a structured
+	// `DesiredBuildIdOrphaned` precondition failure. The build was demoted
+	// (archived, yanked, revoked, quarantined, or never finished publishing)
+	// while desired state still pins it. Fallback to a local pinned tarball
+	// is forbidden — the controller must surface this as a release blocker
+	// (RELEASE_BLOCKED_REPOSITORY_ORPHANED_BUILD_ID).
+	ErrBuildIDOrphaned = errors.New("DesiredBuildIdOrphaned")
+
+	// ErrBuildIDNotFound: the repository is reachable but the build_id is not
+	// in its catalog. Same fallback semantics as ErrBuildIDOrphaned (no quiet
+	// local install) — without a manifest there is no way to verify any
+	// candidate bytes match the desired identity.
+	ErrBuildIDNotFound = errors.New("BuildIDNotFound")
+
+	// ErrRepositoryUnreachable: network / TLS / auth failure. The repository
+	// may come back; fallback is permitted only when an independent checksum
+	// proof is available for the candidate bytes.
+	ErrRepositoryUnreachable = errors.New("RepositoryUnreachable")
+)
+
 // resolveArtifactByBuildID resolves the exact build_number and checksum for a
 // given build_id by calling ResolveArtifact on the repository. This is the
 // correct path for controllers that dispatch workflows with a known build_id
 // but without a pre-resolved build_number.
-// Returns (buildNumber, checksum, error). checksum has "sha256:" prefix stripped.
+//
+// Error contract — exactly one of:
+//
+//   - nil, build_number, checksum  (success)
+//   - error wrapping ErrBuildIDOrphaned   (FailedPrecondition: build demoted)
+//   - error wrapping ErrBuildIDNotFound   (NotFound: never published / purged)
+//   - error wrapping ErrRepositoryUnreachable (network / TLS / auth)
+//   - bare error                          (programmer error, e.g. nil manifest)
+//
+// The installer / workflow caller branches on these:
+//   - Orphaned / NotFound → DO NOT use local fallback. Surface release blocker.
+//     The repository owns identity; quietly installing a pinned tarball whose
+//     checksum we can no longer verify would violate the 4-layer model.
+//   - Unreachable          → local fallback is permitted only if an independent
+//     manifest/checksum proof is available (out-of-band pinning).
 func resolveArtifactByBuildID(ctx context.Context, repoAddr, buildID, service, publisherID, platform string) (int64, string, error) {
 	if repoAddr == "" {
-		return 0, "", fmt.Errorf("repository address not set")
+		return 0, "", fmt.Errorf("repository address not set: %w", ErrRepositoryUnreachable)
 	}
 	conn, _, err := dialRepository(ctx, repoAddr)
 	if err != nil {
-		return 0, "", fmt.Errorf("dial repository: %w", err)
+		return 0, "", fmt.Errorf("dial repository: %v: %w", err, ErrRepositoryUnreachable)
 	}
 	defer conn.Close()
 
@@ -396,7 +461,23 @@ func resolveArtifactByBuildID(ctx context.Context, repoAddr, buildID, service, p
 		Platform:    platform,
 	})
 	if err != nil {
-		return 0, "", fmt.Errorf("resolve artifact by build_id %s: %w", buildID, err)
+		// Classify by gRPC code from the repository.
+		// NB: the lowercase grpc.status.FromError is imported in other files in
+		// this package; we use string-match here to avoid pulling another import
+		// just for one switch — the resolver-side identifiers are stable.
+		emsg := err.Error()
+		switch {
+		case strings.Contains(emsg, "DesiredBuildIdOrphaned"):
+			return 0, "", fmt.Errorf("resolve artifact by build_id %s: %v: %w", buildID, err, ErrBuildIDOrphaned)
+		case strings.Contains(emsg, "code = NotFound"):
+			return 0, "", fmt.Errorf("resolve artifact by build_id %s: %v: %w", buildID, err, ErrBuildIDNotFound)
+		case strings.Contains(emsg, "code = Unavailable") || strings.Contains(emsg, "code = DeadlineExceeded") ||
+			strings.Contains(emsg, "code = Unauthenticated") || strings.Contains(emsg, "connection refused") ||
+			strings.Contains(emsg, "no such host"):
+			return 0, "", fmt.Errorf("resolve artifact by build_id %s: %v: %w", buildID, err, ErrRepositoryUnreachable)
+		default:
+			return 0, "", fmt.Errorf("resolve artifact by build_id %s: %w", buildID, err)
+		}
 	}
 	manifest := resp.GetManifest()
 	if manifest == nil {
