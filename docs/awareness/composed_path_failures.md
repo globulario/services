@@ -693,6 +693,106 @@ checks.
 
 ---
 
+## 2026-05-14 — Degraded source-availability sentinel collapsed to critical
+
+This is a **third-incident** entry for a shape that has now repeated three
+times. The consolidation candidate (a typed `sourceroot.Resolve()`
+primitive) is established by this entry; the migration begins with one
+call site (`awarGitRoot`) and the remaining sites become follow-up work.
+
+- **Shared concept**: "is a real source tree available to scan from this
+  process?" Several awareness subsystems all need this answer when they
+  decide whether to walk Go files, look up test functions, or measure
+  graph file coverage. The honest answer has four states — `FOUND(path)`,
+  `ABSENT`, `INACCESSIBLE(err)`, `WRONG_CONTEXT(path,reason)` — but each
+  subsystem invented its own degraded signal and each consumer collapsed
+  the signal into a different bucket.
+
+- **Per-subsystem interpretation**:
+  - `awarGitRoot` (mcp/tools_awareness.go): "git rev-parse failed → fall
+    back to `os.Getwd()` and return that as the root." On a production
+    MCP host whose cwd is `/var/lib/globular/mcp`, this returned the
+    install dir as if it were the repo. The integrity scanner then
+    walked it, found no `*_test.go` files, and reported every fix_case's
+    required tests as `REQUIRED_TEST_MISSING` (severity: critical) —
+    39 false alarms.
+  - `verifyGapTests` (mcp/self_review_tool.go): when `repoRoot == ""`,
+    returned the string `"unverified"`. The consumer
+    `buildSelfReviewSection` had a `switch` whose default branch counted
+    everything-not-explicitly-classified as `tests_not_found`. 62
+    implemented gaps were reported as "missing tests" when in fact the
+    verifier just had nothing to scan.
+  - `enforce.GoFileCoverage` + `coverage_report`: when `repoRoot == ""`,
+    GoFileCoverage returns early with `EligibleGoFilesTotal = 0` and
+    `ConfidenceImpact = "unknown"`. coverage_report ignored
+    `ConfidenceImpact` and only checked `CoveragePercentGoFiles < 70`,
+    so 0% → `Status = "critical"` with a "0 Go files indexed" message.
+    A pure can't-check became "platform-wide coverage critical."
+  - `OpenComposite` (graph/composite.go) + dbPath resolution
+    (tools_awareness.go): when the bundle's writable runtime dir
+    couldn't be created (EPERM), composite-mode init failed. The
+    surrounding dbPath resolution had already preferred the bundle path
+    if it existed, but had no symmetric handling for "bundle exists,
+    can't open it cleanly" — it left `st.g = nil`, and at an earlier
+    point in time when the bundle didn't yet exist, fell through to a
+    1.4MB writable shadow at the legacy system path. End state for the
+    operator: the same coverage report said "0 / 0 indexed", flagged
+    critical, and 8 core components looked like they had no failure
+    modes at all.
+
+- **Why unit tests missed it**: every consumer tested its slice with a
+  populated repoRoot (the test process IS in a git checkout, so
+  `awarGitRoot()` returned the right path; `verifyGapTests("/path/...")`
+  found the test functions; `GoFileCoverage` walked a real tree). None
+  of the tests simulated the production-MCP context where the process
+  has no source tree at all. The "no source" path was unreached in
+  testing, so each consumer's degraded-sentinel handling was free to
+  drift independently. The composition (degraded sentinel → consumer's
+  default branch → critical) only manifests when all three layers see
+  the same "no source" reality at once, which is exactly the production
+  state of every MCP host shipped without source.
+
+- **End-to-end contract that should own it**: **Establishing
+  2026-05-14**: `golang/awareness/sourceroot/sourceroot.go` —
+  `Resolve(opts) Result` returning a discriminated union
+  `(State, Path, Err, Reason)` with explicit states
+  `Found | Absent | Inaccessible | WrongContext`. The package adds
+  helper `IsAvailable() bool` so callers that just need a yes/no can
+  ask without re-implementing the classification. **No silent cwd
+  fallback.** **No string sentinels.** Consumers (verifyGapTests,
+  coverage_report, integrity.CheckTestReferences, future scanners)
+  must take the typed result and decide for themselves whether a
+  non-`Found` state is a degraded telemetry signal (info) or a real
+  failure (critical) — `Absent` and `WrongContext` are **never**
+  critical-missing-evidence by definition; only `Found` with a scan
+  that produced zero matches is.
+
+- **Did the fix simplify or special-case?** **Partial — simplification
+  begins, special-cases still ship.** This patch:
+  1. Introduces the typed `sourceroot` primitive.
+  2. Migrates `awarGitRoot` to delegate (removing the cwd fallback bug
+     for real, not just by adding an empty-string return path).
+  3. Closes the third symptom (coverage_report critical/unverified
+     conflation) directly.
+  4. Pins all three observed cases with regression tests.
+
+  What is **still owed**: the other call sites that today reach for
+  `awarGitRoot()` or read `cfg.RepoPath` directly haven't been
+  migrated. The next contributor who writes a new scanner that says
+  "if repoRoot == "" { ... }" hasn't been forced to confront the
+  four-state model. The consolidation lands fully when every source-
+  scan consumer in `golang/awareness/` and `golang/mcp/` reaches the
+  primitive instead of inventing its own sentinel. Two passes
+  ahead — track in the open consolidation candidates list.
+
+  **Forbidden-fix shape recorded**: see
+  `forbidden_fixes.yaml::collapse_source_absent_into_critical_missing_evidence` —
+  any future PR that maps `unverified` / `source_absent` / `wrong_tree`
+  to a critical-severity "missing" finding is now a graph-level
+  violation, not just a code review nit.
+
+---
+
 ## How to add an entry
 
 1. Use the schema above. Do not skip the five fields.

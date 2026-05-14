@@ -1500,3 +1500,60 @@ forbidden_fixes:
     Consistency is achieved by removing every env-var fallback, not adding
     more. There is one path: etcd. New services follow that pattern; the
     existing offender is the bug to fix.
+
+- id: collapse_source_absent_into_critical_missing_evidence
+  summary: |
+    Treat "no source tree available to scan" — whether the cause is an
+    empty repoRoot, a missing bundle, an EPERM on a runtime dir, or a
+    non-git cwd — as if it were a critical-severity missing-evidence
+    finding (e.g. REQUIRED_TEST_MISSING, "0 Go files indexed critical",
+    "N gaps have missing tests"). It conflates "we couldn't check" with
+    "we checked and found nothing," and produces a wall of false alarms
+    every time awareness runs on a host without source — which is every
+    production MCP host. Three separate incidents in 2026-05 (62 fake
+    missing tests, 39 fake missing fix_case tests, 0% coverage critical)
+    all come from this shape.
+  related_invariants:
+    - awareness.source_scan_requires_verified_repo_root
+  safe_alternative: |
+    Use the typed sourceroot.Resolve primitive. Distinguish four states
+    — Found / Absent / Inaccessible / WrongContext — and only count
+    "Found + scanned + zero matches" as critical-missing-evidence.
+    Absent / Inaccessible / WrongContext are info-severity telemetry
+    signals: surface them as "telemetry unavailable, set
+    awareness.repo_path or run on a host with source," never as
+    critical findings about the codebase.
+
+- id: fall_back_to_cwd_when_git_root_unknown
+  summary: |
+    When `git rev-parse --show-toplevel` fails, fall back to
+    `os.Getwd()` and return the cwd as if it were the repo root. On a
+    production MCP host the cwd is the install dir (no source files),
+    which makes every subsequent scan return zero matches and produce
+    critical-severity REQUIRED_TEST_MISSING / 0% coverage findings.
+  related_invariants:
+    - awareness.source_scan_requires_verified_repo_root
+  safe_alternative: |
+    Return `sourceroot.Result{State: Absent}` (or "" from the legacy
+    helper). Callers then take the correct branch — UNVERIFIED, not
+    MISSING. If you genuinely need a writable working dir for some
+    other purpose, use `os.Getwd()` directly at that call site with a
+    different verb; do not paint it as "the repo root."
+
+- id: count_unverified_as_tests_not_found
+  summary: |
+    In a switch over verification status, let the `default` branch
+    capture both genuinely-missing tests AND
+    "couldn't-check"/"unverified"/"no-tests-required" entries, so all
+    of them get reported under one bucket. The operator sees "N gaps
+    have missing tests" when the actual condition is "we have no repo
+    source to scan."
+  related_invariants:
+    - awareness.source_scan_requires_verified_repo_root
+  safe_alternative: |
+    Enumerate every status explicitly. `tests_found`, `tests_partial`,
+    and `no_tests_required` are verified. `tests_not_found` is the
+    only real failure. `unverified` is its own info-severity signal.
+    `invalid_metadata` is a playbook-quality issue, not a missing
+    test. The `default` branch should panic on an unknown status so
+    a future addition to the status enum forces a conscious choice.

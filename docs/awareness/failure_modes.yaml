@@ -1251,3 +1251,71 @@ failure_modes:
       required_tests:
         - TestServiceConfigSourceIsAlwaysEtcd
         - TestNoOsGetenvInServiceServerCode
+
+    - id: awareness.degraded_source_sentinel_collapsed_to_critical
+      title: Awareness source-availability sentinel is collapsed into a critical-severity missing-evidence finding
+      severity: critical
+      symptoms:
+        - "graph_integrity_check reports REQUIRED_TEST_MISSING (severity: critical) for tests that demonstrably exist in source"
+        - "coverage_report shows graph_coverage.status = critical with 0 eligible / 0 indexed Go files on a production MCP host"
+        - "health_pulse alerts 'N implemented gap(s) have missing tests' when verifyGapTests was actually returning unverified"
+        - "operator restarts MCP and finds it has 'opened (read-write): /var/lib/globular/awareness/graph.db' — a small writable shadow — even though /var/lib/globular/awareness/current/graph.db is installed and ~40 MB"
+        - "every awareness query from a production MCP host trips at least one critical alert about coverage or missing tests"
+      root_cause: |
+        Several awareness subsystems ask the same question — "is a real
+        source tree available to scan from this process?" — and each
+        invents its own degraded answer instead of using a typed primitive:
+
+          • awarGitRoot returns os.Getwd() on git rev-parse failure
+            (so the install dir gets scanned as if it were a repo).
+          • verifyGapTests returns the string "unverified" when repoRoot
+            is empty; the health_pulse consumer's switch collapses
+            everything-not-classified into tests_not_found.
+          • GoFileCoverage returns EligibleGoFilesTotal=0 with
+            ConfidenceImpact=unknown when repoRoot is empty; the
+            coverage_report consumer ignores ConfidenceImpact and uses
+            the percent directly, so 0% < 70% → critical.
+          • dbPath resolution prefers the bundle path if present and
+            falls back to a legacy writable path otherwise; there is
+            no symmetric handling for "bundle present but couldn't be
+            opened cleanly," and the legacy fallback is a stale 1.4 MB
+            shadow with ~300 nodes.
+
+        Each layer's unit tests run inside a git checkout where the
+        degraded path is never reached, so the conflation is invisible
+        until composed on a production host. The result an operator
+        sees is a wall of critical-severity alerts about graph
+        coverage and missing tests, all of which are pure telemetry
+        false positives. The system that's supposed to know its own
+        knowledge gaps is loudly lying about them.
+      architecture_fix: |
+        1. Introduce golang/awareness/sourceroot with a typed Result
+           returning Found(path) | Absent | Inaccessible(err) |
+           WrongContext(path, reason). No string sentinels. No silent
+           cwd fallback.
+        2. Migrate awarGitRoot to delegate to sourceroot.Resolve.
+        3. Each consumer switches on the typed state. Non-Found states
+           are telemetry-unavailable signals at info severity.
+        4. coverage_report adds a dedicated "unverified" status (was:
+           collapsed into "critical"). health_pulse already separated
+           "unverified" from "tests_not_found" in commit 1acd3fbb;
+           that fix is referenced here as the precedent.
+        5. Forbidden-fix entry
+           collapse_source_absent_into_critical_missing_evidence
+           prevents future PRs from re-introducing the conflation.
+      forbidden_fixes:
+        - collapse_source_absent_into_critical_missing_evidence
+        - fall_back_to_cwd_when_git_root_unknown
+        - count_unverified_as_tests_not_found
+      related_invariants:
+        - awareness.source_scan_requires_verified_repo_root
+        - awareness.no_match_is_not_safe
+      related_services:
+        - mcp
+        - awareness
+      required_tests:
+        - TestSourceRoot_NotInGitRepoReturnsAbsent
+        - TestSourceRoot_ExplicitPathInvalidReturnsInaccessible
+        - TestAwarGitRoot_NotInRepoReturnsEmpty
+        - TestVerifyGapTests_EmptyRepoRootReturnsUnverified
+        - TestCoverageReport_NoRepoRootIsUnverifiedNotCritical

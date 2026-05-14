@@ -145,3 +145,57 @@ invariants:
       The trust envelope must report TrustLimited or worse for any patch
       whose authority_change.requires_review is true unless coverage is
       strong AND tests are linked to the relevant invariants.
+
+  - id: awareness.source_scan_requires_verified_repo_root
+    title: Awareness source-scanning tools must use a verified repo root or report unverified — never silently fall back to a wrong tree
+    severity: critical
+    status: active
+    summary: |
+      Any awareness tool that walks a source tree (test discovery,
+      Go-file coverage, integrity check, scan_violations, …) must
+      obtain its root from a single typed primitive that distinguishes
+      Found / Absent / Inaccessible / WrongContext. Silent fallback to
+      os.Getwd() or any other "best guess" path is forbidden: on a
+      production MCP host the cwd is the install dir, contains no
+      source, and turns every scan into a false-critical alarm.
+
+      When the primitive returns anything other than Found, consumers
+      must classify the result as "telemetry unavailable" (info
+      severity), NOT as "evidence missing" (critical severity). The
+      output must distinguish:
+        • real missing tests/files (Found + scanned + zero matches)
+        • source unavailable (Absent / Inaccessible)
+        • scanner misconfigured (WrongContext)
+        • graph unavailable (orthogonal — separate signal)
+    protects:
+      symbols:
+        - awarGitRoot
+        - sourceroot.Resolve
+        - verifyGapTests
+        - GoFileCoverage
+        - integrity.CheckTestReferences
+      files:
+        - golang/awareness/sourceroot/
+        - golang/mcp/tools_awareness.go
+        - golang/mcp/self_review_tool.go
+        - golang/mcp/coverage_report_tool.go
+        - golang/mcp/health_pulse_tool.go
+        - golang/awareness/integrity/testref.go
+        - golang/awareness/enforce/graph_coverage.go
+    enforcement: |
+      sourceroot.Resolve is the single source of truth. Each consumer
+      switches on the typed state. Tests pin three known historical
+      failure shapes: (a) OpenComposite EPERM must not silently fall
+      back to a legacy DB and report critical 0% coverage; (b)
+      verifyGapTests "unverified" must not be counted as tests_not_found;
+      (c) awarGitRoot must not return cwd when not in a git checkout.
+    forbidden_fixes:
+      - collapse_source_absent_into_critical_missing_evidence
+    related_failure_modes:
+      - awareness.degraded_source_sentinel_collapsed_to_critical
+    required_tests:
+      - TestSourceRoot_NotInGitRepoReturnsAbsent
+      - TestSourceRoot_ExplicitPathInvalidReturnsInaccessible
+      - TestAwarGitRoot_NotInRepoReturnsEmpty
+      - TestVerifyGapTests_EmptyRepoRootReturnsUnverified
+      - TestCoverageReport_NoRepoRootIsUnverifiedNotCritical

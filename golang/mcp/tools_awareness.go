@@ -3,11 +3,11 @@ package main
 import (
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/services/golang/awareness/sourceroot"
 )
 
 // awarenessState is captured in awareness tool handler closures.
@@ -193,22 +193,22 @@ func isAwarenessBundlePath(path string) bool {
 		strings.HasPrefix(path, currentPrefix)
 }
 
-// awarGitRoot returns the git repository root via git rev-parse, or "" if
-// the process is not running inside a git checkout.
+// awarGitRoot returns the git repository root, or "" if the process is
+// not running inside a git checkout.
 //
-// Do NOT fall back to os.Getwd() — on a production MCP host the working
-// directory is the install dir (e.g. /var/lib/globular/mcp), which has no
-// *_test.go files. Treating it as a repo root caused every fix_case's
-// required_tests to be reported as REQUIRED_TEST_MISSING ("scanned a fake
-// repo and found nothing") instead of REQUIRED_TEST_UNVERIFIED ("no repo
-// to scan, this is expected in production"). The empty-string return lets
-// the caller fall through to the correct UNVERIFIED branch.
+// Delegates to sourceroot.Resolve so we share a single source of truth
+// for the four-state model (Found / Absent / Inaccessible / WrongContext).
+// Returning "" maps to !Found in every meaningful sense for callers that
+// only need a path-or-nothing answer. New callers should use
+// sourceroot.Resolve directly so they can switch on the typed state and
+// avoid re-introducing the "degraded sentinel → critical bucket" shape
+// recorded in docs/awareness/composed_path_failures.md (2026-05-14).
 func awarGitRoot() string {
-	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
-	if err != nil {
-		return ""
+	res := sourceroot.Resolve(sourceroot.DefaultOptions)
+	if res.State == sourceroot.Found {
+		return res.Path
 	}
-	return strings.TrimSpace(string(out))
+	return ""
 }
 
 // strSliceArg extracts a []string from an MCP args map.

@@ -20,6 +20,32 @@ var defaultKnownComponents = []string{
 	"repository", "xds", "node_agent",
 }
 
+// classifyGraphCoverageStatus maps the inputs of the graph-coverage section
+// to its status string. Extracted so the classification rule — including
+// the critical distinction between "unverified" (no source to scan) and
+// "critical" (scanned and found low coverage) — can be regression-pinned
+// without spinning up the full coverage_report tool. See
+// awareness.source_scan_requires_verified_repo_root and the 2026-05-14
+// composed-path-failure entry.
+func classifyGraphCoverageStatus(graphAvailable bool, repoRoot string, gcov enforce.GoFileCoverageResult) string {
+	switch {
+	case !graphAvailable:
+		return "no_graph"
+	case repoRoot == "" || gcov.ConfidenceImpact == "unknown":
+		// "unverified" is distinct from "critical": it means we had no
+		// source tree to scan, not that the codebase is uncovered.
+		// Production MCP hosts ship without source and must report
+		// unverified — never critical — for graph coverage.
+		return "unverified"
+	case gcov.CoveragePercentGoFiles < 70:
+		return "critical"
+	case gcov.CoveragePercentGoFiles < 85:
+		return "warn"
+	default:
+		return "ok"
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Output types
 // ---------------------------------------------------------------------------
@@ -215,16 +241,7 @@ func registerCoverageReportTool(s *server, st *awarenessState) {
 			BlindSpots:                  gcov.BlindSpots,
 			ConfidenceImpact:            gcov.ConfidenceImpact,
 		}
-		switch {
-		case st.g == nil:
-			graphCovSection.Status = "no_graph"
-		case gcov.CoveragePercentGoFiles < 70:
-			graphCovSection.Status = "critical"
-		case gcov.CoveragePercentGoFiles < 85:
-			graphCovSection.Status = "warn"
-		default:
-			graphCovSection.Status = "ok"
-		}
+		graphCovSection.Status = classifyGraphCoverageStatus(st.g != nil, repoRoot, gcov)
 		if graphCovSection.Status == "warn" || graphCovSection.Status == "critical" {
 			actions = append(actions,
 				fmt.Sprintf("Graph Go-file coverage %.1f%% — run 'globular awareness build' to re-index missing files",
