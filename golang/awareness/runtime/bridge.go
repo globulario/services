@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/awareness/assurance"
 	"github.com/globulario/services/golang/awareness/graph"
 )
 
@@ -252,12 +254,64 @@ func (b *RuntimeBridge) WriteToGraph(ctx context.Context, snap *RuntimeSnapshot,
 		})
 	}
 
+	// P1-1: stamp detector_mapping.yaml edges as observed when their
+	// underlying rule fires. For each doctor finding, look up the
+	// detector node by FindingID and call RecordDetectorObservation on
+	// its outgoing matches_failure_mode edges. This is the runtime side
+	// of the active-vs-wired lifecycle — without it, every detector
+	// mapping stays wired forever and well_covered classification is
+	// unreachable for any failure_mode that depends on a doctor rule.
+	//
+	// Errors here are non-fatal: stamping is best-effort and must not
+	// fail snapshot persistence. Stamping failures surface as warnings
+	// on the snapshot for operator visibility.
+	for _, f := range snap.DoctorFindings {
+		if f.Suppressed || f.FindingID == "" {
+			continue
+		}
+		if err := stampDetectorObservationsForRule(ctx, g, f.FindingID, snap.CapturedAt); err != nil {
+			snap.Warnings = append(snap.Warnings,
+				fmt.Sprintf("detector-observation stamp failed for %s: %v", f.FindingID, err))
+		}
+	}
+
 	// Store snapshot JSON in runtime_snapshots table.
 	snapJSON, err := marshalSnapshot(snap)
 	if err != nil {
 		return fmt.Errorf("WriteToGraph marshal: %w", err)
 	}
 	return g.UpsertRuntimeSnapshot(ctx, snap.ID, snap.CapturedAt.Unix(), snap.NodeID, snap.ClusterID, snapJSON)
+}
+
+// stampDetectorObservationsForRule looks up detector:<ruleID> and stamps
+// every outgoing matches_failure_mode edge with the observation
+// timestamp. The detector_mapping.yaml extractor authored these edges
+// at build time; this is the runtime side closing the loop.
+//
+// Returns the first error encountered so callers can surface it as a
+// warning. Walks every edge regardless so a transient failure on one
+// edge doesn't skip the rest.
+func stampDetectorObservationsForRule(ctx context.Context, g *graph.Graph, ruleID string, observedAt time.Time) error {
+	detectorNodeID := "detector:" + ruleID
+	out, err := g.OutgoingEdges(ctx, detectorNodeID)
+	if err != nil {
+		return fmt.Errorf("lookup outgoing edges for %s: %w", detectorNodeID, err)
+	}
+	var firstErr error
+	for _, e := range out {
+		if e.Kind != graph.EdgeMatchesFailureMode {
+			continue
+		}
+		// Dst is the prefixed failure_mode node id; strip the prefix for
+		// the helper's bare-id contract.
+		fmID := strings.TrimPrefix(e.Dst, "failure_mode:")
+		if err := assurance.RecordDetectorObservation(ctx, g,
+			detectorNodeID, fmID, "doctor",
+			graph.EdgeMatchesFailureMode, observedAt); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 // marshalSnapshot serialises a RuntimeSnapshot to JSON for storage.
