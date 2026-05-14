@@ -508,6 +508,64 @@ log is where we earn the right to consolidate.
 
 ---
 
+## 2026-05-14 — graph.Open always migrates against immutable bundles
+
+- **Shared concept**: "is this graph database something I can modify?"
+  Read by every consumer that opens a `*graph.Graph` handle: build,
+  preflight, MCP, CLI.
+- **Per-subsystem interpretation**:
+  - `bundlesync` (installer): "I write a signed, content-addressed
+    artifact to `/var/lib/globular/awareness/installed/<version>/
+    <uuid>/`. Root-owned, mode 0644 for files, 0755 for dirs.
+    Immutable post-install — that's the whole point of content
+    addressing."
+  - `graph.Open` (library): "I always run `migrate()` on every open.
+    Migration executes DDL via `db.Exec(schemaSQL)` and uses WAL
+    journal mode, which needs to create `-wal`/`-shm` sidecars in
+    the parent directory."
+  - MCP service: "I open the active bundle at
+    `/var/lib/globular/awareness/current/graph.db` as user `globular`."
+  - Reality: the service user can't write to a root-owned bundle dir.
+    Open fails with "attempt to write a readonly database", awareness
+    degrades to noop, and downstream tools (runtime_errors,
+    failure_learning_list_pending, every awareness query) silently
+    return `{status: degraded}` or stale results.
+- **Why unit tests missed it**: `graph` package tests always use
+  `t.TempDir()` — a freshly created, fully writable directory.
+  `bundlesync` tests verify file installation under a temp install
+  root the test process owns. MCP tests inject a mocked graph state
+  rather than calling `graph.Open` against a real bundle path.
+  Each test suite proved its own slice; nothing tested "the MCP, as
+  the service user, opens a root-installed bundle." The contradiction
+  between "immutable bundle" and "always migrate on open" was visible
+  in the contract documents but invisible to every test.
+- **End-to-end contract that should own it**: **Established
+  2026-05-14**. `graph.OpenReadOnly(path)` opens with SQLite URI
+  parameters `mode=ro&immutable=1`, skips `MkdirAll`, skips
+  `migrate()`. Reads succeed regardless of directory ownership;
+  writes return SQLite's read-only error cleanly. MCP detects bundle
+  paths via `isAwarenessBundlePath` and routes them through
+  OpenReadOnly; non-bundle paths (dev checkouts, writable runtime
+  databases) still use `Open` so learn_from_fix and similar writers
+  keep working in their proper context.
+- **Did the fix simplify or special-case?** **Simplified.** The
+  bundle's immutability contract is now honoured by a verb that
+  matches it (`OpenReadOnly`). The previous workaround — staging a
+  writable copy of the signed bundle's graph.db under
+  `/var/lib/globular/awareness/runtime/` and pointing MCP at that —
+  split authority across two file homes. With this fix the bundle is
+  the single source of read truth; the workaround copy can be retired.
+  Three pinning tests lock the contract: ReadOnly succeeds against a
+  non-writable file, writes through the handle fail with a read-only
+  error, and the MCP path classifier correctly distinguishes bundle
+  paths from writable runtime paths. Writable session/experience/
+  learning data (the small fraction of awareness state that should
+  actually mutate at runtime) belongs in a separate writable database
+  — that's the architectural follow-up this commit makes possible
+  but doesn't implement.
+
+---
+
 ## How to add an entry
 
 1. Use the schema above. Do not skip the five fields.

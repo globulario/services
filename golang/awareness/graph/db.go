@@ -970,6 +970,49 @@ func Open(path string) (*Graph, error) {
 	return g, nil
 }
 
+// OpenReadOnly opens an existing SQLite awareness graph at path for read-only
+// access. It does NOT create the parent directory, does NOT migrate the
+// schema, and the underlying connection refuses every write. This is the
+// correct way to consume a signed, content-addressed bundle (e.g.
+// /var/lib/globular/awareness/current/graph.db) whose contract is "installed
+// once by root, never modified at runtime."
+//
+// The mode=ro&immutable=1 pragma tells SQLite the file will not change while
+// open. This skips WAL setup entirely — Open's WAL pragma would otherwise
+// require write access to create -wal and -shm sidecars. Combined with
+// skipping migrate(), the read path is fully side-effect-free even when the
+// caller has no write permission on the bundle directory.
+//
+// Callers that need to write to the graph (learn_from_fix, experience,
+// session state) must use Open against a writable path instead. The MCP
+// detects bundle paths and routes them here; runtime writes go to a
+// separate writable database — see docs/awareness/composed_path_failures.md.
+func OpenReadOnly(path string) (*Graph, error) {
+	if _, err := os.Stat(path); err != nil {
+		return nil, fmt.Errorf("awareness graph (read-only): stat %s: %w", path, err)
+	}
+	// SQLite URI form is required to honour mode=ro and immutable=1 as URI
+	// parameters (the bare query-string form is interpreted as part of the
+	// filename by the mattn/go-sqlite3 driver). Pragma-style options keep
+	// their underscore prefix.
+	dsn := "file:" + path + "?mode=ro&immutable=1&_foreign_keys=on&_busy_timeout=5000"
+	db, err := sql.Open("sqlite3", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("awareness graph (read-only): open %s: %w", path, err)
+	}
+	db.SetMaxOpenConns(1)
+	// Validate the schema is accessible by running a no-op SELECT. We do not
+	// run migrate() — a read-only handle must not write DDL. A read-only
+	// open of a bundle whose schema is older than this binary expects will
+	// surface as "no such column" on the first query that needs it, which
+	// is the right place to detect drift: in a query that names the column.
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("awareness graph (read-only): ping %s: %w", path, err)
+	}
+	return &Graph{db: db}, nil
+}
+
 // OpenMemory opens a fresh in-memory SQLite awareness graph.
 // It is suitable for validation previews: changes are never persisted.
 // Each call returns an independent, isolated in-memory database.

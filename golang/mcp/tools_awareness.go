@@ -52,6 +52,14 @@ func registerAwarenessTools(s *server) {
 		}
 	}
 
+	// Bundle paths are signed, content-addressed, root-owned, and immutable
+	// post-install. graph.Open's migrate() would try to write DDL and fail
+	// when the service user can't open the file read-write; OpenReadOnly
+	// is the correct verb for bundle data. Non-bundle paths (dev checkouts,
+	// staged runtime copies) still use Open so writes from learn_from_fix
+	// and friends keep working.
+	useReadOnly := isAwarenessBundlePath(dbPath)
+
 	// Prefer docs dir from the installed bundle, then from the repo checkout.
 	if docsDir == "" || !dirExists(docsDir) {
 		const bundleDocsDir = "/var/lib/globular/awareness/current/docs"
@@ -67,9 +75,20 @@ func registerAwarenessTools(s *server) {
 	}
 
 	if dbPath != "" {
-		if g, err := graph.Open(dbPath); err == nil {
+		var g *graph.Graph
+		var err error
+		if useReadOnly {
+			g, err = graph.OpenReadOnly(dbPath)
+		} else {
+			g, err = graph.Open(dbPath)
+		}
+		if err == nil {
 			st.g = g
-			log.Printf("mcp: awareness graph opened: %s", dbPath)
+			mode := "read-write"
+			if useReadOnly {
+				mode = "read-only"
+			}
+			log.Printf("mcp: awareness graph opened (%s): %s", mode, dbPath)
 		} else {
 			log.Printf("mcp: awareness graph unavailable (%s): %v — degraded mode", dbPath, err)
 		}
@@ -125,6 +144,32 @@ func registerAwarenessTools(s *server) {
 func dirExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
+}
+
+// awarenessBundleRoot is the install root for content-addressed awareness
+// bundles. Anything under it (including the /current symlink which points
+// to /installed/<version>/<uuid>/) is treated as immutable signed content
+// and opened read-only.
+const awarenessBundleRoot = "/var/lib/globular/awareness/"
+
+// isAwarenessBundlePath reports whether path lives inside a signed bundle.
+// We resolve symlinks so /var/lib/globular/awareness/current/graph.db (a
+// symlink into installed/<version>/<uuid>/) is correctly classified.
+// Falls back to the lexical prefix when the link can't be resolved (e.g.,
+// during dev with a broken symlink) — better to err on the side of
+// read-only than to attempt a migrate against a root-owned file.
+func isAwarenessBundlePath(path string) bool {
+	if path == "" {
+		return false
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		resolved = path
+	}
+	const installedPrefix = awarenessBundleRoot + "installed/"
+	const currentPrefix = awarenessBundleRoot + "current"
+	return strings.HasPrefix(resolved, installedPrefix) ||
+		strings.HasPrefix(path, currentPrefix)
 }
 
 // awarGitRoot returns the git repository root via git rev-parse.
