@@ -314,14 +314,14 @@ func scanDocsDir(docsDir string) ([]SourceFile, error) {
 		if data, err := os.ReadFile(path); err == nil {
 			sum := sha256.Sum256(data)
 			sf.SHA256Prefix = fmt.Sprintf("%x", sum)[:12]
-			// Classify the file by its top-level YAML key. This lets the
-			// freshness layer distinguish "I don't know what this file is"
-			// (unknown role → blocks trust) from "I know exactly what this
-			// file is and that it doesn't contribute to the graph"
-			// (config role → informational only).
-			if topKey, perr := manual.TopLevelKey(data); perr == nil && topKey != "" {
-				sf.Role = string(manual.ClassifyYAMLByTopKey(topKey))
-			}
+			// Classify the file. P1-3: prefer an explicit
+			// `awareness_role: graph|config|seed|none` declaration on the
+			// file, then fall back to the top-key heuristic. This lets
+			// authors declare a file's role without the heuristic having to
+			// guess (and gracefully grandfathers every legacy file that
+			// already classified correctly).
+			role, _ := manual.ClassifyYAML(data)
+			sf.Role = string(role)
 		}
 		out = append(out, sf)
 		return nil

@@ -263,6 +263,90 @@ func TestCheckStaleness_AllConfigOnly_NoWarn(t *testing.T) {
 	}
 }
 
+// TestCheckStaleness_ExplicitAwarenessRoleNoneSuppressesUnknownAlarm pins the
+// user-facing value of P1-3: a YAML whose top-level key would normally
+// classify as unknown can opt out of the warn-level "unknown_role_knowledge_files"
+// alarm by declaring `awareness_role: none` at the top of the file. This is
+// the escape hatch for scratch notes, draft proposals, and README-style YAMLs
+// that legitimately live under docs/awareness/ but contribute nothing to the
+// graph and should not block trust.
+func TestCheckStaleness_ExplicitAwarenessRoleNoneSuppressesUnknownAlarm(t *testing.T) {
+	g := makeBuiltGraph(t, 1*time.Hour)
+	docsDir := t.TempDir()
+
+	// Canonical tracked file so the report has a baseline.
+	if err := os.WriteFile(filepath.Join(docsDir, "failure_modes.yaml"),
+		[]byte("failure_modes: []"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// File whose top-key 'scratch_notes' is NOT recognised by any classifier.
+	// The explicit `awareness_role: none` declaration MUST win — the file is
+	// counted as untracked but does NOT increment UnknownRoleYAMLCount and
+	// MUST NOT raise the warn-level alarm.
+	body := "awareness_role: none\nscratch_notes:\n  - draft\n"
+	if err := os.WriteFile(filepath.Join(docsDir, "draft.yaml"),
+		[]byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	rep, err := assurance.CheckStaleness(context.Background(), g, assurance.Options{
+		DocsDir: docsDir,
+	})
+	if err != nil {
+		t.Fatalf("CheckStaleness: %v", err)
+	}
+
+	if rep.UnknownRoleYAMLCount != 0 {
+		t.Errorf("UnknownRoleYAMLCount=%d, want 0 (awareness_role: none must suppress unknown classification)",
+			rep.UnknownRoleYAMLCount)
+	}
+	for _, a := range rep.Alarms {
+		if a.ID == "unknown_role_knowledge_files" {
+			t.Errorf("must not emit unknown_role_knowledge_files when file declares awareness_role: none; got alarm %+v", a)
+		}
+	}
+}
+
+// TestCheckStaleness_ExplicitAwarenessRoleConfigOnUnknownKey pins that the
+// declaration also works when promoting an unrecognised key to config — the
+// file is counted in ConfigYAMLCount, not UnknownRoleYAMLCount, and the
+// warn-level alarm stays silent.
+func TestCheckStaleness_ExplicitAwarenessRoleConfigOnUnknownKey(t *testing.T) {
+	g := makeBuiltGraph(t, 1*time.Hour)
+	docsDir := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(docsDir, "failure_modes.yaml"),
+		[]byte("failure_modes: []"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Unrecognised key, but author declares it's config-only.
+	body := "awareness_role: config\nmy_new_config_block:\n  setting: 1\n"
+	if err := os.WriteFile(filepath.Join(docsDir, "new_config.yaml"),
+		[]byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	rep, err := assurance.CheckStaleness(context.Background(), g, assurance.Options{
+		DocsDir: docsDir,
+	})
+	if err != nil {
+		t.Fatalf("CheckStaleness: %v", err)
+	}
+
+	if rep.UnknownRoleYAMLCount != 0 {
+		t.Errorf("UnknownRoleYAMLCount=%d, want 0 (awareness_role: config must override unknown heuristic)",
+			rep.UnknownRoleYAMLCount)
+	}
+	if rep.ConfigYAMLCount < 1 {
+		t.Errorf("ConfigYAMLCount=%d, want ≥1 (file declared as config)", rep.ConfigYAMLCount)
+	}
+	for _, a := range rep.Alarms {
+		if a.ID == "unknown_role_knowledge_files" {
+			t.Errorf("must not emit unknown_role_knowledge_files when file declares awareness_role: config; got alarm %+v", a)
+		}
+	}
+}
+
 // TestCheckStaleness_YAMLNewerThanGraph: a YAML modified after the last graph
 // build must produce a yaml_newer_than_graph warn alarm.
 func TestCheckStaleness_YAMLNewerThanGraph(t *testing.T) {
