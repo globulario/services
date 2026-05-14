@@ -42,7 +42,7 @@ type clusterdoctorConfig struct {
 
 func defaultConfig() *clusterdoctorConfig {
 	return &clusterdoctorConfig{
-		Port:                       12100,
+		Port:                       12005,
 		// Resolved from etcd at startup via config.ResolveServiceAddr.
 		// Empty default — falls back only if etcd is unreachable.
 		ControllerEndpoint:         "",

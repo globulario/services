@@ -170,9 +170,9 @@ Some older docs reference the workflow service on port **13000** or **10004**. B
 
 > **Seed-collision footnote** — `ai_router` also declares `defaultPort = 10220` in source. The two never collide at runtime because the controller seeds distinct ports in etcd, but the duplicated source constant is a latent bug worth cleaning up.
 
-### Cluster Doctor port: 12005 vs 12100 in source
+### ~~Cluster Doctor port: 12005 vs 12100 in source~~ (resolved)
 
-`cluster_doctor`'s own `config.go` defaults `Port: 12100`, but several MCP tools (`runtime_activation_check_tool.go`, `runtime_config_bootstrap_tool.go`) hardcode `12005` as a fallback. The docs and CLAUDE.md currently say **12005**; the live etcd value is what actually matters. Treat this as an internal source drift to reconcile, not a doc-only issue.
+`cluster_doctor`'s own `config.go` had drifted to `Port: 12100` / `Proxy: 12101` (commit `549ca75c`) while every other source of truth — MCP tools, package metadata `awareness.yaml`, docs, CLAUDE.md — said **12005**. Re-aligned source to `Port: 12005` / `Proxy: 12006`. No deployed cluster is affected because the runtime port comes from etcd, not the source default.
 
 ### Certificate path `/etc/globular/creds/` does not exist
 
