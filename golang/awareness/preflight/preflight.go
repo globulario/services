@@ -334,7 +334,7 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 	// "decision_traces: []" rather than null — agents must not read the
 	// absence of a key as the absence of risk. The trust envelope above
 	// remains the authority for NO_MATCH safety.
-	r.DecisionTraces = contextnav.Build(buildContextnavInputs(r))
+	r.DecisionTraces = contextnav.Build(buildContextnavInputs(ctx, r, g, opts.Task, opts.Files))
 
 	return r, nil
 }

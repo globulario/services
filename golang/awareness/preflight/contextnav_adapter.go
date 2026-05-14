@@ -11,10 +11,13 @@ package preflight
 // place that needs an update.
 
 import (
+	"context"
+
 	"github.com/globulario/services/golang/awareness/analysis/contextnav"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
-func buildContextnavInputs(r *Report) contextnav.BuildInputs {
+func buildContextnavInputs(ctx context.Context, r *Report, g *graph.Graph, task string, files []string) contextnav.BuildInputs {
 	if r == nil {
 		return contextnav.BuildInputs{}
 	}
@@ -25,6 +28,10 @@ func buildContextnavInputs(r *Report) contextnav.BuildInputs {
 		RequiredTests:  append([]string(nil), r.RequiredTests...),
 		MatchedAliases: append([]string(nil), r.MatchedAliases...),
 		Confidence:     contextnav.Confidence(string(r.Confidence)),
+		Graph:          g,
+		Ctx:            ctx,
+		Task:           task,
+		Files:          append([]string(nil), files...),
 	}
 	for _, raw := range r.RawKnowledgeMatches {
 		in.RawKnowledge = append(in.RawKnowledge, contextnav.RawKnowledgeRef{

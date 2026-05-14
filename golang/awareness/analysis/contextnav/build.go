@@ -1,8 +1,11 @@
 package contextnav
 
 import (
+	"context"
 	"fmt"
 	"sort"
+
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // BuildInputs is the contextnav-local view of preflight state. Defined as a
@@ -44,6 +47,15 @@ type BuildInputs struct {
 	// "partial". The freshness label collapses anything outside fresh/stale/
 	// absent to "unknown".
 	LiveOverlayStatus string
+
+	// Graph + Ctx + Task + Files drive owner inference (Phase 3). When
+	// Graph is nil OR Ctx is nil, owner inference is skipped and traces
+	// carry an empty OwnerContext. This keeps Build callable from pure
+	// unit tests that don't want to spin up a graph DB.
+	Graph *graph.Graph
+	Ctx   context.Context
+	Task  string
+	Files []string
 }
 
 // RawKnowledgeRef captures the minimum information needed to render a
@@ -128,7 +140,44 @@ func Build(in BuildInputs) []DecisionTrace {
 		}
 		return traces[i].FindingID < traces[j].FindingID
 	})
+
+	// Phase 3: owner inference. Skipped when Graph/Ctx aren't supplied so
+	// pure unit tests can call Build without a DB. Raw-knowledge traces
+	// don't have a graph node to walk from (the graph missed them by
+	// definition), so they fall through to the file-hint enrichment.
+	if in.Graph != nil && in.Ctx != nil {
+		for i := range traces {
+			traces[i].Owner = ownerForTrace(in.Ctx, in.Graph, &traces[i], in.Task, in.Files)
+			if traces[i].Owner.Layer == LayerUnknown {
+				traces[i].Warnings = append(traces[i].Warnings,
+					"owner: layer inference returned unknown — no graph neighbor mapped to a layer, no task hint matched")
+			}
+		}
+	}
+
 	return traces
+}
+
+// ownerForTrace dispatches to InferOwner with the correct prefixed node id
+// for each finding type. Raw-knowledge findings have no graph anchor (the
+// graph missed them), so we fall back to the file-hint-only path.
+func ownerForTrace(ctx context.Context, g *graph.Graph, t *DecisionTrace, task string, files []string) OwnerContext {
+	var nodeID string
+	switch t.FindingType {
+	case FindingFailureMode:
+		nodeID = "failure_mode:" + t.FindingID
+	case FindingInvariant:
+		nodeID = "invariant:" + t.FindingID
+	case FindingForbiddenFix:
+		nodeID = "forbidden_fix:" + t.FindingID
+	case FindingRawKnowledge, FindingRuntime, FindingExperience:
+		// Either no anchor node (raw_knowledge) or anchor not modelled in
+		// the graph yet (runtime/experience). Use the file-hint path.
+		return enrichWithFileHint(OwnerContext{Layer: LayerUnknown}, files)
+	default:
+		return OwnerContext{Layer: LayerUnknown}
+	}
+	return InferOwner(ctx, g, nodeID, task, files)
 }
 
 func findingTypeRank(t FindingType) int {
