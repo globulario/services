@@ -984,6 +984,85 @@ divergence above.
 
 ---
 
+## 2026-05-14 — Publish path operational; activation lag is not freshness-state-machine failure
+
+Closing entry for the awareness bundle publish work landed in commit
+`1825a1f1`. Records the verification stance so a future contributor
+reading the log knows what is proven, what was observed, and what is
+deliberately deferred.
+
+- **What is proven**:
+  - The CLI publish path is operational end-to-end against a live
+    repository. A bundle built by `awareness bundle build` and
+    uploaded by `awareness bundle publish` is stored with
+    `kind=AWARENESS_BUNDLE` (verified by direct grpcurl against
+    `repository.PackageRepository/GetArtifactManifest`); the
+    repository's recorded `checksum` matches the local sha256
+    byte-for-byte; `publish_state` advances VERIFIED → PUBLISHED
+    server-side via `completePublish`. A subsequent
+    `DownloadArtifact` round-trip returns 6,871,209 identical bytes
+    and the inner manifest still carries
+    `schema_version: awareness.bundle.v1`.
+  - Service-package publish is unaffected: `pkg publish` of a real
+    service tgz dry-runs cleanly; an awareness-shape archive is
+    rejected at the `pkgpack.VerifyTGZ` boundary with the message
+    `"validation failed: package.json missing from archive"`.
+
+- **What live MCP probes showed before activation**:
+  - `awareness_bundle_status.freshness.state =
+    AWARENESS_BUNDLE_VERIFY_FAILED` with reason `"release-index
+    /var/lib/globular/release-index.json: no usable version/build_id"`.
+    This is the BOM-shape parse failure now fixed in
+    `mcp/tools_awareness_bundle_freshness.loadReleaseIndex`.
+  - `mcp_awareness_bundle_manifest.state =
+    AWARENESS_BUNDLE_MISSING` for the same install. Root cause: the
+    installer never retained `bundle.tar.gz` next to the unpacked
+    contents. Now fixed in `bundlesync.InstallBundle` via
+    `copyFileAtomic` and pinned by `TestInstallBundleFreshInstall`.
+
+- **Why this is activation lag, not a freshness state-machine
+  defect**: both observed disagreements have identifiable code
+  causes that have been fixed and tested. The fixes will land on
+  every cluster as soon as a tagged release rebuilds the deployed
+  binaries (controller, node-agent, MCP) and a node activates a
+  bundle produced by the new build. Until then, MCP serves the
+  previously-installed bundle (1.2.46) with the previously-deployed
+  code (which has neither the BOM parser nor the tarball
+  retention). No part of the failure cascade required a freshness
+  state machine to explain — every symptom maps to a primitive that
+  was either missing or wrong.
+
+- **What activation verification will close**:
+  1. Tagged release ships rebuilt `node_agent_server`, `globular`,
+     and `globular-mcp` binaries.
+  2. A node fetches a bundle whose archive `kind=AWARENESS_BUNDLE`
+     was published via the new CLI.
+  3. `bundlesync.InstallBundle` retains `bundle.tar.gz` under
+     `/var/lib/globular/awareness/installed/<version>/<build_id>/`.
+  4. `awareness_bundle_status` reads release-index via the BOM
+     extractor, returns `freshness.state = AWARENESS_READY`.
+  5. `mcp_awareness_bundle_manifest` finds the retained tarball,
+     hashes it, returns the same `(version, build_id)` the
+     `awareness_bundle_status` tool reports.
+  6. `mcp.awareness_freshness_status` agrees.
+
+  Step 5/6 agreement is the falsifier for "we still need a
+  freshness state machine." If activation lands AWARENESS_READY
+  across all three tools, **#3 stays deferred indefinitely**. If a
+  novel disagreement appears that traces to a missing freshness
+  primitive (not a missing release-index field, not a missing
+  retained tarball), then and only then is #3 evidence-driven work.
+
+- **Forbidden shortcuts**: per the project rules
+  (`memory/feedback_see_truth_fix_root.md`, CLAUDE.md hard rules),
+  do not hot-deploy locally-built binaries to verify activation.
+  Use the normal release path. The verification is genuinely waiting
+  on a deploy cycle; trying to short-circuit it would reintroduce
+  the exact category of bug the manifest divergence already
+  represents.
+
+---
+
 ## How to add an entry
 
 1. Use the schema above. Do not skip the five fields.
