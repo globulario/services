@@ -129,13 +129,41 @@ func init() {
 // ── git ───────────────────────────────────────────────────────────────────────
 
 var sdGitCfg = struct {
-	base         string
-	head         string
-	task         string
-	sessionID    string
-	requireClean bool
-	jsonOut      bool
+	base                   string
+	head                   string
+	task                   string
+	sessionID              string
+	requireClean           bool
+	gateOnAuthorityChange  bool
+	jsonOut                bool
 }{}
+
+// authorityGateFailure returns a non-empty reason when the gate
+// (RequiresReview && Trust.Verdict != trusted) trips on the given
+// report. Returns "" when the gate doesn't apply or passes.
+//
+// The gate exists to enforce the P1-6 contract: an authority-moving
+// patch (Repository → Desired → Installed → Runtime crossings) must
+// only land when awareness has STRONG coverage for it. "Trusted"
+// verdict is the only assurance state strong enough to clear the
+// authority gate; everything below (usable/limited/stale/unknown/unsafe)
+// must trip the gate so a human reviews the layer crossing.
+func authorityGateFailure(r *semanticdiff.SemanticDiffReport) string {
+	if r == nil || r.AuthorityChange == nil || !r.AuthorityChange.RequiresReview {
+		return ""
+	}
+	verdict := ""
+	if r.Trust != nil {
+		verdict = string(r.Trust.Verdict)
+	}
+	if verdict == "trusted" {
+		return ""
+	}
+	from := r.AuthorityChange.FromLayer
+	to := r.AuthorityChange.ToLayer
+	return fmt.Sprintf("authority-change gate: %s → %s requires a 'trusted' awareness verdict; got %q. Re-run awareness build, collect runtime evidence, and improve coverage before merging.",
+		from, to, verdict)
+}
 
 var sdGitCmd = &cobra.Command{
 	Use:   "git",
@@ -194,6 +222,17 @@ var sdGitCmd = &cobra.Command{
 			return fmt.Errorf("semantic diff blocked: %s", report.Summary)
 		}
 
+		// P1-6: authority-change gate. Fails when the diff crosses an
+		// authority layer that requires review AND the awareness trust
+		// verdict is below 'trusted'. Independent of --require-clean so a
+		// non-block diff can still trip the gate.
+		if sdGitCfg.gateOnAuthorityChange {
+			if reason := authorityGateFailure(report); reason != "" {
+				_ = printSDReport(report, sdGitCfg.jsonOut)
+				return fmt.Errorf("%s", reason)
+			}
+		}
+
 		return printSDReport(report, sdGitCfg.jsonOut)
 	},
 }
@@ -205,6 +244,8 @@ func init() {
 	sdGitCmd.Flags().StringVar(&sdGitCfg.sessionID, "session", "", "Session ID")
 	sdGitCmd.Flags().BoolVar(&sdGitCfg.requireClean, "require-clean", false, "Exit non-zero if verdict is block")
 	sdGitCmd.Flags().BoolVar(&sdGitCfg.jsonOut, "json", false, "Output as JSON")
+	sdGitCmd.Flags().BoolVar(&sdGitCfg.gateOnAuthorityChange, "gate-on-authority-change", false,
+		"Exit non-zero when AuthorityChange.RequiresReview=true and Trust.Verdict != trusted (P1-6 gate). Use in CI on PR diffs.")
 }
 
 // ── show ──────────────────────────────────────────────────────────────────────

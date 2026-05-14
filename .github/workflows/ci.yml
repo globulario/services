@@ -151,6 +151,43 @@ jobs:
             jq '.invalid_shapes[]' ../.awareness/graph-integrity-report.json
           fi
 
+      - name: Awareness semantic-diff authority gate
+        # P1-6: catches authority-crossing patches (Repository → Desired →
+        # Installed → Runtime) merging without strong awareness coverage.
+        # The gate fails when AuthorityChange.RequiresReview=true AND
+        # Trust.Verdict != trusted — meaning a layer crossing was detected
+        # AND the awareness graph doesn't have the coverage/freshness/
+        # closure-loop evidence to back it up.
+        #
+        # On pull_request events we diff against the base branch; on push
+        # we diff against the previous commit so the gate still fires on
+        # merge commits to master.
+        #
+        # Currently warn-only (continue-on-error) — the first cycle is
+        # observational. Flip continue-on-error: false once a cycle of
+        # warnings has produced clean diagnostics across the codebase.
+        continue-on-error: true
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="$(git rev-parse HEAD~1 2>/dev/null || echo HEAD)"
+          fi
+          echo "::notice::Semantic-diff authority gate base = $BASE"
+          ./bin/globular awareness semantic-diff git \
+            --base "$BASE" \
+            --gate-on-authority-change \
+            --json \
+            > ../.awareness/semantic-diff-report.json \
+            2> ../.awareness/semantic-diff-stderr.log \
+          || {
+            echo "::warning::Authority-change gate tripped — see report"
+            cat ../.awareness/semantic-diff-stderr.log
+            jq '.authority_change, .trust' ../.awareness/semantic-diff-report.json \
+              2>/dev/null || true
+            exit 1
+          }
+
       - name: Upload awareness test evidence
         uses: actions/upload-artifact@v4
         if: always()
@@ -161,6 +198,8 @@ jobs:
             .awareness/ci-check-report.json
             .awareness/graph-integrity-report.json
             .awareness/session-start.json
+            .awareness/semantic-diff-report.json
+            .awareness/semantic-diff-stderr.log
 
   proto-check:
     runs-on: ubuntu-latest
