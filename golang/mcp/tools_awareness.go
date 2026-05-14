@@ -193,13 +193,20 @@ func isAwarenessBundlePath(path string) bool {
 		strings.HasPrefix(path, currentPrefix)
 }
 
-// awarGitRoot returns the git repository root via git rev-parse.
-// Falls back to the current working directory on failure.
+// awarGitRoot returns the git repository root via git rev-parse, or "" if
+// the process is not running inside a git checkout.
+//
+// Do NOT fall back to os.Getwd() — on a production MCP host the working
+// directory is the install dir (e.g. /var/lib/globular/mcp), which has no
+// *_test.go files. Treating it as a repo root caused every fix_case's
+// required_tests to be reported as REQUIRED_TEST_MISSING ("scanned a fake
+// repo and found nothing") instead of REQUIRED_TEST_UNVERIFIED ("no repo
+// to scan, this is expected in production"). The empty-string return lets
+// the caller fall through to the correct UNVERIFIED branch.
 func awarGitRoot() string {
 	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
 	if err != nil {
-		cwd, _ := os.Getwd()
-		return cwd
+		return ""
 	}
 	return strings.TrimSpace(string(out))
 }

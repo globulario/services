@@ -164,3 +164,25 @@ func TestVerifyGapTests_EmptyRepoRootReturnsUnverified(t *testing.T) {
 		t.Error("unverified status must include a note explaining why")
 	}
 }
+
+// TestAwarGitRoot_NotInRepoReturnsEmpty pins the rule that when awarGitRoot
+// is called from a process whose cwd is not a git checkout (e.g. the MCP
+// daemon running from /var/lib/globular/mcp on a production node), it
+// returns "" rather than falling back to the cwd. The empty return is
+// what makes integrity.CheckTestReferences classify missing-on-disk tests
+// as REQUIRED_TEST_UNVERIFIED ("no repo to scan") instead of
+// REQUIRED_TEST_MISSING ("scanned and didn't find it") — a critical-
+// severity false positive in production.
+func TestAwarGitRoot_NotInRepoReturnsEmpty(t *testing.T) {
+	// Use a tmp dir that is provably not inside any git checkout.
+	tmp := t.TempDir()
+	prev, _ := os.Getwd()
+	t.Cleanup(func() { _ = os.Chdir(prev) })
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir to tmp: %v", err)
+	}
+	got := awarGitRoot()
+	if got != "" {
+		t.Errorf("awarGitRoot from a non-git dir (%s) must return \"\", got %q", tmp, got)
+	}
+}
