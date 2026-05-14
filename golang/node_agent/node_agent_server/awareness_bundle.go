@@ -9,7 +9,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -168,11 +170,45 @@ func installAwarenessBundle(data []byte) (string, error) {
 	if err := os.MkdirAll(awarenessStateDir, 0755); err != nil {
 		return "", fmt.Errorf("create state dir: %w", err)
 	}
+	// Pre-create the writable runtime dir owned by the globular service user.
+	// The MCP server runs as `globular` and opens the bundle in composite
+	// mode (immutable bundle + writable runtime.db sibling). Without this
+	// dir present and writable, composite-mode init fails with EPERM and
+	// MCP drops to degraded "no graph" mode — silently breaking every
+	// awareness query.
+	if err := ensureAwarenessRuntimeDir(); err != nil {
+		log.Printf("awareness-bundle: warning: prepare runtime dir: %v", err)
+	}
 	if err := updateCurrentSymlink(destDir); err != nil {
 		return "", err
 	}
 
 	return manifest.BuildID, nil
+}
+
+// ensureAwarenessRuntimeDir creates /var/lib/globular/awareness/runtime/ and
+// chowns it to the globular service user. Idempotent.
+func ensureAwarenessRuntimeDir() error {
+	runtimeDir := filepath.Join(awarenessStateDir, "runtime")
+	if err := os.MkdirAll(runtimeDir, 0755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", runtimeDir, err)
+	}
+	u, err := user.Lookup("globular")
+	if err != nil {
+		return fmt.Errorf("lookup globular user: %w", err)
+	}
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return fmt.Errorf("parse uid: %w", err)
+	}
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		return fmt.Errorf("parse gid: %w", err)
+	}
+	if err := os.Chown(runtimeDir, uid, gid); err != nil {
+		return fmt.Errorf("chown %s to globular: %w", runtimeDir, err)
+	}
+	return nil
 }
 
 // updateCurrentSymlink atomically updates /var/lib/globular/awareness/current
