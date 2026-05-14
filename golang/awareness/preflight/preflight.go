@@ -327,6 +327,14 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 	}
 	r.Trust = computeTrustEnvelope(ctx, g, opts, r)
 
+	// Per-finding decision traces (Phase 1: see decision_trace.go). Pure
+	// composition over data already in the Report; produces an empty slice
+	// when no findings matched so the JSON shape stays "decision_traces: []"
+	// rather than null — agents must not read the absence of a key as the
+	// absence of risk. The trust envelope above remains the authority for
+	// NO_MATCH safety.
+	r.DecisionTraces = buildDecisionTraces(r)
+
 	return r, nil
 }
 
