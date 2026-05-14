@@ -1,6 +1,7 @@
 package evidence
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -433,4 +434,49 @@ func findFact(facts []RuntimeFact, kind FactKind) *RuntimeFact {
 		}
 	}
 	return nil
+}
+
+// ── Node identity defaulting ─────────────────────────────────────────────────
+//
+// Before the fix, NewCollector(nodeID="") produced a Collector with
+// NodeID="", and every emitted fact carried node_id="". On a multi-node
+// cluster, two facts about the same symptom from two different nodes
+// were indistinguishable in the wire format. Cross-node correlation —
+// "ryzen says X but nuc says not-X" — was structurally impossible.
+// The fix: defaulting to os.Hostname() at construction time matches
+// the name the rest of the system already knows the node by (cluster_
+// controller resolves UUID from hostname).
+
+func TestNewCollector_DefaultsNodeIDToLocalHostname(t *testing.T) {
+	want := localHostname()
+	if want == "" {
+		t.Skip("os.Hostname() returned empty — cannot exercise default")
+	}
+	c := NewCollector("", "", PhaseDAY1)
+	if c.NodeID != want {
+		t.Errorf("NodeID = %q, want %q (local hostname)", c.NodeID, want)
+	}
+}
+
+func TestNewCollector_RespectsExplicitNodeID(t *testing.T) {
+	c := NewCollector("explicit-node", "", PhaseDAY1)
+	if c.NodeID != "explicit-node" {
+		t.Errorf("NodeID = %q, want %q (explicit caller-provided id)", c.NodeID, "explicit-node")
+	}
+}
+
+func TestCollect_PropagatesNodeIDIntoSnapshot(t *testing.T) {
+	// End-to-end: NewCollector("") → Collect() → snapshot.NodeID is non-empty.
+	// Pins the wiring all the way through, so emitted facts can be attributed.
+	if localHostname() == "" {
+		t.Skip("os.Hostname() returned empty — cannot exercise propagation")
+	}
+	c := NewCollector("", "", PhaseDAY1)
+	snap := c.Collect(context.Background())
+	if snap.NodeID == "" {
+		t.Error("snapshot NodeID must be populated when collector was constructed with empty id")
+	}
+	if snap.NodeID != c.NodeID {
+		t.Errorf("snapshot.NodeID = %q, want %q (collector NodeID)", snap.NodeID, c.NodeID)
+	}
 }

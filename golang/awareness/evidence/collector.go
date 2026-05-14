@@ -72,8 +72,30 @@ type Collector struct {
 }
 
 // NewCollector returns a Collector for the local node.
+// If nodeID is empty, the local kernel hostname is used — every fact the
+// collector emits must be attributable to a specific node, otherwise
+// cross-node correlation by downstream consumers is impossible.
+// address is left as-passed; nothing in the collector currently depends
+// on it, and the right canonical source (etcd / nodeagent inventory)
+// requires network access we can't assume Day-0.
 func NewCollector(nodeID, address string, phase Phase) *Collector {
+	if nodeID == "" {
+		nodeID = localHostname()
+	}
 	return &Collector{NodeID: nodeID, Address: address, Phase: phase}
+}
+
+// localHostname returns the kernel hostname, trimmed. Empty string on error.
+// This is the same identity other Globular services use to register with
+// the cluster (cluster_controller resolves UUID from hostname), so the
+// evidence collector emits facts under the same name the rest of the
+// system already knows the node by.
+func localHostname() string {
+	h, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(h)
 }
 
 // Collect gathers a NodeRuntimeSnapshot from local sources.
