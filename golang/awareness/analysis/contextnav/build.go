@@ -141,21 +141,54 @@ func Build(in BuildInputs) []DecisionTrace {
 		return traces[i].FindingID < traces[j].FindingID
 	})
 
-	// Phase 3: owner inference. Skipped when Graph/Ctx aren't supplied so
-	// pure unit tests can call Build without a DB. Raw-knowledge traces
-	// don't have a graph node to walk from (the graph missed them by
-	// definition), so they fall through to the file-hint enrichment.
+	// Phase 3+4: owner inference + graph-walked pivots. Skipped when
+	// Graph/Ctx aren't supplied so pure unit tests can call Build without
+	// a DB. Raw-knowledge traces don't have a graph node to walk from
+	// (the graph missed them by definition), so they fall through to the
+	// file-hint enrichment for owner and skip pivot inference.
 	if in.Graph != nil && in.Ctx != nil {
+		pivotOpts := PivotOptions{
+			IncludeRuntime: len(in.Runtime.MatchedFailureModes) > 0 ||
+				len(in.Runtime.MatchedInvariants) > 0,
+		}
 		for i := range traces {
 			traces[i].Owner = ownerForTrace(in.Ctx, in.Graph, &traces[i], in.Task, in.Files)
 			if traces[i].Owner.Layer == LayerUnknown {
 				traces[i].Warnings = append(traces[i].Warnings,
 					"owner: layer inference returned unknown — no graph neighbor mapped to a layer, no task hint matched")
 			}
+			if anchor := pivotAnchorID(&traces[i]); anchor != "" {
+				walked := InferPivots(in.Ctx, in.Graph, anchor, pivotOpts)
+				traces[i].Pivots = mergeAndRankPivots(traces[i].Pivots, walked, pivotOpts.MaxResults)
+			} else {
+				traces[i].Pivots = rankAndCapPivots(traces[i].Pivots, 0)
+			}
+		}
+	} else {
+		// No graph: still rank the Phase 2 Report-derived pivots so the
+		// JSON output ordering matches what the graph-enriched path
+		// produces. Determinism > entropy.
+		for i := range traces {
+			traces[i].Pivots = rankAndCapPivots(traces[i].Pivots, 0)
 		}
 	}
 
 	return traces
+}
+
+// pivotAnchorID returns the graph node id to walk from when generating
+// graph-walked pivots for a trace. Raw-knowledge findings (graph misses by
+// definition) return "" — pivot inference is skipped for them.
+func pivotAnchorID(t *DecisionTrace) string {
+	switch t.FindingType {
+	case FindingFailureMode:
+		return "failure_mode:" + t.FindingID
+	case FindingInvariant:
+		return "invariant:" + t.FindingID
+	case FindingForbiddenFix:
+		return "forbidden_fix:" + t.FindingID
+	}
+	return ""
 }
 
 // ownerForTrace dispatches to InferOwner with the correct prefixed node id
