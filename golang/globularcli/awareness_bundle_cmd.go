@@ -54,6 +54,68 @@ type opsKnowledgeManifestEntry struct {
 	SeedSHA256 string `json:"seed_sha256"`
 }
 
+// bundleFileEntry pairs a source path on disk with the path the file should
+// occupy inside the bundle tar.gz. Exported (to the package) so the bundle
+// build's file-walk helpers stay reusable and testable.
+type bundleFileEntry struct {
+	srcPath string
+	arcPath string
+}
+
+// collectDocsAwarenessEntries walks docs/awareness/ and returns one
+// bundleFileEntry per regular file under it, with arcPath = "docs/<rel>".
+// Every awareness knowledge file ships under this directory by convention,
+// including:
+//
+//   - failure_modes.yaml, invariants.yaml, context_aliases.yaml
+//   - detector_mapping.yaml (P1-5 regression: this file must be in the
+//     bundle so consumers can rebuild detector → failure_mode edges; a
+//     missing file silently degrades coverage on every node that installs
+//     the bundle)
+//   - design_patterns.yaml, fix_cases.yaml, awareness_self_invariants.yaml
+//   - failuregraph_seeds/*.yaml, contracts/*.yaml, decisions/*.yaml
+//
+// The walk is intentionally generic so any new YAML added under
+// docs/awareness/ is shipped without code change; the tests pin the
+// critical files so a refactor that adds a filter cannot silently drop them.
+//
+// Returns an empty slice (not nil) and no error when the directory does not
+// exist, matching the RunE caller's "warn and continue" semantics.
+func collectDocsAwarenessEntries(docsDir string) ([]bundleFileEntry, error) {
+	info, err := os.Stat(docsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []bundleFileEntry{}, nil
+		}
+		return nil, fmt.Errorf("stat docs/awareness: %w", err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("docs/awareness is not a directory: %s", docsDir)
+	}
+	var entries []bundleFileEntry
+	walkErr := filepath.WalkDir(docsDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, relErr := filepath.Rel(docsDir, path)
+		if relErr != nil {
+			return relErr
+		}
+		entries = append(entries, bundleFileEntry{
+			srcPath: path,
+			arcPath: filepath.ToSlash(filepath.Join("docs", rel)),
+		})
+		return nil
+	})
+	if walkErr != nil {
+		return entries, fmt.Errorf("walk docs/awareness: %w", walkErr)
+	}
+	return entries, nil
+}
+
 var bundleCfg = struct {
 	repoPath  string
 	dbPath    string
@@ -136,34 +198,19 @@ Prerequisites:
 		fmt.Fprintf(os.Stdout, "  output:   %s\n\n", outputName)
 
 		// Collect files to pack.
-		type entry struct {
-			srcPath  string
-			arcPath  string
-		}
-		var entries []entry
+		var entries []bundleFileEntry
 
 		// graph.db
-		entries = append(entries, entry{srcPath: dbPath, arcPath: "graph.db"})
+		entries = append(entries, bundleFileEntry{srcPath: dbPath, arcPath: "graph.db"})
 
-		// docs/awareness/*.yaml
+		// docs/awareness/*.yaml — every knowledge file (including
+		// detector_mapping.yaml; see the helper's docstring).
 		if repoRoot != "" {
-			docsDir := filepath.Join(repoRoot, "docs", "awareness")
-			if info, err := os.Stat(docsDir); err == nil && info.IsDir() {
-				err := filepath.WalkDir(docsDir, func(path string, d fs.DirEntry, err error) error {
-					if err != nil {
-						return err
-					}
-					if d.IsDir() {
-						return nil
-					}
-					rel, _ := filepath.Rel(docsDir, path)
-					entries = append(entries, entry{srcPath: path, arcPath: filepath.Join("docs", rel)})
-					return nil
-				})
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "warning: docs walk: %v\n", err)
-				}
+			docsEntries, err := collectDocsAwarenessEntries(filepath.Join(repoRoot, "docs", "awareness"))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: docs walk: %v\n", err)
 			}
+			entries = append(entries, docsEntries...)
 		}
 
 		// docs/operational-knowledge/{stages,runbooks,service-roles}/*.yaml
@@ -178,7 +225,7 @@ Prerequisites:
 				}
 				for _, f := range files {
 					rel, _ := filepath.Rel(opsDir, f.Path)
-					entries = append(entries, entry{
+					entries = append(entries, bundleFileEntry{
 						srcPath: f.Path,
 						arcPath: filepath.Join("ops-knowledge", rel),
 					})
@@ -212,7 +259,7 @@ Prerequisites:
 						return nil
 					}
 					rel, _ := filepath.Rel(seedsDir, path)
-					entries = append(entries, entry{srcPath: path, arcPath: filepath.Join("seeds", rel)})
+					entries = append(entries, bundleFileEntry{srcPath: path, arcPath: filepath.Join("seeds", rel)})
 					return nil
 				})
 				if err != nil {
