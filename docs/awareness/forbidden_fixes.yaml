@@ -1237,3 +1237,266 @@ forbidden_fixes:
     Only finalize a causal rule when you have the actual log output from the incident.
     Extract the exact symptom keywords that appeared in logs (trigger_keywords and
     sequence[*].keywords must be literal log fragments, not paraphrases).
+
+# ── ops_knowledge seed integrity ─────────────────────────────────────────────
+
+- id: allow_human_to_overwrite_seed_to_silence_finding
+  summary: |
+    When the doctor flags ops_knowledge.seed_drift, have a human operator
+    overwrite the seed-tagged entry directly so the finding stops firing,
+    without investigating why ai-memory diverged from the bundle.
+  related_invariants:
+    - ops_knowledge.seed_integrity
+  safe_alternative: |
+    Treat the bundle as the authoritative source: re-run the seeder workflow
+    to upsert back to the bundle's sha256. Investigate WHY the drift happened
+    (misconfigured CLI tool, bypassed RBAC check, manual edit on disk). The
+    finding is the signal, not the problem.
+
+- id: increase_drift_threshold_to_hide_low_severity_drift
+  summary: |
+    Widen the drift-detection tolerance so "small" content differences between
+    the bundle and ai-memory no longer trigger the finding. Reduces noise by
+    losing signal that the immutability layer might be broken.
+  related_invariants:
+    - ops_knowledge.seed_integrity
+  safe_alternative: |
+    Any drift on a seed-tagged entry is a fact about the immutability layer,
+    not a noise level to tune. Re-run the seeder, audit how the drift arose,
+    and fix the originating CLI / RBAC bypass.
+
+- id: widen_seeder_role_to_admin
+  summary: |
+    Grant the 'admin' role permission to UPDATE/DELETE entries with
+    provenance.source=seed, so admin-driven workflows can mutate seed
+    entries directly. Removes the immutability boundary that protects
+    operational knowledge from poisoning.
+  related_invariants:
+    - ops_knowledge.seed_integrity
+  safe_alternative: |
+    Reject every write to seed entries unless principal is exactly "seeder".
+    Admin sessions that need to alter operational knowledge re-author the
+    YAML in the bundle, rebuild, reinstall, and re-run the seeder workflow.
+
+- id: silently_swallow_permission_denied_in_audit_log
+  summary: |
+    When a non-seeder principal is denied mutation of a seed entry, return
+    the error to the caller but skip the audit log entry or downgrade it
+    below WARN — to avoid log noise from "expected" denials.
+  related_invariants:
+    - ops_knowledge.seed_integrity
+  safe_alternative: |
+    Every denied write to a seed entry is logged at WARN with principal id +
+    entry id. The audit trail is the only way to discover an attacker
+    probing the immutability layer or a misconfigured tool repeatedly hitting
+    the rejection.
+
+- id: skip_immutability_check_for_test_environments
+  summary: |
+    Disable the seed-immutability check when a test-environment flag is set,
+    so integration tests can prepare seed-tagged entries without going through
+    a real seeder workflow. Creates a code path that exists nowhere in
+    production but ships in the same binary.
+  related_invariants:
+    - ops_knowledge.seed_integrity
+  safe_alternative: |
+    Tests stand up an actual "seeder" service-account and authenticate as that
+    principal. The immutability check is identical in production and test.
+    Test-only branches in security-critical code are forbidden surface area.
+
+- id: run_seeder_inline_in_controller_startup_without_workflow_service
+  summary: |
+    Call the seeder logic directly from the controller's startup path
+    (synchronously or via a goroutine) instead of scheduling it as a proper
+    Workflow Service workflow. Bypasses idempotency, bounded retry, and the
+    terminal-state contract that the 4-layer model relies on.
+  related_invariants:
+    - ops_knowledge.seed_integrity
+  safe_alternative: |
+    Seeder runs as a workflow with idempotent semantics, bounded retry, and
+    terminal SUCCEEDED/FAILED. Controller startup schedules the workflow if
+    bundle's seed_version differs from ai-memory metadata; the workflow
+    service owns execution.
+
+- id: skip_seeder_silently_if_ai_memory_unhealthy
+  summary: |
+    When ai-memory is unreachable at seeder-schedule time, log a warning and
+    return success so cluster bring-up continues. Hides a real outage of the
+    operational-knowledge store behind a healthy-looking controller.
+  related_invariants:
+    - ops_knowledge.seed_integrity
+  safe_alternative: |
+    Failing to seed because ai-memory is down is a finding, not a no-op.
+    Surface as doctor finding ops_knowledge.seed_missing; let the
+    workflow's retry policy reschedule until ai-memory recovers; do not
+    pretend the seed is in place.
+
+# ── VIP contamination (single-IP node identity) ──────────────────────────────
+
+- id: hardcode_node_to_pool_mapping_to_avoid_filter
+  summary: |
+    Maintain a hardcoded map of node-id → MinIO pool / etcd peer / DNS record
+    in the controller so the VIP-contaminated identity comparison can be
+    skipped. Replaces a structural fix with a per-cluster table the operator
+    must keep in sync.
+  related_invariants:
+    - node.identity.stable_ip
+  safe_alternative: |
+    Use node.StableIP(clusterVIP) when picking a single representative IP,
+    or the nodeAny<X> helpers when matching against ANY of node.Identity.Ips.
+    The node identity primitives ARE the right answer; callers must select
+    the correct one for their use case.
+
+- id: filter_out_vip_in_node_identity_ips
+  summary: |
+    Mutate node.Identity.Ips to remove the cluster VIP before publishing the
+    identity, so downstream code that reads Ips[0] never sees the VIP.
+    Destroys the multi-IP truth (NodeIdentity.Ips is supposed to be the full
+    list) to paper over consumers that picked the wrong helper.
+  related_invariants:
+    - node.identity.stable_ip
+  safe_alternative: |
+    NodeIdentity.Ips is the canonical full IP list and must not be filtered.
+    Fix the consumers: replace Ips[0] / PrimaryIP() with StableIP(clusterVIP)
+    or nodeAny<X>. The VIP is real and belongs in the identity; the
+    selection rule belongs in the caller.
+
+- id: special_case_keepalived_master_as_an_exception
+  summary: |
+    Branch every Ips-consuming code path on "is this node the keepalived
+    master?" and use different selection logic for the master. Doubles the
+    surface area and leaks keepalived state into every consumer.
+  related_invariants:
+    - node.identity.stable_ip
+  safe_alternative: |
+    One unified helper — StableIP(clusterVIP) — removes the VIP regardless
+    of which node holds it. No consumer needs to know about keepalived state;
+    the helper is the abstraction.
+
+- id: read_advertise_ip_without_falling_through_to_ips_list
+  summary: |
+    Use only n.GetIdentity().GetAdvertiseIp() and treat empty as "node has
+    no usable IP". Verified live 2026-05-10: the controller does not populate
+    AdvertiseIp on any node, so this path is always-empty and produces
+    false-positives (node not in pool → write_quorum_lost) or false-negatives
+    (skip check → real violations missed).
+  related_invariants:
+    - node.identity.stable_ip
+  safe_alternative: |
+    Prefer AdvertiseIp when non-empty, otherwise fall through to the
+    nodeAny<X> helpers that match against any of node.Identity.Ips with the
+    VIP excluded. Until the controller populates AdvertiseIp consistently,
+    AdvertiseIp-only reads produce wrong answers in real clusters.
+
+# ── cluster-controller objectstore-apply watcher ─────────────────────────────
+
+- id: swallow_compacted_error_silently
+  summary: |
+    On 'etcdserver: mvcc: required revision has been compacted' from the
+    objectstore-apply watcher, `continue` the loop and keep ranging over a
+    channel etcd will close on the next iteration. The goroutine exits;
+    nothing re-spawns it.
+  related_invariants:
+    - objectstore.topology_contract
+    - convergence.no_infinite_retry
+  safe_alternative: |
+    On any watch error OR channel-closed event, bounded-backoff sleep and
+    re-establish the Watch from the latest revision (Watch with
+    WithRev(currentRev+1) after re-reading the key). Log at WARN. Apply the
+    same pattern to every Watch-based goroutine in the controller.
+
+- id: skip_apply_request_processing_when_watch_died
+  summary: |
+    When the apply-watcher goroutine has died, leave queued apply_request
+    keys in etcd unprocessed and rely on a future controller restart to drain
+    them. This is the current bug — apply requests sit for hours until a
+    human notices and restarts the controller.
+  related_invariants:
+    - objectstore.topology_contract
+  safe_alternative: |
+    Re-establish the watch as described in the apply-watcher recovery
+    pattern. The drain-on-startup path is for cold start, not for missed
+    events — runtime recovery must not depend on operator restart.
+
+- id: require_human_to_restart_controller_for_every_apply
+  summary: |
+    Document "restart all controllers in sequence after every objectstore
+    apply" as the canonical operations procedure, instead of fixing the
+    watcher. Acceptable only as a temporary runbook entry; ossifying it as
+    the design is the forbidden fix.
+  related_invariants:
+    - objectstore.topology_contract
+    - convergence.no_infinite_retry
+  safe_alternative: |
+    Fix the watcher in code. The recovery runbook at
+    docs/operational-knowledge/runbooks/recover-stuck-topology-apply.yaml
+    exists as a transitional aid, not a permanent contract.
+
+# ── bootstrap flag lifecycle ─────────────────────────────────────────────────
+
+- id: silently_remove_flag_on_doctor_finding
+  summary: |
+    Have the doctor finding bootstrap.flag_persists_post_day_1 trigger an
+    automatic deletion of /var/lib/globular/bootstrap.enabled so the warning
+    clears. Hides a security regression behind a self-healing illusion and
+    masks crashes in the day-1 finalize path.
+  related_invariants:
+    - founding.quorum.three_nodes_required
+  safe_alternative: |
+    Day-1 finalize atomically clears the flag as its LAST step. On controller
+    startup, if day1_phase == ready AND flag present: log critical, refuse
+    loopback RPCs, emit the finding. Investigation is required — silent
+    auto-remediation of a security boundary is not.
+
+- id: widen_bootstrap_ttl_to_avoid_re_creation
+  summary: |
+    Extend the 30-minute bootstrap-flag TTL to hours or days so the flag
+    doesn't get re-created during slow joins. Trades a real-time security
+    boundary for cosmetic convenience.
+  related_invariants:
+    - founding.quorum.three_nodes_required
+  safe_alternative: |
+    The TTL is intentionally tight — bootstrap mode authorises unauthenticated
+    loopback RPCs and must close fast. Fix the slow path that recreates the
+    flag instead of widening the window. If a join truly needs > 30 min,
+    that's a separate failure mode to triage.
+
+# ── service endpoint resolution ──────────────────────────────────────────────
+
+- id: keep_env_var_as_fallback_for_dev_only
+  summary: |
+    Add `if os.Getenv("XYZ_ENDPOINT") != "" { return env }` "for dev only" so
+    local builds don't need etcd at startup. Ships per-node mutable
+    configuration into the same binary as production code paths and breaks
+    the etcd-is-sole-source-of-truth rule.
+  related_invariants:
+    - service.endpoint.etcd_address_reachability
+    - etcd.endpoint_reachability
+  safe_alternative: |
+    Local dev seeds an etcd instance via the same code path as production.
+    No os.Getenv() for cluster addresses anywhere; if etcd is unreachable
+    the service ERRORS instead of falling back.
+
+- id: silently_prefer_env_var_when_set
+  summary: |
+    When BOTH an env var and an etcd key are present for an endpoint, return
+    the env var without logging the divergence. Two nodes with identical
+    Globular config behave differently because one has the env var set, and
+    the difference is invisible until a user reports asymmetric behaviour.
+  related_invariants:
+    - service.endpoint.etcd_address_reachability
+  safe_alternative: |
+    There is no env var override — etcd is the only source. Service config
+    code does not consult the environment for cluster addresses. Period.
+
+- id: widen_to_other_env_vars_to_be_consistent
+  summary: |
+    Once one service uses os.Getenv() for its address, "for consistency" make
+    all the others do the same. Compounds a single rule violation into a
+    cluster-wide drift surface.
+  related_invariants:
+    - service.endpoint.etcd_address_reachability
+  safe_alternative: |
+    Consistency is achieved by removing every env-var fallback, not adding
+    more. There is one path: etcd. New services follow that pattern; the
+    existing offender is the bug to fix.
