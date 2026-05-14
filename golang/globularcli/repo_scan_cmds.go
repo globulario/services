@@ -96,6 +96,15 @@ var (
 	repoAliasesVersion  string
 	repoAliasesPlatform string
 	repoAliasesJSON     bool
+	repoResolveName     string
+	repoResolveVersion  string
+	repoResolvePlatform string
+	repoResolveBuildID  string
+	repoResolvePublisher string
+	repoResolveKind     string
+	repoResolveChannel  string
+	repoResolveJSON     bool
+	repoDoctorIdentityJSON bool
 )
 
 var repoInspectCmd = &cobra.Command{
@@ -135,6 +144,46 @@ var repoDedupReportCmd = &cobra.Command{
 	RunE: runRepoDedupReport,
 }
 
+var repoResolveCmd = &cobra.Command{
+	Use:   "resolve",
+	Short: "Resolve a package reference to exactly one published artifact (build_id)",
+	Long: `Calls the repository's deterministic resolver. Returns the canonical
+build_id and manifest for the requested package, or an error if resolution is
+ambiguous or no artifact matches.
+
+Operators MUST pin the returned build_id into desired state; reconcile-time
+callers should never re-invoke this RPC.
+
+Examples:
+  globular repository resolve --name dns --version 1.2.43 --platform linux_amd64
+  globular repository resolve --build-id 01JABC...
+  globular repository resolve --name dns --json`,
+	RunE: runRepoResolve,
+}
+
+var repoDoctorCmd = &cobra.Command{
+	Use:   "doctor",
+	Short: "Repository invariant and identity diagnostics",
+}
+
+var repoDoctorIdentityCmd = &cobra.Command{
+	Use:   "identity",
+	Short: "Report repository identity findings (build_id/checksum/alias invariants)",
+	Long: `Lists every active repository finding whose reason matches the
+identity invariants:
+
+  repository.identity.build_id_checksum_conflict
+  repository.identity.duplicate_checksum_without_alias
+  repository.identity.version_resolution_ambiguous
+  repository.identity.missing_blob_for_published_manifest
+  repository.identity.checksum_mismatch
+  repository.identity.release_index_missing_pins
+
+Findings name the canonical remediation command. Exit code is non-zero when
+any critical finding is present.`,
+	RunE: runRepoDoctorIdentity,
+}
+
 func init() {
 	repoCmd.AddCommand(repoScanCmd)
 	repoCmd.AddCommand(repoCleanupCmd)
@@ -142,7 +191,19 @@ func init() {
 	repoCmd.AddCommand(repoInspectCmd)
 	repoCmd.AddCommand(repoDedupCmd)
 	repoCmd.AddCommand(repoAliasesCmd)
+	repoCmd.AddCommand(repoResolveCmd)
+	repoCmd.AddCommand(repoDoctorCmd)
 	repoDedupCmd.AddCommand(repoDedupReportCmd)
+	repoDoctorCmd.AddCommand(repoDoctorIdentityCmd)
+	repoResolveCmd.Flags().StringVar(&repoResolveName, "name", "", "Package name")
+	repoResolveCmd.Flags().StringVar(&repoResolveVersion, "version", "", "Exact version (optional; latest STABLE when empty)")
+	repoResolveCmd.Flags().StringVar(&repoResolvePlatform, "platform", "linux_amd64", "Platform")
+	repoResolveCmd.Flags().StringVar(&repoResolveBuildID, "build-id", "", "Exact build_id (highest-priority match)")
+	repoResolveCmd.Flags().StringVar(&repoResolvePublisher, "publisher", "", "Publisher ID (e.g. core@globular.io)")
+	repoResolveCmd.Flags().StringVar(&repoResolveKind, "kind", "", "Artifact kind: SERVICE | APPLICATION | INFRASTRUCTURE")
+	repoResolveCmd.Flags().StringVar(&repoResolveChannel, "channel", "", "Release channel: STABLE | CANDIDATE | DEV (default STABLE)")
+	repoResolveCmd.Flags().BoolVar(&repoResolveJSON, "json", false, "Output JSON")
+	repoDoctorIdentityCmd.Flags().BoolVar(&repoDoctorIdentityJSON, "json", false, "Output JSON")
 	repoScanCmd.Flags().StringVar(&repoScanPackage, "package", "", "Scan only this package name")
 	repoCleanupCmd.Flags().BoolVar(&repoCleanupDryRun, "dry-run", false, "Preview archiving without executing")
 	repoDeleteCmd.Flags().BoolVar(&repoDeleteForce, "force", false, "Delete even if installed on nodes")
@@ -787,4 +848,217 @@ func loadInstalledRefs(ctx context.Context) map[string]bool {
 		}
 	}
 	return refs
+}
+
+// identityFindingReasons enumerates the reason codes that runRepoDoctorIdentity
+// surfaces. Reasons are matched as a prefix so that suffixed variants (e.g.
+// "repository.identity.blob_integrity: missing_blob") are included too.
+var identityFindingReasons = []string{
+	"repository.identity.",
+}
+
+func isIdentityFindingReason(reason string) bool {
+	for _, prefix := range identityFindingReasons {
+		if strings.HasPrefix(reason, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func runRepoResolve(cmd *cobra.Command, args []string) error {
+	name := strings.TrimSpace(repoResolveName)
+	buildID := strings.TrimSpace(repoResolveBuildID)
+	if name == "" && buildID == "" {
+		return fmt.Errorf("either --name or --build-id is required")
+	}
+
+	repoAddr := config.ResolveServiceAddr("repository.PackageRepository", "")
+	if repoAddr == "" {
+		return fmt.Errorf("cannot discover repository address")
+	}
+	client, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
+	if err != nil {
+		return fmt.Errorf("connect to repository: %w", err)
+	}
+	defer client.Close()
+	if token := rootCfg.token; token != "" {
+		client.SetToken(token)
+	}
+
+	req := &repopb.ResolveArtifactRequest{
+		PublisherId: strings.TrimSpace(repoResolvePublisher),
+		Name:        name,
+		Platform:    strings.TrimSpace(repoResolvePlatform),
+		Version:     strings.TrimSpace(repoResolveVersion),
+		BuildId:     buildID,
+	}
+	if k := strings.ToUpper(strings.TrimSpace(repoResolveKind)); k != "" {
+		if kv, ok := repopb.ArtifactKind_value[k]; ok {
+			req.Kind = repopb.ArtifactKind(kv)
+		} else {
+			return fmt.Errorf("unknown --kind %q (want SERVICE | APPLICATION | INFRASTRUCTURE)", repoResolveKind)
+		}
+	}
+	if c := strings.ToUpper(strings.TrimSpace(repoResolveChannel)); c != "" {
+		if cv, ok := repopb.ArtifactChannel_value[c]; ok {
+			req.Channel = repopb.ArtifactChannel(cv)
+		} else {
+			return fmt.Errorf("unknown --channel %q (want STABLE | CANDIDATE | DEV)", repoResolveChannel)
+		}
+	}
+
+	resp, err := client.ResolveArtifact(req)
+	if err != nil {
+		return fmt.Errorf("resolve: %w", err)
+	}
+	m := resp.GetManifest()
+	if m == nil {
+		return fmt.Errorf("resolver returned no manifest")
+	}
+
+	if repoResolveJSON {
+		out, mErr := json.MarshalIndent(resp, "", "  ")
+		if mErr != nil {
+			return fmt.Errorf("marshal resolve response: %w", mErr)
+		}
+		fmt.Println(string(out))
+		return nil
+	}
+
+	ref := m.GetRef()
+	fmt.Printf("resolution_source:   %s\n", resp.GetResolutionSource())
+	fmt.Printf("package:             %s/%s@%s %s\n",
+		ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform())
+	fmt.Printf("build_id:            %s\n", m.GetBuildId())
+	fmt.Printf("build_number:        %d\n", m.GetBuildNumber())
+	fmt.Printf("publish_state:       %s\n", m.GetPublishState().String())
+	fmt.Printf("channel:             %s\n", m.GetChannel().String())
+	fmt.Printf("checksum:            %s\n", m.GetChecksum())
+	fmt.Printf("entrypoint_checksum: %s\n", m.GetEntrypointChecksum())
+	fmt.Printf("size_bytes:          %d\n", m.GetSizeBytes())
+	if ui := m.GetUpstreamImport(); ui != nil && (ui.GetReleaseTag() != "" || ui.GetBuildNumber() > 0) {
+		fmt.Printf("upstream:            source=%s release=%s build_number=%d\n",
+			ui.GetSourceName(), ui.GetReleaseTag(), ui.GetBuildNumber())
+	}
+	return nil
+}
+
+type identityFindingRow struct {
+	Reason             string            `json:"reason"`
+	Severity           string            `json:"severity"`
+	ArtifactKey        string            `json:"artifact_key,omitempty"`
+	Publisher          string            `json:"publisher,omitempty"`
+	Name               string            `json:"name,omitempty"`
+	Version            string            `json:"version,omitempty"`
+	Platform           string            `json:"platform,omitempty"`
+	CurrentState       string            `json:"current_state,omitempty"`
+	ExpectedState      string            `json:"expected_state,omitempty"`
+	Evidence           map[string]string `json:"evidence,omitempty"`
+	RecommendedCommand string            `json:"recommended_command,omitempty"`
+}
+
+func runRepoDoctorIdentity(cmd *cobra.Command, args []string) error {
+	repoAddr := config.ResolveServiceAddr("repository.PackageRepository", "")
+	if repoAddr == "" {
+		return fmt.Errorf("cannot discover repository address")
+	}
+	client, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
+	if err != nil {
+		return fmt.Errorf("connect to repository: %w", err)
+	}
+	defer client.Close()
+	if token := rootCfg.token; token != "" {
+		client.SetToken(token)
+	}
+
+	resp, err := client.ListRepositoryFindings(&repopb.ListRepositoryFindingsRequest{})
+	if err != nil {
+		return fmt.Errorf("list findings: %w", err)
+	}
+
+	var rows []identityFindingRow
+	var criticalCount int
+	for _, f := range resp.GetFindings() {
+		if !isIdentityFindingReason(f.GetReason()) {
+			continue
+		}
+		ref := f.GetRef()
+		rows = append(rows, identityFindingRow{
+			Reason:             f.GetReason(),
+			Severity:           f.GetSeverity().String(),
+			ArtifactKey:        f.GetArtifactKey(),
+			Publisher:          ref.GetPublisherId(),
+			Name:               ref.GetName(),
+			Version:            ref.GetVersion(),
+			Platform:           ref.GetPlatform(),
+			CurrentState:       f.GetCurrentState(),
+			ExpectedState:      f.GetExpectedState(),
+			Evidence:           f.GetEvidence(),
+			RecommendedCommand: f.GetRecommendedCommand(),
+		})
+		if f.GetSeverity() == repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL {
+			criticalCount++
+		}
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].Reason != rows[j].Reason {
+			return rows[i].Reason < rows[j].Reason
+		}
+		return rows[i].ArtifactKey < rows[j].ArtifactKey
+	})
+
+	if repoDoctorIdentityJSON {
+		out, mErr := json.MarshalIndent(map[string]any{
+			"findings":       rows,
+			"critical_count": criticalCount,
+		}, "", "  ")
+		if mErr != nil {
+			return fmt.Errorf("marshal findings: %w", mErr)
+		}
+		fmt.Println(string(out))
+		if criticalCount > 0 {
+			return fmt.Errorf("%d critical identity finding(s)", criticalCount)
+		}
+		return nil
+	}
+
+	fmt.Println("=== Repository Identity Findings ===")
+	if len(rows) == 0 {
+		fmt.Println("- none")
+		return nil
+	}
+	for _, r := range rows {
+		fmt.Printf("- [%s] %s\n", r.Severity, r.Reason)
+		if r.ArtifactKey != "" {
+			fmt.Printf("    artifact_key:   %s\n", r.ArtifactKey)
+		}
+		if r.Name != "" {
+			fmt.Printf("    package:        %s/%s@%s %s\n", r.Publisher, r.Name, r.Version, r.Platform)
+		}
+		if r.CurrentState != "" {
+			fmt.Printf("    current_state:  %s\n", r.CurrentState)
+		}
+		if r.ExpectedState != "" {
+			fmt.Printf("    expected_state: %s\n", r.ExpectedState)
+		}
+		if len(r.Evidence) > 0 {
+			keys := make([]string, 0, len(r.Evidence))
+			for k := range r.Evidence {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				fmt.Printf("    %-14s  %s\n", k+":", r.Evidence[k])
+			}
+		}
+		if r.RecommendedCommand != "" {
+			fmt.Printf("    remediation:    %s\n", r.RecommendedCommand)
+		}
+	}
+	fmt.Printf("\nSummary: %d finding(s), %d critical\n", len(rows), criticalCount)
+	if criticalCount > 0 {
+		return fmt.Errorf("%d critical identity finding(s)", criticalCount)
+	}
+	return nil
 }

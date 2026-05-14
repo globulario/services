@@ -267,6 +267,140 @@ func (srv *server) MigrateBuildIDs(ctx context.Context) {
 	)
 }
 
+// ── Phase 6: legacy → canonical alias backfill ──────────────────────────────
+
+const buildIDAliasMigrationMarker = "artifacts/.build-id-alias-migration-complete"
+const buildIDAliasMigrationVersion = "repository-identity-alias-v1"
+
+func buildIDAliasMigrationProvenanceKey(artifactKey string) string {
+	return artifactsDir + "/" + artifactKey + ".alias-migration.json"
+}
+
+// MigrateBuildIDAliases writes a release/build alias for every legacy artifact
+// whose manifest carries an UpstreamImportRecord with release_tag + build_number
+// but has no on-disk alias mapping (release_tag, build_number) → canonical
+// build_id. Closes Phase 6: legacy upstream references stay resolvable after
+// canonical identity is build_id.
+//
+// Runs after MigrateBuildIDs so every manifest already has a build_id. The
+// upstream import record is the only legitimate source of release_tag /
+// build_number for an artifact that pre-dates the alias model; manifests
+// without an UpstreamImportRecord are skipped (no release context to alias).
+//
+// Idempotent: ensureReleaseBuildAlias compares canonical_build_id when an
+// alias file already exists and either dedupes (same id) or refuses to
+// overwrite (conflict). The marker file short-circuits subsequent runs.
+func (srv *server) MigrateBuildIDAliases(ctx context.Context) {
+	if _, err := srv.Storage().ReadFile(ctx, buildIDAliasMigrationMarker); err == nil {
+		slog.Debug("build_id alias migration already complete")
+		return
+	}
+
+	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
+	if err != nil {
+		slog.Debug("no artifacts directory, skipping build_id alias migration")
+		return
+	}
+
+	var aliased, skippedNoImport, skippedNoBuildID, conflicts, errors int
+
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasSuffix(name, ".manifest.json") {
+			continue
+		}
+		key := strings.TrimSuffix(name, ".manifest.json")
+
+		_, _, m, readErr := srv.readManifestAndStateByKey(ctx, key)
+		if readErr != nil {
+			slog.Warn("alias migration: skip unreadable manifest", "key", key, "err", readErr)
+			errors++
+			continue
+		}
+
+		canonicalBuildID := strings.TrimSpace(m.GetBuildId())
+		if canonicalBuildID == "" {
+			// Should not happen if MigrateBuildIDs ran first; skip defensively.
+			skippedNoBuildID++
+			continue
+		}
+
+		imp := m.GetUpstreamImport()
+		releaseTag := strings.TrimSpace(imp.GetReleaseTag())
+		buildNumber := imp.GetBuildNumber()
+		if releaseTag == "" || buildNumber <= 0 {
+			skippedNoImport++
+			continue
+		}
+
+		err := srv.ensureReleaseBuildAlias(
+			ctx,
+			m.GetRef(),
+			releaseTag,
+			buildNumber,
+			"", // upstreamBuildID — legacy manifests don't carry it
+			canonicalBuildID,
+			m.GetChecksum(),
+			imp.GetOriginRelease(),
+			imp.GetSourceName(),
+		)
+		if err != nil {
+			if isAliasConflictError(err) {
+				slog.Warn("alias migration: conflict — leaving existing alias",
+					"key", key, "release_tag", releaseTag,
+					"build_number", buildNumber, "err", err)
+				conflicts++
+				continue
+			}
+			slog.Warn("alias migration: ensureReleaseBuildAlias failed",
+				"key", key, "release_tag", releaseTag,
+				"build_number", buildNumber, "err", err)
+			errors++
+			continue
+		}
+
+		provenance := map[string]any{
+			"migrated_from_legacy": true,
+			"legacy_path":          manifestStorageKey(key),
+			"migrated_at":          time.Now().UTC().Format(time.RFC3339),
+			"migration_version":    buildIDAliasMigrationVersion,
+			"build_id":             canonicalBuildID,
+			"release_tag":          releaseTag,
+			"build_number":         buildNumber,
+			"source":               imp.GetSourceName(),
+		}
+		if p, perr := json.MarshalIndent(provenance, "", "  "); perr == nil {
+			if werr := srv.Storage().WriteFile(ctx, buildIDAliasMigrationProvenanceKey(key), p, 0o644); werr != nil {
+				slog.Warn("alias migration: provenance write failed", "key", key, "err", werr)
+			}
+		}
+
+		aliased++
+	}
+
+	marker := map[string]any{
+		"migrated_at":         time.Now().UTC().Format(time.RFC3339),
+		"aliased":             aliased,
+		"skipped_no_import":   skippedNoImport,
+		"skipped_no_build_id": skippedNoBuildID,
+		"conflicts":           conflicts,
+		"errors":              errors,
+		"migration_version":   buildIDAliasMigrationVersion,
+	}
+	data, _ := json.MarshalIndent(marker, "", "  ")
+	if err := srv.Storage().WriteFile(ctx, buildIDAliasMigrationMarker, data, 0o644); err != nil {
+		slog.Warn("alias migration: marker write failed", "err", err)
+	}
+
+	slog.Info("build_id alias migration complete",
+		"aliased", aliased,
+		"skipped_no_import", skippedNoImport,
+		"skipped_no_build_id", skippedNoBuildID,
+		"conflicts", conflicts,
+		"errors", errors,
+	)
+}
+
 // readUnclaimedNamespaces returns the list of namespaces that were migrated but not yet
 // claimed by a real user. Returns nil if the file does not exist.
 func (srv *server) readUnclaimedNamespaces(ctx context.Context) []string {

@@ -730,3 +730,124 @@ func TestMigrateBuildIDs_Idempotent(t *testing.T) {
 		t.Errorf("legacy_path = %q, want non-empty", legacyPath)
 	}
 }
+
+// TestMigrateBuildIDAliases_FromUpstreamImport seeds a legacy artifact that has
+// a build_id but no alias record, with an UpstreamImportRecord carrying
+// release_tag + build_number, and verifies MigrateBuildIDAliases backfills the
+// (release_tag, build_number) → canonical_build_id alias.
+func TestMigrateBuildIDAliases_FromUpstreamImport(t *testing.T) {
+	srv := newTestServer(t)
+
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "echo",
+		Version:     "1.0.0",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+	canonicalBuildID := "01JTESTCANONICALBUILDID0001"
+	seedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 7,
+		BuildId:     canonicalBuildID,
+		Checksum:    "sha256:cafebabe",
+		UpstreamImport: &repopb.UpstreamImportRecord{
+			SourceName:    "github-globulario",
+			ReleaseTag:    "v1.2.32",
+			BuildNumber:   42,
+			OriginRelease: "v1.2.32",
+			Checksum:      "sha256:cafebabe",
+		},
+	})
+
+	srv.MigrateBuildIDAliases(context.Background())
+
+	alias, err := srv.loadReleaseBuildAlias(context.Background(), ref, "v1.2.32", 42)
+	if err != nil {
+		t.Fatalf("loadReleaseBuildAlias: %v", err)
+	}
+	if alias == nil {
+		t.Fatal("expected alias record after migration; got nil")
+	}
+	if alias.CanonicalBuildID != canonicalBuildID {
+		t.Errorf("alias.CanonicalBuildID = %q, want %q", alias.CanonicalBuildID, canonicalBuildID)
+	}
+	if alias.ReleaseTag != "v1.2.32" || alias.BuildNumber != 42 {
+		t.Errorf("alias locator = (%s, %d), want (v1.2.32, 42)", alias.ReleaseTag, alias.BuildNumber)
+	}
+
+	// Provenance sidecar should exist for the migrated alias.
+	key := artifactKeyWithBuild(ref, 7)
+	provBytes, err := srv.Storage().ReadFile(context.Background(), buildIDAliasMigrationProvenanceKey(key))
+	if err != nil {
+		t.Fatalf("expected alias migration provenance sidecar: %v", err)
+	}
+	var prov map[string]any
+	if err := json.Unmarshal(provBytes, &prov); err != nil {
+		t.Fatalf("unmarshal alias provenance: %v", err)
+	}
+	if got, _ := prov["build_id"].(string); got != canonicalBuildID {
+		t.Errorf("provenance build_id = %q, want %q", got, canonicalBuildID)
+	}
+	if got, _ := prov["migration_version"].(string); got != buildIDAliasMigrationVersion {
+		t.Errorf("migration_version = %q, want %q", got, buildIDAliasMigrationVersion)
+	}
+
+	// Marker should exist — second invocation is a no-op.
+	if _, err := srv.Storage().ReadFile(context.Background(), buildIDAliasMigrationMarker); err != nil {
+		t.Fatalf("expected migration marker: %v", err)
+	}
+	srv.MigrateBuildIDAliases(context.Background())
+
+	alias2, err := srv.loadReleaseBuildAlias(context.Background(), ref, "v1.2.32", 42)
+	if err != nil {
+		t.Fatalf("loadReleaseBuildAlias after re-run: %v", err)
+	}
+	if alias2 == nil || alias2.CanonicalBuildID != canonicalBuildID {
+		t.Errorf("alias canonical_build_id changed across re-run: %+v", alias2)
+	}
+}
+
+// TestMigrateBuildIDAliases_SkipsWithoutImportRecord confirms artifacts that
+// have a build_id but no UpstreamImportRecord (e.g. locally-uploaded legacy
+// packages) are left untouched — there is no release_tag context from which
+// to derive an alias locator.
+func TestMigrateBuildIDAliases_SkipsWithoutImportRecord(t *testing.T) {
+	srv := newTestServer(t)
+
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "echo",
+		Version:     "1.0.0",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+	seedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 3,
+		BuildId:     "01JTESTLOCALARTIFACT0001",
+		Checksum:    "sha256:deadbeef",
+	})
+
+	srv.MigrateBuildIDAliases(context.Background())
+
+	// No alias should be created — there's no release_tag/build_number to map.
+	alias, err := srv.loadReleaseBuildAlias(context.Background(), ref, "v1.2.32", 1)
+	if err != nil {
+		t.Fatalf("loadReleaseBuildAlias: %v", err)
+	}
+	if alias != nil {
+		t.Errorf("unexpected alias for local-only artifact: %+v", alias)
+	}
+
+	// No per-artifact provenance sidecar.
+	key := artifactKeyWithBuild(ref, 3)
+	if _, err := srv.Storage().ReadFile(context.Background(), buildIDAliasMigrationProvenanceKey(key)); err == nil {
+		t.Errorf("unexpected alias provenance sidecar for local-only artifact")
+	}
+
+	// Marker is still written so the migration is considered complete.
+	if _, err := srv.Storage().ReadFile(context.Background(), buildIDAliasMigrationMarker); err != nil {
+		t.Fatalf("expected migration marker even when no aliases written: %v", err)
+	}
+}

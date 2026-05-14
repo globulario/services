@@ -988,6 +988,13 @@ func main() {
 		s.MigrateBuildIDs(ctx)
 	}
 
+	// 7d2b. Phase 6: write release/build aliases for legacy artifacts whose
+	// manifests carry upstream import records but predate the alias model.
+	// Runs after MigrateBuildIDs so every manifest has a canonical build_id.
+	if s.storage != nil {
+		s.MigrateBuildIDAliases(ctx)
+	}
+
 	// 7d3. Phase 3: build release ledger from existing PUBLISHED artifacts (idempotent).
 	if s.storage != nil {
 		s.MigrateReleaseLedger(ctx)

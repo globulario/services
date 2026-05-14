@@ -1063,6 +1063,24 @@ func (client *Repository_Service_Client) ListRepositoryFindings(req *repositoryp
 	return nil, errors.New("list-repository-findings: unexpected response type")
 }
 
+// ResolveArtifact resolves a package reference to exactly one concrete
+// artifact (build_id) or returns an error. Used by operator commands and the
+// controller planning phase. Callers MUST persist the resolved build_id —
+// reconcile-time callers must not re-invoke this RPC.
+func (client *Repository_Service_Client) ResolveArtifact(req *repositorypb.ResolveArtifactRequest) (*repositorypb.ResolveArtifactResponse, error) {
+	if req == nil {
+		req = &repositorypb.ResolveArtifactRequest{}
+	}
+	rsp, err := client.Invoke("ResolveArtifact", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := rsp.(*repositorypb.ResolveArtifactResponse); ok {
+		return r, nil
+	}
+	return nil, errors.New("resolve-artifact: unexpected response type")
+}
+
 // ResolveByEntrypointChecksum performs a reverse lookup from a binary's SHA256
 // checksum to the artifact manifest that produced it. The checksum should be a
 // bare hex string (no "sha256:" prefix). Returns nil manifest if not found.
