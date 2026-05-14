@@ -1148,3 +1148,63 @@ the same shared concept.
     and writes about another without invoking the relevant invariant, that
     is the next composed-path bug — and the next entry in this log will
     promote the candidate to a static check.
+
+---
+
+## 2026-05-14 — Doctor RepositoryBuildIDIndex admits demoted artifacts
+
+- **Shared concept**: the repository's **install-eligibility predicate**
+  (PUBLISHED+DEPRECATED only — `repopb.IsInstallableByPin`). Whenever any
+  consumer needs to ask "is this build_id installable from the repository
+  right now?", it must consult the same predicate that `resolveByBuildID`
+  consults. Anything else is a private interpretation.
+- **Per-subsystem interpretation**:
+  - `repository.artifact_handlers.ListArtifacts`: "if the caller is admin,
+    return every row regardless of state; otherwise hide rows where
+    `IsDiscoveryHidden(state)` is true." Correct for catalog UX (admins
+    need to see demoted rows in the dashboard); wrong as a source of
+    truth for "is this installable?"
+  - `cluster_doctor.collector.fetchRepositoryData` (v1.2.48): "the set of
+    resolvable build_ids equals every build_id that ListArtifacts
+    returns." Inherited the admin-visible row set unfiltered, so YANKED /
+    REVOKED / ARCHIVED build_ids quietly entered
+    `Snapshot.RepositoryBuildIDIndex`.
+  - `cluster_doctor.rules.repositoryDesiredBuildIDsResolve` (v1.2.48):
+    "a desired build_id is orphaned iff it is not in
+    `RepositoryBuildIDIndex`." Correct rule, polluted input — orphans
+    that the repository had already demoted (the real orphans, storage
+    `801c0043-…` and node-agent `fe08cd6a-…`) looked resolved. The rule
+    stayed silent on the very incidents v1.2.48 had shipped to catch.
+- **The composition that failed**: ListArtifacts is a **display contract**
+  (admins see everything for diagnostics), but the doctor used it as an
+  **install-eligibility contract**. Two different audiences, one RPC.
+  No filter at the consumer site → the display semantics leaked into the
+  enforcement leg.
+- **Why unit tests missed it**: the rule's unit tests
+  (`repository_dns_invariants_test.go`) constructed Snapshots by hand and
+  stamped `RepositoryBuildIDIndex` directly — they assumed the index was
+  already filtered. No test exercised the collector path that builds
+  the index from a ListArtifacts response. Live cluster was the first
+  place these two ends met.
+- **End-to-end contract that should own it**: any consumer that wants to
+  ask "can the repository resolve this build_id for install?" MUST run
+  the result of ListArtifacts through `repopb.IsInstallableByPin` (or call
+  `ResolveArtifact` and look for FailedPrecondition / NotFound). The
+  collector now does the former; this is documented in the helper
+  `buildIDIndexFromManifests` and pinned by
+  `repository_buildid_index_test.go` so the next consumer that wires
+  ListArtifacts into a non-display use case will see the test as the
+  contract and either reuse the helper or fail loudly on the YANKED case.
+- **Did the fix simplify or special-case?** **Simplified.** A single
+  predicate (`IsInstallableByPin`) now gates every install-eligibility
+  question; the collector's row loop became a 4-line pure helper that
+  the test imports directly. No new branch for the admin-vs-non-admin
+  caller distinction — the consumer just filters regardless of who the
+  RPC chose to show.
+  - Consolidation candidate: **promote `IsInstallableByPin` to the
+    canonical name used wherever code consults the repository for
+    install eligibility.** `resolveByBuildID` re-implements the
+    PUBLISHED-or-DEPRECATED test inline (`isRowInstallable` /
+    `state == PUBLISHED && isInstallableForRef`); rolling those onto
+    the named predicate would make the next drift (e.g., introducing a
+    new lifecycle state) a one-line change across the whole tree.

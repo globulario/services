@@ -244,6 +244,63 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		}, nil
 	}
 
+	// ── COMMAND-kind packages: no service to restart ────────────────────
+	// COMMAND packages are CLI binaries (etcdctl, yt-dlp, mc, sctool,
+	// sha256sum, restic, claude, etc.). They have no systemd unit, no
+	// HealthCheckUnit, and no daemon to enable/restart. Attempting
+	// `systemctl enable globular-etcdctl.service` returns exit 5 (unit
+	// not found) → the workflow ends RUN_STATUS_FAILED → every Day-1
+	// join produces ~5-7 spurious failures even though the binaries
+	// were placed correctly.
+	//
+	// Issue: #2 in the services repo.
+	//
+	// For COMMAND kind, the install IS the convergence boundary —
+	// `srv.InstallPackage` has already extracted the binary, pinned it,
+	// and written the version marker. We commit installed-state as
+	// "installed" and return success without touching systemctl.
+	if kind == "COMMAND" {
+		log.Printf("apply-package: kind=COMMAND name=%s — skipping systemctl (no service for CLI package)", name)
+		pkg := &node_agentpb.InstalledPackage{
+			NodeId:      srv.nodeID,
+			Name:        name,
+			Version:     version,
+			Kind:        kind,
+			Status:      "installed",
+			UpdatedUnix: time.Now().Unix(),
+			OperationId: operationID,
+			BuildNumber: req.GetBuildNumber(),
+			BuildId:     buildID,
+			Platform:    platform,
+			Checksum:    req.GetExpectedSha256(),
+		}
+		// Best-effort: compute the deployed binary's SHA256 from the actual
+		// runtime binary path. This is the authoritative entrypoint checksum
+		// that integrity checks compare against repository.entrypoint_checksum.
+		if cksum, err := cachedSha256(installedBinaryPath(name, kind)); err == nil {
+			pkg.Checksum = cksum
+			if pkg.Metadata == nil {
+				pkg.Metadata = make(map[string]string)
+			}
+			pkg.Metadata["entrypoint_checksum"] = cksum
+		}
+		_ = installed_state.WriteInstalledPackage(ctx, pkg)
+		// Record the installed revision in the repository's history and emit
+		// config receipts — same hook the service-restart path uses. The
+		// rollback workflow consumes this; without it COMMAND installs would
+		// never appear in Provenance / Audit screens.
+		srv.recordRevisionAndReceipts(ctx, repoAddr, req, pkg, previousInstalled, configSnap)
+		return &node_agentpb.ApplyPackageReleaseResponse{
+			Ok:          true,
+			Message:     fmt.Sprintf("installed %s/%s@%s (COMMAND — no service to restart)", kind, name, version),
+			PackageName: name,
+			Version:     version,
+			Status:      "installed",
+			OperationId: operationID,
+			BuildId:     buildID,
+		}, nil
+	}
+
 	// Restart the service and verify it is running before reporting success.
 	// installed-state is written AFTER the service is confirmed active — never before.
 	// This is the convergence truth boundary: OK=true means the service IS running.

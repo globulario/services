@@ -884,6 +884,14 @@ func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot) {
 	// build_ids minutes before any node has installed them, and the
 	// proxy would fire CRITICAL on every legitimate desired pin.
 	//
+	// Filter by repopb.IsInstallableByPin: only PUBLISHED and DEPRECATED
+	// states are "resolvable for install." Demoted states (YANKED, REVOKED,
+	// ARCHIVED, CORRUPTED, QUARANTINED) MUST NOT pass through to the index,
+	// even when ListArtifacts leaks them (admin auth context sees hidden
+	// rows). Otherwise a desired pin to a demoted build_id looks resolved
+	// and the rule stays silent on the real orphan — which is exactly the
+	// v1.2.48 gap we observed for storage / node-agent.
+	//
 	// Best-effort: any error leaves RepositoryBuildIDIndex nil so the rule
 	// degrades to silent (no signal → no finding) instead of guessing.
 	listCtx, listCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
@@ -894,19 +902,33 @@ func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot) {
 		snap.addError("repository", "ListArtifacts", listErr)
 		return
 	}
-	index := make(map[string]bool, len(listResp.GetArtifacts()))
-	for _, a := range listResp.GetArtifacts() {
+	index := buildIDIndexFromManifests(listResp.GetArtifacts())
+	snap.mu.Lock()
+	snap.RepositoryBuildIDIndex = index
+	snap.mu.Unlock()
+	snap.addSource("repository.ListArtifacts")
+}
+
+// buildIDIndexFromManifests filters a ListArtifacts result down to the set of
+// build_ids that are "resolvable for install" — PUBLISHED and DEPRECATED only.
+// Demoted rows (YANKED, REVOKED, ARCHIVED, CORRUPTED, QUARANTINED, …) must
+// NOT enter the index, even when the admin-auth ListArtifacts path surfaces
+// them, otherwise repository.desired_build_ids_resolve stays silent on real
+// orphans. See repository_buildid_index_test.go for the contract.
+func buildIDIndexFromManifests(in []*repopb.ArtifactManifest) map[string]bool {
+	index := make(map[string]bool, len(in))
+	for _, a := range in {
 		if a == nil {
+			continue
+		}
+		if !repopb.IsInstallableByPin(a.GetPublishState()) {
 			continue
 		}
 		if bid := strings.TrimSpace(a.GetBuildId()); bid != "" {
 			index[bid] = true
 		}
 	}
-	snap.mu.Lock()
-	snap.RepositoryBuildIDIndex = index
-	snap.mu.Unlock()
-	snap.addSource("repository.ListArtifacts")
+	return index
 }
 
 // agentClient returns a cached or new NodeAgent gRPC client for the given endpoint.
