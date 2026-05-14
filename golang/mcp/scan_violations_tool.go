@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/globulario/services/golang/awareness/scan"
-	"gopkg.in/yaml.v3"
 )
 
 // violationPattern is a code smell that awareness can detect.
@@ -117,78 +116,18 @@ type violationFinding struct {
 	Confidence      string `json:"confidence"` // "high" for regex match; future: "medium" for heuristic
 }
 
-// scanAllowlistEntry is a single entry in the scan allowlist.
-type scanAllowlistEntry struct {
-	PathPattern string `yaml:"path_pattern"`
-	PatternID   string `yaml:"pattern_id"`
-	Reason      string `yaml:"reason"`
-}
-
-type scanAllowlist struct {
-	Allowlist []scanAllowlistEntry `yaml:"allowlist"`
-}
-
-func loadScanAllowlist(docsDir string) []scanAllowlistEntry {
-	if docsDir == "" {
-		return nil
-	}
-	path := filepath.Join(docsDir, "knowledge", "scan_allowlist.yaml")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
-	var al scanAllowlist
-	if err := yaml.Unmarshal(data, &al); err != nil {
-		return nil
-	}
-	return al.Allowlist
-}
-
-// matchesAllowlist returns the allowlist entry that suppresses this finding, or nil.
-func matchesAllowlist(f violationFinding, allowlist []scanAllowlistEntry) *scanAllowlistEntry {
-	for i, entry := range allowlist {
-		if entry.PatternID != f.PatternID {
-			continue
-		}
-		if matchesPathPattern(f.File, entry.PathPattern) {
-			return &allowlist[i]
-		}
-	}
-	return nil
-}
-
-// matchesPathPattern checks whether filePath matches a glob pattern.
-// Supports:
-//   - "**/*.ext" — any file ending with the extension in any directory
-//   - "glob/pattern" — filepath.Match against base name or full path
-func matchesPathPattern(filePath, pattern string) bool {
-	if strings.HasPrefix(pattern, "**/") {
-		// Strip "**/" and match the rest as a glob against the base name.
-		rest := pattern[3:]
-		base := filepath.Base(filePath)
-		matched, err := filepath.Match(rest, base)
-		if err == nil && matched {
-			return true
-		}
-		// Also check if any path component matches.
-		return false
-	}
-	// Try base name match.
-	matched, err := filepath.Match(pattern, filepath.Base(filePath))
-	if err == nil && matched {
-		return true
-	}
-	// Try full path match.
-	matched, err = filepath.Match(pattern, filePath)
-	if err == nil && matched {
-		return true
-	}
-	return false
+// allowlistMatchesViolation adapts the shared scan.AllowlistMatch to the
+// MCP-local violationFinding shape. The scan package is the authority on
+// load + match semantics; this wrapper exists only because the MCP
+// post-processes findings through regex + AST sources into its own
+// flattened type.
+func allowlistMatchesViolation(f violationFinding, allowlist []scan.AllowlistEntry) *scan.AllowlistEntry {
+	return scan.AllowlistMatch(scan.Finding{File: f.File, PatternID: f.PatternID}, allowlist)
 }
 
 func registerScanViolationsTool(s *server, st *awarenessState) {
 	// Load allowlist once at registration time.
-	allowlist := loadScanAllowlist(st.docsDir)
+	allowlist := scan.LoadAllowlist(st.docsDir)
 
 	s.register(toolDef{
 		Name:        "awareness.scan_violations",
@@ -253,7 +192,7 @@ func registerScanViolationsTool(s *server, st *awarenessState) {
 				suppressed = append(suppressed, f)
 				continue
 			}
-			if entry := matchesAllowlist(f, allowlist); entry != nil {
+			if entry := allowlistMatchesViolation(f, allowlist); entry != nil {
 				suppressed = append(suppressed, f)
 				suppressedLocs[loc] = true
 			} else {

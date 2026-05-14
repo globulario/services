@@ -5,3 +5,6 @@ allowlist:
   - path_pattern: "golang/awareness/runtime/grpc_*"
     pattern_id: "insecure_grpc_transport"
     reason: "awareness runtime sources use insecure for dev — excluded separately via FileExclude"
+  - path_pattern: "ast_scanner.go"
+    pattern_id: "loopback_string_literal"
+    reason: "scanner self-reference: the KnowledgeID 'hard_rule.no_localhost' and the literal strings '127.0.0.1' / 'localhost' are the rule's identity and the matcher's pattern, not runtime addresses"
