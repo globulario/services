@@ -168,8 +168,6 @@ The guide says `globular auth set-password`. The actual command is `globular aut
 
 Some older docs reference the workflow service on port **13000** or **10004**. Both are wrong. The authoritative port — matching the source `defaultPort` in `golang/workflow/workflow_server/server.go` and the `HealthCheckHintC` in `cluster_controller_server/component_catalog.go` — is **10220**. When using `--workflow` flags or connecting directly, use `globular.internal:10220`.
 
-> **Seed-collision footnote** — `ai_router` also declares `defaultPort = 10220` in source. The two never collide at runtime because the controller seeds distinct ports in etcd, but the duplicated source constant is a latent bug worth cleaning up.
-
 ### ~~Cluster Doctor port: 12005 vs 12100 in source~~ (resolved)
 
 `cluster_doctor`'s own `config.go` had drifted to `Port: 12100` / `Proxy: 12101` (commit `549ca75c`) while every other source of truth — MCP tools, package metadata `awareness.yaml`, docs, CLAUDE.md — said **12005**. Re-aligned source to `Port: 12005` / `Proxy: 12006`. No deployed cluster is affected because the runtime port comes from etcd, not the source default.

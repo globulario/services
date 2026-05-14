@@ -27,8 +27,8 @@ var (
 )
 
 var (
-	defaultPort  = 10220
-	defaultProxy = 10221
+	defaultPort  = 10240
+	defaultProxy = 10241
 )
 
 var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))

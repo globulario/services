@@ -276,7 +276,7 @@ Dispatch to AI Executor:
 
 ## AI Router Service
 
-**Port**: 10220 (gRPC), 10221 (gRPC-Web proxy)
+**Port**: 10240 (gRPC), 10241 (gRPC-Web proxy)
 **Backend**: In-memory policy cache (scoring loop every ~5 seconds)
 **Status**: Implemented (xDS integration partial)
 
@@ -356,7 +356,7 @@ RoutingPolicy {
 1. **AI Memory** (10200) — Start first; no dependencies
 2. **AI Watcher** (10210) — Depends on Event Service
 3. **AI Executor** (10230) — Depends on AI Memory; optional Anthropic API key
-4. **AI Router** (10220) — No dependencies; optional xDS integration
+4. **AI Router** (10240) — No dependencies; optional xDS integration
 
 ### Profile
 

@@ -79,7 +79,7 @@ These ports must be open between cluster nodes:
 |------|----------|---------|---------|
 | 10200 | gRPC/TLS | AI Memory | Persistent knowledge (ScyllaDB-backed) |
 | 10210 | gRPC/TLS | AI Watcher | Event monitoring and incident detection |
-| 10220 | gRPC/TLS | AI Router | Dynamic routing policy computation |
+| 10240 | gRPC/TLS | AI Router | Dynamic routing policy computation |
 | 10230 | gRPC/TLS | AI Executor | Incident diagnosis and remediation |
 
 ### Operational Services

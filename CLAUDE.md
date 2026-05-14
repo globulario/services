@@ -241,7 +241,7 @@ services/
 │   ├── ai_memory/             # Persistent AI knowledge (port 10200, ScyllaDB)
 │   ├── ai_executor/           # Diagnosis + remediation (port 10230)
 │   ├── ai_watcher/            # Event monitoring (port 10210)
-│   ├── ai_router/             # Dynamic routing (port 10220)
+│   ├── ai_router/             # Dynamic routing (port 10240)
 │   ├── domain/                # ACME cert management (runs in controller)
 │   ├── compute/               # Batch jobs (not yet in build manifest)
 │   ├── globularcli/           # CLI tool

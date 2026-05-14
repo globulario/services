@@ -22,7 +22,7 @@ entries:
       to the appropriate downstream — local MCP tools, remote MCP peers, LLM providers, or
       cluster-internal AI services.
 
-      **Port**: 10220 (gRPC over mTLS).
+      **Port**: 10240 (gRPC over mTLS).
 
       **What it OWNS**:
       - Provider catalog (Anthropic, OpenAI, local Ollama, etc.) — per-cluster config
