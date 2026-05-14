@@ -105,3 +105,13 @@ func ResolveAdvertiseIP(preferredIface, explicitIP string) (net.IP, error) {
 	}
 	return nil, errors.New("no suitable advertise address found")
 }
+
+// PrimaryIP returns the first UP, non-loopback IPv4 address on this host
+// (private or global unicast). It is the canonical replacement for the
+// detectPrimaryIP / primaryIP helpers that used to be duplicated across
+// rbac, resource, node_agent and other servers. New callers should use
+// this name. When you need to honour an explicit override or a preferred
+// interface, call ResolveAdvertiseIP directly.
+func PrimaryIP() (net.IP, error) {
+	return ResolveAdvertiseIP("", "")
+}

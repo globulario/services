@@ -243,43 +243,6 @@ func tcpProbe(host string, port int, timeout time.Duration) bool {
 	return true
 }
 
-// detectPrimaryIP returns the primary non-loopback IP of this node.
-func detectPrimaryIP() (string, error) {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return "", err
-	}
-
-	for _, iface := range ifaces {
-		// Skip loopback and down interfaces
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
-			continue
-		}
-
-		addrs, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-
-		for _, addr := range addrs {
-			var ip net.IP
-			switch v := addr.(type) {
-			case *net.IPNet:
-				ip = v.IP
-			case *net.IPAddr:
-				ip = v.IP
-			}
-
-			// Return first non-loopback IPv4
-			if ip != nil && ip.To4() != nil && !ip.IsLoopback() {
-				return ip.String(), nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("no primary IP found")
-}
-
 // resolveScyllaHost returns the first reachable Scylla host from the etcd
 // Tier-0 list (/globular/cluster/scylla/hosts). DNS cannot be used here
 // because DNS records live in Scylla.

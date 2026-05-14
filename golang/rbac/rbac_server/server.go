@@ -134,39 +134,6 @@ func tcpProbe(host string, port int, timeout time.Duration) bool {
 	return true
 }
 
-// detectPrimaryIP returns the first non-loopback UP interface IPv4 address.
-func detectPrimaryIP() (string, error) {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return "", err
-	}
-	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
-			continue
-		}
-		addrs, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-		for _, addr := range addrs {
-			var ip net.IP
-			switch v := addr.(type) {
-			case *net.IPNet:
-				ip = v.IP
-			case *net.IPAddr:
-				ip = v.IP
-			}
-			if ip == nil || ip.IsLoopback() {
-				continue
-			}
-			if ip4 := ip.To4(); ip4 != nil {
-				return ip4.String(), nil
-			}
-		}
-	}
-	return "", errors.New("no non-loopback IPv4 address found")
-}
-
 // resolveScyllaHost returns the first Scylla host from etcd (Tier-0 list).
 // DNS cannot be used here because DNS records live in Scylla.
 // Retries the etcd lookup to handle startup ordering where the seed service

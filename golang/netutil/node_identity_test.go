@@ -47,3 +47,27 @@ func TestResolveAdvertiseIPExplicit(t *testing.T) {
 		t.Fatalf("expected loopback explicit to fail")
 	}
 }
+
+// PrimaryIP must be a strict alias for ResolveAdvertiseIP with both args
+// empty — the canonical replacement for the dead detectPrimaryIP helpers
+// that used to live in rbac/, resource/, and other servers.
+func TestPrimaryIP_AgreesWithResolveAdvertiseIP(t *testing.T) {
+	got, gotErr := PrimaryIP()
+	want, wantErr := ResolveAdvertiseIP("", "")
+	if (gotErr == nil) != (wantErr == nil) {
+		t.Fatalf("PrimaryIP err=%v, ResolveAdvertiseIP err=%v", gotErr, wantErr)
+	}
+	if gotErr != nil {
+		// Both failed on a host with no usable interfaces — acceptable.
+		return
+	}
+	if !got.Equal(want) {
+		t.Fatalf("PrimaryIP=%s, ResolveAdvertiseIP=%s — must agree", got, want)
+	}
+	if got.To4() == nil {
+		t.Errorf("PrimaryIP returned non-IPv4: %s", got)
+	}
+	if got.IsLoopback() {
+		t.Errorf("PrimaryIP returned loopback: %s", got)
+	}
+}
