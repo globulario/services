@@ -145,3 +145,22 @@ func TestIsValidTestFuncName(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// "unverified" must not be conflated with "tests_not_found"
+// ---------------------------------------------------------------------------
+
+// TestVerifyGapTests_EmptyRepoRootReturnsUnverified pins the distinction
+// between "I couldn't scan" (unverified — expected on production MCP hosts
+// that don't ship source) and "the test is missing" (tests_not_found —
+// a real defect). Prior to this fix, health_pulse counted both as missing,
+// producing a noisy false alert on every production node.
+func TestVerifyGapTests_EmptyRepoRootReturnsUnverified(t *testing.T) {
+	status, note := verifyGapTests("", []string{"TestSomething"})
+	if status != "unverified" {
+		t.Errorf("empty repoRoot must return status=unverified, got %q (note=%q)", status, note)
+	}
+	if note == "" {
+		t.Error("unverified status must include a note explaining why")
+	}
+}

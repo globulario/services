@@ -62,6 +62,7 @@ type healthPulseSelfReviewSection struct {
 	TestsFound       int    `json:"tests_found"`
 	TestsNotFound    int    `json:"tests_not_found"`
 	InvalidMetadata  int    `json:"invalid_metadata"`
+	Unverified       int    `json:"unverified"`
 	Status           string `json:"status"` // ok | warn | critical
 }
 
@@ -512,7 +513,7 @@ func buildSelfReviewSection(docsDir, repoRoot string) (healthPulseSelfReviewSect
 		}}
 	}
 
-	total, found, notFound, invalid := 0, 0, 0, 0
+	total, found, notFound, invalid, unverified := 0, 0, 0, 0, 0
 	for _, pat := range pb.CapabilityGapPatterns {
 		if pat.Status != "implemented" {
 			continue
@@ -520,10 +521,17 @@ func buildSelfReviewSection(docsDir, repoRoot string) (healthPulseSelfReviewSect
 		total++
 		status, _ := verifyGapTests(repoRoot, pat.TestsRequired)
 		switch status {
-		case "tests_found", "tests_partial":
+		case "tests_found", "tests_partial", "no_tests_required":
 			found++
 		case "invalid_metadata":
 			invalid++
+		case "unverified":
+			// "unverified" means the verifier had nothing to scan (no repo
+			// root on the host) — not that tests are missing. In production
+			// MCP, source isn't shipped, so this is expected.
+			unverified++
+		case "tests_not_found":
+			notFound++
 		default:
 			notFound++
 		}
@@ -551,11 +559,24 @@ func buildSelfReviewSection(docsDir, repoRoot string) (healthPulseSelfReviewSect
 		})
 	}
 
+	if unverified > 0 {
+		// Info-level only — distinguish "couldn't scan" from "tests missing".
+		// In production MCP, source isn't shipped on the node, so unverified
+		// is the *expected* state and should not flag a warning.
+		alerts = append(alerts, healthPulseAlert{
+			Severity:          "info",
+			ID:                "self_review.unverified",
+			Message:           fmt.Sprintf("%d implemented gap(s) could not be verified (no repo source available to scan)", unverified),
+			RecommendedAction: "Set awareness.repo_path in MCP config to a source checkout, or run self_review on a dev workstation.",
+		})
+	}
+
 	return healthPulseSelfReviewSection{
 		TotalImplemented: total,
 		TestsFound:       found,
 		TestsNotFound:    notFound,
 		InvalidMetadata:  invalid,
+		Unverified:       unverified,
 		Status:           sectionStatus,
 	}, alerts
 }

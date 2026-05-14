@@ -358,9 +358,16 @@ func loadGapCoverageByComponent(docsDir, repoRoot string) (map[string][]string, 
 		status, _ := verifyGapTests(repoRoot, pat.TestsRequired)
 		comp := componentOf(pat.ID)
 		byComp[comp] = append(byComp[comp], pat.TestsRequired...)
-		if status == "tests_found" {
+		// "tests_partial" and "no_tests_required" count as verified — the
+		// former because at least some required tests exist, the latter
+		// because the gap explicitly has no test contract. "unverified"
+		// (no repo to scan) is grouped with unverified rather than treated
+		// as a hard miss; that distinction is surfaced upstream by the
+		// caller via the per-pattern verification_status field.
+		switch status {
+		case "tests_found", "tests_partial", "no_tests_required":
 			verified++
-		} else {
+		default:
 			unverified++
 		}
 	}
