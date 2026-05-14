@@ -2,6 +2,25 @@
 
 Complete listing of all ports used by Globular services and infrastructure. Use this when configuring firewalls, router port forwarding, or network security groups.
 
+> **About these numbers** — Globular services do not bake their gRPC port into
+> the binary. Each service reads its port from etcd at startup. The numbers
+> in this document are the **seed defaults** baked into install scripts and
+> initial etcd values; once a cluster is running, the live truth is in etcd.
+>
+> To check what a service is *actually* listening on:
+>
+> ```bash
+> globular service config get <service-id> | grep -i port
+> # or, for the live registration:
+> etcdctl get /globular/services/<service-id>/config --print-value-only
+> ```
+>
+> The reservations below are *cluster-wide conventions* — open these in the
+> firewall and the platform will use them by default. If you change a port in
+> etcd, update the firewall too.
+
+
+
 ## External Ports (Internet-Facing)
 
 These ports must be reachable from the internet if you want external access:

@@ -2,6 +2,10 @@
 
 This page walks through creating a new gRPC microservice for the Globular platform from scratch. It covers defining the proto contract, generating code, implementing the server, using shared primitives, writing tests, and integrating with the platform's service discovery, configuration, and lifecycle management.
 
+> **Looking for the short version?** [Developer Quickstart](quickstart.md)
+> condenses this into five steps and links back here for each section. Use the
+> Quickstart for orientation; use this page when you actually start building.
+
 ---
 
 ## Why build on Globular instead of plain systemd + gRPC?

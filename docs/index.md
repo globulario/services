@@ -101,10 +101,26 @@ How AI operates within Globular — rules, services, agent model, and integratio
 
 ---
 
+## Awareness
+
+The platform's self-knowledge layer: invariants, failure modes, decisions, and
+learned lessons. Consulted by AI agents and operators before editing code or
+declaring a fix done.
+
+- [Awareness Overview](awareness/index.md) — What awareness is, when to use it, the doc map
+- [Daily Workflow](awareness/daily_workflow.md) — Preflight → edit → scan → learn
+- [Composed-Path Failures](awareness/composed_path_failures.md) — Repeat-bug log; read before touching shared concepts
+- [MCP Tools](awareness/mcp_tools.md) — Full `awareness.*` MCP surface
+- [Preflight Audit](awareness/preflight_audit.md) — What `awareness.preflight` actually checks
+- [Error-Fix Contract](awareness/error_fix_contract.md) — Two-stage contract every bug fix must follow
+
+---
+
 ## Developers
 
 Build services and applications for the Globular platform.
 
+- [Developer Quickstart](developers/quickstart.md) — Fastest path from clone to deployed service (five steps)
 - [Local-First Development](developers/local-first.md) — Run services without a cluster, progressive deployment from laptop to production
 - [Writing a Microservice](developers/writing-a-microservice.md) — Proto contract, code generation, server implementation, shared primitives
 - [Service Packaging](developers/service-packaging.md) — Package format, spec files, build process

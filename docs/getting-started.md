@@ -23,11 +23,14 @@ There are two ways to install Globular: from a release tarball (recommended) or 
 
 ### Option A: From Release (Recommended)
 
-Download the latest release from GitHub:
+Download the latest release from GitHub. The platform follows a single mono-version
+track (see [Versioning](developers/versioning.md)) — pick the tag from the releases
+page and substitute it below.
 
 ```bash
-# Check https://github.com/globulario/services/releases for the latest version
-VERSION="1.0.17"
+# Look up the current tag (e.g. v1.2.x) at:
+#   https://github.com/globulario/services/releases/latest
+VERSION="<paste-tag-here>"   # e.g. 1.2.30
 curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz"
 
 # Verify checksum
@@ -39,6 +42,10 @@ tar xzf "globular-${VERSION}-linux-amd64.tar.gz"
 cd "globular-${VERSION}-linux-amd64"
 sudo bash install.sh
 ```
+
+> **Note**: individual service packages are versioned independently (the
+> release tag bundles a BOM of per-package versions). You will rarely see all
+> services at the same number — that is by design.
 
 ### Option B: From Source
 
@@ -94,14 +101,18 @@ globular services desired list
 Expected output:
 ```
 SERVICE            VERSION    NODES   STATUS
-etcd               3.5.14     1/1     INSTALLED
-authentication     1.0.17     1/1     INSTALLED
-rbac               1.0.17     1/1     INSTALLED
-controller         1.0.17     1/1     INSTALLED
-gateway            1.0.17     1/1     INSTALLED
-repository         1.0.17     1/1     INSTALLED
+etcd               3.5.x      1/1     INSTALLED
+authentication     1.2.x      1/1     INSTALLED
+rbac               1.2.x      1/1     INSTALLED
+controller         1.2.x      1/1     INSTALLED
+gateway            1.2.x      1/1     INSTALLED
+repository         1.2.x      1/1     INSTALLED
 ...
 ```
+
+> Versions shown here are illustrative. Each service has its own version
+> (see [Versioning](developers/versioning.md)); the platform release tag is a
+> BOM that pins specific versions together.
 
 All services should show `INSTALLED`. If any show `APPLYING`, wait a minute — the convergence model is still working.
 

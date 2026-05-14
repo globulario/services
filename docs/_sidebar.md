@@ -56,6 +56,7 @@
   - [Recover Node](tasks/recover-node.md)
 
 - **Developers**
+  - [Developer Quickstart](developers/quickstart.md)
   - [Local-First Development](developers/local-first.md)
   - [Writing a Microservice](developers/writing-a-microservice.md)
   - [Writing a Compute Job](developers/writing-a-compute-job.md)
@@ -77,3 +78,15 @@
   - [AI Developer Guide](ai/ai-developer-guide.md)
   - [AI Diagnosis Walkthrough](ai/ai-diagnosis-walkthrough.md)
   - [AI Patterns](ai/ai-patterns-and-anti-patterns.md)
+
+- **Awareness**
+  - [Awareness Overview](awareness/index.md)
+  - [Daily Workflow](awareness/daily_workflow.md)
+  - [Agent Workflow](awareness/agent_workflow.md)
+  - [Composed-Path Failures](awareness/composed_path_failures.md)
+  - [MCP Tools](awareness/mcp_tools.md)
+  - [Preflight Audit](awareness/preflight_audit.md)
+  - [Live Overlay](awareness/live_overlay.md)
+  - [Error-Fix Contract](awareness/error_fix_contract.md)
+  - [Design Decisions](awareness/design_decisions.md)
+  - [No Match and Confidence](awareness/no_match_and_confidence.md)

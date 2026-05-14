@@ -27,8 +27,9 @@ Before bootstrapping, ensure the following:
 Download the latest release tarball from GitHub and run the installer:
 
 ```bash
-# Check https://github.com/globulario/services/releases for the latest version
-VERSION="1.0.17"
+# Look up the current tag at:
+#   https://github.com/globulario/services/releases/latest
+VERSION="<paste-tag-here>"   # e.g. 1.2.30
 curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz"
 curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz.sha256"
 sha256sum -c "globular-${VERSION}-linux-amd64.tar.gz.sha256"
@@ -37,6 +38,12 @@ tar xzf "globular-${VERSION}-linux-amd64.tar.gz"
 cd "globular-${VERSION}-linux-amd64"
 sudo bash install.sh
 ```
+
+> **Platform vs. package versions** — the release tag (`v1.2.30`) is a BOM of
+> per-package versions. Individual services (controller, gateway, repository,
+> …) each have their own version; they are *not* all bumped together. See
+> [Versioning](../developers/versioning.md) and
+> [Repository Overview](repository-overview.md).
 
 `install.sh` places binaries and packages on the machine:
 
@@ -49,12 +56,15 @@ sudo bash install.sh
 └── ...                   # All other service binaries
 
 /var/lib/globular/packages/
-├── etcd_3.5.14_linux_amd64.tgz
-├── minio_*_linux_amd64.tgz
-├── prometheus_*_linux_amd64.tgz
-├── authentication_1.0.17_linux_amd64.tgz
+├── etcd_<v>_linux_amd64.tgz
+├── minio_<v>_linux_amd64.tgz
+├── prometheus_<v>_linux_amd64.tgz
+├── authentication_<v>_linux_amd64.tgz
 └── ...                   # All service and infrastructure packages
 ```
+
+(Each package has its own version; `release-index.json` inside the tarball is
+the authoritative BOM that maps the platform tag to per-package versions.)
 
 ## Bootstrap Process
 
@@ -190,7 +200,7 @@ If the Repository service is running, the bootstrap process publishes all local 
 The bootstrap process creates desired-state entries for all installed services:
 ```
 /globular/resources/DesiredService/etcd → { version: "3.5.14" }
-/globular/resources/DesiredService/authentication → { version: "1.0.17" }
+/globular/resources/DesiredService/authentication → { version: "<from BOM>" }
 ...
 ```
 
@@ -219,10 +229,10 @@ globular services desired list
 # Output:
 # SERVICE            VERSION    NODES   STATUS
 # etcd               3.5.14     1/1     INSTALLED
-# authentication     1.0.17     1/1     INSTALLED
-# rbac               1.0.17     1/1     INSTALLED
-# controller         1.0.17     1/1     INSTALLED
-# gateway            1.0.17     1/1     INSTALLED
+# authentication     1.2.x      1/1     INSTALLED
+# rbac               1.2.x      1/1     INSTALLED
+# controller         1.2.x      1/1     INSTALLED
+# gateway            1.2.x      1/1     INSTALLED
 # ...
 
 # Check installed packages
