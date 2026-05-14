@@ -398,9 +398,16 @@ jobs:
           done
 
       # ── Run tests ────────────────────────────────────────────────────────
+      # Per-package timeout is 5m, not the Go default (10m). Tightening
+      # forces slow tests to be noticed, but 120s turned out to be too
+      # aggressive: awareness/preflight runs ~55s locally with -race and
+      # the same suite blew past 120s on a loaded CI runner on 2026-05-14
+      # (v1.2.45 release attempt). 300s leaves headroom for race-detector
+      # overhead and runner contention without softening the signal —
+      # anything over 5m is still a test to investigate.
       - name: Run tests
         working-directory: services/golang
-        run: go test ./... -race -short -timeout 120s
+        run: go test ./... -race -short -timeout 300s
 
       # ── Build globular-installer ─────────────────────────────────────────
       - name: Build globular-installer
