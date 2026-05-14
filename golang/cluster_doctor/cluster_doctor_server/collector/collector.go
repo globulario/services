@@ -875,6 +875,38 @@ func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot) {
 	snap.RepositoryFindings = findings
 	snap.mu.Unlock()
 	snap.addSource("repository.ListRepositoryFindings")
+
+	// ListArtifacts — build the authoritative build_id resolvable set.
+	//
+	// This is what repository.desired_build_ids_resolve consults. Inferring
+	// resolvability from "any node has installed it" is structurally wrong:
+	// during Day-1 / first-publish bootstrap, the repository has the
+	// build_ids minutes before any node has installed them, and the
+	// proxy would fire CRITICAL on every legitimate desired pin.
+	//
+	// Best-effort: any error leaves RepositoryBuildIDIndex nil so the rule
+	// degrades to silent (no signal → no finding) instead of guessing.
+	listCtx, listCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+	defer listCancel()
+
+	listResp, listErr := c.repoClient.ListArtifacts(listCtx, &repopb.ListArtifactsRequest{})
+	if listErr != nil {
+		snap.addError("repository", "ListArtifacts", listErr)
+		return
+	}
+	index := make(map[string]bool, len(listResp.GetArtifacts()))
+	for _, a := range listResp.GetArtifacts() {
+		if a == nil {
+			continue
+		}
+		if bid := strings.TrimSpace(a.GetBuildId()); bid != "" {
+			index[bid] = true
+		}
+	}
+	snap.mu.Lock()
+	snap.RepositoryBuildIDIndex = index
+	snap.mu.Unlock()
+	snap.addSource("repository.ListArtifacts")
 }
 
 // agentClient returns a cached or new NodeAgent gRPC client for the given endpoint.

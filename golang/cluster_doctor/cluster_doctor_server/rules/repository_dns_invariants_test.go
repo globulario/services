@@ -155,12 +155,7 @@ func TestDoctorRule_RepositoryDesiredBuildIDsResolve_EmptyDesired_NoFinding(t *t
 	withDesiredBuildIDs(t, func(context.Context) map[string]string { return nil })
 
 	snap := &collector.Snapshot{
-		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{
-			"nuc": {
-				NodeId:            "nuc",
-				InstalledBuildIds: map[string]string{"gateway": "bid-A"},
-			},
-		},
+		RepositoryBuildIDIndex: map[string]bool{"bid-A": true},
 	}
 	findings := (repositoryDesiredBuildIDsResolve{}).Evaluate(snap, testConfig())
 	if len(findings) != 0 {
@@ -168,19 +163,34 @@ func TestDoctorRule_RepositoryDesiredBuildIDsResolve_EmptyDesired_NoFinding(t *t
 	}
 }
 
-func TestDoctorRule_RepositoryDesiredBuildIDsResolve_OrphanFires(t *testing.T) {
-	// Desired pins bid-X, but no node has it installed → orphan → finding.
+func TestDoctorRule_RepositoryDesiredBuildIDsResolve_NoRepoIndex_NoFinding(t *testing.T) {
+	// When the collector couldn't get a repository build_id index (nil), the
+	// rule degrades to silent — false positives are worse than false silence
+	// for a CRITICAL-severity rule. This guards against the v1.2.47 false-
+	// positive storm where the rule fired on legitimate Day-1 pins.
 	withDesiredBuildIDs(t, func(context.Context) map[string]string {
 		return map[string]string{"bid-X": "/globular/resources/ServiceRelease/core/echo"}
 	})
 
 	snap := &collector.Snapshot{
-		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{
-			"nuc": {
-				NodeId:            "nuc",
-				InstalledBuildIds: map[string]string{"gateway": "bid-OTHER"},
-			},
-		},
+		// RepositoryBuildIDIndex is intentionally nil — collector had no signal.
+	}
+	findings := (repositoryDesiredBuildIDsResolve{}).Evaluate(snap, testConfig())
+	if len(findings) != 0 {
+		t.Errorf("nil RepositoryBuildIDIndex must produce no findings; got %+v", findings)
+	}
+}
+
+func TestDoctorRule_RepositoryDesiredBuildIDsResolve_OrphanFires(t *testing.T) {
+	// Desired pins bid-X. Repository's authoritative index does NOT contain it.
+	// → orphan → CRITICAL finding.
+	withDesiredBuildIDs(t, func(context.Context) map[string]string {
+		return map[string]string{"bid-X": "/globular/resources/ServiceRelease/core/echo"}
+	})
+
+	snap := &collector.Snapshot{
+		// Repository has artifacts, but bid-X is NOT among them.
+		RepositoryBuildIDIndex: map[string]bool{"bid-OTHER": true},
 	}
 	findings := (repositoryDesiredBuildIDsResolve{}).Evaluate(snap, testConfig())
 	if len(findings) != 1 {
@@ -198,23 +208,24 @@ func TestDoctorRule_RepositoryDesiredBuildIDsResolve_OrphanFires(t *testing.T) {
 	}
 }
 
-func TestDoctorRule_RepositoryDesiredBuildIDsResolve_AllResolved_NoFinding(t *testing.T) {
-	// Desired pins bid-X, AND a node has bid-X installed → resolved → no finding.
+func TestDoctorRule_RepositoryDesiredBuildIDsResolve_RepositoryHasIt_NoFinding(t *testing.T) {
+	// Desired pins bid-X. Repository CAN resolve bid-X. → no finding even if
+	// no node has installed it yet (legitimate Day-1 / first-publish window).
 	withDesiredBuildIDs(t, func(context.Context) map[string]string {
 		return map[string]string{"bid-X": "/globular/resources/ServiceRelease/core/echo"}
 	})
 
 	snap := &collector.Snapshot{
+		RepositoryBuildIDIndex: map[string]bool{"bid-X": true},
+		// Critically: NodeHealths has no installs yet. This used to false-
+		// positive on every Day-1 bootstrap.
 		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{
-			"nuc": {
-				NodeId:            "nuc",
-				InstalledBuildIds: map[string]string{"echo": "bid-X"},
-			},
+			"nuc": {NodeId: "nuc", InstalledBuildIds: map[string]string{}},
 		},
 	}
 	findings := (repositoryDesiredBuildIDsResolve{}).Evaluate(snap, testConfig())
 	if len(findings) != 0 {
-		t.Errorf("desired build_id is installed somewhere; rule must not fire. Got %+v", findings)
+		t.Errorf("repository can resolve bid-X — rule must not fire even with zero installs. Got %+v", findings)
 	}
 }
 

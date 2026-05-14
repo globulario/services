@@ -85,6 +85,23 @@ type Snapshot struct {
 	// "repository.endpoint_missing" invariant in repository_status.go.
 	RepositoryEndpointMissing bool
 
+	// RepositoryBuildIDIndex is the set of build_ids the repository can
+	// resolve as installable artifacts, populated by the collector from a
+	// ListArtifacts RPC against the live repository service. This is the
+	// AUTHORITATIVE source for "does the repository have build_id X?" —
+	// no other field is a valid substitute (in particular, scanning
+	// NodeHealth.InstalledBuildIds is wrong: during Day-1 bootstrap the
+	// repository has the build_ids but no node has installed them yet,
+	// which would make every desired pin look orphaned).
+	//
+	// Nil means the collector had no repository client OR the ListArtifacts
+	// call failed. Rules that consume this MUST treat nil as "no signal —
+	// do not infer anything" and emit no findings. An empty (non-nil) map
+	// is the legitimate "repository has zero installable artifacts" state.
+	//
+	// Consumed by the "repository.desired_build_ids_resolve" rule.
+	RepositoryBuildIDIndex map[string]bool
+
 	// Workflow convergence telemetry — see WI17/WI18.
 	StepOutcomes      []*workflowpb.WorkflowStepOutcome
 	WorkflowSummaries []*workflowpb.WorkflowRunSummary

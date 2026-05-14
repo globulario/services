@@ -53,19 +53,26 @@ var desiredBuildIDsReader = readDesiredBuildIDs
 
 func (r repositoryDesiredBuildIDsResolve) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 	// Two inputs:
-	//  (a) the set of build_ids the cluster currently desires
-	//  (b) the set of build_ids the repository can resolve (i.e. installable
+	//  (a) the set of build_ids the cluster currently desires (etcd
+	//      /globular/resources/*)
+	//  (b) the set of build_ids the REPOSITORY can resolve (i.e. installable
 	//      manifests in the catalog).
 	//
-	// (a) is collected via desiredBuildIDsReader, which by default reads etcd
-	//     directly because the snapshot does not carry a per-build_id desired
-	//     index. Tests override this to inject controlled desired-state data.
+	// (a) is collected via desiredBuildIDsReader, overrideable in tests.
+	// (b) is the authoritative set from the snapshot's RepositoryBuildIDIndex,
+	//     populated by the collector when it has a repository client.
 	//
-	// (b) comes from the repository's per-node InstalledBuildIDs in NodeHealth
-	//     plus the RepositoryFindings the collector already gathered. We treat
-	//     "the repository has an entry for build_id X" as the resolution proof.
-	//     We do NOT make a fresh ResolveArtifact RPC from the doctor — that's
-	//     the repository's job and would couple the doctor to repo internals.
+	// Why we no longer use "installed on any node" as a proxy for (b):
+	// during legitimate Day-1 / first-publish bootstrap, desired state pins
+	// the v1.2.47 build_ids minutes before any node has installed them. The
+	// installed-state proxy fired CRITICAL on every desired build_id during
+	// that window — a false-positive storm. The repository ALREADY knows
+	// what it has; the doctor must ask it, not infer.
+	//
+	// Degraded-mode: when the collector has no repository client (or the
+	// list failed), RepositoryBuildIDIndex is nil. In that case this rule
+	// returns no findings rather than guessing — silence beats false alarm.
+	// The rule will re-engage once the collector regains repository access.
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -76,25 +83,17 @@ func (r repositoryDesiredBuildIDsResolve) Evaluate(snap *collector.Snapshot, _ C
 		return nil
 	}
 
-	// Build the set of build_ids the repository has produced (i.e. that any
-	// node has ever successfully installed). This is a lower bound but
-	// catches the production case where the desired set references a build_id
-	// no node has ever seen, indicating the repository lost the entry.
-	known := map[string]bool{}
-	for _, health := range snap.NodeHealths {
-		if health == nil {
-			continue
-		}
-		for _, bid := range health.GetInstalledBuildIds() {
-			if strings.TrimSpace(bid) != "" {
-				known[bid] = true
-			}
-		}
+	// Authoritative resolvable set from the repository. Nil ⇒ no signal,
+	// fail safely silent. Empty (non-nil) ⇒ repository genuinely has no
+	// installable artifacts, every desired pin is orphaned (correct alarm).
+	resolvable := snap.RepositoryBuildIDIndex
+	if resolvable == nil {
+		return nil
 	}
 
 	var findings []Finding
 	for bid, ref := range desired {
-		if known[bid] {
+		if resolvable[bid] {
 			continue
 		}
 		findings = append(findings, Finding{
@@ -106,15 +105,15 @@ func (r repositoryDesiredBuildIDsResolve) Evaluate(snap *collector.Snapshot, _ C
 			Summary:         fmt.Sprintf("DesiredBuildIdOrphaned: %s pins build_id=%s but the repository has no installable artifact for it — installs will fail until repository repair or desired roll-forward", ref, bid),
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 			Evidence: []*cluster_doctorpb.Evidence{
-				kvEvidence("etcd", "/globular/resources/*", map[string]string{
-					"build_id":     bid,
-					"desired_ref":  ref,
-					"hint":         "controller dispatched install workflows that the repository cannot serve",
+				kvEvidence("repository", "ListArtifacts (build_id index)", map[string]string{
+					"build_id":      bid,
+					"desired_ref":   ref,
+					"hint":          "repository cannot resolve this build_id; controller will install-storm",
 					"forbidden_fix": "do NOT delete the desired build_id — that just hides the breakage; repair the repository index",
 				}),
 			},
 			Remediation: []*cluster_doctorpb.RemediationStep{
-				step(1, "Inspect repository: globular repository ls --publisher core@globular.io --name <name>", ""),
+				step(1, "Inspect repository: globular repository inspect --build-id <id>", ""),
 				step(2, "Reindex from blobs: globular repository repair-index --from-all --dry-run", ""),
 				step(3, "If reindex impossible, roll desired forward to a resolvable build", "globular services desired set <name> <new_version>"),
 			},
