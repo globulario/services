@@ -328,7 +328,15 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 	}
 	r.Trust = computeTrustEnvelope(ctx, g, opts, r)
 
-	// Per-finding decision traces (Phase 2: built by analysis/contextnav).
+	// Per-finding decision traces (analysis/contextnav).
+	//
+	// Phase 8 ordering contract: r.Trust MUST be computed before
+	// buildContextnavInputs runs, so the adapter can lift TrustVerdict /
+	// TrustConfidence / TrustFreshness / TrustReason into BuildInputs
+	// and the trust_envelope EvidenceRef lands on every non-rawKnowledge
+	// trace. Re-ordering these two lines silently empties the trust
+	// evidence on every trace — keep them adjacent in this order.
+	//
 	// Pure composition over data already in the Report; produces an empty
 	// slice when no findings matched so the JSON shape stays
 	// "decision_traces: []" rather than null — agents must not read the

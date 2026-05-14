@@ -404,6 +404,11 @@ func renderAgent(r *Report, opts RenderOptions) string {
 		sb.WriteString("Static-only confidence: runtime/incident evidence not fully checked in this run.\n\n")
 	}
 
+	// Phase 9: compact decision traces. Placed before the long raw lists
+	// so the agent reads the per-finding pivots first; falls through
+	// silently when no traces exist (NO_MATCH path).
+	writeDecisionTraces(&sb, r.DecisionTraces, verbosity)
+
 	// Likely root-cause areas from invariants and failure modes.
 	rootCause := append([]string{}, r.Invariants...)
 	rootCause = append(rootCause, r.FailureModes...)
@@ -590,6 +595,187 @@ func renderAgent(r *Report, opts RenderOptions) string {
 	sb.WriteString(r.AgentInstruction + "\n")
 
 	return sb.String()
+}
+
+// writeDecisionTraces emits the Phase 9 "Decision traces" section in the
+// agent format. Compact by default: top 5 traces (sorted by risk —
+// forbidden_fix > invariant > failure_mode > raw_knowledge > experience),
+// with each trace capped to top 3 pivots, top 3 actions, top 2 falsifiers,
+// and top 3 evidence entries. Full detail is in the JSON output. A normal
+// preflight stays well under 200 agent-format lines with this budget.
+//
+// Render order is the doc's risk ladder, which differs from the JSON
+// order (FailureMode first) — agents reading the text get the
+// most-actionable findings up top.
+func writeDecisionTraces(sb *strings.Builder, traces []DecisionTrace, verbosity Verbosity) {
+	if len(traces) == 0 {
+		return
+	}
+
+	// Cap traces by verbosity. Full verbosity shows everything; standard
+	// and compact trim to the top 5.
+	maxTraces := agentLimit(verbosity, 5, 3)
+	maxPivots := agentLimit(verbosity, 3, 2)
+	maxActions := agentLimit(verbosity, 3, 2)
+	maxFalsifiers := agentLimit(verbosity, 2, 2)
+	maxEvidence := agentLimit(verbosity, 3, 2)
+
+	ranked := make([]DecisionTrace, len(traces))
+	copy(ranked, traces)
+	sort.SliceStable(ranked, func(i, j int) bool {
+		ri, rj := agentTraceRank(ranked[i].FindingType), agentTraceRank(ranked[j].FindingType)
+		if ri != rj {
+			return ri < rj
+		}
+		return ranked[i].FindingID < ranked[j].FindingID
+	})
+	if verbosity != VerbosityFull && len(ranked) > maxTraces {
+		ranked = ranked[:maxTraces]
+	}
+
+	sb.WriteString("Decision traces:\n")
+	for i, tr := range ranked {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(fmt.Sprintf("- finding: %s.%s\n", tr.FindingType, tr.FindingID))
+		sb.WriteString(fmt.Sprintf("  confidence: %s\n", tr.Confidence))
+
+		if owner := renderOwnerOneLine(tr.Owner); owner != "" {
+			sb.WriteString("  owner: " + owner + "\n")
+		}
+
+		if len(tr.MatchedBy) > 0 {
+			sb.WriteString("  why:\n")
+			n := len(tr.MatchedBy)
+			if n > maxEvidence {
+				n = maxEvidence
+			}
+			for _, ev := range tr.MatchedBy[:n] {
+				sb.WriteString("    - " + renderEvidenceOneLine(ev) + "\n")
+			}
+		}
+
+		// Pivots: split forbidden_fix entries into their own line group so
+		// the agent sees "do not do X" without having to read every pivot.
+		var forbiddenPivots, otherPivots []ContextPivot
+		for _, p := range tr.Pivots {
+			if p.Kind == "forbidden_fix" {
+				forbiddenPivots = append(forbiddenPivots, p)
+			} else {
+				otherPivots = append(otherPivots, p)
+			}
+		}
+		if len(otherPivots) > 0 {
+			sb.WriteString("  pivots:\n")
+			n := len(otherPivots)
+			if n > maxPivots {
+				n = maxPivots
+			}
+			for _, p := range otherPivots[:n] {
+				sb.WriteString(fmt.Sprintf("    - %s: %s\n", p.Kind, p.ID))
+			}
+		}
+		if len(forbiddenPivots) > 0 {
+			sb.WriteString("  forbidden:\n")
+			n := len(forbiddenPivots)
+			if n > maxPivots {
+				n = maxPivots
+			}
+			for _, p := range forbiddenPivots[:n] {
+				sb.WriteString("    - " + p.ID + "\n")
+			}
+		}
+
+		if len(tr.NextActions) > 0 {
+			sb.WriteString("  next:\n")
+			n := len(tr.NextActions)
+			if n > maxActions {
+				n = maxActions
+			}
+			for _, a := range tr.NextActions[:n] {
+				if a.Command != "" {
+					sb.WriteString("    - " + a.Command + "\n")
+				} else {
+					sb.WriteString("    - " + a.Kind + ": " + a.Reason + "\n")
+				}
+			}
+		}
+
+		if len(tr.Falsifiers) > 0 {
+			sb.WriteString("  falsify:\n")
+			n := len(tr.Falsifiers)
+			if n > maxFalsifiers {
+				n = maxFalsifiers
+			}
+			for _, f := range tr.Falsifiers[:n] {
+				sb.WriteString("    - " + f.Claim + "\n")
+			}
+		}
+	}
+	if verbosity != VerbosityFull && len(traces) > maxTraces {
+		sb.WriteString(fmt.Sprintf("\n  ... %d more trace(s) — see JSON output for full detail\n",
+			len(traces)-maxTraces))
+	}
+	sb.WriteString("\n")
+}
+
+// agentTraceRank orders DecisionTrace findings for agent-format display.
+// Per the design doc: forbidden_fix > invariant > runtime failure_mode >
+// raw_knowledge > experience. The JSON ordering (FailureMode first) is
+// preserved for that channel; this is render-only.
+func agentTraceRank(t FindingType) int {
+	switch t {
+	case FindingForbiddenFix:
+		return 0
+	case FindingInvariant:
+		return 1
+	case FindingFailureMode:
+		return 2
+	case FindingRuntime:
+		return 3
+	case FindingRawKnowledge:
+		return 4
+	case FindingExperience:
+		return 5
+	}
+	return 99
+}
+
+// renderOwnerOneLine collapses an OwnerContext to a single "layer /
+// service / package" line, skipping empty fields. Returns "" when every
+// owner field is empty.
+func renderOwnerOneLine(o OwnerContext) string {
+	parts := make([]string, 0, 3)
+	if o.Layer != "" && o.Layer != "unknown" {
+		parts = append(parts, o.Layer)
+	}
+	if o.Service != "" {
+		parts = append(parts, o.Service)
+	}
+	if o.Package != "" {
+		parts = append(parts, o.Package)
+	}
+	return strings.Join(parts, " / ")
+}
+
+// renderEvidenceOneLine summarises an EvidenceRef into one short line.
+// Format: "<source>: <reason>" or "<source> <path_summary>" — whichever
+// is more informative. Confidence + freshness appear in parentheses when
+// non-default.
+func renderEvidenceOneLine(ev EvidenceRef) string {
+	main := ev.Source
+	switch {
+	case ev.PathSummary != "":
+		main = ev.Source + ": " + ev.PathSummary
+	case ev.Reason != "":
+		main = ev.Source + ": " + ev.Reason
+	}
+	suffix := ""
+	if ev.Freshness != "" && ev.Freshness != "unknown" {
+		suffix = " [" + ev.Freshness + "]"
+	}
+	return main + suffix
 }
 
 // writeListSection writes a markdown section with a bullet list or fallback message.
