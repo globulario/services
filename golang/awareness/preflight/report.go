@@ -2,7 +2,10 @@
 // agent-facing report. No new graph theory — pure composition.
 package preflight
 
-import "github.com/globulario/services/golang/awareness/assurance"
+import (
+	"github.com/globulario/services/golang/awareness/analysis/contextnav"
+	"github.com/globulario/services/golang/awareness/assurance"
+)
 
 // TaskClass labels the nature of a task for agent routing.
 type TaskClass string
@@ -245,103 +248,30 @@ const LiveOverlayTTLSeconds = 300 // 5 minutes
 // LiveOverlayStaleSeconds is when a live snapshot is considered "stale" but not absent.
 const LiveOverlayStaleSeconds = 900 // 15 minutes
 
-// FindingType labels the kind of awareness object a decision trace describes.
-// The enum mirrors the four canonical Report match buckets so callers can
-// route on type without re-classifying the underlying id.
-type FindingType string
-
-const (
-	FindingInvariant    FindingType = "invariant"
-	FindingFailureMode  FindingType = "failure_mode"
-	FindingForbiddenFix FindingType = "forbidden_fix"
-	FindingRawKnowledge FindingType = "raw_knowledge"
-	FindingRuntime      FindingType = "runtime"
-	FindingExperience   FindingType = "experience"
+// FindingType, EvidenceRef, OwnerContext, ContextPivot, DiagnosticAction,
+// Falsifier, and DecisionTrace live in analysis/contextnav as of Phase 2 of
+// the context-navigation effort. The aliases below preserve the
+// preflight.DecisionTrace surface — callers (CLI, MCP, format helpers) can
+// keep importing them from preflight while the build logic and any
+// graph-aware analysis moves into contextnav.
+type (
+	FindingType      = contextnav.FindingType
+	EvidenceRef      = contextnav.EvidenceRef
+	OwnerContext     = contextnav.OwnerContext
+	ContextPivot     = contextnav.ContextPivot
+	DiagnosticAction = contextnav.DiagnosticAction
+	Falsifier        = contextnav.Falsifier
+	DecisionTrace    = contextnav.DecisionTrace
 )
 
-// EvidenceRef is one strand of why a finding fired. A DecisionTrace can carry
-// multiple — graph match, raw-yaml fallback, alias hit, runtime observation —
-// and the verdict reader can see exactly how the match landed instead of
-// having to re-derive it from prose. The Source classification is critical:
-// agents must distinguish "graph proved this" from "alias guessed this".
-type EvidenceRef struct {
-	Source      string  `json:"source"` // graph | raw_yaml | runtime | alias | experience
-	NodeID      string  `json:"node_id,omitempty"`
-	EdgeKind    string  `json:"edge_kind,omitempty"`
-	PathSummary string  `json:"path_summary,omitempty"`
-	Confidence  float64 `json:"confidence"`
-	Freshness   string  `json:"freshness,omitempty"` // fresh | stale | unknown | absent
-	Reason      string  `json:"reason,omitempty"`
-}
-
-// OwnerContext names which layer owns a finding. Phase 1 leaves most fields
-// empty; later phases will infer Layer/Service/Package from graph edges and
-// task hints. The type is stable from day one so MCP consumers don't have
-// to chase shape changes when Phase 3 lands.
-type OwnerContext struct {
-	Layer    string   `json:"layer,omitempty"` // repository | desired | installed | runtime | workflow | pki | dns | rbac | unknown
-	Service  string   `json:"service,omitempty"`
-	Package  string   `json:"package,omitempty"`
-	Files    []string `json:"files,omitempty"`
-	Symbols  []string `json:"symbols,omitempty"`
-	StateIDs []string `json:"state_ids,omitempty"`
-}
-
-// ContextPivot is one ranked next-hop a reader can navigate to from a
-// finding. Kind discriminates the destination (source_invariant, required_test,
-// forbidden_fix, runtime_evidence, etc.) so agents render or follow pivots
-// without parsing the ID.
-type ContextPivot struct {
-	Kind        string  `json:"kind"`
-	ID          string  `json:"id"`
-	Title       string  `json:"title,omitempty"`
-	WhyRelevant string  `json:"why_relevant,omitempty"`
-	Command     string  `json:"command,omitempty"`
-	Confidence  float64 `json:"confidence,omitempty"`
-}
-
-// DiagnosticAction is a safe-to-run remediation command suggested for a
-// finding. SafeToRun=true means read-only / test / build only. Anything
-// cluster-mutating MUST set RequiresAck=true and explain why in Reason.
-type DiagnosticAction struct {
-	Kind        string `json:"kind"` // inspect | test | rebuild | runtime_collect | grep | runbook | stop
-	Command     string `json:"command,omitempty"`
-	Reason      string `json:"reason"`
-	SafeToRun   bool   `json:"safe_to_run"`
-	RequiresAck bool   `json:"requires_ack,omitempty"`
-}
-
-// Falsifier records "what evidence would prove this diagnosis wrong". Forces
-// the agent to think in falsifiable claims, not just match output. Phase 1
-// emits a generic fallback; later phases ship per-failure_mode templates.
-type Falsifier struct {
-	Claim      string `json:"claim"`
-	HowToCheck string `json:"how_to_check"`
-	Command    string `json:"command,omitempty"`
-}
-
-// DecisionTrace is the per-finding "why did this fire, and what now?" record.
-// One trace per matched invariant / failure_mode / forbidden_fix / raw_yaml
-// fallback / runtime match. Phase 1 populates MatchedBy + Pivots + a generic
-// Falsifier from data preflight already collects; Owner, NextActions, and
-// per-failure_mode Falsifiers are reserved for later phases.
-//
-// IMPORTANT: when no findings match, DecisionTraces stays empty (length 0),
-// NOT nil — the trust envelope is the single source of safety verdicts under
-// NO_MATCH, and a fabricated trace would compete with it.
-type DecisionTrace struct {
-	FindingID       string             `json:"finding_id"`
-	FindingType     FindingType        `json:"finding_type"`
-	Summary         string             `json:"summary,omitempty"`
-	Confidence      Confidence         `json:"confidence"`
-	ConfidenceScore float64            `json:"confidence_score,omitempty"`
-	MatchedBy       []EvidenceRef      `json:"matched_by"`
-	Owner           OwnerContext       `json:"owner"`
-	Pivots          []ContextPivot     `json:"pivots"`
-	NextActions     []DiagnosticAction `json:"next_actions"`
-	Falsifiers      []Falsifier        `json:"falsifiers"`
-	Warnings        []string           `json:"warnings,omitempty"`
-}
+const (
+	FindingInvariant    = contextnav.FindingInvariant
+	FindingFailureMode  = contextnav.FindingFailureMode
+	FindingForbiddenFix = contextnav.FindingForbiddenFix
+	FindingRawKnowledge = contextnav.FindingRawKnowledge
+	FindingRuntime      = contextnav.FindingRuntime
+	FindingExperience   = contextnav.FindingExperience
+)
 
 // ExperienceHint is a compact similar-experience suggestion shown during preflight.
 type ExperienceHint struct {
