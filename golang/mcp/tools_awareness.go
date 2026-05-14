@@ -54,11 +54,13 @@ func registerAwarenessTools(s *server) {
 
 	// Bundle paths are signed, content-addressed, root-owned, and immutable
 	// post-install. graph.Open's migrate() would try to write DDL and fail
-	// when the service user can't open the file read-write; OpenReadOnly
-	// is the correct verb for bundle data. Non-bundle paths (dev checkouts,
-	// staged runtime copies) still use Open so writes from learn_from_fix
-	// and friends keep working.
-	useReadOnly := isAwarenessBundlePath(dbPath)
+	// when the service user can't open the file read-write. OpenComposite
+	// is the correct verb: the bundle is ATTACHed read-only and a writable
+	// runtime database — runtime.db, sibling of the bundle — holds session,
+	// coordination, experience, learning, and other mutable awareness data.
+	// Non-bundle paths (dev checkouts, the legacy system db) still use Open
+	// so behaviour for dev/CI runs is unchanged.
+	useComposite := isAwarenessBundlePath(dbPath)
 
 	// Prefer docs dir from the installed bundle, then from the repo checkout.
 	if docsDir == "" || !dirExists(docsDir) {
@@ -77,18 +79,20 @@ func registerAwarenessTools(s *server) {
 	if dbPath != "" {
 		var g *graph.Graph
 		var err error
-		if useReadOnly {
-			g, err = graph.OpenReadOnly(dbPath)
+		if useComposite {
+			runtimePath := awarenessRuntimeDBPath(dbPath)
+			g, err = graph.OpenComposite(dbPath, runtimePath)
+			if err == nil {
+				log.Printf("mcp: awareness graph opened (composite): bundle=%s runtime=%s", dbPath, runtimePath)
+			}
 		} else {
 			g, err = graph.Open(dbPath)
+			if err == nil {
+				log.Printf("mcp: awareness graph opened (read-write): %s", dbPath)
+			}
 		}
 		if err == nil {
 			st.g = g
-			mode := "read-write"
-			if useReadOnly {
-				mode = "read-only"
-			}
-			log.Printf("mcp: awareness graph opened (%s): %s", mode, dbPath)
 		} else {
 			log.Printf("mcp: awareness graph unavailable (%s): %v — degraded mode", dbPath, err)
 		}
@@ -152,12 +156,29 @@ func dirExists(path string) bool {
 // and opened read-only.
 const awarenessBundleRoot = "/var/lib/globular/awareness/"
 
+// awarenessRuntimeDBPath returns the writable runtime database path that
+// pairs with the given bundle path. It lives inside the existing
+// /var/lib/globular/awareness/runtime/ directory, which was created by
+// the bundle installer with globular:globular ownership so the service
+// user can create files there. The awareness root itself is root-owned
+// (the bundle is installed by root and must stay so), so a sibling at
+// the root level would fail to open for the service user.
+//
+// Path is stable regardless of which installed/<version>/<uuid>/ the
+// /current symlink points to — bundle reinstalls swap the symlink, the
+// runtime database stays put. The historical workaround under this
+// directory ("graph.db", a writable copy of the bundle) is unreferenced
+// by the new composite path and can be removed in a later cycle.
+func awarenessRuntimeDBPath(bundlePath string) string {
+	return filepath.Join(awarenessBundleRoot, "runtime", "runtime.db")
+}
+
 // isAwarenessBundlePath reports whether path lives inside a signed bundle.
 // We resolve symlinks so /var/lib/globular/awareness/current/graph.db (a
 // symlink into installed/<version>/<uuid>/) is correctly classified.
 // Falls back to the lexical prefix when the link can't be resolved (e.g.,
 // during dev with a broken symlink) — better to err on the side of
-// read-only than to attempt a migrate against a root-owned file.
+// composite-mode than to attempt a migrate against a root-owned file.
 func isAwarenessBundlePath(path string) bool {
 	if path == "" {
 		return false

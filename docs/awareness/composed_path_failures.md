@@ -566,6 +566,71 @@ log is where we earn the right to consolidate.
 
 ---
 
+## 2026-05-14 — Writable runtime alongside immutable bundle (consolidation)
+
+This entry consolidates the 2026-05-14 "graph.Open always migrates against
+immutable bundles" failure. That fix established `OpenReadOnly` for the
+signed bundle; this fix establishes where writes actually go.
+
+- **Shared concept that fragmented**: where the small fraction of
+  awareness state that is genuinely mutable at runtime lives. Sessions,
+  coordination, experience attempts, learning proposals, semantic-diff
+  reports, file-fingerprint snapshots, agent usage events, incident
+  patterns, and live-cluster signal snapshots all need to be written
+  while the system is running. The bundle, by contract, does not.
+- **Per-subsystem interpretation**:
+  - `graph` package: "Open() always migrates and writes WAL sidecars."
+  - `graph` (post 22dbdfe6): "OpenReadOnly() refuses every write,
+    leaving writers without a home."
+  - `bundlesync`: "The bundle is content-addressed and installed once
+    by root; runtime mutation is somebody else's problem."
+  - MCP awareness tools: "I have a `*graph.Graph` handle; I assume
+    INSERT works." Every register*Tools call site that wrote runtime
+    data — incident patterns, sessions, coordination, experience,
+    semantic diff, learn-from-fix — was structurally unable to write.
+    Composed-path symptom: an entire class of MCP awareness tools
+    silently returned "read-only database" errors with no shared
+    remediation, fragmenting "where does this row go?" across every
+    subsystem.
+- **Why unit tests missed it**: each writer's tests opened a writable
+  `t.TempDir()` graph via `graph.Open`. None ran against
+  `graph.OpenReadOnly` (introduced by the previous fix), and nothing
+  tested "MCP starts with the bundle as the read source — can the
+  writers still write?" The previous fix's tests pinned that reads
+  worked and writes were refused; they couldn't pin where writes
+  *should* go because no such concept existed.
+- **End-to-end contract that should own it**: **Established 2026-05-14**.
+  `graph.OpenComposite(bundlePath, runtimePath)` opens the runtime
+  database read-write (the writable home for all mutable awareness
+  state) and ATTACHes the bundle read-only as `bundle`. The
+  partition is enforced by `bundleOnlyTables` (nodes, edges,
+  invariants, failure_modes, graph_builds, context_aliases) — these
+  tables are DROP'd from the runtime database after migration so
+  SQLite name resolution sends unqualified reads through ATTACH to
+  the bundle. Every other table lives in the runtime database and
+  accepts writes normally. Cross-database JOINs (e.g.,
+  `experience_entries LEFT JOIN nodes`, `service_live_states JOIN
+  edges`) keep working transparently — SQLite handles them across
+  attached schemas. The runtime database lives at
+  `/var/lib/globular/awareness/runtime.db`, sibling of the bundle
+  root, so bundle reinstalls swap the symlink without touching
+  accumulated session/coordination/experience data.
+- **Did the fix simplify or special-case?** **Simplified.** One verb
+  (`OpenComposite`) replaces the threatened proliferation of "open
+  the bundle for reads, open this other file for writes, manage two
+  handles in every consumer." Every existing consumer keeps its
+  single `*graph.Graph` handle and existing query strings; the
+  partition is invisible at the call site. Eight tests pin the
+  contract: bundle reads, runtime writes, bundle writes refused,
+  cross-DB JOINs, parent dir auto-create, persistence across
+  reopen, missing-bundle rejection, and direct verification that
+  bundle-only tables are absent from the main schema. The previous
+  fix's transitional `/var/lib/globular/awareness/runtime/`
+  workaround dir can now be retired — runtime data has its own home
+  and the bundle stays untouched.
+
+---
+
 ## How to add an entry
 
 1. Use the schema above. Do not skip the five fields.
