@@ -352,6 +352,42 @@ Full docs in `docs/` (49 files, 16k+ lines). Key references:
 
 ---
 
+## DAY-1 NODE OPERATIONS
+
+### Joining a node
+
+1. On the controller — create a join token:
+   ```
+   globular cluster token create
+   ```
+2. On the new node — run the gateway join script:
+   ```
+   curl -sfL https://<controller-ip>:8443/join -k | sudo bash -s -- --token <JOIN_TOKEN>
+   ```
+   Add `--repair-etcd` only if a prior join attempt left stale etcd WAL.
+
+**Never** use `globular cluster join` directly — the script handles TLS, user creation, unit files, and etcd add ordering that the bare command skips.
+
+### Cleaning a node before rejoin
+
+Before rejoining a node that had a previous Globular install (or a failed join), wipe its state completely. The clean script is served by the gateway:
+
+```bash
+# Interactive (asks for confirmation):
+curl -sfL https://<controller-ip>:8443/clean -k | sudo bash
+
+# Non-interactive / AI agents — MUST use --force:
+curl -sfL https://<controller-ip>:8443/clean -k | sudo bash -s -- --force
+```
+
+The script stops all Globular and ScyllaDB services, removes unit files, wipes `/var/lib/globular`, removes ScyllaDB packages (so node-agent owns the install on rejoin), cleans PKI from the system trust store, removes user certs, and drops the globular user/group.
+
+The canonical script is at `scripts/clean-node.sh` (also embedded in the gateway binary at build time from `Globular/internal/gateway/handlers/cluster/clean-node.sh`).
+
+**AI agents**: always use `--force` to avoid blocking on stdin. Query `ops.day-1.node.clean` in ai-memory for the full procedure.
+
+---
+
 ## KNOWN ISSUES (check before assuming things work)
 
 1. **DNS zones persist to ScyllaDB** — if zones appear missing, the CLI may have auth issues. Use grpcurl directly to `localhost:10006` to set domains.

@@ -155,6 +155,91 @@ entries:
       awareness_failure_modes:
         - vip_contamination.node_routable_ip_returns_vip
 
+  - id: ops.day-1.node.clean
+    type: SKILL
+    title: "How to cleanly wipe a node before rejoining the cluster"
+    tags: [day-1, join, uninstall, clean, node, rejoin]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, gateway]
+    content: |
+      Before rejoining a node that was previously part of a cluster (or that had a failed
+      join attempt), you MUST wipe all Globular and ScyllaDB state first. Failing to do this
+      leaves stale etcd WAL, leftover unit files, and old PKI certs that cause silent
+      divergence in the new cluster.
+
+      ## The canonical way — fetch the clean script from the gateway
+
+      The clean script is served by the cluster controller's gateway. Fetch and run it
+      ON THE NODE TO BE CLEANED (not on the controller):
+
+      ```bash
+      # Interactive (asks for confirmation):
+      curl -sfL https://<controller-ip>:8443/clean -k | sudo bash
+
+      # Non-interactive (AI agents and automation MUST use this form):
+      curl -sfL https://<controller-ip>:8443/clean -k | sudo bash -s -- --force
+      ```
+
+      The `--force` flag skips the confirmation prompt. Always use `--force` when running
+      non-interactively or from an AI agent — the script blocks forever on stdin otherwise.
+
+      ## What the script does (in order)
+
+      1. **Stop all Globular services** — stops and disables all `globular-*` systemd units
+      2. **Stop ScyllaDB** — stops scylla-server, scylla-node-exporter, and all scylla timers
+      3. **Force-kill survivors** — SIGKILL any remaining server processes and etcd
+      4. **Remove unit files** — deletes `/etc/systemd/system/globular-*.service` and drop-ins,
+         then runs `systemctl daemon-reload`
+      5. **Wipe state** — removes `/var/lib/globular`, `/etc/globular`, `/usr/lib/globular`,
+         MinIO object data (`/mnt/data/minio`), and stale CLI wrapper scripts
+      6. **Remove ScyllaDB packages** — `apt remove --purge scylla*` so node-agent owns the
+         install from scratch on rejoin (avoids systemd auto-starting scylla before node-agent)
+      7. **Wipe ScyllaDB state** — `/var/lib/scylla`, `/etc/scylla`, `/etc/scylla.d`
+      8. **Clean etcd data** — removes `/var/lib/etcd`
+      9. **Remove PKI/trust store** — deletes all Globular CA certs from system trust store
+         and runs `update-ca-certificates --fresh`
+      10. **Clean user certs** — removes `~/.config/globular/` for all users and root,
+          removes the `globular` entry from `~/.claude/.mcp.json`
+      11. **Remove globular user/group** — `userdel globular`, `groupdel globular`
+
+      ## After cleaning — rejoin
+
+      Once the clean script completes, the node is ready for a fresh Day-1 join:
+
+      ```bash
+      # On the controller — generate a new join token:
+      globular cluster token create
+
+      # On the cleaned node — join the cluster:
+      curl -sfL https://<controller-ip>:8443/join -k | sudo bash -s -- --token <JOIN_TOKEN>
+      ```
+
+      ## Running remotely via SSH
+
+      AI agents can clean a remote node without SSH session interaction:
+
+      ```bash
+      ssh root@<node-ip> "curl -sfL https://<controller-ip>:8443/clean -k | sudo bash -s -- --force"
+      ```
+
+      ## What NOT to do
+
+      - Do NOT manually delete individual files or stop services one by one — the script
+        handles ordering and edge cases (e.g. ScyllaDB package removal timing)
+      - Do NOT skip the clean step and run `--repair-etcd` alone — that only fixes etcd WAL,
+        not PKI, unit files, or ScyllaDB state
+      - Do NOT run the clean script on a HEALTHY cluster member that you want to keep —
+        it wipes everything; it is for nodes being DECOMMISSIONED or RESET
+
+    links:
+      cli_commands:
+        - "curl -sfL https://<controller-ip>:8443/clean -k | sudo bash -s -- --force"
+        - "curl -sfL https://<controller-ip>:8443/join -k | sudo bash -s -- --token <JOIN_TOKEN>"
+      related_ids:
+        - ops.day-1.join.curl-script-not-tarball
+        - ops.day-1.join.completion-checklist
+
   - id: ops.day-1.join.completion-checklist
     type: REFERENCE
     title: "How to know day-1 is actually done"
