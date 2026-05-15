@@ -15,6 +15,12 @@ import (
 // bootstrap phase before being marked as failed.
 const bootstrapPhaseTimeout = 5 * time.Minute
 
+// bootstrapAwarenessReadyTimeout is the timeout for the awareness_ready phase.
+// The awareness bundle is optional: if the repository is unreachable the node
+// should advance quickly rather than stalling the full 5-minute global timeout.
+// 90 s gives the node-agent two 60-second fetch attempts before we give up.
+const bootstrapAwarenessReadyTimeout = 90 * time.Second
+
 // eventEmitter is the subset of server used by the bootstrap state machine.
 type eventEmitter interface {
 	emitClusterEvent(eventType string, data map[string]interface{})
@@ -191,6 +197,11 @@ func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter ev
 			// the repository and reports its build_id in InstalledBuildIDs.
 			// If no awareness bundle has been published yet, this phase times out
 			// gracefully and advances — the bundle is not a hard cluster dependency.
+			// Uses a short per-phase timeout (bootstrapAwarenessReadyTimeout) so the
+			// node doesn't stall the full 5 minutes if the repository is temporarily
+			// unavailable at join time.
+			awarenessTimedOut := !node.BootstrapStartedAt.IsZero() &&
+				now.Sub(node.BootstrapStartedAt) > bootstrapAwarenessReadyTimeout
 			if node.InstalledBuildIDs[bootstrapAwarenessKey] != "" {
 				node.BlockedReason = ""
 				node.BlockedDetails = ""
@@ -202,7 +213,7 @@ func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter ev
 				}
 				node.BootstrapStartedAt = now
 				dirty = true
-			} else if phaseTimedOut(node, now) {
+			} else if awarenessTimedOut {
 				// No awareness bundle available — log and continue without it.
 				// The node is not blocked; it simply operates with a degraded awareness graph.
 				log.Printf("bootstrap: node %s (%s) awareness bundle not available — advancing without it",

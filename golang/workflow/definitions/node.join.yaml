@@ -50,16 +50,19 @@ spec:
         success:
           expr: ok == true
 
-    # ── Tier 1: Storage + mesh infrastructure (parallel) ──────────────
+    # ── Tier 1: Mesh infrastructure (parallel) ──────────────────────────
+    # minio and sidekick are intentionally absent: MinIO requires 3 storage nodes
+    # to form erasure-coding quorum, so those packages are always "held" at join
+    # time. Including them here causes install_mesh to fail immediately, which
+    # falls back to the slow 1-package-per-30s reconciler path. MinIO and sidekick
+    # are installed later by the topology workflow once quorum is achievable.
     - id: install_mesh
-      title: Install storage and mesh infrastructure
+      title: Install mesh infrastructure
       dependsOn: [verify_prerequisites]
       actor: node-agent
       action: node.install_packages
       with:
         packages:
-          - { name: minio, kind: INFRASTRUCTURE }
-          - { name: sidekick, kind: INFRASTRUCTURE }
           - { name: node-exporter, kind: INFRASTRUCTURE }
           - { name: prometheus, kind: INFRASTRUCTURE }
           - { name: alertmanager, kind: INFRASTRUCTURE }
@@ -76,8 +79,6 @@ spec:
         with:
           node_id: $.node_id
           packages:
-            - { name: minio, kind: INFRASTRUCTURE }
-            - { name: sidekick, kind: INFRASTRUCTURE }
             - { name: node-exporter, kind: INFRASTRUCTURE }
             - { name: prometheus, kind: INFRASTRUCTURE }
             - { name: alertmanager, kind: INFRASTRUCTURE }

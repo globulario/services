@@ -99,6 +99,14 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	syncTicker := time.NewTicker(5 * time.Minute)
 	defer syncTicker.Stop()
 
+	// Fast-path awareness bundle: check every 60 s while the bundle is not yet
+	// installed. This allows the controller to advance past awareness_ready within
+	// ~60 s instead of waiting for the 5-minute syncTicker. Once the bundle is
+	// installed, LoadInstalledAwarenessBuildID returns non-empty and the call is
+	// a cheap no-op (skipped inside FetchAndInstallAwarenessBundle).
+	awarenessCheckTicker := time.NewTicker(60 * time.Second)
+	defer awarenessCheckTicker.Stop()
+
 	// Attempt controller endpoint recovery every 2 minutes when missing.
 	rediscoverTicker := time.NewTicker(2 * time.Minute)
 	defer rediscoverTicker.Stop()
@@ -165,6 +173,14 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 		case <-heartbeatTimer.C:
 			runHeartbeat()
 			heartbeatTimer.Reset(heartbeatDelay)
+		case <-awarenessCheckTicker.C:
+			// Quick check: fetch awareness bundle if not yet installed.
+			// Skips immediately when already installed (idempotent).
+			if LoadInstalledAwarenessBuildID() == "" {
+				withOpTimeout(5*time.Minute, func(ctx context.Context) {
+					FetchAndInstallAwarenessBundle(ctx)
+				})
+			}
 		case <-syncTicker.C:
 			withOpTimeout(30*time.Second, srv.syncInstalledStateToEtcd)
 			withOpTimeout(15*time.Second, srv.syncEtcHosts)
@@ -173,8 +189,8 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			withOpTimeout(10*time.Second, srv.ensureScyllaManagerAgentAuthToken)
 			withOpTimeout(30*time.Second, srv.importProvisionalPackages)
 			withOpTimeout(15*time.Second, srv.reconcileDiskInventory)
-			// Fetch awareness bundle if not already installed or stale.
-			// Non-blocking: any failure is logged and retried next cycle.
+			// Fetch awareness bundle on the 5-minute sync as well (covers upgrades
+			// when a newer bundle is published after initial install).
 			withOpTimeout(5*time.Minute, func(ctx context.Context) {
 				FetchAndInstallAwarenessBundle(ctx)
 			})
