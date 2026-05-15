@@ -1034,9 +1034,6 @@ WORKFLOW_DEFS_SRC="${SCRIPT_DIR}/../workflows"
 if [[ ! -d "$WORKFLOW_DEFS_SRC" ]]; then
   WORKFLOW_DEFS_SRC="${SCRIPT_DIR}/../../services/golang/workflow/definitions"
 fi
-if [[ ! -d "$WORKFLOW_DEFS_SRC" ]]; then
-  WORKFLOW_DEFS_SRC="/home/dave/Documents/github.com/globulario/services/golang/workflow/definitions"
-fi
 if [[ -d "$WORKFLOW_DEFS_SRC" ]]; then
   mkdir -p /var/lib/globular/workflows
   cp "$WORKFLOW_DEFS_SRC"/*.yaml /var/lib/globular/workflows/
@@ -1333,7 +1330,7 @@ fi
 # after health_checks pass. Fallback to external script if post-install didn't run.
 if [[ -x "$SCRIPT_DIR/bootstrap-dns.sh" ]]; then
   # Verify DNS records exist; if not, run the legacy bootstrap script.
-  if command -v dig >/dev/null 2>&1 && dig @"${NODE_IP}" +short "api.${DOMAIN}" 2>/dev/null | grep -q .; then
+  if command -v dig >/dev/null 2>&1 && dig @"${_NODE_IP}" +short "api.${DOMAIN}" 2>/dev/null | grep -q .; then
     log_success "DNS records already initialized (by package post-install)"
   else
     log_substep "DNS records missing — running bootstrap-dns.sh..."
