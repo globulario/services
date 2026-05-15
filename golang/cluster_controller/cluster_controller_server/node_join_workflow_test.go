@@ -41,6 +41,9 @@ func TestNodeJoinWorkflowIncludesRepoInstallableProfilePackages(t *testing.T) {
 		if comp.InstallMode == InstallModeDay0Join {
 			continue // bootstrapped by join script, not installed by the workflow
 		}
+		if comp.InstallMode == InstallModeTopologyWorkflow {
+			continue // requires quorum precondition; installed by topology workflow, not node.join
+		}
 		include := false
 		for _, profile := range comp.Profiles {
 			if requiredProfiles[profile] {

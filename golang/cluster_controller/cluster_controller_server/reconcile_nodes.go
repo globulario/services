@@ -529,12 +529,16 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 			continue
 		}
 
-		// Skip day0_join infrastructure — these are managed by dedicated
-		// bootstrap/join state machines (e.g. etcd member-add), not the
-		// artifact pipeline. Creating InfrastructureRelease for them would
-		// cause the node-agent to attempt an artifact-based install.
-		if comp.Kind == KindInfrastructure && comp.InstallMode == InstallModeDay0Join {
-			log.Printf("materialize-infra: skipping %s (install_mode=day0_join, managed by join logic)", compName)
+		// Skip day0_join and topology_workflow infrastructure — these are managed
+		// by dedicated state machines, not the artifact pipeline.
+		// day0_join: managed by bootstrap/join logic (e.g. etcd member-add).
+		// topology_workflow: requires quorum precondition (e.g. MinIO needs 3
+		// storage nodes) and is driven by a dedicated topology workflow.
+		// Creating InfrastructureRelease for either would cause the node-agent
+		// to attempt an artifact-based install at the wrong time.
+		if comp.Kind == KindInfrastructure &&
+			(comp.InstallMode == InstallModeDay0Join || comp.InstallMode == InstallModeTopologyWorkflow) {
+			log.Printf("materialize-infra: skipping %s (install_mode=%s, managed by dedicated workflow)", compName, comp.InstallMode)
 			continue
 		}
 

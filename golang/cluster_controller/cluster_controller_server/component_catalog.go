@@ -77,6 +77,14 @@ const (
 	// The controller should NOT create InfrastructureRelease objects for
 	// these — they are managed by dedicated bootstrap/join logic.
 	InstallModeDay0Join = "day0_join"
+
+	// InstallModeTopologyWorkflow means the component requires a quorum
+	// precondition (e.g. MinIO needs 3 storage nodes) and is installed by
+	// a dedicated topology workflow, NOT the node.join workflow. Including
+	// these in install_mesh would cause the join workflow to fail immediately
+	// on a freshly admitted node. The join workflow intentionally omits them;
+	// the topology workflow installs them once quorum is achievable.
+	InstallModeTopologyWorkflow = "topology_workflow"
 )
 
 // Component is a single deployable unit in the cluster catalog.
@@ -251,6 +259,11 @@ func buildCatalog() []*Component {
 			Profiles:             []string{"core", "compute", "storage", "control-plane"},
 			ProvidesCapabilities: []Capability{CapObjectStore},
 			HealthCheck:          &HealthCheckHintC{Unit: "globular-minio.service", Port: 9000},
+			// MinIO requires 3 storage nodes for erasure-coding quorum. It is
+			// always "held" at join time and is installed by the topology workflow
+			// once quorum is achievable. Including it in node.join causes instant
+			// failure of install_mesh on every new node join.
+			InstallMode: InstallModeTopologyWorkflow,
 		},
 		{
 			Name:                 "scylladb",
@@ -691,6 +704,9 @@ func buildCatalog() []*Component {
 			Profiles:                 []string{"core", "compute", "storage"},
 			RuntimeLocalDependencies: []string{"minio"},
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-sidekick.service"},
+			// Sidekick depends on MinIO; shares the same topology_workflow install
+			// mode since it cannot start until MinIO is running across 3 nodes.
+			InstallMode: InstallModeTopologyWorkflow,
 		},
 	}
 }
