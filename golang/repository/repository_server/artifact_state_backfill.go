@@ -101,10 +101,44 @@ func (srv *server) backfillArtifactStates(ctx context.Context, max int) Backfill
 			continue
 		}
 
-		// Already classified — nothing to do.
+		// Already classified. Most concrete states are left as-is.
+		// Exception: BLOB_VERIFIED is an intermediate publish pipeline state that
+		// should only appear transiently. If a row is stuck here (e.g. because the
+		// download-refill path left it behind before the fix), repair it by driving
+		// the pipeline forward to PUBLISHED — provided the blob is actually present.
 		current := srv.readArtifactState(ctx, row.ArtifactKey)
-		if current != PipelineUnspecified {
+		if current != PipelineUnspecified && current != PipelineBlobVerified {
 			summary.AlreadyClassified++
+			continue
+		}
+		if current == PipelineBlobVerified {
+			ref := &repopb.ArtifactRef{
+				PublisherId: row.PublisherID,
+				Name:        row.Name,
+				Version:     row.Version,
+				Platform:    row.Platform,
+			}
+			present, _ := srv.artifactBlobStatus(ctx, ref, row.BuildNumber, row.SizeBytes)
+			if !present {
+				summary.MissingBlob++
+				continue
+			}
+			fields := ArtifactStateFields{
+				BlobKey:     binaryStorageKey(row.ArtifactKey),
+				Checksum:    row.Checksum,
+				SizeBytes:   row.SizeBytes,
+				BuildNumber: row.BuildNumber,
+				PublisherID: row.PublisherID,
+				Name:        row.Name,
+				Version:     row.Version,
+				Platform:    row.Platform,
+			}
+			// Drive BLOB_VERIFIED → MANIFEST_WRITTEN → LEDGER_WRITTEN → PUBLISHED
+			// (manifest/ledger exist; no file re-writes needed — state machine only).
+			_ = srv.transitionArtifactState(ctx, row.ArtifactKey, PipelineManifestWritten, "backfill_repair_blob_verified", "", fields)
+			_ = srv.transitionArtifactState(ctx, row.ArtifactKey, PipelineLedgerWritten, "backfill_repair_blob_verified", "", fields)
+			_ = srv.transitionArtifactState(ctx, row.ArtifactKey, PipelinePublished, "backfill_repair_blob_verified", "", fields)
+			summary.PublishedOK++
 			continue
 		}
 

@@ -195,15 +195,17 @@ func (srv *server) registerDescriptor(ctx context.Context, manifest *repopb.Arti
 //
 // Write order (Scylla-first):
 //  1. Verify binary present in local store (CAS) or mirror.
-//  2. Write PUBLISHED state to Scylla ledger — REQUIRED. If this fails, the
-//     artifact stays VERIFIED and promotion fails. Scylla is the sole authority
-//     for publish state; all discovery paths read from Scylla first.
-//  3. Write PUBLISHED manifest_json to MinIO — best-effort for compatibility
+//  2. Write PUBLISHED state to Scylla ledger (publish_state column) — REQUIRED.
+//  3. Transition artifact_state pipeline column to PUBLISHED — REQUIRED.
+//     Both columns must agree; the resolver uses artifact_state for installability
+//     and publish_state for lifecycle. A PUBLISHED artifact with artifact_state=BLOB_VERIFIED
+//     is rejected by resolveArtifactByBuildID as DesiredBuildIdOrphaned.
+//  4. Write PUBLISHED manifest_json to MinIO — best-effort for compatibility
 //     with degraded/single-node reads. Failure is logged but non-fatal since
 //     Scylla already has the authoritative PUBLISHED state.
-//  4. Invalidate the in-memory cache.
+//  5. Invalidate the in-memory cache.
 //
-// If step 2 fails the manifest stays in VERIFIED state — invisible to the
+// If step 2 or 3 fails the manifest stays in VERIFIED state — invisible to the
 // release resolver until the Scylla write succeeds.
 func (srv *server) promoteToPublished(ctx context.Context, key string, manifest *repopb.ArtifactManifest) error {
 	// Step 1: Verify the binary blob is present in LOCAL POSIX CAS and checksum matches.
@@ -238,8 +240,8 @@ func (srv *server) promoteToPublished(ctx context.Context, key string, manifest 
 
 	manifest.PublishedUnix = time.Now().Unix()
 
-	// Step 2: Write PUBLISHED state to Scylla — this MUST succeed.
-	// Scylla publish_state is the authoritative source. All discovery paths
+	// Step 2: Write PUBLISHED state to Scylla publish_state column — MUST succeed.
+	// Scylla publish_state is the authoritative lifecycle source. All discovery paths
 	// (ListArtifacts, GetArtifactVersions, resolveLatestBuildNumber) read from
 	// Scylla first. If this write fails, callers must not treat the artifact as
 	// PUBLISHED — it stays VERIFIED and the reconciler will retry later.
@@ -247,6 +249,32 @@ func (srv *server) promoteToPublished(ctx context.Context, key string, manifest 
 		if err := srv.scylla.UpdatePublishState(ctx, key, repopb.PublishState_PUBLISHED.String()); err != nil {
 			return fmt.Errorf("promote to PUBLISHED: ledger update failed — artifact stays in VERIFIED state: %w", err)
 		}
+	}
+
+	// Step 3: Transition artifact_state pipeline column to PUBLISHED — MUST succeed.
+	// artifact_state is what resolveArtifactByBuildID uses to gate installability.
+	// A row with publish_state=PUBLISHED but artifact_state=BLOB_VERIFIED (or any
+	// non-PUBLISHED state) is treated as DesiredBuildIdOrphaned by the node-agent,
+	// causing an infinite install-retry storm. Both columns must agree.
+	ref := manifest.GetRef()
+	stateFields := ArtifactStateFields{
+		BlobKey:     binaryStorageKey(key),
+		Checksum:    manifest.GetChecksum(),
+		SizeBytes:   manifest.GetSizeBytes(),
+		BuildID:     manifest.GetBuildId(),
+		BuildNumber: manifest.GetBuildNumber(),
+		PublisherID: ref.GetPublisherId(),
+		Name:        ref.GetName(),
+		Version:     ref.GetVersion(),
+		Platform:    ref.GetPlatform(),
+	}
+	if err := srv.transitionArtifactState(ctx, key, PipelinePublished,
+		"upload_publish_pipeline", "", stateFields); err != nil {
+		// publish_state is already PUBLISHED (step 2 succeeded). The artifact IS
+		// discoverable. But artifact_state is wrong — the resolver will reject it.
+		// Return an error so the operator sees the failure and can retry.
+		return fmt.Errorf("promote to PUBLISHED: artifact_state transition failed — "+
+			"publish_state=PUBLISHED but artifact_state not updated; retry publish: %w", err)
 	}
 
 	// Step 3: Write PUBLISHED manifest_json to storage (mirror is best-effort).

@@ -1304,15 +1304,15 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	})
 
 	// ── Unified publish: register descriptor + promote to PUBLISHED ──────
-	// This replaces the separate Discovery call that the CLI used to make.
 	// The artifact was stored and verified above; now complete the pipeline.
-	// On failure, the artifact stays in VERIFIED state (not published) so the
-	// caller can fix the issue and retry. The workflow run captures the error.
+	// IMPORTANT: failure here must NOT be swallowed. An artifact stuck in
+	// artifact_state=BLOB_VERIFIED is treated as DesiredBuildIdOrphaned by
+	// node-agents, causing an infinite install-retry storm that blocks all
+	// convergence cluster-wide. Return Result=false so the operator knows.
 	if err := srv.completePublish(ctx, manifest, key, prov); err != nil {
-		slog.Warn("auto-publish failed — artifact stored as VERIFIED, retry with 'globular pkg promote'",
-			"key", key, "err", err)
-		// Return success for the upload itself — the binary is safely stored.
-		// The publish error is recorded in the workflow run for observability.
+		slog.Error("publish failed — artifact stored but not promoted; retry with 'globular pkg publish --force'",
+			"key", key, "build_id", buildID, "err", err)
+		return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: false, BuildId: buildID})
 	}
 
 	return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true, BuildId: buildID})
@@ -2083,9 +2083,35 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 	}
 
 	// Emit audit event when blob came from a non-local source (upstream refill).
+	// Also promote artifact_state through to PUBLISHED: materializeLocally leaves
+	// the state at BLOB_VERIFIED (the end of the blob-write phase). For a download
+	// refill the manifest and ledger already exist — drive the remaining pipeline
+	// transitions so the resolver and node-agent see a consistent PUBLISHED state.
+	// Without this, every refill permanently locks artifact_state=BLOB_VERIFIED,
+	// causing DesiredBuildIdOrphaned on all subsequent install attempts.
 	if result.SourceType != "LOCAL_POSIX" && downloadManifest != nil {
 		slog.Info("download: upstream refill succeeded", "key", key, "source", result.SourceName)
 		srv.emitRefillAudit(stream.Context(), key, downloadManifest, "success", "")
+		refillRef := downloadManifest.GetRef()
+		refillFields := ArtifactStateFields{
+			BlobKey:     result.LocalKey,
+			Checksum:    downloadManifest.GetChecksum(),
+			SizeBytes:   downloadManifest.GetSizeBytes(),
+			BuildID:     downloadManifest.GetBuildId(),
+			BuildNumber: downloadManifest.GetBuildNumber(),
+			PublisherID: refillRef.GetPublisherId(),
+			Name:        refillRef.GetName(),
+			Version:     refillRef.GetVersion(),
+			Platform:    refillRef.GetPlatform(),
+		}
+		// BLOB_VERIFIED → MANIFEST_WRITTEN → LEDGER_WRITTEN → PUBLISHED
+		// (manifest/ledger unchanged; we're driving the state machine to match reality)
+		_ = srv.transitionArtifactState(stream.Context(), key, PipelineManifestWritten, "download_refill_manifest_exists", "", refillFields)
+		_ = srv.transitionArtifactState(stream.Context(), key, PipelineLedgerWritten, "download_refill_ledger_exists", "", refillFields)
+		if err := srv.transitionArtifactState(stream.Context(), key, PipelinePublished, "download_refill_complete", "", refillFields); err != nil {
+			slog.Warn("download: refill succeeded but artifact_state→PUBLISHED failed (will be repaired by backfill)",
+				"key", key, "err", err)
+		}
 	}
 
 	f, openErr := os.Open(result.LocalPath)

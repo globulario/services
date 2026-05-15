@@ -1063,6 +1063,132 @@ deliberately deferred.
 
 ---
 
+## 2026-05-15 — Two-column installability predicate split (artifact_state vs publish_state)
+
+- **Shared concept**: "is this artifact safe to install?" — the compound
+  predicate that the node-agent evaluates before downloading and applying
+  a package. Requires both `publish_state = PUBLISHED` **and**
+  `artifact_state = PUBLISHED`. Every consumer that asks this question must
+  consult the same pair of columns.
+- **Per-subsystem interpretation**:
+  - `repository.promoteToPublished`: "My job is to mark the artifact
+    published. I call `UpdatePublishState(PUBLISHED)`." Written before
+    `artifact_state` existed as a separate column.
+  - `repository.ListArtifacts` / `resolveLatestBuildNumber`
+    (Scylla-first fix, v1.0.65): "I read `publish_state` to decide
+    which artifacts are visible." Correct for discovery.
+  - `node_agent.post-install reconciler loop`: "I periodically re-check
+    whether the desired build_id is still installable. I read
+    `artifact_state`." Returns `BLOB_VERIFIED` → classifies as
+    `DesiredBuildIdOrphaned` → triggers infinite install-retry storm.
+  - Day-0 founding node: bypassed the repository state machine entirely
+    (manual tarball seed). Neither column was consulted.
+- **Why unit tests missed it**: `promoteToPublished` tests asserted
+  that `publish_state` was written correctly — and it was. Post-install
+  reconciler tests asserted that `artifact_state=BLOB_VERIFIED` triggered
+  the orphan path — and it did. Discovery tests asserted that
+  `publish_state=PUBLISHED` made an artifact visible — and it did. No test
+  composed the full publish → discover → install → post-install-recheck
+  pipeline and then verified that both columns agreed. The two columns
+  were each tested in isolation by their respective owners.
+- **End-to-end contract that should own it**: **Established 2026-05-15**.
+  `promoteToPublished` calls both `UpdatePublishState(PUBLISHED)` and
+  `transitionArtifactState(PUBLISHED)` atomically before returning. The
+  invariant is: **no artifact may be returned to a node-agent unless
+  both columns equal PUBLISHED**. Any future lifecycle transition
+  function that touches one column must explicitly decide what to do
+  with the other — and that decision must be tested at the composed-path
+  level, not just at the per-column level.
+  - Consolidation candidate: **promote a single `MarkArtifactPublished`
+    primitive** that writes both columns in one place, so future callers
+    cannot write one without the other. Currently `UpdatePublishState` and
+    `transitionArtifactState` are separate functions; a future PR that
+    merged them under one named entry point would make the split
+    structurally impossible.
+- **Did the fix simplify or special-case?** **Special-cased (one-liner
+  patch).** Added one call to `transitionArtifactState` at the end of
+  `promoteToPublished`. The two functions remain independent; nothing
+  prevents a future writer from updating one without the other. The
+  consolidation (a single `MarkArtifactPublished`) is owed.
+  Regression test: `TestPromoteToPublishedSetsArtifactState` pins that
+  after the full publish flow both `publish_state` and `artifact_state`
+  equal `PUBLISHED` before any artifact is returned to a node-agent.
+
+---
+
+## 2026-05-15 — Join-order temporal split: wrong diagnostic axis
+
+This entry is a **meta-failure** — an awareness system failure to guide
+the right diagnostic axis. It belongs in this log because the composed
+path from "symptom observed" → "root cause identified" produced the
+wrong behavior: the AI chose the within-node comparison axis when the
+evidence demanded the cross-node temporal axis.
+
+- **Shared concept**: when N-1 nodes converge and node-N partially fails
+  with the same package set, the primary diagnostic question is **what
+  state changed between the N-1 join event and the N join event** — not
+  "what property differs between the failing packages within node-N."
+  This is a named diagnostic shape, not a novel situation.
+- **Per-subsystem interpretation**:
+  - Symptom: Day-0 OK, Day-1 node-1 fully converged, Day-1 node-2
+    partially converged (some packages install, others stuck).
+  - AI diagnostic engine: "I will compare the failing packages against
+    the succeeding packages within node-2 — kind, profile, dependency
+    order." Stayed in the within-node axis for the full diagnostic
+    session.
+  - User: "compare node-1 with node-2" — named the temporal axis.
+    Root cause found in one step: the post-install re-check loop had
+    started a retry storm between the two join events.
+  - Awareness preflight and scan-violations: returned no matched
+    finding, no ranked diagnosis path, no hint toward the temporal
+    axis. Both columns existed in the awareness graph as separate
+    nodes; no compound invariant linked them; no causal rule described
+    the partial-convergence-in-join-order symptom sequence.
+- **Why awareness missed it**:
+  1. **No compound-predicate invariant.** The graph knew
+     `publish_state` and `artifact_state` as separate nodes but had no
+     rule: "artifact.installable iff both columns = PUBLISHED." Without
+     it, `scan_violations` could not flag `promoteToPublished` as a
+     violator.
+  2. **No write-path coverage map.** No record of which functions are
+     required to write `artifact_state`. If such a map existed,
+     `promoteToPublished` would have appeared as absent from the
+     required writers set.
+  3. **No join-order causal rule.** No causal rule described the
+     symptom sequence: "N-1 nodes converge → node-N partially fails →
+     package properties don't explain the split → look for a state
+     change between join events." Preflight matched nothing; the
+     diagnostic was left entirely to the AI's intuition.
+- **End-to-end contract that should own it**: three additions are needed:
+  1. **Compound invariant in `invariants.yaml`**: `artifact.installable`
+     requires both `publish_state=PUBLISHED` and `artifact_state=PUBLISHED`.
+     Write-path coverage: `promoteToPublished` must appear in the
+     required writers list for both.
+  2. **Causal rule in `causal_rules.yaml`** (draft saved as
+     `causal-rule-proposal-20260515T140617Z`): sequence
+     "N-1 nodes converge fully → node-N joins → node-N partially
+     converges → failing packages are not semantically distinct →
+     look for a state change between join timestamps." Diagnosis:
+     temporal cross-node comparison, not within-node package
+     comparison.
+  3. **Write-path coverage map primitive**: for every column that
+     drives a node-agent install decision, record the set of functions
+     that must write it. Scanner checks that each function in the
+     required-writers set actually writes the column.
+- **Did the fix simplify or special-case?** **Neither yet — recording
+  the gap.** The causal rule is a saved draft; the compound invariant
+  and write-path coverage map are not yet implemented. This entry is
+  the evidence-of-one that licenses the work. A second incident on the
+  "wrong diagnostic axis chosen because no causal rule named the
+  pattern" shape is the trigger to implement the write-path coverage
+  map as a first-class primitive.
+  - Forbidden fix: when partial convergence appears across nodes in
+    join order, do NOT begin diagnosis by comparing packages within the
+    failing node. Begin by diffing repository/reconciler state at the
+    two join timestamps.
+
+---
+
 ## How to add an entry
 
 1. Use the schema above. Do not skip the five fields.

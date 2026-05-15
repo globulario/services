@@ -1630,6 +1630,52 @@ forbidden_fixes:
     (and doctor) can classify. Reserve NotFound for the case where the
     manifest is genuinely absent from the catalog.
 
+- id: ignore_artifact_state_in_orphan_checks
+  summary: |
+    Remove or bypass the artifact_state check in resolveByBuildID / isRowInstallable
+    so that a row with publish_state=PUBLISHED is always treated as installable regardless
+    of artifact_state. This "fixes" the DesiredBuildIdOrphaned symptom by hiding the
+    split-state signal rather than repairing the underlying data inconsistency.
+  impact: |
+    A split-state row (publish_state=PUBLISHED, artifact_state=BLOB_VERIFIED) means the
+    publish pipeline completed only half the required write. Ignoring artifact_state
+    buries the mine deeper in the snow: the next failure shape that reads artifact_state
+    for a non-installability decision will fire on a corrupt row, and the audit trail
+    showing the state was split will be gone. The compound predicate exists because both
+    columns must agree — removing one leg of the check removes the agreement guarantee.
+  related_invariants:
+    - repository.artifact.installable_compound_predicate
+    - repository.desired_build_id_must_resolve
+  safe_alternative: |
+    1. Fix the write path: promoteToPublished MUST call transitionArtifactState(PipelinePublished)
+       so both columns are set atomically. If the artifact_state write failed, the artifact
+       stays in VERIFIED (not discoverable) until publish is retried.
+    2. Run backfillArtifactStates to repair any existing stuck BLOB_VERIFIED rows: it verifies
+       the blob is present, then drives the state machine forward to PipelinePublished.
+    3. Never remove the artifact_state check from isRowInstallable. The check costs nothing
+       and catches a class of broken rows that publish_state alone cannot distinguish.
+
+- id: ignore_artifact_state_in_doctor_index
+  summary: |
+    Use IsInstallableByPin (publish_state only) as the sole filter in
+    buildIDIndexFromManifests, allowing split-state build_ids to appear as
+    "resolvable" in RepositoryBuildIDIndex even though the resolver would reject them.
+    The doctor then stays silent on a desired pin that will generate an endless
+    DesiredBuildIdOrphaned error for every node that tries to install it.
+  impact: |
+    This is the current state as of 2026-05-15. The gap is architectural: ArtifactManifest
+    proto does not carry artifact_state, so buildIDIndexFromManifests cannot filter by it.
+    This is recorded as an OPEN GAP in invariant repository.artifact.installable_compound_predicate.
+    Do NOT work around this by adding a separate doctor-side heuristic that guesses whether
+    a build_id might be split-state — that doubles the maintenance surface.
+  related_invariants:
+    - repository.artifact.installable_compound_predicate
+  safe_alternative: |
+    Add artifact_state as a string field to ArtifactManifest proto. Populate it in
+    ListArtifacts from the Scylla artifact_state column. Update buildIDIndexFromManifests
+    to mirror isRowInstallable's two-column check. This makes the doctor's index agree
+    exactly with the resolver's installability decision for every row.
+
 - id: publish_dns_from_desired_or_profile_state
   summary: |
     Compute DNS records from Profile membership only — every node

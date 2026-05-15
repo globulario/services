@@ -2054,6 +2054,85 @@ invariants:
         - TestResolveByBuildIDAbsent_ReturnsNotFound
         - TestDoctorRule_RepositoryDesiredBuildIDsResolve
 
+    - id: repository.artifact.installable_compound_predicate
+      title: Artifact installability requires publish_state AND artifact_state to both equal PUBLISHED
+      severity: critical
+      status: active
+      summary: |
+        An artifact is installable iff BOTH columns agree:
+          - publish_state == PUBLISHED  (lifecycle lifecycle gate, written by promoteToPublished)
+          - artifact_state == PUBLISHED (pipeline state gate, written by transitionArtifactState)
+        The legacy-empty fallthrough (artifact_state == "") is allowed only for rows that
+        predate the state machine; the backfill repairs them. Any non-empty artifact_state
+        other than PUBLISHED (BLOB_VERIFIED, MANIFEST_WRITTEN, BROKEN_*, QUARANTINED, REVOKED)
+        makes the artifact non-installable even when publish_state is PUBLISHED.
+        A "split-state" row (publish_state=PUBLISHED, artifact_state=BLOB_VERIFIED) appears in
+        discovery (ListArtifacts) as PUBLISHED but is rejected by resolveByBuildID as
+        DesiredBuildIdOrphaned — triggering an infinite install-retry storm on every node-agent
+        that holds a desired pin to that build_id. Join-order effect: the storm begins after
+        the first node installs the artifact and the post-install reconciler loop re-reads
+        artifact_state; subsequent nodes partially fail depending on workflow slot availability.
+      protects:
+        state:
+          - publish_state column (Scylla artifacts table)
+          - artifact_state column (Scylla artifacts table)
+        files:
+          - golang/repository/repository_server/publish_workflow.go
+          - golang/repository/repository_server/artifact_state.go
+          - golang/repository/repository_server/artifact_state_backfill.go
+        symbols:
+          - promoteToPublished
+          - transitionArtifactState
+          - isRowInstallable
+          - backfillArtifactStates
+      enforcement: |
+        - promoteToPublished MUST call BOTH UpdatePublishState(PUBLISHED) AND
+          transitionArtifactState(PipelinePublished) before returning success.
+          If either write fails, the artifact stays in VERIFIED state (not discoverable).
+        - isRowInstallable is the single canonical installability gate. It MUST be
+          used by ALL install paths: resolver, DownloadArtifact, GetArtifactVersions,
+          resolveLatestBuildNumber. No path may use publish_state alone as a proxy.
+        - backfillArtifactStates repairs stuck BLOB_VERIFIED rows on startup. Any row
+          with publish_state=PUBLISHED and artifact_state=BLOB_VERIFIED has a locally-present
+          blob — drive it forward to PipelinePublished.
+        - OPEN GAP: the doctor's RepositoryBuildIDIndex is built from ListArtifacts which
+          does not expose artifact_state in the ArtifactManifest proto. Split-state artifacts
+          (pub=PUBLISHED, art=BLOB_VERIFIED) pass buildIDIndexFromManifests silently, so
+          repository.desired_build_ids_resolve stays silent. Resolution requires adding
+          artifact_state to ArtifactManifest proto or a dedicated ListSplitStateArtifacts RPC.
+      writers:
+        publish_state:
+          - promoteToPublished (via UpdatePublishState)
+          - syncStateToScylla
+        artifact_state:
+          - promoteToPublished (via transitionArtifactState — REQUIRED)
+          - backfillArtifactStates (via transitionArtifactState — repair only)
+          - transitionArtifactState (internal state machine)
+      readers:
+        publish_state:
+          - ListArtifacts (discovery — display path)
+          - buildIDIndexFromManifests (doctor collector)
+          - IsInstallableByPin (publish_state only — NOT sufficient alone)
+        artifact_state:
+          - isRowInstallable (install gate — checks BOTH columns)
+          - resolveByBuildID (via isRowInstallable)
+          - DownloadArtifact (via isRowInstallableWithSignaturePolicy)
+          - GetArtifactVersions (install-path — via isRowInstallable)
+          - resolveLatestBuildNumber (via isRowInstallable)
+      forbidden_fixes:
+        - ignore_artifact_state_in_orphan_checks
+        - return_NotFound_for_yanked_revoked_or_archived_manifests
+        - increase_workflow_queue_capacity_to_hide_retry_storm
+        - special_case_late_joining_nodes_without_fixing_state_split
+      related_failure_modes:
+        - repository.desired_build_id_orphaned
+        - repository.compound_predicate_split
+      required_tests:
+        - TestPromoteToPublished_SetsArtifactStatePublished
+        - TestPromoteToPublished_ReturnsErrorWhenArtifactStateTransitionFails
+        - TestResolverFilter_ExcludesNonInstallableStates_BlobVerifiedIsRejected
+        - TestOrphanCheck_DoesNotDisagreeWithDiscovery
+
     - id: repository.fallback_requires_manifest_and_checksum
       title: Fallback sources MUST never fetch without manifest+checksum proof
       severity: critical

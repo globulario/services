@@ -169,3 +169,168 @@ func TestReleaseResolverSeesPublishedWithEmptyMinioListing(t *testing.T) {
 		t.Error("release resolver: node_agent not found as PUBLISHED candidate — MinIO was empty, Scylla must be the source")
 	}
 }
+
+// ── Test 6: promoteToPublished sets artifact_state=PUBLISHED ─────────────
+// Regression test for the BLOB_VERIFIED stuck-artifact bug.
+//
+// Root cause: promoteToPublished called UpdatePublishState (publish_state column)
+// but never called transitionArtifactState (artifact_state column). An artifact
+// with publish_state=PUBLISHED but artifact_state=BLOB_VERIFIED was treated as
+// DesiredBuildIdOrphaned by the node-agent, causing an infinite install-retry
+// storm that blocked all convergence cluster-wide.
+
+func TestPromoteToPublished_SetsArtifactStatePublished(t *testing.T) {
+	ref := &repopb.ArtifactRef{
+		PublisherId: "glob", Name: "echo", Version: "1.0.66",
+		Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
+	}
+	srv, ledger := newLedgerTestServer(t)
+	ctx := context.Background()
+
+	key := artifactKeyWithBuild(ref, 1)
+	binary := []byte("fake-echo-binary")
+
+	// Seed Scylla row (as upload would — publish_state=VERIFIED, artifact_state unset)
+	_ = ledger.PutManifest(ctx, manifestRow{
+		ArtifactKey:  key,
+		PublishState: repopb.PublishState_VERIFIED.String(),
+		PublisherID:  ref.GetPublisherId(),
+		Name:         ref.GetName(),
+		Version:      ref.GetVersion(),
+		Platform:     ref.GetPlatform(),
+		BuildNumber:  1,
+	})
+
+	// Write the binary blob so promoteToPublished's Stat check passes.
+	_ = srv.localStorage.MkdirAll(ctx, artifactsDir, 0o755)
+	_ = srv.localStorage.WriteFile(ctx, binaryStorageKey(key), binary, 0o644)
+
+	manifest := &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 1,
+		SizeBytes:   int64(len(binary)),
+	}
+
+	if err := srv.promoteToPublished(ctx, key, manifest); err != nil {
+		t.Fatalf("promoteToPublished: %v", err)
+	}
+
+	// publish_state column must be PUBLISHED.
+	row, _ := ledger.GetManifest(ctx, key)
+	if row == nil {
+		t.Fatal("manifest row not found in ledger")
+	}
+	if row.PublishState != repopb.PublishState_PUBLISHED.String() {
+		t.Errorf("publish_state: got %q, want %q", row.PublishState, repopb.PublishState_PUBLISHED.String())
+	}
+
+	// artifact_state must also be PUBLISHED — this is the regression guard.
+	// Before the fix, this column stayed at BLOB_VERIFIED (or empty), causing
+	// the node-agent's resolveArtifactByBuildID to return DesiredBuildIdOrphaned.
+	got := srv.readArtifactState(ctx, key)
+	if got != PipelinePublished {
+		t.Errorf("artifact_state after promoteToPublished: got %q, want %q — "+
+			"node-agent will treat this artifact as DesiredBuildIdOrphaned and loop forever",
+			got, PipelinePublished)
+	}
+}
+
+// ── Test 8: orphan check does not disagree with discovery ────────────────────
+// Regression test for the join-order temporal split bug.
+//
+// After a full promoteToPublished, both the discovery path (publish_state column,
+// used by ListArtifacts / buildIDIndexFromManifests) and the install gate
+// (artifact_state column, used by isRowInstallable / resolveByBuildID) must agree
+// that the artifact is installable. A split-state row (pub=PUBLISHED, art=BLOB_VERIFIED)
+// would cause discovery to succeed and the orphan check to fail — producing an
+// infinite install-retry storm that blocks all subsequent node joins.
+func TestOrphanCheck_DoesNotDisagreeWithDiscovery(t *testing.T) {
+	ref := &repopb.ArtifactRef{
+		PublisherId: "glob", Name: "workflow", Version: "1.0.66",
+		Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
+	}
+	srv, ledger := newLedgerTestServer(t)
+	ctx := context.Background()
+
+	key := artifactKeyWithBuild(ref, 7)
+	binary := []byte("fake-workflow-binary")
+
+	// Seed a VERIFIED row (as upload would).
+	_ = ledger.PutManifest(ctx, manifestRow{
+		ArtifactKey:  key,
+		PublishState: repopb.PublishState_VERIFIED.String(),
+		PublisherID:  ref.GetPublisherId(),
+		Name:         ref.GetName(),
+		Version:      ref.GetVersion(),
+		Platform:     ref.GetPlatform(),
+		BuildNumber:  7,
+	})
+
+	// Write the binary blob.
+	_ = srv.localStorage.MkdirAll(ctx, artifactsDir, 0o755)
+	_ = srv.localStorage.WriteFile(ctx, binaryStorageKey(key), binary, 0o644)
+
+	manifest := &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 7, SizeBytes: int64(len(binary)),
+	}
+
+	if err := srv.promoteToPublished(ctx, key, manifest); err != nil {
+		t.Fatalf("promoteToPublished: %v", err)
+	}
+
+	// Discovery path: publish_state must be PUBLISHED.
+	row, _ := ledger.GetManifest(ctx, key)
+	if row == nil {
+		t.Fatal("ledger row not found")
+	}
+	if row.PublishState != repopb.PublishState_PUBLISHED.String() {
+		t.Errorf("discovery (publish_state): got %q, want PUBLISHED", row.PublishState)
+	}
+
+	// Install gate: artifact_state must also be PUBLISHED.
+	// If it disagrees with publish_state, isRowInstallable rejects the row →
+	// resolveByBuildID returns DesiredBuildIdOrphaned → infinite retry storm.
+	got := srv.readArtifactState(ctx, key)
+	if got != PipelinePublished {
+		t.Errorf("install gate (artifact_state): got %q, want PUBLISHED — "+
+			"discovery and orphan check disagree; subsequent node joins will partially fail",
+			got)
+	}
+
+	// Confirm isRowInstallable agrees with both columns.
+	if !isRowInstallable(row) {
+		t.Errorf("isRowInstallable returned false after promoteToPublished — "+
+			"publish_state=%q artifact_state=%q; node-agent will treat this as DesiredBuildIdOrphaned",
+			row.PublishState, row.ArtifactState)
+	}
+}
+
+// ── Test 7: promoteToPublished returns error when artifact_state update fails ─
+// A failed artifact_state transition must propagate as an error so the operator
+// sees failure from 'globular pkg publish' rather than a silent BLOB_VERIFIED.
+
+func TestPromoteToPublished_ReturnsErrorWhenArtifactStateTransitionFails(t *testing.T) {
+	ref := &repopb.ArtifactRef{
+		PublisherId: "glob", Name: "echo", Version: "1.0.66",
+		Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
+	}
+	ctx := context.Background()
+
+	// errLedger fails UpdatePublishState AND UpdateArtifactState.
+	srv := newTestServer(t)
+	srv.scylla = errLedger{err: errors.New("scylla unavailable")}
+
+	key := artifactKeyWithBuild(ref, 1)
+	binary := []byte("fake-binary")
+	_ = srv.localStorage.MkdirAll(ctx, artifactsDir, 0o755)
+	_ = srv.localStorage.WriteFile(ctx, binaryStorageKey(key), binary, 0o644)
+
+	manifest := &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 1, SizeBytes: int64(len(binary)),
+	}
+
+	err := srv.promoteToPublished(ctx, key, manifest)
+	if err == nil {
+		t.Fatal("expected promoteToPublished to fail when Scylla is unavailable")
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -405,6 +406,48 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// ── Normal path: synchronous restart + health verification ──────────
 	restartCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
+	// INFRASTRUCTURE packages whose spec declares install_systemd=false (e.g.
+	// etcdctl, mc, rclone, restic, sctool, sha256sum, yt-dlp) have no unit
+	// file. Attempting Enable+Restart returns exit 5 (unit not found) and
+	// marks the package failed even though the binary was placed correctly.
+	// Check for the unit file first; if absent, the install boundary is the
+	// binary itself — report success without touching systemctl.
+	unitPath := "/etc/systemd/system/" + unit
+	if _, statErr := os.Stat(unitPath); os.IsNotExist(statErr) {
+		log.Printf("apply-package: %s has no systemd unit — binary-only package, skipping restart", unit)
+		binaryOnlyPkg := &node_agentpb.InstalledPackage{
+			NodeId:      srv.nodeID,
+			Name:        name,
+			Version:     version,
+			Kind:        kind,
+			Status:      "installed",
+			UpdatedUnix: time.Now().Unix(),
+			OperationId: operationID,
+			BuildNumber: req.GetBuildNumber(),
+			BuildId:     buildID,
+			Platform:    platform,
+			Checksum:    req.GetExpectedSha256(),
+		}
+		if cksum, err := cachedSha256(installedBinaryPath(name, kind)); err == nil {
+			binaryOnlyPkg.Checksum = cksum
+			if binaryOnlyPkg.Metadata == nil {
+				binaryOnlyPkg.Metadata = make(map[string]string)
+			}
+			binaryOnlyPkg.Metadata["entrypoint_checksum"] = cksum
+		}
+		_ = installed_state.WriteInstalledPackage(ctx, binaryOnlyPkg)
+		srv.recordRevisionAndReceipts(ctx, repoAddr, req, binaryOnlyPkg, previousInstalled, configSnap)
+		return &node_agentpb.ApplyPackageReleaseResponse{
+			Ok:          true,
+			Message:     fmt.Sprintf("installed %s/%s@%s (binary-only — no systemd unit)", kind, name, version),
+			PackageName: name,
+			Version:     version,
+			Status:      "installed",
+			OperationId: operationID,
+			BuildId:     buildID,
+		}, nil
+	}
 
 	// Ensure the unit is enabled before restarting. Crash-loop suppression
 	// disables units via systemctl disable; without re-enabling here, the

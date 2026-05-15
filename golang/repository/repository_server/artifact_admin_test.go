@@ -232,6 +232,10 @@ func TestResolverFilter_ExcludesNonInstallableStates(t *testing.T) {
 			PublishState:  repopb.PublishState_PUBLISHED.String(),
 			ArtifactState: string(PipelineDownloading),
 		}, false},
+		{"published+blob_verified", manifestRow{
+			PublishState:  repopb.PublishState_PUBLISHED.String(),
+			ArtifactState: string(PipelineBlobVerified),
+		}, false},
 		{"published+manifest_written", manifestRow{
 			PublishState:  repopb.PublishState_PUBLISHED.String(),
 			ArtifactState: string(PipelineManifestWritten),
