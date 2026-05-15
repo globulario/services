@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -99,12 +100,10 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	syncTicker := time.NewTicker(5 * time.Minute)
 	defer syncTicker.Stop()
 
-	// Fast-path awareness bundle: check every 60 s while the bundle is not yet
-	// installed. This allows the controller to advance past awareness_ready within
-	// ~60 s instead of waiting for the 5-minute syncTicker. Once the bundle is
-	// installed, LoadInstalledAwarenessBuildID returns non-empty and the call is
-	// a cheap no-op (skipped inside FetchAndInstallAwarenessBundle).
-	awarenessCheckTicker := time.NewTicker(60 * time.Second)
+	// Fast-path awareness bundle: check every 60–90 s (jittered) while the bundle
+	// is not yet installed. Jitter spreads simultaneous-join storms across a 30 s
+	// window. Once installed the ticker is stopped — no further overhead.
+	awarenessCheckTicker := time.NewTicker(60*time.Second + time.Duration(rand.Intn(30))*time.Second)
 	defer awarenessCheckTicker.Stop()
 
 	// Attempt controller endpoint recovery every 2 minutes when missing.
@@ -174,12 +173,14 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			runHeartbeat()
 			heartbeatTimer.Reset(heartbeatDelay)
 		case <-awarenessCheckTicker.C:
-			// Quick check: fetch awareness bundle if not yet installed.
-			// Skips immediately when already installed (idempotent).
+			// Fetch awareness bundle if not yet installed, then stop the ticker —
+			// no need to keep firing once the bundle is on disk.
 			if LoadInstalledAwarenessBuildID() == "" {
 				withOpTimeout(5*time.Minute, func(ctx context.Context) {
 					FetchAndInstallAwarenessBundle(ctx)
 				})
+			} else {
+				awarenessCheckTicker.Stop()
 			}
 		case <-syncTicker.C:
 			withOpTimeout(30*time.Second, srv.syncInstalledStateToEtcd)
