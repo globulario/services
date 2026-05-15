@@ -24,7 +24,6 @@
       "mcp__globular__cluster_get_convergence_detail",
       "mcp__globular__cluster_get_service_workflow_status",
       "mcp__globular__workflow_get_run",
-      "mcp__globular__awareness_self_review",
       "mcp__globular__nodeagent_list_installed_packages",
       "mcp__globular__memory_query",
       "mcp__globular__cluster_get_desired_state",
