@@ -17,7 +17,7 @@ import (
 func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 	s.register(toolDef{
 		Name:        "awareness.preflight",
-		Description: "Run a full architecture preflight before editing Globular code. Returns invariants, failure modes, forbidden fixes, did-we-fix status, required tests, and agent instruction.",
+		Description: "Run a compact architecture preflight before editing Globular code. Returns a bounded decision envelope: safety status, risk tier, confidence, top forbidden fixes, required tests, and agent context. Use output_profile=forensic or full_json=true only when deep diagnosis is truly needed.",
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
@@ -40,18 +40,58 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 				},
 				"include_runtime": {
 					Type:        "boolean",
-					Description: "Collect live runtime snapshot and merge into preflight",
+					Description: "Collect live runtime snapshot and merge into preflight. Ignored unless runtime_policy is also set to auto or required.",
 					Default:     false,
 				},
 				"runtime_policy": {
 					Type:        "string",
-					Description: "Runtime collection policy: auto (collect if live), never (skip), required (fail if unavailable), offline (use saved snapshot). Default: auto.",
-					Default:     "auto",
+					Description: "Runtime collection policy: never (default — skip runtime), auto (collect if live), required (collect, fail if unavailable), offline (use saved snapshot).",
+					Default:     "never",
 				},
 				"runtime_window": {
 					Type:        "string",
 					Description: "Lookback window for runtime events/workflows (e.g. 15m, 1h)",
 					Default:     "15m",
+				},
+				"output_profile": {
+					Type:        "string",
+					Description: "Output profile: compact (default) | standard | deep | forensic. Compact returns only essential safety fields. Forensic returns the full report.",
+					Default:     "compact",
+				},
+				"format": {
+					Type:        "string",
+					Description: "Output format: agent (default) | json. JSON full report requires output_profile=forensic or full_json=true.",
+					Default:     "agent",
+				},
+				"max_items": {
+					Type:        "number",
+					Description: "Maximum items per compact list (forbidden_fixes, required_tests). Default: 5.",
+					Default:     5,
+				},
+				"max_bytes": {
+					Type:        "number",
+					Description: "Maximum serialized response size in bytes. Response is truncated with truncated=true if exceeded. Default: 12000.",
+					Default:     12000,
+				},
+				"include_runtime_detail": {
+					Type:        "boolean",
+					Description: "Include detailed runtime section in the response. Default: false. Has no effect unless runtime was collected.",
+					Default:     false,
+				},
+				"include_raw_matches": {
+					Type:        "boolean",
+					Description: "Include raw YAML match details (filtered_matches). Default: false.",
+					Default:     false,
+				},
+				"include_decision_traces": {
+					Type:        "boolean",
+					Description: "Include decision traces in agent_context. Default: false for compact, true for deep/forensic.",
+					Default:     false,
+				},
+				"full_json": {
+					Type:        "boolean",
+					Description: "Return canonical full JSON report. Default: false. Only use for debugging or forensic runs.",
+					Default:     false,
 				},
 			},
 			Required: []string{"task"},
@@ -71,14 +111,12 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 			RepoRoot:    st.repoRoot,
 		}
 
+		// Default runtime_policy is now "never" — agents must opt in to runtime collection.
 		runtimePolicy := strArg(args, "runtime_policy")
 		if runtimePolicy == "" {
-			runtimePolicy = "auto"
+			runtimePolicy = "never"
 		}
 
-		// Resolve runtime_policy to include_runtime flag.
-		// "auto": collect if cluster config is detectable; "required": collect, fail if unavailable;
-		// "never": skip; "offline": use saved snapshot (treated as never for now — offline_diagnose is separate).
 		switch runtimePolicy {
 		case "required", "auto":
 			opts.IncludeRuntime = true
@@ -86,6 +124,7 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 		case "never", "offline":
 			opts.IncludeRuntime = false
 		default:
+			// Legacy: include_runtime flag still works when runtime_policy is unrecognized.
 			if getBool(args, "include_runtime", false) {
 				opts.IncludeRuntime = true
 				opts.Bridge = newLiveBridge(st)
@@ -108,28 +147,107 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 			return nil, fmt.Errorf("preflight: %w", err)
 		}
 
-		out, err := preflight.Render(r, preflight.FormatJSON)
+		// Resolve output profile → budget.
+		profile := strArg(args, "output_profile")
+		if profile == "" {
+			profile = "compact"
+		}
+		budget := preflight.BudgetCompact
+		switch profile {
+		case "standard":
+			budget = preflight.BudgetStandard
+		case "deep":
+			budget = preflight.BudgetDeep
+		case "forensic":
+			budget = preflight.BudgetForensic
+		}
+
+		// Resolve format: only allow full JSON for forensic or explicit full_json=true.
+		fullJSON := getBool(args, "full_json", false)
+		formatArg := strArg(args, "format")
+		format := preflight.FormatAgent
+		if fullJSON || (formatArg == "json" && profile == "forensic") {
+			format = preflight.FormatJSON
+		}
+
+		// Override budget to include decision traces when explicitly requested.
+		renderOpts := preflight.RenderOptions{Budget: budget}
+		if getBool(args, "include_decision_traces", false) && budget == preflight.BudgetCompact {
+			renderOpts.Budget = preflight.BudgetStandard
+		}
+
+		out, err := preflight.RenderWithOptions(r, format, renderOpts)
 		if err != nil {
 			return nil, fmt.Errorf("render: %w", err)
 		}
 
-		// Return as a raw JSON object (not a string) for clean MCP consumption.
-		var result map[string]interface{}
-		if err := json.Unmarshal([]byte(out), &result); err == nil {
-			// Inject runtime_policy and trust_summary into the result.
-			result["runtime_policy"] = runtimePolicy
+		maxItems := intArgDefault(args, "max_items", 5)
+		maxBytes := intArgDefault(args, "max_bytes", 12000)
 
-			// Build trust_summary from matched graph nodes if graph is available.
-			if st.g != nil {
-				invIDs := getStrSlice(args, "invariants")
-				_ = invIDs // main IDs are in the rendered JSON, not re-available here.
-				// Instead, include trust_summary by looking at filtered_matches from the report.
-				// The trust distribution is pre-computed in the report; expose it directly.
-				trustSum := buildTrustSummaryFromReport(r)
-				result["trust_summary"] = trustSum
+		// Forensic full-JSON mode: return raw object with profile metadata.
+		if fullJSON && format == preflight.FormatJSON {
+			var raw map[string]interface{}
+			if err := json.Unmarshal([]byte(out), &raw); err == nil {
+				raw["output_profile"] = profile
+				raw["full_json"] = true
+				raw["runtime_policy"] = runtimePolicy
+				return raw, nil
 			}
 		}
-		return result, nil
+
+		// Compact envelope: filtering happens before serialization so the agent
+		// never receives a giant context window. The agent cannot save tokens by
+		// ignoring large MCP results after receiving them.
+		result := map[string]interface{}{
+			"output_profile":    profile,
+			"format":            string(format),
+			"runtime_policy":    runtimePolicy,
+			"safety_status":     string(r.SafetyStatus),
+			"risk_tier":         string(r.RiskTier),
+			"confidence":        string(r.Confidence),
+			"confidence_reason": r.ConfidenceReason,
+			"graph_available":   r.GraphAvailable,
+			"graph_match_count": r.GraphMatchCount,
+			"raw_yaml_match_count": r.RawYAMLMatchCount,
+			"agent_context":        out,
+			"next_context_handles": buildPreflightContextHandles(r, maxItems),
+		}
+
+		// Ranked forbidden fixes and required tests (capped at max_items).
+		if len(r.ForbiddenFixes) > 0 {
+			cap := maxItems
+			if cap > len(r.ForbiddenFixes) {
+				cap = len(r.ForbiddenFixes)
+			}
+			result["forbidden_fixes"] = r.ForbiddenFixes[:cap]
+		}
+		if len(r.RequiredTests) > 0 {
+			cap := maxItems
+			if cap > len(r.RequiredTests) {
+				cap = len(r.RequiredTests)
+			}
+			result["required_tests"] = r.RequiredTests[:cap]
+		}
+		if len(r.Warnings) > 0 {
+			result["warnings"] = r.Warnings
+		}
+
+		// Trust summary from graph if available.
+		if st.g != nil {
+			result["trust_summary"] = buildTrustSummaryFromReport(r)
+		}
+
+		// Runtime detail only when explicitly requested.
+		if getBool(args, "include_runtime_detail", false) {
+			result["runtime"] = r.Runtime
+		}
+
+		// Raw filtered matches only when explicitly requested.
+		if getBool(args, "include_raw_matches", false) && len(r.FilteredMatches) > 0 {
+			result["filtered_matches"] = r.FilteredMatches
+		}
+
+		return enforceResponseBudget(result, maxBytes), nil
 	})
 
 	s.register(toolDef{
@@ -231,6 +349,116 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 		}
 		return out, nil
 	})
+}
+
+// buildPreflightContextHandles returns follow-up tool handles so agents can
+// request deeper context without receiving the full graph in the initial call.
+func buildPreflightContextHandles(r *preflight.Report, maxItems int) []map[string]interface{} {
+	var handles []map[string]interface{}
+
+	// Impact analysis handles for files being edited.
+	limit := 3
+	for i, f := range r.Files {
+		if i >= limit {
+			break
+		}
+		handles = append(handles, map[string]interface{}{
+			"tool":      "awareness.impact_file",
+			"available": true,
+			"args":      map[string]interface{}{"file": f, "limit": maxItems},
+		})
+	}
+
+	// Explain handles for top invariants.
+	for i, inv := range r.Invariants {
+		if i >= 2 {
+			break
+		}
+		handles = append(handles, map[string]interface{}{
+			"tool":      "awareness.explain",
+			"available": true,
+			"args":      map[string]interface{}{"id": inv},
+		})
+	}
+
+	// Agent context handle for broader task context.
+	handles = append(handles, map[string]interface{}{
+		"tool":      "awareness.agent_context",
+		"available": true,
+		"args":      map[string]interface{}{"task": r.Task, "files": r.Files},
+	})
+
+	return handles
+}
+
+// enforceResponseBudget ensures the MCP response never exceeds maxBytes.
+// Filtering happens here before serialization — the agent cannot recover
+// tokens by ignoring data after it has already been injected into context.
+// Returns a valid JSON-serializable map with truncated=false/true and bytes set.
+//
+// Fallback order (per spec):
+//  1. Truncate agent_context text (the primary large section).
+//  2. Drop low-priority optional sections (filtered_matches, trust_summary).
+//  3. Essential fields only — keeps safety_status, risk_tier, confidence,
+//     forbidden_fixes, required_tests, and next_context_handles.
+func enforceResponseBudget(result map[string]interface{}, maxBytes int) map[string]interface{} {
+	b, _ := json.Marshal(result)
+	if maxBytes <= 0 || len(b) <= maxBytes {
+		result["truncated"] = false
+		result["bytes"] = len(b)
+		return result
+	}
+
+	// First fallback: truncate agent_context — it is always the largest section.
+	const agentContextTruncLen = 2000
+	if ac, ok := result["agent_context"].(string); ok && len(ac) > agentContextTruncLen {
+		result["agent_context"] = ac[:agentContextTruncLen] + "\n... [truncated; use output_profile=deep for full context]"
+	}
+	b, _ = json.Marshal(result)
+	if len(b) <= maxBytes {
+		result["truncated"] = true
+		result["truncation_reason"] = "response exceeded max_bytes; use output_profile=deep or forensic for full detail"
+		result["bytes"] = len(b)
+		return result
+	}
+
+	// Second fallback: drop large optional sections that were not the
+	// primary request target. Do not drop "runtime" here since the caller
+	// may have explicitly requested include_runtime_detail=true; it will be
+	// omitted only if the essential-only fallback is reached.
+	for _, key := range []string{"filtered_matches", "trust_summary"} {
+		delete(result, key)
+	}
+	b, _ = json.Marshal(result)
+	if len(b) <= maxBytes {
+		result["truncated"] = true
+		result["truncation_reason"] = "response exceeded max_bytes; use output_profile=deep or forensic for full detail"
+		result["bytes"] = len(b)
+		return result
+	}
+
+	// Final fallback: return only essential safety fields.
+	essential := map[string]interface{}{
+		"output_profile":    result["output_profile"],
+		"safety_status":     result["safety_status"],
+		"risk_tier":         result["risk_tier"],
+		"confidence":        result["confidence"],
+		"confidence_reason": result["confidence_reason"],
+		"truncated":         true,
+		"truncation_reason": "response exceeded max_bytes; use output_profile=forensic for full detail",
+	}
+	if ff, ok := result["forbidden_fixes"]; ok {
+		essential["forbidden_fixes"] = ff
+	}
+	if tests, ok := result["required_tests"]; ok {
+		essential["required_tests"] = tests
+	}
+	if handles, ok := result["next_context_handles"]; ok {
+		essential["next_context_handles"] = handles
+	}
+	b, _ = json.Marshal(essential)
+	essential["bytes"] = len(b)
+	return essential
 }
 
 // buildTrustSummaryFromReport derives a trust level distribution from a preflight
