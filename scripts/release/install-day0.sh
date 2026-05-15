@@ -900,23 +900,27 @@ if [[ -x "$MC_BIN" ]]; then
     MINIO_ACCESS="globular"
     MINIO_SECRET="globularadmin"
   fi
-  if "$MC_BIN" alias set "$MINIO_ALIAS" "$MINIO_ENDPOINT" "$MINIO_ACCESS" "$MINIO_SECRET" --insecure 2>/dev/null; then
+  # Trust Globular CA in mc so MinIO TLS is verified without --insecure.
+  mkdir -p ~/.mc/certs/CAs
+  cp /var/lib/globular/pki/ca.crt ~/.mc/certs/CAs/globular-ca.crt 2>/dev/null || true
+
+  if "$MC_BIN" alias set "$MINIO_ALIAS" "$MINIO_ENDPOINT" "$MINIO_ACCESS" "$MINIO_SECRET" 2>/dev/null; then
     log_substep "mc alias configured (user=$MINIO_ACCESS)"
   else
     log_substep "Warning: mc alias set failed — cluster config upload skipped"
   fi
 
   # Create config bucket.
-  "$MC_BIN" mb --ignore-existing "${MINIO_ALIAS}/globular-config" --insecure 2>/dev/null || true
+  "$MC_BIN" mb --ignore-existing "${MINIO_ALIAS}/globular-config" 2>/dev/null || true
 
   # Upload CA certificate and key (cluster-wide PKI).
   if [[ -f /var/lib/globular/pki/ca.pem ]]; then
-    "$MC_BIN" cp /var/lib/globular/pki/ca.pem "${MINIO_ALIAS}/globular-config/pki/ca.pem" --insecure 2>/dev/null && \
+    "$MC_BIN" cp /var/lib/globular/pki/ca.pem "${MINIO_ALIAS}/globular-config/pki/ca.pem" 2>/dev/null && \
       log_success "CA certificate uploaded to MinIO (cluster-shared)" || \
       log_substep "Warning: CA cert upload to MinIO failed (non-fatal)"
   fi
   if [[ -f /var/lib/globular/pki/ca.key ]]; then
-    "$MC_BIN" cp /var/lib/globular/pki/ca.key "${MINIO_ALIAS}/globular-config/pki/ca.key" --insecure 2>/dev/null && \
+    "$MC_BIN" cp /var/lib/globular/pki/ca.key "${MINIO_ALIAS}/globular-config/pki/ca.key" 2>/dev/null && \
       log_success "CA key uploaded to MinIO (cluster-shared)" || \
       log_substep "Warning: CA key upload to MinIO failed (non-fatal)"
   fi
@@ -924,7 +928,7 @@ if [[ -x "$MC_BIN" ]]; then
   # Upload RBAC cluster roles if present.
   if [[ -f /var/lib/globular/policy/rbac/cluster-roles.json ]]; then
     "$MC_BIN" cp /var/lib/globular/policy/rbac/cluster-roles.json \
-      "${MINIO_ALIAS}/globular-config/policy/rbac/cluster-roles.json" --insecure 2>/dev/null || true
+      "${MINIO_ALIAS}/globular-config/policy/rbac/cluster-roles.json" 2>/dev/null || true
     log_success "RBAC policies uploaded to MinIO"
   fi
 
@@ -932,7 +936,7 @@ if [[ -x "$MC_BIN" ]]; then
   # The ai_executor reads this via config.GetClusterConfig("ai/CLAUDE.md").
   CLAUDE_MD="${SCRIPT_DIR}/CLUSTER_CLAUDE.md"
   if [[ -f "$CLAUDE_MD" ]]; then
-    "$MC_BIN" cp "$CLAUDE_MD" "${MINIO_ALIAS}/globular-config/ai/CLAUDE.md" --insecure 2>/dev/null && \
+    "$MC_BIN" cp "$CLAUDE_MD" "${MINIO_ALIAS}/globular-config/ai/CLAUDE.md" 2>/dev/null && \
       log_success "AI operational rules uploaded to MinIO (cluster-shared)" || \
       log_substep "Warning: CLAUDE.md upload to MinIO failed (non-fatal)"
   fi
@@ -1955,7 +1959,7 @@ EOF
   if [[ -z "$_OPS_MEM_PORT" ]]; then
     _OPS_MEM_PORT="$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-ai-memory.service 2>/dev/null | head -1 || true)"
   fi
-  _OPS_MEM_PORT="${_OPS_MEM_PORT:-10200}"
+  [[ -n "$_OPS_MEM_PORT" ]] || die "Could not determine ai-memory port from etcd or unit file"
   _OPS_MEMORY="${_OPS_IP}:${_OPS_MEM_PORT}"
   log_substep "Using direct ai-memory endpoint for seed: ${_OPS_MEMORY}"
 
@@ -2027,9 +2031,11 @@ _BOOTSTRAP_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($
 _BOOTSTRAP_IP="${_BOOTSTRAP_IP:-$(hostname -I | awk '{print $1}')}"
 _NA_UNIT_PORT=$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-node-agent.service 2>/dev/null | head -1 || true)
 _NA_UNIT_PORT="${_NA_UNIT_PORT:-$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-node-agent.service.d/*.conf 2>/dev/null | head -1 || true)}"
-_NA_UNIT_PORT="${_NA_UNIT_PORT:-$(ss -ltnp 2>/dev/null | awk '/node_agent_serv/ {split($4,a,":"); p=a[length(a)]; if(p ~ /^[0-9]+$/){print p}}' | grep -E '^11000$' | head -n1 || true)}"
 _NA_UNIT_PORT="${_NA_UNIT_PORT:-$(ss -ltnp 2>/dev/null | awk '/node_agent_serv/ {split($4,a,":"); p=a[length(a)]; if(p ~ /^[0-9]+$/){print p; exit}}' || true)}"
-_NA_UNIT_PORT="${_NA_UNIT_PORT:-11000}"
+if [[ -z "$_NA_UNIT_PORT" ]]; then
+  log_warn "Could not determine node-agent port from unit file or ss — replace <node-agent-port> in the command below"
+  _NA_UNIT_PORT="<node-agent-port>"
+fi
 _BOOTSTRAP_NODE="${_BOOTSTRAP_IP}:${_NA_UNIT_PORT}"
 
 echo ""
