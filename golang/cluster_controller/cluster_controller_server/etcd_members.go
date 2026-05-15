@@ -576,6 +576,68 @@ func (m *etcdMemberManager) memberIsHealthy(ctx context.Context, peerURL string)
 	return false
 }
 
+// etcdJoinsInProgressPrefix is the etcd key prefix the join script writes
+// to before issuing `etcdctl member add`. Keys are leased with a short TTL
+// so the lock self-cleans if the join crashes between member-add and the
+// node-agent heartbeat that would have registered the node in /globular/nodes/.
+//
+// Schema: /globular/etcd_joins/<sanitized_hostname>  → JSON {peer_url, started_unix}
+// Lease : 300 seconds (covers the longest healthy Day-1 join we've observed)
+const etcdJoinsInProgressPrefix = "/globular/etcd_joins/"
+
+// joinInProgressMembers returns the set of sanitized hostnames whose Day-1
+// join is currently in flight, keyed by the same name etcd uses for
+// member.Name. The set is best-effort: if etcd is unreachable or the key
+// JSON is malformed, the function returns an empty set so removeStaleMembers
+// behaves as before — fail-open on the read side.
+//
+// The lock exists to close a structural race: `etcdctl member add` runs in
+// the join script BEFORE the joining node's node-agent has registered with
+// the controller via heartbeat. Between those two events the controller's
+// desired set does NOT contain the joining node, and removeStaleMembers
+// would otherwise classify the freshly-added etcd member as stale and
+// remove it (observed live 2026-05-14 on nuc).
+func (m *etcdMemberManager) joinInProgressMembers(ctx context.Context) map[string]bool {
+	if m == nil || m.client == nil {
+		return map[string]bool{}
+	}
+	tctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	resp, err := m.client.Get(tctx, etcdJoinsInProgressPrefix, clientv3.WithPrefix())
+	if err != nil {
+		// Fail-open. The race we're closing is narrow (~30s window per join);
+		// leaving the door open on a brief etcd hiccup is safer than refusing
+		// to reconcile stale members because the lock read flapped.
+		log.Printf("removeStaleMembers: failed to read %s — proceeding without lock set: %v", etcdJoinsInProgressPrefix, err)
+		return map[string]bool{}
+	}
+	keys := make([]string, 0, len(resp.Kvs))
+	for _, kv := range resp.Kvs {
+		keys = append(keys, string(kv.Key))
+	}
+	return parseEtcdJoinLockKeys(keys)
+}
+
+// parseEtcdJoinLockKeys extracts the sanitized-hostname set from raw etcd
+// keys under the join-lock prefix. Pure function so the schema can be
+// unit-tested without a live etcd. Empty keys, whitespace-only suffixes,
+// and entries outside the prefix are silently dropped — the controller
+// never has standing to evict based on a malformed lock entry.
+func parseEtcdJoinLockKeys(keys []string) map[string]bool {
+	out := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		if !strings.HasPrefix(k, etcdJoinsInProgressPrefix) {
+			continue
+		}
+		name := strings.TrimSpace(strings.TrimPrefix(k, etcdJoinsInProgressPrefix))
+		if name == "" {
+			continue
+		}
+		out[name] = true
+	}
+	return out
+}
+
 // removeStaleMembers removes etcd members whose peer URL doesn't match any
 // desired etcd node. This handles node removal from the cluster.
 // Skips members that are mid-join (unnamed) to avoid interfering with the join flow.
@@ -591,6 +653,13 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 	if err != nil {
 		return fmt.Errorf("etcd member list: %w", err)
 	}
+
+	// In-progress joins are protected from eviction. The join script writes
+	// /globular/etcd_joins/<sanitized_hostname> with a leased TTL before
+	// running `etcdctl member add` and deletes the key once the node-agent
+	// heartbeat has put the node into /globular/nodes/. Either path closes
+	// the race; the TTL is the safety net.
+	joinInProgress := m.joinInProgressMembers(ctx)
 
 	// Build set of desired peer URLs and hostnames.
 	// Hostname matching is a safety net: if a node's IP is temporarily absent
@@ -615,6 +684,10 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 	for _, member := range resp.Members {
 		if member.Name == "" {
 			continue // unstarted member — might be mid-join, don't remove
+		}
+		if joinInProgress[member.Name] {
+			// Day-1 join in flight for this hostname; don't evict.
+			continue
 		}
 		if expectedPeerURL, ok := desiredPeerURLByHostname[member.Name]; ok && expectedPeerURL != "" {
 			hasExpected := false
