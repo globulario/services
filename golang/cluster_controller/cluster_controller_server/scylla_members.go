@@ -53,7 +53,12 @@ func nodeHasScyllaRunning(node *nodeState) bool {
 //   - scylla-server.service unit file exists (package installed)
 //   - node has a routable IP
 //   - node is not mid-join (configured or started phase)
-//   - node is in the correct bootstrap phase (storage_joining or workload_ready)
+//   - node is in the correct bootstrap phase (awareness_ready, storage_joining, or workload_ready)
+//
+// awareness_ready is included so ScyllaDB join can start while the awareness
+// bundle is still being fetched (or its 5-minute timeout is running). By the
+// time the node advances to storage_joining, ScyllaDB will already be in
+// progress or verified — eliminating the 5-minute delay on Day-1.
 func nodeIsPreparedForScyllaJoin(node *nodeState) bool {
 	if node == nil {
 		return false
@@ -74,7 +79,10 @@ func nodeIsPreparedForScyllaJoin(node *nodeState) bool {
 		return false
 	}
 	// Must be in the correct bootstrap phase.
+	// awareness_ready is included: ScyllaDB joining is independent of the
+	// awareness bundle and can run in parallel with the bundle fetch wait.
 	if node.BootstrapPhase != BootstrapNone &&
+		node.BootstrapPhase != BootstrapAwarenessReady &&
 		node.BootstrapPhase != BootstrapStorageJoining &&
 		node.BootstrapPhase != BootstrapWorkloadReady {
 		return false

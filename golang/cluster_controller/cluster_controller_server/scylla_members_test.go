@@ -94,6 +94,28 @@ func TestNodeIsPreparedForScyllaJoin(t *testing.T) {
 			},
 			want: true,
 		},
+		{
+			// awareness_ready phase allows ScyllaDB join to start in parallel with
+			// the awareness bundle fetch, eliminating the 5-minute wait on Day-1.
+			name: "prepared: awareness_ready phase allows early start",
+			node: &nodeState{
+				Profiles:       []string{"scylla"},
+				Identity:       storedIdentity{Ips: []string{"10.0.0.5"}},
+				Units:          []unitStatusRecord{{Name: "scylla-server.service", State: "inactive"}},
+				BootstrapPhase: BootstrapAwarenessReady,
+			},
+			want: true,
+		},
+		{
+			name: "not prepared: etcd_joining phase is too early",
+			node: &nodeState{
+				Profiles:       []string{"scylla"},
+				Identity:       storedIdentity{Ips: []string{"10.0.0.5"}},
+				Units:          []unitStatusRecord{{Name: "scylla-server.service", State: "inactive"}},
+				BootstrapPhase: BootstrapEtcdJoining,
+			},
+			want: false,
+		},
 	}
 
 	for _, tt := range tests {
