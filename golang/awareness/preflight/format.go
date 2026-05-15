@@ -32,8 +32,53 @@ const (
 	VerbosityFull     Verbosity = "full"
 )
 
+// Budget is a high-level control that selects which sections appear in agent
+// format output and implies a default verbosity. It takes precedence over
+// the Verbosity field when set. Safety fields (safety_status, risk_tier,
+// confidence, coverage, trust, forbidden_fixes, required_tests) are always
+// present regardless of budget.
+type Budget string
+
+const (
+	// BudgetCompact emits only the essential safety fields: classification
+	// header, safety_status, risk_tier, confidence, trust, warnings, top-3
+	// findings, top-3 forbidden fixes, top-5 required tests, agent
+	// instruction. All other sections (decision traces, design patterns,
+	// anti-patterns, code smells, did-we-fix, experience hints, required
+	// searches, investigation order, package admission, cycles) are omitted.
+	BudgetCompact Budget = "compact"
+
+	// BudgetStandard is the current default: all sections with existing top-N
+	// limits. Equivalent to no --budget flag.
+	BudgetStandard Budget = "standard"
+
+	// BudgetDeep is standard plus full decision traces (no truncation) with
+	// all pivots expanded. Use for architecture-sensitive changes.
+	BudgetDeep Budget = "deep"
+
+	// BudgetForensic is full verbosity across all sections. Use only when the
+	// cluster is actively broken or the root cause is unknown.
+	BudgetForensic Budget = "forensic"
+)
+
 type RenderOptions struct {
 	Verbosity Verbosity
+	Budget    Budget
+}
+
+// effectiveVerbosity returns the verbosity to use for rendering, applying
+// the budget's implied verbosity when a budget is set.
+func effectiveVerbosity(opts RenderOptions) Verbosity {
+	switch opts.Budget {
+	case BudgetCompact:
+		return VerbosityCompact
+	case BudgetForensic:
+		return VerbosityFull
+	}
+	if opts.Verbosity != "" {
+		return opts.Verbosity
+	}
+	return VerbosityStandard
 }
 
 // Render formats a Report for the given output format.
@@ -377,16 +422,21 @@ func renderMarkdown(r *Report) string {
 }
 
 // renderAgent formats the report as a directive agent instruction block.
+//
+// Section inclusion by budget:
+//
+//	compact   — safety header, root-cause(3), forbidden(3), tests(5), warnings, safety/risk/confidence/trust, agent instruction
+//	standard  — all sections with top-N limits (current default)
+//	deep      — standard + full decision traces (no truncation)
+//	forensic  — all sections at full verbosity
 func renderAgent(r *Report, opts RenderOptions) string {
 	var sb strings.Builder
-	verbosity := opts.Verbosity
-	if verbosity == "" {
-		verbosity = VerbosityStandard
-	}
+	budget := opts.Budget
+	verbosity := effectiveVerbosity(opts)
 
 	sb.WriteString("AGENT PREFLIGHT RESULT\n\n")
 
-	// Classification summary.
+	// Classification summary — always shown.
 	if hasClass(r.Classification, ClassArchitectureSensitive) || hasClass(r.Classification, ClassConvergenceRisk) {
 		sb.WriteString("This is architecture-sensitive.\n")
 	}
@@ -404,137 +454,141 @@ func renderAgent(r *Report, opts RenderOptions) string {
 		sb.WriteString("Static-only confidence: runtime/incident evidence not fully checked in this run.\n\n")
 	}
 
-	// Phase 9: compact decision traces. Placed before the long raw lists
-	// so the agent reads the per-finding pivots first; falls through
-	// silently when no traces exist (NO_MATCH path).
-	writeDecisionTraces(&sb, r.DecisionTraces, verbosity)
+	// Decision traces: skipped in compact; full expansion in deep/forensic.
+	if budget != BudgetCompact {
+		traceVerbosity := verbosity
+		if budget == BudgetDeep || budget == BudgetForensic {
+			traceVerbosity = VerbosityFull
+		}
+		writeDecisionTraces(&sb, r.DecisionTraces, traceVerbosity)
+	}
 
-	// Likely root-cause areas from invariants and failure modes.
+	// Root-cause area — always shown.
 	rootCause := append([]string{}, r.Invariants...)
 	rootCause = append(rootCause, r.FailureModes...)
 	if len(rootCause) > 0 {
 		sb.WriteString("Likely root-cause area:\n")
 		rootCause = rankForTask(rootCause, r.Task, r.Files, r.Packages)
-		writeAgentTopList(&sb, rootCause, agentLimit(verbosity, agentTopRootCauseLimit, 5))
+		writeAgentTopList(&sb, rootCause, agentLimit(verbosity, agentTopRootCauseLimit, 3))
 		sb.WriteString("\n")
 	}
 
-	// Forbidden fixes.
+	// Forbidden fixes — always shown.
 	if len(r.ForbiddenFixes) > 0 {
 		sb.WriteString("Forbidden fixes:\n")
 		forbidden := rankForTask(r.ForbiddenFixes, r.Task, r.Files, r.Packages)
-		writeAgentTopList(&sb, forbidden, agentLimit(verbosity, agentTopForbiddenLimit, 5))
+		writeAgentTopList(&sb, forbidden, agentLimit(verbosity, agentTopForbiddenLimit, 3))
 		sb.WriteString("\n")
 	}
 
-	// Design pattern layer.
-	if len(r.DesignPatterns) > 0 {
-		sb.WriteString("Relevant design patterns:\n")
-		for _, p := range r.DesignPatterns {
-			sb.WriteString("- " + p + "\n")
+	// Design patterns, anti-patterns, code smells — skipped in compact.
+	if budget != BudgetCompact {
+		if len(r.DesignPatterns) > 0 {
+			sb.WriteString("Relevant design patterns:\n")
+			for _, p := range r.DesignPatterns {
+				sb.WriteString("- " + p + "\n")
+			}
+			sb.WriteString("\n")
 		}
-		sb.WriteString("\n")
-	}
-	if len(r.AntiPatterns) > 0 {
-		sb.WriteString("Anti-patterns to avoid:\n")
-		for _, p := range r.AntiPatterns {
-			sb.WriteString("- " + p + "\n")
+		if len(r.AntiPatterns) > 0 {
+			sb.WriteString("Anti-patterns to avoid:\n")
+			for _, p := range r.AntiPatterns {
+				sb.WriteString("- " + p + "\n")
+			}
+			sb.WriteString("\n")
 		}
-		sb.WriteString("\n")
+		if len(r.CodeSmells) > 0 {
+			sb.WriteString("Code smells:\n")
+			smells := rankForTask(r.CodeSmells, r.Task, r.Files, r.Packages)
+			writeAgentTopList(&sb, smells, agentLimit(verbosity, agentTopCodeSmellsLimit, 5))
+			sb.WriteString("\n")
+		}
 	}
 
-	// Code smells.
-	if len(r.CodeSmells) > 0 {
-		sb.WriteString("Code smells:\n")
-		smells := rankForTask(r.CodeSmells, r.Task, r.Files, r.Packages)
-		writeAgentTopList(&sb, smells, agentLimit(verbosity, agentTopCodeSmellsLimit, 5))
-		sb.WriteString("\n")
+	// Did-we-fix and experience hints — skipped in compact.
+	if budget != BudgetCompact {
+		if r.DidWeFix != nil && r.DidWeFix.Status != "" && r.DidWeFix.Status != "UNKNOWN" {
+			sb.WriteString(fmt.Sprintf("Did-we-fix status: %s\n", r.DidWeFix.Status))
+			if r.DidWeFix.NextAction != "" {
+				sb.WriteString("Next action: " + r.DidWeFix.NextAction + "\n")
+			}
+			sb.WriteString("\n")
+		}
+		if len(r.ExperienceHints) > 0 {
+			sb.WriteString("Similar experiences:\n")
+			for _, h := range r.ExperienceHints {
+				sb.WriteString(fmt.Sprintf("- %s (score %.2f)\n", h.ExperienceID, h.Score))
+				if h.Strategy != "" {
+					sb.WriteString("  strategy: " + h.Strategy + "\n")
+				}
+				if h.Hint != "" {
+					sb.WriteString("  hint: " + h.Hint + "\n")
+				}
+				if h.Verdict != "" {
+					sb.WriteString("  verdict: " + h.Verdict + "\n")
+				}
+				if h.FinalScore > 0 {
+					sb.WriteString(fmt.Sprintf("  final score: %.2f\n", h.FinalScore))
+				}
+				if len(h.Reasons) > 0 {
+					sb.WriteString("  reasons: " + strings.Join(h.Reasons, ", ") + "\n")
+				}
+				if len(h.WorkedPaths) > 0 {
+					sb.WriteString("  worked paths: " + strings.Join(h.WorkedPaths, " | ") + "\n")
+				}
+				if len(h.FailedPaths) > 0 {
+					sb.WriteString("  failed paths: " + strings.Join(h.FailedPaths, " | ") + "\n")
+				}
+				if len(h.EvidenceTypes) > 0 {
+					sb.WriteString("  expected evidence: " + strings.Join(h.EvidenceTypes, ", ") + "\n")
+				}
+			}
+			sb.WriteString("\n")
+		}
 	}
 
-	// Did-we-fix.
-	if r.DidWeFix != nil && r.DidWeFix.Status != "" && r.DidWeFix.Status != "UNKNOWN" {
-		sb.WriteString(fmt.Sprintf("Did-we-fix status: %s\n", r.DidWeFix.Status))
-		if r.DidWeFix.NextAction != "" {
-			sb.WriteString("Next action: " + r.DidWeFix.NextAction + "\n")
-		}
-		sb.WriteString("\n")
-	}
-	if len(r.ExperienceHints) > 0 {
-		sb.WriteString("Similar experiences:\n")
-		for _, h := range r.ExperienceHints {
-			sb.WriteString(fmt.Sprintf("- %s (score %.2f)\n", h.ExperienceID, h.Score))
-			if h.Strategy != "" {
-				sb.WriteString("  strategy: " + h.Strategy + "\n")
-			}
-			if h.Hint != "" {
-				sb.WriteString("  hint: " + h.Hint + "\n")
-			}
-			if h.Verdict != "" {
-				sb.WriteString("  verdict: " + h.Verdict + "\n")
-			}
-			if h.FinalScore > 0 {
-				sb.WriteString(fmt.Sprintf("  final score: %.2f\n", h.FinalScore))
-			}
-			if len(h.Reasons) > 0 {
-				sb.WriteString("  reasons: " + strings.Join(h.Reasons, ", ") + "\n")
-			}
-			if len(h.WorkedPaths) > 0 {
-				sb.WriteString("  worked paths: " + strings.Join(h.WorkedPaths, " | ") + "\n")
-			}
-			if len(h.FailedPaths) > 0 {
-				sb.WriteString("  failed paths: " + strings.Join(h.FailedPaths, " | ") + "\n")
-			}
-			if len(h.EvidenceTypes) > 0 {
-				sb.WriteString("  expected evidence: " + strings.Join(h.EvidenceTypes, ", ") + "\n")
-			}
-		}
-		sb.WriteString("\n")
-	}
-
-	// You must inspect.
-	if len(r.RequiredSearches) > 0 {
+	// Required searches — skipped in compact.
+	if budget != BudgetCompact && len(r.RequiredSearches) > 0 {
 		sb.WriteString("You must inspect:\n")
 		searches := rankForTask(r.RequiredSearches, r.Task, r.Files, r.Packages)
 		writeAgentTopList(&sb, searches, agentLimit(verbosity, agentTopInspectLimit, 5))
 		sb.WriteString("\n")
 	}
 
-	// You must run.
+	// Required tests — always shown.
 	if len(r.RequiredTests) > 0 {
 		sb.WriteString("You must run:\n")
 		tests := rankForTask(r.RequiredTests, r.Task, r.Files, r.Packages)
-		writeAgentTopList(&sb, tests, agentLimit(verbosity, agentTopRequiredTestsLimit, 8))
+		writeAgentTopList(&sb, tests, agentLimit(verbosity, agentTopRequiredTestsLimit, 5))
 		sb.WriteString("\n")
 	}
 
-	// Investigation order.
-	if len(r.RecommendedOrder) > 0 {
-		sb.WriteString("Investigation order:\n")
-		for i, step := range r.RecommendedOrder {
-			sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, step))
+	// Investigation order, package admission, cycles — skipped in compact.
+	if budget != BudgetCompact {
+		if len(r.RecommendedOrder) > 0 {
+			sb.WriteString("Investigation order:\n")
+			for i, step := range r.RecommendedOrder {
+				sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, step))
+			}
+			sb.WriteString("\n")
 		}
-		sb.WriteString("\n")
-	}
-
-	// Package admission.
-	if r.PackageAdmission != nil {
-		sb.WriteString(fmt.Sprintf("Package admission: %s\n", r.PackageAdmission.Status))
-		for _, reason := range r.PackageAdmission.Reasons {
-			sb.WriteString("  - " + reason + "\n")
+		if r.PackageAdmission != nil {
+			sb.WriteString(fmt.Sprintf("Package admission: %s\n", r.PackageAdmission.Status))
+			for _, reason := range r.PackageAdmission.Reasons {
+				sb.WriteString("  - " + reason + "\n")
+			}
+			sb.WriteString("\n")
 		}
-		sb.WriteString("\n")
-	}
-
-	// Cycles.
-	if len(r.Cycles) > 0 {
-		sb.WriteString("Cycle warnings:\n")
-		for _, c := range r.Cycles {
-			sb.WriteString(fmt.Sprintf("  [%s] %s → %s\n", c.Classification, c.Phase, strings.Join(c.Path, " → ")))
+		if len(r.Cycles) > 0 {
+			sb.WriteString("Cycle warnings:\n")
+			for _, c := range r.Cycles {
+				sb.WriteString(fmt.Sprintf("  [%s] %s → %s\n", c.Classification, c.Phase, strings.Join(c.Path, " → ")))
+			}
+			sb.WriteString("\n")
 		}
-		sb.WriteString("\n")
 	}
 
-	// Agent instruction summary.
+	// Warnings — always shown.
 	if len(r.Warnings) > 0 {
 		sb.WriteString("Warnings:\n")
 		for _, w := range r.Warnings {
@@ -543,6 +597,7 @@ func renderAgent(r *Report, opts RenderOptions) string {
 		sb.WriteString("\n")
 	}
 
+	// Safety / confidence / risk / trust — always shown.
 	sb.WriteString(fmt.Sprintf("Safety status: %s\n", r.SafetyStatus))
 	sb.WriteString(fmt.Sprintf("Confidence: %s (%s)\n\n", r.Confidence, r.ConfidenceReason))
 	sb.WriteString(fmt.Sprintf("Risk tier: %s (fast path: %t)\n\n", r.RiskTier, r.FastPathApplied))
@@ -566,6 +621,8 @@ func renderAgent(r *Report, opts RenderOptions) string {
 		}
 		sb.WriteString("\n")
 	}
+
+	// Degraded mode — always shown.
 	if r.DegradedMode.Enabled {
 		sb.WriteString("Degraded-mode playbook:\n")
 		if r.DegradedMode.Reason != "" {

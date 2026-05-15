@@ -24,6 +24,7 @@ var preflightCfg = struct {
 	phase                string
 	format               string
 	verbosity            string
+	budget               string
 	includeRuntime       bool
 	runtimeWindow        time.Duration
 	writeAudit           bool
@@ -136,6 +137,7 @@ Examples:
 
 		out, err := preflight.RenderWithOptions(r, format, preflight.RenderOptions{
 			Verbosity: preflight.Verbosity(preflightCfg.verbosity),
+			Budget:    preflight.Budget(preflightCfg.budget),
 		})
 		if err != nil {
 			return fmt.Errorf("render preflight: %w", err)
@@ -196,7 +198,8 @@ func init() {
 	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.packagePath, "package", "", "Path to package directory with awareness.yaml")
 	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.phase, "phase", "", "Dependency phase for cycle detection (e.g. recovery, bootstrap, package_install)")
 	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.format, "format", "markdown", "Output format: markdown | json | agent")
-	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.verbosity, "verbosity", "standard", "Agent output verbosity: compact | standard | full")
+	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.verbosity, "verbosity", "standard", "Agent output verbosity: compact | standard | full (overridden by --budget)")
+	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.budget, "budget", "", "Token budget: compact | standard | deep | forensic (overrides --verbosity)")
 	awarenessPreflightCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db (default: .globular/awareness/graph.db)")
 	awarenessPreflightCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root (default: auto-detected from git)")
 	awarenessPreflightCmd.Flags().BoolVar(&preflightCfg.includeRuntime, "include-runtime", false, "Collect live runtime snapshot and merge into preflight report")
