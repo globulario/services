@@ -6,143 +6,7 @@ This file is read automatically by Claude Code at the start of every session. It
 
 ## PRIME RULES FOR AI AGENTS
 
-## COMPOSED-PATH FAILURE LOG — REQUIRED BEFORE EDITING SHARED CONCEPTS
-
-Before any edit that touches **graph identity**, **lifecycle metadata**
-(`deprecated`, `intentional_gap`, `coverage_state`), **freshness**
-(graph staleness, bundle age, manifest source), **coverage** (mitigation/
-test/detector legs, classification), or **trust semantics** (verdict,
-confidence, freshness, coverage axes), you MUST read:
-
-```
-docs/awareness/composed_path_failures.md
-```
-
-For each such edit ask in order:
-
-1. Is this bug a repeat of an existing entry's consolidation candidate?
-   If yes, **consolidate** — promote the candidate to a shared primitive.
-   The patch IS the consolidation; do not add another local workaround.
-2. Is it a new shape? **Record it using the schema** before shipping.
-   The log entry is part of the change, not an afterthought.
-3. If you're tempted to add a new subsystem, verb, or vocabulary, stop.
-   Re-read the log first — the answer is almost always to consolidate
-   something already there.
-
-**Rule**: No expansion unless repetition earns it. Drift is the danger;
-the log is where repetition is recorded, so it's the only honest place
-to make that call.
-
-### Choosing the next stabilization work
-
-Do not pick by taste. Pick from evidence. In strict priority order:
-
-1. Anything that **repeats an existing composed-path-failure candidate**
-   in `docs/awareness/composed_path_failures.md`. Two incidents on the
-   same candidate is the trigger to consolidate.
-2. Anything that touches one of the **five tripwire subjects** (graph
-   identity, lifecycle metadata, freshness, coverage, trust semantics).
-3. Anything that changes the **live verdict path from `git diff` to
-   the TrustEnvelope**.
-
-Everything else waits. Do not invent work because it sounds reasonable.
-If neither the log nor `globular awareness prefix-audit` surfaces a
-candidate, the right move is to run the system as-is for a cycle —
-stabilization includes restraint.
-
-## AWARENESS PREFLIGHT — REQUIRED BEFORE CODE EDITS
-
-Before editing Globular code, you MUST run awareness preflight.
-
-Preferred:
-- MCP tool: `awareness.preflight` (when MCP is available)
-
-Fallback:
-- CLI: `globular awareness preflight --task "<task>" --format agent`
-
-For high-risk files, strict hook mode may block unsafe edits:
-- `globular awareness hook --strict --watchlist docs/awareness/high_risk_files.yaml --file "<file>" --task "<task>"`
-
-Use:
-
-```bash
-globular awareness preflight --task "<task>" --format agent
-```
-
-## Globular Awareness Required Workflow
-
-Run at session start, before each file edit, and before committing:
-
-```bash
-# 1. Session start — graph freshness, runtime, CI, proposals, guardrails
-globular awareness session-start --output json
-
-# 2. Before editing any file — get ranked decision paths, forbidden actions, required tests
-# MCP: awareness.decision_context (preferred for high-risk files)
-awareness.decision_context goal="<what you will do>" changed_files=["<file>"]
-# CLI fallback:
-globular awareness impact --file <path> --output json
-
-# 3. Before committing — scan for violations
-globular awareness scan-violations --paths <changed files> --output json
-# MCP: awareness.scan_violations
-
-# 4. After a verified fix — propose a knowledge update
-globular awareness learn-from-fix --incident <id> --output json
-# MCP: awareness.learn_from_fix
-```
-
-**Before editing awareness, cluster_controller, workflow, node_agent, repository, xds, runtime, MCP tools, graph, integrity, or scan code:**
-Run `awareness.decision_context` with your goal and the files you plan to edit.
-Read `top_decision_paths`, `forbidden_actions`, `required_tests`, and `blind_spots` before making any change.
-
-**Pivoting from a finding to its full context** — when preflight returns a
-matched finding and you want the decision trace alone (owner / pivots /
-falsifiers / next actions) without re-running full preflight:
-
-```bash
-# MCP: awareness.finding_context preferred when you know the id
-awareness.finding_context finding="failure_mode:workflow.resume_poisoning"
-# CLI fallback:
-globular awareness finding-context --finding failure_mode:<id> --format agent
-# Or full preflight, traces only:
-globular awareness decision-trace --task "<task>" --format agent
-```
-
-A `DecisionTrace` ships `matched_by` (graph / alias / runtime / raw_yaml /
-trust / fix_ledger / experience / metrics), `owner` (repository / desired /
-installed / runtime / workflow / pki / dns / rbac layer), ranked `pivots`,
-`next_actions` (all `safe_to_run`), and `falsifiers` (family-templated).
-Always read `falsifiers` before claiming a finding is real — they tell you
-what evidence would prove the diagnosis wrong.
-
-**Authority-crossing patches** — when a diff moves authority across the
-4-layer model (Repository → Desired → Installed → Runtime), CI runs:
-
-```bash
-globular awareness semantic-diff git --gate-on-authority-change --json
-```
-
-The gate fails when `AuthorityChange.RequiresReview=true` AND
-`Trust.Verdict != "trusted"`. The CI step is currently warn-only; flip
-`continue-on-error: false` in `.github/workflows/ci.yml` after a cycle of
-clean diagnostics. An absent trust envelope is never trusted.
-
-**YAML files under `docs/awareness/`** can declare their role explicitly
-with a top-level `awareness_role: graph|seed|config|none` key. The
-declaration wins over the top-key heuristic. Use `none` for scratch
-notes / draft proposals so they don't trip the unknown-role staleness
-alarm. Without a declaration, the legacy top-key heuristic still applies.
-
-**Rules:**
-- If graph is stale → rebuild: `globular awareness build`
-- If runtime is `noop` → do NOT infer live cluster health from static checks
-- `NO_MATCH` is NOT safe — always check `coverage` and `blind_spots` in the output
-- Never treat `checked_clean` as proof of safety when runtime was not collected
-- `UNKNOWN_IMPACT` with `blind_spots` means the check ran but had incomplete coverage
-- Run all `required_tests` returned by `decision_context` after every edit
-
-1. Walk the 4 layers before debugging: Repository -> Desired -> Installed -> Runtime.
+1. Walk the 4 layers before debugging: Repository → Desired → Installed → Runtime.
 2. Never confuse platform release with package version. release-index.json is the platform truth.
 3. Never confuse build_id (UUID) with build_number (integer).
 4. Never duplicate package kind classification. Use the canonical package registry.
@@ -307,13 +171,15 @@ lm.Serve()  // blocks, handles TLS, interceptors, health, graceful shutdown
 
 Config fallback chain: etcd → local seed file → global config → hardcoded defaults.
 
-### Current Cluster (3 nodes)
+### Current Cluster (5 nodes)
 
 | Node | IP | Profiles |
 |------|-----|----------|
 | globule-ryzen | 10.0.0.63 | compute, control-plane, core, gateway, storage |
 | globule-nuc | 10.0.0.8 | compute, control-plane, core, gateway, storage |
-| globule-dell | 10.0.0.20 | compute, core, storage |
+| globule-dell | 10.0.0.20 | compute, control-plane, core, gateway, storage |
+| globule-hp-01 | 10.0.0.9 | control-plane, core, gateway, storage |
+| globule-lenovo | 10.0.0.102 | control-plane, core, gateway, storage |
 
 - **VIP**: 10.0.0.100 (keepalived, floats between ryzen and nuc)
 - **DMZ**: Router forwards all external traffic to VIP
