@@ -459,27 +459,52 @@ func (objectstoreWriteQuorumLost) Evaluate(snap *collector.Snapshot, _ Config) [
 	// Count active nodes (proxy for active drives when drives_per_node == 1).
 	// nodeIDByPoolIP iterates Identity.Ips so VIP-holders (whose AdvertiseIp
 	// is empty or the floating VIP) still resolve to their nodeID.
+	//
+	// Three buckets:
+	//   active       — inventory present, globular-minio.service = active
+	//   knownDown    — inventory present, MinIO not active (or nodeID unknown)
+	//   noInventory  — collector could not reach the node agent
+	//
+	// noInventory is ambiguous: it can mean the node is truly down, or that
+	// the snapshot collector had a transient RPC failure to a healthy node.
+	// When snap.DataIncomplete=true (collector logged errors), we treat
+	// noInventory nodes as potentially-up so that intermittent collection
+	// failures don't produce CRITICAL false positives. The finding is only
+	// suppressed when ALL "down" nodes are in the noInventory bucket —
+	// confirmed-bad nodes still trigger CRITICAL regardless of DataIncomplete.
 	nodeIDByIP := nodeIDByPoolIP(snap.Nodes, desired.Nodes)
-	var activeNodes, downNodes []string
+	var activeNodes, knownDownNodes, noInventoryNodes []string
 	for _, ip := range desired.Nodes {
 		nodeID := nodeIDByIP[ip]
 		if nodeID == "" {
-			downNodes = append(downNodes, ip)
+			knownDownNodes = append(knownDownNodes, ip)
 			continue
 		}
-		if minioServiceState(snap, nodeID) == "active" {
+		switch minioServiceState(snap, nodeID) {
+		case "active":
 			activeNodes = append(activeNodes, ip)
-		} else {
-			downNodes = append(downNodes, ip)
+		case "no_inventory":
+			noInventoryNodes = append(noInventoryNodes, ip)
+		default:
+			knownDownNodes = append(knownDownNodes, ip)
 		}
 	}
 
-	// For multi-drive setups the active drive count may exceed active nodes.
-	// We approximate: activeDrives = activeNodes * drivesPerNode.
 	activeDrives := len(activeNodes) * drivesPerNode
 	if activeDrives >= writeQuorum {
 		return nil
 	}
+
+	// If data collection had errors and every "down" node is only no_inventory
+	// (no confirmed-bad state), the finding would be a false positive caused
+	// by the collector failing to reach healthy nodes. Suppress it.
+	if snap.DataIncomplete && len(knownDownNodes) == 0 {
+		return nil
+	}
+
+	// Even with all noInventory nodes counted as active, quorum is still lost —
+	// or we have at least one confirmed-down node. Fire CRITICAL.
+	allDownNodes := append(knownDownNodes, noInventoryNodes...)
 
 	return []Finding{{
 		FindingID: FindingID("objectstore.write_quorum_lost", "cluster",
@@ -492,15 +517,16 @@ func (objectstoreWriteQuorumLost) Evaluate(snap *collector.Snapshot, _ Config) [
 			"MinIO write quorum lost: active_drives=%d < write_quorum=%d "+
 				"(pool=%d drives, EC:%d parity). "+
 				"All new object writes will fail. Down nodes: %v.",
-			activeDrives, writeQuorum, total, parity, downNodes),
+			activeDrives, writeQuorum, total, parity, allDownNodes),
 		Evidence: []*cluster_doctorpb.Evidence{
 			kvEvidence("etcd+inventory", "objectstore_desired+unit_state", map[string]string{
-				"active_drives":   fmt.Sprintf("%d", activeDrives),
-				"write_quorum":    fmt.Sprintf("%d", writeQuorum),
-				"total_drives":    fmt.Sprintf("%d", total),
-				"ec_parity":       fmt.Sprintf("%d", parity),
-				"active_nodes":    strings.Join(activeNodes, ","),
-				"down_nodes":      strings.Join(downNodes, ","),
+				"active_drives":     fmt.Sprintf("%d", activeDrives),
+				"write_quorum":      fmt.Sprintf("%d", writeQuorum),
+				"total_drives":      fmt.Sprintf("%d", total),
+				"ec_parity":         fmt.Sprintf("%d", parity),
+				"active_nodes":      strings.Join(activeNodes, ","),
+				"known_down_nodes":  strings.Join(knownDownNodes, ","),
+				"no_inventory_nodes": strings.Join(noInventoryNodes, ","),
 			}),
 		},
 		Remediation: []*cluster_doctorpb.RemediationStep{

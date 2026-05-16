@@ -162,6 +162,55 @@ func TestUnapprovedPath_WrongPath_CRITICAL(t *testing.T) {
 	}
 }
 
+// TestUnapprovedPath_DataIncomplete_EmptyAdmitted_Suppressed is the regression
+// test for the false-positive pattern: disk approve records ARE in etcd, but the
+// snapshot collector fails to read them (DataIncomplete=true), so AdmittedDisks
+// is empty. Without the guard, the rule fires CRITICAL for every pool node even
+// though the admission workflow was correctly used.
+func TestUnapprovedPath_DataIncomplete_EmptyAdmitted_Suppressed(t *testing.T) {
+	desired := &config.ObjectStoreDesiredState{
+		Mode:      config.ObjectStoreModeDistributed,
+		Generation: 1,
+		NodePaths: map[string]string{
+			"10.0.0.1": "/mnt/data/minio",
+			"10.0.0.2": "/mnt/data/minio",
+		},
+	}
+	snap := &collector.Snapshot{
+		ObjectStoreDesired: desired,
+		AdmittedDisks:      nil, // collector failed to read admitted disk keys
+		DataIncomplete:     true,
+	}
+	findings := objectstoreMinioUnapprovedPath{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("empty AdmittedDisks + DataIncomplete=true should produce 0 findings (false positive), got %d: %v",
+			len(findings), findings[0].Summary)
+	}
+}
+
+// TestUnapprovedPath_DataComplete_EmptyAdmitted_Fires verifies the existing
+// behaviour is preserved: when data is complete and admitted disks are empty,
+// the admission workflow was genuinely never used — fire CRITICAL.
+func TestUnapprovedPath_DataComplete_EmptyAdmitted_Fires(t *testing.T) {
+	desired := &config.ObjectStoreDesiredState{
+		Mode:      config.ObjectStoreModeDistributed,
+		Generation: 1,
+		NodePaths: map[string]string{"10.0.0.1": "/mnt/data/minio"},
+	}
+	snap := &collector.Snapshot{
+		ObjectStoreDesired: desired,
+		AdmittedDisks:      nil,
+		DataIncomplete:     false,
+	}
+	findings := objectstoreMinioUnapprovedPath{}.Evaluate(snap, Config{})
+	if len(findings) != 1 {
+		t.Fatalf("empty AdmittedDisks + DataIncomplete=false should fire CRITICAL, got %d", len(findings))
+	}
+	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_CRITICAL {
+		t.Errorf("expected CRITICAL, got %v", findings[0].Severity)
+	}
+}
+
 // ── objectstore.minio.quorum_shape ────────────────────────────────────────────
 
 func TestQuorumShape_StandaloneMode_OK(t *testing.T) {

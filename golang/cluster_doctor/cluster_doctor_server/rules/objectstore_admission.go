@@ -225,6 +225,13 @@ func (objectstoreMinioUnapprovedPath) Evaluate(snap *collector.Snapshot, _ Confi
 		if desired.Mode != config.ObjectStoreModeDistributed {
 			return nil
 		}
+		// When data collection had errors, the admitted-disk list being empty
+		// may be a collector etcd-read failure rather than genuine absence of
+		// admission records. Suppress to avoid false positives — the governance
+		// gap will surface again once the snapshot is complete.
+		if snap.DataIncomplete {
+			return nil
+		}
 	}
 
 	// Build admitted set: nodeIP → set of approved paths.

@@ -138,7 +138,14 @@ func (objectstoreMinioFingerprintDivergence) Evaluate(snap *collector.Snapshot, 
 		}
 		fp, ok := snap.NodeRenderedFingerprints[nodeID]
 		if !ok || fp == "" {
-			missing = append(missing, fmt.Sprintf("%s(%s):no_fingerprint", nodeID, poolIP))
+			// When the snapshot collector had errors (DataIncomplete=true), a
+			// missing fingerprint may be an etcd read failure rather than the
+			// node genuinely not having rendered. Suppress uncertain missing
+			// entries to avoid CRITICAL false positives when the topology is
+			// actually converged. Wrong fingerprints (diverged) always fire.
+			if !snap.DataIncomplete {
+				missing = append(missing, fmt.Sprintf("%s(%s):no_fingerprint", nodeID, poolIP))
+			}
 			continue
 		}
 		if fp != expectedFP {
@@ -233,7 +240,12 @@ func (objectstoreMinioPostApplyHealth) Evaluate(snap *collector.Snapshot, _ Conf
 		}
 		state := minioServiceState(snap, nodeID)
 		if state == "no_inventory" {
-			noInventory = append(noInventory, fmt.Sprintf("%s(%s)", nodeID, poolIP))
+			// When the collector had errors, no_inventory may be a transient
+			// RPC failure to a healthy node. Only count it as a problem when
+			// the snapshot is complete (all collection calls succeeded).
+			if !snap.DataIncomplete {
+				noInventory = append(noInventory, fmt.Sprintf("%s(%s)", nodeID, poolIP))
+			}
 			continue
 		}
 		if state != "active" {

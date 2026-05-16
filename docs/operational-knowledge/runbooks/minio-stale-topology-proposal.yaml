@@ -1,0 +1,130 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Detecting and removing a stale destructive MinIO topology proposal"
+  description: |
+    The topology planning process generates a TopologyProposal record in etcd when the
+    operator runs `globular objectstore topology plan`. A proposal with is_destructive=true
+    will WIPE .minio.sys on all pool nodes when applied. If a proposal is generated before
+    generation-1 is applied (e.g. during disk approval workflows) and never cleaned up,
+    it sits in etcd as a footgun: running `topology apply` on that stale proposal would
+    re-trigger the destructive reset even though distributed mode is already active.
+    This runbook documents how to detect, evaluate, and safely remove stale proposals.
+  source_documents:
+    - golang/cluster_controller/cluster_controller_server/objectstore_admission.go
+    - golang/cluster_controller/cluster_controller_server/minio_pools.go
+    - docs/operational-knowledge/stages/day-1-objectstore.yaml
+
+entries:
+
+  - id: ops.runbook.minio-stale-topology-proposal
+    type: DEBUG
+    title: "Stale destructive MinIO topology proposal — detect and remove"
+    tags: [day-1, day-2, objectstore, minio, topology, hazard, footgun]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller]
+    content: |
+      ## Background: the .minio.sys wipe safety contract
+
+      The only way a `topology apply` wipes `.minio.sys` is ALL of the following are true:
+        1. A TopologyTransition record exists in etcd
+        2. TopologyTransition.IsDestructive = true
+        3. TopologyTransition.Approved = true  (written by `topology apply --i-understand-data-reset`)
+
+      No local inference, no auto-wipe, no recovery mode that bypasses this.
+      The controller enforces this at `applyObjectStoreTopologyRequest`.
+
+      Even with a stale proposal in etcd, data is ONLY at risk if an operator
+      explicitly runs `topology apply --proposal <id> --i-understand-data-reset`.
+      A stale proposal cannot self-apply.
+
+      ## Symptoms of a stale proposal
+
+      `globular objectstore topology plan` shows a proposal from an earlier generation
+      (before the current generation was applied), or `etcdctl get` reveals a proposal
+      whose `generation` field is less than the current applied_generation.
+
+      Doctor finding: none directly. The stale proposal does NOT fire a doctor CRITICAL.
+      It is a silent footgun detectable only by inspection.
+
+      ## How to detect
+
+      1. List all topology proposals in etcd:
+           etcdctl get /globular/objectstore/topology/proposals/ --prefix --keys-only
+
+      2. Inspect each proposal for staleness:
+           etcdctl get /globular/objectstore/topology/proposals/<proposal_id>
+
+         Look for:
+           - "status": "proposed"  (never applied)
+           - "is_destructive": true  (would wipe .minio.sys if applied)
+           - "generation": N where N < current applied_generation
+
+      3. Get the current applied generation to compare:
+           etcdctl get /globular/cluster/minio/applied_generation
+
+         Or via CLI: globular objectstore topology status
+
+      ## When is a proposal stale (and safe to delete)?
+
+      A proposal is stale-and-safe-to-delete when:
+        - Its target generation < current applied_generation  (the cluster moved on)
+        - OR its target topology matches the already-applied topology exactly
+          (same nodes, same drives, same mode — the plan would be a no-op)
+        - AND status is "proposed" (not "applying" or "applied")
+
+      If a proposal's status is "applying" — do not delete it. The workflow may be in
+      flight. Check workflow status first.
+
+      ## How to delete a stale proposal
+
+      etcdctl del /globular/objectstore/topology/proposals/<proposal_id>
+
+      Verify it is gone:
+        etcdctl get /globular/objectstore/topology/proposals/ --prefix --keys-only
+
+      ## Post-deletion verification
+
+      1. Run `globular objectstore topology status` — should show CONVERGED with current
+         applied_generation matching desired_generation.
+      2. Run `globular cluster doctor --category objectstore` — no new findings should appear.
+      3. Verify MinIO is healthy: `mc admin info local`
+
+      ## Incident context (2026-05-15)
+
+      A proposal with id 8593bc754432 was found with:
+        - is_destructive: true
+        - status: proposed
+        - generated BEFORE generation-1 was applied (the first distributed apply)
+
+      The proposal was created when disk approvals were run for 5 nodes, planning a
+      distributed topology before any node had yet applied. After generation-1 was applied
+      successfully, the proposal was never cleaned up by the controller.
+
+      The proposal was safely deleted with `etcdctl del`. Topology remained CONVERGED,
+      doctor found 0 objectstore findings, MinIO remained healthy throughout.
+
+      ## TODO (controller improvement)
+
+      The controller should auto-expire proposals whose target_generation < applied_generation.
+      Until then, operators must check for stale proposals manually after any topology apply
+      that superseded an earlier plan.
+    links:
+      awareness_invariants:
+        - objectstore.topology_contract
+      cli_commands:
+        - "etcdctl get /globular/objectstore/topology/proposals/ --prefix --keys-only"
+        - "etcdctl get /globular/objectstore/topology/proposals/<proposal_id>"
+        - "etcdctl get /globular/cluster/minio/applied_generation"
+        - "etcdctl del /globular/objectstore/topology/proposals/<proposal_id>"
+        - "globular objectstore topology status"
+        - "globular cluster doctor --category objectstore"
+    related_ids:
+      - ops.day-1.minio.topology-contract
+      - ops.day-1.minio.apply-flow
+      - ops.day-1.minio.restart-hazard
+    provenance:
+      source: seed
+      incident_date: "2026-05-15"
+      immutable: false

@@ -260,3 +260,111 @@ entries:
     provenance:
       source: seed
       immutable: true
+
+  - id: ops.day-1.minio.credentials-contract
+    type: ARCHITECTURE
+    title: "MinIO credentials and etcd contract — where secrets live and how to connect"
+    tags: [day-1, objectstore, minio, credentials, etcd, mc-alias]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller]
+    content: |
+      ## Two etcd keys carry MinIO credentials
+
+      1. `/globular/objectstore/config`
+         The published desired state (ObjectStoreDesiredState proto, JSON-encoded). Fields include:
+           - mode: "standalone" or "distributed"
+           - nodes: [list of pool IPs]
+           - drives_per_node: N
+           - endpoint: "https://minio.globular.internal:9000"
+           - volumes_hash: "<fingerprint>"
+         NOTE: Credentials are NOT in this key. This key is the topology contract, not auth.
+
+      2. `/globular/cluster/minio/config`
+         The cluster-wide MinIO access config (MinioClusterConfig proto, JSON-encoded). Fields include:
+           - access_key: "globular"
+           - secret_key: "globularadmin"  (or the current rotation value)
+           - endpoint: "https://minio.globular.internal:9000"
+
+      There is NO service-account "admin" user in MinIO. The Globular MinIO deployment uses
+      a single operator key stored in etcd. Never try SA "admin/admin" or "minioadmin/minioadmin".
+
+      ## How to set up the mc alias for manual operations
+
+      Read the credentials from etcd:
+        ACCESS=$(etcdctl get /globular/cluster/minio/config --print-value-only | jq -r '.access_key')
+        SECRET=$(etcdctl get /globular/cluster/minio/config --print-value-only | jq -r '.secret_key')
+        ENDPOINT=$(etcdctl get /globular/cluster/minio/config --print-value-only | jq -r '.endpoint')
+
+      Register the mc alias:
+        mc alias set local "$ENDPOINT" "$ACCESS" "$SECRET" --insecure
+
+      Verify connectivity:
+        mc admin info local --insecure
+
+      The `--insecure` flag is required when using the internal hostname and the cluster CA
+      is not in the system trust store of the machine running mc.
+
+      ## Admitted disk records
+
+      Disk admission records live at:
+        /globular/objectstore/disk/admitted/{nodeID}/{pathHash}
+
+      Each record is an AdmittedDisk proto (JSON), containing:
+        - node_id
+        - node_ip  (must be stable interface IP, NOT the VIP)
+        - path
+        - force_existing_data (bool — operator acknowledged pre-existing non-minio data)
+
+      To list all admitted disks:
+        etcdctl get /globular/objectstore/disk/admitted/ --prefix --keys-only
+
+      To inspect a specific record:
+        etcdctl get /globular/objectstore/disk/admitted/<nodeID>/<pathHash>
+
+      The pathHash is the hex-encoded SHA-256 of the path string (e.g. "/mnt/data/minio").
+      It is computed by the controller at approve time and is opaque for the operator.
+
+      ## Disk approval for a new install (5-node cluster example)
+
+      For each storage node run:
+        globular objectstore disk approve \
+          --node <nodeID> --node-ip <STABLE-IP> --path /mnt/data/minio \
+          [--force-existing-data]   # only if the path has non-minio data
+
+      Use --force-existing-data when:
+        - The mount has files left over from a previous OS install or non-MinIO data
+        - The mount has a .minio.sys from a PREVIOUS generation that will be wiped by apply
+
+      Do NOT use --force-existing-data as a shortcut to skip the existence check.
+
+      After approving all nodes, verify:
+        etcdctl get /globular/objectstore/disk/admitted/ --prefix --keys-only
+      Expected: one key per node.
+
+      ## Credential rotation
+
+      If the secret_key in etcd needs to be rotated:
+        1. Run `globular objectstore credentials rotate` (CLI command, calls controller RPC)
+        2. The controller updates /globular/cluster/minio/config AND calls mc admin user update
+        3. Do NOT update the etcd key manually — the rotation workflow keeps MinIO and etcd in sync
+
+      Manual mc admin user updates that bypass the controller will cause an auth split (etcd
+      has old key, MinIO has new key) that breaks all service-to-MinIO connections silently.
+    links:
+      awareness_invariants:
+        - objectstore.topology_contract
+      cli_commands:
+        - "etcdctl get /globular/cluster/minio/config --print-value-only"
+        - "etcdctl get /globular/objectstore/config --print-value-only"
+        - "etcdctl get /globular/objectstore/disk/admitted/ --prefix --keys-only"
+        - "mc alias set local <endpoint> <access_key> <secret_key> --insecure"
+        - "mc admin info local --insecure"
+        - "globular objectstore disk approve --node <id> --node-ip <ip> --path <path>"
+    related_ids:
+      - ops.day-1.minio.topology-contract
+      - ops.day-1.minio.apply-flow
+    provenance:
+      source: seed
+      incident_date: "2026-05-15"
+      immutable: false

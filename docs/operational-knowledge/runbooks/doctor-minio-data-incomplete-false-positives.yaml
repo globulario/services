@@ -1,0 +1,132 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — cluster-doctor MinIO CRITICAL false positives on DataIncomplete snapshots"
+  description: |
+    When the cluster-doctor snapshot collector suffers transient RPC or etcd read errors,
+    it sets DataIncomplete=true and returns incomplete data (no_inventory entries, missing
+    fingerprints, empty AdmittedDisks). Without a guard, four MinIO doctor rules fire CRITICAL
+    findings against a healthy cluster. This runbook documents the false-positive pattern,
+    how to distinguish it from a real outage, and the invariant that is enforced in the code.
+  source_documents:
+    - golang/cluster_doctor/cluster_doctor_server/rules/objectstore_physical_overlap.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/objectstore_topology.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/objectstore_admission.go
+    - golang/cluster_doctor/cluster_doctor_server/collector/snapshot.go
+
+entries:
+
+  - id: ops.runbook.doctor-minio-data-incomplete-false-positives
+    type: DEBUG
+    title: "MinIO CRITICAL doctor findings on a healthy cluster — DataIncomplete false-positive"
+    tags: [day-2, objectstore, doctor, false-positive, data_incomplete, minio]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-doctor, cluster-controller]
+    content: |
+      ## Symptoms
+
+      `globular cluster doctor` emits one or more of these findings as CRITICAL even though
+      MinIO is healthy (all 5 nodes active, `mc admin info` green, topology CONVERGED):
+
+        objectstore.minio.write_quorum_lost         — "N pool nodes not active"
+        objectstore.minio.fingerprint_divergence    — "node(s) rendered different/missing topology"
+        objectstore.minio.post_apply_health         — "globular-minio.service not active on N node(s)"
+        objectstore.minio.unapproved_path           — "path on IP not found in admitted-disk records"
+
+      The snapshot header will say:
+        data_incomplete: true
+
+      ## Root cause
+
+      The snapshot collector calls node-agents via mTLS gRPC for inventory data and etcd
+      for admitted-disk / fingerprint keys. When those calls fail (network blip, node-agent
+      not yet ready, etcd leader rotation), the collector:
+        - leaves snap.Inventories[nodeID] == nil → minioServiceState() returns "no_inventory"
+        - leaves snap.NodeRenderedFingerprints[nodeID] empty / absent
+        - leaves snap.AdmittedDisks nil / empty
+        - sets snap.DataIncomplete = true
+
+      Without the guard, rules count uncertain "no_inventory" evidence as confirmed outage.
+
+      ## Suppression invariant (enforced in code since 2026-05-15)
+
+      The suppression rule is: "uncertain evidence with DataIncomplete=true is suppressed;
+      confirmed bad evidence fires regardless of DataIncomplete."
+
+      | Rule                       | Evidence class              | DataIncomplete=true | DataIncomplete=false |
+      |----------------------------|-----------------------------|---------------------|----------------------|
+      | write_quorum_lost          | no_inventory only           | SUPPRESS            | CRITICAL             |
+      | write_quorum_lost          | ≥1 confirmed inactive node  | CRITICAL            | CRITICAL             |
+      | fingerprint_divergence     | missing fingerprint only    | SUPPRESS            | CRITICAL             |
+      | fingerprint_divergence     | wrong fingerprint present   | CRITICAL            | CRITICAL             |
+      | post_apply_health          | no_inventory only           | SUPPRESS            | CRITICAL             |
+      | post_apply_health          | service state not "active"  | CRITICAL            | CRITICAL             |
+      | unapproved_path            | empty AdmittedDisks         | SUPPRESS            | CRITICAL             |
+      | unapproved_path            | wrong path in admitted disk | CRITICAL            | CRITICAL             |
+
+      Key: "confirmed inactive" means minioServiceState() returned a state other than
+      "active" AND other than "no_inventory" (e.g. "failed", "inactive", "missing").
+
+      ## How to confirm it is a false positive
+
+      1. Check the raw snapshot header:
+           globular cluster doctor --raw | jq '.snapshot.data_incomplete'
+         If true → collector had errors → findings may be false positives.
+
+      2. Verify MinIO is actually healthy:
+           mc admin info local
+         Should report 5/5 nodes online, no drives offline.
+
+      3. Verify admitted disks are in etcd directly:
+           etcdctl get /globular/objectstore/disk/admitted/ --prefix --keys-only
+         If keys exist → collector failed to read them → unapproved_path was a false positive.
+
+      4. Verify fingerprints are in etcd:
+           etcdctl get /globular/objectstore/rendered_state_fingerprint/ --prefix
+         If values are present → fingerprint_divergence was a false positive.
+
+      5. Re-run the doctor after the collector stabilises (30s–2min):
+           watch -n 30 'globular cluster doctor --category objectstore'
+         Findings should disappear once data_incomplete=false.
+
+      ## When the finding is NOT a false positive
+
+      The finding is real if, with DataIncomplete=false:
+        - mc admin info shows nodes offline
+        - etcd admits show the path but the running node has a different path
+        - fingerprint records exist but differ from the expected fingerprint
+
+      In those cases the CRITICAL finding should be acted on.
+
+      ## Regression tests
+
+      golang/cluster_doctor/cluster_doctor_server/rules/objectstore_physical_overlap_test.go:
+        TestWriteQuorumLost_NoInventoryOnly_DataIncomplete_Suppressed
+        TestWriteQuorumLost_NoInventory_DataComplete_Fires
+        TestWriteQuorumLost_KnownDown_DataIncomplete_StillFires
+
+      golang/cluster_doctor/cluster_doctor_server/rules/objectstore_topology_test.go:
+        TestFingerprintDivergence_MissingOnly_DataIncomplete_NoFinding
+        TestFingerprintDivergence_WrongFP_DataIncomplete_StillFires
+        TestPostApplyHealth_NoInventory_DataIncomplete_Suppressed
+        TestPostApplyHealth_KnownDown_DataIncomplete_StillFires
+
+      golang/cluster_doctor/cluster_doctor_server/rules/objectstore_admission_test.go:
+        TestUnapprovedPath_DataIncomplete_EmptyAdmitted_Suppressed
+        TestUnapprovedPath_DataComplete_EmptyAdmitted_Fires
+    links:
+      awareness_invariants:
+        - objectstore.minio.write_quorum_lost
+        - objectstore.minio.fingerprint_divergence
+        - objectstore.minio.post_apply_health
+        - objectstore.minio.unapproved_path
+      cli_commands:
+        - "globular cluster doctor --category objectstore"
+        - "mc admin info local"
+        - "etcdctl get /globular/objectstore/disk/admitted/ --prefix --keys-only"
+        - "etcdctl get /globular/objectstore/rendered_state_fingerprint/ --prefix"
+    provenance:
+      source: seed
+      incident_date: "2026-05-15"
+      immutable: false

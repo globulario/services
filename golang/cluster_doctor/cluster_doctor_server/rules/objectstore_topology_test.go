@@ -307,6 +307,80 @@ func TestAllThreeInvariantsPassOnConvergedCluster(t *testing.T) {
 	}
 }
 
+// ── DataIncomplete suppression tests ─────────────────────────────────────────
+//
+// These tests guard against the false-positive pattern observed in production:
+// the snapshot collector fails to reach some node agents (DataIncomplete=true),
+// leaving those nodes with no_inventory. Rules that treat no_inventory the same
+// as "confirmed down" would fire CRITICAL even when MinIO is healthy.
+
+// TestFingerprintDivergence_MissingOnly_DataIncomplete_NoFinding verifies that
+// when DataIncomplete=true, nodes with a missing fingerprint (likely an etcd
+// read failure in the collector) do NOT trigger a CRITICAL finding.
+// Only nodes with a confirmed WRONG fingerprint should fire.
+func TestFingerprintDivergence_MissingOnly_DataIncomplete_NoFinding(t *testing.T) {
+	snap := threeNodePoolSnap()
+	delete(snap.NodeRenderedFingerprints, "node-2")
+	snap.DataIncomplete = true
+
+	findings := objectstoreMinioFingerprintDivergence{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("missing fingerprint + DataIncomplete=true should produce 0 findings, got %d: %v",
+			len(findings), findings[0].Summary)
+	}
+}
+
+// TestFingerprintDivergence_WrongFP_DataIncomplete_StillFires verifies that a
+// confirmed wrong fingerprint (diverged, not just missing) still fires CRITICAL
+// even when DataIncomplete=true. Data completeness does not suppress real divergence.
+func TestFingerprintDivergence_WrongFP_DataIncomplete_StillFires(t *testing.T) {
+	snap := threeNodePoolSnap()
+	snap.NodeRenderedFingerprints["node-2"] = "000000000000stale"
+	snap.DataIncomplete = true
+
+	findings := objectstoreMinioFingerprintDivergence{}.Evaluate(snap, Config{})
+	if len(findings) != 1 {
+		t.Fatalf("wrong fingerprint should still produce 1 finding when DataIncomplete=true, got %d", len(findings))
+	}
+	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_CRITICAL {
+		t.Errorf("expected CRITICAL for confirmed diverged fingerprint, got %v", findings[0].Severity)
+	}
+}
+
+// TestPostApplyHealth_NoInventory_DataIncomplete_Suppressed verifies that
+// no_inventory nodes are suppressed when DataIncomplete=true. This is the
+// false-positive pattern: collector fails to reach some nodes, those nodes
+// appear as no_inventory, but MinIO is actually healthy on them.
+func TestPostApplyHealth_NoInventory_DataIncomplete_Suppressed(t *testing.T) {
+	snap := threeNodePoolSnap()
+	delete(snap.Inventories, "node-2")
+	delete(snap.Inventories, "node-3")
+	snap.DataIncomplete = true
+
+	findings := objectstoreMinioPostApplyHealth{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("no_inventory + DataIncomplete=true should produce 0 findings, got %d: %v",
+			len(findings), findings[0].Summary)
+	}
+}
+
+// TestPostApplyHealth_KnownDown_DataIncomplete_StillFires verifies that a
+// confirmed-down node (inventory present, MinIO inactive) still fires CRITICAL
+// even when DataIncomplete=true.
+func TestPostApplyHealth_KnownDown_DataIncomplete_StillFires(t *testing.T) {
+	snap := threeNodePoolSnap()
+	snap.Inventories["node-2"] = minioInactiveInventory("failed")
+	snap.DataIncomplete = true
+
+	findings := objectstoreMinioPostApplyHealth{}.Evaluate(snap, Config{})
+	if len(findings) != 1 {
+		t.Fatalf("confirmed-down node should fire even with DataIncomplete=true, got %d", len(findings))
+	}
+	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_CRITICAL {
+		t.Errorf("expected CRITICAL, got %v", findings[0].Severity)
+	}
+}
+
 // TestFailedWorkflowVisibleInLastRestartResult checks that the doctor
 // post_apply_health invariant fires when applied_generation is at desired
 // but MinIO regressed — simulating a failed restart that didn't roll back.

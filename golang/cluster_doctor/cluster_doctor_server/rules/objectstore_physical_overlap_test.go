@@ -315,6 +315,102 @@ func TestWriteQuorumLost_OneNodeActive_CRITICAL(t *testing.T) {
 	}
 }
 
+// TestWriteQuorumLost_NoInventoryOnly_DataIncomplete_Suppressed is the key
+// false-positive regression test: 4 of 5 pool nodes have no_inventory because
+// the snapshot collector failed to reach their node agents (DataIncomplete=true).
+// Only 1 node is confirmed active. This matches the production pattern where
+// MinIO is fully healthy (5/5 nodes, CONVERGED) but the doctor would fire CRITICAL
+// because no_inventory was treated identically to "confirmed down".
+func TestWriteQuorumLost_NoInventoryOnly_DataIncomplete_Suppressed(t *testing.T) {
+	snap := &collector.Snapshot{
+		DataIncomplete: true,
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			nodeRecord("node-a", "10.0.0.1"),
+			nodeRecord("node-b", "10.0.0.2"),
+			nodeRecord("node-c", "10.0.0.3"),
+			nodeRecord("node-d", "10.0.0.4"),
+			nodeRecord("node-e", "10.0.0.5"),
+		},
+		// Only node-a has inventory; others are no_inventory (collector RPC failures).
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-a": minioActiveInventory(),
+		},
+		ObjectStoreDesired: distributedDesired(
+			[]string{"10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4", "10.0.0.5"},
+			nil, 1,
+		),
+		ObjectStoreAppliedGeneration: 1,
+	}
+
+	findings := objectstoreWriteQuorumLost{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("no_inventory-only + DataIncomplete=true should produce 0 findings (false positive), got %d: %v",
+			len(findings), findings[0].Summary)
+	}
+}
+
+// TestWriteQuorumLost_NoInventory_DataComplete_Fires verifies that when the
+// snapshot is complete (no collection errors), no_inventory nodes ARE counted
+// as down — the node is genuinely unreachable, not a collector fluke.
+func TestWriteQuorumLost_NoInventory_DataComplete_Fires(t *testing.T) {
+	snap := &collector.Snapshot{
+		DataIncomplete: false,
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			nodeRecord("node-a", "10.0.0.1"),
+			nodeRecord("node-b", "10.0.0.2"),
+			nodeRecord("node-c", "10.0.0.3"),
+		},
+		// node-b and node-c have no inventory at all — truly unreachable.
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-a": minioActiveInventory(),
+		},
+		ObjectStoreDesired: distributedDesired(
+			[]string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}, nil, 1,
+		),
+		ObjectStoreAppliedGeneration: 1,
+	}
+
+	findings := objectstoreWriteQuorumLost{}.Evaluate(snap, Config{})
+	if len(findings) != 1 {
+		t.Fatalf("no_inventory + DataIncomplete=false should fire CRITICAL (node is truly unreachable), got %d", len(findings))
+	}
+	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_CRITICAL {
+		t.Errorf("expected CRITICAL, got %v", findings[0].Severity)
+	}
+}
+
+// TestWriteQuorumLost_KnownDown_DataIncomplete_StillFires verifies that a
+// confirmed-down node (inventory present, MinIO not active) fires CRITICAL
+// even when DataIncomplete=true. The suppression only applies when ALL "down"
+// nodes are in the uncertain no_inventory bucket.
+func TestWriteQuorumLost_KnownDown_DataIncomplete_StillFires(t *testing.T) {
+	snap := &collector.Snapshot{
+		DataIncomplete: true,
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			nodeRecord("node-a", "10.0.0.1"),
+			nodeRecord("node-b", "10.0.0.2"),
+			nodeRecord("node-c", "10.0.0.3"),
+		},
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-a": minioActiveInventory(),
+			"node-b": minioInactiveInventory("failed"), // confirmed down
+			// node-c: no inventory (uncertain)
+		},
+		ObjectStoreDesired: distributedDesired(
+			[]string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}, nil, 1,
+		),
+		ObjectStoreAppliedGeneration: 1,
+	}
+
+	findings := objectstoreWriteQuorumLost{}.Evaluate(snap, Config{})
+	if len(findings) != 1 {
+		t.Fatalf("confirmed-down node should fire CRITICAL even with DataIncomplete=true, got %d", len(findings))
+	}
+	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_CRITICAL {
+		t.Errorf("expected CRITICAL, got %v", findings[0].Severity)
+	}
+}
+
 // All 3 nodes active → no quorum loss.
 func TestWriteQuorumLost_AllActive_OK(t *testing.T) {
 	snap := &collector.Snapshot{
