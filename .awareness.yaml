@@ -26,7 +26,6 @@ awareness:
   forbidden_fixes:
     - docs/awareness/forbidden_fixes.yaml
   incident_patterns:
-    - docs/awareness/failuregraph_seeds
     - docs/awareness/incidents
   design_patterns:
     - docs/awareness/design_patterns.yaml
