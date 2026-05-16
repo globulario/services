@@ -1,0 +1,34 @@
+name: globular-services
+kind: platform
+
+runtime:
+  enabled: true
+  adapter: globular
+
+languages:
+  go: true
+  proto: true
+  typescript: true
+  yaml: true
+  markdown: true
+
+source_roots:
+  - golang
+
+awareness:
+  root: docs/awareness
+  invariants:
+    - docs/awareness/invariants.yaml
+    - docs/awareness/convergence_rules.yaml
+    - docs/awareness/awareness_self_invariants.yaml
+  failure_modes:
+    - docs/awareness/failure_modes.yaml
+  forbidden_fixes:
+    - docs/awareness/forbidden_fixes.yaml
+  incident_patterns:
+    - docs/awareness/failuregraph_seeds
+    - docs/awareness/incidents
+  design_patterns:
+    - docs/awareness/design_patterns.yaml
+  services:
+    - docs/awareness/services.yaml
