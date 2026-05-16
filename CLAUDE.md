@@ -266,6 +266,20 @@ The canonical script is at `scripts/clean-node.sh` (also embedded in the gateway
 
 ## AI RULES (for AI agents operating on this codebase)
 
+### Awareness workflow — required sequence
+
+For any non-trivial task:
+
+1. **`awareness session-start`** — open a session before touching files. Records intent and establishes the edit boundary.
+2. **`awareness impact <file>`** — before editing a file, check blast radius. Returns affected invariants, rules, and tests.
+3. **`awareness scan-violations`** — after editing, scan for invariant violations before committing.
+
+**`NO_MATCH` ≠ safe.** When awareness returns NO_MATCH (no graph nodes matched), it means the graph has no coverage for that file — not that the edit is safe. Always grep `failure_modes.yaml`, `invariants.yaml`, and `services.yaml` directly on NO_MATCH.
+
+**`UNKNOWN_IMPACT`** — when impact returns UNKNOWN_IMPACT, treat it as high-risk. Do not proceed without reading the file and understanding the blast radius manually.
+
+For high-risk files (component_catalog.go, component_resolve.go, ingress_spec_guard.go, reconcile_runtime.go, bootstrap_phases.go, and any file touching cluster state), always call `awareness.decision_context` before editing. This encodes required pre-action evidence and forbidden_actions.
+
 ### Awareness token discipline — HARD LIMIT
 Awareness tools are expensive. Violating these rules eats the whole context budget.
 
