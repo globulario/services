@@ -143,6 +143,12 @@ type Component struct {
 
 	// HealthCheck describes how to verify this component is healthy.
 	HealthCheck *HealthCheckHintC
+
+	// Optional marks a component that is managed by the node when possible but
+	// is NOT required to be healthy for the infra health check to pass.
+	// Use for components whose presence depends on operator-configured state
+	// (e.g. keepalived requires a VIP to be configured before it can run).
+	Optional bool
 }
 
 // ---------------------------------------------------------------------------
@@ -653,6 +659,7 @@ func buildCatalog() []*Component {
 			Kind:     KindInfrastructure,
 			Priority: 9,
 			Profiles: []string{"control-plane", "gateway"},
+			Optional: true,
 		},
 		{
 			Name:        "prometheus",

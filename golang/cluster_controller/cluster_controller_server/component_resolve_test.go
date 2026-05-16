@@ -448,6 +448,59 @@ func TestDay1Phase_InfraHealthyWorkloadsBlocked(t *testing.T) {
 	}
 }
 
+// TestDay1Phase_KeepalivdInactive_DoesNotBlockInfra is the regression test for
+// the invariant: keepalived is Optional=true, so a node with control-plane or
+// gateway profile must not be stuck at infra_installed when keepalived is
+// inactive (e.g. no VIP has been configured by the operator).
+func TestDay1Phase_KeepaliveInactive_DoesNotBlockInfra(t *testing.T) {
+	// Simulate a gateway+control-plane node with all required infra active
+	// EXCEPT keepalived, which is inactive because no VIP is configured.
+	units := []unitStatusRecord{
+		{Name: "globular-etcd.service", State: "active"},
+		{Name: "globular-minio.service", State: "active"},
+		{Name: "scylla-server.service", State: "active"},
+		{Name: "globular-gateway.service", State: "active"},
+		{Name: "globular-xds.service", State: "active"},
+		{Name: "globular-envoy.service", State: "active"},
+		{Name: "globular-alertmanager.service", State: "active"},
+		{Name: "globular-node-exporter.service", State: "active"},
+		{Name: "globular-prometheus.service", State: "active"},
+		{Name: "globular-sidekick.service", State: "active"},
+		{Name: "globular-scylla-manager.service", State: "active"},
+		{Name: "globular-scylla-manager-agent.service", State: "active"},
+		// keepalived.service intentionally absent — no VIP configured
+	}
+	intent, err := ResolveNodeIntent("n1", []string{"core", "control-plane", "gateway"}, units, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// keepalived must be in desired_infra so the node-agent knows about it.
+	found := false
+	for _, name := range intent.DesiredInfraNames {
+		if name == "keepalived" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("keepalived should still appear in desired_infra even when Optional=true")
+	}
+
+	node := &nodeState{
+		NodeID:         "n1",
+		BootstrapPhase: BootstrapWorkloadReady,
+		Profiles:       []string{"core", "control-plane", "gateway"},
+		ResolvedIntent: intent,
+		Units:          units,
+	}
+	phase, reason := ComputeDay1Phase(node)
+	// Phase must NOT be infra_installed — keepalived absence must not block.
+	if phase == Day1InfraInstalled {
+		t.Errorf("keepalived inactive should not block infra health check, got phase=%q reason=%q", phase, reason)
+	}
+}
+
 func TestDay1Phase_Ready(t *testing.T) {
 	// Database node with all deps healthy.
 	units := []unitStatusRecord{

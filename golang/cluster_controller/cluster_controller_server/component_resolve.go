@@ -564,6 +564,9 @@ func ComputeDay1Phase(node *nodeState) (Day1Phase, string) {
 		allInfraInstalled := true
 		var unhealthyInfra []string
 		for _, c := range intent.DesiredInfra {
+			if c.Optional {
+				continue // optional components (e.g. keepalived) don't block infra readiness
+			}
 			if !healthyUnits[strings.ToLower(c.Unit)] {
 				allInfraHealthy = false
 				unhealthyInfra = append(unhealthyInfra, c.Name)
