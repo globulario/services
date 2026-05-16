@@ -74,7 +74,7 @@ declare -A PKG_VERSIONS=()
 if [[ -n "${VERSIONS_FILE}" && -f "${VERSIONS_FILE}" ]]; then
   while IFS='=' read -r key val; do
     key="$(echo "$key" | tr -d ' ')"
-    val="$(echo "$val" | tr -d ' ')"
+    val="$(echo "$val" | sed 's/#.*//' | tr -d ' ')"
     [[ -z "$key" || "$key" == \#* ]] && continue
     # Strip path prefix if caller passed gen-version.sh format (authentication/authentication_server).
     key="${key%%/*}"
@@ -150,9 +150,16 @@ build_one() {
   fi
 
   # Resolve per-package version: versions file wins over global --version default.
+  # The versions file may use hyphens (cluster-controller) while the binary name
+  # uses underscores (cluster_controller_server → cluster_controller). Try both.
+  local svc_hyphen="${svc//_/-}"
   local pkg_version="${VERSION}"
-  if [[ ${#PKG_VERSIONS[@]} -gt 0 && -n "${PKG_VERSIONS[$svc]+x}" ]]; then
-    pkg_version="${PKG_VERSIONS[$svc]}"
+  if [[ ${#PKG_VERSIONS[@]} -gt 0 ]]; then
+    if [[ -n "${PKG_VERSIONS[$svc]+x}" ]]; then
+      pkg_version="${PKG_VERSIONS[$svc]}"
+    elif [[ -n "${PKG_VERSIONS[$svc_hyphen]+x}" ]]; then
+      pkg_version="${PKG_VERSIONS[$svc_hyphen]}"
+    fi
   fi
 
   echo "==> pkg build ${svc} (${exe}) version=${pkg_version}"

@@ -15,7 +15,7 @@ backup-manager=1.2.43  # unchanged, origin=v1.2.43
 blog=1.2.43  # unchanged, origin=v1.2.43
 catalog=1.2.43  # unchanged, origin=v1.2.43
 claude=2.1.80  # unchanged, origin=v1.2.42
-cluster-controller=1.2.52  # changed
+cluster-controller=1.2.53  # changed
 cluster-doctor=1.2.50  # unchanged, origin=v1.2.50
 conversation=1.2.43  # unchanged, origin=v1.2.43
 dns=1.2.44  # unchanged, origin=v1.2.44
