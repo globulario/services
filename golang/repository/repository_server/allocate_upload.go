@@ -190,6 +190,16 @@ func (srv *server) resolveVersionIntent(ctx context.Context, publisher, name, pl
 		if err != nil {
 			return "", status.Errorf(codes.InvalidArgument, "invalid version %q: %v", exactVersion, err)
 		}
+		// Version immutability: if (name, version, platform) is already in the
+		// PUBLISHED ledger, reject the allocation. Re-publishing the same version
+		// generates a new build_id for an identical artifact — the old build_id
+		// stays installed on nodes, the new one enters desired state, and every
+		// node in the cluster shows "build drift" forever.
+		if existingBuildID := srv.getExactRelease(ctx, publisher, name, cv, platform); existingBuildID != "" {
+			return "", status.Errorf(codes.AlreadyExists,
+				"version %s is already published for %s/%s on %s (build_id=%.8s) — published versions are immutable; bump the version to release a new build",
+				cv, publisher, name, platform, existingBuildID)
+		}
 		// Validate monotonicity only when both versions are SemVer. Exact
 		// upstream-native tags are identities, not ordered release streams.
 		latestVer, _ := srv.getLatestRelease(ctx, publisher, name, platform)

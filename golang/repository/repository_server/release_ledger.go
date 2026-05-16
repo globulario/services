@@ -160,7 +160,6 @@ func (srv *server) appendToLedger(ctx context.Context, publisher, name, version,
 	}
 
 	// Monotonic version enforcement: new version must be > latest.
-	// Exception: same version is allowed (multiple platforms, or re-promote).
 	if ledger.LatestVersion != "" && version != ledger.LatestVersion {
 		cmp, err := versionutil.Compare(version, ledger.LatestVersion)
 		if err == nil && cmp < 0 {
@@ -169,10 +168,22 @@ func (srv *server) appendToLedger(ctx context.Context, publisher, name, version,
 		}
 	}
 
-	// Check for duplicate entry (idempotent re-promote).
+	// Version+platform immutability: once (version, platform) is in the ledger,
+	// it is permanently bound to its first build_id. Re-publishing the same
+	// (version, platform) under a new build_id creates duplicate artifacts that
+	// cause build-id drift across the 4 layers — desired state updates to the
+	// new build_id while nodes still carry the old one.
+	//
+	// The only exception is a true idempotent re-promote: the exact same build_id
+	// is already in the ledger (upload completed, promote retried). All other
+	// same-version same-platform writes are rejected.
 	for _, r := range ledger.Releases {
 		if r.BuildID == buildID {
-			return nil // already in ledger
+			return nil // idempotent re-promote: exact same build already in ledger
+		}
+		if r.Version == version && r.Platform == platform {
+			return fmt.Errorf("version %s is already published for %s/%s on %s (build_id=%s) — published versions are immutable; bump the version to release a new build",
+				version, publisher, name, platform, r.BuildID)
 		}
 	}
 
@@ -186,19 +197,38 @@ func (srv *server) appendToLedger(ctx context.Context, publisher, name, version,
 	}
 	ledger.Releases = append(ledger.Releases, entry)
 
-	// Update latest if this version is newer.
+	// Update latest only when strictly newer — same-version re-publish is now
+	// rejected above, so cmp == 0 here means a different platform; don't
+	// overwrite the canonical LatestBuildID with a platform-specific one.
 	if ledger.LatestVersion == "" {
 		ledger.LatestVersion = version
 		ledger.LatestBuildID = buildID
 	} else {
 		cmp, err := versionutil.Compare(version, ledger.LatestVersion)
-		if err == nil && cmp >= 0 {
+		if err == nil && cmp > 0 {
 			ledger.LatestVersion = version
 			ledger.LatestBuildID = buildID
 		}
 	}
 
 	return srv.writeLedger(ctx, ledger)
+}
+
+// getExactRelease returns the build_id for an exact (name, version, platform)
+// tuple in the PUBLISHED ledger, or "" if not found. Used by AllocateUpload to
+// enforce version immutability — if a build_id is returned, the version is
+// already published and cannot be re-allocated.
+func (srv *server) getExactRelease(ctx context.Context, publisher, name, version, platform string) string {
+	ledger := srv.readLedger(ctx, publisher, name)
+	if ledger == nil {
+		return ""
+	}
+	for _, r := range ledger.Releases {
+		if (r.Platform == platform || platform == "") && r.Version == version {
+			return r.BuildID
+		}
+	}
+	return ""
 }
 
 // getLatestRelease returns the latest PUBLISHED build_id for a package on a

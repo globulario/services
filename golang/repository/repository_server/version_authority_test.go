@@ -544,3 +544,113 @@ func TestVA5_UnchangedPackageVersionSurvivesPlatformUpgrade(t *testing.T) {
 		t.Errorf("referenced_releases must include v1.2.44 (dns origin), got: %v", bom.ReferencedReleases)
 	}
 }
+
+// ── VA-6: Build-ID Immutability ────────────────────────────────────────────
+//
+// Once a (name, version, platform) tuple is PUBLISHED, it is permanently bound
+// to its first build_id. Re-publishing under the same version must be rejected.
+//
+// Without this invariant, the CI pipeline can republish unchanged packages under
+// the same version, generating a new build_id. Desired state updates to the new
+// build_id; nodes carry the old one → "build drift" warnings that never clear.
+
+// TestVA6_AppendToLedger_SameVersionPlatform_Rejected verifies that
+// appendToLedger rejects a second (version, platform) entry with a different
+// build_id. This is the core ledger-level enforcement of version immutability.
+func TestVA6_AppendToLedger_SameVersionPlatform_Rejected(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	// First publish: workflow@1.2.43 linux_amd64 with build_id "build-aaa"
+	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-aaa", "sha256:aaa", "linux_amd64", 1000); err != nil {
+		t.Fatalf("first appendToLedger: %v", err)
+	}
+
+	// Second publish: same version+platform, different build_id — must be rejected.
+	err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-bbb", "sha256:bbb", "linux_amd64", 1000)
+	if err == nil {
+		t.Fatal("expected error re-publishing same (version, platform) with different build_id, got nil")
+	}
+	if !strings.Contains(err.Error(), "already published") {
+		t.Errorf("expected 'already published' error, got: %v", err)
+	}
+}
+
+// TestVA6_AppendToLedger_SameVersionSameBuildID_Idempotent verifies that
+// re-promoting the exact same build_id is a no-op (idempotent re-promote).
+func TestVA6_AppendToLedger_SameVersionSameBuildID_Idempotent(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-aaa", "sha256:aaa", "linux_amd64", 1000); err != nil {
+		t.Fatalf("first appendToLedger: %v", err)
+	}
+
+	// Re-promote same build_id — must succeed silently.
+	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-aaa", "sha256:aaa", "linux_amd64", 1000); err != nil {
+		t.Errorf("idempotent re-promote must not return an error, got: %v", err)
+	}
+}
+
+// TestVA6_AppendToLedger_SameVersionDifferentPlatform_Allowed verifies that
+// (version, platform_A) and (version, platform_B) can coexist — multi-platform
+// builds are legitimate.
+func TestVA6_AppendToLedger_SameVersionDifferentPlatform_Allowed(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-aaa", "sha256:aaa", "linux_amd64", 1000); err != nil {
+		t.Fatalf("linux_amd64 appendToLedger: %v", err)
+	}
+	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-bbb", "sha256:bbb", "linux_arm64", 1000); err != nil {
+		t.Errorf("linux_arm64 appendToLedger must be allowed for same version, got: %v", err)
+	}
+}
+
+// TestVA6_GetExactRelease_ReturnsCanonicalBuildID verifies that getExactRelease
+// returns the build_id for an exact (name, version, platform) match and ""
+// when no match exists.
+func TestVA6_GetExactRelease_ReturnsCanonicalBuildID(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	if err := srv.appendToLedger(ctx, "core@globular.io", "dns", "1.2.44", "build-dns-01", "sha256:dns01", "linux_amd64", 500); err != nil {
+		t.Fatalf("appendToLedger: %v", err)
+	}
+
+	bid := srv.getExactRelease(ctx, "core@globular.io", "dns", "1.2.44", "linux_amd64")
+	if bid != "build-dns-01" {
+		t.Errorf("getExactRelease = %q, want %q", bid, "build-dns-01")
+	}
+
+	// Unknown version must return "".
+	if bid := srv.getExactRelease(ctx, "core@globular.io", "dns", "1.2.99", "linux_amd64"); bid != "" {
+		t.Errorf("unknown version must return empty, got %q", bid)
+	}
+
+	// Unknown package must return "".
+	if bid := srv.getExactRelease(ctx, "core@globular.io", "unknownpkg", "1.2.44", "linux_amd64"); bid != "" {
+		t.Errorf("unknown package must return empty, got %q", bid)
+	}
+}
+
+// TestVA6_LatestBuildID_NotOverwrittenBySameVersion verifies that the ledger's
+// LatestBuildID is not overwritten when the same version is attempted again
+// (the second write is rejected, so LatestBuildID stays bound to the first).
+func TestVA6_LatestBuildID_NotOverwrittenBySameVersion(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	if err := srv.appendToLedger(ctx, "core@globular.io", "storage", "1.2.43", "build-orig", "sha256:orig", "linux_amd64", 2000); err != nil {
+		t.Fatalf("first appendToLedger: %v", err)
+	}
+
+	// Attempt re-publish — must fail.
+	_ = srv.appendToLedger(ctx, "core@globular.io", "storage", "1.2.43", "build-new", "sha256:new", "linux_amd64", 2000)
+
+	// LatestBuildID must still be the original.
+	_, latestBID := srv.getLatestRelease(ctx, "core@globular.io", "storage", "linux_amd64")
+	if latestBID != "build-orig" {
+		t.Errorf("LatestBuildID = %q after rejected re-publish, want %q — re-publish must not overwrite canonical build_id", latestBID, "build-orig")
+	}
+}
