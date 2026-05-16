@@ -481,7 +481,10 @@ func (objectstoreWriteQuorumLost) Evaluate(snap *collector.Snapshot, _ Config) [
 			continue
 		}
 		switch minioServiceState(snap, nodeID) {
-		case "active":
+		case "active", "hash_drift":
+			// hash_drift = service is running but unit file content changed since
+			// install. systemd still reports active; this is handled by the release
+			// pipeline's detectInfraDrift (triggers re-install), not a quorum loss.
 			activeNodes = append(activeNodes, ip)
 		case "no_inventory":
 			noInventoryNodes = append(noInventoryNodes, ip)

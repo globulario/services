@@ -248,7 +248,9 @@ func (objectstoreMinioPostApplyHealth) Evaluate(snap *collector.Snapshot, _ Conf
 			}
 			continue
 		}
-		if state != "active" {
+		// hash_drift = service is running, unit file content changed since install.
+		// systemd still reports active; release pipeline handles re-install separately.
+		if state != "active" && state != "hash_drift" {
 			notActive = append(notActive, fmt.Sprintf("%s(%s):state=%s", nodeID, poolIP, state))
 		}
 	}
