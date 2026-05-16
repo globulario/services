@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
-	"github.com/spf13/cobra"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/spf13/cobra"
 )
 
 var repoExplainPackageJSON bool
@@ -72,10 +74,12 @@ func runRepoExplainPackage(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no info returned for package %q", name)
 	}
 
+	ov, _ := readLocalOverride(name) // nil = no active override; errors silently ignored
+
 	if repoExplainPackageJSON {
-		return explainPackageJSON(info)
+		return explainPackageJSON(info, ov)
 	}
-	explainPackagePrint(info)
+	explainPackagePrint(info, ov)
 	return nil
 }
 
@@ -95,7 +99,7 @@ func versionAuthorityViolation(info *repopb.PackageInfo) string {
 	return desiredVer
 }
 
-func explainPackagePrint(info *repopb.PackageInfo) {
+func explainPackagePrint(info *repopb.PackageInfo, ov *cluster_controllerpb.LocalOverride) {
 	fmt.Printf("package:  %s  (%s)\n", info.GetName(), info.GetKind().String())
 	fmt.Printf("publisher: %s\n", info.GetPublisher())
 	fmt.Println()
@@ -116,8 +120,45 @@ func explainPackagePrint(info *repopb.PackageInfo) {
 	fmt.Println()
 	fmt.Println("LAYER 2  Desired")
 	d := info.GetDesired()
-	if d != nil && d.GetPresent() {
+
+	if ov != nil {
+		fmt.Println("  mode:       LOCAL OVERRIDE ACTIVE")
+		fmt.Printf("  publisher:  %s\n", ov.PublisherID)
+		fmt.Printf("  version:    %s\n", ov.Version)
+		if ov.BuildID != "" {
+			fmt.Printf("  build_id:   %s\n", ov.BuildID)
+		}
+		if ov.BasedOnVersion != "" {
+			fmt.Printf("  based_on:   %s (official)\n", ov.BasedOnVersion)
+		}
+		fmt.Printf("  reason:     %s\n", ov.PatchReason)
+		if ov.CreatedBy != "" {
+			fmt.Printf("  created_by: %s\n", ov.CreatedBy)
+		}
+		if ov.CreatedAtUnixS > 0 {
+			fmt.Printf("  created_at: %s\n", time.Unix(ov.CreatedAtUnixS, 0).Format(time.RFC3339))
+		}
+		snap := ov.OfficialSnapshot
+		if snap != nil && snap.Version != "" {
+			fmt.Println()
+			fmt.Println("  Official BOM (would be restored by 'pkg override remove'):")
+			fmt.Printf("    publisher: %s\n", func() string {
+				if snap.PublisherID == "" { return "core@globular.io" }
+				return snap.PublisherID
+			}())
+			fmt.Printf("    version:   %s\n", snap.Version)
+			if snap.BuildID != "" {
+				fmt.Printf("    build_id:  %s\n", snap.BuildID)
+			}
+		}
+		fmt.Println()
+		fmt.Println("  Run 'globular pkg override remove " + info.GetName() + "' to restore the official build.")
+	} else if d != nil && d.GetPresent() {
+		fmt.Println("  mode:       official")
 		fmt.Printf("  version:    %s  (generation %d)\n", d.GetVersion(), d.GetGeneration())
+		if p := d.GetPublisher(); p != "" {
+			fmt.Printf("  publisher:  %s\n", p)
+		}
 	} else {
 		fmt.Println("  <no desired state — package is unmanaged>")
 	}
@@ -201,7 +242,7 @@ func explainPackagePrint(info *repopb.PackageInfo) {
 	}
 }
 
-func explainPackageJSON(info *repopb.PackageInfo) error {
+func explainPackageJSON(info *repopb.PackageInfo, ov *cluster_controllerpb.LocalOverride) error {
 	d := info.GetDesired()
 	desired := map[string]interface{}{"present": false}
 	if d != nil && d.GetPresent() {
@@ -232,19 +273,48 @@ func explainPackageJSON(info *repopb.PackageInfo) error {
 
 	vav := versionAuthorityViolation(info)
 	out := map[string]interface{}{
-		"name":                       info.GetName(),
-		"kind":                       info.GetKind().String(),
-		"publisher":                  info.GetPublisher(),
-		"repository_versions":        info.GetVersions(),
-		"latest_version":             info.GetLatestVersion(),
-		"desired":                    desired,
-		"installed_on":               installed,
-		"failing_on":                 failing,
+		"name":                        info.GetName(),
+		"kind":                        info.GetKind().String(),
+		"publisher":                   info.GetPublisher(),
+		"repository_versions":         info.GetVersions(),
+		"latest_version":              info.GetLatestVersion(),
+		"desired":                     desired,
+		"installed_on":                installed,
+		"failing_on":                  failing,
 		"version_authority_violation": vav != "",
 	}
 	if vav != "" {
 		out["violated_desired_version"] = vav
 		out["violation_hint"] = "desired version was never built — roll forward, do not delete desired state"
+	}
+
+	if ov != nil {
+		ovMap := map[string]interface{}{
+			"active":      true,
+			"publisher":   ov.PublisherID,
+			"version":     ov.Version,
+			"build_id":    ov.BuildID,
+			"reason":      ov.PatchReason,
+			"created_by":  ov.CreatedBy,
+			"created_at":  ov.CreatedAtUnixS,
+		}
+		if ov.BasedOnVersion != "" {
+			ovMap["based_on_version"] = ov.BasedOnVersion
+		}
+		if snap := ov.OfficialSnapshot; snap != nil {
+			snapMap := map[string]interface{}{
+				"publisher": func() string {
+					if snap.PublisherID == "" { return "core@globular.io" }
+					return snap.PublisherID
+				}(),
+				"version":  snap.Version,
+				"build_id": snap.BuildID,
+			}
+			ovMap["official_snapshot"] = snapMap
+		}
+		out["local_override"] = ovMap
+	} else {
+		out["local_override"] = map[string]interface{}{"active": false}
 	}
 
 	enc := json.NewEncoder(os.Stdout)

@@ -28,7 +28,50 @@ type ServiceDesiredVersionSpec struct {
 	Version     string `json:"version,omitempty"`
 	BuildNumber int64  `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
 	BuildID     string `json:"build_id,omitempty"`     // Phase 2: exact artifact identity (UUIDv7, repository-allocated)
+	// PublisherID is normally empty (defaults to core@globular.io). It is set
+	// explicitly only when a local override is active — allowing the release
+	// resolver to look up the artifact under the correct identity lane
+	// (e.g. local@<cluster-id>). Cleared when the override is removed.
+	PublisherID string `json:"publisher_id,omitempty"`
 }
+
+// LocalOverride is stored at /globular/releases/local_overrides/{service_name}.
+// It records an active local-package override: which local build is active, why,
+// and the official snapshot needed to undo the override.
+//
+// +globular:schema:key="/globular/releases/local_overrides/{name}"
+// +globular:schema:writer="globular-cli (pkg override)"
+// +globular:schema:readers="globular-cluster-controller,globular-cluster-doctor,globular-cli"
+// +globular:schema:description="Active local package override — official BOM untouched; effective BOM uses this build."
+type LocalOverride struct {
+	ServiceName    string `json:"service_name"`
+	PublisherID    string `json:"publisher_id"`     // e.g. local@ryzen
+	Version        string `json:"version"`           // e.g. 1.2.43+local.ryzen.1
+	BuildID        string `json:"build_id"`          // local artifact build_id
+	BuildNumber    int64  `json:"build_number,omitempty"`
+	BasedOnVersion string `json:"based_on_version,omitempty"` // official version this is derived from
+	BasedOnBuildID string `json:"based_on_build_id,omitempty"` // official build_id this is derived from
+	PatchReason    string `json:"patch_reason"`
+	CreatedBy      string `json:"created_by,omitempty"`      // operator hostname / identity
+	CreatedAtUnixS int64  `json:"created_at_unix_s"`
+
+	// OfficialSnapshot holds the official ServiceDesiredVersionSpec that was
+	// active before the override. Restored verbatim by 'pkg override remove'.
+	OfficialSnapshot *LocalOverrideSnapshot `json:"official_snapshot"`
+}
+
+// LocalOverrideSnapshot is the pre-override state of a ServiceDesiredVersionSpec.
+type LocalOverrideSnapshot struct {
+	ServiceName string `json:"service_name"`
+	Version     string `json:"version"`
+	BuildNumber int64  `json:"build_number,omitempty"`
+	BuildID     string `json:"build_id,omitempty"`
+	PublisherID string `json:"publisher_id,omitempty"` // empty = core@globular.io
+	Generation  int64  `json:"generation,omitempty"`
+}
+
+// LocalOverrideKeyPrefix is the etcd key prefix for active local overrides.
+const LocalOverrideKeyPrefix = "/globular/releases/local_overrides/"
 
 // ServiceDesiredVersion is the cluster-wide desired version pointer for a
 // single SERVICE-kind package. It is the authoritative "which version

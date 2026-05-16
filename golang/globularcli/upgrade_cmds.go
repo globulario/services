@@ -109,12 +109,24 @@ func runPlatformUpgrade(cmd *cobra.Command, args []string) error {
 			// already use direct etcd writes for the same reason. The controller reads
 			// ServiceDesiredVersion records from etcd on every reconcile tick.
 			if platformUpgradeDryRun {
+				// Warn if a local override is active for this package.
+				if ov, _ := readLocalOverride(pkg.Name); ov != nil {
+					fmt.Printf("  WARN    %-25s has active local override (build_id=%s reason=%q) — upgrade would replace it\n",
+						pkg.Name, ov.BuildID[:min8(len(ov.BuildID))], ov.PatchReason)
+				}
 				fmt.Printf("  would   %-25s -> v%-25s (%s)\n", pkg.Name, pkg.Version, label)
 				svcUpdated++
 				continue
 			}
 
-			err := upsertServiceDesiredVersion(pkg.Name, pkg.Version, pkg.BuildNumber, pkg.BuildID)
+			// Warn (but do not block) if a local override is active.
+			if ov, _ := readLocalOverride(pkg.Name); ov != nil {
+				fmt.Printf("  WARN    %-25s has active local override (build_id=%s reason=%q) — replacing with official %s\n",
+					pkg.Name, ov.BuildID[:min8(len(ov.BuildID))], ov.PatchReason, pkg.Version)
+				fmt.Printf("          To preserve the override: run 'globular pkg override remove %s' first, then re-apply the override after upgrade.\n", pkg.Name)
+			}
+
+			err := upsertServiceDesiredVersion(pkg.Name, "", pkg.Version, pkg.BuildNumber, pkg.BuildID)
 			if err != nil {
 				fmt.Printf("  FAIL   %-25s v%-25s (%s: %v)\n", pkg.Name, pkg.Version, label, err)
 				failed++
@@ -167,9 +179,11 @@ func loadBOMIndex(tag string) (*bomIndex, error) {
 }
 
 // upsertServiceDesiredVersion writes a ServiceDesiredVersion record directly to etcd.
+// publisherID may be empty (defaults to core@globular.io for official builds) or
+// set to a local publisher (e.g. local@ryzen) when activating a local override.
 // This mirrors updateInfraReleaseVersion: both bypass gRPC so platform-upgrade works
 // during early bootstrap before the mesh is routing.
-func upsertServiceDesiredVersion(serviceName, version string, buildNumber int64, buildID string) error {
+func upsertServiceDesiredVersion(serviceName, publisherID, version string, buildNumber int64, buildID string) error {
 	cli, err := config.GetEtcdClient()
 	if err != nil {
 		return fmt.Errorf("etcd client: %w", err)
@@ -216,6 +230,9 @@ func upsertServiceDesiredVersion(serviceName, version string, buildNumber int64,
 	}
 	if buildID != "" {
 		spec["build_id"] = buildID
+	}
+	if publisherID != "" {
+		spec["publisher_id"] = publisherID
 	}
 	rec["spec"] = spec
 

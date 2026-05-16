@@ -9,9 +9,16 @@ import (
 
 // ensureServiceRelease creates or updates a ServiceRelease object for the given
 // service so that the release reconciler can track per-service lifecycle phases.
-// Idempotent: if a ServiceRelease already exists with the same version and
-// build number, it is left unchanged.
-func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, version string, buildNumber int64) {
+// Idempotent: if a ServiceRelease already exists with the same version, build
+// number, and publisher, it is left unchanged.
+//
+// publisherID overrides the artifact publisher used by the release resolver.
+// Empty string means use the default official publisher (core@globular.io).
+// Set to a non-official publisher (e.g. local@ryzen) when a local override is
+// active — the resolver will look up the artifact under the correct identity lane.
+// The ServiceRelease KEY always uses defaultPublisherID() so there is never more
+// than one release record per service regardless of override state.
+func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, publisherID, version string, buildNumber int64) {
 	if !srv.mustBeLeader() {
 		return
 	}
@@ -23,9 +30,16 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, versio
 		return
 	}
 
+	effectivePublisher := publisherID
+	if effectivePublisher == "" {
+		effectivePublisher = defaultPublisherID()
+	}
+
+	// Release key always uses the official publisher prefix so there is exactly
+	// one ServiceRelease per service, regardless of override state.
 	releaseName := defaultPublisherID() + "/" + canon
 
-	// Check for existing release — skip if version+build match and not being removed.
+	// Check for existing release — skip if version+build+publisher match and not being removed.
 	// If the release is in a removal state (Removing flag, REMOVING, or REMOVED phase),
 	// recreate it so the install workflow can proceed.
 	obj, _, err := srv.resources.Get(ctx, "ServiceRelease", releaseName)
@@ -47,26 +61,33 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, versio
 					needsRecreate = true
 				}
 			}
-			if !needsRecreate && existing.Spec.Version == version && existing.Spec.BuildNumber == buildNumber {
+			existingPublisher := existing.Spec.PublisherID
+			if existingPublisher == "" {
+				existingPublisher = defaultPublisherID()
+			}
+			if !needsRecreate && existing.Spec.Version == version &&
+				existing.Spec.BuildNumber == buildNumber &&
+				existingPublisher == effectivePublisher {
 				return // already up-to-date and in a healthy state
 			}
-			// If the release is FAILED/ROLLED_BACK but version hasn't changed,
+			// If the release is FAILED/ROLLED_BACK but version+publisher haven't changed,
 			// let the reconciler handle retry via backoff — don't recreate.
 			if !needsRecreate && (existingPhase == cluster_controllerpb.ReleasePhaseFailed ||
 				existingPhase == cluster_controllerpb.ReleasePhaseRolledBack) {
 				return
 			}
-			log.Printf("ensureServiceRelease: %s: recreating (phase=%s removing=%v needsRecreate=%v)",
-				releaseName, existingPhase, existing.Spec.Removing, needsRecreate)
+			log.Printf("ensureServiceRelease: %s: recreating (phase=%s removing=%v needsRecreate=%v publisher=%s→%s)",
+				releaseName, existingPhase, existing.Spec.Removing, needsRecreate, existingPublisher, effectivePublisher)
 		}
 	} else {
-		log.Printf("ensureServiceRelease: %s: no existing release, creating (version=%s)", releaseName, version)
+		log.Printf("ensureServiceRelease: %s: no existing release, creating (version=%s publisher=%s)",
+			releaseName, version, effectivePublisher)
 	}
 
 	rel := &cluster_controllerpb.ServiceRelease{
 		Meta: &cluster_controllerpb.ObjectMeta{Name: releaseName},
 		Spec: &cluster_controllerpb.ServiceReleaseSpec{
-			PublisherID:  defaultPublisherID(),
+			PublisherID:  effectivePublisher,
 			ServiceName:  canon,
 			Version:      version,
 			BuildNumber:  buildNumber,
@@ -80,7 +101,7 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, versio
 	if _, err := srv.resources.Apply(ctx, "ServiceRelease", rel); err != nil {
 		log.Printf("ensureServiceRelease: %s: apply failed: %v", releaseName, err)
 	} else {
-		log.Printf("ensureServiceRelease: %s: created with phase=PENDING", releaseName)
+		log.Printf("ensureServiceRelease: %s: created with phase=PENDING publisher=%s", releaseName, effectivePublisher)
 	}
 }
 
@@ -126,7 +147,7 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 		if infraManaged[canon] {
 			continue
 		}
-		srv.ensureServiceRelease(ctx, canon, sdv.Spec.Version, sdv.Spec.BuildNumber)
+		srv.ensureServiceRelease(ctx, canon, sdv.Spec.PublisherID, sdv.Spec.Version, sdv.Spec.BuildNumber)
 		created++
 	}
 	if created > 0 {

@@ -1013,7 +1013,7 @@ func (srv *server) reconcileDesiredFromRepository(ctx context.Context) {
 				logger.Info("reconcileDesiredFromRepository: updated desired build",
 					"service", canon, "version", desiredVer,
 					"old_build", desiredBuild, "new_build", bestBuild)
-				srv.ensureServiceRelease(ctx, canon, desiredVer, bestBuild)
+				srv.ensureServiceRelease(ctx, canon, "", desiredVer, bestBuild)
 				updated++
 			}
 		}

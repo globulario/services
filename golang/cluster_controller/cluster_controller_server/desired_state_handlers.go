@@ -319,7 +319,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 			return nil
 		}
 	}
-	srv.ensureServiceRelease(ctx, canon, version, svc.BuildNumber)
+	srv.ensureServiceRelease(ctx, canon, "", version, svc.BuildNumber)
 
 	return nil
 }
