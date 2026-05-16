@@ -109,46 +109,51 @@ func renderJSON(r *Report) (string, error) {
 	}
 
 	type jsonReport struct {
-		Task                      string                   `json:"task"`
-		Classification            []TaskClass              `json:"classification"`
-		MatchedAliases            []string                 `json:"matched_aliases"`
-		Services                  []string                 `json:"services"`
-		Packages                  []string                 `json:"packages"`
-		Files                     []string                 `json:"files"`
-		Invariants                []string                 `json:"invariants"`
-		FailureModes              []string                 `json:"failure_modes"`
-		ForbiddenFixes            []string                 `json:"forbidden_fixes"`
-		CodeSmells                []string                 `json:"code_smells,omitempty"`
-		DesignPatterns            []string                 `json:"design_patterns,omitempty"`
-		AntiPatterns              []string                 `json:"anti_patterns,omitempty"`
-		HashSchemas               []string                 `json:"hash_schemas,omitempty"`
-		StateTransitions          []string                 `json:"state_transitions,omitempty"`
-		DidWeFix                  *DidWeFixSection         `json:"did_we_fix"`
-		PackageAdmission          *PackageAdmissionSection `json:"package_admission,omitempty"`
-		Cycles                    []CycleWarning           `json:"cycles"`
-		RequiredTests             []string                 `json:"required_tests"`
-		RequiredSearches          []string                 `json:"required_searches"`
-		RecommendedInvestigation  []string                 `json:"recommended_investigation_order"`
-		AgentInstruction          string                   `json:"agent_instruction"`
-		Warnings                  []string                 `json:"warnings"`
-		Runtime                   *RuntimeSection          `json:"runtime,omitempty"`
-		Confidence                Confidence               `json:"confidence"`
-		ConfidenceReason          string                   `json:"confidence_reason"`
-		Coverage                  Coverage                 `json:"coverage"`
-		BlindSpots                []string                 `json:"blind_spots,omitempty"`
-		GraphFreshness            *GraphFreshnessReport    `json:"graph_freshness,omitempty"`
-		GraphAvailable            bool                     `json:"graph_available"`
-		GraphMatchCount           int                      `json:"graph_match_count"`
-		GraphFilteredByTrustCount int                      `json:"graph_filtered_by_trust_count"`
-		RawYAMLMatchCount         int                      `json:"raw_yaml_match_count"`
-		FilteredMatches           []FilteredMatch          `json:"filtered_matches,omitempty"`
-		ConfidenceFactors         ConfidenceFactors        `json:"confidence_factors"`
-		SafetyStatus              SafetyStatus             `json:"safety_status"`
-		DegradedMode              DegradedModePlaybook     `json:"degraded_mode"`
-		RiskTier                  RiskTier                 `json:"risk_tier"`
-		FastPathApplied           bool                     `json:"fast_path_applied"`
-		ExperienceHints           []ExperienceHint         `json:"experience_hints,omitempty"`
-		Trust                     interface{}              `json:"trust,omitempty"`
+		Task                        string                   `json:"task"`
+		Classification              []TaskClass              `json:"classification"`
+		MatchedAliases              []string                 `json:"matched_aliases"`
+		Services                    []string                 `json:"services"`
+		Packages                    []string                 `json:"packages"`
+		Files                       []string                 `json:"files"`
+		Invariants                  []string                 `json:"invariants"`
+		FailureModes                []string                 `json:"failure_modes"`
+		ForbiddenFixes              []string                 `json:"forbidden_fixes"`
+		CodeSmells                  []string                 `json:"code_smells,omitempty"`
+		DesignPatterns              []string                 `json:"design_patterns,omitempty"`
+		AntiPatterns                []string                 `json:"anti_patterns,omitempty"`
+		HashSchemas                 []string                 `json:"hash_schemas,omitempty"`
+		StateTransitions            []string                 `json:"state_transitions,omitempty"`
+		DidWeFix                    *DidWeFixSection         `json:"did_we_fix"`
+		PackageAdmission            *PackageAdmissionSection `json:"package_admission,omitempty"`
+		Cycles                      []CycleWarning           `json:"cycles"`
+		RequiredTests               []string                 `json:"required_tests"`
+		RequiredSearches            []string                 `json:"required_searches"`
+		MatchedDecisions            []string                 `json:"matched_decisions,omitempty"`
+		MatchedForbiddenAssumptions []string                 `json:"matched_forbidden_assumptions,omitempty"`
+		MatchedAuthorityRules       []string                 `json:"matched_authority_rules,omitempty"`
+		MatchedPreflightQuestions   []string                 `json:"matched_preflight_questions,omitempty"`
+		MatchedRemediationContracts []string                 `json:"matched_remediation_contracts,omitempty"`
+		RecommendedInvestigation    []string                 `json:"recommended_investigation_order"`
+		AgentInstruction            string                   `json:"agent_instruction"`
+		Warnings                    []string                 `json:"warnings"`
+		Runtime                     *RuntimeSection          `json:"runtime,omitempty"`
+		Confidence                  Confidence               `json:"confidence"`
+		ConfidenceReason            string                   `json:"confidence_reason"`
+		Coverage                    Coverage                 `json:"coverage"`
+		BlindSpots                  []string                 `json:"blind_spots,omitempty"`
+		GraphFreshness              *GraphFreshnessReport    `json:"graph_freshness,omitempty"`
+		GraphAvailable              bool                     `json:"graph_available"`
+		GraphMatchCount             int                      `json:"graph_match_count"`
+		GraphFilteredByTrustCount   int                      `json:"graph_filtered_by_trust_count"`
+		RawYAMLMatchCount           int                      `json:"raw_yaml_match_count"`
+		FilteredMatches             []FilteredMatch          `json:"filtered_matches,omitempty"`
+		ConfidenceFactors           ConfidenceFactors        `json:"confidence_factors"`
+		SafetyStatus                SafetyStatus             `json:"safety_status"`
+		DegradedMode                DegradedModePlaybook     `json:"degraded_mode"`
+		RiskTier                    RiskTier                 `json:"risk_tier"`
+		FastPathApplied             bool                     `json:"fast_path_applied"`
+		ExperienceHints             []ExperienceHint         `json:"experience_hints,omitempty"`
+		Trust                       interface{}              `json:"trust,omitempty"`
 	}
 
 	jr := jsonReport{
@@ -169,9 +174,14 @@ func renderJSON(r *Report) (string, error) {
 		DidWeFix:                  r.DidWeFix,
 		PackageAdmission:          r.PackageAdmission,
 		Cycles:                    r.Cycles,
-		RequiredTests:             orEmpty(r.RequiredTests),
-		RequiredSearches:          orEmpty(r.RequiredSearches),
-		RecommendedInvestigation:  orEmpty(r.RecommendedOrder),
+		RequiredTests:               orEmpty(r.RequiredTests),
+		RequiredSearches:            orEmpty(r.RequiredSearches),
+		MatchedDecisions:            r.MatchedDecisions,
+		MatchedForbiddenAssumptions: r.MatchedForbiddenAssumptions,
+		MatchedAuthorityRules:       r.MatchedAuthorityRules,
+		MatchedPreflightQuestions:   r.MatchedPreflightQuestions,
+		MatchedRemediationContracts: r.MatchedRemediationContracts,
+		RecommendedInvestigation:    orEmpty(r.RecommendedOrder),
 		AgentInstruction:          r.AgentInstruction,
 		Warnings:                  orEmpty(r.Warnings),
 		Runtime:                   r.Runtime,
@@ -294,6 +304,31 @@ func renderMarkdown(r *Report) string {
 
 	// Forbidden fixes.
 	writeListSection(&sb, "## Forbidden fixes\n\n", r.ForbiddenFixes, "No forbidden fixes identified.")
+
+	// Matched decisions.
+	if len(r.MatchedDecisions) > 0 {
+		writeListSection(&sb, "## Matched decisions\n\n", r.MatchedDecisions, "")
+	}
+
+	// Forbidden assumptions.
+	if len(r.MatchedForbiddenAssumptions) > 0 {
+		writeListSection(&sb, "## Forbidden assumptions\n\n", r.MatchedForbiddenAssumptions, "")
+	}
+
+	// Authority rules.
+	if len(r.MatchedAuthorityRules) > 0 {
+		writeListSection(&sb, "## Authority rules\n\n", r.MatchedAuthorityRules, "")
+	}
+
+	// Preflight questions.
+	if len(r.MatchedPreflightQuestions) > 0 {
+		writeListSection(&sb, "## Preflight questions\n\n", r.MatchedPreflightQuestions, "")
+	}
+
+	// Remediation contracts.
+	if len(r.MatchedRemediationContracts) > 0 {
+		writeListSection(&sb, "## Remediation contracts\n\n", r.MatchedRemediationContracts, "")
+	}
 
 	// Design pattern layer.
 	if len(r.DesignPatterns) > 0 {
@@ -479,6 +514,46 @@ func renderAgent(r *Report, opts RenderOptions) string {
 		forbidden := rankForTask(r.ForbiddenFixes, r.Task, r.Files, r.Packages)
 		writeAgentTopList(&sb, forbidden, agentLimit(verbosity, agentTopForbiddenLimit, 3))
 		sb.WriteString("\n")
+	}
+
+	// Matched decisions, forbidden assumptions, authority rules, preflight
+	// questions, remediation contracts — skipped in compact.
+	if budget != BudgetCompact {
+		if len(r.MatchedDecisions) > 0 {
+			sb.WriteString("Matched decisions:\n")
+			for _, d := range r.MatchedDecisions {
+				sb.WriteString("- " + d + "\n")
+			}
+			sb.WriteString("\n")
+		}
+		if len(r.MatchedForbiddenAssumptions) > 0 {
+			sb.WriteString("Forbidden assumptions:\n")
+			for _, fa := range r.MatchedForbiddenAssumptions {
+				sb.WriteString("- " + fa + "\n")
+			}
+			sb.WriteString("\n")
+		}
+		if len(r.MatchedAuthorityRules) > 0 {
+			sb.WriteString("Authority rules:\n")
+			for _, ar := range r.MatchedAuthorityRules {
+				sb.WriteString("- " + ar + "\n")
+			}
+			sb.WriteString("\n")
+		}
+		if len(r.MatchedPreflightQuestions) > 0 {
+			sb.WriteString("Preflight questions:\n")
+			for _, pq := range r.MatchedPreflightQuestions {
+				sb.WriteString("- " + pq + "\n")
+			}
+			sb.WriteString("\n")
+		}
+		if len(r.MatchedRemediationContracts) > 0 {
+			sb.WriteString("Remediation guidance:\n")
+			for _, rc := range r.MatchedRemediationContracts {
+				sb.WriteString("- " + rc + "\n")
+			}
+			sb.WriteString("\n")
+		}
 	}
 
 	// Design patterns, anti-patterns, code smells — skipped in compact.

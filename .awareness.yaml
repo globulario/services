@@ -31,3 +31,17 @@ awareness:
     - docs/awareness/design_patterns.yaml
   services:
     - docs/awareness/services.yaml
+  decisions:
+    - docs/awareness/decisions.yaml
+  forbidden_assumptions:
+    - docs/awareness/forbidden_assumptions.yaml
+  required_tests:
+    - docs/awareness/required_tests.yaml
+  subsystem_boundaries:
+    - docs/awareness/subsystem_boundaries.yaml
+  authority_rules:
+    - docs/awareness/authority_rules.yaml
+  preflight_questions:
+    - docs/awareness/preflight_questions.yaml
+  remediation_contracts:
+    - docs/awareness/remediation_contracts.yaml
