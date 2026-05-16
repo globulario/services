@@ -17,39 +17,34 @@ import (
 
 	"github.com/globulario/services/golang/awareness/incidentpattern"
 	"github.com/globulario/services/golang/awareness/scan"
-	"github.com/globulario/services/golang/awareness/semanticdiff"
 	"github.com/spf13/cobra"
 )
 
 var commitCheckCfg = struct {
-	task         string
-	sessionID    string
-	base         string
-	semantic     bool
-	live         bool
-	jsonOut      bool
-	failFast     bool
+	task      string
+	sessionID string
+	base      string
+	live      bool
+	jsonOut   bool
+	failFast  bool
 }{}
 
 var commitCheckCmd = &cobra.Command{
 	Use:   "commit-check",
-	Short: "Run all pre-commit awareness checks: semantic diff, scan violations, incident patterns",
-	Long: `commit-check runs the full pre-commit awareness suite in order:
+	Short: "Run pre-commit awareness checks: scan violations, incident patterns",
+	Long: `commit-check runs the pre-commit awareness suite in order:
 
-  1. Semantic diff interpretation (--semantic flag, runs 'git diff <base>')
-  2. Static scan violations on changed Go files
-  3. Incident pattern match on changed files + task
-  4. Live preflight (--live flag, requires running cluster)
+  1. Static scan violations on changed Go files
+  2. Incident pattern match on changed files + task
+  3. Live preflight (--live flag, requires running cluster)
 
 Blocks with non-zero exit if:
-  - Semantic diff verdict is block/forbidden
   - Scan violations found critical patterns
   - High-confidence incident pattern unacknowledged
 
 Examples:
-  globular awareness commit-check --task "fix install retry loop" --semantic
-  globular awareness commit-check --task "add health gate" --semantic --base HEAD~1
-  git diff | globular awareness commit-check --task "pre-commit" --semantic`,
+  globular awareness commit-check --task "fix install retry loop"
+  globular awareness commit-check --task "add health gate" --base HEAD~1`,
 
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		ctx := context.Background()
@@ -66,44 +61,7 @@ Examples:
 		var sections []string
 		var blockReasons []string
 
-		// ── 1. Semantic diff ──────────────────────────────────────────────────
-		if commitCheckCfg.semantic {
-			out, gitErr := exec.Command("git", "diff", base).Output()
-			if gitErr != nil {
-				sections = append(sections, fmt.Sprintf("## Semantic Diff\n⚠ git diff failed: %v\n", gitErr))
-			} else {
-				diffText := strings.TrimSpace(string(out))
-				if diffText == "" {
-					sections = append(sections, "## Semantic Diff\n✓ No changes — nothing to interpret.\n")
-				} else {
-					sdReq := semanticdiff.SemanticDiffRequest{
-						SessionID:  commitCheckCfg.sessionID,
-						Task:       task,
-						DiffText:   diffText,
-						DiffSource: "commit-check",
-						GitBase:    base,
-						GitHead:    "working-tree",
-					}
-					sdReport, sdErr := semanticdiff.InterpretSemanticDiff(ctx, sdReq)
-					if sdErr != nil {
-						sections = append(sections, fmt.Sprintf("## Semantic Diff\n⚠ Error: %v\n", sdErr))
-					} else {
-						// Persist best-effort.
-						if g, st, err := openSemDiffStore(); err == nil {
-							defer g.Close()
-							_ = st.StoreReport(ctx, sdReport)
-						}
-						sections = append(sections, "## Semantic Diff\n"+semanticdiff.FormatReport(sdReport))
-						if sdReport.Verdict == semanticdiff.VerdictBlock {
-							blocked = true
-							blockReasons = append(blockReasons, "Semantic diff blocked: "+sdReport.Summary)
-						}
-					}
-				}
-			}
-		}
-
-		// ── 2. Scan violations on changed Go files ────────────────────────────
+		// ── 1. Scan violations on changed Go files ────────────────────────────
 		changedFiles := commitCheckChangedGoFiles(base)
 		if len(changedFiles) > 0 {
 			var allFindings []scan.Finding
@@ -145,11 +103,8 @@ Examples:
 				Intent:      "edit",
 				Files:       changedFiles,
 				DiffPreview: func() string {
-					if commitCheckCfg.semantic {
-						out, _ := exec.Command("git", "diff", "--stat", base).Output()
-						return string(out)
-					}
-					return ""
+					out, _ := exec.Command("git", "diff", "--stat", base).Output()
+					return string(out)
 				}(),
 			}
 			matches, matchErr := incidentpattern.Match(ctx, g, matchReq)
@@ -207,7 +162,6 @@ func init() {
 	commitCheckCmd.Flags().StringVar(&commitCheckCfg.task, "task", "", "Task description for context")
 	commitCheckCmd.Flags().StringVar(&commitCheckCfg.sessionID, "session", "", "Session ID for correlation")
 	commitCheckCmd.Flags().StringVar(&commitCheckCfg.base, "base", "HEAD", "Git base ref for diff")
-	commitCheckCmd.Flags().BoolVar(&commitCheckCfg.semantic, "semantic", false, "Run semantic diff interpretation")
 	commitCheckCmd.Flags().BoolVar(&commitCheckCfg.live, "live", false, "Include live cluster preflight reminder")
 	commitCheckCmd.Flags().BoolVar(&commitCheckCfg.failFast, "fail-fast", false, "Stop after first blocking check")
 }

@@ -3,11 +3,11 @@ package main
 import (
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/globulario/services/golang/awareness/graph"
-	"github.com/globulario/services/golang/awareness/sourceroot"
 )
 
 // awarenessState is captured in awareness tool handler closures.
@@ -132,8 +132,6 @@ func registerAwarenessTools(s *server) {
 	registerAwarenessIncidentPatternTools(s, st)
 	registerAwarenessSessionOracleTools(s, st)
 	registerAwarenessLiveClusterTools(s, st)
-	registerAwarenessSemanticDiffTools(s, st)
-	registerAwarenessCoordinationTools(s, st)
 	registerAwarenessFailureTools(s, st)
 	registerAwarenessFailureLearningTools(s, st)
 	registerAwarenessEvidenceTools(s, st)
@@ -193,22 +191,13 @@ func isAwarenessBundlePath(path string) bool {
 		strings.HasPrefix(path, currentPrefix)
 }
 
-// awarGitRoot returns the git repository root, or "" if the process is
-// not running inside a git checkout.
-//
-// Delegates to sourceroot.Resolve so we share a single source of truth
-// for the four-state model (Found / Absent / Inaccessible / WrongContext).
-// Returning "" maps to !Found in every meaningful sense for callers that
-// only need a path-or-nothing answer. New callers should use
-// sourceroot.Resolve directly so they can switch on the typed state and
-// avoid re-introducing the "degraded sentinel → critical bucket" shape
-// recorded in docs/awareness/composed_path_failures.md (2026-05-14).
+// awarGitRoot returns the git repository root, or "" if not inside a git checkout.
 func awarGitRoot() string {
-	res := sourceroot.Resolve(sourceroot.DefaultOptions)
-	if res.State == sourceroot.Found {
-		return res.Path
+	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return ""
 	}
-	return ""
+	return strings.TrimSpace(string(out))
 }
 
 // strSliceArg extracts a []string from an MCP args map.

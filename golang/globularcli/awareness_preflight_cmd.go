@@ -3,37 +3,30 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/globulario/services/golang/awareness/preflight"
 	"github.com/globulario/services/golang/awareness/runtime"
-	"github.com/globulario/services/golang/awareness/semanticdiff"
 )
 
 var preflightCfg = struct {
-	task                 string
-	files                []string
-	packagePath          string
-	phase                string
-	format               string
-	verbosity            string
-	budget               string
-	includeRuntime       bool
-	runtimeWindow        time.Duration
-	writeAudit           bool
-	gitSHA               string
-	semanticDiff         bool
-	diffFile             string
-	requireSemanticClean bool
-	bundleManifestPath   string
-	selfHeal             bool
+	task               string
+	files              []string
+	packagePath        string
+	phase              string
+	format             string
+	verbosity          string
+	budget             string
+	includeRuntime     bool
+	runtimeWindow      time.Duration
+	writeAudit         bool
+	gitSHA             string
+	bundleManifestPath string
+	selfHeal           bool
 }{}
 
 var awarenessPreflightCmd = &cobra.Command{
@@ -145,51 +138,8 @@ Examples:
 
 		fmt.Fprint(os.Stdout, out)
 
-		// Semantic diff overlay — appended after static preflight output.
-		if preflightCfg.semanticDiff || preflightCfg.diffFile != "" {
-			diffText, diffErr := preflightLoadDiff(preflightCfg.diffFile)
-			if diffErr != nil {
-				fmt.Fprintf(os.Stderr, "warning: semantic diff skipped (%v)\n", diffErr)
-			} else if diffText != "" {
-				sdReq := semanticdiff.SemanticDiffRequest{
-					Task:         preflightCfg.task,
-					DiffText:     diffText,
-					DiffSource:   "preflight",
-					RequireClean: preflightCfg.requireSemanticClean,
-				}
-				sdReport, sdErr := semanticdiff.InterpretSemanticDiff(ctx, sdReq)
-				if sdErr != nil {
-					fmt.Fprintf(os.Stderr, "warning: semantic diff error: %v\n", sdErr)
-				} else {
-					fmt.Fprintln(os.Stdout)
-					fmt.Fprint(os.Stdout, semanticdiff.FormatReport(sdReport))
-					if preflightCfg.requireSemanticClean && sdReport.Verdict == semanticdiff.VerdictBlock {
-						return fmt.Errorf("semantic diff blocked: %s", sdReport.Summary)
-					}
-				}
-			}
-		}
-
 		return nil
 	},
-}
-
-// preflightLoadDiff returns the diff text from a file path, stdin (-), or git diff HEAD.
-func preflightLoadDiff(diffFile string) (string, error) {
-	if diffFile == "-" {
-		raw, err := io.ReadAll(os.Stdin)
-		return strings.TrimSpace(string(raw)), err
-	}
-	if diffFile != "" {
-		raw, err := os.ReadFile(diffFile)
-		return strings.TrimSpace(string(raw)), err
-	}
-	// No file specified — run git diff HEAD.
-	out, err := exec.Command("git", "diff", "HEAD").Output()
-	if err != nil {
-		return "", fmt.Errorf("git diff HEAD: %w", err)
-	}
-	return strings.TrimSpace(string(out)), nil
 }
 
 func init() {
@@ -206,9 +156,6 @@ func init() {
 	awarenessPreflightCmd.Flags().DurationVar(&preflightCfg.runtimeWindow, "runtime-window", 15*time.Minute, "Lookback window for runtime events/workflows")
 	awarenessPreflightCmd.Flags().BoolVar(&preflightCfg.writeAudit, "write-audit", false, "Persist a preflight audit record to the graph DB after the run")
 	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.gitSHA, "git-sha", "", "Current git SHA for the audit record (used with --write-audit)")
-	awarenessPreflightCmd.Flags().BoolVar(&preflightCfg.semanticDiff, "semantic-diff", false, "Run semantic diff on 'git diff HEAD' and append to preflight output")
-	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.diffFile, "diff-file", "", "Path to unified diff file for semantic interpretation (or - for stdin)")
-	awarenessPreflightCmd.Flags().BoolVar(&preflightCfg.requireSemanticClean, "require-semantic-clean", false, "Exit non-zero if semantic diff verdict is block")
 	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.bundleManifestPath, "bundle-manifest", "", "Path to the installed awareness-bundle manifest.json (default: /var/lib/globular/awareness/current/manifest.json if it exists)")
 	awarenessPreflightCmd.Flags().BoolVar(&preflightCfg.selfHeal, "self-heal", true, "When preflight is UNKNOWN_NOT_SAFE or stale, run awareness build --clean and retry once")
 
