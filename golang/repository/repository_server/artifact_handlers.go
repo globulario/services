@@ -1144,12 +1144,40 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	}
 	ctx := stream.Context()
 
-	// ── Version resolution ───────────────────────────────────────────────
+	// ── Publisher namespace + package-level validation ────────────────────
+	publisherID := ref.GetPublisherId()
+	if err := srv.validatePackageAccess(ctx, publisherID, ref.GetName()); err != nil {
+		return err
+	}
+
+	newChecksum := checksumBytes(data)
+
+	// ── Idempotency check (digest) MUST precede version immutability check ──
+	// If the exact same bytes are uploaded again (e.g. CI retrying a failed
+	// publish), return the existing build_id without error. This check runs
+	// before resolveVersionIntent so that a true idempotent re-upload is never
+	// rejected by the version-immutability gate added in allocate_upload.go.
+	if existing, state, key, ok := srv.findExistingArtifactByDigest(ctx, ref, newChecksum); ok {
+		slog.Info("artifact upload idempotent: identical artifact already exists",
+			"key", key,
+			"build_id", existing.GetBuildId(),
+			"build", existing.GetBuildNumber(),
+			"publish_state", state.String(),
+		)
+		return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true, BuildId: existing.GetBuildId()})
+	}
+
+	// ── Version resolution (includes immutability gate) ──────────────────
 	// If the client supplies a version (e.g. from a release pipeline that
 	// stamps 1.0.26 into package.json), use it exactly so the repository
 	// record matches what the binary self-reports at runtime. This keeps
 	// drift detection accurate.
 	// If no version is provided, fall back to auto-bumping the patch number.
+	//
+	// resolveVersionIntent(EXACT) rejects versions already in the PUBLISHED
+	// ledger — this is the upload-path enforcement of version immutability.
+	// The idempotency check above ensures that re-uploading the same bytes
+	// (retry) succeeds even after this gate is in place.
 	var resolvedVer string
 	var verErr error
 	if clientVer := ref.GetVersion(); clientVer != "" {
@@ -1162,27 +1190,14 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 			repopb.VersionIntent_BUMP_PATCH, "")
 	}
 	if verErr != nil {
+		// Propagate AlreadyExists from version immutability check with the
+		// original gRPC code so callers can distinguish it from generic errors.
+		if st, ok2 := status.FromError(verErr); ok2 && st.Code() == codes.AlreadyExists {
+			return status.Errorf(codes.AlreadyExists, "version already published: %v", verErr)
+		}
 		return status.Errorf(codes.Internal, "version resolution failed: %v", verErr)
 	}
 	ref.Version = resolvedVer
-
-	// ── Publisher namespace + package-level validation ────────────────────
-	publisherID := ref.GetPublisherId()
-	if err := srv.validatePackageAccess(ctx, publisherID, ref.GetName()); err != nil {
-		return err
-	}
-
-	newChecksum := checksumBytes(data)
-
-	if existing, state, key, ok := srv.findExistingArtifactByDigest(ctx, ref, newChecksum); ok {
-		slog.Info("artifact upload idempotent: identical artifact already exists",
-			"key", key,
-			"build_id", existing.GetBuildId(),
-			"build", existing.GetBuildNumber(),
-			"publish_state", state.String(),
-		)
-		return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true, BuildId: existing.GetBuildId()})
-	}
 
 	// buildNumber is auto-assigned by the repository to the next available
 	// number for this version, ensuring uniqueness.

@@ -300,11 +300,23 @@ PUBLISHED=0
 
 if [[ -x "${GLOBULARCLI}" ]]; then
     echo "→ Publishing ${DIST_DIR}/*.tgz to repository at ${REPO_ADDR}..."
+    SKIPPED=0
     for pkg in "${DIST_DIR}"/*.tgz; do
         if [[ -f "${pkg}" ]]; then
             name=$(basename "${pkg}")
-            if "${GLOBULARCLI}" pkg publish --repository "${REPO_ADDR}" --file "${pkg}" --force >/dev/null 2>&1; then
+            # Capture stderr to detect "already published" vs real failures.
+            # Do NOT use --force: re-publishing a version that already exists
+            # generates a new build_id for an identical artifact, which causes
+            # build_id drift across the 4 layers (desired updates, installed
+            # stays on old build_id → reconciler re-installs identical binaries).
+            out=$("${GLOBULARCLI}" pkg publish --repository "${REPO_ADDR}" --file "${pkg}" 2>&1)
+            rc=$?
+            if [[ ${rc} -eq 0 ]]; then
                 echo "  ✓ ${name}"
+                PUBLISHED=$((PUBLISHED + 1))
+            elif echo "${out}" | grep -qi "already.published\|already_exists\|AlreadyExists\|already exists"; then
+                echo "  = ${name} (already published — skipped)"
+                SKIPPED=$((SKIPPED + 1))
                 PUBLISHED=$((PUBLISHED + 1))
             else
                 echo "  ✗ ${name} (publish failed — repository may be unavailable)"
@@ -312,7 +324,7 @@ if [[ -x "${GLOBULARCLI}" ]]; then
         fi
     done
     echo ""
-    echo "  ✓ ${PUBLISHED} packages published to repository"
+    echo "  ✓ ${PUBLISHED} packages published to repository (${SKIPPED} already existed, skipped)"
 else
     echo "  ⚠ globularcli not found — skipping repository publish"
     echo "  → Packages are in ${DIST_DIR}/ for manual publish"
