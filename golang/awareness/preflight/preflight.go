@@ -154,7 +154,7 @@ func Run(ctx context.Context, opts Options, g *graph.Graph) (*Report, error) {
 	// The source awareness YAML files are the authority; the graph is an index.
 	// Cross-check them directly so stale graph nodes or query misses do not
 	// create false confidence.
-	rawMatches := rawKnowledgeFallback(opts.Task, opts.Files, opts.DocsDir)
+	rawMatches := RawKnowledgeFallback(opts.Task, opts.Files, opts.DocsDir)
 	r.RawKnowledgeMatches = rawMatches
 	r.RawYAMLMatchCount = len(rawMatches)
 	if len(rawMatches) > 0 {
