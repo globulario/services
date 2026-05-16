@@ -102,6 +102,15 @@ type Snapshot struct {
 	// Consumed by the "repository.desired_build_ids_resolve" rule.
 	RepositoryBuildIDIndex map[string]bool
 
+	// RepositoryVersionIndex maps package name → set of installable version
+	// strings available in the repository. Built from the same ListArtifacts
+	// call that populates RepositoryBuildIDIndex; only PUBLISHED/DEPRECATED
+	// artifacts enter the index. Nil when the collector had no repository
+	// client or the call failed (rules must treat nil as "no signal").
+	//
+	// Consumed by the "repository.package_version_authority" rule.
+	RepositoryVersionIndex map[string]map[string]bool
+
 	// Workflow convergence telemetry — see WI17/WI18.
 	StepOutcomes      []*workflowpb.WorkflowStepOutcome
 	WorkflowSummaries []*workflowpb.WorkflowRunSummary

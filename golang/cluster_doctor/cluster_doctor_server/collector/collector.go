@@ -903,8 +903,10 @@ func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot) {
 		return
 	}
 	index := buildIDIndexFromManifests(listResp.GetArtifacts())
+	vindex := versionIndexFromManifests(listResp.GetArtifacts())
 	snap.mu.Lock()
 	snap.RepositoryBuildIDIndex = index
+	snap.RepositoryVersionIndex = vindex
 	snap.mu.Unlock()
 	snap.addSource("repository.ListArtifacts")
 }
@@ -927,6 +929,31 @@ func buildIDIndexFromManifests(in []*repopb.ArtifactManifest) map[string]bool {
 		if bid := strings.TrimSpace(a.GetBuildId()); bid != "" {
 			index[bid] = true
 		}
+	}
+	return index
+}
+
+// versionIndexFromManifests builds a package-name → version set index from
+// installable artifacts. Mirrors buildIDIndexFromManifests but keyed by
+// (name, version) instead of build_id. Used by package_version_authority rule.
+func versionIndexFromManifests(in []*repopb.ArtifactManifest) map[string]map[string]bool {
+	index := make(map[string]map[string]bool)
+	for _, a := range in {
+		if a == nil {
+			continue
+		}
+		if !repopb.IsInstallableByPin(a.GetPublishState()) {
+			continue
+		}
+		name := strings.TrimSpace(a.GetRef().GetName())
+		ver := strings.TrimSpace(a.GetRef().GetVersion())
+		if name == "" || ver == "" {
+			continue
+		}
+		if index[name] == nil {
+			index[name] = make(map[string]bool)
+		}
+		index[name][ver] = true
 	}
 	return index
 }

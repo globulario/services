@@ -167,6 +167,7 @@ func NewRegistry(cfg Config) *Registry {
 		// fallback.requires_manifest_checksum surfaces weakened checksum
 		// policy on upstream sources.
 		repositoryDesiredBuildIDsResolve{},
+		packageVersionAuthority{},
 		dnsRecordsMatchRuntimeHealth{},
 		fallbackRequiresManifestChecksum{},
 		// WF-DEFER B3: surface workflow correlations that have been

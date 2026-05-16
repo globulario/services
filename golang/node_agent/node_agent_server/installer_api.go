@@ -296,31 +296,17 @@ func splitHostPort(addr string) (string, string, error) {
 	return addr[:idx], addr[idx+1:], nil
 }
 
-// resolvePackageVersion returns the version for a given package name.
-// Infrastructure packages have specific versions; services default to 0.0.1.
-func resolvePackageVersion(name string) string {
-	switch name {
-	case "etcd":
-		return "3.5.14"
-	case "envoy":
-		return "1.35.3"
-	case "sidekick":
-		return "7.0.0"
-	case "prometheus":
-		return "3.5.1"
-	case "alertmanager":
-		return "0.28.1"
-	case "node-exporter":
-		return "1.10.2"
-	case "scylladb":
-		return "2025.3.8"
-	case "scylla-manager", "scylla-manager-agent":
-		return "3.8.1"
-	case "mcp":
-		return "0.0.2"
-	default:
-		return "0.0.1"
-	}
+// resolvePackageVersion returns the sentinel version used when the controller
+// has not supplied an explicit desired version (Day-0 bootstrap path only).
+// The real version is always provided by either:
+//   - desiredVersion from the controller RPC (normal Day-1 path)
+//   - readArtifactManifestVersion() from package.json inside the fetched .tgz
+//
+// The sentinel is intentionally not a real version so the manifest-override
+// at the call site always wins. Hard-coding upstream versions here would
+// diverge silently whenever etcd/envoy/scylladb ship a new release.
+func resolvePackageVersion(_ string) string {
+	return "0.0.0-dev"
 }
 
 // readArtifactManifestVersion reads the version from a staged artifact's
