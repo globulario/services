@@ -44,8 +44,17 @@ func rawKnowledgeFallback(task string, files []string, docsDir string) []RawKnow
 		{"invariants.yaml", "invariant", "invariants"},
 		{"convergence_rules.yaml", "invariant", "invariants"},
 		{"forbidden_fixes.yaml", "forbidden_fix", "forbidden_fixes"},
+		{"incident_patterns.yaml", "incident_pattern", "incident_patterns"},
 		{"design_patterns.yaml", "design_pattern", "design_patterns"},
 		{"patterns.yaml", "pattern", "patterns"},
+		// Extended knowledge types (missing pieces).
+		{"decisions.yaml", "decision", "decisions"},
+		{"forbidden_assumptions.yaml", "forbidden_assumption", "forbidden_assumptions"},
+		{"required_tests.yaml", "required_test", "required_tests"},
+		{"authority_rules.yaml", "authority_rule", "authority_rules"},
+		{"subsystem_boundaries.yaml", "subsystem_boundary", "subsystem_boundaries"},
+		{"preflight_questions.yaml", "preflight_question", "preflight_questions"},
+		{"remediation_contracts.yaml", "remediation_contract", "remediation_contracts"},
 	}
 
 	var out []RawKnowledgeMatch
@@ -152,11 +161,29 @@ func mergeRawKnowledgeMatches(r *Report, matches []RawKnowledgeMatch) *Report {
 			r.FailureModes = append(r.FailureModes, m.ID)
 		case "forbidden_fix":
 			r.ForbiddenFixes = append(r.ForbiddenFixes, m.ID)
+		case "decision":
+			r.MatchedDecisions = append(r.MatchedDecisions, m.ID)
+		case "forbidden_assumption":
+			r.MatchedForbiddenAssumptions = append(r.MatchedForbiddenAssumptions, m.ID)
+		case "required_test":
+			r.RequiredTests = append(r.RequiredTests, m.ID)
+		case "authority_rule":
+			r.MatchedAuthorityRules = append(r.MatchedAuthorityRules, m.ID)
+		case "preflight_question":
+			r.MatchedPreflightQuestions = append(r.MatchedPreflightQuestions, m.ID)
+		case "remediation_contract":
+			r.MatchedRemediationContracts = append(r.MatchedRemediationContracts, m.ID)
 		}
 	}
 	r.Invariants = unique(r.Invariants)
 	r.FailureModes = unique(r.FailureModes)
 	r.ForbiddenFixes = unique(r.ForbiddenFixes)
+	r.MatchedDecisions = unique(r.MatchedDecisions)
+	r.MatchedForbiddenAssumptions = unique(r.MatchedForbiddenAssumptions)
+	r.RequiredTests = unique(r.RequiredTests)
+	r.MatchedAuthorityRules = unique(r.MatchedAuthorityRules)
+	r.MatchedPreflightQuestions = unique(r.MatchedPreflightQuestions)
+	r.MatchedRemediationContracts = unique(r.MatchedRemediationContracts)
 	return r
 }
 

@@ -3,6 +3,7 @@ module github.com/globulario/services/golang
 go 1.24.5
 
 require (
+	github.com/globulario/awareness v0.0.0-20260516203244-41726ea47826
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.9.3
 	github.com/StalkR/httpcache v1.0.0
 	github.com/StalkR/imdb v1.0.15

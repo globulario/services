@@ -140,6 +140,9 @@ func registerAwarenessTools(s *server) {
 	// only read /var/lib/globular/awareness/current. Registered here so
 	// they ship with the rest of the awareness tool group.
 	registerAwarenessBundleServeTools(s)
+	// Lean knowledge tools: assurance and selfcheck backed by the standalone
+	// github.com/globulario/awareness module (missing-pieces merge).
+	registerAwarenessKnowledgeTools(s, st)
 }
 
 // dirExists returns true if path exists and is a directory.

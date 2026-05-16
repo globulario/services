@@ -126,10 +126,14 @@ type StateDeltaSummary struct {
 type Confidence string
 
 const (
-	ConfidenceHigh    Confidence = "high"    // graph + raw YAML + runtime + metrics all ran
-	ConfidenceMedium  Confidence = "medium"  // graph + raw YAML ran; runtime partial
-	ConfidenceLow     Confidence = "low"     // only static analysis; runtime unavailable
-	ConfidenceUnknown Confidence = "unknown" // nothing ran (no graph, no docs dir)
+	ConfidenceHigh                Confidence = "high"                 // graph + raw YAML + runtime + metrics all ran
+	ConfidenceMedium              Confidence = "medium"               // graph + raw YAML ran; runtime partial
+	ConfidenceLow                 Confidence = "low"                  // only static analysis; runtime unavailable
+	ConfidenceUnknown             Confidence = "unknown"              // nothing ran (no graph, no docs dir)
+	ConfidenceInsufficientEvidence Confidence = "insufficient_evidence" // partial data cannot confirm or deny
+	ConfidenceSuspected           Confidence = "suspected"            // likely but not confirmed by evidence
+	ConfidenceStale               Confidence = "stale"                // evidence exists but is too old to trust
+	ConfidenceContradicted        Confidence = "contradicted"         // multiple signals disagree
 )
 
 // CoverageState describes the result of a single coverage layer check.
@@ -309,8 +313,13 @@ type Report struct {
 	DidWeFix            *DidWeFixSection         `json:"did_we_fix"`
 	PackageAdmission    *PackageAdmissionSection `json:"package_admission,omitempty"`
 	Cycles              []CycleWarning           `json:"cycles"`
-	RequiredTests       []string                 `json:"required_tests"`
-	RequiredSearches    []string                 `json:"required_searches"`
+	RequiredTests               []string                 `json:"required_tests"`
+	RequiredSearches            []string                 `json:"required_searches"`
+	MatchedDecisions            []string                 `json:"matched_decisions,omitempty"`
+	MatchedForbiddenAssumptions []string                 `json:"matched_forbidden_assumptions,omitempty"`
+	MatchedAuthorityRules       []string                 `json:"matched_authority_rules,omitempty"`
+	MatchedPreflightQuestions   []string                 `json:"matched_preflight_questions,omitempty"`
+	MatchedRemediationContracts []string                 `json:"matched_remediation_contracts,omitempty"`
 	RecommendedOrder    []string                 `json:"recommended_investigation_order"`
 	AgentInstruction    string                   `json:"agent_instruction"`
 	Warnings            []string                 `json:"warnings"`
