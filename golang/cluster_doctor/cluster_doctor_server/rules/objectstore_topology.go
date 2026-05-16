@@ -297,15 +297,29 @@ func (objectstoreMinioPostApplyHealth) Evaluate(snap *collector.Snapshot, _ Conf
 
 // minioServiceState returns the state of globular-minio.service for the given
 // node from the snapshot inventory, or "missing"/"no_inventory" when absent.
+//
+// Name matching strips the optional ".service" suffix so that both
+// "globular-minio.service" and "globular-minio" are recognised.
+//
+// State normalisation: "running" is systemd's SubState and means the unit is
+// active — normalise it to "active" so the caller's switch treats it correctly.
 func minioServiceState(snap *collector.Snapshot, nodeID string) string {
 	inv := snap.Inventories[nodeID]
 	if inv == nil {
 		return "no_inventory"
 	}
 	for _, u := range inv.GetUnits() {
-		if strings.EqualFold(strings.TrimSpace(u.GetName()), "globular-minio.service") {
-			return strings.ToLower(strings.TrimSpace(u.GetState()))
+		name := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(u.GetName())), ".service")
+		if name != "globular-minio" {
+			continue
 		}
+		state := strings.ToLower(strings.TrimSpace(u.GetState()))
+		if state == "running" {
+			// systemd SubState surfaced directly — normalise to active so the
+			// caller's switch recognises it as a healthy unit.
+			return "active"
+		}
+		return state
 	}
 	return "missing"
 }

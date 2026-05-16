@@ -2,12 +2,14 @@ package rules
 
 import (
 	"testing"
+	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // ── test helpers ──────────────────────────────────────────────────────────────
@@ -405,6 +407,299 @@ func TestWriteQuorumLost_KnownDown_DataIncomplete_StillFires(t *testing.T) {
 	findings := objectstoreWriteQuorumLost{}.Evaluate(snap, Config{})
 	if len(findings) != 1 {
 		t.Fatalf("confirmed-down node should fire CRITICAL even with DataIncomplete=true, got %d", len(findings))
+	}
+	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_CRITICAL {
+		t.Errorf("expected CRITICAL, got %v", findings[0].Severity)
+	}
+}
+
+// TestWriteQuorumLost_PartialSnapshot_LocalNodeOnly_Suppressed is the primary
+// regression test for the spurious CRITICAL seen in production.
+//
+// Each cluster-doctor instance builds its own snapshot. When snap.Nodes
+// contains only the local node (the collector fetched only its own NodeRecord),
+// nodeIDByPoolIP returns "" for every other pool IP. Before the fix those
+// unknown IPs were classified as knownDown, making len(knownDownNodes) > 0 and
+// preventing the DataIncomplete suppression from firing.
+//
+// Scenario: 5-node pool, snap.Nodes = only the local node (ryzen), local MinIO
+// active, DataIncomplete=true (collector failed to reach other node agents).
+// Expected: 0 findings — partial snapshot is not evidence of quorum loss.
+func TestWriteQuorumLost_PartialSnapshot_LocalNodeOnly_Suppressed(t *testing.T) {
+	poolIPs := []string{"10.0.0.63", "10.0.0.102", "10.0.0.20", "10.0.0.8", "10.0.0.9"}
+	snap := &collector.Snapshot{
+		DataIncomplete: true,
+		// Only the evaluating node is present in the snapshot — others were
+		// not fetched because the collector had RPC errors.
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			nodeRecord("ryzen-node", "10.0.0.63"),
+		},
+		Inventories: map[string]*node_agentpb.Inventory{
+			"ryzen-node": minioActiveInventory(),
+		},
+		ObjectStoreDesired: &config.ObjectStoreDesiredState{
+			Mode:          config.ObjectStoreModeDistributed,
+			Generation:    2,
+			Nodes:         poolIPs,
+			DrivesPerNode: 1,
+		},
+		ObjectStoreAppliedGeneration: 2,
+	}
+
+	findings := objectstoreWriteQuorumLost{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf(
+			"partial snapshot (local-node-only) + DataIncomplete=true must produce 0 findings "+
+				"(pool IPs with no NodeRecord are unknown, not confirmed-down), got %d: %v",
+			len(findings), findings[0].Summary)
+	}
+}
+
+// TestWriteQuorumLost_PartialSnapshot_LocalNodeOnly_DataComplete_Fires verifies
+// that when the snapshot is marked complete (no collection errors) but pool IPs
+// are still absent from snap.Nodes, the finding still fires — the collector
+// believes it has a full picture, so missing IPs genuinely have no NodeRecord.
+func TestWriteQuorumLost_PartialSnapshot_LocalNodeOnly_DataComplete_Fires(t *testing.T) {
+	poolIPs := []string{"10.0.0.63", "10.0.0.102", "10.0.0.20", "10.0.0.8", "10.0.0.9"}
+	snap := &collector.Snapshot{
+		DataIncomplete: false,
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			nodeRecord("ryzen-node", "10.0.0.63"),
+		},
+		Inventories: map[string]*node_agentpb.Inventory{
+			"ryzen-node": minioActiveInventory(),
+		},
+		ObjectStoreDesired: &config.ObjectStoreDesiredState{
+			Mode:          config.ObjectStoreModeDistributed,
+			Generation:    2,
+			Nodes:         poolIPs,
+			DrivesPerNode: 1,
+		},
+		ObjectStoreAppliedGeneration: 2,
+	}
+
+	findings := objectstoreWriteQuorumLost{}.Evaluate(snap, Config{})
+	if len(findings) != 1 {
+		t.Fatalf("partial snapshot + DataIncomplete=false should fire CRITICAL (4 nodes genuinely absent), got %d", len(findings))
+	}
+	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_CRITICAL {
+		t.Errorf("expected CRITICAL, got %v", findings[0].Severity)
+	}
+}
+
+// TestWriteQuorumLost_UnitStateRunning_TreatedAsActive verifies that
+// globular-minio.service in state "running" (systemd SubState, sometimes
+// surfaced directly) is normalised to active and does not produce a CRITICAL.
+func TestWriteQuorumLost_UnitStateRunning_TreatedAsActive(t *testing.T) {
+	runningInventory := func() *node_agentpb.Inventory {
+		return &node_agentpb.Inventory{
+			Units: []*node_agentpb.UnitStatus{
+				{Name: "globular-minio.service", State: "running"},
+			},
+		}
+	}
+	snap := &collector.Snapshot{
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			nodeRecord("node-a", "10.0.0.1"),
+			nodeRecord("node-b", "10.0.0.2"),
+			nodeRecord("node-c", "10.0.0.3"),
+		},
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-a": runningInventory(),
+			"node-b": runningInventory(),
+			"node-c": runningInventory(),
+		},
+		ObjectStoreDesired:           distributedDesired([]string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}, nil, 1),
+		ObjectStoreAppliedGeneration: 1,
+	}
+
+	findings := objectstoreWriteQuorumLost{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("unit state 'running' should normalise to active — expected 0 findings, got %d: %v",
+			len(findings), findings[0].Summary)
+	}
+}
+
+// TestWriteQuorumLost_UnitNameWithoutServiceSuffix_Matches verifies that
+// "globular-minio" (without the ".service" suffix) is recognised as the minio
+// unit and treated as active, not as missing → knownDown.
+func TestWriteQuorumLost_UnitNameWithoutServiceSuffix_Matches(t *testing.T) {
+	noSuffixInventory := func() *node_agentpb.Inventory {
+		return &node_agentpb.Inventory{
+			Units: []*node_agentpb.UnitStatus{
+				{Name: "globular-minio", State: "active"}, // no ".service"
+			},
+		}
+	}
+	snap := &collector.Snapshot{
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			nodeRecord("node-a", "10.0.0.1"),
+			nodeRecord("node-b", "10.0.0.2"),
+			nodeRecord("node-c", "10.0.0.3"),
+		},
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-a": noSuffixInventory(),
+			"node-b": noSuffixInventory(),
+			"node-c": noSuffixInventory(),
+		},
+		ObjectStoreDesired:           distributedDesired([]string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}, nil, 1),
+		ObjectStoreAppliedGeneration: 1,
+	}
+
+	findings := objectstoreWriteQuorumLost{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("unit name without .service suffix should still match — expected 0 findings, got %d: %v",
+			len(findings), findings[0].Summary)
+	}
+}
+
+// TestWriteQuorumLost_DataComplete_PartialInventory_Fires verifies that when
+// DataIncomplete=false (the collector believes it has a complete picture) but
+// some nodes have a non-active MinIO state, CRITICAL fires. This is a
+// legitimate quorum-loss finding — not a collector artifact.
+func TestWriteQuorumLost_DataComplete_PartialInventory_Fires(t *testing.T) {
+	snap := &collector.Snapshot{
+		DataIncomplete: false,
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			nodeRecord("node-a", "10.0.0.1"),
+			nodeRecord("node-b", "10.0.0.2"),
+			nodeRecord("node-c", "10.0.0.3"),
+			nodeRecord("node-d", "10.0.0.4"),
+			nodeRecord("node-e", "10.0.0.5"),
+		},
+		Inventories: map[string]*node_agentpb.Inventory{
+			// Only node-a has an active minio; b,c,d,e are present but inactive.
+			"node-a": minioActiveInventory(),
+			"node-b": minioInactiveInventory("inactive"),
+			"node-c": minioInactiveInventory("failed"),
+			"node-d": minioInactiveInventory("inactive"),
+			"node-e": minioInactiveInventory("failed"),
+		},
+		ObjectStoreDesired:           distributedDesired([]string{"10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4", "10.0.0.5"}, nil, 1),
+		ObjectStoreAppliedGeneration: 1,
+	}
+
+	findings := objectstoreWriteQuorumLost{}.Evaluate(snap, Config{})
+	if len(findings) != 1 {
+		t.Fatalf("confirmed-inactive nodes + DataIncomplete=false must fire CRITICAL, got %d", len(findings))
+	}
+	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_CRITICAL {
+		t.Errorf("expected CRITICAL, got %v", findings[0].Severity)
+	}
+	// Evidence must expose the per-IP state so operators can diagnose without
+	// running additional queries.
+	evid := findings[0].Evidence
+	if len(evid) == 0 || evid[0].GetKeyValues() == nil {
+		t.Fatal("expected evidence with key_values")
+	}
+	kv := evid[0].GetKeyValues()
+	if kv["minio_state_by_pool_ip"] == "" {
+		t.Error("minio_state_by_pool_ip evidence missing")
+	}
+	if kv["data_incomplete"] != "false" {
+		t.Errorf("expected data_incomplete=false, got %q", kv["data_incomplete"])
+	}
+}
+
+// TestWriteQuorumLost_StaleRemoteInventory_Suppressed verifies that when
+// cfg.InventoryStalenessThreshold is set and remote inventories are older
+// than the threshold, the rule treats them as uncertain (noInventory) rather
+// than confirmed-down. This prevents stale cached snapshots from producing
+// CRITICAL when MinIO is transitioning.
+func TestWriteQuorumLost_StaleRemoteInventory_Suppressed(t *testing.T) {
+	staleTime := time.Now().Add(-5 * time.Minute) // 5 minutes ago
+
+	staleInactiveInventory := func() *node_agentpb.Inventory {
+		ts := &timestamppb.Timestamp{
+			Seconds: staleTime.Unix(),
+			Nanos:   int32(staleTime.Nanosecond()),
+		}
+		return &node_agentpb.Inventory{
+			UnixTime: ts,
+			Units: []*node_agentpb.UnitStatus{
+				{Name: "globular-minio.service", State: "inactive"},
+			},
+		}
+	}
+	freshActive := func() *node_agentpb.Inventory {
+		return &node_agentpb.Inventory{
+			UnixTime: timestamppb.Now(),
+			Units:    []*node_agentpb.UnitStatus{{Name: "globular-minio.service", State: "active"}},
+		}
+	}
+
+	snap := &collector.Snapshot{
+		// DataIncomplete=true: collector had errors reaching remote nodes.
+		DataIncomplete: true,
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			nodeRecord("node-a", "10.0.0.1"),
+			nodeRecord("node-b", "10.0.0.2"),
+			nodeRecord("node-c", "10.0.0.3"),
+		},
+		Inventories: map[string]*node_agentpb.Inventory{
+			// node-a: local fresh inventory shows minio active.
+			"node-a": freshActive(),
+			// node-b, node-c: stale inventories from a prior snapshot cycle
+			// showing inactive — these must not count as confirmed-down.
+			"node-b": staleInactiveInventory(),
+			"node-c": staleInactiveInventory(),
+		},
+		ObjectStoreDesired:           distributedDesired([]string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}, nil, 1),
+		ObjectStoreAppliedGeneration: 1,
+	}
+
+	cfg := Config{
+		InventoryStalenessThreshold: 2 * time.Minute, // stale inventories > 2m are uncertain
+	}
+
+	findings := objectstoreWriteQuorumLost{}.Evaluate(snap, cfg)
+	if len(findings) != 0 {
+		t.Fatalf(
+			"stale remote inventories + DataIncomplete=true must produce 0 findings "+
+				"(stale != confirmed-down), got %d: %v",
+			len(findings), findings[0].Summary)
+	}
+}
+
+// TestWriteQuorumLost_StaleInventory_DataComplete_StillFires verifies that
+// stale inventories classified as uncertain still produce CRITICAL when
+// DataIncomplete=false (the collector believes the snapshot is complete).
+// If the collector reports no errors, uncertain nodes count as down.
+func TestWriteQuorumLost_StaleInventory_DataComplete_StillFires(t *testing.T) {
+	staleTime := time.Now().Add(-5 * time.Minute)
+
+	staleInactiveInventory := func() *node_agentpb.Inventory {
+		ts := &timestamppb.Timestamp{
+			Seconds: staleTime.Unix(),
+			Nanos:   int32(staleTime.Nanosecond()),
+		}
+		return &node_agentpb.Inventory{
+			UnixTime: ts,
+			Units:    []*node_agentpb.UnitStatus{{Name: "globular-minio.service", State: "inactive"}},
+		}
+	}
+
+	snap := &collector.Snapshot{
+		DataIncomplete: false, // collector thinks snapshot is complete
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			nodeRecord("node-a", "10.0.0.1"),
+			nodeRecord("node-b", "10.0.0.2"),
+			nodeRecord("node-c", "10.0.0.3"),
+		},
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-a": {UnixTime: timestamppb.Now(), Units: []*node_agentpb.UnitStatus{{Name: "globular-minio.service", State: "active"}}},
+			"node-b": staleInactiveInventory(),
+			"node-c": staleInactiveInventory(),
+		},
+		ObjectStoreDesired:           distributedDesired([]string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}, nil, 1),
+		ObjectStoreAppliedGeneration: 1,
+	}
+
+	cfg := Config{InventoryStalenessThreshold: 2 * time.Minute}
+
+	findings := objectstoreWriteQuorumLost{}.Evaluate(snap, cfg)
+	if len(findings) != 1 {
+		t.Fatalf("stale inventories + DataIncomplete=false should still fire CRITICAL, got %d", len(findings))
 	}
 	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_CRITICAL {
 		t.Errorf("expected CRITICAL, got %v", findings[0].Severity)

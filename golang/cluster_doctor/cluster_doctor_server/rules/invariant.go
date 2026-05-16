@@ -16,6 +16,17 @@ type Config struct {
 	HeartbeatStale     time.Duration
 	EmitAuditEvents    bool
 	AwarenessGraphPath string // optional; enables awareness.incident_pattern rule
+
+	// LocalNodeID is the nodeID of this doctor instance. Populated by the
+	// server when it constructs the Config. Used as "evaluator_node" in
+	// evidence fields so operators can see which instance produced a finding.
+	LocalNodeID string
+
+	// InventoryStalenessThreshold, when non-zero, marks any inventory whose
+	// UnixTime is older than this duration as uncertain (treated like
+	// no_inventory). Guards against stale snapshot cache entries appearing
+	// as definitive down-state evidence. 0 = disabled (default).
+	InventoryStalenessThreshold time.Duration
 }
 
 // InvariantState is the Go-level verdict for a single invariant check.

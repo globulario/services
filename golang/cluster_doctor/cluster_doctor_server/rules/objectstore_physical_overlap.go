@@ -20,6 +20,7 @@ package rules
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
@@ -435,7 +436,7 @@ func (objectstoreWriteQuorumLost) ID() string    { return "objectstore.write_quo
 func (objectstoreWriteQuorumLost) Category() string { return "objectstore" }
 func (objectstoreWriteQuorumLost) Scope() string    { return "cluster" }
 
-func (objectstoreWriteQuorumLost) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+func (objectstoreWriteQuorumLost) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
 	desired := snap.ObjectStoreDesired
 	if desired == nil || desired.Mode != config.ObjectStoreModeDistributed {
 		return nil
@@ -456,31 +457,68 @@ func (objectstoreWriteQuorumLost) Evaluate(snap *collector.Snapshot, _ Config) [
 	}
 	writeQuorum := parity + 1
 
-	// Count active nodes (proxy for active drives when drives_per_node == 1).
-	// nodeIDByPoolIP iterates Identity.Ips so VIP-holders (whose AdvertiseIp
-	// is empty or the floating VIP) still resolve to their nodeID.
+	// ── Per-IP classification ─────────────────────────────────────────────────
 	//
-	// Three buckets:
-	//   active       — inventory present, globular-minio.service = active
-	//   knownDown    — inventory present, MinIO not active (or nodeID unknown)
-	//   noInventory  — collector could not reach the node agent
+	// Four buckets:
+	//   active       — inventory present & fresh, globular-minio.service active
+	//   knownDown    — inventory present & fresh, MinIO confirmed not active
+	//   noInventory  — inventory absent, stale, or pool IP has no NodeRecord
+	//   staleInv     — subset of noInventory: inventory exists but is older
+	//                  than cfg.InventoryStalenessThreshold
 	//
-	// noInventory is ambiguous: it can mean the node is truly down, or that
-	// the snapshot collector had a transient RPC failure to a healthy node.
-	// When snap.DataIncomplete=true (collector logged errors), we treat
-	// noInventory nodes as potentially-up so that intermittent collection
-	// failures don't produce CRITICAL false positives. The finding is only
-	// suppressed when ALL "down" nodes are in the noInventory bucket —
-	// confirmed-bad nodes still trigger CRITICAL regardless of DataIncomplete.
+	// noInventory is ambiguous: node may be healthy but unreachable, or the
+	// snapshot may be partial. When snap.DataIncomplete=true (collector logged
+	// errors), we suppress CRITICAL if ALL down nodes are in noInventory.
 	nodeIDByIP := nodeIDByPoolIP(snap.Nodes, desired.Nodes)
+
+	// Parallel diagnostic maps — populated for every pool IP regardless of
+	// which bucket it lands in. Written into evidence so operators can see the
+	// exact per-node state that produced the verdict.
+	nodeIDEvid := make([]string, 0, len(desired.Nodes))      // "ip=nodeID"
+	invPresentEvid := make([]string, 0, len(desired.Nodes))  // "ip=yes|no|stale|no_node_record"
+	minioStateEvid := make([]string, 0, len(desired.Nodes))  // "ip=state"
+	unitNamesEvid := make([]string, 0)                        // "ip=[u1|u2|...]" only when state=missing
+
 	var activeNodes, knownDownNodes, noInventoryNodes []string
 	for _, ip := range desired.Nodes {
 		nodeID := nodeIDByIP[ip]
+		nodeIDEvid = append(nodeIDEvid, ip+"="+nodeID)
+
 		if nodeID == "" {
-			knownDownNodes = append(knownDownNodes, ip)
+			// No NodeRecord for this pool IP — snapshot may be partial.
+			invPresentEvid = append(invPresentEvid, ip+"=no_node_record")
+			minioStateEvid = append(minioStateEvid, ip+"=unknown(no_node_record)")
+			noInventoryNodes = append(noInventoryNodes, ip)
 			continue
 		}
-		switch minioServiceState(snap, nodeID) {
+
+		inv := snap.Inventories[nodeID]
+		if inv == nil {
+			invPresentEvid = append(invPresentEvid, ip+"=no")
+			minioStateEvid = append(minioStateEvid, ip+"=no_inventory")
+			noInventoryNodes = append(noInventoryNodes, ip)
+			continue
+		}
+
+		// Staleness check: if the inventory's own timestamp is older than the
+		// configured threshold, treat the node as uncertain rather than
+		// definitively down. This prevents a cached-snapshot race (MinIO
+		// transitioning during the snapshot window) from producing a CRITICAL.
+		if cfg.InventoryStalenessThreshold > 0 && inv.GetUnixTime() != nil {
+			age := time.Since(inv.GetUnixTime().AsTime())
+			if age > cfg.InventoryStalenessThreshold {
+				invPresentEvid = append(invPresentEvid, fmt.Sprintf("%s=stale(age=%s)", ip, age.Round(time.Second)))
+				minioStateEvid = append(minioStateEvid, ip+"=uncertain(stale_inventory)")
+				noInventoryNodes = append(noInventoryNodes, ip)
+				continue
+			}
+		}
+
+		invPresentEvid = append(invPresentEvid, ip+"=yes")
+		state := minioServiceState(snap, nodeID)
+		minioStateEvid = append(minioStateEvid, ip+"="+state)
+
+		switch state {
 		case "active", "hash_drift":
 			// hash_drift = service is running but unit file content changed since
 			// install. systemd still reports active; this is handled by the release
@@ -488,6 +526,20 @@ func (objectstoreWriteQuorumLost) Evaluate(snap *collector.Snapshot, _ Config) [
 			activeNodes = append(activeNodes, ip)
 		case "no_inventory":
 			noInventoryNodes = append(noInventoryNodes, ip)
+		case "missing":
+			// Unit not found in inventory at all. List the first 10 unit names
+			// so operators can see what IS present (helps catch name mismatches).
+			units := inv.GetUnits()
+			names := make([]string, 0, len(units))
+			for i, u := range units {
+				if i >= 10 {
+					names = append(names, "…")
+					break
+				}
+				names = append(names, u.GetName())
+			}
+			unitNamesEvid = append(unitNamesEvid, ip+"=["+strings.Join(names, "|")+"]")
+			knownDownNodes = append(knownDownNodes, ip)
 		default:
 			knownDownNodes = append(knownDownNodes, ip)
 		}
@@ -500,7 +552,7 @@ func (objectstoreWriteQuorumLost) Evaluate(snap *collector.Snapshot, _ Config) [
 
 	// If data collection had errors and every "down" node is only no_inventory
 	// (no confirmed-bad state), the finding would be a false positive caused
-	// by the collector failing to reach healthy nodes. Suppress it.
+	// by the collector failing to reach healthy nodes or by a partial snapshot.
 	if snap.DataIncomplete && len(knownDownNodes) == 0 {
 		return nil
 	}
@@ -523,13 +575,22 @@ func (objectstoreWriteQuorumLost) Evaluate(snap *collector.Snapshot, _ Config) [
 			activeDrives, writeQuorum, total, parity, allDownNodes),
 		Evidence: []*cluster_doctorpb.Evidence{
 			kvEvidence("etcd+inventory", "objectstore_desired+unit_state", map[string]string{
-				"active_drives":     fmt.Sprintf("%d", activeDrives),
-				"write_quorum":      fmt.Sprintf("%d", writeQuorum),
-				"total_drives":      fmt.Sprintf("%d", total),
-				"ec_parity":         fmt.Sprintf("%d", parity),
-				"active_nodes":      strings.Join(activeNodes, ","),
-				"known_down_nodes":  strings.Join(knownDownNodes, ","),
-				"no_inventory_nodes": strings.Join(noInventoryNodes, ","),
+				"active_drives":              fmt.Sprintf("%d", activeDrives),
+				"write_quorum":               fmt.Sprintf("%d", writeQuorum),
+				"total_drives":               fmt.Sprintf("%d", total),
+				"ec_parity":                  fmt.Sprintf("%d", parity),
+				"active_nodes":               strings.Join(activeNodes, ","),
+				"known_down_nodes":           strings.Join(knownDownNodes, ","),
+				"no_inventory_nodes":         strings.Join(noInventoryNodes, ","),
+				"snapshot_node_count":        fmt.Sprintf("%d", len(snap.Nodes)),
+				"desired_pool_node_count":    fmt.Sprintf("%d", len(desired.Nodes)),
+				"inventory_node_count":       fmt.Sprintf("%d", len(snap.Inventories)),
+				"data_incomplete":            fmt.Sprintf("%v", snap.DataIncomplete),
+				"node_id_by_pool_ip":         strings.Join(nodeIDEvid, ","),
+				"inventory_present_by_pool_ip": strings.Join(invPresentEvid, ","),
+				"minio_state_by_pool_ip":     strings.Join(minioStateEvid, ","),
+				"unit_names_by_pool_ip":      strings.Join(unitNamesEvid, " | "),
+				"evaluator_node":             cfg.LocalNodeID,
 			}),
 		},
 		Remediation: []*cluster_doctorpb.RemediationStep{
