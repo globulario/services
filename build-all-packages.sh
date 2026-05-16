@@ -226,6 +226,48 @@ fi
 
 echo ""
 echo "→ Step 3b: Build service packages..."
+
+# Resolve the per-package versions file.
+# Priority: VERSIONS_FILE env var → build/package-versions.txt → release-index.json auto-generate.
+# Never hardcode a single platform version for all packages — that violates the BOM invariant.
+VERSIONS_FILE="${VERSIONS_FILE:-}"
+if [[ -z "${VERSIONS_FILE}" && -f "${SERVICES_ROOT}/golang/build/package-versions.txt" ]]; then
+    VERSIONS_FILE="${SERVICES_ROOT}/golang/build/package-versions.txt"
+fi
+if [[ -z "${VERSIONS_FILE}" ]]; then
+    # Auto-generate from active release-index if available.
+    RELEASE_INDEX="/var/lib/globular/release-index.json"
+    GEN_VERSIONS_FILE="${SERVICES_ROOT}/golang/build/package-versions.txt"
+    if [[ -f "${RELEASE_INDEX}" ]]; then
+        echo "→ Generating package-versions.txt from ${RELEASE_INDEX}..."
+        python3 - <<PYEOF
+import json, sys
+with open("${RELEASE_INDEX}") as f:
+    idx = json.load(f)
+lines = []
+for p in idx.get("packages", []):
+    name = p.get("name", "")
+    ver  = p.get("version", "")
+    if name and ver:
+        lines.append(f"{name}={ver}")
+lines.sort()
+with open("${GEN_VERSIONS_FILE}", "w") as f:
+    f.write(f"# Auto-generated from {RELEASE_INDEX} — do not edit by hand\n")
+    f.write(f"# platform_release: {idx.get('platform_release','?')}\n")
+    for l in lines:
+        f.write(l + "\n")
+print(f"  wrote {len(lines)} entries to ${GEN_VERSIONS_FILE}")
+PYEOF
+        VERSIONS_FILE="${GEN_VERSIONS_FILE}"
+    else
+        echo "ERROR: no VERSIONS_FILE provided and ${RELEASE_INDEX} not found." >&2
+        echo "       Set VERSIONS_FILE=<path> or create golang/build/package-versions.txt" >&2
+        echo "       with one 'svcname=version' per line matching the active BOM." >&2
+        exit 1
+    fi
+fi
+echo "  using versions file: ${VERSIONS_FILE}"
+
 if [[ -f "golang/globularcli/tools/pkggen/pkggen.sh" ]]; then
     bash golang/globularcli/tools/pkggen/pkggen.sh \
         --globular "${SERVICES_STAGE}/globularcli" \
@@ -233,7 +275,8 @@ if [[ -f "golang/globularcli/tools/pkggen/pkggen.sh" ]]; then
         --gen-root "${SERVICES_OUTPUT}" \
         --out "${DIST_DIR}" \
         --publisher "core@globular.io" \
-        --platform "linux_amd64"
+        --platform "linux_amd64" \
+        --versions-file "${VERSIONS_FILE}"
     echo "  ✓ Service packages built"
 else
     echo "  ✗ pkggen.sh not found"

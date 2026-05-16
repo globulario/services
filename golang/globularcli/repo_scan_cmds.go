@@ -193,6 +193,7 @@ func init() {
 	repoCmd.AddCommand(repoAliasesCmd)
 	repoCmd.AddCommand(repoResolveCmd)
 	repoCmd.AddCommand(repoDoctorCmd)
+	repoCmd.AddCommand(repoValidateReleaseIndexCmd)
 	repoDedupCmd.AddCommand(repoDedupReportCmd)
 	repoDoctorCmd.AddCommand(repoDoctorIdentityCmd)
 	repoResolveCmd.Flags().StringVar(&repoResolveName, "name", "", "Package name")

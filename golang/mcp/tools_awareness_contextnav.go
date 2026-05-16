@@ -35,7 +35,8 @@ func registerAwarenessDecisionTraceTool(s *server, st *awarenessState) {
 		Name: "awareness.decision_trace",
 		Description: "Run a preflight for the given task and return ONLY the per-finding decision " +
 			"traces (matched_by / owner / pivots / next_actions / falsifiers). The fast path when " +
-			"an agent has the rest of the preflight cached and only wants the navigation layer.",
+			"an agent has the rest of the preflight cached and only wants the navigation layer. " +
+			"Capped at max_traces (default 5) to protect context budget.",
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
@@ -52,6 +53,11 @@ func registerAwarenessDecisionTraceTool(s *server, st *awarenessState) {
 					Type:        "boolean",
 					Description: "Collect live runtime snapshot and merge runtime evidence into traces",
 					Default:     false,
+				},
+				"max_traces": {
+					Type:        "number",
+					Description: "Maximum decision traces to return. Default: 5. Use 0 for unlimited (forensic only).",
+					Default:     5,
 				},
 			},
 			Required: []string{"task"},
@@ -81,13 +87,27 @@ func registerAwarenessDecisionTraceTool(s *server, st *awarenessState) {
 		if err != nil {
 			return nil, fmt.Errorf("preflight run: %w", err)
 		}
-		return map[string]interface{}{
+
+		maxTraces := intArgDefault(args, "max_traces", 5)
+		traces := r.DecisionTraces
+		totalTraces := len(traces)
+		if maxTraces > 0 && len(traces) > maxTraces {
+			traces = traces[:maxTraces]
+		}
+
+		result := map[string]interface{}{
 			"task":            task,
-			"decision_traces": r.DecisionTraces,
+			"decision_traces": traces,
 			"trust":           r.Trust,
 			"graph_freshness": r.GraphFreshness,
 			"live_overlay":    r.LiveOverlay,
-		}, nil
+			"total_traces":    totalTraces,
+		}
+		if totalTraces > maxTraces && maxTraces > 0 {
+			result["truncated"] = true
+			result["truncation_reason"] = fmt.Sprintf("%d traces omitted; increase max_traces or use forensic preflight for all", totalTraces-maxTraces)
+		}
+		return result, nil
 	})
 }
 

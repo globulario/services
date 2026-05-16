@@ -210,7 +210,7 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 			"graph_match_count": r.GraphMatchCount,
 			"raw_yaml_match_count": r.RawYAMLMatchCount,
 			"agent_context":        out,
-			"next_context_handles": buildPreflightContextHandles(r, maxItems),
+			"next_context_handles": buildPreflightContextHandles(r, maxItems, budget),
 		}
 
 		// Ranked forbidden fixes and required tests (capped at max_items).
@@ -251,8 +251,11 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 	})
 
 	s.register(toolDef{
-		Name:        "awareness.agent_context",
-		Description: "Generate architectural context for a task — invariants, failure modes, forbidden fixes, and required tests from the awareness graph.",
+		Name: "awareness.agent_context",
+		Description: "Secondary context tool — use awareness.preflight (compact) first for most tasks. " +
+			"Returns invariants, failure modes, forbidden fixes, and required tests from the awareness graph. " +
+			"Do NOT call this in the same turn as awareness.preflight unless preflight explicitly listed it as a required pivot. " +
+			"Response is hard-capped at max_bytes (default 8000) to protect context budget.",
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
@@ -269,6 +272,11 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 					Type:        "array",
 					Description: "Service names to include (narrows context)",
 					Items:       &propSchema{Type: "string"},
+				},
+				"max_bytes": {
+					Type:        "number",
+					Description: "Maximum response size in bytes. Default: 8000.",
+					Default:     8000,
 				},
 			},
 			Required: []string{"task"},
@@ -326,8 +334,9 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 		// whether there are stale/pending proposals before starting code changes.
 		queueSection, _ := buildQueueSection(st.docsDir, 24.0)
 
-		// Attach relevant failure knowledge for this task.
-		failureKnowledge := buildFailureKnowledgeForTask(ctx, st, task, getStrSlice(args, "files"))
+		// Attach relevant failure knowledge — summary-only (category + summary)
+		// to keep tokens bounded. Use awareness.failure_explain_category for detail.
+		failureKnowledge := buildFailureKnowledgeSummary(ctx, st, task, getStrSlice(args, "files"))
 
 		out := map[string]interface{}{
 			"invariants":        result.InvariantIDs,
@@ -347,13 +356,17 @@ func registerAwarenessPreflightTools(s *server, st *awarenessState) {
 		if len(failureKnowledge) > 0 {
 			out["relevant_failure_knowledge"] = failureKnowledge
 		}
-		return out, nil
+
+		maxBytes := intArgDefault(args, "max_bytes", 8000)
+		return enforceAgentContextBudget(out, maxBytes), nil
 	})
 }
 
 // buildPreflightContextHandles returns follow-up tool handles so agents can
 // request deeper context without receiving the full graph in the initial call.
-func buildPreflightContextHandles(r *preflight.Report, maxItems int) []map[string]interface{} {
+// In compact budget mode, only impact_file handles are included — agent_context
+// and explain handles are omitted to prevent redundant chaining that wastes tokens.
+func buildPreflightContextHandles(r *preflight.Report, maxItems int, budget preflight.Budget) []map[string]interface{} {
 	var handles []map[string]interface{}
 
 	// Impact analysis handles for files being edited.
@@ -369,7 +382,14 @@ func buildPreflightContextHandles(r *preflight.Report, maxItems int) []map[strin
 		})
 	}
 
-	// Explain handles for top invariants.
+	// Compact mode: stop here — don't suggest agent_context or explain handles.
+	// Agents using compact preflight should not chain secondary awareness calls
+	// unless a specific finding warrants it.
+	if budget == preflight.BudgetCompact {
+		return handles
+	}
+
+	// Explain handles for top invariants — only for standard/deep/forensic.
 	for i, inv := range r.Invariants {
 		if i >= 2 {
 			break
@@ -381,7 +401,7 @@ func buildPreflightContextHandles(r *preflight.Report, maxItems int) []map[strin
 		})
 	}
 
-	// Agent context handle for broader task context.
+	// Agent context handle — only for standard/deep/forensic.
 	handles = append(handles, map[string]interface{}{
 		"tool":      "awareness.agent_context",
 		"available": true,
@@ -389,6 +409,110 @@ func buildPreflightContextHandles(r *preflight.Report, maxItems int) []map[strin
 	})
 
 	return handles
+}
+
+// enforceAgentContextBudget applies a byte cap to agent_context responses.
+// Drops optional sections in priority order: relevant_failure_knowledge → required_searches → trust.
+// Essential fields (invariants, failure_modes, forbidden_fixes, required_tests) are never dropped.
+func enforceAgentContextBudget(result map[string]interface{}, maxBytes int) map[string]interface{} {
+	b, _ := json.Marshal(result)
+	if maxBytes <= 0 || len(b) <= maxBytes {
+		result["bytes"] = len(b)
+		result["truncated"] = false
+		return result
+	}
+	// Drop failure knowledge first — the caller can use awareness.failure_explain_category.
+	delete(result, "relevant_failure_knowledge")
+	b, _ = json.Marshal(result)
+	if len(b) <= maxBytes {
+		result["bytes"] = len(b)
+		result["truncated"] = true
+		result["truncation_reason"] = "failure_knowledge dropped; use awareness.failure_explain_category for detail"
+		return result
+	}
+	// Drop required_searches — lowest priority list.
+	delete(result, "required_searches")
+	b, _ = json.Marshal(result)
+	if len(b) <= maxBytes {
+		result["bytes"] = len(b)
+		result["truncated"] = true
+		result["truncation_reason"] = "failure_knowledge and required_searches dropped to fit budget"
+		return result
+	}
+	// Cap lists to 5 items each.
+	for _, key := range []string{"forbidden_fixes", "required_tests", "invariants", "failure_modes"} {
+		if sl, ok := result[key].([]string); ok && len(sl) > 5 {
+			result[key] = sl[:5]
+		}
+	}
+	b, _ = json.Marshal(result)
+	result["bytes"] = len(b)
+	result["truncated"] = true
+	result["truncation_reason"] = "lists capped at 5 items; use output_profile=deep for full detail"
+	return result
+}
+
+// buildFailureKnowledgeSummary returns category+summary only (no graph expansion)
+// to keep agent_context tokens bounded. Use awareness.failure_explain_category for causes/fixes.
+func buildFailureKnowledgeSummary(ctx context.Context, st *awarenessState, task string, files []string) []map[string]interface{} {
+	if st.g == nil {
+		return nil
+	}
+	store := failuregraph.New(st.g)
+	cats, err := store.ListCategories(ctx)
+	if err != nil || len(cats) == 0 {
+		return nil
+	}
+
+	taskLower := strings.ToLower(task)
+	fileLower := strings.ToLower(strings.Join(files, " "))
+	combined := taskLower + " " + fileLower
+
+	type scored struct {
+		cat   failuregraph.FailureNode
+		score int
+	}
+	var candidates []scored
+	for _, cat := range cats {
+		s := 0
+		name := strings.ToLower(cat.Name)
+		words := strings.FieldsFunc(name, func(r rune) bool { return r == '_' })
+		for _, w := range words {
+			if len(w) > 3 && strings.Contains(combined, w) {
+				s++
+			}
+		}
+		sum := strings.ToLower(cat.Summary)
+		for _, w := range strings.Fields(sum) {
+			if len(w) > 5 && strings.Contains(combined, w) {
+				s++
+			}
+		}
+		if s > 0 {
+			candidates = append(candidates, scored{cat, s})
+		}
+	}
+
+	for i := 0; i < len(candidates); i++ {
+		for j := i + 1; j < len(candidates); j++ {
+			if candidates[j].score > candidates[i].score {
+				candidates[i], candidates[j] = candidates[j], candidates[i]
+			}
+		}
+	}
+	if len(candidates) > 3 {
+		candidates = candidates[:3]
+	}
+
+	var result []map[string]interface{}
+	for _, c := range candidates {
+		result = append(result, map[string]interface{}{
+			"category": c.cat.Name,
+			"summary":  c.cat.Summary,
+			"hint":     "use awareness.failure_explain_category for causes/wrong_fixes/tests",
+		})
+	}
+	return result
 }
 
 // enforceResponseBudget ensures the MCP response never exceeds maxBytes.
@@ -496,78 +620,3 @@ func buildTrustSummaryFromReport(r *preflight.Report) map[string]int {
 	return counts
 }
 
-// buildFailureKnowledgeForTask returns failure categories relevant to the task
-// by matching task keywords against category names and summaries.
-// At most 3 categories are returned to keep agent-context concise.
-func buildFailureKnowledgeForTask(ctx context.Context, st *awarenessState, task string, files []string) []map[string]interface{} {
-	if st.g == nil {
-		return nil
-	}
-	store := failuregraph.New(st.g)
-	cats, err := store.ListCategories(ctx)
-	if err != nil || len(cats) == 0 {
-		return nil
-	}
-
-	// Build a set of candidate keywords from task + file paths.
-	taskLower := strings.ToLower(task)
-	fileLower := strings.ToLower(strings.Join(files, " "))
-	combined := taskLower + " " + fileLower
-
-	type scored struct {
-		cat   failuregraph.FailureNode
-		score int
-	}
-	var candidates []scored
-	for _, cat := range cats {
-		s := 0
-		name := strings.ToLower(cat.Name)
-		words := strings.FieldsFunc(name, func(r rune) bool { return r == '_' })
-		for _, w := range words {
-			if len(w) > 3 && strings.Contains(combined, w) {
-				s++
-			}
-		}
-		sum := strings.ToLower(cat.Summary)
-		sumWords := strings.Fields(sum)
-		for _, w := range sumWords {
-			if len(w) > 5 && strings.Contains(combined, w) {
-				s++
-			}
-		}
-		if s > 0 {
-			candidates = append(candidates, scored{cat, s})
-		}
-	}
-
-	// Sort by score descending, cap at 3.
-	for i := 0; i < len(candidates); i++ {
-		for j := i + 1; j < len(candidates); j++ {
-			if candidates[j].score > candidates[i].score {
-				candidates[i], candidates[j] = candidates[j], candidates[i]
-			}
-		}
-	}
-	if len(candidates) > 3 {
-		candidates = candidates[:3]
-	}
-
-	var result []map[string]interface{}
-	for _, c := range candidates {
-		exp, err := failuregraph.ExplainCategory(ctx, store, c.cat.ID)
-		if err != nil {
-			continue
-		}
-		causes := nodeSummaries(exp.LikelyCauses)
-		wrongFixes := nodeSummaries(exp.WrongFixes)
-		tests := nodeSummaries(exp.RequiredTests)
-		result = append(result, map[string]interface{}{
-			"category":    c.cat.Name,
-			"summary":     c.cat.Summary,
-			"causes":      causes,
-			"wrong_fixes": wrongFixes,
-			"tests":       tests,
-		})
-	}
-	return result
-}

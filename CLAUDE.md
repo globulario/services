@@ -266,6 +266,16 @@ The canonical script is at `scripts/clean-node.sh` (also embedded in the gateway
 
 ## AI RULES (for AI agents operating on this codebase)
 
+### Awareness token discipline — HARD LIMIT
+Awareness tools are expensive. Violating these rules eats the whole context budget.
+
+- **1 preflight per task** — compact (default) unless deep/forensic is justified.
+- **Do NOT call `awareness.agent_context` in the same turn as `awareness.preflight`** — preflight compact already contains the essential safety fields. Only call `agent_context` if preflight explicitly listed it as a required pivot.
+- **Do NOT call `awareness.decision_trace`** unless you need navigation layer only (preflight cached). Max 5 traces.
+- **Do NOT expand every returned handle** — the `next_context_handles` array in compact mode contains at most impact_file entries; they are suggestions, not a mandatory checklist.
+- **Choose the smallest sufficient mode**: micro → standard → deep → forensic. Never jump to forensic for a typo fix.
+- **Never call `awareness.session.resume_latest` mid-task** — call it only at the very start if explicitly resuming a prior session.
+
 ### Observe before acting
 Always diagnose before prescribing. Sequence: OBSERVE → DIAGNOSE → RECOMMEND → [APPROVE] → EXECUTE → VERIFY.
 

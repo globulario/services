@@ -1,28 +1,33 @@
 #!/usr/bin/env bash
-# gen-version.sh — Write a version.go file into every service package before build.
+# gen-version.sh — Write a zz_version_generated.go file into every service package before build.
 #
 # Usage: bash build/gen-version.sh <default-version> [version-overrides-file]
 #
-# When a version-overrides-file is provided, packages listed in it receive their
-# specified version instead of the default. This enables the BOM release model
-# where unchanged packages keep their original version.
+# IMPORTANT: For official releases, ALWAYS pass a version-overrides-file derived from
+# the BOM (release-index.json). Using the platform release as the default version
+# stamps ALL packages with the platform version, which violates the BOM invariant:
 #
-# Override file format (one line per package):
-#   package_dir_suffix=version
-# Example:
-#   authentication/authentication_server=1.0.82
-#   gateway/gateway=1.0.82
-#   globularcli=1.0.82
+#   Platform release 1.2.52 != every package is version 1.2.52.
 #
-# Packages not listed in the override file get the default version.
-# When no override file is provided, all packages get the default version
-# (backward compat — identical to previous behavior).
+# The overrides file maps each package to its own version as declared in the BOM.
+# Packages not listed in the overrides file fall back to <default-version>.
+# For release builds, the default should be 0.0.0-dev (fail-safe) or a clearly
+# labelled fallback, NOT the platform release version.
+#
+# Canonical overrides source: golang/build/package-versions.txt
+# (auto-generated from release-index.json by build-all-packages.sh)
+#
+# Override file format (one "key=version" per line):
+#   Accepts EITHER of these key formats:
+#     pkgname=version                       (e.g. authentication=1.2.43)
+#     go_target=version                     (e.g. authentication/authentication_server=1.2.43)
+#   Lines starting with # are comments.
 #
 # This writes the version as a var (not const) so -X main.Version=<ver> ldflags
 # can still override it when needed (e.g. hotfix builds). The init() sentinel
 # catches accidental empty-string builds at runtime.
 #
-# Run this BEFORE `go build ./...`. The generated files are .gitignored.
+# Run this BEFORE `go build ./...`. The generated files are .gitignored — do NOT commit them.
 
 set -euo pipefail
 
@@ -44,12 +49,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GOLANG_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Load overrides if provided.
+# Accepts both formats:
+#   go_target=version  (authentication/authentication_server=1.2.43)
+#   pkgname=version    (authentication=1.2.43)  — matches when go_target starts with pkgname/
 declare -A VERSION_OVERRIDES=()
 if [[ -n "$OVERRIDES_FILE" && -f "$OVERRIDES_FILE" ]]; then
   while IFS='=' read -r pkg_suffix pkg_version; do
     pkg_suffix="$(echo "$pkg_suffix" | tr -d ' ')"
-    pkg_version="$(echo "$pkg_version" | tr -d ' ')"
+    # Strip inline comments and trailing whitespace from value.
+    pkg_version="$(echo "$pkg_version" | sed 's/#.*//' | tr -d ' ')"
     [[ -z "$pkg_suffix" || "$pkg_suffix" == \#* ]] && continue
+    [[ -z "$pkg_version" ]] && continue
     VERSION_OVERRIDES["$pkg_suffix"]="$pkg_version"
   done < "$OVERRIDES_FILE"
   echo "gen-version: loaded ${#VERSION_OVERRIDES[@]} overrides from $OVERRIDES_FILE"
@@ -70,11 +80,23 @@ OVERRIDDEN=0
 for pkg_dir in "${PKGS[@]}"; do
   # Determine version for this package.
   pkg_version="$VERSION"
-  # Check for override: match against the relative path suffix.
+  # Check for override. Try two key formats:
+  #   1. Full go_target path: authentication/authentication_server
+  #   2. Package name prefix: authentication (matches entries like "authentication=1.2.43")
   rel_path="${pkg_dir#$GOLANG_ROOT/}"
-  if [[ ${#VERSION_OVERRIDES[@]} -gt 0 && -n "${VERSION_OVERRIDES[$rel_path]+x}" ]]; then
-    pkg_version="${VERSION_OVERRIDES[$rel_path]}"
-    OVERRIDDEN=$((OVERRIDDEN + 1))
+  pkg_name="${rel_path%%/*}"                   # e.g. "authentication" from "authentication/authentication_server"
+  pkg_name_hyphen="${pkg_name//_/-}"           # underscore→hyphen: cluster_controller → cluster-controller
+  if [[ ${#VERSION_OVERRIDES[@]} -gt 0 ]]; then
+    if [[ -n "${VERSION_OVERRIDES[$rel_path]+x}" ]]; then
+      pkg_version="${VERSION_OVERRIDES[$rel_path]}"
+      OVERRIDDEN=$((OVERRIDDEN + 1))
+    elif [[ -n "${VERSION_OVERRIDES[$pkg_name]+x}" ]]; then
+      pkg_version="${VERSION_OVERRIDES[$pkg_name]}"
+      OVERRIDDEN=$((OVERRIDDEN + 1))
+    elif [[ -n "${VERSION_OVERRIDES[$pkg_name_hyphen]+x}" ]]; then
+      pkg_version="${VERSION_OVERRIDES[$pkg_name_hyphen]}"
+      OVERRIDDEN=$((OVERRIDDEN + 1))
+    fi
   fi
 
   cat > "$pkg_dir/zz_version_generated.go" <<GOFILE

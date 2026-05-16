@@ -186,6 +186,7 @@ detect_uninstall_cmd() {
 INSTALL_MODE="$(detect_install_cmd)"
 UNINSTALL_MODE="$(detect_uninstall_cmd)"
 
+
 TOLERATE_ALREADY_INSTALLED="1"
 FORCE_REINSTALL="0"
 

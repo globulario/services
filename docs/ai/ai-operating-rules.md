@@ -394,7 +394,33 @@ Always include:
 - what remains risky
 - exact retry/debug commands if applicable
 
-## 14. The North Star
+## 14. Repository artifact recovery
+
+When MinIO blobs are lost (wipe, corruption, fresh cluster), restore artifacts from GitHub releases — never rebuild from source.
+
+**Rule: artifacts come from CI, not local builds.**
+
+Reasons:
+- Local builds lack proper ldflags (`Version=""`) → binary reports `0.0.0-dev`.
+- Build environment may differ from CI (compiler version, trimpath, reproducibility).
+- Checksums will not match what the repository service already has in Scylla for existing manifests.
+- Leader election and entrypoint_checksum invariants break when installed ≠ repository blob.
+
+**Correct recovery procedure:**
+
+1. Identify the active platform release BOM: `globular repository active-release` or read `/var/lib/globular/release-index.json`.
+2. Download the full release tarball from GitHub: `gh release download <tag> --repo globulario/services --pattern "globular-<ver>-linux-amd64.tar.gz"`.
+3. Extract the packages directory from the tarball.
+4. Authenticate: `globular auth login --user sa --password <pass>`.
+5. Publish all packages with `--force`: `for pkg in packages/*.tgz; do globular pkg publish --repository globular.internal:443 --file "$pkg" --force; done`.
+6. If a package fails with "version X < latest PUBLISHED Y", the repository already has a newer build in Scylla (from a prior CI publish). Publish that higher version instead, sourced from the release where Y first appeared.
+
+**Never do:**
+- `go build` → package directly → `pkg publish` (wrong checksums, missing ldflags).
+- Modify binary content to fake a version bump.
+- Use `build-all-packages.sh` as a recovery tool — it is for creating new releases, not restoring existing ones.
+
+## 15. The North Star
 
 Globular should be AI-operable because its truth is explicit.
 

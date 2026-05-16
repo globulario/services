@@ -7,6 +7,7 @@ GEN_ROOT="$(pwd)/generated"
 OUT_DIR="$(pwd)/generated/packages"
 SCRIPTS_DIR=""
 VERSION="0.0.1"
+VERSIONS_FILE=""
 PUBLISHER="core@globular.io"
 PLATFORM="$(go env GOOS)_$(go env GOARCH)"
 GLOBULAR_BIN="${GLOBULAR_BIN:-globular}"
@@ -18,8 +19,13 @@ Usage: $0 [options]
 Builds one package per *_server binary by assembling a per-service payload root and invoking:
   globular pkg build --spec <spec> --root <payload-root> --version <ver> --out <out>
 
-Required:
-  --version <ver>
+Per-package versions (recommended for releases):
+  --versions-file <path>   File with one "svcname=version" per line (e.g. authentication=1.2.43).
+                           Overrides --version for packages listed. Packages not listed use
+                           the --version default. Use this to preserve BOM version identity.
+
+  Without --versions-file, all packages get the same --version (a single platform stamp —
+  this is WRONG for unchanged packages in a mixed-version BOM release).
 
 Common options:
   --globular <path>     Path to globular CLI binary (default: env GLOBULAR_BIN or 'globular')
@@ -27,15 +33,16 @@ Common options:
   --gen-root <path>     Directory containing generated/specs and generated/config
   --scripts-dir <path>  Directory containing per-service post-install scripts
   --out <path>          Output packages directory
+  --version <ver>       Default version for packages not listed in --versions-file
   --publisher <id>      Publisher (default: core@globular.io)
   --platform <goos_goarch> Platform (default: current go env)
 
-Example:
+Example (BOM-correct release build):
   $0 --globular ./globularcli \\
      --bin-dir /path/to/stage/bin \\
      --gen-root ./generated \\
      --out ./generated/packages \\
-     --version 0.0.1
+     --versions-file build/package-versions.txt
 EOF
 }
 
@@ -52,6 +59,7 @@ while [[ $# -gt 0 ]]; do
     --scripts-dir) SCRIPTS_DIR="$2"; shift 2 ;;
     --out) OUT_DIR="$2"; shift 2 ;;
     --version) VERSION="$2"; shift 2 ;;
+    --versions-file) VERSIONS_FILE="$2"; shift 2 ;;
     --publisher) PUBLISHER="$2"; shift 2 ;;
     --platform) PLATFORM="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -59,8 +67,24 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Version is optional — the repository assigns the actual version on publish.
-# Default "0.0.1" is a placeholder that gets overridden server-side.
+# Load per-package versions. Format: one "svcname=version" per line.
+# Keys are service names (e.g. "authentication", not "authentication_server").
+# Lines prefixed with # are comments.
+declare -A PKG_VERSIONS=()
+if [[ -n "${VERSIONS_FILE}" && -f "${VERSIONS_FILE}" ]]; then
+  while IFS='=' read -r key val; do
+    key="$(echo "$key" | tr -d ' ')"
+    val="$(echo "$val" | tr -d ' ')"
+    [[ -z "$key" || "$key" == \#* ]] && continue
+    # Strip path prefix if caller passed gen-version.sh format (authentication/authentication_server).
+    key="${key%%/*}"
+    PKG_VERSIONS["$key"]="$val"
+  done < "${VERSIONS_FILE}"
+  echo "pkggen: loaded ${#PKG_VERSIONS[@]} per-package versions from ${VERSIONS_FILE}"
+elif [[ -n "${VERSIONS_FILE}" ]]; then
+  echo "ERROR: --versions-file not found: ${VERSIONS_FILE}" >&2
+  exit 2
+fi
 
 if [[ ! -d "${BIN_DIR}" ]]; then
   echo "ERROR: --bin-dir not found: ${BIN_DIR}" >&2
@@ -125,7 +149,13 @@ build_one() {
     done
   fi
 
-  echo "==> pkg build ${svc} (${exe})"
+  # Resolve per-package version: versions file wins over global --version default.
+  local pkg_version="${VERSION}"
+  if [[ ${#PKG_VERSIONS[@]} -gt 0 && -n "${PKG_VERSIONS[$svc]+x}" ]]; then
+    pkg_version="${PKG_VERSIONS[$svc]}"
+  fi
+
+  echo "==> pkg build ${svc} (${exe}) version=${pkg_version}"
   local scripts_flag=""
   if [[ -n "${SCRIPTS_DIR}" ]]; then
     scripts_flag="--scripts-dir ${SCRIPTS_DIR}"
@@ -135,7 +165,7 @@ build_one() {
     --spec "${root}/specs/${svc}_service.yaml" \
     --root "${root}" \
     ${scripts_flag} \
-    --version "${VERSION}" \
+    --version "${pkg_version}" \
     --publisher "${PUBLISHER}" \
     --platform "${PLATFORM}" \
     --out "${OUT_DIR}" \
