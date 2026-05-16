@@ -176,6 +176,14 @@ func NewRegistry(cfg Config) *Registry {
 		// underlying blocker has not converged across multiple defer
 		// cycles and automatic retry has been suspended.
 		workflowCorrelationAbandoned{},
+		// Local package identity lane invariants:
+		//   local_override_active  — WARN when any artifact in the repository
+		//     carries a local/dev/hotfix version suffix (+local., -dev., -hotfix.).
+		//   official_identity_sealed — ERROR when a checksum mismatch finding
+		//     affects an official-publisher (core@globular.io) artifact, indicating
+		//     that different bytes were silently stored under an official identity.
+		localOverrideActive{},
+		officialIdentitySealed{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)

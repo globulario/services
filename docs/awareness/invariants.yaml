@@ -2262,3 +2262,222 @@ invariants:
       required_tests:
         - TestComputeDesiredState_WildcardExcludesUnhealthy
         - TestComputeDesiredState_WildcardMatchesGatewayCandidateSet
+
+    - id: package.official_identity_immutable
+      title: Once an official stable (publisher, name, version, platform) is published, no different byte stream may claim that identity
+      severity: critical
+      status: active
+      summary: |
+        The official stable namespace (publisher=core@globular.io, channel=STABLE) is sealed.
+        After (version, platform) is published with a given digest, any upload to the same
+        (publisher, name, version, platform) tuple carrying a different digest must be rejected
+        with PermissionDenied before any write occurs. This prevents silent identity fraud
+        across clusters: two nodes cannot both claim to run "storage 1.2.43" while executing
+        different bytes. Official stable artifacts are immutable at the (version, platform)
+        granularity. The only way to publish different bytes is to publish a new version.
+      protects:
+        state:
+            - /globular/nodes/{node_id}/packages/{kind}/{name}
+        files:
+            - golang/repository/repository_server/local_publish_guard.go
+            - golang/repository/repository_server/artifact_handlers.go
+        symbols:
+            - enforceOfficialNamespaceSeal
+            - UploadArtifact
+      enforcement: |
+        enforceOfficialNamespaceSeal() is called from UploadArtifact before any write.
+        If the (publisher, name, version, platform) is already in the ledger with a
+        different digest, the upload returns PermissionDenied immediately. Idempotent
+        re-uploads (same digest) pass the seal. Non-official publishers and non-STABLE
+        channels are always allowed.
+      forbidden_fixes:
+        - change_official_digest_to_accept_local_build
+        - publish_local_build_as_official_stable_to_fix_mismatch
+        - strip_local_version_suffix_to_promote_without_official_rebuild
+      required_tests:
+        - TestLocalPublish1_OfficialStableSealedAgainstDifferentDigest
+        - TestLocalPublish1_OfficialStableAllowsSameDigest
+        - TestLocalPublish6_CrossClusterLocalCannotOverrideStable
+      related_failure_modes:
+        - package.identity_fraud_silent_override
+
+    - id: package.local_publish_requires_local_identity
+      title: Local/dev/hotfix builds must use a non-official publisher and a version with a local suffix
+      severity: high
+      status: active
+      summary: |
+        When an operator or developer builds a locally-modified package for testing, the
+        resulting artifact must not use the official stable identity. It must use:
+          - publisher != core@globular.io (e.g. local@<cluster-id>, org@<domain>)
+          - channel = DEV (local/dev) or CANDIDATE (hotfix)
+          - version with a local suffix: +local.<cluster>.<n>, -dev.<branch>.<sha>, or -hotfix.<n>
+        This prevents the local workbench part from masquerading as a catalog part. The
+        official release-index remains unchanged. After validation, a fix is promoted through
+        the official release pipeline, which assigns a new version, build_id, and digest.
+      protects:
+        files:
+            - golang/repository/repository_server/local_publish_guard.go
+        symbols:
+            - validateLocalIdentityRules
+            - FormatLocalVersion
+      enforcement: |
+        validateLocalIdentityRules() is called post-enrichment in UploadArtifact. It rejects:
+          Rule 1: official publisher + STABLE channel + local version suffix
+          Rule 2: official publisher + DEV channel (must use non-official publisher)
+        The CLI auto-appends local suffixes when --channel local/hotfix is set.
+      forbidden_fixes:
+        - allow_official_publisher_to_use_dev_channel
+        - strip_local_suffix_to_publish_as_official_stable
+        - skip_validateLocalIdentityRules_for_force_flag
+      required_tests:
+        - TestLocalPublish2_LocalVersionSuffixPassesIdentityRules
+        - TestLocalPublish2_OfficialPublisherCannotUseDEVChannel
+        - TestLocalPublish2_OfficialPublisherCannotUseLocalVersionSuffix
+        - TestLocalPublish2_FormatLocalVersion
+      related_failure_modes:
+        - package.identity_fraud_silent_override
+
+    - id: package.local_override_must_be_explicit
+      title: A local package override in desired state must carry explicit override metadata
+      severity: high
+      status: active
+      summary: |
+        When a cluster intentionally runs a local/dev/hotfix package build, the desired state
+        entry must carry explicit override fields so it is never silently confused with an
+        official package. Required fields: publisher (non-official), channel (DEV/CANDIDATE),
+        version with local suffix, and preferably based_on_build_id + patch_reason. The
+        controller must not treat this as normal official drift. The doctor must report it
+        as an intentional local override. The upgrade planner must warn that an official
+        upgrade may replace the local override.
+      protects:
+        state:
+            - /globular/resources/DesiredService/{name}
+        files:
+            - golang/cluster_controller/cluster_controller_server/release_reconciler.go
+            - golang/cluster_doctor/cluster_doctor_server/rules/local_override_rule.go
+        symbols:
+            - localOverrideActive
+      enforcement: |
+        The doctor rule package.local_override_active fires WARN when RepositoryVersionIndex
+        contains any version with a local suffix. This surfaces unintentional local builds
+        that were published without an explicit override command.
+      forbidden_fixes:
+        - silently_upgrade_over_local_override_without_warning
+        - treat_local_override_as_normal_drift
+        - delete_local_override_without_operator_confirmation
+      required_tests:
+        - TestLocalPublish3_OfficialBOMUnaffectedByLocalPublish
+        - TestLocalPublish4_OfficialSealDoesNotBlockLocalPublisher
+      related_failure_modes:
+        - package.silent_local_override_upgrade
+
+    - id: package.official_bom_read_only_under_local_override
+      title: The official BOM must not be mutated when a local package override is active
+      severity: critical
+      status: active
+      summary: |
+        When a local test package is published and a cluster intentionally runs it, the
+        official release-index (BOM) must remain unchanged. The effective cluster BOM is
+        computed as: official BOM + local override entries. The official BOM preserves the
+        GitHub release-index exactly. Local overrides are stored separately and can be removed
+        to return the effective BOM to the official state. No operation on a local override
+        package may mutate the official BOM ledger entry. This mirrors the etcd layout:
+          /globular/releases/active/official_bom       — GitHub release-index exact copy
+          /globular/releases/active/local_overrides/<pkg> — explicit local substitutions
+          /globular/releases/active/effective_bom       — computed, not upstream truth
+      protects:
+        state:
+            - /globular/releases/active/official_bom
+            - /globular/releases/active/local_overrides/{name}
+        files:
+            - golang/repository/repository_server/artifact_handlers.go
+            - golang/repository/repository_server/local_publish_guard.go
+        symbols:
+            - appendToLedger
+            - readLedger
+      enforcement: |
+        appendToLedger uses separate ledger keys per publisher. A local@<id> publisher ledger
+        write never touches the core@globular.io ledger. The official ledger LatestBuildID and
+        LatestVersion are immutable once written for a given version.
+      forbidden_fixes:
+        - update_official_bom_when_local_package_is_activated
+        - merge_local_override_into_official_bom_for_convenience
+        - compute_effective_bom_without_separating_official_and_local
+      required_tests:
+        - TestLocalPublish3_OfficialBOMUnaffectedByLocalPublish
+      related_failure_modes:
+        - package.bom_corruption_under_local_override
+
+    - id: package.promotion_must_use_official_release_pipeline
+      title: Promoting a local fix to official must go through the official build/release pipeline
+      severity: critical
+      status: active
+      summary: |
+        A local test build (publisher=local@<id>, version=1.2.43+local.ryzen.1) that has been
+        validated and is ready for production must NOT be promoted by renaming, relabeling, or
+        re-publishing with publisher=core@globular.io. Promotion must:
+          1. Clean checkout of the fix in the official source tree
+          2. Official build through the package tooling (pkggen.sh + globular pkg build)
+          3. New official version (e.g. 1.2.53)
+          4. New build_id assigned by the repository
+          5. New digest computed from the official build bytes
+          6. Published to the official repository
+          7. GitHub release asset uploaded
+          8. release-index.json updated and validated
+          9. Cluster upgraded from the official release-index
+        The local build may be used as evidence/reference, but the official artifact must be
+        built and pinned independently. The version immutability gate (appendToLedger) prevents
+        publishing a new build_id at an already-published (version, platform).
+      protects:
+        files:
+            - golang/repository/repository_server/artifact_handlers.go
+            - golang/globularcli/tools/pkggen/pkggen.sh
+        symbols:
+            - appendToLedger
+      enforcement: |
+        appendToLedger rejects any attempt to publish a new build_id at an existing
+        (version, platform) for a given publisher. Promotion must use a new version number.
+        The enforceOfficialNamespaceSeal gate catches same-version different-digest uploads.
+      forbidden_fixes:
+        - rename_local_artifact_to_official_without_rebuild
+        - override_appendToLedger_immutability_for_promotion
+        - skip_official_release_pipeline_to_speed_up_promotion
+      required_tests:
+        - TestLocalPublish5_PromotedVersionMustBeDistinct
+      related_failure_modes:
+        - package.promotion_bypasses_release_forge
+
+    - id: package.remote_local_artifact_must_not_override_stable
+      title: A local artifact imported from another cluster must not override this cluster's official desired state
+      severity: critical
+      status: active
+      summary: |
+        When importing or syncing packages from another cluster, a local/dev/hotfix artifact
+        (publisher=local@<other-cluster>, version with local suffix) must not silently override
+        this cluster's official desired state. Import rules:
+          - Official stable + matching digest → accept
+          - Official stable + different digest → reject/quarantine (seal violation)
+          - Local/dev/hotfix → import only with explicit trust policy or operator approval
+          - Local/dev/hotfix that would override official desired state → reject unless an
+            explicit override command (globular pkg override) has been run
+        This prevents Cluster B's local fix from contaminating Cluster A's official state
+        during cross-cluster replication or repository sync operations.
+      protects:
+        files:
+            - golang/repository/repository_server/local_publish_guard.go
+        symbols:
+            - enforceOfficialNamespaceSeal
+      enforcement: |
+        enforceOfficialNamespaceSeal() is the primary guard. If Cluster B sends
+        storage@1.2.43 with a different digest under core@globular.io + STABLE, the
+        seal rejects it. If it uses local@cluster-b + DEV + local version suffix, the
+        seal is a no-op (allowed for local lane), but desired state is not changed unless
+        an explicit override command is issued.
+      forbidden_fixes:
+        - auto_accept_cross_cluster_local_artifact_as_official
+        - trust_all_artifacts_from_known_cluster_without_digest_check
+        - ignore_publisher_field_during_cross_cluster_sync
+      required_tests:
+        - TestLocalPublish6_CrossClusterLocalCannotOverrideStable
+      related_failure_modes:
+        - package.identity_fraud_silent_override

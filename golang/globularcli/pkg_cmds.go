@@ -142,8 +142,10 @@ var (
 	pkgPublishDryRun     bool
 	pkgPublishForce      bool
 	pkgPublishOutput     string // "table" | "json" | "yaml"
-	pkgPublishBump       string // "patch" | "minor" | "major" — calls AllocateUpload
-	pkgPublishChannel    string // "stable" | "candidate" | "canary" | "dev" | "bootstrap"
+	pkgPublishBump        string // "patch" | "minor" | "major" — calls AllocateUpload
+	pkgPublishChannel     string // "stable" | "candidate" | "canary" | "dev" | "local" | "hotfix" | "bootstrap"
+	pkgPublishBasedOn     string // "name@version" — official source artifact (for local builds)
+	pkgPublishPatchReason string // human-readable reason for a local/hotfix build
 
 	// Register command flags (subset)
 	pkgRegisterFile      string
@@ -201,7 +203,9 @@ func init() {
 	pkgPublishCmd.Flags().BoolVar(&pkgPublishForce, "force", false, "overwrite existing artifact even if checksum differs")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishOutput, "output", "table", "output format: table|json|yaml")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishBump, "bump", "", "version bump intent: patch|minor|major (calls AllocateUpload)")
-	pkgPublishCmd.Flags().StringVar(&pkgPublishChannel, "channel", "", "release channel: stable|candidate|canary|dev|bootstrap (default: stable)")
+	pkgPublishCmd.Flags().StringVar(&pkgPublishChannel, "channel", "", "release channel: stable|candidate|canary|dev|local|hotfix|bootstrap\n  local → DEV channel + auto local version suffix\n  hotfix → CANDIDATE channel + -hotfix. suffix\n  (default: stable)")
+	pkgPublishCmd.Flags().StringVar(&pkgPublishBasedOn, "based-on", "", "official source artifact for local/hotfix build (name@version, e.g. storage@1.2.43)")
+	pkgPublishCmd.Flags().StringVar(&pkgPublishPatchReason, "patch-reason", "", "human-readable reason for a local or hotfix build (stored in manifest)")
 
 }
 
@@ -565,6 +569,29 @@ func publishOne(file, token string) pkgPublishOne {
 	}
 	r.publisher = publisher
 
+	// For local/hotfix channels without --bump, auto-append the appropriate version
+	// suffix if the package version is bare semver. This enforces identity lane rules
+	// client-side before the upload even reaches the server.
+	if pkgPublishBump == "" {
+		lane := strings.ToLower(pkgPublishChannel)
+		switch lane {
+		case "local", "dev":
+			if !hasLocalVersionSuffixCLI(summary.Version) {
+				hostname, _ := os.Hostname()
+				if hostname == "" {
+					hostname = "local"
+				}
+				summary.Version = formatLocalVersionCLI(summary.Version, "local", hostname, 1)
+				r.version = summary.Version
+			}
+		case "hotfix":
+			if !hasLocalVersionSuffixCLI(summary.Version) {
+				summary.Version = formatLocalVersionCLI(summary.Version, "hotfix", "", 1)
+				r.version = summary.Version
+			}
+		}
+	}
+
 	if pkgPublishDryRun {
 		r.duration = time.Since(start)
 		return r
@@ -637,16 +664,16 @@ func publishOne(file, token string) pkgPublishOne {
 		switch strings.ToLower(pkgPublishChannel) {
 		case "stable", "":
 			ch = repopb.ArtifactChannel_STABLE
-		case "candidate":
+		case "candidate", "hotfix":
 			ch = repopb.ArtifactChannel_CANDIDATE
 		case "canary":
 			ch = repopb.ArtifactChannel_CANARY
-		case "dev":
+		case "dev", "local":
 			ch = repopb.ArtifactChannel_DEV
 		case "bootstrap":
 			ch = repopb.ArtifactChannel_BOOTSTRAP
 		default:
-			r.err = fmt.Errorf("invalid --channel value %q: use stable, candidate, canary, dev, or bootstrap", pkgPublishChannel)
+			r.err = fmt.Errorf("invalid --channel value %q: use stable, candidate, canary, dev, local, hotfix, or bootstrap", pkgPublishChannel)
 			r.duration = time.Since(start)
 			return r
 		}
@@ -881,4 +908,43 @@ func setPackageDescriptor(name, publisherID, version, description string, keywor
 		return "", fmt.Errorf("register package descriptor: %w", err)
 	}
 	return action, nil
+}
+
+// hasLocalVersionSuffixCLI mirrors the server-side hasLocalVersionSuffix without
+// importing the repository package. Used for client-side pre-check only.
+func hasLocalVersionSuffixCLI(version string) bool {
+	lower := strings.ToLower(version)
+	return strings.Contains(lower, "+local.") ||
+		strings.Contains(lower, "-dev.") ||
+		strings.Contains(lower, "-hotfix.") ||
+		strings.Contains(lower, "+dev.") ||
+		strings.Contains(lower, "+hotfix.")
+}
+
+// formatLocalVersionCLI mirrors FormatLocalVersion from local_publish_guard.go.
+func formatLocalVersionCLI(baseVersion, lane, qualifier string, n int) string {
+	v := strings.TrimPrefix(baseVersion, "v")
+	switch lane {
+	case "hotfix":
+		if n > 0 {
+			return fmt.Sprintf("%s-hotfix.%d", v, n)
+		}
+		return v + "-hotfix.1"
+	case "dev":
+		if qualifier != "" && n > 0 {
+			return fmt.Sprintf("%s-dev.%s.%d", v, qualifier, n)
+		}
+		if qualifier != "" {
+			return fmt.Sprintf("%s-dev.%s", v, qualifier)
+		}
+		return v + "-dev.1"
+	default: // local
+		if qualifier != "" && n > 0 {
+			return fmt.Sprintf("%s+local.%s.%d", v, qualifier, n)
+		}
+		if qualifier != "" {
+			return fmt.Sprintf("%s+local.%s", v, qualifier)
+		}
+		return v + "+local.1"
+	}
 }

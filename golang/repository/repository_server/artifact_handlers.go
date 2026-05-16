@@ -1152,6 +1152,19 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 
 	newChecksum := checksumBytes(data)
 
+	// ── Official namespace seal (pre-write) ───────────────────────────────
+	// If the official stable namespace already has this (name, version, platform)
+	// with a different digest, reject immediately — before ANY I/O. Channel is
+	// not yet known (it comes from package.json inside the tgz), so we conservatively
+	// check for STABLE (CHANNEL_UNSET). Post-enrichment enforcement (below) handles
+	// any channel overrides from package.json or reservation.
+	if sealErr := srv.enforceOfficialNamespaceSeal(ctx,
+		publisherID, ref.GetName(), ref.GetVersion(), ref.GetPlatform(),
+		newChecksum, repopb.ArtifactChannel_CHANNEL_UNSET,
+	); sealErr != nil {
+		return sealErr
+	}
+
 	// ── Idempotency check (digest) MUST precede version immutability check ──
 	// If the exact same bytes are uploaded again (e.g. CI retrying a failed
 	// publish), return the existing build_id without error. This check runs
@@ -1266,6 +1279,18 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 			}
 		}
 	}
+
+	// ── Identity lane enforcement (post-enrichment) ───────────────────────
+	// Channel is now final (package.json + reservation applied). Validate that
+	// the publisher/channel/version combination obeys identity lane rules.
+	if laneErr := validateLocalIdentityRules(
+		manifest.GetRef().GetPublisherId(),
+		manifest.GetChannel(),
+		manifest.GetRef().GetVersion(),
+	); laneErr != nil {
+		return laneErr
+	}
+
 	mjson, err := marshalManifestWithState(manifest, repopb.PublishState_VERIFIED)
 	if err != nil {
 		return status.Errorf(codes.Internal, "marshal manifest: %v", err)

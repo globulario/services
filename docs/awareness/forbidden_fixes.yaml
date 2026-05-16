@@ -1752,3 +1752,61 @@ forbidden_fixes:
     Collect BOTH Spec.BuildID and Status.ResolvedBuildID across all
     four desired-state etcd prefixes. The reachability guard must
     treat any pinned build_id — wherever pinned — as a hard root.
+
+- id: change_official_digest_to_accept_local_build
+  summary: |
+    A local build fails the official namespace seal because its digest
+    differs from the published artifact. Fix attempt: update the stored
+    digest in the ledger to match the incoming local bytes.
+    This destroys official immutability and lets any cluster silently
+    corrupt the official stable identity without detection.
+  related_invariants:
+    - package.official_identity_immutable
+  safe_alternative: |
+    Use a local identity lane: publish with publisher=local@<cluster-id>,
+    channel=DEV, version=1.2.43+local.<cluster>.1. The official artifact
+    remains unchanged. After validation, promote through the official
+    release pipeline with a new version.
+
+- id: strip_local_version_suffix_to_promote_without_official_rebuild
+  summary: |
+    A local build (version=1.2.43+local.ryzen.1) is validated and ready
+    for production. Shortcut: strip the suffix so it becomes 1.2.43 and
+    publish as core@globular.io/stable. Avoids the official release pipeline.
+    This re-introduces the identity fraud the local lane was designed to prevent:
+    two clusters now run different bytes under the same official identity.
+  related_invariants:
+    - package.promotion_must_use_official_release_pipeline
+    - package.official_identity_immutable
+  safe_alternative: |
+    Run the official build pipeline: clean checkout, official build tools,
+    new version (1.2.53), new build_id, new digest, GitHub release asset,
+    updated release-index.json. The local build is evidence/reference only.
+
+- id: allow_official_publisher_to_use_dev_channel
+  summary: |
+    An operator publishes a test build with publisher=core@globular.io
+    and channel=DEV to avoid changing the publisher. This pollutes the
+    official namespace with a non-authoritative build and could be confused
+    with a real official artifact by resolution logic.
+  related_invariants:
+    - package.local_publish_requires_local_identity
+  safe_alternative: |
+    Use publisher=local@<cluster-id> or org@<domain> for any DEV-channel
+    artifact. The official publisher is exclusively for STABLE channel releases
+    produced by the official release pipeline.
+
+- id: auto_accept_cross_cluster_local_artifact_as_official
+  summary: |
+    During cross-cluster sync, Cluster B's local build (local@cluster-b,
+    storage@1.2.43+local.cluster-b.1) is imported and the sync logic
+    promotes it to official stable to simplify the merge. The receiving
+    cluster's official desired state now points to non-official bytes.
+  related_invariants:
+    - package.remote_local_artifact_must_not_override_stable
+    - package.official_identity_immutable
+  safe_alternative: |
+    Cross-cluster sync must preserve publisher and channel fields.
+    Local/dev/hotfix artifacts may only be imported with explicit trust
+    policy or operator approval via `globular pkg override`. They must
+    never silently replace the receiving cluster's official desired state.
