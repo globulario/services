@@ -28,9 +28,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/services/golang/awareness/enforce"
-	"github.com/globulario/services/golang/awareness/graph"
-	"github.com/globulario/services/golang/awareness/preflight"
+	"github.com/globulario/awareness/enforce"
+	"github.com/globulario/awareness/graph"
+	"github.com/globulario/awareness/preflight"
 )
 
 var enforceCfg = struct {

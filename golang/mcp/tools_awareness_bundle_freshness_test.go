@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/globulario/services/golang/awareness/bundlesync"
+	"github.com/globulario/awareness/bundlesync"
 )
 
 // ── Phase B.1 freshness tool tests ───────────────────────────────────────────

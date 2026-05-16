@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/globulario/services/golang/awareness/graph"
-	"github.com/globulario/services/golang/awareness/integrity"
-	"github.com/globulario/services/golang/awareness/semantic"
+	"github.com/globulario/awareness/graph"
+	"github.com/globulario/awareness/integrity"
+	"github.com/globulario/awareness/semantic"
 )
 
 func registerAwarenessDecisionTools(s *server, st *awarenessState) {

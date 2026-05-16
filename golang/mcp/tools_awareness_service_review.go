@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/globulario/services/golang/awareness/analysis"
+	"github.com/globulario/awareness/analysis"
 )
 
 // registerReviewServiceTool registers awareness.review_service.

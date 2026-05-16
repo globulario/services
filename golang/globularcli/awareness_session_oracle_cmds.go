@@ -11,8 +11,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/globulario/services/golang/awareness/graph"
-	"github.com/globulario/services/golang/awareness/sessionoracle"
+	"github.com/globulario/awareness/graph"
+	"github.com/globulario/awareness/sessionoracle"
 	"github.com/spf13/cobra"
 )
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/awareness/graph"
 )
 
 func registerAwarenessExperienceTools(s *server, st *awarenessState) {

@@ -28,8 +28,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/services/golang/awareness/analysis/contextnav"
-	"github.com/globulario/services/golang/awareness/preflight"
+	"github.com/globulario/awareness/analysis/contextnav"
+	"github.com/globulario/awareness/preflight"
 )
 
 var decisionTraceCfg = struct {

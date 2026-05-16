@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/services/golang/awareness/checkedit"
+	"github.com/globulario/awareness/checkedit"
 )
 
 var checkEditCfg = struct {

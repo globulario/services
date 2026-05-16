@@ -26,11 +26,11 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 
-	"github.com/globulario/services/golang/awareness/extractors/clusterstate"
-	"github.com/globulario/services/golang/awareness/extractors/pki"
-	"github.com/globulario/services/golang/awareness/extractors/rbac"
-	"github.com/globulario/services/golang/awareness/extractors/workflowstate"
-	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/awareness/extractors/clusterstate"
+	"github.com/globulario/awareness/extractors/pki"
+	"github.com/globulario/awareness/extractors/rbac"
+	"github.com/globulario/awareness/extractors/workflowstate"
+	"github.com/globulario/awareness/graph"
 )
 
 // liveSnapshotTTLSeconds is how long a live snapshot is considered fresh.

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	awarectx "github.com/globulario/services/golang/awareness/context"
+	awarectx "github.com/globulario/awareness/context"
 )
 
 // registerAwarenessNodeContextTools registers the three node-centric navigation tools:

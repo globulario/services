@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/globulario/services/golang/awareness/assurance"
-	"github.com/globulario/services/golang/awareness/preflight"
+	"github.com/globulario/awareness/assurance"
+	"github.com/globulario/awareness/preflight"
 )
 
 func preflightNeedsSelfHeal(r *preflight.Report) bool {

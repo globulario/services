@@ -24,9 +24,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/services/golang/awareness/analysis"
-	"github.com/globulario/services/golang/awareness/graph"
-	"github.com/globulario/services/golang/awareness/learning"
+	"github.com/globulario/awareness/analysis"
+	"github.com/globulario/awareness/graph"
+	"github.com/globulario/awareness/learning"
 )
 
 var learningCfg = struct {

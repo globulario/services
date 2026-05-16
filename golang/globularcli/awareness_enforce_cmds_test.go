@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/globulario/services/golang/awareness/enforce"
+	"github.com/globulario/awareness/enforce"
 )
 
 func TestChooseScaffoldTargetPathPrefersGolangPaths(t *testing.T) {

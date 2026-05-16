@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/globulario/services/golang/awareness/livecluster"
-	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	"github.com/globulario/awareness/livecluster"
+	cluster_controllerpb "github.com/globulario/awareness/cluster_controllerpb"
+	cluster_doctorpb "github.com/globulario/awareness/cluster_doctorpb"
 )
 
 // liveCollectors returns the live signal collectors the MCP server exposes.

@@ -20,9 +20,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/services/golang/awareness/analysis"
-	"github.com/globulario/services/golang/awareness/learning"
-	"github.com/globulario/services/golang/awareness/runtime"
+	"github.com/globulario/awareness/analysis"
+	"github.com/globulario/awareness/learning"
+	"github.com/globulario/awareness/runtime"
 )
 
 var runtimeCfg = struct {

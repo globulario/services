@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/awareness/graph"
 )
 
 var preflightAuditCfg = struct {

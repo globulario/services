@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/globulario/services/golang/awareness/preflight"
+	"github.com/globulario/awareness/preflight"
 	"gopkg.in/yaml.v3"
 )
 

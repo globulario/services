@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/services/golang/awareness/enforce"
+	"github.com/globulario/awareness/enforce"
 	"gopkg.in/yaml.v3"
 )
 

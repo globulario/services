@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/awareness/graph"
 )
 
 // runGit runs a git command and returns trimmed stdout, or an error.

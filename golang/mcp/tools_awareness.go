@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/awareness/graph"
 )
 
 // awarenessState is captured in awareness tool handler closures.

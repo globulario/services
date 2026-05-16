@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/globulario/services/golang/awareness/enforce"
-	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/awareness/enforce"
+	"github.com/globulario/awareness/graph"
 )
 
 func registerAwarenessAgentUsageTools(s *server, st *awarenessState) {

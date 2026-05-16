@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/globulario/services/golang/awareness/integrity"
+	"github.com/globulario/awareness/integrity"
 )
 
 func registerAwarenessIntegrityTools(s *server, st *awarenessState) {

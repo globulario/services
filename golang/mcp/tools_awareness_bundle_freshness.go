@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/services/golang/awareness/bundlesync"
+	"github.com/globulario/awareness/bundlesync"
 )
 
 // ── mcp.awareness_freshness_status ───────────────────────────────────────────

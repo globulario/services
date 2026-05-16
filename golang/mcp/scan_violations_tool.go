@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/globulario/services/golang/awareness/scan"
+	"github.com/globulario/awareness/scan"
 )
 
 // violationPattern is a code smell that awareness can detect.

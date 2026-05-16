@@ -18,7 +18,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/services/golang/awareness/integrity"
+	"github.com/globulario/awareness/integrity"
 )
 
 var integrityCfg = struct {

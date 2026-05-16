@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/globulario/services/golang/awareness/bundlesync"
-	"github.com/globulario/services/golang/awareness/evidence"
+	"github.com/globulario/awareness/bundlesync"
+	"github.com/globulario/awareness/evidence"
 )
 
 // registerAwarenessEvidenceTools registers the runtime error intelligence MCP tools.

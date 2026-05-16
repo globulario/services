@@ -23,10 +23,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/globulario/services/golang/awareness/failuregraph"
-	"github.com/globulario/services/golang/awareness/failurelearning"
-	"github.com/globulario/services/golang/awareness/graph"
-	"github.com/globulario/services/golang/awareness/incidentpattern"
+	"github.com/globulario/awareness/failuregraph"
+	"github.com/globulario/awareness/failurelearning"
+	"github.com/globulario/awareness/graph"
+	"github.com/globulario/awareness/incidentpattern"
 	"github.com/spf13/cobra"
 )
 

@@ -21,8 +21,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/services/golang/awareness/fixledger"
-	"github.com/globulario/services/golang/awareness/learning"
+	"github.com/globulario/awareness/fixledger"
+	"github.com/globulario/awareness/learning"
 )
 
 var fixledgerCfg = struct {

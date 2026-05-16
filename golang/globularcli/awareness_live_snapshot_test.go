@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/globulario/services/golang/awareness/graph"
-	"github.com/globulario/services/golang/awareness/preflight"
+	"github.com/globulario/awareness/graph"
+	"github.com/globulario/awareness/preflight"
 )
 
 // newTestGraph opens a temporary in-memory graph for testing.

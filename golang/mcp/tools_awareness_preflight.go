@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/services/golang/awareness/analysis"
-	"github.com/globulario/services/golang/awareness/failuregraph"
-	"github.com/globulario/services/golang/awareness/integrity"
-	"github.com/globulario/services/golang/awareness/learning"
-	"github.com/globulario/services/golang/awareness/preflight"
+	"github.com/globulario/awareness/analysis"
+	"github.com/globulario/awareness/failuregraph"
+	"github.com/globulario/awareness/integrity"
+	"github.com/globulario/awareness/learning"
+	"github.com/globulario/awareness/preflight"
 )
 
 func registerAwarenessPreflightTools(s *server, st *awarenessState) {

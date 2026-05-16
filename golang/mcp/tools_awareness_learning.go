@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/globulario/services/golang/awareness/learning"
+	"github.com/globulario/awareness/learning"
 )
 
 func registerAwarenessLearningTools(s *server, st *awarenessState) {

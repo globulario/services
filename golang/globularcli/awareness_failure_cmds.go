@@ -18,8 +18,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/globulario/services/golang/awareness/failuregraph"
-	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/awareness/failuregraph"
+	"github.com/globulario/awareness/graph"
 	"github.com/spf13/cobra"
 )
 

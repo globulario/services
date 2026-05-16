@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/globulario/services/golang/awareness/debugsession"
+	"github.com/globulario/awareness/debugsession"
 )
 
 // registerAwarenessDebugSessionTool registers the awareness.debug_session tool.

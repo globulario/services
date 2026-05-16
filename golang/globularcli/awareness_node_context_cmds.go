@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	awarectx "github.com/globulario/services/golang/awareness/context"
+	awarectx "github.com/globulario/awareness/context"
 )
 
 var nodeCtxCfg = struct {

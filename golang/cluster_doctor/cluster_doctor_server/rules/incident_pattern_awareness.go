@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/globulario/services/golang/awareness/graph"
-	"github.com/globulario/services/golang/awareness/incidentpattern"
+	"github.com/globulario/awareness/graph"
+	"github.com/globulario/awareness/incidentpattern"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )

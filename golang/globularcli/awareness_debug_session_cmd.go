@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/services/golang/awareness/debugsession"
+	"github.com/globulario/awareness/debugsession"
 )
 
 var dbsCfg = struct {

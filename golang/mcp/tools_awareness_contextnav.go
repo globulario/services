@@ -21,8 +21,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/globulario/services/golang/awareness/analysis/contextnav"
-	"github.com/globulario/services/golang/awareness/preflight"
+	"github.com/globulario/awareness/analysis/contextnav"
+	"github.com/globulario/awareness/preflight"
 )
 
 func registerAwarenessContextNavTools(s *server, st *awarenessState) {

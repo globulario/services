@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/globulario/services/golang/awareness/semantic"
+	"github.com/globulario/awareness/semantic"
 )
 
 // registerAwarenessSemanticTools registers the 5 semantic-distance / path-finding tools:

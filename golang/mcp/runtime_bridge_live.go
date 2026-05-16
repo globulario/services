@@ -5,7 +5,7 @@ import (
 	"log"
 	"net"
 
-	"github.com/globulario/services/golang/awareness/runtime"
+	"github.com/globulario/awareness/runtime"
 	"github.com/globulario/services/golang/config"
 )
 

@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/globulario/services/golang/awareness/contextfreshness"
+	"github.com/globulario/awareness/contextfreshness"
 	"github.com/spf13/cobra"
 )
 

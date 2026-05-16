@@ -18,7 +18,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/services/golang/awareness/evidence"
+	"github.com/globulario/awareness/evidence"
 )
 
 var evidenceCfg = struct {

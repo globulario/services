@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/globulario/services/golang/awareness/contextfreshness"
+	"github.com/globulario/awareness/contextfreshness"
 )
 
 // registerAwarenessFreshnessTools registers the stale-context detection tools.

@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/services/golang/awareness/semantic"
+	"github.com/globulario/awareness/semantic"
 )
 
 var semCfg = struct {

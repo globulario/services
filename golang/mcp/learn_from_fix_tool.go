@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/services/golang/awareness/learning"
+	"github.com/globulario/awareness/learning"
 )
 
 // learnFromFixProposal is one entry in the proposals array returned by the tool.

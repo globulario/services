@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/services/golang/awareness/extractors/manual"
+	"github.com/globulario/awareness/extractors/manual"
 	"gopkg.in/yaml.v3"
 )
 

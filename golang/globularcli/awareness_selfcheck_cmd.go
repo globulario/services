@@ -25,8 +25,8 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
-	"github.com/globulario/services/golang/awareness/assurance"
-	"github.com/globulario/services/golang/awareness/bundlesync"
+	"github.com/globulario/awareness/assurance"
+	"github.com/globulario/awareness/bundlesync"
 )
 
 var awarenessMetaCheckCfg = struct {

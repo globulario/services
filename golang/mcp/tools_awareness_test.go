@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/awareness/graph"
 )
 
 // ── helpers ───────────────────────────────────────────────────────────────────

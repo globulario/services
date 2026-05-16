@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/globulario/services/golang/awareness/enforce"
+	"github.com/globulario/awareness/enforce"
 )
 
 // TestCoverageReport_NoRepoRootIsUnverifiedNotCritical pins the rule that

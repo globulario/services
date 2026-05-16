@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/globulario/services/golang/awareness/failuregraph"
-	"github.com/globulario/services/golang/awareness/failurelearning"
-	"github.com/globulario/services/golang/awareness/incidentpattern"
-	"github.com/globulario/services/golang/awareness/sessionoracle"
+	"github.com/globulario/awareness/failuregraph"
+	"github.com/globulario/awareness/failurelearning"
+	"github.com/globulario/awareness/incidentpattern"
+	"github.com/globulario/awareness/sessionoracle"
 )
 
 func registerAwarenessFailureLearningTools(s *server, st *awarenessState) {

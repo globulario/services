@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/globulario/services/golang/awareness/fixledger"
-	"github.com/globulario/services/golang/awareness/learning"
+	"github.com/globulario/awareness/fixledger"
+	"github.com/globulario/awareness/learning"
 )
 
 func registerAwarenessFixledgerTools(s *server, st *awarenessState) {

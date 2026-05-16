@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/globulario/services/golang/awareness/runtime"
+	"github.com/globulario/awareness/runtime"
 )
 
 // TestAwarenessSnapshotToMap_SourceHealthExposed verifies that source_health,

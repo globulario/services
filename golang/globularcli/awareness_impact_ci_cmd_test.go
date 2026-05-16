@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/globulario/services/golang/awareness/assurance"
+	"github.com/globulario/awareness/assurance"
 )
 
 func TestParseTrustVerdictAcceptsKnownValues(t *testing.T) {

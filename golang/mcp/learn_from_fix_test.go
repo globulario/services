@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/globulario/services/golang/awareness/learning"
+	"github.com/globulario/awareness/learning"
 )
 
 // setupLearnFromFixServer builds a minimal server with a writable docs dir.

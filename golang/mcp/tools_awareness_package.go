@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/globulario/services/golang/awareness/analysis"
-	"github.com/globulario/services/golang/awareness/extractors/packages"
-	"github.com/globulario/services/golang/awareness/graph"
-	"github.com/globulario/services/golang/awareness/learning"
+	"github.com/globulario/awareness/analysis"
+	"github.com/globulario/awareness/extractors/packages"
+	"github.com/globulario/awareness/graph"
+	"github.com/globulario/awareness/learning"
 )
 
 func registerAwarenessPackageTools(s *server, st *awarenessState) {

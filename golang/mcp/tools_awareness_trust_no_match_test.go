@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/globulario/services/golang/awareness/assurance"
-	"github.com/globulario/services/golang/awareness/graph"
-	"github.com/globulario/services/golang/awareness/incidentpattern"
+	"github.com/globulario/awareness/assurance"
+	"github.com/globulario/awareness/graph"
+	"github.com/globulario/awareness/incidentpattern"
 )
 
 // TestAwarenessTrustMap_NoMatchIsNeverTrusted is the load-bearing guard:

@@ -19,7 +19,7 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
-	"github.com/globulario/services/golang/awareness/integrity"
+	"github.com/globulario/awareness/integrity"
 )
 
 // ── Schema types ──────────────────────────────────────────────────────────────

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/services/golang/awareness/preflight"
+	"github.com/globulario/awareness/preflight"
 )
 
 // offlineEvent is a single extracted log event.

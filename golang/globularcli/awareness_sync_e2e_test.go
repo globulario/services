@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/globulario/services/golang/awareness/bundlesync"
+	"github.com/globulario/awareness/bundlesync"
 )
 
 // ── Phase C.6 spec test 8: `globular awareness sync` end-to-end ──────────────

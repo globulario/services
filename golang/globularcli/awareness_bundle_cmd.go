@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/services/golang/awareness/bundlesync"
+	"github.com/globulario/awareness/bundlesync"
 	"github.com/globulario/services/golang/opsknowledge"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
