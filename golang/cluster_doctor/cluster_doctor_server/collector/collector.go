@@ -244,7 +244,16 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 					kind := tail[:slash]
 					name := tail[slash+1:]
 					if kind != "" && name != "" {
-						kinds[name] = strings.ToUpper(kind)
+						upperKind := strings.ToUpper(kind)
+						// COMMAND wins over any other kind. A package may have
+						// both a stale INFRASTRUCTURE entry (from a prior
+						// install before the kind sidecar was introduced) and a
+						// current COMMAND entry. Etcd returns keys in
+						// lexicographic order so COMMAND is seen first; once
+						// set, do not let a later non-COMMAND entry overwrite.
+						if kinds[name] != "COMMAND" {
+							kinds[name] = upperKind
+						}
 					}
 				}
 				if len(kinds) > 0 {
