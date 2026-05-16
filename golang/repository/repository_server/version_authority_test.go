@@ -322,36 +322,48 @@ func TestVA3_VERIFIED_ArtifactExcludedFromResolver(t *testing.T) {
 
 // ── VA-4: build_id is install identity; build_number is display-only ────────
 
-// TestVA4_BuildIDIsInstallIdentity_SameVersionTwoBuilds verifies that two
-// artifacts at the same version but different build_ids are distinct install
+// TestVA4_BuildIDIsInstallIdentity_TwoVersionsTwoBuilds verifies that two
+// artifacts at different versions with different build_ids are distinct install
 // identities. The convergence decision must be based on build_id, not
-// build_number or version alone.
+// version alone.
 //
-// Scenario: CI produces two builds of storage@1.2.43 (e.g. a hotfix rebuild).
-// The node has build A installed. Desired state specifies build B by build_id.
-// The reconciler must install B, not skip because version is identical.
-func TestVA4_BuildIDIsInstallIdentity_SameVersionTwoBuilds(t *testing.T) {
+// Under the version-immutability invariant (VA-6), a given (version, platform)
+// has exactly ONE canonical build_id — CI cannot produce two different build_ids
+// for the same version. To get a new build_id, the version must be bumped.
+//
+// Scenario: storage@1.2.43 is published as build A. A hotfix ships as
+// storage@1.2.44 (build B). The node has build A installed; desired state
+// specifies build B. The reconciler must re-deploy — it may not skip because
+// the version strings differ by only a patch.
+func TestVA4_BuildIDIsInstallIdentity_TwoVersionsTwoBuilds(t *testing.T) {
 	srv := newTestServer(t)
 
-	ref := &repopb.ArtifactRef{
+	refA := &repopb.ArtifactRef{
 		PublisherId: "core@globular.io",
 		Name:        "storage",
 		Version:     "1.2.43",
 		Platform:    "linux_amd64",
 		Kind:        repopb.ArtifactKind_SERVICE,
 	}
+	refB := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "storage",
+		Version:     "1.2.44",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
 
-	// Seed build A.
+	// Seed build A at 1.2.43.
 	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
-		Ref:         ref,
+		Ref:         refA,
 		BuildNumber: 143,
 		BuildId:     "stor-build-A-uuid",
 		Checksum:    "sha256:aaaa",
 		SizeBytes:   100,
 	})
-	// Seed build B (same version, different build_id).
+	// Seed build B at 1.2.44 (bumped version — immutability requires this).
 	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
-		Ref:         ref,
+		Ref:         refB,
 		BuildNumber: 144,
 		BuildId:     "stor-build-B-uuid",
 		Checksum:    "sha256:bbbb",
@@ -377,7 +389,7 @@ func TestVA4_BuildIDIsInstallIdentity_SameVersionTwoBuilds(t *testing.T) {
 	respB, err := srv.ResolveArtifact(context.Background(), &repopb.ResolveArtifactRequest{
 		PublisherId: "core@globular.io",
 		Name:        "storage",
-		Version:     "1.2.43",
+		Version:     "1.2.44",
 		Platform:    "linux_amd64",
 		BuildId:     "stor-build-B-uuid",
 	})
@@ -388,9 +400,46 @@ func TestVA4_BuildIDIsInstallIdentity_SameVersionTwoBuilds(t *testing.T) {
 		t.Errorf("expected build_id=stor-build-B-uuid, got %q", respB.GetManifest().GetBuildId())
 	}
 
-	// The two are distinct installs even though version is identical.
+	// The two are distinct identities — different versions, different build_ids.
 	if respA.GetManifest().GetBuildId() == respB.GetManifest().GetBuildId() {
 		t.Error("build A and build B must have different build_ids")
+	}
+}
+
+// TestVA4_SameVersionDifferentBuildID_Rejected verifies that the version-
+// immutability invariant is enforced: a second artifact with the same
+// (version, platform) but a different build_id must be rejected at publish time.
+// Callers must bump the version to get a new build_id.
+func TestVA4_SameVersionDifferentBuildID_Rejected(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "storage",
+		Version:     "1.2.43",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+
+	// First publish succeeds.
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 143,
+		BuildId:     "stor-build-A-uuid",
+		Checksum:    "sha256:aaaa",
+		SizeBytes:   100,
+	})
+
+	// Second publish with same (version, platform) but different build_id must fail.
+	err := srv.appendToLedger(ctx, ref.GetPublisherId(), ref.GetName(),
+		ref.GetVersion(), "stor-build-B-uuid", "sha256:bbbb",
+		ref.GetPlatform(), 100)
+	if err == nil {
+		t.Fatal("expected appendToLedger to reject second build_id for same (version, platform)")
+	}
+	if !strings.Contains(err.Error(), "already published") {
+		t.Errorf("expected 'already published' error, got: %v", err)
 	}
 }
 

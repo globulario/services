@@ -113,8 +113,23 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 			}
 			// Skip already-converged releases: AVAILABLE phase means all
 			// nodes have been served. No need to re-process on restart.
+			// Exception: if build_id drift is present (installed build_id ≠
+			// desired build_id on any node), the release must be re-queued so
+			// the reconciler can dispatch a reinstall to restore exact identity.
 			if rel.Status != nil && rel.Status.Phase == cluster_controllerpb.ReleasePhaseAvailable {
-				continue
+				resolvedBuildID := ""
+				if rel.Status != nil {
+					resolvedBuildID = rel.Status.ResolvedBuildID
+				}
+				shortName := rel.Meta.Name
+				if idx := strings.LastIndex(shortName, "/"); idx >= 0 {
+					shortName = shortName[idx+1:]
+				}
+				if resolvedBuildID == "" || srv.isServiceConverged(ctx, shortName, rel.Status.ResolvedVersion, rel.Status.ResolvedBuildNumber, resolvedBuildID) {
+					continue // truly converged — no drift
+				}
+				// build_id drift detected: fall through to enqueue
+				log.Printf("release %s: AVAILABLE but build_id drift detected (resolved=%s) — re-queuing", rel.Meta.Name, resolvedBuildID[:min(8, len(resolvedBuildID))])
 			}
 			key := releaseKeyPrefix + rel.Meta.Name
 			name := rel.Meta.Name

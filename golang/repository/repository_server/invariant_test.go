@@ -51,6 +51,37 @@ func seedPublishedArtifact(t *testing.T, srv *server, m *repopb.ArtifactManifest
 	}
 }
 
+// seedPublishedArtifactDirect writes a manifest + binary to storage without
+// updating the release ledger. Use ONLY in tests that deliberately simulate
+// corruption (two build_ids for the same version/platform) — normal publish
+// tests must go through seedPublishedArtifact so the ledger enforces
+// version immutability.
+func seedPublishedArtifactDirect(t *testing.T, srv *server, m *repopb.ArtifactManifest) {
+	t.Helper()
+	ctx := context.Background()
+
+	if m.GetBuildId() == "" {
+		t.Fatal("seedPublishedArtifactDirect requires build_id to be set")
+	}
+
+	key := artifactKeyWithBuild(m.GetRef(), m.GetBuildNumber())
+	_ = srv.Storage().MkdirAll(ctx, artifactsDir, 0o755)
+	mjson, err := marshalManifestWithState(m, repopb.PublishState_PUBLISHED)
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	binaryContent := []byte("fake-binary")
+	if sz := m.GetSizeBytes(); sz > 0 {
+		binaryContent = make([]byte, sz)
+	}
+	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(key), binaryContent, 0o644); err != nil {
+		t.Fatalf("write binary: %v", err)
+	}
+}
+
 // uploadTestArtifact calls UploadArtifact as a streaming RPC.
 // Returns the response or error.
 func uploadTestArtifact(t *testing.T, srv *server, ref *repopb.ArtifactRef, data []byte, buildNumber int64) (*repopb.UploadArtifactResponse, error) {

@@ -137,8 +137,10 @@ func TestListRepositoryFindings_DuplicateChecksumWithoutAlias(t *testing.T) {
 			SourceName: "globulario-github", ReleaseTag: "v1.0.53", BuildNumber: 67, ImportedAt: time.Now().Unix(),
 		},
 	}
-	seedPublishedArtifact(t, srv, m1)
-	seedPublishedArtifact(t, srv, m2)
+	// Use direct seeding to simulate legacy/corrupted data (two build_ids for
+	// the same version+platform). Real publish flow blocks this via the ledger.
+	seedPublishedArtifactDirect(t, srv, m1)
+	seedPublishedArtifactDirect(t, srv, m2)
 	m1JSON, err := marshalManifestWithState(m1, repopb.PublishState_PUBLISHED)
 	if err != nil {
 		t.Fatalf("marshal m1: %v", err)
@@ -262,8 +264,10 @@ func TestListRepositoryFindings_VersionResolutionAmbiguous(t *testing.T) {
 		Checksum: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		SizeBytes: 100,
 	}
-	seedPublishedArtifact(t, srv, m1)
-	seedPublishedArtifact(t, srv, m2)
+	// Use direct seeding to simulate legacy/corrupted data (two build_ids for
+	// the same version+platform). Real publish flow blocks this via the ledger.
+	seedPublishedArtifactDirect(t, srv, m1)
+	seedPublishedArtifactDirect(t, srv, m2)
 	m1JSON, err := marshalManifestWithState(m1, repopb.PublishState_PUBLISHED)
 	if err != nil {
 		t.Fatalf("marshal m1: %v", err)

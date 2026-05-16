@@ -121,7 +121,9 @@ func TestArchiveUnreachableArtifacts_DuplicateDigestBypassesRetention(t *testing
 		Checksum:    "sha256:same-content",
 		SizeBytes:   100,
 	})
-	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+	// Simulate legacy/corrupted data: two builds for the same (version,platform).
+	// Use seedPublishedArtifactDirect to bypass the ledger immutability guard.
+	seedPublishedArtifactDirect(t, srv, &repopb.ArtifactManifest{
 		Ref:         ref,
 		BuildNumber: 67,
 		BuildId:     "019d0001-0000-7000-8000-000000000067",

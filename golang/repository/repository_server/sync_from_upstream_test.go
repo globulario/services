@@ -1472,13 +1472,15 @@ func TestScenarioC_SameVersionRealNewBuild_AmbiguousResolution(t *testing.T) {
 		Version: "0.3.4", Platform: "linux_amd64",
 		Kind: repopb.ArtifactKind_SERVICE,
 	}
-	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+	// Use direct seeding to simulate legacy/corrupted data (two build_ids for
+	// the same version+platform). Real publish flow blocks this via the ledger.
+	seedPublishedArtifactDirect(t, srv, &repopb.ArtifactManifest{
 		Ref: ref, BuildNumber: 100, BuildId: "01JBUILDIDA",
 		Checksum:  "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		SizeBytes: 13,
 		Channel:   repopb.ArtifactChannel_STABLE,
 	})
-	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+	seedPublishedArtifactDirect(t, srv, &repopb.ArtifactManifest{
 		Ref: ref, BuildNumber: 101, BuildId: "01JBUILDIDB",
 		Checksum:  "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		SizeBytes: 13,
