@@ -1929,6 +1929,10 @@ EOF
   BOOTSTRAP_PASSWORD="${BOOTSTRAP_PASSWORD:-adminadmin}"
   _OPS_CA="/var/lib/globular/pki/ca.crt"
 
+  # ai-memory is a workload service — NOT running at day-0 time.
+  # All seeding steps are best-effort: skip gracefully when unreachable.
+  _OPS_SKIP_SEED=0
+
   log_substep "Authenticating as bootstrap SA user for ops-knowledge seed..."
   _OPS_TOKEN=""
   for _ops_auth_try in $(seq 1 5); do
@@ -1943,7 +1947,10 @@ EOF
     log_substep "Auth not ready for ops seed (attempt ${_ops_auth_try}/5), retrying..."
     sleep 2
   done
-  [[ -n "$_OPS_TOKEN" ]] || die "Failed to get auth token for ops-knowledge seed"
+  if [[ -z "$_OPS_TOKEN" ]]; then
+    log_warn "Failed to get auth token for ops-knowledge seed — authentication may not be ready at day-0. Seed deferred to day-1."
+    _OPS_SKIP_SEED=1
+  fi
 
   # Day-0 DNS may not be ready yet. Resolve AI-memory endpoint directly
   # (etcd first, then unit file, then local IP fallback) and pass --memory.
@@ -1960,51 +1967,66 @@ EOF
   if [[ -z "$_OPS_MEM_PORT" ]]; then
     _OPS_MEM_PORT="$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-ai-memory.service 2>/dev/null | head -1 || true)"
   fi
-  [[ -n "$_OPS_MEM_PORT" ]] || die "Could not determine ai-memory port from etcd or unit file"
-  _OPS_MEMORY="${_OPS_IP}:${_OPS_MEM_PORT}"
-  log_substep "Using direct ai-memory endpoint for seed: ${_OPS_MEMORY}"
-
-  log_substep "Seeding operational knowledge into AI memory..."
-  _ops_seed_ok=0
-  for _ops_seed_try in $(seq 1 5); do
-    if "$GLOBULAR_CLI" ops-knowledge seed --dir "$OPS_KNOWLEDGE_DIR" --memory "$_OPS_MEMORY" --token "$_OPS_TOKEN" \
-        2>&1 | while IFS= read -r line; do echo "  [ops-seed] $line"; done; then
-      _ops_seed_ok=1
-      break
-    fi
-    log_substep "ops-knowledge seed retry ${_ops_seed_try}/5..."
-    sleep 2
-  done
-  [[ "$_ops_seed_ok" -eq 1 ]] || die "ops-knowledge seed failed"
-  log_success "Operational knowledge seed completed"
-
-  log_substep "Verifying seeded knowledge integrity..."
-  if "$GLOBULAR_CLI" ops-knowledge verify --dir "$OPS_KNOWLEDGE_DIR" --memory "$_OPS_MEMORY" --token "$_OPS_TOKEN" \
-      2>&1 | while IFS= read -r line; do echo "  [ops-verify] $line"; done; then
-    log_success "Operational knowledge integrity verified"
-  else
-    die "ops-knowledge verify reported drift"
+  if [[ -z "$_OPS_MEM_PORT" ]]; then
+    log_warn "Could not determine ai-memory port — ai-memory is a workload service (not running at day-0). Ops-knowledge seed deferred to day-1."
+    _OPS_SKIP_SEED=1
   fi
 
-  log_substep "Validating AI operational-awareness availability..."
-  _OPS_LIST_RAW="$("$GLOBULAR_CLI" ops-knowledge list --memory "$_OPS_MEMORY" --token "$_OPS_TOKEN" 2>/dev/null || true)"
-  _OPS_COUNT="$(printf '%s\n' "$_OPS_LIST_RAW" | awk 'NR>1 {c++} END {print c+0}')"
-  if [[ "${_OPS_COUNT:-0}" -lt 10 ]]; then
-    die "Operational knowledge appears incomplete (entries=${_OPS_COUNT:-0})"
-  fi
-  if ! printf '%s\n' "$_OPS_LIST_RAW" | grep -q "ops.role.ai-memory"; then
-    # Keep day-0 robust across ops-knowledge schema/output evolution.
-    # verify+count already prove seeded awareness is available.
-    _OPS_LIST_JSON="$("$GLOBULAR_CLI" --output json ops-knowledge list --memory "$_OPS_MEMORY" --token "$_OPS_TOKEN" 2>/dev/null || true)"
-    if printf '%s\n' "$_OPS_LIST_JSON" | grep -Eq '"id"[[:space:]]*:[[:space:]]*"ops\.role\.ai-memory"|"ops\.role\.ai-memory"'; then
-      log_substep "Confirmed ai-memory role entry via JSON output"
+  if [[ "$_OPS_SKIP_SEED" -eq 0 ]]; then
+    _OPS_MEMORY="${_OPS_IP}:${_OPS_MEM_PORT}"
+    log_substep "Using direct ai-memory endpoint for seed: ${_OPS_MEMORY}"
+
+    log_substep "Seeding operational knowledge into AI memory..."
+    _ops_seed_ok=0
+    for _ops_seed_try in $(seq 1 5); do
+      if "$GLOBULAR_CLI" ops-knowledge seed --dir "$OPS_KNOWLEDGE_DIR" --memory "$_OPS_MEMORY" --token "$_OPS_TOKEN" \
+          2>&1 | while IFS= read -r line; do echo "  [ops-seed] $line"; done; then
+        _ops_seed_ok=1
+        break
+      fi
+      log_substep "ops-knowledge seed retry ${_ops_seed_try}/5..."
+      sleep 2
+    done
+    if [[ "$_ops_seed_ok" -ne 1 ]]; then
+      log_warn "ops-knowledge seed failed — will retry at day-1 when ai-memory is running"
+      _OPS_SKIP_SEED=1
     else
-      log_warn "Could not find explicit ops.role.ai-memory entry in list output; proceeding because seed+verify passed"
+      log_success "Operational knowledge seed completed"
+
+      log_substep "Verifying seeded knowledge integrity..."
+      if "$GLOBULAR_CLI" ops-knowledge verify --dir "$OPS_KNOWLEDGE_DIR" --memory "$_OPS_MEMORY" --token "$_OPS_TOKEN" \
+          2>&1 | while IFS= read -r line; do echo "  [ops-verify] $line"; done; then
+        log_success "Operational knowledge integrity verified"
+      else
+        log_warn "ops-knowledge verify reported drift — seed may be incomplete, will retry at day-1"
+        _OPS_SKIP_SEED=1
+      fi
     fi
   fi
-  log_success "AI operational-awareness available (${_OPS_COUNT} entries loaded)"
+
+  if [[ "$_OPS_SKIP_SEED" -eq 0 ]]; then
+    log_substep "Validating AI operational-awareness availability..."
+    _OPS_LIST_RAW="$("$GLOBULAR_CLI" ops-knowledge list --memory "$_OPS_MEMORY" --token "$_OPS_TOKEN" 2>/dev/null || true)"
+    _OPS_COUNT="$(printf '%s\n' "$_OPS_LIST_RAW" | awk 'NR>1 {c++} END {print c+0}')"
+    if [[ "${_OPS_COUNT:-0}" -lt 10 ]]; then
+      log_warn "Operational knowledge appears incomplete (entries=${_OPS_COUNT:-0}) — will retry at day-1"
+    fi
+    if ! printf '%s\n' "$_OPS_LIST_RAW" | grep -q "ops.role.ai-memory"; then
+      # Keep day-0 robust across ops-knowledge schema/output evolution.
+      # verify+count already prove seeded awareness is available.
+      _OPS_LIST_JSON="$("$GLOBULAR_CLI" --output json ops-knowledge list --memory "$_OPS_MEMORY" --token "$_OPS_TOKEN" 2>/dev/null || true)"
+      if printf '%s\n' "$_OPS_LIST_JSON" | grep -Eq '"id"[[:space:]]*:[[:space:]]*"ops\.role\.ai-memory"|"ops\.role\.ai-memory"'; then
+        log_substep "Confirmed ai-memory role entry via JSON output"
+      else
+        log_warn "Could not find explicit ops.role.ai-memory entry in list output; proceeding because seed+verify passed"
+      fi
+    fi
+    log_success "AI operational-awareness available (${_OPS_COUNT} entries loaded)"
+  else
+    log_warn "Ops-knowledge seed skipped at day-0 — ai-memory will be seeded automatically after day-1 workloads start"
+  fi
 else
-  die "globular CLI not found at $GLOBULAR_CLI — cannot initialize AI operational memory"
+  log_warn "globular CLI not found at $GLOBULAR_CLI — cannot initialize AI operational memory. Ops-knowledge seed skipped."
 fi
 
 # ── Final permission hardening ───────────────────────────────────────────────
