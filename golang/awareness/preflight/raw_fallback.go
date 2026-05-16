@@ -75,6 +75,10 @@ func rawKnowledgeFallback(task string, files []string, docsDir string) []RawKnow
 				continue
 			}
 			id, _ := m["id"].(string)
+			if id == "" {
+				// subsystem_boundaries use "subsystem" as the identifier.
+				id, _ = m["subsystem"].(string)
+			}
 			blobBytes, _ := yaml.Marshal(item)
 			blob := strings.ToLower(string(blobBytes))
 			matched := make([]string, 0)
