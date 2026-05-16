@@ -268,6 +268,12 @@ type Snapshot struct {
 	// callers fall back to static inference.
 	NodePackageKinds map[string]map[string]string
 
+	// ActiveLocalOverrides is the set of active local override records read from
+	// /globular/releases/local_overrides/<name> in etcd. Keyed by package name.
+	// Nil when the etcd read failed; empty map when no overrides are active.
+	// Consumed by the "package.local_override_stale" invariant family.
+	ActiveLocalOverrides map[string]*cluster_controllerpb.LocalOverride
+
 	mu sync.Mutex
 }
 
@@ -337,6 +343,7 @@ func newSnapshot(id string) *Snapshot {
 		CriticalKeyPresent:       make(map[string]bool),
 		CriticalKeyQueryError:    make(map[string]error),
 		NodePackageKinds:         make(map[string]map[string]string),
+		ActiveLocalOverrides:     make(map[string]*cluster_controllerpb.LocalOverride),
 	}
 }
 

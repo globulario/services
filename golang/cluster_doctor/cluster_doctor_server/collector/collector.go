@@ -490,6 +490,28 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 		}
 	}
 
+	// ── 3k-4. Active local package overrides ─────────────────────────────────
+	if etcdCli, err := config.GetEtcdClient(); err == nil {
+		ovCtx, ovCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+		defer ovCancel()
+		const localOverridePrefix = "/globular/releases/local_overrides/"
+		if resp, err := etcdCli.Get(ovCtx, localOverridePrefix, clientv3.WithPrefix()); err == nil {
+			for _, kv := range resp.Kvs {
+				var ov cluster_controllerpb.LocalOverride
+				if jsonErr := json.Unmarshal(kv.Value, &ov); jsonErr != nil {
+					continue
+				}
+				if ov.ServiceName == "" {
+					continue
+				}
+				snap.mu.Lock()
+				snap.ActiveLocalOverrides[ov.ServiceName] = &ov
+				snap.mu.Unlock()
+			}
+			snap.addSource("etcd.active_local_overrides")
+		}
+	}
+
 	// ── 3l. Critical key presence checks (Case 05 doctor wiring) ─────────────
 	if etcdCli, err := config.GetEtcdClient(); err == nil {
 		keyCtx, keyCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)

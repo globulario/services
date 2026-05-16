@@ -183,6 +183,7 @@ func NewRegistry(cfg Config) *Registry {
 		//     affects an official-publisher (core@globular.io) artifact, indicating
 		//     that different bytes were silently stored under an official identity.
 		localOverrideActive{},
+		localOverrideStale{},
 		officialIdentitySealed{},
 	}
 	// Append PENDING stubs

@@ -12,6 +12,11 @@ package main
 //   6. explain-package JSON output — local_override block present and correct
 //   7. upsertServiceDesiredVersion spec includes publisher_id when set
 //   8. upsertServiceDesiredVersion omits publisher_id when empty
+//
+//   Guardrail 2 — override compatibility validation:
+//   9. hasLocalVersionSuffix accepts local/dev/hotfix versions
+//   10. hasLocalVersionSuffix rejects official semver versions
+//   11. Official-version suffix blocked → correct error
 
 import (
 	"bytes"
@@ -314,6 +319,57 @@ func TestExplainPackageJSON_NoOverride_ActiveFalse(t *testing.T) {
 	}
 	if ovBlock["active"] != false {
 		t.Errorf("local_override.active should be false when no override, got %v", ovBlock["active"])
+	}
+}
+
+// ── 9. hasLocalVersionSuffix accepts local/dev/hotfix ────────────────────────
+
+func TestHasLocalVersionSuffix_LocalVersions(t *testing.T) {
+	cases := []struct {
+		version string
+		want    bool
+	}{
+		{"1.2.43+local.ryzen.1", true},
+		{"1.2.43-dev.fix1", true},
+		{"1.2.43-hotfix.cert", true},
+		{"1.2.43+dev.1", true},
+		{"1.2.43+hotfix.auth", true},
+		// ── 10. official semver rejected ────────────────────────────────────
+		{"1.2.43", false},
+		{"1.2.43-rc1", false},
+		{"2.0.0", false},
+		{"", false},
+		{"v1.2.43", false},
+	}
+	for _, c := range cases {
+		got := hasLocalVersionSuffix(c.version)
+		if got != c.want {
+			t.Errorf("hasLocalVersionSuffix(%q) = %v, want %v", c.version, got, c.want)
+		}
+	}
+}
+
+// ── 11. official-version suffix blocked ──────────────────────────────────────
+
+func TestVersionSuffixGuard_OfficialVersionBlocked(t *testing.T) {
+	officialVersions := []string{"1.2.43", "2.0.0", "1.2.43-rc1", "v1.2.43"}
+	for _, v := range officialVersions {
+		if hasLocalVersionSuffix(v) {
+			t.Errorf("official version %q must not pass hasLocalVersionSuffix", v)
+		}
+	}
+}
+
+func TestVersionSuffixGuard_LocalVersionAllowed(t *testing.T) {
+	localVersions := []string{
+		"1.2.43+local.ryzen.1",
+		"1.2.43-hotfix.auth",
+		"1.2.43-dev.fix2",
+	}
+	for _, v := range localVersions {
+		if !hasLocalVersionSuffix(v) {
+			t.Errorf("local version %q must pass hasLocalVersionSuffix", v)
+		}
 	}
 }
 

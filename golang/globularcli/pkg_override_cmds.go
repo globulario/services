@@ -85,6 +85,7 @@ var (
 	pkgOverrideReason     string
 	pkgOverrideBasedOn    string
 	pkgOverrideRepository string
+	pkgOverrideForce      bool
 )
 
 func init() {
@@ -98,6 +99,7 @@ func init() {
 	pkgOverrideCmd.Flags().StringVar(&pkgOverrideReason, "reason", "", "human-readable reason for the override (required)")
 	pkgOverrideCmd.Flags().StringVar(&pkgOverrideBasedOn, "based-on", "", "official version this is derived from (e.g. 1.2.43)")
 	pkgOverrideCmd.Flags().StringVar(&pkgOverrideRepository, "repository", "", "repository service address (auto-discovered if omitted)")
+	pkgOverrideCmd.Flags().BoolVar(&pkgOverrideForce, "force", false, "skip based_on compatibility check (use when BOM has moved since the local build)")
 	_ = pkgOverrideCmd.MarkFlagRequired("build-id")
 	_ = pkgOverrideCmd.MarkFlagRequired("reason")
 }
@@ -145,6 +147,12 @@ func runPkgOverride(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("override publisher cannot be core@globular.io — use a local identity lane (e.g. local@<cluster-id>)")
 	}
 
+	// Validate local channel — the version must carry a local/hotfix/dev suffix.
+	if !hasLocalVersionSuffix(version) {
+		return fmt.Errorf("local override version %q must carry a local/dev/hotfix suffix (e.g. 1.2.43+local.ryzen.1, 1.2.43-hotfix.auth)\n"+
+			"Re-publish the artifact with an appropriate version before applying the override", version)
+	}
+
 	// Read current ServiceDesiredVersion for snapshot.
 	snap, err := readServiceDesiredVersionSnapshot(serviceName)
 	if err != nil {
@@ -156,6 +164,23 @@ func runPkgOverride(cmd *cobra.Command, args []string) error {
 	basedOnVersion := pkgOverrideBasedOn
 	if basedOnVersion == "" && snap != nil {
 		basedOnVersion = snap.Version
+	}
+
+	// based_on is required — it documents what official build this fix patches.
+	if basedOnVersion == "" {
+		return fmt.Errorf("cannot determine based_on version: provide --based-on <official-version>")
+	}
+
+	// based_on compatibility check: the local build should be derived from the
+	// current official desired state. If the BOM has moved, the fix may not apply
+	// cleanly — use --force to override.
+	if !pkgOverrideForce && snap != nil && snap.Version != "" && snap.Version != basedOnVersion {
+		return fmt.Errorf(
+			"compatibility mismatch: the current official desired version for %s is %s,\n"+
+				"but this override is based on %s.\n\n"+
+				"If you rebuilt the fix against the current official build, update --based-on to %s.\n"+
+				"If you intentionally want to apply an older fix, use --force to skip this check.",
+			serviceName, snap.Version, basedOnVersion, snap.Version)
 	}
 
 	ov := &cluster_controllerpb.LocalOverride{
@@ -405,3 +430,13 @@ func findArtifactByBuildID(repoAddr, serviceName, buildID string) (publisher, ve
 	return "", "", 0, fmt.Errorf("build_id %s not found for service %q in repository", buildID, serviceName)
 }
 
+// hasLocalVersionSuffix returns true for versions carrying a local/dev/hotfix
+// pre-release or build-metadata label (e.g. 1.2.43+local.ryzen.1).
+func hasLocalVersionSuffix(version string) bool {
+	lower := strings.ToLower(version)
+	return strings.Contains(lower, "+local.") ||
+		strings.Contains(lower, "-dev.") ||
+		strings.Contains(lower, "-hotfix.") ||
+		strings.Contains(lower, "+dev.") ||
+		strings.Contains(lower, "+hotfix.")
+}
