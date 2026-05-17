@@ -8,7 +8,7 @@ import (
 	"time"
 
 	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
-	"github.com/globulario/awareness/incidentpattern"
+	"github.com/globulario/services/golang/awareness/incidentpattern"
 )
 
 // registerAwarenessIncidentPatternTools registers the incident pattern matching tools.

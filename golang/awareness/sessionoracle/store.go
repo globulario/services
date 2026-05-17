@@ -2,15 +2,17 @@ package sessionoracle
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
 
-	"github.com/globulario/awareness/contextfreshness"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 	"github.com/google/uuid"
 )
 
@@ -177,11 +179,10 @@ func (o *Oracle) RecordFileTouch(ctx context.Context, sessionID, path, action, r
 		return nil, fmt.Errorf("sessionoracle: record file touch: %w", err)
 	}
 
-	// Also cooperate with Stale Context Detection: record a context read for reads/inspects.
-	if (action == "read" || action == "inspect") && o.g != nil {
-		tracker := contextfreshness.New(o.g)
-		_, _ = tracker.RecordContextRead(ctx, sessionID, path, reason, "session_oracle", turnIndex)
-	}
+	// Stale Context Detection via contextfreshness is not available in this build
+	// (contextfreshness package removed from standalone awareness module). Context
+	// reads are recorded in the session_file_touches table instead.
+	_ = ctx // suppress unused warning
 
 	return &SessionFileTouch{
 		ID:                id,
@@ -534,11 +535,12 @@ func splitStrings(s string) []string {
 
 // fingerprint returns the sha256 of a file's content, or "" if unreadable.
 func fingerprint(path string) string {
-	snap, err := contextfreshness.Fingerprint(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}
-	return snap.Fingerprint
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 // gitBranchAndCommit returns the current git branch and HEAD commit in the given dir.

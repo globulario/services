@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/awareness/assurance"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/assurance"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // RuntimeBridge collects a read-only runtime snapshot from pluggable sources.

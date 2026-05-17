@@ -9,7 +9,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/globulario/services/golang/awareness/extractors/clusterstate"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 

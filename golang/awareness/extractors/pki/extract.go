@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // DefaultPKIPaths lists the canonical Globular PKI directories to scan.

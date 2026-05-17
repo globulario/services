@@ -12,7 +12,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 	"github.com/globulario/services/golang/awareness/livecluster"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"

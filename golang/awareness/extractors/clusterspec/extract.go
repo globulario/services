@@ -21,7 +21,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // CollectorHealth reports the result of a single collection pass.

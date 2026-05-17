@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // IntegrityFinding is a single integrity violation found in the workflow overlay.

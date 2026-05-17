@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/globulario/services/golang/awareness/extractors/rbac"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // openTestGraph opens an in-memory awareness graph for testing.

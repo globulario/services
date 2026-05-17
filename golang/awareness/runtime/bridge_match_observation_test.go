@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/globulario/awareness/assurance"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/assurance"
+	"github.com/globulario/services/golang/awareness/graph"
 	"github.com/globulario/services/golang/awareness/runtime"
 )
 

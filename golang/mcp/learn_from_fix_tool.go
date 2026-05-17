@@ -8,19 +8,95 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/awareness/learning"
+	"gopkg.in/yaml.v3"
 )
+
+// ── Inline types (formerly in awareness/learning / failurelearning packages,
+// removed from standalone module during Phase 3 migration). ──────────────────
+
+const proposalStatusDraft = "draft"
+
+type proposalHeader struct {
+	ID             string `yaml:"id"`
+	SourceIncident string `yaml:"source_incident,omitempty"`
+	Status         string `yaml:"status"`
+	CreatedAt      string `yaml:"created_at"`
+}
+
+type proposalEvidence struct {
+	SourceIncident string   `yaml:"source_incident,omitempty"`
+	Symptoms       []string `yaml:"symptoms,omitempty"`
+	ManualRepairs  []string `yaml:"manual_repairs,omitempty"`
+	StateDeltas    []string `yaml:"state_deltas,omitempty"`
+}
+
+type proposedFailureMode struct {
+	ID                string   `yaml:"id"`
+	Title             string   `yaml:"title"`
+	Severity          string   `yaml:"severity"`
+	Symptoms          []string `yaml:"symptoms,omitempty"`
+	RootCause         string   `yaml:"root_cause"`
+	ArchitectureFix   string   `yaml:"architecture_fix"`
+	RelatedInvariants []string `yaml:"related_invariants,omitempty"`
+	ForbiddenFixes    []string `yaml:"forbidden_fixes,omitempty"`
+	RequiredTests     []string `yaml:"required_tests,omitempty"`
+}
+
+type proposedForbiddenFix struct {
+	ID                string   `yaml:"id"`
+	Title             string   `yaml:"title"`
+	Summary           string   `yaml:"summary"`
+	RelatedInvariants []string `yaml:"related_invariants,omitempty"`
+}
+
+type proposedInvariant struct {
+	ID            string   `yaml:"id"`
+	Title         string   `yaml:"title"`
+	Severity      string   `yaml:"severity"`
+	Summary       string   `yaml:"summary"`
+	RequiredTests []string `yaml:"required_tests,omitempty"`
+}
+
+type proposedScanRule struct {
+	ID              string   `yaml:"id"`
+	Description     string   `yaml:"description"`
+	Language        string   `yaml:"language"`
+	Severity        string   `yaml:"severity"`
+	KnowledgeID     string   `yaml:"knowledge_id,omitempty"`
+	SafeAlternative string   `yaml:"safe_alternative,omitempty"`
+	Patterns        []string `yaml:"patterns,omitempty"`
+}
+
+type proposalSpec struct {
+	LearnSource  string                 `yaml:"learn_source"`
+	Proposal     proposalHeader         `yaml:"proposal"`
+	Evidence     proposalEvidence       `yaml:"evidence"`
+	FailureModes []proposedFailureMode  `yaml:"failure_modes,omitempty"`
+	ForbiddenFixes []proposedForbiddenFix `yaml:"forbidden_fixes,omitempty"`
+	ScanRules    []proposedScanRule     `yaml:"scan_rules,omitempty"`
+	Invariants   []proposedInvariant    `yaml:"invariants,omitempty"`
+}
+
+func saveProposal(path string, spec *proposalSpec) error {
+	data, err := yaml.Marshal(spec)
+	if err != nil {
+		return fmt.Errorf("marshal proposal: %w", err)
+	}
+	return os.WriteFile(path, data, 0o644)
+}
+
+// ── Tool registration ─────────────────────────────────────────────────────────
 
 // learnFromFixProposal is one entry in the proposals array returned by the tool.
 type learnFromFixProposal struct {
-	ProposalID             string `json:"proposal_id"`
-	TargetFile             string `json:"target_file"`
-	Operation              string `json:"operation"`
-	EntryID                string `json:"entry_id"`
-	Reason                 string `json:"reason"`
-	YAMLPatch              string `json:"yaml_patch"`
-	Confidence             string `json:"confidence"`
-	RequiresHumanApproval  bool   `json:"requires_human_approval"`
+	ProposalID            string `json:"proposal_id"`
+	TargetFile            string `json:"target_file"`
+	Operation             string `json:"operation"`
+	EntryID               string `json:"entry_id"`
+	Reason                string `json:"reason"`
+	YAMLPatch             string `json:"yaml_patch"`
+	Confidence            string `json:"confidence"`
+	RequiresHumanApproval bool   `json:"requires_human_approval"`
 }
 
 func registerLearnFromFixTool(s *server, st *awarenessState) {
@@ -30,17 +106,17 @@ func registerLearnFromFixTool(s *server, st *awarenessState) {
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
-				"incident_id":           {Type: "string", Description: "Optional incident ID to link this fix to."},
-				"snapshot_id":           {Type: "string", Description: "Optional snapshot ID captured before/after the fix."},
-				"symptom_text":          {Type: "string", Description: "Raw error text or log line that triggered the investigation."},
-				"root_cause":            {Type: "string", Description: "What was actually wrong."},
-				"fix_summary":           {Type: "string", Description: "What changed to fix it."},
-				"verification":          {Type: "string", Description: "How the fix was proven (test run, manual check, metric change)."},
-				"changed_files":         {Type: "array", Description: "Source files changed as part of the fix.", Items: &propSchema{Type: "string"}},
-				"tests_added":           {Type: "array", Description: "Test function names added to cover this fix.", Items: &propSchema{Type: "string"}},
-				"known_bad_fix":         {Type: "string", Description: "Optional: a tempting wrong fix that must be avoided."},
-				"related_failure_mode":  {Type: "string", Description: "Optional: existing failure mode ID this fix relates to."},
-				"related_invariant":     {Type: "string", Description: "Optional: existing invariant ID this fix relates to."},
+				"incident_id":          {Type: "string", Description: "Optional incident ID to link this fix to."},
+				"snapshot_id":          {Type: "string", Description: "Optional snapshot ID captured before/after the fix."},
+				"symptom_text":         {Type: "string", Description: "Raw error text or log line that triggered the investigation."},
+				"root_cause":           {Type: "string", Description: "What was actually wrong."},
+				"fix_summary":          {Type: "string", Description: "What changed to fix it."},
+				"verification":         {Type: "string", Description: "How the fix was proven (test run, manual check, metric change)."},
+				"changed_files":        {Type: "array", Description: "Source files changed as part of the fix.", Items: &propSchema{Type: "string"}},
+				"tests_added":          {Type: "array", Description: "Test function names added to cover this fix.", Items: &propSchema{Type: "string"}},
+				"known_bad_fix":        {Type: "string", Description: "Optional: a tempting wrong fix that must be avoided."},
+				"related_failure_mode": {Type: "string", Description: "Optional: existing failure mode ID this fix relates to."},
+				"related_invariant":    {Type: "string", Description: "Optional: existing invariant ID this fix relates to."},
 			},
 			Required: []string{"symptom_text", "root_cause", "fix_summary"},
 		},
@@ -88,16 +164,16 @@ func registerLearnFromFixTool(s *server, st *awarenessState) {
 
 		// --- Synthesise proposals ---
 		var proposals []learnFromFixProposal
-		var spec learning.ProposalSpec
+		var spec proposalSpec
 
 		spec.LearnSource = "learn_from_fix"
-		spec.Proposal = learning.ProposalHeader{
+		spec.Proposal = proposalHeader{
 			ID:             proposalID,
 			SourceIncident: incidentID,
-			Status:         learning.StatusDraft,
+			Status:         proposalStatusDraft,
 			CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		}
-		spec.Evidence = learning.ProposalEvidence{
+		spec.Evidence = proposalEvidence{
 			SourceIncident: incidentID,
 			Symptoms:       []string{symptomText},
 			ManualRepairs:  []string{fixSummary},
@@ -116,7 +192,7 @@ func registerLearnFromFixTool(s *server, st *awarenessState) {
 		if relatedInv != "" {
 			fmRelatedInvariants = []string{relatedInv}
 		}
-		fm := learning.ProposedFailureMode{
+		fm := proposedFailureMode{
 			ID:                fmID,
 			Title:             truncate(symptomText, 80),
 			Severity:          fmSeverity,
@@ -128,7 +204,7 @@ func registerLearnFromFixTool(s *server, st *awarenessState) {
 		if len(testsAdded) > 0 {
 			fm.RequiredTests = testsAdded
 		}
-		spec.FailureModes = []learning.ProposedFailureMode{fm}
+		spec.FailureModes = []proposedFailureMode{fm}
 
 		fmYAML := renderFailureModeYAML(fm)
 		proposals = append(proposals, learnFromFixProposal{
@@ -145,7 +221,7 @@ func registerLearnFromFixTool(s *server, st *awarenessState) {
 		// 2. Forbidden fix proposal (when knownBadFix is provided)
 		if knownBadFix != "" {
 			ffID := "forbidden_fix." + sanitiseID(knownBadFix[:minInt(40, len(knownBadFix))])
-			ff := learning.ProposedForbiddenFix{
+			ff := proposedForbiddenFix{
 				ID:      ffID,
 				Title:   truncate(knownBadFix, 80),
 				Summary: "Tempting but incorrect fix: " + knownBadFix + ". Root cause was: " + rootCause,
@@ -153,7 +229,7 @@ func registerLearnFromFixTool(s *server, st *awarenessState) {
 			if relatedInv != "" {
 				ff.RelatedInvariants = []string{relatedInv}
 			}
-			spec.ForbiddenFixes = []learning.ProposedForbiddenFix{ff}
+			spec.ForbiddenFixes = []proposedForbiddenFix{ff}
 
 			ffYAML := renderForbiddenFixYAML(ff)
 			proposals = append(proposals, learnFromFixProposal{
@@ -173,18 +249,18 @@ func registerLearnFromFixTool(s *server, st *awarenessState) {
 		// 3. Scan rule proposal — when changed Go files contain relevant loopback/exec/env patterns in symptom text
 		if scanRuleNeeded(symptomText, changedFiles) {
 			srID := "scan_rule." + sanitiseID(symptomText[:minInt(40, len(symptomText))])
-			sr := learning.ProposedScanRule{
-				ID:          srID,
-				Description: "Detected dangerous pattern from fix: " + truncate(symptomText, 60),
-				Language:    "go",
-				Severity:    "high",
-				KnowledgeID: fmID,
+			sr := proposedScanRule{
+				ID:              srID,
+				Description:     "Detected dangerous pattern from fix: " + truncate(symptomText, 60),
+				Language:        "go",
+				Severity:        "high",
+				KnowledgeID:     fmID,
 				SafeAlternative: fixSummary,
 			}
 			// Heuristically choose patterns from symptom text
 			sr.Patterns = deriveScanPatterns(symptomText)
 			if len(sr.Patterns) > 0 {
-				spec.ScanRules = []learning.ProposedScanRule{sr}
+				spec.ScanRules = []proposedScanRule{sr}
 				srYAML := renderScanRuleYAML(sr)
 				proposals = append(proposals, learnFromFixProposal{
 					ProposalID:            proposalID + "/scan_rule",
@@ -205,7 +281,7 @@ func registerLearnFromFixTool(s *server, st *awarenessState) {
 			if relatedInv != "" {
 				invID = relatedInv + ".updated"
 			}
-			inv := learning.ProposedInvariant{
+			inv := proposedInvariant{
 				ID:       invID,
 				Title:    "Invariant from fix: " + truncate(rootCause, 60),
 				Severity: fmSeverity,
@@ -214,7 +290,7 @@ func registerLearnFromFixTool(s *server, st *awarenessState) {
 			if len(testsAdded) > 0 {
 				inv.RequiredTests = testsAdded
 			}
-			spec.Invariants = []learning.ProposedInvariant{inv}
+			spec.Invariants = []proposedInvariant{inv}
 			invYAML := renderInvariantYAML(inv)
 			proposals = append(proposals, learnFromFixProposal{
 				ProposalID:            proposalID + "/invariant",
@@ -235,7 +311,7 @@ func registerLearnFromFixTool(s *server, st *awarenessState) {
 		}
 		proposalPath := filepath.Join(proposalsDir, proposalID+".yaml")
 
-		if err := learning.SaveProposal(proposalPath, &spec); err != nil {
+		if err := saveProposal(proposalPath, &spec); err != nil {
 			return nil, fmt.Errorf("save proposal: %w", err)
 		}
 
@@ -246,12 +322,12 @@ func registerLearnFromFixTool(s *server, st *awarenessState) {
 		}
 
 		return map[string]interface{}{
-			"proposals":                proposals,
-			"proposal_path":            proposalPath,
-			"summary":                  summary,
-			"confidence":               confidence,
-			"blind_spots":              blindSpots,
-			"recommended_next_action":  "review_knowledge_proposal",
+			"proposals":               proposals,
+			"proposal_path":           proposalPath,
+			"summary":                 summary,
+			"confidence":              confidence,
+			"blind_spots":             blindSpots,
+			"recommended_next_action": "review_knowledge_proposal",
 		}, nil
 	})
 }
@@ -343,7 +419,7 @@ func invariantNeeded(rootCause, symptomText string) bool {
 	return false
 }
 
-func renderFailureModeYAML(fm learning.ProposedFailureMode) string {
+func renderFailureModeYAML(fm proposedFailureMode) string {
 	var b strings.Builder
 	b.WriteString("- id: " + fm.ID + "\n")
 	b.WriteString("  title: " + fm.Title + "\n")
@@ -363,7 +439,7 @@ func renderFailureModeYAML(fm learning.ProposedFailureMode) string {
 	return b.String()
 }
 
-func renderForbiddenFixYAML(ff learning.ProposedForbiddenFix) string {
+func renderForbiddenFixYAML(ff proposedForbiddenFix) string {
 	var b strings.Builder
 	b.WriteString("- id: " + ff.ID + "\n")
 	b.WriteString("  title: " + ff.Title + "\n")
@@ -377,7 +453,7 @@ func renderForbiddenFixYAML(ff learning.ProposedForbiddenFix) string {
 	return b.String()
 }
 
-func renderInvariantYAML(inv learning.ProposedInvariant) string {
+func renderInvariantYAML(inv proposedInvariant) string {
 	var b strings.Builder
 	b.WriteString("- id: " + inv.ID + "\n")
 	b.WriteString("  title: " + inv.Title + "\n")
@@ -392,7 +468,7 @@ func renderInvariantYAML(inv learning.ProposedInvariant) string {
 	return b.String()
 }
 
-func renderScanRuleYAML(sr learning.ProposedScanRule) string {
+func renderScanRuleYAML(sr proposedScanRule) string {
 	var b strings.Builder
 	b.WriteString("- id: " + sr.ID + "\n")
 	b.WriteString("  description: " + sr.Description + "\n")
@@ -413,9 +489,8 @@ func renderScanRuleYAML(sr learning.ProposedScanRule) string {
 	return b.String()
 }
 
-// sanitiseID is re-exported from the learning package scope; replicated here
-// so the mcp package can use it without importing an unexported symbol.
-// (The learning package already has the same function but unexported.)
+// sanitiseID replaces non-alphanumeric characters with underscores.
+// Replicated here so the mcp package can use it without importing an unexported symbol.
 func sanitiseID(s string) string {
 	s = strings.ToLower(s)
 	var buf strings.Builder

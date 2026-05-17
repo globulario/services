@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/globulario/awareness/graph"
-	"github.com/globulario/awareness/integrity"
-	"github.com/globulario/awareness/learning"
-	"github.com/globulario/awareness/preflight"
+	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/services/golang/awareness/integrity"
+	"github.com/globulario/services/golang/awareness/learning"
+	"github.com/globulario/services/golang/awareness/preflight"
 )
 
 func registerAwarenessSessionTools(s *server, st *awarenessState) {

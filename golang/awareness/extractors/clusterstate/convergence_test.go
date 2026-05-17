@@ -11,7 +11,7 @@ import (
 	mvccpb "go.etcd.io/etcd/api/v3/mvccpb"
 
 	"github.com/globulario/services/golang/awareness/extractors/clusterstate"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // openConvergenceTestGraph opens a fresh in-memory graph for convergence tests.

@@ -1,16 +1,18 @@
 package main
 
-// awareness_learning_cmds.go: Awareness learning CLI commands (Task 3).
+// awareness_learning_cmds.go: Awareness learning CLI commands.
 //
-// Commands:
+// Commands that depend on the deleted learning/failurelearning API
+// (incident-bundle, propose-from-incident, validate-proposal, promote-proposal,
+// approve-proposal, proposal-context) are stubs that return a clear error.
 //
-//	globular awareness incident-bundle --incident <id>
-//	globular awareness propose-from-incident --incident <id>
-//	globular awareness validate-proposal --file <proposal.yaml>
-//	globular awareness promote-proposal --file <proposal.yaml>
+// The following commands remain fully functional:
+//
 //	globular awareness list-proposals
 //	globular awareness queue-triage
-//	globular awareness proposal-context --file <proposal.yaml>
+//	globular awareness queue-resolve-stale
+//	globular awareness error-contract
+//	globular awareness closure-ledger-check
 //	globular awareness aliases --task "<task>"
 
 import (
@@ -23,10 +25,10 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
-	"github.com/globulario/awareness/analysis"
-	"github.com/globulario/awareness/graph"
-	"github.com/globulario/awareness/learning"
+	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/services/golang/awareness/learning"
 )
 
 var learningCfg = struct {
@@ -41,358 +43,61 @@ var learningCfg = struct {
 	reportFile      string
 	statusClaim     string
 }{
-	bundleDir: "docs/awareness/incidents",
+	bundleDir:  "docs/awareness/incidents",
 	staleAfter: 24 * time.Hour,
-	output: "table",
+	output:     "table",
 }
 
-// ---- incident-bundle command ----
+// ── Minimal proposal struct for file scanning ─────────────────────────────────
 
-var awarenessIncidentBundleCmd = &cobra.Command{
-	Use:   "incident-bundle",
-	Short: "Show a stored incident bundle (loads from docs/awareness/incidents/)",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if learningCfg.incidentID == "" {
-			return fmt.Errorf("--incident is required")
-		}
-
-		repoRoot, err := resolveRepoRoot(awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-
-		bundlePath := filepath.Join(repoRoot, learningCfg.bundleDir,
-			strings.ReplaceAll(learningCfg.incidentID, ".", "_")+".yaml")
-
-		b, err := learning.LoadIncidentBundle(bundlePath)
-		if err != nil {
-			// Try exact filename.
-			bundlePath = filepath.Join(repoRoot, learningCfg.bundleDir, learningCfg.incidentID+".yaml")
-			b, err = learning.LoadIncidentBundle(bundlePath)
-			if err != nil {
-				return fmt.Errorf("incident bundle not found for %q (looked in %s): %w",
-					learningCfg.incidentID, filepath.Join(repoRoot, learningCfg.bundleDir), err)
-			}
-		}
-
-		fmt.Fprintf(os.Stdout, "# Incident Bundle\n\n")
-		fmt.Fprintf(os.Stdout, "**ID**: %s\n", b.IncidentID)
-		fmt.Fprintf(os.Stdout, "**Title**: %s\n", b.Title)
-		fmt.Fprintf(os.Stdout, "**Severity**: %s\n", b.Severity)
-		fmt.Fprintf(os.Stdout, "**Status**: %s\n\n", b.Status)
-
-		if len(b.Symptoms) > 0 {
-			fmt.Fprintf(os.Stdout, "## Symptoms\n")
-			for _, s := range b.Symptoms {
-				fmt.Fprintf(os.Stdout, "- %s\n", s)
-			}
-			fmt.Fprintln(os.Stdout)
-		}
-
-		if len(b.ObservedServices) > 0 {
-			fmt.Fprintf(os.Stdout, "## Observed services\n")
-			for _, s := range b.ObservedServices {
-				fmt.Fprintf(os.Stdout, "- %s\n", s)
-			}
-			fmt.Fprintln(os.Stdout)
-		}
-
-		if b.SuspectedRootCause != "" {
-			fmt.Fprintf(os.Stdout, "## Suspected root cause\n")
-			fmt.Fprintf(os.Stdout, "%s\n\n", strings.TrimSpace(b.SuspectedRootCause))
-		}
-
-		if len(b.ManualRepairs) > 0 {
-			fmt.Fprintf(os.Stdout, "## Manual repairs\n")
-			for _, r := range b.ManualRepairs {
-				fmt.Fprintf(os.Stdout, "- %s\n", r)
-			}
-			fmt.Fprintln(os.Stdout)
-		}
-
-		if b.Proposed != nil {
-			fmt.Fprintf(os.Stdout, "Proposed awareness: %d failure modes, %d invariants, %d forbidden fixes\n",
-				len(b.Proposed.FailureModes), len(b.Proposed.Invariants), len(b.Proposed.ForbiddenFixes))
-		}
-
-		return nil
-	},
+// minimalProposal is just enough to read proposal status and identity from a
+// YAML file. The full ProposalSpec was removed from the standalone module.
+type minimalProposal struct {
+	Proposal struct {
+		ID             string `yaml:"id"`
+		SourceIncident string `yaml:"source_incident"`
+		Status         string `yaml:"status"`
+		CreatedAt      string `yaml:"created_at"`
+	} `yaml:"proposal"`
+	FailureModes   []struct{} `yaml:"failure_modes"`
+	Invariants     []struct{} `yaml:"invariants"`
+	ForbiddenFixes []struct{} `yaml:"forbidden_fixes"`
 }
 
-// ---- propose-from-incident command ----
-
-var awarenessProposeFromIncidentCmd = &cobra.Command{
-	Use:   "propose-from-incident",
-	Short: "Generate a draft awareness proposal from an incident bundle",
-	Long: `Loads an incident bundle from docs/awareness/incidents/ and generates
-a draft awareness proposal YAML in docs/awareness/proposals/.
-
-The proposal must be reviewed and validated before promotion.
-AI may propose awareness — humans must approve it.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if learningCfg.incidentID == "" {
-			return fmt.Errorf("--incident is required")
-		}
-
-		repoRoot, err := resolveRepoRoot(awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-
-		// Find the incident bundle.
-		incDir := filepath.Join(repoRoot, learningCfg.bundleDir)
-		candidates := []string{
-			filepath.Join(incDir, strings.ReplaceAll(learningCfg.incidentID, ".", "_")+".yaml"),
-			filepath.Join(incDir, learningCfg.incidentID+".yaml"),
-		}
-		var b *learning.IncidentBundle
-		for _, path := range candidates {
-			b, err = learning.LoadIncidentBundle(path)
-			if err == nil {
-				break
-			}
-		}
-		if b == nil {
-			return fmt.Errorf("incident bundle not found for %q in %s", learningCfg.incidentID, incDir)
-		}
-
-		// Generate the proposal.
-		p := learning.GenerateProposalFromBundle(b)
-
-		// Write proposal to docs/awareness/proposals/.
-		proposalsDir := filepath.Join(repoRoot, "docs", "awareness", "proposals")
-		if err := os.MkdirAll(proposalsDir, 0o755); err != nil {
-			return fmt.Errorf("create proposals dir: %w", err)
-		}
-
-		date := time.Now().UTC().Format("2006-01-02")
-		filename := date + "-" + strings.ReplaceAll(learningCfg.incidentID, ".", "-") + ".yaml"
-		outPath := filepath.Join(proposalsDir, filename)
-
-		// Safety check: output path must remain within proposals directory.
-		absProposals, err := filepath.Abs(proposalsDir)
-		if err != nil {
-			return fmt.Errorf("resolve proposals dir: %w", err)
-		}
-		absOut, err := filepath.Abs(outPath)
-		if err != nil {
-			return fmt.Errorf("resolve output path: %w", err)
-		}
-		if !strings.HasPrefix(absOut, absProposals+string(filepath.Separator)) {
-			return fmt.Errorf("output path %q is outside the proposals directory %q", outPath, proposalsDir)
-		}
-
-		if err := learning.SaveProposal(outPath, p); err != nil {
-			return fmt.Errorf("save proposal: %w", err)
-		}
-
-		fmt.Fprintf(os.Stdout, "Draft proposal written to: %s\n\n", outPath)
-		fmt.Fprintf(os.Stdout, "  failure modes:  %d\n", len(p.FailureModes))
-		fmt.Fprintf(os.Stdout, "  invariants:     %d\n", len(p.Invariants))
-		fmt.Fprintf(os.Stdout, "  forbidden fixes: %d\n", len(p.ForbiddenFixes))
-		fmt.Fprintf(os.Stdout, "  context aliases: %d groups\n", len(p.ContextAliases))
-		fmt.Fprintf(os.Stdout, "\nNext: globular awareness validate-proposal --file %s\n", outPath)
-
-		return nil
-	},
+func loadMinimalProposal(path string) (*minimalProposal, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var p minimalProposal
+	if err := yaml.Unmarshal(data, &p); err != nil {
+		return nil, err
+	}
+	return &p, nil
 }
 
-// ---- validate-proposal command ----
+// ── Stub helper ───────────────────────────────────────────────────────────────
 
-var awarenessValidateProposalCmd = &cobra.Command{
-	Use:   "validate-proposal",
-	Short: "Validate an awareness proposal YAML against all admission rules",
-	Long: `Validates a proposal file against 12 rules including severity-lowering checks,
-forbidden-fix removal checks, cycle detection, and evidence link verification.
-
-Exits with code 1 if validation fails.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if learningCfg.proposalFile == "" {
-			return fmt.Errorf("--file is required")
-		}
-
-		ctx := context.Background()
-
-		p, err := learning.LoadProposalFromFile(learningCfg.proposalFile)
-		if err != nil {
-			return fmt.Errorf("load proposal: %w", err)
-		}
-
-		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-		defer g.Close()
-
-		result, err := learning.ValidateProposal(ctx, p, g)
-		if err != nil {
-			return fmt.Errorf("validate: %w", err)
-		}
-
-		fmt.Fprint(os.Stdout, learning.RenderValidationMarkdown(p, result))
-
-		if result.Status == learning.ValidationFail {
-			os.Exit(1)
-		}
-		return nil
-	},
+func makeLearningStub(use, short string) *cobra.Command {
+	return &cobra.Command{
+		Use:   use,
+		Short: short + " (not available — removed from standalone awareness module)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fmt.Errorf("%s is not available: the learning/failurelearning API was removed from the standalone awareness module — use the MCP tools awareness.failure_learning_* instead", strings.Fields(use)[0])
+		},
+	}
 }
 
-// ---- promote-proposal command ----
+// ── Stubbed commands ──────────────────────────────────────────────────────────
 
-var awarenessPromoteProposalCmd = &cobra.Command{
-	Use:   "promote-proposal",
-	Short: "Promote a validated and approved proposal into the approved docs/awareness files",
-	Long: `Validates the proposal, then merges its invariants, failure modes, forbidden fixes,
-and context aliases into the approved docs/awareness YAML files.
+var awarenessIncidentBundleCmd = makeLearningStub("incident-bundle", "Show a stored incident bundle")
+var awarenessProposeFromIncidentCmd = makeLearningStub("propose-from-incident", "Generate a draft awareness proposal from an incident bundle")
+var awarenessValidateProposalCmd = makeLearningStub("validate-proposal", "Validate an awareness proposal YAML against all admission rules")
+var awarenessPromoteProposalCmd = makeLearningStub("promote-proposal", "Promote a validated and approved proposal")
+var awarenessApproveProposalCmd = makeLearningStub("approve-proposal", "Approve an awareness proposal")
+var awarenessProposalContextCmd = makeLearningStub("proposal-context", "Show architectural context for a proposal")
 
-This creates normal git-visible diffs. No hidden mutation occurs.
-Promotion is gated by successful validation AND APPROVED status.
-
-Use --allow-unapproved to bypass the APPROVED requirement (developer/test mode only).`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if learningCfg.proposalFile == "" {
-			return fmt.Errorf("--file is required")
-		}
-
-		ctx := context.Background()
-
-		p, err := learning.LoadProposalFromFile(learningCfg.proposalFile)
-		if err != nil {
-			return fmt.Errorf("load proposal: %w", err)
-		}
-
-		// Graph is mandatory in the CLI path (graph update must happen).
-		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-		defer g.Close()
-
-		vr, err := learning.ValidateProposal(ctx, p, g)
-		if err != nil {
-			return fmt.Errorf("validate: %w", err)
-		}
-
-		if vr.Status == learning.ValidationFail {
-			fmt.Fprint(os.Stdout, learning.RenderValidationMarkdown(p, vr))
-			fmt.Fprintf(os.Stderr, "\nBLOCKED — proposal did not pass validation. Fix issues and re-run.\n")
-			os.Exit(1)
-		}
-
-		if learningCfg.allowUnapproved {
-			fmt.Fprintf(os.Stderr, "WARNING: --allow-unapproved bypasses the APPROVED status requirement. Use only in developer mode.\n")
-		}
-
-		repoRoot, err := resolveRepoRoot(awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-		docsAwarenessDir := filepath.Join(repoRoot, "docs", "awareness")
-
-		opts := learning.PromoteOptions{AllowUnapproved: learningCfg.allowUnapproved}
-		promotion, err := learning.PromoteProposal(ctx, p, vr, docsAwarenessDir, g, opts)
-		if err != nil {
-			return fmt.Errorf("promote: %w", err)
-		}
-
-		fmt.Fprintf(os.Stdout, "# Proposal Promoted\n\n")
-		fmt.Fprintf(os.Stdout, "**Proposal**: %s\n", p.Proposal.ID)
-		fmt.Fprintf(os.Stdout, "**Source incident**: %s\n\n", p.Proposal.SourceIncident)
-
-		if len(promotion.InvariantsAdded) > 0 {
-			fmt.Fprintf(os.Stdout, "## Invariants added (%d)\n", len(promotion.InvariantsAdded))
-			for _, id := range promotion.InvariantsAdded {
-				fmt.Fprintf(os.Stdout, "- %s\n", id)
-			}
-			fmt.Fprintln(os.Stdout)
-		}
-		if len(promotion.FailureModesAdded) > 0 {
-			fmt.Fprintf(os.Stdout, "## Failure modes added (%d)\n", len(promotion.FailureModesAdded))
-			for _, id := range promotion.FailureModesAdded {
-				fmt.Fprintf(os.Stdout, "- %s\n", id)
-			}
-			fmt.Fprintln(os.Stdout)
-		}
-		if len(promotion.ForbiddenFixesAdded) > 0 {
-			fmt.Fprintf(os.Stdout, "## Forbidden fixes added (%d)\n", len(promotion.ForbiddenFixesAdded))
-			for _, id := range promotion.ForbiddenFixesAdded {
-				fmt.Fprintf(os.Stdout, "- %s\n", id)
-			}
-			fmt.Fprintln(os.Stdout)
-		}
-		if promotion.AliasesAdded > 0 {
-			fmt.Fprintf(os.Stdout, "## Context aliases added: %d\n\n", promotion.AliasesAdded)
-		}
-
-		fmt.Fprintf(os.Stdout, "Graph rebuild required: %v\n", promotion.GraphRebuildNeeded)
-		fmt.Fprintf(os.Stdout, "\nNext: globular awareness build  # to rebuild the graph with new scars\n")
-
-		return nil
-	},
-}
-
-// ---- approve-proposal command ----
-
-var awarenessApproveProposalCmd = &cobra.Command{
-	Use:   "approve-proposal",
-	Short: "Approve an awareness proposal (sets status to APPROVED)",
-	Long: `Loads a proposal YAML, runs validation, and if it passes sets
-the proposal status to APPROVED. The updated YAML is saved back to disk.
-If a graph DB is available the proposal status is also updated there.
-
-A proposal must be APPROVED before it can be promoted.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if learningCfg.proposalFile == "" {
-			return fmt.Errorf("--file is required")
-		}
-
-		ctx := context.Background()
-
-		p, err := learning.LoadProposalFromFile(learningCfg.proposalFile)
-		if err != nil {
-			return fmt.Errorf("load proposal: %w", err)
-		}
-
-		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-		defer g.Close()
-
-		result, err := learning.ValidateProposal(ctx, p, g)
-		if err != nil {
-			return fmt.Errorf("validate: %w", err)
-		}
-
-		if result.Status == learning.ValidationFail {
-			fmt.Fprint(os.Stdout, learning.RenderValidationMarkdown(p, result))
-			fmt.Fprintf(os.Stderr, "\nBLOCKED — proposal did not pass validation. Fix issues before approving.\n")
-			os.Exit(1)
-		}
-
-		// Change status to APPROVED.
-		learning.ApproveProposal(p)
-
-		// Save the updated proposal back to disk.
-		if err := learning.SaveProposal(learningCfg.proposalFile, p); err != nil {
-			return fmt.Errorf("save proposal: %w", err)
-		}
-
-		// Update graph if available.
-		if g != nil {
-			_ = g.UpdateProposalStatus(ctx, p.Proposal.ID, "APPROVED")
-		}
-
-		fmt.Fprintf(os.Stdout, "Proposal %q approved.\n", p.Proposal.ID)
-		fmt.Fprintf(os.Stdout, "Status updated to APPROVED in %s\n", learningCfg.proposalFile)
-		fmt.Fprintf(os.Stdout, "\nNext: globular awareness promote-proposal --file %s\n", learningCfg.proposalFile)
-
-		return nil
-	},
-}
-
-// ---- list-proposals command ----
+// ── list-proposals command ────────────────────────────────────────────────────
 
 var awarenessListProposalsCmd = &cobra.Command{
 	Use:   "list-proposals",
@@ -451,7 +156,7 @@ var awarenessListProposalsCmd = &cobra.Command{
 	},
 }
 
-// ---- queue-triage command ----
+// ── queue-triage command ──────────────────────────────────────────────────────
 
 var awarenessQueueTriageCmd = &cobra.Command{
 	Use:   "queue-triage",
@@ -475,11 +180,11 @@ The output is action-oriented:
 		}
 		if learningCfg.output == "json" {
 			out := map[string]interface{}{
-				"scanned_files":       totalYAML,
-				"stale_threshold":     learningCfg.staleAfter.String(),
-				"stale_count":         len(stale),
-				"one_command_triage":  "globular awareness list-proposals",
-				"items":               stale,
+				"scanned_files":      totalYAML,
+				"stale_threshold":    learningCfg.staleAfter.String(),
+				"stale_count":        len(stale),
+				"one_command_triage": "globular awareness list-proposals",
+				"items":              stale,
 			}
 			data, err := json.MarshalIndent(out, "", "  ")
 			if err != nil {
@@ -515,7 +220,7 @@ The output is action-oriented:
 	},
 }
 
-// ---- queue-resolve-stale command ----
+// ── queue-resolve-stale command ───────────────────────────────────────────────
 
 var awarenessQueueResolveStaleCmd = &cobra.Command{
 	Use:   "queue-resolve-stale",
@@ -588,7 +293,7 @@ them from active backlog scans while keeping the content on disk.`,
 	},
 }
 
-// ---- error-contract command ----
+// ── error-contract command ────────────────────────────────────────────────────
 
 var awarenessErrorContractCmd = &cobra.Command{
 	Use:   "error-contract",
@@ -640,7 +345,7 @@ var awarenessErrorContractCmd = &cobra.Command{
 	},
 }
 
-// ---- closure-ledger-check command ----
+// ── closure-ledger-check command ──────────────────────────────────────────────
 
 var awarenessClosureLedgerCheckCmd = &cobra.Command{
 	Use:   "closure-ledger-check",
@@ -700,140 +405,7 @@ var awarenessClosureLedgerCheckCmd = &cobra.Command{
 	},
 }
 
-type queueTriageItem struct {
-	File              string `json:"file"`
-	ID                string `json:"id"`
-	Status            string `json:"status"`
-	AgeHours          int64  `json:"age_hours"`
-	Age               time.Duration `json:"-"`
-	RecommendedAction string `json:"recommended_action"`
-}
-
-func collectStaleProposalItems(proposalsDir string, now time.Time, staleAfter time.Duration) ([]queueTriageItem, int, error) {
-	entries, err := os.ReadDir(proposalsDir)
-	if err != nil {
-		return nil, 0, fmt.Errorf("read proposals dir: %w", err)
-	}
-	var stale []queueTriageItem
-	totalYAML := 0
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
-			continue
-		}
-		totalYAML++
-		info, err := e.Info()
-		if err != nil {
-			continue
-		}
-		age := now.Sub(info.ModTime())
-		if age <= staleAfter {
-			continue
-		}
-		path := filepath.Join(proposalsDir, e.Name())
-		id := strings.TrimSuffix(e.Name(), ".yaml")
-		status := "UNKNOWN"
-		if p, perr := learning.LoadProposalFromFile(path); perr == nil {
-			if strings.TrimSpace(p.Proposal.ID) != "" {
-				id = p.Proposal.ID
-			}
-			if strings.TrimSpace(p.Proposal.Status) != "" {
-				status = strings.ToUpper(strings.TrimSpace(p.Proposal.Status))
-			}
-		}
-		item := queueTriageItem{
-			File:   e.Name(),
-			ID:     id,
-			Status: status,
-			Age:    age,
-			AgeHours: int64(age.Hours()),
-			RecommendedAction: queueRecommendationForStatus(status),
-		}
-		stale = append(stale, item)
-	}
-	return stale, totalYAML, nil
-}
-
-func queueRecommendationForStatus(status string) string {
-	switch status {
-	case graph.ProposalStatusDraft:
-		return "validate"
-	case graph.ProposalStatusValidated:
-		return "approve"
-	case graph.ProposalStatusApproved:
-		return "promote"
-	case graph.ProposalStatusPromoted, graph.ProposalStatusRejected, graph.ProposalStatusSuperseded:
-		return "archive/cleanup"
-	default:
-		return "review"
-	}
-}
-
-// ---- proposal-context command ----
-
-var awarenessProposalContextCmd = &cobra.Command{
-	Use:   "proposal-context",
-	Short: "Show architectural context for a proposal (what it affects in the graph)",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if learningCfg.proposalFile == "" {
-			return fmt.Errorf("--file is required")
-		}
-
-		ctx := context.Background()
-
-		p, err := learning.LoadProposalFromFile(learningCfg.proposalFile)
-		if err != nil {
-			return fmt.Errorf("load proposal: %w", err)
-		}
-
-		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-		defer g.Close()
-
-		// Build task from proposal identity.
-		task := fmt.Sprintf("proposal %s from incident %s: %d failure modes %d invariants",
-			p.Proposal.ID, p.Proposal.SourceIncident,
-			len(p.FailureModes), len(p.Invariants))
-
-		// Collect service hints from the proposal.
-		hints := analysis.AgentContextHints{
-			Services: p.AllProposedServiceIDs(),
-		}
-
-		// Load aliases for richer context.
-		repoRoot, _ := resolveRepoRoot(awareCfg.repoPath)
-		aliasMap := loadAliasesQuiet(repoRoot)
-
-		md, _, err := analysis.GenerateAgentContext(ctx, g, task, hints, analysis.AgentContextAliases(aliasMap))
-		if err != nil {
-			return err
-		}
-
-		// Prepend proposal summary.
-		fmt.Fprintf(os.Stdout, "# Proposal Context: %s\n\n", p.Proposal.ID)
-		fmt.Fprintf(os.Stdout, "**Source incident**: %s\n\n", p.Proposal.SourceIncident)
-		if len(p.FailureModes) > 0 {
-			fmt.Fprintf(os.Stdout, "## Proposed failure modes\n")
-			for _, fm := range p.FailureModes {
-				fmt.Fprintf(os.Stdout, "- %s: %s\n", fm.ID, fm.Title)
-			}
-			fmt.Fprintln(os.Stdout)
-		}
-		if len(p.Invariants) > 0 {
-			fmt.Fprintf(os.Stdout, "## Proposed invariants\n")
-			for _, inv := range p.Invariants {
-				fmt.Fprintf(os.Stdout, "- %s [%s]: %s\n", inv.ID, inv.Severity, inv.Title)
-			}
-			fmt.Fprintln(os.Stdout)
-		}
-
-		fmt.Fprint(os.Stdout, md)
-		return nil
-	},
-}
-
-// ---- aliases command ----
+// ── aliases command ───────────────────────────────────────────────────────────
 
 var awarenessAliasesCmd = &cobra.Command{
 	Use:   "aliases",
@@ -893,11 +465,81 @@ This is the same alias-matching that agent-context uses internally.`,
 	},
 }
 
+// ── Internal helpers ──────────────────────────────────────────────────────────
+
 // loadAliasesQuiet loads context_aliases.yaml silently — errors produce empty map.
 func loadAliasesQuiet(repoRoot string) learning.ContextAliasMap {
 	aliasPath := filepath.Join(repoRoot, "docs", "awareness", "context_aliases.yaml")
 	aliases, _ := learning.LoadContextAliases(aliasPath)
 	return aliases
+}
+
+type queueTriageItem struct {
+	File              string        `json:"file"`
+	ID                string        `json:"id"`
+	Status            string        `json:"status"`
+	AgeHours          int64         `json:"age_hours"`
+	Age               time.Duration `json:"-"`
+	RecommendedAction string        `json:"recommended_action"`
+}
+
+func collectStaleProposalItems(proposalsDir string, now time.Time, staleAfter time.Duration) ([]queueTriageItem, int, error) {
+	entries, err := os.ReadDir(proposalsDir)
+	if err != nil {
+		return nil, 0, fmt.Errorf("read proposals dir: %w", err)
+	}
+	var stale []queueTriageItem
+	totalYAML := 0
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
+			continue
+		}
+		totalYAML++
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		age := now.Sub(info.ModTime())
+		if age <= staleAfter {
+			continue
+		}
+		path := filepath.Join(proposalsDir, e.Name())
+		id := strings.TrimSuffix(e.Name(), ".yaml")
+		status := "UNKNOWN"
+		if p, perr := loadMinimalProposal(path); perr == nil {
+			if strings.TrimSpace(p.Proposal.ID) != "" {
+				id = p.Proposal.ID
+			}
+			if strings.TrimSpace(p.Proposal.Status) != "" {
+				status = strings.ToUpper(strings.TrimSpace(p.Proposal.Status))
+			}
+		}
+		item := queueTriageItem{
+			File:              e.Name(),
+			ID:                id,
+			Status:            status,
+			Age:               age,
+			AgeHours:          int64(age.Hours()),
+			RecommendedAction: queueRecommendationForStatus(status),
+		}
+		stale = append(stale, item)
+	}
+	return stale, totalYAML, nil
+}
+
+func queueRecommendationForStatus(status string) string {
+	switch status {
+	case graph.ProposalStatusDraft:
+		return "validate"
+	case graph.ProposalStatusValidated:
+		return "approve"
+	case graph.ProposalStatusApproved:
+		return "promote"
+	case graph.ProposalStatusPromoted, graph.ProposalStatusRejected, graph.ProposalStatusSuperseded:
+		return "archive/cleanup"
+	default:
+		return "review"
+	}
 }
 
 func humanizeAge(d time.Duration) string {
@@ -910,26 +552,28 @@ func humanizeAge(d time.Duration) string {
 	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }
 
+// ── init ──────────────────────────────────────────────────────────────────────
+
 func init() {
-	// incident-bundle flags.
+	// incident-bundle flags (stub — kept for flag compatibility).
 	awarenessIncidentBundleCmd.Flags().StringVar(&learningCfg.incidentID, "incident", "", "Incident ID")
 	awarenessIncidentBundleCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
-	// propose-from-incident flags.
+	// propose-from-incident flags (stub).
 	awarenessProposeFromIncidentCmd.Flags().StringVar(&learningCfg.incidentID, "incident", "", "Incident ID to generate proposal from")
 	awarenessProposeFromIncidentCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
-	// validate-proposal flags.
+	// validate-proposal flags (stub).
 	awarenessValidateProposalCmd.Flags().StringVar(&learningCfg.proposalFile, "file", "", "Path to proposal YAML file")
 	awarenessValidateProposalCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
 	awarenessValidateProposalCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
-	// approve-proposal flags.
+	// approve-proposal flags (stub).
 	awarenessApproveProposalCmd.Flags().StringVar(&learningCfg.proposalFile, "file", "", "Path to proposal YAML file")
 	awarenessApproveProposalCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
 	awarenessApproveProposalCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
-	// promote-proposal flags.
+	// promote-proposal flags (stub).
 	awarenessPromoteProposalCmd.Flags().StringVar(&learningCfg.proposalFile, "file", "", "Path to proposal YAML file")
 	awarenessPromoteProposalCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
 	awarenessPromoteProposalCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
@@ -938,18 +582,26 @@ func init() {
 	// list-proposals flags.
 	awarenessListProposalsCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
 	awarenessListProposalsCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
+
+	// queue-triage flags.
 	awarenessQueueTriageCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 	awarenessQueueTriageCmd.Flags().DurationVar(&learningCfg.staleAfter, "stale-after", 24*time.Hour, "Mark proposals older than this as stale")
 	awarenessQueueTriageCmd.Flags().StringVar(&learningCfg.output, "output", "table", "Output format: table|json")
+
+	// queue-resolve-stale flags.
 	awarenessQueueResolveStaleCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 	awarenessQueueResolveStaleCmd.Flags().DurationVar(&learningCfg.staleAfter, "stale-after", 24*time.Hour, "Mark proposals older than this as stale")
 	awarenessQueueResolveStaleCmd.Flags().StringVar(&learningCfg.output, "output", "table", "Output format: table|json")
 	awarenessQueueResolveStaleCmd.Flags().BoolVar(&learningCfg.apply, "apply", false, "Apply changes (default is dry-run)")
+
+	// error-contract flags.
 	awarenessErrorContractCmd.Flags().StringVar(&learningCfg.errorText, "error", "", "Reported error message")
+
+	// closure-ledger-check flags.
 	awarenessClosureLedgerCheckCmd.Flags().StringVar(&learningCfg.reportFile, "file", "", "Path to report/notes file containing closure ledger")
 	awarenessClosureLedgerCheckCmd.Flags().StringVar(&learningCfg.statusClaim, "status-claim", "", "Optional claimed status to validate (e.g. fixed)")
 
-	// proposal-context flags.
+	// proposal-context flags (stub).
 	awarenessProposalContextCmd.Flags().StringVar(&learningCfg.proposalFile, "file", "", "Path to proposal YAML file")
 	awarenessProposalContextCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
 	awarenessProposalContextCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
@@ -958,7 +610,7 @@ func init() {
 	awarenessAliasesCmd.Flags().StringVar(&awareCfg.task, "task", "", "Task description to match against aliases")
 	awarenessAliasesCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
-	// Register all new commands under awarenessCmd.
+	// Register all commands under awarenessCmd.
 	awarenessCmd.AddCommand(awarenessIncidentBundleCmd)
 	awarenessCmd.AddCommand(awarenessProposeFromIncidentCmd)
 	awarenessCmd.AddCommand(awarenessValidateProposalCmd)

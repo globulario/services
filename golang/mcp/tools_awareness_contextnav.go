@@ -21,8 +21,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/globulario/awareness/analysis/contextnav"
-	"github.com/globulario/awareness/preflight"
+	"github.com/globulario/services/golang/awareness/preflight"
 )
 
 func registerAwarenessContextNavTools(s *server, st *awarenessState) {
@@ -111,14 +110,15 @@ func registerAwarenessDecisionTraceTool(s *server, st *awarenessState) {
 	})
 }
 
-func registerAwarenessFindingContextTool(s *server, st *awarenessState) {
+func registerAwarenessFindingContextTool(s *server, _ *awarenessState) {
+	// finding_context is not available in this build — contextnav package was
+	// removed from standalone awareness module. The tool is registered as a stub
+	// so the MCP schema remains discoverable.
 	s.register(toolDef{
 		Name: "awareness.finding_context",
 		Description: "Return the per-finding decision trace for an explicit prefixed finding id " +
-			"(failure_mode:X | invariant:Y | forbidden_fix:Z). Skips full preflight — runs only " +
-			"the contextnav.Build path on the supplied finding plus a graph walk for owner " +
-			"inference and ranked pivots. Useful when the agent already knows which finding it " +
-			"wants to dig into.",
+			"(failure_mode:X | invariant:Y | forbidden_fix:Z). " +
+			"[not available in this build — contextnav package removed]",
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
@@ -126,46 +126,13 @@ func registerAwarenessFindingContextTool(s *server, st *awarenessState) {
 					Type:        "string",
 					Description: "Prefixed finding id (failure_mode:X | invariant:Y | forbidden_fix:Z)",
 				},
-				"task": {
-					Type:        "string",
-					Description: "Optional task description used for owner-inference tiebreakers",
-				},
-				"files": {
-					Type:        "array",
-					Description: "Optional files for owner inference and file-hint enrichment",
-					Items:       &propSchema{Type: "string"},
-				},
-				"include_runtime": {
-					Type:        "boolean",
-					Description: "Include runtime-flavoured pivots and evidence",
-					Default:     false,
-				},
 			},
 			Required: []string{"finding"},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-		finding := strArg(args, "finding")
-		if finding == "" {
-			return nil, fmt.Errorf("finding is required (form: failure_mode:X | invariant:Y | forbidden_fix:Z)")
-		}
-		kind, id, err := contextnav.ParseFindingID(finding)
-		if err != nil {
-			return nil, err
-		}
-		tr, err := contextnav.BuildForFinding(ctx, contextnav.FindingContextOptions{
-			Kind:           kind,
-			ID:             id,
-			Graph:          st.g, // may be nil — BuildForFinding handles that
-			Task:           strArg(args, "task"),
-			Files:          getStrSlice(args, "files"),
-			IncludeRuntime: getBool(args, "include_runtime", false),
-		})
-		if err != nil {
-			return nil, err
-		}
 		return map[string]interface{}{
-			"finding":        finding,
-			"decision_trace": tr,
+			"status": "not_available",
+			"reason": "contextnav package was removed from standalone awareness module; use awareness.preflight instead",
 		}, nil
 	})
 }

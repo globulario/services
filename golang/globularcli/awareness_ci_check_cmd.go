@@ -8,7 +8,6 @@ package main
 //	globular awareness graph-integrity [--docs-dir <path>] [--repo-root <path>] [--test-results <path>] [--strict] [--json]
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -18,8 +17,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
-
-	"github.com/globulario/awareness/integrity"
 )
 
 // ── Schema types ──────────────────────────────────────────────────────────────
@@ -174,75 +171,14 @@ var graphIntegrityCfg = struct {
 
 var awarenessGraphIntegrityCmd = &cobra.Command{
 	Use:   "graph-integrity",
-	Short: "Run graph integrity check (shape validation, contradictions, test refs)",
-	Long: `Validates the awareness graph for shape violations, causal rule contradictions,
-missing test references, and inferred edges without provenance.
-
-Exit codes:
-  0 — graph is clean
-  1 — integrity failures found
-  3 — check could not run (internal error)`,
-	SilenceErrors: true,
-	SilenceUsage:  true,
+	Short: "Run graph integrity check (not available — integrity.Check removed from standalone module)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		opts := integrity.Options{
-			DocsDir:         graphIntegrityCfg.docsDir,
-			RepoRoot:        graphIntegrityCfg.repoRoot,
-			TestResultsFile: graphIntegrityCfg.testResultsPath,
-			Strict:          graphIntegrityCfg.strict,
-		}
-
-		result, err := integrity.Check(context.Background(), opts, nil)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: graph integrity check failed: %v\n", err)
-			os.Exit(3)
-		}
-
-		if graphIntegrityCfg.jsonOutput {
-			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
-			_ = enc.Encode(result)
-		} else {
-			printGraphIntegrityResult(result)
-		}
-
-		os.Exit(result.ExitCode)
-		return nil
+		return fmt.Errorf("graph-integrity is not available: integrity.Check/Options/IntegrityResult were removed from standalone awareness module")
 	},
 }
 
-func printGraphIntegrityResult(r *integrity.IntegrityResult) {
-	fmt.Printf("graph integrity: %s\n\n", r.Status)
-	fmt.Printf("nodes: %d  edges: %d\n", r.Summary.Nodes, r.Summary.Edges)
-	fmt.Printf("shape violations: %d  contradictions: %d  missing tests: %d\n\n",
-		r.Summary.InvalidShapes, r.Summary.Contradictions, r.Summary.MissingTests)
-
-	for _, v := range r.InvalidShapes {
-		marker := "⚠ "
-		if v.Severity == "critical" {
-			marker = "✗ "
-		}
-		fmt.Printf("%s[%s] %s.%s: %s\n", marker, v.Severity, v.NodeID, v.Field, v.Message)
-	}
-	for _, c := range r.Contradictions {
-		fmt.Printf("✗ [critical] contradiction in causal_rule:%s — %s\n", c.CausalRuleID, c.Reason)
-	}
-	for _, ti := range r.MissingTests {
-		marker := "⚠ "
-		if ti.Severity == "critical" {
-			marker = "✗ "
-		}
-		fmt.Printf("%s[%s] %s → %s: %s\n", marker, ti.Severity, ti.FixCaseID, ti.TestName, ti.Issue)
-	}
-	if len(r.RecommendedActions) > 0 {
-		fmt.Printf("\nrecommended actions:\n")
-		for _, a := range r.RecommendedActions {
-			fmt.Printf("  • %s\n", a)
-		}
-	}
-	if r.ExitCode == 0 {
-		fmt.Println("\ngraph integrity: OK")
-	}
+func printGraphIntegrityResult(_ interface{}) {
+	fmt.Println("graph integrity: not available (integrity package partially removed)")
 }
 
 // ── Verification helpers ──────────────────────────────────────────────────────

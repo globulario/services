@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/globulario/awareness/enforce"
 )
 
 // TestCoverageReport_NoRepoRootIsUnverifiedNotCritical pins the rule that
@@ -22,7 +20,7 @@ func TestCoverageReport_NoRepoRootIsUnverifiedNotCritical(t *testing.T) {
 	// Empty repoRoot path => GoFileCoverage early-returns with
 	// EligibleGoFilesTotal=0 and ConfidenceImpact="unknown" (this is
 	// what runs on a production MCP host).
-	gcov := enforce.GoFileCoverageResult{
+	gcov := goFileCoverageResult{
 		EligibleGoFilesTotal:   0,
 		IndexedGoFilesTotal:    0,
 		CoveragePercentGoFiles: 0,
@@ -45,15 +43,15 @@ func TestCoverageReport_StatusMatrix(t *testing.T) {
 		name           string
 		graphAvailable bool
 		repoRoot       string
-		gcov           enforce.GoFileCoverageResult
+		gcov           goFileCoverageResult
 		want           string
 	}{
-		{"graph unavailable wins over everything else", false, "/repo", enforce.GoFileCoverageResult{ConfidenceImpact: "low", CoveragePercentGoFiles: 50}, "no_graph"},
-		{"empty repoRoot is unverified", true, "", enforce.GoFileCoverageResult{ConfidenceImpact: "unknown"}, "unverified"},
-		{"unknown confidence is unverified even with a repoRoot", true, "/repo", enforce.GoFileCoverageResult{ConfidenceImpact: "unknown"}, "unverified"},
-		{"real low coverage is critical", true, "/repo", enforce.GoFileCoverageResult{ConfidenceImpact: "high", CoveragePercentGoFiles: 40}, "critical"},
-		{"borderline is warn", true, "/repo", enforce.GoFileCoverageResult{ConfidenceImpact: "medium", CoveragePercentGoFiles: 80}, "warn"},
-		{"high coverage is ok", true, "/repo", enforce.GoFileCoverageResult{ConfidenceImpact: "low", CoveragePercentGoFiles: 95}, "ok"},
+		{"graph unavailable wins over everything else", false, "/repo", goFileCoverageResult{ConfidenceImpact: "low", CoveragePercentGoFiles: 50}, "no_graph"},
+		{"empty repoRoot is unverified", true, "", goFileCoverageResult{ConfidenceImpact: "unknown"}, "unverified"},
+		{"unknown confidence is unverified even with a repoRoot", true, "/repo", goFileCoverageResult{ConfidenceImpact: "unknown"}, "unverified"},
+		{"real low coverage is critical", true, "/repo", goFileCoverageResult{ConfidenceImpact: "high", CoveragePercentGoFiles: 40}, "critical"},
+		{"borderline is warn", true, "/repo", goFileCoverageResult{ConfidenceImpact: "medium", CoveragePercentGoFiles: 80}, "warn"},
+		{"high coverage is ok", true, "/repo", goFileCoverageResult{ConfidenceImpact: "low", CoveragePercentGoFiles: 95}, "ok"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

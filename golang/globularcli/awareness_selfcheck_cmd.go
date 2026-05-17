@@ -25,8 +25,8 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
-	"github.com/globulario/awareness/assurance"
-	"github.com/globulario/awareness/bundlesync"
+	"github.com/globulario/services/golang/awareness/assurance"
+	servicesbundlesync "github.com/globulario/services/golang/awareness/bundlesync"
 )
 
 var awarenessMetaCheckCfg = struct {
@@ -186,7 +186,7 @@ func printTrustEnvelope(env assurance.TrustEnvelope) {
 // loadBundleManifestForMetaCheck resolves the bundle manifest from the most
 // likely on-disk location. Returns nil when nothing is found — staleness still
 // reports a warn-level "bundle missing" alarm.
-func loadBundleManifestForMetaCheck(manifestPath, bundleRoot string) *bundlesync.Manifest {
+func loadBundleManifestForMetaCheck(manifestPath, bundleRoot string) *servicesbundlesync.Manifest {
 	candidates := make([]string, 0, 3)
 	if manifestPath != "" {
 		candidates = append(candidates, manifestPath)
@@ -200,7 +200,7 @@ func loadBundleManifestForMetaCheck(manifestPath, bundleRoot string) *bundlesync
 		if _, err := os.Stat(p); err != nil {
 			continue
 		}
-		m, err := bundlesync.LoadManifest(p)
+		m, err := servicesbundlesync.LoadManifest(p)
 		if err == nil {
 			return m
 		}

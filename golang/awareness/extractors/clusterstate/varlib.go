@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // VarLibDir is the default root for /var/lib/globular scanning.

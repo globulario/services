@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/awareness/selfcheck"
+	"github.com/globulario/services/golang/awareness/selfcheck"
 )
 
 var selfCheckCfg = struct {

@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 const (

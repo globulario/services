@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/globulario/awareness/assurance"
+	"github.com/globulario/services/golang/awareness/assurance"
 )
 
 func awarenessTrustMap(st *awarenessState, matchFound bool) map[string]interface{} {

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/globulario/services/golang/awareness/extractors/dns"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 func openGraph(t *testing.T) *graph.Graph {

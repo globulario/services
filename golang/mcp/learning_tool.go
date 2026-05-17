@@ -1,5 +1,11 @@
 package main
 
+// learning_tool.go — pending_proposals MCP tool.
+//
+// The broader learning/failurelearning API (LoadProposalFromFile, StatusApproved, etc.)
+// was removed from the standalone awareness module during Phase 3. Proposal-file loading
+// is inlined here using a minimal struct; the status constants are local copies.
+
 import (
 	"context"
 	"fmt"
@@ -8,8 +14,48 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/awareness/learning"
+	"gopkg.in/yaml.v3"
 )
+
+// ── Inline proposal types (formerly in awareness/learning/failurelearning) ───
+
+const (
+	learningStatusDraft       = "draft"
+	learningStatusValidated   = "validated"
+	learningStatusNeedsReview = "needs_review"
+	learningStatusApproved    = "approved"
+	learningStatusPromoted    = "promoted"
+	learningStatusRejected    = "rejected"
+	learningStatusSuperseded  = "superseded"
+)
+
+// minimalProposalFile is just enough to read proposal status, identity, and counts.
+type minimalProposalFile struct {
+	LearnSource string `yaml:"learn_source"`
+	Proposal    struct {
+		ID             string `yaml:"id"`
+		SourceIncident string `yaml:"source_incident"`
+		Status         string `yaml:"status"`
+		CreatedAt      string `yaml:"created_at"`
+	} `yaml:"proposal"`
+	FailureModes   []map[string]interface{} `yaml:"failure_modes"`
+	Invariants     []map[string]interface{} `yaml:"invariants"`
+	ForbiddenFixes []map[string]interface{} `yaml:"forbidden_fixes"`
+}
+
+func loadMinimalProposalFromFile(path string) (*minimalProposalFile, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read proposal: %w", err)
+	}
+	var p minimalProposalFile
+	if err := yaml.Unmarshal(data, &p); err != nil {
+		return nil, fmt.Errorf("parse proposal: %w", err)
+	}
+	return &p, nil
+}
+
+// ── Tool registration ─────────────────────────────────────────────────────────
 
 func registerPendingProposalsTool(s *server, st *awarenessState) {
 	s.register(toolDef{
@@ -52,12 +98,13 @@ func registerPendingProposalsTool(s *server, st *awarenessState) {
 				continue
 			}
 			path := filepath.Join(proposalsDir, e.Name())
-			p, err := learning.LoadProposalFromFile(path)
+			p, err := loadMinimalProposalFromFile(path)
 			if err != nil {
 				continue
 			}
 			status := p.Proposal.Status
-			if status == learning.StatusApproved || status == learning.StatusPromoted || status == learning.StatusRejected || status == learning.StatusSuperseded {
+			if status == learningStatusApproved || status == learningStatusPromoted ||
+				status == learningStatusRejected || status == learningStatusSuperseded {
 				continue
 			}
 			createdAt := now
@@ -97,9 +144,9 @@ func pendingProposalNextAction(status string, overdue bool) string {
 		return "ESCALATE_REVIEW: incident remains open until proposal is approved/promoted or rejected"
 	}
 	switch status {
-	case learning.StatusDraft:
+	case learningStatusDraft:
 		return "validate proposal"
-	case learning.StatusValidated, learning.StatusNeedsReview:
+	case learningStatusValidated, learningStatusNeedsReview:
 		return "review and approve or reject"
 	default:
 		return "inspect proposal status"

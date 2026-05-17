@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"github.com/globulario/awareness/failuregraph"
+	"github.com/globulario/services/golang/awareness/failuregraph"
 )
 
 // registerAwarenessFailureTools registers Failure Knowledge Graph MCP tools.

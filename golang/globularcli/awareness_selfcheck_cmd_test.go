@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/globulario/awareness/assurance"
+	"github.com/globulario/services/golang/awareness/assurance"
 )
 
 func TestCriticalOrphanCount(t *testing.T) {

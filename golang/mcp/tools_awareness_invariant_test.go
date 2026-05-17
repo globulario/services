@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 func buildInvariantTestGraph(t *testing.T) *graph.Graph {

@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 	workflowpb "github.com/globulario/services/golang/workflow/workflowpb"
 )
 

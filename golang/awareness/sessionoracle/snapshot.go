@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/awareness/contextfreshness"
 	"github.com/google/uuid"
 )
 
@@ -133,50 +132,55 @@ func (o *Oracle) latestStoredSnapshot(ctx context.Context, sessionID string) (*S
 	return &snap, nil
 }
 
-// refreshStaleWarnings checks whether files touched in the session have changed since
-// last read, injects stale-context warnings, and returns the merged warning list.
+// refreshStaleWarnings checks whether files touched during the session have changed
+// since they were read, and appends stale_context warnings for any that have.
+// The contextfreshness package was removed from the standalone module; stale detection
+// is implemented here inline using sha256 fingerprints stored in the file touch records.
 func (o *Oracle) refreshStaleWarnings(ctx context.Context, sessionID string, snap *SessionResumeSnapshot) []SessionWarning {
-	existing := make(map[string]bool)
+	// Keep only non-stale_context warnings from the stored snapshot (we recompute stale ones fresh).
+	var warnings []SessionWarning
 	for _, w := range snap.Warnings {
-		if w.WarningType == "stale_context" {
-			existing[w.RelatedFile] = true
+		if w.WarningType != "stale_context" {
+			warnings = append(warnings, w)
 		}
 	}
 
-	result := snap.Warnings
-	if o.g == nil {
-		return result
+	// Re-read the file touch records to get fingerprints.
+	touches, err := o.ListFileTouches(ctx, sessionID)
+	if err != nil || len(touches) == 0 {
+		return snap.Warnings // fallback: return unchanged
 	}
 
-	tracker := contextfreshness.New(o.g)
-	var paths []string
-	seen := map[string]bool{}
-	for _, ft := range snap.FilesTouched {
-		if !seen[ft.Path] {
-			seen[ft.Path] = true
-			paths = append(paths, ft.Path)
-		}
-	}
-	if len(paths) == 0 {
-		return result
-	}
-
-	staleWarnings, _ := tracker.CheckStaleContext(ctx, sessionID, paths, 0, contextfreshness.SeverityWarning)
-	for _, sw := range staleWarnings {
-		if existing[sw.Path] {
+	// Build a map: path → earliest recorded fingerprint (before the edit).
+	seen := make(map[string]string)
+	for _, t := range touches {
+		if t.Path == "" {
 			continue
 		}
-		result = append(result, SessionWarning{
-			ID:          "WARN-" + uuid.New().String()[:8],
+		if _, already := seen[t.Path]; !already && t.FingerprintBefore != "" {
+			seen[t.Path] = t.FingerprintBefore
+		}
+	}
+
+	// Check each touched file for staleness.
+	now := time.Now().Unix()
+	for path, fpBefore := range seen {
+		current := fingerprint(path)
+		if current == "" || current == fpBefore {
+			continue // unreadable or unchanged
+		}
+		warnings = append(warnings, SessionWarning{
+			ID:          uuid.New().String(),
 			SessionID:   sessionID,
 			WarningType: "stale_context",
-			Severity:    sw.Severity,
-			Message:     fmt.Sprintf("%s changed since last read (was %s, now %s)", sw.Path, sw.ReadFingerprint, sw.CurrentFingerprint),
-			RelatedFile: sw.Path,
-			CreatedAt:   time.Now().Unix(),
+			Severity:    "critical",
+			Message:     fmt.Sprintf("file changed since last read: %s", path),
+			RelatedFile: path,
+			CreatedAt:   now,
 		})
 	}
-	return result
+
+	return warnings
 }
 
 // buildSummary generates a human-readable summary of the session.

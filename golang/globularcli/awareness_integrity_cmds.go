@@ -13,12 +13,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/awareness/integrity"
+	"github.com/globulario/services/golang/awareness/integrity"
 )
 
 var integrityCfg = struct {
@@ -36,133 +34,10 @@ var integrityCfg = struct {
 
 var awarenessGraphIntegrityCheckCmd = &cobra.Command{
 	Use:   "graph-integrity-check",
-	Short: "Validate the awareness knowledge graph for stale references, shape violations, and contradictions",
-	Long: `Runs four categories of checks:
-
-  1. Shape validation — DONE fix cases with missing tests, invalid failure mode
-     references, missing safe_alternative on forbidden fixes, malformed causal rules
-  2. Contradiction detection — causal rules that recommend forbidden operations
-     (e.g. etcd alarm disarm before compact)
-  3. Test reference integrity — required tests that are missing from disk or failed in CI
-  4. Graph-dependent checks — stale edges, missing edge provenance, orphan nodes
-     (requires an indexed awareness graph)
-
-Exit codes: 0=healthy, 1=warning, 2=critical.
-Use --strict to treat warnings as critical.`,
+	Short: "Validate the awareness knowledge graph (not available — integrity.Check removed)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
-
-		repoRoot, err := resolveRepoRoot(awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-
-		docsDir := integrityCfg.docsDir
-		if docsDir == "" {
-			docsDir = filepath.Join(repoRoot, "docs", "awareness")
-		}
-
-		g, _ := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
-		if g != nil {
-			defer g.Close()
-		}
-
-		opts := integrity.Options{
-			DocsDir:         docsDir,
-			RepoRoot:        repoRoot,
-			Strict:          integrityCfg.strict,
-			TestResultsFile: integrityCfg.testResults,
-		}
-
-		result, err := integrity.Check(ctx, opts, g)
-		if err != nil {
-			return fmt.Errorf("integrity check: %w", err)
-		}
-
-		if integrityCfg.jsonOutput {
-			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
-			_ = enc.Encode(result)
-		} else {
-			printIntegrityResult(result)
-		}
-
-		os.Exit(result.ExitCode)
-		return nil
+		return fmt.Errorf("graph-integrity-check is not available: integrity.Check/Options/IntegrityResult were removed from standalone awareness module")
 	},
-}
-
-func printIntegrityResult(r *integrity.IntegrityResult) {
-	statusIcon := map[string]string{
-		"healthy":  "✓",
-		"warning":  "⚠",
-		"critical": "✗",
-	}[r.Status]
-	if statusIcon == "" {
-		statusIcon = "?"
-	}
-
-	fmt.Fprintf(os.Stdout, "\n## Awareness Graph Integrity — %s %s\n\n", statusIcon, strings.ToUpper(r.Status))
-	fmt.Fprintf(os.Stdout, "  nodes: %d  edges: %d\n", r.Summary.Nodes, r.Summary.Edges)
-	fmt.Fprintf(os.Stdout, "  shape violations: %d  missing tests: %d  contradictions: %d\n",
-		r.Summary.InvalidShapes, r.Summary.MissingTests, r.Summary.Contradictions)
-	if r.Summary.StaleEdges > 0 || r.Summary.OrphanNodes > 0 || r.Summary.EdgesWithoutProvenance > 0 {
-		fmt.Fprintf(os.Stdout, "  stale edges: %d  orphan nodes: %d  missing provenance: %d\n",
-			r.Summary.StaleEdges, r.Summary.OrphanNodes, r.Summary.EdgesWithoutProvenance)
-	}
-	fmt.Fprintln(os.Stdout)
-
-	if len(r.InvalidShapes) > 0 {
-		fmt.Fprintln(os.Stdout, "### Shape Violations")
-		for _, v := range r.InvalidShapes {
-			fmt.Fprintf(os.Stdout, "  [%s] %s.%s — %s\n", strings.ToUpper(v.Severity), v.NodeID, v.Field, v.Message)
-		}
-		fmt.Fprintln(os.Stdout)
-	}
-
-	if len(r.Contradictions) > 0 {
-		fmt.Fprintln(os.Stdout, "### Contradictions")
-		for _, c := range r.Contradictions {
-			fmt.Fprintf(os.Stdout, "  [CRITICAL] rule:%s step:%s — %s\n", c.CausalRuleID, c.Step, c.Reason)
-			if c.ForbiddenFixID != "" {
-				fmt.Fprintf(os.Stdout, "    forbidden fix: %s\n", c.ForbiddenFixID)
-			}
-		}
-		fmt.Fprintln(os.Stdout)
-	}
-
-	if len(r.MissingTests) > 0 {
-		fmt.Fprintln(os.Stdout, "### Missing Tests")
-		for _, ti := range r.MissingTests {
-			fmt.Fprintf(os.Stdout, "  [%s] %s — %s (%s)\n",
-				strings.ToUpper(ti.Severity), ti.FixCaseID, ti.TestName, ti.Issue)
-		}
-		fmt.Fprintln(os.Stdout)
-	}
-
-	if len(r.StaleEdges) > 0 {
-		fmt.Fprintln(os.Stdout, "### Stale Edges")
-		for _, e := range r.StaleEdges {
-			fmt.Fprintf(os.Stdout, "  %s -[%s]-> %s: %s\n", e.Src, e.Kind, e.Dst, e.Reason)
-		}
-		fmt.Fprintln(os.Stdout)
-	}
-
-	if len(r.OrphanNodes) > 0 {
-		fmt.Fprintln(os.Stdout, "### Orphan Nodes")
-		for _, id := range r.OrphanNodes {
-			fmt.Fprintf(os.Stdout, "  %s\n", id)
-		}
-		fmt.Fprintln(os.Stdout)
-	}
-
-	if len(r.RecommendedActions) > 0 {
-		fmt.Fprintln(os.Stdout, "### Recommended Actions")
-		for _, a := range r.RecommendedActions {
-			fmt.Fprintf(os.Stdout, "  • %s\n", a)
-		}
-		fmt.Fprintln(os.Stdout)
-	}
 }
 
 // ── impact-path ───────────────────────────────────────────────────────────────

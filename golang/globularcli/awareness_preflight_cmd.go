@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/awareness/preflight"
+	"github.com/globulario/services/golang/awareness/preflight"
 	"github.com/globulario/services/golang/awareness/runtime"
 )
 

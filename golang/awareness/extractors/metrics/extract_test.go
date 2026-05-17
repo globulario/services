@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/globulario/services/golang/awareness/extractors/metrics"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // openGraph opens a fresh in-memory awareness graph for testing.

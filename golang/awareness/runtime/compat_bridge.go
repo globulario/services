@@ -9,7 +9,7 @@ import (
 	"time"
 
 	standaloneRuntime "github.com/globulario/awareness/runtime"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // BridgeSnapshot implements standaloneRuntime.BridgeSnapshotter by calling

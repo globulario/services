@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/globulario/services/golang/awareness/extractors/packages"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 func openPkgGraph(t *testing.T) *graph.Graph {

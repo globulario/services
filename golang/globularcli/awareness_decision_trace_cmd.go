@@ -28,8 +28,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/awareness/analysis/contextnav"
-	"github.com/globulario/awareness/preflight"
+	"github.com/globulario/services/golang/awareness/preflight"
 )
 
 var decisionTraceCfg = struct {
@@ -93,52 +92,11 @@ Examples:
 var awarenessFindingContextCmd = &cobra.Command{
 	Use:   "finding-context",
 	Short: "Return the decision trace for a single explicit finding id",
-	Long: `finding-context returns the per-finding decision trace for an
-explicit prefixed id (failure_mode:X, invariant:Y, forbidden_fix:Z).
-Skips the full preflight pipeline — runs only the contextnav.Build path
-on the supplied finding plus the graph walk for owner inference and
-pivots.
-
-Examples:
-
-  globular awareness finding-context \
-    --finding failure_mode:workflow.resume_poisoning \
-    --format agent
-
-  globular awareness finding-context \
-    --finding invariant:service.restart_singleflight \
-    --include-runtime \
-    --format json`,
+	Long: `finding-context is not available in this build.
+The contextnav package has been moved to the MCP service layer.
+Use the 'awareness decision-trace' command or the MCP tool 'awareness_finding_context' instead.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if decisionTraceCfg.finding == "" {
-			return fmt.Errorf("--finding is required (form: failure_mode:X | invariant:Y | forbidden_fix:Z)")
-		}
-		ctx := context.Background()
-
-		kind, id, err := contextnav.ParseFindingID(decisionTraceCfg.finding)
-		if err != nil {
-			return err
-		}
-
-		// Graph is optional — finding-context still produces a useful trace
-		// (templated falsifiers + actions) without one.
-		g, _ := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
-		if g != nil {
-			defer g.Close()
-		}
-
-		tr, err := contextnav.BuildForFinding(ctx, contextnav.FindingContextOptions{
-			Kind:           kind,
-			ID:             id,
-			Graph:          g,
-			Task:           decisionTraceCfg.task,
-			Files:          decisionTraceCfg.files,
-			IncludeRuntime: decisionTraceCfg.includeRuntime,
-		})
-		if err != nil {
-			return err
-		}
-		return renderDecisionTraces([]preflight.DecisionTrace{tr}, decisionTraceCfg.format)
+		return fmt.Errorf("finding-context is not available: contextnav package moved to MCP service layer — use MCP tool awareness_finding_context or 'awareness decision-trace --task ...' instead")
 	},
 }
 

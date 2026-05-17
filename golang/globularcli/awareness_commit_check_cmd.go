@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/globulario/awareness/incidentpattern"
+	"github.com/globulario/services/golang/awareness/incidentpattern"
 	"github.com/globulario/awareness/scan"
 	"github.com/spf13/cobra"
 )

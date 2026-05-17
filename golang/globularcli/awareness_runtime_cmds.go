@@ -14,14 +14,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/awareness/analysis"
-	"github.com/globulario/awareness/learning"
+	"github.com/globulario/services/golang/awareness/analysis"
 	"github.com/globulario/services/golang/awareness/runtime"
 )
 
@@ -235,118 +233,9 @@ analysis for the service node.`,
 
 var awarenessIncidentFromRuntimeCmd = &cobra.Command{
 	Use:   "incident-from-runtime",
-	Short: "Create an incident bundle from a live runtime snapshot",
-	Long: `Runs a runtime snapshot (with noop sources in V1) and creates an
-incident bundle YAML from the evidence. The bundle is written to
-docs/awareness/incidents/<timestamp>_<task-slug>.yaml.
-
-With --propose: a draft proposal is also generated alongside the bundle.`,
+	Short: "Create an incident bundle from a live runtime snapshot (not available — learning.IncidentBundle removed from standalone module)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if runtimeCfg.task == "" {
-			return fmt.Errorf("--task is required")
-		}
-
-		ctx := context.Background()
-
-		repoRoot, err := resolveRepoRoot(awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-
-		dbPath := awareCfg.dbPath
-		if dbPath == "" {
-			dbPath = resolveAwarenessDBPath(repoRoot)
-		}
-
-		g, graphErr := openAwarenessGraph(dbPath, awareCfg.repoPath)
-		if graphErr != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not open awareness graph (%v)\n", graphErr)
-		} else {
-			defer g.Close()
-		}
-
-		bridge := runtime.NewBridge("", "")
-		window := runtimeCfg.window
-		if window <= 0 {
-			window = 15 * time.Minute
-		}
-
-		snap, err := bridge.Snapshot(ctx, window, g)
-		if err != nil {
-			return fmt.Errorf("runtime snapshot: %w", err)
-		}
-
-		// Build incident bundle from snapshot evidence.
-		now := time.Now().UTC()
-		incidentID := fmt.Sprintf("runtime.%d", now.Unix())
-		bundle := &learning.IncidentBundle{
-			IncidentID: incidentID,
-			Title:      runtimeCfg.task,
-			Status:     "OPEN",
-			Severity:   "medium",
-			TimeRange: learning.TimeRange{
-				From: snap.CapturedAt.Format(time.RFC3339),
-				To:   snap.CapturedAt.Format(time.RFC3339),
-			},
-		}
-
-		// Populate from snapshot evidence.
-		for _, f := range snap.DoctorFindings {
-			if !f.Suppressed {
-				bundle.DoctorFindings = append(bundle.DoctorFindings, f.Title)
-				if f.Severity == "critical" || f.Severity == "high" {
-					bundle.Severity = f.Severity
-				}
-			}
-		}
-		for _, d := range snap.StateDelta {
-			bundle.StateDeltas = append(bundle.StateDeltas,
-				fmt.Sprintf("%s: %s (desired=%s installed=%s)",
-					d.ServiceID, d.DeltaType, d.DesiredVersion, d.InstalledVersion))
-		}
-		for _, w := range snap.WorkflowReceipts {
-			if w.Status == "FAILED" || w.Status == "TIMED_OUT" {
-				bundle.WorkflowReceipts = append(bundle.WorkflowReceipts,
-					fmt.Sprintf("%s [%s]: %s", w.WorkflowType, w.Status, w.ErrorMsg))
-			}
-		}
-		for _, svc := range snap.RuntimeServices {
-			bundle.ObservedServices = append(bundle.ObservedServices, svc.ServiceID)
-		}
-		bundle.Symptoms = snap.Warnings
-		if len(snap.MatchedInvariants)+len(snap.MatchedFailureModes) > 0 {
-			bundle.SuspectedRootCause = fmt.Sprintf(
-				"matched invariants: %s; failure modes: %s",
-				strings.Join(snap.MatchedInvariants, ", "),
-				strings.Join(snap.MatchedFailureModes, ", "))
-		}
-
-		// Write bundle YAML.
-		incidentsDir := filepath.Join(repoRoot, "docs", "awareness", "incidents")
-		if err := os.MkdirAll(incidentsDir, 0o755); err != nil {
-			return fmt.Errorf("mkdir incidents: %w", err)
-		}
-
-		slug := slugify(runtimeCfg.task)
-		bundlePath := filepath.Join(incidentsDir,
-			fmt.Sprintf("%d_%s.yaml", now.Unix(), slug))
-
-		if err := learning.SaveIncidentBundle(bundlePath, bundle); err != nil {
-			return fmt.Errorf("save bundle: %w", err)
-		}
-		fmt.Fprintf(os.Stdout, "incident bundle written: %s\n", bundlePath)
-
-		if runtimeCfg.propose {
-			proposal := learning.GenerateProposalFromBundle(bundle)
-			proposalPath := filepath.Join(incidentsDir,
-				fmt.Sprintf("%d_%s_proposal.yaml", now.Unix(), slug))
-			if err := learning.SaveProposal(proposalPath, proposal); err != nil {
-				return fmt.Errorf("save proposal: %w", err)
-			}
-			fmt.Fprintf(os.Stdout, "proposal written: %s\n", proposalPath)
-		}
-
-		return nil
+		return fmt.Errorf("incident-from-runtime is not available: learning.IncidentBundle / SaveIncidentBundle / GenerateProposalFromBundle were removed from the standalone awareness module — use MCP tool awareness.propose_from_incident instead")
 	},
 }
 

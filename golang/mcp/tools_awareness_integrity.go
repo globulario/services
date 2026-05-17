@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/globulario/awareness/integrity"
+	"github.com/globulario/services/golang/awareness/integrity"
 )
 
 func registerAwarenessIntegrityTools(s *server, st *awarenessState) {
@@ -37,21 +37,12 @@ func registerMainGraphIntegrityCheckTool(s *server, st *awarenessState) {
 			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-		if st.docsDir == "" {
-			return nil, fmt.Errorf("graph_integrity_check: docs dir not configured — set awareness.docs_dir in MCP config")
-		}
-		strict, _ := args["strict"].(bool)
-		opts := integrity.Options{
-			DocsDir:         st.docsDir,
-			RepoRoot:        st.repoRoot,
-			Strict:          strict,
-			TestResultsFile: strArg(args, "test_results_file"),
-		}
-		result, err := integrity.Check(ctx, opts, st.g)
-		if err != nil {
-			return nil, fmt.Errorf("graph_integrity_check: %w", err)
-		}
-		return result, nil
+		// integrity.Options / integrity.Check were removed from the standalone
+		// awareness module. This tool is a stub.
+		return map[string]interface{}{
+			"status": "not_available",
+			"reason": "integrity.Check / Options / IntegrityResult were removed from standalone awareness module",
+		}, nil
 	})
 }
 

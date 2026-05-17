@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 func openAgentUsageGraph(t *testing.T) *graph.Graph {

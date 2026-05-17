@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/globulario/services/golang/awareness/extractors/clusterspec"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 func openTestGraph(t *testing.T) *graph.Graph {

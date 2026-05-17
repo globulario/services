@@ -1,13 +1,14 @@
 package main
 
+// awareness_node_context_cmds.go — stubs after the context package was removed from
+// standalone awareness module. The node-context, neighborhood, and explain-node commands
+// are not available in this build.
+// Use the MCP tools 'awareness_node_context', 'awareness_neighborhood', 'awareness_explain_node' instead.
+
 import (
-	"context"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
-
-	awarectx "github.com/globulario/awareness/context"
 )
 
 var nodeCtxCfg = struct {
@@ -24,131 +25,25 @@ var nodeCtxCfg = struct {
 
 var awarenessNodeContextCmd = &cobra.Command{
 	Use:   "node-context",
-	Short: "Show full architectural context for a graph node",
-	Long: `Resolves a node reference and prints its full context: invariants, failure modes,
-forbidden fixes, state reads/writes, required tests, edit warnings, and recommended searches.
-
-Node reference may be: node ID, service name, symbol name, file path, invariant ID, or failure mode ID.`,
+	Short: "Show full architectural context for a graph node (not available — use MCP tool awareness_node_context)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ref := resolveNodeRef()
-		if ref == "" {
-			return fmt.Errorf("one of --node, --symbol, --file, --invariant, --failure-mode is required")
-		}
-
-		ctx := context.Background()
-		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-		defer g.Close()
-
-		r, err := awarectx.ResolveNode(ctx, g, ref)
-		if err != nil {
-			return fmt.Errorf("resolve %q: %w", ref, err)
-		}
-		if r.Exact == nil {
-			if len(r.Candidates) > 0 {
-				fmt.Fprintf(os.Stdout, "Node %q not found exactly. Candidates:\n", ref)
-				for _, c := range r.Candidates {
-					fmt.Fprintf(os.Stdout, "  %s (%s) — %s\n", c.Name, c.Type, c.ID)
-				}
-			} else {
-				fmt.Fprintf(os.Stdout, "Node %q not found. Run 'globular awareness build' first.\n", ref)
-			}
-			return nil
-		}
-
-		zoom := awarectx.Zoom(nodeCtxCfg.zoom)
-		if zoom == "" {
-			zoom = awarectx.ZoomAll
-		}
-		opts := awarectx.Options{Zoom: zoom, MaxItems: nodeCtxCfg.maxItems, Depth: nodeCtxCfg.depth}
-		nc, err := awarectx.Build(ctx, g, r.Exact.ID, opts)
-		if err != nil {
-			return fmt.Errorf("build context: %w", err)
-		}
-
-		fmt.Fprint(os.Stdout, awarectx.FormatNodeContext(nc, nodeCtxCfg.format))
-		return nil
+		return fmt.Errorf("node-context is not available: context package removed — use MCP tool awareness_node_context instead")
 	},
 }
 
 var awarenessNeighborhoodCmd = &cobra.Command{
 	Use:   "neighborhood",
-	Short: "Show the BFS neighborhood of a graph node",
-	Long: `Performs BFS from a node up to a given depth and prints all reachable nodes
-partitioned by type (services, symbols, files, invariants, failure modes, tests).`,
+	Short: "Show the BFS neighborhood of a graph node (not available — use MCP tool awareness_neighborhood)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if nodeCtxCfg.node == "" {
-			return fmt.Errorf("--node is required")
-		}
-
-		ctx := context.Background()
-		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-		defer g.Close()
-
-		r, err := awarectx.ResolveNode(ctx, g, nodeCtxCfg.node)
-		if err != nil {
-			return fmt.Errorf("resolve %q: %w", nodeCtxCfg.node, err)
-		}
-		if r.Exact == nil {
-			fmt.Fprintf(os.Stdout, "Node %q not found.\n", nodeCtxCfg.node)
-			return nil
-		}
-
-		depth := nodeCtxCfg.depth
-		if depth <= 0 {
-			depth = 1
-		}
-		if depth > 4 {
-			depth = 4
-		}
-
-		nr, err := awarectx.Neighborhood(ctx, g, r.Exact.ID, depth)
-		if err != nil {
-			return fmt.Errorf("neighborhood: %w", err)
-		}
-
-		fmt.Fprint(os.Stdout, awarectx.FormatNeighborhood(nr, nodeCtxCfg.format))
-		return nil
+		return fmt.Errorf("neighborhood is not available: context package removed — use MCP tool awareness_neighborhood instead")
 	},
 }
 
 var awarenessExplainNodeCmd = &cobra.Command{
 	Use:   "explain-node",
-	Short: "Explain a graph node's role, risks, and edit warnings in natural language",
+	Short: "Explain a graph node's role (not available — use MCP tool awareness_explain_node)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if nodeCtxCfg.node == "" {
-			return fmt.Errorf("--node is required")
-		}
-
-		ctx := context.Background()
-		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-		defer g.Close()
-
-		r, err := awarectx.ResolveNode(ctx, g, nodeCtxCfg.node)
-		if err != nil {
-			return fmt.Errorf("resolve %q: %w", nodeCtxCfg.node, err)
-		}
-		if r.Exact == nil {
-			fmt.Fprintf(os.Stdout, "Node %q not found.\n", nodeCtxCfg.node)
-			return nil
-		}
-
-		opts := awarectx.Options{MaxItems: nodeCtxCfg.maxItems}
-		ex, err := awarectx.ExplainNode(ctx, g, r.Exact.ID, opts)
-		if err != nil {
-			return fmt.Errorf("explain: %w", err)
-		}
-
-		fmt.Fprint(os.Stdout, awarectx.FormatExplanation(ex, nodeCtxCfg.format))
-		return nil
+		return fmt.Errorf("explain-node is not available: context package removed — use MCP tool awareness_explain_node instead")
 	},
 }
 
@@ -169,32 +64,23 @@ func resolveNodeRef() string {
 }
 
 func init() {
-	// node-context flags.
 	awarenessNodeContextCmd.Flags().StringVar(&nodeCtxCfg.node, "node", "", "Node ID or name")
 	awarenessNodeContextCmd.Flags().StringVar(&nodeCtxCfg.symbol, "symbol", "", "Symbol name")
 	awarenessNodeContextCmd.Flags().StringVar(&nodeCtxCfg.file, "file", "", "File path")
 	awarenessNodeContextCmd.Flags().StringVar(&nodeCtxCfg.invariant, "invariant", "", "Invariant ID")
 	awarenessNodeContextCmd.Flags().StringVar(&nodeCtxCfg.failureMode, "failure-mode", "", "Failure mode ID")
-	awarenessNodeContextCmd.Flags().StringVar(&nodeCtxCfg.zoom, "zoom", "", "Semantic zoom: local, module, service, architecture, runtime, history, all")
+	awarenessNodeContextCmd.Flags().StringVar(&nodeCtxCfg.zoom, "zoom", "", "Semantic zoom level")
 	awarenessNodeContextCmd.Flags().StringVar(&nodeCtxCfg.format, "format", "markdown", "Output format: markdown, json, agent")
 	awarenessNodeContextCmd.Flags().IntVar(&nodeCtxCfg.maxItems, "max-items", 20, "Max items per list")
 	awarenessNodeContextCmd.Flags().IntVar(&nodeCtxCfg.depth, "depth", 2, "Traversal depth")
-	awarenessNodeContextCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
-	awarenessNodeContextCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
-	// neighborhood flags.
 	awarenessNeighborhoodCmd.Flags().StringVar(&nodeCtxCfg.node, "node", "", "Node ID or name (required)")
 	awarenessNeighborhoodCmd.Flags().IntVar(&nodeCtxCfg.depth, "depth", 1, "BFS depth (max 4)")
 	awarenessNeighborhoodCmd.Flags().StringVar(&nodeCtxCfg.format, "format", "markdown", "Output format: markdown, json, agent")
-	awarenessNeighborhoodCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
-	awarenessNeighborhoodCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
-	// explain-node flags.
 	awarenessExplainNodeCmd.Flags().StringVar(&nodeCtxCfg.node, "node", "", "Node ID or name (required)")
 	awarenessExplainNodeCmd.Flags().StringVar(&nodeCtxCfg.format, "format", "markdown", "Output format: markdown, json, agent")
 	awarenessExplainNodeCmd.Flags().IntVar(&nodeCtxCfg.maxItems, "max-items", 20, "Max items per list")
-	awarenessExplainNodeCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
-	awarenessExplainNodeCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	awarenessCmd.AddCommand(awarenessNodeContextCmd)
 	awarenessCmd.AddCommand(awarenessNeighborhoodCmd)

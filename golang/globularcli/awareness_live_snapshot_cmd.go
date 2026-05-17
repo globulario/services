@@ -30,7 +30,7 @@ import (
 	"github.com/globulario/services/golang/awareness/extractors/pki"
 	"github.com/globulario/services/golang/awareness/extractors/rbac"
 	"github.com/globulario/services/golang/awareness/extractors/workflowstate"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // liveSnapshotTTLSeconds is how long a live snapshot is considered fresh.

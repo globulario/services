@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/globulario/awareness/graph"
-	"github.com/globulario/awareness/integrity"
-	"github.com/globulario/awareness/semantic"
+	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/services/golang/awareness/integrity"
 )
 
 func registerAwarenessDecisionTools(s *server, st *awarenessState) {
@@ -119,7 +118,9 @@ func decisionContextNoGraph(goal string, files []string) map[string]interface{} 
 	}
 }
 
-// buildDecisionContext queries the graph and returns ranked decision paths.
+// buildDecisionContext queries the graph and returns decision context.
+// Semantic ranking (via the deleted semantic package) is not available — this
+// version uses integrity impact paths and the decision causal traversal only.
 func buildDecisionContext(
 	ctx context.Context,
 	st *awarenessState,
@@ -151,92 +152,42 @@ func buildDecisionContext(
 		allPaths = append(allPaths, symptomPaths...)
 	}
 
-	// 3. Build scoring context.
-	changedFileSet := make(map[string]bool)
-	for _, f := range changedFiles {
-		changedFileSet[f] = true
-	}
-	fresh := g.Freshness(ctx, st.docsDir)
-	scoringCtx := semantic.ScoringContext{
-		ChangedFilePaths: changedFileSet,
-		GraphIsStale:     fresh.Stale,
-		RuntimeIsNoop:    true, // runtime not collected in this tool
-	}
-
-	// 4. Score and rank.
-	scored := semantic.RankPaths(allPaths, scoringCtx)
-
-	// 5. Stratify by trust.
-	strata := semantic.StratifyByTrust(scored)
-
-	// 6. Filter and classify.
+	// 3. Build a simplified path list without semantic scoring (semantic package removed).
+	// Each path is represented as a list of node IDs.
 	var decisionPaths []interface{}
-	var infoPaths []interface{}
-	var allForbidden []string
-	var allRequiredTests []string
-	seenForbidden := map[string]bool{}
-	seenTests := map[string]bool{}
-
-	for _, sp := range scored {
-		if sp.Score.Total < minScore {
-			continue
-		}
-		if len(decisionPaths)+len(infoPaths) >= maxPaths {
+	for i, p := range allPaths {
+		if i >= maxPaths {
 			break
 		}
-
-		entry := buildPathEntry(sp)
-
-		// Collect forbidden actions and required tests.
-		for _, fa := range semantic.ForbiddenActionNames(sp.Steps) {
-			if !seenForbidden[fa] {
-				allForbidden = append(allForbidden, fa)
-				seenForbidden[fa] = true
-			}
+		stepIDs := make([]string, len(p.Steps))
+		for j, step := range p.Steps {
+			stepIDs[j] = step.NodeID
 		}
-		for _, test := range semantic.RequiredTestNames(sp.Steps) {
-			if !seenTests[test] {
-				allRequiredTests = append(allRequiredTests, test)
-				seenTests[test] = true
-			}
-		}
-
-		if sp.Score.DecisionRelevant || sp.Score.RiskRelevant {
-			decisionPaths = append(decisionPaths, entry)
-		} else if includeInfo {
-			infoPaths = append(infoPaths, entry)
-		}
+		decisionPaths = append(decisionPaths, map[string]interface{}{
+			"path":         stepIDs,
+			"changed_file": p.ChangedFile,
+		})
 	}
 
-	// 7. Coverage.
+	// 4. Coverage.
 	graphCoverage := "not_checked"
 	if len(allPaths) > 0 {
-		if len(decisionPaths) > 0 || len(infoPaths) > 0 {
-			graphCoverage = "checked_with_matches"
-		} else {
-			graphCoverage = "checked_clean"
-		}
+		graphCoverage = "checked_with_matches"
+	} else if len(changedFiles) > 0 || len(symptoms) > 0 || len(services) > 0 {
+		graphCoverage = "checked_clean"
 	}
 
-	// 8. Confidence.
-	confidence := deriveConfidence(scored, scoringCtx)
+	// 5. Blind spots.
+	blindSpots := buildDecisionBlindSpots(changedFiles, symptoms, services, len(allPaths))
 
-	// 9. Blind spots.
-	blindSpots := buildDecisionBlindSpots(changedFiles, symptoms, services, scoringCtx, len(allPaths))
-
-	// 10. Summary.
-	summary := buildDecisionSummary(goal, len(decisionPaths), len(allForbidden), confidence)
-
-	// 11. Trust breakdown for transparency.
-	trustBreakdown := map[string]int{}
-	for trust, bucket := range strata {
-		trustBreakdown[trust] = len(bucket)
+	// 6. Summary.
+	confidence := "partial" // semantic ranking not available
+	if len(allPaths) == 0 {
+		confidence = "unknown"
 	}
+	summary := buildDecisionSummary(goal, len(decisionPaths), 0, confidence)
 
-	// 12. Decision-only causal chain traversal.
-	// Traverse from the first matched file's graph node following only
-	// decision-class edges (blocks, requires, forbids, violates, enforces, etc.).
-	// This gives a tight causal chain independent of the scoring machinery above.
+	// 7. Decision-only causal chain traversal.
 	decisionTraversalNodes := buildDecisionTraversalNodes(ctx, g, changedFiles, symptoms, services, 4)
 
 	return map[string]interface{}{
@@ -251,14 +202,13 @@ func buildDecisionContext(
 			"class_filter": "decision",
 		},
 		"top_decision_paths":       decisionPaths,
-		"information_paths":        infoPaths,
-		"forbidden_actions":        allForbidden,
-		"required_tests":           allRequiredTests,
-		"trust_breakdown":          trustBreakdown,
+		"information_paths":        []interface{}{},
+		"forbidden_actions":        []string{},
+		"required_tests":           []string{},
 		"blind_spots":              blindSpots,
 		"decision_causal_chain":    decisionTraversalNodes,
-		"warning":                  "NO_MATCH does not mean safe — check coverage.graph and blind_spots",
-		"trust":                    trustFromConfidenceCoverage(st, confidence, graphCoverage, len(decisionPaths)+len(infoPaths) > 0, blindSpots),
+		"warning":                  "NO_MATCH does not mean safe — check coverage.graph and blind_spots. Note: semantic scoring not available (package removed)",
+		"trust":                    trustFromConfidenceCoverage(st, confidence, graphCoverage, len(decisionPaths) > 0, blindSpots),
 	}, nil
 }
 
@@ -321,32 +271,6 @@ func buildDecisionTraversalNodes(
 	return out
 }
 
-// buildPathEntry converts a ScoredPath into the canonical output schema.
-func buildPathEntry(sp semantic.ScoredPath) map[string]interface{} {
-	stepStrings := semantic.FormatPathSteps(sp.Steps)
-	required := semantic.RequiredBehavior(sp.Steps)
-	forbidden := semantic.ForbiddenActionNames(sp.Steps)
-	tests := semantic.RequiredTestNames(sp.Steps)
-
-	return map[string]interface{}{
-		"rank":               sp.Score.Rank,
-		"score":              sp.Score.Total,
-		"path_type":          sp.Score.PathType,
-		"trust_level":        sp.Score.TrustLevel,
-		"confidence":         semantic.BestTrustLabel(sp.Score.TrustLevel),
-		"domains":            sp.Score.Domains,
-		"decision_relevant":  sp.Score.DecisionRelevant,
-		"risk_relevant":      sp.Score.RiskRelevant,
-		"proof_available":    sp.Score.ProofAvailable,
-		"path":               stepStrings,
-		"required_behavior":  required,
-		"forbidden_actions":  forbidden,
-		"required_tests":     tests,
-		"score_explanation":  sp.Score.Explanation,
-		"changed_file":       sp.ChangedFile,
-		"trust_description":  semantic.DescribePathTrust(sp.Score.TrustLevel),
-	}
-}
 
 // traverseBySymptoms finds impact paths by matching symptoms against failure mode
 // symptoms in the graph and services against globular_service nodes.
@@ -388,27 +312,11 @@ func traverseBySymptoms(ctx context.Context, g *graph.Graph, symptoms []string, 
 	return result
 }
 
-// deriveConfidence returns a confidence string based on the best scored path.
-func deriveConfidence(scored []semantic.ScoredPath, ctx semantic.ScoringContext) string {
-	if len(scored) == 0 {
-		return "unknown"
-	}
-	if ctx.GraphIsStale {
-		return "low"
-	}
-	best := scored[0]
-	return semantic.BestTrustLabel(best.Score.TrustLevel)
-}
-
 // buildDecisionBlindSpots returns known blind spots given the query inputs.
-func buildDecisionBlindSpots(files, symptoms, services []string, ctx semantic.ScoringContext, matchCount int) []string {
+func buildDecisionBlindSpots(files, symptoms, services []string, matchCount int) []string {
 	var bs []string
-	if ctx.RuntimeIsNoop {
-		bs = append(bs, "runtime not collected — live cluster state not verified")
-	}
-	if ctx.GraphIsStale {
-		bs = append(bs, "graph is stale — rebuild before relying on this decision")
-	}
+	bs = append(bs, "runtime not collected — live cluster state not verified")
+	bs = append(bs, "semantic scoring not available — semantic package removed from standalone module")
 	if matchCount == 0 && len(files) > 0 {
 		bs = append(bs, fmt.Sprintf("no graph nodes found for %d file(s) — run 'globular awareness build' to index them", len(files)))
 	}
@@ -418,7 +326,7 @@ func buildDecisionBlindSpots(files, symptoms, services []string, ctx semantic.Sc
 	if len(services) > 0 && matchCount == 0 {
 		bs = append(bs, "services did not match any graph nodes — verify service names against the graph")
 	}
-	if len(bs) == 0 && matchCount == 0 {
+	if len(bs) == 2 && matchCount == 0 {
 		bs = append(bs, "no matches found — this may be a gap in the knowledge graph, not confirmation of safety")
 	}
 	return bs

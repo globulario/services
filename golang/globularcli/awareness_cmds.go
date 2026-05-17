@@ -26,23 +26,23 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 
-	"github.com/globulario/awareness/analysis"
+	"github.com/globulario/services/golang/awareness/analysis"
 	"github.com/globulario/services/golang/awareness/extractors/clusterspec"
 	"github.com/globulario/services/golang/awareness/extractors/clusterstate"
-	"github.com/globulario/awareness/extractors/docs"
+	"github.com/globulario/services/golang/awareness/extractors/docs"
 	"github.com/globulario/services/golang/awareness/extractors/doctor"
-	"github.com/globulario/awareness/extractors/goast"
-	"github.com/globulario/awareness/extractors/manual"
+	"github.com/globulario/services/golang/awareness/extractors/goast"
+	"github.com/globulario/services/golang/awareness/extractors/manual"
 	"github.com/globulario/services/golang/awareness/extractors/metrics"
-	"github.com/globulario/awareness/extractors/packages"
+	"github.com/globulario/services/golang/awareness/extractors/packages"
 	"github.com/globulario/services/golang/awareness/extractors/pki"
 	"github.com/globulario/services/golang/awareness/extractors/proto"
 	"github.com/globulario/services/golang/awareness/extractors/rbac"
 	"github.com/globulario/services/golang/awareness/extractors/scripts"
-	"github.com/globulario/awareness/extractors/tests"
+	"github.com/globulario/services/golang/awareness/extractors/tests"
 	"github.com/globulario/services/golang/awareness/extractors/workflows"
 	"github.com/globulario/services/golang/awareness/extractors/workflowstate"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 	"github.com/globulario/services/golang/config"
 )
 
@@ -577,45 +577,9 @@ var awarenessCyclesCmd = &cobra.Command{
 
 var awarenessValidatePackageCmd = &cobra.Command{
 	Use:   "validate-package",
-	Short: "Validate a package's awareness.yaml against admission rules",
-	Long: `Validates a package's awareness contract against the current awareness graph.
-Prints an ADMIT / WARN / BLOCK result with full rule-by-rule reasoning.
-
-This command is read-only — it never modifies the graph.
-Use 'admit-package --commit' to write the contract into the graph.`,
+	Short: "Validate a package's awareness.yaml against admission rules (not available — use MCP tool awareness_validate_package)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if awareCfg.packagePath == "" {
-			return fmt.Errorf("--path is required")
-		}
-		ctx := context.Background()
-
-		contract, err := packages.LoadAwarenessContract(awareCfg.packagePath)
-		if err != nil {
-			return fmt.Errorf("load awareness contract: %w", err)
-		}
-
-		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-		defer g.Close()
-
-		packageKind := ""
-		if contract != nil {
-			packageKind = contract.PackageKind
-		}
-
-		result, err := analysis.ValidatePackage(ctx, contract, packageKind, g)
-		if err != nil {
-			return fmt.Errorf("validate: %w", err)
-		}
-
-		fmt.Fprint(os.Stdout, analysis.RenderAdmissionMarkdown(contract, result))
-
-		if result.Status == analysis.AdmissionBlock {
-			os.Exit(1)
-		}
-		return nil
+		return fmt.Errorf("validate-package is not available: analysis.ValidatePackage was removed from standalone awareness module — use MCP tool awareness_validate_package instead")
 	},
 }
 
@@ -669,223 +633,25 @@ Output is Markdown suitable for pasting into an AI agent prompt.`,
 
 var awarenessAdmitPackageCmd = &cobra.Command{
 	Use:   "admit-package",
-	Short: "Validate and optionally commit a package's awareness contract to the graph",
-	Long: `Runs the full admission ruleset against a package's awareness.yaml.
-Prints an ADMIT / WARN / BLOCK result.
-
-With --commit: if the result is ADMIT or WARN, the contract's nodes and edges
-are written into the main awareness graph so they participate in future
-cycle detection, impact analysis, and agent context generation.
-
-BLOCK always exits with code 1. WARN exits with code 0 but prints warnings.`,
+	Short: "Validate and commit a package's awareness contract (not available — use MCP tool awareness_validate_package)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if awareCfg.packagePath == "" {
-			return fmt.Errorf("--path is required")
-		}
-		ctx := context.Background()
-
-		contract, err := packages.LoadAwarenessContract(awareCfg.packagePath)
-		if err != nil {
-			return fmt.Errorf("load awareness contract: %w", err)
-		}
-
-		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-		defer g.Close()
-
-		packageKind := ""
-		if contract != nil {
-			packageKind = contract.PackageKind
-		}
-
-		result, err := analysis.ValidatePackage(ctx, contract, packageKind, g)
-		if err != nil {
-			return fmt.Errorf("validate: %w", err)
-		}
-
-		fmt.Fprint(os.Stdout, analysis.RenderAdmissionMarkdown(contract, result))
-
-		if result.Status == analysis.AdmissionBlock {
-			fmt.Fprintf(os.Stderr, "\nBLOCKED — contract not committed.\n")
-			os.Exit(1)
-		}
-
-		if awareCfg.commit && contract != nil {
-			if err := packages.AddContractToGraph(ctx, g, contract); err != nil {
-				return fmt.Errorf("commit contract to graph: %w", err)
-			}
-			fmt.Fprintf(os.Stdout, "\nContract committed to graph (%d nodes, %d edges).\n",
-				len(result.GraphNodesAddedPreview), len(result.GraphEdgesAddedPreview))
-		} else if awareCfg.commit && contract == nil {
-			fmt.Fprintf(os.Stdout, "\nNo contract to commit (awareness.yaml not found).\n")
-		}
-
-		return nil
+		return fmt.Errorf("admit-package is not available: analysis.ValidatePackage was removed from standalone awareness module — use MCP tool awareness_validate_package instead")
 	},
 }
 
 var awarenessReviewServiceCmd = &cobra.Command{
 	Use:   "review-service <service-id>",
-	Short: "Design-level review of a service in the awareness graph",
-	Long: `Synthesises proto contract, RPC authz coverage, implementation links,
-invariant attachments, dependencies, and runtime identity into a structured
-design review for the named service.
-
-<service-id> can be the service ID (e.g. "file-service"), the proto service
-name (e.g. "file.FileService"), or the service display name.
-
-Examples:
-  globular awareness review-service file-service
-  globular awareness review-service file.FileService`,
-	Args: cobra.ExactArgs(1),
+	Short: "Design-level review of a service in the awareness graph (not available — use MCP tool awareness.review_service)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
-		serviceID := args[0]
-
-		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
-		if err != nil {
-			return err
-		}
-		defer g.Close()
-
-		review, err := analysis.ReviewService(ctx, g, serviceID)
-		if err != nil {
-			return fmt.Errorf("review-service: %w", err)
-		}
-
-		fmt.Fprint(os.Stdout, renderServiceReview(review))
-		return nil
+		return fmt.Errorf("review-service is not available: analysis.ReviewService was removed from standalone awareness module — use MCP tool awareness.review_service instead")
 	},
 }
 
-// renderServiceReview formats a ServiceDesignReview as human-readable text.
-func renderServiceReview(r *analysis.ServiceDesignReview) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "=== Service Design Review: %s ===\n\n", r.ServiceID)
-
-	// Identity
-	fmt.Fprintf(&b, "## Identity\n")
-	if r.ProtoService != "" {
-		fmt.Fprintf(&b, "  proto_service : %s\n", r.ProtoService)
-	}
-	if r.ProtoFile != "" {
-		fmt.Fprintf(&b, "  proto_file    : %s\n", r.ProtoFile)
-	}
-	if r.SystemdUnit != "" {
-		fmt.Fprintf(&b, "  systemd_unit  : %s\n", r.SystemdUnit)
-	}
-	fmt.Fprintln(&b)
-
-	// API contract
-	if len(r.APIContract.RPCs) > 0 {
-		fmt.Fprintf(&b, "## API Contract (%d RPCs)\n", len(r.APIContract.RPCs))
-		for _, rpc := range r.APIContract.RPCs {
-			mode := ""
-			if rpc.StreamingMode != "" {
-				mode = " [" + rpc.StreamingMode + "]"
-			}
-			authz := "NO AUTHZ"
-			if rpc.HasAuthz {
-				authz = fmt.Sprintf("authz: %s/%s", rpc.AuthzAction, rpc.AuthzResource)
-			}
-			fmt.Fprintf(&b, "  %-45s  %s%s\n", rpc.Name+mode, authz, gapsStr(rpc.Gaps))
-		}
-		fmt.Fprintln(&b)
-	}
-
-	// Dependencies
-	if len(r.Dependencies) > 0 {
-		fmt.Fprintf(&b, "## Dependencies (%d)\n", len(r.Dependencies))
-		for _, dep := range r.Dependencies {
-			req := "optional"
-			if dep.Required {
-				req = "required"
-			}
-			fmt.Fprintf(&b, "  %-35s  phase=%-20s  %s\n", dep.Service, dep.Phase, req)
-		}
-		fmt.Fprintln(&b)
-	}
-
-	// Invariants
-	totalInvariants := len(r.Invariants.Critical) + len(r.Invariants.High) +
-		len(r.Invariants.Medium) + len(r.Invariants.Low)
-	if totalInvariants > 0 {
-		fmt.Fprintf(&b, "## Invariants (%d)\n", totalInvariants)
-		for _, id := range r.Invariants.Critical {
-			fmt.Fprintf(&b, "  [CRITICAL] %s\n", id)
-		}
-		for _, id := range r.Invariants.High {
-			fmt.Fprintf(&b, "  [HIGH]     %s\n", id)
-		}
-		for _, id := range r.Invariants.Medium {
-			fmt.Fprintf(&b, "  [MEDIUM]   %s\n", id)
-		}
-		for _, id := range r.Invariants.Low {
-			fmt.Fprintf(&b, "  [LOW]      %s\n", id)
-		}
-		fmt.Fprintln(&b)
-	}
-
-	// Forbidden fixes
-	if len(r.ForbiddenFixes) > 0 {
-		fmt.Fprintf(&b, "## Forbidden Fixes (%d)\n", len(r.ForbiddenFixes))
-		for _, f := range r.ForbiddenFixes {
-			fmt.Fprintf(&b, "  [%s] %s  (%s)\n", f.Severity, f.NodeName, f.NodeType)
-			for _, p := range f.EdgePath {
-				fmt.Fprintf(&b, "    path: %s\n", p)
-			}
-		}
-		fmt.Fprintln(&b)
-	}
-
-	// Required tests
-	if len(r.RequiredTests) > 0 {
-		fmt.Fprintf(&b, "## Required Tests (%d)\n", len(r.RequiredTests))
-		for _, f := range r.RequiredTests {
-			fmt.Fprintf(&b, "  [%s] %s  (%s)\n", f.Severity, f.NodeName, f.NodeType)
-		}
-		fmt.Fprintln(&b)
-	}
-
-	// Missing links
-	if len(r.MissingLinks) > 0 {
-		fmt.Fprintf(&b, "## Missing Links\n")
-		for _, m := range r.MissingLinks {
-			fmt.Fprintf(&b, "  ! %s\n", m)
-		}
-		fmt.Fprintln(&b)
-	}
-
-	// Recommendations
-	if len(r.Recommendations) > 0 {
-		fmt.Fprintf(&b, "## Recommendations\n")
-		for _, rec := range r.Recommendations {
-			fmt.Fprintf(&b, "  [%s] %s\n", strings.ToUpper(rec.Priority), rec.Action)
-			if rec.Evidence != "" {
-				fmt.Fprintf(&b, "    evidence: %s\n", rec.Evidence)
-			}
-			if rec.GraphPath != "" {
-				fmt.Fprintf(&b, "    graph:    %s\n", rec.GraphPath)
-			}
-		}
-		fmt.Fprintln(&b)
-	}
-
-	if len(r.MissingLinks) == 0 && len(r.Recommendations) == 0 {
-		fmt.Fprintf(&b, "No gaps or recommendations found.\n")
-	}
-
-	return b.String()
-}
-
-// gapsStr formats RPC gaps as a short inline suffix.
-func gapsStr(gaps []string) string {
-	if len(gaps) == 0 {
-		return ""
-	}
-	return "  GAPS: [" + strings.Join(gaps, ", ") + "]"
+// renderServiceReview is a stub — analysis.ReviewService / ServiceDesignReview
+// were removed from the standalone awareness module. Use MCP tool
+// awareness.review_service instead.
+func renderServiceReview(_ interface{}) string {
+	return "review-service: not available (analysis.ServiceDesignReview removed from standalone module — use MCP tool awareness.review_service)\n"
 }
 
 func init() {

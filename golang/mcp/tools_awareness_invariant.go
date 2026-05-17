@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 func registerAwarenessInvariantTools(s *server, st *awarenessState) {

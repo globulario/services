@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/globulario/awareness/analysis"
-	"github.com/globulario/awareness/extractors/packages"
-	"github.com/globulario/awareness/graph"
-	"github.com/globulario/awareness/learning"
+	"github.com/globulario/services/golang/awareness/analysis"
+	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/services/golang/awareness/learning"
+	"github.com/globulario/services/golang/awareness/extractors/packages"
 )
 
 func registerAwarenessPackageTools(s *server, st *awarenessState) {
@@ -40,32 +40,11 @@ func registerAwarenessPackageTools(s *server, st *awarenessState) {
 			packageKind = contract.PackageKind
 		}
 
-		if st.g == nil {
-			return map[string]interface{}{
-				"status":  "SKIPPED",
-				"reasons": []string{"no graph DB — run 'globular awareness build' first"},
-			}, nil
-		}
-
-		result, err := analysis.ValidatePackage(ctx, contract, packageKind, st.g)
-		if err != nil {
-			return nil, fmt.Errorf("validate: %w", err)
-		}
-
-		reasons := make([]string, 0, len(result.Reasons))
-		for _, r := range result.Reasons {
-			reasons = append(reasons, r.Message)
-		}
-
+		// analysis.ValidatePackage was removed from the standalone awareness module.
+		_ = packageKind
 		return map[string]interface{}{
-			"status":               string(result.Status),
-			"reasons":              reasons,
-			"impacted_invariants":  result.ImpactedInvariants,
-			"forbidden_fixes":      result.ForbiddenFixesFound,
-			"required_tests":       result.RequiredTests,
-			"missing_tests":        result.MissingTests,
-			"required_workflows":   result.RequiredWorkflows,
-			"missing_workflows":    result.MissingWorkflows,
+			"status": "not_available",
+			"reason": "analysis.ValidatePackage was removed from standalone awareness module",
 		}, nil
 	})
 

@@ -32,7 +32,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // detectorMappingFile is the on-disk shape of detector_mapping.yaml.

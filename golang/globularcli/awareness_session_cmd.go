@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/globulario/awareness/preflight"
+	"github.com/globulario/services/golang/awareness/preflight"
 	"github.com/spf13/cobra"
 )
 

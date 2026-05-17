@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/awareness/extractors/pki"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // openTestGraph opens an in-memory awareness graph for testing.

@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	"github.com/globulario/awareness/assurance"
-	"github.com/globulario/awareness/preflight"
+	"github.com/globulario/services/golang/awareness/assurance"
+	"github.com/globulario/services/golang/awareness/preflight"
 )
 
 func TestPreflightNeedsSelfHeal_UnknownNotSafe(t *testing.T) {

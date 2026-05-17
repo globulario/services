@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/awareness/enforce"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,6 +19,25 @@ var defaultKnownComponents = []string{
 	"repository", "xds", "node_agent",
 }
 
+// goFileCoverageResult is a minimal local replacement for enforce.GoFileCoverageResult
+// after the enforce package was removed from standalone awareness module.
+type goFileCoverageResult struct {
+	EligibleGoFilesTotal        int
+	IndexedGoFilesTotal         int
+	CoveragePercentGoFiles      float64
+	EligibleNonTestGoFiles      int
+	IndexedNonTestGoFiles       int
+	CoveragePercentNonTestFiles float64
+	MissingFiles                []string
+	BlindSpots                  []string
+	ConfidenceImpact            string
+}
+
+// goFileCoverage returns a noop result — enforce.GoFileCoverage was removed.
+func goFileCoverage(_ context.Context, _ interface{}, _ string) goFileCoverageResult {
+	return goFileCoverageResult{ConfidenceImpact: "unknown"}
+}
+
 // classifyGraphCoverageStatus maps the inputs of the graph-coverage section
 // to its status string. Extracted so the classification rule — including
 // the critical distinction between "unverified" (no source to scan) and
@@ -27,7 +45,7 @@ var defaultKnownComponents = []string{
 // without spinning up the full coverage_report tool. See
 // awareness.source_scan_requires_verified_repo_root and the 2026-05-14
 // composed-path-failure entry.
-func classifyGraphCoverageStatus(graphAvailable bool, repoRoot string, gcov enforce.GoFileCoverageResult) string {
+func classifyGraphCoverageStatus(graphAvailable bool, repoRoot string, gcov goFileCoverageResult) string {
 	switch {
 	case !graphAvailable:
 		return "no_graph"
@@ -229,7 +247,7 @@ func registerCoverageReportTool(s *server, st *awarenessState) {
 		actions := buildCoverageActions(components, pendingProposals, staleHours)
 
 		// Graph Go-file coverage.
-		gcov := enforce.GoFileCoverage(ctx, st.g, repoRoot)
+		gcov := goFileCoverage(ctx, st.g, repoRoot)
 		graphCovSection := graphFileCoverageSection{
 			EligibleGoFilesTotal:        gcov.EligibleGoFilesTotal,
 			IndexedGoFilesTotal:         gcov.IndexedGoFilesTotal,

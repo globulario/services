@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 	"github.com/globulario/services/golang/awareness/sessionoracle"
 )
 

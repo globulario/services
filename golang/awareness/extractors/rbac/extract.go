@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // DefaultPolicyDir is the canonical Globular RBAC policy directory.

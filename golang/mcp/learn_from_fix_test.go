@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/globulario/awareness/learning"
 )
 
 // setupLearnFromFixServer builds a minimal server with a writable docs dir.
@@ -277,11 +275,11 @@ func TestLearnFromFix_ProposalIsLoadable(t *testing.T) {
 		t.Fatal("no proposal_path returned")
 	}
 
-	spec, err := learning.LoadProposalFromFile(proposalPath)
+	spec, err := loadMinimalProposalFromFile(proposalPath)
 	if err != nil {
-		t.Fatalf("LoadProposalFromFile(%q): %v", proposalPath, err)
+		t.Fatalf("loadMinimalProposalFromFile(%q): %v", proposalPath, err)
 	}
-	if spec.Proposal.Status != learning.StatusDraft {
+	if spec.Proposal.Status != proposalStatusDraft {
 		t.Errorf("expected DRAFT, got %q", spec.Proposal.Status)
 	}
 	if spec.LearnSource != "learn_from_fix" {

@@ -17,7 +17,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/globulario/awareness/incidentpattern"
+	"github.com/globulario/services/golang/awareness/incidentpattern"
 	"github.com/spf13/cobra"
 )
 

@@ -21,9 +21,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/globulario/awareness/analysis"
-	"github.com/globulario/awareness/assurance"
-	"github.com/globulario/awareness/graph"
+	"github.com/globulario/services/golang/awareness/analysis"
+	"github.com/globulario/services/golang/awareness/assurance"
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 var impactCICfg = struct {
