@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/globulario/awareness/bundlesync"
+	"github.com/globulario/services/golang/awareness/bundlesync"
 )
 
 // makeBundleArchive packs a single manifest.json (plus an optional graph.db

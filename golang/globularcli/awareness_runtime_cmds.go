@@ -22,7 +22,7 @@ import (
 
 	"github.com/globulario/awareness/analysis"
 	"github.com/globulario/awareness/learning"
-	"github.com/globulario/awareness/runtime"
+	"github.com/globulario/services/golang/awareness/runtime"
 )
 
 var runtimeCfg = struct {

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/globulario/awareness/bundlesync"
+	"github.com/globulario/services/golang/awareness/bundlesync"
 	"github.com/globulario/awareness/evidence"
 )
 

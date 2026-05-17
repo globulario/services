@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/globulario/awareness/bundlesync"
+	"github.com/globulario/services/golang/awareness/bundlesync"
 )
 
 // ── Phase C.5 CLI tests ───────────────────────────────────────────────────────

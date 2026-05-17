@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/globulario/awareness/graph"
-	"github.com/globulario/awareness/sessionoracle"
+	"github.com/globulario/services/golang/awareness/sessionoracle"
 	"github.com/spf13/cobra"
 )
 

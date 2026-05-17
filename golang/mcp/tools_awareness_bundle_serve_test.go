@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/globulario/awareness/bundlesync"
+	"github.com/globulario/services/golang/awareness/bundlesync"
 )
 
 // ── Phase B acceptance tests ──────────────────────────────────────────────────

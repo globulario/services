@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/globulario/awareness/runtime"
+	"github.com/globulario/services/golang/awareness/runtime"
 )
 
 // TestSuggestIncident_Registered verifies the tool is registered.

@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/globulario/awareness/bundlesync"
+	"github.com/globulario/services/golang/awareness/bundlesync"
 )
 
 // ── Phase B: serve the locally-installed awareness bundle to the cluster ─────

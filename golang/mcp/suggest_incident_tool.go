@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/awareness/runtime"
+	"github.com/globulario/services/golang/awareness/runtime"
 )
 
 func registerSuggestIncidentTool(s *server, st *awarenessState) {

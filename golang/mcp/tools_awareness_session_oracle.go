@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/globulario/awareness/sessionoracle"
+	"github.com/globulario/services/golang/awareness/sessionoracle"
 )
 
 func registerAwarenessSessionOracleTools(s *server, st *awarenessState) {

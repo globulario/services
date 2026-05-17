@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"github.com/globulario/awareness/bundlesync"
+	"github.com/globulario/services/golang/awareness/bundlesync"
 )
 
 // ── bundlesync.NodeRegistry adapter ──────────────────────────────────────────

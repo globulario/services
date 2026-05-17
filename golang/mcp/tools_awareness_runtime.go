@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/globulario/awareness/runtime"
+	"github.com/globulario/services/golang/awareness/runtime"
 )
 
 func registerAwarenessRuntimeTools(s *server, st *awarenessState) {
