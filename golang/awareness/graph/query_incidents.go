@@ -44,16 +44,6 @@ type ProposalRecord struct {
 	PromotedAt     int64  `json:"promoted_at,omitempty"`
 }
 
-// ContextAliasRecord maps to the context_aliases store.
-type ContextAliasRecord struct {
-	ID         string  `json:"id"`
-	TargetID   string  `json:"target_id"`
-	Alias      string  `json:"alias"`
-	Confidence float64 `json:"confidence,omitempty"`
-	Source     string  `json:"source,omitempty"`
-	CreatedAt  int64   `json:"created_at,omitempty"`
-}
-
 // UpsertIncident inserts or updates an incident record.
 func (g *Graph) UpsertIncident(ctx context.Context, inc IncidentRecord) error {
 	if g.readOnly {

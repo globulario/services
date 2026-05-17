@@ -33,8 +33,6 @@ type Graph struct {
 	invariants   map[string]*Invariant    // id → invariant
 	failureModes map[string]*FailureMode  // id → failure mode
 
-	// Context aliases
-	aliases map[string]*ContextAliasRecord // id → alias
 
 	// Build metadata
 	buildMu sync.RWMutex
@@ -106,7 +104,6 @@ type graphJSON struct {
 	Invariants    []*Invariant           `json:"invariants,omitempty"`
 	FailureModes  []*FailureMode         `json:"failure_modes,omitempty"`
 	Builds        []*BuildRecord         `json:"builds,omitempty"`
-	ContextAliases []*ContextAliasRecord `json:"context_aliases,omitempty"`
 }
 
 // edgeJSON is the serialisable form of an Edge.
@@ -137,7 +134,6 @@ func newGraph() *Graph {
 		byClass:     make(map[string][]*Edge),
 		invariants:  make(map[string]*Invariant),
 		failureModes: make(map[string]*FailureMode),
-		aliases:     make(map[string]*ContextAliasRecord),
 		incidents:   make(map[string]*IncidentRecord),
 		proposals:   make(map[string]*ProposalRecord),
 		usageEvents: make(map[string]*AgentUsageEvent),
@@ -360,10 +356,6 @@ func (g *Graph) loadFromJSON(data []byte) error {
 		b2 := *b
 		g.builds = append(g.builds, &b2)
 	}
-	for _, a := range gj.ContextAliases {
-		a2 := *a
-		g.aliases[a2.ID] = &a2
-	}
 	return nil
 }
 
@@ -565,20 +557,13 @@ func (g *Graph) saveGraphJSON() error {
 		fm2 := *fm
 		fms = append(fms, &fm2)
 	}
-	var als []*ContextAliasRecord
-	for _, a := range g.aliases {
-		a2 := *a
-		als = append(als, &a2)
-	}
-
 	gj := graphJSON{
-		Version:        1,
-		Nodes:          nodes,
-		Edges:          edges,
-		Invariants:     invs,
-		FailureModes:   fms,
-		Builds:         g.builds,
-		ContextAliases: als,
+		Version:      1,
+		Nodes:        nodes,
+		Edges:        edges,
+		Invariants:   invs,
+		FailureModes: fms,
+		Builds:       g.builds,
 	}
 
 	data, err := json.MarshalIndent(gj, "", "  ")
