@@ -103,16 +103,21 @@ var awarenessBuildCmd = &cobra.Command{
 		if awareCfg.cleanBuild {
 			p := dbPath
 			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-				return fmt.Errorf("clean graph: remove %s: %w", p, err)
+				if os.IsPermission(err) {
+					// Can't remove — build will overwrite on close. Log and continue.
+					fmt.Fprintf(os.Stderr, "warning: clean graph: %v (will overwrite)\n", err)
+				} else {
+					return fmt.Errorf("clean graph: remove %s: %w", p, err)
+				}
+			} else {
+				fmt.Fprintf(os.Stdout, "Cleaned previous graph.\n")
 			}
-			fmt.Fprintf(os.Stdout, "Cleaned previous graph.\n")
 		}
 
 		g, err := graph.Open(dbPath)
 		if err != nil {
 			return fmt.Errorf("open graph: %w", err)
 		}
-		defer g.Close()
 
 		docsDir := filepath.Join(repoRoot, "docs", "awareness")
 
@@ -376,6 +381,9 @@ var awarenessBuildCmd = &cobra.Command{
 			}
 		}
 
+		if err := g.Close(); err != nil {
+			return fmt.Errorf("save graph: %w", err)
+		}
 		fmt.Fprintf(os.Stdout, "\nBuild complete:\n")
 		fmt.Fprintf(os.Stdout, "  nodes:        %d\n", stats.Nodes)
 		fmt.Fprintf(os.Stdout, "  edges:        %d\n", stats.Edges)
