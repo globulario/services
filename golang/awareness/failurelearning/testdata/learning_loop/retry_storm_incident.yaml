@@ -1,0 +1,28 @@
+source_id: inc-2026-retry-storm-001
+source_type: incident
+created_by: test-harness
+
+raw_errors:
+  - "workflow package.install failed: context deadline exceeded after 3 retries"
+
+root_causes:
+  - Package install workflow enters retry loop due to missing runtime dependency
+
+resolutions:
+  - Identified missing systemd unit dependency
+  - Added ExecStartPre dependency check to package spec
+  - Restarted workflow service to clear stuck retry counter
+
+wrong_fixes:
+  - Restarting the node-agent without clearing the retry counter
+  - Increasing timeout without fixing the underlying dependency
+
+regression_tests:
+  - TestPackageInstallRetryStormDetected
+  - TestWorkflowRetryCounterClearedOnResolution
+
+related_invariants:
+  - reconcile.global_work_must_not_starve_completion
+  - workflow.convergence_blocked
+
+recurrence_raw_error: "workflow package.install failed: context deadline exceeded after 7 retries"

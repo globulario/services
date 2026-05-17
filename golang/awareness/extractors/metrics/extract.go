@@ -426,12 +426,12 @@ func createWarningRule(ctx context.Context, g *graph.Graph, m metricWarningMappi
 				"warn":           warn,
 				"critical":       critical,
 				"explanation":    m.Explanation,
-				"linked_fms":     linkedFMs,
-				"missing_fms":    missingFMs,
-				"linked_invs":    linkedInvs,
-				"missing_invs":   missingInvs,
-				"linked_drs":     linkedDRs,
-				"missing_drs":    missingDRs,
+				"linked_fms":     float64(linkedFMs),
+				"missing_fms":    float64(missingFMs),
+				"linked_invs":    float64(linkedInvs),
+				"missing_invs":   float64(missingInvs),
+				"linked_drs":     float64(linkedDRs),
+				"missing_drs":    float64(missingDRs),
 			},
 		}); err != nil {
 			return fmt.Errorf("update metric_warning_rule metadata: %w", err)

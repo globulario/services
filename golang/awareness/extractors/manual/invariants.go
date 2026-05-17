@@ -374,7 +374,12 @@ func loadInvariant(ctx context.Context, g *graph.Graph, inv yamlInvariant, path 
 			fns = []string{impl.Function}
 		}
 		if len(fns) > 0 {
-			implMeta["functions"] = fns
+			// Store as []any so JSON round-trip and in-memory retrieval are consistent.
+			fnsi := make([]any, len(fns))
+			for i, f := range fns {
+				fnsi[i] = f
+			}
+			implMeta["functions"] = fnsi
 		}
 		if err := g.AddEdge(ctx, graph.Edge{
 			Src:      fileID,
