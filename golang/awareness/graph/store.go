@@ -156,6 +156,10 @@ func Open(path string) (*Graph, error) {
 	if path == "" {
 		return nil, fmt.Errorf("awareness graph: path is empty")
 	}
+	// ":memory:" is the legacy SQLite in-memory sentinel — route to OpenMemory.
+	if path == ":memory:" {
+		return OpenMemory()
+	}
 	if strings.HasSuffix(path, ".db") {
 		// Treat as a directory named after the .db file prefix — for test compatibility.
 		// Many tests do filepath.Join(dir, "graph.db") expecting Open to work.

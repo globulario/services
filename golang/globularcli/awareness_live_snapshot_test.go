@@ -12,7 +12,7 @@ import (
 // newTestGraph opens a temporary in-memory graph for testing.
 func newLiveSnapshotTestGraph(t *testing.T) *graph.Graph {
 	t.Helper()
-	g, err := graph.Open(":memory:")
+	g, err := graph.OpenMemory()
 	if err != nil {
 		t.Fatalf("open test graph: %v", err)
 	}
