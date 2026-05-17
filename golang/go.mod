@@ -3,7 +3,6 @@ module github.com/globulario/services/golang
 go 1.24.5
 
 require (
-	github.com/globulario/awareness v0.0.0-20260516203244-41726ea47826
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.9.3
 	github.com/StalkR/httpcache v1.0.0
 	github.com/StalkR/imdb v1.0.15
@@ -20,6 +19,7 @@ require (
 	github.com/emersion/go-imap v1.2.1
 	github.com/emersion/go-message v0.18.1
 	github.com/emicklei/proto v1.13.2
+	github.com/globulario/awareness v0.1.1-0.20260517182016-ca75cedc96fd
 	github.com/globulario/globular-installer v0.0.0-20260509204407-fb4d24c77766
 	github.com/globulario/utility v0.1.9
 	github.com/go-ldap/ldap/v3 v3.4.8
