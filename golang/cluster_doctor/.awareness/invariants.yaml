@@ -1,0 +1,106 @@
+# cluster-doctor invariants
+#
+# First registration pass — 2026-05-17
+# Procedure: docs/project-registration.md
+#
+# Confidence key:
+#   very_high  — Globular production incident + regression tests
+#   high       — regression tests + maintainer intent confirmed in code
+#   medium     — inferred from code pattern, validated by tests, no known incident
+#   candidate  — inferred from code, not yet validated by incident or explicit doc
+
+invariants:
+
+  # ── objectstore: snapshot evidence model ─────────────────────────────────────
+
+  - id: objectstore.partial_snapshot_unknown_not_down
+    title: Missing inventory in a partial objectstore snapshot must be treated as unknown, not known-down
+    severity: critical
+    status: active
+    # origin: { type: globular_incident, confidence: very_high }
+    # code: objectstore_physical_overlap.go — objectstoreWriteQuorumLost.Evaluate
+    # test: objectstore_physical_overlap_test.go
+    summary: |
+      When the objectstore health snapshot is incomplete (DataIncomplete=true),
+      absent NodeRecord entries mean the collector could not reach the node —
+      not that MinIO is down on that node. Classifying absent records as
+      known-down produces false CRITICAL quorum-loss findings.
+      The correct classification for an absent NodeRecord is noInventory (UNKNOWN).
+    enforcement: |
+      objectstore.write_quorum_lost: absent pool IP → noInventory bucket.
+      absent inventory → noInventory bucket.
+      stale inventory (age > InventoryStalenessThreshold) → noInventory bucket.
+      DataIncomplete=true AND len(knownDownNodes)==0 → suppress CRITICAL entirely.
+      Only knownDownNodes (inventory present, unit not-active) count toward quorum loss.
+    forbidden_fixes:
+      - forbidden.partial_snapshot_false_quorum_loss
+    required_tests:
+      - TestWriteQuorumLost_PartialSnapshot_NoFalsePositive
+      - TestWriteQuorumLost_DataIncomplete_NoCritical
+      - TestFingerprintDivergence_DataIncomplete_SuppressesMissing
+      - TestObjectstoreQuorum_AbsentNodeIsUnknownNotDown
+
+  - id: objectstore.topology_requires_etcd_desired_state
+    title: MinIO topology must be read from etcd ObjectStoreDesiredState, not inferred from local disk or installed records
+    severity: critical
+    status: active
+    # origin: { type: principle, confidence: high }
+    # code: objectstore_contract.go, objectstore_admission.go
+    summary: |
+      The MinIO pool topology (pool IPs, drive count, EC parity) is authoritative in
+      /globular/objectstore/config. Local disk state (data directory, .minio.sys),
+      installed-state records, and past-run topology are not authoritative for topology decisions.
+    enforcement: |
+      objectstore_contract.go and objectstore_admission.go must read topology from etcd.
+      Never derive pool membership from disk presence.
+    required_tests:
+      - TestObjectstoreContract_ReadsFromEtcd_NotDisk
+      - TestObjectstoreAdmission_RejectsUnknownPoolMember
+
+  - id: objectstore.physical_path_uniqueness
+    title: Each MinIO pool drive must map to a unique physical storage path; no two pool nodes may share the same physical bytes
+    severity: critical
+    status: active
+    # origin: { type: principle, confidence: high }
+    # code: objectstore_physical_overlap.go — objectstoreDuplicatePhysicalPath.Evaluate
+    summary: |
+      Two MinIO pool nodes writing to the same physical path (e.g. one via NFS, one locally)
+      write format.json to the same bytes, causing silent corruption and a heal deadlock on
+      the next startup. The doctor must detect this before it causes data loss.
+    required_tests:
+      - TestDuplicatePhysicalPath_Critical
+      - TestNetworkMount_Warning
+
+  # ── rule evaluation: evidence quality ────────────────────────────────────────
+
+  - id: doctor.check_error_not_fail
+    title: CHECK_ERROR must never be reported to the operator as a FAIL finding
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high }
+    # code: invariant.go — InvariantStateCheckError
+    summary: |
+      When a rule cannot execute its underlying query (etcd unreachable, snapshot missing,
+      proto parse error), the result is CHECK_ERROR — indeterminate. This must never be
+      converted to a FAIL finding. An indeterminate result must be reported as "could not
+      check" or suppressed, not as evidence of failure.
+    enforcement: |
+      Rules returning InvariantStateCheckError must not produce a Finding with severity ERROR
+      or CRITICAL. The rule must return nil or a dedicated "check_error" finding at INFO severity.
+
+  # ── VIP / node identity ───────────────────────────────────────────────────────
+
+  - id: node.identity.vip_excluded_from_pool_membership
+    title: The cluster VIP must not appear as a pool member IP in objectstore, etcd, or ScyllaDB membership checks
+    severity: critical
+    status: active
+    # origin: { type: globular_incident, confidence: very_high }
+    # code: node_ip_matching.go, objectstore_physical_overlap.go
+    # related: docs/awareness/state_authority_invariants.yaml — identity.stable_node_identity_not_floating_vip
+    summary: |
+      PrimaryIP() returns the floating VIP when a node holds it. Using PrimaryIP() for pool
+      membership matching produces wrong answers when the VIP moves. Use StableIP(clusterVIP)
+      or the nodeAny<X> helpers that match against ALL node IPs with the VIP excluded.
+    required_tests:
+      - TestNodeIDByPoolIP_EmptyAdvertiseIpDoesNotPoison
+      - TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown

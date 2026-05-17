@@ -1,0 +1,25 @@
+name: cluster-doctor
+kind: service
+
+languages:
+  go: true
+  yaml: true
+
+source_roots:
+  - cluster_doctor_server
+  - cluster_doctor_client
+
+runtime:
+  enabled: false
+
+graph:
+  cache_dir: .awareness/cache
+
+awareness:
+  root: .awareness
+  invariants:
+    - .awareness/invariants.yaml
+  failure_modes:
+    - .awareness/failure_modes.yaml
+  forbidden_fixes:
+    - .awareness/forbidden_fixes.yaml

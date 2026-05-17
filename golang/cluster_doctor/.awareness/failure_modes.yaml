@@ -1,0 +1,94 @@
+# cluster-doctor failure modes
+#
+# First registration pass — 2026-05-17
+# Procedure: docs/project-registration.md
+
+failure_modes:
+
+  - id: fm.cluster_doctor.false_quorum_loss_from_partial_snapshot
+    title: Partial objectstore snapshot fires false CRITICAL quorum-loss finding
+    severity: critical
+    # origin: { type: globular_incident, confidence: very_high }
+    # generalization: fm.globular.objectstore_partial_snapshot (docs/awareness/failure_modes.yaml)
+    summary: |
+      When the snapshot collector cannot reach one or more pool nodes, their NodeRecord
+      entries are absent. Old code counted absent entries as known-down, so even a full
+      collector failure (all nodes absent) produced active_drives=0 < write_quorum=4 → CRITICAL.
+      The finding vanishes on next collection without any MinIO change.
+    symptoms:
+      - objectstore.write_quorum_lost fires CRITICAL right after a partial etcd read error
+      - Restarting the doctor clears the finding without any MinIO action
+      - data_incomplete=true visible in finding evidence
+      - all pool nodes appear in no_inventory_nodes evidence field
+    root_cause: |
+      DataIncomplete=true was not checked before evaluating quorum loss. Absent NodeRecord
+      was treated as known-down rather than noInventory (UNKNOWN).
+    architecture_fix: |
+      Three-bucket classification: knownDown / noInventory / active.
+      DataIncomplete=true AND knownDownNodes=0 → suppress CRITICAL.
+    known_bad_fixes:
+      - Treating absent NodeRecord as knownDown
+      - Ignoring DataIncomplete flag
+      - Firing CRITICAL on first collection without a retry
+    related_invariants:
+      - objectstore.partial_snapshot_unknown_not_down
+    required_tests:
+      - TestWriteQuorumLost_PartialSnapshot_NoFalsePositive
+      - TestWriteQuorumLost_DataIncomplete_NoCritical
+
+  - id: fm.cluster_doctor.apply_watcher_goroutine_dies
+    title: The objectstore apply-watcher goroutine silently dies on etcd compaction, leaving apply_request keys unprocessed for hours
+    severity: high
+    # origin: { type: globular_incident, confidence: high }
+    # code: cluster_controller — objectstore apply watcher
+    # status: candidate (open gap — no regression test yet)
+    summary: |
+      When etcd returns "required revision has been compacted" on the objectstore apply-watcher
+      channel, the goroutine calls `continue` and the channel is closed by etcd on the next
+      iteration. The goroutine exits. Nothing re-spawns it. Apply requests sit in etcd
+      indefinitely until a human notices and restarts the controller.
+    symptoms:
+      - globular cli reports objectstore topology change accepted but never applied
+      - apply_request keys visible in etcd with no corresponding action
+      - controller restart clears the backlog
+    root_cause: |
+      Compaction error treated as a continuable loop iteration rather than a watch failure
+      requiring re-establishment.
+    architecture_fix: |
+      On any watch error or channel-closed event, bounded-backoff sleep and re-establish
+      the Watch from the latest revision (WithRev(currentRev+1) after re-reading the key).
+    known_bad_fixes:
+      - Documenting "restart all controllers after every objectstore apply" as canonical ops
+      - Ignoring the compaction error and relying on the next controller restart
+    related_invariants:
+      - objectstore.topology_requires_etcd_desired_state
+    # proof_status: missing — no regression test
+    # needs_tests:
+    #   - TestApplyWatcher_RecoveryOnCompactionError
+    #   - TestApplyWatcher_ReEstablishesWatch_AfterChannelClose
+
+  - id: fm.cluster_doctor.vip_as_pool_member_causes_misclassification
+    title: Floating VIP appears as pool member IP in objectstore rule, causing the VIP-holder to be misclassified
+    severity: critical
+    # origin: { type: globular_incident, confidence: very_high }
+    # code: objectstore_physical_overlap.go, node_ip_matching.go
+    summary: |
+      PrimaryIP() returns the VIP when a node holds it. If pool membership is checked by
+      comparing PrimaryIP() against pool IPs, the VIP-holder matches the VIP entry (not its
+      own stable IP). When the VIP moves, the former holder's pool entry matches nothing →
+      false write_quorum_lost or fingerprint_divergence.
+    symptoms:
+      - objectstore.write_quorum_lost fires for the node that just lost the VIP
+      - VIP transition correlates with doctor CRITICAL on objectstore
+      - Stable MinIO nodes appear as unknown after VIP change
+    root_cause: |
+      PrimaryIP() used in pool IP comparison instead of StableIP(clusterVIP)
+      or nodeAny<X> helper.
+    known_bad_fixes:
+      - Normalizing all IPs to the currently reachable address (picks up VIP)
+      - Using AdvertiseIp-only without fallthrough to Ips list
+    related_invariants:
+      - node.identity.vip_excluded_from_pool_membership
+    required_tests:
+      - TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
+      - TestNodeIDByPoolIP_EmptyAdvertiseIpDoesNotPoison

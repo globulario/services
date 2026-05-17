@@ -1,0 +1,51 @@
+# cluster-doctor forbidden fixes
+#
+# First registration pass — 2026-05-17
+# Procedure: docs/project-registration.md
+
+forbidden_fixes:
+
+  - id: doctor.count_no_inventory_as_known_down
+    summary: |
+      Classify a pool node whose NodeRecord is absent from the snapshot as known-down,
+      counting it toward quorum loss even when DataIncomplete=true.
+    related_invariants:
+      - objectstore.partial_snapshot_unknown_not_down
+    related_failure_modes:
+      - fm.cluster_doctor.false_quorum_loss_from_partial_snapshot
+    safe_alternative: |
+      Absent NodeRecord → noInventory bucket. Only inventory-present + unit-not-active
+      → knownDown. Suppress CRITICAL when DataIncomplete=true and knownDown is empty.
+
+  - id: doctor.fire_critical_on_check_error
+    summary: |
+      Return a CRITICAL or ERROR finding when a rule hits InvariantStateCheckError
+      (query failed, proto parse error, etcd unreachable). CHECK_ERROR is indeterminate —
+      it is not evidence of failure.
+    related_invariants:
+      - doctor.check_error_not_fail
+    safe_alternative: |
+      Return nil or an INFO-severity "could not evaluate" finding. Do not escalate
+      indeterminate results to operator-visible CRITICAL.
+
+  - id: doctor.use_primary_ip_for_pool_membership
+    summary: |
+      Use PrimaryIP() or Ips[0] directly when matching a node against pool member IPs,
+      without excluding the cluster VIP. Returns wrong results when the node holds the VIP.
+    related_invariants:
+      - node.identity.vip_excluded_from_pool_membership
+    related_failure_modes:
+      - fm.cluster_doctor.vip_as_pool_member_causes_misclassification
+    safe_alternative: |
+      Use StableIP(clusterVIP) for single-IP comparisons or nodeAny<X> helpers
+      (nodeAnyInPool, nodeAnyMatchesIP) that match against ALL node IPs with the VIP excluded.
+
+  - id: doctor.restart_controller_to_drain_apply_queue
+    summary: |
+      Document "restart all controllers in sequence after every objectstore apply" as the
+      canonical procedure, instead of fixing the apply-watcher goroutine recovery.
+    related_failure_modes:
+      - fm.cluster_doctor.apply_watcher_goroutine_dies
+    safe_alternative: |
+      Fix the watcher in code: on compaction error or channel close, bounded-backoff sleep
+      and re-establish the Watch. Operator restart is a transitional aid, not a design contract.
