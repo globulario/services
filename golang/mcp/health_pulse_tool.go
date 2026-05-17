@@ -77,15 +77,6 @@ type healthPulseUnindexedSection struct {
 	Status         string                      `json:"status"` // ok | warn
 }
 
-type healthPulseAgentUsageSection struct {
-	WindowDays           int     `json:"window_days"`
-	SessionsTotal        int     `json:"sessions_total"`
-	PreflightCalls       int     `json:"preflight_calls"`
-	PreflightSkipRatePct float64 `json:"preflight_skip_rate_pct"`
-	Status               string  `json:"status"` // ok | warning | no_data
-	RecommendedAction    string  `json:"recommended_action,omitempty"`
-}
-
 type healthPulseWorkflowSection struct {
 	Coverage    string `json:"coverage"`     // not_checked | disabled | checked_clean | checked_with_matches | failed | stale
 	Freshness   string `json:"freshness"`    // fresh | stale | unknown
@@ -97,14 +88,13 @@ type healthPulseWorkflowSection struct {
 }
 
 type healthPulseSections struct {
-	Coverage         healthPulseCoverageSection   `json:"coverage"`
-	RuntimeSources   healthPulseRuntimeSection    `json:"runtime_sources"`
-	ProposalQueue    healthPulseQueueSection      `json:"proposal_queue"`
-	GraphFreshness   healthPulseGraphSection      `json:"graph_freshness"`
-	SelfReview       healthPulseSelfReviewSection `json:"self_review_verification"`
-	UnindexedYAML    healthPulseUnindexedSection  `json:"unindexed_yaml"`
-	AgentUsage       healthPulseAgentUsageSection `json:"agent_usage"`
-	WorkflowRuntime  healthPulseWorkflowSection   `json:"workflow_runtime"`
+	Coverage        healthPulseCoverageSection   `json:"coverage"`
+	RuntimeSources  healthPulseRuntimeSection    `json:"runtime_sources"`
+	ProposalQueue   healthPulseQueueSection      `json:"proposal_queue"`
+	GraphFreshness  healthPulseGraphSection      `json:"graph_freshness"`
+	SelfReview      healthPulseSelfReviewSection `json:"self_review_verification"`
+	UnindexedYAML   healthPulseUnindexedSection  `json:"unindexed_yaml"`
+	WorkflowRuntime healthPulseWorkflowSection   `json:"workflow_runtime"`
 }
 
 type healthPulseResult struct {
@@ -172,9 +162,6 @@ func registerHealthPulseTool(s *server, st *awarenessState) {
 		unindexedSection, unindexedAlerts := buildUnindexedYAMLSection(docsDir)
 		alerts = append(alerts, unindexedAlerts...)
 
-		agentUsageSection, agentUsageAlerts := buildAgentUsageSection(ctx, st)
-		alerts = append(alerts, agentUsageAlerts...)
-
 		wfSection, wfAlerts := buildWorkflowRuntimePulseSection(ctx, st)
 		alerts = append(alerts, wfAlerts...)
 
@@ -197,7 +184,6 @@ func registerHealthPulseTool(s *server, st *awarenessState) {
 				GraphFreshness:  graphSection,
 				SelfReview:      srSection,
 				UnindexedYAML:   unindexedSection,
-				AgentUsage:      agentUsageSection,
 				WorkflowRuntime: wfSection,
 			},
 			Alerts:   alerts,
@@ -732,30 +718,3 @@ func buildWorkflowRuntimePulseSection(ctx context.Context, st *awarenessState) (
 	return sec, alerts
 }
 
-func buildAgentUsageSection(ctx context.Context, st *awarenessState) (healthPulseAgentUsageSection, []healthPulseAlert) {
-	if st.g == nil {
-		return healthPulseAgentUsageSection{Status: "no_data"}, nil
-	}
-	summary, err := st.g.QueryAgentUsageSummary(ctx, 7)
-	if err != nil {
-		return healthPulseAgentUsageSection{Status: "no_data"}, nil
-	}
-	sec := healthPulseAgentUsageSection{
-		WindowDays:           summary.WindowDays,
-		SessionsTotal:        summary.SessionsTotal,
-		PreflightCalls:       summary.PreflightCalls,
-		PreflightSkipRatePct: summary.PreflightSkipRatePct,
-		Status:               summary.Status,
-		RecommendedAction:    summary.RecommendedAction,
-	}
-	var alerts []healthPulseAlert
-	if summary.Status == "warning" {
-		alerts = append(alerts, healthPulseAlert{
-			Severity:          "warning",
-			ID:                "agent_usage.high_skip_rate",
-			Message:           fmt.Sprintf("preflight skip rate %.0f%% over last %d days — agents may be bypassing awareness", summary.PreflightSkipRatePct, summary.WindowDays),
-			RecommendedAction: summary.RecommendedAction,
-		})
-	}
-	return sec, alerts
-}

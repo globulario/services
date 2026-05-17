@@ -25,20 +25,7 @@ func registerAwarenessSessionTools(s *server, st *awarenessState) {
 			Properties: map[string]propSchema{},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-		result := buildSessionStart(ctx, st)
-		// Record the session-start usage event so skip-rate tracking is accurate.
-		if st.g != nil {
-			sessionID := strArg(args, "session_id")
-			_ = st.g.RecordAgentUsage(ctx, graph.AgentUsageEvent{
-				ID:            fmt.Sprintf("session_start_%d", time.Now().UnixNano()),
-				Agent:         "claude",
-				SessionIDHash: sessionID,
-				Tool:          "awareness.session_start",
-				Operation:     "called",
-				TaskType:      "session_start",
-			})
-		}
-		return result, nil
+		return buildSessionStart(ctx, st), nil
 	})
 }
 

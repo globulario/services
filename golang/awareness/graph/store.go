@@ -45,10 +45,6 @@ type Graph struct {
 	proposalMu sync.RWMutex
 	proposals  map[string]*ProposalRecord
 
-	// Agent usage events
-	usageMu sync.RWMutex
-	usageEvents map[string]*AgentUsageEvent
-
 	// Preflight audits
 	preflightMu sync.RWMutex
 	preflights  []*PreflightAuditRecord
@@ -136,7 +132,6 @@ func newGraph() *Graph {
 		failureModes: make(map[string]*FailureMode),
 		incidents:   make(map[string]*IncidentRecord),
 		proposals:   make(map[string]*ProposalRecord),
-		usageEvents: make(map[string]*AgentUsageEvent),
 		experiences: make(map[string]*ExperienceEntry),
 		expAttempts: make(map[string][]*ExperienceAttempt),
 		expObs:      make(map[string][]*ExperienceObservation),
@@ -473,25 +468,6 @@ func (g *Graph) loadRuntimeState() {
 			if json.Unmarshal(data, &rec) == nil {
 				r2 := rec
 				g.proposals[rec.ID] = &r2
-			}
-		}
-	}
-
-	// Load agent usage events
-	usageDir := filepath.Join(g.dataDir, "agent_usage")
-	if entries, err := os.ReadDir(usageDir); err == nil {
-		for _, e := range entries {
-			if !strings.HasSuffix(e.Name(), ".json") {
-				continue
-			}
-			data, err := os.ReadFile(filepath.Join(usageDir, e.Name()))
-			if err != nil {
-				continue
-			}
-			var rec AgentUsageEvent
-			if json.Unmarshal(data, &rec) == nil {
-				r2 := rec
-				g.usageEvents[rec.ID] = &r2
 			}
 		}
 	}

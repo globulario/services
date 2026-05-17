@@ -326,61 +326,6 @@ func TestQueryPreflightAuditsBySHA(t *testing.T) {
 	}
 }
 
-func TestAgentUsage_RecordPreflightCall(t *testing.T) {
-	g := openTestGraph(t)
-	ctx := context.Background()
-
-	e := graph.AgentUsageEvent{
-		ID:            "evt-001",
-		Agent:         "claude",
-		SessionIDHash: "abc123",
-		Repo:          "services",
-		Tool:          "awareness.preflight",
-		Operation:     "called",
-		ResultStatus:  "ok",
-		Confidence:    "high",
-		TaskType:      "edit",
-	}
-	if err := g.RecordAgentUsage(ctx, e); err != nil {
-		t.Fatalf("RecordAgentUsage: %v", err)
-	}
-
-	// Idempotent — second insert with same ID should be silently ignored.
-	if err := g.RecordAgentUsage(ctx, e); err != nil {
-		t.Fatalf("second RecordAgentUsage: %v", err)
-	}
-}
-
-func TestAgentUsage_ComputesSkipRate(t *testing.T) {
-	g := openTestGraph(t)
-	ctx := context.Background()
-
-	// Record 2 sessions, only 1 has a preflight call.
-	events := []graph.AgentUsageEvent{
-		{ID: "s1-preflight", Agent: "claude", SessionIDHash: "sess-1", Tool: "awareness.preflight", Operation: "called"},
-		{ID: "s2-no-preflight", Agent: "claude", SessionIDHash: "sess-2", Tool: "awareness.agent_context", Operation: "called"},
-	}
-	for _, e := range events {
-		if err := g.RecordAgentUsage(ctx, e); err != nil {
-			t.Fatalf("RecordAgentUsage: %v", err)
-		}
-	}
-
-	summary, err := g.QueryAgentUsageSummary(ctx, 30)
-	if err != nil {
-		t.Fatalf("QueryAgentUsageSummary: %v", err)
-	}
-	if summary.SessionsTotal != 2 {
-		t.Errorf("expected 2 sessions, got %d", summary.SessionsTotal)
-	}
-	if summary.PreflightCalls != 1 {
-		t.Errorf("expected 1 preflight call, got %d", summary.PreflightCalls)
-	}
-	if summary.PreflightSkipRatePct < 0 || summary.PreflightSkipRatePct > 100 {
-		t.Errorf("skip rate out of range: %.1f", summary.PreflightSkipRatePct)
-	}
-}
-
 func TestGraphBuildMetadata_RecordsDurationAndCounts(t *testing.T) {
 	g := openTestGraph(t)
 	ctx := context.Background()
@@ -416,37 +361,3 @@ func TestGraphBuildMetadata_RecordsDurationAndCounts(t *testing.T) {
 	}
 }
 
-func TestHealthPulse_AgentSkipRateWarning(t *testing.T) {
-	g := openTestGraph(t)
-	ctx := context.Background()
-
-	// Record 4 sessions, only 1 has a preflight call → skip rate = 75%.
-	for i := 0; i < 4; i++ {
-		sessHash := os.Getenv("TEST_SESS_" + string(rune('0'+i)))
-		if sessHash == "" {
-			sessHash = "sess-" + string(rune('a'+i))
-		}
-		_ = g.RecordAgentUsage(ctx, graph.AgentUsageEvent{
-			ID:            "evt-skip-" + string(rune('a'+i)),
-			SessionIDHash: sessHash,
-			Tool:          "awareness.agent_context",
-			Operation:     "called",
-		})
-	}
-	// One session with a preflight call.
-	_ = g.RecordAgentUsage(ctx, graph.AgentUsageEvent{
-		ID:            "evt-preflight",
-		SessionIDHash: "sess-a",
-		Tool:          "awareness.preflight",
-		Operation:     "called",
-	})
-
-	summary, err := g.QueryAgentUsageSummary(ctx, 30)
-	if err != nil {
-		t.Fatalf("QueryAgentUsageSummary: %v", err)
-	}
-	// With 4 sessions and 1 preflight call, skip rate should be flagged.
-	if summary.Status == "ok" && summary.PreflightSkipRatePct > 50 {
-		t.Errorf("expected warning status when skip rate=%.1f%%, got %q", summary.PreflightSkipRatePct, summary.Status)
-	}
-}
