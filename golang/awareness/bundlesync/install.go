@@ -38,7 +38,7 @@ const installedBundleFilename = "bundle.tar.gz"
 //       <version>/
 //         <build_id>/                    immutable, content-addressed
 //           manifest.json
-//           graph.db
+//           graph.json
 //           ...
 //     staging/
 //       <random>/                        temp extraction; renamed-or-removed
@@ -195,8 +195,8 @@ func InstallBundle(opts InstallOptions) (*InstallResult, error) {
 		}
 
 		// (5) Validate extracted contents. At minimum the bundle must contain
-		// graph.db (the awareness graph itself); without it the bundle is
-		// useless even if the tar verified.
+		// graph.json or legacy graph.db (the awareness graph itself); without it
+		// the bundle is useless even if the tar verified.
 		if err := validateExtracted(stagingPath); err != nil {
 			res.State = StateAwarenessBundleIncomplete
 			res.Reason = err.Error()
@@ -274,15 +274,22 @@ func makeStagingDir(bundleRoot string) (string, error) {
 }
 
 // validateExtracted enforces the minimum contents an installed bundle must
-// carry. Phase C.1 only requires graph.db; richer validation (signed manifest
-// inside, contracts/, invariants/, etc.) belongs in a later phase.
+// carry. New bundles ship graph.json; legacy bundles shipped graph.db — we
+// accept either so that old bundles can still be installed. Richer validation
+// (signed manifest inside, contracts/, invariants/, etc.) belongs in a later
+// phase.
 func validateExtracted(dir string) error {
-	required := []string{"graph.db"}
-	for _, r := range required {
-		p := filepath.Join(dir, r)
-		if _, err := os.Stat(p); err != nil {
-			return fmt.Errorf("required file missing in bundle: %s", r)
+	// Accept graph.json (new) OR graph.db (legacy bundles).
+	graphCandidates := []string{"graph.json", "graph.db"}
+	hasGraph := false
+	for _, name := range graphCandidates {
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			hasGraph = true
+			break
 		}
+	}
+	if !hasGraph {
+		return fmt.Errorf("required file missing in bundle: graph.json (or legacy graph.db)")
 	}
 	return nil
 }

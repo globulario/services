@@ -272,6 +272,6 @@ func init() {
 	awarenessLiveSnapshotCmd.Flags().BoolVar(&liveSnapshotCfg.collectRBAC, "collect-rbac", true, "Extract RBAC roles and permissions")
 	awarenessLiveSnapshotCmd.Flags().BoolVar(&liveSnapshotCfg.collectWorkflow, "collect-workflow", false, "Collect live workflow execution state (requires --workflow-addr)")
 	awarenessLiveSnapshotCmd.Flags().StringVar(&liveSnapshotCfg.workflowAddr, "workflow-addr", "", "Workflow service gRPC address")
-	awarenessLiveSnapshotCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessLiveSnapshotCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessLiveSnapshotCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 }

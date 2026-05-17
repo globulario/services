@@ -132,7 +132,7 @@ func printImpactPaths(paths []integrity.ImpactPath) {
 
 func init() {
 	// graph-integrity-check
-	awarenessGraphIntegrityCheckCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessGraphIntegrityCheckCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessGraphIntegrityCheckCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 	awarenessGraphIntegrityCheckCmd.Flags().StringVar(&integrityCfg.docsDir, "docs", "", "Path to docs/awareness (default: <repo>/docs/awareness)")
 	awarenessGraphIntegrityCheckCmd.Flags().StringVar(&integrityCfg.testResults, "test-results", "", "Path to CI test results JSON file")
@@ -141,7 +141,7 @@ func init() {
 
 	// impact-path
 	awarenessImpactPathCmd.Flags().StringSliceVar(&integrityCfg.files, "files", nil, "Comma-separated list of changed files (repo-relative)")
-	awarenessImpactPathCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessImpactPathCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessImpactPathCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 	awarenessImpactPathCmd.Flags().IntVar(&integrityCfg.maxDepth, "max-depth", 6, "Maximum edge hops to traverse")
 	awarenessImpactPathCmd.Flags().BoolVar(&integrityCfg.jsonOutput, "json", false, "Output JSON")

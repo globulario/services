@@ -205,7 +205,7 @@ func init() {
 	awarenessImpactCICmd.Flags().StringArrayVar(&impactCICfg.files, "files", nil,
 		"Files to analyse (comma or space separated; can be specified multiple times)")
 	awarenessImpactCICmd.Flags().StringVar(&impactCICfg.repo, "repo", "", "Repo root (default: auto-detected from git)")
-	awarenessImpactCICmd.Flags().StringVar(&impactCICfg.dbPath, "db", "", "Path to graph.db")
+	awarenessImpactCICmd.Flags().StringVar(&impactCICfg.dbPath, "db", "", "Path to graph.json")
 	awarenessImpactCICmd.Flags().BoolVar(&impactCICfg.jsonOutput, "json", false, "Emit trust envelope output as JSON lines")
 	awarenessImpactCICmd.Flags().StringVar(&impactCICfg.minTrust, "min-trust", string(assurance.TrustStale),
 		"Minimum allowed trust verdict: unsafe|unknown|stale|limited|usable|trusted")

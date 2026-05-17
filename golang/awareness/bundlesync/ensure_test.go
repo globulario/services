@@ -45,8 +45,8 @@ func stubPullSuccess(t *testing.T, version, buildID string) func(context.Context
 		var buf bytes.Buffer
 		gz := gzip.NewWriter(&buf)
 		tw := tar.NewWriter(gz)
-		body := []byte("graph for " + version + "/" + buildID)
-		hdr := &tar.Header{Name: "graph.db", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg}
+		body := []byte(`{"version":1,"nodes":[],"edges":[]}`)
+		hdr := &tar.Header{Name: "graph.json", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg}
 		tw.WriteHeader(hdr)
 		tw.Write(body)
 		tw.Close()
@@ -130,7 +130,7 @@ func TestEnsureLocalCacheFastPath(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(versionedDir, "manifest.json"), mb, 0644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(versionedDir, "graph.db"), []byte("g"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(versionedDir, "graph.json"), []byte(`{"version":1}`), 0644); err != nil {
 		t.Fatalf("write graph: %v", err)
 	}
 	if err := os.Symlink(versionedDir, filepath.Join(bundleRoot, "current")); err != nil {

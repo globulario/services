@@ -58,7 +58,7 @@ var failureCfg = struct {
 }{}
 
 func openFailureGraph() (*graph.Graph, *failuregraph.Store, error) {
-	const systemPath = "/var/lib/globular/awareness/graph.db"
+	const systemPath = "/var/lib/globular/awareness/graph.json"
 	if _, err := os.Stat(systemPath); err != nil {
 		return nil, nil, fmt.Errorf("awareness graph not found — run 'globular awareness build' first")
 	}

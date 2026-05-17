@@ -152,14 +152,14 @@ advances to workload_ready.`,
 var awarenessBundleBuildCmd = &cobra.Command{
 	Use:   "build",
 	Short: "Build an awareness bundle tar.gz from the current graph and knowledge files",
-	Long: `Packages the awareness graph.db, docs/awareness/*.yaml, and failuregraph seeds
+	Long: `Packages the awareness graph.json, docs/awareness/*.yaml, and failuregraph seeds
 into a distributable tar.gz with an embedded manifest.json.
 
 The output file is suitable for:
   globular awareness bundle publish --file <output> --repository <addr>
 
 Prerequisites:
-  - graph.db must already be built: globular awareness build
+  - graph.json must already be built: globular awareness build
   - docs/awareness/*.yaml must exist (or be at the configured path)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		repoRoot, err := resolveRepoRoot(bundleCfg.repoPath)
@@ -172,7 +172,7 @@ Prerequisites:
 			dbPath = resolveAwarenessDBPath(repoRoot)
 		}
 		if _, err := os.Stat(dbPath); err != nil {
-			return fmt.Errorf("graph.db not found at %s — run 'globular awareness build' first", dbPath)
+			return fmt.Errorf("graph.json not found at %s — run 'globular awareness build' first", dbPath)
 		}
 
 		buildID := bundleCfg.buildID
@@ -210,8 +210,8 @@ Prerequisites:
 		// Collect files to pack.
 		var entries []bundleFileEntry
 
-		// graph.db
-		entries = append(entries, bundleFileEntry{srcPath: dbPath, arcPath: "graph.db"})
+		// graph.json
+		entries = append(entries, bundleFileEntry{srcPath: dbPath, arcPath: "graph.json"})
 
 		// docs/awareness/*.yaml — every knowledge file (including
 		// detector_mapping.yaml; see the helper's docstring).
@@ -459,7 +459,7 @@ func (r *bundleBytesReader) Read(p []byte) (int, error) {
 
 func init() {
 	awarenessBundleBuildCmd.Flags().StringVar(&bundleCfg.repoPath, "repo", "", "Repo root (default: auto-detected from git)")
-	awarenessBundleBuildCmd.Flags().StringVar(&bundleCfg.dbPath, "db", "", "Path to graph.db (default: system or repo path)")
+	awarenessBundleBuildCmd.Flags().StringVar(&bundleCfg.dbPath, "db", "", "Path to graph.json (default: system or repo path)")
 	awarenessBundleBuildCmd.Flags().StringVar(&bundleCfg.version, "version", "", "Bundle version string (default: 0.0.1)")
 	awarenessBundleBuildCmd.Flags().StringVar(&bundleCfg.buildID, "build-id", "", "Bundle build_id UUID (default: auto-generated)")
 	awarenessBundleBuildCmd.Flags().StringVar(&bundleCfg.outputDir, "output-dir", "", "Directory for output tar.gz (default: current dir)")

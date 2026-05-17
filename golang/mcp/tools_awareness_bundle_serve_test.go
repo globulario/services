@@ -57,9 +57,9 @@ func installFakeBundle(t *testing.T, dir string) (manifest bundlesync.Manifest, 
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	body := []byte("fake graph.db content " + t.Name())
+	body := []byte(`{"version":1,"nodes":[],"edges":[]}`)
 	hdr := &tar.Header{
-		Name:     "graph.db",
+		Name:     "graph.json",
 		Mode:     0644,
 		Size:     int64(len(body)),
 		Typeflag: tar.TypeReg,
@@ -349,7 +349,7 @@ func TestAwarenessBundleStreamRejectsPathLikeArgs(t *testing.T) {
 		{"path": "../../etc/passwd"},
 		{"file": "/etc/shadow"},
 		{"name": "../bundle.tar.gz"},
-		{"target": "graph.db"},
+		{"target": "graph.json"},
 		{"src": "anything"},
 		{"source": "../../../"},
 	}

@@ -212,7 +212,7 @@ func TestVerifyTGZ_AwarenessBundleShapeRejected(t *testing.T) {
 
 	writeTGZ(t, tgzPath, map[string][]byte{
 		"manifest.json": mdata,
-		"graph.db":      []byte("SQLite format 3\x00"),
+		"graph.json":    []byte(`{"version":1}`),
 	})
 
 	if _, err := VerifyTGZ(tgzPath); err == nil {

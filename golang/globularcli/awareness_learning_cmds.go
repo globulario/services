@@ -565,22 +565,22 @@ func init() {
 
 	// validate-proposal flags (stub).
 	awarenessValidateProposalCmd.Flags().StringVar(&learningCfg.proposalFile, "file", "", "Path to proposal YAML file")
-	awarenessValidateProposalCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessValidateProposalCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessValidateProposalCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// approve-proposal flags (stub).
 	awarenessApproveProposalCmd.Flags().StringVar(&learningCfg.proposalFile, "file", "", "Path to proposal YAML file")
-	awarenessApproveProposalCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessApproveProposalCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessApproveProposalCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// promote-proposal flags (stub).
 	awarenessPromoteProposalCmd.Flags().StringVar(&learningCfg.proposalFile, "file", "", "Path to proposal YAML file")
-	awarenessPromoteProposalCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessPromoteProposalCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessPromoteProposalCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 	awarenessPromoteProposalCmd.Flags().BoolVar(&learningCfg.allowUnapproved, "allow-unapproved", false, "Allow promotion of proposals without APPROVED status (developer mode only)")
 
 	// list-proposals flags.
-	awarenessListProposalsCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessListProposalsCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessListProposalsCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// queue-triage flags.
@@ -603,7 +603,7 @@ func init() {
 
 	// proposal-context flags (stub).
 	awarenessProposalContextCmd.Flags().StringVar(&learningCfg.proposalFile, "file", "", "Path to proposal YAML file")
-	awarenessProposalContextCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessProposalContextCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessProposalContextCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// aliases flags.

@@ -14,9 +14,9 @@ import (
 
 // AwarenessConfig holds optional overrides for the awareness graph location.
 // When paths are empty, the server auto-detects via git rev-parse and uses
-// the standard .globular/awareness/graph.db location under the repo root.
+// the standard .globular/awareness/graph.json location under the repo root.
 type AwarenessConfig struct {
-	DBPath   string `json:"db_path"`   // path to graph.db; empty → auto-detect
+	DBPath   string `json:"db_path"`   // path to graph.json; empty → auto-detect
 	RepoPath string `json:"repo_path"` // repo root; empty → auto-detect via git
 	DocsDir  string `json:"docs_dir"`  // path to docs/awareness; empty → auto-detect
 	NodeID   string `json:"node_id"`   // optional node ID for runtime bridge labelling

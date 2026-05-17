@@ -34,12 +34,12 @@ import (
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-// goodEntry is a minimal valid tar entry for "graph.db". Used by every test
+// goodEntry is a minimal valid tar entry for "graph.json". Used by every test
 // that wants the underlying archive to be structurally valid.
 func goodEntry() (*tar.Header, []byte) {
-	body := []byte("fake sqlite content")
+	body := []byte(`{"version":1,"nodes":[],"edges":[]}`)
 	return &tar.Header{
-		Name:     "graph.db",
+		Name:     "graph.json",
 		Mode:     0644,
 		Size:     int64(len(body)),
 		Typeflag: tar.TypeReg,
@@ -386,13 +386,13 @@ func TestExistingCurrentUntouchedOnFailure(t *testing.T) {
 	dir := t.TempDir()
 
 	// Set up a fake layout that mirrors production:
-	//   <dir>/installed/<version>/<build_id>/graph.db
+	//   <dir>/installed/<version>/<build_id>/graph.json
 	//   <dir>/current → installed/<version>/<build_id>
 	installed := filepath.Join(dir, "installed", "v1.2.30", "abc123")
 	if err := os.MkdirAll(installed, 0755); err != nil {
 		t.Fatalf("mkdir installed: %v", err)
 	}
-	graphPath := filepath.Join(installed, "graph.db")
+	graphPath := filepath.Join(installed, "graph.json")
 	originalGraphContent := []byte("PRE-EXISTING ACTIVE GRAPH — must not be touched")
 	if err := os.WriteFile(graphPath, originalGraphContent, 0644); err != nil {
 		t.Fatalf("write graph: %v", err)

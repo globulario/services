@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/exec"
@@ -8,8 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/awareness/extractors/manual"
 	"github.com/globulario/services/golang/awareness/graph"
 )
+
 
 // awarenessState is captured in awareness tool handler closures.
 // The graph may be nil when the DB is missing — all tools degrade gracefully.
@@ -39,29 +42,19 @@ func registerAwarenessTools(s *server) {
 	dbPath := cfg.DBPath
 	if dbPath == "" {
 		// Resolution order (most authoritative first):
-		// 1. /var/lib/globular/awareness/current/graph.db  — active release bundle (symlink)
-		// 2. /var/lib/globular/awareness/graph.db           — legacy system build
-		// 3. <repoRoot>/.globular/awareness/graph.db        — dev-machine fallback
-		const bundlePath = "/var/lib/globular/awareness/current/graph.db"
-		const systemPath = "/var/lib/globular/awareness/graph.db"
+		// 1. /var/lib/globular/awareness/current/graph.json  — active release bundle (symlink)
+		// 2. /var/lib/globular/awareness/graph.json           — legacy system build
+		// 3. <repoRoot>/.globular/awareness/graph.json        — dev-machine fallback
+		const bundlePath = "/var/lib/globular/awareness/current/graph.json"
+		const systemPath = "/var/lib/globular/awareness/graph.json"
 		if _, err := os.Stat(bundlePath); err == nil {
 			dbPath = bundlePath
 		} else if _, err := os.Stat(systemPath); err == nil {
 			dbPath = systemPath
 		} else if repoRoot != "" {
-			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.json")
 		}
 	}
-
-	// Bundle paths are signed, content-addressed, root-owned, and immutable
-	// post-install. graph.Open's migrate() would try to write DDL and fail
-	// when the service user can't open the file read-write. OpenComposite
-	// is the correct verb: the bundle is ATTACHed read-only and a writable
-	// runtime database — runtime.db, sibling of the bundle — holds session,
-	// coordination, experience, learning, and other mutable awareness data.
-	// Non-bundle paths (dev checkouts, the legacy system db) still use Open
-	// so behaviour for dev/CI runs is unchanged.
-	useComposite := isAwarenessBundlePath(dbPath)
 
 	// Prefer docs dir from the installed bundle, then from the repo checkout.
 	if docsDir == "" || !dirExists(docsDir) {
@@ -80,16 +73,28 @@ func registerAwarenessTools(s *server) {
 	if dbPath != "" {
 		var g *graph.Graph
 		var err error
-		if useComposite {
-			runtimePath := awarenessRuntimeDBPath(dbPath)
-			g, err = graph.OpenComposite(dbPath, runtimePath)
-			if err == nil {
-				log.Printf("mcp: awareness graph opened (composite): bundle=%s runtime=%s", dbPath, runtimePath)
-			}
-		} else {
-			g, err = graph.Open(dbPath)
-			if err == nil {
-				log.Printf("mcp: awareness graph opened (read-write): %s", dbPath)
+		g, err = graph.Open(dbPath)
+		if err == nil {
+			log.Printf("mcp: awareness graph opened: %s", dbPath)
+			// YAML-only fallback: if the graph has no nodes (graph.json absent or
+			// empty) but a docs/ sibling directory exists, load manual knowledge
+			// from YAML files. Keeps the MCP server partially operational when a
+			// bundle ships docs/ but no pre-built graph.json yet.
+			if stats, statsErr := g.Stats(context.Background()); statsErr == nil && stats.Nodes == 0 {
+				var yamlDocsDir string
+				// Try bundle docs dir first, then configured docsDir.
+				const bundleDocsDir = "/var/lib/globular/awareness/current/docs"
+				if dirExists(bundleDocsDir) {
+					yamlDocsDir = bundleDocsDir
+				} else if docsDir != "" && dirExists(docsDir) {
+					yamlDocsDir = docsDir
+				}
+				if yamlDocsDir != "" {
+					log.Printf("mcp: awareness graph empty — loading YAML knowledge from %s", yamlDocsDir)
+					if loadErr := manual.LoadAll(context.Background(), g, yamlDocsDir); loadErr != nil {
+						log.Printf("mcp: YAML docs load warning: %v", loadErr)
+					}
+				}
 			}
 		}
 		if err == nil {
@@ -154,49 +159,6 @@ func registerAwarenessTools(s *server) {
 func dirExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
-}
-
-// awarenessBundleRoot is the install root for content-addressed awareness
-// bundles. Anything under it (including the /current symlink which points
-// to /installed/<version>/<uuid>/) is treated as immutable signed content
-// and opened read-only.
-const awarenessBundleRoot = "/var/lib/globular/awareness/"
-
-// awarenessRuntimeDBPath returns the writable runtime database path that
-// pairs with the given bundle path. It lives inside the existing
-// /var/lib/globular/awareness/runtime/ directory, which was created by
-// the bundle installer with globular:globular ownership so the service
-// user can create files there. The awareness root itself is root-owned
-// (the bundle is installed by root and must stay so), so a sibling at
-// the root level would fail to open for the service user.
-//
-// Path is stable regardless of which installed/<version>/<uuid>/ the
-// /current symlink points to — bundle reinstalls swap the symlink, the
-// runtime database stays put. The historical workaround under this
-// directory ("graph.db", a writable copy of the bundle) is unreferenced
-// by the new composite path and can be removed in a later cycle.
-func awarenessRuntimeDBPath(bundlePath string) string {
-	return filepath.Join(awarenessBundleRoot, "runtime", "runtime.db")
-}
-
-// isAwarenessBundlePath reports whether path lives inside a signed bundle.
-// We resolve symlinks so /var/lib/globular/awareness/current/graph.db (a
-// symlink into installed/<version>/<uuid>/) is correctly classified.
-// Falls back to the lexical prefix when the link can't be resolved (e.g.,
-// during dev with a broken symlink) — better to err on the side of
-// composite-mode than to attempt a migrate against a root-owned file.
-func isAwarenessBundlePath(path string) bool {
-	if path == "" {
-		return false
-	}
-	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		resolved = path
-	}
-	const installedPrefix = awarenessBundleRoot + "installed/"
-	const currentPrefix = awarenessBundleRoot + "current"
-	return strings.HasPrefix(resolved, installedPrefix) ||
-		strings.HasPrefix(path, currentPrefix)
 }
 
 // awarGitRoot returns the git repository root, or "" if not inside a git checkout.

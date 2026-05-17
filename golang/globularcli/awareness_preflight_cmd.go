@@ -70,7 +70,7 @@ Examples:
 		// Open graph — non-fatal if missing (preflight degrades gracefully).
 		dbPath := awareCfg.dbPath
 		if dbPath == "" {
-			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+			dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.json")
 		}
 		opts := preflight.Options{
 			Task:               preflightCfg.task,
@@ -150,7 +150,7 @@ func init() {
 	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.format, "format", "markdown", "Output format: markdown | json | agent")
 	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.verbosity, "verbosity", "standard", "Agent output verbosity: compact | standard | full (overridden by --budget)")
 	awarenessPreflightCmd.Flags().StringVar(&preflightCfg.budget, "budget", "", "Token budget: compact | standard | deep | forensic (overrides --verbosity)")
-	awarenessPreflightCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db (default: .globular/awareness/graph.db)")
+	awarenessPreflightCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json (default: .globular/awareness/graph.json)")
 	awarenessPreflightCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root (default: auto-detected from git)")
 	awarenessPreflightCmd.Flags().BoolVar(&preflightCfg.includeRuntime, "include-runtime", false, "Collect live runtime snapshot and merge into preflight report")
 	awarenessPreflightCmd.Flags().DurationVar(&preflightCfg.runtimeWindow, "runtime-window", 15*time.Minute, "Lookback window for runtime events/workflows")

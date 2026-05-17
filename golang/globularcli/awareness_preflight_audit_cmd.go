@@ -121,7 +121,7 @@ func init() {
 	awarenessPreflightAuditCmd.Flags().DurationVar(&preflightAuditCfg.since, "since", 0, "Only return records newer than this duration (e.g. 24h, 7d)")
 	awarenessPreflightAuditCmd.Flags().StringVar(&preflightAuditCfg.gitSHA, "git-sha", "", "Filter records by git SHA")
 	awarenessPreflightAuditCmd.Flags().StringVar(&preflightAuditCfg.format, "format", "markdown", "Output format: markdown | json")
-	awarenessPreflightAuditCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db (default: .globular/awareness/graph.db)")
+	awarenessPreflightAuditCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json (default: .globular/awareness/graph.json)")
 	awarenessPreflightAuditCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root (default: auto-detected from git)")
 
 	awarenessCmd.AddCommand(awarenessPreflightAuditCmd)

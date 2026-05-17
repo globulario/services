@@ -31,14 +31,14 @@ import (
 // writes the peer's cert as a CA file the CLI can read, then runs the sync
 // command. Asserts that the install actually happened on disk.
 
-// makeMatchingBundle returns a (gzip)tar with graph.db plus a matching manifest.
+// makeMatchingBundle returns a (gzip)tar with graph.json plus a matching manifest.
 func makeMatchingBundle(t *testing.T, version, buildID string) ([]byte, bundlesync.Manifest) {
 	t.Helper()
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	body := []byte("graph for " + version + "/" + buildID)
-	hdr := &tar.Header{Name: "graph.db", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg}
+	body := []byte(`{"version":1,"nodes":[],"edges":[]}`)
+	hdr := &tar.Header{Name: "graph.json", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg}
 	tw.WriteHeader(hdr)
 	tw.Write(body)
 	tw.Close()
@@ -157,9 +157,9 @@ func TestSpec8_SyncCommandEndToEnd(t *testing.T) {
 		t.Errorf("current → %s, want %s", target, want)
 	}
 
-	// graph.db is on disk.
-	if _, err := os.Stat(filepath.Join(want, "graph.db")); err != nil {
-		t.Errorf("graph.db missing post-install: %v", err)
+	// graph.json is on disk.
+	if _, err := os.Stat(filepath.Join(want, "graph.json")); err != nil {
+		t.Errorf("graph.json missing post-install: %v", err)
 	}
 
 	// JSON output should mention both phases.

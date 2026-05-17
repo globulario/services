@@ -25,7 +25,7 @@ import (
 	"github.com/globulario/services/golang/awareness/bundlesync"
 )
 
-// makeBundleArchive packs a single manifest.json (plus an optional graph.db
+// makeBundleArchive packs a single manifest.json (plus an optional graph.json
 // stub) into a gzip+tar archive shaped exactly like what
 // `awareness bundle build` writes. Used to feed the inspect/validate path.
 func makeBundleArchive(t *testing.T, manifest awarenessBundleManifest, extras map[string][]byte) []byte {
@@ -159,7 +159,7 @@ func TestValidateBundleManifestForPublish_MissingFields(t *testing.T) {
 
 // TestInspectBundleAcceptsBuildOutputShape proves the publish-side reader
 // can parse the exact archive shape that `awareness bundle build` emits:
-// graph.db + manifest.json packed via tar+gzip. If the build command's
+// graph.json + manifest.json packed via tar+gzip. If the build command's
 // archive layout drifts (e.g. someone moves manifest.json into a subdir),
 // this test fails before the publish flow is even exercised in production.
 func TestInspectBundleAcceptsBuildOutputShape(t *testing.T) {
@@ -170,7 +170,7 @@ func TestInspectBundleAcceptsBuildOutputShape(t *testing.T) {
 		BuildID: "22222222-2222-2222-2222-222222222222",
 	}
 	data := makeBundleArchive(t, want, map[string][]byte{
-		"graph.db": []byte("SQLite format 3\x00fake-graph"),
+		"graph.json": []byte(`{"version":1,"nodes":[],"edges":[]}`),
 	})
 
 	got, files, err := inspectBundle(data)
@@ -187,7 +187,7 @@ func TestInspectBundleAcceptsBuildOutputShape(t *testing.T) {
 		switch f {
 		case "manifest.json":
 			sawManifest = true
-		case "graph.db":
+		case "graph.json":
 			sawGraph = true
 		}
 	}
@@ -195,7 +195,7 @@ func TestInspectBundleAcceptsBuildOutputShape(t *testing.T) {
 		t.Error("inspectBundle did not list manifest.json")
 	}
 	if !sawGraph {
-		t.Error("inspectBundle did not list graph.db")
+		t.Error("inspectBundle did not list graph.json")
 	}
 }
 
@@ -248,7 +248,7 @@ func tarWithoutManifest(t *testing.T) []byte {
 	tw := tar.NewWriter(gw)
 	data := []byte("placeholder")
 	if err := tw.WriteHeader(&tar.Header{
-		Name: "graph.db", Mode: 0o644, Size: int64(len(data)), Typeflag: tar.TypeReg,
+		Name: "graph.json", Mode: 0o644, Size: int64(len(data)), Typeflag: tar.TypeReg,
 	}); err != nil {
 		t.Fatalf("header: %v", err)
 	}

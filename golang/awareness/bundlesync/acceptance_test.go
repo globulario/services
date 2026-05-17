@@ -87,7 +87,7 @@ func (p *acceptancePeer) registryEntry(now time.Time) NodeRegistryEntry {
 	}
 }
 
-// makeAcceptanceBundle builds a (gzip)tar with graph.db + a doc file, and the
+// makeAcceptanceBundle builds a (gzip)tar with graph.json + a doc file, and the
 // matching manifest. Returns the raw bundle bytes + manifest.
 func makeAcceptanceBundle(t *testing.T, version, buildID string) ([]byte, Manifest) {
 	t.Helper()
@@ -95,8 +95,8 @@ func makeAcceptanceBundle(t *testing.T, version, buildID string) ([]byte, Manife
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 
-	graph := []byte("graph for " + version + "/" + buildID)
-	hdr := &tar.Header{Name: "graph.db", Mode: 0644, Size: int64(len(graph)), Typeflag: tar.TypeReg}
+	graph := []byte(`{"version":1,"nodes":[],"edges":[]}`)
+	hdr := &tar.Header{Name: "graph.json", Mode: 0644, Size: int64(len(graph)), Typeflag: tar.TypeReg}
 	tw.WriteHeader(hdr)
 	tw.Write(graph)
 
@@ -133,7 +133,7 @@ func preStageCurrentBundle(t *testing.T, bundleRoot, version, buildID, sentinel 
 		t.Fatalf("mkdir versioned: %v", err)
 	}
 	graphContent := []byte(sentinel)
-	if err := os.WriteFile(filepath.Join(versionedDir, "graph.db"), graphContent, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(versionedDir, "graph.json"), graphContent, 0644); err != nil {
 		t.Fatalf("write graph: %v", err)
 	}
 	m := Manifest{
@@ -187,9 +187,9 @@ func TestSpec1_MissingBundleAutoSyncFromTrustedPeer(t *testing.T) {
 		t.Errorf("current → %s, want %s", target, want)
 	}
 
-	// graph.db is on disk after install.
-	if _, err := os.Stat(filepath.Join(want, "graph.db")); err != nil {
-		t.Errorf("graph.db missing after install: %v", err)
+	// graph.json is on disk after install.
+	if _, err := os.Stat(filepath.Join(want, "graph.json")); err != nil {
+		t.Errorf("graph.json missing after install: %v", err)
 	}
 }
 
@@ -386,14 +386,14 @@ func TestSpec6_UnsafeTarRejected(t *testing.T) {
 	ri := &ReleaseIndex{Version: "v1.2.30", BuildID: "abc123"}
 	now := time.Now().UTC()
 
-	// Build a peer that serves a bundle with both ../escape AND graph.db so
+	// Build a peer that serves a bundle with both ../escape AND graph.json so
 	// the manifest sha256 line up with the served bytes — the unsafe-tar
 	// rejection has to come from the safety scan, not the hash check.
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 	body := []byte("malicious")
-	tw.WriteHeader(&tar.Header{Name: "graph.db", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg})
+	tw.WriteHeader(&tar.Header{Name: "graph.json", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg})
 	tw.Write(body)
 	tw.WriteHeader(&tar.Header{Name: "../escape", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg})
 	tw.Write(body)
@@ -463,7 +463,7 @@ func TestSpec7_InstallIsAtomic(t *testing.T) {
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 	body := []byte("evil")
-	tw.WriteHeader(&tar.Header{Name: "graph.db", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg})
+	tw.WriteHeader(&tar.Header{Name: "graph.json", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg})
 	tw.Write(body)
 	tw.WriteHeader(&tar.Header{Name: "../escape", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg})
 	tw.Write(body)
@@ -508,12 +508,12 @@ func TestSpec7_InstallIsAtomic(t *testing.T) {
 	if target != oldDir {
 		t.Errorf("current moved to %s, want %s (atomic install must not switch on failure)", target, oldDir)
 	}
-	gotGraph, err := os.ReadFile(filepath.Join(oldDir, "graph.db"))
+	gotGraph, err := os.ReadFile(filepath.Join(oldDir, "graph.json"))
 	if err != nil {
 		t.Fatalf("read prior graph: %v", err)
 	}
 	if !bytes.Equal(gotGraph, oldGraph) {
-		t.Errorf("prior bundle graph.db modified")
+		t.Errorf("prior bundle graph.json modified")
 	}
 
 	// New versioned dir must NOT exist (extract failed before rename).

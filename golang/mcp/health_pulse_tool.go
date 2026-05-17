@@ -458,7 +458,7 @@ func buildGraphSection(ctx context.Context, st *awarenessState, docsDir string, 
 		return healthPulseGraphSection{
 			Available:          false,
 			Stale:              true,
-			StaleReason:        "no graph.db found — run 'globular awareness build'",
+			StaleReason:        "no graph.json found — run 'globular awareness build'",
 			RebuildRecommended: true,
 			Status:             "no_graph",
 		}, []healthPulseAlert{{

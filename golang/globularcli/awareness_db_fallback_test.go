@@ -1,8 +1,8 @@
 package main
 
-// Tests for the user-DB fallback in resolveAwarenessDBPathFor. The system
+// Tests for the user-graph fallback in resolveAwarenessDBPathFor. The system
 // install path can be root-owned on a dev machine, which forced operators
-// to remember `--db /home/<user>/.globular/awareness/graph.db`. The
+// to remember `--db /home/<user>/.globular/awareness/graph.json`. The
 // fallback resolves that without touching cluster behaviour.
 
 import (
@@ -30,23 +30,23 @@ func TestResolveAwarenessDBPath_FallbackWhenSystemMissing(t *testing.T) {
 		warned = msg
 	})
 
-	want := filepath.Join(homeDir, ".globular", "awareness", "graph.db")
+	want := filepath.Join(homeDir, ".globular", "awareness", "graph.json")
 	if got != want {
 		t.Errorf("resolved = %q, want %q", got, want)
 	}
 	if warned == "" {
 		t.Fatal("expected fallback warning, got none")
 	}
-	if !strings.Contains(warned, "user DB") {
-		t.Errorf("warning %q does not mention 'user DB'", warned)
+	if !strings.Contains(warned, "user graph") {
+		t.Errorf("warning %q does not mention 'user graph'", warned)
 	}
 	if !strings.Contains(warned, systemDir) {
 		t.Errorf("warning %q should name the system path that failed", warned)
 	}
-	// The user DB directory must have been created so a subsequent
+	// The user graph directory must have been created so a subsequent
 	// graph.Open can write to it.
 	if _, err := os.Stat(filepath.Dir(want)); err != nil {
-		t.Errorf("user DB dir was not created: %v", err)
+		t.Errorf("user graph dir was not created: %v", err)
 	}
 }
 
@@ -63,18 +63,18 @@ func TestResolveAwarenessDBPath_SystemAccessibleNoFallback(t *testing.T) {
 		warned = msg
 	})
 
-	want := filepath.Join(systemDir, "graph.db")
+	want := filepath.Join(systemDir, "graph.json")
 	if got != want {
 		t.Errorf("resolved = %q, want %q (system accessible)", got, want)
 	}
 	if warned != "" {
-		t.Errorf("unexpected warning when system DB is accessible: %q", warned)
+		t.Errorf("unexpected warning when system graph is accessible: %q", warned)
 	}
 }
 
 // TestResolveAwarenessDBPath_RepoFallbackWhenNoHome: when neither the
 // system path nor a home directory is available, fall back to the
-// repo-local .globular/awareness/graph.db. This preserves the original
+// repo-local .globular/awareness/graph.json. This preserves the original
 // dev-without-install behaviour.
 func TestResolveAwarenessDBPath_RepoFallbackWhenNoHome(t *testing.T) {
 	tmp := t.TempDir()
@@ -82,14 +82,14 @@ func TestResolveAwarenessDBPath_RepoFallbackWhenNoHome(t *testing.T) {
 
 	got := resolveAwarenessDBPathFor(systemDir, "" /* no home */, "/repo", nil /* no warner */)
 
-	want := filepath.Join("/repo", ".globular", "awareness", "graph.db")
+	want := filepath.Join("/repo", ".globular", "awareness", "graph.json")
 	if got != want {
 		t.Errorf("resolved = %q, want %q (repo fallback)", got, want)
 	}
 }
 
 // TestIsUsableAwarenessDB_ReadOnlyFile pins the load-bearing semantic for
-// real-world dev boxes: an existing graph.db that the current user can
+// real-world dev boxes: an existing graph.json that the current user can
 // read but NOT write must report as not-usable so we fall back. We skip
 // when running as root because root bypasses POSIX permission bits.
 func TestIsUsableAwarenessDB_ReadOnlyFile(t *testing.T) {
@@ -97,8 +97,8 @@ func TestIsUsableAwarenessDB_ReadOnlyFile(t *testing.T) {
 		t.Skip("requires non-root: root bypasses file permission bits")
 	}
 	dir := t.TempDir()
-	path := filepath.Join(dir, "graph.db")
-	if err := os.WriteFile(path, []byte("dummy"), 0o444); err != nil {
+	path := filepath.Join(dir, "graph.json")
+	if err := os.WriteFile(path, []byte("{}"), 0o444); err != nil {
 		t.Fatal(err)
 	}
 	if isUsableAwarenessDB(path) {
@@ -109,8 +109,8 @@ func TestIsUsableAwarenessDB_ReadOnlyFile(t *testing.T) {
 // TestIsUsableAwarenessDB_WritableFile is the positive case.
 func TestIsUsableAwarenessDB_WritableFile(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "graph.db")
-	if err := os.WriteFile(path, []byte("dummy"), 0o644); err != nil {
+	path := filepath.Join(dir, "graph.json")
+	if err := os.WriteFile(path, []byte("{}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if !isUsableAwarenessDB(path) {

@@ -11,7 +11,7 @@ package main
 //	globular awareness cycles [--phase <phase>] [--db <path>]
 //
 // The awareness graph is purely local — no cluster connection required.
-// DB default: .globular/awareness/graph.db (relative to repo root).
+// DB default: .globular/awareness/graph.json (relative to repo root).
 
 import (
 	"context"
@@ -73,8 +73,8 @@ var awarenessCmd = &cobra.Command{
 	Use:   "awareness",
 	Short: "Awareness graph — architectural context for AI agents",
 	Long: `The awareness graph connects source code, invariants, failure modes, and
-services into a queryable SQLite graph that gives AI agents architectural
-context before they edit code or suggest fixes.
+services into a queryable in-memory graph (persisted as graph.json) that gives
+AI agents architectural context before they edit code or suggest fixes.
 
 It is a local, offline tool. No cluster connection is required.`,
 }
@@ -99,15 +99,11 @@ var awarenessBuildCmd = &cobra.Command{
 		fmt.Fprintf(os.Stdout, "  repo: %s\n", repoRoot)
 		fmt.Fprintf(os.Stdout, "  db:   %s\n\n", dbPath)
 
-		// --clean removes stale edges from incremental upsert builds.
-		// Must remove main db AND the WAL/SHM files — SQLite will fail to open
-		// a new db if orphaned WAL/SHM files remain from the previous session.
+		// --clean removes the existing graph.json so the build starts fresh.
 		if awareCfg.cleanBuild {
-			for _, suffix := range []string{"", "-wal", "-shm"} {
-				p := dbPath + suffix
-				if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-					return fmt.Errorf("clean graph: remove %s: %w", p, err)
-				}
+			p := dbPath
+			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("clean graph: remove %s: %w", p, err)
 			}
 			fmt.Fprintf(os.Stdout, "Cleaned previous graph.\n")
 		}
@@ -656,9 +652,9 @@ func renderServiceReview(_ interface{}) string {
 
 func init() {
 	// Build command flags.
-	awarenessBuildCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db (default: .globular/awareness/graph.db in repo root)")
+	awarenessBuildCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json (default: .globular/awareness/graph.json in repo root)")
 	awarenessBuildCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root (default: auto-detected from git)")
-	awarenessBuildCmd.Flags().BoolVar(&awareCfg.cleanBuild, "clean", false, "Remove existing graph.db before building (required for edge correctness after YAML edits)")
+	awarenessBuildCmd.Flags().BoolVar(&awareCfg.cleanBuild, "clean", false, "Remove existing graph.json before building (required for edge correctness after YAML edits)")
 	awarenessBuildCmd.Flags().StringVar(&awareCfg.packagesMetaDir, "packages-meta", "", "Path to packages metadata repo (e.g. /path/to/packages/metadata)")
 	awarenessBuildCmd.Flags().StringArrayVar(&awareCfg.extraScriptRoots, "extra-scripts", nil, "Extra repo roots to crawl for shell scripts and Makefiles (repeatable)")
 	awarenessBuildCmd.Flags().BoolVar(&awareCfg.collectSystemd, "collect-systemd", false, "Collect systemd unit state from /etc/systemd/system/globular-*.service")
@@ -672,43 +668,43 @@ func init() {
 	awarenessBuildCmd.Flags().StringVar(&awareCfg.workflowAddr, "workflow-addr", "", "Workflow service gRPC address for live execution collection (e.g. workflow.globular.internal:10004)")
 
 	// Stats flags.
-	awarenessStatsCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessStatsCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessStatsCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// Impact flags.
 	awarenessImpactCmd.Flags().StringVar(&awareCfg.file, "file", "", "File path to analyse (relative to repo root)")
-	awarenessImpactCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessImpactCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessImpactCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 	awarenessImpactCmd.Flags().BoolVar(&awareCfg.explain, "explain", false, "Show graph path for each finding")
 
 	// Agent-context flags.
 	awarenessAgentContextCmd.Flags().StringVar(&awareCfg.task, "task", "", "Task description for the AI agent")
-	awarenessAgentContextCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessAgentContextCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessAgentContextCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// Cycles flags.
 	awarenessCyclesCmd.Flags().StringVar(&awareCfg.phase, "phase", "", "Filter by dependency phase (e.g. recovery, bootstrap, package_install)")
-	awarenessCyclesCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessCyclesCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessCyclesCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// validate-package flags.
 	awarenessValidatePackageCmd.Flags().StringVar(&awareCfg.packagePath, "path", "", "Path to the package directory containing awareness.yaml")
-	awarenessValidatePackageCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessValidatePackageCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessValidatePackageCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// package-context flags.
 	awarenessPackageContextCmd.Flags().StringVar(&awareCfg.packagePath, "path", "", "Path to the package directory containing awareness.yaml")
-	awarenessPackageContextCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessPackageContextCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessPackageContextCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// admit-package flags.
 	awarenessAdmitPackageCmd.Flags().StringVar(&awareCfg.packagePath, "path", "", "Path to the package directory containing awareness.yaml")
 	awarenessAdmitPackageCmd.Flags().BoolVar(&awareCfg.commit, "commit", false, "Commit the contract to the main graph if ADMIT or WARN")
-	awarenessAdmitPackageCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessAdmitPackageCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessAdmitPackageCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// review-service flags.
-	awarenessReviewServiceCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessReviewServiceCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessReviewServiceCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// Register subcommands.
@@ -729,14 +725,14 @@ func init() {
 
 const systemAwarenessDir = "/var/lib/globular/awareness"
 
-// resolveAwarenessDBPath returns the canonical graph.db path for the
+// resolveAwarenessDBPath returns the canonical graph.json path for the
 // current process. Resolution order:
-//  1. /var/lib/globular/awareness/graph.db when accessible — the system
+//  1. /var/lib/globular/awareness/graph.json when accessible — the system
 //     install location used by services and root-equivalent operators.
-//  2. $HOME/.globular/awareness/graph.db when (1) is present but not
+//  2. $HOME/.globular/awareness/graph.json when (1) is present but not
 //     readable/writable by the current user. Surfaces with a stderr
 //     warning so the fallback isn't silent.
-//  3. repoRoot/.globular/awareness/graph.db when no system install exists
+//  3. repoRoot/.globular/awareness/graph.json when no system install exists
 //     (developer working in a fresh checkout).
 //
 // The user fallback is for local CLI ergonomics only. Cluster service
@@ -760,7 +756,7 @@ func defaultAwarenessFallbackWarner(msg string) {
 // of the three resolution branches without touching the real filesystem.
 // warn is called once if the user fallback is selected; pass nil to suppress.
 func resolveAwarenessDBPathFor(systemDir, homeDir, repoRoot string, warn func(string)) string {
-	sysPath := filepath.Join(systemDir, "graph.db")
+	sysPath := filepath.Join(systemDir, "graph.json")
 	if isUsableAwarenessDB(sysPath) {
 		return sysPath
 	}
@@ -770,24 +766,24 @@ func resolveAwarenessDBPathFor(systemDir, homeDir, repoRoot string, warn func(st
 	if homeDir != "" {
 		userDir := filepath.Join(homeDir, ".globular", "awareness")
 		if err := os.MkdirAll(userDir, 0o755); err == nil {
-			userPath := filepath.Join(userDir, "graph.db")
+			userPath := filepath.Join(userDir, "graph.json")
 			if warn != nil {
 				warn(fmt.Sprintf(
-					"Default awareness DB %s is not accessible; using user DB at %s",
+					"Default awareness graph %s is not accessible; using user graph at %s",
 					sysPath, userPath))
 			}
 			return userPath
 		}
 	}
 	// No home or couldn't mkdir — fall through to repo-local.
-	return filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+	return filepath.Join(repoRoot, ".globular", "awareness", "graph.json")
 }
 
 // isUsableAwarenessDB returns true when the current process can read AND
-// write the graph.db at path (or create one in its parent directory if the
+// write the graph.json at path (or create one in its parent directory if the
 // file doesn't exist yet). The check is conservative: if any test fails,
 // we treat the path as unusable and fall back. The classic dev-machine
-// failure mode is "/var/lib/globular/awareness/graph.db owned by root,
+// failure mode is "/var/lib/globular/awareness/graph.json owned by root,
 // mode 0644" — readable but not writable to the dev user.
 func isUsableAwarenessDB(path string) bool {
 	if info, err := os.Stat(path); err == nil && !info.IsDir() {
@@ -824,11 +820,11 @@ func resolveAwarenessTrendPath(repoRoot string) string {
 	return filepath.Join(repoRoot, ".globular", "awareness", "audit-trend.jsonl")
 }
 
-// openAwarenessGraph opens the graph DB using the given path or the default location.
+// openAwarenessGraph opens the graph using the given path or the default location.
 // Resolution order:
 //  1. Explicit --db flag
-//  2. /var/lib/globular/awareness/graph.db  (system install — preferred)
-//  3. repoRoot/.globular/awareness/graph.db (dev fallback)
+//  2. /var/lib/globular/awareness/graph.json  (system install — preferred)
+//  3. repoRoot/.globular/awareness/graph.json (dev fallback)
 func openAwarenessGraph(dbPath, repoPath string) (*graph.Graph, error) {
 	if dbPath == "" {
 		repoRoot, _ := resolveRepoRoot(repoPath)

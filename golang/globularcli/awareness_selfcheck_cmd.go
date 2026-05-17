@@ -485,7 +485,7 @@ func lifecycleCounts(c *assurance.CoverageReport) map[string]int {
 }
 
 func init() {
-	awarenessMetaCheckCmd.Flags().StringVar(&awarenessMetaCheckCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessMetaCheckCmd.Flags().StringVar(&awarenessMetaCheckCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessMetaCheckCmd.Flags().StringVar(&awarenessMetaCheckCfg.repoPath, "repo", "", "Repo root")
 	awarenessMetaCheckCmd.Flags().StringVar(&awarenessMetaCheckCfg.bundleRoot, "bundle-root", "/var/lib/globular/awareness",
 		"Bundle root containing current/manifest.json")

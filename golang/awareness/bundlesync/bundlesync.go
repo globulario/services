@@ -121,7 +121,7 @@ type Manifest struct {
 	CreatedAt     string `json:"created_at,omitempty"`
 	Signature     string `json:"signature,omitempty"`
 
-	// GraphHash is the hex digest of the compiled graph content (graph.db),
+	// GraphHash is the hex digest of the compiled graph content (graph.json),
 	// distinct from SHA256 which is the hash of the whole bundle archive.
 	// Optional: when present, it gives operators a stable identity for the
 	// graph itself across re-tarred/re-signed bundles.

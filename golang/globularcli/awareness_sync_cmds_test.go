@@ -41,7 +41,7 @@ func resetFlags(t *testing.T) {
 	awarenessSyncCfg.expectBuildID = ""
 }
 
-// installableBundle writes a (gzip)tar containing graph.db + a sidecar
+// installableBundle writes a (gzip)tar containing graph.json + a sidecar
 // manifest into dir. Returns the bundle path, manifest path, and manifest.
 func installableBundle(t *testing.T, dir, version, buildID string) (string, string, bundlesync.Manifest) {
 	t.Helper()
@@ -49,8 +49,8 @@ func installableBundle(t *testing.T, dir, version, buildID string) (string, stri
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	body := []byte("fake graph for " + version + "/" + buildID)
-	hdr := &tar.Header{Name: "graph.db", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg}
+	body := []byte(`{"version":1,"nodes":[],"edges":[]}`)
+	hdr := &tar.Header{Name: "graph.json", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg}
 	tw.WriteHeader(hdr)
 	tw.Write(body)
 	tw.Close()
@@ -84,8 +84,8 @@ func installableBundleEmbeddedManifestNoSidecar(t *testing.T, dir, version, buil
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	graph := []byte("graph for " + version + "/" + buildID)
-	if err := tw.WriteHeader(&tar.Header{Name: "graph.db", Mode: 0644, Size: int64(len(graph)), Typeflag: tar.TypeReg}); err != nil {
+	graph := []byte(`{"version":1,"nodes":[],"edges":[]}`)
+	if err := tw.WriteHeader(&tar.Header{Name: "graph.json", Mode: 0644, Size: int64(len(graph)), Typeflag: tar.TypeReg}); err != nil {
 		t.Fatalf("graph header: %v", err)
 	}
 	if _, err := tw.Write(graph); err != nil {
@@ -153,7 +153,7 @@ func TestAwarenessStatusFresh(t *testing.T) {
 	}
 	mb, _ := json.MarshalIndent(m, "", "  ")
 	os.WriteFile(filepath.Join(versionedDir, "manifest.json"), mb, 0644)
-	os.WriteFile(filepath.Join(versionedDir, "graph.db"), []byte("g"), 0644)
+	os.WriteFile(filepath.Join(versionedDir, "graph.json"), []byte(`{"version":1}`), 0644)
 	os.Symlink(versionedDir, filepath.Join(bundleRoot, "current"))
 
 	indexDir := t.TempDir()
@@ -434,8 +434,8 @@ func TestResolveManifestSidecarSynthesizesWhenMissing(t *testing.T) {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	graph := []byte("graph")
-	if err := tw.WriteHeader(&tar.Header{Name: "graph.db", Mode: 0644, Size: int64(len(graph)), Typeflag: tar.TypeReg}); err != nil {
+	graph := []byte(`{"version":1}`)
+	if err := tw.WriteHeader(&tar.Header{Name: "graph.json", Mode: 0644, Size: int64(len(graph)), Typeflag: tar.TypeReg}); err != nil {
 		t.Fatalf("graph header: %v", err)
 	}
 	if _, err := tw.Write(graph); err != nil {

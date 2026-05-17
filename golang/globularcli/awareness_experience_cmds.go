@@ -357,7 +357,7 @@ func openExperienceGraph() (*graph.Graph, error) {
 	}
 	dbPath := awareCfg.dbPath
 	if dbPath == "" {
-		dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.db")
+		dbPath = filepath.Join(repoRoot, ".globular", "awareness", "graph.json")
 	}
 	return graph.Open(dbPath)
 }

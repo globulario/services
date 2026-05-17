@@ -14,7 +14,7 @@ import (
 // Used by trust and agent usage tests that need a real graph instance.
 func openAgentUsageGraph(t *testing.T) *graph.Graph {
 	t.Helper()
-	g, err := graph.Open(filepath.Join(t.TempDir(), "graph.db"))
+	g, err := graph.Open(filepath.Join(t.TempDir(), "graph.json"))
 	if err != nil {
 		t.Fatalf("graph.Open: %v", err)
 	}

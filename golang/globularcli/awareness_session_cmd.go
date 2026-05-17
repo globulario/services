@@ -431,7 +431,7 @@ func printSessionStartTable(r cliSessionResult) {
 
 func init() {
 	awarenessSessionStartCmd.Flags().StringVar(&sessionStartCfg.format, "output", "table", "Output format: table | json")
-	awarenessSessionStartCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db (default: .globular/awareness/graph.db)")
+	awarenessSessionStartCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json (default: .globular/awareness/graph.json)")
 	awarenessSessionStartCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root (default: auto-detected from git)")
 
 	awarenessCmd.AddCommand(awarenessSessionStartCmd)

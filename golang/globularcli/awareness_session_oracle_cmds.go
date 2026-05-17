@@ -48,7 +48,7 @@ func openOracleGraph() (*graph.Graph, *sessionoracle.Oracle, error) {
 }
 
 func oracleGraphPath() string {
-	const systemPath = "/var/lib/globular/awareness/graph.db"
+	const systemPath = "/var/lib/globular/awareness/graph.json"
 	if _, err := os.Stat(systemPath); err == nil {
 		return systemPath
 	}

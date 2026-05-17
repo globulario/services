@@ -19,13 +19,13 @@ import (
 //   2. Re-install same version+build_id — idempotent; no new versioned dir.
 //   3. Verify failure (wrong sha256) → no install, current untouched.
 //   4. Unsafe tar entry → no install, current untouched, staging cleaned.
-//   5. Bundle missing required files (no graph.db) → INCOMPLETE, no install.
+//   5. Bundle missing required files (no graph.json or graph.db) → INCOMPLETE, no install.
 //   6. Crash after rename, before symlink swap → next run completes idempotently.
 //   7. Manifest sidecar copied into versioned dir.
 //   8. Previous current target captured in result.
 
 // makeInstallableBundle writes a valid bundle (containing manifest.json and
-// graph.db) plus a sidecar manifest. Returns paths and the manifest.
+// graph.json) plus a sidecar manifest. Returns paths and the manifest.
 func makeInstallableBundle(t *testing.T, dir string, version, buildID string) (bundlePath, manifestPath string, m Manifest) {
 	t.Helper()
 
@@ -33,8 +33,8 @@ func makeInstallableBundle(t *testing.T, dir string, version, buildID string) (b
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 
-	graphContent := []byte("fake graph.db content for " + version + "/" + buildID)
-	hdr := &tar.Header{Name: "graph.db", Mode: 0644, Size: int64(len(graphContent)), Typeflag: tar.TypeReg}
+	graphContent := []byte(`{"version":1,"nodes":[],"edges":[]}`)
+	hdr := &tar.Header{Name: "graph.json", Mode: 0644, Size: int64(len(graphContent)), Typeflag: tar.TypeReg}
 	if err := tw.WriteHeader(hdr); err != nil {
 		t.Fatalf("tar header: %v", err)
 	}
@@ -117,9 +117,9 @@ func TestInstallBundleFreshInstall(t *testing.T) {
 		t.Errorf("InstalledPath = %s, want %s", res.InstalledPath, wantDir)
 	}
 
-	// graph.db and the sidecar manifest must be present.
-	if _, err := os.Stat(filepath.Join(wantDir, "graph.db")); err != nil {
-		t.Errorf("graph.db missing in installed dir: %v", err)
+	// graph.json and the sidecar manifest must be present.
+	if _, err := os.Stat(filepath.Join(wantDir, "graph.json")); err != nil {
+		t.Errorf("graph.json missing in installed dir: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(wantDir, "manifest.json")); err != nil {
 		t.Errorf("manifest sidecar missing: %v", err)
@@ -172,8 +172,8 @@ func TestInstallBundleIdempotentReinstall(t *testing.T) {
 		t.Fatalf("first install failed: %v (state=%s reason=%s)", err, res1.State, res1.Reason)
 	}
 
-	// Snapshot graph.db inode/mtime so we can detect an unwanted re-extract.
-	graphPath := filepath.Join(res1.InstalledPath, "graph.db")
+	// Snapshot graph.json inode/mtime so we can detect an unwanted re-extract.
+	graphPath := filepath.Join(res1.InstalledPath, "graph.json")
 	stat1, err := os.Stat(graphPath)
 	if err != nil {
 		t.Fatalf("stat graph: %v", err)
@@ -203,7 +203,7 @@ func TestInstallBundleIdempotentReinstall(t *testing.T) {
 		t.Fatalf("stat graph after reinstall: %v", err)
 	}
 	if !stat1.ModTime().Equal(stat2.ModTime()) {
-		t.Errorf("graph.db mtime changed; should not be re-extracted on idempotent install")
+		t.Errorf("graph.json mtime changed; should not be re-extracted on idempotent install")
 	}
 }
 
@@ -252,7 +252,7 @@ func TestInstallBundleUnsafeTarEntryNoInstall(t *testing.T) {
 	scratch := t.TempDir()
 	bundleRoot := t.TempDir()
 
-	// Build a bundle with both graph.db AND a path-traversal entry. The
+	// Build a bundle with both graph.json AND a path-traversal entry. The
 	// manifest will pass verification but the extract path will refuse it.
 	// (ValidateTarSafe in VerifyBundle will catch it first; this test
 	// covers the install-time defense path symmetrically.)
@@ -260,7 +260,7 @@ func TestInstallBundleUnsafeTarEntryNoInstall(t *testing.T) {
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 	body := []byte("ok")
-	hdrGood := &tar.Header{Name: "graph.db", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg}
+	hdrGood := &tar.Header{Name: "graph.json", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg}
 	tw.WriteHeader(hdrGood)
 	tw.Write(body)
 	hdrBad := &tar.Header{Name: "../escape", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg}
@@ -311,12 +311,12 @@ func TestInstallBundleUnsafeTarEntryNoInstall(t *testing.T) {
 	}
 }
 
-// 5. Bundle without graph.db → INCOMPLETE state, no install.
+// 5. Bundle without graph.json or graph.db → INCOMPLETE state, no install.
 func TestInstallBundleMissingGraphDB(t *testing.T) {
 	scratch := t.TempDir()
 	bundleRoot := t.TempDir()
 
-	// Build a bundle with only docs/, no graph.db.
+	// Build a bundle with only docs/, no graph.json or graph.db.
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
@@ -348,7 +348,7 @@ func TestInstallBundleMissingGraphDB(t *testing.T) {
 		ReleaseIndex: &ReleaseIndex{Version: m.Version, BuildID: m.BuildID},
 	})
 	if res.OK {
-		t.Fatal("OK=true without graph.db")
+		t.Fatal("OK=true without graph.json or graph.db")
 	}
 	if err == nil {
 		t.Error("err should be non-nil")
@@ -371,13 +371,13 @@ func TestInstallBundleRecoversFromCrashAfterRename(t *testing.T) {
 	bundleRoot := t.TempDir()
 	bp, mp, m := makeInstallableBundle(t, scratch, "v1.2.30", "abc123")
 
-	// Pre-stage: create the versioned dir manually with a graph.db, simulating
+	// Pre-stage: create the versioned dir manually with a graph.json, simulating
 	// a prior install that crashed after rename but before symlink swap.
 	preExisting := filepath.Join(bundleRoot, "installed", m.Version, m.BuildID)
 	if err := os.MkdirAll(preExisting, 0755); err != nil {
 		t.Fatalf("pre-stage mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(preExisting, "graph.db"), []byte("pre-existing graph"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(preExisting, "graph.json"), []byte(`{"version":1}`), 0644); err != nil {
 		t.Fatalf("pre-stage graph: %v", err)
 	}
 	// Sentinel file lets us prove the dir wasn't re-extracted.
@@ -482,8 +482,8 @@ func TestInstallBundleSidecarManifestWins(t *testing.T) {
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 
-	graph := []byte("g")
-	tw.WriteHeader(&tar.Header{Name: "graph.db", Mode: 0644, Size: int64(len(graph)), Typeflag: tar.TypeReg})
+	graph := []byte(`{"version":1}`)
+	tw.WriteHeader(&tar.Header{Name: "graph.json", Mode: 0644, Size: int64(len(graph)), Typeflag: tar.TypeReg})
 	tw.Write(graph)
 
 	embedded := []byte(`{"name":"globular-awareness-bundle","version":"v1.2.30","build_id":"WRONG","schema_version":"awareness.bundle.v1"}`)

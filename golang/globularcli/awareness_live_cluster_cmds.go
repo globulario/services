@@ -49,7 +49,7 @@ func openLiveStore() (*graph.Graph, *livecluster.Store, error) {
 }
 
 func livGraphPath() string {
-	const systemPath = "/var/lib/globular/awareness/graph.db"
+	const systemPath = "/var/lib/globular/awareness/graph.json"
 	if _, err := os.Stat(systemPath); err == nil {
 		return systemPath
 	}

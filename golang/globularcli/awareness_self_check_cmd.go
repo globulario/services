@@ -121,7 +121,7 @@ func init() {
 	awarenessSelfCheckCmd.Flags().IntVar(&selfCheckCfg.maxTopWarningGroup, "max-top-warning-group", -1,
 		"Fail strict self-check if the largest audit warning group exceeds this count (-1 disables)")
 	awarenessSelfCheckCmd.Flags().StringVar(&awareCfg.dbPath, "db", "",
-		"Path to graph.db (default: .globular/awareness/graph.db)")
+		"Path to graph.json (default: .globular/awareness/graph.json)")
 	awarenessSelfCheckCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "",
 		"Repo root (default: auto-detected from git)")
 

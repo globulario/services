@@ -135,7 +135,7 @@ func init() {
 	awarenessDecisionTraceCmd.Flags().StringSliceVar(&decisionTraceCfg.files, "file", nil, "Files you plan to edit (repeatable)")
 	awarenessDecisionTraceCmd.Flags().BoolVar(&decisionTraceCfg.includeRuntime, "include-runtime", false, "Collect runtime evidence")
 	awarenessDecisionTraceCmd.Flags().StringVar(&decisionTraceCfg.format, "format", "agent", "Output format: agent | json | markdown")
-	awarenessDecisionTraceCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessDecisionTraceCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessDecisionTraceCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	awarenessFindingContextCmd.Flags().StringVar(&decisionTraceCfg.finding, "finding", "", "Prefixed finding id (failure_mode:X | invariant:Y | forbidden_fix:Z)")
@@ -143,7 +143,7 @@ func init() {
 	awarenessFindingContextCmd.Flags().StringSliceVar(&decisionTraceCfg.files, "file", nil, "Optional files for owner inference (repeatable)")
 	awarenessFindingContextCmd.Flags().BoolVar(&decisionTraceCfg.includeRuntime, "include-runtime", false, "Include runtime-flavoured pivots")
 	awarenessFindingContextCmd.Flags().StringVar(&decisionTraceCfg.format, "format", "agent", "Output format: agent | json | markdown")
-	awarenessFindingContextCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db (optional)")
+	awarenessFindingContextCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json (optional)")
 	awarenessFindingContextCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	awarenessCmd.AddCommand(awarenessDecisionTraceCmd)

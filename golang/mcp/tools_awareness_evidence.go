@@ -45,8 +45,8 @@ func registerBundleStatusTool(s *server, st *awarenessState) {
 		graphSource := "unknown"
 		if st.g != nil {
 			// Determine which path MCP is actually loading from.
-			const bundlePath = "/var/lib/globular/awareness/current/graph.db"
-			const systemPath = "/var/lib/globular/awareness/graph.db"
+			const bundlePath = "/var/lib/globular/awareness/current/graph.json"
+			const systemPath = "/var/lib/globular/awareness/graph.json"
 			switch {
 			case fileExists(bundlePath):
 				graphSource = "bundle (" + bundlePath + ")"

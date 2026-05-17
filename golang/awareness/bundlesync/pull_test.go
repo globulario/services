@@ -78,7 +78,7 @@ func poolFromServer(srv *httptest.Server) *x509.CertPool {
 	return pool
 }
 
-// makeBundleAndManifest produces a (gzip+)tar bundle containing graph.db
+// makeBundleAndManifest produces a (gzip+)tar bundle containing graph.json
 // plus the matching manifest. version/buildID let tests diverge from the
 // caller's expectations to exercise mismatch paths.
 func makeBundleAndManifest(t *testing.T, version, buildID string) ([]byte, Manifest) {
@@ -87,8 +87,8 @@ func makeBundleAndManifest(t *testing.T, version, buildID string) ([]byte, Manif
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	body := []byte("fake graph.db for " + version + "/" + buildID)
-	hdr := &tar.Header{Name: "graph.db", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg}
+	body := []byte(`{"version":1,"nodes":[],"edges":[]}`)
+	hdr := &tar.Header{Name: "graph.json", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg}
 	if err := tw.WriteHeader(hdr); err != nil {
 		t.Fatalf("tar header: %v", err)
 	}

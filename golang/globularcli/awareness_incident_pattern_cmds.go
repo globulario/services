@@ -379,7 +379,7 @@ func init() {
 	incidentPatternRecordCmd.Flags().StringVar(&incidentPatternCfg.incidentID, "incident", "", "Incident ID")
 	incidentPatternRecordCmd.Flags().StringVar(&incidentPatternCfg.patternFile, "file", "", "Path to pattern JSON file")
 	incidentPatternRecordCmd.Flags().StringVar(&incidentPatternCfg.output, "output", "table", "Output: table|json")
-	incidentPatternRecordCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	incidentPatternRecordCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	incidentPatternRecordCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// match flags
@@ -391,17 +391,17 @@ func init() {
 	incidentPatternMatchCmd.Flags().StringArrayVar(&incidentPatternCfg.invariants, "invariant", nil, "Invariant ID to check (repeatable)")
 	incidentPatternMatchCmd.Flags().StringArrayVar(&incidentPatternCfg.shapes, "shape", nil, "Proposed edit shape (repeatable)")
 	incidentPatternMatchCmd.Flags().StringVar(&incidentPatternCfg.output, "output", "table", "Output: table|json")
-	incidentPatternMatchCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	incidentPatternMatchCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	incidentPatternMatchCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// list flags
 	incidentPatternListCmd.Flags().StringVar(&incidentPatternCfg.output, "output", "table", "Output: table|json")
-	incidentPatternListCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	incidentPatternListCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	incidentPatternListCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// show flags
 	incidentPatternShowCmd.Flags().StringVar(&incidentPatternCfg.output, "output", "table", "Output: table|json")
-	incidentPatternShowCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	incidentPatternShowCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	incidentPatternShowCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// ack flags
@@ -409,7 +409,7 @@ func init() {
 	incidentPatternAckCmd.Flags().StringVar(&incidentPatternCfg.incidentID, "incident", "", "Incident ID")
 	incidentPatternAckCmd.Flags().StringVar(&incidentPatternCfg.reason, "reason", "", "Why you are proceeding")
 	incidentPatternAckCmd.Flags().StringVar(&incidentPatternCfg.output, "output", "table", "Output: table|json")
-	incidentPatternAckCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	incidentPatternAckCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	incidentPatternAckCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	awarenessIncidentPatternCmd.AddCommand(incidentPatternRecordCmd)

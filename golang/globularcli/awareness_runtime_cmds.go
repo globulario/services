@@ -265,24 +265,24 @@ func init() {
 	awarenessRuntimeSnapshotCmd.Flags().StringVar(&runtimeCfg.format, "format", "human", "Output format: human | json")
 	awarenessRuntimeSnapshotCmd.Flags().DurationVar(&runtimeCfg.window, "window", 15*time.Minute, "Lookback window for events and workflows")
 	awarenessRuntimeSnapshotCmd.Flags().BoolVar(&runtimeCfg.writeGraph, "write-graph", false, "Write snapshot as nodes/edges into the awareness graph")
-	awarenessRuntimeSnapshotCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessRuntimeSnapshotCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessRuntimeSnapshotCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// doctor-context flags.
 	awarenessDoctorContextCmd.Flags().StringVar(&runtimeCfg.finding, "finding", "", "Doctor finding keyword (required)")
-	awarenessDoctorContextCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessDoctorContextCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessDoctorContextCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// runtime-context flags.
 	awarenessRuntimeContextCmd.Flags().StringVar(&runtimeCfg.service, "service", "", "Service ID (required)")
-	awarenessRuntimeContextCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessRuntimeContextCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessRuntimeContextCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	// incident-from-runtime flags.
 	awarenessIncidentFromRuntimeCmd.Flags().StringVar(&runtimeCfg.task, "task", "", "Task or incident description (required)")
 	awarenessIncidentFromRuntimeCmd.Flags().BoolVar(&runtimeCfg.propose, "propose", false, "Also generate a draft proposal from the bundle")
 	awarenessIncidentFromRuntimeCmd.Flags().DurationVar(&runtimeCfg.window, "window", 15*time.Minute, "Lookback window for runtime snapshot")
-	awarenessIncidentFromRuntimeCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.db")
+	awarenessIncidentFromRuntimeCmd.Flags().StringVar(&awareCfg.dbPath, "db", "", "Path to graph.json")
 	awarenessIncidentFromRuntimeCmd.Flags().StringVar(&awareCfg.repoPath, "repo", "", "Repo root")
 
 	awarenessCmd.AddCommand(awarenessRuntimeSnapshotCmd)
