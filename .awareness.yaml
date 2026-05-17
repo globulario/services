@@ -21,8 +21,11 @@ awareness:
     - docs/awareness/invariants.yaml
     - docs/awareness/convergence_rules.yaml
     - docs/awareness/awareness_self_invariants.yaml
+    - docs/awareness/state_authority_invariants.yaml
+    - docs/awareness/frontend_invariants.yaml
   failure_modes:
     - docs/awareness/failure_modes.yaml
+    - docs/awareness/industry_failure_modes.yaml
   forbidden_fixes:
     - docs/awareness/forbidden_fixes.yaml
   incident_patterns:
