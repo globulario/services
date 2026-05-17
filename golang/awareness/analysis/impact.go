@@ -6,6 +6,7 @@ package analysis
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/globulario/services/golang/awareness/graph"
@@ -139,10 +140,21 @@ func ExplainImpactByFile(ctx context.Context, g *graph.Graph, filePath string) (
 			}
 		}
 
+		// Resolve severity for invariant nodes from the graph record.
+		severity := ""
+		if terminal.NodeType == graph.NodeTypeInvariant {
+			// Strip "invariant:" prefix to get the record ID.
+			invID := strings.TrimPrefix(terminal.NodeID, "invariant:")
+			if inv, _ := g.FindInvariant(ctx, invID); inv != nil {
+				severity = inv.Severity
+			}
+		}
+
 		finding := ExplainedFinding{
 			NodeID:     terminal.NodeID,
 			NodeType:   terminal.NodeType,
 			NodeName:   terminal.NodeName,
+			Severity:   severity,
 			Mandatory:  mandatory,
 			EdgePath:   edgePath,
 			Confidence: p.Confidence,
@@ -169,13 +181,75 @@ func ExplainImpactByFile(ctx context.Context, g *graph.Graph, filePath string) (
 		}
 	}
 
+	// Phase 2: rank each partition so mandatory/high-severity items surface first.
+	rankFindings(result.Invariants)
+	rankFindings(result.ForbiddenFixes)
+	rankFindings(result.RequiredTests)
+	rankFindings(result.FailureModes)
+
 	// Phase 6: missing-link detection.
-	// When no paths are found, suggest why based on file location.
-	if len(paths) == 0 {
+	// When no findings were produced (no paths, or only paths with zero steps),
+	// explain the coverage gap. This is important: an empty result must NOT be
+	// interpreted as "no rules apply" (NO_MATCH ≠ safe to proceed).
+	if len(bestByID) == 0 {
 		result.MissingLinks = detectMissingLinks(filePath)
 	}
 
 	return result, nil
+}
+
+// rankFindings sorts a slice of ExplainedFindings in priority order:
+//  1. Mandatory items first (implements/enforces path or ForbiddenFix node).
+//  2. By severity: critical > high > medium > low > "".
+//  3. By confidence: high > medium > low.
+//  4. By path length: shorter paths (clearer evidence) ranked higher.
+func rankFindings(findings []ExplainedFinding) {
+	sort.SliceStable(findings, func(i, j int) bool {
+		fi, fj := findings[i], findings[j]
+		// Mandatory before non-mandatory.
+		if fi.Mandatory != fj.Mandatory {
+			return fi.Mandatory
+		}
+		si, sj := severityRank(fi.Severity), severityRank(fj.Severity)
+		if si != sj {
+			return si > sj
+		}
+		ci, cj := confidenceRank(fi.Confidence), confidenceRank(fj.Confidence)
+		if ci != cj {
+			return ci > cj
+		}
+		return len(fi.EdgePath) < len(fj.EdgePath)
+	})
+}
+
+// severityRank maps severity strings to sortable integers (higher = more severe).
+func severityRank(s string) int {
+	switch strings.ToLower(s) {
+	case "critical":
+		return 4
+	case "high":
+		return 3
+	case "medium":
+		return 2
+	case "low":
+		return 1
+	default:
+		return 0
+	}
+}
+
+// confidenceRank maps confidence strings to sortable integers (higher = more confident).
+func confidenceRank(c string) int {
+	switch strings.ToLower(c) {
+	case "high":
+		return 3
+	case "medium":
+		return 2
+	case "low":
+		return 1
+	default:
+		return 0
+	}
 }
 
 // detectMissingLinks suggests why a file has no graph edges and what to add.
