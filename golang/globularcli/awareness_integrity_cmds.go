@@ -1,21 +1,29 @@
 package main
 
-// awareness_integrity_cmds.go: CLI commands for graph integrity and impact path (Phase 11).
+// awareness_integrity_cmds.go: CLI commands for graph integrity and impact path.
 //
 // Commands:
 //
 //	globular awareness graph-integrity-check [--repo <path>] [--db <path>] [--docs <path>]
 //	    [--test-results <file>] [--strict] [--json]
 //	globular awareness impact-path --files <f1,f2,...> [--db <path>] [--max-depth <n>] [--json]
+//
+// Exit codes for graph-integrity-check:
+//
+//	0 — no errors, all checks passed
+//	1 — errors found (CI fails)
+//	2 — errors found AND --strict mode (critical; also exits 2 when strict+warnings)
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
+	"github.com/globulario/services/golang/awareness/enforce"
 	"github.com/globulario/services/golang/awareness/integrity"
 )
 
@@ -34,9 +42,83 @@ var integrityCfg = struct {
 
 var awarenessGraphIntegrityCheckCmd = &cobra.Command{
 	Use:   "graph-integrity-check",
-	Short: "Validate the awareness knowledge graph (not available — integrity.Check removed)",
+	Short: "Validate the awareness knowledge graph with CI-grade exit codes",
+	Long: `Runs GraphIntegrityCICheck and exits with:
+  0 — no errors (pass)
+  1 — errors found (CI fails)
+  2 — errors found in --strict mode (or any finding when strict is set)
+
+In --strict mode, warnings are also treated as failures (exit 2).
+Designed for CI pipeline wiring: "globular awareness graph-integrity-check --strict"`,
+	SilenceErrors: true,
+	SilenceUsage:  true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return fmt.Errorf("graph-integrity-check is not available: integrity.Check/Options/IntegrityResult were removed from standalone awareness module")
+		ctx := context.Background()
+
+		g, err := openAwarenessGraph(awareCfg.dbPath, awareCfg.repoPath)
+		if err != nil {
+			// No graph is a non-fatal warning — CI should still report the check state.
+			fmt.Fprintf(os.Stderr, "warning: could not open graph: %v\n", err)
+		}
+		if g != nil {
+			defer g.Close()
+		}
+
+		repoRoot, _ := resolveRepoRoot(awareCfg.repoPath)
+		docsDir := integrityCfg.docsDir
+		if docsDir == "" && repoRoot != "" {
+			docsDir = filepath.Join(repoRoot, "docs", "awareness")
+		}
+
+		ciOpts := enforce.CICheckOptions{
+			RepoRoot:              repoRoot,
+			DocsDir:               docsDir,
+			MaxScaffoldSkips:      0,
+			MaxRequiredTestNoPath: 0,
+		}
+
+		res := enforce.GraphIntegrityCICheck(ctx, g, ciOpts)
+
+		if integrityCfg.jsonOutput {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			_ = enc.Encode(map[string]interface{}{
+				"pass":            res.Pass,
+				"error_count":     res.ErrorCount,
+				"warning_count":   res.WarningCount,
+				"failure_reasons": res.FailureReasons,
+				"findings":        res.Findings,
+			})
+		} else {
+			if res.Pass && res.WarningCount == 0 {
+				fmt.Fprintln(os.Stdout, "graph-integrity: PASS — no issues found")
+			} else {
+				for _, f := range res.Findings {
+					fmt.Fprintf(os.Stdout, "[%s] %s: %s\n", f.Severity, f.Code, f.Message)
+				}
+				if !res.Pass {
+					fmt.Fprintf(os.Stderr, "\nFAIL: %d error(s), %d warning(s)\n", res.ErrorCount, res.WarningCount)
+					for _, r := range res.FailureReasons {
+						fmt.Fprintf(os.Stderr, "  • %s\n", r)
+					}
+				}
+			}
+		}
+
+		// Exit code logic:
+		//   0 — clean pass
+		//   1 — errors (default mode)
+		//   2 — errors in strict mode, OR any warning/error in strict mode
+		if !res.Pass {
+			if integrityCfg.strict {
+				os.Exit(2)
+			}
+			os.Exit(1)
+		}
+		if integrityCfg.strict && res.WarningCount > 0 {
+			os.Exit(2)
+		}
+		return nil
 	},
 }
 

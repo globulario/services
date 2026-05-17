@@ -171,9 +171,11 @@ var graphIntegrityCfg = struct {
 
 var awarenessGraphIntegrityCmd = &cobra.Command{
 	Use:   "graph-integrity",
-	Short: "Run graph integrity check (not available — integrity.Check removed from standalone module)",
+	Short: "Alias for graph-integrity-check",
+	Long:  "Alias for 'globular awareness graph-integrity-check'. See that command for full docs.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return fmt.Errorf("graph-integrity is not available: integrity.Check/Options/IntegrityResult were removed from standalone awareness module")
+		// Delegate to the canonical graph-integrity-check command.
+		return awarenessGraphIntegrityCheckCmd.RunE(awarenessGraphIntegrityCheckCmd, args)
 	},
 }
 

@@ -2482,160 +2482,160 @@ invariants:
       related_failure_modes:
         - package.identity_fraud_silent_override
 
-  # ── Kubernetes substrate invariants ──────────────────────────────────────────
-  # These govern Globular's relationship to a hosted Kubernetes cluster.
-  # Globular owns substrate (nodes, storage, PKI, networking).
-  # Kubernetes owns workloads (Pods, Deployments, Services, etc.).
-  # See docs/awareness/kubernetes/ for full documentation.
+    # ── Kubernetes substrate invariants ──────────────────────────────────────────
+    # These govern Globular's relationship to a hosted Kubernetes cluster.
+    # Globular owns substrate (nodes, storage, PKI, networking).
+    # Kubernetes owns workloads (Pods, Deployments, Services, etc.).
+    # See docs/awareness/kubernetes/ for full documentation.
 
-  - id: k8s.api_server.reachable
-    title: The Kubernetes API server must be reachable from each Globular control-plane node
-    severity: critical
-    status: active
-    # origin: { type: principle, confidence: high }
-    summary: |
-      If the API server is unreachable, check substrate (node health, cert expiry,
-      network) first before classifying as kubernetes_control_plane_owned.
-    related_failure_modes:
-      - fm.k8s.api_server_unreachable
+    - id: k8s.api_server.reachable
+      title: The Kubernetes API server must be reachable from each Globular control-plane node
+      severity: critical
+      status: active
+      # origin: { type: principle, confidence: high }
+      summary: |
+        If the API server is unreachable, check substrate (node health, cert expiry,
+        network) first before classifying as kubernetes_control_plane_owned.
+      related_failure_modes:
+        - fm.k8s.api_server_unreachable
 
-  - id: k8s.nodes.ready_count_matches_expected
-    title: The number of Ready Kubernetes nodes must match the number of healthy Globular nodes
-    severity: critical
-    status: active
-    # origin: { type: principle, confidence: high }
-    summary: |
-      A mismatch between Ready K8s nodes and healthy Globular nodes indicates either
-      a substrate issue or a Kubernetes node registration problem. The substrate check
-      must happen first — a down Globular node IS the root cause of K8s NotReady.
+    - id: k8s.nodes.ready_count_matches_expected
+      title: The number of Ready Kubernetes nodes must match the number of healthy Globular nodes
+      severity: critical
+      status: active
+      # origin: { type: principle, confidence: high }
+      summary: |
+        A mismatch between Ready K8s nodes and healthy Globular nodes indicates either
+        a substrate issue or a Kubernetes node registration problem. The substrate check
+        must happen first — a down Globular node IS the root cause of K8s NotReady.
 
-  - id: k8s.core_dns.available
-    title: CoreDNS must be available and responding to queries
-    severity: critical
-    status: active
-    # origin: { type: principle, confidence: high }
-    summary: |
-      CoreDNS failure breaks all K8s service discovery. Always check if the node
-      hosting CoreDNS is substrate-healthy before escalating.
+    - id: k8s.core_dns.available
+      title: CoreDNS must be available and responding to queries
+      severity: critical
+      status: active
+      # origin: { type: principle, confidence: high }
+      summary: |
+        CoreDNS failure breaks all K8s service discovery. Always check if the node
+        hosting CoreDNS is substrate-healthy before escalating.
 
-  - id: k8s.kube_proxy.available_on_each_node
-    title: kube-proxy must be available on each Kubernetes node
-    severity: high
-    status: active
-    # origin: { type: principle, confidence: high }
-    summary: |
-      kube-proxy failure breaks service routing. May be substrate-owned if the
-      node is unhealthy from a Globular perspective.
+    - id: k8s.kube_proxy.available_on_each_node
+      title: kube-proxy must be available on each Kubernetes node
+      severity: high
+      status: active
+      # origin: { type: principle, confidence: high }
+      summary: |
+        kube-proxy failure breaks service routing. May be substrate-owned if the
+        node is unhealthy from a Globular perspective.
 
-  - id: k8s.cni.ready_on_each_node
-    title: The CNI plugin must be running and ready on each Kubernetes node
-    severity: critical
-    status: active
-    # origin: { type: principle, confidence: high }
-    summary: |
-      CNI failure causes pod networking failure on the entire node.
-      Substrate-owned if Globular manages the network fabric on that node.
+    - id: k8s.cni.ready_on_each_node
+      title: The CNI plugin must be running and ready on each Kubernetes node
+      severity: critical
+      status: active
+      # origin: { type: principle, confidence: high }
+      summary: |
+        CNI failure causes pod networking failure on the entire node.
+        Substrate-owned if Globular manages the network fabric on that node.
 
-  - id: k8s.certificates.not_expired
-    title: No Kubernetes cluster certificates may be expired
-    severity: critical
-    status: active
-    # origin: { type: principle, confidence: high }
-    summary: |
-      Expired certs break API server, kubelet, and etcd TLS. If the expired cert
-      is under Globular PKI, this is substrate_owned. If it is a separate K8s-managed
-      cert, classify as kubernetes_control_plane_owned.
-    related_invariants:
-      - identity.stable_node_identity_not_floating_vip
+    - id: k8s.certificates.not_expired
+      title: No Kubernetes cluster certificates may be expired
+      severity: critical
+      status: active
+      # origin: { type: principle, confidence: high }
+      summary: |
+        Expired certs break API server, kubelet, and etcd TLS. If the expired cert
+        is under Globular PKI, this is substrate_owned. If it is a separate K8s-managed
+        cert, classify as kubernetes_control_plane_owned.
+      related_invariants:
+        - identity.stable_node_identity_not_floating_vip
 
-  - id: k8s.etcd.quorum_available
-    title: Kubernetes-internal etcd must maintain quorum
-    severity: critical
-    status: active
-    # origin: { type: principle, confidence: high }
-    summary: |
-      This is the Kubernetes-internal etcd (typically port 2379 on control-plane nodes),
-      NOT the Globular etcd. They are separate instances. Quorum loss is
-      kubernetes_control_plane_owned unless a substrate node failure caused it.
-    forbidden_fixes:
-      - confuse_k8s_etcd_with_globular_etcd
+    - id: k8s.etcd.quorum_available
+      title: Kubernetes-internal etcd must maintain quorum
+      severity: critical
+      status: active
+      # origin: { type: principle, confidence: high }
+      summary: |
+        This is the Kubernetes-internal etcd (typically port 2379 on control-plane nodes),
+        NOT the Globular etcd. They are separate instances. Quorum loss is
+        kubernetes_control_plane_owned unless a substrate node failure caused it.
+      forbidden_fixes:
+        - confuse_k8s_etcd_with_globular_etcd
 
-  - id: k8s.system_pods.available
-    title: All kube-system pods must be available and not crash-looping
-    severity: high
-    status: active
-    # origin: { type: principle, confidence: high }
-    summary: |
-      kube-system pod failures cascade to workload failures. Check substrate
-      (node health, storage, network) before classifying as workload_owned.
+    - id: k8s.system_pods.available
+      title: All kube-system pods must be available and not crash-looping
+      severity: high
+      status: active
+      # origin: { type: principle, confidence: high }
+      summary: |
+        kube-system pod failures cascade to workload failures. Check substrate
+        (node health, storage, network) before classifying as workload_owned.
 
-  - id: k8s.pending_pods.explained
-    title: Every pod stuck in Pending for more than 5 minutes must have a classified reason
-    severity: medium
-    status: active
-    # origin: { type: principle, confidence: medium }
-    summary: |
-      Unclassified Pending pods are unknown_insufficient_evidence. Classification
-      requires checking: scheduler events, PVC binding status, node capacity,
-      and substrate health.
+    - id: k8s.pending_pods.explained
+      title: Every pod stuck in Pending for more than 5 minutes must have a classified reason
+      severity: medium
+      status: active
+      # origin: { type: principle, confidence: medium }
+      summary: |
+        Unclassified Pending pods are unknown_insufficient_evidence. Classification
+        requires checking: scheduler events, PVC binding status, node capacity,
+        and substrate health.
 
-  - id: k8s.crashlooping_pods.explained
-    title: Every CrashLoopBackOff pod must have a classified root cause before escalation
-    severity: medium
-    status: active
-    # origin: { type: principle, confidence: medium }
-    summary: |
-      CrashLoopBackOff may be workload_owned (app crash) or substrate_owned
-      (storage mount, network unreachable). Check substrate first.
+    - id: k8s.crashlooping_pods.explained
+      title: Every CrashLoopBackOff pod must have a classified root cause before escalation
+      severity: medium
+      status: active
+      # origin: { type: principle, confidence: medium }
+      summary: |
+        CrashLoopBackOff may be workload_owned (app crash) or substrate_owned
+        (storage mount, network unreachable). Check substrate first.
 
-  - id: k8s.service_has_ready_endpoints
-    title: Every Kubernetes Service must have at least one ready endpoint
-    severity: high
-    status: active
-    # origin: { type: principle, confidence: medium }
-    summary: |
-      A service with zero endpoints means all backing pods are unavailable.
-      This may be substrate_owned if pods are crashing due to node/storage issues.
+    - id: k8s.service_has_ready_endpoints
+      title: Every Kubernetes Service must have at least one ready endpoint
+      severity: high
+      status: active
+      # origin: { type: principle, confidence: medium }
+      summary: |
+        A service with zero endpoints means all backing pods are unavailable.
+        This may be substrate_owned if pods are crashing due to node/storage issues.
 
-  - id: k8s.pvc_bound_or_reason_known
-    title: Every PersistentVolumeClaim must be bound or have a classified reason for being unbound
-    severity: high
-    status: active
-    # origin: { type: principle, confidence: high }
-    summary: |
-      Unbound PVCs block pod scheduling. May be substrate_owned if the storage
-      provisioner (MinIO, NFS) is a Globular-managed service that is down.
+    - id: k8s.pvc_bound_or_reason_known
+      title: Every PersistentVolumeClaim must be bound or have a classified reason for being unbound
+      severity: high
+      status: active
+      # origin: { type: principle, confidence: high }
+      summary: |
+        Unbound PVCs block pod scheduling. May be substrate_owned if the storage
+        provisioner (MinIO, NFS) is a Globular-managed service that is down.
 
-  - id: k8s.admission_webhooks.available
-    title: All Fail-mode admission webhooks must be available
-    severity: critical
-    status: active
-    # origin: { type: principle, confidence: high }
-    summary: |
-      Unavailable Fail-mode webhooks block all object creation in the cluster.
-      If the webhook pod is on an unhealthy Globular node, classify as substrate_owned.
+    - id: k8s.admission_webhooks.available
+      title: All Fail-mode admission webhooks must be available
+      severity: critical
+      status: active
+      # origin: { type: principle, confidence: high }
+      summary: |
+        Unavailable Fail-mode webhooks block all object creation in the cluster.
+        If the webhook pod is on an unhealthy Globular node, classify as substrate_owned.
 
-  - id: k8s.namespace_not_stuck_terminating
-    title: No Kubernetes namespace may be stuck in Terminating state for more than 10 minutes
-    severity: medium
-    status: active
-    # origin: { type: principle, confidence: medium }
-    summary: |
-      A stuck namespace indicates either a finalizer issue (workload_owned) or
-      API server/etcd problem (kubernetes_control_plane_owned). Never delete
-      finalizers without classifying the root cause.
+    - id: k8s.namespace_not_stuck_terminating
+      title: No Kubernetes namespace may be stuck in Terminating state for more than 10 minutes
+      severity: medium
+      status: active
+      # origin: { type: principle, confidence: medium }
+      summary: |
+        A stuck namespace indicates either a finalizer issue (workload_owned) or
+        API server/etcd problem (kubernetes_control_plane_owned). Never delete
+        finalizers without classifying the root cause.
 
-  - id: k8s.authority_boundary_classification_required
-    title: Every Kubernetes failure observed by Globular must be classified before action
-    severity: critical
-    status: active
-    # origin: { type: principle, confidence: very_high }
-    summary: |
-      The four classes are: workload_owned, kubernetes_control_plane_owned,
-      substrate_owned, unknown_insufficient_evidence.
-      No destructive action may be taken on an unclassified failure.
-      unknown_insufficient_evidence requires evidence collection, not action.
-    forbidden_fixes:
-      - act_on_kubernetes_failure_without_classification
-      - assume_substrate_fix_resolves_workload_failure
-      - delete_pod_to_resolve_storage_issue
+    - id: k8s.authority_boundary_classification_required
+      title: Every Kubernetes failure observed by Globular must be classified before action
+      severity: critical
+      status: active
+      # origin: { type: principle, confidence: very_high }
+      summary: |
+        The four classes are: workload_owned, kubernetes_control_plane_owned,
+        substrate_owned, unknown_insufficient_evidence.
+        No destructive action may be taken on an unclassified failure.
+        unknown_insufficient_evidence requires evidence collection, not action.
+      forbidden_fixes:
+        - act_on_kubernetes_failure_without_classification
+        - assume_substrate_fix_resolves_workload_failure
+        - delete_pod_to_resolve_storage_issue

@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/globulario/services/golang/awareness/analysis/contextnav"
 	"github.com/globulario/services/golang/awareness/preflight"
 )
 
@@ -110,15 +111,12 @@ func registerAwarenessDecisionTraceTool(s *server, st *awarenessState) {
 	})
 }
 
-func registerAwarenessFindingContextTool(s *server, _ *awarenessState) {
-	// finding_context is not available in this build — contextnav package was
-	// removed from standalone awareness module. The tool is registered as a stub
-	// so the MCP schema remains discoverable.
+func registerAwarenessFindingContextTool(s *server, st *awarenessState) {
 	s.register(toolDef{
 		Name: "awareness.finding_context",
 		Description: "Return the per-finding decision trace for an explicit prefixed finding id " +
-			"(failure_mode:X | invariant:Y | forbidden_fix:Z). " +
-			"[not available in this build — contextnav package removed]",
+			"(failure_mode:X | invariant:Y | forbidden_fix:Z). Produces owner inference, ranked " +
+			"pivots, falsifiers, and next actions without running a full preflight.",
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
@@ -126,13 +124,47 @@ func registerAwarenessFindingContextTool(s *server, _ *awarenessState) {
 					Type:        "string",
 					Description: "Prefixed finding id (failure_mode:X | invariant:Y | forbidden_fix:Z)",
 				},
+				"task": {
+					Type:        "string",
+					Description: "Task or symptom description (optional; drives falsifier generation)",
+				},
+				"files": {
+					Type:        "array",
+					Description: "Files in scope (drives owner inference)",
+					Items:       &propSchema{Type: "string"},
+				},
 			},
 			Required: []string{"finding"},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		findingID, _ := args["finding"].(string)
+		if findingID == "" {
+			return nil, fmt.Errorf("finding is required")
+		}
+
+		kind, id, err := contextnav.ParseFindingID(findingID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid finding id: %w", err)
+		}
+
+		opts := contextnav.FindingContextOptions{
+			Kind:  kind,
+			ID:    id,
+			Graph: st.g,
+			Task:  strArg(args, "task"),
+			Files: getStrSlice(args, "files"),
+		}
+
+		trace, err := contextnav.BuildForFinding(ctx, opts)
+		if err != nil {
+			return nil, fmt.Errorf("finding_context: %w", err)
+		}
+
 		return map[string]interface{}{
-			"status": "not_available",
-			"reason": "contextnav package was removed from standalone awareness module; use awareness.preflight instead",
+			"finding":       findingID,
+			"finding_id":    id,
+			"finding_type":  kind,
+			"decision_trace": trace,
 		}, nil
 	})
 }
