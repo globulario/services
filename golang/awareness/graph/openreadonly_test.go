@@ -14,129 +14,121 @@ import (
 // "graph.Open always migrates against immutable bundles" in
 // docs/awareness/composed_path_failures.md.
 //
-// The signed awareness bundle is content-addressed at
-// /var/lib/globular/awareness/installed/<version>/<uuid>/, owned root:root.
-// graph.Open always runs migrate() which executes DDL — a write — and
-// fails when the service user can't open the file read-write. The fix is
-// OpenReadOnly, which honours the bundle's immutability contract.
+// The signed awareness bundle is content-addressed and owned root:root.
+// graph.Open on an immutable directory fails. The fix is OpenReadOnly,
+// which honours the bundle's immutability contract.
 
 func TestOpenReadOnly_ReadsBundleWithoutWriting(t *testing.T) {
 	// Build a graph with normal Open, close it. That simulates the bundle
 	// being built and shipped. Then assert OpenReadOnly can query it.
-	dir := t.TempDir()
-	path := filepath.Join(dir, "bundle.db")
-	g, err := graph.Open(path)
+	bundleDir := t.TempDir()
+
+	ctx := context.Background()
+	g, err := graph.Open(bundleDir)
 	if err != nil {
 		t.Fatalf("seed Open: %v", err)
 	}
-	if _, err := g.DB().ExecContext(context.Background(),
-		`INSERT INTO nodes (id, type, name) VALUES ('n1', 'service', 'test')`); err != nil {
+	if err := g.AddNode(ctx, graph.Node{
+		ID:   "n1",
+		Type: graph.NodeTypeGlobularService,
+		Name: "test",
+	}); err != nil {
 		t.Fatalf("seed insert: %v", err)
 	}
 	if err := g.Close(); err != nil {
 		t.Fatalf("seed Close: %v", err)
 	}
 
-	ro, err := graph.OpenReadOnly(path)
+	ro, err := graph.OpenReadOnly(bundleDir)
 	if err != nil {
 		t.Fatalf("OpenReadOnly: %v", err)
 	}
 	t.Cleanup(func() { ro.Close() })
 
-	var name string
-	if err := ro.DB().QueryRowContext(context.Background(),
-		`SELECT name FROM nodes WHERE id = 'n1'`).Scan(&name); err != nil {
+	n, err := ro.FindNode(ctx, "n1")
+	if err != nil {
 		t.Fatalf("read after OpenReadOnly: %v", err)
 	}
-	if name != "test" {
-		t.Errorf("read value = %q, want %q", name, "test")
+	if n == nil {
+		t.Fatal("node n1 not visible after OpenReadOnly")
+	}
+	if n.Name != "test" {
+		t.Errorf("read value = %q, want %q", n.Name, "test")
 	}
 }
 
 func TestOpenReadOnly_RefusesWrites(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "bundle.db")
-	if g, err := graph.Open(path); err != nil {
+	bundleDir := t.TempDir()
+
+	// Create an empty bundle.
+	if g, err := graph.Open(bundleDir); err != nil {
 		t.Fatalf("seed Open: %v", err)
 	} else {
 		g.Close()
 	}
 
-	ro, err := graph.OpenReadOnly(path)
+	ro, err := graph.OpenReadOnly(bundleDir)
 	if err != nil {
 		t.Fatalf("OpenReadOnly: %v", err)
 	}
 	t.Cleanup(func() { ro.Close() })
 
-	_, err = ro.DB().ExecContext(context.Background(),
-		`INSERT INTO nodes (id, type, name) VALUES ('n2', 'service', 'illegal-write')`)
+	err = ro.AddNode(context.Background(), graph.Node{
+		ID:   "n2",
+		Type: graph.NodeTypeGlobularService,
+		Name: "illegal-write",
+	})
 	if err == nil {
 		t.Fatal("write through OpenReadOnly handle must fail; got nil error")
 	}
 	if !strings.Contains(strings.ToLower(err.Error()), "readonly") &&
-		!strings.Contains(strings.ToLower(err.Error()), "read-only") &&
-		!strings.Contains(strings.ToLower(err.Error()), "read only") {
+		!strings.Contains(strings.ToLower(err.Error()), "read-only") {
 		t.Errorf("error should mention read-only; got: %v", err)
 	}
 }
 
-// The bundle file is root-owned in production. We can't change uid in tests,
-// but we can simulate the failure by removing write permission on the file
-// and asserting OpenReadOnly still succeeds (proves no write attempt is made
-// during open / migrate). This is the operational shape that prevented MCP
-// from opening the bundle at all before this commit.
-func TestOpenReadOnly_SucceedsWhenFileIsNotWritable(t *testing.T) {
+// The bundle directory is root-owned in production. We can't change uid in tests,
+// but we can simulate immutability by making the directory not writable and
+// asserting OpenReadOnly still succeeds (proves no write attempt is made during open).
+func TestOpenReadOnly_SucceedsWhenDirectoryIsNotWritable(t *testing.T) {
 	if os.Geteuid() == 0 {
-		t.Skip("running as root — chmod 0o444 doesn't restrict root")
+		t.Skip("running as root — chmod 0o555 doesn't restrict root")
 	}
-	dir := t.TempDir()
-	path := filepath.Join(dir, "bundle.db")
-	if g, err := graph.Open(path); err != nil {
+	bundleDir := t.TempDir()
+
+	// Seed graph data first.
+	g, err := graph.Open(bundleDir)
+	if err != nil {
 		t.Fatalf("seed Open: %v", err)
-	} else {
-		g.Close()
 	}
-	if err := os.Chmod(path, 0o444); err != nil {
+	g.Close()
+
+	// Make the directory read-only.
+	if err := os.Chmod(bundleDir, 0o555); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chmod(dir, 0o555); err != nil {
-		t.Fatal(err)
-	}
-	// Restore write perms on cleanup so t.TempDir's defer can remove the dir.
+	// Restore write perms on cleanup so t.TempDir's defer can remove it.
 	t.Cleanup(func() {
-		_ = os.Chmod(dir, 0o755)
-		_ = os.Chmod(path, 0o644)
+		_ = os.Chmod(bundleDir, 0o755)
 	})
 
-	// graph.Open against this would fail with "attempt to write a readonly
-	// database" — that was the exact production symptom on the bundle.
-	openErr := func() error {
-		g, err := graph.Open(path)
-		if err != nil {
-			return err
-		}
-		_ = g.Close()
-		return nil
-	}()
-	if openErr == nil {
-		t.Log("note: read-write Open unexpectedly succeeded on a read-only file; " +
-			"the regression assertion below for OpenReadOnly is still meaningful")
-	}
-
-	ro, err := graph.OpenReadOnly(path)
+	// graph.Open against a non-writable directory would fail — OpenReadOnly must not.
+	ro, err := graph.OpenReadOnly(bundleDir)
 	if err != nil {
-		t.Fatalf("OpenReadOnly must succeed against a read-only bundle file: %v", err)
+		t.Fatalf("OpenReadOnly must succeed against a read-only bundle directory: %v", err)
 	}
 	defer ro.Close()
 
-	// And queries must still work.
-	if err := ro.DB().PingContext(context.Background()); err != nil {
-		t.Errorf("read-only ping failed: %v", err)
+	// Queries must still work.
+	stats, err := ro.Stats(context.Background())
+	if err != nil {
+		t.Errorf("Stats on read-only graph failed: %v", err)
 	}
+	_ = stats
 }
 
-func TestOpenReadOnly_RejectsMissingFile(t *testing.T) {
-	_, err := graph.OpenReadOnly(filepath.Join(t.TempDir(), "absent.db"))
+func TestOpenReadOnly_RejectsMissingDirectory(t *testing.T) {
+	_, err := graph.OpenReadOnly(filepath.Join(t.TempDir(), "absent-dir"))
 	if err == nil {
 		t.Fatal("OpenReadOnly on a missing path must return an error")
 	}

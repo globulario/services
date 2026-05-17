@@ -2,56 +2,63 @@ package graph
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 )
 
-// UpsertRuntimeSnapshot stores a serialized snapshot in the runtime_snapshots table.
+// UpsertRuntimeSnapshot stores a serialized snapshot.
 func (g *Graph) UpsertRuntimeSnapshot(ctx context.Context, id string, capturedAt int64, nodeID, clusterID string, snapshotJSON []byte) error {
-	now := time.Now().Unix()
-	_, err := g.db.ExecContext(ctx, `
-		INSERT INTO runtime_snapshots (id, captured_at, node_id, cluster_id, snapshot_json, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			captured_at   = excluded.captured_at,
-			node_id       = excluded.node_id,
-			cluster_id    = excluded.cluster_id,
-			snapshot_json = excluded.snapshot_json
-	`, id, capturedAt, nodeID, clusterID, string(snapshotJSON), now)
-	if err != nil {
-		return fmt.Errorf("UpsertRuntimeSnapshot %s: %w", id, err)
+	if g.readOnly {
+		return fmt.Errorf("UpsertRuntimeSnapshot %s: graph is read-only", id)
 	}
-	return nil
+	now := time.Now().Unix()
+	rec := &runtimeSnapshotRecord{
+		ID:           id,
+		CapturedAt:   capturedAt,
+		NodeID:       nodeID,
+		ClusterID:    clusterID,
+		SnapshotJSON: string(snapshotJSON),
+		CreatedAt:    now,
+	}
+
+	g.snapshotMu.Lock()
+	// Upsert: replace if same ID.
+	replaced := false
+	for i, s := range g.snapshots {
+		if s.ID == id {
+			g.snapshots[i] = rec
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		g.snapshots = append(g.snapshots, rec)
+	}
+	sortSnapshotsByTime(g.snapshots)
+	g.snapshotMu.Unlock()
+
+	return g.writeJSON("snapshots", id, rec)
 }
 
 // LatestRuntimeSnapshot returns the most-recent snapshot JSON, or nil if none.
 func (g *Graph) LatestRuntimeSnapshot(ctx context.Context) ([]byte, error) {
-	var jsonStr string
-	err := g.db.QueryRowContext(ctx, `
-		SELECT snapshot_json FROM runtime_snapshots ORDER BY captured_at DESC LIMIT 1
-	`).Scan(&jsonStr)
-	if errors.Is(err, sql.ErrNoRows) {
+	g.snapshotMu.RLock()
+	defer g.snapshotMu.RUnlock()
+	if len(g.snapshots) == 0 {
 		return nil, nil
 	}
-	if err != nil {
-		return nil, fmt.Errorf("LatestRuntimeSnapshot: %w", err)
-	}
-	return []byte(jsonStr), nil
+	return []byte(g.snapshots[0].SnapshotJSON), nil
 }
 
-// GetRuntimeSnapshotByID returns the stored snapshot JSON for the given snapshot ID.
+// GetRuntimeSnapshotByID returns the stored snapshot JSON for the given ID.
 // Returns (nil, nil) if no snapshot with that ID exists.
 func (g *Graph) GetRuntimeSnapshotByID(ctx context.Context, id string) ([]byte, error) {
-	var jsonStr string
-	err := g.db.QueryRowContext(ctx,
-		`SELECT snapshot_json FROM runtime_snapshots WHERE id = ?`, id).Scan(&jsonStr)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
+	g.snapshotMu.RLock()
+	defer g.snapshotMu.RUnlock()
+	for _, s := range g.snapshots {
+		if s.ID == id {
+			return []byte(s.SnapshotJSON), nil
+		}
 	}
-	if err != nil {
-		return nil, fmt.Errorf("GetRuntimeSnapshotByID: %w", err)
-	}
-	return []byte(jsonStr), nil
+	return nil, nil
 }

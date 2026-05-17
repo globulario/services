@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/services/golang/awareness/incidentpattern"
 )
 
 // The failure_modes TABLE stores ids without the "failure_mode:" prefix; the
@@ -435,36 +436,50 @@ func lifecycleHintFromNodeMeta(meta map[string]any) string {
 // countIncidentPatterns adds incident_patterns rows to the LearningEntries
 // counter and records the smallest incident_id per failure_mode so the trust
 // envelope can name the incident that originally closed the learning loop on
-// this failure_mode. This table is queried directly because it is not
-// represented as graph edges (it lives next to the failure-graph store).
+// this failure_mode. Uses incidentpattern.Store which handles both in-memory
+// (for tests) and file-based (for production) graphs.
 //
 // "Smallest" is a deterministic choice rather than a quality one: it
 // stabilizes the envelope output across runs even as new incident_patterns
 // rows are added. The agent-facing meaning is "this failure_mode was learned
 // from at least one incident" — the specific id is provenance, not a ranking.
 func countIncidentPatterns(ctx context.Context, g *graph.Graph, bucket map[string]*FailureModeCoverage) error {
-	rows, err := g.DB().QueryContext(ctx,
-		`SELECT failure_mode, COUNT(*), MIN(incident_id) FROM incident_patterns
-		 WHERE failure_mode != '' AND incident_id != '' GROUP BY failure_mode`)
+	store := incidentpattern.NewStore(g)
+	patterns, err := store.ListPatterns(ctx)
 	if err != nil {
 		return fmt.Errorf("assurance: count incident_patterns: %w", err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var fm string
-		var count int
-		var firstIncident string
-		if err := rows.Scan(&fm, &count, &firstIncident); err != nil {
-			return err
+
+	// Aggregate: failure_mode → {count, smallest_incident_id}
+	type aggEntry struct {
+		count    int
+		smallest string
+	}
+	agg := make(map[string]*aggEntry)
+
+	for _, p := range patterns {
+		if p.FailureMode == "" || p.IncidentID == "" {
+			continue
 		}
+		if a, ok := agg[p.FailureMode]; ok {
+			a.count++
+			if p.IncidentID < a.smallest {
+				a.smallest = p.IncidentID
+			}
+		} else {
+			agg[p.FailureMode] = &aggEntry{count: 1, smallest: p.IncidentID}
+		}
+	}
+
+	for fm, a := range agg {
 		// incident_patterns.failure_mode stores the un-prefixed id; translate
 		// to the graph node id (prefixed) for the bucket lookup.
 		if entry, ok := bucket[graph.FailureModeNodeID(fm)]; ok {
-			entry.LearningEntries += count
-			if entry.LearnedFromIncident == "" && firstIncident != "" {
-				entry.LearnedFromIncident = firstIncident
+			entry.LearningEntries += a.count
+			if entry.LearnedFromIncident == "" && a.smallest != "" {
+				entry.LearnedFromIncident = a.smallest
 			}
 		}
 	}
-	return rows.Err()
+	return nil
 }

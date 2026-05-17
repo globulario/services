@@ -70,22 +70,17 @@ func (g *Graph) Traverse(ctx context.Context, startID string, maxDepth int, edge
 }
 
 // ImpactByFile finds all nodes impacted by or protecting the source_file at filePath.
-// It collects:
-//   - Nodes reachable via outgoing edges from the file (depth 6).
-//   - Nodes that protect/enforce this file via incoming edges (invariants, etc.).
-//   - Nodes reachable outward from those protecting nodes (depth 3).
 func (g *Graph) ImpactByFile(ctx context.Context, filePath string) (*TraversalResult, error) {
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT id, type, name, path, summary, metadata_json, created_at, updated_at
-		FROM nodes WHERE type = ? AND path = ?
-	`, NodeTypeSourceFile, filePath)
+	fileNodes, err := g.FindNodesByPath(ctx, filePath)
 	if err != nil {
 		return nil, fmt.Errorf("ImpactByFile: %w", err)
 	}
-	fileNodes, err := scanNodes(rows)
-	rows.Close()
-	if err != nil {
-		return nil, err
+	// Filter to source_file type nodes.
+	var sourceFileNodes []*Node
+	for _, n := range fileNodes {
+		if n.Type == NodeTypeSourceFile {
+			sourceFileNodes = append(sourceFileNodes, n)
+		}
 	}
 
 	combined := &TraversalResult{}
@@ -100,8 +95,8 @@ func (g *Graph) ImpactByFile(ctx context.Context, filePath string) (*TraversalRe
 		}
 	}
 
-	for _, fn := range fileNodes {
-		// Outgoing traversal: symbols, packages, invariants reachable from file.
+	for _, fn := range sourceFileNodes {
+		// Outgoing traversal.
 		outRes, err := g.Traverse(ctx, fn.ID, 6, nil)
 		if err != nil {
 			return nil, err
@@ -119,7 +114,6 @@ func (g *Graph) ImpactByFile(ctx context.Context, filePath string) (*TraversalRe
 			if visited[e.Src] {
 				continue
 			}
-			// Collect the protecting node and traverse outward from it (shallow).
 			protRes, err := g.Traverse(ctx, e.Src, 3, nil)
 			if err != nil {
 				return nil, err

@@ -2,23 +2,123 @@ package failuregraph
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/globulario/services/golang/awareness/graph"
 	"github.com/google/uuid"
 )
 
-// Store provides persistence for the failure knowledge graph backed by the awareness graph DB.
+// Store provides persistence for the failure knowledge graph backed by JSON files
+// or in-memory maps when the graph has no data directory.
 type Store struct {
-	db *sql.DB
+	mu      sync.Mutex
+	dataDir string // base data directory from graph; "" = in-memory
+
+	// In-memory maps used when dataDir == "".
+	memNodes    map[string]*FailureNode
+	memEdges    map[string]*FailureEdge
+	memSigs     map[string]*ErrorSignature
+	memObs      map[string]*FailureObservation
+	memRecipes  map[string]*ResolutionRecipe
+	memWFModes  map[string]*WorkflowFailureMode
 }
 
 // New returns a Store backed by the given awareness graph.
 func New(g *graph.Graph) *Store {
-	return &Store{db: g.DB()}
+	return &Store{
+		dataDir:    g.DataDir(),
+		memNodes:   make(map[string]*FailureNode),
+		memEdges:   make(map[string]*FailureEdge),
+		memSigs:    make(map[string]*ErrorSignature),
+		memObs:     make(map[string]*FailureObservation),
+		memRecipes: make(map[string]*ResolutionRecipe),
+		memWFModes: make(map[string]*WorkflowFailureMode),
+	}
+}
+
+// subdirFor returns the JSON persistence directory for a given record type.
+func (s *Store) subdirFor(kind string) string {
+	if s.dataDir == "" {
+		return ""
+	}
+	d := filepath.Join(s.dataDir, "failure_graph", kind)
+	_ = os.MkdirAll(d, 0o755)
+	return d
+}
+
+// sanitizeFileID converts an id to a filesystem-safe filename component.
+func sanitizeFileID(id string) string {
+	r := strings.NewReplacer("/", "_", ":", "_", " ", "_", ".", "_")
+	return r.Replace(id)
+}
+
+func writeJSONAtomic(path string, v any) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	data, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+func (s *Store) writeRecord(kind, id string, v any) error {
+	dir := s.subdirFor(kind)
+	if dir == "" {
+		return nil // in-memory only
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return writeJSONAtomic(filepath.Join(dir, sanitizeFileID(id)+".json"), v)
+}
+
+func (s *Store) readRecord(kind, id string, v any) error {
+	dir := s.subdirFor(kind)
+	if dir == "" {
+		return fmt.Errorf("failuregraph: in-memory graph, no record %s/%s", kind, id)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, sanitizeFileID(id)+".json"))
+	if err != nil {
+		return fmt.Errorf("failuregraph: load %s/%s: %w", kind, id, err)
+	}
+	return json.Unmarshal(data, v)
+}
+
+func (s *Store) listRecords(kind string) ([][]byte, error) {
+	dir := s.subdirFor(kind)
+	if dir == "" {
+		return nil, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var out [][]byte
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".json") || strings.HasSuffix(e.Name(), ".tmp") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		out = append(out, data)
+	}
+	return out, nil
 }
 
 // RecordFailureNode inserts or updates a failure node.
@@ -34,19 +134,14 @@ func (s *Store) RecordFailureNode(ctx context.Context, n FailureNode) (*FailureN
 	if n.Status == "" {
 		n.Status = StatusActive
 	}
-	meta := "{}"
-	if n.Metadata != nil {
-		b, _ := json.Marshal(n.Metadata)
-		meta = string(b)
+	if s.dataDir == "" {
+		s.mu.Lock()
+		cp := n
+		s.memNodes[n.ID] = &cp
+		s.mu.Unlock()
+		return &n, nil
 	}
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO failure_nodes (id,node_type,name,summary,severity,status,metadata_json,created_at,updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(id) DO UPDATE SET
-		  name=excluded.name, summary=excluded.summary, severity=excluded.severity,
-		  status=excluded.status, metadata_json=excluded.metadata_json, updated_at=excluded.updated_at`,
-		n.ID, n.NodeType, n.Name, n.Summary, n.Severity, n.Status, meta, n.CreatedAt, n.UpdatedAt)
-	if err != nil {
+	if err := s.writeRecord("nodes", n.ID, &n); err != nil {
 		return nil, fmt.Errorf("failuregraph: insert node %s: %w", n.ID, err)
 	}
 	return &n, nil
@@ -58,11 +153,14 @@ func (s *Store) RecordFailureEdge(ctx context.Context, e FailureEdge) (*FailureE
 		e.ID = "FEDGE-" + uuid.New().String()[:8]
 	}
 	e.CreatedAt = time.Now().Unix()
-	_, err := s.db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO failure_edges (id,from_id,to_id,edge_type,confidence,evidence,source,created_at)
-		VALUES (?,?,?,?,?,?,?,?)`,
-		e.ID, e.FromID, e.ToID, e.EdgeType, e.Confidence, e.Evidence, e.Source, e.CreatedAt)
-	if err != nil {
+	if s.dataDir == "" {
+		s.mu.Lock()
+		cp := e
+		s.memEdges[e.ID] = &cp
+		s.mu.Unlock()
+		return &e, nil
+	}
+	if err := s.writeRecord("edges", e.ID, &e); err != nil {
 		return nil, fmt.Errorf("failuregraph: insert edge %s->%s (%s): %w", e.FromID, e.ToID, e.EdgeType, err)
 	}
 	return &e, nil
@@ -81,18 +179,14 @@ func (s *Store) RecordErrorSignature(ctx context.Context, sig ErrorSignature) (*
 	if sig.MatcherKind == "" {
 		sig.MatcherKind = MatcherKindExact
 	}
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO failure_error_signatures
-		  (id,signature,normalized_signature,category_id,severity,sample,matcher_kind,matcher_pattern,created_at,updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(id) DO UPDATE SET
-		  normalized_signature=excluded.normalized_signature, category_id=excluded.category_id,
-		  severity=excluded.severity, sample=excluded.sample, matcher_kind=excluded.matcher_kind,
-		  matcher_pattern=excluded.matcher_pattern, updated_at=excluded.updated_at`,
-		sig.ID, sig.Signature, sig.NormalizedSignature, sig.CategoryID,
-		sig.Severity, sig.Sample, sig.MatcherKind, sig.MatcherPattern,
-		sig.CreatedAt, sig.UpdatedAt)
-	if err != nil {
+	if s.dataDir == "" {
+		s.mu.Lock()
+		cp := sig
+		s.memSigs[sig.ID] = &cp
+		s.mu.Unlock()
+		return &sig, nil
+	}
+	if err := s.writeRecord("signatures", sig.ID, &sig); err != nil {
 		return nil, fmt.Errorf("failuregraph: insert signature %s: %w", sig.ID, err)
 	}
 	return &sig, nil
@@ -104,15 +198,14 @@ func (s *Store) RecordObservation(ctx context.Context, obs FailureObservation) (
 		obs.ID = "FOBS-" + uuid.New().String()[:8]
 	}
 	obs.CreatedAt = time.Now().Unix()
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO failure_observations
-		  (id,session_id,incident_id,run_id,source,raw_error,normalized_signature,
-		   matched_signature_id,matched_category_id,component,service_name,file_path,symbol,confidence,created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		obs.ID, obs.SessionID, obs.IncidentID, obs.RunID, obs.Source, obs.RawError,
-		obs.NormalizedSignature, obs.MatchedSignatureID, obs.MatchedCategoryID,
-		obs.Component, obs.ServiceName, obs.FilePath, obs.Symbol, obs.Confidence, obs.CreatedAt)
-	if err != nil {
+	if s.dataDir == "" {
+		s.mu.Lock()
+		cp := obs
+		s.memObs[obs.ID] = &cp
+		s.mu.Unlock()
+		return &obs, nil
+	}
+	if err := s.writeRecord("observations", obs.ID, &obs); err != nil {
 		return nil, fmt.Errorf("failuregraph: insert observation: %w", err)
 	}
 	return &obs, nil
@@ -128,20 +221,14 @@ func (s *Store) RecordResolutionRecipe(ctx context.Context, r ResolutionRecipe) 
 		r.CreatedAt = now
 	}
 	r.UpdatedAt = now
-	stepsJSON, _ := json.Marshal(r.Steps)
-	forbiddenJSON, _ := json.Marshal(r.ForbiddenSteps)
-	verifJSON, _ := json.Marshal(r.Verification)
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO failure_resolution_recipes
-		  (id,resolution_id,title,steps_json,forbidden_steps_json,verification_json,created_at,updated_at)
-		VALUES (?,?,?,?,?,?,?,?)
-		ON CONFLICT(id) DO UPDATE SET
-		  title=excluded.title, steps_json=excluded.steps_json,
-		  forbidden_steps_json=excluded.forbidden_steps_json, verification_json=excluded.verification_json,
-		  updated_at=excluded.updated_at`,
-		r.ID, r.ResolutionID, r.Title, string(stepsJSON), string(forbiddenJSON), string(verifJSON),
-		r.CreatedAt, r.UpdatedAt)
-	if err != nil {
+	if s.dataDir == "" {
+		s.mu.Lock()
+		cp := r
+		s.memRecipes[r.ID] = &cp
+		s.mu.Unlock()
+		return &r, nil
+	}
+	if err := s.writeRecord("recipes", r.ID, &r); err != nil {
 		return nil, fmt.Errorf("failuregraph: insert recipe %s: %w", r.ID, err)
 	}
 	return &r, nil
@@ -157,22 +244,14 @@ func (s *Store) RecordWorkflowFailureMode(ctx context.Context, m WorkflowFailure
 		m.CreatedAt = now
 	}
 	m.UpdatedAt = now
-	meta := "{}"
-	if m.Metadata != nil {
-		b, _ := json.Marshal(m.Metadata)
-		meta = string(b)
+	if s.dataDir == "" {
+		s.mu.Lock()
+		cp := m
+		s.memWFModes[m.ID] = &cp
+		s.mu.Unlock()
+		return &m, nil
 	}
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO workflow_failure_modes
-		  (id,name,summary,workflow_stage,failure_phase,retry_semantics,closure_rule,metadata_json,created_at,updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(id) DO UPDATE SET
-		  summary=excluded.summary, workflow_stage=excluded.workflow_stage,
-		  failure_phase=excluded.failure_phase, retry_semantics=excluded.retry_semantics,
-		  closure_rule=excluded.closure_rule, metadata_json=excluded.metadata_json, updated_at=excluded.updated_at`,
-		m.ID, m.Name, m.Summary, m.WorkflowStage, m.FailurePhase,
-		m.RetrySemantics, m.ClosureRule, meta, m.CreatedAt, m.UpdatedAt)
-	if err != nil {
+	if err := s.writeRecord("workflow_modes", m.ID, &m); err != nil {
 		return nil, fmt.Errorf("failuregraph: insert workflow mode %s: %w", m.ID, err)
 	}
 	return &m, nil
@@ -180,108 +259,210 @@ func (s *Store) RecordWorkflowFailureMode(ctx context.Context, m WorkflowFailure
 
 // LoadNode loads a failure node by ID.
 func (s *Store) LoadNode(ctx context.Context, id string) (*FailureNode, error) {
-	var n FailureNode
-	var metaJSON string
-	err := s.db.QueryRowContext(ctx,
-		`SELECT id,node_type,name,summary,severity,status,metadata_json,created_at,updated_at
-		 FROM failure_nodes WHERE id=?`, id).
-		Scan(&n.ID, &n.NodeType, &n.Name, &n.Summary, &n.Severity, &n.Status,
-			&metaJSON, &n.CreatedAt, &n.UpdatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("failuregraph: load node %s: %w", id, err)
+	if s.dataDir == "" {
+		s.mu.Lock()
+		n, ok := s.memNodes[id]
+		s.mu.Unlock()
+		if !ok {
+			return nil, fmt.Errorf("failuregraph: in-memory graph, no node %s", id)
+		}
+		cp := *n
+		return &cp, nil
 	}
-	_ = json.Unmarshal([]byte(metaJSON), &n.Metadata)
+	var n FailureNode
+	if err := s.readRecord("nodes", id, &n); err != nil {
+		return nil, err
+	}
 	return &n, nil
 }
 
 // ListCategories returns all active ErrorCategory nodes.
 func (s *Store) ListCategories(ctx context.Context) ([]FailureNode, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id,node_type,name,summary,severity,status,metadata_json,created_at,updated_at
-		FROM failure_nodes WHERE node_type=? AND status=? ORDER BY name`,
-		NodeTypeErrorCategory, StatusActive)
+	if s.dataDir == "" {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		var nodes []FailureNode
+		for _, n := range s.memNodes {
+			if n.NodeType == NodeTypeErrorCategory && n.Status == StatusActive {
+				nodes = append(nodes, *n)
+			}
+		}
+		return nodes, nil
+	}
+	blobs, err := s.listRecords("nodes")
 	if err != nil {
 		return nil, fmt.Errorf("failuregraph: list categories: %w", err)
 	}
-	return scanNodes(rows)
+	var nodes []FailureNode
+	for _, data := range blobs {
+		var n FailureNode
+		if err := json.Unmarshal(data, &n); err != nil {
+			continue
+		}
+		if n.NodeType == NodeTypeErrorCategory && n.Status == StatusActive {
+			nodes = append(nodes, n)
+		}
+	}
+	return nodes, nil
 }
 
 // NodesReachable returns all nodes reachable from fromID via the given edge type.
 func (s *Store) NodesReachable(ctx context.Context, fromID, edgeType string) ([]FailureNode, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT n.id,n.node_type,n.name,n.summary,n.severity,n.status,n.metadata_json,n.created_at,n.updated_at
-		FROM failure_nodes n
-		JOIN failure_edges e ON e.to_id=n.id
-		WHERE e.from_id=? AND e.edge_type=? AND n.status=?
-		ORDER BY n.name`, fromID, edgeType, StatusActive)
+	if s.dataDir == "" {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		targetSet := make(map[string]bool)
+		for _, e := range s.memEdges {
+			if e.FromID == fromID && e.EdgeType == edgeType {
+				targetSet[e.ToID] = true
+			}
+		}
+		if len(targetSet) == 0 {
+			return nil, nil
+		}
+		var nodes []FailureNode
+		for _, n := range s.memNodes {
+			if targetSet[n.ID] && n.Status == StatusActive {
+				nodes = append(nodes, *n)
+			}
+		}
+		return nodes, nil
+	}
+
+	// First find all edges from fromID with edgeType.
+	edgeBlobs, err := s.listRecords("edges")
 	if err != nil {
 		return nil, fmt.Errorf("failuregraph: reachable %s-[%s]->?: %w", fromID, edgeType, err)
 	}
-	return scanNodes(rows)
+	var targetIDs []string
+	for _, data := range edgeBlobs {
+		var e FailureEdge
+		if err := json.Unmarshal(data, &e); err != nil {
+			continue
+		}
+		if e.FromID == fromID && e.EdgeType == edgeType {
+			targetIDs = append(targetIDs, e.ToID)
+		}
+	}
+
+	if len(targetIDs) == 0 {
+		return nil, nil
+	}
+
+	// Build a set of target IDs for O(1) lookup.
+	targetSet := make(map[string]bool, len(targetIDs))
+	for _, id := range targetIDs {
+		targetSet[id] = true
+	}
+
+	// Load matching nodes.
+	nodeBlobs, err := s.listRecords("nodes")
+	if err != nil {
+		return nil, fmt.Errorf("failuregraph: reachable nodes: %w", err)
+	}
+	var nodes []FailureNode
+	for _, data := range nodeBlobs {
+		var n FailureNode
+		if err := json.Unmarshal(data, &n); err != nil {
+			continue
+		}
+		if targetSet[n.ID] && n.Status == StatusActive {
+			nodes = append(nodes, n)
+		}
+	}
+	return nodes, nil
 }
 
-// LoadWorkflowModes returns all WorkflowFailureMode rows linked to a category.
+// LoadWorkflowModes returns all WorkflowFailureMode rows linked to a category
+// via EdgeCommonlyCausedBy edges.
 func (s *Store) LoadWorkflowModes(ctx context.Context, categoryID string) ([]WorkflowFailureMode, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT w.id,w.name,w.summary,w.workflow_stage,w.failure_phase,w.retry_semantics,w.closure_rule,w.metadata_json,w.created_at,w.updated_at
-		FROM workflow_failure_modes w
-		JOIN failure_edges e ON e.to_id=w.id
-		WHERE e.from_id=? AND e.edge_type=?`, categoryID, EdgeCommonlyCausedBy)
+	if s.dataDir == "" {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		targetSet := make(map[string]bool)
+		for _, e := range s.memEdges {
+			if e.FromID == categoryID && e.EdgeType == EdgeCommonlyCausedBy {
+				targetSet[e.ToID] = true
+			}
+		}
+		if len(targetSet) == 0 {
+			return nil, nil
+		}
+		var modes []WorkflowFailureMode
+		for _, m := range s.memWFModes {
+			if targetSet[m.ID] {
+				modes = append(modes, *m)
+			}
+		}
+		return modes, nil
+	}
+
+	// Find edges from categoryID with EdgeCommonlyCausedBy.
+	edgeBlobs, err := s.listRecords("edges")
 	if err != nil {
 		return nil, fmt.Errorf("failuregraph: workflow modes for %s: %w", categoryID, err)
 	}
-	defer rows.Close()
-	var modes []WorkflowFailureMode
-	for rows.Next() {
-		var m WorkflowFailureMode
-		var metaJSON string
-		if err := rows.Scan(&m.ID, &m.Name, &m.Summary, &m.WorkflowStage, &m.FailurePhase,
-			&m.RetrySemantics, &m.ClosureRule, &metaJSON, &m.CreatedAt, &m.UpdatedAt); err != nil {
-			return nil, err
+	var targetIDs []string
+	for _, data := range edgeBlobs {
+		var e FailureEdge
+		if err := json.Unmarshal(data, &e); err != nil {
+			continue
 		}
-		_ = json.Unmarshal([]byte(metaJSON), &m.Metadata)
-		modes = append(modes, m)
+		if e.FromID == categoryID && e.EdgeType == EdgeCommonlyCausedBy {
+			targetIDs = append(targetIDs, e.ToID)
+		}
 	}
-	return modes, rows.Err()
+
+	if len(targetIDs) == 0 {
+		return nil, nil
+	}
+
+	targetSet := make(map[string]bool, len(targetIDs))
+	for _, id := range targetIDs {
+		targetSet[id] = true
+	}
+
+	modeBlobs, err := s.listRecords("workflow_modes")
+	if err != nil {
+		return nil, fmt.Errorf("failuregraph: load workflow modes: %w", err)
+	}
+	var modes []WorkflowFailureMode
+	for _, data := range modeBlobs {
+		var m WorkflowFailureMode
+		if err := json.Unmarshal(data, &m); err != nil {
+			continue
+		}
+		if targetSet[m.ID] {
+			modes = append(modes, m)
+		}
+	}
+	return modes, nil
 }
 
 // AllSignatures returns all active error signatures.
 func (s *Store) AllSignatures(ctx context.Context) ([]ErrorSignature, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id,signature,normalized_signature,category_id,severity,sample,matcher_kind,matcher_pattern,created_at,updated_at
-		FROM failure_error_signatures ORDER BY created_at`)
+	if s.dataDir == "" {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		var sigs []ErrorSignature
+		for _, sig := range s.memSigs {
+			sigs = append(sigs, *sig)
+		}
+		return sigs, nil
+	}
+	blobs, err := s.listRecords("signatures")
 	if err != nil {
 		return nil, fmt.Errorf("failuregraph: all signatures: %w", err)
 	}
-	defer rows.Close()
 	var sigs []ErrorSignature
-	for rows.Next() {
+	for _, data := range blobs {
 		var sig ErrorSignature
-		if err := rows.Scan(&sig.ID, &sig.Signature, &sig.NormalizedSignature, &sig.CategoryID,
-			&sig.Severity, &sig.Sample, &sig.MatcherKind, &sig.MatcherPattern,
-			&sig.CreatedAt, &sig.UpdatedAt); err != nil {
-			return nil, err
+		if err := json.Unmarshal(data, &sig); err != nil {
+			continue
 		}
 		sigs = append(sigs, sig)
 	}
-	return sigs, rows.Err()
-}
-
-// scanNodes drains a *sql.Rows into []FailureNode, closing the cursor.
-func scanNodes(rows *sql.Rows) ([]FailureNode, error) {
-	defer rows.Close()
-	var nodes []FailureNode
-	for rows.Next() {
-		var n FailureNode
-		var metaJSON string
-		if err := rows.Scan(&n.ID, &n.NodeType, &n.Name, &n.Summary, &n.Severity,
-			&n.Status, &metaJSON, &n.CreatedAt, &n.UpdatedAt); err != nil {
-			return nil, err
-		}
-		_ = json.Unmarshal([]byte(metaJSON), &n.Metadata)
-		nodes = append(nodes, n)
-	}
-	return nodes, rows.Err()
+	return sigs, nil
 }
 
 // nodePrefix returns the ID prefix for a node type.

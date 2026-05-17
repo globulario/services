@@ -13,6 +13,17 @@ import (
 	"github.com/globulario/services/golang/awareness/preflight"
 )
 
+// assertHasClass fails the test if cls is not present in classes.
+func assertHasClass(t *testing.T, classes []preflight.TaskClass, cls preflight.TaskClass) {
+	t.Helper()
+	for _, c := range classes {
+		if c == cls {
+			return
+		}
+	}
+	t.Errorf("expected classification %q in %v", cls, classes)
+}
+
 // seedPreflightGraph creates a minimal in-memory graph for preflight tests.
 func seedPreflightGraph(t *testing.T) *graph.Graph {
 	t.Helper()
@@ -393,15 +404,14 @@ func TestPreflightOrdering_StaleGraphProducesUnknownNotSafe(t *testing.T) {
 	g := seedPreflightGraph(t)
 	docsDir := setupPreflightDocsDir(t)
 
-	// Insert a graph_builds row 25h old so freshness flags MaxAgeExceeded.
+	// Add a graph_builds record 25h old so freshness flags MaxAgeExceeded.
 	staleTs := time.Now().Add(-25 * time.Hour).Unix()
-	if _, err := g.DB().ExecContext(ctx,
-		`INSERT INTO graph_builds (id, repo_root, git_commit, release_id, created_at, stats_json)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		"ordering-test-stale", "/r", "deadbeef", "", staleTs, `{}`,
-	); err != nil {
-		t.Fatalf("insert stale graph_builds: %v", err)
-	}
+	g.AddBuildRecord(graph.BuildRecord{
+		ID:        "ordering-test-stale",
+		RepoRoot:  "/r",
+		GitCommit: "deadbeef",
+		CreatedAt: staleTs,
+	})
 
 	r, err := preflight.Run(ctx, preflight.Options{
 		// Architecture-sensitive task → triggers the sensitive branch

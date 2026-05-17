@@ -12,7 +12,7 @@ import (
 
 func newTestGraph(t *testing.T) *graph.Graph {
 	t.Helper()
-	g, err := graph.Open(":memory:")
+	g, err := graph.OpenMemory()
 	if err != nil {
 		t.Fatalf("open graph: %v", err)
 	}

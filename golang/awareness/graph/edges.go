@@ -110,31 +110,28 @@ const (
 	EdgeRuntimeDependsOn   = "runtime_depends_on"
 
 	// Observation edge kinds.
-	EdgeObserves = "observes" // source_file observes/detects an invariant (diagnostic/reporting)
+	EdgeObserves = "observes"
 
 	// Precise file→invariant relationship edges (Phase 3).
-	EdgeConfigures = "configures" // source_file configures/defines data for invariant
-	EdgeMayAffect  = "may_affect" // source_file may indirectly affect invariant
+	EdgeConfigures = "configures"
+	EdgeMayAffect  = "may_affect"
 
 	// Service design graph edge kinds (Phase 2-8).
-	EdgeHasAuthz         = "has_authz"          // rpc_method → authz_annotation
-	EdgeHasStreamingMode = "has_streaming_mode" // rpc_method → streaming_mode
-	EdgeImplementedBy    = "implemented_by"     // rpc_method → symbol (Go method)
-	EdgeGovernedBy       = "governed_by"        // rpc_method → invariant
-	EdgeProvidesService  = "provides_service"   // package → proto_service
+	EdgeHasAuthz         = "has_authz"
+	EdgeHasStreamingMode = "has_streaming_mode"
+	EdgeImplementedBy    = "implemented_by"
+	EdgeGovernedBy       = "governed_by"
+	EdgeProvidesService  = "provides_service"
 
 	// Invariant implementation graph edge kinds.
-	// These edges wire source code, tests, and authority data to invariant nodes,
-	// forming an "invariant implementation graph" that agents can traverse to
-	// understand what enforces an invariant, how it is tested, and what breaks it.
-	EdgePartiallyImplements   = "partially_implements"    // source_file → invariant (weaker than implements)
-	EdgeReadsAuthority        = "reads_authority"         // function/file → invariant authority source
-	EdgeWritesState           = "writes_state"            // function/file → state artifact it mutates
-	EdgeGuardsAction          = "guards_action"           // function/file → action it gates/transacts
-	EdgeBlocksForbiddenAction = "blocks_forbidden_action" // forbidden_fix → invariant it guards
-	EdgeVerifies              = "verifies"                // test → invariant (direct test proof)
-	EdgeConstrainsActionFor   = "constrains_action_for"   // invariant → action it constrains at runtime
-	EdgeHasEvidence           = "has_evidence"            // any node → evidence artifact
+	EdgePartiallyImplements   = "partially_implements"
+	EdgeReadsAuthority        = "reads_authority"
+	EdgeWritesState           = "writes_state"
+	EdgeGuardsAction          = "guards_action"
+	EdgeBlocksForbiddenAction = "blocks_forbidden_action"
+	EdgeVerifies              = "verifies"
+	EdgeConstrainsActionFor   = "constrains_action_for"
+	EdgeHasEvidence           = "has_evidence"
 
 	// Live etcd / cluster state edge kinds.
 	EdgeEtcdSnapshotContainsKey     = "etcd_snapshot_contains_key"
@@ -183,7 +180,7 @@ const (
 	EdgeWorkflowFailureIndicates      = "workflow_failure_indicates_failure_mode"
 	EdgeWorkflowFailureRisksInvariant = "workflow_failure_risks_invariant"
 
-	// Typed workflow execution proof edges (precise semantics, preferred over owns/depends_on).
+	// Typed workflow execution proof edges.
 	EdgeWorkflowRunHasStepRun            = "workflow_run_has_step_run"
 	EdgeWorkflowStepRunInstantiatesStep  = "workflow_step_run_instantiates_step"
 	EdgeWorkflowStepVerifiesInvariant    = "workflow_step_verifies_invariant"
@@ -208,14 +205,8 @@ const (
 
 // EdgeClass distinguishes decision-relevant edges from contextual information edges.
 const (
-	// EdgeClassDecision marks edges that directly drive decisions: causal rules,
-	// forbidden actions, required tests, blocks relationships. Weight=1.0.
-	EdgeClassDecision = "decision"
-	// EdgeClassStructural marks architectural structure edges: owns, depends_on,
-	// calls, reads, writes. Weight=0.7.
-	EdgeClassStructural = "structural"
-	// EdgeClassInformation marks low-signal context edges: references, mentions,
-	// similar_to, documents. Weight=0.3.
+	EdgeClassDecision    = "decision"
+	EdgeClassStructural  = "structural"
 	EdgeClassInformation = "information"
 )
 
@@ -225,7 +216,6 @@ var decisionEdgeKinds = map[string]bool{
 	EdgeUnsafeWhen: true, EdgeViolates: true, EdgeEnforces: true,
 	EdgeRequiresTest: true, EdgeGovernedBy: true, EdgeCausedBy: true,
 	EdgeFixedBy: true, EdgeRemediatedBy: true, EdgeUnblocks: true,
-	// Invariant implementation graph — decision-class.
 	EdgeGuardsAction: true, EdgeBlocksForbiddenAction: true, EdgeConstrainsActionFor: true,
 }
 
@@ -235,7 +225,6 @@ var structuralEdgeKinds = map[string]bool{
 	EdgeReads: true, EdgeWrites: true, EdgeDefines: true, EdgeProduces: true,
 	EdgeEmits: true, EdgeTestedBy: true, EdgeImplements: true, EdgeControls: true,
 	EdgeImplementedBy: true, EdgeCurrentStatusOf: true, EdgeRuntimeDependsOn: true,
-	// Invariant implementation graph — structural-class.
 	EdgePartiallyImplements: true, EdgeReadsAuthority: true, EdgeWritesState: true, EdgeVerifies: true,
 }
 
@@ -252,54 +241,32 @@ func classifyEdge(kind string) (string, float64) {
 
 // Edge is a directed relationship between two graph nodes.
 type Edge struct {
-	Src        string
-	Kind       string
-	Dst        string
-	Phase      string
-	Required   bool
-	Confidence float64
-	// Class is the edge classification: decision, structural, or information.
-	// Auto-classified from Kind if empty.
-	Class string
-	// Weight is the traversal weight (0.0–1.0). Auto-set from Class if 0.
-	Weight   float64
-	Metadata map[string]any
-	// Provenance describes where this edge came from (source_type, source_file,
-	// created_by, verification_level, …). Stored in the dedicated
-	// edges.provenance_json column — distinct from Metadata, which is for
-	// caller-supplied edge attributes. The column is the canonical home of
-	// provenance; do not write or read provenance via Metadata. See
-	// docs/awareness/composed_path_failures.md (edge provenance home).
-	Provenance map[string]any
+	Src        string         `json:"src"`
+	Kind       string         `json:"kind"`
+	Dst        string         `json:"dst"`
+	Phase      string         `json:"phase,omitempty"`
+	Required   bool           `json:"required,omitempty"`
+	Confidence float64        `json:"confidence,omitempty"`
+	Class      string         `json:"class,omitempty"`
+	Weight     float64        `json:"weight,omitempty"`
+	Metadata   map[string]any `json:"metadata,omitempty"`
+	Provenance map[string]any `json:"provenance,omitempty"`
 }
 
-// ProvenanceEdge is an Edge that carries full provenance metadata describing
-// where the edge came from and how well it is verified.
-// Use AddEdgeWithProvenance to write provenance into the graph.
+// ProvenanceEdge is an Edge that carries full provenance metadata.
 type ProvenanceEdge struct {
 	Edge
-	// SourceType is one of the SourceXxx constants in the integrity package.
-	SourceType string
-	// SourceFile is the YAML or source file from which this edge was extracted.
-	SourceFile string
-	// SourceCommit is the git SHA when the edge was last written.
-	SourceCommit string
-	// CreatedBy identifies the extractor or tool that created this edge.
-	CreatedBy string
-	// LastVerifiedAt is the Unix timestamp of the last verification.
-	LastVerifiedAt int64
-	// LastVerifiedBy identifies the verifier (e.g., "ci-check", "test-discovery").
-	LastVerifiedBy string
-	// VerificationLevel is one of the TrustXxx constants in the integrity package.
+	SourceType        string
+	SourceFile        string
+	SourceCommit      string
+	CreatedBy         string
+	LastVerifiedAt    int64
+	LastVerifiedBy    string
 	VerificationLevel string
-	// StalePolicy lists the conditions under which this edge becomes stale.
-	StalePolicy []string
+	StalePolicy       []string
 }
 
 // AddEdgeWithProvenance writes an edge with full provenance metadata.
-// Provenance lands in the dedicated edges.provenance_json column, NOT in
-// metadata_json. See docs/awareness/composed_path_failures.md (edge
-// provenance home) for why these two homes were consolidated to one.
 func (g *Graph) AddEdgeWithProvenance(ctx context.Context, pe ProvenanceEdge) error {
 	pe.Edge.Provenance = map[string]any{
 		"source_type":        pe.SourceType,
@@ -316,70 +283,49 @@ func (g *Graph) AddEdgeWithProvenance(ctx context.Context, pe ProvenanceEdge) er
 
 // AddEdge upserts an edge. The (src, kind, dst, phase) tuple is the primary key.
 // edge_class and weight are auto-classified from Kind when not explicitly set.
-//
-// Provenance, when supplied via e.Provenance, is written to the canonical
-// edges.provenance_json column. Empty Provenance writes "{}" (matching the
-// schema default), so existing rows are not mutated by callers that don't
-// touch provenance.
+// When the edge already exists and the new call has no Provenance, the existing
+// provenance is preserved (upsert-without-clobbering provenance).
 func (g *Graph) AddEdge(ctx context.Context, e Edge) error {
-	meta, err := marshalMeta(e.Metadata)
-	if err != nil {
-		return fmt.Errorf("AddEdge %s -[%s]-> %s: %w", e.Src, e.Kind, e.Dst, err)
+	if g.readOnly || g.staticReadOnly {
+		return fmt.Errorf("AddEdge %s -[%s]-> %s: graph is read-only", e.Src, e.Kind, e.Dst)
 	}
-	prov, err := marshalMeta(e.Provenance)
-	if err != nil {
-		return fmt.Errorf("AddEdge %s -[%s]-> %s: encode provenance: %w", e.Src, e.Kind, e.Dst, err)
-	}
+
 	conf := e.Confidence
 	if conf == 0 {
 		conf = 1.0
 	}
-	req := 0
-	if e.Required {
-		req = 1
-	}
+	e.Confidence = conf
+
 	class := e.Class
 	weight := e.Weight
 	if class == "" || weight == 0 {
 		c, w := classifyEdge(e.Kind)
 		if class == "" {
 			class = c
+			e.Class = c
 		}
 		if weight == 0 {
 			weight = w
+			e.Weight = w
 		}
 	}
-	// On UPSERT, only overwrite provenance_json when the caller actually
-	// supplied one. This preserves provenance written by an earlier
-	// AddEdgeWithProvenance call when a later AddEdge (without provenance)
-	// touches the same (src,kind,dst,phase) tuple.
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	k := edgeKey{Src: e.Src, Kind: e.Kind, Dst: e.Dst, Phase: e.Phase}
 	providedProv := len(e.Provenance) > 0
-	if providedProv {
-		_, err = g.db.ExecContext(ctx, `
-			INSERT INTO edges (src, kind, dst, phase, required, confidence, metadata_json, edge_class, weight, provenance_json)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(src, kind, dst, phase) DO UPDATE SET
-				required        = excluded.required,
-				confidence      = excluded.confidence,
-				metadata_json   = excluded.metadata_json,
-				edge_class      = excluded.edge_class,
-				weight          = excluded.weight,
-				provenance_json = excluded.provenance_json
-		`, e.Src, e.Kind, e.Dst, e.Phase, req, conf, meta, class, weight, prov)
+
+	if idx, exists := g.edgeKeys[k]; exists && !providedProv {
+		// Preserve existing provenance: update everything except provenance.
+		old := g.edges[idx]
+		existingProv := old.Provenance
+		e2 := e
+		e2.Provenance = existingProv
+		g.indexEdge(&e2)
 	} else {
-		_, err = g.db.ExecContext(ctx, `
-			INSERT INTO edges (src, kind, dst, phase, required, confidence, metadata_json, edge_class, weight, provenance_json)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')
-			ON CONFLICT(src, kind, dst, phase) DO UPDATE SET
-				required      = excluded.required,
-				confidence    = excluded.confidence,
-				metadata_json = excluded.metadata_json,
-				edge_class    = excluded.edge_class,
-				weight        = excluded.weight
-		`, e.Src, e.Kind, e.Dst, e.Phase, req, conf, meta, class, weight)
-	}
-	if err != nil {
-		return fmt.Errorf("AddEdge %s -[%s]-> %s: %w", e.Src, e.Kind, e.Dst, err)
+		e2 := e
+		g.indexEdge(&e2)
 	}
 	return nil
 }

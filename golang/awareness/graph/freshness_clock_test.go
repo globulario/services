@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/globulario/services/golang/awareness/graph"
 )
 
 // TestFreshnessAt_DeterministicClock pins the clock-injection contract
@@ -19,14 +21,10 @@ func TestFreshnessAt_DeterministicClock(t *testing.T) {
 	ctx := context.Background()
 	g := openTestGraph(t)
 
-	// Insert a graph_builds row at a fixed timestamp.
+	// Insert a graph_builds record at a fixed timestamp.
 	builtAt := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	if _, err := g.DB().ExecContext(ctx,
-		`INSERT INTO graph_builds (id, repo_root, git_commit, release_id, created_at, stats_json)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		"clock-test", "/r", "abc", "", builtAt.Unix(), `{}`,
-	); err != nil {
-		t.Fatalf("insert graph_builds: %v", err)
+	if err := g.UpsertBuildRecordAt(ctx, "clock-test", "/r", "abc", "", graph.BuildStats{}, builtAt.Unix()); err != nil {
+		t.Fatalf("UpsertBuildRecordAt: %v", err)
 	}
 
 	// "Now" is exactly 6 hours later. AgeSeconds must equal 6h, not whatever

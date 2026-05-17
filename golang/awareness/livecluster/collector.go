@@ -145,6 +145,14 @@ func buildSnapshotSummary(snap *ClusterSignalSnapshot, unavailable []string) str
 	return strings.Join(parts, "; ") + "."
 }
 
+// componentNodeTypes is the set of node types that are considered "components"
+// for the purposes of MapFilesToComponents.
+var componentNodeTypes = map[string]bool{
+	"service":   true,
+	"package":   true,
+	"component": true,
+}
+
 // MapFilesToComponents derives component names from file paths using graph node
 // lookups, falling back to path-prefix heuristics.
 func MapFilesToComponents(ctx context.Context, g *graph.Graph, files []string) []string {
@@ -152,23 +160,18 @@ func MapFilesToComponents(ctx context.Context, g *graph.Graph, files []string) [
 	var out []string
 
 	if g != nil {
-		db := g.DB()
 		for _, f := range files {
-			rows, err := db.QueryContext(ctx,
-				`SELECT DISTINCT n2.name FROM nodes n1
-				 JOIN edges e ON e.src=n1.id
-				 JOIN nodes n2 ON n2.id=e.dst
-				 WHERE (n1.path=? OR n1.path LIKE ?) AND n2.type IN ('service','package','component')
-				 LIMIT 10`, f, f+"/%")
-			if err == nil {
-				for rows.Next() {
-					var name string
-					if rows.Scan(&name) == nil && !seen[name] {
-						out = append(out, name)
-						seen[name] = true
+			// Find nodes whose path matches f exactly or f as a prefix.
+			srcNodes, _ := g.FindNodesByPath(ctx, f)
+			for _, n := range srcNodes {
+				edges, _ := g.OutgoingEdges(ctx, n.ID)
+				for _, e := range edges {
+					dst, _ := g.FindNode(ctx, e.Dst)
+					if dst != nil && componentNodeTypes[dst.Type] && !seen[dst.Name] {
+						out = append(out, dst.Name)
+						seen[dst.Name] = true
 					}
 				}
-				rows.Close()
 			}
 		}
 	}
@@ -189,17 +192,26 @@ func MapComponentsToServices(ctx context.Context, g *graph.Graph, components []s
 	var out []string
 
 	if g != nil {
-		db := g.DB()
 		for _, comp := range components {
-			var svcName string
-			err := db.QueryRowContext(ctx,
-				`SELECT n2.name FROM nodes n1
-				 JOIN edges e ON e.src=n1.id
-				 JOIN nodes n2 ON n2.id=e.dst
-				 WHERE n1.name=? AND n2.type='service' LIMIT 1`, comp).Scan(&svcName)
-			if err == nil && !seen[svcName] {
-				out = append(out, svcName)
-				seen[svcName] = true
+			// Search for a node with this name across component-like types.
+			var srcNode *graph.Node
+			for _, nodeType := range []string{"package", "component", "service"} {
+				n, _ := g.FindNodeByTypeAndName(ctx, nodeType, comp)
+				if n != nil {
+					srcNode = n
+					break
+				}
+			}
+			if srcNode != nil {
+				edges, _ := g.OutgoingEdges(ctx, srcNode.ID)
+				for _, e := range edges {
+					dst, _ := g.FindNode(ctx, e.Dst)
+					if dst != nil && dst.Type == "service" && !seen[dst.Name] {
+						out = append(out, dst.Name)
+						seen[dst.Name] = true
+						break
+					}
+				}
 			}
 		}
 	}

@@ -2,7 +2,6 @@ package graph
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"sort"
 	"strings"
@@ -10,45 +9,45 @@ import (
 )
 
 type ExperienceEntry struct {
-	ID             string
-	Kind           string
-	Domain         string
-	Capability     string
-	Status         string
-	Summary        string
-	GoalOriginal   string
-	GoalNormalized string
-	GoalVerb       string
-	GoalObject     string
-	StrategyID     string
-	Lesson         string
-	NextTimeHint   string
-	CreatedBy      string
-	ReviewedBy     string
-	CreatedAt      int64
-	UpdatedAt      int64
+	ID             string  `json:"id"`
+	Kind           string  `json:"kind,omitempty"`
+	Domain         string  `json:"domain,omitempty"`
+	Capability     string  `json:"capability,omitempty"`
+	Status         string  `json:"status,omitempty"`
+	Summary        string  `json:"summary,omitempty"`
+	GoalOriginal   string  `json:"goal_original,omitempty"`
+	GoalNormalized string  `json:"goal_normalized,omitempty"`
+	GoalVerb       string  `json:"goal_verb,omitempty"`
+	GoalObject     string  `json:"goal_object,omitempty"`
+	StrategyID     string  `json:"strategy_id,omitempty"`
+	Lesson         string  `json:"lesson,omitempty"`
+	NextTimeHint   string  `json:"next_time_hint,omitempty"`
+	CreatedBy      string  `json:"created_by,omitempty"`
+	ReviewedBy     string  `json:"reviewed_by,omitempty"`
+	CreatedAt      int64   `json:"created_at,omitempty"`
+	UpdatedAt      int64   `json:"updated_at,omitempty"`
 }
 
 type ExperienceAttempt struct {
-	ID           string
-	ExperienceID string
-	StrategyID   string
-	Action       string
-	Rationale    string
-	Outcome      string
-	Status       string
-	CreatedAt    int64
+	ID           string `json:"id"`
+	ExperienceID string `json:"experience_id"`
+	StrategyID   string `json:"strategy_id,omitempty"`
+	Action       string `json:"action,omitempty"`
+	Rationale    string `json:"rationale,omitempty"`
+	Outcome      string `json:"outcome,omitempty"`
+	Status       string `json:"status,omitempty"`
+	CreatedAt    int64  `json:"created_at,omitempty"`
 }
 
 type ExperienceObservation struct {
-	ID           string
-	ExperienceID string
-	AttemptID    string
-	Type         string
-	Summary      string
-	Source       string
-	Confidence   float64
-	CreatedAt    int64
+	ID           string  `json:"id"`
+	ExperienceID string  `json:"experience_id"`
+	AttemptID    string  `json:"attempt_id,omitempty"`
+	Type         string  `json:"type,omitempty"`
+	Summary      string  `json:"summary,omitempty"`
+	Source       string  `json:"source,omitempty"`
+	Confidence   float64 `json:"confidence,omitempty"`
+	CreatedAt    int64   `json:"created_at,omitempty"`
 }
 
 type ExperienceScorecard struct {
@@ -136,17 +135,14 @@ func (g *Graph) CreateExperience(ctx context.Context, e ExperienceEntry) (*Exper
 	}
 	e.CreatedAt = now
 	e.UpdatedAt = now
-	if _, err := g.db.ExecContext(ctx, `
-		INSERT INTO experience_entries (
-			id, kind, domain, capability, status, summary, goal_original, goal_normalized,
-			goal_verb, goal_object, strategy_id, lesson, next_time_hint, created_by,
-			reviewed_by, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, e.ID, e.Kind, e.Domain, e.Capability, e.Status, e.Summary, e.GoalOriginal, e.GoalNormalized,
-		e.GoalVerb, e.GoalObject, e.StrategyID, e.Lesson, e.NextTimeHint, e.CreatedBy,
-		e.ReviewedBy, e.CreatedAt, e.UpdatedAt); err != nil {
-		return nil, fmt.Errorf("create experience: %w", err)
-	}
+
+	g.expMu.Lock()
+	cp := e
+	g.experiences[e.ID] = &cp
+	g.expMu.Unlock()
+
+	_ = g.writeJSON("experience/entries", e.ID, &e)
+
 	_ = g.AddNode(ctx, Node{ID: "experience:" + e.ID, Type: NodeTypeExperience, Name: e.ID, Summary: e.Summary,
 		Metadata: map[string]any{"domain": e.Domain, "capability": e.Capability, "status": e.Status, "kind": e.Kind}})
 	if e.GoalNormalized != "" || e.GoalOriginal != "" {
@@ -177,12 +173,14 @@ func (g *Graph) AddExperienceAttempt(ctx context.Context, a ExperienceAttempt) (
 		a.ID = fmt.Sprintf("attempt.%s.%d", a.ExperienceID, now)
 	}
 	a.CreatedAt = now
-	if _, err := g.db.ExecContext(ctx, `
-		INSERT INTO experience_attempts (id, experience_id, strategy_id, action, rationale, outcome, status, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, a.ID, a.ExperienceID, a.StrategyID, a.Action, a.Rationale, a.Outcome, a.Status, a.CreatedAt); err != nil {
-		return nil, fmt.Errorf("add attempt: %w", err)
-	}
+
+	g.expMu.Lock()
+	cp := a
+	g.expAttempts[a.ExperienceID] = append(g.expAttempts[a.ExperienceID], &cp)
+	g.expMu.Unlock()
+
+	_ = g.writeJSON("experience/attempts", a.ID, &a)
+
 	attemptNodeID := "attempt:" + a.ID
 	_ = g.AddNode(ctx, Node{ID: attemptNodeID, Type: NodeTypeAttempt, Name: a.ID, Summary: a.Action,
 		Metadata: map[string]any{"status": a.Status, "outcome": a.Outcome}})
@@ -204,12 +202,14 @@ func (g *Graph) AddExperienceObservation(ctx context.Context, o ExperienceObserv
 		o.ID = fmt.Sprintf("obs.%s.%d", o.ExperienceID, now)
 	}
 	o.CreatedAt = now
-	if _, err := g.db.ExecContext(ctx, `
-		INSERT INTO experience_observations (id, experience_id, attempt_id, type, summary, source, confidence, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, o.ID, o.ExperienceID, o.AttemptID, o.Type, o.Summary, o.Source, o.Confidence, o.CreatedAt); err != nil {
-		return nil, fmt.Errorf("add observation: %w", err)
-	}
+
+	g.expMu.Lock()
+	cp := o
+	g.expObs[o.ExperienceID] = append(g.expObs[o.ExperienceID], &cp)
+	g.expMu.Unlock()
+
+	_ = g.writeJSON("experience/observations", o.ID, &o)
+
 	obsNodeID := "observation:" + o.ID
 	_ = g.AddNode(ctx, Node{ID: obsNodeID, Type: NodeTypeObservation, Name: o.ID, Summary: o.Summary,
 		Metadata: map[string]any{"type": o.Type, "confidence": o.Confidence, "source": o.Source}})
@@ -223,13 +223,18 @@ func (g *Graph) AddExperienceObservation(ctx context.Context, o ExperienceObserv
 
 func (g *Graph) CloseExperience(ctx context.Context, expID string, status string, lesson string, nextHint string, score *ExperienceScorecard) error {
 	now := time.Now().Unix()
-	if _, err := g.db.ExecContext(ctx, `
-		UPDATE experience_entries
-		SET status = ?, lesson = ?, next_time_hint = ?, updated_at = ?
-		WHERE id = ?
-	`, status, lesson, nextHint, now, expID); err != nil {
-		return fmt.Errorf("close experience: %w", err)
+
+	g.expMu.Lock()
+	exp := g.experiences[expID]
+	if exp != nil {
+		exp.Status = status
+		exp.Lesson = lesson
+		exp.NextTimeHint = nextHint
+		exp.UpdatedAt = now
+		_ = g.writeJSON("experience/entries", expID, exp)
 	}
+	g.expMu.Unlock()
+
 	n, _ := g.FindNode(ctx, "experience:"+expID)
 	meta := map[string]any{"status": status}
 	if n != nil && n.Metadata != nil {
@@ -250,13 +255,24 @@ func (g *Graph) CloseExperience(ctx context.Context, expID string, status string
 		_ = g.AddEdge(ctx, Edge{Src: "experience:" + expID, Kind: EdgeSuggestsNext, Dst: hintID})
 	}
 	if score != nil {
-		attemptCount, observationCount := g.experienceEvidenceCounts(ctx, expID)
-		obs, _ := g.listExperienceObservations(ctx, expID)
+		g.expMu.RLock()
+		attempts := g.expAttempts[expID]
+		observations := g.expObs[expID]
+		g.expMu.RUnlock()
+
+		var obsSlice []ExperienceObservation
+		for _, o := range observations {
+			obsSlice = append(obsSlice, *o)
+		}
 		if score.EvidenceStrength == 0 {
-			score.EvidenceStrength = deriveEvidenceStrength(obs)
+			score.EvidenceStrength = deriveEvidenceStrength(obsSlice)
 		}
 		if score.Verdict == "" {
-			score.Verdict = deriveVerdict(status, attemptCount, observationCount, lesson)
+			statusStr := ""
+			if exp != nil {
+				statusStr = exp.Status
+			}
+			score.Verdict = deriveVerdict(statusStr, len(attempts), len(observations), lesson)
 		}
 		if score.FinalScore == 0 {
 			score.FinalScore = (score.Success + score.EvidenceStrength + score.ReuseValue + score.Specificity + score.RiskReduction + score.Confidence) / 6.0
@@ -479,8 +495,7 @@ func (g *Graph) EvaluatePromotionReadiness(ctx context.Context, expID string) (*
 	return out, nil
 }
 
-// SeedWorkflowDeferExperience seeds a canonical workflow-defer experience used
-// by preflight retrieval validation. It is idempotent.
+// SeedWorkflowDeferExperience seeds a canonical workflow-defer experience. Idempotent.
 func (g *Graph) SeedWorkflowDeferExperience(ctx context.Context) (*ExperienceEntry, error) {
 	if existing, err := g.GetExperience(ctx, SeedWorkflowDeferExperienceID); err == nil && existing != nil {
 		return &existing.Experience, nil
@@ -550,102 +565,25 @@ func (g *Graph) SeedWorkflowDeferExperience(ctx context.Context) (*ExperienceEnt
 	return e, nil
 }
 
-func (g *Graph) experienceEvidenceCounts(ctx context.Context, expID string) (attempts int, observations int) {
-	_ = g.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM experience_attempts WHERE experience_id = ?`, expID).Scan(&attempts)
-	_ = g.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM experience_observations WHERE experience_id = ?`, expID).Scan(&observations)
-	return attempts, observations
-}
-
-func deriveVerdict(status string, attempts int, observations int, lesson string) string {
-	if observations == 0 || strings.TrimSpace(lesson) == "" {
-		return "unproven"
-	}
-	if strings.EqualFold(status, "success") && attempts > 0 {
-		return "useful"
-	}
-	if strings.EqualFold(status, "failed") {
-		return "weak"
-	}
-	return "unproven"
-}
-
-func deriveEvidenceStrength(observations []ExperienceObservation) float64 {
-	if len(observations) == 0 {
-		return 0
-	}
-	weightByType := map[string]float64{
-		"test":          1.0,
-		"runtime":       0.9,
-		"prometheus":    0.8,
-		"etcd":          0.8,
-		"log":           0.7,
-		"static_code":   0.6,
-		"operator_note": 0.4,
-	}
-	sum := 0.0
-	for _, o := range observations {
-		w := weightByType[strings.ToLower(strings.TrimSpace(o.Type))]
-		if w == 0 {
-			w = 0.5
-		}
-		c := o.Confidence
-		if c <= 0 {
-			c = 0.5
-		}
-		if c > 1 {
-			c = 1
-		}
-		sum += w * c
-	}
-	v := sum / float64(len(observations))
-	if v > 1 {
-		return 1
-	}
-	return v
-}
-
 func (g *Graph) GetExperience(ctx context.Context, expID string) (*ExperienceRecord, error) {
-	var e ExperienceEntry
-	err := g.db.QueryRowContext(ctx, `
-		SELECT id, kind, domain, capability, status, summary, goal_original, goal_normalized,
-			goal_verb, goal_object, strategy_id, lesson, next_time_hint, created_by, reviewed_by,
-			created_at, updated_at
-		FROM experience_entries WHERE id = ?
-	`, expID).Scan(
-		&e.ID, &e.Kind, &e.Domain, &e.Capability, &e.Status, &e.Summary, &e.GoalOriginal, &e.GoalNormalized,
-		&e.GoalVerb, &e.GoalObject, &e.StrategyID, &e.Lesson, &e.NextTimeHint, &e.CreatedBy, &e.ReviewedBy,
-		&e.CreatedAt, &e.UpdatedAt,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("get experience: %w", err)
-	}
-	rec := &ExperienceRecord{Experience: e}
+	g.expMu.RLock()
+	exp := g.experiences[expID]
+	attempts := g.expAttempts[expID]
+	observations := g.expObs[expID]
+	g.expMu.RUnlock()
 
-	attemptRows, err := g.db.QueryContext(ctx, `
-		SELECT id, experience_id, strategy_id, action, rationale, outcome, status, created_at
-		FROM experience_attempts WHERE experience_id = ? ORDER BY created_at ASC
-	`, expID)
-	if err != nil {
-		return nil, fmt.Errorf("list attempts: %w", err)
+	if exp == nil {
+		return nil, nil
 	}
-	defer attemptRows.Close()
-	for attemptRows.Next() {
-		var a ExperienceAttempt
-		if err := attemptRows.Scan(&a.ID, &a.ExperienceID, &a.StrategyID, &a.Action, &a.Rationale, &a.Outcome, &a.Status, &a.CreatedAt); err != nil {
-			return nil, err
-		}
-		rec.Attempts = append(rec.Attempts, a)
+	rec := &ExperienceRecord{Experience: *exp}
+	for _, a := range attempts {
+		rec.Attempts = append(rec.Attempts, *a)
+	}
+	for _, o := range observations {
+		rec.Observations = append(rec.Observations, *o)
 	}
 
-	obs, err := g.listExperienceObservations(ctx, expID)
-	if err != nil {
-		return nil, err
-	}
-	rec.Observations = obs
-
+	// Check for scorecard node.
 	if n, _ := g.FindNode(ctx, "scorecard:"+expID); n != nil {
 		s := &ExperienceScorecard{}
 		s.Success = toFloat(n.Metadata["success"])
@@ -667,51 +605,38 @@ func (g *Graph) SearchSimilarExperiences(ctx context.Context, q ExperienceSearch
 	if limit <= 0 {
 		limit = 5
 	}
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT
-			e.id, e.domain, e.capability, e.status, e.summary, e.goal_original, e.goal_normalized,
-			e.goal_verb, e.goal_object, e.strategy_id, e.lesson, e.next_time_hint,
-			COALESCE(ns.summary, '') AS verdict,
-			COALESCE(CAST(json_extract(ns.metadata_json, '$.final_score') AS REAL), 0) AS final_score,
-			COALESCE((SELECT group_concat(dst, '|') FROM edges WHERE src = ('experience:' || e.id) AND kind = 'touches_file'), '') AS file_dsts,
-			COALESCE((SELECT group_concat(dst, '|') FROM edges WHERE src = ('experience:' || e.id) AND kind = 'changed_symbol'), '') AS symbol_dsts,
-			COALESCE((SELECT group_concat(dst, '|') FROM edges WHERE src = ('experience:' || e.id) AND kind = 'protects'), '') AS invariant_dsts,
-			COALESCE((SELECT group_concat(dst, '|') FROM edges WHERE src = ('experience:' || e.id) AND kind IN ('avoided_forbidden_fix','produced_forbidden_fix_candidate')), '') AS forbidden_dsts,
-			COALESCE((SELECT group_concat(action, '|') FROM experience_attempts WHERE experience_id = e.id AND lower(status) = 'success'), '') AS worked_paths,
-			COALESCE((SELECT group_concat(action, '|') FROM experience_attempts WHERE experience_id = e.id AND lower(status) = 'failed'), '') AS failed_paths,
-			COALESCE((SELECT group_concat(DISTINCT type) FROM experience_observations WHERE experience_id = e.id), '') AS evidence_types
-		FROM experience_entries e
-		LEFT JOIN nodes ns ON ns.id = ('scorecard:' || e.id)
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("search experiences: %w", err)
+
+	g.expMu.RLock()
+	var allExps []*ExperienceEntry
+	for _, e := range g.experiences {
+		cp := *e
+		allExps = append(allExps, &cp)
 	}
-	defer rows.Close()
+	g.expMu.RUnlock()
 
 	goalTerms := tokenSet(strings.ToLower(q.Goal))
 	fileSet := tokenSet(strings.ToLower(strings.Join(q.Files, " ")))
 	symbolSet := tokenSet(strings.ToLower(strings.Join(q.Symbols, " ")))
 	invariantSet := tokenSet(strings.ToLower(strings.Join(q.InvariantIDs, " ")))
 	forbiddenSet := tokenSet(strings.ToLower(strings.Join(q.ForbiddenFixIDs, " ")))
+
 	hits := []ExperienceSearchHit{}
-	for rows.Next() {
-		var id, domain, capability, status, summary, goalOriginal, goalNorm, goalVerb, goalObject, strategyID, lesson, hint, verdict string
-		var fileDsts, symbolDsts, invariantDsts, forbiddenDsts, workedPaths, failedPaths, evidenceTypes string
-		var finalScore float64
-		if err := rows.Scan(&id, &domain, &capability, &status, &summary, &goalOriginal, &goalNorm, &goalVerb, &goalObject, &strategyID, &lesson, &hint, &verdict, &finalScore, &fileDsts, &symbolDsts, &invariantDsts, &forbiddenDsts, &workedPaths, &failedPaths, &evidenceTypes); err != nil {
-			return nil, err
-		}
+	for _, e := range allExps {
 		reasons := []string{}
 		score := 0.0
-		if q.Domain != "" && strings.EqualFold(q.Domain, domain) {
+
+		if q.Domain != "" && strings.EqualFold(q.Domain, e.Domain) {
 			score += 0.15
 			reasons = append(reasons, "domain-match")
 		}
-		if q.Capability != "" && strings.EqualFold(q.Capability, capability) {
+		if q.Capability != "" && strings.EqualFold(q.Capability, e.Capability) {
 			score += 0.15
 			reasons = append(reasons, "capability-match")
 		}
-		nodeTerms := tokenSet(strings.ToLower(strings.Join([]string{summary, goalOriginal, goalNorm, goalVerb, goalObject, lesson, hint, domain, capability}, " ")))
+		nodeTerms := tokenSet(strings.ToLower(strings.Join([]string{
+			e.Summary, e.GoalOriginal, e.GoalNormalized, e.GoalVerb, e.GoalObject,
+			e.Lesson, e.NextTimeHint, e.Domain, e.Capability,
+		}, " ")))
 		if len(goalTerms) > 0 {
 			v := overlapRatio(goalTerms, nodeTerms)
 			score += 0.35 * v
@@ -719,7 +644,45 @@ func (g *Graph) SearchSimilarExperiences(ctx context.Context, q ExperienceSearch
 				reasons = append(reasons, "goal-text-overlap")
 			}
 		}
-		fileTerms := tokenSet(strings.ToLower(strings.Join(stripPrefixes(splitPipe(fileDsts), "source_file:"), " ")))
+
+		// Collect linked files, symbols, invariants, forbidden fixes from graph.
+		var fileDsts, symbolDsts, invDsts, forbDsts []string
+		var workedPaths, failedPaths []string
+		expNodeID := "experience:" + e.ID
+		if edges, err := g.OutgoingEdges(ctx, expNodeID); err == nil {
+			for _, edge := range edges {
+				switch edge.Kind {
+				case EdgeTouchesFile:
+					fileDsts = append(fileDsts, strings.TrimPrefix(edge.Dst, "source_file:"))
+				case EdgeChangedSymbol:
+					symbolDsts = append(symbolDsts, strings.TrimPrefix(edge.Dst, "symbol:"))
+				case EdgeProtects:
+					invDsts = append(invDsts, strings.TrimPrefix(edge.Dst, "invariant:"))
+				case EdgeAvoidedForbiddenFix, EdgeProducedForbiddenFixCandidate:
+					forbDsts = append(forbDsts, strings.TrimPrefix(edge.Dst, "forbidden_fix:"))
+				}
+			}
+		}
+
+		g.expMu.RLock()
+		for _, a := range g.expAttempts[e.ID] {
+			if strings.EqualFold(a.Status, "success") {
+				workedPaths = append(workedPaths, a.Action)
+			} else if strings.EqualFold(a.Status, "failed") {
+				failedPaths = append(failedPaths, a.Action)
+			}
+		}
+		var evidenceTypes []string
+		seen := map[string]bool{}
+		for _, o := range g.expObs[e.ID] {
+			if o.Type != "" && !seen[o.Type] {
+				seen[o.Type] = true
+				evidenceTypes = append(evidenceTypes, o.Type)
+			}
+		}
+		g.expMu.RUnlock()
+
+		fileTerms := tokenSet(strings.ToLower(strings.Join(fileDsts, " ")))
 		if len(fileSet) > 0 {
 			v := overlapRatio(fileSet, fileTerms)
 			score += 0.15 * v
@@ -727,7 +690,7 @@ func (g *Graph) SearchSimilarExperiences(ctx context.Context, q ExperienceSearch
 				reasons = append(reasons, "file-overlap")
 			}
 		}
-		symbolTerms := tokenSet(strings.ToLower(strings.Join(stripPrefixes(splitPipe(symbolDsts), "symbol:"), " ")))
+		symbolTerms := tokenSet(strings.ToLower(strings.Join(symbolDsts, " ")))
 		if len(symbolSet) > 0 {
 			v := overlapRatio(symbolSet, symbolTerms)
 			score += 0.1 * v
@@ -735,7 +698,7 @@ func (g *Graph) SearchSimilarExperiences(ctx context.Context, q ExperienceSearch
 				reasons = append(reasons, "symbol-overlap")
 			}
 		}
-		invTerms := tokenSet(strings.ToLower(strings.Join(stripPrefixes(splitPipe(invariantDsts), "invariant:"), " ")))
+		invTerms := tokenSet(strings.ToLower(strings.Join(invDsts, " ")))
 		if len(invariantSet) > 0 {
 			v := overlapRatio(invariantSet, invTerms)
 			score += 0.15 * v
@@ -743,7 +706,7 @@ func (g *Graph) SearchSimilarExperiences(ctx context.Context, q ExperienceSearch
 				reasons = append(reasons, "invariant-overlap")
 			}
 		}
-		ffTerms := tokenSet(strings.ToLower(strings.Join(stripPrefixes(splitPipe(forbiddenDsts), "forbidden_fix:"), " ")))
+		ffTerms := tokenSet(strings.ToLower(strings.Join(forbDsts, " ")))
 		if len(forbiddenSet) > 0 {
 			v := overlapRatio(forbiddenSet, ffTerms)
 			score += 0.1 * v
@@ -751,25 +714,35 @@ func (g *Graph) SearchSimilarExperiences(ctx context.Context, q ExperienceSearch
 				reasons = append(reasons, "forbidden-fix-overlap")
 			}
 		}
+
 		if score <= 0 {
 			continue
 		}
+
+		// Get scorecard verdict.
+		verdict := ""
+		finalScore := 0.0
+		if n, _ := g.FindNode(ctx, "scorecard:"+e.ID); n != nil {
+			verdict = n.Summary
+			finalScore = toFloat(n.Metadata["final_score"])
+		}
+
 		hits = append(hits, ExperienceSearchHit{
-			ExperienceID:  id,
+			ExperienceID:  e.ID,
 			Score:         score,
-			Summary:       summary,
-			StrategyID:    strategyID,
-			Hint:          hint,
-			Status:        status,
-			Domain:        domain,
-			Capability:    capability,
-			Lesson:        lesson,
+			Summary:       e.Summary,
+			StrategyID:    e.StrategyID,
+			Hint:          e.NextTimeHint,
+			Status:        e.Status,
+			Domain:        e.Domain,
+			Capability:    e.Capability,
+			Lesson:        e.Lesson,
 			Verdict:       verdict,
 			FinalScore:    finalScore,
 			Reasons:       uniqueStrings(reasons),
-			WorkedPaths:   uniqueStrings(splitPipe(workedPaths)),
-			FailedPaths:   uniqueStrings(splitPipe(failedPaths)),
-			EvidenceTypes: uniqueStrings(splitComma(evidenceTypes)),
+			WorkedPaths:   uniqueStrings(workedPaths),
+			FailedPaths:   uniqueStrings(failedPaths),
+			EvidenceTypes: uniqueStrings(evidenceTypes),
 		})
 	}
 	sort.Slice(hits, func(i, j int) bool { return hits[i].Score > hits[j].Score })
@@ -802,22 +775,13 @@ func stripPrefixes(in []string, prefix string) []string {
 }
 
 func (g *Graph) listExperienceObservations(ctx context.Context, expID string) ([]ExperienceObservation, error) {
-	obsRows, err := g.db.QueryContext(ctx, `
-		SELECT id, experience_id, attempt_id, type, summary, source, confidence, created_at
-		FROM experience_observations WHERE experience_id = ? ORDER BY created_at ASC
-	`, expID)
-	if err != nil {
-		return nil, fmt.Errorf("list observations: %w", err)
+	g.expMu.RLock()
+	ptrs := g.expObs[expID]
+	out := make([]ExperienceObservation, len(ptrs))
+	for i, o := range ptrs {
+		out[i] = *o
 	}
-	defer obsRows.Close()
-	out := []ExperienceObservation{}
-	for obsRows.Next() {
-		var o ExperienceObservation
-		if err := obsRows.Scan(&o.ID, &o.ExperienceID, &o.AttemptID, &o.Type, &o.Summary, &o.Source, &o.Confidence, &o.CreatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, o)
-	}
+	g.expMu.RUnlock()
 	return out, nil
 }
 
@@ -890,4 +854,52 @@ func ensurePrefixed(v, prefix string) string {
 		return v
 	}
 	return prefix + v
+}
+
+func deriveVerdict(status string, attempts int, observations int, lesson string) string {
+	if observations == 0 || strings.TrimSpace(lesson) == "" {
+		return "unproven"
+	}
+	if strings.EqualFold(status, "success") && attempts > 0 {
+		return "useful"
+	}
+	if strings.EqualFold(status, "failed") {
+		return "weak"
+	}
+	return "unproven"
+}
+
+func deriveEvidenceStrength(observations []ExperienceObservation) float64 {
+	if len(observations) == 0 {
+		return 0
+	}
+	weightByType := map[string]float64{
+		"test":          1.0,
+		"runtime":       0.9,
+		"prometheus":    0.8,
+		"etcd":          0.8,
+		"log":           0.7,
+		"static_code":   0.6,
+		"operator_note": 0.4,
+	}
+	sum := 0.0
+	for _, o := range observations {
+		w := weightByType[strings.ToLower(strings.TrimSpace(o.Type))]
+		if w == 0 {
+			w = 0.5
+		}
+		c := o.Confidence
+		if c <= 0 {
+			c = 0.5
+		}
+		if c > 1 {
+			c = 1
+		}
+		sum += w * c
+	}
+	v := sum / float64(len(observations))
+	if v > 1 {
+		return 1
+	}
+	return v
 }

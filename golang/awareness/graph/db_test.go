@@ -11,8 +11,7 @@ import (
 
 func openTestGraph(t *testing.T) *graph.Graph {
 	t.Helper()
-	dir := t.TempDir()
-	g, err := graph.Open(filepath.Join(dir, "graph.db"))
+	g, err := graph.Open(t.TempDir())
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -20,43 +19,7 @@ func openTestGraph(t *testing.T) *graph.Graph {
 	return g
 }
 
-// Test 1: migration creates all required tables and indexes.
-func TestMigrationCreatesTablesAndIndexes(t *testing.T) {
-	g := openTestGraph(t)
-	db := g.DB()
-	ctx := context.Background()
-
-	tables := []string{
-		"nodes", "edges", "invariants", "failure_modes",
-		"agent_context_cache", "graph_builds", "preflight_audits",
-		"agent_usage_events",
-	}
-	for _, tbl := range tables {
-		var name string
-		err := db.QueryRowContext(ctx,
-			`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, tbl,
-		).Scan(&name)
-		if err != nil {
-			t.Errorf("table %q missing: %v", tbl, err)
-		}
-	}
-
-	indexes := []string{
-		"idx_nodes_type", "idx_nodes_name",
-		"idx_edges_src", "idx_edges_dst", "idx_edges_kind", "idx_edges_phase",
-	}
-	for _, idx := range indexes {
-		var name string
-		err := db.QueryRowContext(ctx,
-			`SELECT name FROM sqlite_master WHERE type='index' AND name=?`, idx,
-		).Scan(&name)
-		if err != nil {
-			t.Errorf("index %q missing: %v", idx, err)
-		}
-	}
-}
-
-// Test 2: AddNode and AddEdge are idempotent.
+// Test: AddNode and AddEdge are idempotent.
 func TestAddNodeAndEdgeIdempotent(t *testing.T) {
 	g := openTestGraph(t)
 	ctx := context.Background()
@@ -88,7 +51,7 @@ func TestAddNodeAndEdgeIdempotent(t *testing.T) {
 		Phase:    "package_install",
 		Required: true,
 	}
-	// Ensure dst node exists (foreign-key style — SQLite doesn't enforce it, but good practice).
+	// Ensure dst node exists.
 	_ = g.AddNode(ctx, graph.Node{ID: "service:repository", Type: graph.NodeTypeGlobularService, Name: "repository"})
 
 	for i := 0; i < 3; i++ {
@@ -112,7 +75,7 @@ func TestAddNodeAndEdgeIdempotent(t *testing.T) {
 	}
 }
 
-// Additional: FindNode returns nil for missing ID.
+// FindNode returns nil for missing ID.
 func TestFindNodeMissing(t *testing.T) {
 	g := openTestGraph(t)
 	ctx := context.Background()
@@ -126,7 +89,7 @@ func TestFindNodeMissing(t *testing.T) {
 	}
 }
 
-// Additional: Stats returns correct counts.
+// Stats returns correct counts.
 func TestStats(t *testing.T) {
 	g := openTestGraph(t)
 	ctx := context.Background()
@@ -155,34 +118,33 @@ func TestStats(t *testing.T) {
 	}
 }
 
-// Additional: Open creates parent directory automatically.
+// Open creates parent directory automatically.
 func TestOpenCreatesDirectory(t *testing.T) {
 	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "deep", "nested", "graph.db")
-	g, err := graph.Open(dbPath)
+	nested := filepath.Join(dir, "deep", "nested")
+	g, err := graph.Open(nested)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	g.Close()
-	if _, err := os.Stat(dbPath); err != nil {
-		t.Errorf("db file not created: %v", err)
+	if _, err := os.Stat(nested); err != nil {
+		t.Errorf("directory not created: %v", err)
 	}
 }
 
-// Additional: second Open on same path re-uses existing schema.
+// Second Open on same path re-uses existing data.
 func TestOpenIdempotent(t *testing.T) {
 	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "graph.db")
 	ctx := context.Background()
 
-	g1, err := graph.Open(dbPath)
+	g1, err := graph.Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = g1.AddNode(ctx, graph.Node{ID: "x", Type: graph.NodeTypeSymbol, Name: "X"})
 	g1.Close()
 
-	g2, err := graph.Open(dbPath)
+	g2, err := graph.Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -488,4 +450,3 @@ func TestHealthPulse_AgentSkipRateWarning(t *testing.T) {
 		t.Errorf("expected warning status when skip rate=%.1f%%, got %q", summary.PreflightSkipRatePct, summary.Status)
 	}
 }
-

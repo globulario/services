@@ -179,13 +179,12 @@ func setupIntegrationFixture(t *testing.T, fx integrationFixture) (*graph.Graph,
 			return nil
 		})
 		ts := time.Now().Add(-fx.graphAge).Unix()
-		_, err := g.DB().ExecContext(context.Background(),
-			`INSERT INTO graph_builds (id, repo_root, git_commit, release_id, created_at, stats_json)
-			 VALUES (?, ?, ?, ?, ?, ?)`,
-			"e2e-test-build", "/r", "deadbeef", "", ts, `{}`)
-		if err != nil {
-			t.Fatalf("insert graph_builds: %v", err)
-		}
+		g.AddBuildRecord(graph.BuildRecord{
+			ID:        "e2e-test-build",
+			RepoRoot:  "/r",
+			GitCommit: "deadbeef",
+			CreatedAt: ts,
+		})
 	}
 	return g, docsDir
 }

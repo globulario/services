@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/globulario/services/golang/awareness/graph"
 	"github.com/globulario/services/golang/awareness/assurance"
+	"github.com/globulario/services/golang/awareness/graph"
+	"github.com/globulario/services/golang/awareness/incidentpattern"
 )
 
 func openSeededGraph(t *testing.T) *graph.Graph {
@@ -329,18 +330,22 @@ func TestComputeCoverage_PopulatesClosureLoopProvenance(t *testing.T) {
 	addFailureMode(t, g, "FM-loop", "Closed loop fm")
 
 	// Two incident_patterns rows — smallest incident_id wins for determinism.
-	now := int64(1)
+	patStore := incidentpattern.NewStore(g)
 	for _, p := range []struct {
 		id, incident string
 	}{
 		{"PAT-1", "INC-2026-0042"},
 		{"PAT-2", "INC-2026-0007"}, // smaller, should win
 	} {
-		_, err := g.DB().Exec(
-			`INSERT INTO incident_patterns
-			 (id, incident_id, title, summary, severity, status, failure_mode, root_cause, lesson, created_at, updated_at)
-			 VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-			p.id, p.incident, "t", "s", "warning", "active", "FM-loop", "", "", now, now)
+		_, err := patStore.RecordPattern(context.Background(), incidentpattern.IncidentPattern{
+			ID:          p.id,
+			IncidentID:  p.incident,
+			Title:       "t",
+			Summary:     "s",
+			Severity:    "warning",
+			Status:      "active",
+			FailureMode: "FM-loop",
+		})
 		if err != nil {
 			t.Fatalf("insert pattern %s: %v", p.id, err)
 		}

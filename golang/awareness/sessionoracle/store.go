@@ -3,28 +3,140 @@ package sessionoracle
 import (
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/globulario/services/golang/awareness/graph"
 	"github.com/google/uuid"
 )
 
-// Oracle is the session resumption store backed by the awareness graph DB.
+// sessionFile is the on-disk format for a session and all its sub-records.
+type sessionFile struct {
+	ID              string                 `json:"id"`
+	Title           string                 `json:"title"`
+	Objective       string                 `json:"objective"`
+	Actor           string                 `json:"actor"`
+	Status          string                 `json:"status"`
+	StartedAt       int64                  `json:"started_at"`
+	EndedAt         int64                  `json:"ended_at,omitempty"`
+	ParentSessionID string                 `json:"parent_session_id,omitempty"`
+	RepoRoot        string                 `json:"repo_root"`
+	Branch          string                 `json:"branch"`
+	GitCommitStart  string                 `json:"git_commit_start"`
+	GitCommitEnd    string                 `json:"git_commit_end,omitempty"`
+	Decisions       []SessionDecision      `json:"decisions,omitempty"`
+	Assumptions     []SessionAssumption    `json:"assumptions,omitempty"`
+	FileTouches     []SessionFileTouch     `json:"file_touches,omitempty"`
+	Unfinished      []SessionUnfinishedWork `json:"unfinished,omitempty"`
+	Warnings        []SessionWarning       `json:"warnings,omitempty"`
+	TestResults     []SessionTestResult    `json:"test_results,omitempty"`
+	ResumeSnapshots []SessionResumeSnapshot `json:"resume_snapshots,omitempty"`
+}
+
+// Oracle is the session resumption store backed by the awareness graph.
 type Oracle struct {
-	db *sql.DB
-	g  *graph.Graph
+	mu      sync.Mutex
+	g       *graph.Graph
+	dataDir string // <graph.DataDir()>/sessions; "" = in-memory only
+
+	// memSessions holds sessions when dataDir == "".
+	memSessions map[string]*sessionFile
 }
 
 // New returns an Oracle backed by the given awareness graph.
 func New(g *graph.Graph) *Oracle {
-	return &Oracle{db: g.DB(), g: g}
+	sessDir := ""
+	if d := g.DataDir(); d != "" {
+		sessDir = filepath.Join(d, "sessions")
+	}
+	return &Oracle{g: g, dataDir: sessDir, memSessions: make(map[string]*sessionFile)}
+}
+
+// sessionsDir ensures the sessions directory exists.
+func (o *Oracle) sessionsDir() string {
+	if o.dataDir == "" {
+		return ""
+	}
+	_ = os.MkdirAll(o.dataDir, 0o755)
+	return o.dataDir
+}
+
+// sessionPath returns the file path for a session ID.
+func (o *Oracle) sessionPath(id string) string {
+	return filepath.Join(o.sessionsDir(), sanitizeSessionID(id)+".json")
+}
+
+// sanitizeSessionID converts a session ID to a filesystem-safe filename component.
+func sanitizeSessionID(id string) string {
+	r := strings.NewReplacer("/", "_", ":", "_", " ", "_")
+	return r.Replace(id)
+}
+
+// readSession loads a session. Returns error if not found.
+func (o *Oracle) readSession(id string) (*sessionFile, error) {
+	if o.dataDir == "" {
+		// In-memory mode.
+		sf, ok := o.memSessions[id]
+		if !ok {
+			return nil, fmt.Errorf("sessionoracle: in-memory graph, no session %s", id)
+		}
+		// Return a copy to prevent accidental mutation.
+		cp := *sf
+		return &cp, nil
+	}
+	data, err := os.ReadFile(o.sessionPath(id))
+	if err != nil {
+		return nil, fmt.Errorf("sessionoracle: get session %s: %w", id, err)
+	}
+	var sf sessionFile
+	if err := json.Unmarshal(data, &sf); err != nil {
+		return nil, fmt.Errorf("sessionoracle: decode session %s: %w", id, err)
+	}
+	return &sf, nil
+}
+
+// writeSession writes a session (in-memory or file-backed).
+func (o *Oracle) writeSession(sf *sessionFile) error {
+	if o.dataDir == "" {
+		// In-memory mode: store a copy.
+		cp := *sf
+		o.memSessions[sf.ID] = &cp
+		return nil
+	}
+	dir := o.sessionsDir()
+	if dir == "" {
+		return nil
+	}
+	data, err := json.Marshal(sf)
+	if err != nil {
+		return err
+	}
+	path := o.sessionPath(sf.ID)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+// updateSession loads, mutates, and saves a session atomically.
+func (o *Oracle) updateSession(id string, fn func(*sessionFile)) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	sf, err := o.readSession(id)
+	if err != nil {
+		return err
+	}
+	fn(sf)
+	return o.writeSession(sf)
 }
 
 // ── Session lifecycle ─────────────────────────────────────────────────────────
@@ -48,20 +160,29 @@ func (o *Oracle) StartSession(ctx context.Context, req StartSessionRequest) (*Ag
 		Objective:       req.Objective,
 		Actor:           actor,
 		Status:          "open",
-		StartedAt:       time.Now().Unix(),
+		StartedAt:       time.Now().UnixMilli(),
 		ParentSessionID: req.ParentSessionID,
 		RepoRoot:        req.RepoRoot,
 		Branch:          branch,
 		GitCommitStart:  commit,
 	}
 
-	_, err := o.db.ExecContext(ctx, `
-		INSERT INTO agent_sessions
-		  (id,title,objective,actor,status,started_at,parent_session_id,repo_root,branch,git_commit_start)
-		VALUES (?,?,?,?,?,?,?,?,?,?)`,
-		s.ID, s.Title, s.Objective, s.Actor, s.Status, s.StartedAt,
-		s.ParentSessionID, s.RepoRoot, s.Branch, s.GitCommitStart)
-	if err != nil {
+	sf := &sessionFile{
+		ID:              s.ID,
+		Title:           s.Title,
+		Objective:       s.Objective,
+		Actor:           s.Actor,
+		Status:          s.Status,
+		StartedAt:       s.StartedAt,
+		ParentSessionID: s.ParentSessionID,
+		RepoRoot:        s.RepoRoot,
+		Branch:          s.Branch,
+		GitCommitStart:  s.GitCommitStart,
+	}
+
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if err := o.writeSession(sf); err != nil {
 		return nil, fmt.Errorf("sessionoracle: start session: %w", err)
 	}
 	return s, nil
@@ -69,52 +190,107 @@ func (o *Oracle) StartSession(ctx context.Context, req StartSessionRequest) (*Ag
 
 // GetSession loads a session by ID.
 func (o *Oracle) GetSession(ctx context.Context, id string) (*AgentSession, error) {
-	var s AgentSession
-	var endedAt sql.NullInt64
-	var parentID sql.NullString
-	err := o.db.QueryRowContext(ctx, `
-		SELECT id,title,objective,actor,status,started_at,ended_at,parent_session_id,
-		       repo_root,branch,git_commit_start,git_commit_end
-		FROM agent_sessions WHERE id=?`, id).Scan(
-		&s.ID, &s.Title, &s.Objective, &s.Actor, &s.Status, &s.StartedAt,
-		&endedAt, &parentID, &s.RepoRoot, &s.Branch, &s.GitCommitStart, &s.GitCommitEnd)
+	sf, err := o.readSession(id)
 	if err != nil {
-		return nil, fmt.Errorf("sessionoracle: get session %s: %w", id, err)
+		return nil, err
 	}
-	if endedAt.Valid {
-		s.EndedAt = endedAt.Int64
+	return sessionFileToAgentSession(sf), nil
+}
+
+func sessionFileToAgentSession(sf *sessionFile) *AgentSession {
+	return &AgentSession{
+		ID:              sf.ID,
+		Title:           sf.Title,
+		Objective:       sf.Objective,
+		Actor:           sf.Actor,
+		Status:          sf.Status,
+		StartedAt:       sf.StartedAt,
+		EndedAt:         sf.EndedAt,
+		ParentSessionID: sf.ParentSessionID,
+		RepoRoot:        sf.RepoRoot,
+		Branch:          sf.Branch,
+		GitCommitStart:  sf.GitCommitStart,
+		GitCommitEnd:    sf.GitCommitEnd,
 	}
-	if parentID.Valid {
-		s.ParentSessionID = parentID.String
-	}
-	return &s, nil
 }
 
 // LatestOpenSession returns the most recent open session for the given repo root.
 func (o *Oracle) LatestOpenSession(ctx context.Context, repoRoot string) (*AgentSession, error) {
-	var id string
-	err := o.db.QueryRowContext(ctx,
-		`SELECT id FROM agent_sessions WHERE status='open' AND repo_root=? ORDER BY started_at DESC, rowid DESC LIMIT 1`,
-		repoRoot).Scan(&id)
-	if err == sql.ErrNoRows {
-		// Fall back to any recent closed session.
-		err = o.db.QueryRowContext(ctx,
-			`SELECT id FROM agent_sessions WHERE repo_root=? ORDER BY started_at DESC, rowid DESC LIMIT 1`,
-			repoRoot).Scan(&id)
-	}
+	sessions, err := o.listAllSessions()
 	if err != nil {
 		return nil, fmt.Errorf("sessionoracle: no session for repo %s: %w", repoRoot, err)
 	}
-	return o.GetSession(ctx, id)
+
+	// Sort by started_at descending.
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].StartedAt > sessions[j].StartedAt
+	})
+
+	// First pass: open sessions for this repo.
+	for _, sf := range sessions {
+		if sf.Status == "open" && sf.RepoRoot == repoRoot {
+			return sessionFileToAgentSession(sf), nil
+		}
+	}
+	// Fallback: any session for this repo.
+	for _, sf := range sessions {
+		if sf.RepoRoot == repoRoot {
+			return sessionFileToAgentSession(sf), nil
+		}
+	}
+	return nil, fmt.Errorf("sessionoracle: no session for repo %s", repoRoot)
+}
+
+// listAllSessions reads all sessions (from memory or files).
+func (o *Oracle) listAllSessions() ([]*sessionFile, error) {
+	if o.dataDir == "" {
+		// In-memory mode.
+		var sessions []*sessionFile
+		for _, sf := range o.memSessions {
+			cp := *sf
+			sessions = append(sessions, &cp)
+		}
+		return sessions, nil
+	}
+	dir := o.sessionsDir()
+	if dir == "" {
+		return nil, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var sessions []*sessionFile
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".json") || strings.HasSuffix(e.Name(), ".tmp") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		var sf sessionFile
+		if err := json.Unmarshal(data, &sf); err != nil {
+			continue
+		}
+		sf2 := sf
+		sessions = append(sessions, &sf2)
+	}
+	return sessions, nil
 }
 
 // CloseSession marks a session closed, builds a resume snapshot, and optionally pushes to AI Memory.
 func (o *Oracle) CloseSession(ctx context.Context, sessionID string, pushToAIMemory bool, bridge AIMemoryBridge) (*SessionResumeSnapshot, error) {
 	_, commit := gitBranchAndCommit("")
 
-	_, err := o.db.ExecContext(ctx,
-		`UPDATE agent_sessions SET status='closed', ended_at=?, git_commit_end=? WHERE id=?`,
-		time.Now().Unix(), commit, sessionID)
+	err := o.updateSession(sessionID, func(sf *sessionFile) {
+		sf.Status = "closed"
+		sf.EndedAt = time.Now().Unix()
+		sf.GitCommitEnd = commit
+	})
 	if err != nil {
 		return nil, fmt.Errorf("sessionoracle: close session: %w", err)
 	}
@@ -139,90 +315,86 @@ func (o *Oracle) CloseSession(ctx context.Context, sessionID string, pushToAIMem
 // ── Events ────────────────────────────────────────────────────────────────────
 
 // RecordSessionEvent appends a raw event to the session log.
+// Events are not persisted to the session file (they are ephemeral).
 func (o *Oracle) RecordSessionEvent(ctx context.Context, sessionID, eventType, title, body string, payload interface{}, turnIndex int) error {
-	payloadJSON := ""
-	if payload != nil {
-		b, _ := json.Marshal(payload)
-		payloadJSON = string(b)
-	}
-	_, err := o.db.ExecContext(ctx, `
-		INSERT INTO session_events (id,session_id,turn_index,event_type,title,body,payload_json,created_at)
-		VALUES (?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), sessionID, turnIndex, eventType, title, body, payloadJSON, time.Now().Unix())
-	return err
+	// Events are not persisted in the JSON model (they are high-volume and
+	// not needed for session resume). This is a no-op stub.
+	return nil
 }
 
 // ── File touches ──────────────────────────────────────────────────────────────
 
 // RecordFileTouch persists a file access record and captures fingerprints.
 func (o *Oracle) RecordFileTouch(ctx context.Context, sessionID, path, action, reason string, turnIndex int) (*SessionFileTouch, error) {
-	// Determine sequence number (next for this session).
-	var seq int
-	_ = o.db.QueryRowContext(ctx,
-		`SELECT COALESCE(MAX(sequence),0)+1 FROM session_file_touches WHERE session_id=?`,
-		sessionID).Scan(&seq)
-
 	fpBefore := fingerprint(path)
 	fpAfter := ""
 	if action == "edit" || action == "create" || action == "delete" || action == "rename" {
-		fpAfter = fpBefore // will be updated by caller after the edit, or left empty
+		fpAfter = fpBefore
 	}
 
 	id := "FT-" + uuid.New().String()[:8]
 	now := time.Now().Unix()
-	_, err := o.db.ExecContext(ctx, `
-		INSERT INTO session_file_touches
-		  (id,session_id,path,action,sequence,fingerprint_before,fingerprint_after,reason,created_at)
-		VALUES (?,?,?,?,?,?,?,?,?)`,
-		id, sessionID, path, action, seq, fpBefore, fpAfter, reason, now)
-	if err != nil {
-		return nil, fmt.Errorf("sessionoracle: record file touch: %w", err)
-	}
 
-	// Stale Context Detection via contextfreshness is not available in this build
-	// (contextfreshness package removed from standalone awareness module). Context
-	// reads are recorded in the session_file_touches table instead.
-	_ = ctx // suppress unused warning
-
-	return &SessionFileTouch{
+	ft := SessionFileTouch{
 		ID:                id,
 		SessionID:         sessionID,
 		Path:              path,
 		Action:            action,
-		Sequence:          seq,
 		FingerprintBefore: fpBefore,
+		FingerprintAfter:  fpAfter,
 		Reason:            reason,
 		CreatedAt:         now,
-	}, nil
+	}
+
+	err := o.updateSession(sessionID, func(sf *sessionFile) {
+		ft.Sequence = len(sf.FileTouches) + 1
+		sf.FileTouches = append(sf.FileTouches, ft)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("sessionoracle: record file touch: %w", err)
+	}
+
+	return &ft, nil
 }
 
 // UpdateFileTouchAfter sets the fingerprint_after for a previously recorded touch.
 func (o *Oracle) UpdateFileTouchAfter(ctx context.Context, touchID, fingerprintAfter string) error {
-	_, err := o.db.ExecContext(ctx,
-		`UPDATE session_file_touches SET fingerprint_after=? WHERE id=?`,
-		fingerprintAfter, touchID)
-	return err
+	// We need to find and update the touch across all sessions.
+	// For efficiency, scan all sessions.
+	sessions, err := o.listAllSessions()
+	if err != nil {
+		return err
+	}
+	for _, sf := range sessions {
+		for i := range sf.FileTouches {
+			if sf.FileTouches[i].ID == touchID {
+				sessID := sf.ID
+				return o.updateSession(sessID, func(sf2 *sessionFile) {
+					for j := range sf2.FileTouches {
+						if sf2.FileTouches[j].ID == touchID {
+							sf2.FileTouches[j].FingerprintAfter = fingerprintAfter
+							return
+						}
+					}
+				})
+			}
+		}
+	}
+	return nil // touch not found — silently ignore
 }
 
 // ListFileTouches returns all file touches for a session in sequence order.
 func (o *Oracle) ListFileTouches(ctx context.Context, sessionID string) ([]SessionFileTouch, error) {
-	rows, err := o.db.QueryContext(ctx, `
-		SELECT id,session_id,path,action,sequence,fingerprint_before,fingerprint_after,reason,created_at
-		FROM session_file_touches WHERE session_id=? ORDER BY sequence ASC`, sessionID)
+	sf, err := o.readSession(sessionID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []SessionFileTouch
-	for rows.Next() {
-		var ft SessionFileTouch
-		if err := rows.Scan(&ft.ID, &ft.SessionID, &ft.Path, &ft.Action, &ft.Sequence,
-			&ft.FingerprintBefore, &ft.FingerprintAfter, &ft.Reason, &ft.CreatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, ft)
-	}
-	return out, rows.Err()
+	touches := make([]SessionFileTouch, len(sf.FileTouches))
+	copy(touches, sf.FileTouches)
+	sort.Slice(touches, func(i, j int) bool {
+		return touches[i].Sequence < touches[j].Sequence
+	})
+	return touches, nil
 }
 
 // ── Decisions ─────────────────────────────────────────────────────────────────
@@ -232,7 +404,7 @@ func (o *Oracle) RecordDecision(ctx context.Context, req RecordDecisionRequest) 
 	if req.Confidence == "" {
 		req.Confidence = "medium"
 	}
-	d := &SessionDecision{
+	d := SessionDecision{
 		ID:                     "DEC-" + uuid.New().String()[:8],
 		SessionID:              req.SessionID,
 		Title:                  req.Title,
@@ -245,53 +417,33 @@ func (o *Oracle) RecordDecision(ctx context.Context, req RecordDecisionRequest) 
 		Confidence:             req.Confidence,
 		CreatedAt:              time.Now().Unix(),
 	}
-	_, err := o.db.ExecContext(ctx, `
-		INSERT INTO session_decisions
-		  (id,session_id,title,decision,rationale,alternatives_considered,
-		   related_files,related_invariants,related_incidents,confidence,created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-		d.ID, d.SessionID, d.Title, d.Decision, d.Rationale,
-		joinStrings(d.AlternativesConsidered), joinStrings(d.RelatedFiles),
-		joinStrings(d.RelatedInvariants), joinStrings(d.RelatedIncidents),
-		d.Confidence, d.CreatedAt)
-	if err != nil {
+	if err := o.updateSession(req.SessionID, func(sf *sessionFile) {
+		sf.Decisions = append(sf.Decisions, d)
+	}); err != nil {
 		return nil, fmt.Errorf("sessionoracle: record decision: %w", err)
 	}
-	return d, nil
+	return &d, nil
 }
 
 // ListDecisions returns all decisions for a session.
 func (o *Oracle) ListDecisions(ctx context.Context, sessionID string) ([]SessionDecision, error) {
-	rows, err := o.db.QueryContext(ctx, `
-		SELECT id,session_id,title,decision,rationale,alternatives_considered,
-		       related_files,related_invariants,related_incidents,confidence,created_at
-		FROM session_decisions WHERE session_id=? ORDER BY created_at ASC`, sessionID)
+	sf, err := o.readSession(sessionID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []SessionDecision
-	for rows.Next() {
-		var d SessionDecision
-		var alt, rf, ri, rinc string
-		if err := rows.Scan(&d.ID, &d.SessionID, &d.Title, &d.Decision, &d.Rationale,
-			&alt, &rf, &ri, &rinc, &d.Confidence, &d.CreatedAt); err != nil {
-			return nil, err
-		}
-		d.AlternativesConsidered = splitStrings(alt)
-		d.RelatedFiles = splitStrings(rf)
-		d.RelatedInvariants = splitStrings(ri)
-		d.RelatedIncidents = splitStrings(rinc)
-		out = append(out, d)
-	}
-	return out, rows.Err()
+	out := make([]SessionDecision, len(sf.Decisions))
+	copy(out, sf.Decisions)
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt < out[j].CreatedAt
+	})
+	return out, nil
 }
 
 // ── Assumptions ───────────────────────────────────────────────────────────────
 
 // RecordAssumption persists an unverified assumption.
 func (o *Oracle) RecordAssumption(ctx context.Context, req RecordAssumptionRequest) (*SessionAssumption, error) {
-	a := &SessionAssumption{
+	a := SessionAssumption{
 		ID:             "ASM-" + uuid.New().String()[:8],
 		SessionID:      req.SessionID,
 		Assumption:     req.Assumption,
@@ -301,48 +453,50 @@ func (o *Oracle) RecordAssumption(ctx context.Context, req RecordAssumptionReque
 		RelatedFiles:   req.RelatedFiles,
 		CreatedAt:      time.Now().Unix(),
 	}
-	_, err := o.db.ExecContext(ctx, `
-		INSERT INTO session_assumptions
-		  (id,session_id,assumption,basis,status,validation_plan,related_files,created_at)
-		VALUES (?,?,?,?,?,?,?,?)`,
-		a.ID, a.SessionID, a.Assumption, a.Basis, a.Status, a.ValidationPlan, a.RelatedFiles, a.CreatedAt)
-	if err != nil {
+	if err := o.updateSession(req.SessionID, func(sf *sessionFile) {
+		sf.Assumptions = append(sf.Assumptions, a)
+	}); err != nil {
 		return nil, fmt.Errorf("sessionoracle: record assumption: %w", err)
 	}
-	return a, nil
+	return &a, nil
 }
 
 // ResolveAssumption updates the status of an assumption.
 func (o *Oracle) ResolveAssumption(ctx context.Context, assumptionID, status, _ string) error {
-	_, err := o.db.ExecContext(ctx,
-		`UPDATE session_assumptions SET status=?, resolved_at=? WHERE id=?`,
-		status, time.Now().Unix(), assumptionID)
-	return err
+	sessions, err := o.listAllSessions()
+	if err != nil {
+		return err
+	}
+	for _, sf := range sessions {
+		for _, a := range sf.Assumptions {
+			if a.ID == assumptionID {
+				return o.updateSession(sf.ID, func(sf2 *sessionFile) {
+					for i := range sf2.Assumptions {
+						if sf2.Assumptions[i].ID == assumptionID {
+							sf2.Assumptions[i].Status = status
+							sf2.Assumptions[i].ResolvedAt = time.Now().Unix()
+							return
+						}
+					}
+				})
+			}
+		}
+	}
+	return nil
 }
 
 // ListAssumptions returns all assumptions for a session.
 func (o *Oracle) ListAssumptions(ctx context.Context, sessionID string) ([]SessionAssumption, error) {
-	rows, err := o.db.QueryContext(ctx, `
-		SELECT id,session_id,assumption,basis,status,validation_plan,related_files,created_at,resolved_at
-		FROM session_assumptions WHERE session_id=? ORDER BY created_at ASC`, sessionID)
+	sf, err := o.readSession(sessionID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []SessionAssumption
-	for rows.Next() {
-		var a SessionAssumption
-		var resolvedAt sql.NullInt64
-		if err := rows.Scan(&a.ID, &a.SessionID, &a.Assumption, &a.Basis,
-			&a.Status, &a.ValidationPlan, &a.RelatedFiles, &a.CreatedAt, &resolvedAt); err != nil {
-			return nil, err
-		}
-		if resolvedAt.Valid {
-			a.ResolvedAt = resolvedAt.Int64
-		}
-		out = append(out, a)
-	}
-	return out, rows.Err()
+	out := make([]SessionAssumption, len(sf.Assumptions))
+	copy(out, sf.Assumptions)
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt < out[j].CreatedAt
+	})
+	return out, nil
 }
 
 // ── Unfinished work ───────────────────────────────────────────────────────────
@@ -352,7 +506,7 @@ func (o *Oracle) RecordUnfinishedWork(ctx context.Context, req RecordUnfinishedW
 	if req.Priority == "" {
 		req.Priority = "medium"
 	}
-	w := &SessionUnfinishedWork{
+	w := SessionUnfinishedWork{
 		ID:               "TODO-" + uuid.New().String()[:8],
 		SessionID:        req.SessionID,
 		Title:            req.Title,
@@ -366,65 +520,76 @@ func (o *Oracle) RecordUnfinishedWork(ctx context.Context, req RecordUnfinishedW
 		Status:           "open",
 		CreatedAt:        time.Now().Unix(),
 	}
-	_, err := o.db.ExecContext(ctx, `
-		INSERT INTO session_unfinished_work
-		  (id,session_id,title,description,priority,reason_unfinished,next_action,
-		   related_files,related_tests,related_incidents,status,created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-		w.ID, w.SessionID, w.Title, w.Description, w.Priority, w.ReasonUnfinished, w.NextAction,
-		joinStrings(w.RelatedFiles), joinStrings(w.RelatedTests), joinStrings(w.RelatedIncidents),
-		w.Status, w.CreatedAt)
-	if err != nil {
+	if err := o.updateSession(req.SessionID, func(sf *sessionFile) {
+		sf.Unfinished = append(sf.Unfinished, w)
+	}); err != nil {
 		return nil, fmt.Errorf("sessionoracle: record unfinished work: %w", err)
 	}
-	return w, nil
+	return &w, nil
 }
 
 // CloseUnfinishedWork marks a work item closed.
 func (o *Oracle) CloseUnfinishedWork(ctx context.Context, workID, _ string) error {
-	_, err := o.db.ExecContext(ctx,
-		`UPDATE session_unfinished_work SET status='closed', closed_at=? WHERE id=?`,
-		time.Now().Unix(), workID)
-	return err
+	sessions, err := o.listAllSessions()
+	if err != nil {
+		return err
+	}
+	for _, sf := range sessions {
+		for _, w := range sf.Unfinished {
+			if w.ID == workID {
+				return o.updateSession(sf.ID, func(sf2 *sessionFile) {
+					for i := range sf2.Unfinished {
+						if sf2.Unfinished[i].ID == workID {
+							sf2.Unfinished[i].Status = "closed"
+							sf2.Unfinished[i].ClosedAt = time.Now().Unix()
+							return
+						}
+					}
+				})
+			}
+		}
+	}
+	return nil
+}
+
+// priorityOrder returns a sort key for priority strings.
+func priorityOrder(p string) int {
+	switch p {
+	case "critical":
+		return 0
+	case "high":
+		return 1
+	case "medium":
+		return 2
+	default:
+		return 3
+	}
 }
 
 // ListUnfinishedWork returns all open work items for a session.
 func (o *Oracle) ListUnfinishedWork(ctx context.Context, sessionID string) ([]SessionUnfinishedWork, error) {
-	rows, err := o.db.QueryContext(ctx, `
-		SELECT id,session_id,title,description,priority,reason_unfinished,next_action,
-		       related_files,related_tests,related_incidents,status,created_at,closed_at
-		FROM session_unfinished_work WHERE session_id=? ORDER BY
-		  CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
-		  created_at ASC`, sessionID)
+	sf, err := o.readSession(sessionID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []SessionUnfinishedWork
-	for rows.Next() {
-		var w SessionUnfinishedWork
-		var rf, rt, ri string
-		var closedAt sql.NullInt64
-		if err := rows.Scan(&w.ID, &w.SessionID, &w.Title, &w.Description, &w.Priority,
-			&w.ReasonUnfinished, &w.NextAction, &rf, &rt, &ri, &w.Status, &w.CreatedAt, &closedAt); err != nil {
-			return nil, err
+	out := make([]SessionUnfinishedWork, len(sf.Unfinished))
+	copy(out, sf.Unfinished)
+	sort.Slice(out, func(i, j int) bool {
+		pi := priorityOrder(out[i].Priority)
+		pj := priorityOrder(out[j].Priority)
+		if pi != pj {
+			return pi < pj
 		}
-		w.RelatedFiles = splitStrings(rf)
-		w.RelatedTests = splitStrings(rt)
-		w.RelatedIncidents = splitStrings(ri)
-		if closedAt.Valid {
-			w.ClosedAt = closedAt.Int64
-		}
-		out = append(out, w)
-	}
-	return out, rows.Err()
+		return out[i].CreatedAt < out[j].CreatedAt
+	})
+	return out, nil
 }
 
 // ── Warnings ──────────────────────────────────────────────────────────────────
 
 // RecordSessionWarning persists a warning that was active during the session.
 func (o *Oracle) RecordSessionWarning(ctx context.Context, req RecordSessionWarningRequest) (*SessionWarning, error) {
-	w := &SessionWarning{
+	w := SessionWarning{
 		ID:              "WARN-" + uuid.New().String()[:8],
 		SessionID:       req.SessionID,
 		WarningType:     req.WarningType,
@@ -434,51 +599,33 @@ func (o *Oracle) RecordSessionWarning(ctx context.Context, req RecordSessionWarn
 		RelatedIncident: req.RelatedIncident,
 		CreatedAt:       time.Now().Unix(),
 	}
-	_, err := o.db.ExecContext(ctx, `
-		INSERT INTO session_warnings
-		  (id,session_id,warning_type,severity,message,related_file,related_incident,acknowledged,created_at)
-		VALUES (?,?,?,?,?,?,?,0,?)`,
-		w.ID, w.SessionID, w.WarningType, w.Severity, w.Message,
-		w.RelatedFile, w.RelatedIncident, w.CreatedAt)
-	if err != nil {
+	if err := o.updateSession(req.SessionID, func(sf *sessionFile) {
+		sf.Warnings = append(sf.Warnings, w)
+	}); err != nil {
 		return nil, fmt.Errorf("sessionoracle: record warning: %w", err)
 	}
-	return w, nil
+	return &w, nil
 }
 
 // ListWarnings returns all warnings for a session.
 func (o *Oracle) ListWarnings(ctx context.Context, sessionID string) ([]SessionWarning, error) {
-	rows, err := o.db.QueryContext(ctx, `
-		SELECT id,session_id,warning_type,severity,message,related_file,related_incident,
-		       acknowledged,created_at,acknowledged_at
-		FROM session_warnings WHERE session_id=? ORDER BY created_at ASC`, sessionID)
+	sf, err := o.readSession(sessionID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []SessionWarning
-	for rows.Next() {
-		var w SessionWarning
-		var ack int
-		var ackedAt sql.NullInt64
-		if err := rows.Scan(&w.ID, &w.SessionID, &w.WarningType, &w.Severity, &w.Message,
-			&w.RelatedFile, &w.RelatedIncident, &ack, &w.CreatedAt, &ackedAt); err != nil {
-			return nil, err
-		}
-		w.Acknowledged = ack != 0
-		if ackedAt.Valid {
-			w.AcknowledgedAt = ackedAt.Int64
-		}
-		out = append(out, w)
-	}
-	return out, rows.Err()
+	out := make([]SessionWarning, len(sf.Warnings))
+	copy(out, sf.Warnings)
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt < out[j].CreatedAt
+	})
+	return out, nil
 }
 
 // ── Test results ──────────────────────────────────────────────────────────────
 
 // RecordTestResult persists the result of a test run.
 func (o *Oracle) RecordTestResult(ctx context.Context, req RecordTestResultRequest) (*SessionTestResult, error) {
-	r := &SessionTestResult{
+	r := SessionTestResult{
 		ID:            "TEST-" + uuid.New().String()[:8],
 		SessionID:     req.SessionID,
 		Command:       req.Command,
@@ -488,50 +635,29 @@ func (o *Oracle) RecordTestResult(ctx context.Context, req RecordTestResultReque
 		RelatedFiles:  req.RelatedFiles,
 		CreatedAt:     time.Now().Unix(),
 	}
-	_, err := o.db.ExecContext(ctx, `
-		INSERT INTO session_test_results
-		  (id,session_id,command,status,summary,output_excerpt,related_files,created_at)
-		VALUES (?,?,?,?,?,?,?,?)`,
-		r.ID, r.SessionID, r.Command, r.Status, r.Summary, r.OutputExcerpt,
-		joinStrings(r.RelatedFiles), r.CreatedAt)
-	if err != nil {
+	if err := o.updateSession(req.SessionID, func(sf *sessionFile) {
+		sf.TestResults = append(sf.TestResults, r)
+	}); err != nil {
 		return nil, fmt.Errorf("sessionoracle: record test result: %w", err)
 	}
-	return r, nil
+	return &r, nil
 }
 
 // ListTestResults returns all test results for a session.
 func (o *Oracle) ListTestResults(ctx context.Context, sessionID string) ([]SessionTestResult, error) {
-	rows, err := o.db.QueryContext(ctx, `
-		SELECT id,session_id,command,status,summary,output_excerpt,related_files,created_at
-		FROM session_test_results WHERE session_id=? ORDER BY created_at ASC`, sessionID)
+	sf, err := o.readSession(sessionID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []SessionTestResult
-	for rows.Next() {
-		var r SessionTestResult
-		var rf string
-		if err := rows.Scan(&r.ID, &r.SessionID, &r.Command, &r.Status,
-			&r.Summary, &r.OutputExcerpt, &rf, &r.CreatedAt); err != nil {
-			return nil, err
-		}
-		r.RelatedFiles = splitStrings(rf)
-		out = append(out, r)
-	}
-	return out, rows.Err()
+	out := make([]SessionTestResult, len(sf.TestResults))
+	copy(out, sf.TestResults)
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt < out[j].CreatedAt
+	})
+	return out, nil
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-func joinStrings(ss []string) string  { return strings.Join(ss, "|") }
-func splitStrings(s string) []string {
-	if s == "" {
-		return nil
-	}
-	return strings.Split(s, "|")
-}
 
 // fingerprint returns the sha256 of a file's content, or "" if unreadable.
 func fingerprint(path string) string {

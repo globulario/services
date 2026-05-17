@@ -2,8 +2,6 @@ package sessionoracle
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -44,16 +42,16 @@ func (o *Oracle) BuildResumeSnapshot(ctx context.Context, sessionID string) (*Se
 	}
 
 	snap := &SessionResumeSnapshot{
-		ID:          "RESUME-" + uuid.New().String()[:8],
-		SessionID:   sessionID,
-		Objective:   sess.Objective,
+		ID:           "RESUME-" + uuid.New().String()[:8],
+		SessionID:    sessionID,
+		Objective:    sess.Objective,
 		FilesTouched: touches,
-		Decisions:   decisions,
-		Assumptions: assumptions,
-		Unfinished:  work,
-		Warnings:    warnings,
-		Tests:       tests,
-		CreatedAt:   time.Now().Unix(),
+		Decisions:    decisions,
+		Assumptions:  assumptions,
+		Unfinished:   work,
+		Warnings:     warnings,
+		Tests:        tests,
+		CreatedAt:    time.Now().Unix(),
 	}
 	snap.Summary = buildSummary(sess, snap)
 	snap.RecommendedNextAction = buildRecommendedNextAction(snap)
@@ -91,51 +89,32 @@ func (o *Oracle) ResumeLatestOpenSession(ctx context.Context, repoRoot string) (
 // ── internals ─────────────────────────────────────────────────────────────────
 
 func (o *Oracle) persistSnapshot(ctx context.Context, snap *SessionResumeSnapshot) error {
-	filesJSON, _ := json.Marshal(snap.FilesTouched)
-	decsJSON, _ := json.Marshal(snap.Decisions)
-	unfinJSON, _ := json.Marshal(snap.Unfinished)
-	warnJSON, _ := json.Marshal(snap.Warnings)
-	testsJSON, _ := json.Marshal(snap.Tests)
-
-	_, err := o.db.ExecContext(ctx, `
-		INSERT INTO session_resume_snapshots
-		  (id,session_id,summary,objective,files_touched_json,decisions_json,
-		   unfinished_json,warnings_json,tests_json,recommended_next_action,created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-		snap.ID, snap.SessionID, snap.Summary, snap.Objective,
-		string(filesJSON), string(decsJSON), string(unfinJSON),
-		string(warnJSON), string(testsJSON), snap.RecommendedNextAction, snap.CreatedAt)
-	return err
+	return o.updateSession(snap.SessionID, func(sf *sessionFile) {
+		sf.ResumeSnapshots = append(sf.ResumeSnapshots, *snap)
+	})
 }
 
 func (o *Oracle) latestStoredSnapshot(ctx context.Context, sessionID string) (*SessionResumeSnapshot, error) {
-	var snap SessionResumeSnapshot
-	var filesJSON, decsJSON, unfinJSON, warnJSON, testsJSON string
-	err := o.db.QueryRowContext(ctx, `
-		SELECT id,session_id,summary,objective,files_touched_json,decisions_json,
-		       unfinished_json,warnings_json,tests_json,recommended_next_action,created_at
-		FROM session_resume_snapshots WHERE session_id=? ORDER BY created_at DESC LIMIT 1`,
-		sessionID).Scan(&snap.ID, &snap.SessionID, &snap.Summary, &snap.Objective,
-		&filesJSON, &decsJSON, &unfinJSON, &warnJSON, &testsJSON,
-		&snap.RecommendedNextAction, &snap.CreatedAt)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("no stored snapshot")
-	}
+	sf, err := o.readSession(sessionID)
 	if err != nil {
 		return nil, err
 	}
-	_ = json.Unmarshal([]byte(filesJSON), &snap.FilesTouched)
-	_ = json.Unmarshal([]byte(decsJSON), &snap.Decisions)
-	_ = json.Unmarshal([]byte(unfinJSON), &snap.Unfinished)
-	_ = json.Unmarshal([]byte(warnJSON), &snap.Warnings)
-	_ = json.Unmarshal([]byte(testsJSON), &snap.Tests)
+	if len(sf.ResumeSnapshots) == 0 {
+		return nil, fmt.Errorf("no stored snapshot")
+	}
+	// Return the most recently created snapshot.
+	latest := sf.ResumeSnapshots[0]
+	for _, s := range sf.ResumeSnapshots[1:] {
+		if s.CreatedAt > latest.CreatedAt {
+			latest = s
+		}
+	}
+	snap := latest
 	return &snap, nil
 }
 
 // refreshStaleWarnings checks whether files touched during the session have changed
 // since they were read, and appends stale_context warnings for any that have.
-// The contextfreshness package was removed from the standalone module; stale detection
-// is implemented here inline using sha256 fingerprints stored in the file touch records.
 func (o *Oracle) refreshStaleWarnings(ctx context.Context, sessionID string, snap *SessionResumeSnapshot) []SessionWarning {
 	// Keep only non-stale_context warnings from the stored snapshot (we recompute stale ones fresh).
 	var warnings []SessionWarning

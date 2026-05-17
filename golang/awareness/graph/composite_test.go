@@ -11,219 +11,182 @@ import (
 )
 
 // Regression tests for the writable-runtime-alongside-immutable-bundle
-// architecture (consolidation of the prior "graph.Open always migrates
-// against immutable bundles" composed-path failure).
+// architecture.
 //
-// OpenComposite opens a writable runtime database and ATTACHes the bundle
-// read-only. Unqualified reads of bundle-only tables (nodes, edges,
-// invariants, failure_modes, graph_builds, context_aliases) resolve via
-// the ATTACHed bundle; everything else lives in main and accepts writes.
+// OpenComposite opens a graph that reads static knowledge from a bundle
+// directory (read-only) and writes mutable runtime data to a separate
+// runtime directory.
 
 func TestOpenComposite_ReadsBundleAndWritesRuntime(t *testing.T) {
 	dir := t.TempDir()
-	bundlePath := filepath.Join(dir, "bundle.db")
-	runtimePath := filepath.Join(dir, "runtime.db")
+	bundleDir := filepath.Join(dir, "bundle")
+	runtimeDir := filepath.Join(dir, "runtime")
 
-	// Seed a bundle with a node row, then close it.
-	b, err := graph.Open(bundlePath)
+	// Seed a bundle with a node, then close it.
+	b, err := graph.Open(bundleDir)
 	if err != nil {
 		t.Fatalf("seed bundle: %v", err)
 	}
-	if _, err := b.DB().ExecContext(context.Background(),
-		`INSERT INTO nodes (id, type, name) VALUES ('bundle-n1', 'service', 'from-bundle')`); err != nil {
-		t.Fatalf("seed bundle insert: %v", err)
+	ctx := context.Background()
+	if err := b.AddNode(ctx, graph.Node{
+		ID:   "bundle-n1",
+		Type: graph.NodeTypeGlobularService,
+		Name: "from-bundle",
+	}); err != nil {
+		t.Fatalf("seed bundle node: %v", err)
 	}
 	if err := b.Close(); err != nil {
 		t.Fatalf("seed bundle close: %v", err)
 	}
 
-	// Open composite: writable runtime + read-only bundle ATTACH.
-	g, err := graph.OpenComposite(bundlePath, runtimePath)
+	// Open composite: writable runtime + read-only bundle.
+	g, err := graph.OpenComposite(bundleDir, runtimeDir)
 	if err != nil {
 		t.Fatalf("OpenComposite: %v", err)
 	}
 	t.Cleanup(func() { g.Close() })
 
-	// Unqualified read of a bundle-only table resolves through ATTACH.
-	var name string
-	if err := g.DB().QueryRowContext(context.Background(),
-		`SELECT name FROM nodes WHERE id = 'bundle-n1'`).Scan(&name); err != nil {
-		t.Fatalf("read bundle table via composite: %v", err)
+	// Bundle data must be readable through the composite handle.
+	n, err := g.FindNode(ctx, "bundle-n1")
+	if err != nil {
+		t.Fatalf("FindNode bundle-n1: %v", err)
 	}
-	if name != "from-bundle" {
-		t.Errorf("bundle name = %q, want %q", name, "from-bundle")
+	if n == nil {
+		t.Fatal("expected bundle-n1 to be visible through composite")
+	}
+	if n.Name != "from-bundle" {
+		t.Errorf("bundle node name = %q, want %q", n.Name, "from-bundle")
 	}
 
-	// Write to a runtime-mutable table succeeds.
-	if _, err := g.DB().ExecContext(context.Background(),
-		`INSERT INTO session_events (id, session_id, event_type, created_at) VALUES ('e1', 's1', 'note', 1)`); err != nil {
+	// Writing to a runtime-mutable table succeeds.
+	if err := g.InsertPreflightAudit(ctx, graph.PreflightAuditRecord{
+		ID:   "pflt-1",
+		Task: "composite-write-test",
+	}); err != nil {
 		t.Fatalf("runtime write: %v", err)
 	}
-	var evtType string
-	if err := g.DB().QueryRowContext(context.Background(),
-		`SELECT event_type FROM session_events WHERE id = 'e1'`).Scan(&evtType); err != nil {
+	results, err := g.QueryPreflightAudits(ctx, 0, "")
+	if err != nil {
 		t.Fatalf("read after runtime write: %v", err)
 	}
-	if evtType != "note" {
-		t.Errorf("session_events event_type = %q, want %q", evtType, "note")
+	if len(results) != 1 || results[0].ID != "pflt-1" {
+		t.Errorf("preflight audit not visible after write: %v", results)
 	}
 }
 
-func TestOpenComposite_RefusesWritesToBundleTables(t *testing.T) {
+func TestOpenComposite_RefusesWritesToBundleData(t *testing.T) {
 	dir := t.TempDir()
-	bundlePath := filepath.Join(dir, "bundle.db")
-	runtimePath := filepath.Join(dir, "runtime.db")
+	bundleDir := filepath.Join(dir, "bundle")
+	runtimeDir := filepath.Join(dir, "runtime")
 
-	if b, err := graph.Open(bundlePath); err != nil {
-		t.Fatalf("seed bundle: %v", err)
-	} else {
-		b.Close()
-	}
-
-	g, err := graph.OpenComposite(bundlePath, runtimePath)
-	if err != nil {
-		t.Fatalf("OpenComposite: %v", err)
-	}
-	t.Cleanup(func() { g.Close() })
-
-	// Unqualified INSERT against nodes resolves to bundle.nodes and is
-	// refused because bundle is attached read-only.
-	_, err = g.DB().ExecContext(context.Background(),
-		`INSERT INTO nodes (id, type, name) VALUES ('illegal', 'x', 'x')`)
-	if err == nil {
-		t.Fatal("writing a bundle-only table must fail")
-	}
-	if !strings.Contains(strings.ToLower(err.Error()), "readonly") &&
-		!strings.Contains(strings.ToLower(err.Error()), "read-only") &&
-		!strings.Contains(strings.ToLower(err.Error()), "read only") {
-		t.Errorf("error should mention read-only; got: %v", err)
-	}
-}
-
-func TestOpenComposite_CrossDatabaseJoin(t *testing.T) {
-	// Cross-DB JOINs (experience_entries × nodes, livecluster snapshots ×
-	// edges) are existing query shapes and must continue to work
-	// transparently under composite.
-	dir := t.TempDir()
-	bundlePath := filepath.Join(dir, "bundle.db")
-	runtimePath := filepath.Join(dir, "runtime.db")
-
-	b, err := graph.Open(bundlePath)
+	// Create empty bundle.
+	b, err := graph.Open(bundleDir)
 	if err != nil {
 		t.Fatalf("seed bundle: %v", err)
-	}
-	if _, err := b.DB().ExecContext(context.Background(),
-		`INSERT INTO nodes (id, type, name) VALUES ('scorecard:exp1', 'scorecard', 'sc1')`); err != nil {
-		t.Fatalf("seed nodes: %v", err)
 	}
 	b.Close()
 
-	g, err := graph.OpenComposite(bundlePath, runtimePath)
+	g, err := graph.OpenComposite(bundleDir, runtimeDir)
 	if err != nil {
 		t.Fatalf("OpenComposite: %v", err)
 	}
 	t.Cleanup(func() { g.Close() })
 
-	if _, err := g.DB().ExecContext(context.Background(),
-		`INSERT INTO experience_entries (id) VALUES ('exp1')`); err != nil {
-		t.Fatalf("write runtime row: %v", err)
+	// AddNode must fail because the composite graph is read-only for static data.
+	err = g.AddNode(context.Background(), graph.Node{
+		ID:   "illegal",
+		Type: graph.NodeTypeGlobularService,
+		Name: "x",
+	})
+	if err == nil {
+		t.Fatal("writing a bundle-only node via composite graph must fail")
 	}
-
-	// Query crosses DBs: experience_entries (main) × nodes (bundle).
-	row := g.DB().QueryRowContext(context.Background(), `
-		SELECT n.name FROM experience_entries e
-		LEFT JOIN nodes n ON n.id = ('scorecard:' || e.id)
-		WHERE e.id = 'exp1'`)
-	var name string
-	if err := row.Scan(&name); err != nil {
-		t.Fatalf("cross-DB JOIN: %v", err)
-	}
-	if name != "sc1" {
-		t.Errorf("JOIN result = %q, want %q", name, "sc1")
+	if !strings.Contains(strings.ToLower(err.Error()), "read-only") &&
+		!strings.Contains(strings.ToLower(err.Error()), "readonly") {
+		t.Errorf("error should mention read-only; got: %v", err)
 	}
 }
 
 func TestOpenComposite_PersistsRuntimeDataAcrossReopen(t *testing.T) {
 	dir := t.TempDir()
-	bundlePath := filepath.Join(dir, "bundle.db")
-	runtimePath := filepath.Join(dir, "runtime.db")
+	bundleDir := filepath.Join(dir, "bundle")
+	runtimeDir := filepath.Join(dir, "runtime")
 
-	if b, err := graph.Open(bundlePath); err != nil {
+	// Create empty bundle.
+	b, err := graph.Open(bundleDir)
+	if err != nil {
 		t.Fatalf("seed bundle: %v", err)
-	} else {
-		b.Close()
 	}
+	b.Close()
 
-	// First open: write a runtime row.
-	g1, err := graph.OpenComposite(bundlePath, runtimePath)
+	ctx := context.Background()
+
+	// First open: write a runtime incident record.
+	g1, err := graph.OpenComposite(bundleDir, runtimeDir)
 	if err != nil {
 		t.Fatalf("OpenComposite #1: %v", err)
 	}
-	if _, err := g1.DB().ExecContext(context.Background(),
-		`INSERT INTO session_events (id, session_id, event_type, created_at) VALUES ('persist1', 's1', 'note', 1)`); err != nil {
+	if err := g1.UpsertIncident(ctx, graph.IncidentRecord{
+		ID:    "persist1",
+		Title: "test incident",
+	}); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	g1.Close()
 
-	// Re-open: row must still be there. Bundle ATTACH is re-established,
-	// runtime tables must not be re-migrated destructively.
-	g2, err := graph.OpenComposite(bundlePath, runtimePath)
+	// Re-open: record must still be there.
+	g2, err := graph.OpenComposite(bundleDir, runtimeDir)
 	if err != nil {
 		t.Fatalf("OpenComposite #2: %v", err)
 	}
 	t.Cleanup(func() { g2.Close() })
 
-	var got string
-	if err := g2.DB().QueryRowContext(context.Background(),
-		`SELECT event_type FROM session_events WHERE id = 'persist1'`).Scan(&got); err != nil {
+	inc, err := g2.FindIncident(ctx, "persist1")
+	if err != nil {
 		t.Fatalf("read after reopen: %v", err)
 	}
-	if got != "note" {
-		t.Errorf("event_type = %q, want %q", got, "note")
+	if inc == nil {
+		t.Fatal("incident record not visible after reopen")
+	}
+	if inc.Title != "test incident" {
+		t.Errorf("incident title = %q, want %q", inc.Title, "test incident")
 	}
 }
 
 func TestOpenComposite_CreatesRuntimeParentDir(t *testing.T) {
 	dir := t.TempDir()
-	bundlePath := filepath.Join(dir, "bundle.db")
-	if b, err := graph.Open(bundlePath); err != nil {
+	bundleDir := filepath.Join(dir, "bundle")
+	if b, err := graph.Open(bundleDir); err != nil {
 		t.Fatalf("seed bundle: %v", err)
 	} else {
 		b.Close()
 	}
 
-	// Runtime path under a directory that doesn't yet exist — must be
-	// auto-created so Day-0 install doesn't have to pre-stage it.
-	nested := filepath.Join(dir, "deep", "nested", "subdir")
-	if _, err := os.Stat(nested); err == nil {
-		t.Fatalf("precondition: %s should not exist", nested)
-	}
-	runtimePath := filepath.Join(nested, "runtime.db")
-
-	g, err := graph.OpenComposite(bundlePath, runtimePath)
+	// Runtime directory under a path that doesn't yet exist — must be auto-created.
+	nested := filepath.Join(dir, "deep", "nested", "runtime")
+	g, err := graph.OpenComposite(bundleDir, nested)
 	if err != nil {
 		t.Fatalf("OpenComposite: %v", err)
 	}
 	defer g.Close()
 
-	if info, err := os.Stat(runtimePath); err != nil {
-		t.Fatalf("runtime.db not created at %s: %v", runtimePath, err)
-	} else if info.IsDir() {
-		t.Errorf("%s is a directory, expected file", runtimePath)
+	if _, err := os.Stat(nested); err != nil {
+		t.Fatalf("runtime dir not created at %s: %v", nested, err)
 	}
 }
 
 func TestOpenComposite_RejectsMissingBundle(t *testing.T) {
 	dir := t.TempDir()
 	_, err := graph.OpenComposite(
-		filepath.Join(dir, "no-such-bundle.db"),
-		filepath.Join(dir, "runtime.db"),
+		filepath.Join(dir, "no-such-bundle"),
+		filepath.Join(dir, "runtime"),
 	)
 	if err == nil {
 		t.Fatal("OpenComposite with missing bundle must error")
 	}
-	if !strings.Contains(err.Error(), "stat bundle") {
-		t.Errorf("error should mention bundle stat; got: %v", err)
+	if !strings.Contains(err.Error(), "stat bundle") &&
+		!strings.Contains(err.Error(), "bundle") {
+		t.Errorf("error should mention bundle; got: %v", err)
 	}
 }
 
@@ -234,8 +197,8 @@ func TestOpenComposite_RejectsEmptyPaths(t *testing.T) {
 		runtimePath string
 		wantSubstr  string
 	}{
-		{"empty bundle", "", "/tmp/r.db", "bundlePath is empty"},
-		{"empty runtime", "/tmp/b.db", "", "runtimePath is empty"},
+		{"empty bundle", "", "/tmp/r", "bundlePath is empty"},
+		{"empty runtime", "/tmp/b", "", "runtimePath is empty"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -250,48 +213,74 @@ func TestOpenComposite_RejectsEmptyPaths(t *testing.T) {
 	}
 }
 
-func TestOpenComposite_BundleOnlyTablesAbsentFromMain(t *testing.T) {
-	// Direct verification of the partition: the bundle-only tables must
-	// not exist in the main schema after OpenComposite. If they did,
-	// SQLite would resolve unqualified reads to (empty) main copies,
-	// silently shadowing bundle data.
+func TestOpenComposite_BundleNodesVisibleRuntimeMutable(t *testing.T) {
+	// Verifies that bundle-static and runtime-mutable data coexist correctly.
 	dir := t.TempDir()
-	bundlePath := filepath.Join(dir, "bundle.db")
-	runtimePath := filepath.Join(dir, "runtime.db")
-	if b, err := graph.Open(bundlePath); err != nil {
-		t.Fatalf("seed bundle: %v", err)
-	} else {
-		b.Close()
-	}
+	bundleDir := filepath.Join(dir, "bundle")
+	runtimeDir := filepath.Join(dir, "runtime")
 
-	g, err := graph.OpenComposite(bundlePath, runtimePath)
+	ctx := context.Background()
+
+	// Seed bundle with nodes, edges, and invariants.
+	b, err := graph.Open(bundleDir)
+	if err != nil {
+		t.Fatalf("seed bundle: %v", err)
+	}
+	for _, node := range []graph.Node{
+		{ID: "service:controller", Type: graph.NodeTypeGlobularService, Name: "controller"},
+		{ID: "service:node-agent", Type: graph.NodeTypeGlobularService, Name: "node-agent"},
+	} {
+		_ = b.AddNode(ctx, node)
+	}
+	_ = b.AddEdge(ctx, graph.Edge{
+		Src:  "service:controller",
+		Kind: graph.EdgeDependsOn,
+		Dst:  "service:node-agent",
+	})
+	_ = b.UpsertInvariant(ctx, graph.Invariant{ID: "inv.test", Title: "Test Invariant"})
+	b.Close()
+
+	g, err := graph.OpenComposite(bundleDir, runtimeDir)
 	if err != nil {
 		t.Fatalf("OpenComposite: %v", err)
 	}
 	t.Cleanup(func() { g.Close() })
 
-	for _, t1 := range []string{"nodes", "edges", "invariants", "failure_modes", "graph_builds", "context_aliases"} {
-		var n int
-		err := g.DB().QueryRowContext(context.Background(),
-			`SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?`, t1).Scan(&n)
-		if err != nil {
-			t.Fatalf("sqlite_master query for %s: %v", t1, err)
-		}
-		if n != 0 {
-			t.Errorf("bundle-only table %q still present in main schema (count=%d) — would shadow bundle data", t1, n)
-		}
+	// Bundle nodes are visible.
+	nodes, err := g.FindNodesByType(ctx, graph.NodeTypeGlobularService)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 2 {
+		t.Errorf("expected 2 bundle nodes, got %d", len(nodes))
 	}
 
-	// And the same names ARE present in the attached bundle schema.
-	for _, t1 := range []string{"nodes", "edges", "invariants", "failure_modes", "graph_builds", "context_aliases"} {
-		var n int
-		err := g.DB().QueryRowContext(context.Background(),
-			`SELECT count(*) FROM bundle.sqlite_master WHERE type='table' AND name=?`, t1).Scan(&n)
-		if err != nil {
-			t.Fatalf("bundle.sqlite_master query for %s: %v", t1, err)
-		}
-		if n != 1 {
-			t.Errorf("bundle table %q missing from attached schema (count=%d)", t1, n)
-		}
+	// Bundle edges are visible.
+	edges, err := g.EdgesByKind(ctx, graph.EdgeDependsOn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(edges) != 1 {
+		t.Errorf("expected 1 bundle edge, got %d", len(edges))
+	}
+
+	// Bundle invariants are visible.
+	invs, err := g.AllInvariants(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(invs) != 1 {
+		t.Errorf("expected 1 bundle invariant, got %d", len(invs))
+	}
+
+	// Runtime writes work (preflight audit, incident, proposal).
+	if err := g.UpsertIncident(ctx, graph.IncidentRecord{
+		ID: "inc-composite-test", Title: "composite test",
+	}); err != nil {
+		t.Fatalf("UpsertIncident: %v", err)
+	}
+	inc, err := g.FindIncident(ctx, "inc-composite-test")
+	if err != nil || inc == nil {
+		t.Fatalf("FindIncident: err=%v, inc=%v", err, inc)
 	}
 }

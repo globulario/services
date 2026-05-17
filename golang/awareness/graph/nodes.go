@@ -109,7 +109,6 @@ const (
 	NodeTypeDoctorEvidence       = "doctor_evidence"
 
 	// Live etcd cluster state node types.
-	// These nodes are collected at runtime from etcd and carry TTL metadata.
 	NodeTypeEtcdSnapshot          = "etcd_snapshot"
 	NodeTypeDesiredService        = "desired_service"
 	NodeTypeDesiredInfrastructure = "desired_infrastructure"
@@ -171,86 +170,94 @@ const (
 
 // Node is a vertex in the awareness graph.
 type Node struct {
-	ID        string
-	Type      string
-	Name      string
-	Path      string
-	Summary   string
-	Metadata  map[string]any
-	CreatedAt int64
-	UpdatedAt int64
+	ID        string         `json:"id"`
+	Type      string         `json:"type"`
+	Name      string         `json:"name"`
+	Path      string         `json:"path,omitempty"`
+	Summary   string         `json:"summary,omitempty"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
+	CreatedAt int64          `json:"created_at,omitempty"`
+	UpdatedAt int64          `json:"updated_at,omitempty"`
 }
 
 // AddNode upserts a node by ID. Existing nodes are updated in-place.
 //
-// AddNode is destructive: the upsert replaces every column including
-// metadata_json. Callers that only want to STUB a node (so an edge has a
-// valid target) and must NOT clobber a richer node already written by
-// another extractor MUST use EnsureNode instead. See
-// docs/awareness/composed_path_failures.md (2026-05-10 lifecycle metadata
-// loss) for the incident that produced this distinction.
+// AddNode is destructive: the upsert replaces every field including metadata.
+// Callers that only want to STUB a node must use EnsureNode instead.
 func (g *Graph) AddNode(ctx context.Context, n Node) error {
-	meta, err := marshalMeta(n.Metadata)
-	if err != nil {
-		return fmt.Errorf("AddNode %s: %w", n.ID, err)
+	if g.readOnly || g.staticReadOnly {
+		return fmt.Errorf("AddNode %s: graph is read-only", n.ID)
 	}
 	now := time.Now().Unix()
-	_, err = g.db.ExecContext(ctx, `
-		INSERT INTO nodes (id, type, name, path, summary, metadata_json, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			type          = excluded.type,
-			name          = excluded.name,
-			path          = excluded.path,
-			summary       = excluded.summary,
-			metadata_json = excluded.metadata_json,
-			updated_at    = excluded.updated_at
-	`, n.ID, n.Type, n.Name, n.Path, n.Summary, meta, now, now)
-	if err != nil {
-		return fmt.Errorf("AddNode %s: %w", n.ID, err)
+	if n.CreatedAt == 0 {
+		n.CreatedAt = now
 	}
+	n.UpdatedAt = now
+
+	g.mu.Lock()
+	n2 := n
+	g.indexNode(&n2)
+	g.mu.Unlock()
 	return nil
 }
 
 // EnsureNode inserts a node only if no node with the same ID exists.
-// If the node already exists, EnsureNode is a no-op — the existing row's
+// If the node already exists, EnsureNode is a no-op — the existing node's
 // metadata, summary, type, and name are preserved.
-//
-// Use EnsureNode when an extractor needs to make sure an edge target is
-// present but does NOT itself own the node's authoritative content. The
-// canonical example is "I'm the design_patterns loader and my YAML
-// references a failure_mode by id; I want the failure_mode loader's
-// metadata to win." Calling AddNode in that situation silently clobbers
-// lifecycle hints (deprecated, intentional_gap), as documented in
-// docs/awareness/composed_path_failures.md.
-//
-// If you DO own the node's content (you're the canonical loader), use
-// AddNode. The two functions are intentionally distinct so the call site
-// expresses the intent.
 func (g *Graph) EnsureNode(ctx context.Context, n Node) error {
-	meta, err := marshalMeta(n.Metadata)
-	if err != nil {
-		return fmt.Errorf("EnsureNode %s: %w", n.ID, err)
+	if g.readOnly || g.staticReadOnly {
+		return fmt.Errorf("EnsureNode %s: graph is read-only", n.ID)
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if _, exists := g.nodes[n.ID]; exists {
+		return nil // no-op: preserve existing node
 	}
 	now := time.Now().Unix()
-	_, err = g.db.ExecContext(ctx, `
-		INSERT INTO nodes (id, type, name, path, summary, metadata_json, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO NOTHING
-	`, n.ID, n.Type, n.Name, n.Path, n.Summary, meta, now, now)
-	if err != nil {
-		return fmt.Errorf("EnsureNode %s: %w", n.ID, err)
+	if n.CreatedAt == 0 {
+		n.CreatedAt = now
 	}
+	n.UpdatedAt = now
+	n2 := n
+	g.indexNode(&n2)
 	return nil
 }
 
 // DeleteNode removes a node and all its edges from the graph.
 func (g *Graph) DeleteNode(ctx context.Context, id string) error {
-	if _, err := g.db.ExecContext(ctx, `DELETE FROM edges WHERE src = ? OR dst = ?`, id, id); err != nil {
-		return fmt.Errorf("DeleteNode edges %s: %w", id, err)
+	if g.readOnly || g.staticReadOnly {
+		return fmt.Errorf("DeleteNode %s: graph is read-only", id)
 	}
-	if _, err := g.db.ExecContext(ctx, `DELETE FROM nodes WHERE id = ?`, id); err != nil {
-		return fmt.Errorf("DeleteNode node %s: %w", id, err)
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	n, ok := g.nodes[id]
+	if !ok {
+		return nil
+	}
+	g.removeNodeFromIndexes(n)
+	delete(g.nodes, id)
+
+	// Remove all edges involving this node.
+	var kept []*Edge
+	for _, e := range g.edges {
+		if e.Src == id || e.Dst == id {
+			k := edgeKey{Src: e.Src, Kind: e.Kind, Dst: e.Dst, Phase: e.Phase}
+			delete(g.edgeKeys, k)
+			// Remove from indexes.
+			g.bySrc[e.Src] = removeEdgeFromSlice(g.bySrc[e.Src], e)
+			g.byDst[e.Dst] = removeEdgeFromSlice(g.byDst[e.Dst], e)
+			g.byKind[e.Kind] = removeEdgeFromSlice(g.byKind[e.Kind], e)
+			g.byClass[e.Class] = removeEdgeFromSlice(g.byClass[e.Class], e)
+		} else {
+			kept = append(kept, e)
+		}
+	}
+	// Rebuild edgeKeys indexes for kept edges.
+	g.edges = kept
+	g.edgeKeys = make(map[edgeKey]int)
+	for i, e := range g.edges {
+		g.edgeKeys[edgeKey{Src: e.Src, Kind: e.Kind, Dst: e.Dst, Phase: e.Phase}] = i
 	}
 	return nil
 }
@@ -278,24 +285,24 @@ func (g *Graph) PruneStaleSourceFileNodes(ctx context.Context, srcDir string) (i
 	return pruned, nil
 }
 
-// marshalMeta encodes a metadata map to JSON. Returns "{}" for nil.
-func marshalMeta(m map[string]any) (string, error) {
-	if len(m) == 0 {
-		return "{}", nil
-	}
-	b, err := json.Marshal(m)
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
-}
-
-// unmarshalMeta decodes a JSON metadata string. Returns nil on empty/invalid input.
-func unmarshalMeta(s string) map[string]any {
-	if s == "" || s == "{}" {
+// copyMetadata deep-copies a metadata map.
+func copyMetadata(m map[string]any) map[string]any {
+	if m == nil {
 		return nil
 	}
-	var m map[string]any
-	_ = json.Unmarshal([]byte(s), &m)
-	return m
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+// metaToJSON serialises metadata to a JSON string for compatibility with
+// callers that expect the old SQL backend's string representation.
+func metaToJSON(m map[string]any) string {
+	if len(m) == 0 {
+		return "{}"
+	}
+	b, _ := json.Marshal(m)
+	return string(b)
 }

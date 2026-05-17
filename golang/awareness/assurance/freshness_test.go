@@ -12,19 +12,18 @@ import (
 	"github.com/globulario/services/golang/awareness/graph"
 )
 
-// makeBuiltGraph inserts a single graph_builds row at the requested time so
+// makeBuiltGraph adds a single build record at the requested age so
 // freshness tests can simulate a graph that was built N hours ago.
 func makeBuiltGraph(t *testing.T, age time.Duration) *graph.Graph {
 	t.Helper()
 	g := openSeededGraph(t)
 	ts := time.Now().Add(-age).Unix()
-	_, err := g.DB().ExecContext(context.Background(),
-		`INSERT INTO graph_builds (id, repo_root, git_commit, release_id, created_at, stats_json)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		"meta-test-build", "/r", "deadbeef", "", ts, `{}`)
-	if err != nil {
-		t.Fatalf("insert build: %v", err)
-	}
+	g.AddBuildRecord(graph.BuildRecord{
+		ID:        "meta-test-build",
+		RepoRoot:  "/r",
+		GitCommit: "deadbeef",
+		CreatedAt: ts,
+	})
 	return g
 }
 

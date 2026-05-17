@@ -6,22 +6,19 @@ import (
 )
 
 // FileAnnotationSummary contains protocol annotations explicitly declared on
-// symbols (or the file itself) defined in a specific source file. Only
-// direct 1-hop annotation edges are followed — no transitive traversal —
-// so the result is fast and unambiguous.
+// symbols (or the file itself) defined in a specific source file.
 type FileAnnotationSummary struct {
-	Invariants       []string // invariant IDs from enforces/protects edges
-	ForbiddenFixes   []string // forbidden_fix names from forbids edges
-	HashSchemas      []string // hash_schema names from produces/requires edges
-	StateTransitions []string // state_transition descriptions from affects edges
-	RequiredTests    []string // test names from tested_by edges
-	Risks            []string // risk_surface IDs from affects edges
-	HasCritical      bool     // true if any attached invariant has severity="critical"
+	Invariants       []string
+	ForbiddenFixes   []string
+	HashSchemas      []string
+	StateTransitions []string
+	RequiredTests    []string
+	Risks            []string
+	HasCritical      bool
 }
 
 // AnnotationsForFile returns explicit protocol annotations attached to symbols
-// defined in the file at relPath. Returns an empty summary (not an error) if
-// the file has no graph node or no annotation edges.
+// defined in the file at relPath.
 func (g *Graph) AnnotationsForFile(ctx context.Context, relPath string) (*FileAnnotationSummary, error) {
 	summary := &FileAnnotationSummary{}
 
@@ -30,26 +27,14 @@ func (g *Graph) AnnotationsForFile(ctx context.Context, relPath string) (*FileAn
 	// Collect symbol IDs defined by this file plus the file node itself.
 	ownerIDs := []string{fileNodeID}
 
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT dst FROM edges WHERE kind = ? AND src = ?
-	`, EdgeDefines, fileNodeID)
-	if err != nil {
-		return summary, fmt.Errorf("AnnotationsForFile defines query: %w", err)
-	}
-	for rows.Next() {
-		var dst string
-		if err := rows.Scan(&dst); err != nil {
-			rows.Close()
-			return summary, err
+	g.mu.RLock()
+	for _, e := range g.bySrc[fileNodeID] {
+		if e.Kind == EdgeDefines {
+			ownerIDs = append(ownerIDs, e.Dst)
 		}
-		ownerIDs = append(ownerIDs, dst)
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return summary, err
-	}
+	g.mu.RUnlock()
 
-	// For each owner, follow annotation edges one hop.
 	for _, ownerID := range ownerIDs {
 		edges, err := g.Neighbors(ctx, ownerID, "out")
 		if err != nil {
@@ -98,10 +83,8 @@ func (g *Graph) AnnotationsForFile(ctx context.Context, relPath string) (*FileAn
 }
 
 // resolveInvariantName returns the invariant's human-readable ID and whether
-// it has severity="critical". Falls back to the node Name if no invariants
-// table record exists.
+// it has severity="critical".
 func (g *Graph) resolveInvariantName(ctx context.Context, nodeID string) (name string, critical bool) {
-	// Strip "invariant:" prefix to get the table ID.
 	const prefix = "invariant:"
 	tableID := nodeID
 	if len(nodeID) > len(prefix) && nodeID[:len(prefix)] == prefix {
@@ -112,7 +95,6 @@ func (g *Graph) resolveInvariantName(ctx context.Context, nodeID string) (name s
 		return inv.ID, inv.Severity == "critical"
 	}
 
-	// Fall back to node name.
 	if n, _ := g.FindNode(ctx, nodeID); n != nil {
 		return n.Name, false
 	}
@@ -130,4 +112,18 @@ func annotAppendUnique(slice []string, s string) []string {
 		}
 	}
 	return append(slice, s)
+}
+
+// SetEdgeConfidence updates the confidence of an existing edge.
+func (g *Graph) SetEdgeConfidence(ctx context.Context, src, kind, dst, phase string, confidence float64) error {
+	if g.readOnly || g.staticReadOnly {
+		return fmt.Errorf("SetEdgeConfidence: graph is read-only")
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	k := edgeKey{Src: src, Kind: kind, Dst: dst, Phase: phase}
+	if idx, ok := g.edgeKeys[k]; ok {
+		g.edges[idx].Confidence = confidence
+	}
+	return nil
 }

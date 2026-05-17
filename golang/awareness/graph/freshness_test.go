@@ -11,7 +11,7 @@ import (
 func TestFreshness_NoBuilds(t *testing.T) {
 	g, err := OpenMemory()
 	if err != nil {
-		t.Fatalf("OpenInMemory: %v", err)
+		t.Fatalf("OpenMemory: %v", err)
 	}
 	defer g.Close()
 
@@ -27,7 +27,7 @@ func TestFreshness_NoBuilds(t *testing.T) {
 func TestFreshness_FreshGraph(t *testing.T) {
 	g, err := OpenMemory()
 	if err != nil {
-		t.Fatalf("OpenInMemory: %v", err)
+		t.Fatalf("OpenMemory: %v", err)
 	}
 	defer g.Close()
 
@@ -50,32 +50,22 @@ func TestFreshness_FreshGraph(t *testing.T) {
 func TestFreshness_KnowledgeNewerThanGraph(t *testing.T) {
 	g, err := OpenMemory()
 	if err != nil {
-		t.Fatalf("OpenInMemory: %v", err)
+		t.Fatalf("OpenMemory: %v", err)
 	}
 	defer g.Close()
 
 	ctx := context.Background()
 
-	// Insert a build record using the current UpsertBuildRecord call which uses time.Now().
-	// We need to create the knowledge file AFTER the build record, so it's newer.
-	// But since UpsertBuildRecord uses time.Now() internally, we can't directly set it to "past".
-	// Instead, check what UpsertBuildRecord does with timestamps.
-	// Looking at the query.go: it inserts created_at = excluded.created_at on conflict.
-	// The created_at value comes from time.Now().Unix() inside UpsertBuildRecord.
-	// So we insert first, then write knowledge files that are "newer" by modifying mtime.
-	// We'll use the SQL directly to insert a past build.
-
-	// Insert a build record 5 seconds in the past by manipulating DB directly.
+	// Insert a build record 5 seconds in the past using the internal builds slice directly.
 	past := time.Now().Add(-5 * time.Second).Unix()
-	_, dbErr := g.db.ExecContext(ctx,
-		`INSERT INTO graph_builds (id, repo_root, git_commit, release_id, created_at, stats_json)
-		 VALUES (?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at`,
-		"test-build-past", "/tmp/test", "abc123", "", past, `{}`,
-	)
-	if dbErr != nil {
-		t.Fatalf("direct insert failed: %v", dbErr)
-	}
+	g.buildMu.Lock()
+	g.builds = append(g.builds, &BuildRecord{
+		ID:        "test-build-past",
+		RepoRoot:  "/tmp/test",
+		GitCommit: "abc123",
+		CreatedAt: past,
+	})
+	g.buildMu.Unlock()
 
 	// Create a temp docsDir with a knowledge file that is newer.
 	docsDir := t.TempDir()
@@ -97,7 +87,7 @@ func TestFreshness_KnowledgeNewerThanGraph(t *testing.T) {
 func TestLatestBuildTime_Empty(t *testing.T) {
 	g, err := OpenMemory()
 	if err != nil {
-		t.Fatalf("OpenInMemory: %v", err)
+		t.Fatalf("OpenMemory: %v", err)
 	}
 	defer g.Close()
 
@@ -113,7 +103,7 @@ func TestLatestBuildTime_Empty(t *testing.T) {
 func TestFreshness_HashIsComputedAndNonEmpty(t *testing.T) {
 	g, err := OpenMemory()
 	if err != nil {
-		t.Fatalf("OpenInMemory: %v", err)
+		t.Fatalf("OpenMemory: %v", err)
 	}
 	defer g.Close()
 
@@ -141,22 +131,21 @@ func TestFreshness_HashIsComputedAndNonEmpty(t *testing.T) {
 func TestFreshness_StaleWhenMaxAgeExceeded(t *testing.T) {
 	g, err := OpenMemory()
 	if err != nil {
-		t.Fatalf("OpenInMemory: %v", err)
+		t.Fatalf("OpenMemory: %v", err)
 	}
 	defer g.Close()
 
 	ctx := context.Background()
 	// Insert a build record that is 25 hours old.
 	oldTs := time.Now().Add(-25 * time.Hour).Unix()
-	_, dbErr := g.db.ExecContext(ctx,
-		`INSERT INTO graph_builds (id, repo_root, git_commit, release_id, created_at, stats_json)
-		 VALUES (?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at`,
-		"old-build", "/r", "abc", "", oldTs, `{}`,
-	)
-	if dbErr != nil {
-		t.Fatalf("insert failed: %v", dbErr)
-	}
+	g.buildMu.Lock()
+	g.builds = append(g.builds, &BuildRecord{
+		ID:        "old-build",
+		RepoRoot:  "/r",
+		GitCommit: "abc",
+		CreatedAt: oldTs,
+	})
+	g.buildMu.Unlock()
 
 	f := g.Freshness(ctx, "")
 	if !f.Stale {
@@ -170,7 +159,7 @@ func TestFreshness_StaleWhenMaxAgeExceeded(t *testing.T) {
 func TestFreshness_RebuildRecommendedWhenStale(t *testing.T) {
 	g, err := OpenMemory()
 	if err != nil {
-		t.Fatalf("OpenInMemory: %v", err)
+		t.Fatalf("OpenMemory: %v", err)
 	}
 	defer g.Close()
 
@@ -184,13 +173,14 @@ func TestFreshness_RebuildRecommendedWhenStale(t *testing.T) {
 func TestLatestBuildTime_WithBuilds(t *testing.T) {
 	g, err := OpenMemory()
 	if err != nil {
-		t.Fatalf("OpenInMemory: %v", err)
+		t.Fatalf("OpenMemory: %v", err)
 	}
 	defer g.Close()
 
 	ctx := context.Background()
 	now := time.Now().Unix()
 
+	g.buildMu.Lock()
 	for _, rec := range []struct {
 		id        string
 		createdAt int64
@@ -198,16 +188,14 @@ func TestLatestBuildTime_WithBuilds(t *testing.T) {
 		{"b1", now - 100},
 		{"b2", now},
 	} {
-		_, dbErr := g.db.ExecContext(ctx,
-			`INSERT INTO graph_builds (id, repo_root, git_commit, release_id, created_at, stats_json)
-			 VALUES (?, ?, ?, ?, ?, ?)
-			 ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at`,
-			rec.id, "/r", "commit", "", rec.createdAt, `{}`,
-		)
-		if dbErr != nil {
-			t.Fatalf("insert failed: %v", dbErr)
-		}
+		g.builds = append(g.builds, &BuildRecord{
+			ID:        rec.id,
+			RepoRoot:  "/r",
+			GitCommit: "commit",
+			CreatedAt: rec.createdAt,
+		})
 	}
+	g.buildMu.Unlock()
 
 	builtAt, ok, err := g.LatestBuildTime(ctx)
 	if err != nil {
@@ -223,8 +211,7 @@ func TestLatestBuildTime_WithBuilds(t *testing.T) {
 
 // TestKnowledgeFiles_IncludesServicesYaml pins the canonical knowledge_files
 // list so a regression that drops a graph-contributing YAML (e.g. services.yaml)
-// from staleness tracking cannot land silently. Edit this test only when
-// adding a new graph-contributing YAML to the dispatch table.
+// from staleness tracking cannot land silently.
 func TestKnowledgeFiles_IncludesServicesYaml(t *testing.T) {
 	files := KnowledgeFiles()
 	required := []string{
@@ -250,8 +237,7 @@ func TestKnowledgeFiles_IncludesServicesYaml(t *testing.T) {
 
 // TestFreshness_StaleWhenServicesYamlNewerThanGraph: the regression that
 // motivated this work — services.yaml is graph-contributing but the original
-// canonical list omitted it, so edits did not mark the graph stale. This test
-// fails if that drops out again.
+// canonical list omitted it, so edits did not mark the graph stale.
 func TestFreshness_StaleWhenServicesYamlNewerThanGraph(t *testing.T) {
 	g, err := OpenMemory()
 	if err != nil {
@@ -261,14 +247,14 @@ func TestFreshness_StaleWhenServicesYamlNewerThanGraph(t *testing.T) {
 	ctx := context.Background()
 
 	past := time.Now().Add(-30 * time.Second).Unix()
-	_, dbErr := g.db.ExecContext(ctx,
-		`INSERT INTO graph_builds (id, repo_root, git_commit, release_id, created_at, stats_json)
-		 VALUES (?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at`,
-		"build-services-test", "/r", "commit", "", past, `{}`)
-	if dbErr != nil {
-		t.Fatalf("insert build: %v", dbErr)
-	}
+	g.buildMu.Lock()
+	g.builds = append(g.builds, &BuildRecord{
+		ID:        "build-services-test",
+		RepoRoot:  "/r",
+		GitCommit: "commit",
+		CreatedAt: past,
+	})
+	g.buildMu.Unlock()
 
 	docsDir := t.TempDir()
 	servicesPath := filepath.Join(docsDir, "services.yaml")

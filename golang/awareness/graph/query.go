@@ -2,240 +2,247 @@ package graph
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
-// Invariant is the specialized invariant record stored in the invariants table.
+// Invariant is the specialized invariant record.
 type Invariant struct {
-	ID       string
-	Title    string
-	Summary  string
-	Severity string
-	Status   string
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Summary  string `json:"summary,omitempty"`
+	Severity string `json:"severity,omitempty"`
+	Status   string `json:"status,omitempty"`
 }
 
-// FailureMode is the specialized failure mode record stored in the failure_modes table.
+// FailureMode is the specialized failure mode record.
 type FailureMode struct {
-	ID              string
-	Title           string
-	Summary         string
-	Symptoms        []string
-	RootCause       string
-	ArchitectureFix string
+	ID              string   `json:"id"`
+	Title           string   `json:"title"`
+	Summary         string   `json:"summary,omitempty"`
+	Symptoms        []string `json:"symptoms,omitempty"`
+	RootCause       string   `json:"root_cause,omitempty"`
+	ArchitectureFix string   `json:"architecture_fix,omitempty"`
 }
 
 // BuildStats holds graph build statistics.
 type BuildStats struct {
-	Nodes                int   `json:"nodes"`
-	Edges                int   `json:"edges"`
-	Invariants           int   `json:"invariants"`
-	FailureModes         int   `json:"failure_modes"`
-	FilesScanned         int   `json:"files_scanned,omitempty"`
-	KnowledgeFilesScanned int  `json:"knowledge_files_scanned,omitempty"`
-	DurationMs           int64 `json:"duration_ms,omitempty"`
+	Nodes                 int   `json:"nodes"`
+	Edges                 int   `json:"edges"`
+	Invariants            int   `json:"invariants"`
+	FailureModes          int   `json:"failure_modes"`
+	FilesScanned          int   `json:"files_scanned,omitempty"`
+	KnowledgeFilesScanned int   `json:"knowledge_files_scanned,omitempty"`
+	DurationMs            int64 `json:"duration_ms,omitempty"`
 }
 
 // CollectorHealthItem records the outcome of a single collector pass.
-// Stored as JSON array in graph_builds.collector_health_json.
 type CollectorHealthItem struct {
 	CollectorID  string `json:"collector_id"`
 	SourceTier   string `json:"source_tier,omitempty"`
-	Status       string `json:"status"`       // "ok" | "skipped" | "error"
+	Status       string `json:"status"`
 	NodesEmitted int    `json:"nodes_emitted"`
 	Error        string `json:"error,omitempty"`
-	Priority     string `json:"priority,omitempty"` // "P0" | "P1"
+	Priority     string `json:"priority,omitempty"`
 }
 
-// BuildRecord is a single row from the graph_builds table.
+// BuildRecord is a single graph build record.
 type BuildRecord struct {
-	ID               string
-	RepoRoot         string
-	GitCommit        string
-	ReleaseID        string
-	CreatedAt        int64
-	Stats            BuildStats
-	CollectorHealth  []CollectorHealthItem
+	ID              string               `json:"id"`
+	RepoRoot        string               `json:"repo_root"`
+	GitCommit       string               `json:"git_commit,omitempty"`
+	ReleaseID       string               `json:"release_id,omitempty"`
+	CreatedAt       int64                `json:"created_at"`
+	Stats           BuildStats           `json:"stats"`
+	CollectorHealth []CollectorHealthItem `json:"collector_health,omitempty"`
 }
 
-// LatestBuildRecord returns the most recent static graph build row (excludes live snapshots), or (nil, nil) if none.
+// LatestBuildRecord returns the most recent static graph build row (excludes live snapshots).
 func (g *Graph) LatestBuildRecord(ctx context.Context) (*BuildRecord, error) {
-	row := g.db.QueryRowContext(ctx, `
-		SELECT id, repo_root, git_commit, release_id, created_at, stats_json,
-		       COALESCE(collector_health_json, '[]')
-		FROM graph_builds WHERE id != 'live-snapshot' ORDER BY created_at DESC LIMIT 1
-	`)
-	return scanBuildRecord(row)
+	g.buildMu.RLock()
+	defer g.buildMu.RUnlock()
+	var latest *BuildRecord
+	for _, b := range g.builds {
+		if b.ID == LiveSnapshotBuildID {
+			continue
+		}
+		if latest == nil || b.CreatedAt > latest.CreatedAt {
+			latest = b
+		}
+	}
+	if latest == nil {
+		return nil, nil
+	}
+	cp := *latest
+	return &cp, nil
 }
 
 // LiveSnapshotBuildID is the fixed build ID used for live overlay refresh records.
-// It is always overwritten (upserted) on each live-snapshot run.
 const LiveSnapshotBuildID = "live-snapshot"
 
-// LatestLiveSnapshotRecord returns the most recent live mirror refresh record,
-// or (nil, nil) if no live-snapshot has been run.
+// LatestLiveSnapshotRecord returns the most recent live mirror refresh record.
 func (g *Graph) LatestLiveSnapshotRecord(ctx context.Context) (*BuildRecord, error) {
-	row := g.db.QueryRowContext(ctx, `
-		SELECT id, repo_root, git_commit, release_id, created_at, stats_json,
-		       COALESCE(collector_health_json, '[]')
-		FROM graph_builds WHERE id = 'live-snapshot'
-	`)
-	return scanBuildRecord(row)
-}
-
-func scanBuildRecord(row *sql.Row) (*BuildRecord, error) {
-	var r BuildRecord
-	var statsJSON, healthJSON string
-	err := row.Scan(&r.ID, &r.RepoRoot, &r.GitCommit, &r.ReleaseID, &r.CreatedAt, &statsJSON, &healthJSON)
-	if err == sql.ErrNoRows {
-		return nil, nil
+	g.buildMu.RLock()
+	defer g.buildMu.RUnlock()
+	for _, b := range g.builds {
+		if b.ID == LiveSnapshotBuildID {
+			cp := *b
+			return &cp, nil
+		}
 	}
-	if err != nil {
-		return nil, fmt.Errorf("scanBuildRecord: %w", err)
-	}
-	_ = json.Unmarshal([]byte(statsJSON), &r.Stats)
-	_ = json.Unmarshal([]byte(healthJSON), &r.CollectorHealth)
-	return &r, nil
+	return nil, nil
 }
 
 // SetBuildCollectorHealth stores the collector health array for a build record.
 func (g *Graph) SetBuildCollectorHealth(ctx context.Context, buildID string, items []CollectorHealthItem) error {
-	data, err := json.Marshal(items)
-	if err != nil {
-		return fmt.Errorf("SetBuildCollectorHealth: encode: %w", err)
+	if g.readOnly || g.staticReadOnly {
+		return fmt.Errorf("SetBuildCollectorHealth: graph is read-only")
 	}
-	_, err = g.db.ExecContext(ctx,
-		`UPDATE graph_builds SET collector_health_json = ? WHERE id = ?`,
-		string(data), buildID)
-	if err != nil {
-		return fmt.Errorf("SetBuildCollectorHealth %s: %w", buildID, err)
+	g.buildMu.Lock()
+	defer g.buildMu.Unlock()
+	for _, b := range g.builds {
+		if b.ID == buildID {
+			b.CollectorHealth = items
+			return nil
+		}
 	}
-	return nil
+	return nil // build not found — no-op
 }
 
 // FindNode returns a node by ID, or (nil, nil) if not found.
 func (g *Graph) FindNode(ctx context.Context, id string) (*Node, error) {
-	row := g.db.QueryRowContext(ctx, `
-		SELECT id, type, name, path, summary, metadata_json, created_at, updated_at
-		FROM nodes WHERE id = ?
-	`, id)
-	return scanNode(row)
+	g.mu.RLock()
+	n := g.nodes[id]
+	g.mu.RUnlock()
+	if n == nil {
+		return nil, nil
+	}
+	cp := *n
+	return &cp, nil
 }
 
 // FindNodesByType returns all nodes of the given type ordered by name.
 func (g *Graph) FindNodesByType(ctx context.Context, nodeType string) ([]*Node, error) {
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT id, type, name, path, summary, metadata_json, created_at, updated_at
-		FROM nodes WHERE type = ? ORDER BY name
-	`, nodeType)
-	if err != nil {
-		return nil, fmt.Errorf("FindNodesByType %s: %w", nodeType, err)
+	g.mu.RLock()
+	src := g.byType[nodeType]
+	out := make([]*Node, len(src))
+	for i, n := range src {
+		cp := *n
+		out[i] = &cp
 	}
-	defer rows.Close()
-	return scanNodes(rows)
+	g.mu.RUnlock()
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
 }
 
 // FindNodesByPath returns nodes whose path exactly matches the given value.
 func (g *Graph) FindNodesByPath(ctx context.Context, path string) ([]*Node, error) {
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT id, type, name, path, summary, metadata_json, created_at, updated_at
-		FROM nodes WHERE path = ? ORDER BY name
-	`, path)
-	if err != nil {
-		return nil, fmt.Errorf("FindNodesByPath %q: %w", path, err)
+	g.mu.RLock()
+	src := g.byPath[path]
+	out := make([]*Node, len(src))
+	for i, n := range src {
+		cp := *n
+		out[i] = &cp
 	}
-	defer rows.Close()
-	return scanNodes(rows)
+	g.mu.RUnlock()
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
 }
 
 // FindNodeByTypeAndName returns the first node matching type + exact name.
 func (g *Graph) FindNodeByTypeAndName(ctx context.Context, nodeType, name string) (*Node, error) {
-	row := g.db.QueryRowContext(ctx, `
-		SELECT id, type, name, path, summary, metadata_json, created_at, updated_at
-		FROM nodes WHERE type = ? AND name = ? LIMIT 1
-	`, nodeType, name)
-	return scanNode(row)
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	for _, n := range g.byType[nodeType] {
+		if n.Name == name {
+			cp := *n
+			return &cp, nil
+		}
+	}
+	return nil, nil
 }
 
-// FindNodesByNameLike returns nodes whose name contains the query string.
+// FindNodesByNameLike returns nodes whose name contains the query string (case-insensitive).
 func (g *Graph) FindNodesByNameLike(ctx context.Context, query string) ([]*Node, error) {
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT id, type, name, path, summary, metadata_json, created_at, updated_at
-		FROM nodes WHERE name LIKE ? ORDER BY name
-	`, "%"+query+"%")
-	if err != nil {
-		return nil, fmt.Errorf("FindNodesByNameLike %q: %w", query, err)
+	q := strings.ToLower(query)
+	g.mu.RLock()
+	var out []*Node
+	for _, n := range g.nodes {
+		if strings.Contains(strings.ToLower(n.Name), q) {
+			cp := *n
+			out = append(out, &cp)
+		}
 	}
-	defer rows.Close()
-	return scanNodes(rows)
+	g.mu.RUnlock()
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
 }
 
 // Neighbors returns edges connected to id.
 // direction is "out" (outgoing), "in" (incoming), or "both".
 func (g *Graph) Neighbors(ctx context.Context, id, direction string) ([]Edge, error) {
-	var (
-		rows *sql.Rows
-		err  error
-	)
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	var out []Edge
 	switch direction {
 	case "in":
-		rows, err = g.db.QueryContext(ctx, `
-			SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json
-			FROM edges WHERE dst = ?
-		`, id)
+		for _, e := range g.byDst[id] {
+			out = append(out, *e)
+		}
 	case "out":
-		rows, err = g.db.QueryContext(ctx, `
-			SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json
-			FROM edges WHERE src = ?
-		`, id)
+		for _, e := range g.bySrc[id] {
+			out = append(out, *e)
+		}
 	default:
-		rows, err = g.db.QueryContext(ctx, `
-			SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json
-			FROM edges WHERE src = ? OR dst = ?
-		`, id, id)
+		seen := make(map[edgeKey]bool)
+		for _, e := range g.bySrc[id] {
+			k := edgeKey{e.Src, e.Kind, e.Dst, e.Phase}
+			if !seen[k] {
+				seen[k] = true
+				out = append(out, *e)
+			}
+		}
+		for _, e := range g.byDst[id] {
+			k := edgeKey{e.Src, e.Kind, e.Dst, e.Phase}
+			if !seen[k] {
+				seen[k] = true
+				out = append(out, *e)
+			}
+		}
 	}
-	if err != nil {
-		return nil, fmt.Errorf("Neighbors %s: %w", id, err)
-	}
-	defer rows.Close()
-	return scanEdges(rows)
+	return out, nil
 }
 
 // NeighborsByClass returns outgoing edges from id filtered by edge_class.
-// Use EdgeClassDecision, EdgeClassStructural, or EdgeClassInformation.
-// Falls back to all neighbors if edge_class column is missing (pre-migration DBs).
 func (g *Graph) NeighborsByClass(ctx context.Context, id, class string) ([]Edge, error) {
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json
-		FROM edges WHERE src = ? AND edge_class = ?
-	`, id, class)
-	if err != nil {
-		// Fallback: column may not exist yet on pre-migration databases.
-		return g.Neighbors(ctx, id, "out")
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	var out []Edge
+	for _, e := range g.bySrc[id] {
+		if e.Class == class {
+			out = append(out, *e)
+		}
 	}
-	defer rows.Close()
-	return scanEdges(rows)
+	return out, nil
 }
 
 // EdgesByClass returns all edges in the graph with the given edge_class.
 func (g *Graph) EdgesByClass(ctx context.Context, class string) ([]Edge, error) {
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json
-		FROM edges WHERE edge_class = ?
-	`, class)
-	if err != nil {
-		return nil, fmt.Errorf("EdgesByClass %s: %w", class, err)
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	src := g.byClass[class]
+	out := make([]Edge, len(src))
+	for i, e := range src {
+		out[i] = *e
 	}
-	defer rows.Close()
-	return scanEdges(rows)
+	return out, nil
 }
 
 // TraverseDecision performs BFS from startID following only decision-class edges.
-// This gives a clean causal path without information/context noise.
 func (g *Graph) TraverseDecision(ctx context.Context, startID string, maxDepth int) (*TraversalResult, error) {
 	visited := make(map[string]bool)
 	result := &TraversalResult{}
@@ -285,538 +292,439 @@ func (g *Graph) TraverseDecision(ctx context.Context, startID string, maxDepth i
 
 // AllEdges returns every edge in the graph (used by cycle detection).
 func (g *Graph) AllEdges(ctx context.Context) ([]Edge, error) {
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json FROM edges
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("AllEdges: %w", err)
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	out := make([]Edge, len(g.edges))
+	for i, e := range g.edges {
+		out[i] = *e
 	}
-	defer rows.Close()
-	return scanEdges(rows)
+	return out, nil
 }
 
 // OutgoingEdges returns all edges where src == nodeID.
 func (g *Graph) OutgoingEdges(ctx context.Context, nodeID string) ([]Edge, error) {
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json
-		FROM edges WHERE src = ?
-	`, nodeID)
-	if err != nil {
-		return nil, fmt.Errorf("OutgoingEdges %s: %w", nodeID, err)
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	src := g.bySrc[nodeID]
+	out := make([]Edge, len(src))
+	for i, e := range src {
+		out[i] = *e
 	}
-	defer rows.Close()
-	return scanEdges(rows)
+	return out, nil
 }
 
 // EdgesByKind returns all edges of the given kind.
 func (g *Graph) EdgesByKind(ctx context.Context, kind string) ([]Edge, error) {
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT src, kind, dst, phase, required, confidence, metadata_json, provenance_json
-		FROM edges WHERE kind = ?
-	`, kind)
-	if err != nil {
-		return nil, fmt.Errorf("EdgesByKind %s: %w", kind, err)
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	src := g.byKind[kind]
+	out := make([]Edge, len(src))
+	for i, e := range src {
+		out[i] = *e
 	}
-	defer rows.Close()
-	return scanEdges(rows)
+	return out, nil
 }
 
 // AllInvariants returns all invariant records ordered by ID.
 func (g *Graph) AllInvariants(ctx context.Context) ([]*Invariant, error) {
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT id, title, summary, severity, status, metadata_json
-		FROM invariants ORDER BY id
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("AllInvariants: %w", err)
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	out := make([]*Invariant, 0, len(g.invariants))
+	for _, inv := range g.invariants {
+		cp := *inv
+		out = append(out, &cp)
 	}
-	defer rows.Close()
-	var out []*Invariant
-	for rows.Next() {
-		var inv Invariant
-		var meta string
-		if err := rows.Scan(&inv.ID, &inv.Title, &inv.Summary, &inv.Severity, &inv.Status, &meta); err != nil {
-			return nil, err
-		}
-		out = append(out, &inv)
-	}
-	return out, rows.Err()
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
 }
 
 // AllFailureModes returns all failure mode records ordered by ID.
 func (g *Graph) AllFailureModes(ctx context.Context) ([]*FailureMode, error) {
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT id, title, summary, symptoms_json, root_cause, architecture_fix, metadata_json
-		FROM failure_modes ORDER BY id
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("AllFailureModes: %w", err)
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	out := make([]*FailureMode, 0, len(g.failureModes))
+	for _, fm := range g.failureModes {
+		cp := *fm
+		out = append(out, &cp)
 	}
-	defer rows.Close()
-	var out []*FailureMode
-	for rows.Next() {
-		var fm FailureMode
-		var sympJSON, metaJSON string
-		if err := rows.Scan(&fm.ID, &fm.Title, &fm.Summary, &sympJSON, &fm.RootCause, &fm.ArchitectureFix, &metaJSON); err != nil {
-			return nil, err
-		}
-		_ = json.Unmarshal([]byte(sympJSON), &fm.Symptoms)
-		out = append(out, &fm)
-	}
-	return out, rows.Err()
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
 }
 
 // UpsertInvariant upserts an invariant record.
 func (g *Graph) UpsertInvariant(ctx context.Context, inv Invariant) error {
-	_, err := g.db.ExecContext(ctx, `
-		INSERT INTO invariants (id, title, summary, severity, status, metadata_json)
-		VALUES (?, ?, ?, ?, ?, '{}')
-		ON CONFLICT(id) DO UPDATE SET
-			title    = excluded.title,
-			summary  = excluded.summary,
-			severity = excluded.severity,
-			status   = excluded.status
-	`, inv.ID, inv.Title, inv.Summary, inv.Severity, inv.Status)
-	if err != nil {
-		return fmt.Errorf("UpsertInvariant %s: %w", inv.ID, err)
+	if g.readOnly || g.staticReadOnly {
+		return fmt.Errorf("UpsertInvariant %s: graph is read-only", inv.ID)
 	}
+	g.mu.Lock()
+	cp := inv
+	g.invariants[inv.ID] = &cp
+	g.mu.Unlock()
 	return nil
 }
 
 // UpsertFailureMode upserts a failure mode record.
 func (g *Graph) UpsertFailureMode(ctx context.Context, fm FailureMode) error {
-	sympJSON, err := json.Marshal(fm.Symptoms)
-	if err != nil {
-		return err
+	if g.readOnly || g.staticReadOnly {
+		return fmt.Errorf("UpsertFailureMode %s: graph is read-only", fm.ID)
 	}
-	_, err = g.db.ExecContext(ctx, `
-		INSERT INTO failure_modes (id, title, summary, symptoms_json, root_cause, architecture_fix, metadata_json)
-		VALUES (?, ?, ?, ?, ?, ?, '{}')
-		ON CONFLICT(id) DO UPDATE SET
-			title            = excluded.title,
-			summary          = excluded.summary,
-			symptoms_json    = excluded.symptoms_json,
-			root_cause       = excluded.root_cause,
-			architecture_fix = excluded.architecture_fix
-	`, fm.ID, fm.Title, fm.Summary, string(sympJSON), fm.RootCause, fm.ArchitectureFix)
-	if err != nil {
-		return fmt.Errorf("UpsertFailureMode %s: %w", fm.ID, err)
-	}
+	g.mu.Lock()
+	cp := fm
+	g.failureModes[fm.ID] = &cp
+	g.mu.Unlock()
 	return nil
 }
 
 // Stats returns current node/edge/invariant/failure-mode counts.
 func (g *Graph) Stats(ctx context.Context) (BuildStats, error) {
-	var s BuildStats
-	for _, row := range []struct {
-		dest *int
-		q    string
-	}{
-		{&s.Nodes, `SELECT COUNT(*) FROM nodes`},
-		{&s.Edges, `SELECT COUNT(*) FROM edges`},
-		{&s.Invariants, `SELECT COUNT(*) FROM invariants`},
-		{&s.FailureModes, `SELECT COUNT(*) FROM failure_modes`},
-	} {
-		if err := g.db.QueryRowContext(ctx, row.q).Scan(row.dest); err != nil {
-			return s, err
-		}
+	g.mu.RLock()
+	s := BuildStats{
+		Nodes:        len(g.nodes),
+		Edges:        len(g.edges),
+		Invariants:   len(g.invariants),
+		FailureModes: len(g.failureModes),
 	}
+	g.mu.RUnlock()
 	return s, nil
 }
 
 // UpsertBuildRecord records a completed graph build with its stats.
 func (g *Graph) UpsertBuildRecord(ctx context.Context, id, repoRoot, gitCommit, releaseID string, stats BuildStats) error {
-	statsJSON, _ := json.Marshal(stats)
-	now := time.Now().Unix()
-	_, err := g.db.ExecContext(ctx, `
-		INSERT INTO graph_builds (id, repo_root, git_commit, release_id, created_at, stats_json)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET stats_json = excluded.stats_json, created_at = excluded.created_at
-	`, id, repoRoot, gitCommit, releaseID, now, string(statsJSON))
-	if err != nil {
-		return fmt.Errorf("UpsertBuildRecord: %w", err)
+	if g.readOnly || g.staticReadOnly {
+		return fmt.Errorf("UpsertBuildRecord: graph is read-only")
 	}
+	now := time.Now().Unix()
+	g.buildMu.Lock()
+	defer g.buildMu.Unlock()
+	for _, b := range g.builds {
+		if b.ID == id {
+			b.RepoRoot = repoRoot
+			b.GitCommit = gitCommit
+			b.ReleaseID = releaseID
+			b.CreatedAt = now
+			b.Stats = stats
+			return nil
+		}
+	}
+	g.builds = append(g.builds, &BuildRecord{
+		ID:        id,
+		RepoRoot:  repoRoot,
+		GitCommit: gitCommit,
+		ReleaseID: releaseID,
+		CreatedAt: now,
+		Stats:     stats,
+	})
+	return nil
+}
+
+// UpsertBuildRecordAt is like UpsertBuildRecord but accepts an explicit
+// Unix timestamp. Used for testing clock-dependent freshness logic.
+func (g *Graph) UpsertBuildRecordAt(ctx context.Context, id, repoRoot, gitCommit, releaseID string, stats BuildStats, createdAt int64) error {
+	if g.readOnly || g.staticReadOnly {
+		return fmt.Errorf("UpsertBuildRecordAt: graph is read-only")
+	}
+	g.buildMu.Lock()
+	defer g.buildMu.Unlock()
+	for _, b := range g.builds {
+		if b.ID == id {
+			b.RepoRoot = repoRoot
+			b.GitCommit = gitCommit
+			b.ReleaseID = releaseID
+			b.CreatedAt = createdAt
+			b.Stats = stats
+			return nil
+		}
+	}
+	g.builds = append(g.builds, &BuildRecord{
+		ID:        id,
+		RepoRoot:  repoRoot,
+		GitCommit: gitCommit,
+		ReleaseID: releaseID,
+		CreatedAt: createdAt,
+		Stats:     stats,
+	})
 	return nil
 }
 
 // ---- incident records ----
 
-// IncidentRecord maps to the incidents table.
+// IncidentRecord maps to the incidents store.
 type IncidentRecord struct {
-	ID           string
-	Title        string
-	Severity     string
-	Status       string
-	StartedAt    int64
-	EndedAt      int64
-	Summary      string
-	EvidenceJSON string
-	CreatedAt    int64
-	UpdatedAt    int64
+	ID           string `json:"id"`
+	Title        string `json:"title"`
+	Severity     string `json:"severity,omitempty"`
+	Status       string `json:"status,omitempty"`
+	StartedAt    int64  `json:"started_at,omitempty"`
+	EndedAt      int64  `json:"ended_at,omitempty"`
+	Summary      string `json:"summary,omitempty"`
+	EvidenceJSON string `json:"evidence_json,omitempty"`
+	CreatedAt    int64  `json:"created_at,omitempty"`
+	UpdatedAt    int64  `json:"updated_at,omitempty"`
 }
 
 // ProposalStatus values for awareness_proposals.
 const (
-	ProposalStatusDraft      = "DRAFT"
-	ProposalStatusValidated  = "VALIDATED"
+	ProposalStatusDraft       = "DRAFT"
+	ProposalStatusValidated   = "VALIDATED"
 	ProposalStatusNeedsReview = "NEEDS_REVIEW"
-	ProposalStatusApproved   = "APPROVED"
-	ProposalStatusRejected   = "REJECTED"
-	ProposalStatusPromoted   = "PROMOTED"
-	ProposalStatusSuperseded = "SUPERSEDED"
+	ProposalStatusApproved    = "APPROVED"
+	ProposalStatusRejected    = "REJECTED"
+	ProposalStatusPromoted    = "PROMOTED"
+	ProposalStatusSuperseded  = "SUPERSEDED"
 )
 
-// ProposalRecord maps to the awareness_proposals table.
+// ProposalRecord maps to the awareness_proposals store.
 type ProposalRecord struct {
-	ID             string
-	IncidentID     string
-	Status         string
-	ProposalYAML   string
-	ValidationJSON string
-	CreatedBy      string
-	CreatedAt      int64
-	PromotedAt     int64
+	ID             string `json:"id"`
+	IncidentID     string `json:"incident_id,omitempty"`
+	Status         string `json:"status"`
+	ProposalYAML   string `json:"proposal_yaml"`
+	ValidationJSON string `json:"validation_json,omitempty"`
+	CreatedBy      string `json:"created_by,omitempty"`
+	CreatedAt      int64  `json:"created_at,omitempty"`
+	PromotedAt     int64  `json:"promoted_at,omitempty"`
 }
 
-// ContextAliasRecord maps to the context_aliases table.
+// ContextAliasRecord maps to the context_aliases store.
 type ContextAliasRecord struct {
-	ID         string
-	TargetID   string
-	Alias      string
-	Confidence float64
-	Source     string
-	CreatedAt  int64
+	ID         string  `json:"id"`
+	TargetID   string  `json:"target_id"`
+	Alias      string  `json:"alias"`
+	Confidence float64 `json:"confidence,omitempty"`
+	Source     string  `json:"source,omitempty"`
+	CreatedAt  int64   `json:"created_at,omitempty"`
 }
 
 // UpsertIncident inserts or updates an incident record.
 func (g *Graph) UpsertIncident(ctx context.Context, inc IncidentRecord) error {
+	if g.readOnly {
+		return fmt.Errorf("UpsertIncident %s: graph is read-only", inc.ID)
+	}
 	now := time.Now().Unix()
 	if inc.CreatedAt == 0 {
 		inc.CreatedAt = now
 	}
-	_, err := g.db.ExecContext(ctx, `
-		INSERT INTO incidents (id, title, severity, status, started_at, ended_at, summary, evidence_json, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			title         = excluded.title,
-			severity      = excluded.severity,
-			status        = excluded.status,
-			started_at    = excluded.started_at,
-			ended_at      = excluded.ended_at,
-			summary       = excluded.summary,
-			evidence_json = excluded.evidence_json,
-			updated_at    = excluded.updated_at
-	`, inc.ID, inc.Title, inc.Severity, inc.Status, inc.StartedAt, inc.EndedAt,
-		inc.Summary, inc.EvidenceJSON, inc.CreatedAt, now)
-	if err != nil {
-		return fmt.Errorf("UpsertIncident %s: %w", inc.ID, err)
-	}
-	return nil
+	inc.UpdatedAt = now
+
+	g.incidentMu.Lock()
+	cp := inc
+	g.incidents[inc.ID] = &cp
+	g.incidentMu.Unlock()
+
+	return g.writeJSON("incidents", inc.ID, &inc)
 }
 
 // FindIncident returns an incident by ID, or (nil, nil) if not found.
 func (g *Graph) FindIncident(ctx context.Context, id string) (*IncidentRecord, error) {
-	var inc IncidentRecord
-	err := g.db.QueryRowContext(ctx, `
-		SELECT id, title, severity, status, started_at, ended_at, summary, evidence_json, created_at, updated_at
-		FROM incidents WHERE id = ?
-	`, id).Scan(&inc.ID, &inc.Title, &inc.Severity, &inc.Status, &inc.StartedAt,
-		&inc.EndedAt, &inc.Summary, &inc.EvidenceJSON, &inc.CreatedAt, &inc.UpdatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
+	g.incidentMu.RLock()
+	rec := g.incidents[id]
+	g.incidentMu.RUnlock()
+	if rec == nil {
 		return nil, nil
 	}
-	if err != nil {
-		return nil, fmt.Errorf("FindIncident %s: %w", id, err)
-	}
-	return &inc, nil
+	cp := *rec
+	return &cp, nil
 }
 
 // AllIncidents returns all incident records ordered by created_at descending.
 func (g *Graph) AllIncidents(ctx context.Context) ([]*IncidentRecord, error) {
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT id, title, severity, status, started_at, ended_at, summary, evidence_json, created_at, updated_at
-		FROM incidents ORDER BY created_at DESC
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("AllIncidents: %w", err)
+	g.incidentMu.RLock()
+	out := make([]*IncidentRecord, 0, len(g.incidents))
+	for _, inc := range g.incidents {
+		cp := *inc
+		out = append(out, &cp)
 	}
-	defer rows.Close()
-	var out []*IncidentRecord
-	for rows.Next() {
-		var inc IncidentRecord
-		if err := rows.Scan(&inc.ID, &inc.Title, &inc.Severity, &inc.Status, &inc.StartedAt,
-			&inc.EndedAt, &inc.Summary, &inc.EvidenceJSON, &inc.CreatedAt, &inc.UpdatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, &inc)
-	}
-	return out, rows.Err()
+	g.incidentMu.RUnlock()
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt > out[j].CreatedAt })
+	return out, nil
 }
 
 // UpsertProposal inserts or updates a proposal record.
 func (g *Graph) UpsertProposal(ctx context.Context, p ProposalRecord) error {
+	if g.readOnly {
+		return fmt.Errorf("UpsertProposal %s: graph is read-only", p.ID)
+	}
 	now := time.Now().Unix()
 	if p.CreatedAt == 0 {
 		p.CreatedAt = now
 	}
-	_, err := g.db.ExecContext(ctx, `
-		INSERT INTO awareness_proposals (id, incident_id, status, proposal_yaml, validation_json, created_by, created_at, promoted_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			incident_id     = excluded.incident_id,
-			status          = excluded.status,
-			proposal_yaml   = excluded.proposal_yaml,
-			validation_json = excluded.validation_json,
-			created_by      = excluded.created_by,
-			promoted_at     = excluded.promoted_at
-	`, p.ID, p.IncidentID, p.Status, p.ProposalYAML, p.ValidationJSON, p.CreatedBy, p.CreatedAt, p.PromotedAt)
-	if err != nil {
-		return fmt.Errorf("UpsertProposal %s: %w", p.ID, err)
-	}
-	return nil
+
+	g.proposalMu.Lock()
+	cp := p
+	g.proposals[p.ID] = &cp
+	g.proposalMu.Unlock()
+
+	return g.writeJSON("proposals", p.ID, &p)
 }
 
 // FindProposal returns a proposal by ID, or (nil, nil) if not found.
 func (g *Graph) FindProposal(ctx context.Context, id string) (*ProposalRecord, error) {
-	var p ProposalRecord
-	err := g.db.QueryRowContext(ctx, `
-		SELECT id, incident_id, status, proposal_yaml, validation_json, created_by, created_at, promoted_at
-		FROM awareness_proposals WHERE id = ?
-	`, id).Scan(&p.ID, &p.IncidentID, &p.Status, &p.ProposalYAML, &p.ValidationJSON,
-		&p.CreatedBy, &p.CreatedAt, &p.PromotedAt)
-	if errors.Is(err, sql.ErrNoRows) {
+	g.proposalMu.RLock()
+	rec := g.proposals[id]
+	g.proposalMu.RUnlock()
+	if rec == nil {
 		return nil, nil
 	}
-	if err != nil {
-		return nil, fmt.Errorf("FindProposal %s: %w", id, err)
-	}
-	return &p, nil
+	cp := *rec
+	return &cp, nil
 }
 
 // AllProposals returns all proposal records ordered by created_at descending.
 func (g *Graph) AllProposals(ctx context.Context) ([]*ProposalRecord, error) {
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT id, incident_id, status, proposal_yaml, validation_json, created_by, created_at, promoted_at
-		FROM awareness_proposals ORDER BY created_at DESC
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("AllProposals: %w", err)
+	g.proposalMu.RLock()
+	out := make([]*ProposalRecord, 0, len(g.proposals))
+	for _, p := range g.proposals {
+		cp := *p
+		out = append(out, &cp)
 	}
-	defer rows.Close()
-	var out []*ProposalRecord
-	for rows.Next() {
-		var p ProposalRecord
-		if err := rows.Scan(&p.ID, &p.IncidentID, &p.Status, &p.ProposalYAML,
-			&p.ValidationJSON, &p.CreatedBy, &p.CreatedAt, &p.PromotedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, &p)
-	}
-	return out, rows.Err()
+	g.proposalMu.RUnlock()
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt > out[j].CreatedAt })
+	return out, nil
 }
 
 // UpdateProposalStatus sets the status (and promoted_at if PROMOTED) of a proposal.
 func (g *Graph) UpdateProposalStatus(ctx context.Context, id, status string) error {
-	promotedAt := int64(0)
-	if status == ProposalStatusPromoted {
-		promotedAt = time.Now().Unix()
+	if g.readOnly {
+		return fmt.Errorf("UpdateProposalStatus %s: graph is read-only", id)
 	}
-	_, err := g.db.ExecContext(ctx, `
-		UPDATE awareness_proposals SET status = ?, promoted_at = ? WHERE id = ?
-	`, status, promotedAt, id)
-	if err != nil {
-		return fmt.Errorf("UpdateProposalStatus %s: %w", id, err)
+	g.proposalMu.Lock()
+	p := g.proposals[id]
+	if p != nil {
+		p.Status = status
+		if status == ProposalStatusPromoted {
+			p.PromotedAt = time.Now().Unix()
+		}
+	}
+	g.proposalMu.Unlock()
+
+	if p != nil {
+		return g.writeJSON("proposals", id, p)
 	}
 	return nil
 }
 
 // UpsertContextAlias inserts or replaces a context alias entry.
 func (g *Graph) UpsertContextAlias(ctx context.Context, a ContextAliasRecord) error {
+	if g.readOnly || g.staticReadOnly {
+		return fmt.Errorf("UpsertContextAlias %s: graph is read-only", a.ID)
+	}
 	now := time.Now().Unix()
 	if a.CreatedAt == 0 {
 		a.CreatedAt = now
 	}
-	conf := a.Confidence
-	if conf == 0 {
-		conf = 1.0
+	if a.Confidence == 0 {
+		a.Confidence = 1.0
 	}
-	_, err := g.db.ExecContext(ctx, `
-		INSERT INTO context_aliases (id, target_id, alias, confidence, source, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			target_id  = excluded.target_id,
-			alias      = excluded.alias,
-			confidence = excluded.confidence,
-			source     = excluded.source
-	`, a.ID, a.TargetID, a.Alias, conf, a.Source, a.CreatedAt)
-	if err != nil {
-		return fmt.Errorf("UpsertContextAlias %s: %w", a.ID, err)
-	}
+
+	g.mu.Lock()
+	cp := a
+	g.aliases[a.ID] = &cp
+	g.mu.Unlock()
 	return nil
 }
 
 // AllContextAliases returns all context alias records.
 func (g *Graph) AllContextAliases(ctx context.Context) ([]*ContextAliasRecord, error) {
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT id, target_id, alias, confidence, source, created_at
-		FROM context_aliases ORDER BY target_id, alias
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("AllContextAliases: %w", err)
+	g.mu.RLock()
+	out := make([]*ContextAliasRecord, 0, len(g.aliases))
+	for _, a := range g.aliases {
+		cp := *a
+		out = append(out, &cp)
 	}
-	defer rows.Close()
-	var out []*ContextAliasRecord
-	for rows.Next() {
-		var a ContextAliasRecord
-		if err := rows.Scan(&a.ID, &a.TargetID, &a.Alias, &a.Confidence, &a.Source, &a.CreatedAt); err != nil {
-			return nil, err
+	g.mu.RUnlock()
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].TargetID != out[j].TargetID {
+			return out[i].TargetID < out[j].TargetID
 		}
-		out = append(out, &a)
-	}
-	return out, rows.Err()
+		return out[i].Alias < out[j].Alias
+	})
+	return out, nil
 }
 
 // FindInvariant returns an invariant record by ID, or (nil, nil) if not found.
 func (g *Graph) FindInvariant(ctx context.Context, id string) (*Invariant, error) {
-	var inv Invariant
-	var meta string
-	err := g.db.QueryRowContext(ctx, `
-		SELECT id, title, summary, severity, status, metadata_json
-		FROM invariants WHERE id = ?
-	`, id).Scan(&inv.ID, &inv.Title, &inv.Summary, &inv.Severity, &inv.Status, &meta)
-	if errors.Is(err, sql.ErrNoRows) {
+	g.mu.RLock()
+	inv := g.invariants[id]
+	g.mu.RUnlock()
+	if inv == nil {
 		return nil, nil
 	}
-	if err != nil {
-		return nil, fmt.Errorf("FindInvariant %s: %w", id, err)
-	}
-	return &inv, nil
-}
-
-// ---- internal scan helpers ----
-
-func scanNode(row *sql.Row) (*Node, error) {
-	var n Node
-	var meta string
-	err := row.Scan(&n.ID, &n.Type, &n.Name, &n.Path, &n.Summary, &meta, &n.CreatedAt, &n.UpdatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	n.Metadata = unmarshalMeta(meta)
-	return &n, nil
-}
-
-func scanNodes(rows *sql.Rows) ([]*Node, error) {
-	var out []*Node
-	for rows.Next() {
-		var n Node
-		var meta string
-		if err := rows.Scan(&n.ID, &n.Type, &n.Name, &n.Path, &n.Summary, &meta, &n.CreatedAt, &n.UpdatedAt); err != nil {
-			return nil, err
-		}
-		n.Metadata = unmarshalMeta(meta)
-		out = append(out, &n)
-	}
-	return out, rows.Err()
-}
-
-func scanEdges(rows *sql.Rows) ([]Edge, error) {
-	var out []Edge
-	for rows.Next() {
-		var e Edge
-		var req int
-		var meta, prov string
-		if err := rows.Scan(&e.Src, &e.Kind, &e.Dst, &e.Phase, &req, &e.Confidence, &meta, &prov); err != nil {
-			return nil, err
-		}
-		e.Required = req == 1
-		e.Metadata = unmarshalMeta(meta)
-		e.Provenance = unmarshalMeta(prov)
-		out = append(out, e)
-	}
-	return out, rows.Err()
+	cp := *inv
+	return &cp, nil
 }
 
 // ---- code smell helpers ----
 
 // CodeSmellsForInvariants returns all code_smells from pattern nodes that
 // have a "requires" edge targeting any of the given invariant node IDs.
-// Results are deduplicated and sorted.
 func (g *Graph) CodeSmellsForInvariants(ctx context.Context, invariantNodeIDs []string) ([]string, error) {
 	if len(invariantNodeIDs) == 0 {
 		return nil, nil
 	}
 
-	// Build query: find edges kind=requires whose dst is one of the invariant IDs.
-	// Then fetch the src node when type = 'pattern'.
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT DISTINCT n.metadata_json
-		FROM edges e
-		JOIN nodes n ON n.id = e.src
-		WHERE e.kind = 'requires'
-		  AND n.type = 'pattern'
-		  AND e.dst IN (`+placeholders(len(invariantNodeIDs))+`)
-	`, stringsToInterfaces(invariantNodeIDs)...)
-	if err != nil {
-		return nil, fmt.Errorf("CodeSmellsForInvariants: %w", err)
+	invSet := make(map[string]bool, len(invariantNodeIDs))
+	for _, id := range invariantNodeIDs {
+		invSet[id] = true
 	}
-	defer rows.Close()
+
+	g.mu.RLock()
+	defer g.mu.RUnlock()
 
 	seen := map[string]bool{}
 	var out []string
-	for rows.Next() {
-		var metaJSON string
-		if err := rows.Scan(&metaJSON); err != nil {
-			return nil, err
+
+	// Find pattern nodes that have a requires edge to one of the invariant IDs.
+	for _, e := range g.byKind[EdgeRequires] {
+		if !invSet[e.Dst] {
+			continue
 		}
-		smells := extractCodeSmells(metaJSON)
-		for _, s := range smells {
+		n := g.nodes[e.Src]
+		if n == nil || n.Type != NodeTypePattern {
+			continue
+		}
+		for _, s := range extractCodeSmellsFromMeta(n.Metadata) {
 			if s != "" && !seen[s] {
 				seen[s] = true
 				out = append(out, s)
 			}
 		}
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
 	sort.Strings(out)
 	return out, nil
 }
 
-// PatternNamesForInvariants returns the IDs (names) of NodeTypePattern nodes
+// PatternNamesForInvariants returns the names of NodeTypePattern nodes
 // that have an EdgeRequires edge to any of the given invariant node IDs.
-// This is used by node-context to surface patterns.yaml pattern names alongside
-// design_patterns.yaml patterns.
 func (g *Graph) PatternNamesForInvariants(ctx context.Context, invariantNodeIDs []string) ([]string, error) {
 	if len(invariantNodeIDs) == 0 {
 		return nil, nil
 	}
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT DISTINCT n.name
-		FROM edges e
-		JOIN nodes n ON n.id = e.src
-		WHERE e.kind = 'requires'
-		  AND n.type = 'pattern'
-		  AND e.dst IN (`+placeholders(len(invariantNodeIDs))+`)
-		ORDER BY n.name
-	`, stringsToInterfaces(invariantNodeIDs)...)
-	if err != nil {
-		return nil, fmt.Errorf("PatternNamesForInvariants: %w", err)
+
+	invSet := make(map[string]bool, len(invariantNodeIDs))
+	for _, id := range invariantNodeIDs {
+		invSet[id] = true
 	}
-	defer rows.Close()
+
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	seen := map[string]bool{}
 	var out []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
+	for _, e := range g.byKind[EdgeRequires] {
+		if !invSet[e.Dst] {
+			continue
 		}
-		out = append(out, name)
+		n := g.nodes[e.Src]
+		if n == nil || n.Type != NodeTypePattern {
+			continue
+		}
+		if !seen[n.Name] {
+			seen[n.Name] = true
+			out = append(out, n.Name)
+		}
 	}
-	return out, rows.Err()
+	sort.Strings(out)
+	return out, nil
 }
 
 // DesignContext is the set of design patterns, anti-patterns, and code smells
@@ -827,110 +735,80 @@ type DesignContext struct {
 	CodeSmells     []string
 }
 
-// DesignContextForInvariants returns design patterns and anti-patterns that are
-// linked to the given invariant node IDs via EdgeRequires (design_pattern) or
-// EdgeViolates (anti_pattern). It also returns code_smell nodes attached to
-// anti-patterns via EdgeSmellsLike, and code_smells embedded in metadata.
+// DesignContextForInvariants returns design patterns and anti-patterns linked
+// to the given invariant node IDs.
 func (g *Graph) DesignContextForInvariants(ctx context.Context, invariantNodeIDs []string) (*DesignContext, error) {
 	if len(invariantNodeIDs) == 0 {
 		return &DesignContext{}, nil
 	}
 
+	invSet := make(map[string]bool, len(invariantNodeIDs))
+	for _, id := range invariantNodeIDs {
+		invSet[id] = true
+	}
+
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
 	dc := &DesignContext{}
 	seen := map[string]bool{}
-	args := stringsToInterfaces(invariantNodeIDs)
-	ph := placeholders(len(invariantNodeIDs))
+	var antiPatternIDs []string
 
 	// Design patterns: EdgeRequires or EdgeMitigates from design_pattern → invariant.
-	dpRows, err := g.db.QueryContext(ctx, `
-		SELECT DISTINCT n.name, n.summary
-		FROM edges e
-		JOIN nodes n ON n.id = e.src
-		WHERE e.kind IN ('requires', 'mitigates')
-		  AND n.type = 'design_pattern'
-		  AND e.dst IN (`+ph+`)
-	`, args...)
-	if err != nil {
-		return nil, fmt.Errorf("DesignContextForInvariants patterns: %w", err)
-	}
-	defer dpRows.Close()
-	for dpRows.Next() {
-		var name, summary string
-		if err := dpRows.Scan(&name, &summary); err != nil {
-			return nil, err
+	for _, kind := range []string{EdgeRequires, EdgeMitigates} {
+		for _, e := range g.byKind[kind] {
+			if !invSet[e.Dst] {
+				continue
+			}
+			n := g.nodes[e.Src]
+			if n == nil || n.Type != NodeTypeDesignPattern {
+				continue
+			}
+			if !seen[n.Name] {
+				seen[n.Name] = true
+				dc.DesignPatterns = append(dc.DesignPatterns, n.Name)
+			}
 		}
-		if !seen[name] {
-			seen[name] = true
-			dc.DesignPatterns = append(dc.DesignPatterns, name)
-		}
-	}
-	if err := dpRows.Err(); err != nil {
-		return nil, err
 	}
 
 	// Anti-patterns: EdgeViolates from anti_pattern → invariant.
-	apRows, err := g.db.QueryContext(ctx, `
-		SELECT DISTINCT n.id, n.name, n.metadata_json
-		FROM edges e
-		JOIN nodes n ON n.id = e.src
-		WHERE e.kind = 'violates'
-		  AND n.type = 'anti_pattern'
-		  AND e.dst IN (`+ph+`)
-	`, args...)
-	if err != nil {
-		return nil, fmt.Errorf("DesignContextForInvariants anti-patterns: %w", err)
-	}
-	defer apRows.Close()
-
-	var antiPatternIDs []string
-	for apRows.Next() {
-		var id, name, metaJSON string
-		if err := apRows.Scan(&id, &name, &metaJSON); err != nil {
-			return nil, err
+	for _, e := range g.byKind[EdgeViolates] {
+		if !invSet[e.Dst] {
+			continue
 		}
-		if !seen[name] {
-			seen[name] = true
-			dc.AntiPatterns = append(dc.AntiPatterns, name)
+		n := g.nodes[e.Src]
+		if n == nil || n.Type != NodeTypeAntiPattern {
+			continue
 		}
-		antiPatternIDs = append(antiPatternIDs, id)
-		// Also extract code_smells embedded in anti-pattern metadata.
-		for _, s := range extractCodeSmells(metaJSON) {
+		if !seen[n.Name] {
+			seen[n.Name] = true
+			dc.AntiPatterns = append(dc.AntiPatterns, n.Name)
+		}
+		antiPatternIDs = append(antiPatternIDs, n.ID)
+		for _, s := range extractCodeSmellsFromMeta(n.Metadata) {
 			if s != "" && !seen["smell:"+s] {
 				seen["smell:"+s] = true
 				dc.CodeSmells = append(dc.CodeSmells, s)
 			}
 		}
 	}
-	if err := apRows.Err(); err != nil {
-		return nil, err
-	}
 
 	// Code smell nodes linked from anti-patterns via EdgeSmellsLike.
-	if len(antiPatternIDs) > 0 {
-		csRows, err := g.db.QueryContext(ctx, `
-			SELECT DISTINCT n.name
-			FROM edges e
-			JOIN nodes n ON n.id = e.dst
-			WHERE e.kind = 'smells_like'
-			  AND n.type = 'code_smell'
-			  AND e.src IN (`+placeholders(len(antiPatternIDs))+`)
-		`, stringsToInterfaces(antiPatternIDs)...)
-		if err != nil {
-			return nil, fmt.Errorf("DesignContextForInvariants code smells: %w", err)
+	antiSet := make(map[string]bool, len(antiPatternIDs))
+	for _, id := range antiPatternIDs {
+		antiSet[id] = true
+	}
+	for _, e := range g.byKind[EdgeSmellsLike] {
+		if !antiSet[e.Src] {
+			continue
 		}
-		defer csRows.Close()
-		for csRows.Next() {
-			var name string
-			if err := csRows.Scan(&name); err != nil {
-				return nil, err
-			}
-			if name != "" && !seen["smell:"+name] {
-				seen["smell:"+name] = true
-				dc.CodeSmells = append(dc.CodeSmells, name)
-			}
+		n := g.nodes[e.Dst]
+		if n == nil || n.Type != NodeTypeCodeSmell {
+			continue
 		}
-		if err := csRows.Err(); err != nil {
-			return nil, err
+		if n.Name != "" && !seen["smell:"+n.Name] {
+			seen["smell:"+n.Name] = true
+			dc.CodeSmells = append(dc.CodeSmells, n.Name)
 		}
 	}
 
@@ -941,84 +819,61 @@ func (g *Graph) DesignContextForInvariants(ctx context.Context, invariantNodeIDs
 }
 
 // DesignContextForNode returns design patterns and anti-patterns that are
-// directly linked to the given node ID via EdgeImplements, EdgeExhibits, or
-// EdgeTouchesFile edges. This covers nodes (files, services) that have direct
-// links in the design pattern layer even if they don't yet have invariant edges.
+// directly linked to the given node ID.
 func (g *Graph) DesignContextForNode(ctx context.Context, nodeID string) (*DesignContext, error) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
 	dc := &DesignContext{}
 	seen := map[string]bool{}
-
-	// Find design_pattern and anti_pattern nodes that link TO nodeID via
-	// implements, exhibits, or touches_file edges.
-	rows, err := g.db.QueryContext(ctx, `
-		SELECT DISTINCT n.id, n.type, n.name, n.metadata_json
-		FROM edges e
-		JOIN nodes n ON n.id = e.src
-		WHERE e.kind IN ('implements', 'exhibits', 'touches_file')
-		  AND n.type IN ('design_pattern', 'anti_pattern')
-		  AND e.dst = ?
-	`, nodeID)
-	if err != nil {
-		return nil, fmt.Errorf("DesignContextForNode: %w", err)
-	}
-	defer rows.Close()
-
 	var antiPatternIDs []string
-	for rows.Next() {
-		var id, nodeType, name, metaJSON string
-		if err := rows.Scan(&id, &nodeType, &name, &metaJSON); err != nil {
-			return nil, err
-		}
-		switch nodeType {
-		case NodeTypeDesignPattern:
-			if !seen[name] {
-				seen[name] = true
-				dc.DesignPatterns = append(dc.DesignPatterns, name)
+
+	for _, kind := range []string{EdgeImplements, EdgeExhibits, EdgeTouchesFile} {
+		for _, e := range g.byKind[kind] {
+			if e.Dst != nodeID {
+				continue
 			}
-		case NodeTypeAntiPattern:
-			if !seen[name] {
-				seen[name] = true
-				dc.AntiPatterns = append(dc.AntiPatterns, name)
+			n := g.nodes[e.Src]
+			if n == nil {
+				continue
 			}
-			antiPatternIDs = append(antiPatternIDs, id)
-			for _, s := range extractCodeSmells(metaJSON) {
-				if s != "" && !seen["smell:"+s] {
-					seen["smell:"+s] = true
-					dc.CodeSmells = append(dc.CodeSmells, s)
+			switch n.Type {
+			case NodeTypeDesignPattern:
+				if !seen[n.Name] {
+					seen[n.Name] = true
+					dc.DesignPatterns = append(dc.DesignPatterns, n.Name)
+				}
+			case NodeTypeAntiPattern:
+				if !seen[n.Name] {
+					seen[n.Name] = true
+					dc.AntiPatterns = append(dc.AntiPatterns, n.Name)
+				}
+				antiPatternIDs = append(antiPatternIDs, n.ID)
+				for _, s := range extractCodeSmellsFromMeta(n.Metadata) {
+					if s != "" && !seen["smell:"+s] {
+						seen["smell:"+s] = true
+						dc.CodeSmells = append(dc.CodeSmells, s)
+					}
 				}
 			}
 		}
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
 
-	// Code smell nodes via EdgeSmellsLike from anti-patterns.
-	if len(antiPatternIDs) > 0 {
-		csRows, err := g.db.QueryContext(ctx, `
-			SELECT DISTINCT n.name
-			FROM edges e
-			JOIN nodes n ON n.id = e.dst
-			WHERE e.kind = 'smells_like'
-			  AND n.type = 'code_smell'
-			  AND e.src IN (`+placeholders(len(antiPatternIDs))+`)
-		`, stringsToInterfaces(antiPatternIDs)...)
-		if err != nil {
-			return nil, fmt.Errorf("DesignContextForNode code smells: %w", err)
+	antiSet := make(map[string]bool, len(antiPatternIDs))
+	for _, id := range antiPatternIDs {
+		antiSet[id] = true
+	}
+	for _, e := range g.byKind[EdgeSmellsLike] {
+		if !antiSet[e.Src] {
+			continue
 		}
-		defer csRows.Close()
-		for csRows.Next() {
-			var name string
-			if err := csRows.Scan(&name); err != nil {
-				return nil, err
-			}
-			if name != "" && !seen["smell:"+name] {
-				seen["smell:"+name] = true
-				dc.CodeSmells = append(dc.CodeSmells, name)
-			}
+		n := g.nodes[e.Dst]
+		if n == nil || n.Type != NodeTypeCodeSmell {
+			continue
 		}
-		if err := csRows.Err(); err != nil {
-			return nil, err
+		if n.Name != "" && !seen["smell:"+n.Name] {
+			seen["smell:"+n.Name] = true
+			dc.CodeSmells = append(dc.CodeSmells, n.Name)
 		}
 	}
 
@@ -1028,64 +883,71 @@ func (g *Graph) DesignContextForNode(ctx context.Context, nodeID string) (*Desig
 	return dc, nil
 }
 
-// extractCodeSmells unpacks the code_smells array from a node's metadata_json blob.
-func extractCodeSmells(metaJSON string) []string {
-	var meta map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(metaJSON), &meta); err != nil {
+// extractCodeSmellsFromMeta unpacks the code_smells array from a node's Metadata map.
+func extractCodeSmellsFromMeta(meta map[string]any) []string {
+	if meta == nil {
 		return nil
 	}
 	raw, ok := meta["code_smells"]
 	if !ok {
 		return nil
 	}
-	var smells []string
-	_ = json.Unmarshal(raw, &smells)
-	return smells
-}
-
-// placeholders returns n comma-separated "?" for SQL IN clauses.
-func placeholders(n int) string {
-	if n == 0 {
-		return ""
-	}
-	b := make([]byte, n*2-1)
-	for i := range b {
-		if i%2 == 0 {
-			b[i] = '?'
-		} else {
-			b[i] = ','
+	// Could be []any or []string depending on how it was stored.
+	switch v := raw.(type) {
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, s := range v {
+			if str, ok := s.(string); ok {
+				out = append(out, str)
+			}
 		}
+		return out
+	case []string:
+		return v
+	default:
+		// Try JSON roundtrip.
+		b, _ := json.Marshal(raw)
+		var ss []string
+		_ = json.Unmarshal(b, &ss)
+		return ss
 	}
-	return string(b)
 }
 
-// stringsToInterfaces converts []string to []interface{} for variadic SQL args.
-func stringsToInterfaces(ss []string) []interface{} {
-	out := make([]interface{}, len(ss))
-	for i, s := range out {
-		_ = s
-		out[i] = ss[i]
+// extractCodeSmells parses code_smells from a JSON metadata string (for backward compat).
+func extractCodeSmells(metaJSON string) []string {
+	var meta map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(metaJSON), &meta); err != nil {
+		return nil
 	}
-	return out
+	rawVal, ok := meta["code_smells"]
+	if !ok {
+		return nil
+	}
+	var smells []string
+	_ = json.Unmarshal(rawVal, &smells)
+	return smells
 }
 
 // ---- preflight audit ----
 
 // PreflightAuditRecord is a durable record of one preflight run.
 type PreflightAuditRecord struct {
-	ID             string
-	Task           string
-	Timestamp      int64
-	GitSHA         string
-	Files          []string
-	ForbiddenFixes []string
-	Invariants     []string
-	CodeSmells     []string
-	CreatedAt      int64
+	ID             string   `json:"id"`
+	Task           string   `json:"task,omitempty"`
+	Timestamp      int64    `json:"timestamp,omitempty"`
+	GitSHA         string   `json:"git_sha,omitempty"`
+	Files          []string `json:"files,omitempty"`
+	ForbiddenFixes []string `json:"forbidden_fixes,omitempty"`
+	Invariants     []string `json:"invariants,omitempty"`
+	CodeSmells     []string `json:"code_smells,omitempty"`
+	CreatedAt      int64    `json:"created_at,omitempty"`
 }
 
 // InsertPreflightAudit inserts a durable preflight audit record.
 func (g *Graph) InsertPreflightAudit(ctx context.Context, r PreflightAuditRecord) error {
+	if g.readOnly {
+		return fmt.Errorf("InsertPreflightAudit: graph is read-only")
+	}
 	if r.ID == "" {
 		r.ID = fmt.Sprintf("preflight-audit-%d", time.Now().UnixNano())
 	}
@@ -1097,152 +959,130 @@ func (g *Graph) InsertPreflightAudit(ctx context.Context, r PreflightAuditRecord
 		r.CreatedAt = now
 	}
 
-	filesJSON, _ := json.Marshal(r.Files)
-	ffJSON, _ := json.Marshal(r.ForbiddenFixes)
-	invJSON, _ := json.Marshal(r.Invariants)
-	csJSON, _ := json.Marshal(r.CodeSmells)
-
-	_, err := g.db.ExecContext(ctx, `
-		INSERT INTO preflight_audits
-			(id, task, timestamp, git_sha, files_json, forbidden_fixes_json, invariants_json, code_smells_json, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			task                 = excluded.task,
-			timestamp            = excluded.timestamp,
-			git_sha              = excluded.git_sha,
-			files_json           = excluded.files_json,
-			forbidden_fixes_json = excluded.forbidden_fixes_json,
-			invariants_json      = excluded.invariants_json,
-			code_smells_json     = excluded.code_smells_json
-	`, r.ID, r.Task, r.Timestamp, r.GitSHA,
-		string(filesJSON), string(ffJSON), string(invJSON), string(csJSON), r.CreatedAt)
-	if err != nil {
-		return fmt.Errorf("InsertPreflightAudit: %w", err)
+	g.preflightMu.Lock()
+	// Upsert: replace if same ID.
+	replaced := false
+	for i, existing := range g.preflights {
+		if existing.ID == r.ID {
+			cp := r
+			g.preflights[i] = &cp
+			replaced = true
+			break
+		}
 	}
-	return nil
+	if !replaced {
+		cp := r
+		g.preflights = append(g.preflights, &cp)
+	}
+	g.preflightMu.Unlock()
+
+	return g.writeJSON("preflight_audits", r.ID, &r)
 }
 
-// QueryPreflightAudits returns audit records, optionally filtered by since (unix
-// timestamp lower bound, 0 = no bound) and gitSHA (empty = no filter).
-// Results are ordered by timestamp descending.
+// QueryPreflightAudits returns audit records filtered by since (unix timestamp,
+// 0 = no bound) and gitSHA (empty = no filter), ordered by timestamp descending.
 func (g *Graph) QueryPreflightAudits(ctx context.Context, since int64, gitSHA string) ([]*PreflightAuditRecord, error) {
-	query := `
-		SELECT id, task, timestamp, git_sha, files_json, forbidden_fixes_json, invariants_json, code_smells_json, created_at
-		FROM preflight_audits
-		WHERE timestamp >= ?`
-	args := []interface{}{since}
-
-	if gitSHA != "" {
-		query += ` AND git_sha = ?`
-		args = append(args, gitSHA)
-	}
-	query += ` ORDER BY timestamp DESC`
-
-	rows, err := g.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("QueryPreflightAudits: %w", err)
-	}
-	defer rows.Close()
-
+	g.preflightMu.RLock()
 	var out []*PreflightAuditRecord
-	for rows.Next() {
-		var r PreflightAuditRecord
-		var filesJSON, ffJSON, invJSON, csJSON string
-		if err := rows.Scan(&r.ID, &r.Task, &r.Timestamp, &r.GitSHA,
-			&filesJSON, &ffJSON, &invJSON, &csJSON, &r.CreatedAt); err != nil {
-			return nil, err
+	for _, r := range g.preflights {
+		if r.Timestamp < since {
+			continue
 		}
-		_ = json.Unmarshal([]byte(filesJSON), &r.Files)
-		_ = json.Unmarshal([]byte(ffJSON), &r.ForbiddenFixes)
-		_ = json.Unmarshal([]byte(invJSON), &r.Invariants)
-		_ = json.Unmarshal([]byte(csJSON), &r.CodeSmells)
-		out = append(out, &r)
+		if gitSHA != "" && r.GitSHA != gitSHA {
+			continue
+		}
+		cp := *r
+		out = append(out, &cp)
 	}
-	return out, rows.Err()
+	g.preflightMu.RUnlock()
+	sort.Slice(out, func(i, j int) bool { return out[i].Timestamp > out[j].Timestamp })
+	return out, nil
 }
 
 // AgentUsageEvent is a single recorded preflight/agent-context call.
 type AgentUsageEvent struct {
-	ID                string
-	EventTime         int64
-	Agent             string
-	SessionIDHash     string
-	Repo              string
-	Tool              string
-	Operation         string // "called" | "skipped" | "failed"
-	ResultStatus      string
-	Confidence        string
-	TaskType          string
-	ChangedFilesCount int
+	ID                string `json:"id"`
+	EventTime         int64  `json:"event_time,omitempty"`
+	Agent             string `json:"agent,omitempty"`
+	SessionIDHash     string `json:"session_id_hash,omitempty"`
+	Repo              string `json:"repo,omitempty"`
+	Tool              string `json:"tool,omitempty"`
+	Operation         string `json:"operation,omitempty"`
+	ResultStatus      string `json:"result_status,omitempty"`
+	Confidence        string `json:"confidence,omitempty"`
+	TaskType          string `json:"task_type,omitempty"`
+	ChangedFilesCount int    `json:"changed_files_count,omitempty"`
 }
 
 // RecordAgentUsage inserts a usage event. Raw prompts are never stored.
 func (g *Graph) RecordAgentUsage(ctx context.Context, e AgentUsageEvent) error {
+	if g.readOnly {
+		return fmt.Errorf("RecordAgentUsage: graph is read-only")
+	}
 	if e.ID == "" {
 		return errors.New("RecordAgentUsage: id required")
 	}
 	if e.EventTime == 0 {
 		e.EventTime = time.Now().Unix()
 	}
-	_, err := g.db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO agent_usage_events
-		(id, event_time, agent, session_id_hash, repo, tool, operation, result_status, confidence, task_type, changed_files_count)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, e.ID, e.EventTime, e.Agent, e.SessionIDHash, e.Repo, e.Tool, e.Operation,
-		e.ResultStatus, e.Confidence, e.TaskType, e.ChangedFilesCount)
-	if err != nil {
-		return fmt.Errorf("RecordAgentUsage: %w", err)
+
+	g.usageMu.Lock()
+	if _, exists := g.usageEvents[e.ID]; !exists {
+		cp := e
+		g.usageEvents[e.ID] = &cp
 	}
+	// INSERT OR IGNORE semantics: no-op if ID already exists.
+	g.usageMu.Unlock()
 	return nil
 }
 
 // AgentUsageSummary holds aggregate usage stats over a time window.
 type AgentUsageSummary struct {
-	WindowDays                       int     `json:"window_days"`
-	SessionsTotal                    int     `json:"sessions_total"`
-	PreflightCalls                   int     `json:"preflight_calls"`
-	AgentContextCalls                int     `json:"agent_context_calls"`
-	ScanViolationsCalls              int     `json:"scan_violations_calls"`
-	PreEditContextCalls              int     `json:"pre_edit_context_calls"`
-	CommitsWithoutIntegrityCheck     int     `json:"commits_without_integrity_check"`
-	PreflightSkipRatePct             float64 `json:"preflight_skip_rate_pct"`
-	Status                           string  `json:"status"`
-	RecommendedAction                string  `json:"recommended_action,omitempty"`
+	WindowDays                   int     `json:"window_days"`
+	SessionsTotal                int     `json:"sessions_total"`
+	PreflightCalls               int     `json:"preflight_calls"`
+	AgentContextCalls            int     `json:"agent_context_calls"`
+	ScanViolationsCalls          int     `json:"scan_violations_calls"`
+	PreEditContextCalls          int     `json:"pre_edit_context_calls"`
+	CommitsWithoutIntegrityCheck int     `json:"commits_without_integrity_check"`
+	PreflightSkipRatePct         float64 `json:"preflight_skip_rate_pct"`
+	Status                       string  `json:"status"`
+	RecommendedAction            string  `json:"recommended_action,omitempty"`
 }
 
-// QueryAgentUsageSummary returns aggregate usage stats for a rolling window of
-// windowDays days. Sessions are counted by distinct non-empty session_id_hash
-// values. Skip rate = 1 - (preflight_calls / sessions).
+// QueryAgentUsageSummary returns aggregate usage stats for a rolling window.
 func (g *Graph) QueryAgentUsageSummary(ctx context.Context, windowDays int) (*AgentUsageSummary, error) {
 	since := time.Now().AddDate(0, 0, -windowDays).Unix()
 
+	g.usageMu.RLock()
 	s := &AgentUsageSummary{WindowDays: windowDays}
-
-	// Sessions = distinct session_id_hash values.
-	row := g.db.QueryRowContext(ctx,
-		`SELECT COUNT(DISTINCT session_id_hash) FROM agent_usage_events WHERE event_time >= ? AND session_id_hash != ''`, since)
-	_ = row.Scan(&s.SessionsTotal)
-
-	countTool := func(tool string) int {
-		var n int
-		r := g.db.QueryRowContext(ctx,
-			`SELECT COUNT(*) FROM agent_usage_events WHERE event_time >= ? AND tool = ? AND operation = 'called'`, since, tool)
-		_ = r.Scan(&n)
-		return n
+	sessions := map[string]bool{}
+	for _, e := range g.usageEvents {
+		if e.EventTime < since {
+			continue
+		}
+		if e.SessionIDHash != "" {
+			sessions[e.SessionIDHash] = true
+		}
+		if e.Operation == "called" {
+			switch e.Tool {
+			case "awareness.preflight":
+				s.PreflightCalls++
+			case "awareness.agent_context":
+				s.AgentContextCalls++
+			case "awareness.scan_violations":
+				s.ScanViolationsCalls++
+			case "awareness.pre_edit_context":
+				s.PreEditContextCalls++
+			}
+		}
+		if e.Tool == "commit.graph_integrity" && e.Operation == "skipped" {
+			s.CommitsWithoutIntegrityCheck++
+		}
 	}
+	g.usageMu.RUnlock()
 
-	s.PreflightCalls = countTool("awareness.preflight")
-	s.AgentContextCalls = countTool("awareness.agent_context")
-	s.ScanViolationsCalls = countTool("awareness.scan_violations")
-	s.PreEditContextCalls = countTool("awareness.pre_edit_context")
-
-	// Commits without integrity check = events with tool "commit.graph_integrity" and operation "skipped".
-	var commitSkips int
-	r := g.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM agent_usage_events WHERE event_time >= ? AND tool = 'commit.graph_integrity' AND operation = 'skipped'`, since)
-	_ = r.Scan(&commitSkips)
-	s.CommitsWithoutIntegrityCheck = commitSkips
-
+	s.SessionsTotal = len(sessions)
 	if s.SessionsTotal > 0 {
 		s.PreflightSkipRatePct = (1 - float64(s.PreflightCalls)/float64(s.SessionsTotal)) * 100
 		if s.PreflightSkipRatePct < 0 {
@@ -1265,4 +1105,30 @@ func (g *Graph) QueryAgentUsageSummary(ctx context.Context, windowDays int) (*Ag
 	}
 
 	return s, nil
+}
+
+// placeholders returns n comma-separated "?" — kept for compatibility with
+// any callers that might reference this helper.
+func placeholders(n int) string {
+	if n == 0 {
+		return ""
+	}
+	b := make([]byte, n*2-1)
+	for i := range b {
+		if i%2 == 0 {
+			b[i] = '?'
+		} else {
+			b[i] = ','
+		}
+	}
+	return string(b)
+}
+
+// stringsToInterfaces converts []string to []interface{} — kept for compat.
+func stringsToInterfaces(ss []string) []interface{} {
+	out := make([]interface{}, len(ss))
+	for i, s := range ss {
+		out[i] = s
+	}
+	return out
 }
