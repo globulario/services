@@ -1487,6 +1487,11 @@ failure_modes:
         - Retry the snapshot read and fire the finding even on the first clean collection
       related_invariants:
         - objectstore.partial_snapshot_unknown_not_down
+        - evidence.missing_is_not_known_bad
+        - state.unknown_must_not_default_to_healthy
+      related_industry_patterns:
+        - fm.industry.missing_inventory_misclassified_as_down
+        - fm.industry.partial_failure_hidden_by_global_green
       related_services:
         - cluster-doctor
         - cluster-controller
@@ -1554,6 +1559,9 @@ failure_modes:
       related_invariants:
         - ops.vip_requires_observed_owner
         - network.no_loopback_escape_for_cluster_identity
+        - identity.stable_node_identity_not_floating_vip
+      related_industry_patterns:
+        - fm.industry.floating_address_used_as_durable_identity
       related_services:
         - cluster-controller
         - cluster-doctor
