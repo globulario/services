@@ -103,7 +103,6 @@ func TestToolsListIncludesAwarenessWhenEnabled(t *testing.T) {
 	st := &awarenessState{docsDir: t.TempDir()}
 	registerAwarenessPreflightTools(s, st)
 	registerAwarenessRuntimeTools(s, st)
-	registerAwarenessFixledgerTools(s, st)
 	registerAwarenessPackageTools(s, st)
 	registerAwarenessLearningTools(s, st)
 	registerAwarenessNodeContextTools(s, st)
@@ -117,9 +116,6 @@ func TestToolsListIncludesAwarenessWhenEnabled(t *testing.T) {
 		"awareness.preflight",
 		"awareness.agent_context",
 		"awareness.impact_file",
-		"awareness.did_we_fix",
-		"awareness.pattern_status",
-		"awareness.fix_status",
 		"awareness.runtime_snapshot",
 		"awareness.validate_package",
 		"awareness.package_context",

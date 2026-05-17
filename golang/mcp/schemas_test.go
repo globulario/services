@@ -26,8 +26,6 @@ func TestRequiredToolsHaveRequiredFields(t *testing.T) {
 		"awareness.preflight":             {"task"},
 		"awareness.agent_context":         {"task"},
 		"awareness.impact_file":           {"file"},
-		"awareness.did_we_fix":            {"task"},
-		"awareness.pattern_status":        {"pattern"},
 		"awareness.validate_package":      {"path"},
 		"awareness.package_context":       {"path"},
 		"awareness.propose_from_incident": {"incident_id"},

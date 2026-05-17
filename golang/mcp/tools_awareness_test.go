@@ -26,7 +26,6 @@ func newAwarenessTestServer(t *testing.T) (*server, *awarenessState) {
 
 	registerAwarenessPreflightTools(s, st)
 	registerAwarenessRuntimeTools(s, st)
-	registerAwarenessFixledgerTools(s, st)
 	registerAwarenessPackageTools(s, st)
 	registerAwarenessLearningTools(s, st)
 
@@ -44,7 +43,6 @@ func newAwarenessDegradedServer(t *testing.T) (*server, *awarenessState) {
 
 	registerAwarenessPreflightTools(s, st)
 	registerAwarenessRuntimeTools(s, st)
-	registerAwarenessFixledgerTools(s, st)
 	registerAwarenessPackageTools(s, st)
 	registerAwarenessLearningTools(s, st)
 	return s, st
@@ -155,9 +153,6 @@ func TestAwarenessToolsRegisterAll12(t *testing.T) {
 		"awareness.preflight",
 		"awareness.agent_context",
 		"awareness.impact_file",
-		"awareness.did_we_fix",
-		"awareness.pattern_status",
-		"awareness.fix_status",
 		"awareness.runtime_snapshot",
 		"awareness.validate_package",
 		"awareness.package_context",
@@ -190,7 +185,6 @@ func TestToolGroupsAwareness_TrueIncludesTools(t *testing.T) {
 	st := &awarenessState{docsDir: t.TempDir()}
 	registerAwarenessPreflightTools(s, st)
 	registerAwarenessRuntimeTools(s, st)
-	registerAwarenessFixledgerTools(s, st)
 	registerAwarenessPackageTools(s, st)
 	registerAwarenessLearningTools(s, st)
 
@@ -328,9 +322,6 @@ func TestAwarenessAllToolOutputsAreJSONSerializable(t *testing.T) {
 		{"awareness.preflight", map[string]interface{}{"task": "test task"}},
 		{"awareness.agent_context", map[string]interface{}{"task": "test task"}},
 		{"awareness.impact_file", map[string]interface{}{"file": "golang/foo.go"}},
-		{"awareness.did_we_fix", map[string]interface{}{"task": "desired_hash fix"}},
-		{"awareness.pattern_status", map[string]interface{}{"pattern": "desired"}},
-		{"awareness.fix_status", map[string]interface{}{"pattern": "desired"}},
 		{"awareness.runtime_snapshot", map[string]interface{}{}},
 		{"awareness.validate_package", map[string]interface{}{"path": "/nonexistent"}},
 	}
@@ -344,28 +335,6 @@ func TestAwarenessAllToolOutputsAreJSONSerializable(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestAwarenessDidWeFix_ReturnsFixLedgerResult(t *testing.T) {
-	s, _ := newAwarenessTestServer(t)
-
-	result, err := s.callTool(context.Background(), "awareness.did_we_fix", map[string]interface{}{
-		"task": "desired_hash drift",
-	})
-	if err != nil {
-		t.Fatalf("did_we_fix: %v", err)
-	}
-
-	m, ok := result.(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected map, got %T", result)
-	}
-
-	for _, key := range []string{"status", "fix_cases", "remaining_gaps", "next_action"} {
-		if _, ok := m[key]; !ok {
-			t.Errorf("did_we_fix missing key %q", key)
-		}
 	}
 }
 

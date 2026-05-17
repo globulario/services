@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/globulario/services/golang/awareness/graph"
 )
@@ -93,6 +94,12 @@ func registerAwarenessTools(s *server) {
 		}
 		if err == nil {
 			st.g = g
+			// Best-effort background cleanup of records older than 30 days.
+			go func() {
+				if cleanErr := g.Cleanup(30 * 24 * time.Hour); cleanErr != nil {
+					log.Printf("mcp: awareness graph cleanup: %v", cleanErr)
+				}
+			}()
 		} else {
 			log.Printf("mcp: awareness graph unavailable (%s): %v — degraded mode", dbPath, err)
 		}
@@ -100,7 +107,6 @@ func registerAwarenessTools(s *server) {
 
 	registerAwarenessPreflightTools(s, st)
 	registerAwarenessRuntimeTools(s, st)
-	registerAwarenessFixledgerTools(s, st)
 	registerAwarenessPackageTools(s, st)
 	registerAwarenessLearningTools(s, st)
 	registerAwarenessNodeContextTools(s, st)
@@ -127,7 +133,6 @@ func registerAwarenessTools(s *server) {
 	registerProposalDrainTools(s, st)
 	registerAwarenessDecisionTools(s, st)
 	registerAwarenessInvariantTools(s, st)
-	registerAwarenessAgentUsageTools(s, st)
 	registerAwarenessFreshnessTools(s, st)
 	registerAwarenessIncidentPatternTools(s, st)
 	registerAwarenessSessionOracleTools(s, st)
@@ -230,15 +235,4 @@ func boolArg(args map[string]interface{}, key string) bool {
 		}
 	}
 	return false
-}
-
-// awarOrEmpty filters empty strings from a slice, returning a non-nil slice.
-func awarOrEmpty(in []string) []string {
-	out := make([]string, 0, len(in))
-	for _, s := range in {
-		if s != "" {
-			out = append(out, s)
-		}
-	}
-	return out
 }

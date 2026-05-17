@@ -36,7 +36,6 @@ func newMCPWithGraph(t *testing.T, docsDir string, g *graph.Graph) *server {
 	st := &awarenessState{g: g, docsDir: docsDir, repoRoot: repoRoot}
 	registerAwarenessPreflightTools(s, st)
 	registerAwarenessRuntimeTools(s, st)
-	registerAwarenessFixledgerTools(s, st)
 	registerAwarenessPackageTools(s, st)
 	registerAwarenessLearningTools(s, st)
 	registerAwarenessNodeContextTools(s, st)

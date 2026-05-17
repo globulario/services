@@ -768,3 +768,63 @@ func unmarshalMeta(s string) map[string]any {
 	_ = json.Unmarshal([]byte(s), &m)
 	return m
 }
+
+// Cleanup removes JSON files older than maxAge from the runtime subdirectories:
+// sessions/, snapshots/, cluster_snapshots/, failure_graph/, incident_patterns/,
+// incident_acks/, and experience/. It reads created_at (or collected_at) from
+// each file and removes it if the age exceeds maxAge. Errors on individual files
+// are logged but do not stop the walk; the first directory-level error is returned.
+// No-op when the graph has no dataDir (in-memory mode).
+func (g *Graph) Cleanup(maxAge time.Duration) error {
+	if g.dataDir == "" {
+		return nil
+	}
+	cutoff := time.Now().Add(-maxAge).Unix()
+	subdirs := []string{
+		"sessions", "snapshots", "cluster_snapshots",
+		"failure_graph", "incident_patterns", "incident_acks", "experience",
+	}
+	var firstErr error
+	for _, sub := range subdirs {
+		dir := filepath.Join(g.dataDir, sub)
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+				continue
+			}
+			fpath := filepath.Join(dir, e.Name())
+			data, err := os.ReadFile(fpath)
+			if err != nil {
+				continue
+			}
+			// Try to extract created_at or collected_at timestamp.
+			var rec struct {
+				CreatedAt   int64 `json:"created_at"`
+				CollectedAt int64 `json:"collected_at"`
+			}
+			if err := json.Unmarshal(data, &rec); err != nil {
+				continue
+			}
+			ts := rec.CreatedAt
+			if ts == 0 {
+				ts = rec.CollectedAt
+			}
+			if ts == 0 {
+				continue // no timestamp — skip
+			}
+			if ts < cutoff {
+				_ = os.Remove(fpath)
+			}
+		}
+	}
+	return firstErr
+}

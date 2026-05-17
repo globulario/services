@@ -2,12 +2,25 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/globulario/services/golang/awareness/assurance"
 	"github.com/globulario/services/golang/awareness/graph"
 	"github.com/globulario/services/golang/awareness/incidentpattern"
 )
+
+// openAgentUsageGraph opens a fresh writable graph in a temp directory.
+// Used by trust and agent usage tests that need a real graph instance.
+func openAgentUsageGraph(t *testing.T) *graph.Graph {
+	t.Helper()
+	g, err := graph.Open(filepath.Join(t.TempDir(), "graph.db"))
+	if err != nil {
+		t.Fatalf("graph.Open: %v", err)
+	}
+	t.Cleanup(func() { g.Close() })
+	return g
+}
 
 // TestAwarenessTrustMap_NoMatchIsNeverTrusted is the load-bearing guard:
 // awarenessTrustMap(_, false) must produce verdict = unknown for every

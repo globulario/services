@@ -526,49 +526,6 @@ func (g *Graph) FindIncident(ctx context.Context, id string) (*IncidentRecord, e
 	return &cp, nil
 }
 
-// AllIncidents returns all incident records ordered by created_at descending.
-func (g *Graph) AllIncidents(ctx context.Context) ([]*IncidentRecord, error) {
-	g.incidentMu.RLock()
-	out := make([]*IncidentRecord, 0, len(g.incidents))
-	for _, inc := range g.incidents {
-		cp := *inc
-		out = append(out, &cp)
-	}
-	g.incidentMu.RUnlock()
-	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt > out[j].CreatedAt })
-	return out, nil
-}
-
-// UpsertProposal inserts or updates a proposal record.
-func (g *Graph) UpsertProposal(ctx context.Context, p ProposalRecord) error {
-	if g.readOnly {
-		return fmt.Errorf("UpsertProposal %s: graph is read-only", p.ID)
-	}
-	now := time.Now().Unix()
-	if p.CreatedAt == 0 {
-		p.CreatedAt = now
-	}
-
-	g.proposalMu.Lock()
-	cp := p
-	g.proposals[p.ID] = &cp
-	g.proposalMu.Unlock()
-
-	return g.writeJSON("proposals", p.ID, &p)
-}
-
-// FindProposal returns a proposal by ID, or (nil, nil) if not found.
-func (g *Graph) FindProposal(ctx context.Context, id string) (*ProposalRecord, error) {
-	g.proposalMu.RLock()
-	rec := g.proposals[id]
-	g.proposalMu.RUnlock()
-	if rec == nil {
-		return nil, nil
-	}
-	cp := *rec
-	return &cp, nil
-}
-
 // AllProposals returns all proposal records ordered by created_at descending.
 func (g *Graph) AllProposals(ctx context.Context) ([]*ProposalRecord, error) {
 	g.proposalMu.RLock()
@@ -601,44 +558,6 @@ func (g *Graph) UpdateProposalStatus(ctx context.Context, id, status string) err
 		return g.writeJSON("proposals", id, p)
 	}
 	return nil
-}
-
-// UpsertContextAlias inserts or replaces a context alias entry.
-func (g *Graph) UpsertContextAlias(ctx context.Context, a ContextAliasRecord) error {
-	if g.readOnly || g.staticReadOnly {
-		return fmt.Errorf("UpsertContextAlias %s: graph is read-only", a.ID)
-	}
-	now := time.Now().Unix()
-	if a.CreatedAt == 0 {
-		a.CreatedAt = now
-	}
-	if a.Confidence == 0 {
-		a.Confidence = 1.0
-	}
-
-	g.mu.Lock()
-	cp := a
-	g.aliases[a.ID] = &cp
-	g.mu.Unlock()
-	return nil
-}
-
-// AllContextAliases returns all context alias records.
-func (g *Graph) AllContextAliases(ctx context.Context) ([]*ContextAliasRecord, error) {
-	g.mu.RLock()
-	out := make([]*ContextAliasRecord, 0, len(g.aliases))
-	for _, a := range g.aliases {
-		cp := *a
-		out = append(out, &cp)
-	}
-	g.mu.RUnlock()
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].TargetID != out[j].TargetID {
-			return out[i].TargetID < out[j].TargetID
-		}
-		return out[i].Alias < out[j].Alias
-	})
-	return out, nil
 }
 
 // FindInvariant returns an invariant record by ID, or (nil, nil) if not found.
