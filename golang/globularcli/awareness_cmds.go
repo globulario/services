@@ -38,6 +38,8 @@ import (
 	"github.com/globulario/services/golang/awareness/extractors/pki"
 	"github.com/globulario/services/golang/awareness/extractors/proto"
 	"github.com/globulario/services/golang/awareness/extractors/rbac"
+	"github.com/globulario/services/golang/awareness/extractors/javascript"
+	"github.com/globulario/services/golang/awareness/extractors/typescript"
 	"github.com/globulario/services/golang/awareness/extractors/scripts"
 	"github.com/globulario/services/golang/awareness/extractors/tests"
 	"github.com/globulario/services/golang/awareness/extractors/workflows"
@@ -146,6 +148,18 @@ var awarenessBuildCmd = &cobra.Command{
 		protoDir := filepath.Join(repoRoot, "proto")
 		if err := proto.Extract(ctx, g, protoDir, repoRoot); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: proto extractor: %v\n", err)
+		}
+
+		// TypeScript extractor — walks from repo root to cover src/, packages/, etc.
+		fmt.Fprintf(os.Stdout, "Extracting TypeScript source ...\n")
+		if err := typescript.Extract(ctx, g, repoRoot, repoRoot); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: TypeScript extractor: %v\n", err)
+		}
+
+		// JavaScript extractor — same walk, ES2025 module syntax.
+		fmt.Fprintf(os.Stdout, "Extracting JavaScript source ...\n")
+		if err := javascript.Extract(ctx, g, repoRoot, repoRoot); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: JavaScript extractor: %v\n", err)
 		}
 
 		// Workflow extractor.
