@@ -1143,9 +1143,8 @@ func (srv *server) GetRun(_ context.Context, req *workflowpb.GetRunRequest) (*wo
 }
 
 func (srv *server) ListRuns(_ context.Context, req *workflowpb.ListRunsRequest) (*workflowpb.ListRunsResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
-		return nil, err
-	}
+	// No requireHealthy — list helpers handle nil session by returning empty slices.
+	// When ScyllaDB is degraded we return an empty list rather than a 503.
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 50
@@ -1579,7 +1578,7 @@ func (srv *server) ListWorkflowDefinitions(_ context.Context, _ *workflowpb.List
 	// Primary source: etcd /globular/workflows/<name>
 	cli, err := config.GetEtcdClient()
 	if err == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		resp, etcdErr := cli.Get(ctx, v1alpha1.EtcdWorkflowPrefix, clientv3.WithPrefix())
 		cancel()
 		if etcdErr == nil {
@@ -1636,7 +1635,7 @@ func (srv *server) GetWorkflowDefinition(_ context.Context, req *workflowpb.GetW
 
 	// Primary source: etcd
 	if cli, err := config.GetEtcdClient(); err == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		resp, etcdErr := cli.Get(ctx, v1alpha1.EtcdWorkflowPrefix+req.Name)
 		cancel()
 		if etcdErr == nil && len(resp.Kvs) > 0 {
