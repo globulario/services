@@ -9,7 +9,12 @@ import (
 	"github.com/globulario/services/golang/config"
 )
 
-const etcdWorkflowPrefix = "/globular/workflows/"
+// EtcdWorkflowPrefix is the etcd key prefix under which all workflow YAML
+// definitions are stored. Exported so the workflow server can list them.
+const EtcdWorkflowPrefix = "/globular/workflows/"
+
+// keep unexported alias for internal use within this file
+const etcdWorkflowPrefix = EtcdWorkflowPrefix
 
 // EnableEtcdFetcher configures the package-level EtcdFetcher to read workflow
 // definitions from etcd. Core workflows live in etcd so they're available even
