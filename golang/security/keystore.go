@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/globulario/services/golang/config"
 	Utility "github.com/globulario/utility"
@@ -32,6 +33,28 @@ func init() {
 	if GetPeerPublicKey == nil {
 		GetPeerPublicKey = fileKeystoreGetPeerPublicKey
 	}
+}
+
+// ---------- Issuer signing-key cache ----------
+// Prevents redundant filesystem scans and key rotation when the private-key
+// file exists but the directory is very large (causing slow or fragile scans).
+
+type cachedSigningKey struct {
+	priv ed25519.PrivateKey
+	kid  string
+}
+
+var (
+	signingKeyCache   = make(map[string]cachedSigningKey)
+	signingKeyCacheMu sync.RWMutex
+)
+
+// invalidateSigningKeyCache removes the cached key for issuer, forcing a fresh
+// load from disk on the next call. Intended for testing and key rotation.
+func invalidateSigningKeyCache(issuer string) {
+	signingKeyCacheMu.Lock()
+	delete(signingKeyCache, issuer)
+	signingKeyCacheMu.Unlock()
 }
 
 // ---------- File keystore helpers ----------
@@ -175,11 +198,40 @@ func findExistingPrivate(issuer string) (ed25519.PrivateKey, string, error) {
 // and a stable KID derived from the public key. Keys are stored under:
 //
 //	<configDir>/keys/<normalized_issuer>[_<kid>]_private|public
+//
+// The result is cached in memory after the first successful load to avoid
+// redundant directory scans (large key directories) and unintended key rotation.
 func fileKeystoreGetIssuerSigningKey(issuer string) (ed25519.PrivateKey, string, error) {
 	if issuer == "" {
 		return nil, "", errors.New("issuer is empty")
 	}
 
+	// Fast path: return cached key without touching the filesystem.
+	signingKeyCacheMu.RLock()
+	if entry, ok := signingKeyCache[issuer]; ok {
+		signingKeyCacheMu.RUnlock()
+		return entry.priv, entry.kid, nil
+	}
+	signingKeyCacheMu.RUnlock()
+
+	signingKeyCacheMu.Lock()
+	defer signingKeyCacheMu.Unlock()
+
+	// Re-check under write lock to avoid a race.
+	if entry, ok := signingKeyCache[issuer]; ok {
+		return entry.priv, entry.kid, nil
+	}
+
+	priv, kid, err := loadOrGenerateSigningKey(issuer)
+	if err != nil {
+		return nil, "", err
+	}
+	signingKeyCache[issuer] = cachedSigningKey{priv: priv, kid: kid}
+	return priv, kid, nil
+}
+
+// loadOrGenerateSigningKey performs the actual disk / generate logic for fileKeystoreGetIssuerSigningKey.
+func loadOrGenerateSigningKey(issuer string) (ed25519.PrivateKey, string, error) {
 	// 1) Try existing key (legacy or rotated)
 	if priv, kid, err := findExistingPrivate(issuer); err == nil {
 		pub := priv.Public().(ed25519.PublicKey)
@@ -229,11 +281,18 @@ func fileKeystoreGetPeerPublicKey(issuer, kid string) (ed25519.PublicKey, error)
 	// Prefer kid-aware path if provided
 	if kid != "" {
 		if pub, err := readEd25519Public(publicKeyPath(issuer, kid)); err == nil {
-			return pub, nil
+			// Verify the cached key actually belongs to this KID (prevents stale-cache signature failures).
+			if kidFromPub(pub) == kid {
+				return pub, nil
+			}
+			// Cached key fingerprint doesn't match — fall through to etcd.
 		}
 		if enc, err := fetchPeerPublicKeyFromCluster(issuer, kid); err == nil {
 			if pub, parseErr := parseEd25519PublicPEM(enc); parseErr == nil {
-				_ = writeEd25519Public(publicKeyPath(issuer, kid), pub)
+				// Only cache under the KID-specific path when the fingerprint matches.
+				if kidFromPub(pub) == kid {
+					_ = writeEd25519Public(publicKeyPath(issuer, kid), pub)
+				}
 				_ = writeEd25519Public(publicKeyPath(issuer, ""), pub)
 				return pub, nil
 			}

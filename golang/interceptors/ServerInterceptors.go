@@ -1427,9 +1427,10 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	}
 
 	// Security Fix #9: Cluster ID enforcement for streaming RPCs
-	// Skip for bootstrap, mTLS, loopback (inter-service), and public methods.
+	// Skip for bootstrap, mTLS, JWT (token signed by cluster-local key proves membership),
+	// loopback (inter-service on same host), and public methods.
 	streamInitialized := false
-	if authCtx != nil && !authCtx.IsBootstrap && authCtx.AuthMethod != "mtls" && !authCtx.IsLoopback && !isUnauthenticated(method) {
+	if authCtx != nil && !authCtx.IsBootstrap && authCtx.AuthMethod != "mtls" && authCtx.AuthMethod != "jwt" && !authCtx.IsLoopback && !isUnauthenticated(method) {
 		// Check if cluster is initialized (has local cluster ID)
 		if localClusterID, err := security.GetLocalClusterID(); err == nil && localClusterID != "" {
 			streamInitialized = true
