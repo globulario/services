@@ -3,6 +3,8 @@ package monitoring_store
 import (
 	"context"
 	"log/slog"
+	"net"
+	"net/http"
 	"time"
 
 	Utility "github.com/globulario/utility"
@@ -18,8 +20,17 @@ type PrometheusStore struct {
 // NewPrometheusStore creates a new Prometheus-backed Store using the given HTTP endpoint.
 // The address should include a scheme (e.g., "http://host:9090").
 func NewPrometheusStore(address string) (Store, error) {
+	rt := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ResponseHeaderTimeout: 10 * time.Second,
+		IdleConnTimeout:       60 * time.Second,
+	}
 	client, err := api.NewClient(api.Config{
-		Address: address,
+		Address:      address,
+		RoundTripper: rt,
 	})
 	if err != nil {
 		slog.Error("prometheus: failed to create API client", "address", address, "err", err)
