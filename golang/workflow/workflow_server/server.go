@@ -1572,10 +1572,7 @@ func (srv *server) DiagnoseRun(_ context.Context, req *workflowpb.DiagnoseRunReq
 // in etcd under /globular/workflows/. Falls back to MinIO for any definitions
 // not present in etcd (service-owned workflows such as compute jobs).
 func (srv *server) ListWorkflowDefinitions(_ context.Context, _ *workflowpb.ListWorkflowDefinitionsRequest) (*workflowpb.ListWorkflowDefinitionsResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
-		return nil, err
-	}
-
+	// No requireHealthy check — definitions come from etcd which is always reachable.
 	seen := make(map[string]bool)
 	var defs []*workflowpb.WorkflowDefinitionSummary
 
@@ -1632,9 +1629,7 @@ func (srv *server) ListWorkflowDefinitions(_ context.Context, _ *workflowpb.List
 // GetWorkflowDefinition returns the raw YAML content for a workflow definition.
 // Checks etcd first, then falls back to MinIO.
 func (srv *server) GetWorkflowDefinition(_ context.Context, req *workflowpb.GetWorkflowDefinitionRequest) (*workflowpb.GetWorkflowDefinitionResponse, error) {
-	if err := srv.requireHealthy(); err != nil {
-		return nil, err
-	}
+	// No requireHealthy check — definitions come from etcd which is always reachable.
 	if req.Name == "" {
 		return nil, fmt.Errorf("workflow name is required")
 	}
