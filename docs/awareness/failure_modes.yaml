@@ -1575,3 +1575,79 @@ failure_modes:
         # Existing regression tests already covering this:
         - TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
         - TestNodeIDByPoolIP_EmptyAdvertiseIpDoesNotPoison
+
+    - id: controller.non_leader_heartbeat_false_positive
+      title: Non-leader controller heartbeat appears stale — false CRITICAL from prometheus.controller_stalled
+      severity: critical
+      symptoms:
+        - prometheus.controller_stalled fires CRITICAL with age_seconds ~3+ hours
+        - controller logs show hard_unmet=[not_leader] continuously
+        - globular_controller_loop_heartbeat_unix is stale on the local controller instance
+        - etcd /globular/controller/reconcile/lanes/cluster_reconcile shows phase:OK, recently updated
+        - globular_controller_reconcile_dropped_not_leader_total > 0 on the scraped instance
+        - No globular_controller_is_leader metric exists in Prometheus
+      root_cause: |
+        Prometheus scrapes only the local controller instance. Non-leader controller instances
+        never update globular_controller_loop_heartbeat_unix — the heartbeat loop is gated on
+        holding the etcd leader lease. The ClusterDoctor prometheus_runtime.go rule computed
+        age = time() - max(globular_controller_loop_heartbeat_unix) without verifying whether
+        the scraped instance is the leader. The actual leader (on a different node) is healthy,
+        evidenced by etcd reconcile lanes being updated seconds ago.
+      architecture_fix: |
+        Fixed in prometheus_runtime.go: suppress prometheus.controller_stalled when
+        reconcile_dropped_not_leader_total > 0, confirming the scraped instance is a follower.
+        Longer-term: add globular_controller_is_leader gauge (1=leader, 0=follower) to the
+        controller binary, and gate the heartbeat age check on that metric so the rule is
+        self-documenting and survives multi-instance Prometheus scraping.
+        Authoritative source for leader health: etcd /globular/controller/reconcile/lanes/
+        updated_at_unix, which is written by whichever node is actually running as leader.
+      known_bad_fixes:
+        - Restarting globular-cluster-controller.service based on heartbeat metric alone
+        - Forcing leader re-election when reconcile lanes show phase:OK
+        - Treating heartbeat_unix=stale as controller down without checking etcd lane timestamps
+      related_invariants:
+        - prometheus.controller_stalled.non_leader_guard
+        - controller.lease_expired_due_to_etcd_instability
+      required_tests:
+        - TestControllerStall_NonLeaderHeartbeatIsNotCritical
+        - TestControllerStall_LeaderHeartbeatStaleIsCritical
+        - TestControllerStall_NoDropMetric_StillFires
+
+    - id: objectstore.admitted_disk_data_conflict
+      title: MinIO admitted disk paths contain pre-existing non-MinIO data — topology wipe would cause data loss
+      severity: critical
+      symptoms:
+        - ClusterDoctor fires CRITICAL objectstore.minio.existing_data_guard
+        - risky_paths lists admitted nodes with /mnt/data or similar paths
+        - ls /mnt/data shows non-MinIO content; no .minio.sys directory present
+        - globular objectstore disk list shows paths approved without --force-existing-data
+        - MinIO is not yet running (no minio_cluster_nodes_online_total in Prometheus)
+      root_cause: |
+        Disk paths were admitted to the MinIO pool (globular objectstore disk approve) when
+        the paths already contained data from previous use. The admission did not use the
+        --force-existing-data flag to explicitly acknowledge that existing data may be destroyed
+        by a MinIO topology workflow wipe of .minio.sys. The doctor invariant fires CRITICAL
+        to block any destructive MinIO topology operation until the operator explicitly decides:
+        (a) acknowledge data loss with --force-existing-data, OR
+        (b) reject the path and re-admit with an empty path.
+      architecture_fix: |
+        Operational fix only — no code change required. Per risky node:
+          Option A (acknowledge data loss):
+            globular objectstore disk approve --node <node-id> --path <path> \
+              --node-ip <ip> --force-existing-data
+          Option B (choose a different path):
+            globular objectstore disk reject --node <node-id> --path <current-path>
+            # then re-admit with an empty path
+        Never run MinIO topology wipe workflows while this CRITICAL is active.
+      known_bad_fixes:
+        - Running topology wipe to clear the warning — destroys existing data
+        - Ignoring the CRITICAL and proceeding with MinIO expansion workflows
+        - Deleting .minio.sys to force a clean state without backing up existing data
+        - Deleting the admitted disk entry to silence the finding without operator decision
+      related_invariants:
+        - objectstore.minio.existing_data_guard
+        - objectstore.topology_contract
+      required_tests:
+        - TestObjectstoreAdmit_ExistingData_RequiresForceFlag
+        - TestObjectstoreTopologyWipe_BlockedByDataGuard
+        - TestDoctorFinding_ExistingDataGuard_CriticalWhenNotForceAcknowledged

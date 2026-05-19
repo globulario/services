@@ -733,6 +733,63 @@ invariants:
       related_failure_modes:
         - objectstore.no_desired_state_governance
 
+    - id: objectstore.minio.existing_data_guard
+      title: Admitted MinIO disk paths with pre-existing non-MinIO data must be explicitly force-acknowledged
+      severity: critical
+      status: active
+      summary: |
+        When a disk path is admitted to the MinIO pool (globular objectstore disk approve),
+        the path must be either empty or explicitly acknowledged with --force-existing-data.
+        Pre-existing non-MinIO data at the admitted path would be destroyed by any topology
+        workflow that wipes .minio.sys. The ClusterDoctor invariant prometheus.controller_stalled
+        is enforced by objectstore_admission.go ExistingDataGuard rule.
+        Operator fix: run --force-existing-data to acknowledge, or reject and choose an empty path.
+      protects:
+        state:
+            - /globular/objectstore/admitted_disks
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/rules/objectstore_admission.go
+      forbidden_fixes:
+        - wipe_minio_sys_without_approved_transition
+        - run_topology_wipe_while_data_guard_is_active
+        - silence_data_guard_by_deleting_admitted_disk_entry
+      required_tests:
+        - TestObjectstoreAdmit_ExistingData_RequiresForceFlag
+        - TestObjectstoreTopologyWipe_BlockedByDataGuard
+        - TestDoctorFinding_ExistingDataGuard_CriticalWhenNotForceAcknowledged
+      related_failure_modes:
+        - objectstore.admitted_disk_data_conflict
+
+    - id: prometheus.controller_stalled.non_leader_guard
+      title: Controller reconcile loop stall check must only fire on leader instances, not followers
+      severity: critical
+      status: active
+      summary: |
+        The prometheus.controller_stalled invariant (ClusterDoctor) checks
+        globular_controller_loop_heartbeat_unix age. Non-leader controller instances
+        never update this metric — their stale heartbeat is expected, not a stall.
+        When Prometheus only scrapes the local non-leader controller, the stall check
+        fires as a false-positive CRITICAL. Corrected in prometheus_runtime.go: suppress
+        the finding when reconcile_dropped_not_leader_total > 0 (confirming follower status).
+        For authoritative cluster-level health, cross-reference etcd reconcile lane
+        updated_at_unix at /globular/controller/reconcile/lanes/.
+      protects:
+        state:
+            - /globular/controller/reconcile/lanes/cluster_reconcile
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/rules/prometheus_runtime.go
+            - golang/cluster_doctor/cluster_doctor_server/collector/prometheus.go
+      forbidden_fixes:
+        - restart_controller_based_on_heartbeat_metric_without_checking_etcd_lanes
+        - force_leader_re_election_when_reconcile_lanes_are_healthy
+        - treat_non_leader_stale_heartbeat_as_controller_crash
+      required_tests:
+        - TestControllerStall_NonLeaderHeartbeatIsNotCritical
+        - TestControllerStall_LeaderHeartbeatStaleIsCritical
+        - TestControllerStall_NoDropMetric_StillFires
+      related_failure_modes:
+        - controller.non_leader_heartbeat_false_positive
+
     # ── Self-awareness invariants ────────────────────────────────────────────
     # These protect the awareness system itself from quality regressions.
     # Checked by: globular awareness self-check
