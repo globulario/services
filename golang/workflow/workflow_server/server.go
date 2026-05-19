@@ -18,6 +18,7 @@ import (
 	"crypto/x509"
 
 	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/dephealth"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -109,6 +110,9 @@ type server struct {
 
 	// AI-memory client for incident projection (AL-1).
 	aiMemoryClient    ai_memorypb.AiMemoryServiceClient
+
+	// ClusterDoctor client for finding → incident bridge (INC-DOCTOR).
+	doctorClient cluster_doctorpb.ClusterDoctorServiceClient
 	incidentDedupeMu  sync.RWMutex
 	incidentDedupeMap map[string]time.Time
 
@@ -450,6 +454,23 @@ func (srv *server) Init() error {
 			logger.Info("incident projection: ai-memory connected", "addr", dt.Address)
 		} else {
 			logger.Warn("incident projection: ai-memory unavailable", "err", err)
+		}
+	}
+
+	// INC-DOCTOR: Connect to ClusterDoctorService for finding → incident bridge.
+	// Best-effort — if the doctor is unavailable, doctor_finding incidents are skipped.
+	if drAddr := config.ResolveLocalServiceAddr("cluster_doctor.ClusterDoctorService"); drAddr != "" {
+		dt := config.ResolveDialTarget(drAddr)
+		if drConn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(
+			credentials.NewTLS(&tls.Config{
+				ServerName: dt.ServerName,
+				RootCAs:    srv.loadCAPool(),
+			}),
+		)); err == nil {
+			srv.doctorClient = cluster_doctorpb.NewClusterDoctorServiceClient(drConn)
+			logger.Info("incident scanner: cluster doctor connected", "addr", dt.Address)
+		} else {
+			logger.Warn("incident scanner: cluster doctor unavailable", "err", err)
 		}
 	}
 

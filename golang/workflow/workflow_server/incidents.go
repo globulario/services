@@ -16,6 +16,7 @@ import (
 	"sort"
 	"time"
 
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -31,6 +32,7 @@ const (
 	incidentCategoryDriftStuck        = "drift_stuck"
 	incidentCategoryServiceUnhealthy  = "service_unhealthy"
 	incidentCategoryNodeUnreachable   = "node_unreachable"
+	incidentCategoryDoctorFinding     = "doctor_finding"
 	incidentScanInterval              = 60 * time.Second
 	incidentHeadlineMaxLen            = 80
 )
@@ -41,6 +43,7 @@ var incidentResolutionN = map[string]int{
 	incidentCategoryDriftStuck:        2,
 	incidentCategoryServiceUnhealthy:  3,
 	incidentCategoryNodeUnreachable:   5,
+	incidentCategoryDoctorFinding:     2, // resolve after 2 absent scans (findings cleared quickly)
 	"auth_denied":                     1,
 	"phantom_gossip":                  10,
 }
@@ -51,6 +54,8 @@ var incidentCategoryBaseSeverity = map[string]workflowpb.IncidentSeverity{
 	incidentCategoryDriftStuck:       workflowpb.IncidentSeverity_INCIDENT_SEVERITY_WARN,
 	incidentCategoryServiceUnhealthy: workflowpb.IncidentSeverity_INCIDENT_SEVERITY_ERROR,
 	incidentCategoryNodeUnreachable:  workflowpb.IncidentSeverity_INCIDENT_SEVERITY_ERROR,
+	// doctor_finding severity is set directly from the finding — base is overridden.
+	incidentCategoryDoctorFinding:    workflowpb.IncidentSeverity_INCIDENT_SEVERITY_INFO,
 	"auth_denied":                    workflowpb.IncidentSeverity_INCIDENT_SEVERITY_WARN,
 	"phantom_gossip":                 workflowpb.IncidentSeverity_INCIDENT_SEVERITY_WARN,
 }
@@ -89,6 +94,7 @@ func (srv *server) scanOnce() {
 
 	srv.scanWorkflowFailures(clusterID, presentIDs)
 	srv.scanDriftStuck(clusterID, presentIDs)
+	srv.scanDoctorFindings(clusterID, presentIDs)
 
 	// For every OPEN incident NOT present this scan, increment absent_scans;
 	// transition to RESOLVED if absent_scans >= N for its category.
@@ -199,6 +205,183 @@ func (srv *server) scanDriftStuck(clusterID string, present map[string]bool) {
 		srv.upsertIncident(clusterID, id, incidentCategoryDriftStuck, signature,
 			eRef, entityType, headline, int32(cycles), ev)
 	}
+}
+
+// scanDoctorFindings creates/updates incidents for every active ClusterDoctor finding.
+// Active = invariant status is not PASS (FAIL, PENDING, or UNKNOWN all surface).
+// Severity is taken directly from the finding, bypassing the category-base derivation.
+func (srv *server) scanDoctorFindings(clusterID string, present map[string]bool) {
+	if srv.doctorClient == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	report, err := srv.doctorClient.GetClusterReport(ctx, &cluster_doctorpb.ClusterReportRequest{})
+	if err != nil {
+		logger.Warn("incident scanner: cluster doctor unavailable", "err", err)
+		return
+	}
+
+	for _, f := range report.GetFindings() {
+		// Skip satisfied invariants — only surface active (failing) ones.
+		if f.GetInvariantStatus() == cluster_doctorpb.InvariantStatus_INVARIANT_PASS {
+			continue
+		}
+
+		signature := f.GetInvariantId() + "/" + f.GetEntityRef()
+		id := incidentID(clusterID, incidentCategoryDoctorFinding, signature)
+		present[id] = true
+
+		// Primary evidence: the finding itself.
+		ev := []*workflowpb.EvidenceItem{{
+			Id:         uuid.NewString(),
+			Provenance: workflowpb.Provenance_PROVENANCE_OBSERVED,
+			Source:     "cluster_doctor",
+			Summary:    f.GetSummary(),
+			Facts: map[string]string{
+				"finding_id":   f.GetFindingId(),
+				"invariant_id": f.GetInvariantId(),
+				"category":     f.GetCategory(),
+				"entity_ref":   f.GetEntityRef(),
+			},
+			ObservedAt: timestamppb.Now(),
+		}}
+		// Correlated evidence from the finding's own evidence list.
+		for _, e := range f.GetEvidence() {
+			ev = append(ev, &workflowpb.EvidenceItem{
+				Id:         uuid.NewString(),
+				Provenance: workflowpb.Provenance_PROVENANCE_CORRELATED,
+				Source:     e.GetSourceService() + "/" + e.GetSourceRpc(),
+				Summary:    e.GetSourceService() + ": " + e.GetSourceRpc(),
+				Facts:      e.GetKeyValues(),
+				ObservedAt: timestamppb.Now(),
+			})
+		}
+
+		// Diagnosis: carries the invariant ID and the finding's own severity so
+		// resolveAbsent / deriveSeverity see the correct level.
+		incSev := doctorSeverityToIncident(f.GetSeverity())
+		diag := []*workflowpb.DiagnosisItem{{
+			Id:          uuid.NewString(),
+			Source:      "cluster_doctor",
+			InvariantId: f.GetInvariantId(),
+			Summary:     f.GetSummary(),
+			Severity:    incSev,
+			DiagnosedAt: timestamppb.Now(),
+		}}
+
+		// Proposed fixes from the finding's remediation steps.
+		var fixes []*workflowpb.ProposedFix
+		for _, r := range f.GetRemediation() {
+			pf := &workflowpb.ProposedFix{
+				Id:         uuid.NewString(),
+				Proposer:   "cluster_doctor",
+				Summary:    r.GetDescription(),
+				Confidence: "medium",
+				Status:     workflowpb.FixStatus_FIX_STATUS_PROPOSED,
+				ProposedAt: timestamppb.Now(),
+			}
+			if cmd := r.GetCliCommand(); cmd != "" {
+				pf.CommandList = &workflowpb.CommandList{
+					Commands:   []string{cmd},
+					TargetHost: f.GetEntityRef(),
+				}
+			}
+			fixes = append(fixes, pf)
+		}
+
+		srv.upsertDoctorFindingIncident(clusterID, id, signature,
+			f.GetEntityRef(), doctorFindingEntityType(f.GetEntityRef()),
+			clampHeadline(f.GetSummary()), incSev, ev, diag, fixes)
+	}
+}
+
+// upsertDoctorFindingIncident is a variant of upsertIncident that sets severity
+// directly from the finding rather than deriving it from category + recurrence.
+func (srv *server) upsertDoctorFindingIncident(
+	clusterID, id, signature, entityRef, entityType, headline string,
+	sev workflowpb.IncidentSeverity,
+	evidence []*workflowpb.EvidenceItem,
+	diagnoses []*workflowpb.DiagnosisItem,
+	fixes []*workflowpb.ProposedFix,
+) {
+	existing, _ := srv.loadIncident(clusterID, id)
+	now := time.Now()
+
+	var inc *workflowpb.Incident
+	if existing == nil {
+		inc = &workflowpb.Incident{
+			Id:              id,
+			ClusterId:       clusterID,
+			Category:        incidentCategoryDoctorFinding,
+			Signature:       signature,
+			Status:          workflowpb.IncidentStatus_INCIDENT_STATUS_OPEN,
+			Headline:        headline,
+			OccurrenceCount: 1,
+			FirstSeenAt:     timestamppb.New(now),
+			LastSeenAt:      timestamppb.New(now),
+			EntityRef:       entityRef,
+			EntityType:      entityType,
+			Evidence:        evidence,
+			Diagnoses:       diagnoses,
+			ProposedFixes:   fixes,
+		}
+	} else {
+		inc = existing
+		if inc.Status == workflowpb.IncidentStatus_INCIDENT_STATUS_RESOLVED {
+			inc.Status = workflowpb.IncidentStatus_INCIDENT_STATUS_OPEN
+		}
+		inc.Headline = headline
+		inc.OccurrenceCount++
+		inc.LastSeenAt = timestamppb.New(now)
+		inc.Evidence = evidence
+		inc.Diagnoses = diagnoses
+		// Only refresh proposed fixes if the finding added new ones; preserve
+		// any operator-submitted fixes.
+		if len(fixes) > 0 {
+			// Keep operator-submitted fixes (non-cluster_doctor proposer).
+			var kept []*workflowpb.ProposedFix
+			for _, pf := range inc.ProposedFixes {
+				if pf.GetProposer() != "cluster_doctor" {
+					kept = append(kept, pf)
+				}
+			}
+			inc.ProposedFixes = append(kept, fixes...)
+		}
+	}
+
+	// Set severity directly — doctor findings carry authoritative severity.
+	inc.Severity = sev
+	srv.saveIncident(inc, 0)
+}
+
+// doctorSeverityToIncident maps ClusterDoctor severity to workflow IncidentSeverity.
+func doctorSeverityToIncident(s cluster_doctorpb.Severity) workflowpb.IncidentSeverity {
+	switch s {
+	case cluster_doctorpb.Severity_SEVERITY_CRITICAL:
+		return workflowpb.IncidentSeverity_INCIDENT_SEVERITY_CRITICAL
+	case cluster_doctorpb.Severity_SEVERITY_ERROR:
+		return workflowpb.IncidentSeverity_INCIDENT_SEVERITY_ERROR
+	case cluster_doctorpb.Severity_SEVERITY_WARN:
+		return workflowpb.IncidentSeverity_INCIDENT_SEVERITY_WARN
+	default:
+		return workflowpb.IncidentSeverity_INCIDENT_SEVERITY_INFO
+	}
+}
+
+// doctorFindingEntityType infers entity_type from an entityRef like "node/abc123".
+func doctorFindingEntityType(entityRef string) string {
+	if len(entityRef) > 5 && entityRef[:5] == "node/" {
+		return "node"
+	}
+	if len(entityRef) > 8 && entityRef[:8] == "service/" {
+		return "service"
+	}
+	if len(entityRef) > 8 && entityRef[:8] == "cluster/" {
+		return "cluster"
+	}
+	return ""
 }
 
 // driftEntityType infers entity_type from drift_type (best-effort).
