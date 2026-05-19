@@ -14,21 +14,24 @@ func TestFileKeystoreGetPeerPublicKey_FetchesFromClusterOnMiss(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
+	// kid must be the real fingerprint so the code's kidFromPub(pub)==kid check passes
+	// and the key gets written to the kid-aware cache path.
+	kid := kidFromPub(pub)
 	enc, err := encodeEd25519PublicPEM(pub)
 	if err != nil {
 		t.Fatalf("encode public key: %v", err)
 	}
 
 	origFetch := fetchPeerPublicKeyFromCluster
-	fetchPeerPublicKeyFromCluster = func(issuer, kid string) ([]byte, error) {
-		if issuer != "00:11:22:33:44:55" || kid != "kid-test" {
-			t.Fatalf("unexpected fetch args issuer=%q kid=%q", issuer, kid)
+	fetchPeerPublicKeyFromCluster = func(issuer, k string) ([]byte, error) {
+		if issuer != "00:11:22:33:44:55" || k != kid {
+			t.Fatalf("unexpected fetch args issuer=%q kid=%q", issuer, k)
 		}
 		return enc, nil
 	}
 	defer func() { fetchPeerPublicKeyFromCluster = origFetch }()
 
-	got, err := fileKeystoreGetPeerPublicKey("00:11:22:33:44:55", "kid-test")
+	got, err := fileKeystoreGetPeerPublicKey("00:11:22:33:44:55", kid)
 	if err != nil {
 		t.Fatalf("fileKeystoreGetPeerPublicKey() error = %v", err)
 	}
@@ -36,7 +39,7 @@ func TestFileKeystoreGetPeerPublicKey_FetchesFromClusterOnMiss(t *testing.T) {
 		t.Fatalf("unexpected public key bytes")
 	}
 
-	if _, err := readEd25519Public(publicKeyPath("00:11:22:33:44:55", "kid-test")); err != nil {
+	if _, err := readEd25519Public(publicKeyPath("00:11:22:33:44:55", kid)); err != nil {
 		t.Fatalf("kid-aware public key not cached locally: %v", err)
 	}
 	if _, err := readEd25519Public(publicKeyPath("00:11:22:33:44:55", "")); err != nil {
