@@ -70,9 +70,10 @@ type Reconciler struct {
 	isLeader func() bool
 
 	// Stop channel and lifecycle
-	stopCh   chan struct{}
-	stopOnce sync.Once
-	wg       sync.WaitGroup
+	stopCh    chan struct{}
+	stopOnce  sync.Once
+	wg        sync.WaitGroup
+	triggerCh chan struct{} // Signals an immediate reconcile pass
 }
 
 // ReconcilerConfig configures the reconciler.
@@ -143,7 +144,17 @@ func NewReconciler(cfg ReconcilerConfig) (*Reconciler, error) {
 		providers:   make(map[string]*cachedProvider),
 		isLeader:    cfg.IsLeader,
 		stopCh:      make(chan struct{}),
+		triggerCh:   make(chan struct{}, 1),
 	}, nil
+}
+
+// Trigger schedules an immediate reconcile pass without waiting for the next
+// ticker tick. Safe to call from any goroutine; excess signals are dropped.
+func (r *Reconciler) Trigger() {
+	select {
+	case r.triggerCh <- struct{}{}:
+	default:
+	}
 }
 
 // Start begins the reconciliation loop.
@@ -158,8 +169,9 @@ func (r *Reconciler) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to create certs directory: %w", err)
 	}
 
-	r.wg.Add(1)
+	r.wg.Add(2)
 	go r.reconcileLoop(ctx)
+	go r.watchSpecChanges(ctx)
 
 	return nil
 }
@@ -193,6 +205,41 @@ func (r *Reconciler) reconcileLoop(ctx context.Context) {
 			return
 		case <-ticker.C:
 			r.reconcileAll(ctx)
+		case <-r.triggerCh:
+			r.reconcileAll(ctx)
+		}
+	}
+}
+
+// watchSpecChanges watches etcd for new or updated domain specs and triggers
+// an immediate reconcile pass so certificates are issued within seconds of save.
+func (r *Reconciler) watchSpecChanges(ctx context.Context) {
+	defer r.wg.Done()
+	if r.etcdClient == nil {
+		return
+	}
+	watchCh := r.etcdClient.Watch(ctx, EtcdDomainPrefix, clientv3.WithPrefix())
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-r.stopCh:
+			return
+		case resp, ok := <-watchCh:
+			if !ok {
+				return
+			}
+			if resp.Err() != nil {
+				continue
+			}
+			for _, ev := range resp.Events {
+				if ev.Type == clientv3.EventTypePut {
+					r.logger.Info("domain spec change detected — triggering reconcile",
+						"key", string(ev.Kv.Key))
+					r.Trigger()
+					break
+				}
+			}
 		}
 	}
 }
