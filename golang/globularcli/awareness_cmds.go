@@ -16,6 +16,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -403,6 +404,17 @@ var awarenessBuildCmd = &cobra.Command{
 		fmt.Fprintf(os.Stdout, "  edges:        %d\n", stats.Edges)
 		fmt.Fprintf(os.Stdout, "  invariants:   %d\n", stats.Invariants)
 		fmt.Fprintf(os.Stdout, "  failure modes: %d\n", stats.FailureModes)
+
+		// Sync project graph to the system path so the MCP server picks up
+		// the latest data without a manual sudo cp. Silently skipped when the
+		// system path is not writable (common on dev machines without root).
+		sysPath := filepath.Join(systemAwarenessDir, "graph.json")
+		if dbPath != sysPath {
+			if syncErr := copyFileIfWritable(dbPath, sysPath); syncErr == nil {
+				fmt.Fprintf(os.Stdout, "  synced → %s\n", sysPath)
+				fmt.Fprintf(os.Stdout, "  hint: restart globular-mcp.service to pick up the new graph\n")
+			}
+		}
 		return nil
 	},
 }
@@ -782,6 +794,19 @@ func resolveAwarenessDBPathFor(systemDir, homeDir, repoRoot string, warn func(st
 	if isUsableAwarenessDB(sysPath) {
 		return sysPath
 	}
+	// When the repo has a project-level awareness directory or a .awareness.yaml
+	// config marker, prefer the project-relative path so the graph is committed
+	// alongside the source and awareness build writes to the right place.
+	if repoRoot != "" {
+		projectDir := filepath.Join(repoRoot, ".globular", "awareness")
+		if _, err := os.Stat(projectDir); err == nil {
+			return filepath.Join(projectDir, "graph.json")
+		}
+		if _, err := os.Stat(filepath.Join(repoRoot, ".awareness.yaml")); err == nil {
+			_ = os.MkdirAll(projectDir, 0o755)
+			return filepath.Join(projectDir, "graph.json")
+		}
+	}
 	// System path is present-but-inaccessible OR not present at all.
 	// Prefer the user fallback when we have a home directory, since it's
 	// stable across repos and works even outside a git checkout.
@@ -799,6 +824,55 @@ func resolveAwarenessDBPathFor(systemDir, homeDir, repoRoot string, warn func(st
 	}
 	// No home or couldn't mkdir — fall through to repo-local.
 	return filepath.Join(repoRoot, ".globular", "awareness", "graph.json")
+}
+
+// copyFileIfWritable copies src to dst only when the current process can write
+// dst (or create it in its parent directory). Returns an error when the
+// destination is not writable so callers can silently skip the sync.
+func copyFileIfWritable(src, dst string) error {
+	// Quick writability probe — don't attempt a slow copy first.
+	parent := filepath.Dir(dst)
+	if info, err := os.Stat(dst); err == nil && !info.IsDir() {
+		// File exists — check it's writable.
+		f, err := os.OpenFile(dst, os.O_WRONLY, 0)
+		if err != nil {
+			return fmt.Errorf("dst not writable: %w", err)
+		}
+		f.Close()
+	} else {
+		// File doesn't exist — can we create in the parent dir?
+		if pinfo, err := os.Stat(parent); err != nil || !pinfo.IsDir() {
+			return fmt.Errorf("dst parent not accessible")
+		}
+		probe := filepath.Join(parent, ".copy-probe")
+		f, err := os.OpenFile(probe, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o644)
+		if err != nil {
+			return fmt.Errorf("dst parent not writable: %w", err)
+		}
+		f.Close()
+		os.Remove(probe)
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	_ = os.MkdirAll(parent, 0o755)
+	out, err := os.CreateTemp(parent, ".graph-sync-")
+	if err != nil {
+		return err
+	}
+	tmpPath := out.Name()
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := out.Close(); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	return os.Rename(tmpPath, dst)
 }
 
 // isUsableAwarenessDB returns true when the current process can read AND

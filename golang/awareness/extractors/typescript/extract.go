@@ -85,6 +85,78 @@ var uiViolationPatterns = []violationPattern{
 	},
 }
 
+// Violation is a single pattern match found by Scan.
+type Violation struct {
+	File        string
+	Line        int
+	InvariantID string
+	Detail      string
+}
+
+// Scan walks walkDir for .ts/.tsx files (excluding .d.ts and skippedDirs) and
+// returns pattern-based violations without touching a graph. It is the offline
+// equivalent of the violation-detection step inside extractSourceFile.
+func Scan(walkDir string) ([]Violation, error) {
+	var violations []Violation
+	err := filepath.WalkDir(walkDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if strings.HasPrefix(d.Name(), ".") || skippedDirs[d.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(path, ".d.ts") {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".ts") && !strings.HasSuffix(path, ".tsx") {
+			return nil
+		}
+		vs, err := scanFile(path)
+		if err != nil {
+			return nil // skip unreadable files
+		}
+		violations = append(violations, vs...)
+		return nil
+	})
+	return violations, err
+}
+
+func scanFile(absPath string) ([]Violation, error) {
+	f, err := os.Open(absPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var violations []Violation
+	seen := map[string]bool{}
+	scanner := bufio.NewScanner(f)
+	lineNum := 0
+	for scanner.Scan() {
+		line := scanner.Text()
+		lineNum++
+		for _, vp := range uiViolationPatterns {
+			key := vp.invariantID + ":" + absPath
+			if seen[key] {
+				continue
+			}
+			if vp.re.MatchString(line) {
+				violations = append(violations, Violation{
+					File:        absPath,
+					Line:        lineNum,
+					InvariantID: vp.invariantID,
+					Detail:      vp.detail,
+				})
+				seen[key] = true
+			}
+		}
+	}
+	return violations, scanner.Err()
+}
+
 // Extract walks walkDir for .ts and .tsx files and populates the graph.
 // Declaration files (.d.ts) are skipped. Paths stored in the graph are
 // relative to pathRoot (typically the repo root).
