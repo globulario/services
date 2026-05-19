@@ -24,19 +24,31 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 	var findings []Finding
 
 	if age, ok := snap.PromMetrics["controller_loop_heartbeat_age"]; ok && age > 180 {
-		findings = append(findings, Finding{
-			FindingID:   FindingID("prom.controller_stalled", "cluster", "controller"),
-			InvariantID: "prometheus.controller_stalled",
-			Severity:    cluster_doctorpb.Severity_SEVERITY_CRITICAL,
-			Category:    "control_plane",
-			EntityRef:   "controller",
-			Summary:     fmt.Sprintf("Controller reconcile loop stalled for %.0fs (Prometheus)", age),
-			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "controller_loop", map[string]string{
-				"age_seconds": fmt.Sprintf("%.0f", age),
-				"timestamp":   snap.PromTS.UTC().Format(time.RFC3339),
-			})},
-			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
-		})
+		// Suppress when Prometheus only scrapes a non-leader controller instance.
+		// Non-leaders never update loop_heartbeat_unix (the heartbeat loop is
+		// gated on holding the leader lease), so their heartbeat age is always
+		// stale — this is expected, not a stall.
+		// reconcile_dropped_not_leader > 0 means the scraped instance(s) have
+		// explicitly dropped ticks for not_leader, confirming they are followers.
+		// The real leader's freshness is authoritative; check etcd reconcile lanes
+		// (updated_at_unix in /globular/controller/reconcile/lanes/) if needed.
+		nonLeaderDrops, hasDrops := snap.PromMetrics["reconcile_dropped_not_leader"]
+		isNonLeaderScrape := hasDrops && nonLeaderDrops > 0
+		if !isNonLeaderScrape {
+			findings = append(findings, Finding{
+				FindingID:   FindingID("prom.controller_stalled", "cluster", "controller"),
+				InvariantID: "prometheus.controller_stalled",
+				Severity:    cluster_doctorpb.Severity_SEVERITY_CRITICAL,
+				Category:    "control_plane",
+				EntityRef:   "controller",
+				Summary:     fmt.Sprintf("Controller reconcile loop stalled for %.0fs (Prometheus)", age),
+				Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "controller_loop", map[string]string{
+					"age_seconds": fmt.Sprintf("%.0f", age),
+					"timestamp":   snap.PromTS.UTC().Format(time.RFC3339),
+				})},
+				InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+			})
+		}
 	}
 
 	if age, ok := snap.PromMetrics["workflow_oldest_active_age"]; ok && age > 900 {

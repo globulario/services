@@ -50,6 +50,11 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		// this Prometheus can see. On a single-node scrape it returns 1;
 		// with federation it returns the full membership.
 		"etcd_quorum_size": "count(etcd_server_id)",
+		// Non-leader indicator: sum > 0 means the scraped instance(s) have
+		// explicitly dropped reconcile ticks because they are not the leader.
+		// Used by prometheus_runtime.go to suppress false-positive stall findings
+		// when Prometheus only scrapes a non-leader controller instance.
+		"reconcile_dropped_not_leader": "sum(globular_controller_reconcile_dropped_not_leader_total)",
 		// Storm protection signals (Phase A-D).
 		"apply_loop_detected":        "globular_controller_apply_loop_detected_total",
 		"drift_kind_mismatch":        "globular_controller_drift_kind_mismatch_total",
