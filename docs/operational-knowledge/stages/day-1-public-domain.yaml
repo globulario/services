@@ -1,0 +1,269 @@
+schema_version: 1
+file_kind: stage
+metadata:
+  title: "Day-1 — Public domain, ACME certificates, and external webroot"
+  description: |
+    Knowledge needed to expose a Globular cluster under a public domain name (e.g. globular.io),
+    obtain a Let's Encrypt certificate via the DNS-01 challenge using the cluster's own DNS
+    service, and serve a public welcome/landing page from the MinIO object store. Covers the
+    end-to-end flow from UI configuration through cert issuance, etcd storage, gateway sync,
+    and MinIO webroot routing.
+  source_documents:
+    - docs/operators/day-0-1-2-operations.md
+    - internal/gateway/handlers/files/serve.go
+    - internal/gateway/handlers/providers.go
+    - cmd/gateway/main.go
+    - services/golang/domain/reconciler.go
+    - services/golang/dns/dns_server/handlers.go
+
+entries:
+
+  - id: ops.day-1.public-domain.architecture
+    type: ARCHITECTURE
+    title: "Public domain flow — UI → DNS-01 → cert in etcd → gateway serves HTTPS"
+    tags: [day-1, public-domain, acme, tls, dns, gateway]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, dns, gateway, authentication]
+      services_healthy: [cluster-controller, dns, gateway]
+    content: |
+      ## Overview
+
+      Globular supports exposing the cluster under one or more public FQDNs (e.g. `globular.io`)
+      with automatically-renewed Let's Encrypt certificates. The full pipeline is:
+
+      ```
+      Admin UI (External Domains tab)
+        → saves ExternalDomainSpec to etcd /globular/domains/v1/<fqdn>
+        → cluster-controller reconciler detects the PUT (etcd watch, no delay)
+        → reconciler calls dns.DnsService.SetTXT(_acme-challenge.<fqdn>)
+        → Let's Encrypt DNS-01 verification
+        → cert issued, written to etcd /globular/acme/certs/<fqdn>
+        → gateway SyncACMECertsFromEtcd writes cert to disk
+        → Envoy SNI picks up the new cert
+        → https://<fqdn> works
+      ```
+
+      ## Key components
+
+      ### ExternalDomainSpec (etcd)
+      - Key prefix: `/globular/domains/v1/`
+      - Fields: `fqdn`, `acme.enabled`, `acme.email`, `acme.provider` (default: letsencrypt)
+      - Set via admin UI: Infrastructure → DNS → External Domains → Save
+      - Set via CLI: `globular domain set <fqdn> --acme`
+
+      ### cluster-controller domain reconciler
+      - Watches `/globular/domains/v1/` prefix in etcd
+      - On PUT event: triggers reconcile immediately (no 5-min wait)
+      - Reconcile calls the DNS service to place the `_acme-challenge` TXT record
+      - Calls the ACME provider (Let's Encrypt) with the DNS-01 challenge
+      - Stores the issued cert in etcd at `/globular/acme/certs/<fqdn>`
+      - Also writes the cert to `/var/lib/globular/domains/<fqdn>/` on the controller node
+
+      ### gateway — cert sync
+      - On startup: `domain.SyncACMECertsFromEtcd` pulls all known certs from etcd to disk
+      - Background: `domain.WatchACMECerts` watches etcd for new/renewed certs and writes them
+      - Disk paths written: `/var/lib/globular/domains/<fqdn>/fullchain.pem` and `privkey.pem`
+      - These paths are picked up by the Envoy SDS configuration for SNI serving
+
+      ### dns.DnsService
+      - Must be running and reachable on port 53 from Let's Encrypt validators
+      - Handles `SetTXT` and `DeleteTXT` RPCs for the `_acme-challenge` record
+      - The cluster's NS records for the public domain must delegate to this DNS server
+
+      ### MinIO webroot
+      - Bucket: `globular` (from MinIO contract `/var/lib/globular/objectstore/minio.json`)
+      - Webroot prefix: `webroot/` — top-level, NOT prefixed with the cluster domain
+        (e.g. NOT `globular.internal/webroot/` — that path is empty)
+      - External domain requests that have no domain-specific webroot in MinIO
+        automatically fall back to the cluster's `webroot/` content
+      - Default landing page ships at `webroot/index.html`, `webroot/logo.png`, `webroot/style.css`
+
+  - id: ops.day-1.public-domain.prerequisites
+    type: REFERENCE
+    title: "Prerequisites for DNS-01 ACME certificate issuance"
+    tags: [day-1, public-domain, acme, dns, prerequisites]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, dns]
+      services_healthy: [dns]
+    content: |
+      Before ACME DNS-01 can succeed, the following must all be true:
+
+      1. **dns.DnsService is running** on the target node (check: `globular services list`)
+         and is accessible on UDP/TCP port 53 from the internet (or Let's Encrypt validators).
+
+      2. **NS records delegate to the cluster DNS**.
+         The public domain's registrar/DNS must have NS records pointing to the node
+         running dns.DnsService. Example: `globular.io NS ns1.globular.io; ns1.globular.io A 203.x.x.x`.
+
+      3. **Port 53 is open** on the node running dns.DnsService. Verify with:
+         ```bash
+         dig _acme-challenge.globular.io TXT @<dns-server-ip>
+         ```
+
+      4. **cluster-controller is healthy** and the domain reconciler is running.
+         Check logs: `journalctl -u globular-cluster-controller.service | grep reconcil`
+
+      5. **ACME email is configured** in the domain spec. Let's Encrypt requires a valid
+         email for registration and expiry notifications.
+
+      6. **The DNS server zone is managed**.
+         The dns.DnsService must recognize the fqdn's zone as managed (not external-only).
+         If `isManaged()` returns false for the zone, TXT records cannot be set.
+
+  - id: ops.day-1.public-domain.minio-webroot-layout
+    type: ARCHITECTURE
+    title: "MinIO webroot layout for public domains"
+    tags: [day-1, public-domain, minio, webroot, gateway]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [gateway]
+      services_healthy: [gateway]
+    content: |
+      ## MinIO webroot key structure
+
+      The gateway reads the MinIO contract from `/var/lib/globular/objectstore/minio.json`.
+      The contract has a `prefix` field (e.g. `"globular.internal"`) used for USER DATA only.
+
+      **Critical**: the webroot prefix is always `"webroot"` — never `"<prefix>/webroot"`.
+      The base prefix scopes user data (`globular.internal/users/`) but does NOT apply to
+      the webroot.
+
+      ```
+      Bucket: globular
+        webroot/              ← cluster landing page (all domains fall back here)
+          index.html
+          logo.png
+          style.css
+        globular.io/webroot/  ← domain-specific webroot (optional, overrides fallback)
+          index.html
+          ...
+        globular.internal/
+          users/              ← user files
+          artifacts/          ← repository artifacts
+      ```
+
+      ## Routing logic (gateway)
+
+      For a request to `https://globular.io/`:
+      1. Gateway calls `webrootPrefixForHost("globular.io")` → `"globular.io/webroot"`
+      2. Tries `globular/globular.io/webroot/index.html` in MinIO → NoSuchKey
+      3. Falls back to `webrootPrefixValue()` → `"webroot"`
+      4. Tries `globular/webroot/index.html` → found → served
+
+      For a request to `https://globular.internal/` (internal cluster domain):
+      1. `webrootPrefixForHost("globular.internal")` → `"webroot"` (cluster domain uses cluster prefix)
+      2. Tries `globular/webroot/index.html` → found → served
+
+      ## Serving a custom public website
+
+      Upload to the domain-scoped prefix: `globular.io/webroot/index.html` etc.
+      The gateway will prefer the domain-scoped content over the cluster default.
+
+      ```bash
+      mc alias set cluster https://<minio-endpoint>:9000 globular globularadmin --insecure
+      mc cp index.html cluster/globular/<fqdn>/webroot/index.html
+      mc cp -r dist/ cluster/globular/<fqdn>/webroot/
+      ```
+
+  - id: ops.day-1.public-domain.cert-storage
+    type: REFERENCE
+    title: "ACME certificate storage paths — etcd and disk"
+    tags: [day-1, public-domain, acme, tls, certificates]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, gateway]
+    content: |
+      ## etcd storage
+
+      | Key | Content |
+      |-----|---------|
+      | `/globular/acme/certs/<fqdn>` | JSON blob: `{cert, key, chain, issued_at, expires_at}` |
+      | `/globular/domains/v1/<fqdn>` | ExternalDomainSpec JSON |
+
+      Check cert presence:
+      ```bash
+      etcdctl get /globular/acme/certs/globular.io --print-value-only | python3 -c \
+        "import sys,json; d=json.load(sys.stdin); print(d.get('expires_at','?'))"
+      ```
+
+      ## Disk paths (written by gateway at startup + watch)
+
+      | Path | Content |
+      |------|---------|
+      | `/var/lib/globular/domains/<fqdn>/fullchain.pem` | Certificate + intermediates |
+      | `/var/lib/globular/domains/<fqdn>/privkey.pem` | Private key |
+      | `/var/lib/globular/pki/acme/<fqdn>/fullchain.pem` | Alternate path (some tools) |
+
+      The gateway writes these on:
+      - Startup: `domain.SyncACMECertsFromEtcd(etcdCli, logger)`
+      - Runtime: `domain.WatchACMECerts(ctx, etcdCli, logger)` (background goroutine)
+
+      ## Certificates page in admin UI
+
+      Security → Certificates → Public TLS tab shows all certs on disk.
+      If cert is in etcd but not on disk: gateway restart will sync it.
+      If cert is not in etcd: ACME issuance has not completed — check controller logs.
+
+  - id: ops.day-1.public-domain.known-issues
+    type: DEBUG
+    title: "Known issues and fixes — public domain + ACME setup"
+    tags: [day-1, public-domain, acme, dns, gateway, bug]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [dns, cluster-controller, gateway]
+    content: |
+      ## DNS server panic — getTtl on empty data (fixed in dns@1.2.55)
+
+      **Symptom**: `dns.DnsService` enters a crash loop (68+ restarts).
+      Logs show: `runtime error: index out of range [3] with length 0`
+
+      **Root cause**: `getTtl()` called `binary.LittleEndian.Uint32(data)` without
+      checking `len(data) >= 4`. An empty or short BadgerDB value causes a panic.
+
+      **Fix**: Added `if err != nil || len(data) < 4 { return 60 }` guard.
+      Shipped in `dns@1.2.55`.
+
+      ---
+
+      ## Gateway serves JSON error instead of webroot (fixed in gateway@1.2.57)
+
+      **Symptom**: `https://<public-domain>/` returns
+      `{"error":"file /var/lib/globular/webroot/index.html not found"}`
+
+      **Root cause**: Two bugs in the gateway:
+      1. `deriveMinioLayout` prepended the MinIO base prefix to the webroot path
+         (`globular.internal/webroot`) but the content is at the top-level `webroot/`.
+      2. No fallback to the cluster webroot when the domain-scoped prefix is empty.
+
+      **Fix**: Webroot prefix is always `"webroot"` (never `<base-prefix>/webroot`).
+      External domains fall back to `"webroot"` when no domain-scoped content exists.
+      Shipped in `gateway@1.2.57`.
+
+      ---
+
+      ## Cert in etcd but not visible in Certificates page (fixed in gateway@1.2.55)
+
+      **Symptom**: ACME issuance succeeded (cert in etcd), but Security → Certificates
+      shows "No public TLS certificates found".
+
+      **Root cause**: The gateway never called `SyncACMECertsFromEtcd` or `WatchACMECerts`,
+      so the cert in etcd was never written to disk.
+
+      **Fix**: Added both calls in `cmd/gateway/main.go` after the signal context is set up.
+      Shipped in `gateway@1.2.55`.
+
+      ---
+
+      ## Reconciler waited up to 5 minutes after domain save (fixed in cluster-controller@1.2.55)
+
+      **Symptom**: Saving an External Domain with ACME enabled does not immediately start
+      certificate issuance. User must wait up to 5 minutes.
+
+      **Root cause**: The domain reconciler ran on a fixed 5-minute ticker. No immediate
+      trigger on domain spec changes.
+
+      **Fix**: Added `watchSpecChanges()` goroutine that watches `/globular/domains/v1/`
+      in etcd and calls `Trigger()` on PUT events, bypassing the ticker.
+      Shipped in `cluster-controller@1.2.55`.

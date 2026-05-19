@@ -1,0 +1,247 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Set up a public domain with ACME TLS certificate and landing page"
+  description: |
+    Step-by-step procedure to expose a Globular cluster under a public FQDN (e.g. globular.io),
+    obtain a Let's Encrypt certificate via DNS-01 using the cluster's own DNS service, and serve
+    a public landing page from MinIO. Derived from the 2026-05-19 live session where globular.io
+    was successfully provisioned end-to-end.
+  source_documents:
+    - docs/operational-knowledge/stages/day-1-public-domain.yaml
+    - internal/gateway/handlers/files/serve.go
+    - services/golang/domain/reconciler.go
+
+entries:
+
+  - id: ops.runbook.public-domain.setup-acme-cert
+    type: SKILL
+    title: "Set up a public domain with Let's Encrypt DNS-01 certificate"
+    tags: [day-1, day-2, public-domain, acme, tls, dns, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, dns, gateway, authentication]
+      services_healthy: [cluster-controller, dns, gateway]
+    content: |
+      Use this runbook to register a public FQDN with the cluster, obtain a Let's Encrypt
+      certificate via the DNS-01 challenge (using the cluster's own DNS server), and verify
+      the certificate appears on disk and is served by the gateway.
+
+      **Minimum versions required** (fixes for known bugs):
+      - `dns >= 1.2.55`
+      - `cluster-controller >= 1.2.55`
+      - `gateway >= 1.2.55`
+    links:
+      awareness_invariants: []
+      awareness_failure_modes: []
+      runbooks:
+        - runbooks/deploy-controller-fix-via-repository.yaml
+    procedure:
+      - phase: observe
+        description: "Verify prerequisites before starting"
+        commands:
+          - cmd: "globular pkg info dns cluster-controller gateway --token $TOKEN"
+            expect: "all three at version >= 1.2.55 and 'installed' on all nodes"
+          - cmd: "globular services list --token $TOKEN | grep -E 'dns|cluster-controller'"
+            expect: "both services in 'running' state"
+          - cmd: "dig NS <fqdn> @8.8.8.8"
+            expect: |
+              NS records point to the cluster's DNS node IP.
+              Example: globular.io NS ns1.globular.io; ns1.globular.io A <dns-node-public-ip>
+            note: |
+              If NS records are not yet delegated, configure them at your registrar first.
+              The DNS-01 challenge WILL FAIL if Let's Encrypt cannot query the TXT record
+              via the domain's authoritative NS.
+          - cmd: "dig _acme-challenge.<fqdn> TXT @<dns-node-ip>"
+            expect: "NOERROR or NXDOMAIN (either is fine — just confirms DNS reachability)"
+
+      - phase: plan
+        description: "Authenticate to the cluster"
+        commands:
+          - cmd: "globular auth login --user sa --password adminadmin"
+            expect: "Authenticated as 'sa' — Token: eyJ..."
+            note: |
+              Store the token: TOKEN=$(globular auth login --user sa --password adminadmin 2>&1 | grep '^Token:' | awk '{print $2}')
+              Or retrieve from the browser: sessionStorage.getItem('__globular_token__')
+
+      - phase: execute
+        description: "Register the external domain with ACME enabled via admin UI"
+        commands:
+          - cmd: "Open http://localhost:5173/#/infrastructure/dns and click 'External Domains' tab"
+            note: "Or navigate to the cluster admin UI at https://globular.internal/#/infrastructure/dns"
+          - cmd: "Click 'Add Domain' → fill in FQDN, enable ACME, enter email → Save"
+            expect: |
+              Banner: 'Certificate issuance started for <fqdn> — this may take a few minutes.'
+              The cluster-controller reconciler triggers immediately (etcd watch, no 5-min delay).
+          - cmd: |
+              # Alternative: via CLI
+              globular domain set <fqdn> --acme --email admin@example.com --token $TOKEN
+            note: "CLI variant if admin UI is not available"
+          - cmd: "Watch controller logs for ACME progress:"
+            expect: |
+              journalctl -u globular-cluster-controller.service -f | grep -iE 'acme|domain|cert|challenge'
+              Expected sequence:
+                domain spec change detected — triggering reconcile key=/globular/domains/v1/<fqdn>
+                reconciling domain fqdn=<fqdn>
+                setting DNS TXT record for _acme-challenge.<fqdn>
+                ACME DNS-01 challenge: waiting for propagation
+                certificate issued fqdn=<fqdn> expires=<date>
+                cert written to etcd key=/globular/acme/certs/<fqdn>
+
+      - phase: verify
+        description: "Confirm the certificate is in etcd and synced to disk"
+        commands:
+          - cmd: "etcdctl get /globular/acme/certs/<fqdn> --print-value-only | python3 -c \"import sys,json; d=json.load(sys.stdin); print('expires:', d.get('expires_at','?'))\""
+            expect: "expires: 2026-08-xx... (90 days from issuance)"
+          - cmd: "ls -la /var/lib/globular/domains/<fqdn>/"
+            expect: "fullchain.pem and privkey.pem exist with recent timestamps"
+            note: |
+              If files are missing: gateway syncs from etcd on startup.
+              Restart gateway: systemctl restart globular-gateway.service
+              Or wait — the WatchACMECerts background goroutine will pick it up within seconds.
+          - cmd: "curl -sv https://<fqdn>/ 2>&1 | grep -E 'subject|issuer|expire'"
+            expect: "subject: CN=<fqdn>, issuer: Let's Encrypt"
+          - cmd: "Open https://globular.internal/#/security/certificates → Public TLS tab"
+            expect: |
+              'Public Leaf (<fqdn>) VALID'
+              Issuer: CN=E8,O=Let's Encrypt,C=US
+              SANs: *.<fqdn>, <fqdn>
+              Expires: ~89 days
+              Used by: Envoy SNI listener, Browser clients
+
+      - phase: verify-fix
+        description: "Confirm the public domain serves the landing page"
+        commands:
+          - cmd: "curl -s https://<fqdn>/ | grep -i 'globular\\|welcome'"
+            expect: "HTML containing 'Welcome to Globular' or your custom content"
+            note: |
+              Default landing page is served from MinIO bucket 'globular' at key 'webroot/index.html'.
+              If you see {"error":"file /var/lib/globular/webroot/index.html not found"}:
+              gateway version is < 1.2.57 — upgrade gateway (see deploy-controller-fix-via-repository runbook).
+
+    success_criteria:
+      - "etcdctl confirms cert at /globular/acme/certs/<fqdn> with future expiry"
+      - "fullchain.pem and privkey.pem exist at /var/lib/globular/domains/<fqdn>/"
+      - "Security → Certificates shows the domain with VALID badge and Let's Encrypt issuer"
+      - "https://<fqdn>/ returns 200 with expected HTML (not a JSON error)"
+
+    follow_up:
+      - "Set up automatic renewal: cluster-controller renews certs before expiry via the same reconciler"
+      - "To serve a custom website at <fqdn>, upload assets to MinIO: mc cp -r dist/ cluster/globular/<fqdn>/webroot/"
+      - "To serve the Globular admin UI at <fqdn>, upload the built admin app to MinIO webroot"
+
+  - id: ops.runbook.public-domain.setup-custom-webroot
+    type: SKILL
+    title: "Upload a custom website to serve at a public domain"
+    tags: [day-1, day-2, public-domain, minio, webroot, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [gateway]
+      services_healthy: [gateway]
+    content: |
+      Use this runbook to replace the default Globular landing page with a custom website
+      served at a registered public domain (e.g. globular.io). Content is uploaded to MinIO
+      under a domain-scoped prefix which takes priority over the cluster default.
+    procedure:
+      - phase: observe
+        description: "Confirm MinIO is accessible and the webroot layout"
+        commands:
+          - cmd: "cat /var/lib/globular/objectstore/minio.json | python3 -m json.tool | grep -E 'endpoint|bucket|prefix'"
+            expect: |
+              "endpoint": "<ip>:9000"
+              "bucket": "globular"
+              "prefix": "globular.internal"   ← used for user data only, NOT webroot
+          - cmd: "mc alias set cluster https://<minio-endpoint>:9000 globular globularadmin --insecure"
+            expect: "Added 'cluster' successfully"
+          - cmd: "mc ls cluster/globular/webroot/"
+            expect: ".keep, index.html, logo.png, style.css  ← default landing page"
+
+      - phase: execute
+        description: "Upload custom content to the domain-scoped prefix"
+        commands:
+          - cmd: "mc cp index.html cluster/globular/<fqdn>/webroot/index.html --insecure"
+            note: "Domain-scoped prefix 'globular.io/webroot/' takes priority over 'webroot/'"
+          - cmd: "mc cp -r dist/ cluster/globular/<fqdn>/webroot/ --insecure"
+            note: "Upload a built SPA (Vite, React, etc.) — no gateway restart needed"
+
+      - phase: verify
+        description: "Confirm the custom page is served"
+        commands:
+          - cmd: "curl -s https://<fqdn>/ | head -5"
+            expect: "Your custom HTML, not the default 'Welcome to Globular' page"
+
+    success_criteria:
+      - "https://<fqdn>/ returns the custom content"
+      - "The default cluster landing page is still served at https://globular.internal/"
+
+    follow_up:
+      - "For a Vite SPA: run 'pnpm build' then upload the 'dist/' directory"
+      - "For the Globular admin UI: build globular-admin with 'pnpm build' and upload to the domain-scoped prefix"
+
+  - id: ops.runbook.public-domain.troubleshoot
+    type: DEBUG
+    title: "Troubleshoot public domain certificate and webroot issues"
+    tags: [day-1, day-2, public-domain, acme, tls, gateway, debug, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, dns, gateway]
+    content: |
+      Quick diagnostic decision tree for public domain issues.
+    procedure:
+      - phase: observe
+        description: "Identify the symptom"
+        commands:
+          - cmd: "curl -sv https://<fqdn>/ 2>&1 | head -30"
+            note: |
+              Possible symptoms:
+              A) SSL_ERROR_RX_RECORD_TOO_LONG or connection refused → cert not loaded by Envoy
+              B) {"error":"file /var/lib/globular/webroot/index.html not found"} → webroot bug
+              C) Certificate issued by ISRG Root / Let's Encrypt but wrong domain → wrong cert
+              D) 503 Service Unavailable → MinIO down
+              E) Default 'Welcome to Globular' instead of custom page → content not in domain-scoped prefix
+
+      - phase: plan
+        description: "Diagnose based on symptom"
+        commands:
+          - cmd: "# Symptom A — cert not on disk"
+            note: |
+              Check: ls /var/lib/globular/domains/<fqdn>/
+              If missing: check etcd (etcdctl get /globular/acme/certs/<fqdn>)
+                - If in etcd but not on disk: restart gateway (systemctl restart globular-gateway)
+                - If not in etcd: ACME issuance failed — check controller logs
+          - cmd: "# Symptom B — webroot JSON error"
+            note: |
+              gateway version < 1.2.57. Upgrade:
+                globular services desired set gateway 1.2.57 --force --token $TOKEN
+          - cmd: "# DNS-01 challenge failing"
+            note: |
+              1. Confirm dns.DnsService is running: globular services list | grep dns
+              2. Confirm NS records: dig NS <fqdn> @8.8.8.8
+              3. Test TXT lookup: dig _acme-challenge.<fqdn> TXT @<dns-node-ip>
+              4. Check dns service logs: journalctl -u globular-dns.service | tail -50
+              5. Look for dns crash loop: systemctl status globular-dns.service
+                 If crash loop + 'index out of range': dns < 1.2.55, upgrade
+          - cmd: "# ACME issuance not starting after domain save"
+            note: |
+              cluster-controller < 1.2.55 lacks the etcd watcher — waits 5 min.
+              Fix: upgrade cluster-controller to >= 1.2.55
+
+      - phase: execute
+        description: "Force a reconcile cycle after fixing the root cause"
+        commands:
+          - cmd: "# Re-save the domain spec to trigger etcd watch"
+            note: |
+              In admin UI: open the External Domain, change nothing, click Save.
+              This writes the same spec back to etcd, triggering the watcher.
+
+      - phase: verify
+        description: "Confirm resolution"
+        commands:
+          - cmd: "journalctl -u globular-cluster-controller.service --since '1 min ago' | grep -iE 'cert|acme|domain'"
+            expect: "cert written to etcd or certificate issued"
+          - cmd: "curl -sv https://<fqdn>/ 2>&1 | grep -E 'subject|issuer|HTTP'"
+            expect: "HTTP 200, issuer: Let's Encrypt"
+
+    success_criteria:
+      - "https://<fqdn>/ returns 200 with the expected content"
+      - "Certificate is valid (Let's Encrypt issuer, correct SANs)"
