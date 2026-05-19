@@ -2627,7 +2627,7 @@ func (srv *server) setTtl(uuid string, ttl uint32) error {
 func (srv *server) getTtl(uuid string) uint32 {
 	uuid = Utility.GenerateUUID("TTL:" + uuid)
 	data, err := srv.store.GetItem(uuid)
-	if err != nil {
+	if err != nil || len(data) < 4 {
 		return 60
 	}
 	return binary.LittleEndian.Uint32(data)
