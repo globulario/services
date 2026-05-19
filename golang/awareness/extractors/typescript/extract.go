@@ -7,6 +7,8 @@
 //   - test nodes for test/it/describe calls in spec/test files
 //   - imports edges from source_file to locally-imported modules (relative paths only)
 //   - defines edges from source_file to each symbol or test it declares
+//   - enforces/protects/forbids/violates edges from // globular: annotations
+//   - violates edges (confidence 0.8) from pattern-based forbidden behavior detection
 package typescript
 
 import (
@@ -38,6 +40,50 @@ var testNameRe = regexp.MustCompile(`^\s*(?:test|it|describe)(?:\.each|\.only|\.
 
 // importFromRe matches `import ... from './path'` and captures the module path.
 var importFromRe = regexp.MustCompile(`\bfrom\s+['"](\.[^'"]+)['"]`)
+
+// annotationRe matches // globular: <directive> <value> comments.
+var annotationRe = regexp.MustCompile(`^//\s*globular:\s*(\w+)\s+(.+)$`)
+
+// violationPattern describes a forbidden pattern to detect in TypeScript source.
+type violationPattern struct {
+	re          *regexp.Regexp
+	invariantID string
+	detail      string
+}
+
+// uiViolationPatterns are patterns that indicate a UI invariant may be violated.
+// Each match produces a violates edge (confidence 0.8) from the source_file to the invariant.
+var uiViolationPatterns = []violationPattern{
+	// Empty catch blocks — silences gRPC errors from the operator.
+	{
+		re:          regexp.MustCompile(`\}\s*catch\s*(\([^)]*\))?\s*\{\s*\}`),
+		invariantID: "ui.grpc_web_errors_must_surface_to_operator",
+		detail:      "empty catch block — errors not surfaced to operator",
+	},
+	// Token stored in localStorage.
+	{
+		re:          regexp.MustCompile(`localStorage\.setItem\s*\(\s*['"][^'"]*[Tt]oken`),
+		invariantID: "ui.token_storage_sessionStorage_only",
+		detail:      "auth token stored in localStorage instead of sessionStorage",
+	},
+	{
+		re:          regexp.MustCompile(`localStorage\.setItem\s*\(\s*['"]auth`),
+		invariantID: "ui.token_storage_sessionStorage_only",
+		detail:      "auth data stored in localStorage instead of sessionStorage",
+	},
+	// Hardcoded backend address with port number.
+	{
+		re:          regexp.MustCompile(`['"]https?://[a-zA-Z0-9][a-zA-Z0-9._-]*:\d{2,5}['"]`),
+		invariantID: "ui.no_hardcoded_backend_addresses",
+		detail:      "hardcoded backend address with port",
+	},
+	// Unknown state mapped to healthy — fallthrough to 'healthy' / green for unknown.
+	{
+		re:          regexp.MustCompile(`:\s*['"]healthy['"]`),
+		invariantID: "ui.unknown_state_must_not_appear_healthy",
+		detail:      "default branch may map unknown state to 'healthy'",
+	},
+}
 
 // Extract walks walkDir for .ts and .tsx files and populates the graph.
 // Declaration files (.d.ts) are skipped. Paths stored in the graph are
@@ -88,10 +134,29 @@ func extractSourceFile(ctx context.Context, g *graph.Graph, absPath, relPath str
 		Metadata: map[string]any{"lang": "typescript"},
 	})
 
+	// pendingAnnotations buffers // globular: directives seen before an export
+	// declaration so they can be attached to the symbol node as well.
+	var pendingAnnotations []string
+
+	// violatedInvariants deduplicates pattern-based violation edges per file.
+	violatedInvariants := map[string]bool{}
+
 	scanner := bufio.NewScanner(f)
+	lineNum := 0
 	for scanner.Scan() {
 		line := scanner.Text()
 		trimmed := strings.TrimSpace(line)
+		lineNum++
+
+		// Globular annotation comment → apply to file immediately and buffer for
+		// the next exported symbol.
+		if m := annotationRe.FindStringSubmatch(trimmed); m != nil {
+			directive := m[1]
+			value := strings.TrimSpace(m[2])
+			applyAnnotation(ctx, g, fileID, directive, value)
+			pendingAnnotations = append(pendingAnnotations, trimmed)
+			continue
+		}
 
 		// Export declarations → symbol nodes.
 		if name, ok := extractExportedName(trimmed); ok && name != "" {
@@ -103,17 +168,45 @@ func extractSourceFile(ctx context.Context, g *graph.Graph, absPath, relPath str
 				Path: relPath,
 			})
 			_ = g.AddEdge(ctx, graph.Edge{Src: fileID, Kind: graph.EdgeDefines, Dst: symID})
+
+			// Apply buffered annotations to this symbol too.
+			for _, ann := range pendingAnnotations {
+				if mm := annotationRe.FindStringSubmatch(ann); mm != nil {
+					applyAnnotation(ctx, g, symID, mm[1], strings.TrimSpace(mm[2]))
+				}
+			}
+			pendingAnnotations = nil
+		} else if trimmed != "" && !strings.HasPrefix(trimmed, "//") && !strings.HasPrefix(trimmed, "*") && !strings.HasPrefix(trimmed, "/*") {
+			// Non-annotation non-empty line: clear the pending buffer.
+			pendingAnnotations = nil
 		}
 
 		// Local import statements → imports edges.
 		if m := importFromRe.FindStringSubmatch(line); m != nil {
 			modPath := m[1]
-			// Resolve relative to the importing file's directory so the target
-			// ID is always repo-root-relative.
 			dir := filepath.Dir(relPath)
 			resolved := filepath.Clean(filepath.Join(dir, modPath))
 			targetID := "source_file:" + resolved
 			_ = g.AddEdge(ctx, graph.Edge{Src: fileID, Kind: graph.EdgeImports, Dst: targetID})
+		}
+
+		// Pattern-based violation detection → violates edges (deduplicated per file).
+		for _, vp := range uiViolationPatterns {
+			if violatedInvariants[vp.invariantID] {
+				continue
+			}
+			if vp.re.MatchString(line) {
+				invID := "invariant:" + vp.invariantID
+				_ = g.AddNode(ctx, graph.Node{ID: invID, Type: graph.NodeTypeInvariant, Name: vp.invariantID})
+				_ = g.AddEdge(ctx, graph.Edge{
+					Src:        fileID,
+					Kind:       graph.EdgeViolates,
+					Dst:        invID,
+					Confidence: 0.8,
+					Metadata:   map[string]any{"detail": vp.detail, "line": lineNum, "auto": true},
+				})
+				violatedInvariants[vp.invariantID] = true
+			}
 		}
 	}
 	return scanner.Err()
@@ -142,6 +235,12 @@ func extractTestFile(ctx context.Context, g *graph.Graph, absPath, relPath strin
 	for scanner.Scan() {
 		line := scanner.Text()
 		trimmed := strings.TrimSpace(line)
+
+		// Globular annotations in test files apply to the test file node.
+		if m := annotationRe.FindStringSubmatch(trimmed); m != nil {
+			applyAnnotation(ctx, g, fileID, m[1], strings.TrimSpace(m[2]))
+			continue
+		}
 
 		m := testNameRe.FindStringSubmatch(trimmed)
 		if m == nil {
@@ -195,6 +294,31 @@ func extractTestFile(ctx context.Context, g *graph.Graph, absPath, relPath strin
 		_ = g.AddEdge(ctx, graph.Edge{Src: fileID, Kind: graph.EdgeDefines, Dst: testID})
 	}
 	return scanner.Err()
+}
+
+// applyAnnotation processes a globular: directive and creates the corresponding graph edge.
+func applyAnnotation(ctx context.Context, g *graph.Graph, ownerID, directive, value string) {
+	switch directive {
+	case "enforces":
+		invID := "invariant:" + value
+		_ = g.AddNode(ctx, graph.Node{ID: invID, Type: graph.NodeTypeInvariant, Name: value})
+		_ = g.AddEdge(ctx, graph.Edge{Src: ownerID, Kind: graph.EdgeEnforces, Dst: invID, Required: true, Confidence: 1.0})
+	case "protects":
+		invID := "invariant:" + value
+		_ = g.AddNode(ctx, graph.Node{ID: invID, Type: graph.NodeTypeInvariant, Name: value})
+		_ = g.AddEdge(ctx, graph.Edge{Src: ownerID, Kind: graph.EdgeProtects, Dst: invID, Required: true, Confidence: 1.0})
+	case "forbids":
+		fixID := "forbidden_fix:" + value
+		_ = g.AddNode(ctx, graph.Node{ID: fixID, Type: graph.NodeTypeForbiddenFix, Name: value})
+		_ = g.AddEdge(ctx, graph.Edge{Src: ownerID, Kind: graph.EdgeForbids, Dst: fixID, Required: true, Confidence: 1.0})
+	case "violates":
+		invID := "invariant:" + value
+		_ = g.AddNode(ctx, graph.Node{ID: invID, Type: graph.NodeTypeInvariant, Name: value})
+		_ = g.AddEdge(ctx, graph.Edge{Src: ownerID, Kind: graph.EdgeViolates, Dst: invID, Confidence: 0.9})
+	case "tested_by":
+		testID := "test:" + value
+		_ = g.AddEdge(ctx, graph.Edge{Src: ownerID, Kind: graph.EdgeTestedBy, Dst: testID, Confidence: 1.0})
+	}
 }
 
 // extractExportedName returns the exported identifier from a TypeScript export
