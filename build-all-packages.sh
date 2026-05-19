@@ -80,6 +80,7 @@ echo "→ Copying Go binaries from stage..."
 copy_go_bin "${SERVICES_STAGE}/gateway" "gateway" "gateway"
 copy_go_bin "${SERVICES_STAGE}/xds" "xds" "xds"
 copy_go_bin "${SERVICES_STAGE}/globularcli" "globularcli" "globularcli"
+copy_go_bin "${SERVICES_STAGE}/globularcli" "globular" "globular (cli install name)"
 
 # Read versions from specs (single source of truth)
 ENVOY_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/envoy_service.yaml")
