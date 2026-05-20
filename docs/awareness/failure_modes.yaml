@@ -1783,6 +1783,87 @@ failure_modes:
         - TestFormatBackup_PurgedAfterApprovedDestructiveTransition
         - TestFormatBackup_NeverOverwritesValidOnDiskFormat
 
+    - id: cluster.cross_node_file_drift
+      title: A cluster-visible file disagrees across nodes that were supposed to be in lockstep
+      severity: degraded
+      symptoms:
+        - operator sees one gateway serve a "404" or stale asset while a peer gateway serves the right content
+        - webroot drift went unnoticed for two days because each node's health check only inspected its own state
+        - certificate fullchain.pem differs between gateways and clients alternate between trust-OK and trust-FAIL on retry
+        - rendered systemd unit file differs between nodes for the same service; one node runs the new spec, another runs the old
+        - service spec under /var/lib/globular/specs is present on one node, absent on another
+        - installed binary at /usr/lib/globular/bin/<name> differs in hash between nodes that supposedly applied the same release
+      root_cause: |
+        Nothing in Globular today owns the question "is this file the same on
+        every node that's supposed to have it?" Each service inspects its own
+        local state; the controller only sees aggregate inventory claims
+        (Phase 4 surfaces those as ProofStatus, but the layer beneath
+        ProofStatus — the actual file bytes — is still a per-node black box).
+
+        Three patterns produced the drift the brief calls out:
+
+          1. Hand-applied fix on one node that nobody propagated. Webroot
+             assets dropped on the active gateway during firefighting, never
+             pushed to peers.
+          2. Partial completion of a deploy step where the unit was rendered
+             on the first node and the orchestrator died before the second
+             ran. Phase 4 catches this at the build_id layer; Phase 7 catches
+             it for content that doesn't roll up to build_id (specs, units,
+             webroot files, certs).
+          3. Mismatched authority: a class of files SHOULD be objectstore-
+             backed, but a legacy code path still writes local-only on some
+             nodes. The "is this drift?" question has no answer because the
+             authority is undefined.
+
+        In every case the system looked green because every node looked OK
+        in isolation. There is no cross-node consistency check until Phase 7.
+      architecture_fix: |
+        Phase 7 adds golang/crossnodedrift, a small pure-decision package:
+
+          - Authority constants (replicated, objectstore_backed,
+            generated_from_etcd, generated_from_repository, node_local,
+            undefined). Each PathClass declares exactly one.
+          - KnownPathClasses() catalog covering webroot, public_app_assets,
+            service_specs, rendered_systemd_units, objectstore_config,
+            envoy_xds_snapshots, cert_san_files, package_installed_binaries.
+            Every entry MUST declare an authority — leaving it Undefined
+            raises FindingAuthorityUndefined deliberately, so the omission
+            is loud not silent.
+          - DetectDrift(class, path, []NodeObservation, AuthorityContext) →
+            DriftVerdict. Pure function. Encodes the per-authority rules:
+            replicated requires identical hash on every node (or all absent);
+            objectstore_backed permits local-absent (cache miss) but flags
+            present-but-different; generated_from_* requires every node's
+            local copy to hash-match the regenerated content.
+
+        Collection errors never raise drift on their own — the verdict is
+        unknown for that node and the detector continues for the rest. This
+        is the same diagnostic-honesty rule the rest of the refactor follows:
+        missing proof is NOT proof of failure.
+
+        Phase 9 wires the collector: a node-agent RPC that hashes each path
+        class on demand, the controller aggregates observations, doctor
+        emits cluster.cross_node_file_drift or cluster.authority_undefined.
+      known_bad_fixes:
+        - Running `rsync` from a "known good" node to the others — fixes the symptom for one path class, leaves the next one drifted next week
+        - Logging drift to slog.Warn and moving on — that is the exact silent-fallback bug Phase 6 corrected, just with a different name
+        - Declaring a path class node_local because "it's complicated" — node_local means "drift is legitimate by design"; only use it when that's actually true
+        - Storing the same content in multiple authoritative places (e.g. both etcd AND objectstore) so neither is authoritative — fragments the truth and reintroduces the same class of bug
+        - Raising drift on a single error observation — collection errors are unknown, not drift, per the diagnostic-honesty rule
+      related_invariants:
+        - cluster.cross_node_consistency
+        - diagnostics.must_measure_reality
+        - fallback.must_emit_degraded_finding
+      required_tests:
+        - TestDetectDrift_Webroot_OneNodePresentOthersAbsent_Drift
+        - TestDetectDrift_ObjectstoreBacked_LocalPresentObjectstoreEmpty_Drift
+        - TestDetectDrift_ObjectstoreBacked_LocalHashDiffers_Drift
+        - TestDetectDrift_ObjectstoreBacked_LocalAbsent_OK
+        - TestDetectDrift_AuthorityUndefined_RaisesFinding
+        - TestDetectDrift_GeneratedFromEtcd_OneAbsent_Drift
+        - TestDetectDrift_AllErrored_Unknown
+        - TestKnownPathClasses_NoneUndefined
+
     - id: service.silent_fallback_active
       title: A service is currently serving requests from a substitute backend (cache / local disk / read-only) because its primary dependency failed
       severity: degraded
