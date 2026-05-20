@@ -149,6 +149,16 @@ func (srv *server) RepairStateAlignment(ctx context.Context, req *cluster_contro
 		}
 
 		switch {
+		case pkg.kind == "COMMAND":
+			// COMMAND packages are standalone CLI tools (ffmpeg, rclone, mc,
+			// etcdctl, sha256sum, restic, sctool, yt-dlp, globular-cli, …).
+			// They have no systemd unit, no gRPC service, and no runtime
+			// state to converge on. The cluster only ensures the binary is
+			// present on each node where it was installed. Treating them as
+			// "unmanaged" generates noise — every node that ever installed
+			// a tool would show up in the repair report forever.
+			entry.Status = "installed"
+			report.Aligned++
 		case desiredDV.version == "" && repo.version == "":
 			entry.Status = "unmanaged"
 			entry.Message = "installed but no desired release and not in repository"
