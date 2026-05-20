@@ -158,14 +158,22 @@ type ReplicaSpec struct {
 
 // NodeReleaseStatus tracks per-node progress within a ServiceRelease rollout.
 type NodeReleaseStatus struct {
-	NodeID                string `json:"node_id,omitempty"`
-	Phase                 string `json:"phase,omitempty"` // ReleasePhase* constants
-	InstalledVersion      string `json:"installed_version,omitempty"`
-	InstalledBuildNumber  int64  `json:"installed_build_number,omitempty"` // build iteration on this node
-	InstalledBuildID      string `json:"installed_build_id,omitempty"`     // Phase 2: exact installed artifact identity
-	ErrorMessage          string `json:"error_message,omitempty"`
-	UpdatedUnixMs         int64  `json:"updated_unix_ms,omitempty"`
-	FailedStepID          string `json:"failed_step_id,omitempty"` // step that failed (from plan status)
+	NodeID               string `json:"node_id,omitempty"`
+	Phase                string `json:"phase,omitempty"` // ReleasePhase* constants
+	InstalledVersion     string `json:"installed_version,omitempty"`
+	InstalledBuildNumber int64  `json:"installed_build_number,omitempty"` // build iteration on this node
+	InstalledBuildID     string `json:"installed_build_id,omitempty"`     // Phase 2: exact installed artifact identity
+	InstalledHash        string `json:"installed_hash,omitempty"`         // Phase 4: artifact sha256 verified at apply time
+	ErrorMessage         string `json:"error_message,omitempty"`
+	UpdatedUnixMs        int64  `json:"updated_unix_ms,omitempty"`
+	FailedStepID         string `json:"failed_step_id,omitempty"` // step that failed (from plan status)
+	// Phase 4 (Diagnostic Honesty Refactor): claim-vs-proof distinction
+	// for this node's rollout state. Empty when the controller hasn't
+	// classified the node yet. Values are defined in release_proof_status.go
+	// (RolloutProofInventoryClaim / RolloutProofInstalledVerified /
+	// RolloutProofRuntimeVerified / RolloutProofMismatch / unknown).
+	ProofStatus  string `json:"proof_status,omitempty"`
+	ProofFinding string `json:"proof_finding,omitempty"` // failure_modes id when ProofStatus=mismatch
 }
 
 // ServiceReleaseStatus is the controller-managed status of a ServiceRelease.
@@ -192,6 +200,14 @@ type ServiceReleaseStatus struct {
 	NextRetryUnixMs    int64  `json:"next_retry_unix_ms,omitempty"`   // earliest time to attempt the next dispatch
 	LastTransientError string `json:"last_transient_error,omitempty"` // last transient error message
 	BlockedReason      string `json:"blocked_reason,omitempty"`       // structured reason: workflow_unavailable, workflow_circuit_open, …
+
+	// Phase 4 (Diagnostic Honesty Refactor): release-level proof floor
+	// across required nodes. AVAILABLE is reachable today without
+	// runtime_verified proof; ProofStatus surfaces the gap so operators
+	// and doctor rules see a green Phase + a non-green ProofStatus when
+	// reality and inventory disagree.
+	ProofStatus string   `json:"proof_status,omitempty"`
+	Findings    []string `json:"findings,omitempty"` // failure_modes ids: rollout.partial_not_converged, etc.
 }
 
 // ServiceRelease is the top-level desired-state object for service lifecycle.
@@ -235,6 +251,10 @@ type ApplicationReleaseStatus struct {
 	WorkflowKind           string               `json:"workflow_kind,omitempty"`
 	StartedAtUnixMs        int64                `json:"started_at_unix_ms,omitempty"`
 	TransitionReason       string               `json:"transition_reason,omitempty"`
+
+	// Phase 4 (Diagnostic Honesty Refactor): see ServiceReleaseStatus.
+	ProofStatus string   `json:"proof_status,omitempty"`
+	Findings    []string `json:"findings,omitempty"`
 }
 
 // ApplicationRelease is the top-level desired-state object for web application lifecycle.
@@ -281,6 +301,10 @@ type InfrastructureReleaseStatus struct {
 	WorkflowKind           string               `json:"workflow_kind,omitempty"`
 	StartedAtUnixMs        int64                `json:"started_at_unix_ms,omitempty"`
 	TransitionReason       string               `json:"transition_reason,omitempty"`
+
+	// Phase 4 (Diagnostic Honesty Refactor): see ServiceReleaseStatus.
+	ProofStatus string   `json:"proof_status,omitempty"`
+	Findings    []string `json:"findings,omitempty"`
 }
 
 // InfrastructureRelease is the top-level desired-state object for infrastructure component lifecycle.

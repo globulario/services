@@ -1782,3 +1782,67 @@ failure_modes:
         - TestFormatBackup_RestoreSkippedOnTopologyFingerprintMismatch
         - TestFormatBackup_PurgedAfterApprovedDestructiveTransition
         - TestFormatBackup_NeverOverwritesValidOnDiskFormat
+
+    - id: rollout.partial_not_converged
+      title: Release reports AVAILABLE while one or more required nodes are below installed_verified proof
+      severity: critical
+      symptoms:
+        - cluster-controller shows a ServiceRelease / InfrastructureRelease in Phase=AVAILABLE
+        - the same release shows status.proof_status=inventory_claim, unknown, or mismatch
+        - status.findings contains "rollout.partial_not_converged"
+        - per-node NodeReleaseStatus entries have proof_status in (inventory_claim, mismatch) while Phase=AVAILABLE
+        - doctor surfaces partial rollouts despite the controller treating them as converged
+        - operators see the platform as green, but new RPCs hit stale binaries on some nodes
+      root_cause: |
+        Before Phase 4 the AVAILABLE transition was written from a single signal:
+        the node-agent reported "installed" via the workflow callback (workflow_release.go
+        MarkNodeSucceeded), or detectServiceDrift saw an InstalledPackage entry whose
+        build_id matched the resolved release build_id. Both signals are claims from
+        the node-agent — neither is independent proof that the on-disk binary or the
+        running process matches the artifact the controller intended to ship.
+
+        A node-agent crash, partial extraction, stale heartbeat, or a workflow that
+        succeeded for 4 of 5 nodes can leave a release at "AVAILABLE per workflow"
+        while the cluster is actually PARTIAL. The 4-layer state model (Repository →
+        Desired → Installed → Runtime) treats Installed as a separate truth source
+        from Runtime, but the rollout state machine collapsed them.
+      architecture_fix: |
+        Two changes, intentionally additive:
+
+        1. NodeReleaseStatus and ServiceReleaseStatus / InfrastructureReleaseStatus /
+           ApplicationReleaseStatus gain a ProofStatus dimension distinct from Phase.
+           The levels are weakest → strongest: inventory_claim → installed_verified →
+           runtime_verified, plus mismatch and unknown. ProofStatus is a roll-up of
+           per-node verdicts (decideNodeRolloutProof in release_proof_status.go)
+           computed against the etcd InstalledPackage record + the running systemd
+           unit. installed_verified requires the artifact checksum/build_id measured
+           at apply time (Phase 1) to still match the resolved release, AND the
+           systemd unit to be active. runtime_verified is the Phase 9 ceiling once
+           GetServiceRuntimeProof is wired into the convergence loop.
+
+        2. detectServiceDrift now computes a per-node verdict for every node in the
+           release and rolls them up via aggregateRolloutProof. The release-level
+           ProofStatus is the floor across required nodes. If the release sits at
+           AVAILABLE but the floor is below installed_verified, the finding
+           rollout.partial_not_converged is added to status.findings so doctor and
+           operator UIs can surface the gap without re-deriving it.
+
+        Phase 4 does NOT block the AVAILABLE transition. That is Phase 9's job:
+        the external verifier consumes GetServiceRuntimeProof, writes its result
+        under /globular/verification/runtime/<node>/<service>, and lets the
+        controller raise the proof floor to runtime_verified. Once that loop is
+        live, strict mode can refuse AVAILABLE when proof is short of
+        runtime_verified.
+      known_bad_fixes:
+        - Treating "node-agent says installed" as proof — the node-agent is the entity being verified
+        - Inferring runtime_verified from systemd ActiveState alone — systemd reports the process is up, not which binary it loaded
+        - Adding fallback paths that promote inventory_claim to installed_verified on heartbeat freshness — heartbeat freshness is a different invariant
+        - Marking AVAILABLE based on workflow run state ("MarkNodeSucceeded was called") — that is the structural lie the refactor exists to remove
+      related_invariants:
+        - rollout.convergence_requires_runtime_proof
+        - diagnostics.must_measure_reality
+      required_tests:
+        - TestDecideNodeRolloutProof_HashMatch_RuntimeNotActive_PartialNotConverged
+        - TestAggregateRolloutProof_PartialRollout_PartialNotConvergedFinding
+        - TestAggregateRolloutProof_MismatchFloor_KeepsPerNodeFinding
+        - TestAggregateRolloutProof_NotAtAvailable_NoPartialFinding

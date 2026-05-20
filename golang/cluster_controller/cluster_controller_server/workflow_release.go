@@ -512,6 +512,24 @@ func (srv *server) buildReleaseControllerConfigWithGen(releaseName, pkgKind stri
 				n.InstalledVersion = version
 				n.UpdatedUnixMs = time.Now().UnixMilli()
 				n.ErrorMessage = ""
+				// Phase 4: persist the hash the workflow reported. Phase 1
+				// guarantees this hash was verified against the artifact
+				// manifest before apply marked the package installed, so
+				// the proof level we can claim from a workflow success
+				// callback is at most installed_verified. The convergence
+				// scan in detectServiceDrift / detectInfraDrift confirms
+				// this by re-checking the etcd InstalledPackage record
+				// against the resolved digest; we do NOT promote past
+				// installed_verified here because the workflow has no
+				// independent runtime measurement of its own.
+				if strings.TrimSpace(hash) != "" {
+					n.InstalledHash = hash
+					n.ProofStatus = RolloutProofInstalledVerified
+					n.ProofFinding = ""
+				} else {
+					n.ProofStatus = RolloutProofInventoryClaim
+					n.ProofFinding = ""
+				}
 			})
 		},
 		MarkNodeFailed: func(ctx context.Context, releaseID, nodeID, reason string) error {

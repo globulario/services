@@ -231,9 +231,22 @@ type statusPatch struct {
 	// BlockedReason is a structured slug set by the "retry" path:
 	// workflow_unavailable, workflow_circuit_open, workflow_deadline, etc.
 	BlockedReason string
+	// Phase 4 (Diagnostic Honesty Refactor): rollout-level proof status
+	// + findings rolled up from per-node verdicts. ProofStatus values are
+	// RolloutProof* constants in release_proof_status.go. Findings carries
+	// failure_modes ids like rollout.partial_not_converged so doctor can
+	// pick them up without re-deriving them.
+	//
+	// Both are populated only by callers that filled the "nodes" SetFields
+	// path — that's the only place we have enough information to compute
+	// them today. Other paths leave them empty (which preserves whatever
+	// was last written).
+	ProofStatus string
+	Findings    []string
 	// SetFields controls which fields are meaningful in this patch.
 	// "resolve" = version/digest/hash/generation, "phase" = just phase,
-	// "nodes" = phase + nodes, "fail" = phase + message, "retry" = transient error.
+	// "nodes" = phase + nodes (+ proof status when set), "fail" = phase +
+	// message, "retry" = transient error.
 	SetFields string
 }
 
@@ -917,6 +930,9 @@ func applyPatchToAppStatus(s *cluster_controllerpb.ApplicationReleaseStatus, p s
 		s.Phase = p.Phase
 		s.Nodes = p.Nodes
 		s.LastTransitionUnixMs = p.LastTransitionUnixMs
+		// Phase 4: persist rollout proof floor + findings.
+		s.ProofStatus = p.ProofStatus
+		s.Findings = p.Findings
 		applyWorkflowFields()
 	case "fail":
 		s.Phase = p.Phase
@@ -960,6 +976,9 @@ func applyPatchToInfraStatus(s *cluster_controllerpb.InfrastructureReleaseStatus
 		s.Phase = p.Phase
 		s.Nodes = p.Nodes
 		s.LastTransitionUnixMs = p.LastTransitionUnixMs
+		// Phase 4: persist rollout proof floor + findings.
+		s.ProofStatus = p.ProofStatus
+		s.Findings = p.Findings
 		applyWorkflowFields()
 	case "fail":
 		s.Phase = p.Phase
@@ -1053,6 +1072,9 @@ func applyPatchToSvcStatus(s *cluster_controllerpb.ServiceReleaseStatus, p statu
 		s.Phase = p.Phase
 		s.Nodes = p.Nodes
 		s.LastTransitionUnixMs = p.LastTransitionUnixMs
+		// Phase 4: persist rollout proof floor + findings.
+		s.ProofStatus = p.ProofStatus
+		s.Findings = p.Findings
 		applyWorkflowFields()
 		return true
 	case "fail":
@@ -1117,6 +1139,9 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 	ok := 0
 	issues := 0
 	updatedNodes := make([]*cluster_controllerpb.NodeReleaseStatus, 0, total)
+	// Phase 4: collect per-node proof verdicts so we can roll them up into
+	// release.Status.ProofStatus + Findings after the loop.
+	proofVerdicts := make([]NodeRolloutProofVerdict, 0, total)
 
 	for _, n := range nodes {
 		if n == nil || strings.TrimSpace(n.NodeID) == "" {
@@ -1138,6 +1163,10 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 		versionMatch := false
 		healthy := false
 		serviceHealthy := false
+		// Phase 4: keep the InstalledPackage around so we can derive a
+		// proof verdict for this node from the same record that drives
+		// the AVAILABLE/DEGRADED decision below.
+		var installedPkg *node_agentpb.InstalledPackage
 		if node != nil && rel.Spec != nil {
 			healthy = strings.EqualFold(node.Status, "ready")
 			serviceHealthy = srv.serviceHealthyForRelease(node, rel)
@@ -1145,6 +1174,7 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 			// Read installed build_id from etcd (authoritative).
 			if rel.Status != nil && rel.Status.ResolvedBuildID != "" {
 				if pkg, pkgErr := installed_state.GetInstalledPackage(ctx, nodeID, "SERVICE", rel.Spec.ServiceName); pkgErr == nil && pkg != nil {
+					installedPkg = pkg
 					if pkg.GetBuildId() == rel.Status.ResolvedBuildID {
 						versionMatch = true
 					}
@@ -1153,6 +1183,31 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 			// If resolved build_id is empty (pre-Phase-2 release), versionMatch stays false
 			// → treated as drifted → triggers re-resolve with build_id.
 		}
+
+		// Phase 4: derive the per-node proof verdict from the same
+		// measurements the drift decision already uses. runtimeOK here
+		// is the serviceHealthy bit, which classifies the systemd unit
+		// state — the strongest runtime signal the controller has
+		// before Phase 9's GetServiceRuntimeProof is wired in.
+		var resolvedVersion, resolvedHash, resolvedBID string
+		if rel.Status != nil {
+			resolvedVersion = rel.Status.ResolvedVersion
+			resolvedHash = rel.Status.ResolvedArtifactDigest
+			resolvedBID = rel.Status.ResolvedBuildID
+		}
+		verdict := decideNodeRolloutProof(
+			resolvedVersion, resolvedHash, resolvedBID,
+			installedPkg,
+			true, // services always require a running unit
+			serviceHealthy,
+		)
+		nCopy.ProofStatus = verdict.ProofStatus
+		nCopy.ProofFinding = verdict.FindingID
+		if installedPkg != nil {
+			nCopy.InstalledHash = installedPkg.GetChecksum()
+		}
+		proofVerdicts = append(proofVerdicts, verdict)
+
 		if versionMatch && healthy && serviceHealthy {
 			ok++
 			nCopy.Phase = cluster_controllerpb.ReleasePhaseAvailable
@@ -1202,6 +1257,13 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 		newPhase = cluster_controllerpb.ReleasePhaseFailed
 	}
 
+	// Phase 4: roll up per-node proof verdicts into the release status.
+	// The finding rollout.partial_not_converged is emitted when the floor
+	// is below installed_verified at AVAILABLE — the cluster looks green
+	// per Phase, but reality lacks proof.
+	atAvailable := newPhase == cluster_controllerpb.ReleasePhaseAvailable
+	agg := aggregateRolloutProof(proofVerdicts, atAvailable)
+
 	if newPhase == h.Phase && len(updatedNodes) == len(nodes) {
 		return false
 	}
@@ -1215,6 +1277,8 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 		Nodes:                updatedNodes,
 		LastTransitionUnixMs: time.Now().UnixMilli(),
 		TransitionReason:     reason,
+		ProofStatus:          agg.ProofStatus,
+		Findings:             agg.Findings,
 		SetFields:            "nodes",
 	})
 	return true
