@@ -279,14 +279,14 @@ func (srv *server) runResticBackup(ctx context.Context, spec *backup_managerpb.B
 
 	outputs["paths"] = strings.Join(validPaths, ",")
 
-	// Exclude backup data dir and the restic repo itself — backup metadata
-	// lives outside the cluster dir (/var/backups/globular) and must never
-	// be included in snapshots (causes zombie jobs, circular backups).
-	args := []string{"backup", "--json",
-		"--exclude", srv.DataDir,
-		"--exclude", repo,
-	}
-	args = append(args, validPaths...)
+	// Build the restic backup argv deterministically. buildResticBackupArgs
+	// also injects the default exclude list (circular, double-coverage,
+	// cache, runtime, local-side-effects) so exit-code 3 noise from
+	// regenerable paths doesn't masquerade as a backup failure.
+	args := buildResticBackupArgs(repo, srv.DataDir, validPaths, nil)
+	// Capture the exact exclude list passed to restic so classifyResticWarnings
+	// can faithfully decide which permission-denied items are noise vs real.
+	configuredExcludes := append([]string{srv.DataDir, repo}, defaultResticExcludes...)
 	cmd := exec.CommandContext(ctx, "restic", args...)
 	cmd.Env = append(os.Environ(), env...)
 	var outBuf, errBuf bytes.Buffer
@@ -308,16 +308,28 @@ func (srv *server) runResticBackup(ctx context.Context, spec *backup_managerpb.B
 	_ = CapsuleWriteFile(cc.ProviderDir, "log.txt", []byte(stderrStr))
 
 	if err != nil {
-		// Restic exit code 3 = warnings (e.g. a file vanished during backup)
-		// but the snapshot was still created successfully. Treat as success.
 		exitCode := 0
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
 		}
-		if exitCode == 3 {
-			slog.Warn("restic backup completed with warnings", "stderr", stderrStr)
+		switch exitCode {
+		case 3:
+			// Restic exit code 3 = warnings (a file vanished, permission
+			// denied during scan, etc.) — the snapshot WAS created. Classify:
+			// when only optional/excluded/noise paths produced warnings the
+			// verdict stays "success"; when a REQUIRED path was unreadable
+			// we fail explicitly so the operator doesn't get a silent
+			// incomplete backup.
 			outputs["warnings"] = stderrStr
-		} else {
+			if ok, failMsg := evaluateResticResult(exitCode, stderrStr, configuredExcludes, outputs); !ok {
+				outputs["exit_error"] = "exit code 3 with required paths unreadable"
+				slog.Warn("restic backup failed: required path(s) unreadable",
+					"unreadable_required", outputs["unreadable_required"])
+				return failResult(spec.Type, failMsg, outputs)
+			}
+			slog.Warn("restic backup completed with optional-path warnings",
+				"stderr_bytes", len(stderrStr))
+		default:
 			outputs["exit_error"] = err.Error()
 			detail := strings.TrimSpace(stderrStr)
 			if detail == "" {
