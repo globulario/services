@@ -2757,3 +2757,233 @@ invariants:
         - overwrite_existing_on_disk_format_with_etcd_snapshot     # MinIO's on-disk bytes are authoritative when present
         - back_up_format_json_to_minio_itself                       # MinIO can't read its own format ⇒ can't read its own backup
         - skip_purge_on_destructive_transition                      # restore would race with the new topology's first format
+
+    # ── Diagnostic Honesty Refactor (Phase 8) ────────────────────────────
+    # The Prime Directive: no component reports healthy / installed /
+    # converged / aligned from a CLAIM alone. Runtime truth requires PROOF.
+
+    - id: diagnostics.must_measure_reality
+      title: Diagnostics must verify disk, process, runtime, and live dependency state — claims are not proof
+      severity: critical
+      status: active
+      summary: |
+        Desired state in etcd, inventory state in etcd, node_agent apply
+        success, systemd active, package metadata, and controller
+        convergence state are CLAIMS — they describe what someone said
+        should be true, not evidence that it IS true. Diagnostics —
+        health, doctor, preflight, awareness — MUST verify against
+        independent reality: actual binary hash on disk, /proc/<pid>/exe
+        hash, runtime version reported by the live process, systemd
+        effective unit properties, fallback / degraded-mode evidence.
+        Any component that emits "healthy" or "installed" without that
+        proof is in violation.
+      protects:
+        state:
+            - /globular/nodes/{node_id}/packages/{kind}/{name}
+            - /globular/verification/runtime/{node}/{service}
+        files:
+            - golang/node_agent/node_agent_server/apply_package_release.go
+            - golang/node_agent/node_agent_server/apply_package_verify.go
+            - golang/node_agent/node_agent_server/runtime_proof.go
+            - golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+            - golang/cluster_doctor/cluster_doctor_server/rules/
+        symbols:
+            - verifyInstalledBinaryHash
+            - collectServiceRuntimeProof
+            - GetServiceRuntimeProof
+      enforcement: |
+        Phase 1 — apply_package gates installed_state on a post-install
+        sha256 of the deployed binary vs the artifact manifest digest.
+        Phase 2 — node_agent exposes GetServiceRuntimeProof RPC carrying
+        installed_sha256, running_exe_sha256, systemd effective unit
+        properties, and partial-proof errors[] for partial collection.
+        Phase 3+ — health checks, controller convergence, and doctor
+        rules consume runtime proof and refuse to emit OK / CONVERGED
+        from inventory alone.
+      forbidden_fixes:
+        - trust_installed_state_without_hash
+        - trust_systemd_active_as_healthy
+        - trust_inventory_for_version_health
+      required_tests:
+        - TestVerifyInstalledBinaryHash_MismatchReturnsTypedError
+        - TestVerifyInstalledBinaryHash_MissingBinaryWithExpectedReturnsTypedError
+        - TestCollectServiceRuntimeProof_RunningExeDiffersFromInstalled
+      related_failure_modes:
+        - service.running_binary_hash_mismatch
+        - service.old_pid_after_upgrade
+        - package.installed_binary_hash_mismatch
+
+    - id: rollout.convergence_requires_runtime_proof
+      title: A rollout is converged only when every required node proves the expected artifact is installed AND running
+      severity: critical
+      status: active
+      summary: |
+        Controller convergence MUST NOT mark a rollout converged from
+        inventory state alone. Convergence requires, for every required
+        node: desired build_id == repository artifact build_id; installed
+        binary sha256 == expected artifact sha256; running process sha256
+        == expected artifact sha256; runtime version/build == expected;
+        systemd unit effective config matches rendered config. A
+        4-of-5 inventory-claim is PARTIAL, not CONVERGED.
+      protects:
+        state:
+            - /globular/resources/ServiceRelease/{name}
+            - /globular/resources/InfrastructureRelease/{name}
+        files:
+            - golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+            - golang/cluster_controller/cluster_controller_server/convergence_committer.go
+        symbols:
+            - classifyPackageConvergence
+            - convergenceCommitter
+      enforcement: |
+        Add explicit rollout states: PENDING, APPLYING, INSTALLED_CLAIMED,
+        INSTALLED_VERIFIED, RUNTIME_VERIFIED, PARTIAL, FAILED, ROLLED_BACK,
+        CONVERGED. CONVERGED is only allowed after RUNTIME_VERIFIED on
+        all required nodes — gated by GetServiceRuntimeProof results.
+      forbidden_fixes:
+        - partial_rollout_converged
+        - converge_on_inventory_alone
+      required_tests:
+        - TestControllerRollout_PartialNotConverged
+        - TestControllerRollout_DiskHashMismatchBlocksConvergence
+      related_failure_modes:
+        - rollout.partial_not_converged
+
+    - id: health.must_not_use_inventory_as_runtime_truth
+      title: Health checks must not report service version OK from etcd inventory alone
+      severity: critical
+      status: active
+      summary: |
+        For every version:<service> health check: OK is only emitted when
+        desired build == installed binary hash == running process hash ==
+        runtime version/build. If any part is unavailable the result is
+        UNKNOWN (degraded for required services). If any part mismatches
+        the result is MISMATCH (critical). Health responses must include
+        the claim-vs-proof breakdown so the operator can see where the
+        divergence lives.
+      protects:
+        files:
+            - golang/cluster_controller/cluster_controller_server/handlers_health.go
+            - golang/globularcli/health_cmds.go
+        symbols:
+            - versionHealthHandler
+      enforcement: |
+        Replace any handler that compares only desired vs inventory.
+        Consume GetServiceRuntimeProof from node_agent and reconcile all
+        four layers before emitting OK.
+      forbidden_fixes:
+        - trust_inventory_for_version_health
+        - report_systemd_active_as_version_ok
+      required_tests:
+        - TestHealthVersion_RequiresRuntimeProof
+        - TestHealthVersion_PartialProofIsDegraded
+      related_failure_modes:
+        - service.running_version_mismatch
+
+    - id: fallback.must_emit_degraded_finding
+      title: Any fallback from primary dependency to local / cache / memory / read-only mode must emit a degraded finding
+      severity: high
+      status: active
+      summary: |
+        Silent fallback hides outages: a file service that quietly switches
+        from MinIO to local disk keeps user-facing requests alive but
+        makes the cluster look green while replication is broken. Every
+        fallback path must emit a structured service.silent_fallback_active
+        finding (degraded severity) carrying { service, dependency,
+        fallback_mode, primary_error, affected_paths, node_id, since }.
+        Fallback keeps the path alive — it MUST NOT keep the system green.
+      protects:
+        files:
+            - golang/file/file_server/
+            - golang/repository/repository_server/
+            - golang/dns/
+        symbols:
+            - fallbackToLocal
+            - fallbackToMemory
+      enforcement: |
+        Audit every fallback path. Each must call an emitDegradedFinding
+        helper at the moment of switchover. Doctor rule consumes the
+        finding and propagates degraded status to cluster health.
+      forbidden_fixes:
+        - silent_fallback
+        - log_only_fallback_without_finding
+      required_tests:
+        - TestFileService_FallbackToLocalEmitsFinding
+        - TestRepository_FallbackToLocalEmitsFinding
+
+    - id: systemd.effective_unit_must_match_rendered_unit
+      title: Generated systemd unit files must be validated for duplicate singleton directives; installed effective properties must match expected
+      severity: critical
+      status: active
+      summary: |
+        systemd silently uses last-wins on duplicate singleton directives
+        (Type, User, Group, ExecStart, WorkingDirectory, Restart, etc.).
+        A duplicate Type= shipped in service units once; the bug was
+        invisible because no component diffed rendered-vs-effective.
+        Spec generation MUST reject duplicate singleton directives at
+        render time (deploy.ValidateSystemdUnit). Doctor MUST collect
+        effective unit properties via `systemctl show` and compare them
+        to the rendered template hash; mismatches emit
+        systemd.effective_config_drift.
+      protects:
+        files:
+            - golang/deploy/specgen.go
+            - golang/node_agent/node_agent_server/runtime_proof.go
+        symbols:
+            - ValidateSystemdUnit
+            - collectServiceRuntimeProof
+      enforcement: |
+        Phase 5 — deploy.ValidateSystemdUnit runs at both init() (against
+        the template literal) and GenerateSpec call time (against the
+        rendered output). Phase 2 — ServiceRuntimeProof carries
+        SystemdUnitSha256 + EffectiveExecStart + EffectiveType for the
+        consumer to diff against the rendered template.
+      forbidden_fixes:
+        - allow_duplicate_singleton_directives
+        - trust_systemctl_show_without_diffing_template
+      required_tests:
+        - TestValidateSystemdUnit_RejectsDuplicateType
+        - TestValidateSystemdUnit_AllowsRepeatedExecStartPre
+        - TestGenerateSpec_TemplateProducesValidUnit
+      related_failure_modes:
+        - systemd.unit_duplicate_directive
+        - systemd.effective_config_drift
+
+    - id: doctor.must_compare_claims_to_proofs
+      title: Doctor must compare desired / inventory claims against independent runtime proof, not only desired vs inventory
+      severity: critical
+      status: active
+      summary: |
+        Doctor rules historically read installed_state.Checksum and
+        compared it to repository entrypoint_checksum — both are claims
+        recorded by the apply path. If apply lied, doctor agrees.
+        Doctor MUST consume independent runtime proof
+        (GetServiceRuntimeProof from each node-agent OR the verifier's
+        etcd snapshot at /globular/verification/runtime/{node}/{service})
+        and emit findings when the proof disagrees with claims:
+        package.installed_binary_hash_mismatch (critical),
+        service.running_binary_hash_mismatch (critical),
+        service.running_version_mismatch (critical),
+        service.old_pid_after_upgrade (critical),
+        service.runtime_identity_unproven (degraded).
+      protects:
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/rules/
+            - golang/cluster_doctor/cluster_doctor_server/collector/
+        symbols:
+            - doctorRule
+      enforcement: |
+        Add doctor rules that read ServiceRuntimeProof from every node,
+        compare each field against desired/installed claims, and emit
+        the corresponding finding on drift.
+      forbidden_fixes:
+        - doctor_reads_only_inventory
+        - doctor_trusts_node_agent_apply_success
+      required_tests:
+        - TestDoctorRule_RunningBinaryHashMismatch
+        - TestDoctorRule_OldPidAfterUpgrade
+      related_failure_modes:
+        - package.installed_binary_hash_mismatch
+        - service.running_binary_hash_mismatch
+        - service.old_pid_after_upgrade
+        - service.runtime_identity_unproven

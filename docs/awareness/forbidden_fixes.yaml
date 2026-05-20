@@ -1986,3 +1986,169 @@ forbidden_fixes:
     a terminal state (SUCCEEDED / FAILED / BLOCKED) is observed. Report
     that terminal state to the operator. For destructive or irreversible
     operations, require explicit confirmation before dispatch — not after.
+
+# ── Diagnostic Honesty Refactor (Phase 8) ──────────────────────────────────
+# Claims must never be promoted to "proof" implicitly. The fixes below were
+# all observed in the wild (or in code review) and are NOT acceptable
+# regardless of how convenient they look.
+
+- id: trust_installed_state_without_hash
+  summary: |
+    Mark a package "installed" in etcd before verifying that the deployed
+    binary on disk hashes to the expected artifact manifest digest. The
+    apply path may have extracted nothing, extracted the wrong bytes, or
+    skipped the replace step — none of which fail systemctl restart.
+  related_invariants:
+    - diagnostics.must_measure_reality
+  safe_alternative: |
+    After payload extraction and before WriteInstalledPackage(Status=installed),
+    sha256 the deployed binary and compare to expected_sha256 from the
+    artifact manifest. On mismatch / missing, write Status=failed_binary_hash_mismatch
+    with structured evidence (expected/actual/path/build_id/apply_run_id) and
+    return Ok=false to the workflow. See verifyInstalledBinaryHash in
+    apply_package_verify.go.
+
+- id: trust_systemd_active_as_healthy
+  summary: |
+    Treat `systemctl is-active = active` as proof that the service is
+    running the expected build. systemd reports active for any process
+    that completed its ExecStart, regardless of which binary's bytes are
+    actually executing — including a process that escaped its cgroup and
+    holds the old port, or a process whose binary on disk was replaced
+    after the last restart.
+  related_invariants:
+    - diagnostics.must_measure_reality
+    - rollout.convergence_requires_runtime_proof
+  safe_alternative: |
+    Read the MainPID from systemctl show, deref /proc/<pid>/exe, sha256
+    the resulting path, and compare to the artifact manifest digest. Use
+    GetServiceRuntimeProof (node_agent) for this — do not roll your own.
+
+- id: trust_inventory_for_version_health
+  summary: |
+    Report `version:<service> ok=true` from a desired-vs-inventory
+    comparison alone. Both values are CLAIMS recorded by the apply path
+    and the controller — neither proves the running process is the
+    expected build.
+  related_invariants:
+    - health.must_not_use_inventory_as_runtime_truth
+  safe_alternative: |
+    Require all four layers to agree before emitting OK: desired build ==
+    installed binary hash == running process hash == runtime version.
+    If any part is unavailable for a required service, the result is
+    UNKNOWN (degraded), not OK.
+
+- id: silent_fallback
+  summary: |
+    Fall back from a primary dependency (MinIO, repository, DNS, cache)
+    to a local / memory / read-only substitute without emitting a
+    degraded finding. The user-facing path stays alive but the cluster
+    appears green while replication, indexing, or persistence are silently
+    broken.
+  related_invariants:
+    - fallback.must_emit_degraded_finding
+  safe_alternative: |
+    At the moment of switchover, emit service.silent_fallback_active
+    (degraded severity) with { service, dependency, fallback_mode,
+    primary_error, affected_paths, node_id, since }. The fallback path
+    keeps the request alive; the finding ensures the operator knows.
+
+- id: partial_rollout_converged
+  summary: |
+    Mark a rollout CONVERGED when only inventory state on each node says
+    installed=true, even though one or more nodes have not yet been
+    runtime-verified (running binary hash, runtime version, effective
+    systemd unit).
+  related_invariants:
+    - rollout.convergence_requires_runtime_proof
+  safe_alternative: |
+    Use the explicit state machine PENDING → APPLYING → INSTALLED_CLAIMED
+    → INSTALLED_VERIFIED → RUNTIME_VERIFIED → CONVERGED. Only emit
+    CONVERGED after every required node has reached RUNTIME_VERIFIED
+    via GetServiceRuntimeProof. Anything else is PARTIAL.
+
+- id: converge_on_inventory_alone
+  summary: |
+    Permit the controller to advance the rollout state machine based on
+    InstalledPackage records without independent runtime evidence.
+  related_invariants:
+    - rollout.convergence_requires_runtime_proof
+  safe_alternative: |
+    The controller must obtain runtime proof (via GetServiceRuntimeProof
+    or the verifier's etcd snapshot) for every required node before
+    moving to CONVERGED. Inventory is the convergence target; proof is
+    the convergence evidence.
+
+- id: report_systemd_active_as_version_ok
+  summary: |
+    Map systemctl is-active to a positive version health result. The
+    process can be active and still be the wrong version (old binary
+    on disk; new binary on disk + old PID; binary replaced out-of-band).
+  related_invariants:
+    - health.must_not_use_inventory_as_runtime_truth
+  safe_alternative: |
+    Combine systemd state with /proc/<pid>/exe hash + runtime version
+    probe before declaring version OK. Treat /proc/exe unavailable as
+    UNKNOWN, not OK.
+
+- id: log_only_fallback_without_finding
+  summary: |
+    Log "falling back to X" via stdout/journal but do not emit a
+    structured finding. Logs are not consumed by health/doctor; the
+    operator sees green while the system is degraded.
+  related_invariants:
+    - fallback.must_emit_degraded_finding
+  safe_alternative: |
+    Every fallback site calls emitDegradedFinding(...) at the moment of
+    switchover. Logging is supplementary, never primary.
+
+- id: allow_duplicate_singleton_directives
+  summary: |
+    Generate (or accept) systemd units containing duplicate singleton
+    directives (Type=, User=, Group=, Restart=, etc.). systemd uses
+    last-wins; the earlier value is silently masked. A previous incident
+    shipped a duplicate Type= via this exact failure mode.
+  related_invariants:
+    - systemd.effective_unit_must_match_rendered_unit
+  safe_alternative: |
+    Run deploy.ValidateSystemdUnit at both template-render init() and
+    on the rendered output of every GenerateSpec call. Fail spec
+    generation when duplicates are detected.
+
+- id: trust_systemctl_show_without_diffing_template
+  summary: |
+    Use `systemctl show` to read effective unit properties and assume
+    they match the rendered template without diffing. The unit file on
+    disk may have been edited out-of-band; the rendered template hash
+    is the source of truth.
+  related_invariants:
+    - systemd.effective_unit_must_match_rendered_unit
+  safe_alternative: |
+    ServiceRuntimeProof.SystemdUnitSha256 is the hash of the on-disk
+    unit file. Compare it to the rendered template hash recorded at
+    install time; on drift, emit systemd.effective_config_drift.
+
+- id: doctor_reads_only_inventory
+  summary: |
+    Build doctor rules that read InstalledPackage from etcd and emit
+    findings from inventory-vs-desired comparisons alone. If the apply
+    path lied (Phase 1 root-cause), doctor agrees because both layers
+    are claims.
+  related_invariants:
+    - doctor.must_compare_claims_to_proofs
+  safe_alternative: |
+    Consume independent runtime proof (GetServiceRuntimeProof per node
+    or verifier etcd snapshot) and reconcile claims-vs-proofs. Emit the
+    corresponding finding on each kind of drift.
+
+- id: doctor_trusts_node_agent_apply_success
+  summary: |
+    Treat a successful ApplyPackageRelease response as proof that the
+    service is running the new build. The success response is a CLAIM
+    recorded by the apply path, not independent runtime evidence.
+  related_invariants:
+    - doctor.must_compare_claims_to_proofs
+  safe_alternative: |
+    After dispatch, poll GetServiceRuntimeProof until running_exe_sha256
+    matches expected_sha256 (or a timeout). Apply success without proof
+    is INSTALLED_CLAIMED, not RUNTIME_VERIFIED.
