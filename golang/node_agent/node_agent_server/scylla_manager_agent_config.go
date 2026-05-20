@@ -56,6 +56,19 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 	content := string(current)
 
 	nodeIP := nodeRoutableIP()
+	// Safety gate: never write a Scylla agent config bound to loopback,
+	// docker0, link-local, or any other non-LAN address. nodeRoutableIP()
+	// occasionally returned docker0's IP in the wild (interface enumeration
+	// order is non-deterministic), and YAML last-wins silently routed the
+	// agent to an unreachable address. Refuse to reconcile rather than
+	// persist bad state. The current healthy state — if any — stays put
+	// until a routable LAN IP is available again.
+	if nodeIP != "" {
+		if err := config.ValidateLANAddress(nodeIP); err != nil {
+			log.Printf("nodeagent: scylla-manager-agent reconcile aborted: %v — refusing to write non-LAN config", err)
+			return
+		}
+	}
 	hasToken := hasNonEmptyAuthToken(content)
 	hasURL := hasScyllaAPIURL(content, nodeIP)
 	hasPorts := hasScyllaAgentPorts(content, nodeIP)

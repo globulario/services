@@ -5,13 +5,38 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/backup_manager/backup_managerpb"
+	"github.com/globulario/services/golang/config"
 )
+
+// scyllaManagerAPIHost extracts the bare host from a Scylla Manager API URL
+// (e.g. "http://10.0.0.63:5080/api/v1" → "10.0.0.63"). Returns the original
+// string when parsing fails so the LAN check can still reason about it.
+func scyllaManagerAPIHost(apiURL string) string {
+	apiURL = strings.TrimSpace(apiURL)
+	if apiURL == "" {
+		return ""
+	}
+	if u, err := url.Parse(apiURL); err == nil && u.Host != "" {
+		host, _, splitErr := net.SplitHostPort(u.Host)
+		if splitErr == nil {
+			return host
+		}
+		return u.Host
+	}
+	// Best-effort: not a full URL, strip a possible port.
+	host, _, splitErr := net.SplitHostPort(apiURL)
+	if splitErr == nil {
+		return host
+	}
+	return apiURL
+}
 
 // scyllaAgentArgs reads the scylla-manager-agent config to extract auth_token
 // and HTTPS port, returning sctool flags like --auth-token and --port.
@@ -291,6 +316,23 @@ func (srv *server) PreflightCheck(ctx context.Context, rqst *backup_managerpb.Pr
 			Available: true,
 			Version:   srv.ScyllaManagerAPI,
 		})
+
+		// Rollout safety gate: reject loopback / docker0 / non-LAN addresses
+		// as the Scylla Manager API host. The rollout orchestrator can read
+		// this ToolCheck and refuse to advance a node whose API still points
+		// at a non-LAN identity. Mirrors the same invariant the node_agent
+		// reconciler enforces locally — both layers should agree.
+		laneCheck := &backup_managerpb.ToolCheck{Name: "scylla_manager_api_lan_check"}
+		apiHost := scyllaManagerAPIHost(srv.ScyllaManagerAPI)
+		if err := config.ValidateLANAddress(apiHost); err != nil {
+			laneCheck.Available = false
+			laneCheck.ErrorMessage = err.Error()
+			allOk = false
+		} else {
+			laneCheck.Available = true
+			laneCheck.Version = apiHost
+		}
+		checks = append(checks, laneCheck)
 	}
 
 	// Detect ScyllaDB cluster names if sctool is available

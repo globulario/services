@@ -152,6 +152,83 @@ func ValidateRemoteAddr(addr string) error {
 	return nil
 }
 
+// ValidateLANAddress is a stricter version of ValidateRemoteAddr for places
+// that must speak canonical inter-node LAN identity: rollout gates, agent
+// config reconcilers, cluster registration, etc.
+//
+// Rejects:
+//   - loopback (127.0.0.0/8, ::1, "localhost") — local-only, not addressable from peers
+//   - unspecified (0.0.0.0, ::) — placeholder, not a real address
+//   - link-local (169.254.0.0/16, fe80::/10) — single-segment only
+//   - multicast (224.0.0.0/4, ff00::/8) — never valid as a node identity
+//   - Docker default bridge 172.17.0.0/16 — picked accidentally when an
+//     interface scanner iterates docker0 before the real LAN NIC; the node
+//     becomes invisible to peers and to scylla-manager because nothing
+//     outside this host can route to 172.17.x.
+//
+// Accepts:
+//   - other RFC1918 ranges (10/8, 172.16-31/12 except 172.17/16, 192.168/16)
+//   - public/routable IPs (some clusters legitimately use them)
+//   - bare hostnames (deferred — let downstream resolution handle it)
+//
+// Call this at every place where a node-identity address arrives from
+// auto-detection or user input, before persisting or starting a service
+// that depends on it. The history that motivates this check:
+//
+//   - 2026-05-20: node_agent's heartbeat reconciler wrote
+//     "scylla.api_address: 172.17.0.1" into scylla-manager-agent.yaml
+//     because nodeRoutableIP() briefly returned docker0's IP. With YAML
+//     last-wins this silently rerouted the agent to an unreachable host
+//     and broke cluster registration with a misleading "TLS EOF" error.
+func ValidateLANAddress(addr string) error {
+	host, _ := splitHostPortLoose(strings.TrimSpace(addr))
+	if host == "" {
+		return nil // empty is a separate validation concern
+	}
+	if host == "localhost" {
+		return &EndpointError{
+			Endpoint: addr,
+			Reason:   "localhost rejected — not a routable LAN identity",
+		}
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		// Hostname — defer to downstream resolution.
+		return nil
+	}
+	if ip.IsLoopback() {
+		return &EndpointError{
+			Endpoint: addr,
+			Reason:   "loopback address (127/8, ::1) rejected — peers cannot reach it",
+		}
+	}
+	if ip.IsUnspecified() {
+		return &EndpointError{
+			Endpoint: addr,
+			Reason:   "unspecified address (0.0.0.0, ::) rejected — placeholder, not a real address",
+		}
+	}
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return &EndpointError{
+			Endpoint: addr,
+			Reason:   "link-local address rejected — single-segment only, not LAN-wide",
+		}
+	}
+	if ip.IsMulticast() {
+		return &EndpointError{
+			Endpoint: addr,
+			Reason:   "multicast address rejected — never valid as a node identity",
+		}
+	}
+	if v4 := ip.To4(); v4 != nil && v4[0] == 172 && v4[1] == 17 {
+		return &EndpointError{
+			Endpoint: addr,
+			Reason:   "docker default bridge (172.17.0.0/16) rejected — pick the host's routable LAN NIC, not docker0",
+		}
+	}
+	return nil
+}
+
 func isLoopbackLiteral(host string) bool {
 	if host == "" {
 		return false
