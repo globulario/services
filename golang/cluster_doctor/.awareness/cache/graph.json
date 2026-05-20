@@ -1,0 +1,68 @@
+{
+  "schema_version": "awareness.graph.v1",
+  "project": "cluster-doctor",
+  "generated_at": "2026-05-17T22:05:35.005606157Z",
+  "nodes": [
+    {
+      "id": "doctor.check_error_not_fail",
+      "kind": "invariant",
+      "label": "CHECK_ERROR must never be reported to the operator as a FAIL finding"
+    },
+    {
+      "id": "doctor.count_no_inventory_as_known_down",
+      "kind": "forbidden_fix",
+      "label": "Classify a pool node whose NodeRecord is absent from the snapshot as known-down,\ncounting it toward quorum loss even when DataIncomplete=true.\n"
+    },
+    {
+      "id": "doctor.fire_critical_on_check_error",
+      "kind": "forbidden_fix",
+      "label": "Return a CRITICAL or ERROR finding when a rule hits InvariantStateCheckError\n(query failed, proto parse error, etcd unreachable). CHECK_ERROR is indeterminate —\nit is not evidence of failure.\n"
+    },
+    {
+      "id": "doctor.restart_controller_to_drain_apply_queue",
+      "kind": "forbidden_fix",
+      "label": "Document \"restart all controllers in sequence after every objectstore apply\" as the\ncanonical procedure, instead of fixing the apply-watcher goroutine recovery.\n"
+    },
+    {
+      "id": "doctor.use_primary_ip_for_pool_membership",
+      "kind": "forbidden_fix",
+      "label": "Use PrimaryIP() or Ips[0] directly when matching a node against pool member IPs,\nwithout excluding the cluster VIP. Returns wrong results when the node holds the VIP.\n"
+    },
+    {
+      "id": "fm.cluster_doctor.apply_watcher_goroutine_dies",
+      "kind": "failure_mode",
+      "label": "The objectstore apply-watcher goroutine silently dies on etcd compaction, leaving apply_request keys unprocessed for hours"
+    },
+    {
+      "id": "fm.cluster_doctor.false_quorum_loss_from_partial_snapshot",
+      "kind": "failure_mode",
+      "label": "Partial objectstore snapshot fires false CRITICAL quorum-loss finding"
+    },
+    {
+      "id": "fm.cluster_doctor.vip_as_pool_member_causes_misclassification",
+      "kind": "failure_mode",
+      "label": "Floating VIP appears as pool member IP in objectstore rule, causing the VIP-holder to be misclassified"
+    },
+    {
+      "id": "node.identity.vip_excluded_from_pool_membership",
+      "kind": "invariant",
+      "label": "The cluster VIP must not appear as a pool member IP in objectstore, etcd, or ScyllaDB membership checks"
+    },
+    {
+      "id": "objectstore.partial_snapshot_unknown_not_down",
+      "kind": "invariant",
+      "label": "Missing inventory in a partial objectstore snapshot must be treated as unknown, not known-down"
+    },
+    {
+      "id": "objectstore.physical_path_uniqueness",
+      "kind": "invariant",
+      "label": "Each MinIO pool drive must map to a unique physical storage path; no two pool nodes may share the same physical bytes"
+    },
+    {
+      "id": "objectstore.topology_requires_etcd_desired_state",
+      "kind": "invariant",
+      "label": "MinIO topology must be read from etcd ObjectStoreDesiredState, not inferred from local disk or installed records"
+    }
+  ],
+  "edges": null
+}
