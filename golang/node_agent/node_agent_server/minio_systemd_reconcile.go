@@ -391,6 +391,20 @@ func (srv *NodeAgentServer) clearMinioSysIfTransitionApproved(ctx context.Contex
 		return
 	}
 
+	// Idempotency guard: once this node has wiped for the current
+	// transition generation, do not wipe again on subsequent reconciles.
+	// Without this, every reconcile cycle (~30s) re-wipes .minio.sys —
+	// MinIO never gets a stable window to write its fresh format.json,
+	// so format.json lives for a few seconds, gets wiped, MinIO heals
+	// again, repeat. Net effect: distributed pool is permanently broken
+	// even though the transition was approved exactly once.
+	markerPath := minioTransitionAppliedMarker()
+	if existing, err := os.ReadFile(markerPath); err == nil {
+		if strings.TrimSpace(string(existing)) == fmt.Sprintf("%d", state.Generation) {
+			return // already applied this generation; nothing to do
+		}
+	}
+
 	log.Printf("minio-transition: %s — proceeding with .minio.sys wipe", reason)
 	srv.clearMinioSysForModeChange(state, nodeIP)
 	// Also drop the etcd format snapshot so the next reconcile cannot
@@ -399,6 +413,23 @@ func (srv *NodeAgentServer) clearMinioSysIfTransitionApproved(ctx context.Contex
 	// race with MinIO's fresh format and either undo it or pin the wrong
 	// erasure-set size on the cluster.
 	srv.purgeMinioFormatBackupForNode(ctx, state, nodeIP)
+
+	// Stamp the marker so the next reconcile cycle skips the wipe. The
+	// marker is per-node local state — a new transition (different
+	// generation) will mismatch and re-arm the wipe path naturally.
+	_ = os.MkdirAll(filepath.Dir(markerPath), 0o755)
+	if err := os.WriteFile(markerPath, []byte(fmt.Sprintf("%d\n", state.Generation)), 0o644); err != nil {
+		log.Printf("minio-transition: WARNING: failed to stamp applied marker %s: %v — next reconcile may re-wipe", markerPath, err)
+	}
+}
+
+// minioTransitionAppliedMarker returns the per-node marker file path. It
+// records the last topology generation for which this node successfully
+// performed a destructive .minio.sys wipe. Reconcile skips the wipe when
+// the marker matches state.Generation, breaking the wipe→reformat→re-wipe
+// loop that would otherwise hold MinIO permanently broken.
+func minioTransitionAppliedMarker() string {
+	return "/var/lib/globular/minio/.transition-applied-gen"
 }
 
 // clearMinioSysForModeChange removes the .minio.sys directory from every data
