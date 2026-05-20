@@ -41,6 +41,7 @@ const (
 	NodeAgentService_VerifyPackageIntegrity_FullMethodName = "/node_agent.NodeAgentService/VerifyPackageIntegrity"
 	NodeAgentService_DeleteCacheArtifact_FullMethodName    = "/node_agent.NodeAgentService/DeleteCacheArtifact"
 	NodeAgentService_CleanupDiskJournal_FullMethodName     = "/node_agent.NodeAgentService/CleanupDiskJournal"
+	NodeAgentService_CollectBackupSecrets_FullMethodName   = "/node_agent.NodeAgentService/CollectBackupSecrets"
 )
 
 // NodeAgentServiceClient is the client API for NodeAgentService service.
@@ -103,6 +104,19 @@ type NodeAgentServiceClient interface {
 	//
 	// Idempotent: safe to call multiple times.
 	CleanupDiskJournal(ctx context.Context, in *CleanupDiskJournalRequest, opts ...grpc.CallOption) (*CleanupDiskJournalResponse, error)
+	// CollectBackupSecrets reads a hardcoded allowlist of restore-critical
+	// root-owned files from this node's local filesystem and copies them into
+	// capsule_dir/payload/secrets/<node_id>/ for the backup_manager to include
+	// in a multi-node recovery capsule.
+	//
+	// Local-only: the handler reads from this node's disk and never reaches
+	// across to peers. backup_manager fans out to every node_agent separately.
+	//
+	// capsule_dir must be an absolute, canonical path inside the configured
+	// backup staging area (/var/lib/globular/backups). The handler validates
+	// it and refuses anything outside. Symlink sources are refused (O_NOFOLLOW
+	// + Lstat). Allowlist is hardcoded; no caller-provided paths.
+	CollectBackupSecrets(ctx context.Context, in *CollectBackupSecretsRequest, opts ...grpc.CallOption) (*CollectBackupSecretsResponse, error)
 }
 
 type nodeAgentServiceClient struct {
@@ -342,8 +356,18 @@ func (c *nodeAgentServiceClient) CleanupDiskJournal(ctx context.Context, in *Cle
 	return out, nil
 }
 
+func (c *nodeAgentServiceClient) CollectBackupSecrets(ctx context.Context, in *CollectBackupSecretsRequest, opts ...grpc.CallOption) (*CollectBackupSecretsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CollectBackupSecretsResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_CollectBackupSecrets_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeAgentServiceServer is the server API for NodeAgentService service.
-// All implementations should embed UnimplementedNodeAgentServiceServer
+// All implementations must embed UnimplementedNodeAgentServiceServer
 // for forward compatibility.
 type NodeAgentServiceServer interface {
 	JoinCluster(context.Context, *JoinClusterRequest) (*JoinClusterResponse, error)
@@ -402,9 +426,23 @@ type NodeAgentServiceServer interface {
 	//
 	// Idempotent: safe to call multiple times.
 	CleanupDiskJournal(context.Context, *CleanupDiskJournalRequest) (*CleanupDiskJournalResponse, error)
+	// CollectBackupSecrets reads a hardcoded allowlist of restore-critical
+	// root-owned files from this node's local filesystem and copies them into
+	// capsule_dir/payload/secrets/<node_id>/ for the backup_manager to include
+	// in a multi-node recovery capsule.
+	//
+	// Local-only: the handler reads from this node's disk and never reaches
+	// across to peers. backup_manager fans out to every node_agent separately.
+	//
+	// capsule_dir must be an absolute, canonical path inside the configured
+	// backup staging area (/var/lib/globular/backups). The handler validates
+	// it and refuses anything outside. Symlink sources are refused (O_NOFOLLOW
+	// + Lstat). Allowlist is hardcoded; no caller-provided paths.
+	CollectBackupSecrets(context.Context, *CollectBackupSecretsRequest) (*CollectBackupSecretsResponse, error)
+	mustEmbedUnimplementedNodeAgentServiceServer()
 }
 
-// UnimplementedNodeAgentServiceServer should be embedded to have
+// UnimplementedNodeAgentServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -477,7 +515,11 @@ func (UnimplementedNodeAgentServiceServer) DeleteCacheArtifact(context.Context, 
 func (UnimplementedNodeAgentServiceServer) CleanupDiskJournal(context.Context, *CleanupDiskJournalRequest) (*CleanupDiskJournalResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CleanupDiskJournal not implemented")
 }
-func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue() {}
+func (UnimplementedNodeAgentServiceServer) CollectBackupSecrets(context.Context, *CollectBackupSecretsRequest) (*CollectBackupSecretsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CollectBackupSecrets not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) mustEmbedUnimplementedNodeAgentServiceServer() {}
+func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue()                          {}
 
 // UnsafeNodeAgentServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to NodeAgentServiceServer will
@@ -886,6 +928,24 @@ func _NodeAgentService_CleanupDiskJournal_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeAgentService_CollectBackupSecrets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CollectBackupSecretsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).CollectBackupSecrets(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_CollectBackupSecrets_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).CollectBackupSecrets(ctx, req.(*CollectBackupSecretsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NodeAgentService_ServiceDesc is the grpc.ServiceDesc for NodeAgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -976,6 +1036,10 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CleanupDiskJournal",
 			Handler:    _NodeAgentService_CleanupDiskJournal_Handler,
+		},
+		{
+			MethodName: "CollectBackupSecrets",
+			Handler:    _NodeAgentService_CollectBackupSecrets_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

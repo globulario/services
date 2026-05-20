@@ -411,6 +411,27 @@ service NodeAgentService {
       default_role_hint: "admin"
     };
   };
+
+  // CollectBackupSecrets reads a hardcoded allowlist of restore-critical
+  // root-owned files from this node's local filesystem and copies them into
+  // capsule_dir/payload/secrets/<node_id>/ for the backup_manager to include
+  // in a multi-node recovery capsule.
+  //
+  // Local-only: the handler reads from this node's disk and never reaches
+  // across to peers. backup_manager fans out to every node_agent separately.
+  //
+  // capsule_dir must be an absolute, canonical path inside the configured
+  // backup staging area (/var/lib/globular/backups). The handler validates
+  // it and refuses anything outside. Symlink sources are refused (O_NOFOLLOW
+  // + Lstat). Allowlist is hardcoded; no caller-provided paths.
+  rpc CollectBackupSecrets(CollectBackupSecretsRequest) returns (CollectBackupSecretsResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.backup.collect_secrets"
+      permission: "admin"
+      resource_template: "/node_agent/nodes/{node_id}/backup-secrets"
+      default_role_hint: "globular-controller-sa"
+    };
+  };
 }
 
 // VerifyPackageIntegrityRequest narrows the scope of a verify_integrity run.
@@ -652,4 +673,47 @@ message CleanupDiskJournalResponse {
   uint64 freed_bytes  = 2; // approximate bytes reclaimed (0 on dry_run)
   string message      = 3; // human-readable summary ("Freed 1.2 GiB of journal logs")
   string error        = 4; // non-empty on failure
+}
+
+// CollectBackupSecretsRequest names the capsule directory to write the
+// collected secrets into. The hardcoded allowlist is NOT in the request —
+// it lives in node_agent source code so it can't be subverted by a caller.
+message CollectBackupSecretsRequest {
+  // Absolute, canonical path under /var/lib/globular/backups. The handler
+  // writes only to <capsule_dir>/payload/secrets/<node_id>/.
+  string capsule_dir = 1;
+  // For audit/log correlation; not used for any decision in the handler.
+  string backup_id   = 2;
+}
+
+// SecretFileEntry records what was (or was not) copied for one allowlist
+// entry. Together they form the per-node manifest written into the capsule.
+message SecretFileEntry {
+  string original_path        = 1;  // e.g. "/var/lib/globular/.bootstrap-sa-password"
+  string capsule_relpath      = 2;  // relative to <node_id>/, e.g. "bootstrap-sa-password"
+  string mode_octal           = 3;  // source file mode (e.g. "0600")
+  string owner                = 4;  // source file owner username (or "root")
+  string group                = 5;  // source file group name
+  uint64 size_bytes           = 6;  // post-copy size in bytes
+  string sha256               = 7;  // hex digest of the copied content
+  bool   required             = 8;  // from allowlist: required for restore correctness
+  bool   optional_when_absent = 9;  // from allowlist: tolerate file-not-present
+  bool   found                = 10; // true when source existed and was readable
+  string reason               = 11; // human-readable: why found=false, or copy error
+  string produced_by          = 12; // free-text writer label (informational)
+}
+
+// CollectBackupSecretsResponse summarizes the per-node collection result.
+// missing_required is empty on success; populated with original_path values
+// when one or more required entries could not be captured.
+message CollectBackupSecretsResponse {
+  string                   node_id              = 1;
+  string                   hostname             = 2;
+  string                   primary_ip           = 3;
+  string                   node_agent_version   = 4;
+  string                   collected_at_unix    = 5; // unix seconds as string for JSON-safety
+  repeated SecretFileEntry entries              = 6;
+  repeated string          missing_required     = 7;
+  repeated string          missing_optional     = 8;
+  string                   per_node_manifest    = 9; // capsule-relative path of the per-node manifest.json
 }
