@@ -11,6 +11,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	globular_service "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow/engine"
@@ -931,17 +932,16 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 // Package → systemd unit mapping
 // --------------------------------------------------------------------------
 
-// packageUnitOverrides maps package names to their actual systemd unit names
-// for packages that don't follow the "globular-{name}.service" convention.
-var packageUnitOverrides = map[string]string{
-	"scylladb":             "scylla-server.service",
-	"scylla-manager":       "globular-scylla-manager.service",
-	"scylla-manager-agent": "globular-scylla-manager-agent.service",
-}
-
 // packageToUnit returns the systemd unit name for a package.
+//
+// Delegates to the identity registry so every component (CLI, node-agent,
+// controller drift detector, VerifyPackageRuntime) resolves to the same
+// unit name. Packages whose upstream unit doesn't follow the
+// "globular-{name}.service" convention (e.g. keepalived → keepalived.service,
+// scylladb → scylla-server.service) must have an entry in
+// golang/identity/identity.go.
 func packageToUnit(name string) string {
-	if unit, ok := packageUnitOverrides[name]; ok {
+	if unit := identity.UnitForService(name); unit != "" {
 		return unit
 	}
 	return "globular-" + name + ".service"
