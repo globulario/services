@@ -716,6 +716,30 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 		}
 	}
 
+	// --- Phase 3.5: Collect node-local secret capsules via node_agent RPC ---
+	// MUST run before providers (especially restic) so the controlled capsule
+	// is the only secret material entering the backup. backup_manager never
+	// reads remote-node secret files directly; collection ownership stays
+	// in node_agent. CLUSTER mode only — SERVICE-mode snapshots don't need
+	// cluster-wide secret material.
+	if mode == backup_managerpb.BackupMode_BACKUP_MODE_CLUSTER {
+		if secErr := srv.collectClusterSecrets(ctx, backupID, topologyNodes); secErr != nil {
+			job.State = backup_managerpb.BackupJobState_BACKUP_JOB_FAILED
+			job.Message = fmt.Sprintf("aborted: %v", secErr)
+			job.FinishedUnixMs = time.Now().UnixMilli()
+			if saveErr := srv.store.SaveJob(job); saveErr != nil {
+				slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+			}
+			metricsJobsTotal.WithLabelValues("failed").Inc()
+			if hookSummary != nil {
+				hookSummary.Finalize = srv.runFinalizeHooks(ctx, backupID, mode, scope, labels, false)
+			}
+			slog.Warn("backup aborted: cluster secret collection failed",
+				"job_id", job.JobId, "error", secErr.Error())
+			return
+		}
+	}
+
 	// --- Phase 4 & 5: Run providers with scope classification ---
 	var results []*backup_managerpb.BackupProviderResult
 	var coverages []*NodeCoverage
