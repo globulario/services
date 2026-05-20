@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -18,6 +19,52 @@ import (
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"github.com/globulario/services/golang/versionutil"
 )
+
+// writeBinaryHashMismatchInstalledState records a failed apply when the
+// post-install proof gate (Phase 1 of the diagnostic honesty refactor) rejects
+// the deployed binary. The status string is consumed by doctor / the future
+// verifier to raise the package.installed_binary_hash_mismatch finding;
+// evidence (expected vs actual hash, path, build_id) is carried in Metadata
+// so the finding can be lifted without re-deriving values.
+func (srv *NodeAgentServer) writeBinaryHashMismatchInstalledState(
+	ctx context.Context,
+	req *node_agentpb.ApplyPackageReleaseRequest,
+	name, kind, version string,
+	verr error,
+) *node_agentpb.ApplyPackageReleaseResponse {
+	var pf proofFailure
+	if !errors.As(verr, &pf) {
+		// Shouldn't happen — caller is supposed to pass a proofFailure.
+		return &node_agentpb.ApplyPackageReleaseResponse{
+			Ok: false, Message: verr.Error(), PackageName: name, Version: version,
+			Status: "failed", ErrorDetail: verr.Error(), OperationId: req.GetOperationId(),
+		}
+	}
+	meta := pf.EvidenceMap()
+	_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
+		NodeId:      srv.nodeID,
+		Name:        name,
+		Version:     version,
+		Kind:        kind,
+		Status:      StatusBinaryHashMismatch,
+		UpdatedUnix: time.Now().Unix(),
+		OperationId: req.GetOperationId(),
+		BuildNumber: req.GetBuildNumber(),
+		BuildId:     strings.TrimSpace(req.GetBuildId()),
+		Metadata:    meta,
+	})
+	log.Printf("apply-package: REJECTED %s/%s@%s — %s",
+		kind, name, version, verr.Error())
+	return &node_agentpb.ApplyPackageReleaseResponse{
+		Ok:          false,
+		Message:     fmt.Sprintf("post-install hash verification failed: %v", verr),
+		PackageName: name,
+		Version:     version,
+		Status:      StatusBinaryHashMismatch,
+		ErrorDetail: verr.Error(),
+		OperationId: req.GetOperationId(),
+	}
+}
 
 // applyMu prevents concurrent ApplyPackageRelease calls for the same package.
 var applyMu sync.Mutex
@@ -271,6 +318,16 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// "installed" and return success without touching systemctl.
 	if kind == "COMMAND" {
 		log.Printf("apply-package: kind=COMMAND name=%s — skipping systemctl (no service for CLI package)", name)
+
+		// Phase 1 proof gate: the install path produced a binary; before we
+		// declare it "installed", verify the bytes on disk hash to the
+		// expected artifact-manifest digest. Mismatch / missing → fail apply
+		// and write structured evidence to installed_state.
+		actualHash, verr := verifyInstalledBinaryHash(name, kind, req.GetExpectedSha256(), buildID, operationID)
+		if verr != nil {
+			return srv.writeBinaryHashMismatchInstalledState(ctx, req, name, kind, version, verr), nil
+		}
+
 		pkg := &node_agentpb.InstalledPackage{
 			NodeId:      srv.nodeID,
 			Name:        name,
@@ -282,17 +339,13 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			BuildNumber: req.GetBuildNumber(),
 			BuildId:     buildID,
 			Platform:    platform,
-			Checksum:    req.GetExpectedSha256(),
+			Checksum:    actualHash, // proven hash, not the request claim
 		}
-		// Best-effort: compute the deployed binary's SHA256 from the actual
-		// runtime binary path. This is the authoritative entrypoint checksum
-		// that integrity checks compare against repository.entrypoint_checksum.
-		if cksum, err := cachedSha256(installedBinaryPath(name, kind)); err == nil {
-			pkg.Checksum = cksum
+		if actualHash != "" {
 			if pkg.Metadata == nil {
 				pkg.Metadata = make(map[string]string)
 			}
-			pkg.Metadata["entrypoint_checksum"] = cksum
+			pkg.Metadata["entrypoint_checksum"] = actualHash
 		}
 		_ = installed_state.WriteInstalledPackage(ctx, pkg)
 		// Record the installed revision in the repository's history and emit
@@ -425,6 +478,15 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	unitPath := "/etc/systemd/system/" + unit
 	if _, statErr := os.Stat(unitPath); os.IsNotExist(statErr) {
 		log.Printf("apply-package: %s has no systemd unit — binary-only package, skipping restart", unit)
+
+		// Phase 1 proof gate: see COMMAND branch above. Same contract for
+		// binary-only packages — disk hash must match the manifest before
+		// we mark installed.
+		actualHash, verr := verifyInstalledBinaryHash(name, kind, req.GetExpectedSha256(), buildID, operationID)
+		if verr != nil {
+			return srv.writeBinaryHashMismatchInstalledState(ctx, req, name, kind, version, verr), nil
+		}
+
 		binaryOnlyPkg := &node_agentpb.InstalledPackage{
 			NodeId:      srv.nodeID,
 			Name:        name,
@@ -436,14 +498,13 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			BuildNumber: req.GetBuildNumber(),
 			BuildId:     buildID,
 			Platform:    platform,
-			Checksum:    req.GetExpectedSha256(),
+			Checksum:    actualHash, // proven hash, not the request claim
 		}
-		if cksum, err := cachedSha256(installedBinaryPath(name, kind)); err == nil {
-			binaryOnlyPkg.Checksum = cksum
+		if actualHash != "" {
 			if binaryOnlyPkg.Metadata == nil {
 				binaryOnlyPkg.Metadata = make(map[string]string)
 			}
-			binaryOnlyPkg.Metadata["entrypoint_checksum"] = cksum
+			binaryOnlyPkg.Metadata["entrypoint_checksum"] = actualHash
 		}
 		_ = installed_state.WriteInstalledPackage(ctx, binaryOnlyPkg)
 		srv.recordRevisionAndReceipts(ctx, repoAddr, req, binaryOnlyPkg, previousInstalled, configSnap)
@@ -517,7 +578,18 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	}
 
 	// ── Success: service is running ─────────────────────────────────────
-	// Write installed-state ONLY after the service is confirmed active.
+	// Phase 1 proof gate (diagnostic honesty): systemd-active is a CLAIM,
+	// not proof. The bytes on disk at the deployed binary path must hash
+	// to the expected artifact-manifest digest before we declare installed.
+	// Mismatch / missing → fail apply and write structured evidence; do NOT
+	// mark installed.
+	actualHash, verr := verifyInstalledBinaryHash(name, kind, req.GetExpectedSha256(), buildID, operationID)
+	if verr != nil {
+		return srv.writeBinaryHashMismatchInstalledState(ctx, req, name, kind, version, verr), nil
+	}
+
+	// Write installed-state ONLY after the service is confirmed active AND
+	// the post-install hash is proved (or, in the unverified path, computed).
 	// This is the convergence truth boundary.
 	log.Printf("apply-package: %s active after restart — writing installed-state", unit)
 	pkg := &node_agentpb.InstalledPackage{
@@ -531,18 +603,14 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		BuildNumber: req.GetBuildNumber(),
 		BuildId:     buildID,
 		Platform:    platform,
-		Checksum:    req.GetExpectedSha256(),
+		Checksum:    actualHash, // proven hash, not the request claim
 	}
-	// Best-effort: compute the deployed binary's SHA256 from the actual runtime
-	// binary path. This digest is the authoritative entrypoint checksum and is
-	// what integrity checks should compare against repository entrypoint_checksum.
-	if cksum, err := cachedSha256(installedBinaryPath(name, kind)); err == nil {
-		pkg.Checksum = cksum
+	if actualHash != "" {
 		if pkg.Metadata == nil {
 			pkg.Metadata = make(map[string]string)
 		}
-		pkg.Metadata["entrypoint_checksum"] = cksum
-		log.Printf("apply-package: stored entrypoint_checksum for %s: %s", name, cksum[:16])
+		pkg.Metadata["entrypoint_checksum"] = actualHash
+		log.Printf("apply-package: stored entrypoint_checksum for %s: %s", name, actualHash[:16])
 	}
 	_ = installed_state.WriteInstalledPackage(ctx, pkg)
 
