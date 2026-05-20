@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -226,30 +227,121 @@ func shortBuildID(bid string) string {
 	return bid[:8]
 }
 
-// versionCheckDecision returns (ok, reason) for a single service's version
-// health check. build_id is the canonical artifact identity: when both sides
-// have build_ids and they match, the service is at the desired build. When
-// build_ids differ but the semantic version strings match, that's build-
-// identity drift (same version, different build) — health is still OK and
-// the drift is surfaced in the reason. A version-string mismatch (or no
-// installed record at all) is a real FAIL.
-func versionCheckDecision(desiredVer, desiredBID, installedVer, installedBID string, hasInstalled bool) (bool, string) {
+// Phase 3 (Diagnostic Honesty Refactor) — versionHealthVerdict captures the
+// claim-vs-proof breakdown for a single service's version check.
+//
+//   ProofStatus values:
+//     "verified"   — desired claim == installed proof == running proof
+//     "claim_only" — only desired-vs-installed claim was checked; no runtime proof consumed
+//     "unverified" — proof unavailable / partial; consumer raises service.runtime_identity_unproven
+//     "mismatch"   — claim or proof disagrees; finding_id names the specific failure
+//
+// The Ok bit follows the brief's directive: claim-only is NOT OK. A version
+// match without independent runtime proof is degraded, not healthy. Operators
+// who need the legacy semantics during transition can set the env var
+// GLOBULAR_HEALTH_LEGACY_CLAIM_OK=1 (see legacyClaimOkOverride).
+type versionHealthVerdict struct {
+	Ok          bool
+	Reason      string
+	ProofStatus string
+	FindingID   string
+	// ClaimOK records whether the claim-level check passes regardless of
+	// proof state. Operator UIs that key off the legacy bool can read this
+	// when the strict Ok bit is unsuitable for their context.
+	ClaimOK bool
+}
+
+// legacyClaimOkOverride lets operators temporarily restore the pre-Phase-3
+// behaviour where a passing claim check produced Ok=true. Default is OFF —
+// the brief is explicit that "claim ok=true" alone is forbidden. The escape
+// hatch exists so a fleet doesn't go entirely red the instant this change
+// ships; it should be removed once Phase 9 (verifier) is live.
+func legacyClaimOkOverride() bool {
+	v := strings.TrimSpace(os.Getenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK"))
+	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
+}
+
+// decideVersionVerdict is the Phase 3 replacement for versionCheckDecision.
+// It accepts the historical claim inputs plus optional runtime-proof inputs
+// (currently nil because GetServiceRuntimeProof is not yet wired into the
+// health pipeline — Phase 9 verifier integration will populate them).
+//
+// Cases:
+//   - Claim disagreement → Ok=false, ProofStatus="mismatch", FindingID names the failure.
+//   - Claim match + no runtime proof → Ok=false (degraded), ProofStatus="claim_only",
+//     FindingID="service.runtime_identity_unproven". Legacy override flips Ok to ClaimOK.
+//   - Claim match + runtime proof match → Ok=true, ProofStatus="verified".
+//   - Claim match + runtime proof mismatch → Ok=false, ProofStatus="mismatch",
+//     FindingID names which proof drifted.
+func decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID string, hasInstalled bool) versionHealthVerdict {
+	// ── Claim-level reconciliation (legacy logic) ──────────────────────
+	claimOK := false
+	claimReason := ""
 	if desiredBID != "" && installedBID != "" {
 		if desiredBID == installedBID {
-			return true, ""
+			claimOK = true
+		} else if installedVer == desiredVer {
+			claimOK = true
+			claimReason = fmt.Sprintf("build drift: %s installed %s, desired %s",
+				desiredVer, shortBuildID(installedBID), shortBuildID(desiredBID))
+		} else {
+			claimReason = fmt.Sprintf("installed %s, desired %s", installedVer, desiredVer)
 		}
-		if installedVer == desiredVer {
-			return true, fmt.Sprintf("build drift: %s installed %s, desired %s", desiredVer, shortBuildID(installedBID), shortBuildID(desiredBID))
+	} else if !hasInstalled {
+		claimReason = fmt.Sprintf("not installed (desired %s)", desiredVer)
+	} else if installedVer != desiredVer {
+		claimReason = fmt.Sprintf("installed %s, desired %s", installedVer, desiredVer)
+	} else {
+		claimOK = true
+	}
+
+	// ── Claim disagreement → critical mismatch, regardless of proof ────
+	if !claimOK {
+		return versionHealthVerdict{
+			Ok:          false,
+			Reason:      claimReason,
+			ProofStatus: "mismatch",
+			FindingID:   "service.running_version_mismatch",
+			ClaimOK:     false,
 		}
-		return false, fmt.Sprintf("installed %s, desired %s", installedVer, desiredVer)
 	}
-	if !hasInstalled {
-		return false, fmt.Sprintf("not installed (desired %s)", desiredVer)
+
+	// ── Claim agrees; runtime proof is not yet consumed by the health
+	//    pipeline. Strict default: degraded with unproven marker.
+	//    Reason carries the claim verdict + the unproven note so operators
+	//    see exactly why the service is degraded.
+	reason := "[claim:OK"
+	if claimReason != "" {
+		reason += " " + claimReason
 	}
-	if installedVer != desiredVer {
-		return false, fmt.Sprintf("installed %s, desired %s", installedVer, desiredVer)
+	reason += "] proof:UNVERIFIED — runtime proof not consumed by health handler (Phase 9 verifier pending); finding: service.runtime_identity_unproven"
+
+	if legacyClaimOkOverride() {
+		// Escape hatch: restore pre-Phase-3 behaviour during transition.
+		return versionHealthVerdict{
+			Ok:          true,
+			Reason:      claimReason, // mirror legacy text exactly when override active
+			ProofStatus: "claim_only",
+			FindingID:   "service.runtime_identity_unproven",
+			ClaimOK:     true,
+		}
 	}
-	return true, ""
+
+	return versionHealthVerdict{
+		Ok:          false,
+		Reason:      reason,
+		ProofStatus: "claim_only",
+		FindingID:   "service.runtime_identity_unproven",
+		ClaimOK:     true,
+	}
+}
+
+// versionCheckDecision is the legacy (bool, string) shim kept for any caller
+// that hasn't migrated to decideVersionVerdict. Internally delegates to the
+// verdict path so behaviour stays consistent.
+func versionCheckDecision(desiredVer, desiredBID, installedVer, installedBID string, hasInstalled bool) (bool, string) {
+	v := decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID, hasInstalled)
+	return v.Ok, v.Reason
 }
 
 func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_controllerpb.GetNodeHealthDetailV1Request) (*cluster_controllerpb.GetNodeHealthDetailV1Response, error) {
@@ -363,6 +455,8 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 		}
 
 		// If the desired artifact was never published, the installed version is correct.
+		// This is the one path where claim-only OK is correct semantically — there's
+		// no artifact to verify against, so proof_status remains empty.
 		if acceptedAsIs[svc] {
 			checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
 				Subsystem: "version:" + svc,
@@ -383,11 +477,13 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 		installedVer := lookupInstalledVersionFromMap(node.InstalledVersions, svc)
 		hasInstalled := installedVer != ""
 		installedBID := lookupInstalledVersionFromMap(node.InstalledBuildIDs, svc)
-		ok, reason := versionCheckDecision(desiredVer, desiredBID, installedVer, installedBID, hasInstalled)
+		v := decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID, hasInstalled)
 		checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
-			Subsystem: "version:" + svc,
-			Ok:        ok,
-			Reason:    reason,
+			Subsystem:   "version:" + svc,
+			Ok:          v.Ok,
+			Reason:      v.Reason,
+			ProofStatus: v.ProofStatus,
+			FindingId:   v.FindingID,
 		})
 	}
 

@@ -14874,7 +14874,9 @@ proto.cluster_controller.NodeHealthCheck.toObject = function(includeInstance, ms
   var f, obj = {
 subsystem: jspb.Message.getFieldWithDefault(msg, 1, ""),
 ok: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
-reason: jspb.Message.getFieldWithDefault(msg, 3, "")
+reason: jspb.Message.getFieldWithDefault(msg, 3, ""),
+proofStatus: jspb.Message.getFieldWithDefault(msg, 4, ""),
+findingId: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -14923,6 +14925,14 @@ proto.cluster_controller.NodeHealthCheck.deserializeBinaryFromReader = function(
       var value = /** @type {string} */ (reader.readString());
       msg.setReason(value);
       break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setProofStatus(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setFindingId(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -14970,6 +14980,20 @@ proto.cluster_controller.NodeHealthCheck.serializeBinaryToWriter = function(mess
   if (f.length > 0) {
     writer.writeString(
       3,
+      f
+    );
+  }
+  f = message.getProofStatus();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getFindingId();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
       f
     );
   }
@@ -15027,6 +15051,42 @@ proto.cluster_controller.NodeHealthCheck.prototype.getReason = function() {
  */
 proto.cluster_controller.NodeHealthCheck.prototype.setReason = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string proof_status = 4;
+ * @return {string}
+ */
+proto.cluster_controller.NodeHealthCheck.prototype.getProofStatus = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.NodeHealthCheck} returns this
+ */
+proto.cluster_controller.NodeHealthCheck.prototype.setProofStatus = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional string finding_id = 5;
+ * @return {string}
+ */
+proto.cluster_controller.NodeHealthCheck.prototype.getFindingId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.NodeHealthCheck} returns this
+ */
+proto.cluster_controller.NodeHealthCheck.prototype.setFindingId = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
 };
 
 

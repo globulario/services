@@ -735,6 +735,19 @@ message NodeHealthCheck {
   string subsystem = 1;   // "heartbeat", "unit:envoy.service", "version:gateway", "inventory"
   bool   ok        = 2;
   string reason    = 3;   // human-readable when !ok
+  // Phase 3 (Diagnostic Honesty Refactor): claim-vs-proof distinction.
+  // Empty for checks that don't carry the distinction (heartbeat, inventory).
+  // Set on "version:<service>" checks to one of:
+  //   "verified"   — desired claim == installed proof == running proof
+  //   "claim_only" — only desired-vs-installed claim was checked; no runtime proof consumed
+  //   "unverified" — proof unavailable / partial; consumer raises service.runtime_identity_unproven
+  //   "mismatch"   — claim or proof disagrees; finding_id names the specific failure
+  string proof_status = 4;
+  // finding_id is set when ok=false specifically for diagnostic-honesty
+  // reasons so consumers can correlate with docs/awareness/invariants.yaml.
+  // Examples: package.installed_binary_hash_mismatch,
+  // service.running_binary_hash_mismatch, service.runtime_identity_unproven.
+  string finding_id = 5;
 }
 
 message GetNodeHealthDetailV1Request { string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }]; }

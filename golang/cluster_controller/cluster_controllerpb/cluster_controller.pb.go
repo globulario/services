@@ -4097,10 +4097,24 @@ func (x *GetClusterHealthV1Response) GetServices() []*ServiceSummary {
 }
 
 type NodeHealthCheck struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Subsystem     string                 `protobuf:"bytes,1,opt,name=subsystem,proto3" json:"subsystem,omitempty"` // "heartbeat", "unit:envoy.service", "version:gateway", "inventory"
-	Ok            bool                   `protobuf:"varint,2,opt,name=ok,proto3" json:"ok,omitempty"`
-	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"` // human-readable when !ok
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Subsystem string                 `protobuf:"bytes,1,opt,name=subsystem,proto3" json:"subsystem,omitempty"` // "heartbeat", "unit:envoy.service", "version:gateway", "inventory"
+	Ok        bool                   `protobuf:"varint,2,opt,name=ok,proto3" json:"ok,omitempty"`
+	Reason    string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"` // human-readable when !ok
+	// Phase 3 (Diagnostic Honesty Refactor): claim-vs-proof distinction.
+	// Empty for checks that don't carry the distinction (heartbeat, inventory).
+	// Set on "version:<service>" checks to one of:
+	//
+	//	"verified"   — desired claim == installed proof == running proof
+	//	"claim_only" — only desired-vs-installed claim was checked; no runtime proof consumed
+	//	"unverified" — proof unavailable / partial; consumer raises service.runtime_identity_unproven
+	//	"mismatch"   — claim or proof disagrees; finding_id names the specific failure
+	ProofStatus string `protobuf:"bytes,4,opt,name=proof_status,json=proofStatus,proto3" json:"proof_status,omitempty"`
+	// finding_id is set when ok=false specifically for diagnostic-honesty
+	// reasons so consumers can correlate with docs/awareness/invariants.yaml.
+	// Examples: package.installed_binary_hash_mismatch,
+	// service.running_binary_hash_mismatch, service.runtime_identity_unproven.
+	FindingId     string `protobuf:"bytes,5,opt,name=finding_id,json=findingId,proto3" json:"finding_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4152,6 +4166,20 @@ func (x *NodeHealthCheck) GetOk() bool {
 func (x *NodeHealthCheck) GetReason() string {
 	if x != nil {
 		return x.Reason
+	}
+	return ""
+}
+
+func (x *NodeHealthCheck) GetProofStatus() string {
+	if x != nil {
+		return x.ProofStatus
+	}
+	return ""
+}
+
+func (x *NodeHealthCheck) GetFindingId() string {
+	if x != nil {
+		return x.FindingId
 	}
 	return ""
 }
@@ -6109,11 +6137,14 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x04kind\x18\x06 \x01(\tR\x04kind\"\x92\x01\n" +
 	"\x1aGetClusterHealthV1Response\x124\n" +
 	"\x05nodes\x18\x01 \x03(\v2\x1e.cluster_controller.NodeHealthR\x05nodes\x12>\n" +
-	"\bservices\x18\x02 \x03(\v2\".cluster_controller.ServiceSummaryR\bservices\"W\n" +
+	"\bservices\x18\x02 \x03(\v2\".cluster_controller.ServiceSummaryR\bservices\"\x99\x01\n" +
 	"\x0fNodeHealthCheck\x12\x1c\n" +
 	"\tsubsystem\x18\x01 \x01(\tR\tsubsystem\x12\x0e\n" +
 	"\x02ok\x18\x02 \x01(\bR\x02ok\x12\x16\n" +
-	"\x06reason\x18\x03 \x01(\tR\x06reason\"E\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12!\n" +
+	"\fproof_status\x18\x04 \x01(\tR\vproofStatus\x12\x1d\n" +
+	"\n" +
+	"finding_id\x18\x05 \x01(\tR\tfindingId\"E\n" +
 	"\x1cGetNodeHealthDetailV1Request\x12%\n" +
 	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
 	"\x04node\x10\x01R\x06nodeId\"\x9a\x03\n" +
