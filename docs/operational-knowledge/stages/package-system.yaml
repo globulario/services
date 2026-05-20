@@ -1,0 +1,383 @@
+schema_version: 1
+file_kind: stage
+metadata:
+  title: "Package system — anatomy, identity, install lifecycle, validation"
+  description: |
+    The full operational picture of Globular packages: what a package IS, the files
+    that define it, the kind/version/build-id identity rules, the install step
+    catalogue, validation, and the most common anti-patterns. The prose companion
+    of this entry set is docs/operational-knowledge/packages.md, which AI agents
+    SHOULD read for any non-trivial package work.
+  source_documents:
+    - docs/operational-knowledge/packages.md
+    - packages/registry.yaml
+    - golang/globularcli/pkgpack/packagespec.go
+    - golang/globularcli/pkgpack/manifest.go
+    - golang/globularcli/pkgpack/builder.go
+    - globular-installer/pkg/installer/specplan_builder.go
+    - packages/scripts/validate-package-metadata.sh
+
+entries:
+
+  - id: ops.always.package.what-a-package-is
+    type: ARCHITECTURE
+    title: "What a Globular package IS — identity, kind, recipe"
+    tags: [always, package, architecture]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      A Globular package is an immutable, content-addressed `.tgz` artifact describing
+      one installable unit. Three properties define it:
+
+      1. **Identity** = (name, version, build_id, platform, publisher). `build_id` is
+         a UUIDv7 allocated by the repository post-upload; `build_number` is a
+         display-only monotonic counter. NEVER confuse build_id with build_number.
+      2. **Kind** ∈ {service, infrastructure, command, application}.
+         - `service`  — exposes a gRPC API to the mesh, supervised by desired state.
+         - `infrastructure` — runs a daemon (etcd, MinIO, ScyllaDB, envoy, keepalived).
+         - `command`  — CLI tool, no systemd unit.
+         - `application` — rare; for whole-platform apps.
+      3. **Recipe** — an ordered, idempotent list of install steps the node-agent
+         executes to bring the package from blob to healthy.
+
+      A package is NOT a deb/rpm, NOT a container image, NOT a source bundle.
+
+      Authority lives across 4 INDEPENDENT layers (HARD RULE: never collapse):
+        L1 Repository  — "does (name, version, build_id) exist?" — repository svc
+        L2 Desired     — "what SHOULD run on each node?"          — controller, etcd
+        L3 Installed   — "what IS installed on this node?"        — node-agent, etcd + local receipts
+        L4 Runtime     — "is the process running and healthy?"    — systemd + node-agent runtime check
+
+      Every package-related diagnosis walks these layers in order.
+
+      Full reference: docs/operational-knowledge/packages.md
+    links:
+      runbooks: []
+      cli_commands:
+        - "globular pkg inspect <path>.tgz"
+        - "globular pkg verify <path>.tgz"
+
+  - id: ops.always.package.required-files
+    type: REFERENCE
+    title: "Required files in a package source tree"
+    tags: [always, package, reference]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      For a package named `<name>`, four files are load-bearing:
+
+      ```
+      packages/registry.yaml                          # one canonical entry
+      packages/specs/<name>_{service,cmd}.yaml         # install recipe (steps)
+      packages/metadata/<name>/package.json            # reference manifest
+      packages/metadata/<name>/awareness.yaml          # invariants + failure modes
+      ```
+
+      Plus optional per-package assets:
+
+      ```
+      packages/metadata/<name>/systemd/<unit>.service  # if not inline in spec
+      packages/metadata/<name>/config/<name>/<file>    # default config templates
+      packages/metadata/<name>/scripts/*.sh            # pre/post hooks
+      packages/metadata/<name>/debs/*.deb              # bundled .debs (ScyllaDB only today)
+      ```
+
+      The built `.tgz` adds a stamped `package.json` at the root and re-shapes the
+      payload under `bin/`, `specs/`, `config/`, `systemd/`, `scripts/`, `debs/`,
+      `data/`.
+
+      `package.json` MUST agree on `type` with `spec.metadata.kind` AND with
+      `registry.yaml.kind` AND with `component_catalog.go`. The validator
+      `packages/scripts/validate-package-metadata.sh` enforces this cross-source
+      agreement. There is ONE source of truth for kind: the spec.
+    links:
+      cli_commands:
+        - "cd packages && ./scripts/validate-package-metadata.sh"
+
+  - id: ops.always.package.identity-rules
+    type: ARCHITECTURE
+    title: "version vs build_number vs build_id — never confused"
+    tags: [always, package, identity, version-control]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Three identifiers exist and are NOT interchangeable:
+
+      | Identifier      | Type           | Allocated by                          | Purpose                                              |
+      |-----------------|----------------|---------------------------------------|------------------------------------------------------|
+      | `version`       | semver string  | `globular deploy --bump {patch,...}` reserves via repository | Human-readable; goes in manifest + filename. |
+      | `build_number`  | int64 counter  | Stamped at build time (`--build-number`) | DISPLAY ONLY. Never used for convergence. |
+      | `build_id`      | UUIDv7 string  | Repository service, post-upload       | SOLE identity used for convergence. Empty in committed `package.json`. |
+
+      Hard rules:
+
+      - `Version = ""` in source. NEVER hardcode. Injected via ldflags at build:
+        `-ldflags "-X main.Version=1.2.3 -X main.BuildNumber=42"`
+      - Platform release version (release-index.json after `globular repo sync --tag vX.Y.Z`)
+        is NOT the package version. Only changed packages get a new version.
+      - `--bump` reservations hold for 5 minutes. Failed publish does NOT release early.
+        Re-run with same `--bump` to re-allocate the same version.
+      - Convergence by `build_number` is a bug. Always compare `build_id`.
+
+      Convergence flow:
+        deploy --bump → repository.AllocateUpload (5-min reservation, allocates version)
+          → build .tgz → repository.Upload (assigns build_id) → release reconciler
+          updates DesiredService.build_id → per-node package_install workflow
+          → node-agent verifies sha256+build_id, installs, restarts
+          → writes /globular/nodes/<id>/packages/<kind>/<name>
+          → runtime check: /proc/<pid>/exe sha256 == manifest.entrypoint_checksum
+
+      If any equality breaks, the layer that owns it owns the fix.
+    links:
+      awareness_invariants: []
+
+  - id: ops.always.package.install-steps
+    type: REFERENCE
+    title: "Install step catalogue — every supported step type"
+    tags: [always, package, install, reference]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      The node-agent's install runner (`globular-installer/pkg/installer/specplan_builder.go`)
+      accepts these step types. Every step is idempotent — re-running on a node already in
+      the target state is a no-op.
+
+      | Step type                | Purpose                                                                                     |
+      |--------------------------|---------------------------------------------------------------------------------------------|
+      | `ensure_user_group`      | Create the `globular` system user/group if missing.                                          |
+      | `ensure_dirs`            | Create dirs with owner/group/mode.                                                           |
+      | `install_package_payload`| Extract `bin/`, `config/`, `specs/`, `systemd/` from the tarball. REQUIRED for service/infra.|
+      | `install_files`          | Write arbitrary files (configs, env, wrappers). Supports `content`, `atomic`, `skip_if_exists`. |
+      | `install_services`       | Drop systemd unit files (inline content or from package).                                    |
+      | `enable_services`        | `systemctl enable <unit>`.                                                                   |
+      | `start_services`         | `systemctl start <unit>`. Supports `restart_on_files` + `binaries` for hash check.           |
+      | `health_checks`          | Wait for active + (optional) TCP port. `timeout`, `interval`.                                |
+      | `run_script`             | Run a script from `scripts/`. Used for stateful init (TLS, buckets, controlled first-start). |
+      | `install_local_debs`     | `dpkg -i debs/*.deb`. Offline OS package install — .debs bundled at build time.              |
+      | `install_os_packages`    | `apt-get install <pkg>...`. Online OS install (keepalived).                                  |
+      | `ensure_service_config`  | Write the per-service config.json under `{{.StateDir}}/services/<name>/<exec>/<version>/`.   |
+      | `ensure_hosts_block` / `remove_hosts_block` | Manage Globular's /etc/hosts section.                                      |
+      | `normalize_scylla_config`| ScyllaDB-only rewrite that preserves Raft identity.                                          |
+      | `fetch_file`             | Download from URL (rare; prefer bundling).                                                   |
+      | `noop`                   | Placeholder.                                                                                 |
+
+      Template variables in spec content blocks:
+        `{{.Prefix}}` — install prefix (e.g. /usr/local/share/globular)
+        `{{.StateDir}}` — state root (/var/lib/globular)
+        `{{.NodeIP}}` — STABLE node IP (NEVER the keepalived VIP; resolved via StableIP)
+        `{{.MinioDataDir}}` — MinIO data dir
+        `{{.Domain}}` — external domain
+    links:
+      cli_commands: []
+
+  - id: ops.always.package.canonical-recipe
+    type: REFERENCE
+    title: "Canonical install sequence for service / infrastructure / command"
+    tags: [always, package, install, reference]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Service package (e.g. cluster-controller, echo, dns):
+        1. ensure_user_group         # create globular user/group
+        2. ensure_dirs               # prefix, state dirs, PKI dirs
+        3. install_package_payload   # extract bin/<exec>
+        4. ensure_service_config     # write per-service config.json
+        5. install_services          # drop systemd unit
+        6. enable_services
+        7. start_services
+        8. health_checks
+
+      Infrastructure with stateful first-start (ScyllaDB):
+        1. ensure_dirs
+        2. install_package_payload   # install_bins: false — uses upstream binary
+        3. run_script prevent-autostart.sh    # block dpkg auto-start
+        4. install_local_debs                 # dpkg -i debs/*.deb (offline)
+        5. run_script allow-autostart.sh      # remove policy-rc.d block
+        6. run_script post-install.sh         # TLS wiring + controlled first-start of Raft
+
+      Infrastructure wrapping an upstream binary (MinIO):
+        1. ensure_user_group
+        2. ensure_dirs                         # incl. MinIO data dir
+        3. install_package_payload             # extract minio binary
+        4. install_files                       # minio.env, credentials
+        5. install_services                    # globular-minio.service
+        6. enable_services
+        7. run_script pre-start.sh             # TLS cert symlinks BEFORE start
+        8. start_services
+        9. health_checks
+        10. run_script post-install.sh         # bucket provisioning AFTER start
+
+      Command (CLI tool, no systemd):
+        1. ensure_user_group
+        2. ensure_dirs                         # {{.Prefix}}/bin/
+        3. install_package_payload             # extract binary
+        4. (optional) install_files            # /usr/local/bin/<name> wrapper
+
+      Script conventions:
+        - `pre-start.sh`   — last-mile prep BEFORE the unit starts (cert symlinks,
+                              env files, contract JSON).
+        - `post-install.sh`— after the unit is up (bucket provisioning, schema migration,
+                              controlled first-start sequences).
+        - `prevent-autostart.sh` / `allow-autostart.sh` — bracket dpkg installs for daemons
+          whose first-start has a one-way side effect (ScyllaDB Raft bootstrap).
+
+      Every script MUST: `set -euo pipefail`, read inputs from env (`STATE_DIR`, `NODE_IP`,
+      `GLOBULAR_DOMAIN`), be idempotent, log with a `[<pkg>/<script>]` prefix, fail loudly.
+      NEVER use `pkill -f` (self-SIGKILL); always `pkill -x <binary>`.
+
+  - id: ops.always.package.spec-validation
+    type: REFERENCE
+    title: "Spec validation rules — what the build enforces"
+    tags: [always, package, validation]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      `pkgpack.ValidateSpec` and `assertPackageGuards` enforce (build aborts on any
+      violation):
+
+      Spec-level:
+        - `version: 1` exactly.
+        - `metadata.name` resolvable (explicit, or from `service.name`, or from filename).
+        - `metadata.kind` ∈ {service, infrastructure, command, application} if set.
+        - `metadata.install_mode` ∈ {repository, day0_join} if set.
+        - `metadata.priority` ≥ 0.
+        - `steps` non-empty; every step has a unique `id` and non-empty `type`.
+        - kind=service MUST have exactly one `install_package_payload` step.
+        - kind=infrastructure MUST have `install_package_payload` UNLESS
+          `metadata.entrypoint: "noop"` (OS-managed exception).
+
+      Built-tarball guards (`assertPackageGuards`):
+        - `bin/<exec>` exists in the tarball.
+        - `specs/<name>_*.yaml` exists.
+        - That spec contains the literal string `install_package_payload`.
+
+      Cross-source validation (`packages/scripts/validate-package-metadata.sh`):
+        - `spec.metadata.kind` == `package.json.type` == `registry.yaml.kind`
+          == `component_catalog.go` classification.
+        - Mismatch → script exits 1.
+
+      Run this BEFORE any commit that touches `packages/`.
+
+      Runtime validation (continuous, by node-agent):
+        - systemd unit active.
+        - `health_check_port` TCP probe (if declared).
+        - `entrypoint_checksum` from manifest matches SHA256 of `/proc/<pid>/exe`
+          (detects hot-deploy drift and `(deleted)` inode hazards).
+        - `installed.build_id` == `desired.build_id`.
+    links:
+      cli_commands:
+        - "cd packages && ./scripts/validate-package-metadata.sh"
+        - "globular pkg verify <path>.tgz"
+
+  - id: ops.always.package.authoring-checklist
+    type: SKILL
+    title: "Authoring a new package — checklist"
+    tags: [always, package, authoring, skill]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      When adding a new package, do all of:
+
+      1. Decide kind: gRPC mesh API → `service`; standalone daemon → `infrastructure`;
+         CLI tool → `command`.
+      2. Add the entry to `packages/registry.yaml` with correct kind, profiles,
+         hard_deps, bootstrap_tier.
+      3. Add the entry to `component_catalog.go` (runtime catalog authority — must agree).
+      4. Create `packages/metadata/<name>/`:
+         - `package.json` — reference manifest (name, type, version "0.0.1", publisher,
+           entrypoint).
+         - `awareness.yaml` — invariants + failure modes (encouraged; flagged by doctor
+           if absent).
+         - `systemd/`, `config/`, `scripts/` as needed.
+      5. Create `packages/specs/<name>_{service,cmd}.yaml`:
+         - `metadata.kind` matching registry.
+         - Canonical sequence: ensure_user_group → ensure_dirs → install_package_payload
+           → ensure_service_config (services) → install_services → enable_services
+           → start_services → health_checks.
+         - For OS-managed daemons set `entrypoint: noop`, `install_bins: false`, use
+           `install_local_debs` / `install_os_packages`.
+      6. Code: `Version = ""` in source. Injected via ldflags. NEVER hardcode.
+      7. Every spec MUST have `start_services`. No silent "Day-0 will handle it".
+      8. Validate:
+         `cd packages && ./scripts/validate-package-metadata.sh`
+         `cd golang && go build ./globularcli/...`
+      9. Local build:
+         `globular pkg build --spec packages/specs/<name>_service.yaml --version 0.0.1 --out /tmp/pkgs --root <build-root>`
+         `globular pkg inspect /tmp/pkgs/<name>_0.0.1_linux_amd64.tgz`
+      10. Publish via deploy:
+         `globular --controller <leader>.globular.internal deploy <name> --bump patch --comment "initial release"`
+      11. Verify convergence across profile-matching nodes:
+         `globular cluster nodes list && globular pkg status <name>`
+    procedure:
+      - phase: observe
+        description: "Confirm the package doesn't already exist and the kind is unambiguous"
+        commands:
+          - cmd: "grep -n '^  - name: <name>$' packages/registry.yaml"
+            expect: "no match — package is new"
+      - phase: plan
+        description: "Draft registry entry + spec + metadata; agree on kind across all four sources"
+        commands:
+          - cmd: "vim packages/registry.yaml packages/specs/<name>_service.yaml packages/metadata/<name>/package.json"
+      - phase: execute
+        description: "Validate, build, publish"
+        commands:
+          - cmd: "cd packages && ./scripts/validate-package-metadata.sh"
+            expect: "PASSED: 0 errors"
+          - cmd: "globular pkg build --spec packages/specs/<name>_service.yaml --version 0.0.1 --out /tmp/pkgs --root <build-root>"
+          - cmd: "globular --controller <leader>.globular.internal deploy <name> --bump patch --comment 'initial release'"
+      - phase: verify
+        description: "Convergence on all profile-matching nodes"
+        commands:
+          - cmd: "globular pkg status <name>"
+            expect: "all profile-matching nodes show installed.build_id == desired.build_id"
+    success_criteria:
+      - "validate-package-metadata.sh exits 0"
+      - "package builds with assertPackageGuards passing"
+      - "deploy completes; release reconciler dispatches package_install"
+      - "all profile-matching nodes show convergence in /globular/nodes/.../packages/"
+
+  - id: ops.always.package.anti-patterns
+    type: DEBUG
+    title: "Package anti-patterns — what AI agents and humans get wrong"
+    tags: [always, package, anti-patterns, debug]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Pulled from accumulated incident memory. AI agents MUST refuse to propose these.
+
+      - Hardcoding `version` in `main.go` — pipeline injects via ldflags; hardcoded
+        diverges from deploy-allocated and breaks convergence.
+      - Hardcoding gRPC ports or addresses in source — etcd is the sole truth.
+      - Using `127.0.0.1` / `localhost` in spec templates — listen MAY use `0.0.0.0`;
+        remote addressing MUST resolve from etcd. `{{.NodeIP}}` is the resolved
+        STABLE IP, never the VIP.
+      - Skipping `install_package_payload` — build fails (`assertPackageGuards`).
+        For OS-managed packages set `entrypoint: "noop"` and pass an empty payload step.
+      - Adding `start_services` only inside post-install.sh — every spec MUST start
+        its own service explicitly.
+      - Forgetting to update `registry.yaml` — validator fails across spec /
+        package.json / catalog.
+      - Overloading `build_number` for convergence — `build_id` is convergence identity;
+        `build_number` is display only.
+      - Using `pkill -f <name>` in scripts — matches parent shell argv → self-SIGKILL.
+        Always `pkill -x <binary>`.
+      - Hot-deploying a locally-built binary to a node — no ldflags → wrong version
+        + wrong checksum → runtime drift → leader election breaks. Always go through
+        `globular deploy`.
+      - Reformatting MinIO drive count without `mc mirror` backup — drive count
+        mismatch → silent reformat or data wipe.
+      - Replacing a ScyllaDB binary without restarting the unit — old process holds
+        the deleted-inode binary; `/proc/<pid>/exe` reports drift forever.
+      - Adding a `repository → MinIO health` gate on the read path — forms a recovery
+        deadlock (node-agent → repository → MinIO → node-agent). Repository must
+        serve metadata without MinIO.
+    links:
+      awareness_failure_modes: []

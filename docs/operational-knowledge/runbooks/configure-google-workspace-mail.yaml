@@ -1,0 +1,209 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Configure Google Workspace mail for a Globular-served zone"
+  description: |
+    End-to-end procedure for making a Globular-managed zone (e.g. globular.io) accept
+    mail at Google Workspace. Covers MX, SPF, Workspace domain verification, DKIM,
+    and DMARC. Captures the CLI gap (no `globular dns mx`) and the SetText-replaces-list
+    trap that wipes SPF when adding the verification token.
+  source_documents:
+    - docs/operational-knowledge/dns-records.md
+    - proto/dns.proto
+    - https://support.google.com/a/answer/140034
+
+entries:
+
+  - id: ops.runbook.dns.configure-google-workspace-mail
+    type: SKILL
+    title: "Configure Google Workspace mail for a Globular zone"
+    tags: [day-2, dns, mail, workspace, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [dns]
+      services_healthy: [dns]
+    content: |
+      Use this runbook when a Globular-served zone (e.g. `globular.io`) needs to receive
+      mail at addresses like `contact@<zone>`. The MTA stack we point to is **Google
+      Workspace** — set the MX records to Google's MTAs, prove domain ownership via a TXT
+      token, then add DKIM and DMARC.
+
+      **Hard prerequisite:** a Google Workspace subscription with the target zone added
+      under admin.google.com → Account → Domains. Personal Gmail (`@gmail.com`) cannot
+      receive mail on a custom domain — only Workspace does. If you only have personal
+      Gmail, you want a different runbook (use Cloudflare Email Routing → forward to
+      personal Gmail, or stand up Globular's own `mail_server`).
+
+      **Hard prerequisite:** the zone is in `GetDomains` on the DNS service. If not,
+      `SetDomains` first.
+
+      Estimated wall-clock time: 20 minutes hands-on + propagation (the DNS records are
+      live within seconds; Workspace's verification step can take 5-15 minutes).
+
+      ## Where each record lives (and why SPF preservation only matters on root)
+
+      | Record | Where (DNS name) | Storage key | Touches root TXT? |
+      |---|---|---|---|
+      | SPF | `<zone>` | `TXT:<zone>` | YES — IS the root TXT |
+      | Workspace verification | `<zone>` | `TXT:<zone>` | YES — shares root TXT with SPF |
+      | DKIM | `google._domainkey.<zone>` | `TXT:google._domainkey.<zone>` | NO — separate name |
+      | DMARC | `_dmarc.<zone>` | `TXT:_dmarc.<zone>` | NO — separate name |
+      | MX | `<zone>` | `MX:<zone>` | NO — MX is its own type |
+
+      The SetText-replaces-list trap (dns-records.md §3.2) bites ONLY when you write
+      TXT records on the same name as SPF. That means: **adding the Workspace
+      verification token is the dangerous step**. DKIM and DMARC are safe — they
+      live on subdomains with their own storage keys.
+    links:
+      runbooks: []
+      cli_commands:
+        - "mcp__globular__grpc_call dns.DnsService/SetMx"
+        - "mcp__globular__grpc_call dns.DnsService/SetText"
+        - "mcp__globular__grpc_call dns.DnsService/GetText"
+        - "dig +short MX <zone> @8.8.8.8"
+        - "dig +short TXT <zone> @8.8.8.8"
+    procedure:
+      - phase: observe
+        description: "Confirm the zone is served by Globular DNS and capture current state"
+        commands:
+          - cmd: "dig +short NS <zone> @8.8.8.8"
+            expect: "Returns at least one NS, e.g. dns.<zone>. — confirms the zone resolves to Globular DNS"
+          - cmd: "dig +short MX <zone> @8.8.8.8"
+            expect: "Empty (or pre-existing MX you should NOT clobber without checking)"
+            note: "If non-empty and you don't know why, STOP. Mail may already be routing elsewhere."
+          - cmd: "dig +short TXT <zone> @8.8.8.8"
+            expect: "Empty or pre-existing SPF/verification tokens"
+            note: "Capture every existing TXT value — you'll need to include them in the SetText call that replaces the list (see §3.2 of dns-records.md)."
+          - cmd: "mcp__globular__grpc_call dns.DnsService/GetText id=<zone>"
+            expect: "Authoritative store view; matches dig results within TTL window"
+
+      - phase: plan
+        description: "Decide the MX set, SPF policy, and whether DKIM/DMARC come now or later"
+        warning: |
+          The Workspace verification step requires a Google-supplied TXT token
+          (looks like `google-site-verification=abc123...`). DO NOT add the SPF
+          record first via SetText and the verification token later via another
+          SetText — the second call REPLACES the list and wipes SPF.
+          Either:
+            - call SetText once with ALL desired values (SPF + verification), or
+            - use SetTXT for the verification token (it appends to the existing list).
+          See dns-records.md §3.2 for the gotcha in detail.
+        commands:
+          - cmd: "echo 'MX targets (Google Workspace standard, 5-server set):'"
+            note: |
+              pref 1   ASPMX.L.GOOGLE.COM.
+              pref 5   ALT1.ASPMX.L.GOOGLE.COM.
+              pref 5   ALT2.ASPMX.L.GOOGLE.COM.
+              pref 10  ALT3.ASPMX.L.GOOGLE.COM.
+              pref 10  ALT4.ASPMX.L.GOOGLE.COM.
+          - cmd: "echo 'SPF: v=spf1 include:_spf.google.com ~all'"
+            note: "Use ~all (softfail) during initial rollout; tighten to -all (fail) once flow is confirmed."
+
+      - phase: execute
+        description: "Set MX (5 calls) and SPF (1 call)"
+        commands:
+          - cmd: 'mcp__globular__grpc_call dns.DnsService/SetMx request={"id":"<zone>","mx":{"preference":1,"mx":"ASPMX.L.GOOGLE.COM."},"ttl":3600}'
+          - cmd: 'mcp__globular__grpc_call dns.DnsService/SetMx request={"id":"<zone>","mx":{"preference":5,"mx":"ALT1.ASPMX.L.GOOGLE.COM."},"ttl":3600}'
+          - cmd: 'mcp__globular__grpc_call dns.DnsService/SetMx request={"id":"<zone>","mx":{"preference":5,"mx":"ALT2.ASPMX.L.GOOGLE.COM."},"ttl":3600}'
+          - cmd: 'mcp__globular__grpc_call dns.DnsService/SetMx request={"id":"<zone>","mx":{"preference":10,"mx":"ALT3.ASPMX.L.GOOGLE.COM."},"ttl":3600}'
+          - cmd: 'mcp__globular__grpc_call dns.DnsService/SetMx request={"id":"<zone>","mx":{"preference":10,"mx":"ALT4.ASPMX.L.GOOGLE.COM."},"ttl":3600}'
+          - cmd: 'mcp__globular__grpc_call dns.DnsService/SetText request={"id":"<zone>","values":["v=spf1 include:_spf.google.com ~all"],"ttl":3600}'
+
+      - phase: verify
+        description: "Confirm both authoritative store and public resolver reflect the new state"
+        commands:
+          - cmd: 'mcp__globular__grpc_call dns.DnsService/GetMx request={"id":"<zone>"}'
+            expect: "Returns all 5 MX entries with the right preferences"
+          - cmd: 'mcp__globular__grpc_call dns.DnsService/GetText request={"id":"<zone>"}'
+            expect: 'values contains "v=spf1 include:_spf.google.com ~all"'
+          - cmd: "dig +short MX <zone> @8.8.8.8"
+            expect: "Same 5 MX entries (order may differ — resolvers can reorder same-preference records)"
+          - cmd: "dig +short TXT <zone> @8.8.8.8"
+            expect: '"v=spf1 include:_spf.google.com ~all"'
+
+      - phase: workspace-verify
+        description: "Add the zone in admin.google.com and verify ownership"
+        commands:
+          - cmd: "Browser: admin.google.com → Account → Domains → Add a domain → <zone>"
+          - cmd: "Google shows a verification token (google-site-verification=<long-string>). Copy it."
+          - cmd: |
+              # Add the token WITHOUT wiping SPF — pick ONE of the two methods:
+              #
+              # Method A — SetText with the full intended list (recommended; explicit):
+              mcp__globular__grpc_call dns.DnsService/SetText \
+                request='{"id":"<zone>","values":["v=spf1 include:_spf.google.com ~all","google-site-verification=<token>"],"ttl":3600}'
+              #
+              # Method B — SetTXT which appends to the existing list:
+              mcp__globular__grpc_call dns.DnsService/SetTXT \
+                request='{"domain":"<zone>","txt":"google-site-verification=<token>","ttl":3600}'
+            warning: "NEVER call SetText with ONLY the verification token — it REPLACES the list and wipes SPF."
+          - cmd: "dig +short TXT <zone> @8.8.8.8"
+            expect: "Both v=spf1 ... and google-site-verification=... are present"
+          - cmd: "Browser: admin.google.com → click 'Verify'"
+            expect: "Google reports domain ownership confirmed (may take a few minutes for TXT propagation)"
+
+      - phase: dmarc
+        description: "Publish DMARC observation policy — can be done IMMEDIATELY (no admin console needed)"
+        warning: |
+          KEY CLARIFICATION: DMARC TXT lives at `_dmarc.<zone>`, NOT at the root `<zone>`.
+          It is a SEPARATE storage key from SPF, so writing DMARC does NOT touch
+          the root TXT list. The SetText-replaces-list trap (see dns-records.md §3.2)
+          does NOT apply here. SPF on the root remains untouched.
+        commands:
+          - cmd: |
+              # Start in observe mode (p=none) — Google takes no action on mail,
+              # only reports. Reporting address is postmaster@<zone> (same-domain,
+              # no cross-domain RFC 7489 §7.1 authorization needed). Workspace
+              # auto-creates postmaster@<zone> for verified domains; if missing,
+              # reports just drop — no mail impact.
+              mcp__globular__grpc_call dns.DnsService/SetText \
+                request='{"id":"_dmarc.<zone>","values":["v=DMARC1; p=none; rua=mailto:postmaster@<zone>; adkim=r; aspf=r"],"ttl":3600}'
+          - cmd: "dig +short TXT _dmarc.<zone> @8.8.8.8"
+            expect: "v=DMARC1; p=none; rua=mailto:postmaster@<zone>; adkim=r; aspf=r"
+          - cmd: 'mcp__globular__grpc_call dns.DnsService/GetText request={"id":"<zone>"}'
+            expect: "Root TXT still contains the SPF entry only — SPF preservation confirmed"
+          - cmd: |
+              # After ~2 weeks of clean reports + DKIM publish (next phase), tighten:
+              mcp__globular__grpc_call dns.DnsService/SetText \
+                request='{"id":"_dmarc.<zone>","values":["v=DMARC1; p=quarantine; rua=mailto:postmaster@<zone>; adkim=r; aspf=r"],"ttl":3600}'
+            note: "Eventually move to p=reject once you trust the deployment. Do NOT tighten until DKIM is published and authenticating."
+
+      - phase: dkim
+        description: "Generate DKIM key in Workspace, then publish it — REQUIRES admin console"
+        warning: |
+          KEY CLARIFICATION: DKIM TXT lives at `google._domainkey.<zone>`, NOT at the
+          root `<zone>`. It is a SEPARATE storage key from SPF, so writing DKIM does
+          NOT touch the root TXT list. SPF on the root remains untouched.
+
+          DKIM cannot be set without the key — Google generates the keypair in the
+          admin console and holds the private half. You retrieve the public half
+          (the TXT value) and publish it.
+        commands:
+          - cmd: "Browser: admin.google.com → Apps → Google Workspace → Gmail → Authenticate email"
+            note: "Select the target domain (must be Workspace-verified first)."
+          - cmd: "Click 'Generate new record'"
+            note: "Selector defaults to 'google'. Key length: choose 2048."
+          - cmd: "Google shows a long TXT value starting with 'v=DKIM1; k=rsa; p=...'. Copy the full value."
+          - cmd: |
+              mcp__globular__grpc_call dns.DnsService/SetText \
+                request='{"id":"google._domainkey.<zone>","values":["v=DKIM1; k=rsa; p=<paste-key-here>"],"ttl":3600}'
+          - cmd: "dig +short TXT google._domainkey.<zone> @8.8.8.8"
+            expect: "v=DKIM1; ... matches the value Google generated"
+          - cmd: "Browser: admin.google.com → 'Start authentication'"
+            expect: "DKIM status flips to 'Authenticating email' within a few minutes"
+          - cmd: 'mcp__globular__grpc_call dns.DnsService/GetText request={"id":"<zone>"}'
+            expect: "Root TXT still contains the SPF entry only — SPF preservation reconfirmed"
+
+      - phase: end-to-end
+        description: "Send a real test message"
+        commands:
+          - cmd: "From any external mail client (gmail.com web UI is easiest), send to <user>@<zone>"
+            expect: "Message lands in Workspace inbox within seconds; no bounce"
+          - cmd: "Workspace → inbox → message → 'Show original'"
+            expect: "SPF=PASS, DKIM=PASS, DMARC=PASS (DMARC line will appear once DMARC is published)"
+    success_criteria:
+      - "Public dig returns 5 MX records pointing to *.ASPMX.L.GOOGLE.COM."
+      - "Public dig returns the SPF TXT record"
+      - "Workspace 'Domains' page shows the zone as Verified"
+      - "DKIM TXT under google._domainkey.<zone> resolves and Workspace shows DKIM Active"
+      - "Test mail from external sender lands in Workspace inbox with SPF/DKIM/DMARC pass headers"

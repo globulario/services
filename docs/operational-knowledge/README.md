@@ -19,12 +19,15 @@ The result, today, is that every fresh AI session repeats the same discovery wor
 docs/operational-knowledge/
 ├── README.md                # this file
 ├── SCHEMA.md                # YAML schema reference
+├── packages.md              # canonical reference: what a package is, files, install, validation
+├── dns-records.md           # canonical reference: managing DNS records (A, AAAA, MX, TXT, SRV, CAA, etc.)
 ├── stages/                  # lifecycle-stage seed entries (what's true at this stage)
 │   ├── day-0-bootstrap.yaml          ✓ shipped
 │   ├── day-1-join.yaml               ✓ shipped
 │   ├── day-1-keepalived.yaml         ✓ shipped
 │   ├── day-1-objectstore.yaml        ✓ shipped
 │   ├── day-1-deploy-pipeline.yaml    ✓ shipped
+│   ├── package-system.yaml           ✓ shipped (anatomy, identity, install, validation, anti-patterns)
 │   └── day-2-maintenance.yaml        ✓ shipped
 ├── runbooks/                # codified procedures (mirrors objectstore-nfs-remediation.yaml shape)
 │   ├── add-node-to-minio-pool.yaml             ✓ shipped
@@ -35,6 +38,7 @@ docs/operational-knowledge/
 │   ├── recover-keepalived-vip-loss.yaml        ✓ shipped
 │   ├── recover-etcd-member-eviction.yaml       ✓ shipped
 │   ├── rotate-pki-certificates.yaml            ✓ shipped
+│   ├── configure-google-workspace-mail.yaml    ✓ shipped (MX + SPF + DKIM + DMARC end-to-end)
 │   ├── recover-failed-platform-upgrade.yaml    (TODO)
 │   └── restore-from-backup.yaml                (TODO)
 └── service-roles/           # canonical "what is this service for" entries
