@@ -20,7 +20,7 @@ require (
 	github.com/emersion/go-message v0.18.1
 	github.com/emicklei/proto v1.13.2
 	github.com/globulario/awareness v0.2.1-0.20260517184523-d4b419d690b7
-	github.com/globulario/globular-installer v0.0.0-20260509204407-fb4d24c77766
+	github.com/globulario/globular-installer v0.0.0-20260520194113-156f49163ef8
 	github.com/globulario/utility v0.1.9
 	github.com/go-ldap/ldap/v3 v3.4.8
 	github.com/go-sql-driver/mysql v1.8.1
