@@ -111,6 +111,7 @@ func (srv *server) generateRecoveryCapsule(
 	}{
 		{"restore.sh", writeMainRestoreScript},
 		{"phase1-restore-files.sh", writePhase1Script},
+		{"phase1b-restore-secrets.sh", writePhase1bScript},
 		{"phase2-bootstrap-minio.sh", writePhase2Script},
 		{"phase3-restore-etcd.sh", writePhase3Script},
 		{"phase4-restore-scylla.sh", writePhase4Script},
@@ -206,14 +207,16 @@ func writeMainRestoreScript(w io.Writer, ri *RecoveryInputs) {
 		"# ============================================================",
 		"#",
 		"# USAGE",
-		"#   sudo ./restore.sh [--phase 1|2|3|4] [--dry-run]",
+		"#   sudo ./restore.sh [--phase 1|1b|2|3|4] [--dry-run]",
 		"#              [--restic-password <pw>]",
 		"#",
 		"# Without --phase all phases run in order:",
-		"#   Phase 1  Restore /var/lib/globular from restic (includes MinIO data)",
-		"#   Phase 2  Bootstrap MinIO (restart service with restored data)",
-		"#   Phase 3  Restore etcd cluster state from snapshot",
-		"#   Phase 4  Restore ScyllaDB from snapshot in MinIO (via sctool)",
+		"#   Phase 1   Restore /var/lib/globular from restic (includes MinIO data)",
+		"#   Phase 1b  Restore node-local secrets collected by backup_manager (root-owned",
+		"#             contract files that restic could not read at backup time)",
+		"#   Phase 2   Bootstrap MinIO (restart service with restored data)",
+		"#   Phase 3   Restore etcd cluster state from snapshot",
+		"#   Phase 4   Restore ScyllaDB from snapshot in MinIO (via sctool)",
 		"#",
 		"# Recovery chain (MinIO unavailable scenario):",
 		"#   restic restores /var/lib/globular → MinIO data back on disk",
@@ -265,10 +268,11 @@ func writeMainRestoreScript(w io.Writer, ri *RecoveryInputs) {
 		`  log "Phase $n complete."`,
 		`}`,
 		"",
-		`run_phase 1 "Restore files from restic (includes MinIO object data)" "phase1-restore-files.sh"`,
-		`run_phase 2 "Bootstrap MinIO service"                                "phase2-bootstrap-minio.sh"`,
-		`run_phase 3 "Restore etcd cluster state"                             "phase3-restore-etcd.sh"`,
-		`run_phase 4 "Restore ScyllaDB"                                       "phase4-restore-scylla.sh"`,
+		`run_phase 1  "Restore files from restic (includes MinIO object data)" "phase1-restore-files.sh"`,
+		`run_phase 1b "Restore node-local secrets from capsule"                 "phase1b-restore-secrets.sh"`,
+		`run_phase 2  "Bootstrap MinIO service"                                 "phase2-bootstrap-minio.sh"`,
+		`run_phase 3  "Restore etcd cluster state"                              "phase3-restore-etcd.sh"`,
+		`run_phase 4  "Restore ScyllaDB"                                        "phase4-restore-scylla.sh"`,
 		"",
 		`log ""`,
 		`log "Recovery complete."`,
@@ -332,6 +336,169 @@ func writePhase1Script(w io.Writer, ri *RecoveryInputs) {
 		`log "File restore complete."`,
 		`log "MinIO data is at: `+ri.minioDataPath()+`"`,
 	)
+	fmt.Fprintln(w, strings.Join(lines, "\n"))
+}
+
+// writePhase1bScript generates phase1b-restore-secrets.sh — the restore
+// counterpart to Task #12. The capsule's payload/secrets/<node_id>/ dir
+// holds files that backup_manager could not read directly (root-owned
+// contracts collected via node_agent.CollectBackupSecrets). This script
+// restores them to their original on-disk locations with the recorded
+// mode/owner/group, after sha256 verification.
+//
+// Strict safety invariants embedded in the script:
+//   - require root
+//   - backward-compat skip if payload/secrets/ does not exist (pre-#12 capsule)
+//   - determine local node_id from NODE_ID_OVERRIDE first, then state.json
+//   - fail loudly when local node_id is not in capsule (operator must use
+//     NODE_ID_OVERRIDE for explicit node-replacement mapping)
+//   - process only entries with found=true; skip+log found=false
+//   - sha256 verify capsule content before write
+//   - refuse destination symlink AND any ancestor symlink (defense-in-depth)
+//   - refuse destinations that resolve outside /var/lib/globular
+//   - idempotent: skip when local file already matches capsule sha256
+//   - require FORCE_OVERWRITE=1 when local file exists with different content
+//   - write via tmp + atomic rename; preserve mode/owner/group via install(1)
+//   - log only metadata (path, mode, owner:group, sha256 prefix) — never bytes
+func writePhase1bScript(w io.Writer, _ *RecoveryInputs) {
+	lines := []string{
+		"#!/bin/bash",
+		"# Phase 1b — Restore node-local secrets collected by backup_manager.",
+		"#",
+		"# The capsule's payload/secrets/<node_id>/ directory holds root-owned",
+		"# contract files that restic could not read at backup time (collected",
+		"# via the privileged node-agent path). This phase restores them to",
+		"# their original on-disk locations on the local node only, after sha256",
+		"# verification.",
+		"#",
+		"# Strict node_id matching: this script restores ONLY entries under the",
+		"# local node's node_id. To restore secrets from a different node (e.g.",
+		"# hardware replacement), set NODE_ID_OVERRIDE=<old_node_id> explicitly.",
+		"",
+		"set -euo pipefail",
+		"set +x  # never trace; command args could include secret paths",
+		"",
+		`log()  { echo "[phase1b] $*"; }`,
+		`die()  { echo "ERROR: $*" >&2; exit 1; }`,
+		"",
+		`[[ $EUID -eq 0 ]] || die "Run as root (or with sudo)"`,
+		"",
+		`SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"`,
+		`CAPSULE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"`,
+		`SECRETS_ROOT="$CAPSULE_ROOT/payload/secrets"`,
+		"",
+		"# Backward compatibility: capsules created before Task #12 shipped do",
+		"# not have a payload/secrets/ directory. Don't fail; just log and skip.",
+		`if [[ ! -d "$SECRETS_ROOT" ]]; then`,
+		`  log "no payload/secrets/ in capsule (pre-Task-#12 backup); skipping"`,
+		`  exit 0`,
+		`fi`,
+		"",
+		"# Determine local node_id: explicit override wins, then on-disk state.",
+		`LOCAL_NODE_ID="${NODE_ID_OVERRIDE:-}"`,
+		`if [[ -z "$LOCAL_NODE_ID" && -f /var/lib/globular/nodeagent/state.json ]]; then`,
+		`  LOCAL_NODE_ID="$(jq -r .NodeID /var/lib/globular/nodeagent/state.json 2>/dev/null || true)"`,
+		`fi`,
+		`[[ -n "$LOCAL_NODE_ID" && "$LOCAL_NODE_ID" != "null" ]] \`,
+		`  || die "cannot determine local node_id (set NODE_ID_OVERRIDE=<id> or restore /var/lib/globular/nodeagent/state.json first)"`,
+		"",
+		`NODE_DIR="$SECRETS_ROOT/$LOCAL_NODE_ID"`,
+		`TOP_MANIFEST="$SECRETS_ROOT/manifest.json"`,
+		"",
+		`if [[ ! -d "$NODE_DIR" ]]; then`,
+		`  if [[ -f "$TOP_MANIFEST" ]]; then`,
+		`    # Tolerate both the current schema (.nodes[]) and a future-renamed`,
+		`    # alias (.cluster_node_set[]) so an operator-facing manifest rename`,
+		`    # doesn't break this diagnostic message.`,
+		`    AVAIL="$(jq -r '(.nodes // .cluster_node_set // [])[]?.node_id' "$TOP_MANIFEST" 2>/dev/null | sort | tr '\n' ' ')"`,
+		`  else`,
+		`    AVAIL="(top-level manifest missing)"`,
+		`  fi`,
+		`  die "no secrets entry for local node_id $LOCAL_NODE_ID in capsule\ncapsule was collected from: $AVAIL\nif this is a node-replacement scenario, re-run with: NODE_ID_OVERRIDE=<old_node_id> sudo $0"`,
+		`fi`,
+		"",
+		`PER_NODE_MANIFEST="$NODE_DIR/manifest.json"`,
+		`[[ -f "$PER_NODE_MANIFEST" ]] || die "per-node manifest missing at $PER_NODE_MANIFEST"`,
+		"",
+		"# refuse_symlink_path: defense in depth — refuses if the final path is",
+		"# a symlink AND if ANY ancestor along the chain is a symlink, AND if the",
+		"# canonical destination resolves outside /var/lib/globular. Called before",
+		"# any mkdir/install/mv for every restored entry.",
+		`refuse_symlink_path() {`,
+		`  local path="$1"`,
+		`  local dir`,
+		`  dir="$(dirname "$path")"`,
+		"",
+		`  local cur="/"`,
+		`  IFS='/' read -ra parts <<< "${dir#/}"`,
+		`  for part in "${parts[@]}"; do`,
+		`    [[ -z "$part" ]] && continue`,
+		`    cur="${cur%/}/$part"`,
+		`    if [[ -L "$cur" ]]; then`,
+		`      die "REFUSE: destination ancestor $cur is a symlink"`,
+		`    fi`,
+		`  done`,
+		"",
+		`  if [[ -L "$path" ]]; then`,
+		`    die "REFUSE: destination $path is a symlink"`,
+		`  fi`,
+		"",
+		`  local canonical`,
+		`  canonical="$(realpath -m "$path")"`,
+		`  [[ "$canonical" == /var/lib/globular/* ]] \`,
+		`    || die "REFUSE: destination $path resolves outside /var/lib/globular (canonical=$canonical)"`,
+		`}`,
+		"",
+		"# Restore loop: only entries with found=true; sha256 verify; idempotent;",
+		"# overwrite-protected by FORCE_OVERWRITE.",
+		`jq -c '.entries[] | select(.found == true)' "$PER_NODE_MANIFEST" | while read -r entry; do`,
+		`  ORIG=$(echo "$entry" | jq -r '.original_path')`,
+		`  REL=$(echo "$entry" | jq -r '.capsule_relpath')`,
+		`  EXP_SHA=$(echo "$entry" | jq -r '.sha256')`,
+		`  MODE=$(echo "$entry" | jq -r '.mode_octal // "0640"')`,
+		`  OWNER=$(echo "$entry" | jq -r '.owner // "root"')`,
+		`  GROUP=$(echo "$entry" | jq -r '.group // "root"')`,
+		"",
+		`  SRC="$NODE_DIR/$REL"`,
+		`  if [[ ! -f "$SRC" ]]; then`,
+		`    log "SKIP: capsule file missing for $ORIG (relpath=$REL)"`,
+		`    continue`,
+		`  fi`,
+		"",
+		"  # 1. sha256 verification of capsule content (manifest integrity).",
+		`  ACT_SHA=$(sha256sum "$SRC" | awk '{print $1}')`,
+		`  [[ "$ACT_SHA" == "$EXP_SHA" ]] \`,
+		`    || die "sha256 mismatch for $REL: capsule=$ACT_SHA expected=$EXP_SHA"`,
+		"",
+		"  # 2. Symlink + ancestor + scope check on the destination.",
+		`  refuse_symlink_path "$ORIG"`,
+		"",
+		"  # 3. Idempotent skip / overwrite protection.",
+		`  if [[ -f "$ORIG" ]]; then`,
+		`    LOCAL_SHA=$(sha256sum "$ORIG" | awk '{print $1}')`,
+		`    if [[ "$LOCAL_SHA" == "$EXP_SHA" ]]; then`,
+		`      log "OK (idempotent): $ORIG already matches capsule sha256=${EXP_SHA:0:12}"`,
+		`      continue`,
+		`    fi`,
+		`    if [[ -z "${FORCE_OVERWRITE:-}" ]]; then`,
+		`      die "$ORIG exists with different content (local=${LOCAL_SHA:0:12} capsule=${EXP_SHA:0:12}); set FORCE_OVERWRITE=1 to replace"`,
+		`    fi`,
+		`    log "OVERWRITE: $ORIG (FORCE_OVERWRITE=1; local=${LOCAL_SHA:0:12} -> capsule=${EXP_SHA:0:12})"`,
+		`  fi`,
+		"",
+		"  # 4. Atomic write: tmp + rename with mode/owner/group from manifest.",
+		`  mkdir -p "$(dirname "$ORIG")"`,
+		`  TMP="${ORIG}.restore-tmp.$$"`,
+		`  if ! install -m "$MODE" -o "$OWNER" -g "$GROUP" "$SRC" "$TMP" 2>/dev/null; then`,
+		`    # Fallback when the named owner/group doesn't exist (test sandbox).`,
+		`    install -m "$MODE" "$SRC" "$TMP"`,
+		`  fi`,
+		`  mv -f "$TMP" "$ORIG"`,
+		`  log "restored $ORIG (mode=$MODE owner=$OWNER:$GROUP sha256=${EXP_SHA:0:12})"`,
+		`done`,
+		"",
+		`log "Phase 1b complete: node-local secrets restored for $LOCAL_NODE_ID."`,
+	}
 	fmt.Fprintln(w, strings.Join(lines, "\n"))
 }
 
@@ -512,10 +679,12 @@ func writeRecoveryREADME(w io.Writer, ri *RecoveryInputs) {
 	sb.WriteString("| `restore-inputs.json` | Machine-readable restore parameters |\n")
 	sb.WriteString("| `restore.sh` | Full-cluster restore orchestrator |\n")
 	sb.WriteString("| `phase1-restore-files.sh` | Restore `/var/lib/globular` via restic (includes MinIO data) |\n")
+	sb.WriteString("| `phase1b-restore-secrets.sh` | Restore node-local root-owned secrets collected by backup_manager |\n")
 	sb.WriteString("| `phase2-bootstrap-minio.sh` | (Re)start MinIO after files are restored |\n")
 	sb.WriteString("| `phase3-restore-etcd.sh` | Restore etcd state from embedded snapshot |\n")
 	sb.WriteString("| `phase4-restore-scylla.sh` | Restore ScyllaDB from MinIO via sctool |\n")
-	sb.WriteString("| `../payload/etcd/etcd-snapshot.db` | etcd snapshot (referenced by phase3) |\n\n")
+	sb.WriteString("| `../payload/etcd/etcd-snapshot.db` | etcd snapshot (referenced by phase3) |\n")
+	sb.WriteString("| `../payload/secrets/<node_id>/` | Per-node secret capsule (referenced by phase1b) |\n\n")
 
 	sb.WriteString("## Recovery scenarios\n\n")
 
