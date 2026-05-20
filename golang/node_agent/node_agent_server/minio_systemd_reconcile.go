@@ -56,6 +56,20 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 	//    TopologyTransition record gates .minio.sys wipe — no local inference.
 	srv.applyApprovedMinioTransition(ctx, state, nodeIP)
 
+	// 4b. Restore format.json from etcd snapshot when missing on disk and
+	//     the snapshot belongs to the current topology. Catches any cause of
+	//     format.json loss (filesystem corruption, ephemeral storage swap,
+	//     manual rm) by replaying a per-drive snapshot the node-agent took
+	//     while MinIO was last healthy. Skips on topology mismatch so it
+	//     never fights an in-progress transition. No-op when format.json
+	//     already exists — MinIO's bytes are authoritative when present.
+	srv.restoreMinioFormatFromEtcd(ctx, state, nodeIP)
+
+	// 4c. After a healthy MinIO has written its format.json, refresh the
+	//     etcd snapshot if the bytes changed. This is the producer side of
+	//     the restore path above and the reason it can ever succeed.
+	srv.backupMinioFormatToEtcd(ctx, state, nodeIP)
+
 	// 5. Render minio.env and distributed.conf; returns whether daemon-reload needed.
 	daemonReloadNeeded, err := srv.renderMinioSystemdFiles(ctx, state, nodeIP)
 	if err != nil {
@@ -379,6 +393,12 @@ func (srv *NodeAgentServer) clearMinioSysIfTransitionApproved(ctx context.Contex
 
 	log.Printf("minio-transition: %s — proceeding with .minio.sys wipe", reason)
 	srv.clearMinioSysForModeChange(state, nodeIP)
+	// Also drop the etcd format snapshot so the next reconcile cannot
+	// resurrect the wiped format.json and prevent the new topology from
+	// initialising. Without this purge, restoreMinioFormatFromEtcd would
+	// race with MinIO's fresh format and either undo it or pin the wrong
+	// erasure-set size on the cluster.
+	srv.purgeMinioFormatBackupForNode(ctx, state, nodeIP)
 }
 
 // clearMinioSysForModeChange removes the .minio.sys directory from every data
