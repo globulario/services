@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 )
 
 const (
@@ -24,11 +25,22 @@ const (
 // scyllaAgent* constants define non-conflicting ports for scylla-manager-agent.
 // The agent defaults to :10001 (HTTPS), :5090 (Prometheus), 127.0.0.1:5112
 // (debug), all of which conflict with Globular's dynamic service port
-// allocation (10000+), scylla-manager itself (5090), or other agents (5112).
+// allocation (10000+).
+//
+// The values must satisfy two constraints:
+//  1. Outside Globular's service range 10000-10200.
+//  2. Outside the Linux ephemeral port range (typically 32768-60999, see
+//     /proc/sys/net/ipv4/ip_local_port_range). Picking ports inside that
+//     range races against any local process making an outbound connection
+//     — that's exactly how the earlier choice of 56001-56003 silently
+//     crashed the agent with "bind: address already in use" when the
+//     globular DNS service happened to grab 56002 as its source port.
+//  3. Not collide with scylla-manager itself (5080), ScyllaDB (7000/9042/
+//     9142/9160/10000/19042), or other well-known Globular ports.
 const (
-	scyllaAgentHTTPSPort      = "56001"
-	scyllaAgentPrometheusPort = "56002"
-	scyllaAgentDebugPort      = "56003"
+	scyllaAgentHTTPSPort      = "5612"
+	scyllaAgentPrometheusPort = "5613"
+	scyllaAgentDebugPort      = "5614"
 )
 
 // ensureScyllaManagerAgentAuthToken guarantees scylla-manager-agent has an
@@ -62,6 +74,12 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 		updated = upsertScyllaAgentPorts(updated, nodeIP)
 	}
 
+	// Skip writes when reconcile produced no actual change — avoids an
+	// unnecessary agent restart on every heartbeat.
+	if updated == content {
+		return
+	}
+
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o750); err != nil {
 		log.Printf("nodeagent: scylla-manager-agent config mkdir failed: %v", err)
 		return
@@ -76,6 +94,18 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 	chgrpScyllaAgentConfig(cfgPath)
 	log.Printf("nodeagent: ensured scylla-manager-agent config in %s (token=%v api_url=%v ports=%v)",
 		cfgPath, !hasToken, !hasURL, !hasPorts)
+
+	// The agent loads its config once at startup; a yaml change has zero
+	// effect until the unit is restarted. Without this, every reconcile that
+	// rewrote the yaml left the agent running on stale config — that's how
+	// the duplicate-scylla-block corruption persisted in production for so
+	// long. Routed through the supervisor package because the Makefile
+	// security check bans direct os/exec from node_agent_server.
+	if err := supervisor.Restart(ctx, "globular-scylla-manager-agent.service"); err != nil {
+		log.Printf("nodeagent: scylla-manager-agent restart failed: %v", err)
+		return
+	}
+	log.Printf("nodeagent: restarted globular-scylla-manager-agent.service after config change")
 }
 
 // chgrpScyllaAgentConfig sets the file's group to "scylla" so the
@@ -131,9 +161,12 @@ func deriveClusterScopedScyllaAuthToken() string {
 	return hex.EncodeToString(sum[:24])
 }
 
-// hasScyllaAPIURL returns true if the config already has scylla.api_address
-// pointing at the expected node IP. An empty expectedIP means any non-empty
-// value is fine.
+// hasScyllaAPIURL returns true only when the config has exactly one scylla:
+// block AND its api_address matches expectedIP. Duplicate scylla: blocks
+// (caused by earlier versions blindly appending) are reported as "missing" so
+// the caller rewrites — YAML's last-wins semantics mean duplicates silently
+// pick up whichever block was written last, which is often a stale IP (e.g.
+// docker0) that breaks scylla-manager → agent → ScyllaDB connectivity.
 //
 // Scylla Manager Agent uses a nested block:
 //
@@ -141,51 +174,121 @@ func deriveClusterScopedScyllaAuthToken() string {
 //	  api_address: NODE_IP
 //	  api_port: 10000
 func hasScyllaAPIURL(content, expectedIP string) bool {
-	inScyllaBlock := false
-	for _, raw := range strings.Split(content, "\n") {
-		trimmed := strings.TrimSpace(raw)
-		if trimmed == "scylla:" || strings.HasPrefix(trimmed, "scylla:") {
-			inScyllaBlock = true
-			continue
-		}
-		if inScyllaBlock {
-			if trimmed == "" || (len(raw) > 0 && raw[0] != ' ' && raw[0] != '\t') {
-				inScyllaBlock = false
-				continue
-			}
-			if strings.HasPrefix(trimmed, "api_address:") {
-				v := strings.TrimSpace(strings.TrimPrefix(trimmed, "api_address:"))
-				v = strings.Trim(v, `"'`)
-				if v == "" {
-					return false
-				}
-				return expectedIP == "" || v == expectedIP
-			}
-		}
+	blocks := extractScyllaBlocks(content)
+	if len(blocks) != 1 {
+		return false
 	}
-	return false
+	v := blocks[0].apiAddress
+	if v == "" {
+		return false
+	}
+	return expectedIP == "" || v == expectedIP
 }
 
-// upsertScyllaAPIURL appends a scylla: block with api_address/api_port if one
-// doesn't already exist. Scylla's REST API port is always 10000.
-// The config key is nested (not top-level) — top-level api_url is rejected by
-// the agent with "field api_url not found in type agent.Config".
-func upsertScyllaAPIURL(content, nodeIP string) string {
-	// Strip any legacy top-level api_url we may have written by mistake.
-	lines := strings.Split(content, "\n")
-	var filtered []string
-	for _, l := range lines {
-		if strings.HasPrefix(strings.TrimSpace(l), "api_url:") {
+type scyllaBlock struct {
+	apiAddress string
+	apiPort    string
+}
+
+// extractScyllaBlocks parses every top-level `scylla:` block in the YAML
+// and returns its api_address/api_port. A top-level block starts with a line
+// that begins exactly with `scylla:` at column 0 and ends at the next line
+// that starts in column 0 with non-whitespace.
+func extractScyllaBlocks(content string) []scyllaBlock {
+	var out []scyllaBlock
+	var cur *scyllaBlock
+	flush := func() {
+		if cur != nil {
+			out = append(out, *cur)
+			cur = nil
+		}
+	}
+	for _, raw := range strings.Split(content, "\n") {
+		// Top-level (column-0) line — closes any current block first.
+		isTopLevel := len(raw) > 0 && raw[0] != ' ' && raw[0] != '\t'
+		trimmed := strings.TrimSpace(raw)
+		if isTopLevel {
+			flush()
+			if trimmed == "scylla:" {
+				cur = &scyllaBlock{}
+			}
 			continue
 		}
-		filtered = append(filtered, l)
+		// Inside a block: pick up api_address / api_port.
+		if cur != nil {
+			if strings.HasPrefix(trimmed, "api_address:") {
+				v := strings.TrimSpace(strings.TrimPrefix(trimmed, "api_address:"))
+				cur.apiAddress = strings.Trim(v, `"'`)
+			} else if strings.HasPrefix(trimmed, "api_port:") {
+				v := strings.TrimSpace(strings.TrimPrefix(trimmed, "api_port:"))
+				cur.apiPort = strings.Trim(v, `"'`)
+			}
+		}
 	}
-	result := strings.Join(filtered, "\n")
-	if !strings.HasSuffix(result, "\n") {
-		result += "\n"
+	flush()
+	return out
+}
+
+// upsertScyllaAPIURL removes every existing top-level `scylla:` block (plus
+// legacy top-level `api_url:` lines from older code) and writes one canonical
+// block with the supplied nodeIP. Scylla's REST API port is always 10000.
+//
+// Earlier versions of this function blindly appended a new `scylla:` block on
+// every reconcile, accumulating duplicates with stale IPs (e.g. docker0). With
+// YAML's last-wins rule, that silently rerouted the agent to an unreachable
+// address and broke scylla-manager cluster registration. Stripping first is
+// the only way to converge to a single source of truth.
+func upsertScyllaAPIURL(content, nodeIP string) string {
+	cleaned := stripScyllaBlocks(content)
+	cleaned = stripLegacyTopLevel(cleaned, "api_url:")
+	if !strings.HasSuffix(cleaned, "\n") {
+		cleaned += "\n"
 	}
-	result += fmt.Sprintf("\nscylla:\n  api_address: %s\n  api_port: 10000\n", nodeIP)
+	cleaned += fmt.Sprintf("\nscylla:\n  api_address: %s\n  api_port: 10000\n", nodeIP)
+	return cleaned
+}
+
+// stripScyllaBlocks removes every top-level `scylla:` block and its indented
+// body. Leaves all other content untouched.
+func stripScyllaBlocks(content string) string {
+	lines := strings.Split(content, "\n")
+	var out []string
+	skipping := false
+	for _, raw := range lines {
+		isTopLevel := len(raw) > 0 && raw[0] != ' ' && raw[0] != '\t'
+		trimmed := strings.TrimSpace(raw)
+		if isTopLevel {
+			if trimmed == "scylla:" {
+				skipping = true
+				continue
+			}
+			skipping = false
+		}
+		if skipping {
+			continue
+		}
+		out = append(out, raw)
+	}
+	// Collapse runs of blank lines left behind by stripping.
+	result := strings.Join(out, "\n")
+	for strings.Contains(result, "\n\n\n") {
+		result = strings.ReplaceAll(result, "\n\n\n", "\n\n")
+	}
 	return result
+}
+
+// stripLegacyTopLevel removes top-level lines starting with the given prefix
+// (e.g. "api_url:") that older code may have written by mistake.
+func stripLegacyTopLevel(content, prefix string) string {
+	lines := strings.Split(content, "\n")
+	var out []string
+	for _, l := range lines {
+		if strings.HasPrefix(strings.TrimSpace(l), prefix) {
+			continue
+		}
+		out = append(out, l)
+	}
+	return strings.Join(out, "\n")
 }
 
 // hasScyllaAgentPorts returns true if the config has non-default https,

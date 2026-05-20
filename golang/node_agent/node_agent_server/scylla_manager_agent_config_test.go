@@ -66,11 +66,60 @@ func TestUpsertScyllaAPIURL(t *testing.T) {
 	}
 }
 
+// TestHasScyllaAPIURL_RejectsDuplicateBlocks pins the regression where the
+// agent yaml accumulated multiple scylla: blocks (e.g. one with the LAN IP,
+// then trailing ones with docker0). YAML's last-wins meant the agent silently
+// routed to an unreachable address, breaking scylla-manager → agent →
+// ScyllaDB connectivity. hasScyllaAPIURL must report "needs rewrite" when
+// duplicates exist so the next reconcile collapses them.
+func TestHasScyllaAPIURL_RejectsDuplicateBlocks(t *testing.T) {
+	corrupted := "scylla:\n  api_address: \"10.0.0.63\"\n  api_port: \"10000\"\n\n" +
+		"scylla:\n  api_address: 172.17.0.1\n  api_port: 10000\n\n" +
+		"scylla:\n  api_address: 172.17.0.1\n  api_port: 10000\n"
+	if hasScyllaAPIURL(corrupted, "10.0.0.63") {
+		t.Fatal("expected false when duplicate scylla: blocks exist — must trigger rewrite")
+	}
+}
+
+// TestUpsertScyllaAPIURL_StripsDuplicates verifies the upsert collapses
+// accumulated scylla: blocks into exactly one canonical block with the
+// supplied IP. Without this, the agent reconcile loop would keep appending.
+func TestUpsertScyllaAPIURL_StripsDuplicates(t *testing.T) {
+	corrupted := "auth_token: abc\n" +
+		"https: 10.0.0.63:56001\n" +
+		"scylla:\n  api_address: \"10.0.0.63\"\n  api_port: \"10000\"\n\n" +
+		"scylla:\n  api_address: 172.17.0.1\n  api_port: 10000\n\n" +
+		"scylla:\n  api_address: 172.17.0.1\n  api_port: 10000\n"
+	got := upsertScyllaAPIURL(corrupted, "10.0.0.63")
+
+	blocks := extractScyllaBlocks(got)
+	if len(blocks) != 1 {
+		t.Fatalf("expected exactly 1 scylla: block after upsert, got %d:\n%s", len(blocks), got)
+	}
+	if blocks[0].apiAddress != "10.0.0.63" {
+		t.Fatalf("expected api_address=10.0.0.63, got %q:\n%s", blocks[0].apiAddress, got)
+	}
+	if blocks[0].apiPort != "10000" {
+		t.Fatalf("expected api_port=10000, got %q:\n%s", blocks[0].apiPort, got)
+	}
+	// And the result must now be detected as healthy (no more duplicates).
+	if !hasScyllaAPIURL(got, "10.0.0.63") {
+		t.Fatalf("after upsert hasScyllaAPIURL should return true, got false:\n%s", got)
+	}
+	// Preserve unrelated keys.
+	if !contains(got, "auth_token: abc") {
+		t.Fatalf("upsert should preserve unrelated keys, got:\n%s", got)
+	}
+	if !contains(got, "https: 10.0.0.63:56001") {
+		t.Fatalf("upsert should preserve https: line, got:\n%s", got)
+	}
+}
+
 func TestHasScyllaAgentPorts(t *testing.T) {
 	const ip = "10.0.0.8"
-	wantHTTPS := "https: 10.0.0.8:56001"
-	wantProm := "prometheus: :56002"
-	wantDebug := "debug: 127.0.0.1:56003"
+	wantHTTPS := "https: " + ip + ":" + scyllaAgentHTTPSPort
+	wantProm := "prometheus: :" + scyllaAgentPrometheusPort
+	wantDebug := "debug: 127.0.0.1:" + scyllaAgentDebugPort
 	full := wantHTTPS + "\n" + wantProm + "\n" + wantDebug + "\n"
 
 	if !hasScyllaAgentPorts(full, ip) {
@@ -86,7 +135,10 @@ func TestHasScyllaAgentPorts(t *testing.T) {
 		t.Fatal("expected false when prometheus missing")
 	}
 	// wrong IP
-	if hasScyllaAgentPorts("https: 10.0.0.63:56001\nprometheus: :56002\ndebug: 127.0.0.1:56003\n", ip) {
+	wrongIP := "https: 10.0.0.63:" + scyllaAgentHTTPSPort +
+		"\nprometheus: :" + scyllaAgentPrometheusPort +
+		"\ndebug: 127.0.0.1:" + scyllaAgentDebugPort + "\n"
+	if hasScyllaAgentPorts(wrongIP, ip) {
 		t.Fatal("expected false for wrong IP")
 	}
 }
@@ -114,6 +166,36 @@ func TestUpsertScyllaAgentPorts(t *testing.T) {
 	}
 	if contains(got, ":5112") {
 		t.Fatalf("old debug port still present:\n%s", got)
+	}
+}
+
+// TestScyllaAgentPortsBelowEphemeralRange pins the invariant that the agent
+// ports must sit below Linux's ephemeral range (32768-60999). The original
+// 56001-56003 choice silently raced against any local outbound connection
+// that happened to grab 56002 as its source port — agent crashed with
+// "bind: address already in use" on the first such race. Picking sub-32768
+// ports is the only way to guarantee the agent can always bind.
+func TestScyllaAgentPortsBelowEphemeralRange(t *testing.T) {
+	const linuxEphemeralFloor = 32768
+	atoi := func(s string) int {
+		n := 0
+		for _, c := range s {
+			if c < '0' || c > '9' {
+				t.Fatalf("port constant %q is not numeric", s)
+			}
+			n = n*10 + int(c-'0')
+		}
+		return n
+	}
+	for _, c := range []struct{ name, port string }{
+		{"https", scyllaAgentHTTPSPort},
+		{"prometheus", scyllaAgentPrometheusPort},
+		{"debug", scyllaAgentDebugPort},
+	} {
+		if p := atoi(c.port); p >= linuxEphemeralFloor {
+			t.Errorf("%s port %s is inside Linux ephemeral range (>=%d) — will race against outbound connections",
+				c.name, c.port, linuxEphemeralFloor)
+		}
 	}
 }
 

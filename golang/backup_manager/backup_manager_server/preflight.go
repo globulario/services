@@ -51,6 +51,22 @@ func scyllaAgentArgs() []string {
 	return args
 }
 
+// isLegacyScyllaManagerDefault reports whether the stored ScyllaManagerAPI is
+// the historical bad UI fallback (http://127.0.0.1:5080). That value is also
+// sctool's own built-in default — it's never sensible to persist explicitly
+// because every node will fall back to it anyway when the field is empty.
+// Treating it as "unset" lets yaml-based detection take over.
+func isLegacyScyllaManagerDefault(u string) bool {
+	switch strings.TrimRight(strings.TrimSpace(u), "/") {
+	case "http://127.0.0.1:5080",
+		"http://localhost:5080",
+		"http://127.0.0.1:5080/api/v1",
+		"http://localhost:5080/api/v1":
+		return true
+	}
+	return false
+}
+
 // detectScyllaManagerAPIURL reads the scylla-manager config yaml and returns
 // the HTTPS API URL with /api/v1 appended (e.g. "https://10.0.0.63:5443/api/v1").
 // Returns empty string if the config is not found or has no https: field.
@@ -219,6 +235,21 @@ func (srv *server) ensureScyllaRegistered() {
 // It also detects infrastructure configuration (e.g. ScyllaDB cluster names)
 // and returns them as synthetic ToolCheck entries with names like "scylla_cluster_detected".
 func (srv *server) PreflightCheck(ctx context.Context, rqst *backup_managerpb.PreflightCheckRequest) (*backup_managerpb.PreflightCheckResponse, error) {
+	// Lazy-detect scylla-manager API URL on every preflight: the startup
+	// goroutine has a 5s sleep and races with early UI calls. Without this,
+	// sctool falls back to its built-in http://127.0.0.1:5080 default, which
+	// fails on any node where scylla-manager is bound to a LAN IP.
+	// Also overrides the legacy buggy UI default — when the stored value is
+	// exactly http://127.0.0.1:5080 (sctool's own default, never sensible on
+	// a remote node), prefer the yaml-detected URL.
+	if srv.ScyllaManagerAPI == "" || isLegacyScyllaManagerDefault(srv.ScyllaManagerAPI) {
+		if detected := detectScyllaManagerAPIURL(); detected != "" && detected != srv.ScyllaManagerAPI {
+			slog.Info("preflight: overriding scylla-manager API URL",
+				"old", srv.ScyllaManagerAPI, "new", detected)
+			srv.ScyllaManagerAPI = detected
+		}
+	}
+
 	tools := []struct {
 		name        string
 		versionArgs []string
@@ -250,6 +281,16 @@ func (srv *server) PreflightCheck(ctx context.Context, rqst *backup_managerpb.Pr
 		if t.name == "sctool" && check.Available {
 			sctoolAvailable = true
 		}
+	}
+
+	// Surface the resolved scylla-manager API URL so the admin UI can pre-fill
+	// it instead of falling back to a hardcoded 127.0.0.1 default.
+	if srv.ScyllaManagerAPI != "" {
+		checks = append(checks, &backup_managerpb.ToolCheck{
+			Name:      "scylla_manager_api_url",
+			Available: true,
+			Version:   srv.ScyllaManagerAPI,
+		})
 	}
 
 	// Detect ScyllaDB cluster names if sctool is available
@@ -707,7 +748,19 @@ func (srv *server) TestScyllaConnection(_ context.Context, rqst *backup_managerp
 	}
 	pass("sctool_available", "sctool found")
 
+	// Lazy-detect the manager API URL when unset, so the test doesn't fall
+	// back to sctool's built-in http://127.0.0.1:5080 default when admin
+	// connects to a node whose manager binds to a LAN IP. Also overrides the
+	// legacy buggy UI default when present.
 	apiURL := srv.ScyllaManagerAPI
+	if apiURL == "" || isLegacyScyllaManagerDefault(apiURL) {
+		if detected := detectScyllaManagerAPIURL(); detected != "" && detected != apiURL {
+			slog.Info("TestScyllaConnection: overriding scylla-manager API URL",
+				"old", apiURL, "new", detected)
+			apiURL = detected
+			srv.ScyllaManagerAPI = detected
+		}
+	}
 	apiArgs := func(args []string) []string {
 		return append(args, srv.scyllaAPIArgs(apiURL)...)
 	}
