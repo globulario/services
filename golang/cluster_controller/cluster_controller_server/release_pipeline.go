@@ -218,6 +218,7 @@ type statusPatch struct {
 	Phase                  string
 	ResolvedVersion        string
 	ResolvedBuildID        string // Phase 2: exact artifact identity
+	ResolvedBuildNumber    int64  // resolved build iteration (from repository)
 	ResolvedArtifactDigest string
 	DesiredHash            string
 	ObservedGeneration     int64
@@ -387,6 +388,7 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 		Phase:                  cluster_controllerpb.ReleasePhaseResolved,
 		ResolvedVersion:        resolved.Version,
 		ResolvedBuildID:        resolved.BuildID,
+		ResolvedBuildNumber:    resolved.BuildNumber,
 		ResolvedArtifactDigest: resolved.Digest,
 		DesiredHash:            desiredHash,
 		ObservedGeneration:     h.Generation,
@@ -790,6 +792,19 @@ func (srv *server) convergenceBlockedNodes(ctx context.Context, pkgName string) 
 	return blocked
 }
 
+// pickBuildNumber prefers the resolved build_number (from repository) over the
+// spec's build_number. Many specs omit build_number entirely (especially for
+// infrastructure releases imported from bootstrap), so the resolver-determined
+// value is the authoritative one to send to node agents — otherwise nodes that
+// already have build_number=N installed reject the install as a downgrade from
+// N to 0.
+func pickBuildNumber(resolved, spec int64) int64 {
+	if resolved > 0 {
+		return resolved
+	}
+	return spec
+}
+
 // ── Adapters: build releaseHandle from typed releases ────────────────────────
 
 func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease) *releaseHandle {
@@ -802,7 +817,7 @@ func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease
 		ObservedGeneration:     rel.Status.ObservedGeneration,
 		ResolvedVersion:        rel.Status.ResolvedVersion,
 		ResolvedBuildID:        rel.Status.ResolvedBuildID,
-		ResolvedBuildNumber:    rel.Spec.BuildNumber,
+		ResolvedBuildNumber:    pickBuildNumber(rel.Status.ResolvedBuildNumber, rel.Spec.BuildNumber),
 		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
 		DesiredHash:            rel.Status.DesiredHash,
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
@@ -838,7 +853,7 @@ func (srv *server) infraReleaseHandle(rel *cluster_controllerpb.InfrastructureRe
 		ObservedGeneration:     rel.Status.ObservedGeneration,
 		ResolvedVersion:        rel.Status.ResolvedVersion,
 		ResolvedBuildID:        rel.Status.ResolvedBuildID,
-		ResolvedBuildNumber:    rel.Spec.BuildNumber,
+		ResolvedBuildNumber:    pickBuildNumber(rel.Status.ResolvedBuildNumber, rel.Spec.BuildNumber),
 		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
 		DesiredHash:            rel.Status.DesiredHash,
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
@@ -891,6 +906,7 @@ func applyPatchToAppStatus(s *cluster_controllerpb.ApplicationReleaseStatus, p s
 		s.Phase = p.Phase
 		s.ResolvedVersion = p.ResolvedVersion
 		s.ResolvedBuildID = p.ResolvedBuildID
+		s.ResolvedBuildNumber = p.ResolvedBuildNumber
 		s.ResolvedArtifactDigest = p.ResolvedArtifactDigest
 		s.DesiredHash = p.DesiredHash
 		s.ObservedGeneration = p.ObservedGeneration
@@ -933,6 +949,7 @@ func applyPatchToInfraStatus(s *cluster_controllerpb.InfrastructureReleaseStatus
 		s.Phase = p.Phase
 		s.ResolvedVersion = p.ResolvedVersion
 		s.ResolvedBuildID = p.ResolvedBuildID
+		s.ResolvedBuildNumber = p.ResolvedBuildNumber
 		s.ResolvedArtifactDigest = p.ResolvedArtifactDigest
 		s.DesiredHash = p.DesiredHash
 		s.ObservedGeneration = p.ObservedGeneration
@@ -969,7 +986,7 @@ func (srv *server) svcReleaseHandle(rel *cluster_controllerpb.ServiceRelease) *r
 		ObservedGeneration:     rel.Status.ObservedGeneration,
 		ResolvedVersion:        rel.Status.ResolvedVersion,
 		ResolvedBuildID:        rel.Status.ResolvedBuildID,
-		ResolvedBuildNumber:    rel.Spec.BuildNumber,
+		ResolvedBuildNumber:    pickBuildNumber(rel.Status.ResolvedBuildNumber, rel.Spec.BuildNumber),
 		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
 		DesiredHash:            rel.Status.DesiredHash,
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
@@ -1024,6 +1041,7 @@ func applyPatchToSvcStatus(s *cluster_controllerpb.ServiceReleaseStatus, p statu
 		s.Phase = p.Phase
 		s.ResolvedVersion = p.ResolvedVersion
 		s.ResolvedBuildID = p.ResolvedBuildID
+		s.ResolvedBuildNumber = p.ResolvedBuildNumber
 		s.ResolvedArtifactDigest = p.ResolvedArtifactDigest
 		s.DesiredHash = p.DesiredHash
 		s.ObservedGeneration = p.ObservedGeneration

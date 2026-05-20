@@ -105,25 +105,34 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 						kind, name)
 				}
 
-				// Downgrade guard: ALWAYS compare versions, regardless of build_id.
-				// A newer version must never be replaced by an older one automatically.
-				cmp, cmpErr := versionutil.CompareFull(
-					version, req.GetBuildNumber(),
-					existing.GetVersion(), existing.GetBuildNumber(),
-				)
-				if cmpErr == nil && cmp < 0 {
-					msg := fmt.Sprintf("refuse to downgrade %s/%s from %s+%d to %s+%d — automatic rollback is forbidden (use Force=true for manual rollback)",
-						kind, name, existing.GetVersion(), existing.GetBuildNumber(), version, req.GetBuildNumber())
-					log.Printf("apply-package: REJECTED %s", msg)
-					return &node_agentpb.ApplyPackageReleaseResponse{
-						Ok:          false,
-						Message:     msg,
-						PackageName: name,
-						Version:     version,
-						Status:      "rejected",
-						ErrorDetail: msg,
-						OperationId: operationID,
-					}, nil
+				// Downgrade guard: compare versions to prevent automatic rollback.
+				// When req.BuildNumber is 0, treat it as "caller has no opinion on
+				// build_number" — this happens when the desired spec omits
+				// build_number (common for infrastructure releases). In that case
+				// compare versions only; if versions match, accept the request
+				// (idempotent reinstall) instead of rejecting as +N → +0 downgrade.
+				reqBuildNumber := req.GetBuildNumber()
+				if reqBuildNumber == 0 && version == existing.GetVersion() {
+					// Same version, no build_number opinion — allow.
+				} else {
+					cmp, cmpErr := versionutil.CompareFull(
+						version, reqBuildNumber,
+						existing.GetVersion(), existing.GetBuildNumber(),
+					)
+					if cmpErr == nil && cmp < 0 {
+						msg := fmt.Sprintf("refuse to downgrade %s/%s from %s+%d to %s+%d — automatic rollback is forbidden (use Force=true for manual rollback)",
+							kind, name, existing.GetVersion(), existing.GetBuildNumber(), version, reqBuildNumber)
+						log.Printf("apply-package: REJECTED %s", msg)
+						return &node_agentpb.ApplyPackageReleaseResponse{
+							Ok:          false,
+							Message:     msg,
+							PackageName: name,
+							Version:     version,
+							Status:      "rejected",
+							ErrorDetail: msg,
+							OperationId: operationID,
+						}, nil
+					}
 				}
 			}
 		}
