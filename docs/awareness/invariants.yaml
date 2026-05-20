@@ -2696,3 +2696,64 @@ invariants:
         - act_on_kubernetes_failure_without_classification
         - assume_substrate_fix_resolves_workload_failure
         - delete_pod_to_resolve_storage_issue
+
+    - id: objectstore.minio.wipe_is_idempotent_per_generation
+      title: A MinIO .minio.sys destructive wipe must execute exactly once per topology generation per node
+      severity: critical
+      status: active
+      # origin: { type: incident, confidence: very_high }
+      summary: |
+        The TopologyTransition record (IsDestructive=true, Approved=true) authorises
+        clearing .minio.sys on the affected nodes to enable a mode change (e.g.
+        standalone → distributed). The clearing must be ONE-SHOT per generation: once
+        a node has wiped for generation N, every subsequent reconcile cycle while
+        that record still exists at the same generation MUST skip the wipe. Without
+        this idempotency, the reconcile loop wipes .minio.sys every cycle, MinIO
+        never gets a stable window to write its fresh format.json, and the
+        distributed pool stays permanently in "Insufficient number of drives online"
+        with the gateway returning 503 {"error":"object store unavailable"}.
+
+        Enforcement: per-node marker file /var/lib/globular/minio/.transition-applied-gen
+        records the generation last wiped on this node. clearMinioSysIfTransitionApproved
+        reads the marker before wiping; if the marker equals state.Generation, the wipe
+        is a no-op. A genuinely new transition (different generation) naturally re-arms
+        the wipe path.
+      forbidden_fixes:
+        - track_wipe_completion_only_in_etcd_without_local_marker  # race with reconcile restart
+        - rely_on_format_json_presence_as_wipe_completion_signal    # MinIO recreates empty .minio.sys subdirs during healing
+        - skip_wipe_when_minio_is_running                           # the wipe target is exactly the format from the OLD topology
+        - approve_transition_then_immediately_revoke_to_clear_state # leaves cluster in undefined state, may re-trigger if revoke is read stale
+
+    - id: objectstore.minio.format_json_durable_in_etcd
+      title: Every per-drive .minio.sys/format.json must have a current snapshot in etcd, scoped by topology fingerprint
+      severity: critical
+      status: active
+      # origin: { type: incident, confidence: very_high }
+      summary: |
+        MinIO's per-drive format.json (disk UUID, pool/set index, DeploymentID) is
+        the cluster's only authoritative formatted-drive identity. Standard MinIO
+        recovery (mc admin heal) requires a quorum of formatted drives to bootstrap,
+        so if every drive loses its format.json the cluster cannot self-heal —
+        leaving operators to choose between data loss (reformat) or offline backup
+        restore (which most deployments don't have).
+
+        Each node-agent's MinIO reconcile cycle must (a) snapshot the on-disk
+        format.json into etcd at /globular/objectstore/format_backup/<node_id>/<drive_basename>
+        after MinIO has successfully written it, scoped by the current topology
+        fingerprint, and (b) restore from the snapshot before MinIO is allowed to
+        start when format.json is missing from disk AND the snapshot's topology
+        fingerprint matches the current desired state. Per-drive identity stays
+        local — the snapshot is also per-drive. The topology fingerprint guard
+        prevents restoring an incompatible format after a deliberate transition
+        (e.g. xl-single → xl distributed).
+
+        Enforcement: backupMinioFormatToEtcd + restoreMinioFormatFromEtcd in
+        node_agent_server/minio_format_backup.go, wired into reconcileMinioSystemdConfig.
+        The destructive transition path (clearMinioSysForModeChange) also calls
+        purgeMinioFormatBackupForNode so a real transition truly reformats.
+      forbidden_fixes:
+        - restore_format_json_without_topology_fingerprint_guard   # would restore stale format after a real transition
+        - share_format_json_across_drives_to_simplify_backup       # each drive has its own UUID; sharing breaks the erasure set
+        - overwrite_existing_on_disk_format_with_etcd_snapshot     # MinIO's on-disk bytes are authoritative when present
+        - back_up_format_json_to_minio_itself                       # MinIO can't read its own format ⇒ can't read its own backup
+        - skip_purge_on_destructive_transition                      # restore would race with the new topology's first format

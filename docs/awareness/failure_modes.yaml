@@ -1651,3 +1651,134 @@ failure_modes:
         - TestObjectstoreAdmit_ExistingData_RequiresForceFlag
         - TestObjectstoreTopologyWipe_BlockedByDataGuard
         - TestDoctorFinding_ExistingDataGuard_CriticalWhenNotForceAcknowledged
+
+    - id: objectstore.minio.transition_wipe_loop
+      title: Destructive MinIO topology transition wipes .minio.sys every reconcile cycle, format.json never stable
+      severity: critical
+      symptoms:
+        - https://<domain>/ returns 503 {"error":"object store unavailable"} from the gateway
+        - sudo ls /mnt/data/data/.minio.sys/format.json fluctuates between present and missing every ~30 seconds
+        - MinIO logs spam "Unable to load healing tracker on '/mnt/data/data': unformatted drive found, re-initializing"
+        - MinIO logs spam "Error: Read failed. Insufficient number of drives online" on every node
+        - node-agent logs show "minio-systemd: clearing /mnt/data/data/.minio.sys — approved destructive topology transition" repeating on each syncTicker
+        - etcd /globular/objectstore/topology/transition/<gen> exists with is_destructive=true approved=true
+        - all 5 nodes show .minio.sys/buckets/, .minio.sys/config/, .minio.sys/multipart/ as freshly created empty dirs with no format.json
+        - distributed pool never reaches quorum; outage persists indefinitely (observed: 11+ hours before manual intervention)
+      root_cause: |
+        clearMinioSysIfTransitionApproved (golang/node_agent/node_agent_server/minio_systemd_reconcile.go)
+        gates the .minio.sys wipe purely on the etcd TopologyTransition record's IsDestructive +
+        Approved + Generation fields. The gate has no "already applied" memory: every reconcile
+        cycle while the record exists at the current desired generation, the wipe re-fires.
+
+        Sequence per reconcile:
+          1. .minio.sys exists (MinIO re-created it on the previous cycle while healing)
+          2. transitionAuthorizesWipe(transition, state, nodeIP) returns true
+          3. clearMinioSysForModeChange removes .minio.sys (RemoveAll)
+          4. MinIO sees unformatted drive on the next probe (~10s), enters healing loop
+          5. MinIO recreates .minio.sys/buckets/, /config/, /multipart/ as part of healing
+          6. format.json never gets written because distributed bootstrap requires a quorum
+             of formatted drives — and every node is in the same wipe loop
+          7. Next reconcile (~30s later): back to step 1
+
+        Net effect: format.json lives for only seconds between successive wipes, never long
+        enough for clients to make progress. The TopologyTransition was correctly approved
+        exactly once by the operator (standalone → distributed migration); the bug is that
+        the gate treats "approved" as "wipe forever" instead of "wipe once".
+      architecture_fix: |
+        Stamp a per-node local marker file (/var/lib/globular/minio/.transition-applied-gen)
+        recording the topology generation for which this node performed the wipe. Subsequent
+        reconciles read the marker — if it matches state.Generation, the wipe is skipped.
+        A genuinely new transition (different generation) mismatches the marker and re-arms
+        the wipe path naturally. Per-node local state is appropriate because each node's
+        wipe is independent and the marker is purely for idempotency on the local filesystem.
+
+        Fix landed in commit 6ef2edc4 (node-agent 1.2.60+):
+        - clearMinioSysIfTransitionApproved checks the marker before wiping
+        - Stamps the marker with state.Generation after a successful wipe
+        - Subsequent reconciles short-circuit when the marker matches the current generation
+
+        Operational recovery from the loop (if it ever recurs on older node-agents):
+        1. Delete /globular/objectstore/topology/transition/<gen> from etcd to dis-arm the gate
+        2. systemctl stop globular-minio.service on ALL nodes simultaneously
+        3. Verify .minio.sys exists on all nodes (the wipe loop should now be stopped)
+        4. systemctl start globular-minio.service on ALL nodes simultaneously
+           — fresh distributed bootstrap, format.json written cleanly
+      known_bad_fixes:
+        - Restarting just one MinIO instance hoping the cluster will recover (it needs quorum bootstrap)
+        - Deleting bucket data dirs trying to "start fresh" (destroys user objects, doesn't fix the loop)
+        - Reapproving the topology transition with a new generation (re-triggers wipe with no marker)
+        - Forcing the topology workflow to "complete" via etcd writes (workflow has no concept of wipe completion)
+        - Editing the format.json by hand to a synthesized value (UUID mismatch, MinIO refuses)
+      related_invariants:
+        - objectstore.minio.wipe_is_idempotent_per_generation
+        - objectstore.topology_contract
+      required_tests:
+        - TestTransitionWipe_AppliedMarker_SkipsSecondWipe
+        - TestTransitionWipe_NewGeneration_ReArmsWipe
+        - TestTransitionWipe_MarkerStampedAfterSuccess
+        - TestTransitionWipe_MarkerSurvivesNodeAgentRestart
+
+    - id: objectstore.minio.format_json_not_recoverable
+      title: MinIO per-drive format.json has only one copy (on the drive) — any cause of loss takes down the entire pool with no recovery path
+      severity: critical
+      symptoms:
+        - .minio.sys/format.json missing on all (or quorum of) drives in a distributed pool
+        - MinIO logs "unformatted drive found" on every node, never progresses past healing
+        - mc admin heal cannot bootstrap because it needs a quorum of formatted drives to start
+        - bucket xl.meta files are intact on disk but unreadable through MinIO (no format = no UUID mapping)
+        - operator's only options were: accept full data loss + reformat, or restore .minio.sys from offline backup (if one exists)
+        - same failure surfaces from many independent causes: approved destructive transition, container ephemeral storage, accidental rm, filesystem corruption, volume re-mount with wrong path
+      root_cause: |
+        format.json contains per-drive identity (disk UUID, pool/set index) AND the cluster's
+        DeploymentID. MinIO writes it once when a drive is first formatted. There is no
+        cluster-wide backup, no etcd snapshot, and no recovery procedure that doesn't require
+        quorum of already-formatted drives. When every drive's format.json goes missing
+        simultaneously (e.g., the wipe loop in objectstore.minio.transition_wipe_loop, or a
+        coordinated event like container restart on ephemeral volumes), the cluster
+        deadlocks: distributed bootstrap needs all drives "fresh", healing needs quorum of
+        formatted drives, and neither condition is met.
+
+        The architectural assumption was that the on-disk file is durable enough. That holds
+        for typical bare-metal SSDs, but fails the moment anything (intentional or accidental)
+        deletes the file faster than MinIO can replicate it across the pool.
+      architecture_fix: |
+        Per-drive format.json snapshots in etcd, keyed by (node_id, drive_basename), with a
+        topology fingerprint guard:
+
+          /globular/objectstore/format_backup/<node_id>/<drive_basename>
+            → { node_id, drive_path, topology_generation, topology_fingerprint,
+                format_json_bytes, format_json_sha256, backed_up_at_unix }
+
+        Each MinIO reconcile cycle (node-agent 1.2.61+):
+          1. restoreMinioFormatFromEtcd: if format.json is missing on disk AND etcd has a
+             snapshot whose topology_fingerprint matches the current desired state, restore
+             the file. Never overwrites an existing on-disk format — MinIO's bytes are
+             authoritative when present.
+          2. backupMinioFormatToEtcd: read the on-disk format.json; if the bytes changed
+             since the last etcd snapshot (sha drift) OR no snapshot exists yet, write a
+             new snapshot.
+
+        Per-drive identity (UUID, pool/set index) stays local — the snapshot is per-drive
+        too. The topology fingerprint guard prevents restoring an incompatible format after
+        a deliberate transition (e.g. xl-single → xl distributed). The approved destructive
+        transition path (clearMinioSysForModeChange) also calls purgeMinioFormatBackupForNode
+        so a real transition genuinely reformats instead of being undone by restore.
+
+        Fix landed in commit 82f10991 (node-agent 1.2.59+), wired into reconcile in
+        commit 6ef2edc4 (1.2.60+), cleanup in 1.2.61.
+      known_bad_fixes:
+        - Manually copying a single-node format.json to all distributed drives (UUID + erasure-set size mismatch — MinIO refuses)
+        - Re-formatting the cluster fresh without backing up bucket data first (data loss)
+        - Synthesizing format.json from etcd topology + new UUIDs (cluster's existing xl.meta files reference the old UUIDs)
+        - Treating "MinIO can't read its own drives" as a MinIO bug and waiting for upstream fix
+        - Periodically rsync'ing .minio.sys to another path — bypasses topology fingerprint guard, can restore stale format after a deliberate transition
+      related_invariants:
+        - objectstore.minio.format_json_durable_in_etcd
+        - objectstore.minio.wipe_is_idempotent_per_generation
+      required_tests:
+        - TestFormatBackup_BackupAfterFormatWritten
+        - TestFormatBackup_RestoreWhenMissingOnDisk
+        - TestFormatBackup_RestoreSkippedWhenFormatPresent
+        - TestFormatBackup_RestoreSkippedOnTopologyFingerprintMismatch
+        - TestFormatBackup_PurgedAfterApprovedDestructiveTransition
+        - TestFormatBackup_NeverOverwritesValidOnDiskFormat
