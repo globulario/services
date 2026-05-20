@@ -110,7 +110,8 @@ func leaderProxyTLS() (*tls.Config, error) {
 // leaderForward forwards a gRPC call to the leader using the full method name.
 // req must be the original request proto, resp must be a zero-value proto of
 // the correct response type. Incoming auth metadata is propagated.
-func (srv *server) leaderForward(ctx context.Context, method string, req, resp interface{}) error {
+// opts are optional grpc.CallOption values (e.g. grpc.ForceCodecV2 for JSON-encoded RPCs).
+func (srv *server) leaderForward(ctx context.Context, method string, req, resp interface{}, opts ...grpc.CallOption) error {
 	conn, err := srv.getLeaderConn(ctx)
 	if err != nil {
 		// Fall back to returning the standard "not leader" error.
@@ -123,7 +124,7 @@ func (srv *server) leaderForward(ctx context.Context, method string, req, resp i
 	inMD, _ := metadata.FromIncomingContext(ctx)
 	outCtx := metadata.NewOutgoingContext(ctx, inMD)
 
-	if err := conn.Invoke(outCtx, method, req, resp); err != nil {
+	if err := conn.Invoke(outCtx, method, req, resp, opts...); err != nil {
 		return err
 	}
 	slog.Debug("leader-proxy: forwarded", "method", method[strings.LastIndex(method, "/")+1:])

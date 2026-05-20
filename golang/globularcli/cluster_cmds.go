@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"runtime"
 	"strings"
@@ -963,6 +964,24 @@ func init() {
 
 func controllerClient() (*grpc.ClientConn, error) {
 	return dialGRPC(rootCfg.controllerAddr)
+}
+
+// controllerResourcesClient dials the cluster controller's direct gRPC port
+// (12000) instead of Envoy's mesh port (443). ResourcesService RPCs
+// (RepairStateAlignment, ListServiceReleases, etc.) are registered on the
+// controller's own listener but are not yet routed through the Envoy XDS mesh.
+// When the auto-discovered address uses port 443, swap to 12000.
+func controllerResourcesClient() (*grpc.ClientConn, error) {
+	addr := rootCfg.controllerAddr
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		// Bare hostname/IP — append :12000 directly without going via resolveGRPCAddr.
+		host = strings.TrimSpace(addr)
+		addr = net.JoinHostPort(host, "12000")
+	} else if port == "443" {
+		addr = net.JoinHostPort(host, "12000")
+	}
+	return dialGRPC(addr)
 }
 
 func nodeClient() (*grpc.ClientConn, error) {

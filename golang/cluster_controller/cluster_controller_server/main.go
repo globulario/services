@@ -39,21 +39,31 @@ import (
 	"google.golang.org/grpc/encoding"
 	grpchealth "google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/mem"
+	"google.golang.org/grpc/reflection"
 	"path/filepath"
 )
 
-// jsonCodec registers a "json" gRPC codec so that ResourcesService messages
-// (plain Go structs with json tags) can be decoded over the wire when a client
-// sends Content-Type: application/grpc-web+json (or application/grpc+json).
-type jsonCodec struct{}
+// jsonCodecV2 registers a "json" gRPC CodecV2 so that ResourcesService messages
+// (plain Go structs with json tags) can be encoded/decoded over the wire.
+// CodecV2 is required for gRPC v1.78+: the v1 Codec bridge does not propagate
+// correctly when used with grpc.ForceCodecV2 for leader-forwarding calls.
+type jsonCodecV2 struct{}
 
-func (jsonCodec) Marshal(v interface{}) ([]byte, error)        { return json.Marshal(v) }
-func (jsonCodec) Unmarshal(data []byte, v interface{}) error   { return json.Unmarshal(data, v) }
-func (jsonCodec) Name() string                                 { return "json" }
+func (jsonCodecV2) Marshal(v any) (mem.BufferSlice, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return mem.BufferSlice{mem.SliceBuffer(data)}, nil
+}
+func (jsonCodecV2) Unmarshal(data mem.BufferSlice, v any) error {
+	return json.Unmarshal(data.Materialize(), v)
+}
+func (jsonCodecV2) Name() string { return "json" }
 
-func init() { encoding.RegisterCodec(jsonCodec{}) }
+func init() { encoding.RegisterCodecV2(jsonCodecV2{}) }
 
 // Version information (set via ldflags during build)
 var (

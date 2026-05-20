@@ -301,7 +301,7 @@ type ResourcesService_WatchServer interface {
 
 func RegisterResourcesServiceServer(s *grpc.Server, srv ResourcesServiceServer) {
 	s.RegisterService(&grpc.ServiceDesc{
-		ServiceName: "cluster_controller.ResourcesService",
+		ServiceName: "clustercontroller.ResourcesService",
 		HandlerType: (*ResourcesServiceServer)(nil),
 		Methods: []grpc.MethodDesc{
 			{

@@ -445,7 +445,7 @@ func runServicesSeed(cmd *cobra.Command, args []string) error {
 func runServicesRepair(cmd *cobra.Command, args []string) error {
 	autoDiscoverController(cmd)
 
-	conn, err := controllerClient()
+	conn, err := controllerResourcesClient()
 	if err != nil {
 		return fmt.Errorf("connect to controller %s: %w", rootCfg.controllerAddr, err)
 	}

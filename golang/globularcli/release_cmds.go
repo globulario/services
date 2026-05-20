@@ -100,8 +100,10 @@ var watchClientFactory = func(conn grpc.ClientConnInterface) releaseWatchClient 
 }
 
 // controllerConnFactory enables testing without dialing real gRPC.
+// Uses controllerResourcesClient to bypass Envoy mesh (port 443) and connect
+// directly to the controller's gRPC listener (port 12000) for ResourcesService RPCs.
 var controllerConnFactory = func() (grpc.ClientConnInterface, error) {
-	return controllerClient()
+	return controllerResourcesClient()
 }
 
 func init() {
@@ -170,7 +172,7 @@ func runReleaseList(cmd *cobra.Command, args []string) error {
 	client := resourcesClientFactory(conn)
 	ctx, cancel := ctxWithCLITimeout(context.Background())
 	defer cancel()
-	resp, err := client.ListServiceReleases(ctx, &cluster_controllerpb.ListServiceReleasesRequest{})
+	resp, err := client.ListServiceReleases(ctx, &cluster_controllerpb.ListServiceReleasesRequest{}, jsonCallOption())
 	if err != nil {
 		return err
 	}

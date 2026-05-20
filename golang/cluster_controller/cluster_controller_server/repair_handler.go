@@ -8,8 +8,9 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/installed_state"
-	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
+	"github.com/globulario/services/golang/versionutil"
+	"google.golang.org/grpc"
 )
 
 // RepairStateAlignment diagnoses and optionally repairs alignment between the
@@ -18,7 +19,8 @@ import (
 func (srv *server) RepairStateAlignment(ctx context.Context, req *cluster_controllerpb.RepairStateAlignmentRequest) (*cluster_controllerpb.StateAlignmentReport, error) {
 	if !srv.isLeader() {
 		resp := &cluster_controllerpb.StateAlignmentReport{}
-		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/RepairStateAlignment", req, resp); err != nil {
+		if err := srv.leaderForward(ctx, "/clustercontroller.ResourcesService/RepairStateAlignment", req, resp,
+			grpc.ForceCodecV2(jsonCodecV2{})); err != nil {
 			return nil, err
 		}
 		return resp, nil
