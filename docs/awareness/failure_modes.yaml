@@ -1783,6 +1783,83 @@ failure_modes:
         - TestFormatBackup_PurgedAfterApprovedDestructiveTransition
         - TestFormatBackup_NeverOverwritesValidOnDiskFormat
 
+    - id: systemd.effective_config_drift
+      title: systemd is loading a unit whose effective Type/ExecStart/FragmentPath disagrees with the unit Globular rendered
+      severity: high
+      symptoms:
+        - GetServiceRuntimeProof reports EffectiveType different from the Type= we rendered for the service
+        - GetServiceRuntimeProof reports EffectiveExecStart whose path= does not match the rendered ExecStart binary
+        - GetServiceRuntimeProof reports an empty FragmentPath even though the service is supposed to be installed
+        - SystemdUnitSha256 (collected by node-agent against /etc/systemd/system/<unit>) does not match the rendered unit hash the controller holds
+        - service appears active and "running fine" but is executing an out-of-date binary or wrong start command
+        - operator hand-edited /etc/systemd/system/<unit>.service to "fix" something and that edit silently outlives the next deploy
+      root_cause: |
+        Until Phase 5b nothing in Globular re-read installed unit files or asked
+        systemd what it had actually loaded. The deploy step rendered a unit and
+        copied it to /etc/systemd/system; from then on, the cluster assumed
+        systemd was running exactly that. Three independent paths can break the
+        assumption:
+
+          1. A `systemctl edit` drop-in (/etc/systemd/system/<unit>.service.d/*.conf)
+             overrides ExecStart= or Type= last-wins; systemd loads the override,
+             FragmentPath still points at the original unit, so a naive comparator
+             that only hashed the unit file path would miss the drift.
+          2. An operator hand-edited /etc/systemd/system/<unit>.service after the
+             last deploy. The on-disk content drifts from the rendered template
+             but the deploy pipeline never re-checks.
+          3. A stale unit from a previous package version is still on disk
+             (deploy step wrote a new unit to a *different* path, or the rename
+             dance left both around) and systemd is loading whichever it found
+             first.
+
+        In every case the effective unit systemd is using is not the unit the
+        controller intended to ship, and `systemctl status` looks healthy.
+
+        Phase 2 (GetServiceRuntimeProof) already collects the evidence:
+        EffectiveType, EffectiveExecStart, FragmentPath, SystemdUnitSha256. Phase
+        5b adds the comparator: DetectEffectiveUnitDrift in golang/deploy
+        consumes the rendered unit content + the effective property bag and
+        returns a verdict { Status, Drifts[], FindingID }.
+      architecture_fix: |
+        Two pure functions added in golang/deploy and consumed by the verifier
+        once Phase 9 is live:
+
+          - ParseSystemdUnit(rendered string) map[string][]string  — extracts
+            directive values per section. Repeatable directives (ExecStartPre,
+            Environment, After, Wants) are preserved as slices in source order.
+          - DetectEffectiveUnitDrift(rendered string, eff EffectiveUnitProperties)
+            UnitDriftVerdict — pure comparison. Verified when every directive
+            systemd surfaced agrees with the rendered intent. Drift when at
+            least one disagrees; FindingID = systemd.effective_config_drift.
+            Unknown when proof is missing (do not assert drift against an empty
+            effective bag — that is exactly the diagnostic dishonesty this
+            refactor exists to remove).
+
+        The detector does NOT compare the full unit-file sha256 byte-for-byte:
+        systemd's drop-in override mechanism means FragmentPath can be honest
+        while effective values are overridden. Field-level comparison catches
+        both the byte-identical hand-edit case and the drop-in case.
+
+        Phase 9 wires DetectEffectiveUnitDrift into the doctor / verifier path
+        so the finding surfaces alongside the other Phase 1/2/3/4 proofs.
+      known_bad_fixes:
+        - Comparing only the unit-file sha256 (drop-in overrides leave the file unchanged but redirect ExecStart=)
+        - Comparing only `systemctl is-active` (systemd reports the process is up — that is not the same as "the process is running the binary you intended")
+        - Hand-running `systemctl daemon-reload` and assuming drift went away (reload re-reads files but does not replace overrides)
+        - Treating any "Unit not found" or "FragmentPath empty" as a transient and retrying — the brief is explicit that missing proof is degraded, not green
+      related_invariants:
+        - systemd.effective_unit_must_match_rendered_unit
+        - rollout.convergence_requires_runtime_proof
+        - diagnostics.must_measure_reality
+      required_tests:
+        - TestDetectEffectiveUnitDrift_AllAgree_Verified
+        - TestDetectEffectiveUnitDrift_TypeDiffers_Drift
+        - TestDetectEffectiveUnitDrift_ExecStartPathDiffers_Drift
+        - TestDetectEffectiveUnitDrift_MissingFragmentPath_Drift
+        - TestDetectEffectiveUnitDrift_EmptyEffective_UnknownNotDrift
+        - TestParseSystemdUnit_ExtractsServiceDirectives
+        - TestParseSystemdUnit_PreservesRepeatedDirectives
+
     - id: rollout.partial_not_converged
       title: Release reports AVAILABLE while one or more required nodes are below installed_verified proof
       severity: critical
