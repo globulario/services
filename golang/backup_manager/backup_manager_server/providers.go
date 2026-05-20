@@ -137,11 +137,23 @@ func (srv *server) runEtcdBackup(ctx context.Context, spec *backup_managerpb.Bac
 	// Snapshot goes into the capsule payload dir
 	snapshotFile := filepath.Join(cc.PayloadDir, "etcd-snapshot.db")
 	outputs["snapshot_path"] = snapshotFile
-	outputs["endpoints"] = endpoints
+	outputs["endpoints_full"] = endpoints
+
+	// etcdctl `snapshot save` rejects multi-endpoint args with
+	// "snapshot must be requested to one selected node, not multiple".
+	// Select exactly one healthy endpoint here; pass that single value to
+	// --endpoints below. The full list is still captured in
+	// outputs["endpoints_full"] for the capsule manifest / debugging.
+	selectedEndpoint, selectErr := srv.selectEtcdSnapshotEndpoint(ctx, endpoints, cacert, cert, key)
+	if selectErr != nil {
+		outputs["select_error"] = selectErr.Error()
+		return failResult(spec.Type, fmt.Sprintf("etcd endpoint selection failed: %v", selectErr), outputs)
+	}
+	outputs["endpoint_selected"] = selectedEndpoint
 
 	args := []string{
 		"snapshot", "save", snapshotFile,
-		"--endpoints", endpoints,
+		"--endpoints", selectedEndpoint,
 	}
 
 	if fileExists(cacert) {
