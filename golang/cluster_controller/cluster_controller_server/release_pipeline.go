@@ -177,6 +177,7 @@ type releaseHandle struct {
 	ObservedGeneration     int64
 	ResolvedVersion        string
 	ResolvedBuildID        string // Phase 2: exact artifact identity
+	ResolvedBuildNumber    int64  // build_number from release spec — passed to install_package step
 	ResolvedArtifactDigest string
 	DesiredHash            string
 	LastTransitionUnixMs   int64
@@ -559,6 +560,7 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 			h.ResolvedVersion,
 			h.DesiredHash,
 			h.ResolvedBuildID,
+			h.ResolvedBuildNumber,
 			nodeIDs,
 			h.Generation, // generation guard: callbacks skip writes if generation advanced
 		)
@@ -800,6 +802,7 @@ func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease
 		ObservedGeneration:     rel.Status.ObservedGeneration,
 		ResolvedVersion:        rel.Status.ResolvedVersion,
 		ResolvedBuildID:        rel.Status.ResolvedBuildID,
+		ResolvedBuildNumber:    rel.Spec.BuildNumber,
 		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
 		DesiredHash:            rel.Status.DesiredHash,
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
@@ -835,6 +838,7 @@ func (srv *server) infraReleaseHandle(rel *cluster_controllerpb.InfrastructureRe
 		ObservedGeneration:     rel.Status.ObservedGeneration,
 		ResolvedVersion:        rel.Status.ResolvedVersion,
 		ResolvedBuildID:        rel.Status.ResolvedBuildID,
+		ResolvedBuildNumber:    rel.Spec.BuildNumber,
 		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
 		DesiredHash:            rel.Status.DesiredHash,
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
@@ -965,6 +969,7 @@ func (srv *server) svcReleaseHandle(rel *cluster_controllerpb.ServiceRelease) *r
 		ObservedGeneration:     rel.Status.ObservedGeneration,
 		ResolvedVersion:        rel.Status.ResolvedVersion,
 		ResolvedBuildID:        rel.Status.ResolvedBuildID,
+		ResolvedBuildNumber:    rel.Spec.BuildNumber,
 		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
 		DesiredHash:            rel.Status.DesiredHash,
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,

@@ -36,6 +36,7 @@ spec:
       restart_policy: { type: string, default: auto }
       runtime_check: { type: string, default: auto }
       resolved_build_id: { type: string, default: "" }
+      resolved_build_number: { type: integer, default: 0 }
   defaults:
     max_parallel_nodes: 2
     execute_timeout: 20m
@@ -157,6 +158,7 @@ spec:
             desired_hash: $.desired_hash
             kind: $.package_kind
             build_id: $.resolved_build_id
+            build_number: $.resolved_build_number
           timeout: $.execute_timeout
           execution:
             idempotency: verify_then_continue

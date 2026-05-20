@@ -675,13 +675,22 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 				version := fmt.Sprint(inputs["resolved_version"])
 				desiredHash := fmt.Sprint(inputs["desired_hash"])
 				resolvedBuildID := fmt.Sprint(inputs["resolved_build_id"])
+				var resolvedBuildNumber int64
+				switch v := inputs["resolved_build_number"].(type) {
+				case int64:
+					resolvedBuildNumber = v
+				case int:
+					resolvedBuildNumber = int64(v)
+				case float64:
+					resolvedBuildNumber = int64(v)
+				}
 				candidates, _ := inputs["candidate_nodes"].([]any)
 				candidateStrs := make([]string, len(candidates))
 				for i, c := range candidates {
 					candidateStrs[i] = fmt.Sprint(c)
 				}
 
-				resp, err := srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, pkgKind, version, desiredHash, resolvedBuildID, candidateStrs)
+				resp, err := srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, pkgKind, version, desiredHash, resolvedBuildID, resolvedBuildNumber, candidateStrs)
 				if err != nil {
 					return "", err
 				}

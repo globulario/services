@@ -26,6 +26,7 @@ spec:
       resolved_version: { type: string }
       desired_hash: { type: string }
       resolved_build_id: { type: string, default: "" }
+      resolved_build_number: { type: integer, default: 0 }
       release_kind: { type: string, default: infrastructure }
       candidate_nodes:
         type: array
@@ -154,6 +155,8 @@ spec:
             version: $.resolved_version
             desired_hash: $.desired_hash
             kind: INFRASTRUCTURE
+            build_id: $.resolved_build_id
+            build_number: $.resolved_build_number
           timeout: $.execute_timeout
           export: install_result
           execution:

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -902,7 +903,7 @@ func releaseFinalizeDirectApply(cfg ReleaseControllerConfig) ActionHandler {
 
 // NodeDirectApplyConfig provides dependencies for direct node-agent package operations.
 type NodeDirectApplyConfig struct {
-	InstallPackage         func(ctx context.Context, name, version, kind, buildID string) error
+	InstallPackage         func(ctx context.Context, name, version, kind, buildID string, buildNumber int64) error
 	VerifyPackageInstalled func(ctx context.Context, name, version, hash string) error
 	RestartPackageService  func(ctx context.Context, name string) error
 	MaybeRestartPackage    func(ctx context.Context, name, kind, restartPolicy string) error
@@ -983,8 +984,23 @@ func nodeInstallPackage(cfg NodeDirectApplyConfig) ActionHandler {
 		if buildID == "<nil>" {
 			buildID = ""
 		}
+		var buildNumber int64
+		switch v := req.With["build_number"].(type) {
+		case int64:
+			buildNumber = v
+		case int:
+			buildNumber = int64(v)
+		case float64:
+			buildNumber = int64(v)
+		case string:
+			if v != "" && v != "<nil>" {
+				if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+					buildNumber = n
+				}
+			}
+		}
 		if cfg.InstallPackage != nil {
-			if err := cfg.InstallPackage(ctx, name, version, kind, buildID); err != nil {
+			if err := cfg.InstallPackage(ctx, name, version, kind, buildID, buildNumber); err != nil {
 				return nil, fmt.Errorf("install %s: %w", name, err)
 			}
 		}
