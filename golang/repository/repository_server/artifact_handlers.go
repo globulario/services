@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gocql/gocql"
+	"github.com/globulario/services/golang/fallback"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/repository/upstream"
 	"github.com/globulario/services/golang/security"
@@ -435,18 +436,37 @@ func (srv *server) readManifestAndStateByKey(ctx context.Context, key string) (s
 			if srv.cache != nil {
 				srv.cache.putManifest(sKey, key, state, m)
 			}
+			// Phase 6: a successful Scylla read clears any fallback that
+			// was previously active for this dependency. Cheap no-op when
+			// nothing was registered.
+			fallback.Exit("repository", "scylladb", "minio_read")
 			return key, state, m, nil
 
 		case errors.Is(scyllaErr, gocql.ErrNotFound):
 			// Authoritative miss — artifact is not in the ledger.
+			// A NotFound is NOT a fallback condition — Scylla is healthy
+			// and answered. Clear any prior degraded marker.
+			fallback.Exit("repository", "scylladb", "minio_read")
 			return key, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, nil,
 				status.Errorf(codes.NotFound, "artifact %q not found", key)
 
 		default:
 			// Scylla temporarily unavailable — fall through to MinIO as degraded path.
-			// Log at WARN so operators know the service is running in degraded mode.
+			// Phase 6: register the fallback so doctor / operator UIs surface
+			// service.silent_fallback_active instead of relying on grep against
+			// slog warnings. Enter is idempotent and preserves the original
+			// Since timestamp, so the "how long have we been degraded" counter
+			// stays honest across repeated reads while Scylla is down.
+			fallback.Enter(fallback.Active{
+				Service:       "repository",
+				Dependency:    "scylladb",
+				Mode:          "minio_read",
+				PrimaryError:  scyllaErr.Error(),
+				AffectedPaths: []string{"artifact_manifest_read"},
+			})
 			slog.Warn("ledger read failed, falling back to minio (degraded mode)",
-				"key", key, "err", scyllaErr)
+				"key", key, "err", scyllaErr,
+				"finding", fallback.FindingID)
 		}
 	}
 

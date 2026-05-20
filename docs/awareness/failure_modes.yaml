@@ -1783,6 +1783,85 @@ failure_modes:
         - TestFormatBackup_PurgedAfterApprovedDestructiveTransition
         - TestFormatBackup_NeverOverwritesValidOnDiskFormat
 
+    - id: service.silent_fallback_active
+      title: A service is currently serving requests from a substitute backend (cache / local disk / read-only) because its primary dependency failed
+      severity: degraded
+      symptoms:
+        - service health surface reports OK or healthy while operators see latency / staleness in production
+        - slog WARN messages mention "degraded", "fallback", "falling back to <X>", but doctor and cluster events show nothing
+        - golang/fallback.Snapshot() (or the per-service equivalent) returns a non-empty list while cluster.health shows green
+        - a primary dependency (ScyllaDB, MinIO, etcd, repository) was unreachable but the request still succeeded — neither error count nor cluster event records the divergence
+        - the "how long have we been degraded" question has no answer the operator can pull from a structured source
+      root_cause: |
+        Globular services historically followed the Postel-style "be liberal in
+        what you accept" pattern at the dependency boundary: if the primary
+        (ScyllaDB ledger, MinIO bucket, etcd config store) was unreachable, the
+        request handler would silently switch to a cached / local / in-memory
+        substitute and return success. That keeps the user-facing path alive,
+        which is correct — but it also keeps the *cluster* looking green, which
+        is the lie.
+
+        The structural cost is twofold:
+
+          1. The 4-layer state model assumes every claim of "healthy" is anchored
+             in independent measurement. Silent fallback violates that: the
+             service claims OK while running on a substitute. Doctor cannot
+             distinguish "primary intact" from "primary down, serving from cache".
+          2. Operators only learn about the degradation when something downstream
+             *also* breaks (cache expires, MinIO eventually goes down, the
+             single-node fallback runs out of disk). The window between primary
+             failure and operator awareness is the failure window.
+
+        The brief is unambiguous on the contract: fallback may keep the path
+        alive, but it MUST NOT keep the system green. Every fallback path is
+        required to register itself so doctor / verifier code can enumerate it.
+      architecture_fix: |
+        Phase 6 of the Diagnostic Honesty Refactor adds a tiny shared package
+        (golang/fallback) with three operations:
+
+          - fallback.Enter(Active{Service, Dependency, Mode, PrimaryError,
+            AffectedPaths, NodeID, Since}) — register the fallback. Idempotent:
+            re-entry preserves the original Since timestamp so the "how long"
+            counter stays honest, but refreshes PrimaryError + AffectedPaths so
+            doctor sees the latest evidence.
+          - fallback.Exit(service, dependency, mode) — clear when the primary
+            is back. Cheap no-op when nothing was registered.
+          - fallback.Snapshot() — enumerate every currently-active fallback.
+            Stable order, no I/O. Doctor / verifier / cluster events scrape this.
+
+        Wire-up rule: every silent fallback path must call Enter on the way
+        into the substitute and Exit on the next successful primary read. The
+        repository Scylla→MinIO ledger path (artifact_handlers.go) is the
+        reference implementation. Identified follow-up wire-ups (tracked
+        outside this commit):
+
+          - DNS in-memory cache fallback (dns_server/handlers.go:174)
+          - Node-agent repository → local package fallback (installer_api.go:95)
+          - Storage resilient mirror cache-fill (storage_backend/resilient_storage.go:54)
+          - Objectstore admission etcd-skip (repository_server/objectstore_admission.go:66)
+          - Workflow YAML local-disk fallback (workflow/v1alpha1/loader.go)
+
+        Once Phase 9 (verifier) is live the doctor / cluster event bus
+        consumes Snapshot() and emits service.silent_fallback_active per
+        active fallback. Operators see green Phase + non-green fallback list,
+        which is the contract.
+      known_bad_fixes:
+        - Adding a per-service slog.Warn at the fallback point — that is the silent-fallback bug, just with more verbose logs
+        - Bumping the cluster status to DEGRADED globally — degrades the wrong thing; the user-facing path is still working
+        - Suppressing the fallback entirely (failing the request) — kills the user path; the whole point of fallback is to keep it alive while making the degradation visible
+        - Using a per-service ad-hoc registry — fragments the directory and means doctor has to know N protocols for the same finding
+      related_invariants:
+        - fallback.must_emit_degraded_finding
+        - diagnostics.must_measure_reality
+      required_tests:
+        - TestEnter_Idempotent_SincePreserved
+        - TestEnter_RefreshesPrimaryErrorAndAffectedPaths
+        - TestEnter_NotifierFiresOnceOnFirstEntry
+        - TestExit_RemovesEntry
+        - TestExitMatching_ClearsByDependency
+        - TestSnapshot_StableOrder
+        - TestEnter_ConcurrentDoesNotPanic
+
     - id: systemd.effective_config_drift
       title: systemd is loading a unit whose effective Type/ExecStart/FragmentPath disagrees with the unit Globular rendered
       severity: high
