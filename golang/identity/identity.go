@@ -302,6 +302,26 @@ var registry = func() map[string]ServiceIdentity {
 			Binary:     "globular",
 			Aliases:    []string{"cli"},
 		},
+		{
+			// keepalived ships its own systemd unit (keepalived.service) — Globular
+			// does not wrap it. Without this entry, the drift detector synthesizes
+			// "globular-keepalived.service" and never finds the unit, marking the
+			// release DEGRADED on every reconcile cycle.
+			Key:        "keepalived",
+			BundleName: "keepalived",
+			UnitName:   "keepalived.service",
+			Binary:     "keepalived",
+			Aliases:    []string{"globular-keepalived", "globular-keepalived.service"},
+		},
+		{
+			// scylladb ships as scylla-server.service (the OS Scylla unit) —
+			// Globular's package installs the upstream systemd unit unchanged.
+			Key:        "scylladb",
+			BundleName: "scylladb",
+			UnitName:   "scylla-server.service",
+			Binary:     "scylla",
+			Aliases:    []string{"scylla", "scylla-server", "scylla-server.service", "globular-scylladb", "globular-scylladb.service"},
+		},
 	}
 
 	m := make(map[string]ServiceIdentity, len(entries))
