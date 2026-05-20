@@ -82,6 +82,56 @@ func IsLoaded(ctx context.Context, unit string) (bool, error) {
 	return strings.TrimSpace(string(out)) == "loaded", nil
 }
 
+// ShowProperties returns the effective values of the requested systemd
+// properties for a unit. Uses `systemctl show -p P1 -p P2 ... unit` (without
+// --value, so the output is the canonical KEY=VALUE form which lets us tell
+// apart properties whose values are empty from properties that don't exist).
+//
+// Phase 2 of the Diagnostic Honesty Refactor: the consumer
+// (GetServiceRuntimeProof handler) needs Type, ExecStart, FragmentPath,
+// ActiveState, SubState, MainPID, ExecMainStartTimestamp to reconcile claimed
+// vs effective unit configuration.
+//
+// Returns a map; missing properties are omitted rather than set to "".
+func ShowProperties(ctx context.Context, unit string, properties ...string) (map[string]string, error) {
+	if unit == "" {
+		return nil, errors.New("unit name is required")
+	}
+	if len(properties) == 0 {
+		return nil, errors.New("at least one property required")
+	}
+	args := []string{"show"}
+	for _, p := range properties {
+		if strings.TrimSpace(p) == "" {
+			continue
+		}
+		args = append(args, "--property="+p)
+	}
+	args = append(args, unit)
+	cmd := exec.CommandContext(ctx, "systemctl", args...)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]string, len(properties))
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// systemctl show emits KEY=VALUE; VALUE may itself contain "=" so
+		// split only on the first.
+		idx := strings.IndexByte(line, '=')
+		if idx <= 0 {
+			continue
+		}
+		key := line[:idx]
+		val := line[idx+1:]
+		result[key] = val
+	}
+	return result, nil
+}
+
 // Enable marks the unit to start on boot.
 func Enable(ctx context.Context, unit string) error {
 	if unit == "" {

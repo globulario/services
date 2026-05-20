@@ -183,6 +183,71 @@ message GetRestoreTaskResultResponse {
   BackupProviderResult result = 1; // reuse: ok, summary, outputs, etc.
 }
 
+// --- Phase 2: Service Runtime Proof (Diagnostic Honesty Refactor) ----------
+//
+// ServiceRuntimeProof carries independent evidence of what is ACTUALLY
+// executing on this node for a given service. Distinct from
+// installed_state.InstalledPackage, which is a CLAIM produced by the apply
+// path. The two are reconciled by the consumer (cluster_doctor / verifier /
+// controller convergence) to surface drift findings:
+//
+//   service.running_binary_hash_mismatch   — running exe sha256 != installed sha256
+//   service.running_version_mismatch       — runtime_version != expected_version
+//   service.old_pid_after_upgrade          — process_start_time < apply time
+//   service.runtime_identity_unproven      — proof partial (errors[] non-empty)
+//
+// Field numbers are grouped by source: 1-9 identity, 10-19 claimed identity
+// (from controller/installed_state), 20-29 process identity (from /proc),
+// 30-39 systemd effective unit, 40-49 collection metadata.
+message ServiceRuntimeProof {
+  string service_name = 1;
+  string service_id   = 2;
+  string node_id      = 3;
+
+  // Claimed identity — what controller/desired says SHOULD be running.
+  string expected_build_id = 10;
+  string expected_version  = 11;
+  string installed_path    = 12;
+  string installed_sha256  = 13; // sha256 of bytes at installed_path
+
+  // Process identity — what is ACTUALLY running.
+  int32  running_pid       = 20;
+  string running_exe_path  = 21; // dereferenced /proc/<pid>/exe
+  string running_exe_sha256 = 22;
+  string runtime_version   = 23; // reported by live process (empty = unproven)
+  string runtime_build_id  = 24; // reported by live process (empty = unproven)
+  google.protobuf.Timestamp process_start_time = 25;
+
+  // Systemd effective unit (from `systemctl show`).
+  string systemd_active_state = 30;
+  string systemd_sub_state    = 31;
+  string systemd_unit_path    = 32; // FragmentPath
+  string systemd_unit_sha256  = 33; // sha256 of unit file on disk
+  string effective_exec_start = 34;
+  string effective_type       = 35;
+
+  google.protobuf.Timestamp checked_at = 40;
+  // Non-fatal collection errors (systemctl unreachable, runtime version
+  // endpoint missing, etc.). Non-empty errors → consumer emits
+  // service.runtime_identity_unproven at degraded severity. The proof is
+  // returned partial rather than withheld so the caller can see what IS
+  // verifiable.
+  repeated string errors = 41;
+}
+
+message GetServiceRuntimeProofRequest {
+  // Optional: assert which node this request targets. Node-agent ignores
+  // a value that doesn't match its own identity (returns INVALID_ARGUMENT).
+  string node_id      = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
+  // Optional: limit proof to one service. Empty = proof for every installed
+  // SERVICE/INFRASTRUCTURE package on this node.
+  string service_name = 2 [(globular.auth.resource) = { kind: "service" }];
+}
+
+message GetServiceRuntimeProofResponse {
+  repeated ServiceRuntimeProof proofs = 1;
+}
+
 service NodeAgentService {
   rpc JoinCluster(JoinClusterRequest) returns (JoinClusterResponse) {
     option (globular.auth.authz) = {
@@ -375,6 +440,21 @@ service NodeAgentService {
       permission: "read"
       resource_template: "/node_agent/packages/{package_name}"
       default_role_hint: "admin"
+    };
+  };
+
+  // GetServiceRuntimeProof returns independent runtime evidence for one or
+  // every installed service on this node — Phase 2 of the diagnostic honesty
+  // refactor. The reply distinguishes CLAIMS (desired/installed identity from
+  // etcd) from PROOFS (running PID, on-disk hash, /proc/exe hash, live
+  // version, systemd effective unit). Doctor and the controller convergence
+  // gate consume this RPC and do NOT trust installed_state alone.
+  rpc GetServiceRuntimeProof(GetServiceRuntimeProofRequest) returns (GetServiceRuntimeProofResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.runtime_proof.read"
+      permission: "read"
+      resource_template: "/node_agent/runtime_proof"
+      default_role_hint: "viewer"
     };
   };
 

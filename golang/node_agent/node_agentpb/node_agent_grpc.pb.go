@@ -39,6 +39,7 @@ const (
 	NodeAgentService_RunWorkflow_FullMethodName            = "/node_agent.NodeAgentService/RunWorkflow"
 	NodeAgentService_ApplyPackageRelease_FullMethodName    = "/node_agent.NodeAgentService/ApplyPackageRelease"
 	NodeAgentService_VerifyPackageIntegrity_FullMethodName = "/node_agent.NodeAgentService/VerifyPackageIntegrity"
+	NodeAgentService_GetServiceRuntimeProof_FullMethodName = "/node_agent.NodeAgentService/GetServiceRuntimeProof"
 	NodeAgentService_DeleteCacheArtifact_FullMethodName    = "/node_agent.NodeAgentService/DeleteCacheArtifact"
 	NodeAgentService_CleanupDiskJournal_FullMethodName     = "/node_agent.NodeAgentService/CleanupDiskJournal"
 	NodeAgentService_CollectBackupSecrets_FullMethodName   = "/node_agent.NodeAgentService/CollectBackupSecrets"
@@ -86,6 +87,13 @@ type NodeAgentServiceClient interface {
 	// Read-only: does not modify any state. Safe to call on demand from CLI,
 	// doctor, or admin UI.
 	VerifyPackageIntegrity(ctx context.Context, in *VerifyPackageIntegrityRequest, opts ...grpc.CallOption) (*VerifyPackageIntegrityResponse, error)
+	// GetServiceRuntimeProof returns independent runtime evidence for one or
+	// every installed service on this node — Phase 2 of the diagnostic honesty
+	// refactor. The reply distinguishes CLAIMS (desired/installed identity from
+	// etcd) from PROOFS (running PID, on-disk hash, /proc/exe hash, live
+	// version, systemd effective unit). Doctor and the controller convergence
+	// gate consume this RPC and do NOT trust installed_state alone.
+	GetServiceRuntimeProof(ctx context.Context, in *GetServiceRuntimeProofRequest, opts ...grpc.CallOption) (*GetServiceRuntimeProofResponse, error)
 	// DeleteCacheArtifact removes the cached artifact (.tgz) at the
 	// deterministic staging path for a given package. The next install
 	// will re-fetch from the repository with digest verification.
@@ -336,6 +344,16 @@ func (c *nodeAgentServiceClient) VerifyPackageIntegrity(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *nodeAgentServiceClient) GetServiceRuntimeProof(ctx context.Context, in *GetServiceRuntimeProofRequest, opts ...grpc.CallOption) (*GetServiceRuntimeProofResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetServiceRuntimeProofResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_GetServiceRuntimeProof_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nodeAgentServiceClient) DeleteCacheArtifact(ctx context.Context, in *DeleteCacheArtifactRequest, opts ...grpc.CallOption) (*DeleteCacheArtifactResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteCacheArtifactResponse)
@@ -367,7 +385,7 @@ func (c *nodeAgentServiceClient) CollectBackupSecrets(ctx context.Context, in *C
 }
 
 // NodeAgentServiceServer is the server API for NodeAgentService service.
-// All implementations must embed UnimplementedNodeAgentServiceServer
+// All implementations should embed UnimplementedNodeAgentServiceServer
 // for forward compatibility.
 type NodeAgentServiceServer interface {
 	JoinCluster(context.Context, *JoinClusterRequest) (*JoinClusterResponse, error)
@@ -408,6 +426,13 @@ type NodeAgentServiceServer interface {
 	// Read-only: does not modify any state. Safe to call on demand from CLI,
 	// doctor, or admin UI.
 	VerifyPackageIntegrity(context.Context, *VerifyPackageIntegrityRequest) (*VerifyPackageIntegrityResponse, error)
+	// GetServiceRuntimeProof returns independent runtime evidence for one or
+	// every installed service on this node — Phase 2 of the diagnostic honesty
+	// refactor. The reply distinguishes CLAIMS (desired/installed identity from
+	// etcd) from PROOFS (running PID, on-disk hash, /proc/exe hash, live
+	// version, systemd effective unit). Doctor and the controller convergence
+	// gate consume this RPC and do NOT trust installed_state alone.
+	GetServiceRuntimeProof(context.Context, *GetServiceRuntimeProofRequest) (*GetServiceRuntimeProofResponse, error)
 	// DeleteCacheArtifact removes the cached artifact (.tgz) at the
 	// deterministic staging path for a given package. The next install
 	// will re-fetch from the repository with digest verification.
@@ -439,10 +464,9 @@ type NodeAgentServiceServer interface {
 	// it and refuses anything outside. Symlink sources are refused (O_NOFOLLOW
 	// + Lstat). Allowlist is hardcoded; no caller-provided paths.
 	CollectBackupSecrets(context.Context, *CollectBackupSecretsRequest) (*CollectBackupSecretsResponse, error)
-	mustEmbedUnimplementedNodeAgentServiceServer()
 }
 
-// UnimplementedNodeAgentServiceServer must be embedded to have
+// UnimplementedNodeAgentServiceServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -509,6 +533,9 @@ func (UnimplementedNodeAgentServiceServer) ApplyPackageRelease(context.Context, 
 func (UnimplementedNodeAgentServiceServer) VerifyPackageIntegrity(context.Context, *VerifyPackageIntegrityRequest) (*VerifyPackageIntegrityResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method VerifyPackageIntegrity not implemented")
 }
+func (UnimplementedNodeAgentServiceServer) GetServiceRuntimeProof(context.Context, *GetServiceRuntimeProofRequest) (*GetServiceRuntimeProofResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetServiceRuntimeProof not implemented")
+}
 func (UnimplementedNodeAgentServiceServer) DeleteCacheArtifact(context.Context, *DeleteCacheArtifactRequest) (*DeleteCacheArtifactResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteCacheArtifact not implemented")
 }
@@ -518,8 +545,7 @@ func (UnimplementedNodeAgentServiceServer) CleanupDiskJournal(context.Context, *
 func (UnimplementedNodeAgentServiceServer) CollectBackupSecrets(context.Context, *CollectBackupSecretsRequest) (*CollectBackupSecretsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CollectBackupSecrets not implemented")
 }
-func (UnimplementedNodeAgentServiceServer) mustEmbedUnimplementedNodeAgentServiceServer() {}
-func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue()                          {}
+func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue() {}
 
 // UnsafeNodeAgentServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to NodeAgentServiceServer will
@@ -892,6 +918,24 @@ func _NodeAgentService_VerifyPackageIntegrity_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeAgentService_GetServiceRuntimeProof_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetServiceRuntimeProofRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).GetServiceRuntimeProof(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_GetServiceRuntimeProof_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).GetServiceRuntimeProof(ctx, req.(*GetServiceRuntimeProofRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _NodeAgentService_DeleteCacheArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteCacheArtifactRequest)
 	if err := dec(in); err != nil {
@@ -1028,6 +1072,10 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VerifyPackageIntegrity",
 			Handler:    _NodeAgentService_VerifyPackageIntegrity_Handler,
+		},
+		{
+			MethodName: "GetServiceRuntimeProof",
+			Handler:    _NodeAgentService_GetServiceRuntimeProof_Handler,
 		},
 		{
 			MethodName: "DeleteCacheArtifact",
