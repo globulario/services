@@ -131,12 +131,78 @@ func TestRuntimeVerification_SeverityMapping(t *testing.T) {
 		{verifier.SeverityCritical, cluster_doctorpb.Severity_SEVERITY_ERROR},
 		{verifier.SeverityHigh, cluster_doctorpb.Severity_SEVERITY_WARN},
 		{verifier.SeverityDegraded, cluster_doctorpb.Severity_SEVERITY_WARN},
+		{verifier.SeverityInfo, cluster_doctorpb.Severity_SEVERITY_INFO},
 		{"unknown_value", cluster_doctorpb.Severity_SEVERITY_WARN}, // safe default
 	}
 	for _, tc := range cases {
 		got := severityFromVerifier(tc.in)
 		if got != tc.want {
 			t.Errorf("severityFromVerifier(%q)=%v want=%v", tc.in, got, tc.want)
+		}
+	}
+}
+
+// Info-severity verifier findings (bootstrap_ordering_skew on first
+// install, etc.) MUST surface as INVARIANT_PASS so the workflow
+// incident scanner — which opens an incident for every non-PASS finding
+// — doesn't fill the queue with one informational marker per service.
+func TestRuntimeVerification_InfoSeverity_IsInvariantPass(t *testing.T) {
+	snap := &collector.Snapshot{
+		VerifierResult: &verifier.Result{
+			Verdicts: []verifier.Verdict{
+				{
+					Target:      verifier.Target{Service: "rbac", NodeID: "ryzen"},
+					ProofStatus: verifier.ProofRuntimeVerified,
+					Reason:      "all proofs agree",
+					Findings: []verifier.Finding{
+						{
+							ID:       verifier.FindingBootstrapOrderingSkew,
+							Severity: verifier.SeverityInfo,
+							Service:  "rbac",
+							NodeID:   "ryzen",
+						},
+					},
+				},
+			},
+		},
+	}
+	got := (runtimeVerification{}).Evaluate(snap, testConfig())
+	if len(got) != 1 {
+		t.Fatalf("expected 1 finding; got %d", len(got))
+	}
+	if got[0].InvariantStatus != cluster_doctorpb.InvariantStatus_INVARIANT_PASS {
+		t.Errorf("info-severity finding must be INVARIANT_PASS; got %v (incident scanner will create one OPEN incident per service-day for what is just a normal first-install marker)",
+			got[0].InvariantStatus)
+	}
+	if got[0].Severity != cluster_doctorpb.Severity_SEVERITY_INFO {
+		t.Errorf("info severity must map to SEVERITY_INFO; got %v", got[0].Severity)
+	}
+}
+
+// Critical / high / degraded verifier findings MUST stay INVARIANT_FAIL
+// so they surface as incidents (the whole point of the verifier).
+func TestRuntimeVerification_NonInfoSeverity_StaysInvariantFail(t *testing.T) {
+	for _, sev := range []string{
+		verifier.SeverityCritical,
+		verifier.SeverityHigh,
+		verifier.SeverityDegraded,
+	} {
+		snap := &collector.Snapshot{
+			VerifierResult: &verifier.Result{
+				Verdicts: []verifier.Verdict{
+					{
+						Target:      verifier.Target{Service: "x", NodeID: "n"},
+						ProofStatus: verifier.ProofMismatch,
+						Findings: []verifier.Finding{
+							{ID: "x.drift", Severity: sev, Service: "x", NodeID: "n"},
+						},
+					},
+				},
+			},
+		}
+		got := (runtimeVerification{}).Evaluate(snap, testConfig())
+		if len(got) != 1 || got[0].InvariantStatus != cluster_doctorpb.InvariantStatus_INVARIANT_FAIL {
+			t.Errorf("severity %q must stay INVARIANT_FAIL; got %+v", sev, got)
 		}
 	}
 }

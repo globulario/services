@@ -57,15 +57,29 @@ func verifierFindingToDoctorFinding(v verifier.Verdict, f verifier.Finding) Find
 	summary := fmt.Sprintf("[%s] %s/%s: %s",
 		shortNodeID(tgt.NodeID), tgt.Service, tgt.Service, f.ID)
 
+	sev := severityFromVerifier(f.Severity)
+	// Info-severity findings are informational markers (e.g.
+	// service.bootstrap_ordering_skew on first install — process started
+	// before ApplyTime by design because install.sh fires services
+	// before the controller records the apply). They MUST NOT surface
+	// as failing invariants — otherwise the workflow incident scanner
+	// opens an OPEN incident per (service, node) for what is just a
+	// "this is normal" diagnostic note. Mark them as PASS so the
+	// incident scanner's "skip PASS" filter drops them.
+	status := cluster_doctorpb.InvariantStatus_INVARIANT_FAIL
+	if sev == cluster_doctorpb.Severity_SEVERITY_INFO {
+		status = cluster_doctorpb.InvariantStatus_INVARIANT_PASS
+	}
+
 	return Finding{
 		FindingID:       FindingID(f.ID, entity, v.Reason),
 		InvariantID:     f.ID,
-		Severity:        severityFromVerifier(f.Severity),
+		Severity:        sev,
 		Category:        "diagnostic.runtime",
 		EntityRef:       entity,
 		Summary:         summary,
 		Evidence:        []*cluster_doctorpb.Evidence{kvEvidence("verifier", "VerifyTarget", verifierEvidence(v, f))},
-		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		InvariantStatus: status,
 	}
 }
 
@@ -93,14 +107,21 @@ func verifierCrossFindingToDoctorFinding(f verifier.Finding) Finding {
 // The verifier uses lower-case strings (critical/high/degraded/info) per
 // failure_modes.yaml conventions; existing rules use the cluster_doctorpb
 // enum.
+//
+// Note: "degraded" stays at WARN — it signals partial proof / unknown
+// runtime state, which is actionable. "info" maps to its own INFO level
+// so caller code (verifierFindingToDoctorFinding) can decide not to
+// raise an INVARIANT_FAIL for an informational marker.
 func severityFromVerifier(s string) cluster_doctorpb.Severity {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "critical", "error":
 		return cluster_doctorpb.Severity_SEVERITY_ERROR
 	case "high", "warn", "warning":
 		return cluster_doctorpb.Severity_SEVERITY_WARN
-	case "degraded", "info":
+	case "degraded":
 		return cluster_doctorpb.Severity_SEVERITY_WARN
+	case "info":
+		return cluster_doctorpb.Severity_SEVERITY_INFO
 	default:
 		return cluster_doctorpb.Severity_SEVERITY_WARN
 	}

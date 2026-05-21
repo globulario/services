@@ -13,10 +13,18 @@ import (
 )
 
 // allowedUnitPrefixes defines which systemd units can be controlled.
+// keepalived ships with upstream's naming (keepalived.service rather than
+// globular-keepalived.service) but is a Globular-managed package — the
+// release pipeline applies it like any other infrastructure unit. Without
+// this allow-listing, release.apply.package's verify_runtime step gets
+// PermissionDenied from ControlService → the correlation defers up to
+// max_defers (5) → workflow_server flood-loops "refusing dispatch
+// (ABANDONED)" every ~30 ms forever.
 var allowedUnitPrefixes = []string{
 	"globular-",
 	"scylla-server",
 	"scylla-manager",
+	"keepalived",
 }
 
 // runSystemctlFn and getUnitStateFn are seams for tests to substitute the

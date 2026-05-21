@@ -45,6 +45,17 @@ func (artifactIntegrity) Evaluate(snap *collector.Snapshot, cfg Config) []Findin
 			// Remediation depends on the specific invariant.
 			rem := remediationFor(f.Invariant, nodeID, f.Package, f.Kind)
 
+			// INFO-severity integrity findings (e.g. artifact.cache_missing)
+			// are advisories — "the cache will repopulate on next install".
+			// They must NOT surface as failing invariants, otherwise the
+			// workflow incident scanner opens one OPEN incident per package
+			// for what is a no-op. Same fix as runtime_verification.go's
+			// info-severity guard.
+			status := cluster_doctorpb.InvariantStatus_INVARIANT_FAIL
+			if severity == cluster_doctorpb.Severity_SEVERITY_INFO {
+				status = cluster_doctorpb.InvariantStatus_INVARIANT_PASS
+			}
+
 			findings = append(findings, Finding{
 				FindingID:       FindingID(f.Invariant, nodeID+"/"+f.Package, f.Summary),
 				InvariantID:     f.Invariant,
@@ -54,7 +65,7 @@ func (artifactIntegrity) Evaluate(snap *collector.Snapshot, cfg Config) []Findin
 				Summary:         fmt.Sprintf("[%s] %s/%s: %s", shortNodeID(nodeID), f.Kind, f.Package, f.Summary),
 				Evidence:        evidenceFromMap(f.Invariant, f.Evidence),
 				Remediation:     rem,
-				InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+				InvariantStatus: status,
 			})
 		}
 	}

@@ -134,11 +134,27 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 				Platform:    platform,
 				Kind:        kindToProto(k),
 			})
+			// Binary-vs-binary domain rule: prefer the entrypoint_checksum
+			// recorded in package metadata over the top-level Checksum
+			// field, because the controller's convergence-committer
+			// overwrites pkg.Checksum with the convergence
+			// desired_hash (a schema-string SHA from
+			// ComputeInfrastructureDesiredHash / ComputeReleaseDesiredHash) so
+			// its drift reconciler can match installed_checksum == desired_hash.
+			// Comparing that against the manifest's entrypoint_checksum
+			// (a binary SHA) crosses domains and fires
+			// artifact.installed_digest_mismatch on every healthy
+			// service. The metadata field is the binary hash node-agent
+			// computed at install time and is the only safe input here.
+			entrypoint := ""
+			if md := p.GetMetadata(); md != nil {
+				entrypoint = normalizeSHA256Digest(md["entrypoint_checksum"])
+			}
 			installedMap[k+"/"+name] = installedRef{
 				ref:         pkgs[len(pkgs)-1],
 				kind:        k,
 				build:       p.GetBuildNumber(),
-				checksum:    normalizeSHA256Digest(p.GetChecksum()),
+				checksum:    entrypoint,
 				installedAt: p.GetInstalledUnix(),
 			}
 		}
@@ -249,7 +265,15 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 					},
 				})
 				report.Invariants["artifact.desired_version_mismatch"]++
-			} else if d.build > 0 && d.build != inst.build {
+			} else if d.build > 0 && inst.build > 0 && d.build != inst.build {
+				// inst.build == 0 means installed_state was written before
+				// build_number tracking was rigorous (or by a code path
+				// that left it unset). The convergence-committer stamps
+				// buildNumber from desired on the next convergence pass,
+				// so this is a "will catch up" state — not a real drift.
+				// Without this guard, every fresh cluster shows ~10–15
+				// WARN findings (one per service where installed_state
+				// predates build_number) that operators can't act on.
 				report.Findings = append(report.Findings, integrityFinding{
 					Invariant: "artifact.desired_build_mismatch",
 					Severity:  "WARN",
