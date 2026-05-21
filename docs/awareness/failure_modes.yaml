@@ -1658,12 +1658,12 @@ failure_modes:
       symptoms:
         - https://<domain>/ returns 503 {"error":"object store unavailable"} from the gateway
         - sudo ls /mnt/data/data/.minio.sys/format.json fluctuates between present and missing every ~30 seconds
-        - MinIO logs spam "Unable to load healing tracker on '/mnt/data/data': unformatted drive found, re-initializing"
-        - MinIO logs spam "Error: Read failed. Insufficient number of drives online" on every node
-        - node-agent logs show "minio-systemd: clearing /mnt/data/data/.minio.sys — approved destructive topology transition" repeating on each syncTicker
+        - "MinIO logs spam \"Unable to load healing tracker on '/mnt/data/data': unformatted drive found, re-initializing\""
+        - "MinIO logs spam \"Error: Read failed. Insufficient number of drives online\" on every node"
+        - "node-agent logs show \"minio-systemd: clearing /mnt/data/data/.minio.sys — approved destructive topology transition\" repeating on each syncTicker"
         - etcd /globular/objectstore/topology/transition/<gen> exists with is_destructive=true approved=true
         - all 5 nodes show .minio.sys/buckets/, .minio.sys/config/, .minio.sys/multipart/ as freshly created empty dirs with no format.json
-        - distributed pool never reaches quorum; outage persists indefinitely (observed: 11+ hours before manual intervention)
+        - "distributed pool never reaches quorum; outage persists indefinitely (observed: 11+ hours before manual intervention)"
       root_cause: |
         clearMinioSysIfTransitionApproved (golang/node_agent/node_agent_server/minio_systemd_reconcile.go)
         gates the .minio.sys wipe purely on the etcd TopologyTransition record's IsDestructive +
@@ -1726,8 +1726,8 @@ failure_modes:
         - MinIO logs "unformatted drive found" on every node, never progresses past healing
         - mc admin heal cannot bootstrap because it needs a quorum of formatted drives to start
         - bucket xl.meta files are intact on disk but unreadable through MinIO (no format = no UUID mapping)
-        - operator's only options were: accept full data loss + reformat, or restore .minio.sys from offline backup (if one exists)
-        - same failure surfaces from many independent causes: approved destructive transition, container ephemeral storage, accidental rm, filesystem corruption, volume re-mount with wrong path
+        - "operator's only options were: accept full data loss + reformat, or restore .minio.sys from offline backup (if one exists)"
+        - "same failure surfaces from many independent causes: approved destructive transition, container ephemeral storage, accidental rm, filesystem corruption, volume re-mount with wrong path"
       root_cause: |
         format.json contains per-drive identity (disk UUID, pool/set index) AND the cluster's
         DeploymentID. MinIO writes it once when a drive is first formatted. There is no
