@@ -107,6 +107,17 @@ def sha256_source_tree(dirpath, extensions=(".go",)):
 
 # Shared Go packages that affect all consumers. Changes here mark ALL
 # Go services as changed.
+#
+# The list is conservative — only include packages that are imported by
+# multiple service binaries AND whose changes are not detectable by
+# hashing each service's own source tree. The v1.2.59 incident: a fix
+# to golang/verifier/ silently shipped only into cluster_controller
+# (own source changed for unrelated reasons) and was skipped for
+# cluster_doctor (own source unchanged), leaving the doctor stuck
+# emitting old bootstrap_ordering_skew severities and the UI red on
+# every fresh install. The correct long-term fix is to walk
+# `go list -deps` per service; until then, keep this list current with
+# any package consumed by more than one binary.
 SHARED_GO_PACKAGES = [
     "globular_service",
     "interceptors",
@@ -114,6 +125,14 @@ SHARED_GO_PACKAGES = [
     "security",
     "dephealth",
     "subsystem",
+    # Phase 9 (Diagnostic Honesty Refactor) shared evidence + verdict
+    # packages — consumed by cluster_doctor (sweep) and cluster_controller
+    # (release pipeline + version health). Forgetting these caused the
+    # v1.2.59 regression above.
+    "verifier",
+    "crossnodedrift",
+    "fallback",
+    "installed_state",
 ]
 
 
