@@ -1783,6 +1783,167 @@ failure_modes:
         - TestFormatBackup_PurgedAfterApprovedDestructiveTransition
         - TestFormatBackup_NeverOverwritesValidOnDiskFormat
 
+    - id: package.installed_binary_hash_mismatch
+      title: Installed binary on disk does not match the artifact manifest the controller intended to ship
+      severity: critical
+      symptoms:
+        - node-agent reports installed-state Checksum matching the desired hash, but a re-hash of /usr/lib/globular/bin/<name> at convergence time disagrees
+        - verifier emits package.installed_binary_hash_mismatch
+        - service appears installed per inventory; a doctor sweep that re-hashes the file finds drift
+      root_cause: |
+        Phase 1 of the refactor gates apply_package on a post-install hash
+        check; if that gate is bypassed or the on-disk bytes are replaced
+        out-of-band after apply (manual scp, rogue ansible run, container
+        restart restoring an older layer), the installed-state record drifts
+        from the actual artifact. Doctor that only reads installed-state
+        won't catch it — Phase 9's verifier re-hashes via GetServiceRuntimeProof
+        and surfaces the gap.
+      architecture_fix: |
+        Phase 1 enforces hash match at apply time; Phase 9 verifier re-checks
+        at convergence time via ServiceRuntimeProof.InstalledSha256 (the proof
+        re-hashes the file rather than trusting the stored checksum). Doctor
+        consumes /globular/verification/runtime/<node>/<service> and raises
+        this finding when proof and claim diverge.
+      known_bad_fixes:
+        - Re-running apply without finding out who replaced the binary (treats the symptom; the next out-of-band write recurs)
+        - Trusting the inventory Checksum and ignoring the proof (the lie the refactor exists to remove)
+      related_invariants:
+        - diagnostics.must_measure_reality
+        - doctor.must_compare_claims_to_proofs
+      required_tests:
+        - TestVerifyTarget_OldBinaryOnDisk_InstalledHashMismatch
+
+    - id: service.running_binary_hash_mismatch
+      title: Running process is executing a different binary than what is installed on disk
+      severity: critical
+      symptoms:
+        - /proc/<pid>/exe hashes to a different value than /usr/lib/globular/bin/<name>
+        - new binary was deployed but the live PID is still running the old one (systemd restart didn't take, or the new file was deleted before the restart)
+        - verifier emits service.running_binary_hash_mismatch
+        - cluster appears converged (controller, inventory, systemd active) but RPCs hit the old code paths
+      root_cause: |
+        systemd's notion of "active" tracks the supervised PID's existence,
+        not the bytes it loaded. A binary swap that succeeds on disk but
+        whose restart fails silently leaves the cluster in this state: disk
+        is right, inventory is right, ActiveState=active, but the process
+        is the previous incarnation.
+
+        Without Phase 2's GetServiceRuntimeProof RPC, nothing in Globular
+        re-reads /proc/<pid>/exe. Health checks trust ActiveState; doctor
+        trusts inventory. The drift is invisible until a downstream check
+        (an RPC that exercises a new feature, a version probe) fails.
+      architecture_fix: |
+        Phase 2 added GetServiceRuntimeProof on node-agent which dereferences
+        /proc/<pid>/exe and hashes the result. Phase 9 verifier compares
+        running_exe_sha256 to installed_sha256 and emits this finding when
+        they disagree. The contract is that a successful release is one
+        where every layer (disk, /proc, runtime version, systemd
+        effective unit) agrees — not just one or two.
+      known_bad_fixes:
+        - Manually `systemctl restart` and assuming it took (it's the same failure mode — re-verify after restart, don't assume)
+        - Trusting systemctl is-active (active says the PID exists, not that it runs the right bytes)
+      related_invariants:
+        - diagnostics.must_measure_reality
+        - doctor.must_compare_claims_to_proofs
+      required_tests:
+        - TestVerifyTarget_NewBinaryOldPid_RunningBinaryHashMismatch
+
+    - id: service.old_pid_after_upgrade
+      title: Live process predates the last apply — restart did not take effect
+      severity: critical
+      symptoms:
+        - ProcessStartTime (from systemctl show ExecMainStartTimestamp) is older than the controller's last apply timestamp for this service
+        - same PID has been running since before the upgrade was commanded
+        - verifier emits service.old_pid_after_upgrade
+      root_cause: |
+        A package install / version bump that succeeded on disk but whose
+        unit reload-or-restart didn't actually replace the PID. Common
+        causes: a TimeoutStopSec that exceeded the systemd kill window, a
+        manual `systemctl daemon-reload` without `restart`, or a drop-in
+        override that pinned RestartPolicy.
+
+        ProcessStartTime is the cheapest signal that "the apply actually
+        had an effect." Phase 9's verifier reads it from GetServiceRuntimeProof
+        and compares against the target's ApplyTime.
+      architecture_fix: |
+        Phase 2 carries ProcessStartTime; Phase 9 compares to the
+        controller-tracked apply time for the target. If start < apply,
+        the verifier raises this finding regardless of whether other
+        proofs agree — the operator decides whether to force-restart or
+        investigate the unit configuration.
+      known_bad_fixes:
+        - Assuming a fresh systemctl restart cycles the PID (drop-in overrides may prevent restart; verify ProcessStartTime advanced)
+        - Bumping the version and hoping the next deploy will catch it (silent for an entire release window)
+      related_invariants:
+        - rollout.convergence_requires_runtime_proof
+      required_tests:
+        - TestVerifyTarget_ProcessOlderThanApply_OldPidAfterUpgrade
+
+    - id: service.running_version_mismatch
+      title: Live process /version response disagrees with the desired version
+      severity: critical
+      symptoms:
+        - runtime_version from GetServiceRuntimeProof != ServiceReleaseSpec.Version
+        - verifier emits service.running_version_mismatch
+        - service is responsive but answers RPCs as the wrong major.minor
+      root_cause: |
+        Runtime version reporting (each service exposing its version via a
+        /version endpoint or a gRPC reflection method) is the strongest
+        single-field proof that "the binary running is the binary intended."
+        Disagreement implies one of: the binary on disk is wrong (different
+        finding, hash check catches that first), the runtime version probe
+        is reading from a stale source, or the running PID is from an old
+        deploy (service.old_pid_after_upgrade catches that).
+
+        When all hash checks agree but runtime version disagrees, the most
+        likely cause is a binary that was rebuilt without bumping the
+        embedded version constant — a build hygiene issue rather than a
+        deploy issue.
+      architecture_fix: |
+        Phase 2 captures runtime_version when the service exposes one
+        (services without a /version endpoint emit an entry in proof.Errors
+        and the verifier degrades to service.runtime_identity_unproven
+        rather than blanket-passing). Phase 9 raises this finding when
+        runtime_version != desired_version.
+      known_bad_fixes:
+        - Trusting the build tag in /etc/globular and never probing the live process (defeats the point of runtime proof)
+        - Hard-coding version strings into source (forbidden by an existing invariant; build flags inject the value via ldflags)
+      related_invariants:
+        - health.must_not_use_inventory_as_runtime_truth
+      required_tests:
+        - TestVerifyTarget_RuntimeVersionDiffers_VersionMismatch
+        - TestDecideVersionVerdict_BuildIdsDiffer_VersionsDiffer_Mismatch
+
+    - id: service.runtime_identity_unproven
+      title: Runtime proof is partial — at least one collection step failed
+      severity: degraded
+      symptoms:
+        - GetServiceRuntimeProof returns a ServiceRuntimeProof with non-empty Errors[]
+        - verifier degrades the target to ProofUnknown
+        - operator sees the service in service health but cannot tell whether it actually matches desired state
+      root_cause: |
+        Diagnostic honesty rule: missing proof is NOT proof of failure, but
+        it is also NOT proof of success. When the verifier cannot read
+        /proc/<pid>/exe (PID died mid-check, permission denied), cannot
+        reach systemctl show (systemd-coredumped, broken IPC), or cannot
+        hash the binary (filesystem error), the resulting verdict is
+        unknown and this finding is raised at degraded severity.
+      architecture_fix: |
+        The verifier returns the proof partial and surfaces the specific
+        collection errors in Finding.Evidence["errors"]. Operators see
+        which sub-check failed and remediate it (typically: re-run the
+        proof after the transient condition clears). Persisting the
+        degraded state lets doctor enumerate "what proofs we don't have"
+        independently of "what proofs we have that disagree."
+      known_bad_fixes:
+        - Treating a single collection error as a green outcome ("at least the rest agreed")
+        - Treating a single collection error as a critical outcome ("partial proof is suspicious") — both lose the distinction between "we don't know" and "we know it's wrong"
+      related_invariants:
+        - diagnostics.must_measure_reality
+      required_tests:
+        - TestVerifyTarget_ErrorsOnly_DegradesUnknown
+        - TestVerifyTarget_NoProof_Unknown
+
     - id: cluster.cross_node_file_drift
       title: A cluster-visible file disagrees across nodes that were supposed to be in lockstep
       severity: degraded
