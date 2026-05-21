@@ -8,17 +8,27 @@ package collector
 // etcd, line up per-node ServiceRuntimeProofs already gathered by
 // fetchPerNode, call verifier.VerifyTarget, AggregateResult, write each
 // per-(node, service) result to /globular/verification/runtime/<node>/<svc>.
+//
+// v1.2.57 hash-schema fix (claude_fix_verifier_hash_schema_false_positive.md):
+// the verifier's binary comparison surface must be fed with the binary
+// entrypoint_checksum (sha256 of /usr/lib/globular/bin/<name>), NOT the
+// package tarball digest. The repository's ArtifactManifest carries both
+// fields; we look up the manifest by (publisher, name, version, build_number)
+// and cache the result by build_id so we only pay the RPC once per release.
 
 import (
 	"context"
 	"encoding/json"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/verifier"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
@@ -75,10 +85,20 @@ func (c *Collector) fetchDesiredServiceTargets(ctx context.Context, snap *Snapsh
 		}
 		snap.addSource("etcd.InfrastructureRelease/*")
 	}
+
+	// ── Enrich every target with entrypoint_checksum from the repo ──
+	// (runs after the etcd reads above so we make ONE pass over the
+	// resolved set, deduplicating by build_id.)
+	c.enrichTargetsWithEntrypointChecksum(ctx, snap)
 }
 
 // serviceReleaseToTarget maps a ServiceRelease object into a target.
 // Returns nil for releases that have no resolved version (PENDING/WAITING).
+//
+// Note: DesiredEntrypointChecksum is NOT populated here — the release
+// status carries only the package tarball digest. The collector fills
+// the binary checksum in enrichTargetsWithEntrypointChecksum by looking
+// up the repository manifest.
 func serviceReleaseToTarget(rel *cluster_controllerpb.ServiceRelease, nodes []*cluster_controllerpb.NodeRecord) *DesiredServiceTarget {
 	if rel == nil || rel.Spec == nil || rel.Status == nil {
 		return nil
@@ -88,14 +108,14 @@ func serviceReleaseToTarget(rel *cluster_controllerpb.ServiceRelease, nodes []*c
 	}
 	required := requiredNodesFromStatus(rel.Status.Nodes, nodes)
 	return &DesiredServiceTarget{
-		Service:        strings.TrimSpace(rel.Spec.ServiceName),
-		PublisherID:    rel.Spec.PublisherID,
-		DesiredVersion: rel.Status.ResolvedVersion,
-		DesiredBuildID: rel.Status.ResolvedBuildID,
-		DesiredHash:    rel.Status.ResolvedArtifactDigest,
-		RuntimeNeeded:  true, // ServiceRelease implies a running systemd unit
-		RequiredNodes:  required,
-		ApplyTime:      lastTransitionFromStatus(rel.Status.LastTransitionUnixMs),
+		Service:              strings.TrimSpace(rel.Spec.ServiceName),
+		PublisherID:          rel.Spec.PublisherID,
+		DesiredVersion:       rel.Status.ResolvedVersion,
+		DesiredBuildID:       rel.Status.ResolvedBuildID,
+		DesiredPackageDigest: rel.Status.ResolvedArtifactDigest, // tarball — kept separate
+		RuntimeNeeded:        true,                              // ServiceRelease implies a running systemd unit
+		RequiredNodes:        required,
+		ApplyTime:            lastTransitionFromStatus(rel.Status.LastTransitionUnixMs),
 	}
 }
 
@@ -111,11 +131,11 @@ func infraReleaseToTarget(rel *cluster_controllerpb.InfrastructureRelease, nodes
 	}
 	required := requiredNodesFromStatus(rel.Status.Nodes, nodes)
 	return &DesiredServiceTarget{
-		Service:        strings.TrimSpace(rel.Spec.Component),
-		PublisherID:    rel.Spec.PublisherID,
-		DesiredVersion: rel.Status.ResolvedVersion,
-		DesiredBuildID: rel.Status.ResolvedBuildID,
-		DesiredHash:    rel.Status.ResolvedArtifactDigest,
+		Service:              strings.TrimSpace(rel.Spec.Component),
+		PublisherID:          rel.Spec.PublisherID,
+		DesiredVersion:       rel.Status.ResolvedVersion,
+		DesiredBuildID:       rel.Status.ResolvedBuildID,
+		DesiredPackageDigest: rel.Status.ResolvedArtifactDigest,
 		// COMMAND-kind components have no systemd unit; the verifier itself
 		// derives this distinction from the proof's effective-state fields.
 		// We keep RuntimeNeeded true here and let absent-unit data degrade
@@ -124,6 +144,92 @@ func infraReleaseToTarget(rel *cluster_controllerpb.InfrastructureRelease, nodes
 		RequiredNodes: required,
 		ApplyTime:     lastTransitionFromStatus(rel.Status.LastTransitionUnixMs),
 	}
+}
+
+// enrichTargetsWithEntrypointChecksum fills DesiredEntrypointChecksum on
+// every target by looking up the artifact manifest in the repository.
+// One RPC per unique build_id; results cached so a re-resolution of the
+// same release doesn't re-fetch.
+//
+// Best-effort: a manifest fetch failure leaves the target's
+// DesiredEntrypointChecksum empty, which the verifier handles cleanly
+// (it degrades to runtime_identity_unproven instead of asserting drift
+// against a hole — diagnostic-honesty rule).
+func (c *Collector) enrichTargetsWithEntrypointChecksum(ctx context.Context, snap *Snapshot) {
+	if c.repoClient == nil || len(snap.DesiredServiceTargets) == 0 {
+		return
+	}
+	cache := newEntrypointCache()
+	fetchCtx, cancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+	defer cancel()
+
+	for _, dst := range snap.DesiredServiceTargets {
+		if dst == nil || strings.TrimSpace(dst.DesiredBuildID) == "" {
+			continue
+		}
+		cs := cache.lookupOrFetch(fetchCtx, c, dst)
+		if cs != "" {
+			dst.DesiredEntrypointChecksum = cs
+		}
+	}
+}
+
+// entrypointCache memoizes entrypoint_checksum lookups by build_id so we
+// only pay one RPC per unique release across the whole desired set.
+type entrypointCache struct {
+	mu sync.Mutex
+	m  map[string]string // build_id → entrypoint_checksum (or "" for miss)
+}
+
+func newEntrypointCache() *entrypointCache {
+	return &entrypointCache{m: make(map[string]string)}
+}
+
+func (e *entrypointCache) lookupOrFetch(ctx context.Context, c *Collector, dst *DesiredServiceTarget) string {
+	bid := strings.TrimSpace(dst.DesiredBuildID)
+	e.mu.Lock()
+	cs, hit := e.m[bid]
+	e.mu.Unlock()
+	if hit {
+		return cs
+	}
+
+	req := &repopb.GetArtifactManifestRequest{
+		Ref: &repopb.ArtifactRef{
+			PublisherId: strings.TrimSpace(dst.PublisherID),
+			Name:        strings.TrimSpace(dst.Service),
+			Version:     strings.TrimSpace(dst.DesiredVersion),
+		},
+	}
+	resp, err := c.repoClient.GetArtifactManifest(ctx, req)
+	got := ""
+	if err == nil && resp != nil && resp.GetManifest() != nil {
+		got = normalizeEntrypointChecksum(resp.GetManifest().GetEntrypointChecksum())
+		// Belt-and-suspenders: verify the manifest's build_id matches
+		// the desired build_id we asked for. Mismatch means the
+		// resolver and the repository disagree about which build is
+		// installable — log it loudly and refuse the value (better to
+		// degrade to unproven than to apply the wrong checksum).
+		if rid := strings.TrimSpace(resp.GetManifest().GetBuildId()); rid != "" && rid != bid {
+			log.Printf("verification: repo returned build_id=%s for %s but desired=%s — refusing checksum",
+				rid, dst.Service, bid)
+			got = ""
+		}
+	} else if err != nil {
+		log.Printf("verification: GetArtifactManifest(%s) failed: %v", dst.Service, err)
+	}
+
+	e.mu.Lock()
+	e.m[bid] = got
+	e.mu.Unlock()
+	return got
+}
+
+// normalizeEntrypointChecksum strips the sha256: prefix and lower-cases
+// so comparisons in the verifier always succeed when the bytes match.
+func normalizeEntrypointChecksum(h string) string {
+	h = strings.ToLower(strings.TrimSpace(h))
+	return strings.TrimPrefix(h, "sha256:")
 }
 
 // requiredNodesFromStatus extracts the node-id list from the per-node
@@ -176,13 +282,15 @@ func (c *Collector) runVerification(ctx context.Context, snap *Snapshot) {
 	for _, dst := range snap.DesiredServiceTargets {
 		for _, nodeID := range dst.RequiredNodes {
 			tgt := verifier.Target{
-				Service:        dst.Service,
-				NodeID:         nodeID,
-				DesiredVersion: dst.DesiredVersion,
-				DesiredBuildID: dst.DesiredBuildID,
-				DesiredHash:    dst.DesiredHash,
-				RuntimeNeeded:  dst.RuntimeNeeded,
-				ApplyTime:      dst.ApplyTime,
+				Service:                   dst.Service,
+				NodeID:                    nodeID,
+				DesiredVersion:            dst.DesiredVersion,
+				DesiredBuildID:            dst.DesiredBuildID,
+				DesiredEntrypointChecksum: dst.DesiredEntrypointChecksum,
+				DesiredPackageDigest:      dst.DesiredPackageDigest,
+				RuntimeNeeded:             dst.RuntimeNeeded,
+				ApplyTime:                 dst.ApplyTime,
+				IsFirstInstall:            isFirstInstall(ctx, nodeID, dst),
 			}
 			ev := verifier.Evidence{
 				Proof: findProofForService(snap.RuntimeProofs[nodeID], dst.Service),
@@ -201,6 +309,47 @@ func (c *Collector) runVerification(ctx context.Context, snap *Snapshot) {
 	snap.addSource("verifier.AggregateResult")
 
 	c.persistVerificationResults(ctx, snap, &r)
+}
+
+// isFirstInstall returns true when the InstalledPackage for this
+// (node, service) was written within ~60 seconds of its updatedUnix —
+// i.e. install and update were the same operation, no upgrade has run
+// since. The heuristic is loose on purpose: a fresh install records
+// installedUnix == updatedUnix; any subsequent re-apply bumps
+// updatedUnix while leaving installedUnix alone.
+//
+// The result drives the verifier's classification of an
+// older-than-apply process as bootstrap_ordering_skew (degraded) on
+// first install vs old_pid_after_upgrade (critical) on upgrade.
+//
+// On lookup failure we default to false (treat as upgrade) — that
+// keeps the strict default: missing evidence does not turn a real
+// upgrade-bug into a benign info row.
+func isFirstInstall(ctx context.Context, nodeID string, dst *DesiredServiceTarget) bool {
+	if dst == nil {
+		return false
+	}
+	pkg, err := installed_state.GetInstalledPackage(ctx, nodeID, "SERVICE", dst.Service)
+	if err != nil || pkg == nil {
+		// Try INFRASTRUCTURE kind before giving up — same package may
+		// register under either depending on its catalog kind.
+		pkg, err = installed_state.GetInstalledPackage(ctx, nodeID, "INFRASTRUCTURE", dst.Service)
+		if err != nil || pkg == nil {
+			return false
+		}
+	}
+	installedUnix := pkg.GetInstalledUnix()
+	updatedUnix := pkg.GetUpdatedUnix()
+	if installedUnix == 0 {
+		return false
+	}
+	// Within 60s = same operation. The Day-0 install path writes
+	// installed and updated within milliseconds of each other.
+	delta := updatedUnix - installedUnix
+	if delta < 0 {
+		delta = -delta
+	}
+	return delta <= 60
 }
 
 // findProofForService scans a per-node proofs slice for the matching

@@ -41,10 +41,10 @@ func proofMatching(t Target, opts ...func(*node_agentpb.ServiceRuntimeProof)) *n
 		ExpectedBuildId:    t.DesiredBuildID,
 		ExpectedVersion:    t.DesiredVersion,
 		InstalledPath:      "/usr/lib/globular/bin/" + t.Service,
-		InstalledSha256:    t.DesiredHash,
+		InstalledSha256:    t.DesiredEntrypointChecksum,
 		RunningPid:         4242,
 		RunningExePath:     "/usr/lib/globular/bin/" + t.Service,
-		RunningExeSha256:   t.DesiredHash,
+		RunningExeSha256:   t.DesiredEntrypointChecksum,
 		SystemdActiveState: "active",
 		SystemdSubState:    "running",
 		SystemdUnitPath:    "/etc/systemd/system/globular-" + t.Service + ".service",
@@ -59,13 +59,17 @@ func proofMatching(t Target, opts ...func(*node_agentpb.ServiceRuntimeProof)) *n
 
 func targetFoo() Target {
 	return Target{
-		Service:        "foo",
-		NodeID:         "ryzen",
-		DesiredVersion: "1.2.0",
-		DesiredBuildID: "build-uuid-foo-v1",
-		DesiredHash:    hashA,
-		RuntimeNeeded:  true,
-		ApplyTime:      time.Unix(1700000000, 0),
+		Service:                   "foo",
+		NodeID:                    "ryzen",
+		DesiredVersion:            "1.2.0",
+		DesiredBuildID:            "build-uuid-foo-v1",
+		DesiredEntrypointChecksum: hashA,
+		// DesiredPackageDigest is intentionally a DIFFERENT hash so any
+		// future test that accidentally compares binary against tarball
+		// fails loud instead of accidentally matching.
+		DesiredPackageDigest: hashC,
+		RuntimeNeeded:        true,
+		ApplyTime:            time.Unix(1700000000, 0),
 	}
 }
 
@@ -393,6 +397,168 @@ func TestVerifyTarget_ReasonNamesFindings(t *testing.T) {
 	v := VerifyTarget(tgt, ev, time.Now())
 	if !strings.Contains(v.Reason, FindingRunningBinaryHashMismatch) {
 		t.Errorf("Reason=%q must name the finding", v.Reason)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Hash-schema regression tests (v1.2.57).
+//
+// v1.2.56 shipped a false-positive package.installed_binary_hash_mismatch
+// finding on every service because the verifier compared the binary on
+// disk to the package tarball digest. These tests pin the rule that
+// binary-vs-binary is the only legitimate comparison the verifier makes
+// against InstalledSha256 / RunningExeSha256, and that
+// DesiredPackageDigest is kept separately for future tarball audits.
+//
+// Exact observed shape from ryzen at 2026-05-21T00:36:01Z:
+//
+//   package_digest        = 5969ba6fa0b52d3d0066ba2df6a550cd55ba136de4bf5ed05faff82a78480f79
+//   entrypoint_checksum   = 97c72402ea8cc361d083385680bb7c831e525128f4945bed15a00ad4defd547d
+//   installed_sha256      = 97c72402ea8cc361d083385680bb7c831e525128f4945bed15a00ad4defd547d
+//
+// Expected verdict: clean. (v1.2.56 raised installed_binary_hash_mismatch.)
+// ─────────────────────────────────────────────────────────────────────
+
+const (
+	observedPackageDigest      = "5969ba6fa0b52d3d0066ba2df6a550cd55ba136de4bf5ed05faff82a78480f79"
+	observedEntrypointChecksum = "97c72402ea8cc361d083385680bb7c831e525128f4945bed15a00ad4defd547d"
+)
+
+func TestVerifyTarget_ObservedShape_NoFalsePositive(t *testing.T) {
+	// Reproduces the exact ryzen 2026-05-21T00:36:01Z case. The binary
+	// on disk matches the entrypoint_checksum; the package tarball
+	// digest is unrelated. v1.2.56 raised installed_binary_hash_mismatch
+	// here; v1.2.57 must not.
+	tgt := Target{
+		Service:                   "file",
+		NodeID:                    "ryzen",
+		DesiredVersion:            "1.2.56",
+		DesiredBuildID:            "019e486f-ffb6-7b58-9087-c41946233781",
+		DesiredEntrypointChecksum: observedEntrypointChecksum,
+		DesiredPackageDigest:      observedPackageDigest, // different value — must NOT be compared against the binary
+		RuntimeNeeded:             true,
+		ApplyTime:                 time.Now().Add(-time.Hour),
+	}
+	ev := Evidence{Proof: &node_agentpb.ServiceRuntimeProof{
+		ServiceName:        "file",
+		NodeId:             "ryzen",
+		InstalledPath:      "/usr/lib/globular/bin/file_server",
+		InstalledSha256:    observedEntrypointChecksum, // binary matches entrypoint_checksum
+		RunningPid:         204587,
+		RunningExePath:     "/usr/lib/globular/bin/file_server",
+		RunningExeSha256:   observedEntrypointChecksum,
+		ProcessStartTime:   timestamppb.New(time.Now().Add(-time.Minute)),
+		SystemdActiveState: "active",
+		SystemdSubState:    "running",
+	}}
+	v := VerifyTarget(tgt, ev, time.Now())
+	if findingsContain(v.Findings, FindingInstalledBinaryHashMismatch) {
+		t.Fatalf("v1.2.56 false-positive must not return: findings=%+v", v.Findings)
+	}
+	if findingsContain(v.Findings, FindingRunningBinaryHashMismatch) {
+		t.Fatalf("running-vs-installed comparison must agree when both equal entrypoint_checksum: %+v", v.Findings)
+	}
+}
+
+func TestVerifyTarget_RealBinaryMismatch_StillFires(t *testing.T) {
+	// Negative test: when the binary on disk genuinely differs from
+	// the desired entrypoint_checksum, the finding MUST fire. The fix
+	// reduces noise; it does not weaken diagnostic honesty.
+	tgt := Target{
+		Service:                   "file",
+		NodeID:                    "ryzen",
+		DesiredVersion:            "1.2.56",
+		DesiredEntrypointChecksum: observedEntrypointChecksum,
+		DesiredPackageDigest:      observedPackageDigest,
+		RuntimeNeeded:             true,
+		ApplyTime:                 time.Now().Add(-time.Hour),
+	}
+	ev := Evidence{Proof: &node_agentpb.ServiceRuntimeProof{
+		ServiceName:        "file",
+		NodeId:             "ryzen",
+		InstalledPath:      "/usr/lib/globular/bin/file_server",
+		InstalledSha256:    hashB, // wrong bytes on disk
+		RunningExeSha256:   hashB,
+		ProcessStartTime:   timestamppb.New(time.Now().Add(-time.Minute)),
+		SystemdActiveState: "active",
+	}}
+	v := VerifyTarget(tgt, ev, time.Now())
+	if !findingsContain(v.Findings, FindingInstalledBinaryHashMismatch) {
+		t.Errorf("real binary mismatch must fire installed_binary_hash_mismatch; got %+v", v.Findings)
+	}
+}
+
+func TestVerifyTarget_PackageDigestNotComparedToBinary(t *testing.T) {
+	// Stronger pin: even with a totally hostile package_digest value
+	// (the same hash byte-equal to hashB which would otherwise be a
+	// "wrong binary" hash), the verifier MUST NOT use it for the binary
+	// comparison. Binary-vs-binary is the only comparison this surface
+	// makes.
+	tgt := Target{
+		Service:                   "x",
+		NodeID:                    "n",
+		DesiredEntrypointChecksum: hashA,
+		DesiredPackageDigest:      hashB, // a value byte-equal to what an old buggy verifier would have used
+		RuntimeNeeded:             true,
+		ApplyTime:                 time.Now().Add(-time.Hour),
+	}
+	ev := Evidence{Proof: &node_agentpb.ServiceRuntimeProof{
+		ServiceName:        "x",
+		InstalledSha256:    hashA, // binary correct (matches entrypoint)
+		RunningExeSha256:   hashA,
+		ProcessStartTime:   timestamppb.New(time.Now().Add(-time.Minute)),
+		SystemdActiveState: "active",
+	}}
+	v := VerifyTarget(tgt, ev, time.Now())
+	if findingsContain(v.Findings, FindingInstalledBinaryHashMismatch) {
+		t.Fatalf("verifier compared binary against DesiredPackageDigest — schema regression: %+v", v.Findings)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// bootstrap_ordering_skew classification — first install vs upgrade.
+// ─────────────────────────────────────────────────────────────────────
+
+func TestVerifyTarget_FirstInstallProcessOlderThanApply_BootstrapOrderingSkew(t *testing.T) {
+	// On a fresh install, install.sh starts services before the
+	// controller bootstrap records the apply. The verifier must NOT
+	// raise old_pid_after_upgrade (critical) for this expected
+	// sequencing; it raises bootstrap_ordering_skew (degraded) instead.
+	tgt := targetFoo()
+	tgt.IsFirstInstall = true
+	ev := Evidence{Proof: proofMatching(tgt, func(p *node_agentpb.ServiceRuntimeProof) {
+		p.ProcessStartTime = timestamppb.New(tgt.ApplyTime.Add(-time.Hour))
+	})}
+	v := VerifyTarget(tgt, ev, time.Now())
+	if findingsContain(v.Findings, FindingOldPidAfterUpgrade) {
+		t.Errorf("first install must NOT fire old_pid_after_upgrade; got %+v", v.Findings)
+	}
+	if !findingsContain(v.Findings, FindingBootstrapOrderingSkew) {
+		t.Errorf("first install with process older than apply must fire bootstrap_ordering_skew; got %+v", v.Findings)
+	}
+	for _, f := range v.Findings {
+		if f.ID == FindingBootstrapOrderingSkew && f.Severity != SeverityDegraded {
+			t.Errorf("bootstrap_ordering_skew must be degraded; got %q", f.Severity)
+		}
+	}
+}
+
+func TestVerifyTarget_UpgradeProcessOlderThanApply_StillCritical(t *testing.T) {
+	// Same timing, but it's an upgrade — restart didn't take, this IS
+	// stale bytes serving. Must stay critical.
+	tgt := targetFoo()
+	tgt.IsFirstInstall = false
+	ev := Evidence{Proof: proofMatching(tgt, func(p *node_agentpb.ServiceRuntimeProof) {
+		p.ProcessStartTime = timestamppb.New(tgt.ApplyTime.Add(-time.Hour))
+	})}
+	v := VerifyTarget(tgt, ev, time.Now())
+	if !findingsContain(v.Findings, FindingOldPidAfterUpgrade) {
+		t.Errorf("upgrade with process older than apply must fire old_pid_after_upgrade; got %+v", v.Findings)
+	}
+	for _, f := range v.Findings {
+		if f.ID == FindingOldPidAfterUpgrade && f.Severity != SeverityCritical {
+			t.Errorf("old_pid_after_upgrade must be critical; got %q", f.Severity)
+		}
 	}
 }
 

@@ -15,14 +15,29 @@ import (
 // against per-node runtime proofs. Populated from ServiceRelease and
 // InfrastructureRelease in etcd by the collector's
 // fetchDesiredServiceTargets step. Phase 9 wire-up.
+//
+// HASH SCHEMA — kept separate by kind so the verifier can compare like-to-like:
+//
+//   DesiredEntrypointChecksum  binary sha256 — fetched from repository manifest
+//                              (entrypoint_checksum field). Compared against
+//                              ServiceRuntimeProof.InstalledSha256 and
+//                              ServiceRuntimeProof.RunningExeSha256.
+//
+//   DesiredPackageDigest       package tarball sha256 — same as
+//                              rel.Status.ResolvedArtifactDigest. Reserved
+//                              for future tarball-integrity audits.
+//                              NEVER compared against a binary hash.
+//
+// Mixing these two was the v1.2.56 false-positive bug. Don't.
 type DesiredServiceTarget struct {
-	Service        string
-	PublisherID    string
-	DesiredVersion string
-	DesiredBuildID string
-	DesiredHash    string
-	RuntimeNeeded  bool
-	RequiredNodes  []string
+	Service                   string
+	PublisherID               string
+	DesiredVersion            string
+	DesiredBuildID            string
+	DesiredEntrypointChecksum string
+	DesiredPackageDigest      string
+	RuntimeNeeded             bool
+	RequiredNodes             []string
 	// ApplyTime is the LastTransitionUnixMs of the release status when it
 	// reached AVAILABLE. Used by verifier to detect old_pid_after_upgrade.
 	// Zero disables that sub-check.

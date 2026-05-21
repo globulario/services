@@ -1878,6 +1878,54 @@ failure_modes:
         - rollout.convergence_requires_runtime_proof
       required_tests:
         - TestVerifyTarget_ProcessOlderThanApply_OldPidAfterUpgrade
+        - TestVerifyTarget_UpgradeProcessOlderThanApply_StillCritical
+
+    - id: service.bootstrap_ordering_skew
+      title: Service process started before the controller recorded its apply — expected during fresh install only
+      severity: degraded
+      symptoms:
+        - GetServiceRuntimeProof reports ProcessStartTime earlier than the controller's last apply timestamp
+        - the verifier emits service.bootstrap_ordering_skew (degraded) instead of service.old_pid_after_upgrade (critical)
+        - only fires when IsFirstInstall=true; an upgrade with the same shape fires the critical finding
+      root_cause: |
+        Day-0 install.sh starts services before the controller bootstrap
+        sequence records an apply timestamp for each ServiceRelease /
+        InfrastructureRelease. The result: every service on a fresh node
+        has ProcessStartTime earlier than ApplyTime by minutes-to-hours,
+        even though every binary on disk and every running PID is correct.
+
+        Treating this as service.old_pid_after_upgrade (critical) was the
+        v1.2.56 false-positive: it screams stale-bytes-serving when the
+        bytes are correct — the apply timestamp just hasn't caught up
+        with reality. Operators learned to ignore the finding, which
+        defeats its purpose for the case it's MEANT to catch (a genuine
+        upgrade where systemd restart didn't take).
+      architecture_fix: |
+        The verifier classifies the timing skew with a per-target hint:
+
+          IsFirstInstall=true  → service.bootstrap_ordering_skew (degraded)
+          IsFirstInstall=false → service.old_pid_after_upgrade   (critical)
+
+        The doctor collector populates IsFirstInstall by looking at the
+        InstalledPackage record's installedUnix vs updatedUnix: within
+        60s of each other, this is the same operation (no re-apply has
+        happened since the original install). Any subsequent re-apply
+        bumps updatedUnix; installedUnix is preserved as the original
+        install timestamp.
+
+        Binary-hash checks (installed_binary_hash_mismatch,
+        running_binary_hash_mismatch) remain the authoritative drift
+        signal in both cases. The timing finding is the tell about
+        systemd restart effectiveness; the hash findings are the tell
+        about which bytes are running. Both can fire independently.
+      known_bad_fixes:
+        - Suppressing service.old_pid_after_upgrade globally to stop the install-time noise (loses the upgrade-bug signal)
+        - Skewing ApplyTime backward to "before any process could have started" (lies about when the controller commanded apply)
+        - Filtering by service name (whitelist install-time-only services) — fragile and incomplete
+      related_invariants:
+        - rollout.convergence_requires_runtime_proof
+      required_tests:
+        - TestVerifyTarget_FirstInstallProcessOlderThanApply_BootstrapOrderingSkew
 
     - id: service.running_version_mismatch
       title: Live process /version response disagrees with the desired version

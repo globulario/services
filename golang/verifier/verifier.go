@@ -72,6 +72,7 @@ const (
 	FindingRunningBinaryHashMismatch   = "service.running_binary_hash_mismatch"
 	FindingRunningVersionMismatch      = "service.running_version_mismatch"
 	FindingOldPidAfterUpgrade          = "service.old_pid_after_upgrade"
+	FindingBootstrapOrderingSkew       = "service.bootstrap_ordering_skew"
 	FindingRuntimeIdentityUnproven     = "service.runtime_identity_unproven"
 
 	// Phase 4 release-level finding (raised when the verifier sees the
@@ -104,12 +105,33 @@ const (
 // Target describes one (service, node) pair to verify. Populated from
 // desired state in etcd + the controller's view of which nodes the
 // service is supposed to run on.
+//
+// HASH SCHEMA — non-negotiable, see docs/awareness/failure_modes.yaml
+// entry verifier.hash_schema_confusion (and the fix brief at
+// /home/dave/Downloads/claude_fix_verifier_hash_schema_false_positive.md).
+//
+//   DesiredEntrypointChecksum
+//     sha256 of the installed service binary (e.g. /usr/lib/globular/bin/file_server).
+//     Source: package manifest's `entrypoint_checksum`. This is what the
+//     verifier compares against ServiceRuntimeProof.InstalledSha256 and
+//     ServiceRuntimeProof.RunningExeSha256 — both of which are binary hashes.
+//
+//   DesiredPackageDigest
+//     sha256 of the package tarball (e.g. file_1.2.56_linux_amd64.tgz).
+//     Source: package manifest's `package_digest` / release status
+//     `ResolvedArtifactDigest`. Kept separately so future checks can
+//     compare against a tarball digest (e.g. artifact integrity audits)
+//     without re-confusing the binary comparison surface.
+//
+// Comparing the binary on disk against the tarball digest is the exact
+// false-positive bug v1.2.56 shipped. Don't.
 type Target struct {
-	Service        string
-	NodeID         string
-	DesiredVersion string
-	DesiredBuildID string
-	DesiredHash    string // sha256 of the artifact, lower-case, no prefix
+	Service                   string
+	NodeID                    string
+	DesiredVersion            string
+	DesiredBuildID            string
+	DesiredEntrypointChecksum string // binary sha256 — compares to InstalledSha256 / RunningExeSha256
+	DesiredPackageDigest      string // package tarball sha256 — reserved for future tarball checks
 	// RuntimeNeeded controls whether the verifier expects the package
 	// to be running as a systemd unit. COMMAND-kind packages have no
 	// service; leave false to skip runtime checks for those.
@@ -119,6 +141,18 @@ type Target struct {
 	// whose start time predates the apply is running stale bytes.
 	// Zero disables the check.
 	ApplyTime time.Time
+	// IsFirstInstall is true when this target has never converged
+	// before (the apply that wrote ApplyTime is the first one for this
+	// service on this node). On a fresh install, install.sh starts
+	// services before the controller bootstrap records the apply, so
+	// a process whose start time predates ApplyTime is expected
+	// sequencing — not stale bytes. The verifier downgrades the
+	// finding to service.bootstrap_ordering_skew (degraded) instead
+	// of service.old_pid_after_upgrade (critical).
+	//
+	// On upgrade (IsFirstInstall=false), an older-than-apply process
+	// is still treated as critical because the restart didn't take.
+	IsFirstInstall bool
 }
 
 // Evidence is the bag the verifier reconciles for one target. The
@@ -240,16 +274,19 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 	}
 
 	proof := ev.Proof
-	desiredHash := normalizeHash(target.DesiredHash)
-	installedHash := normalizeHash(proof.GetInstalledSha256())
-	runningHash := normalizeHash(proof.GetRunningExeSha256())
+	// HASH SCHEMA — binary hashes only here. Tarball-digest comparisons
+	// belong to a future audit check that consumes DesiredPackageDigest;
+	// they are NOT mixed into the binary comparison surface.
+	desiredEntrypoint := normalizeHash(target.DesiredEntrypointChecksum)
+	installedEntrypoint := normalizeHash(proof.GetInstalledSha256())
+	runningEntrypoint := normalizeHash(proof.GetRunningExeSha256())
 	desiredVersion := strings.TrimSpace(target.DesiredVersion)
 	runtimeVersion := strings.TrimSpace(proof.GetRuntimeVersion())
 
-	// 1. installed-vs-desired: Phase 1's post-install gate guarantees
-	//    the apply step matched; any disagreement now means tampering
-	//    or out-of-band replacement.
-	if desiredHash != "" && installedHash != "" && installedHash != desiredHash {
+	// 1. installed-vs-desired (binary): Phase 1's post-install gate
+	//    guarantees apply matched the entrypoint checksum; any
+	//    disagreement now means tampering or out-of-band replacement.
+	if desiredEntrypoint != "" && installedEntrypoint != "" && installedEntrypoint != desiredEntrypoint {
 		v.Findings = append(v.Findings, Finding{
 			ID:       FindingInstalledBinaryHashMismatch,
 			Severity: SeverityCritical,
@@ -257,16 +294,17 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 			NodeID:   target.NodeID,
 			Detected: now,
 			Evidence: map[string]string{
-				"installed_sha256": installedHash,
-				"desired_sha256":   desiredHash,
+				"installed_sha256": installedEntrypoint,
+				"desired_sha256":   desiredEntrypoint,
 				"installed_path":   proof.GetInstalledPath(),
+				"hash_kind":        "entrypoint_checksum",
 			},
 		})
 	}
 
-	// 2. running-vs-installed: Phase 2's signature failure — new
-	//    binary on disk, old PID still serving.
-	if installedHash != "" && runningHash != "" && installedHash != runningHash {
+	// 2. running-vs-installed (binary): Phase 2's signature failure —
+	//    new binary on disk, old PID still serving.
+	if installedEntrypoint != "" && runningEntrypoint != "" && installedEntrypoint != runningEntrypoint {
 		v.Findings = append(v.Findings, Finding{
 			ID:       FindingRunningBinaryHashMismatch,
 			Severity: SeverityCritical,
@@ -274,10 +312,11 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 			NodeID:   target.NodeID,
 			Detected: now,
 			Evidence: map[string]string{
-				"installed_sha256": installedHash,
-				"running_sha256":   runningHash,
+				"installed_sha256": installedEntrypoint,
+				"running_sha256":   runningEntrypoint,
 				"running_pid":      fmt.Sprintf("%d", proof.GetRunningPid()),
 				"running_exe":      proof.GetRunningExePath(),
+				"hash_kind":        "entrypoint_checksum",
 			},
 		})
 	}
@@ -300,22 +339,36 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 	}
 
 	// 4. apply-time vs process-start: a PID that predates the last
-	//    apply is running stale bytes regardless of what its hash
-	//    says — covers the case where the on-disk replacement didn't
-	//    actually take effect.
+	//    apply is running stale bytes regardless of what its hash says
+	//    — except on first install, where install.sh starts services
+	//    before the controller bootstrap records the apply. We classify
+	//    those two cases separately so operators see the right finding:
+	//
+	//      first install + process older than apply  → bootstrap_ordering_skew (degraded)
+	//      upgrade       + process older than apply  → old_pid_after_upgrade   (critical)
+	//
+	//    Binary-hash checks above remain the authoritative drift signal
+	//    for both cases; this finding is the timing tell, not the hash tell.
 	if !target.ApplyTime.IsZero() && proof.GetProcessStartTime() != nil {
 		started := proof.GetProcessStartTime().AsTime()
 		if !started.IsZero() && started.Before(target.ApplyTime) {
+			findingID := FindingOldPidAfterUpgrade
+			severity := SeverityCritical
+			if target.IsFirstInstall {
+				findingID = FindingBootstrapOrderingSkew
+				severity = SeverityDegraded
+			}
 			v.Findings = append(v.Findings, Finding{
-				ID:       FindingOldPidAfterUpgrade,
-				Severity: SeverityCritical,
+				ID:       findingID,
+				Severity: severity,
 				Service:  target.Service,
 				NodeID:   target.NodeID,
 				Detected: now,
 				Evidence: map[string]string{
-					"running_pid":         fmt.Sprintf("%d", proof.GetRunningPid()),
-					"process_start_time":  started.Format(time.RFC3339),
-					"last_apply_time":     target.ApplyTime.Format(time.RFC3339),
+					"running_pid":        fmt.Sprintf("%d", proof.GetRunningPid()),
+					"process_start_time": started.Format(time.RFC3339),
+					"last_apply_time":    target.ApplyTime.Format(time.RFC3339),
+					"is_first_install":   fmt.Sprintf("%v", target.IsFirstInstall),
 				},
 			})
 		}
@@ -385,16 +438,16 @@ func computeProofStatus(target Target, proof *node_agentpb.ServiceRuntimeProof, 
 	if hasCritical {
 		return ProofMismatch
 	}
-	desiredHash := normalizeHash(target.DesiredHash)
-	installedHash := normalizeHash(proof.GetInstalledSha256())
-	runningHash := normalizeHash(proof.GetRunningExeSha256())
+	desiredEntrypoint := normalizeHash(target.DesiredEntrypointChecksum)
+	installedEntrypoint := normalizeHash(proof.GetInstalledSha256())
+	runningEntrypoint := normalizeHash(proof.GetRunningExeSha256())
 
-	// runtime_verified requires: installed hash matches desired AND
-	// running exe hash matches installed AND (runtime version probe
+	// runtime_verified requires: installed entrypoint matches desired AND
+	// running entrypoint matches installed AND (runtime version probe
 	// agrees OR was empty) AND runtime is needed and active OR not needed.
-	installedOK := desiredHash != "" && installedHash == desiredHash
+	installedOK := desiredEntrypoint != "" && installedEntrypoint == desiredEntrypoint
 	runtimeOK := !target.RuntimeNeeded ||
-		(runningHash != "" && runningHash == installedHash &&
+		(runningEntrypoint != "" && runningEntrypoint == installedEntrypoint &&
 			strings.EqualFold(strings.TrimSpace(proof.GetSystemdActiveState()), "active"))
 	versionOK := target.DesiredVersion == "" ||
 		proof.GetRuntimeVersion() == "" ||
