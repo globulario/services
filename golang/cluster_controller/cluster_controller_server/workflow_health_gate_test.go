@@ -3,6 +3,8 @@ package main
 import (
 	"testing"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 // ── Phase 2 tests: workflowHealthGate circuit breaker ────────────────────────
@@ -60,6 +62,42 @@ func TestWorkflowGateBackoffPreventsStorm(t *testing.T) {
 		if err := g.Check(); err == nil {
 			t.Errorf("Check() call %d while circuit open should return error, got nil", i+2)
 		}
+	}
+}
+
+// TestWorkflowGateExpiresCooldownEvenWithoutProbe verifies the natural-close
+// path: once the cooldown deadline passes, the breaker reports closed AND the
+// exported gauge drops to 0, even if no caller drove the half-open probe.
+// Regression for the doctor stuck reporting "circuit OPEN" indefinitely after
+// a single transient workflow blip on an otherwise-idle cluster.
+func TestWorkflowGateExpiresCooldownEvenWithoutProbe(t *testing.T) {
+	workflowCircuitOpenGauge.Set(0)
+	g := newWorkflowHealthGate()
+
+	for i := 0; i < g.failureThreshold; i++ {
+		g.RecordFailure()
+	}
+	if !g.IsOpen() {
+		t.Fatal("circuit should be open after threshold failures")
+	}
+	if got := testutil.ToFloat64(workflowCircuitOpenGauge); got != 1 {
+		t.Fatalf("gauge should be 1 while open, got %v", got)
+	}
+
+	// Move the cooldown deadline into the past without anybody calling Check
+	// — the idle-controller scenario.
+	g.mu.Lock()
+	g.circuitOpenUntil = time.Now().Add(-time.Millisecond)
+	g.mu.Unlock()
+
+	if g.IsOpen() {
+		t.Error("IsOpen should be false once cooldown deadline elapses")
+	}
+	if got := testutil.ToFloat64(workflowCircuitOpenGauge); got != 0 {
+		t.Errorf("gauge should drop to 0 when cooldown expires naturally, got %v", got)
+	}
+	if err := g.Check(); err != nil {
+		t.Errorf("Check should accept dispatches after natural close, got: %v", err)
 	}
 }
 

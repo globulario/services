@@ -36,6 +36,7 @@ func (g *workflowHealthGate) Check() error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.pruneOld()
+	g.expireCooldownIfDueLocked()
 
 	if time.Now().Before(g.circuitOpenUntil) {
 		// Half-open: allow exactly one probe.
@@ -87,7 +88,28 @@ func (g *workflowHealthGate) IsOpen() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.pruneOld()
+	g.expireCooldownIfDueLocked()
 	return time.Now().Before(g.circuitOpenUntil)
+}
+
+// expireCooldownIfDueLocked closes the circuit when the cooldown deadline has
+// elapsed without any caller having driven the probe path. RecordSuccess is
+// only reached when something calls Check() and the backing RPC succeeds; on
+// an idle controller (no work queued after the failures that opened the
+// breaker), nothing ever calls Check, the gauge sticks at 1, and the doctor
+// reports CRITICAL "circuit OPEN" forever. Clearing here keeps the gauge in
+// sync with the real (closed) state. Caller must hold g.mu.
+func (g *workflowHealthGate) expireCooldownIfDueLocked() {
+	if g.circuitOpenUntil.IsZero() {
+		return
+	}
+	if time.Now().Before(g.circuitOpenUntil) {
+		return
+	}
+	g.circuitOpenUntil = time.Time{}
+	g.halfOpenProbe.Store(false)
+	g.failures = nil
+	workflowCircuitOpenGauge.Set(0)
 }
 
 func (g *workflowHealthGate) pruneOld() {
