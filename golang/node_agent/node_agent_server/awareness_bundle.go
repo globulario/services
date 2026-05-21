@@ -100,6 +100,14 @@ func FetchAndInstallAwarenessBundle(ctx context.Context) string {
 	// Check if already installed.
 	installed := LoadInstalledAwarenessBuildID()
 	if installed != "" && installed == expectedBuildID {
+		// Heal a legacy 0700 install in place: bundle dirs created by
+		// os.MkdirTemp landed as 0700, blocking the globular service user
+		// (cluster_doctor, mcp) from reading the manifest. We can't gate
+		// this inside installAwarenessBundle because the short-circuit
+		// above bypasses it whenever the build_id already matches —
+		// which is exactly the case every sync after first install. Run
+		// the chmod here on every tick; idempotent on a 0755 dir.
+		healAwarenessBundleDir(installed)
 		return installed
 	}
 
@@ -201,6 +209,27 @@ func installAwarenessBundle(data []byte) (string, error) {
 	}
 
 	return manifest.BuildID, nil
+}
+
+// healAwarenessBundleDir chmods the install directory for an already-installed
+// bundle to 0755 so unprivileged readers (cluster_doctor, mcp, etc.) can read
+// the manifest. Legacy installs landed at 0700 because os.MkdirTemp creates
+// with that mode and os.Rename preserves it; without this heal, every doctor
+// sweep on a Day-0 cluster fires ops_knowledge.seed_integrity with "manifest
+// unreadable". Best-effort: failures are logged but do not abort the install
+// path that called it.
+func healAwarenessBundleDir(buildID string) {
+	destDir := filepath.Join(awarenessInstallBase, buildID)
+	fi, err := os.Stat(destDir)
+	if err != nil {
+		return
+	}
+	if fi.Mode().Perm() == 0o755 {
+		return
+	}
+	if err := os.Chmod(destDir, 0o755); err != nil {
+		log.Printf("awareness-bundle: warning: chmod %s: %v", destDir, err)
+	}
 }
 
 // ensureAwarenessRuntimeDir creates /var/lib/globular/awareness/runtime/ and
