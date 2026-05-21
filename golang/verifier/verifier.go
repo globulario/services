@@ -64,6 +64,34 @@ const (
 	ProofMismatch          = "mismatch"
 )
 
+// globularManagedBinPrefixes lists the directories where Globular-built
+// binaries are installed. A binary outside ALL of these is by definition
+// supplied by something else (OS apt package, Scylla upstream installer,
+// etc.) and the manifest's entrypoint_checksum claim cannot be enforced
+// against it. installedPathIsUpstream uses this list to detect wrapper
+// packages without needing an explicit manifest flag.
+var globularManagedBinPrefixes = []string{
+	"/usr/lib/globular/bin/",
+	"/usr/local/lib/globular/bin/",
+}
+
+// installedPathIsUpstream returns true when the installed binary path
+// is outside Globular's managed bin directories — meaning the package
+// wraps an OS-supplied binary (keepalived at /usr/sbin/, scylla at
+// /usr/bin/, /opt/scylladb/libexec/scylla, etc.).
+func installedPathIsUpstream(path string) bool {
+	p := strings.TrimSpace(path)
+	if p == "" {
+		return false
+	}
+	for _, prefix := range globularManagedBinPrefixes {
+		if strings.HasPrefix(p, prefix) {
+			return false
+		}
+	}
+	return true
+}
+
 // applyGraceWindow allows process_start_time to fall slightly before
 // the recorded ApplyTime without firing old_pid_after_upgrade. The
 // controller writes ApplyTime at the end of the apply RPC (after
@@ -84,6 +112,14 @@ const (
 	FindingOldPidAfterUpgrade          = "service.old_pid_after_upgrade"
 	FindingBootstrapOrderingSkew       = "service.bootstrap_ordering_skew"
 	FindingRuntimeIdentityUnproven     = "service.runtime_identity_unproven"
+
+	// FindingPackageWrapsUpstreamBinary fires (at info severity) for
+	// packages that ship a no-op placeholder entrypoint and let the
+	// OS supply the real binary (keepalived, scylladb, etc.). It is
+	// emitted at info severity so the doctor's rule layer can map it
+	// to INVARIANT_PASS — making the policy visible without opening
+	// an incident the operator can't act on.
+	FindingPackageWrapsUpstreamBinary = "package.wraps_upstream_binary"
 
 	// Phase 4 release-level finding (raised when the verifier sees the
 	// release at AVAILABLE but the per-node floor isn't installed_verified).
@@ -163,6 +199,30 @@ type Target struct {
 	// On upgrade (IsFirstInstall=false), an older-than-apply process
 	// is still treated as critical because the restart didn't take.
 	IsFirstInstall bool
+
+	// WrapsUpstreamBinary is true for packages that ship a no-op
+	// placeholder (bin/noop) and let the OS supply the real binary
+	// (keepalived, scylladb, etc.). For these packages the Globular
+	// manifest CANNOT meaningfully claim an entrypoint_checksum — the
+	// real binary lives in /usr/sbin/ or /opt/ and changes whenever the
+	// OS package updates. Comparing the wrapper sentinel sha against
+	// the real OS binary always fails; comparing /usr/bin/scylla
+	// (wrapper script) against /proc/<pid>/exe (the libexec ELF the
+	// wrapper exec's into) also always fails. Both comparisons are
+	// outside the verifier's authority for these packages.
+	//
+	// When set, the verifier skips:
+	//   - check 1 (installed vs desired entrypoint hash)
+	//   - check 2 (running vs installed entrypoint hash)
+	// and emits a single info finding package.wraps_upstream_binary
+	// (INVARIANT_PASS at the doctor surface) so operators see the
+	// explicit policy rather than seeing two CRITICAL findings every
+	// sweep on every upstream-wrapper package they install.
+	//
+	// Other checks (runtime version probe, systemd effective unit
+	// drift, apply-time vs process-start) still apply unchanged — this
+	// flag only relaxes the binary-identity comparisons.
+	WrapsUpstreamBinary bool
 }
 
 // Evidence is the bag the verifier reconciles for one target. The
@@ -293,10 +353,43 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 	desiredVersion := strings.TrimSpace(target.DesiredVersion)
 	runtimeVersion := strings.TrimSpace(proof.GetRuntimeVersion())
 
+	// Wrapper-package gate (keepalived, scylladb, etc.). The package's
+	// manifest claims a checksum for a bin/noop placeholder — the real
+	// binary belongs to the OS. We detect this two ways and OR them:
+	//   - explicit: Target.WrapsUpstreamBinary set by the collector
+	//     based on the manifest's Entrypoints list. (Not currently
+	//     populated for legacy manifests; kept as the long-term path.)
+	//   - heuristic: proof.InstalledPath resolves to a path outside
+	//     the Globular-managed bin directories (/usr/lib/globular/...
+	//     or /usr/local/lib/globular/...). This is the load-bearing
+	//     signal today, because for upstream-wrapper packages the
+	//     systemd ExecStart points at /usr/sbin/keepalived,
+	//     /usr/bin/scylla, /opt/scylladb/libexec/scylla, etc.
+	//
+	// When either signal fires we surface a single info finding so the
+	// policy is explicit, then skip both binary-identity checks below.
+	// We DON'T return early — runtime-version probe, systemd effective
+	// drift, and apply-time/process-start checks still apply.
+	isWrapper := target.WrapsUpstreamBinary || installedPathIsUpstream(proof.GetInstalledPath())
+	if isWrapper {
+		v.Findings = append(v.Findings, Finding{
+			ID:       FindingPackageWrapsUpstreamBinary,
+			Severity: SeverityInfo,
+			Service:  target.Service,
+			NodeID:   target.NodeID,
+			Detected: now,
+			Evidence: map[string]string{
+				"installed_path": proof.GetInstalledPath(),
+				"running_exe":    proof.GetRunningExePath(),
+				"reason":         "binary installed outside Globular-managed bin dir; real binary supplied by OS package",
+			},
+		})
+	}
+
 	// 1. installed-vs-desired (binary): Phase 1's post-install gate
 	//    guarantees apply matched the entrypoint checksum; any
 	//    disagreement now means tampering or out-of-band replacement.
-	if desiredEntrypoint != "" && installedEntrypoint != "" && installedEntrypoint != desiredEntrypoint {
+	if !isWrapper && desiredEntrypoint != "" && installedEntrypoint != "" && installedEntrypoint != desiredEntrypoint {
 		v.Findings = append(v.Findings, Finding{
 			ID:       FindingInstalledBinaryHashMismatch,
 			Severity: SeverityCritical,
@@ -314,7 +407,7 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 
 	// 2. running-vs-installed (binary): Phase 2's signature failure —
 	//    new binary on disk, old PID still serving.
-	if installedEntrypoint != "" && runningEntrypoint != "" && installedEntrypoint != runningEntrypoint {
+	if !isWrapper && installedEntrypoint != "" && runningEntrypoint != "" && installedEntrypoint != runningEntrypoint {
 		v.Findings = append(v.Findings, Finding{
 			ID:       FindingRunningBinaryHashMismatch,
 			Severity: SeverityCritical,

@@ -213,25 +213,57 @@ func (c *Collector) enrichTargetsWithEntrypointChecksum(ctx context.Context, sna
 		if dst == nil || strings.TrimSpace(dst.DesiredBuildID) == "" {
 			continue
 		}
-		cs := cache.lookupOrFetch(fetchCtx, c, dst)
-		if cs != "" {
-			dst.DesiredEntrypointChecksum = cs
+		info := cache.lookupOrFetch(fetchCtx, c, dst)
+		if info.checksum != "" {
+			dst.DesiredEntrypointChecksum = info.checksum
+		}
+		// WrapsUpstreamBinary is sticky on the target — once we
+		// recognise a wrapper at any point in the lookup, the verifier
+		// should treat it as such. A later cache hit cannot demote it.
+		if info.wrapsUpstream {
+			dst.WrapsUpstreamBinary = true
 		}
 	}
 }
 
-// entrypointCache memoizes entrypoint_checksum lookups by build_id so we
-// only pay one RPC per unique release across the whole desired set.
+// manifestInfo bundles the two manifest facts we care about so the cache
+// can memoize both with one RPC.
+type manifestInfo struct {
+	checksum      string
+	wrapsUpstream bool
+}
+
+// entrypointCache memoizes manifest lookups by build_id so we only pay
+// one RPC per unique release across the whole desired set.
 type entrypointCache struct {
 	mu sync.Mutex
-	m  map[string]string // build_id → entrypoint_checksum (or "" for miss)
+	m  map[string]manifestInfo // build_id → manifest facts
 }
 
 func newEntrypointCache() *entrypointCache {
-	return &entrypointCache{m: make(map[string]string)}
+	return &entrypointCache{m: make(map[string]manifestInfo)}
 }
 
-func (e *entrypointCache) lookupOrFetch(ctx context.Context, c *Collector, dst *DesiredServiceTarget) string {
+// manifestEntrypointsAreNoopOnly returns true when the manifest declares a
+// single entrypoint and that entrypoint is the well-known no-op sentinel
+// (bin/noop) used by wrapper packages like keepalived and scylladb. The
+// sentinel signals that the package ships no real binary — the cluster
+// runs an OS-installed binary instead — and the verifier must therefore
+// not enforce desired-vs-installed or installed-vs-running binary hashes
+// for this package.
+func manifestEntrypointsAreNoopOnly(entrypoints []string) bool {
+	if len(entrypoints) == 0 {
+		return false
+	}
+	for _, e := range entrypoints {
+		if strings.TrimSpace(e) != "bin/noop" {
+			return false
+		}
+	}
+	return true
+}
+
+func (e *entrypointCache) lookupOrFetch(ctx context.Context, c *Collector, dst *DesiredServiceTarget) manifestInfo {
 	bid := strings.TrimSpace(dst.DesiredBuildID)
 	e.mu.Lock()
 	cs, hit := e.m[bid]
@@ -248,18 +280,23 @@ func (e *entrypointCache) lookupOrFetch(ctx context.Context, c *Collector, dst *
 		},
 	}
 	resp, err := c.repoClient.GetArtifactManifest(ctx, req)
-	got := ""
+	got := manifestInfo{}
 	if err == nil && resp != nil && resp.GetManifest() != nil {
-		got = normalizeEntrypointChecksum(resp.GetManifest().GetEntrypointChecksum())
+		m := resp.GetManifest()
+		got.checksum = normalizeEntrypointChecksum(m.GetEntrypointChecksum())
+		got.wrapsUpstream = manifestEntrypointsAreNoopOnly(m.GetEntrypoints())
 		// Belt-and-suspenders: verify the manifest's build_id matches
 		// the desired build_id we asked for. Mismatch means the
 		// resolver and the repository disagree about which build is
 		// installable — log it loudly and refuse the value (better to
 		// degrade to unproven than to apply the wrong checksum).
-		if rid := strings.TrimSpace(resp.GetManifest().GetBuildId()); rid != "" && rid != bid {
+		if rid := strings.TrimSpace(m.GetBuildId()); rid != "" && rid != bid {
 			log.Printf("verification: repo returned build_id=%s for %s but desired=%s — refusing checksum",
 				rid, dst.Service, bid)
-			got = ""
+			got.checksum = ""
+			// We still trust the wrapsUpstream signal — it doesn't
+			// depend on which build is installable; the package is or
+			// isn't a wrapper regardless.
 		}
 	} else if err != nil {
 		log.Printf("verification: GetArtifactManifest(%s) failed: %v", dst.Service, err)
@@ -337,6 +374,7 @@ func (c *Collector) runVerification(ctx context.Context, snap *Snapshot) {
 				RuntimeNeeded:             dst.RuntimeNeeded,
 				ApplyTime:                 dst.ApplyTime,
 				IsFirstInstall:            isFirstInstall(ctx, nodeID, dst),
+				WrapsUpstreamBinary:       dst.WrapsUpstreamBinary,
 			}
 			ev := verifier.Evidence{
 				Proof: findProofForService(snap.RuntimeProofs[nodeID], dst.Service),

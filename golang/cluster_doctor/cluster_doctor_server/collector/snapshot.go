@@ -42,6 +42,14 @@ type DesiredServiceTarget struct {
 	// reached AVAILABLE. Used by verifier to detect old_pid_after_upgrade.
 	// Zero disables that sub-check.
 	ApplyTime time.Time
+
+	// WrapsUpstreamBinary is true when the artifact manifest declares
+	// only a no-op entrypoint (bin/noop). The Globular package ships
+	// no real binary; the cluster runs an OS-installed binary
+	// (keepalived, scylladb, etc.) and the manifest's checksum claim
+	// is necessarily synthetic. The verifier propagates this onto its
+	// Target and skips binary-identity checks for these packages.
+	WrapsUpstreamBinary bool
 }
 
 // DataError records a failed upstream RPC call.

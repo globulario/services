@@ -90,6 +90,35 @@ func TestApplyIngressPolicyToTargets_FailOpen(t *testing.T) {
 	}
 }
 
+// Wrapper-package detection: manifest entrypoints that consist of only
+// "bin/noop" mean the Globular package ships no real binary — the OS
+// supplies it. The detector must be conservative: only the literal
+// no-op sentinel counts as a wrapper signal.
+func TestManifestEntrypointsAreNoopOnly(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []string
+		want bool
+	}{
+		{"nil", nil, false},
+		{"empty slice", []string{}, false},
+		{"bin/noop alone", []string{"bin/noop"}, true},
+		{"bin/noop with whitespace", []string{"  bin/noop  "}, true},
+		{"bin/noop plus real entrypoint", []string{"bin/noop", "bin/keepalived"}, false},
+		{"real entrypoint alone", []string{"bin/keepalived"}, false},
+		{"multiple no-ops same value", []string{"bin/noop", "bin/noop"}, true},
+		{"trailing-slash variant not matched", []string{"bin/noop/"}, false},
+		{"empty string in slice", []string{""}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := manifestEntrypointsAreNoopOnly(c.in); got != c.want {
+				t.Errorf("manifestEntrypointsAreNoopOnly(%v) = %v, want %v", c.in, got, c.want)
+			}
+		})
+	}
+}
+
 func TestIngressDisabledFromSnapshot(t *testing.T) {
 	cases := []struct {
 		name string

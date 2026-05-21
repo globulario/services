@@ -115,8 +115,50 @@ func init() {
 	releaseScaleCmd.Flags().IntVar(&releaseMin, "min", 0, "Minimum replicas (required)")
 	releaseScaleCmd.Flags().IntVar(&releaseMax, "max", 0, "Maximum replicas (optional)")
 	releaseRollbackCmd.Flags().StringVar(&releaseRollbackTo, "to", "", "Rollback to explicit version")
-	releaseCmd.AddCommand(releaseApplyCmd, releaseListCmd, releaseShowCmd, releaseStatusCmd, releaseWatchCmd, releaseScaleCmd, releaseRollbackCmd)
+
+	releaseSetInfraVersionCmd.Flags().StringVar(&releaseSetInfraVersionPublisher, "publisher", "core@globular.io", "Publisher ID")
+
+	releaseCmd.AddCommand(releaseApplyCmd, releaseListCmd, releaseShowCmd, releaseStatusCmd, releaseWatchCmd, releaseScaleCmd, releaseRollbackCmd, releaseSetInfraVersionCmd)
 	rootCmd.AddCommand(releaseCmd)
+}
+
+// --- release set-infra-version ---
+//
+// Updates an InfrastructureRelease's desired spec.version. Wraps the
+// existing internal updateInfraReleaseVersion helper (used by
+// platform-upgrade) so operators have a single-package equivalent for
+// wrapper packages like keepalived / scylladb without needing to build
+// a full release-index.json BOM. The function does a direct etcd put
+// via the same code path platform-upgrade already uses — it is NOT a
+// state-shortcut: the controller's release pipeline observes the new
+// spec.version and dispatches release.apply.package on its next cycle,
+// exactly as if a BOM-driven upgrade had bumped it.
+
+var (
+	releaseSetInfraVersionPublisher string
+	releaseSetInfraVersionCmd       = &cobra.Command{
+		Use:   "set-infra-version <component> <version>",
+		Short: "Bump an InfrastructureRelease's desired spec.version (single-package equivalent of platform-upgrade)",
+		Args:  cobra.ExactArgs(2),
+		RunE:  runReleaseSetInfraVersion,
+	}
+)
+
+func runReleaseSetInfraVersion(cmd *cobra.Command, args []string) error {
+	component := strings.TrimSpace(args[0])
+	version := strings.TrimSpace(args[1])
+	if component == "" || version == "" {
+		return errors.New("component and version are required")
+	}
+	pub := strings.TrimSpace(releaseSetInfraVersionPublisher)
+	if pub == "" {
+		pub = "core@globular.io"
+	}
+	if err := updateInfraReleaseVersion(pub, component, version); err != nil {
+		return err
+	}
+	fmt.Printf("InfrastructureRelease %s/%s spec.version → %s\n", pub, component, version)
+	return nil
 }
 
 func runReleaseApply(cmd *cobra.Command, args []string) error {

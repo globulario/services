@@ -589,6 +589,108 @@ func TestVerifyTarget_UpgradeProcessWithinGraceWindow_NoFinding(t *testing.T) {
 	}
 }
 
+// Wrapper-package gate: keepalived, scylladb and other packages that
+// ship only a no-op placeholder MUST NOT raise installed-vs-desired or
+// running-vs-installed binary mismatches. The real binary is OS-supplied
+// and we cannot meaningfully verify its hash.
+func TestVerifyTarget_WrapsUpstreamBinary_SkipsBinaryHashChecks(t *testing.T) {
+	tgt := targetFoo()
+	tgt.WrapsUpstreamBinary = true
+	// Force a state that would otherwise fire BOTH binary-hash findings:
+	// desired says one SHA, installed says another, running says a third.
+	tgt.DesiredEntrypointChecksum = strings.Repeat("a", 64)
+	ev := Evidence{Proof: proofMatching(tgt, func(p *node_agentpb.ServiceRuntimeProof) {
+		p.InstalledSha256 = strings.Repeat("b", 64)
+		p.RunningExeSha256 = strings.Repeat("c", 64)
+		p.ProcessStartTime = timestamppb.New(tgt.ApplyTime.Add(time.Minute))
+	})}
+	v := VerifyTarget(tgt, ev, time.Now())
+
+	// Neither binary-identity finding may fire.
+	if findingsContain(v.Findings, FindingInstalledBinaryHashMismatch) {
+		t.Errorf("wrapper package must NOT fire %s; got %+v",
+			FindingInstalledBinaryHashMismatch, v.Findings)
+	}
+	if findingsContain(v.Findings, FindingRunningBinaryHashMismatch) {
+		t.Errorf("wrapper package must NOT fire %s; got %+v",
+			FindingRunningBinaryHashMismatch, v.Findings)
+	}
+
+	// The wrapper-explained info finding MUST fire so operators see why.
+	if !findingsContain(v.Findings, FindingPackageWrapsUpstreamBinary) {
+		t.Errorf("wrapper package must surface %s as an explicit info marker; got %+v",
+			FindingPackageWrapsUpstreamBinary, v.Findings)
+	}
+	for _, f := range v.Findings {
+		if f.ID == FindingPackageWrapsUpstreamBinary && f.Severity != SeverityInfo {
+			t.Errorf("%s must be info severity; got %q", FindingPackageWrapsUpstreamBinary, f.Severity)
+		}
+	}
+}
+
+// Heuristic detection: when the installed binary is outside the
+// Globular-managed bin directories, treat as a wrapper even if the
+// Target's explicit WrapsUpstreamBinary flag is false. This is the
+// load-bearing detection path while the manifest's Entrypoints list
+// isn't reliably populated.
+func TestVerifyTarget_WrapsUpstreamBinary_DetectedFromInstalledPath(t *testing.T) {
+	tgt := targetFoo()
+	tgt.WrapsUpstreamBinary = false // not explicitly flagged
+	tgt.DesiredEntrypointChecksum = strings.Repeat("a", 64)
+	ev := Evidence{Proof: proofMatching(tgt, func(p *node_agentpb.ServiceRuntimeProof) {
+		// Heuristic trigger: binary outside /usr/lib/globular/bin/
+		p.InstalledPath = "/usr/sbin/keepalived"
+		p.InstalledSha256 = strings.Repeat("b", 64)
+		p.RunningExeSha256 = strings.Repeat("c", 64)
+		p.ProcessStartTime = timestamppb.New(tgt.ApplyTime.Add(time.Minute))
+	})}
+	v := VerifyTarget(tgt, ev, time.Now())
+	if findingsContain(v.Findings, FindingInstalledBinaryHashMismatch) {
+		t.Errorf("binary at /usr/sbin/ must be detected as upstream wrapper; got installed_binary_hash_mismatch")
+	}
+	if !findingsContain(v.Findings, FindingPackageWrapsUpstreamBinary) {
+		t.Errorf("heuristic must emit wraps_upstream_binary info finding")
+	}
+}
+
+func TestInstalledPathIsUpstream(t *testing.T) {
+	cases := []struct {
+		path string
+		want bool
+	}{
+		{"/usr/lib/globular/bin/dns_server", false}, // Globular-managed
+		{"/usr/local/lib/globular/bin/file_server", false},
+		{"/usr/sbin/keepalived", true},   // OS package
+		{"/usr/bin/scylla", true},        // OS wrapper script
+		{"/opt/scylladb/libexec/scylla", true},
+		{"", false}, // empty path is conservative — don't false-positive
+	}
+	for _, c := range cases {
+		if got := installedPathIsUpstream(c.path); got != c.want {
+			t.Errorf("installedPathIsUpstream(%q) = %v, want %v", c.path, got, c.want)
+		}
+	}
+}
+
+// Non-wrapper packages with a real binary drift MUST still fire the
+// critical findings — guard against the wrapper gate accidentally
+// silencing legitimate drift.
+func TestVerifyTarget_NonWrapperPackage_StillFiresBinaryHashMismatch(t *testing.T) {
+	tgt := targetFoo()
+	tgt.WrapsUpstreamBinary = false
+	tgt.DesiredEntrypointChecksum = strings.Repeat("a", 64)
+	ev := Evidence{Proof: proofMatching(tgt, func(p *node_agentpb.ServiceRuntimeProof) {
+		p.InstalledSha256 = strings.Repeat("b", 64) // drift
+		p.RunningExeSha256 = strings.Repeat("b", 64)
+		p.ProcessStartTime = timestamppb.New(tgt.ApplyTime.Add(time.Minute))
+	})}
+	v := VerifyTarget(tgt, ev, time.Now())
+	if !findingsContain(v.Findings, FindingInstalledBinaryHashMismatch) {
+		t.Errorf("non-wrapper drift must still fire %s; got %+v",
+			FindingInstalledBinaryHashMismatch, v.Findings)
+	}
+}
+
 // Helpers ─────────────────────────────────────────────────────────────
 
 func findingsContain(fs []Finding, id string) bool {
