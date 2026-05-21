@@ -568,6 +568,27 @@ func TestVerifyTarget_UpgradeProcessOlderThanApply_StillCritical(t *testing.T) {
 	}
 }
 
+// Sub-second skew between ExecMainStartTimestamp and ApplyTime is normal
+// (systemd's start timestamp has only second precision; the controller
+// writes ApplyTime at the end of the apply RPC). The verifier must not
+// fire old_pid_after_upgrade for a process whose start time lands within
+// applyGraceWindow of ApplyTime.
+func TestVerifyTarget_UpgradeProcessWithinGraceWindow_NoFinding(t *testing.T) {
+	tgt := targetFoo()
+	tgt.IsFirstInstall = false
+	ev := Evidence{Proof: proofMatching(tgt, func(p *node_agentpb.ServiceRuntimeProof) {
+		// 250 ms before apply — well inside the grace window.
+		p.ProcessStartTime = timestamppb.New(tgt.ApplyTime.Add(-250 * time.Millisecond))
+	})}
+	v := VerifyTarget(tgt, ev, time.Now())
+	if findingsContain(v.Findings, FindingOldPidAfterUpgrade) {
+		t.Errorf("sub-second skew must NOT fire old_pid_after_upgrade; got %+v", v.Findings)
+	}
+	if findingsContain(v.Findings, FindingBootstrapOrderingSkew) {
+		t.Errorf("sub-second skew on upgrade must NOT fire bootstrap_ordering_skew either; got %+v", v.Findings)
+	}
+}
+
 // Helpers ─────────────────────────────────────────────────────────────
 
 func findingsContain(fs []Finding, id string) bool {

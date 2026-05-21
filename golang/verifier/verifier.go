@@ -64,6 +64,16 @@ const (
 	ProofMismatch          = "mismatch"
 )
 
+// applyGraceWindow allows process_start_time to fall slightly before
+// the recorded ApplyTime without firing old_pid_after_upgrade. The
+// controller writes ApplyTime at the end of the apply RPC (after
+// restart has issued), and systemd's ExecMainStartTimestamp has only
+// second precision — so a healthy restart can record a start time
+// hundreds of milliseconds before ApplyTime. A short grace window
+// silences that race while still flagging genuinely stale PIDs
+// (which are minutes or hours older than the apply).
+const applyGraceWindow = 30 * time.Second
+
 // Finding ids the verifier emits. Each maps to a failure_modes.yaml
 // entry that the doctor consumes.
 const (
@@ -349,9 +359,17 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 	//
 	//    Binary-hash checks above remain the authoritative drift signal
 	//    for both cases; this finding is the timing tell, not the hash tell.
+	//
+	//    Grace window: apply normally writes ApplyTime AFTER the restart
+	//    has issued (write-to-etcd happens at the end of the apply RPC),
+	//    so a process whose start time is within applyGraceWindow of
+	//    ApplyTime is still part of the same apply cycle. Without this,
+	//    systemd's second-precision ExecMainStartTimestamp routinely
+	//    rounds *below* ApplyTime by a few hundred milliseconds and
+	//    raises a false-positive old_pid_after_upgrade.
 	if !target.ApplyTime.IsZero() && proof.GetProcessStartTime() != nil {
 		started := proof.GetProcessStartTime().AsTime()
-		if !started.IsZero() && started.Before(target.ApplyTime) {
+		if !started.IsZero() && started.Before(target.ApplyTime.Add(-applyGraceWindow)) {
 			findingID := FindingOldPidAfterUpgrade
 			severity := SeverityCritical
 			if target.IsFirstInstall {

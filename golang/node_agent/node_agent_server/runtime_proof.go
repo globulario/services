@@ -39,7 +39,12 @@ type runtimeProofDeps struct {
 	ShowProperties func(ctx context.Context, unit string, props ...string) (map[string]string, error)
 	HashFile       func(path string) (string, error)
 	ReadProcExe    func(pid int) (string, error)
-	Now            func() time.Time
+	// ProcStartTime returns the wall-clock start time of a running PID,
+	// preferring sub-second precision over systemd's ExecMainStartTimestamp
+	// (which truncates to whole seconds). Returns (zero, error) when the
+	// PID is gone or unreadable; callers fall back to the systemd value.
+	ProcStartTime func(pid int) (time.Time, error)
+	Now           func() time.Time
 }
 
 func defaultRuntimeProofDeps() runtimeProofDeps {
@@ -49,8 +54,22 @@ func defaultRuntimeProofDeps() runtimeProofDeps {
 		ReadProcExe: func(pid int) (string, error) {
 			return os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
 		},
-		Now: time.Now,
+		ProcStartTime: procStartTimeFromStat,
+		Now:           time.Now,
 	}
+}
+
+// procStartTimeFromStat reads the ctime of /proc/<pid> as a wall-clock
+// timestamp with nanosecond precision. The /proc/<pid> directory is created
+// by the kernel when the process is forked, so its ctime is the process's
+// true start time — much finer than systemd's whole-second
+// ExecMainStartTimestamp. Returns (zero, error) when the PID has exited.
+func procStartTimeFromStat(pid int) (time.Time, error) {
+	fi, err := os.Stat(fmt.Sprintf("/proc/%d", pid))
+	if err != nil {
+		return time.Time{}, err
+	}
+	return fi.ModTime(), nil
 }
 
 // systemd properties to fetch. Keep this list narrow: every property adds
@@ -107,15 +126,21 @@ func collectServiceRuntimeProof(
 	// and the current on-disk hash means the binary was replaced out-of-
 	// band after apply (root-cause of the "old binary still on disk"
 	// failure mode in the brief).
+	//
+	// installedBinaryPath() encodes the "<name>_server" convention for
+	// SERVICE-kind packages. A few services (mcp, gateway, etc.) ship a
+	// binary that does NOT follow that convention — the systemd unit
+	// ExecStart is the only authority for the actual deployed path. We
+	// record whether the convention path was hashable; if not, the
+	// systemd-ExecStart fallback below will compute the real hash.
+	installedHashed := false
 	if hash, err := deps.HashFile(installedPath); err == nil {
 		// Override the claim with the freshly-computed proof. If they
 		// differ, the consumer raises service.running_binary_hash_mismatch.
 		// Storing both would bloat the proto for no consumer benefit —
 		// the claim already lives in installed_state.
 		p.InstalledSha256 = hash
-	} else {
-		p.Errors = append(p.Errors,
-			fmt.Sprintf("hash installed binary %s: %v", installedPath, err))
+		installedHashed = true
 	}
 
 	// ── Systemd effective unit + MainPID ───────────────────────────────
@@ -138,6 +163,27 @@ func collectServiceRuntimeProof(
 	p.SystemdUnitPath = props["FragmentPath"]
 	p.EffectiveExecStart = props["ExecStart"]
 	p.EffectiveType = props["Type"]
+
+	// Fallback: if the convention-based installed path didn't exist (e.g.
+	// services like mcp that don't follow the "<name>_server" convention),
+	// pull the real binary path from the unit's ExecStart and hash that.
+	// systemd's ExecStart property is the authoritative location of the
+	// binary it loads — using it eliminates false-positive
+	// package.installed_binary_hash_mismatch findings caused by stale
+	// tarball-checksum fallback in p.InstalledSha256.
+	if !installedHashed {
+		if binPath := firstExecStartPath(p.EffectiveExecStart); binPath != "" && binPath != installedPath {
+			if hash, err := deps.HashFile(binPath); err == nil {
+				p.InstalledPath = binPath
+				p.InstalledSha256 = hash
+				installedHashed = true
+			}
+		}
+	}
+	if !installedHashed {
+		p.Errors = append(p.Errors,
+			fmt.Sprintf("hash installed binary %s: file not found and ExecStart fallback unavailable", installedPath))
+	}
 
 	// Hash the unit file at FragmentPath. This proves the effective unit
 	// systemd is using matches whatever the deploy step rendered (Phase 5
@@ -170,28 +216,89 @@ func collectServiceRuntimeProof(
 		}
 	}
 
-	// Process start time — parse the systemd timestamp. Format example:
-	// "Mon 2026-05-20 16:44:00 UTC". On units that have never run, the
-	// property is empty or "n/a" — silently skip.
-	if ts := strings.TrimSpace(props["ExecMainStartTimestamp"]); ts != "" && ts != "n/a" {
-		if t, perr := parseSystemdTimestamp(ts); perr == nil {
+	// Process start time — prefer the /proc/<pid> mtime (nanosecond
+	// precision) over systemd's ExecMainStartTimestamp (whole seconds).
+	// The verifier compares this against the controller's millisecond-
+	// precision ApplyTime; using systemd's text form rounds process_start
+	// down to .000 and can fire a false-positive service.old_pid_after_upgrade
+	// when ApplyTime lands a few hundred ms later in the same second
+	// (e.g. .078 from the apply RPC return path).
+	procStarted := false
+	if p.RunningPid > 0 && deps.ProcStartTime != nil {
+		if t, err := deps.ProcStartTime(int(p.RunningPid)); err == nil && !t.IsZero() {
 			p.ProcessStartTime = timestamppb.New(t)
-		} else {
-			p.Errors = append(p.Errors,
-				fmt.Sprintf("parse ExecMainStartTimestamp %q: %v", ts, perr))
+			procStarted = true
+		}
+	}
+	// Fallback to the systemd text timestamp on units that have never
+	// run, or when /proc/<pid> can't be stat'd (PID raced away).
+	if !procStarted {
+		if ts := strings.TrimSpace(props["ExecMainStartTimestamp"]); ts != "" && ts != "n/a" {
+			if t, perr := parseSystemdTimestamp(ts); perr == nil {
+				p.ProcessStartTime = timestamppb.New(t)
+			} else {
+				p.Errors = append(p.Errors,
+					fmt.Sprintf("parse ExecMainStartTimestamp %q: %v", ts, perr))
+			}
 		}
 	}
 
 	// Runtime version probing (live process /version endpoint) is not yet
-	// implemented for every service. Mark unproven so the consumer raises
-	// service.runtime_identity_unproven at degraded severity rather than
-	// silently treating "no runtime version known" as match.
+	// implemented for any service — leave RuntimeVersion empty. The verifier
+	// already treats an empty proof.RuntimeVersion as "version match
+	// implicit" in computeProofStatus (versionOK), so the absence of a probe
+	// is not by itself drift.
+	//
+	// We deliberately do NOT append a synthetic "probe not implemented"
+	// error to p.Errors. That marker used to live here as a degradation
+	// pin, but it created a perverse rule: every service had at least one
+	// proof error, so the verifier's "errors-but-no-other-findings →
+	// runtime_identity_unproven" branch (verifier.go:429) demoted every
+	// post-install service whose only true state was "verified". The bug
+	// was hidden behind a different finding (bootstrap_ordering_skew)
+	// when systemd's seconds-precision timestamp made process_start fall
+	// inside the same second as ApplyTime; once /proc/<pid> nanoseconds
+	// removed that race, the marker began demoting verdicts that should
+	// have been runtime_verified. Once a real /version probe exists per
+	// service, that code can append its own targeted error here.
 	p.RuntimeVersion = ""
 	p.RuntimeBuildId = ""
-	p.Errors = append(p.Errors,
-		"runtime_version probe not implemented (service.runtime_identity_unproven)")
 
 	return p
+}
+
+// firstExecStartPath returns the absolute path of the executable referenced by
+// the systemctl ExecStart property. systemd emits ExecStart as either a bare
+// command line ("/usr/lib/globular/bin/foo --flag") or a structured value
+// ("{ path=/usr/lib/globular/bin/foo ; argv[]=... }"). We extract the first
+// absolute path token from either form. Returns "" when no path is found.
+func firstExecStartPath(execStart string) string {
+	s := strings.TrimSpace(execStart)
+	if s == "" {
+		return ""
+	}
+	// Structured form: "{ path=/usr/lib/... ; argv[]=... ; ... }".
+	if idx := strings.Index(s, "path="); idx >= 0 {
+		rest := s[idx+len("path="):]
+		// Path runs until first whitespace, ';', or '}'.
+		end := len(rest)
+		for i, r := range rest {
+			if r == ' ' || r == '\t' || r == ';' || r == '}' {
+				end = i
+				break
+			}
+		}
+		if p := strings.TrimSpace(rest[:end]); strings.HasPrefix(p, "/") {
+			return p
+		}
+	}
+	// Bare command line: first whitespace-delimited token starting with '/'.
+	for _, tok := range strings.Fields(s) {
+		if strings.HasPrefix(tok, "/") {
+			return tok
+		}
+	}
+	return ""
 }
 
 // parseSystemdTimestamp parses the format emitted by systemctl show

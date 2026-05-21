@@ -426,6 +426,30 @@ func versionCheckDecision(desiredVer, desiredBID, installedVer, installedBID str
 	return v.Ok, v.Reason
 }
 
+// ingressIsDisabled returns true when /globular/ingress/v1/spec carries
+// mode="disabled" or explicit_disabled=true. Conservative on failure: if
+// etcd is unavailable, the spec is missing, or the JSON is malformed,
+// returns false so the existing fail-open behaviour is preserved (the
+// caller MUST NOT gate ERROR-severity rules on a "disabled" determination
+// derived from a read failure). Mirrors the cluster_doctor helper.
+func (srv *server) ingressIsDisabled(ctx context.Context) bool {
+	if srv.kv == nil {
+		return false
+	}
+	resp, err := srv.kv.Get(ctx, "/globular/ingress/v1/spec")
+	if err != nil || resp == nil || len(resp.Kvs) == 0 {
+		return false
+	}
+	var spec struct {
+		Mode             string `json:"mode"`
+		ExplicitDisabled bool   `json:"explicit_disabled"`
+	}
+	if err := json.Unmarshal(resp.Kvs[0].Value, &spec); err != nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(spec.Mode), "disabled") || spec.ExplicitDisabled
+}
+
 // loadVerifierVerdicts reads all verifier verdicts for a given node from etcd
 // in one prefix Get and returns them keyed by canonical service name. Empty
 // map on any error — verifier proofs are advisory; an etcd hiccup must not
@@ -509,6 +533,12 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 	// 2. Unit checks — compare required units from plan vs reported unit states
 	plan, _ := srv.computeNodePlan(node)
 	required := requiredUnitsFromPlan(plan)
+	// keepalived is ingress-gated. When /globular/ingress/v1/spec.mode is
+	// "disabled" or explicit_disabled=true (e.g. Day-0 default before
+	// `globular cluster network ...`), keepalived MUST NOT run; flagging it
+	// as inactive is a false-positive. Mirrors cluster_doctor's
+	// node_units_running gating.
+	ingressDisabled := srv.ingressIsDisabled(ctx)
 	unitStates := make(map[string]string, len(node.Units))
 	for _, u := range node.Units {
 		if u.Name != "" {
@@ -516,6 +546,9 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 		}
 	}
 	for unit := range required {
+		if ingressDisabled && strings.EqualFold(unit, "keepalived.service") {
+			continue
+		}
 		unitOK := false
 		reason := ""
 		st, found := unitStates[strings.ToLower(unit)]
@@ -814,6 +847,15 @@ func (srv *server) evaluateNodeStatus(node *nodeState, units []unitStatusRecord)
 	if len(required) == 0 {
 		return "ready", ""
 	}
+	// keepalived is ingress-gated — see GetNodeHealthDetailV1 for full
+	// rationale. Best-effort lookup with a short timeout; failure preserves
+	// the existing fail-open behaviour.
+	ingressDisabled := false
+	if srv.kv != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ingressDisabled = srv.ingressIsDisabled(ctx)
+		cancel()
+	}
 	unitStates := make(map[string]string, len(units))
 	for _, u := range units {
 		if u.Name == "" {
@@ -824,6 +866,9 @@ func (srv *server) evaluateNodeStatus(node *nodeState, units []unitStatusRecord)
 	var missing []string
 	var notActive []string
 	for unit := range required {
+		if ingressDisabled && strings.EqualFold(unit, "keepalived.service") {
+			continue
+		}
 		state, ok := unitStates[strings.ToLower(unit)]
 		if !ok {
 			missing = append(missing, fmt.Sprintf("%s missing", unit))

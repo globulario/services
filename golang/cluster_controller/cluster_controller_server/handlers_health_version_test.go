@@ -405,6 +405,53 @@ func TestLoadVerifierVerdicts_NoKV_ReturnsEmpty(t *testing.T) {
 	}
 }
 
+// ingressIsDisabled reports the gate that prevents keepalived from being
+// flagged FAIL when the cluster has not yet configured ingress (Day-0
+// default mode=disabled). Mirrors cluster_doctor's behaviour: only a
+// confirmed "disabled" or explicit_disabled=true counts; any error or
+// missing key returns false (fail-open).
+func TestIngressIsDisabled(t *testing.T) {
+	mk := func(value string) *server {
+		kv := newFakeKV()
+		srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
+		srv.kv = kv
+		if value != "" {
+			if _, err := kv.Put(context.Background(), "/globular/ingress/v1/spec", value); err != nil {
+				t.Fatalf("put: %v", err)
+			}
+		}
+		return srv
+	}
+
+	cases := []struct {
+		name  string
+		value string
+		want  bool
+	}{
+		{"missing key fails open", "", false},
+		{"mode disabled", `{"mode":"disabled","generation":1}`, true},
+		{"mode DISABLED case insensitive", `{"mode":"DISABLED"}`, true},
+		{"explicit_disabled true overrides mode", `{"mode":"active","explicit_disabled":true}`, true},
+		{"mode active", `{"mode":"active","generation":2}`, false},
+		{"malformed JSON fails open", `not json`, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			srv := mk(c.value)
+			if got := srv.ingressIsDisabled(context.Background()); got != c.want {
+				t.Errorf("ingressIsDisabled() = %v; want %v (value=%q)", got, c.want, c.value)
+			}
+		})
+	}
+
+	t.Run("nil kv fails open", func(t *testing.T) {
+		srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
+		if srv.ingressIsDisabled(context.Background()) {
+			t.Error("nil kv must yield false (fail-open)")
+		}
+	})
+}
+
 func TestShortBuildID(t *testing.T) {
 	cases := []struct {
 		in, want string
