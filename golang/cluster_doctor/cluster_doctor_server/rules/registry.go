@@ -185,6 +185,12 @@ func NewRegistry(cfg Config) *Registry {
 		localOverrideActive{},
 		localOverrideStale{},
 		officialIdentitySealed{},
+		// Phase 9 (Diagnostic Honesty Refactor) wire-up. Consumes
+		// Snapshot.VerifierResult populated by the collector's
+		// runVerification step. Translates every verifier.Finding
+		// (per-target + cross-cutting) into a doctor rules.Finding so
+		// claim-vs-proof drift surfaces alongside every other invariant.
+		runtimeVerification{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)

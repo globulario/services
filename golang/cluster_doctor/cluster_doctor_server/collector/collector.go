@@ -570,6 +570,15 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 		c.fetchOpsKnowledgeMemoryEntries(ctx, snap)
 	}
 
+	// ── 9. Phase 9 runtime verification ─────────────────────────────────────
+	// Reads desired state from etcd, reconciles against the per-node proofs
+	// already gathered in step 4, persists the per-target result under
+	// /globular/verification/runtime/<node>/<service>. The doctor rule
+	// "diagnostic.runtime_verification" translates the verifier verdicts
+	// into operator-visible findings on the next EvaluateAll pass.
+	c.fetchDesiredServiceTargets(ctx, snap)
+	c.runVerification(ctx, snap)
+
 	return snap, nil
 }
 
@@ -821,6 +830,27 @@ func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {
 			}
 
 			// Plan collection removed — plan system deleted.
+
+			// Phase 9 wire-up: independent runtime evidence per service on
+			// this node. GetServiceRuntimeProof returns one proof per
+			// installed SERVICE/INFRASTRUCTURE/APPLICATION package —
+			// /proc/<pid>/exe hash, on-disk binary hash, systemd effective
+			// unit, runtime version. Unimplemented (older node-agent
+			// binaries) is silently tolerated so a partial rollout doesn't
+			// blank the doctor sweep.
+			proofCtx, proofCancel := context.WithTimeout(ctx, c.cfg.NodeTimeout*2)
+			proofResp, perr := agentClient.GetServiceRuntimeProof(proofCtx, &node_agentpb.GetServiceRuntimeProofRequest{})
+			proofCancel()
+			if perr != nil {
+				if !strings.Contains(perr.Error(), "Unimplemented") {
+					snap.addError("node_agent@"+nid, "GetServiceRuntimeProof", perr)
+				}
+			} else {
+				snap.mu.Lock()
+				snap.RuntimeProofs[nid] = proofResp.GetProofs()
+				snap.mu.Unlock()
+				snap.addSource("node_agent.GetServiceRuntimeProof@" + nid)
+			}
 		}(nodeID, endpoint)
 	}
 

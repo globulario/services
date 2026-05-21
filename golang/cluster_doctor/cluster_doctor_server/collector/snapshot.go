@@ -7,8 +7,27 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/verifier"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 )
+
+// DesiredServiceTarget is the desired-state record the verifier reconciles
+// against per-node runtime proofs. Populated from ServiceRelease and
+// InfrastructureRelease in etcd by the collector's
+// fetchDesiredServiceTargets step. Phase 9 wire-up.
+type DesiredServiceTarget struct {
+	Service        string
+	PublisherID    string
+	DesiredVersion string
+	DesiredBuildID string
+	DesiredHash    string
+	RuntimeNeeded  bool
+	RequiredNodes  []string
+	// ApplyTime is the LastTransitionUnixMs of the release status when it
+	// reached AVAILABLE. Used by verifier to detect old_pid_after_upgrade.
+	// Zero disables that sub-check.
+	ApplyTime time.Time
+}
 
 // DataError records a failed upstream RPC call.
 type DataError struct {
@@ -274,6 +293,30 @@ type Snapshot struct {
 	// Consumed by the "package.local_override_stale" invariant family.
 	ActiveLocalOverrides map[string]*cluster_controllerpb.LocalOverride
 
+	// ── Phase 9 (Diagnostic Honesty Refactor) — verifier evidence ─────────
+	//
+	// RuntimeProofs are independent runtime evidence reports collected from
+	// each node via GetServiceRuntimeProof (Phase 2 RPC). One slice per
+	// node, one entry per installed SERVICE/INFRASTRUCTURE/APPLICATION
+	// package. Nil = collector had no client or every node returned an
+	// error; empty map slice = node was reachable but had no services.
+	// Consumed by the "diagnostic.runtime_verification" rule.
+	RuntimeProofs map[string][]*node_agentpb.ServiceRuntimeProof
+
+	// DesiredServiceTargets is the desired-state set the verifier reconciles
+	// against. Keyed by canonical service name. Populated from
+	// ServiceRelease + InfrastructureRelease records in etcd.
+	DesiredServiceTargets map[string]*DesiredServiceTarget
+
+	// VerifierResult is the cluster-wide roll-up produced by running
+	// verifier.VerifyTarget for every (service, node) target found in
+	// DesiredServiceTargets and AggregateResult across the verdicts.
+	// Nil = verifier did not run (e.g. no desired state available);
+	// non-nil = sweep completed. Per-(node, service) results are also
+	// persisted to etcd at /globular/verification/runtime/<node>/<service>
+	// for cross-process consumption.
+	VerifierResult *verifier.Result
+
 	mu sync.Mutex
 }
 
@@ -344,6 +387,8 @@ func newSnapshot(id string) *Snapshot {
 		CriticalKeyQueryError:    make(map[string]error),
 		NodePackageKinds:         make(map[string]map[string]string),
 		ActiveLocalOverrides:     make(map[string]*cluster_controllerpb.LocalOverride),
+		RuntimeProofs:            make(map[string][]*node_agentpb.ServiceRuntimeProof),
+		DesiredServiceTargets:    make(map[string]*DesiredServiceTarget),
 	}
 }
 
