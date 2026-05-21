@@ -10,6 +10,7 @@ package main
 import (
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -24,12 +25,26 @@ func ip(version, checksum, buildID string) *node_agentpb.InstalledPackage {
 	}
 }
 
+// ipMeta builds an installed-package record with an entrypoint_checksum stored
+// in Metadata — the schema the node-agent writes since v1.2.x.
+func ipMeta(version, convergenceChecksum, buildID, entrypoint string) *node_agentpb.InstalledPackage {
+	pkg := &node_agentpb.InstalledPackage{
+		Version:  version,
+		Checksum: convergenceChecksum,
+		BuildId:  buildID,
+	}
+	if entrypoint != "" {
+		pkg.Metadata = map[string]string{"entrypoint_checksum": entrypoint}
+	}
+	return pkg
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // decideNodeRolloutProof — per-node verdict.
 // ─────────────────────────────────────────────────────────────────────────
 
 func TestDecideNodeRolloutProof_NoInstalled_ProofMissing(t *testing.T) {
-	v := decideNodeRolloutProof("1.2.0", "abc", "bid-a", nil, true, false)
+	v := decideNodeRolloutProof("1.2.0", "abc", "bid-a", "", nil, true, false)
 	if v.ProofStatus != RolloutProofUnknown {
 		t.Errorf("ProofStatus=%q want=%q", v.ProofStatus, RolloutProofUnknown)
 	}
@@ -39,8 +54,9 @@ func TestDecideNodeRolloutProof_NoInstalled_ProofMissing(t *testing.T) {
 }
 
 func TestDecideNodeRolloutProof_HashMismatch_Mismatch(t *testing.T) {
+	// Convergence-hash disagreement still fires installed_hash_mismatch.
 	v := decideNodeRolloutProof(
-		"1.2.0", "sha256:aaaa", "bid-a",
+		"1.2.0", "sha256:aaaa", "bid-a", "",
 		ip("1.2.0", "sha256:bbbb", "bid-a"),
 		true, true,
 	)
@@ -54,7 +70,7 @@ func TestDecideNodeRolloutProof_HashMismatch_Mismatch(t *testing.T) {
 
 func TestDecideNodeRolloutProof_BuildIdMismatch_Mismatch(t *testing.T) {
 	v := decideNodeRolloutProof(
-		"1.2.0", "", "bid-desired",
+		"1.2.0", "", "bid-desired", "",
 		ip("1.2.0", "", "bid-installed"),
 		true, true,
 	)
@@ -68,7 +84,7 @@ func TestDecideNodeRolloutProof_BuildIdMismatch_Mismatch(t *testing.T) {
 
 func TestDecideNodeRolloutProof_VersionMismatch_Mismatch(t *testing.T) {
 	v := decideNodeRolloutProof(
-		"1.2.0", "", "",
+		"1.2.0", "", "", "",
 		ip("1.1.0", "", ""),
 		true, true,
 	)
@@ -82,7 +98,7 @@ func TestDecideNodeRolloutProof_VersionMismatch_Mismatch(t *testing.T) {
 
 func TestDecideNodeRolloutProof_HashAndBuildMatch_RuntimeActive_InstalledVerified(t *testing.T) {
 	v := decideNodeRolloutProof(
-		"1.2.0", "sha256:aaaa", "bid-a",
+		"1.2.0", "sha256:aaaa", "bid-a", "",
 		ip("1.2.0", "sha256:aaaa", "bid-a"),
 		true, true,
 	)
@@ -97,7 +113,7 @@ func TestDecideNodeRolloutProof_HashAndBuildMatch_RuntimeActive_InstalledVerifie
 func TestDecideNodeRolloutProof_BuildMatch_RuntimeNotNeeded_InstalledVerified(t *testing.T) {
 	// COMMAND-kind packages (mc, restic, rclone) don't need a running unit.
 	v := decideNodeRolloutProof(
-		"1.2.0", "", "bid-a",
+		"1.2.0", "", "bid-a", "",
 		ip("1.2.0", "", "bid-a"),
 		false, false,
 	)
@@ -110,7 +126,7 @@ func TestDecideNodeRolloutProof_HashMatch_RuntimeNotActive_PartialNotConverged(t
 	// Phase 4's signature failure mode: new binary on disk, old PID
 	// (or no PID) actually running.
 	v := decideNodeRolloutProof(
-		"1.2.0", "sha256:aaaa", "bid-a",
+		"1.2.0", "sha256:aaaa", "bid-a", "",
 		ip("1.2.0", "sha256:aaaa", "bid-a"),
 		true, false,
 	)
@@ -126,7 +142,7 @@ func TestDecideNodeRolloutProof_NoHashNoBuild_InventoryClaim(t *testing.T) {
 	// Pre-Phase-1 release: no desired hash or build_id to compare against.
 	// We can only take the node-agent's word for it.
 	v := decideNodeRolloutProof(
-		"1.2.0", "", "",
+		"1.2.0", "", "", "",
 		ip("1.2.0", "", ""),
 		true, true,
 	)
@@ -142,12 +158,129 @@ func TestDecideNodeRolloutProof_NoHashNoBuild_InventoryClaim(t *testing.T) {
 // both sides before comparison.
 func TestDecideNodeRolloutProof_HashNormalization(t *testing.T) {
 	v := decideNodeRolloutProof(
-		"1.2.0", "SHA256:ABCD", "",
+		"1.2.0", "SHA256:ABCD", "", "",
 		ip("1.2.0", "sha256:abcd", ""),
 		false, false,
 	)
 	if v.ProofStatus != RolloutProofInstalledVerified {
 		t.Errorf("case+prefix normalization broken: ProofStatus=%q", v.ProofStatus)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// v1.2.59 hash-schema regression tests (see brief
+// /home/dave/Downloads/claude_fix_rollout_hash_schema_bootstrap_skew.md).
+// The bug shipped in v1.2.56/57/58: decideNodeRolloutProof compared
+// installed.Checksum (convergence hash, stamped by controller post-install)
+// against ResolvedArtifactDigest (package tarball sha256). Different
+// schemas → guaranteed false positive rollout.installed_hash_mismatch.
+//
+// In v1.2.59 the caller passes Status.DesiredHash (convergence) and
+// Status.ResolvedEntrypointChecksum (binary). The proof function uses
+// entrypoint_checksum as the binary-vs-binary integrity signal and only
+// uses the convergence hash for apples-to-apples convergence drift.
+// ─────────────────────────────────────────────────────────────────────────
+
+// TarballVsBinary_NoLongerFalsePositive reproduces the live v1.2.58 failure
+// pattern: convergence hash and tarball digest are different by design and
+// must never be compared. With the new signature, the caller passes the
+// convergence hash on both sides (apples-to-apples) so no spurious
+// installed_hash_mismatch fires.
+func TestDecideNodeRolloutProof_TarballVsBinary_NoLongerFalsePositive(t *testing.T) {
+	// Exact hash values from the live ryzen cluster at v1.2.58:
+	//   installed.Checksum                        = 2dc2068...  (convergence)
+	//   installed.Metadata["entrypoint_checksum"] = 506ef44a... (binary)
+	//   Status.DesiredHash                        = 2dc2068...  (convergence)
+	//   Status.ResolvedEntrypointChecksum         = 506ef44a... (binary)
+	//   Status.ResolvedArtifactDigest             = fc9e8d80... (tarball, NEVER USED HERE)
+	convergence := "2dc2068fdce1563a5675509516840f6361d7e333724df44c5803dfeacab49c06"
+	binary := "506ef44a7adda59cce8b926fb5a13da349b2cf7dbf11571fe885a78b1fdf6b5f"
+	pkg := ipMeta("1.2.58", convergence, "9c01268c-fe62-46f8-bd54-3c88cf5f5a64", binary)
+	v := decideNodeRolloutProof(
+		"1.2.58", convergence, "9c01268c-fe62-46f8-bd54-3c88cf5f5a64", binary,
+		pkg, true, true,
+	)
+	if v.ProofStatus != RolloutProofInstalledVerified {
+		t.Fatalf("convergence + entrypoint agree → must be installed_verified; got %q (reason=%q, finding=%q)",
+			v.ProofStatus, v.Reason, v.FindingID)
+	}
+	if v.FindingID != "" {
+		t.Errorf("no finding expected on healthy verdict; got %q", v.FindingID)
+	}
+}
+
+// RealBinaryMismatch_StillFiresInstalledHashMismatch — make sure the fix
+// doesn't suppress genuine drift. When the installed binary's
+// entrypoint_checksum disagrees with the manifest's, the finding must fire.
+func TestDecideNodeRolloutProof_RealBinaryMismatch_StillFires(t *testing.T) {
+	convergence := "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	desiredBinary := "1111111111111111111111111111111111111111111111111111111111111111"
+	installedBinary := "2222222222222222222222222222222222222222222222222222222222222222"
+	pkg := ipMeta("1.2.59", convergence, "bid", installedBinary)
+	v := decideNodeRolloutProof(
+		"1.2.59", convergence, "bid", desiredBinary,
+		pkg, true, true,
+	)
+	if v.ProofStatus != RolloutProofMismatch {
+		t.Fatalf("real binary mismatch must yield mismatch; got %q", v.ProofStatus)
+	}
+	if v.FindingID != FindingRolloutInstalledHashMismatch {
+		t.Errorf("FindingID=%q want=%q", v.FindingID, FindingRolloutInstalledHashMismatch)
+	}
+	if !strings.Contains(v.Reason,"entrypoint_checksum") {
+		t.Errorf("reason should name entrypoint_checksum drift; got %q", v.Reason)
+	}
+}
+
+// MissingEntrypointInMetadata_DegradesNotPasses — when the installed record
+// has no entrypoint_checksum in Metadata (legacy install, missing scan), the
+// proof falls back to convergence/build agreement but doesn't claim binary
+// verification. Make sure that degraded-but-no-binary path doesn't fire a
+// false rollout.installed_hash_mismatch either.
+func TestDecideNodeRolloutProof_MissingEntrypointInMetadata_NoFalseMismatch(t *testing.T) {
+	convergence := "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	desiredBinary := "1111111111111111111111111111111111111111111111111111111111111111"
+	// No entrypoint_checksum in metadata.
+	pkg := ip("1.2.59", convergence, "bid")
+	v := decideNodeRolloutProof(
+		"1.2.59", convergence, "bid", desiredBinary,
+		pkg, true, true,
+	)
+	if v.ProofStatus != RolloutProofInstalledVerified {
+		t.Fatalf("convergence+build_id match (no entrypoint evidence) → installed_verified (weaker proof); got %q reason=%q",
+			v.ProofStatus, v.Reason)
+	}
+	if v.FindingID != "" {
+		t.Errorf("FindingID=%q want empty (no drift, just weaker proof)", v.FindingID)
+	}
+	if !strings.Contains(v.Reason,"entrypoint_checksum not surfaced") {
+		t.Errorf("reason should call out the weaker proof; got %q", v.Reason)
+	}
+}
+
+// ConvergenceDrift_StillFires — apples-to-apples convergence-hash check
+// remains live so a node whose stamped checksum disagrees with the
+// controller's rendering is flagged.
+func TestDecideNodeRolloutProof_ConvergenceDrift_StillFires(t *testing.T) {
+	pkg := ipMeta("1.2.59",
+		"installed_convergence_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"bid",
+		"binary_matches_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+	v := decideNodeRolloutProof(
+		"1.2.59",
+		"desired_convergence_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+		"bid",
+		"binary_matches_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		pkg, true, true,
+	)
+	if v.ProofStatus != RolloutProofMismatch {
+		t.Fatalf("convergence drift must yield mismatch; got %q", v.ProofStatus)
+	}
+	if v.FindingID != FindingRolloutInstalledHashMismatch {
+		t.Errorf("FindingID=%q want=%q", v.FindingID, FindingRolloutInstalledHashMismatch)
+	}
+	if !strings.Contains(v.Reason,"convergence_hash") {
+		t.Errorf("reason should name convergence_hash drift; got %q", v.Reason)
 	}
 }
 

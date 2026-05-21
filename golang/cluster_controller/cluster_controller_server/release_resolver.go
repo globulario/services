@@ -31,12 +31,18 @@ type ReleaseResolver struct {
 }
 
 // ResolvedArtifact holds the full identity of a resolved artifact.
+//
+// HASH SCHEMA — Digest is the PACKAGE TARBALL sha256. EntrypointChecksum is the
+// service BINARY sha256. They are not interchangeable. Comparing one against the
+// other produces the v1.2.56/v1.2.57/v1.2.58 false-positive class of bug. See
+// docs/awareness/failure_modes.yaml entry verifier.hash_schema_confusion.
 type ResolvedArtifact struct {
-	Version     string
-	Digest      string // SHA256 lowercase hex
-	BuildNumber int64
-	BuildID     string                   // Phase 2: repository-allocated exact artifact identity
-	RepoKind    repositorypb.ArtifactKind // actual kind from repository manifest
+	Version            string
+	Digest             string                    // PACKAGE TARBALL sha256 (never compared to a binary)
+	EntrypointChecksum string                    // BINARY sha256 (compared to installed entrypoint_checksum)
+	BuildNumber        int64
+	BuildID            string                    // Phase 2: repository-allocated exact artifact identity
+	RepoKind           repositorypb.ArtifactKind // actual kind from repository manifest
 }
 
 // Resolve returns the full artifact identity for a ServiceReleaseSpec.
@@ -158,11 +164,12 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 	}
 
 	return &ResolvedArtifact{
-		Version:     version,
-		Digest:      checksum,
-		BuildNumber: manifest.GetBuildNumber(),
-		BuildID:     manifest.GetBuildId(),
-		RepoKind:    manifest.GetRef().GetKind(),
+		Version:            version,
+		Digest:             checksum,
+		EntrypointChecksum: normalizeSHA256(manifest.GetEntrypointChecksum()),
+		BuildNumber:        manifest.GetBuildNumber(),
+		BuildID:            manifest.GetBuildId(),
+		RepoKind:           manifest.GetRef().GetKind(),
 	}, nil
 }
 

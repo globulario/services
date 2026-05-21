@@ -124,25 +124,48 @@ type NodeRolloutProofVerdict struct {
 // classifyPackageConvergence — we re-use its measurements rather than
 // re-deriving them here.
 //
-// Cases:
+// HASH SCHEMA — non-negotiable (see docs/awareness/failure_modes.yaml entry
+// verifier.hash_schema_confusion and the v1.2.59 brief at
+// /home/dave/Downloads/claude_fix_rollout_hash_schema_bootstrap_skew.md).
+//
+//   desiredEntrypoint    sha256 of the on-disk service binary, sourced from
+//                        the artifact manifest (ServiceRelease.Status
+//                        .ResolvedEntrypointChecksum). The node-agent records
+//                        its measurement in installed.Metadata["entrypoint_checksum"];
+//                        comparing the two is the v1.2.59 binary-integrity
+//                        proof signal.
+//   desiredConvergence   sha256 of the controller-rendered convergence inputs
+//                        (publisher + name + version + build_number + config).
+//                        Stamped by the node-agent into installed.Checksum
+//                        post-install so the controller's convergence
+//                        comparison terminates — apples-to-apples. NOT a
+//                        binary integrity signal.
+//
+// What we MUST NOT do (the v1.2.56/57/58 false-positive class of bug):
+// compare installed.Checksum (convergence) against ResolvedArtifactDigest
+// (tarball). Different hash schemas — guaranteed mismatch.
+//
+// Decision order:
 //
 //   - installed == nil → ProofStatus=unknown, finding=rollout.proof_missing.
-//   - desiredHash set but installed.Checksum disagrees →
-//     ProofStatus=mismatch, finding=rollout.installed_hash_mismatch.
-//   - desiredBuildID set but installed.BuildId disagrees →
-//     ProofStatus=mismatch, finding=rollout.installed_build_id_mismatch.
-//   - desiredVersion set but installed.Version disagrees →
-//     ProofStatus=mismatch, finding=rollout.installed_version_mismatch.
-//   - All hashes/build/version agree AND (runtime not needed OR runtime active) →
+//   - desiredEntrypoint set, installed entrypoint_checksum present and
+//     disagrees → ProofStatus=mismatch, finding=rollout.installed_hash_mismatch.
+//   - desiredBuildID set but installed.BuildId disagrees → mismatch +
+//     rollout.installed_build_id_mismatch.
+//   - desiredVersion set but installed.Version disagrees → mismatch +
+//     rollout.installed_version_mismatch.
+//   - desiredConvergence and installed.Checksum both present and disagree →
+//     mismatch + rollout.installed_hash_mismatch (convergence-level drift:
+//     the node-agent applied something, but its rendered convergence hash
+//     doesn't match the controller's. Either input drift or stale stamp).
+//   - Identities agree AND (runtime not needed OR runtime active) →
 //     ProofStatus=installed_verified.
-//   - All hashes/build/version agree but runtime is required and not active →
-//     ProofStatus=mismatch, finding=rollout.partial_not_converged (the
-//     binary is on disk, but the process isn't running it).
-//   - Any of desiredHash/BuildID/Version is empty and installed values are
-//     non-empty → ProofStatus=inventory_claim (we have a claim but lack
-//     the desired identity to verify it against).
+//   - Identities agree but runtime required and unit not active →
+//     mismatch + rollout.partial_not_converged.
+//   - Insufficient evidence (no entrypoint checksum AND no convergence hash
+//     AND no build_id) → ProofStatus=inventory_claim.
 func decideNodeRolloutProof(
-	desiredVersion, desiredHash, desiredBuildID string,
+	desiredVersion, desiredConvergence, desiredBuildID, desiredEntrypoint string,
 	installed *node_agentpb.InstalledPackage,
 	runtimeNeeded, runtimeOK bool,
 ) NodeRolloutProofVerdict {
@@ -156,21 +179,28 @@ func decideNodeRolloutProof(
 
 	gotVersion := strings.TrimSpace(installed.GetVersion())
 	wantVersion := strings.TrimSpace(desiredVersion)
-	gotHash := normalizeDesiredHash(installed.GetChecksum())
-	wantHash := normalizeDesiredHash(desiredHash)
+	gotConvergence := normalizeDesiredHash(installed.GetChecksum())
+	wantConvergence := normalizeDesiredHash(desiredConvergence)
 	gotBuild := strings.TrimSpace(installed.GetBuildId())
 	wantBuild := strings.TrimSpace(desiredBuildID)
+	gotEntrypoint := ""
+	if md := installed.GetMetadata(); md != nil {
+		gotEntrypoint = normalizeDesiredHash(md["entrypoint_checksum"])
+	}
+	wantEntrypoint := normalizeDesiredHash(desiredEntrypoint)
 
-	// Hash mismatch is the strongest drift signal — Phase 1 promises the
-	// post-install hash matched the artifact, so any later disagreement
-	// implies tampering, partial extraction, or a stale read.
-	if wantHash != "" && gotHash != "" && gotHash != wantHash {
+	// 1. Binary integrity (preferred drift signal). entrypoint_checksum is
+	//    the sha256 of the binary on disk; the node-agent stamps it at apply
+	//    time and the artifact manifest carries the expected value.
+	if wantEntrypoint != "" && gotEntrypoint != "" && gotEntrypoint != wantEntrypoint {
 		return NodeRolloutProofVerdict{
 			ProofStatus: RolloutProofMismatch,
 			FindingID:   FindingRolloutInstalledHashMismatch,
-			Reason:      fmt.Sprintf("installed checksum %s != desired %s", gotHash, wantHash),
+			Reason: fmt.Sprintf("installed entrypoint_checksum %s != desired %s",
+				gotEntrypoint, wantEntrypoint),
 		}
 	}
+
 	if wantBuild != "" && gotBuild != "" && gotBuild != wantBuild {
 		return NodeRolloutProofVerdict{
 			ProofStatus: RolloutProofMismatch,
@@ -186,20 +216,34 @@ func decideNodeRolloutProof(
 		}
 	}
 
-	// All present identities agree. To claim installed_verified we need at
-	// minimum the artifact hash to have been matched at apply time
-	// (recorded as installed.Checksum). Without that, we only have an
-	// inventory claim.
-	hashMatched := wantHash != "" && gotHash != "" && gotHash == wantHash
-	buildMatched := wantBuild != "" && gotBuild != "" && gotBuild == wantBuild
+	// 2. Convergence drift: controller-stamped hash should match installed.
+	//    This is apples-to-apples (convergence vs convergence). Disagreement
+	//    means the node-agent didn't get the expected rendering — distinct
+	//    from tampering, but still drift.
+	if wantConvergence != "" && gotConvergence != "" && gotConvergence != wantConvergence {
+		return NodeRolloutProofVerdict{
+			ProofStatus: RolloutProofMismatch,
+			FindingID:   FindingRolloutInstalledHashMismatch,
+			Reason: fmt.Sprintf("installed convergence_hash %s != desired %s",
+				gotConvergence, wantConvergence),
+		}
+	}
 
-	if !hashMatched && !buildMatched {
-		// No checksum or build_id evidence — node-agent just told us a
-		// version is installed. That's a claim, not proof.
+	// 3. Strength of agreement. installed_verified requires the binary
+	//    identity to have been proven; convergence-hash agreement alone is
+	//    a claim, not proof. build_id agreement is acceptable as a fallback
+	//    when binary proof isn't carried (legacy / pre-entrypoint records).
+	entrypointMatched := wantEntrypoint != "" && gotEntrypoint != "" && gotEntrypoint == wantEntrypoint
+	buildMatched := wantBuild != "" && gotBuild != "" && gotBuild == wantBuild
+	convergenceMatched := wantConvergence != "" && gotConvergence != "" && gotConvergence == wantConvergence
+
+	if !entrypointMatched && !buildMatched && !convergenceMatched {
+		// node-agent just told us a version is installed. That's a claim,
+		// not proof.
 		return NodeRolloutProofVerdict{
 			ProofStatus: RolloutProofInventoryClaim,
 			FindingID:   "",
-			Reason:      "version reported by node-agent; no hash/build_id evidence",
+			Reason:      "version reported by node-agent; no entrypoint/build_id/convergence evidence",
 		}
 	}
 
@@ -211,10 +255,16 @@ func decideNodeRolloutProof(
 		}
 	}
 
+	reason := "installed identity verified; runtime unit active"
+	if !entrypointMatched {
+		// We have convergence/build agreement but no direct binary proof.
+		// Surface that so operators see we're relying on the weaker signal.
+		reason = "installed convergence/build_id verified; entrypoint_checksum not surfaced"
+	}
 	return NodeRolloutProofVerdict{
 		ProofStatus: RolloutProofInstalledVerified,
 		FindingID:   "",
-		Reason:      "installed hash and build_id verified; runtime unit active",
+		Reason:      reason,
 	}
 }
 

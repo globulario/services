@@ -178,12 +178,13 @@ type NodeReleaseStatus struct {
 
 // ServiceReleaseStatus is the controller-managed status of a ServiceRelease.
 type ServiceReleaseStatus struct {
-	Phase                  string               `json:"phase,omitempty"`
-	ResolvedVersion        string               `json:"resolved_version,omitempty"`
-	ResolvedBuildNumber    int64                `json:"resolved_build_number,omitempty"`    // resolved build iteration
-	ResolvedBuildID        string               `json:"resolved_build_id,omitempty"`       // Phase 2: resolved exact artifact identity
-	ResolvedArtifactDigest string               `json:"resolved_artifact_digest,omitempty"` // SHA256 hex
-	DesiredHash            string               `json:"desired_hash,omitempty"`             // SHA256 of (publisher+name+version+build_number+config)
+	Phase                      string               `json:"phase,omitempty"`
+	ResolvedVersion            string               `json:"resolved_version,omitempty"`
+	ResolvedBuildNumber        int64                `json:"resolved_build_number,omitempty"`    // resolved build iteration
+	ResolvedBuildID            string               `json:"resolved_build_id,omitempty"`       // Phase 2: resolved exact artifact identity
+	ResolvedArtifactDigest     string               `json:"resolved_artifact_digest,omitempty"` // SHA256 hex of the PACKAGE TARBALL — never compared to a binary
+	ResolvedEntrypointChecksum string               `json:"resolved_entrypoint_checksum,omitempty"` // SHA256 hex of the service BINARY (from artifact manifest); compared to InstalledPackage.Metadata["entrypoint_checksum"]
+	DesiredHash                string               `json:"desired_hash,omitempty"`             // SHA256 of (publisher+name+version+build_number+config)
 	Nodes                  []*NodeReleaseStatus `json:"nodes,omitempty"`
 	Message                string               `json:"message,omitempty"`
 	LastTransitionUnixMs   int64                `json:"last_transition_unix_ms,omitempty"`
@@ -238,12 +239,13 @@ type ApplicationReleaseSpec struct {
 
 // ApplicationReleaseStatus is the controller-managed status of an ApplicationRelease.
 type ApplicationReleaseStatus struct {
-	Phase                  string               `json:"phase,omitempty"`
-	ResolvedVersion        string               `json:"resolved_version,omitempty"`
-	ResolvedBuildNumber    int64                `json:"resolved_build_number,omitempty"`
-	ResolvedBuildID        string               `json:"resolved_build_id,omitempty"`       // Phase 2
-	ResolvedArtifactDigest string               `json:"resolved_artifact_digest,omitempty"`
-	DesiredHash            string               `json:"desired_hash,omitempty"`
+	Phase                      string               `json:"phase,omitempty"`
+	ResolvedVersion            string               `json:"resolved_version,omitempty"`
+	ResolvedBuildNumber        int64                `json:"resolved_build_number,omitempty"`
+	ResolvedBuildID            string               `json:"resolved_build_id,omitempty"`       // Phase 2
+	ResolvedArtifactDigest     string               `json:"resolved_artifact_digest,omitempty"`     // tarball SHA256 — never compared to a binary
+	ResolvedEntrypointChecksum string               `json:"resolved_entrypoint_checksum,omitempty"` // binary SHA256 — compared to installed entrypoint_checksum
+	DesiredHash                string               `json:"desired_hash,omitempty"`
 	Nodes                  []*NodeReleaseStatus `json:"nodes,omitempty"`
 	Message                string               `json:"message,omitempty"`
 	LastTransitionUnixMs   int64                `json:"last_transition_unix_ms,omitempty"`
@@ -288,12 +290,13 @@ type InfrastructureReleaseSpec struct {
 
 // InfrastructureReleaseStatus is the controller-managed status of an InfrastructureRelease.
 type InfrastructureReleaseStatus struct {
-	Phase                  string               `json:"phase,omitempty"`
-	ResolvedVersion        string               `json:"resolved_version,omitempty"`
-	ResolvedBuildNumber    int64                `json:"resolved_build_number,omitempty"`
-	ResolvedBuildID        string               `json:"resolved_build_id,omitempty"`       // Phase 2
-	ResolvedArtifactDigest string               `json:"resolved_artifact_digest,omitempty"`
-	DesiredHash            string               `json:"desired_hash,omitempty"`
+	Phase                      string               `json:"phase,omitempty"`
+	ResolvedVersion            string               `json:"resolved_version,omitempty"`
+	ResolvedBuildNumber        int64                `json:"resolved_build_number,omitempty"`
+	ResolvedBuildID            string               `json:"resolved_build_id,omitempty"`       // Phase 2
+	ResolvedArtifactDigest     string               `json:"resolved_artifact_digest,omitempty"`     // tarball SHA256 — never compared to a binary
+	ResolvedEntrypointChecksum string               `json:"resolved_entrypoint_checksum,omitempty"` // binary SHA256 — compared to installed entrypoint_checksum
+	DesiredHash                string               `json:"desired_hash,omitempty"`
 	Nodes                  []*NodeReleaseStatus `json:"nodes,omitempty"`
 	Message                string               `json:"message,omitempty"`
 	LastTransitionUnixMs   int64                `json:"last_transition_unix_ms,omitempty"`

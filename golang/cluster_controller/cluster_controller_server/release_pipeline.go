@@ -175,13 +175,14 @@ type releaseHandle struct {
 	// Current status (read from the typed status)
 	Phase                  string
 	ObservedGeneration     int64
-	ResolvedVersion        string
-	ResolvedBuildID        string // Phase 2: exact artifact identity
-	ResolvedBuildNumber    int64  // build_number from release spec — passed to install_package step
-	ResolvedArtifactDigest string
-	DesiredHash            string
-	LastTransitionUnixMs   int64
-	Nodes                  []*cluster_controllerpb.NodeReleaseStatus
+	ResolvedVersion            string
+	ResolvedBuildID            string // Phase 2: exact artifact identity
+	ResolvedBuildNumber        int64  // build_number from release spec — passed to install_package step
+	ResolvedArtifactDigest     string // PACKAGE TARBALL sha256 — never compared to a binary
+	ResolvedEntrypointChecksum string // BINARY sha256 from artifact manifest — compared to installed entrypoint_checksum
+	DesiredHash                string
+	LastTransitionUnixMs       int64
+	Nodes                      []*cluster_controllerpb.NodeReleaseStatus
 
 	// Resolve parameters (normalized to the common resolver shape)
 	ResolverSpec   *cluster_controllerpb.ServiceReleaseSpec
@@ -215,12 +216,13 @@ type releaseHandle struct {
 // statusPatch describes the status update the pipeline wants to apply.
 // The typed PatchStatus callback maps this to the correct typed status struct.
 type statusPatch struct {
-	Phase                  string
-	ResolvedVersion        string
-	ResolvedBuildID        string // Phase 2: exact artifact identity
-	ResolvedBuildNumber    int64  // resolved build iteration (from repository)
-	ResolvedArtifactDigest string
-	DesiredHash            string
+	Phase                      string
+	ResolvedVersion            string
+	ResolvedBuildID            string // Phase 2: exact artifact identity
+	ResolvedBuildNumber        int64  // resolved build iteration (from repository)
+	ResolvedArtifactDigest     string // PACKAGE TARBALL sha256
+	ResolvedEntrypointChecksum string // BINARY sha256 (from artifact manifest)
+	DesiredHash                string
 	ObservedGeneration     int64
 	Message                string
 	Nodes                  []*cluster_controllerpb.NodeReleaseStatus
@@ -398,12 +400,13 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 
 	desiredHash := h.ComputeHash(resolved.Version, resolved.BuildNumber)
 	h.PatchStatus(ctx, statusPatch{
-		Phase:                  cluster_controllerpb.ReleasePhaseResolved,
-		ResolvedVersion:        resolved.Version,
-		ResolvedBuildID:        resolved.BuildID,
-		ResolvedBuildNumber:    resolved.BuildNumber,
-		ResolvedArtifactDigest: resolved.Digest,
-		DesiredHash:            desiredHash,
+		Phase:                      cluster_controllerpb.ReleasePhaseResolved,
+		ResolvedVersion:            resolved.Version,
+		ResolvedBuildID:            resolved.BuildID,
+		ResolvedBuildNumber:        resolved.BuildNumber,
+		ResolvedArtifactDigest:     resolved.Digest,
+		ResolvedEntrypointChecksum: resolved.EntrypointChecksum,
+		DesiredHash:                desiredHash,
 		ObservedGeneration:     h.Generation,
 		Message:                "",
 		LastTransitionUnixMs:   nowMs,
@@ -822,17 +825,18 @@ func pickBuildNumber(resolved, spec int64) int64 {
 
 func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease) *releaseHandle {
 	return &releaseHandle{
-		Name:                   rel.Meta.Name,
-		ResourceType:           "ApplicationRelease",
-		Generation:             rel.Meta.Generation,
-		Removing:               rel.Spec.Removing,
-		Phase:                  rel.Status.Phase,
-		ObservedGeneration:     rel.Status.ObservedGeneration,
-		ResolvedVersion:        rel.Status.ResolvedVersion,
-		ResolvedBuildID:        rel.Status.ResolvedBuildID,
-		ResolvedBuildNumber:    pickBuildNumber(rel.Status.ResolvedBuildNumber, rel.Spec.BuildNumber),
-		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
-		DesiredHash:            rel.Status.DesiredHash,
+		Name:                       rel.Meta.Name,
+		ResourceType:               "ApplicationRelease",
+		Generation:                 rel.Meta.Generation,
+		Removing:                   rel.Spec.Removing,
+		Phase:                      rel.Status.Phase,
+		ObservedGeneration:         rel.Status.ObservedGeneration,
+		ResolvedVersion:            rel.Status.ResolvedVersion,
+		ResolvedBuildID:            rel.Status.ResolvedBuildID,
+		ResolvedBuildNumber:        pickBuildNumber(rel.Status.ResolvedBuildNumber, rel.Spec.BuildNumber),
+		ResolvedArtifactDigest:     rel.Status.ResolvedArtifactDigest,
+		ResolvedEntrypointChecksum: rel.Status.ResolvedEntrypointChecksum,
+		DesiredHash:                rel.Status.DesiredHash,
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
 		Nodes:                  rel.Status.Nodes,
 		RepositoryAddr:         appRepoAddr(rel.Spec),
@@ -858,17 +862,18 @@ func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease
 
 func (srv *server) infraReleaseHandle(rel *cluster_controllerpb.InfrastructureRelease) *releaseHandle {
 	h := &releaseHandle{
-		Name:                   rel.Meta.Name,
-		ResourceType:           "InfrastructureRelease",
-		Generation:             rel.Meta.Generation,
-		Removing:               rel.Spec.Removing,
-		Phase:                  rel.Status.Phase,
-		ObservedGeneration:     rel.Status.ObservedGeneration,
-		ResolvedVersion:        rel.Status.ResolvedVersion,
-		ResolvedBuildID:        rel.Status.ResolvedBuildID,
-		ResolvedBuildNumber:    pickBuildNumber(rel.Status.ResolvedBuildNumber, rel.Spec.BuildNumber),
-		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
-		DesiredHash:            rel.Status.DesiredHash,
+		Name:                       rel.Meta.Name,
+		ResourceType:               "InfrastructureRelease",
+		Generation:                 rel.Meta.Generation,
+		Removing:                   rel.Spec.Removing,
+		Phase:                      rel.Status.Phase,
+		ObservedGeneration:         rel.Status.ObservedGeneration,
+		ResolvedVersion:            rel.Status.ResolvedVersion,
+		ResolvedBuildID:            rel.Status.ResolvedBuildID,
+		ResolvedBuildNumber:        pickBuildNumber(rel.Status.ResolvedBuildNumber, rel.Spec.BuildNumber),
+		ResolvedArtifactDigest:     rel.Status.ResolvedArtifactDigest,
+		ResolvedEntrypointChecksum: rel.Status.ResolvedEntrypointChecksum,
+		DesiredHash:                rel.Status.DesiredHash,
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
 		Nodes:                  rel.Status.Nodes,
 		RepositoryAddr:         infraRepoAddr(rel.Spec),
@@ -921,6 +926,7 @@ func applyPatchToAppStatus(s *cluster_controllerpb.ApplicationReleaseStatus, p s
 		s.ResolvedBuildID = p.ResolvedBuildID
 		s.ResolvedBuildNumber = p.ResolvedBuildNumber
 		s.ResolvedArtifactDigest = p.ResolvedArtifactDigest
+		s.ResolvedEntrypointChecksum = p.ResolvedEntrypointChecksum
 		s.DesiredHash = p.DesiredHash
 		s.ObservedGeneration = p.ObservedGeneration
 		s.Message = p.Message
@@ -967,6 +973,7 @@ func applyPatchToInfraStatus(s *cluster_controllerpb.InfrastructureReleaseStatus
 		s.ResolvedBuildID = p.ResolvedBuildID
 		s.ResolvedBuildNumber = p.ResolvedBuildNumber
 		s.ResolvedArtifactDigest = p.ResolvedArtifactDigest
+		s.ResolvedEntrypointChecksum = p.ResolvedEntrypointChecksum
 		s.DesiredHash = p.DesiredHash
 		s.ObservedGeneration = p.ObservedGeneration
 		s.Message = p.Message
@@ -996,18 +1003,19 @@ func applyPatchToInfraStatus(s *cluster_controllerpb.InfrastructureReleaseStatus
 func (srv *server) svcReleaseHandle(rel *cluster_controllerpb.ServiceRelease) *releaseHandle {
 	canon := canonicalServiceName(rel.Spec.ServiceName)
 	h := &releaseHandle{
-		Name:                   rel.Meta.Name,
-		ResourceType:           "ServiceRelease",
-		Generation:             rel.Meta.Generation,
-		Paused:                 rel.Spec.Paused,
-		Removing:               rel.Spec.Removing,
-		Phase:                  rel.Status.Phase,
-		ObservedGeneration:     rel.Status.ObservedGeneration,
-		ResolvedVersion:        rel.Status.ResolvedVersion,
-		ResolvedBuildID:        rel.Status.ResolvedBuildID,
-		ResolvedBuildNumber:    pickBuildNumber(rel.Status.ResolvedBuildNumber, rel.Spec.BuildNumber),
-		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
-		DesiredHash:            rel.Status.DesiredHash,
+		Name:                       rel.Meta.Name,
+		ResourceType:               "ServiceRelease",
+		Generation:                 rel.Meta.Generation,
+		Paused:                     rel.Spec.Paused,
+		Removing:                   rel.Spec.Removing,
+		Phase:                      rel.Status.Phase,
+		ObservedGeneration:         rel.Status.ObservedGeneration,
+		ResolvedVersion:            rel.Status.ResolvedVersion,
+		ResolvedBuildID:            rel.Status.ResolvedBuildID,
+		ResolvedBuildNumber:        pickBuildNumber(rel.Status.ResolvedBuildNumber, rel.Spec.BuildNumber),
+		ResolvedArtifactDigest:     rel.Status.ResolvedArtifactDigest,
+		ResolvedEntrypointChecksum: rel.Status.ResolvedEntrypointChecksum,
+		DesiredHash:                rel.Status.DesiredHash,
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
 		Nodes:                  rel.Status.Nodes,
 		RepositoryAddr:         repositoryAddrForSpec(rel.Spec),
@@ -1062,6 +1070,7 @@ func applyPatchToSvcStatus(s *cluster_controllerpb.ServiceReleaseStatus, p statu
 		s.ResolvedBuildID = p.ResolvedBuildID
 		s.ResolvedBuildNumber = p.ResolvedBuildNumber
 		s.ResolvedArtifactDigest = p.ResolvedArtifactDigest
+		s.ResolvedEntrypointChecksum = p.ResolvedEntrypointChecksum
 		s.DesiredHash = p.DesiredHash
 		s.ObservedGeneration = p.ObservedGeneration
 		s.Message = p.Message
@@ -1189,14 +1198,22 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 		// is the serviceHealthy bit, which classifies the systemd unit
 		// state — the strongest runtime signal the controller has
 		// before Phase 9's GetServiceRuntimeProof is wired in.
-		var resolvedVersion, resolvedHash, resolvedBID string
+		//
+		// HASH SCHEMA: decideNodeRolloutProof compares binary-vs-binary using
+		// resolvedEntrypoint (artifact-manifest entrypoint_checksum) against the
+		// installed package's Metadata["entrypoint_checksum"]. ResolvedArtifactDigest
+		// stays the tarball digest and is not used for binary proof — the
+		// previous tarball-vs-installed-checksum comparison produced a permanent
+		// false rollout.installed_hash_mismatch and is no longer the proof path.
+		var resolvedVersion, resolvedConvergence, resolvedEntrypoint, resolvedBID string
 		if rel.Status != nil {
 			resolvedVersion = rel.Status.ResolvedVersion
-			resolvedHash = rel.Status.ResolvedArtifactDigest
+			resolvedConvergence = rel.Status.DesiredHash
+			resolvedEntrypoint = rel.Status.ResolvedEntrypointChecksum
 			resolvedBID = rel.Status.ResolvedBuildID
 		}
 		verdict := decideNodeRolloutProof(
-			resolvedVersion, resolvedHash, resolvedBID,
+			resolvedVersion, resolvedConvergence, resolvedBID, resolvedEntrypoint,
 			installedPkg,
 			true, // services always require a running unit
 			serviceHealthy,

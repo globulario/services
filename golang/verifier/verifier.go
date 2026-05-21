@@ -355,8 +355,14 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 			findingID := FindingOldPidAfterUpgrade
 			severity := SeverityCritical
 			if target.IsFirstInstall {
+				// First-install timing skew is expected sequencing, not drift:
+				// install.sh starts services before the controller bootstrap
+				// records the apply timestamp. The binary-identity checks
+				// above remain authoritative; this finding is informational
+				// (it shouldn't block runtime_verified). On upgrade the same
+				// pattern stays critical — different finding id + severity.
 				findingID = FindingBootstrapOrderingSkew
-				severity = SeverityDegraded
+				severity = SeverityInfo
 			}
 			v.Findings = append(v.Findings, Finding{
 				ID:       findingID,

@@ -523,7 +523,9 @@ func TestVerifyTarget_FirstInstallProcessOlderThanApply_BootstrapOrderingSkew(t 
 	// On a fresh install, install.sh starts services before the
 	// controller bootstrap records the apply. The verifier must NOT
 	// raise old_pid_after_upgrade (critical) for this expected
-	// sequencing; it raises bootstrap_ordering_skew (degraded) instead.
+	// sequencing; it raises bootstrap_ordering_skew (info-only) instead
+	// so the verdict can still reach runtime_verified when the binary
+	// identity is otherwise proven (v1.2.59 brief Part 3).
 	tgt := targetFoo()
 	tgt.IsFirstInstall = true
 	ev := Evidence{Proof: proofMatching(tgt, func(p *node_agentpb.ServiceRuntimeProof) {
@@ -537,9 +539,13 @@ func TestVerifyTarget_FirstInstallProcessOlderThanApply_BootstrapOrderingSkew(t 
 		t.Errorf("first install with process older than apply must fire bootstrap_ordering_skew; got %+v", v.Findings)
 	}
 	for _, f := range v.Findings {
-		if f.ID == FindingBootstrapOrderingSkew && f.Severity != SeverityDegraded {
-			t.Errorf("bootstrap_ordering_skew must be degraded; got %q", f.Severity)
+		if f.ID == FindingBootstrapOrderingSkew && f.Severity != SeverityInfo {
+			t.Errorf("bootstrap_ordering_skew on first install must be info; got %q", f.Severity)
 		}
+	}
+	if v.ProofStatus != ProofRuntimeVerified {
+		t.Errorf("first install + binary identity verified must reach runtime_verified despite bootstrap skew; got %q (findings=%+v)",
+			v.ProofStatus, v.Findings)
 	}
 }
 
