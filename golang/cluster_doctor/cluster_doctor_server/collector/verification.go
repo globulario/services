@@ -90,6 +90,52 @@ func (c *Collector) fetchDesiredServiceTargets(ctx context.Context, snap *Snapsh
 	// (runs after the etcd reads above so we make ONE pass over the
 	// resolved set, deduplicating by build_id.)
 	c.enrichTargetsWithEntrypointChecksum(ctx, snap)
+
+	// ── Apply policy gates that override the default per-release target ──
+	// shape. The ingress spec lives in /globular/ingress/v1/spec, fetched
+	// earlier in the snapshot; when mode=disabled the keepalived unit must
+	// NOT be running and we tell the verifier so (RuntimeNeeded=false).
+	// This prevents the verifier from raising runtime_identity_unproven
+	// every sweep on a Day-0 / pre-ingress cluster.
+	applyIngressPolicyToTargets(snap)
+}
+
+// applyIngressPolicyToTargets patches per-target expectations using the
+// cluster's ingress desired state. Currently a single rule: when ingress
+// is disabled, keepalived is expected NOT to run, so its target's
+// RuntimeNeeded flag is cleared. The verifier's computeProofStatus
+// honours that — installed-only proof becomes sufficient instead of
+// firing a degraded "no runtime proof" finding every sweep.
+func applyIngressPolicyToTargets(snap *Snapshot) {
+	if snap == nil || !ingressDisabledFromSnapshot(snap) {
+		return
+	}
+	if tgt := snap.DesiredServiceTargets["keepalived"]; tgt != nil {
+		tgt.RuntimeNeeded = false
+	}
+}
+
+// ingressDisabledFromSnapshot returns true when the ingress spec parsed
+// from snap.IngressSpecRaw carries mode="disabled" or
+// explicit_disabled=true. Conservative on read/parse failures: returns
+// false so the existing fail-open behaviour is preserved (the verifier
+// keeps RuntimeNeeded=true and any real keepalived outage still surfaces).
+func ingressDisabledFromSnapshot(snap *Snapshot) bool {
+	if snap == nil || !snap.IngressSpecPresent {
+		return false
+	}
+	raw := strings.TrimSpace(snap.IngressSpecRaw)
+	if raw == "" {
+		return false
+	}
+	var spec struct {
+		Mode             string `json:"mode"`
+		ExplicitDisabled bool   `json:"explicit_disabled"`
+	}
+	if err := json.Unmarshal([]byte(raw), &spec); err != nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(spec.Mode), "disabled") || spec.ExplicitDisabled
 }
 
 // serviceReleaseToTarget maps a ServiceRelease object into a target.

@@ -167,19 +167,58 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 		})
 	}
 
-	if rejected, ok := snap.PromMetrics["workflow_dispatch_rejected"]; ok && rejected > 0 {
+	// workflow.backend_pressure — distinguish transient vs sustained.
+	//
+	// The previous shape consumed the raw counter
+	// (workflow_dispatch_rejected). A monotonic counter is non-zero
+	// forever after a single transient blip (e.g. one rejection
+	// during a workflow_server restart), so the finding fired on every
+	// sweep and the incident never auto-cleared. This shape consumes
+	// rate-over-window metrics instead:
+	//
+	//   transient (1 ≤ rate_5m, rate_15m ≤ pressure_sustained_threshold) →
+	//       INFO + INVARIANT_PASS (visible but doesn't open an incident)
+	//   sustained (rate_15m > pressure_sustained_threshold)             →
+	//       WARN + INVARIANT_FAIL (opens an incident, operator-actionable)
+	//   absent (rate_5m == 0 and rate_15m == 0)                        →
+	//       no finding emitted; existing OPEN auto-clears via absent_scans
+	rate5m, rate5mOK := snap.PromMetrics["workflow_dispatch_rejected_rate_5m"]
+	rate15m, rate15mOK := snap.PromMetrics["workflow_dispatch_rejected_rate_15m"]
+	total, _ := snap.PromMetrics["workflow_dispatch_rejected"]
+	pressureSustainedThreshold := 5.0 // rejections in 15m before we call it "sustained"
+
+	if rate5mOK && rate15mOK && (rate5m > 0 || rate15m > 0) {
+		sustained := rate15m > pressureSustainedThreshold
+		sev := cluster_doctorpb.Severity_SEVERITY_INFO
+		status := cluster_doctorpb.InvariantStatus_INVARIANT_PASS
+		summary := fmt.Sprintf("Workflow dispatch pressure transient — %.0f rejection(s) in last 5m, %.0f in last 15m (auto-clear when both rates hit 0)",
+			rate5m, rate15m)
+		if sustained {
+			sev = cluster_doctorpb.Severity_SEVERITY_WARN
+			status = cluster_doctorpb.InvariantStatus_INVARIANT_FAIL
+			summary = fmt.Sprintf("Workflow dispatch pressure SUSTAINED — %.0f rejection(s) in last 15m (threshold %.0f) — backend under sustained pressure",
+				rate15m, pressureSustainedThreshold)
+		}
 		findings = append(findings, Finding{
 			FindingID:   FindingID("workflow.backend_pressure", "cluster", "workflow"),
 			InvariantID: "workflow.backend_pressure",
-			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Severity:    sev,
 			Category:    "control_plane",
 			EntityRef:   "workflow",
-			Summary:     fmt.Sprintf("Workflow health gate rejected %d dispatch(es) — backend under pressure", int(rejected)),
+			Summary:     summary,
 			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "backend_pressure", map[string]string{
-				"total_rejected": fmt.Sprintf("%.0f", rejected),
-				"timestamp":      snap.PromTS.UTC().Format(time.RFC3339),
+				"prometheus_query_5m":  "sum(increase(globular_controller_workflow_dispatch_rejected_total[5m]))",
+				"prometheus_query_15m": "sum(increase(globular_controller_workflow_dispatch_rejected_total[15m]))",
+				"rate_5m":              fmt.Sprintf("%.2f", rate5m),
+				"rate_15m":             fmt.Sprintf("%.2f", rate15m),
+				"sustained_threshold":  fmt.Sprintf("%.0f", pressureSustainedThreshold),
+				"sustained":            fmt.Sprintf("%v", sustained),
+				"total_rejected_ever":  fmt.Sprintf("%.0f", total),
+				"window":               "5m,15m",
+				"last_observed":        snap.PromTS.UTC().Format(time.RFC3339),
+				"auto_clear_condition": "rate_5m == 0 AND rate_15m == 0",
 			})},
-			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+			InvariantStatus: status,
 		})
 	}
 
@@ -201,19 +240,40 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 		})
 	}
 
+	// release.blocked_workflow_unavailable — `release_transient_blocked`
+	// is currently scraped as a gauge that records the count of releases
+	// in transient-retry backoff at *some* point. If the metric is sticky
+	// (never decremented when the workflow recovers), this finding fires
+	// forever after one workflow flap. Treat as advisory (INFO + PASS)
+	// when the value is small (1–N), elevate to WARN + FAIL only when the
+	// stuck count crosses a threshold we'd actually act on. The signal is
+	// still recorded as evidence so an operator can trace the history.
 	if blocked, ok := snap.PromMetrics["release_transient_blocked"]; ok && blocked > 0 {
+		const stuckReleaseThreshold = 3.0
+		sev := cluster_doctorpb.Severity_SEVERITY_INFO
+		status := cluster_doctorpb.InvariantStatus_INVARIANT_PASS
+		summary := fmt.Sprintf("%.0f release(s) recorded as transient-blocked (workflow flapped) — advisory; clears when the controller restarts or re-evaluates the gauge", blocked)
+		if blocked >= stuckReleaseThreshold {
+			sev = cluster_doctorpb.Severity_SEVERITY_WARN
+			status = cluster_doctorpb.InvariantStatus_INVARIANT_FAIL
+			summary = fmt.Sprintf("%.0f release(s) blocked in transient retry backoff — threshold %.0f exceeded — workflow service was unreachable during last dispatch attempt", blocked, stuckReleaseThreshold)
+		}
 		findings = append(findings, Finding{
 			FindingID:   FindingID("release.blocked_workflow_unavailable", "cluster", "controller"),
 			InvariantID: "release.blocked_workflow_unavailable",
-			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Severity:    sev,
 			Category:    "control_plane",
 			EntityRef:   "controller",
-			Summary:     fmt.Sprintf("%.0f release(s) blocked in transient retry backoff — workflow service was unreachable during last dispatch attempt", blocked),
+			Summary:     summary,
 			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "release_transient_blocked", map[string]string{
-				"blocked_releases": fmt.Sprintf("%.0f", blocked),
-				"timestamp":        snap.PromTS.UTC().Format(time.RFC3339),
+				"prometheus_query":     "globular_controller_release_transient_blocked",
+				"blocked_releases":     fmt.Sprintf("%.0f", blocked),
+				"stuck_threshold":      fmt.Sprintf("%.0f", stuckReleaseThreshold),
+				"last_observed":        snap.PromTS.UTC().Format(time.RFC3339),
+				"auto_clear_condition": "gauge drops to 0 (controller re-evaluates after workflow recovery)",
+				"classification":       map[bool]string{true: "real-sustained", false: "stale-or-low"}[blocked >= stuckReleaseThreshold],
 			})},
-			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+			InvariantStatus: status,
 		})
 	}
 
@@ -376,20 +436,57 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 	xdsEvents, hasEvents := snap.PromMetrics["xds_config_events_total"]
 	xdsLastUnix, hasLastUnix := snap.PromMetrics["xds_last_applied_unix"]
 
+	// Investigated 2026-05-21 (single-node ryzen cluster): the rule
+	// previously fired WARN + INVARIANT_FAIL whenever events_total > 0 and
+	// applied_total == 0. That comparison is semantically wrong:
+	//
+	//   - xds_config_events_total increments on every ClusterNetwork /
+	//     ServiceDesiredVersion *watch event* (reconcile_runtime.go:187,202).
+	//     Every deploy bumps it.
+	//   - xds_config_applied_total only increments when the controller's
+	//     own node plan injects a `restart globular-xds.service` action
+	//     because the rendered config hash changed
+	//     (reconcile_nodes.go:1189). That is a NARROW signal — it does
+	//     NOT mean "xDS pushed config to Envoy"; xDS pushes its own
+	//     snapshots over gRPC continuously, independent of this counter.
+	//
+	// On a stable cluster (xds binary unchanged, rendered config hash
+	// stable) applied_total stays at 0 forever while events_total grows.
+	// That is normal, not drift.
+	//
+	// Until we have a real "xDS apply path stuck" signal, surface this
+	// shape as INFO + INVARIANT_PASS so operators see the counters but
+	// no incident is opened. The Summary explicitly says "advisory" so
+	// the next reader doesn't mistake it for a real failure.
+	//
+	// Real evidence trail for a future, narrower rule:
+	//   - globular-xds.service systemd state == active
+	//   - globular-envoy.service systemd state == active
+	//   - xds_snapshot_push_failures_total == 0 (TBD; metric does not exist yet)
+	//   - elapsed since last successful xDS gRPC push > N seconds
+	//
+	// If xDS is *intentionally* disabled (no ClusterNetwork resource
+	// configured), the events_total never increments and we never enter
+	// this branch — no further policy needed.
 	if hasApplied && hasEvents && xdsEvents > 0 && xdsApplied == 0 {
 		findings = append(findings, Finding{
 			FindingID:   FindingID("xds.no_applies", "cluster", "controller"),
 			InvariantID: "xds.no_applies",
-			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Severity:    cluster_doctorpb.Severity_SEVERITY_INFO,
 			Category:    "control_plane",
 			EntityRef:   "controller",
-			Summary:     fmt.Sprintf("xDS config: %.0f event(s) received but no config has been applied — rendered config hash may be stuck or xDS renderer is not producing output", xdsEvents),
+			Summary:     fmt.Sprintf("xDS counter advisory — %.0f reconcile event(s), 0 controller-driven xds restarts. This is normal on a stable cluster (xds service pushes snapshots over gRPC independent of this counter). Real apply-path-stuck signal needs a different metric (TODO).", xdsEvents),
 			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "xds_generation", map[string]string{
 				"events_total":  fmt.Sprintf("%.0f", xdsEvents),
 				"applied_total": fmt.Sprintf("%.0f", xdsApplied),
+				"classification":               "advisory-metric-mismatch",
+				"events_metric_meaning":        "watch events that *may* require xDS rebuild (every deploy)",
+				"applied_metric_meaning":       "controller injected globular-xds.service restart action because rendered hash changed",
+				"why_zero_is_normal":           "xds service pushes snapshots over gRPC continuously — does not increment this counter",
+				"recommended_evidence_for_real_xds_stuck": "globular-xds.service systemd state + xds gRPC push failure metric (TODO)",
 				"timestamp":     snap.PromTS.UTC().Format(time.RFC3339),
 			})},
-			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_PASS,
 		})
 	} else if hasApplied && xdsApplied > 0 && hasLastUnix && xdsLastUnix > 0 {
 		age := snap.PromTS.Unix() - int64(xdsLastUnix)

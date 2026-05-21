@@ -813,6 +813,15 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			if skipRuntimeCheck(name) || strings.TrimSpace(healthCheck) == "" {
 				return nil
 			}
+			// Ingress-gated packages — keepalived is expected to be inactive
+			// when the cluster's ingress spec is mode=disabled (Day-0
+			// default). Without this gate the workflow's verify_runtime
+			// step fails the active-check, defers up to max_defers, and
+			// permanently abandons the release.apply.package run — even
+			// though the inactive state is correct policy.
+			if strings.EqualFold(strings.TrimSpace(name), "keepalived") && srv.ingressIsDisabled(ctx) {
+				return nil
+			}
 			nc, _ := engine.GetNodeContext(ctx)
 			nodeID, endpoint := nc.NodeID, nc.AgentEndpoint
 			if endpoint == "" {

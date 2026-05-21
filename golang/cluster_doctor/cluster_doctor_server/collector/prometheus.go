@@ -59,7 +59,19 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		"apply_loop_detected":        "globular_controller_apply_loop_detected_total",
 		"drift_kind_mismatch":        "globular_controller_drift_kind_mismatch_total",
 		"reconcile_circuit_open":     "globular_controller_reconcile_circuit_open_total",
+		// Raw counter — kept for backwards compatibility / audit. The rule
+		// itself should NOT consume this directly: a counter only ever
+		// grows, so the finding would fire forever after a single
+		// transient blip and never auto-clear.
 		"workflow_dispatch_rejected": "globular_controller_workflow_dispatch_rejected_total",
+		// Rate over a 5-minute window — used by the backend_pressure
+		// rule to distinguish transient flap (one-time rejection during
+		// a restart) from sustained pressure (rejections still
+		// happening). Auto-clears when the window has no rejections.
+		"workflow_dispatch_rejected_rate_5m": "sum(increase(globular_controller_workflow_dispatch_rejected_total[5m]))",
+		// Same idea over a longer window, so the rule can elevate
+		// severity when pressure persists across multiple sweeps.
+		"workflow_dispatch_rejected_rate_15m": "sum(increase(globular_controller_workflow_dispatch_rejected_total[15m]))",
 		// Day-1 resilience signals (Phase 2-4).
 		"workflow_circuit_open":        "globular_controller_workflow_circuit_open",
 		"release_transient_blocked":    "globular_controller_release_transient_blocked",

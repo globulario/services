@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
@@ -150,7 +151,20 @@ func collectServiceRuntimeProof(
 		p.Errors = append(p.Errors, "no systemd unit for package (kind=COMMAND)")
 		return p
 	}
+	// Derive the systemd unit name from the identity registry when
+	// available; fall back to the "globular-<name>.service" convention
+	// otherwise. The registry is the authority for services that ship with
+	// upstream's naming (keepalived.service, scylla-server.service, etc.).
+	// Without this lookup, ShowProperties("globular-keepalived.service")
+	// always misses, no ExecStart is recovered, the binary-hash fallback
+	// never runs, and the verdict permanently degrades to
+	// runtime_identity_unproven.
 	unit := "globular-" + strings.ReplaceAll(name, "_", "-") + ".service"
+	if key, ok := identity.NormalizeServiceKey(name); ok {
+		if id, ok := identity.IdentityByKey(key); ok && id.UnitName != "" {
+			unit = id.UnitName
+		}
+	}
 
 	props, err := deps.ShowProperties(ctx, unit, runtimeProofSystemdProperties...)
 	if err != nil {
