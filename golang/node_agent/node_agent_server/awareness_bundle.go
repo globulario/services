@@ -137,6 +137,12 @@ func installAwarenessBundle(data []byte) (string, error) {
 
 	// Already installed — just re-link in case the symlink is stale.
 	if _, err := os.Stat(destDir); err == nil {
+		// Heal a legacy 0700 install in place: the doctor (globular user)
+		// must be able to read the manifest; older installs landed at 0700
+		// because os.MkdirTemp's default. Idempotent on a 0755 dir.
+		if cerr := os.Chmod(destDir, 0o755); cerr != nil {
+			log.Printf("awareness-bundle: warning: chmod existing %s: %v", destDir, cerr)
+		}
 		if err := updateCurrentSymlink(destDir); err != nil {
 			return "", err
 		}
@@ -161,6 +167,17 @@ func installAwarenessBundle(data []byte) (string, error) {
 		return "", fmt.Errorf("extract bundle: %w", err)
 	}
 
+	// os.MkdirTemp creates the staging directory with mode 0700, and
+	// os.Rename preserves that mode on the destination. cluster_doctor
+	// runs as the unprivileged `globular` user and must read the
+	// manifest + ops-knowledge entries on every sweep. Without this
+	// chmod, every doctor scan fires ops_knowledge.seed_integrity with
+	// "manifest unreadable" — the bundle is on disk, just unreachable.
+	// Bundle content is world-public (signed release artifact), so 0755
+	// is correct.
+	if err := os.Chmod(tmp, 0o755); err != nil {
+		log.Printf("awareness-bundle: warning: chmod staging dir: %v", err)
+	}
 	if err := os.Rename(tmp, destDir); err != nil {
 		return "", fmt.Errorf("install bundle: %w", err)
 	}
