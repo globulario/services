@@ -798,6 +798,52 @@ jobs:
                   print(f"ERROR: {e}", file=sys.stderr)
               sys.exit(1)
 
+          # ── AWARENESS_BUNDLE BOM entry ───────────────────────────────────
+          # The awareness bundle is built in the previous step. Without an
+          # entry in release-index.json the Day-0 installer falls back to
+          # the filename token for build_id identity ("Awareness manifest
+          # build_id unavailable; not passing --build-id") and skips the
+          # release-index identity cross-check ("Skipping --release-index
+          # for awareness install"). That breaks the build_id propagation
+          # invariant that SERVICE/INFRASTRUCTURE packages already obey.
+          # Source: services issue #1 (AWARENESS_BUNDLE build_id propagation gaps).
+          aware_matches = glob.glob("dist/awareness/awareness-bundle-*.tar.gz")
+          if aware_matches:
+              aware_tgz = aware_matches[0]
+              aware_fname = os.path.basename(aware_tgz)
+              # The bundle's INNER manifest.json (packed by the bundle builder)
+              # carries the authoritative build_id, version, and ops_knowledge
+              # provenance. We read it once so the BOM entry's identity fields
+              # match what `globular awareness bundle inspect` reports.
+              with tarfile.open(aware_tgz) as tf:
+                  am = json.loads(tf.extractfile("manifest.json").read())
+              raw = open(aware_tgz, "rb").read()
+              aware_digest = f"sha256:{hashlib.sha256(raw).hexdigest()}"
+              entries.append({
+                  "name":                     am.get("name", "globular-awareness-bundle"),
+                  "kind":                     "awareness_bundle",
+                  "version":                  am["version"],
+                  "build_number":             int(build_number),
+                  "build_id":                 str(am["build_id"]),
+                  "platform":                 "noarch",
+                  "publisher":                "core@globular.io",
+                  "channel":                  "stable",
+                  "package_contract_digest":  aware_digest,
+                  "package_digest":           aware_digest,
+                  "entrypoint_checksum":      "",
+                  "asset_url":                f"{base_url}/{aware_fname}",
+                  "filename":                 aware_fname,
+                  "origin_release":           tag,
+                  "changed_in_release":       True,
+                  "profiles":                 [],
+                  "provides":                 [],
+                  "requires":                 [],
+                  "hard_deps":                [],
+                  "defaults":                 {},
+              })
+          else:
+              print("WARNING: no awareness bundle found in dist/awareness/ — BOM will not include AWARENESS_BUNDLE entry", file=sys.stderr)
+
           index = {
               "schema_version":            "globular.repository.index/v2",
               "platform_release":          version,
@@ -984,6 +1030,7 @@ jobs:
             dist/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz.sha256
             dist/packages/*.tgz
             dist/release-index.json
+            dist/awareness/awareness-bundle-*.tar.gz
           generate_release_notes: true
           body: |
             ## Globular ${{ steps.version.outputs.version }}

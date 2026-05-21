@@ -3,6 +3,7 @@ package bundlesync
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -163,16 +164,31 @@ func InstallBundle(opts InstallOptions) (*InstallResult, error) {
 		}
 
 		// (4) Drop the manifest sidecar inside the extracted tree so the
-		// installed bundle is self-describing. We tolerate an existing
-		// manifest.json in the tar — the sidecar overwrites it because the
-		// sidecar is what the operator authoritatively pulled and verified.
+		// installed bundle is self-describing. The sidecar carries the
+		// authoritative pulled fields (sha256, schema_version, build_id);
+		// the inner manifest (already extracted from the tar) carries
+		// content fields the sidecar does not model — ops_knowledge_entries,
+		// kind, built_at, built_by. We MERGE both: inner-manifest fields
+		// are preserved unless the sidecar overrides them. This keeps
+		// downstream consumers (cluster_doctor's ops_knowledge.seed_integrity
+		// rule, mcp.awareness_bundle_manifest) able to read the rich
+		// content fields without re-extracting bundle.tar.gz on every read,
+		// while still ensuring the sidecar's authoritative provenance wins
+		// on any overlap.
 		manifestData, mfErr := os.ReadFile(opts.ManifestPath)
 		if mfErr != nil {
 			res.State = StateAwarenessBundleInstallFailed
 			res.Reason = fmt.Sprintf("read manifest: %v", mfErr)
 			return res, mfErr
 		}
-		if err := os.WriteFile(filepath.Join(stagingPath, "manifest.json"), manifestData, 0644); err != nil {
+		mergedManifestData, mergeErr := mergeBundleManifestData(
+			filepath.Join(stagingPath, "manifest.json"), manifestData)
+		if mergeErr != nil {
+			res.State = StateAwarenessBundleInstallFailed
+			res.Reason = fmt.Sprintf("merge manifest: %v", mergeErr)
+			return res, mergeErr
+		}
+		if err := os.WriteFile(filepath.Join(stagingPath, "manifest.json"), mergedManifestData, 0644); err != nil {
 			res.State = StateAwarenessBundleInstallFailed
 			res.Reason = fmt.Sprintf("write manifest sidecar: %v", err)
 			return res, err
@@ -325,6 +341,49 @@ func copyFileAtomic(src, dst string) error {
 		return fmt.Errorf("rename: %w", err)
 	}
 	return nil
+}
+
+// mergeBundleManifestData merges the inner manifest extracted from the tar
+// (at innerPath) with the sidecar manifest bytes (sidecarData). Sidecar
+// fields override inner-manifest fields on overlap (authoritative provenance
+// wins); fields present only in the inner manifest — notably
+// ops_knowledge_entries, kind, built_at, built_by — are preserved.
+//
+// If the inner manifest is missing or unparseable we fall back to the
+// sidecar bytes verbatim, matching the prior behaviour so a malformed inner
+// manifest never blocks the install. Returns the JSON-marshalled merged
+// manifest ready to write to disk.
+func mergeBundleManifestData(innerPath string, sidecarData []byte) ([]byte, error) {
+	var sidecar map[string]interface{}
+	if err := json.Unmarshal(sidecarData, &sidecar); err != nil {
+		return nil, fmt.Errorf("parse sidecar manifest: %w", err)
+	}
+
+	innerData, readErr := os.ReadFile(innerPath)
+	if readErr != nil {
+		// No inner manifest extracted (older bundle, or tar layout
+		// without one). Keep sidecar bytes verbatim — equivalent to the
+		// pre-merge behaviour.
+		if errors.Is(readErr, os.ErrNotExist) {
+			return sidecarData, nil
+		}
+		return nil, fmt.Errorf("read inner manifest: %w", readErr)
+	}
+	var inner map[string]interface{}
+	if err := json.Unmarshal(innerData, &inner); err != nil {
+		// Unparseable inner manifest is not fatal — the sidecar still
+		// fully describes the pulled artifact. Fall back to sidecar.
+		return sidecarData, nil
+	}
+
+	// Sidecar fields win on every key it specifies. Inner-manifest-only
+	// keys (ops_knowledge_entries, kind, built_at, built_by, etc.) are
+	// preserved because we start from the inner map and overlay sidecar
+	// values onto it.
+	for k, v := range sidecar {
+		inner[k] = v
+	}
+	return json.MarshalIndent(inner, "", "  ")
 }
 
 // atomicSymlinkSwap replaces (or creates) linkPath so it points at target.

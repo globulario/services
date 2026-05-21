@@ -367,11 +367,24 @@ func decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID str
 	// ── Claim agrees + no runtime proof consumed → degraded ───────────
 	// Reason carries the claim verdict + the unproven note so operators
 	// see exactly why the service is degraded.
+	//
+	// "no verifier verdict yet" covers two cases that look identical at
+	// this layer:
+	//   - cluster_doctor sweep hasn't completed since the desired release
+	//     resolved (Day-0 cold start; first sweep populates verdicts).
+	//   - The verdict was written but ProofStatus is Unknown / InventoryClaim
+	//     (per-target evidence was partial — e.g. node-agent's
+	//     GetServiceRuntimeProof returned Unimplemented, or the
+	//     installed-state lookup raced a write).
+	// In either case the operator-visible action is the same: wait for
+	// the next doctor sweep, or run `globular cluster doctor --force-fresh`
+	// to trigger one. Older message wording implied the verifier itself
+	// wasn't implemented; it is.
 	reason := "[claim:OK"
 	if claimReason != "" {
 		reason += " " + claimReason
 	}
-	reason += "] proof:UNVERIFIED — runtime proof not consumed by health handler (Phase 9 verifier pending); finding: service.runtime_identity_unproven"
+	reason += "] proof:UNVERIFIED — no verifier verdict yet for this (node, service); finding: service.runtime_identity_unproven"
 
 	if legacyClaimOkOverride() {
 		// Escape hatch: restore pre-Phase-3 behaviour during transition.

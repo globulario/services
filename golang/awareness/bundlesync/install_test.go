@@ -528,3 +528,105 @@ func TestInstallBundleSidecarManifestWins(t *testing.T) {
 		t.Errorf("installed manifest build_id = %q, want %q (sidecar must win over embedded)", got.BuildID, "abc123")
 	}
 }
+
+// 9. Manifest sidecar merges with the bundle's inner manifest: sidecar fields
+// win on overlap, but inner-manifest-only fields (ops_knowledge_entries, kind,
+// built_at, built_by) survive the install. Regression test for the cluster-
+// doctor ops_knowledge.seed_integrity WARN finding observed on Day-0 v1.2.61:
+// the install used to overwrite the inner manifest verbatim, dropping
+// ops_knowledge_entries and producing "bundle does not pack any operational-
+// knowledge seed entries" on every fresh cluster.
+func TestInstallBundleMergesInnerManifestRichFields(t *testing.T) {
+	scratch := t.TempDir()
+	bundleRoot := t.TempDir()
+
+	// Build a bundle whose embedded manifest.json carries the rich content
+	// fields the cluster-doctor rule cares about. The sidecar will carry
+	// the authoritative provenance.
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+
+	graph := []byte(`{"version":1}`)
+	tw.WriteHeader(&tar.Header{Name: "graph.json", Mode: 0644, Size: int64(len(graph)), Typeflag: tar.TypeReg})
+	tw.Write(graph)
+
+	embedded := []byte(`{
+		"name": "globular-awareness-bundle",
+		"kind": "AWARENESS_BUNDLE",
+		"version": "v1.2.30",
+		"build_id": "WRONG-INNER",
+		"schema_version": "awareness.bundle.v1",
+		"built_at": "2026-05-21T21:13:52Z",
+		"built_by": "ci-builder",
+		"ops_knowledge_entries": [
+			{"id": "ops.runbook.minio.add-node",
+			 "file_path": "runbooks/add-node-to-minio-pool.yaml",
+			 "type": "SKILL",
+			 "title": "Add a node",
+			 "seed_sha256": "c88da40c"}
+		]
+	}`)
+	tw.WriteHeader(&tar.Header{Name: "manifest.json", Mode: 0644, Size: int64(len(embedded)), Typeflag: tar.TypeReg})
+	tw.Write(embedded)
+
+	tw.Close()
+	gz.Close()
+	data := buf.Bytes()
+
+	bp := filepath.Join(scratch, "bundle.tar.gz")
+	os.WriteFile(bp, data, 0644)
+	h := sha256.Sum256(data)
+	sidecar := Manifest{
+		Name: BundleName, Version: "v1.2.30", BuildID: "authoritative-build-id",
+		SchemaVersion: "awareness.bundle.v1", SHA256: hex.EncodeToString(h[:]),
+		SizeBytes: int64(len(data)),
+	}
+	mb, _ := json.MarshalIndent(sidecar, "", "  ")
+	mp := filepath.Join(scratch, "manifest.json")
+	os.WriteFile(mp, mb, 0644)
+
+	res, err := InstallBundle(InstallOptions{
+		BundlePath:   bp,
+		ManifestPath: mp,
+		BundleRoot:   bundleRoot,
+		ReleaseIndex: &ReleaseIndex{Version: sidecar.Version, BuildID: sidecar.BuildID},
+	})
+	if err != nil || !res.OK {
+		t.Fatalf("install: err=%v state=%s reason=%s", err, res.State, res.Reason)
+	}
+
+	installedManifest := filepath.Join(res.InstalledPath, "manifest.json")
+	mergedBytes, err := os.ReadFile(installedManifest)
+	if err != nil {
+		t.Fatalf("read installed manifest: %v", err)
+	}
+	var merged map[string]interface{}
+	if err := json.Unmarshal(mergedBytes, &merged); err != nil {
+		t.Fatalf("unmarshal merged manifest: %v", err)
+	}
+
+	// Sidecar wins on overlap (build_id).
+	if got, _ := merged["build_id"].(string); got != "authoritative-build-id" {
+		t.Errorf("merged build_id = %q, want sidecar value %q", got, "authoritative-build-id")
+	}
+	// Inner-manifest fields survive: kind, built_at, built_by.
+	if got, _ := merged["kind"].(string); got != "AWARENESS_BUNDLE" {
+		t.Errorf("merged kind = %q, want inner value AWARENESS_BUNDLE", got)
+	}
+	if _, ok := merged["built_at"]; !ok {
+		t.Errorf("merged manifest missing built_at preserved from inner")
+	}
+	if _, ok := merged["built_by"]; !ok {
+		t.Errorf("merged manifest missing built_by preserved from inner")
+	}
+	// ops_knowledge_entries is the load-bearing field for
+	// cluster_doctor's seed-integrity rule.
+	entries, ok := merged["ops_knowledge_entries"].([]interface{})
+	if !ok {
+		t.Fatalf("merged manifest missing ops_knowledge_entries (got %T)", merged["ops_knowledge_entries"])
+	}
+	if len(entries) != 1 {
+		t.Errorf("ops_knowledge_entries len = %d, want 1", len(entries))
+	}
+}
