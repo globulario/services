@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -10,7 +11,9 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/verifier"
 	"github.com/google/uuid"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -261,19 +264,25 @@ func legacyClaimOkOverride() bool {
 	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
 }
 
-// decideVersionVerdict is the Phase 3 replacement for versionCheckDecision.
-// It accepts the historical claim inputs plus optional runtime-proof inputs
-// (currently nil because GetServiceRuntimeProof is not yet wired into the
-// health pipeline — Phase 9 verifier integration will populate them).
+// decideVersionVerdict is the Phase 3 entry point that reconciles claim inputs
+// against the runtime proof produced by the Phase 9 verifier (Sweep results
+// land at /globular/verification/runtime/<node>/<service> as a JSON-encoded
+// verifier.Verdict; the caller pre-loads them and passes the matching one in).
 //
 // Cases:
 //   - Claim disagreement → Ok=false, ProofStatus="mismatch", FindingID names the failure.
-//   - Claim match + no runtime proof → Ok=false (degraded), ProofStatus="claim_only",
-//     FindingID="service.runtime_identity_unproven". Legacy override flips Ok to ClaimOK.
-//   - Claim match + runtime proof match → Ok=true, ProofStatus="verified".
-//   - Claim match + runtime proof mismatch → Ok=false, ProofStatus="mismatch",
+//   - Claim match + verifier verdict says verified → Ok=true, ProofStatus="verified".
+//   - Claim match + verifier verdict says installed_verified → Ok=true,
+//     ProofStatus="installed_verified" (binary on disk matches desired; runtime
+//     probe agreed or wasn't applicable).
+//   - Claim match + verifier verdict says mismatch → Ok=false, ProofStatus="mismatch",
 //     FindingID names which proof drifted.
-func decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID string, hasInstalled bool) versionHealthVerdict {
+//   - Claim match + verifier verdict unknown / inventory_claim / absent → Ok=false
+//     (degraded), ProofStatus="claim_only", FindingID="service.runtime_identity_unproven".
+//     Legacy override flips Ok to ClaimOK.
+//
+// A nil proof is treated as "verifier hasn't run yet" — same as ProofUnknown.
+func decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID string, hasInstalled bool, proof *verifier.Verdict) versionHealthVerdict {
 	// ── Claim-level reconciliation (legacy logic) ──────────────────────
 	claimOK := false
 	claimReason := ""
@@ -306,10 +315,58 @@ func decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID str
 		}
 	}
 
-	// ── Claim agrees; runtime proof is not yet consumed by the health
-	//    pipeline. Strict default: degraded with unproven marker.
-	//    Reason carries the claim verdict + the unproven note so operators
-	//    see exactly why the service is degraded.
+	// ── Claim agrees + verifier verdict available → reconcile ─────────
+	if proof != nil {
+		switch proof.ProofStatus {
+		case verifier.ProofRuntimeVerified:
+			// Strongest signal: installed bytes match desired AND running
+			// process exposes the matching binary hash + version. Health OK.
+			return versionHealthVerdict{
+				Ok:          true,
+				Reason:      "",
+				ProofStatus: "verified",
+				FindingID:   "",
+				ClaimOK:     true,
+			}
+		case verifier.ProofInstalledVerified:
+			// Installed bytes match desired; runtime probe agreed or wasn't
+			// applicable (e.g. COMMAND-kind component, no /version endpoint).
+			// Healthy — operators see "installed_verified" so the partial
+			// nature of the proof is visible.
+			return versionHealthVerdict{
+				Ok:          true,
+				Reason:      "",
+				ProofStatus: "installed_verified",
+				FindingID:   "",
+				ClaimOK:     true,
+			}
+		case verifier.ProofMismatch:
+			// Verifier found drift even though the claim layer agrees —
+			// usually new binary on disk with old PID, or installed bytes
+			// don't match the desired entrypoint_checksum. Surface the
+			// first critical/high finding ID so operators see the precise
+			// failure mode rather than the catch-all.
+			fid := pickFindingID(proof.Findings, "service.running_binary_hash_mismatch")
+			reason := proof.Reason
+			if reason == "" {
+				reason = "verifier reports drift between claim and runtime proof"
+			}
+			return versionHealthVerdict{
+				Ok:          false,
+				Reason:      reason,
+				ProofStatus: "mismatch",
+				FindingID:   fid,
+				ClaimOK:     true,
+			}
+		}
+		// ProofUnknown / ProofInventoryClaim fall through to the
+		// unverified-default branch below so operators still see the
+		// claim line plus the verifier's degraded reason.
+	}
+
+	// ── Claim agrees + no runtime proof consumed → degraded ───────────
+	// Reason carries the claim verdict + the unproven note so operators
+	// see exactly why the service is degraded.
 	reason := "[claim:OK"
 	if claimReason != "" {
 		reason += " " + claimReason
@@ -336,12 +393,78 @@ func decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID str
 	}
 }
 
+// pickFindingID returns the first critical/high finding id from a verifier
+// verdict, falling back to a default when none are present. Severity ordering
+// matches verifier.SeverityCritical > SeverityHigh > SeverityDegraded.
+func pickFindingID(findings []verifier.Finding, fallback string) string {
+	// First pass: critical.
+	for _, f := range findings {
+		if f.Severity == verifier.SeverityCritical && f.ID != "" {
+			return f.ID
+		}
+	}
+	// Second pass: high.
+	for _, f := range findings {
+		if f.Severity == verifier.SeverityHigh && f.ID != "" {
+			return f.ID
+		}
+	}
+	// Third pass: anything with an ID.
+	for _, f := range findings {
+		if f.ID != "" {
+			return f.ID
+		}
+	}
+	return fallback
+}
+
 // versionCheckDecision is the legacy (bool, string) shim kept for any caller
 // that hasn't migrated to decideVersionVerdict. Internally delegates to the
 // verdict path so behaviour stays consistent.
 func versionCheckDecision(desiredVer, desiredBID, installedVer, installedBID string, hasInstalled bool) (bool, string) {
-	v := decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID, hasInstalled)
+	v := decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID, hasInstalled, nil)
 	return v.Ok, v.Reason
+}
+
+// loadVerifierVerdicts reads all verifier verdicts for a given node from etcd
+// in one prefix Get and returns them keyed by canonical service name. Empty
+// map on any error — verifier proofs are advisory; an etcd hiccup must not
+// poison the rest of the health response. Callers fall back to the
+// claim-only / unverified path when a service is missing from the map.
+//
+// Source layout: /globular/verification/runtime/<node_id>/<service_name>
+// (see verifier.EtcdKeyForVerification).
+func (srv *server) loadVerifierVerdicts(ctx context.Context, nodeID string) map[string]*verifier.Verdict {
+	out := map[string]*verifier.Verdict{}
+	if srv.kv == nil || strings.TrimSpace(nodeID) == "" {
+		return out
+	}
+	prefix := "/globular/verification/runtime/" + strings.TrimSpace(nodeID) + "/"
+	resp, err := srv.kv.Get(ctx, prefix, clientv3.WithPrefix())
+	if err != nil || resp == nil {
+		return out
+	}
+	for _, kv := range resp.Kvs {
+		if kv == nil || len(kv.Value) == 0 {
+			continue
+		}
+		v := &verifier.Verdict{}
+		if jerr := json.Unmarshal(kv.Value, v); jerr != nil {
+			continue
+		}
+		// Key looks like /globular/verification/runtime/<node>/<service>; the
+		// service portion is the trailing path component. Canonicalize for
+		// lookup so caller's iteration (which uses canonicalServiceName)
+		// matches verifier's trailing component.
+		key := string(kv.Key)
+		idx := strings.LastIndex(key, "/")
+		if idx < 0 || idx == len(key)-1 {
+			continue
+		}
+		svc := key[idx+1:]
+		out[canonicalServiceName(svc)] = v
+	}
+	return out
 }
 
 func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_controllerpb.GetNodeHealthDetailV1Request) (*cluster_controllerpb.GetNodeHealthDetailV1Response, error) {
@@ -434,6 +557,11 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 	filtered := filterVersionsForNode(desiredCanon, node)
 	assignedServices := ServicesForProfiles(node.Profiles)
 
+	// Load Phase 9 verifier verdicts for this node in a single prefix-Get.
+	// Empty map on miss — the verdict-aware version check degrades to the
+	// claim-only path for any service absent from the map.
+	verdicts := srv.loadVerifierVerdicts(ctx, nodeID)
+
 	// Build a set of services whose release is AVAILABLE but artifact was never
 	// published. These are at their best possible version — not a health failure.
 	acceptedAsIs := make(map[string]bool)
@@ -477,7 +605,8 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 		installedVer := lookupInstalledVersionFromMap(node.InstalledVersions, svc)
 		hasInstalled := installedVer != ""
 		installedBID := lookupInstalledVersionFromMap(node.InstalledBuildIDs, svc)
-		v := decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID, hasInstalled)
+		proof := verdicts[canonicalServiceName(svc)]
+		v := decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID, hasInstalled, proof)
 		checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
 			Subsystem:   "version:" + svc,
 			Ok:          v.Ok,

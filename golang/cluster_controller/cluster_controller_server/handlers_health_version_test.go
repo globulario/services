@@ -9,8 +9,12 @@ package main
 // operators still in transition.
 
 import (
+	"context"
+	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/globulario/services/golang/verifier"
 )
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -22,7 +26,7 @@ import (
 func TestDecideVersionVerdict_BuildIdsDiffer_VersionsDiffer_Mismatch(t *testing.T) {
 	v := decideVersionVerdict(
 		"1.2.0", "80ab89b1-72b5-4b2e-ba01-bbebba1cffbd",
-		"1.1.5", "ffffffff-1111-2222-3333-444444444444", true)
+		"1.1.5", "ffffffff-1111-2222-3333-444444444444", true, nil)
 	if v.Ok {
 		t.Errorf("claim disagreement must produce Ok=false")
 	}
@@ -41,7 +45,7 @@ func TestDecideVersionVerdict_BuildIdsDiffer_VersionsDiffer_Mismatch(t *testing.
 }
 
 func TestDecideVersionVerdict_NotInstalled_Mismatch(t *testing.T) {
-	v := decideVersionVerdict("1.1.5", "", "", "", false)
+	v := decideVersionVerdict("1.1.5", "", "", "", false, nil)
 	if v.Ok {
 		t.Error("missing install must produce Ok=false")
 	}
@@ -60,7 +64,7 @@ func TestDecideVersionVerdict_BuildIdsMatch_NoProof_DegradedUnverified(t *testin
 	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
 	v := decideVersionVerdict(
 		"1.2.0", "80ab89b1-72b5-4b2e-ba01-bbebba1cffbd",
-		"1.2.0", "80ab89b1-72b5-4b2e-ba01-bbebba1cffbd", true)
+		"1.2.0", "80ab89b1-72b5-4b2e-ba01-bbebba1cffbd", true, nil)
 	if v.Ok {
 		t.Errorf("strict default: claim match + no proof must NOT be Ok; got Ok=true")
 	}
@@ -85,7 +89,7 @@ func TestDecideVersionVerdict_BuildDriftVersionsMatch_NoProof_DegradedUnverified
 	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
 	v := decideVersionVerdict(
 		"1.2.0", "80ab89b1-72b5-4b2e-ba01-bbebba1cffbd",
-		"1.2.0", "ffffffff-1111-2222-3333-444444444444", true)
+		"1.2.0", "ffffffff-1111-2222-3333-444444444444", true, nil)
 	if v.Ok {
 		t.Error("build-drift case is still claim_only — must NOT be Ok under strict default")
 	}
@@ -107,7 +111,7 @@ func TestDecideVersionVerdict_LegacyOverride_RestoresClaimOkSemantics(t *testing
 	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "1")
 	v := decideVersionVerdict(
 		"1.2.0", "80ab89b1-72b5-4b2e-ba01-bbebba1cffbd",
-		"1.2.0", "80ab89b1-72b5-4b2e-ba01-bbebba1cffbd", true)
+		"1.2.0", "80ab89b1-72b5-4b2e-ba01-bbebba1cffbd", true, nil)
 	if !v.Ok {
 		t.Error("legacy override must produce Ok=true on claim-only match")
 	}
@@ -124,7 +128,7 @@ func TestDecideVersionVerdict_LegacyOverride_RestoresClaimOkSemantics(t *testing
 func TestDecideVersionVerdict_LegacyOverride_VariousTruthyValues(t *testing.T) {
 	for _, val := range []string{"1", "true", "TRUE", "yes", "Yes"} {
 		t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", val)
-		v := decideVersionVerdict("1.0", "bid", "1.0", "bid", true)
+		v := decideVersionVerdict("1.0", "bid", "1.0", "bid", true, nil)
 		if !v.Ok {
 			t.Errorf("GLOBULAR_HEALTH_LEGACY_CLAIM_OK=%q should enable legacy Ok=true", val)
 		}
@@ -132,7 +136,7 @@ func TestDecideVersionVerdict_LegacyOverride_VariousTruthyValues(t *testing.T) {
 	// Falsy values keep strict behaviour.
 	for _, val := range []string{"", "0", "false", "no"} {
 		t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", val)
-		v := decideVersionVerdict("1.0", "bid", "1.0", "bid", true)
+		v := decideVersionVerdict("1.0", "bid", "1.0", "bid", true, nil)
 		if v.Ok {
 			t.Errorf("GLOBULAR_HEALTH_LEGACY_CLAIM_OK=%q should NOT enable legacy Ok=true", val)
 		}
@@ -214,6 +218,190 @@ func TestVersionHealthVerdict_VerifiedShapeContract(t *testing.T) {
 	}
 	if !v.Ok || v.ProofStatus != "verified" || v.FindingID != "" {
 		t.Errorf("verified shape contract drifted: %+v", v)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 9 verifier verdict integration. The handler reads per-(node,
+// service) verdicts from etcd and passes the matching one into the
+// version-check decision. These tests pin the contract for each
+// verifier.ProofStatus value the handler must consume.
+// ─────────────────────────────────────────────────────────────────────────
+
+func TestDecideVersionVerdict_VerifierRuntimeVerified_IsOk(t *testing.T) {
+	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
+	proof := &verifier.Verdict{
+		ProofStatus: verifier.ProofRuntimeVerified,
+		Reason:      "all proofs agree",
+	}
+	v := decideVersionVerdict(
+		"1.2.57", "80ab89b1-72b5-4b2e-ba01-bbebba1cffbd",
+		"1.2.57", "80ab89b1-72b5-4b2e-ba01-bbebba1cffbd", true, proof)
+	if !v.Ok {
+		t.Fatalf("runtime_verified must yield Ok=true; got %+v", v)
+	}
+	if v.ProofStatus != "verified" {
+		t.Errorf("ProofStatus=%q want=verified", v.ProofStatus)
+	}
+	if v.FindingID != "" {
+		t.Errorf("FindingID=%q want=empty for verified verdict", v.FindingID)
+	}
+}
+
+func TestDecideVersionVerdict_VerifierInstalledVerified_IsOk(t *testing.T) {
+	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
+	proof := &verifier.Verdict{
+		ProofStatus: verifier.ProofInstalledVerified,
+	}
+	v := decideVersionVerdict(
+		"1.2.57", "bid", "1.2.57", "bid", true, proof)
+	if !v.Ok {
+		t.Fatalf("installed_verified must yield Ok=true; got %+v", v)
+	}
+	if v.ProofStatus != "installed_verified" {
+		t.Errorf("ProofStatus=%q want=installed_verified", v.ProofStatus)
+	}
+	if v.FindingID != "" {
+		t.Errorf("FindingID=%q want=empty for installed_verified verdict", v.FindingID)
+	}
+}
+
+func TestDecideVersionVerdict_VerifierMismatch_SurfacesFinding(t *testing.T) {
+	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
+	proof := &verifier.Verdict{
+		ProofStatus: verifier.ProofMismatch,
+		Reason:      "running binary sha differs from installed",
+		Findings: []verifier.Finding{
+			{ID: verifier.FindingRunningBinaryHashMismatch, Severity: verifier.SeverityCritical},
+		},
+	}
+	v := decideVersionVerdict(
+		"1.2.57", "bid", "1.2.57", "bid", true, proof)
+	if v.Ok {
+		t.Fatalf("mismatch verdict must yield Ok=false; got %+v", v)
+	}
+	if v.ProofStatus != "mismatch" {
+		t.Errorf("ProofStatus=%q want=mismatch", v.ProofStatus)
+	}
+	if v.FindingID != verifier.FindingRunningBinaryHashMismatch {
+		t.Errorf("FindingID=%q want=%q", v.FindingID, verifier.FindingRunningBinaryHashMismatch)
+	}
+	if !strings.Contains(v.Reason, "running binary sha differs") {
+		t.Errorf("Reason should carry verifier's reason; got %q", v.Reason)
+	}
+}
+
+func TestDecideVersionVerdict_VerifierUnknown_DegradesToUnverified(t *testing.T) {
+	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
+	proof := &verifier.Verdict{
+		ProofStatus: verifier.ProofUnknown,
+		Findings: []verifier.Finding{
+			{ID: verifier.FindingRuntimeIdentityUnproven, Severity: verifier.SeverityDegraded},
+		},
+	}
+	v := decideVersionVerdict(
+		"1.2.57", "bid", "1.2.57", "bid", true, proof)
+	if v.Ok {
+		t.Fatalf("unknown verdict must keep Ok=false; got %+v", v)
+	}
+	if v.FindingID != "service.runtime_identity_unproven" {
+		t.Errorf("FindingID=%q want=service.runtime_identity_unproven", v.FindingID)
+	}
+}
+
+func TestDecideVersionVerdict_VerifierVerified_LosesToClaimMismatch(t *testing.T) {
+	// Even with a "verified" verdict, a claim disagreement (e.g. controller
+	// view of installed version differs from desired) must dominate. The
+	// running_version_mismatch is a critical finding regardless of proof.
+	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
+	proof := &verifier.Verdict{ProofStatus: verifier.ProofRuntimeVerified}
+	v := decideVersionVerdict(
+		"1.2.57", "bid-a", "1.1.0", "bid-b", true, proof)
+	if v.Ok {
+		t.Fatalf("claim mismatch must dominate even with verified verdict; got %+v", v)
+	}
+	if v.ProofStatus != "mismatch" || v.FindingID != "service.running_version_mismatch" {
+		t.Errorf("expected claim-mismatch path; got ProofStatus=%q FindingID=%q",
+			v.ProofStatus, v.FindingID)
+	}
+}
+
+func TestPickFindingID_PrefersCriticalThenHigh(t *testing.T) {
+	findings := []verifier.Finding{
+		{ID: "degraded.thing", Severity: verifier.SeverityDegraded},
+		{ID: "high.thing", Severity: verifier.SeverityHigh},
+		{ID: "critical.thing", Severity: verifier.SeverityCritical},
+	}
+	if got := pickFindingID(findings, "fallback"); got != "critical.thing" {
+		t.Errorf("pickFindingID prefers critical; got %q", got)
+	}
+	if got := pickFindingID(findings[:2], "fallback"); got != "high.thing" {
+		t.Errorf("pickFindingID prefers high when no critical; got %q", got)
+	}
+	if got := pickFindingID(findings[:1], "fallback"); got != "degraded.thing" {
+		t.Errorf("pickFindingID returns any present ID when no critical/high; got %q", got)
+	}
+	if got := pickFindingID(nil, "fallback"); got != "fallback" {
+		t.Errorf("pickFindingID returns fallback on empty; got %q", got)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// loadVerifierVerdicts: prefix-Get parses every Verdict written by the
+// cluster_doctor sweep and keys by canonical service name. Missing nodes
+// or unparseable values must not poison the result.
+// ─────────────────────────────────────────────────────────────────────────
+
+func TestLoadVerifierVerdicts_PrefixGetParsesAllVerdicts(t *testing.T) {
+	kv := newFakeKV()
+	srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
+	srv.kv = kv
+
+	write := func(node, svc string, v verifier.Verdict) {
+		b, err := json.Marshal(v)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		if _, err := kv.Put(context.Background(),
+			"/globular/verification/runtime/"+node+"/"+svc, string(b)); err != nil {
+			t.Fatalf("put: %v", err)
+		}
+	}
+
+	write("globule-ryzen", "dns", verifier.Verdict{ProofStatus: verifier.ProofRuntimeVerified})
+	write("globule-ryzen", "rbac", verifier.Verdict{ProofStatus: verifier.ProofMismatch,
+		Findings: []verifier.Finding{
+			{ID: verifier.FindingRunningBinaryHashMismatch, Severity: verifier.SeverityCritical},
+		}})
+	// Different node — must NOT appear in ryzen's map.
+	write("globule-nuc", "dns", verifier.Verdict{ProofStatus: verifier.ProofMismatch})
+	// Garbage value — must be skipped without erroring out the loader.
+	if _, err := kv.Put(context.Background(),
+		"/globular/verification/runtime/globule-ryzen/badjson", "not-json"); err != nil {
+		t.Fatalf("put garbage: %v", err)
+	}
+
+	got := srv.loadVerifierVerdicts(context.Background(), "globule-ryzen")
+	if len(got) != 2 {
+		t.Fatalf("expected 2 verdicts for ryzen (dns, rbac); got %d: %+v", len(got), got)
+	}
+	if v := got["dns"]; v == nil || v.ProofStatus != verifier.ProofRuntimeVerified {
+		t.Errorf("dns verdict missing or wrong: %+v", v)
+	}
+	if v := got["rbac"]; v == nil || v.ProofStatus != verifier.ProofMismatch {
+		t.Errorf("rbac verdict missing or wrong: %+v", v)
+	}
+	if _, ok := got["badjson"]; ok {
+		t.Errorf("garbage value should be skipped, not parsed")
+	}
+}
+
+func TestLoadVerifierVerdicts_NoKV_ReturnsEmpty(t *testing.T) {
+	srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
+	// Deliberately leave srv.kv nil.
+	got := srv.loadVerifierVerdicts(context.Background(), "globule-ryzen")
+	if len(got) != 0 {
+		t.Errorf("nil kv must yield empty map; got %d entries", len(got))
 	}
 }
 
