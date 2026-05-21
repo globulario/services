@@ -92,6 +92,31 @@ func installedPathIsUpstream(path string) bool {
 	return true
 }
 
+// isDay0UnprovenGrace reports whether a missing-or-partial-proof finding
+// for this target should be downgraded to info severity because the
+// install is still inside its Day-0 grace window. The grace condition is
+// deliberately strict:
+//
+//   - IsFirstInstall must be true (the doctor populates this from the
+//     InstalledPackage record's installedUnix vs updatedUnix; an upgrade
+//     never carries IsFirstInstall=true).
+//   - ApplyTime must be non-zero and within day0UnprovenGraceWindow.
+//
+// Both conditions together mean: "the controller just applied this
+// service for the first time, and the proof RPC hasn't had a chance to
+// run yet." Outside the grace window, or on any upgrade, the finding
+// retains its degraded severity so a real "stuck node-agent / proof
+// never lands" condition still surfaces.
+func isDay0UnprovenGrace(target Target, now time.Time) bool {
+	if !target.IsFirstInstall {
+		return false
+	}
+	if target.ApplyTime.IsZero() {
+		return false
+	}
+	return now.Sub(target.ApplyTime) < day0UnprovenGraceWindow
+}
+
 // applyGraceWindow allows process_start_time to fall slightly before
 // the recorded ApplyTime without firing old_pid_after_upgrade. The
 // controller writes ApplyTime at the end of the apply RPC (after
@@ -101,6 +126,25 @@ func installedPathIsUpstream(path string) bool {
 // silences that race while still flagging genuinely stale PIDs
 // (which are minutes or hours older than the apply).
 const applyGraceWindow = 30 * time.Second
+
+// day0UnprovenGraceWindow caps how long after a first-install we treat
+// "no runtime proof captured yet" as benign Day-0 sequencing instead of
+// a degraded condition. The doctor sweep runs every ~60s, the node-agent
+// collects proofs lazily, and the controller writes verdicts at the
+// end of its sweep — so on a fresh node every just-applied service
+// transits a few seconds to a few minutes between "release AVAILABLE"
+// and "ServiceRuntimeProof captured." Treating that window as degraded
+// causes the workflow incident scanner to open a doctor_finding
+// incident per service per node that auto-resolves once proofs land,
+// leaving permanent RESOLVED records on every fresh install.
+//
+// The window must be:
+//   - long enough to cover a normal multi-wave Day-0 (services come up
+//     in deps order; the last wave can be 2–3 minutes after the first).
+//   - short enough that a genuinely stuck-no-proof service (proof RPC
+//     broken, node-agent crashed) still escalates to degraded within
+//     the same operator session.
+const day0UnprovenGraceWindow = 5 * time.Minute
 
 // Finding ids the verifier emits. Each maps to a failure_modes.yaml
 // entry that the doctor consumes.
@@ -329,14 +373,29 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 
 	if ev.Proof == nil {
 		v.ProofStatus = ProofUnknown
+		severity := SeverityDegraded
+		reasonNote := "no ServiceRuntimeProof captured for this target"
+		// Day-0 grace: on a first install, the proof RPC race is
+		// expected — the controller has recorded the apply but the
+		// doctor sweep that fetches per-node proofs hasn't seen this
+		// service yet. Downgrade to info so the doctor's invariant
+		// surface maps it to PASS (no incident opened) for the brief
+		// window where the bootstrap is still settling. After
+		// day0UnprovenGraceWindow we revert to degraded so a truly
+		// stuck node-agent still surfaces.
+		if isDay0UnprovenGrace(target, now) {
+			severity = SeverityInfo
+			reasonNote = "no runtime proof yet — within Day-0 first-install grace window"
+		}
 		v.Findings = append(v.Findings, Finding{
 			ID:       FindingRuntimeIdentityUnproven,
-			Severity: SeverityDegraded,
+			Severity: severity,
 			Service:  target.Service,
 			NodeID:   target.NodeID,
 			Detected: now,
 			Evidence: map[string]string{
-				"reason": "no ServiceRuntimeProof captured for this target",
+				"reason":           reasonNote,
+				"is_first_install": fmt.Sprintf("%v", target.IsFirstInstall),
 			},
 		})
 		v.Reason = "no runtime proof available"
@@ -520,14 +579,24 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 	// 6. Partial proof: collection errors don't raise drift on their
 	//    own, but they do prevent claiming runtime_verified.
 	if len(proof.GetErrors()) > 0 && len(v.Findings) == 0 {
+		severity := SeverityDegraded
+		// Same Day-0 grace as the no-proof branch above: a brand-new
+		// install whose first proof sweep produced collection errors
+		// (e.g. /version probe race, /proc/<pid>/exe not yet readable
+		// due to permission propagation) is expected during bootstrap.
+		// After the grace window expires we revert to degraded.
+		if isDay0UnprovenGrace(target, now) {
+			severity = SeverityInfo
+		}
 		v.Findings = append(v.Findings, Finding{
 			ID:       FindingRuntimeIdentityUnproven,
-			Severity: SeverityDegraded,
+			Severity: severity,
 			Service:  target.Service,
 			NodeID:   target.NodeID,
 			Detected: now,
 			Evidence: map[string]string{
-				"errors": strings.Join(proof.GetErrors(), "; "),
+				"errors":           strings.Join(proof.GetErrors(), "; "),
+				"is_first_install": fmt.Sprintf("%v", target.IsFirstInstall),
 			},
 		})
 	}

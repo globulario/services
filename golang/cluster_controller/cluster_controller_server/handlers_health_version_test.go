@@ -309,6 +309,32 @@ func TestDecideVersionVerdict_VerifierUnknown_DegradesToUnverified(t *testing.T)
 	}
 }
 
+// Day-0 grace: when the verifier emits runtime_identity_unproven at
+// INFO severity (its own grace window — first install, fresh apply),
+// the UI surface must treat the service as OK rather than red-flagging
+// the operator during normal Day-0 settling. Outside the grace window
+// the verifier emits at SeverityDegraded and this branch doesn't fire.
+func TestDecideVersionVerdict_VerifierDay0GraceInfo_IsOk(t *testing.T) {
+	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
+	proof := &verifier.Verdict{
+		ProofStatus: verifier.ProofUnknown,
+		Findings: []verifier.Finding{
+			{ID: verifier.FindingRuntimeIdentityUnproven, Severity: verifier.SeverityInfo},
+		},
+	}
+	v := decideVersionVerdict(
+		"1.2.57", "bid", "1.2.57", "bid", true, proof)
+	if !v.Ok {
+		t.Fatalf("Day-0 grace verdict must yield Ok=true; got %+v", v)
+	}
+	if v.ProofStatus != "claim_only_day0_grace" {
+		t.Errorf("ProofStatus=%q want=claim_only_day0_grace", v.ProofStatus)
+	}
+	if v.FindingID != "" {
+		t.Errorf("FindingID=%q want=\"\" (no finding for in-grace state)", v.FindingID)
+	}
+}
+
 func TestDecideVersionVerdict_VerifierVerified_LosesToClaimMismatch(t *testing.T) {
 	// Even with a "verified" verdict, a claim disagreement (e.g. controller
 	// view of installed version differs from desired) must dominate. The

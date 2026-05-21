@@ -231,6 +231,109 @@ func TestVerifyTarget_NoProof_Unknown(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Day-0 grace: first install + apply within grace window + no proof
+// captured yet → runtime_identity_unproven emitted at INFO severity, not
+// Degraded. This silences the doctor's incident scanner during normal
+// Day-0 bootstrap when the proof RPC simply hasn't run yet for a
+// just-applied service.
+// ─────────────────────────────────────────────────────────────────────
+
+func TestVerifyTarget_Day0FirstInstall_NoProof_DowngradesToInfo(t *testing.T) {
+	tgt := targetFoo()
+	tgt.IsFirstInstall = true
+	tgt.ApplyTime = time.Now().Add(-30 * time.Second) // fresh apply
+	v := VerifyTarget(tgt, Evidence{}, time.Now())
+	if v.ProofStatus != ProofUnknown {
+		t.Errorf("ProofStatus=%q want=%q (verdict floor unchanged)", v.ProofStatus, ProofUnknown)
+	}
+	var found *Finding
+	for i := range v.Findings {
+		if v.Findings[i].ID == FindingRuntimeIdentityUnproven {
+			found = &v.Findings[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("missing %s finding; got %+v", FindingRuntimeIdentityUnproven, v.Findings)
+	}
+	if found.Severity != SeverityInfo {
+		t.Errorf("Severity=%q want=%q (Day-0 grace downgrade)", found.Severity, SeverityInfo)
+	}
+}
+
+// Outside the grace window (apply >5min ago), severity stays degraded
+// even on first install — a genuinely-stuck proof RPC must still surface.
+func TestVerifyTarget_FirstInstallStaleApply_NoProof_StaysDegraded(t *testing.T) {
+	tgt := targetFoo()
+	tgt.IsFirstInstall = true
+	tgt.ApplyTime = time.Now().Add(-30 * time.Minute) // long past grace
+	v := VerifyTarget(tgt, Evidence{}, time.Now())
+	var found *Finding
+	for i := range v.Findings {
+		if v.Findings[i].ID == FindingRuntimeIdentityUnproven {
+			found = &v.Findings[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("missing %s finding; got %+v", FindingRuntimeIdentityUnproven, v.Findings)
+	}
+	if found.Severity != SeverityDegraded {
+		t.Errorf("Severity=%q want=%q (outside Day-0 grace)", found.Severity, SeverityDegraded)
+	}
+}
+
+// Upgrade (IsFirstInstall=false) never qualifies for the grace, even
+// if the apply happened seconds ago. A missing proof during an upgrade
+// is a real signal that something went wrong with the restart sequence.
+func TestVerifyTarget_Upgrade_NoProof_StaysDegraded(t *testing.T) {
+	tgt := targetFoo()
+	tgt.IsFirstInstall = false
+	tgt.ApplyTime = time.Now().Add(-10 * time.Second) // fresh apply
+	v := VerifyTarget(tgt, Evidence{}, time.Now())
+	var found *Finding
+	for i := range v.Findings {
+		if v.Findings[i].ID == FindingRuntimeIdentityUnproven {
+			found = &v.Findings[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("missing %s finding; got %+v", FindingRuntimeIdentityUnproven, v.Findings)
+	}
+	if found.Severity != SeverityDegraded {
+		t.Errorf("Severity=%q want=%q (upgrade — no grace)", found.Severity, SeverityDegraded)
+	}
+}
+
+// Day-0 grace also applies to the errors-only path: a first-install
+// target whose first proof sweep collected sub-check errors (e.g.
+// /version probe race) should be info, not degraded.
+func TestVerifyTarget_Day0FirstInstall_ErrorsOnly_DowngradesToInfo(t *testing.T) {
+	tgt := targetFoo()
+	tgt.IsFirstInstall = true
+	tgt.ApplyTime = time.Now().Add(-30 * time.Second)
+	ev := Evidence{Proof: proofMatching(tgt, func(p *node_agentpb.ServiceRuntimeProof) {
+		p.ProcessStartTime = timestamppb.New(tgt.ApplyTime.Add(time.Minute))
+		p.Errors = []string{"runtime_version probe not implemented"}
+	})}
+	v := VerifyTarget(tgt, ev, time.Now())
+	var found *Finding
+	for i := range v.Findings {
+		if v.Findings[i].ID == FindingRuntimeIdentityUnproven {
+			found = &v.Findings[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("missing %s finding; got %+v", FindingRuntimeIdentityUnproven, v.Findings)
+	}
+	if found.Severity != SeverityInfo {
+		t.Errorf("Severity=%q want=%q (Day-0 grace on errors-only path)", found.Severity, SeverityInfo)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // AggregateResult — partial rollout: 4 verified, 1 mismatched.
 // Counts roll up and individual findings survive.
 // ─────────────────────────────────────────────────────────────────────

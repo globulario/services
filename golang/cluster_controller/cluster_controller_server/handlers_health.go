@@ -361,7 +361,20 @@ func decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID str
 		}
 		// ProofUnknown / ProofInventoryClaim fall through to the
 		// unverified-default branch below so operators still see the
-		// claim line plus the verifier's degraded reason.
+		// claim line plus the verifier's degraded reason. Exception:
+		// when the verifier emitted runtime_identity_unproven at INFO
+		// severity, it's signalling Day-0 first-install grace (proof
+		// will land on the next sweep). Treat as OK with a "pending"
+		// ProofStatus so the UI doesn't flicker red on a clean install.
+		if isDay0UnprovenGraceVerdict(proof) {
+			return versionHealthVerdict{
+				Ok:          true,
+				Reason:      "",
+				ProofStatus: "claim_only_day0_grace",
+				FindingID:   "",
+				ClaimOK:     true,
+			}
+		}
 	}
 
 	// ── Claim agrees + no runtime proof consumed → degraded ───────────
@@ -404,6 +417,30 @@ func decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID str
 		FindingID:   "service.runtime_identity_unproven",
 		ClaimOK:     true,
 	}
+}
+
+// isDay0UnprovenGraceVerdict reports whether the verifier's verdict
+// indicates a Day-0 first-install grace situation: the verifier captured
+// no usable proof yet but classified the resulting finding at INFO
+// severity (its own grace window). When this is true the UI surface
+// should treat the service as OK pending the next doctor sweep rather
+// than red-flagging it. nil-safe.
+func isDay0UnprovenGraceVerdict(v *verifier.Verdict) bool {
+	if v == nil {
+		return false
+	}
+	// Only the unproven cases qualify — any other proof_status means
+	// the verifier had enough evidence to make a non-grace verdict.
+	if v.ProofStatus != verifier.ProofUnknown && v.ProofStatus != verifier.ProofInventoryClaim {
+		return false
+	}
+	for _, f := range v.Findings {
+		if f.ID == verifier.FindingRuntimeIdentityUnproven &&
+			strings.EqualFold(strings.TrimSpace(f.Severity), verifier.SeverityInfo) {
+			return true
+		}
+	}
+	return false
 }
 
 // pickFindingID returns the first critical/high finding id from a verifier

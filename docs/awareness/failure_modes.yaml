@@ -1976,6 +1976,18 @@ failure_modes:
         reach systemctl show (systemd-coredumped, broken IPC), or cannot
         hash the binary (filesystem error), the resulting verdict is
         unknown and this finding is raised at degraded severity.
+
+        DAY-0 GRACE EXCEPTION: on a brand-new install (IsFirstInstall=true)
+        whose apply happened within day0UnprovenGraceWindow (5 min), the
+        finding is downgraded to INFO severity. Rationale: services come
+        up in waves over 2-3 minutes during Day-0; the very first doctor
+        sweep runs before the node-agent has had a chance to collect
+        proofs for every just-applied service, and treating that window
+        as degraded opens a doctor_finding incident per service per node
+        that auto-resolves within 2 minutes but leaves a permanent
+        RESOLVED record. The downgrade only applies during the grace
+        window — outside it (or on any upgrade) severity reverts to
+        degraded so a genuinely stuck node-agent still surfaces.
       architecture_fix: |
         The verifier returns the proof partial and surfaces the specific
         collection errors in Finding.Evidence["errors"]. Operators see
@@ -1983,14 +1995,27 @@ failure_modes:
         proof after the transient condition clears). Persisting the
         degraded state lets doctor enumerate "what proofs we don't have"
         independently of "what proofs we have that disagree."
+
+        The Day-0 grace check is the helper isDay0UnprovenGrace in
+        verifier.go: requires BOTH IsFirstInstall=true AND ApplyTime
+        within the last 5 minutes. The cluster_controller's
+        decideVersionVerdict cooperates via isDay0UnprovenGraceVerdict
+        which trusts the verifier's severity tag rather than re-deriving
+        the grace condition — single source of truth.
       known_bad_fixes:
         - Treating a single collection error as a green outcome ("at least the rest agreed")
         - Treating a single collection error as a critical outcome ("partial proof is suspicious") — both lose the distinction between "we don't know" and "we know it's wrong"
+        - Blanket-downgrading runtime_identity_unproven to info to silence Day-0 noise (loses the signal for genuinely-stuck node-agents — the grace must be bounded by IsFirstInstall + ApplyTime window)
       related_invariants:
         - diagnostics.must_measure_reality
       required_tests:
         - TestVerifyTarget_ErrorsOnly_DegradesUnknown
         - TestVerifyTarget_NoProof_Unknown
+        - TestVerifyTarget_Day0FirstInstall_NoProof_DowngradesToInfo
+        - TestVerifyTarget_FirstInstallStaleApply_NoProof_StaysDegraded
+        - TestVerifyTarget_Upgrade_NoProof_StaysDegraded
+        - TestVerifyTarget_Day0FirstInstall_ErrorsOnly_DowngradesToInfo
+        - TestDecideVersionVerdict_VerifierDay0GraceInfo_IsOk
 
     - id: cluster.cross_node_file_drift
       title: A cluster-visible file disagrees across nodes that were supposed to be in lockstep
