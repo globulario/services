@@ -349,6 +349,18 @@ func init() {
 	workflowCmd.AddCommand(workflowDiagnoseCmd)
 	workflowCmd.AddCommand(workflowCancelCmd)
 	workflowCmd.AddCommand(workflowRetryCmd)
+
+	workflowDeferStateListCmd.Flags().StringVar(&deferStateClusterID, "cluster-id", "", "Cluster id (defaults to globular.internal)")
+	workflowDeferStateListCmd.Flags().BoolVar(&deferStateAbandonedOnly, "abandoned", false, "Show only ABANDONED rows")
+
+	workflowDeferStateClearCmd.Flags().String("correlation-id", "", "Correlation id to clear (required if not given positionally)")
+	workflowDeferStateClearCmd.Flags().StringVar(&deferStateClusterID, "cluster-id", "", "Cluster id (defaults to globular.internal)")
+	workflowDeferStateClearCmd.Flags().StringVar(&deferStateOperator, "operator", "", "Operator label recorded with the clear (defaults to \"cli\")")
+
+	workflowDeferStateCmd.AddCommand(workflowDeferStateListCmd)
+	workflowDeferStateCmd.AddCommand(workflowDeferStateClearCmd)
+	workflowCmd.AddCommand(workflowDeferStateCmd)
+
 	rootCmd.AddCommand(workflowCmd)
 }
 
@@ -370,6 +382,173 @@ func fmtTimeAgo(t time.Time) string {
 	default:
 		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
 	}
+}
+
+// --- defer-state list / clear ---
+//
+// correlation_defer_state is the persistent counter of how many times a
+// given (release, node) correlation has been deferred past its B3 budget.
+// When defer_count reaches max_defers the row is marked ABANDONED and
+// every subsequent dispatch attempt is refused — the row is "poison" until
+// either (a) a successful run for the same correlation_id calls
+// ClearOnSuccess, or (b) an operator calls ClearByOperator via these
+// CLI commands.
+//
+// These commands wrap the WorkflowService.ClearCorrelationDeferState and
+// .ListCorrelationDeferState RPCs the server already exposes. They exist
+// so operators do NOT need to reach into Scylla with cqlsh — the audited
+// gRPC path emits a workflow.correlation.cleared event with the operator
+// principal recorded.
+
+var (
+	deferStateClusterID    string
+	deferStateAbandonedOnly bool
+	deferStateOperator     string
+)
+
+var workflowDeferStateCmd = &cobra.Command{
+	Use:   "defer-state",
+	Short: "Inspect or clear workflow correlation defer state (ABANDONED rows etc.)",
+	Long: `Manage the persistent correlation_defer_state table.
+
+A row reaches "abandoned" when its dispatch defer count hits max_defers
+(default 5). Once abandoned the workflow service refuses to dispatch any
+further attempts — typically the underlying blocker is permanent
+(unmanaged unit, missing dependency, etc.) and the run can never succeed.
+
+Examples:
+  globular workflow defer-state list
+  globular workflow defer-state list --abandoned
+  globular workflow defer-state clear --correlation-id InfrastructureRelease/core@globular.io/keepalived`,
+}
+
+var workflowDeferStateListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List persistent correlation defer-state rows",
+	RunE:  runWorkflowDeferStateList,
+}
+
+func runWorkflowDeferStateList(cmd *cobra.Command, args []string) error {
+	addr := workflowEndpoint()
+	cc, err := dialGRPC(addr)
+	if err != nil {
+		return fmt.Errorf("connect to workflow service: %w", err)
+	}
+	defer cc.Close()
+
+	clusterID := strings.TrimSpace(deferStateClusterID)
+	if clusterID == "" {
+		clusterID = strings.TrimSpace(config.ResolveServiceAddr("globular.cluster_id", ""))
+	}
+	if clusterID == "" {
+		clusterID = "globular.internal"
+	}
+
+	client := workflowpb.NewWorkflowServiceClient(cc)
+	resp, err := client.ListCorrelationDeferState(ctxWithTimeout(), &workflowpb.ListCorrelationDeferStateRequest{
+		ClusterId:     clusterID,
+		AbandonedOnly: deferStateAbandonedOnly,
+	})
+	if err != nil {
+		return fmt.Errorf("list defer state: %w", err)
+	}
+
+	if rootCfg.output == "json" {
+		return printJSON(resp)
+	}
+
+	if len(resp.Records) == 0 {
+		if deferStateAbandonedOnly {
+			fmt.Println("No abandoned correlation defer-state rows.")
+		} else {
+			fmt.Println("No correlation defer-state rows.")
+		}
+		return nil
+	}
+
+	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "CORRELATION_ID\tDEFER_COUNT\tABANDONED\tLAST_STEP\tLAST_REASON")
+	for _, r := range resp.Records {
+		reason := r.GetLastReason()
+		if len(reason) > 60 {
+			reason = reason[:57] + "..."
+		}
+		fmt.Fprintf(w, "%s\t%d/%d\t%v\t%s\t%s\n",
+			r.GetCorrelationId(),
+			r.GetDeferCount(),
+			r.GetMaxDefers(),
+			r.GetAbandoned(),
+			r.GetLastStepId(),
+			reason,
+		)
+	}
+	return w.Flush()
+}
+
+var workflowDeferStateClearCmd = &cobra.Command{
+	Use:   "clear --correlation-id <id>",
+	Short: "Reset defer_count + abandoned flag for one correlation (audited)",
+	Long: `Reset a poisoned correlation_defer_state row so the workflow service will
+re-dispatch the next attempt. The clear is recorded against the operator
+principal and a workflow.correlation.cleared event is published.
+
+This does NOT touch the controller's release pipeline — it only clears
+the workflow-side "give up" record. The controller will dispatch a fresh
+run on its next reconcile pass; if the underlying blocker still exists,
+the new run will defer again and eventually re-abandon.`,
+	RunE: runWorkflowDeferStateClear,
+}
+
+func runWorkflowDeferStateClear(cmd *cobra.Command, args []string) error {
+	correlationID := ""
+	for _, a := range args {
+		correlationID = strings.TrimSpace(a)
+		break
+	}
+	if correlationID == "" {
+		correlationID, _ = cmd.Flags().GetString("correlation-id")
+		correlationID = strings.TrimSpace(correlationID)
+	}
+	if correlationID == "" {
+		return fmt.Errorf("--correlation-id is required (or pass it as the positional arg)")
+	}
+
+	addr := workflowEndpoint()
+	cc, err := dialGRPC(addr)
+	if err != nil {
+		return fmt.Errorf("connect to workflow service: %w", err)
+	}
+	defer cc.Close()
+
+	clusterID := strings.TrimSpace(deferStateClusterID)
+	if clusterID == "" {
+		clusterID = "globular.internal"
+	}
+	operator := strings.TrimSpace(deferStateOperator)
+	if operator == "" {
+		operator = "cli"
+	}
+
+	client := workflowpb.NewWorkflowServiceClient(cc)
+	resp, err := client.ClearCorrelationDeferState(ctxWithTimeout(), &workflowpb.ClearCorrelationDeferStateRequest{
+		ClusterId:     clusterID,
+		CorrelationId: correlationID,
+		Operator:      operator,
+	})
+	if err != nil {
+		return fmt.Errorf("clear defer state: %w", err)
+	}
+
+	if rootCfg.output == "json" {
+		return printJSON(resp)
+	}
+
+	if resp.GetCleared() {
+		fmt.Printf("Cleared correlation defer-state for %s (operator=%s).\n", correlationID, operator)
+	} else {
+		fmt.Printf("No-op: correlation %s was not present (cleared=false).\n", correlationID)
+	}
+	return nil
 }
 
 func workflowEndpoint() string {
