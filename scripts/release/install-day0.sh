@@ -1356,15 +1356,18 @@ trace_step "running" "phase.ops" "Operations Services" 5
 install_list "${OPS_PKGS[@]}"
 
 # Ensure MCP server is running — it's required by ai-watcher/ai-executor/ai-router.
-# The installer may not start it if the binary exits cleanly before deps are ready
-# (Restart=on-failure doesn't recover clean exits). Force-start + patch to Restart=always.
+# The installer may not start it if the binary exits cleanly before deps are ready,
+# so kick a restart here. The package spec already ships Restart=always so systemd
+# keeps it alive once deps are reachable.
+#
+# NOTE: do NOT `sed -i` the unit file here. The package installer writes a
+# .sha256 sidecar next to the unit at install time and node-agent's hash drift
+# detector compares it to the live file every sweep. Any post-install edit
+# (sed, override drop-in we forget to checksum, etc.) breaks the sidecar and
+# produces a permanent globular-mcp.service hash_drift finding.
 if [[ -f /etc/systemd/system/globular-mcp.service ]]; then
-  if ! grep -q 'Restart=always' /etc/systemd/system/globular-mcp.service; then
-    sed -i 's/Restart=on-failure/Restart=always/' /etc/systemd/system/globular-mcp.service
-    systemctl daemon-reload
-  fi
   systemctl restart globular-mcp.service 2>/dev/null || true
-  log_substep "MCP server started (Restart=always)"
+  log_substep "MCP server restarted"
 fi
 
 # Configure scylla-manager-agent (auth token, port, ScyllaDB API address, MinIO S3 creds)
