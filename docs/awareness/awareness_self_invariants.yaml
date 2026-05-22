@@ -199,3 +199,63 @@ invariants:
       - TestAwarGitRoot_NotInRepoReturnsEmpty
       - TestVerifyGapTests_EmptyRepoRootReturnsUnverified
       - TestCoverageReport_NoRepoRootIsUnverifiedNotCritical
+
+  - id: awareness.mcp.advertised_tools_must_be_backed_by_ready_storage
+    title: Awareness MCP must not advertise contribution tools unless their backing storage and config are writable
+    severity: critical
+    status: active
+    summary: |
+      Awareness contribution tools (record_incident_pattern,
+      failure.learn_from_incident, learn_from_fix, …) each persist their
+      payload to a specific directory that must be writable by the MCP
+      runtime user. When those directories don't exist, aren't writable,
+      or the config that names them is absent, the tool advertises
+      cleanly but fails with "permission denied" / "docs dir not
+      configured" only AFTER a first-time contributor has composed a
+      payload — the silent-failure-after-effort shape.
+
+      The MCP service must probe each backing path at startup and either:
+        (a) advertise the tool when storage is ready, or
+        (b) skip advertising the tool and log the actionable recovery
+            hint (mkdir/chown path, config key to set) at WARN, and
+            surface the same reason via the awareness.readiness tool.
+
+      It must NOT silently fall back to /tmp, advertise tools whose
+      storage paths are missing, require agents to run sudo/chown via
+      MCP, or treat the eventual permission-denied error as a successful
+      contribution attempt.
+    protects:
+      symbols:
+        - computeAwarenessReadiness
+        - registerAwarenessReadinessTool
+        - registerRecordIncidentPatternTool
+        - registerLearnFromFixTool
+        - registerAwarenessFailureTools
+      files:
+        - golang/mcp/awareness_readiness.go
+        - golang/mcp/tools_awareness.go
+        - golang/mcp/tools_awareness_incident_patterns.go
+        - golang/mcp/learn_from_fix_tool.go
+        - golang/mcp/tools_awareness_failure.go
+    enforcement: |
+      computeAwarenessReadiness runs once during registerAwarenessTools
+      and produces an awarenessReadinessReport with per-feature path /
+      configured / writable / reason fields. Each contribution-tool
+      registrar consults the relevant field and either calls
+      st.readiness.recordToolAdvertised + s.register, or
+      st.readiness.recordToolSkip with the operator-actionable reason
+      and returns without registering. The awareness.readiness tool
+      surfaces the report verbatim so operators can query the same
+      state they see in startup logs.
+    forbidden_fixes:
+      - silently_fall_back_to_temp_directory
+      - advertise_tools_whose_storage_paths_are_missing
+      - require_agents_to_run_sudo_chown_through_mcp
+      - treat_permission_errors_as_successful_contributions
+    required_tests:
+      - TestAwarenessReadiness_MissingIncidentPatternsDirHidesTool
+      - TestAwarenessReadiness_MissingFailureGraphDirHidesTool
+      - TestAwarenessReadiness_MissingDocsDirHidesLearnFromFix
+      - TestAwarenessReadiness_WritablePathsAdvertiseAllTools
+      - TestAwarenessReadiness_ReadinessToolAlwaysAdvertised
+      - TestAwarenessReadiness_ProbeDirCreatedOnDemandWhenParentWritable

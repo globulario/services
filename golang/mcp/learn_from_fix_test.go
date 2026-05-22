@@ -17,11 +17,16 @@ func setupLearnFromFixServer(t *testing.T) (*server, string) {
 	return s, docsDir
 }
 
-// TestLearnFromFix_Registered verifies the tool is available.
+// TestLearnFromFix_Registered verifies the tool is available when its
+// backing docs dir is writable. Per
+// awareness.mcp.advertised_tools_must_be_backed_by_ready_storage, the
+// tool MUST NOT register when docs dir is missing/unwritable — see
+// TestAwarenessReadiness_MissingDocsDirHidesLearnFromFix for the
+// negative case.
 func TestLearnFromFix_Registered(t *testing.T) {
-	s := newMCPWithDocsDir(t, "")
+	s, _ := setupLearnFromFixServer(t)
 	if !s.hasTool("awareness.learn_from_fix") {
-		t.Error("awareness.learn_from_fix must be registered")
+		t.Error("awareness.learn_from_fix must be registered when docs dir is writable")
 	}
 }
 

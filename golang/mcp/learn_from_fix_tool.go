@@ -100,6 +100,18 @@ type learnFromFixProposal struct {
 }
 
 func registerLearnFromFixTool(s *server, st *awarenessState) {
+	// Readiness gate: learn_from_fix writes draft proposal YAML to
+	// st.docsDir. Per awareness.mcp.advertised_tools_must_be_backed_by_ready_storage,
+	// we MUST NOT advertise the tool when docs dir isn't configured or
+	// isn't writable — the tool would return "docs dir not configured"
+	// only after a user has composed and submitted a payload, which is
+	// exactly the silent-failure-after-effort shape this invariant exists
+	// to prevent.
+	if !st.readiness.DocsDir.Writable {
+		st.readiness.recordToolSkip("awareness.learn_from_fix", st.readiness.DocsDir.Reason)
+		return
+	}
+	st.readiness.recordToolAdvertised("awareness.learn_from_fix")
 	s.register(toolDef{
 		Name:        "awareness.learn_from_fix",
 		Description: "Synthesize a draft awareness proposal from a verified fix. Proposes failure modes, forbidden fixes, scan rules, invariants, and metric thresholds as appropriate. Always requires human approval — never directly edits knowledge YAML files.",

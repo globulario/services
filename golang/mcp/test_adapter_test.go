@@ -34,6 +34,13 @@ func newMCPWithGraph(t *testing.T, docsDir string, g *graph.Graph) *server {
 	s := newServer(cfg)
 	repoRoot := awarGitRoot()
 	st := &awarenessState{g: g, docsDir: docsDir, repoRoot: repoRoot}
+	// Compute readiness so the gated registrars (learn_from_fix,
+	// record_incident_pattern, failure.learn_from_incident) make the same
+	// advertise/skip decision they would at real MCP startup. Tests that
+	// want to exercise a NOT-ready state can override st.readiness
+	// AFTER this helper returns and BEFORE calling additional registrars.
+	st.readiness = computeAwarenessReadiness(g, docsDir)
+	registerAwarenessReadinessTool(s, st)
 	registerAwarenessPreflightTools(s, st)
 	registerAwarenessRuntimeTools(s, st)
 	registerAwarenessPackageTools(s, st)

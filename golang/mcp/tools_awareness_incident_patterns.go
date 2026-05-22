@@ -14,7 +14,29 @@ import (
 // registerAwarenessIncidentPatternTools registers the incident pattern matching tools.
 // These give awareness proactive memory: before editing, Claude checks whether the
 // current task resembles a past incident, reverted fix, or known architectural trap.
+//
+// awareness.match_incident_patterns is read-only and always registered (it
+// can return "no match" safely against any graph state). awareness.record_incident_pattern
+// is the write-side tool and is gated on incident_patterns_dir readiness —
+// silently advertising a tool whose persistence is broken is the failure
+// mode awareness.mcp.advertised_tools_must_be_backed_by_ready_storage forbids.
 func registerAwarenessIncidentPatternTools(s *server, st *awarenessState) {
+	if !st.readiness.IncidentPatterns.Writable {
+		st.readiness.recordToolSkip("awareness.record_incident_pattern", st.readiness.IncidentPatterns.Reason)
+	} else {
+		st.readiness.recordToolAdvertised("awareness.record_incident_pattern")
+		registerRecordIncidentPatternTool(s, st)
+	}
+	// awareness.match_incident_patterns (read-only) is always registered;
+	// the original implementation continues below. Extracting record_*
+	// into its own helper keeps this diff scoped to the gating decision.
+	registerMatchIncidentPatternTools(s, st)
+}
+
+// registerRecordIncidentPatternTool registers ONLY the write-side
+// awareness.record_incident_pattern tool. Split out from the read-only
+// registrar so the readiness gate can skip it cleanly.
+func registerRecordIncidentPatternTool(s *server, st *awarenessState) {
 	s.register(toolDef{
 		Name: "awareness.record_incident_pattern",
 		Description: "Store a reusable failure pattern extracted from an incident. " +
@@ -101,7 +123,14 @@ func registerAwarenessIncidentPatternTools(s *server, st *awarenessState) {
 			"incident_id": stored.IncidentID,
 		}, nil
 	})
+}
 
+// registerMatchIncidentPatternTools registers the read-only
+// awareness.match_incident_patterns and awareness.acknowledge_incident_warning
+// tools. These are always advertised regardless of write-storage readiness —
+// matching against an empty/missing pattern store safely returns "no match"
+// rather than failing.
+func registerMatchIncidentPatternTools(s *server, st *awarenessState) {
 	s.register(toolDef{
 		Name: "awareness.match_incident_patterns",
 		Description: "Check whether the current task resembles a known past incident. " +

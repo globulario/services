@@ -21,6 +21,13 @@ type awarenessState struct {
 	docsDir  string
 	repoRoot string
 	nodeID   string
+	// readiness is the per-feature storage probe result computed once at
+	// startup. Surfaced via the awareness.readiness tool and consulted by
+	// the contribution-tool registrars to decide whether to advertise
+	// each tool. Per awareness.mcp.advertised_tools_must_be_backed_by_ready_storage,
+	// a tool whose backing storage isn't writable MUST NOT be advertised —
+	// silent-failure-after-effort is the failure mode this guards against.
+	readiness awarenessReadinessReport
 }
 
 // registerAwarenessTools initialises the awareness state from the server config,
@@ -109,6 +116,19 @@ func registerAwarenessTools(s *server) {
 			log.Printf("mcp: awareness graph unavailable (%s): %v — degraded mode", dbPath, err)
 		}
 	}
+
+	// Compute readiness ONCE after the graph + docsDir are resolved but
+	// BEFORE any tool registrar runs. Contribution-tool registrars consult
+	// st.readiness to decide whether to advertise each tool. A failing
+	// readiness check is logged at WARN with the operator-actionable
+	// recovery hint inline.
+	st.readiness = computeAwarenessReadiness(st.g, st.docsDir)
+	logAwarenessReadiness(&st.readiness)
+
+	// Register the readiness tool FIRST so it's available even when every
+	// contribution tool gets skipped — operators must be able to query
+	// "why aren't the tools I expected showing up?"
+	registerAwarenessReadinessTool(s, st)
 
 	registerAwarenessPreflightTools(s, st)
 	registerAwarenessRuntimeTools(s, st)

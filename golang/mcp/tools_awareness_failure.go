@@ -216,6 +216,17 @@ func registerAwarenessFailureTools(s *server, st *awarenessState) {
 	})
 
 	// ── awareness.failure.learn_from_incident ────────────────────────────────
+	//
+	// Write-side: persists category nodes + edges to
+	// <graph.DataDir()>/failure_graph. Gated on FailureGraph readiness —
+	// see awareness.mcp.advertised_tools_must_be_backed_by_ready_storage.
+	// match_error above is read-only and stays unconditionally registered.
+
+	if !st.readiness.FailureGraph.Writable {
+		st.readiness.recordToolSkip("awareness.failure.learn_from_incident", st.readiness.FailureGraph.Reason)
+		return
+	}
+	st.readiness.recordToolAdvertised("awareness.failure.learn_from_incident")
 
 	s.register(toolDef{
 		Name: "awareness.failure.learn_from_incident",
