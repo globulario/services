@@ -132,53 +132,63 @@ var awarenessBuildCmd = &cobra.Command{
 
 		golangDir := filepath.Join(repoRoot, "golang")
 
+		// coreExtractorErrs collects failures from extractors that are expected
+		// to produce nodes on a normal run. If the graph ends up empty and all
+		// of these failed, the build fails loudly instead of silently writing a
+		// useless empty graph.json.
+		var coreExtractorErrs []string
+		coreErr := func(label string, err error) {
+			fmt.Fprintf(os.Stderr, "warning: %s: %v\n", label, err)
+			coreExtractorErrs = append(coreExtractorErrs, fmt.Sprintf("%s: %v", label, err))
+		}
+
 		// Go AST extractor — paths stored relative to repoRoot.
 		fmt.Fprintf(os.Stdout, "Extracting Go source ...\n")
 		if err := goast.Extract(ctx, g, golangDir, repoRoot); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: Go extractor: %v\n", err)
+			coreErr("Go extractor", err)
 		}
 
 		// Test extractor — paths stored relative to repoRoot.
 		fmt.Fprintf(os.Stdout, "Extracting Go tests ...\n")
 		if err := tests.Extract(ctx, g, golangDir, repoRoot); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: test extractor: %v\n", err)
+			coreErr("test extractor", err)
 		}
 
 		// Proto extractor — paths stored relative to repoRoot.
 		fmt.Fprintf(os.Stdout, "Extracting proto files ...\n")
 		protoDir := filepath.Join(repoRoot, "proto")
 		if err := proto.Extract(ctx, g, protoDir, repoRoot); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: proto extractor: %v\n", err)
+			coreErr("proto extractor", err)
 		}
 
 		// TypeScript extractor — walks from repo root to cover src/, packages/, etc.
 		fmt.Fprintf(os.Stdout, "Extracting TypeScript source ...\n")
 		if err := typescript.Extract(ctx, g, repoRoot, repoRoot); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: TypeScript extractor: %v\n", err)
+			coreErr("TypeScript extractor", err)
 		}
 
 		// JavaScript extractor — same walk, ES2025 module syntax.
 		fmt.Fprintf(os.Stdout, "Extracting JavaScript source ...\n")
 		if err := javascript.Extract(ctx, g, repoRoot, repoRoot); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: JavaScript extractor: %v\n", err)
+			coreErr("JavaScript extractor", err)
 		}
 
 		// Workflow extractor.
 		fmt.Fprintf(os.Stdout, "Extracting workflow definitions ...\n")
 		if err := workflows.Extract(ctx, g, repoRoot); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: workflow extractor: %v\n", err)
+			coreErr("workflow extractor", err)
 		}
 
 		// Package extractor.
 		fmt.Fprintf(os.Stdout, "Extracting package manifests ...\n")
 		if err := packages.Extract(ctx, g, repoRoot); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: package extractor: %v\n", err)
+			coreErr("package extractor", err)
 		}
 
 		// Docs / design decision extractor.
 		fmt.Fprintf(os.Stdout, "Extracting documentation and design decisions ...\n")
 		if warnings, err := docs.Extract(ctx, g, repoRoot); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: docs extractor: %v\n", err)
+			coreErr("docs extractor", err)
 		} else {
 			for _, w := range warnings {
 				fmt.Fprintf(os.Stderr, "warning: docs extractor: %s\n", w)
@@ -386,6 +396,20 @@ var awarenessBuildCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		// Fail loudly when the graph is empty and every core extractor errored.
+		// This catches the common case where the binary runs without read access
+		// to the repo (e.g. as a different user) and would otherwise write a
+		// silent, useless graph.json with 0 nodes.
+		if stats.Nodes == 0 && len(coreExtractorErrs) > 0 {
+			fmt.Fprintf(os.Stderr, "\nerror: awareness graph is empty — all core extractors failed:\n")
+			for _, e := range coreExtractorErrs {
+				fmt.Fprintf(os.Stderr, "  • %s\n", e)
+			}
+			fmt.Fprintf(os.Stderr, "\nhint: run this command as the user who owns %s\n", repoRoot)
+			return fmt.Errorf("awareness build produced 0 nodes: %d core extractor(s) failed", len(coreExtractorErrs))
+		}
+
 		buildID := fmt.Sprintf("build-%d", time.Now().Unix())
 		if err := g.UpsertBuildRecord(ctx, buildID, repoRoot, gitCommit, "", stats); err != nil {
 			return err
