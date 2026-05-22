@@ -747,6 +747,13 @@ func (srv *server) loadPermissionsRecord(path string) (*rbacpb.Permissions, erro
 	if err != nil {
 		return nil, err
 	}
+	// Same "unexpected end of JSON input" hazard as rbac_actions.go. The
+	// store can return (nil, nil) when no permissions row exists for this
+	// path; downgrade to a canonical not-found so cleanup paths upstream
+	// don't blow up on an empty payload.
+	if len(data) == 0 {
+		return nil, errors.New("item not found: " + path)
+	}
 
 	permissions := new(rbacpb.Permissions)
 	if err := protojson.Unmarshal(data, permissions); err != nil {

@@ -18,7 +18,7 @@ func (srv *server) setSubjectSharedResource(subject, resourceUuid string) error 
 
 	shared := make([]string, 0)
 	data, err := srv.getItem(subject)
-	if err == nil {
+	if err == nil && len(data) > 0 {
 		err := json.Unmarshal(data, &shared)
 		if err != nil {
 			return err
@@ -43,7 +43,7 @@ func (srv *server) unsetSubjectSharedResource(subject, resourceUuid string) erro
 
 	shared := make([]string, 0)
 	data, err := srv.getItem(subject)
-	if err == nil {
+	if err == nil && len(data) > 0 {
 		err := json.Unmarshal(data, &shared)
 		if err != nil {
 			return err
@@ -161,14 +161,12 @@ func (srv *server) unshareResource(domain, path string) error {
 
 	var share *rbacpb.Share
 	data, err := srv.getItem(uuid)
-	if err == nil {
-		share = new(rbacpb.Share)
-		err := protojson.Unmarshal(data, share)
-		if err != nil {
-			return err
-		}
-	} else {
+	if err != nil || len(data) == 0 {
 		return nil // nothing to delete here...
+	}
+	share = new(rbacpb.Share)
+	if err := protojson.Unmarshal(data, share); err != nil {
+		return err
 	}
 
 	// Now I will set the value in the user share...
@@ -256,7 +254,7 @@ func (srv *server) getSharedResource(subject string, subjectType rbacpb.SubjectT
 	// Now I will retreive the list of existing path.
 	shared := make([]string, 0)
 	data, err := srv.getItem(id)
-	if err == nil {
+	if err == nil && len(data) > 0 {
 		err := json.Unmarshal(data, &shared)
 		if err != nil {
 			return nil, err
@@ -268,7 +266,7 @@ func (srv *server) getSharedResource(subject string, subjectType rbacpb.SubjectT
 	// So now I go the list of shared uuid.
 	for i := range shared {
 		data, err := srv.getItem(shared[i])
-		if err == nil {
+		if err == nil && len(data) > 0 {
 			share := new(rbacpb.Share)
 			err := protojson.Unmarshal(data, share)
 			if err == nil {
@@ -450,6 +448,9 @@ func (srv *server) removeSubjectFromShare(subject string, subjectType rbacpb.Sub
 	data, err := srv.getItem(resourceId)
 	if err != nil {
 		return err
+	}
+	if len(data) == 0 {
+		return errors.New("no share found with id " + resourceId)
 	}
 
 	share := new(rbacpb.Share)
@@ -636,7 +637,7 @@ func (srv *server) deleteSubjectShare(subject string, subjectType rbacpb.Subject
 	// Now I will retreive the list of existing path.
 	shared := make([]string, 0)
 	data, err := srv.getItem(id)
-	if err == nil {
+	if err == nil && len(data) > 0 {
 		err := json.Unmarshal(data, &shared)
 		if err != nil {
 			return err

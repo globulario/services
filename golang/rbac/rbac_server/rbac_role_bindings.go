@@ -213,8 +213,8 @@ func (srv *server) ListRoleBindings(rqst *rbacpb.ListRoleBindingsRqst, stream rb
 		subject := strings.TrimPrefix(key, roleBindingPrefix)
 
 		data, err := srv.getItem(key)
-		if err != nil {
-			continue // skip corrupted entries
+		if err != nil || len(data) == 0 {
+			continue // skip missing/corrupted entries
 		}
 
 		var roles []string

@@ -16,6 +16,12 @@ func (srv *server) getResourceTypePathIndexation(resource_type string) ([]*rbacp
 	if err != nil {
 		return nil, err
 	}
+	// Empty payload = no indexed paths for this resource type. Treat as
+	// empty list instead of letting json.Unmarshal raise "unexpected end
+	// of JSON input" — same root cause as the rbac_actions.go regression.
+	if len(data) == 0 {
+		return []*rbacpb.Permissions{}, nil
+	}
 
 	paths := make([]string, 0)
 	err = json.Unmarshal(data, &paths)
@@ -44,7 +50,7 @@ func (srv *server) setResourceTypePathIndexation(resource_type string, path stri
 	data, err := srv.getItem(resource_type)
 	paths_ := make([]interface{}, 0)
 
-	if err == nil {
+	if err == nil && len(data) > 0 {
 		err := json.Unmarshal(data, &paths_)
 		if err != nil {
 			return err
@@ -76,7 +82,7 @@ func (srv *server) setSubjectResourcePermissions(subject string, path string) er
 	data, _ := srv.getItem(subject)
 	paths_ := make([]any, 0)
 
-	if data != nil {
+	if len(data) > 0 {
 		err := json.Unmarshal(data, &paths_)
 		if err != nil {
 			return err
@@ -158,6 +164,11 @@ func (srv *server) getSubjectResourcePermissions(subject, resource_type string, 
 	if err != nil {
 		return permissions, nil
 	}
+	// Empty record = no permissions assigned yet. Return empty list
+	// instead of failing the Unmarshal below.
+	if len(data) == 0 {
+		return permissions, nil
+	}
 
 	paths := make([]interface{}, 0)
 	err = json.Unmarshal(data, &paths)
@@ -182,6 +193,10 @@ func (srv *server) deleteResourceTypePathIndexation(resource_type string, path s
 	data, err := srv.getItem(resource_type)
 	if err != nil {
 		return err
+	}
+	// Nothing indexed for this resource type = nothing to delete.
+	if len(data) == 0 {
+		return nil
 	}
 
 	paths := make([]string, 0)
@@ -215,6 +230,10 @@ func (srv *server) deleteSubjectResourcePermissions(subject string, path string)
 	data, err := srv.getItem(subject)
 	if err != nil {
 		return err
+	}
+	// Subject has no resource permissions stored = nothing to delete.
+	if len(data) == 0 {
+		return nil
 	}
 
 	paths := make([]string, 0)

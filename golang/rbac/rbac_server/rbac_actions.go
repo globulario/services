@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/globulario/services/golang/policy"
@@ -183,28 +184,46 @@ func (srv *server) getActionResourcesPermissions(action string) ([]*rbacpb.Resou
 		return nil, errors.New("no action given")
 	}
 	data, err := srv.getItem(action)
-	infos_ := make([]*rbacpb.ResourceInfos, 0)
 	if err != nil {
-		if !strings.Contains(err.Error(), "item not found") || strings.Contains(err.Error(), "Key not found") {
-			return nil, err
-		} else {
-			// no infos_ found...
-			return infos_, nil
+		// Both messages mean "no row stored for this action" depending on
+		// which backing store served the read. Treat as empty, not error,
+		// so callers don't see "Internal" for an action that simply has
+		// no permission overlay yet.
+		if strings.Contains(err.Error(), "item not found") ||
+			strings.Contains(err.Error(), "Key not found") {
+			return []*rbacpb.ResourceInfos{}, nil
 		}
+		return nil, err
 	}
-	infos := make([]interface{}, 0)
-	err = json.Unmarshal(data, &infos)
+	// Empty payload was the root cause of "unexpected end of JSON input"
+	// spam from GetActionResourceInfos: getItem can return (nil, nil) when
+	// the cache returned an empty value or the store wrote an empty record.
+	// Without this guard json.Unmarshal fails and the call returns Internal
+	// for what is semantically "no permissions configured".
+	if len(data) == 0 {
+		return []*rbacpb.ResourceInfos{}, nil
+	}
+	var infos []interface{}
+	if err := json.Unmarshal(data, &infos); err != nil {
+		return nil, fmt.Errorf("decode action %q permissions: %w", action, err)
+	}
 
-	for i := range infos {
-		info := infos[i].(map[string]interface{})
-		field := ""
-		if info["field"] != nil {
-			field = info["field"].(string)
+	infos_ := make([]*rbacpb.ResourceInfos, 0, len(infos))
+	for _, raw := range infos {
+		info, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
 		}
-		infos_ = append(infos_, &rbacpb.ResourceInfos{Index: int32(Utility.ToInt(info["index"])), Permission: info["permission"].(string), Field: field})
+		field, _ := info["field"].(string)
+		perm, _ := info["permission"].(string)
+		infos_ = append(infos_, &rbacpb.ResourceInfos{
+			Index:      int32(Utility.ToInt(info["index"])),
+			Permission: perm,
+			Field:      field,
+		})
 	}
 
-	return infos_, err
+	return infos_, nil
 }
 
 // GetActionResourceInfos retrieves information about resources and their permissions associated with a specific action.
