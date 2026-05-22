@@ -157,10 +157,24 @@ func mapServiceToUnit(serviceName string) string {
 		"globular-gateway":  "globular-gateway.service",
 		"xds":               "globular-xds.service",
 		"globular-xds":      "globular-xds.service",
-		"envoy":             "envoy.service",
-		"etcd":              "etcd.service",
-		"scylla":            "scylla.service",
-		"minio":             "minio.service",
+		// Infrastructure services packaged by Globular live under the
+		// globular-* prefix (see /etc/systemd/system/globular-*.service).
+		// The bare names ("envoy.service", "minio.service", …) do not
+		// exist on Globular nodes; mapping to them produced
+		// "Failed to get properties: Unit not found" from journalctl.
+		"envoy":             "globular-envoy.service",
+		"globular-envoy":    "globular-envoy.service",
+		"etcd":              "globular-etcd.service",
+		"globular-etcd":     "globular-etcd.service",
+		"scylla":            "scylla-server.service",
+		"scylla-server":     "scylla-server.service",
+		"minio":             "globular-minio.service",
+		"globular-minio":    "globular-minio.service",
+		"sidekick":          "globular-sidekick.service",
+		"globular-sidekick": "globular-sidekick.service",
+		// keepalived is the upstream system unit name (no globular- prefix
+		// — Globular consumes the distribution package directly).
+		"keepalived":        "keepalived.service",
 		"dns":               "globular-dns.service",
 		"globular-dns":      "globular-dns.service",
 		"nodeagent":                  "globular-node-agent.service",
