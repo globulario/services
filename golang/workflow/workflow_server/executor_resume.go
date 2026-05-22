@@ -106,10 +106,28 @@ func (srv *server) ResumeRun(ctx context.Context, clusterID, runID string, actor
 		"completed_steps", len(completedSteps),
 		"total_recorded_steps", len(steps))
 
-	// ── 3. Load definition ───────────────────────────────────────────────
-	defYAML, err := config.GetClusterConfig("workflows/" + run.WorkflowName + ".yaml")
-	if err != nil || defYAML == nil {
-		return fmt.Errorf("load definition %s: %w", run.WorkflowName, err)
+	// ── 3. Load definition: etcd (core) → MinIO (service-owned) ─────────
+	// Mirror ExecuteWorkflow's lookup so resume sees the same definitions
+	// as fresh dispatch. Core workflows like release.apply.package live in
+	// etcd under /globular/workflows/; only service-owned definitions fall
+	// back to MinIO. Going MinIO-only here would resurrect the "load
+	// definition X: %!w(<nil>)" symptom — a malformed wrap that hid the
+	// real cause (etcd has the def, MinIO does not).
+	var defYAML []byte
+	if v1alpha1.EtcdFetcher != nil {
+		if b, ferr := v1alpha1.EtcdFetcher(run.WorkflowName); ferr == nil && len(b) > 0 {
+			defYAML = b
+		}
+	}
+	if len(defYAML) == 0 {
+		b, ferr := config.GetClusterConfig("workflows/" + run.WorkflowName + ".yaml")
+		if ferr != nil {
+			return fmt.Errorf("load definition %s: %w", run.WorkflowName, ferr)
+		}
+		defYAML = b
+	}
+	if len(defYAML) == 0 {
+		return fmt.Errorf("workflow definition %q not found (checked etcd and MinIO)", run.WorkflowName)
 	}
 	loader := v1alpha1.NewLoader()
 	def, err := loader.LoadBytes(defYAML)
