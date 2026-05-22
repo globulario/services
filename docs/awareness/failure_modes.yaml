@@ -1983,7 +1983,7 @@ failure_modes:
         - health.must_not_use_inventory_as_runtime_truth
         - rollout.convergence_requires_runtime_proof
       required_tests:
-        - TestServiceVersion_DescribeReportsBuildTimeVersion (per-service _test.go: assert --describe Version equals the package Version variable)
+        - "TestServiceVersion_DescribeReportsBuildTimeVersion (per-service _test.go: assert --describe Version equals the package Version variable)"
 
     - id: service.running_version_mismatch
       title: Live process /version response disagrees with the desired version
