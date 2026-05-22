@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/globulario/services/golang/verifier"
 )
@@ -332,6 +333,77 @@ func TestDecideVersionVerdict_VerifierDay0GraceInfo_IsOk(t *testing.T) {
 	}
 	if v.FindingID != "" {
 		t.Errorf("FindingID=%q want=\"\" (no finding for in-grace state)", v.FindingID)
+	}
+}
+
+// Fresh-install grace: when proof is nil but the installed package was
+// registered within Day0UnprovenGraceWindow, the controller synthesises
+// the same Day-0 verdict the verifier emits during its own grace
+// window. The existing isDay0UnprovenGraceVerdict branch then maps it
+// to claim_only_day0_grace (Ok=true) so the UI doesn't flicker red for
+// the gap between ServiceRelease resolution and the first verifier
+// sweep. Outside the grace window the strict default still applies.
+func TestDecideVersionVerdictWithInstallTime_FreshInstallNoProof_IsDay0Grace(t *testing.T) {
+	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
+	freshInstall := time.Now().Add(-30 * time.Second).Unix()
+	v := decideVersionVerdictWithInstallTime(
+		"1.2.61", "bid", "1.2.61", "bid", true, nil, freshInstall,
+	)
+	if !v.Ok {
+		t.Fatalf("fresh-install grace must yield Ok=true when proof is nil; got %+v", v)
+	}
+	if v.ProofStatus != "claim_only_day0_grace" {
+		t.Errorf("ProofStatus=%q want=claim_only_day0_grace", v.ProofStatus)
+	}
+	if v.FindingID != "" {
+		t.Errorf("FindingID=%q want=\"\" (no finding during grace)", v.FindingID)
+	}
+}
+
+func TestDecideVersionVerdictWithInstallTime_StaleInstallNoProof_StaysFail(t *testing.T) {
+	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
+	staleInstall := time.Now().Add(-1 * time.Hour).Unix()
+	v := decideVersionVerdictWithInstallTime(
+		"1.2.61", "bid", "1.2.61", "bid", true, nil, staleInstall,
+	)
+	if v.Ok {
+		t.Fatalf("install older than grace window must keep strict FAIL; got %+v", v)
+	}
+	if v.FindingID != "service.runtime_identity_unproven" {
+		t.Errorf("FindingID=%q want=service.runtime_identity_unproven", v.FindingID)
+	}
+}
+
+func TestDecideVersionVerdictWithInstallTime_NoInstallSignal_FallsThroughToStrict(t *testing.T) {
+	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
+	v := decideVersionVerdictWithInstallTime(
+		"1.2.61", "bid", "1.2.61", "bid", true, nil, 0,
+	)
+	if v.Ok {
+		t.Fatalf("missing install timestamp must not unlock grace; got %+v", v)
+	}
+	if v.FindingID != "service.runtime_identity_unproven" {
+		t.Errorf("FindingID=%q want=service.runtime_identity_unproven", v.FindingID)
+	}
+}
+
+func TestDecideVersionVerdictWithInstallTime_ProofPresent_IgnoresInstallTime(t *testing.T) {
+	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
+	freshInstall := time.Now().Add(-10 * time.Second).Unix()
+	proof := &verifier.Verdict{ProofStatus: verifier.ProofMismatch,
+		Reason: "running binary sha differs from installed",
+		Findings: []verifier.Finding{{
+			ID: verifier.FindingRunningBinaryHashMismatch, Severity: verifier.SeverityCritical,
+		}},
+	}
+	v := decideVersionVerdictWithInstallTime(
+		"1.2.61", "bid", "1.2.61", "bid", true, proof, freshInstall,
+	)
+	if v.Ok {
+		t.Fatalf("real mismatch verdict must dominate fresh-install grace; got %+v", v)
+	}
+	if v.ProofStatus != "mismatch" {
+		t.Errorf("ProofStatus=%q want=mismatch", v.ProofStatus)
 	}
 }
 

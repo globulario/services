@@ -100,7 +100,7 @@ func installedPathIsUpstream(path string) bool {
 //   - IsFirstInstall must be true (the doctor populates this from the
 //     InstalledPackage record's installedUnix vs updatedUnix; an upgrade
 //     never carries IsFirstInstall=true).
-//   - ApplyTime must be non-zero and within day0UnprovenGraceWindow.
+//   - ApplyTime must be non-zero and within Day0UnprovenGraceWindow.
 //
 // Both conditions together mean: "the controller just applied this
 // service for the first time, and the proof RPC hasn't had a chance to
@@ -114,7 +114,7 @@ func isDay0UnprovenGrace(target Target, now time.Time) bool {
 	if target.ApplyTime.IsZero() {
 		return false
 	}
-	return now.Sub(target.ApplyTime) < day0UnprovenGraceWindow
+	return now.Sub(target.ApplyTime) < Day0UnprovenGraceWindow
 }
 
 // applyGraceWindow allows process_start_time to fall slightly before
@@ -127,7 +127,7 @@ func isDay0UnprovenGrace(target Target, now time.Time) bool {
 // (which are minutes or hours older than the apply).
 const applyGraceWindow = 30 * time.Second
 
-// day0UnprovenGraceWindow caps how long after a first-install we treat
+// Day0UnprovenGraceWindow caps how long after a first-install we treat
 // "no runtime proof captured yet" as benign Day-0 sequencing instead of
 // a degraded condition. The doctor sweep runs every ~60s, the node-agent
 // collects proofs lazily, and the controller writes verdicts at the
@@ -144,7 +144,12 @@ const applyGraceWindow = 30 * time.Second
 //   - short enough that a genuinely stuck-no-proof service (proof RPC
 //     broken, node-agent crashed) still escalates to degraded within
 //     the same operator session.
-const day0UnprovenGraceWindow = 5 * time.Minute
+// Exported so the cluster_controller health handler can apply the same
+// grace window when the verifier hasn't yet written a verdict for a
+// freshly-installed service (the doctor sweep can lag service apply by
+// up to a sweep interval; without a shared window the UI red-flags
+// services for the gap).
+const Day0UnprovenGraceWindow = 5 * time.Minute
 
 // Finding ids the verifier emits. Each maps to a failure_modes.yaml
 // entry that the doctor consumes.
@@ -381,7 +386,7 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 		// service yet. Downgrade to info so the doctor's invariant
 		// surface maps it to PASS (no incident opened) for the brief
 		// window where the bootstrap is still settling. After
-		// day0UnprovenGraceWindow we revert to degraded so a truly
+		// Day0UnprovenGraceWindow we revert to degraded so a truly
 		// stuck node-agent still surfaces.
 		if isDay0UnprovenGrace(target, now) {
 			severity = SeverityInfo

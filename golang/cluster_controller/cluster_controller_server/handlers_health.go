@@ -11,6 +11,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/verifier"
 	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -476,6 +477,90 @@ func versionCheckDecision(desiredVer, desiredBID, installedVer, installedBID str
 	return v.Ok, v.Reason
 }
 
+// decideVersionVerdictWithInstallTime extends decideVersionVerdict with a
+// fresh-install signal so the controller's UI doesn't red-flag a service
+// for the gap between (a) ServiceRelease resolution and (b) the next
+// verifier sweep writing the first verdict.
+//
+// The verifier already downgrades runtime_identity_unproven to INFO
+// during its own Day-0 window (isDay0UnprovenGrace), and the controller
+// honours that via isDay0UnprovenGraceVerdict. But when the verifier
+// hasn't run AT ALL yet for a target, no verdict exists in etcd and
+// loadVerifierVerdicts returns no entry — so `proof` is nil and the
+// strict path returns FAIL with service.runtime_identity_unproven. On a
+// fresh install that gap is purely a doctor-sweep-cadence artefact, not
+// a real degradation; the operator sees a flickering red UI for ~1-2
+// minutes per service.
+//
+// This wrapper closes the gap: when proof is nil, claim is OK, and the
+// installed package was registered within Day0UnprovenGraceWindow, we
+// synthesise the same Day-0 verdict the verifier would have emitted
+// (ProofUnknown + runtime_identity_unproven at INFO). The existing
+// isDay0UnprovenGraceVerdict branch in decideVersionVerdict then maps
+// that to claim_only_day0_grace (Ok=true).
+//
+// installedUnix=0 disables the synthesis (caller has no signal); the
+// behaviour falls through to the existing strict path.
+func decideVersionVerdictWithInstallTime(
+	desiredVer, desiredBID, installedVer, installedBID string,
+	hasInstalled bool, proof *verifier.Verdict, installedUnix int64,
+) versionHealthVerdict {
+	if proof == nil && installedUnix > 0 {
+		if time.Since(time.Unix(installedUnix, 0)) < verifier.Day0UnprovenGraceWindow {
+			proof = &verifier.Verdict{
+				ProofStatus: verifier.ProofUnknown,
+				Findings: []verifier.Finding{{
+					ID:       verifier.FindingRuntimeIdentityUnproven,
+					Severity: verifier.SeverityInfo,
+				}},
+				Reason: "no runtime proof yet — within Day-0 first-install grace window (controller-synthesised; verifier sweep has not produced a verdict)",
+			}
+		}
+	}
+	return decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID, hasInstalled, proof)
+}
+
+// loadInstalledUnixForNode reads every installed package for a node in one
+// prefix-Get and returns a map keyed by canonical service name to the
+// package's installedUnix timestamp. Empty map on any error — the
+// fresh-install grace is advisory, so an etcd hiccup must not regress
+// the rest of the health response. Used by GetNodeHealthDetailV1 to
+// drive decideVersionVerdictWithInstallTime.
+func (srv *server) loadInstalledUnixForNode(ctx context.Context, nodeID string) map[string]int64 {
+	out := map[string]int64{}
+	if strings.TrimSpace(nodeID) == "" {
+		return out
+	}
+	pkgs, err := installed_state.ListInstalledPackages(ctx, nodeID, "")
+	if err != nil {
+		return out
+	}
+	for _, p := range pkgs {
+		if p == nil {
+			continue
+		}
+		name := strings.TrimSpace(p.GetName())
+		if name == "" {
+			continue
+		}
+		ts := p.GetInstalledUnix()
+		if ts == 0 {
+			ts = p.GetUpdatedUnix()
+		}
+		if ts == 0 {
+			continue
+		}
+		key := canonicalServiceName(name)
+		// On a fresh install both SERVICE and INFRASTRUCTURE may carry
+		// the same canonical name; keep the earliest install timestamp
+		// so the grace window measures from the first install attempt.
+		if existing, ok := out[key]; !ok || ts < existing {
+			out[key] = ts
+		}
+	}
+	return out
+}
+
 // ingressIsDisabled returns true when /globular/ingress/v1/spec carries
 // mode="disabled" or explicit_disabled=true. Conservative on failure: if
 // etcd is unavailable, the spec is missing, or the JSON is malformed,
@@ -645,6 +730,13 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 	// claim-only path for any service absent from the map.
 	verdicts := srv.loadVerifierVerdicts(ctx, nodeID)
 
+	// Load installed-package timestamps so the version check can apply
+	// Day-0 grace when proof is missing but the install is fresh.
+	// Without this, the gap between ServiceRelease resolution and the
+	// next verifier sweep red-flags services for ~1-2 minutes per
+	// service on every fresh install.
+	installedAt := srv.loadInstalledUnixForNode(ctx, nodeID)
+
 	// Build a set of services whose release is AVAILABLE but artifact was never
 	// published. These are at their best possible version — not a health failure.
 	acceptedAsIs := make(map[string]bool)
@@ -688,8 +780,12 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 		installedVer := lookupInstalledVersionFromMap(node.InstalledVersions, svc)
 		hasInstalled := installedVer != ""
 		installedBID := lookupInstalledVersionFromMap(node.InstalledBuildIDs, svc)
-		proof := verdicts[canonicalServiceName(svc)]
-		v := decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID, hasInstalled, proof)
+		canonSvc := canonicalServiceName(svc)
+		proof := verdicts[canonSvc]
+		v := decideVersionVerdictWithInstallTime(
+			desiredVer, desiredBID, installedVer, installedBID,
+			hasInstalled, proof, installedAt[canonSvc],
+		)
 		checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
 			Subsystem:   "version:" + svc,
 			Ok:          v.Ok,
