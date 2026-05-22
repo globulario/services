@@ -14,6 +14,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -174,14 +175,21 @@ func (srv *server) ResumeRun(ctx context.Context, clusterID, runID string, actor
 	_, execErr := eng.Execute(ctx, def, inputs)
 
 	if execErr != nil {
-		// If the error is a handler-not-found, the workflow was dispatched by
-		// the controller (actors live in a different process). Retrying here
-		// is futile — the workflow service will never have the right handlers.
-		// Fail the run immediately so the controller can re-dispatch.
-		//
-		// For other infrastructure errors (ScyllaDB, TLS), also fail — the
-		// orphan scanner keeps the lease alive while retrying, which blocks
-		// the controller from re-dispatching with a fresh correlation ID.
+		// When called from the orphan scanner (actorEndpoints == nil), a
+		// PreflightError means the remote actors haven't re-registered their
+		// handlers yet (e.g. controller restarted alongside the workflow
+		// service). Do NOT fail the run permanently — return the error so
+		// the orphan scanner retries on the next cycle once actors are back.
+		var pfErr *engine.PreflightError
+		if errors.As(execErr, &pfErr) && len(actorEndpoints) == 0 {
+			slog.Info("resume: preflight missing handlers in probe mode, will retry",
+				"run_id", runID, "missing", len(pfErr.Missing))
+			return execErr
+		}
+
+		// For all other errors (infrastructure failures, or preflight failures
+		// when we did have endpoints), fail the run immediately so the
+		// controller can re-dispatch with a fresh correlation ID.
 		slog.Warn("resume: re-execution failed, releasing run",
 			"run_id", runID, "err", execErr)
 		srv.FinishRun(ctx, &workflowpb.FinishRunRequest{
