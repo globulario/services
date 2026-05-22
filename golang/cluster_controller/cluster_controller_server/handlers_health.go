@@ -421,11 +421,18 @@ func decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID str
 }
 
 // isDay0UnprovenGraceVerdict reports whether the verifier's verdict
-// indicates a Day-0 first-install grace situation: the verifier captured
-// no usable proof yet but classified the resulting finding at INFO
-// severity (its own grace window). When this is true the UI surface
-// should treat the service as OK pending the next doctor sweep rather
-// than red-flagging it. nil-safe.
+// indicates a benign, transient situation that should not surface as a
+// health-check FAIL. The qualifying case is:
+//
+//  1. runtime_identity_unproven at INFO — verifier is within its Day-0
+//     first-install grace window; proof will land on the next sweep.
+//
+// With the per-node ApplyTime fix (resolvePerNodeInstallInfo in verification.go),
+// bootstrap_ordering_skew no longer fires spuriously on node-join — each node's
+// ApplyTime comes from its own InstalledPackage.InstalledUnix, not the
+// release-level LastTransitionUnixMs that bumps for all nodes on join.
+//
+// nil-safe.
 func isDay0UnprovenGraceVerdict(v *verifier.Verdict) bool {
 	if v == nil {
 		return false

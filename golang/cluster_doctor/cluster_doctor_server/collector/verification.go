@@ -141,10 +141,13 @@ func ingressDisabledFromSnapshot(snap *Snapshot) bool {
 // serviceReleaseToTarget maps a ServiceRelease object into a target.
 // Returns nil for releases that have no resolved version (PENDING/WAITING).
 //
-// Note: DesiredEntrypointChecksum is NOT populated here — the release
-// status carries only the package tarball digest. The collector fills
-// the binary checksum in enrichTargetsWithEntrypointChecksum by looking
-// up the repository manifest.
+// DesiredEntrypointChecksum is pre-populated from the release status when
+// available (ResolvedEntrypointChecksum). enrichTargetsWithEntrypointChecksum
+// then uses a repo RPC as a best-effort refresh / fallback for older releases
+// that don't carry the field yet. Pre-populating here means a repo timeout
+// or transient RPC failure can no longer leave the checksum empty and
+// cause spurious inventory_claim verdicts on services that were already
+// verified (e.g. after a node-join bumps LastTransitionUnixMs).
 func serviceReleaseToTarget(rel *cluster_controllerpb.ServiceRelease, nodes []*cluster_controllerpb.NodeRecord) *DesiredServiceTarget {
 	if rel == nil || rel.Spec == nil || rel.Status == nil {
 		return nil
@@ -154,14 +157,15 @@ func serviceReleaseToTarget(rel *cluster_controllerpb.ServiceRelease, nodes []*c
 	}
 	required := requiredNodesFromStatus(rel.Status.Nodes, nodes)
 	return &DesiredServiceTarget{
-		Service:              strings.TrimSpace(rel.Spec.ServiceName),
-		PublisherID:          rel.Spec.PublisherID,
-		DesiredVersion:       rel.Status.ResolvedVersion,
-		DesiredBuildID:       rel.Status.ResolvedBuildID,
-		DesiredPackageDigest: rel.Status.ResolvedArtifactDigest, // tarball — kept separate
-		RuntimeNeeded:        true,                              // ServiceRelease implies a running systemd unit
-		RequiredNodes:        required,
-		ApplyTime:            lastTransitionFromStatus(rel.Status.LastTransitionUnixMs),
+		Service:                   strings.TrimSpace(rel.Spec.ServiceName),
+		PublisherID:               rel.Spec.PublisherID,
+		DesiredVersion:            rel.Status.ResolvedVersion,
+		DesiredBuildID:            rel.Status.ResolvedBuildID,
+		DesiredEntrypointChecksum: normalizeEntrypointChecksum(rel.Status.ResolvedEntrypointChecksum),
+		DesiredPackageDigest:      rel.Status.ResolvedArtifactDigest, // tarball — kept separate
+		RuntimeNeeded:             true,                              // ServiceRelease implies a running systemd unit
+		RequiredNodes:             required,
+		ApplyTime:                 lastTransitionFromStatus(rel.Status.LastTransitionUnixMs),
 	}
 }
 
@@ -177,11 +181,12 @@ func infraReleaseToTarget(rel *cluster_controllerpb.InfrastructureRelease, nodes
 	}
 	required := requiredNodesFromStatus(rel.Status.Nodes, nodes)
 	return &DesiredServiceTarget{
-		Service:              strings.TrimSpace(rel.Spec.Component),
-		PublisherID:          rel.Spec.PublisherID,
-		DesiredVersion:       rel.Status.ResolvedVersion,
-		DesiredBuildID:       rel.Status.ResolvedBuildID,
-		DesiredPackageDigest: rel.Status.ResolvedArtifactDigest,
+		Service:                   strings.TrimSpace(rel.Spec.Component),
+		PublisherID:               rel.Spec.PublisherID,
+		DesiredVersion:            rel.Status.ResolvedVersion,
+		DesiredBuildID:            rel.Status.ResolvedBuildID,
+		DesiredEntrypointChecksum: normalizeEntrypointChecksum(rel.Status.ResolvedEntrypointChecksum),
+		DesiredPackageDigest:      rel.Status.ResolvedArtifactDigest,
 		// COMMAND-kind components have no systemd unit; the verifier itself
 		// derives this distinction from the proof's effective-state fields.
 		// We keep RuntimeNeeded true here and let absent-unit data degrade
@@ -364,6 +369,7 @@ func (c *Collector) runVerification(ctx context.Context, snap *Snapshot) {
 
 	for _, dst := range snap.DesiredServiceTargets {
 		for _, nodeID := range dst.RequiredNodes {
+			installInfo := resolvePerNodeInstallInfo(ctx, nodeID, dst)
 			tgt := verifier.Target{
 				Service:                   dst.Service,
 				NodeID:                    nodeID,
@@ -372,8 +378,9 @@ func (c *Collector) runVerification(ctx context.Context, snap *Snapshot) {
 				DesiredEntrypointChecksum: dst.DesiredEntrypointChecksum,
 				DesiredPackageDigest:      dst.DesiredPackageDigest,
 				RuntimeNeeded:             dst.RuntimeNeeded,
-				ApplyTime:                 dst.ApplyTime,
-				IsFirstInstall:            isFirstInstall(ctx, nodeID, dst),
+				ApplyTime:                 installInfo.applyTime,
+				ApplyTimeSource:           installInfo.applyTimeSource,
+				IsFirstInstall:            installInfo.isFirstInstall,
 				WrapsUpstreamBinary:       dst.WrapsUpstreamBinary,
 			}
 			ev := verifier.Evidence{
@@ -395,45 +402,79 @@ func (c *Collector) runVerification(ctx context.Context, snap *Snapshot) {
 	c.persistVerificationResults(ctx, snap, &r)
 }
 
-// isFirstInstall returns true when the InstalledPackage for this
-// (node, service) was written within ~60 seconds of its updatedUnix —
-// i.e. install and update were the same operation, no upgrade has run
-// since. The heuristic is loose on purpose: a fresh install records
-// installedUnix == updatedUnix; any subsequent re-apply bumps
-// updatedUnix while leaving installedUnix alone.
+// perNodeInstallInfo bundles the per-node install facts resolved from the
+// InstalledPackage record for one (nodeID, service) pair.
+type perNodeInstallInfo struct {
+	applyTime       time.Time
+	applyTimeSource string
+	isFirstInstall  bool
+}
+
+// resolvePerNodeInstallInfo resolves install facts for one (nodeID, service)
+// pair with a SINGLE etcd lookup (trying SERVICE kind first, then INFRASTRUCTURE).
+// It returns both the correct per-node ApplyTime (from InstalledPackage.InstalledUnix)
+// and the IsFirstInstall signal — replacing the old isFirstInstall function that
+// could not set ApplyTime.
 //
-// The result drives the verifier's classification of an
-// older-than-apply process as bootstrap_ordering_skew (degraded) on
-// first install vs old_pid_after_upgrade (critical) on upgrade.
+// Using InstalledPackage.InstalledUnix as ApplyTime is the architecture fix for the
+// node-join false-positive: ServiceRelease.Status.LastTransitionUnixMs bumps for
+// ALL nodes when any node is added, causing process_start_time < new_ApplyTime for
+// existing healthy nodes. The per-node InstalledUnix is stable — it only changes
+// when that specific node installs a new version.
 //
-// On lookup failure we default to false (treat as upgrade) — that
-// keeps the strict default: missing evidence does not turn a real
-// upgrade-bug into a benign info row.
-func isFirstInstall(ctx context.Context, nodeID string, dst *DesiredServiceTarget) bool {
-	if dst == nil {
-		return false
-	}
-	pkg, err := installed_state.GetInstalledPackage(ctx, nodeID, "SERVICE", dst.Service)
-	if err != nil || pkg == nil {
-		// Try INFRASTRUCTURE kind before giving up — same package may
-		// register under either depending on its catalog kind.
-		pkg, err = installed_state.GetInstalledPackage(ctx, nodeID, "INFRASTRUCTURE", dst.Service)
+// Fallback chain:
+//  1. InstalledPackage.InstalledUnix → "installed_package.installed_unix"
+//  2. InstalledPackage.UpdatedUnix  → "installed_package.updated_unix_fallback"
+//  3. dst.ApplyTime (release-level) → "release.last_transition_fallback"
+//  4. Nothing available             → "unknown"
+//
+// On lookup failure we default IsFirstInstall=false (treat as upgrade) — that
+// keeps the strict default: missing evidence does not turn a real upgrade-bug
+// into a benign info row.
+func resolvePerNodeInstallInfo(ctx context.Context, nodeID string, dst *DesiredServiceTarget) perNodeInstallInfo {
+	for _, kind := range []string{"SERVICE", "INFRASTRUCTURE"} {
+		pkg, err := installed_state.GetInstalledPackage(ctx, nodeID, kind, dst.Service)
 		if err != nil || pkg == nil {
-			return false
+			continue
+		}
+		installedUnix := pkg.GetInstalledUnix()
+		updatedUnix := pkg.GetUpdatedUnix()
+
+		var applyTime time.Time
+		var source string
+		if installedUnix > 0 {
+			applyTime = time.Unix(installedUnix, 0)
+			source = "installed_package.installed_unix"
+		} else if updatedUnix > 0 {
+			applyTime = time.Unix(updatedUnix, 0)
+			source = "installed_package.updated_unix_fallback"
+		}
+		if applyTime.IsZero() {
+			continue
+		}
+
+		// IsFirstInstall: installed and updated within 60s = same operation (Day-0 install).
+		// A fresh install records installedUnix ≈ updatedUnix; any subsequent re-apply
+		// bumps updatedUnix while leaving installedUnix alone.
+		delta := updatedUnix - installedUnix
+		if delta < 0 {
+			delta = -delta
+		}
+		return perNodeInstallInfo{
+			applyTime:       applyTime,
+			applyTimeSource: source,
+			isFirstInstall:  installedUnix > 0 && delta <= 60,
 		}
 	}
-	installedUnix := pkg.GetInstalledUnix()
-	updatedUnix := pkg.GetUpdatedUnix()
-	if installedUnix == 0 {
-		return false
+	// Last resort: release-level transition time. Must be explicit fallback.
+	if !dst.ApplyTime.IsZero() {
+		return perNodeInstallInfo{
+			applyTime:       dst.ApplyTime,
+			applyTimeSource: "release.last_transition_fallback",
+			isFirstInstall:  false, // conservative default — missing installed-state doesn't make old PIDs benign
+		}
 	}
-	// Within 60s = same operation. The Day-0 install path writes
-	// installed and updated within milliseconds of each other.
-	delta := updatedUnix - installedUnix
-	if delta < 0 {
-		delta = -delta
-	}
-	return delta <= 60
+	return perNodeInstallInfo{applyTimeSource: "unknown"}
 }
 
 // findProofForService scans a per-node proofs slice for the matching

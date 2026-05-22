@@ -236,6 +236,11 @@ type Target struct {
 	// whose start time predates the apply is running stale bytes.
 	// Zero disables the check.
 	ApplyTime time.Time
+	// ApplyTimeSource identifies where ApplyTime was sourced from.
+	// Values: "installed_package.installed_unix" | "installed_package.updated_unix_fallback" |
+	// "release.last_transition_fallback" | "unknown"
+	// The fallback values must be treated as low-confidence.
+	ApplyTimeSource string
 	// IsFirstInstall is true when this target has never converged
 	// before (the apply that wrote ApplyTime is the first one for this
 	// service on this node). On a fresh install, install.sh starts
@@ -550,6 +555,7 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 					"process_start_time": started.Format(time.RFC3339),
 					"last_apply_time":    target.ApplyTime.Format(time.RFC3339),
 					"is_first_install":   fmt.Sprintf("%v", target.IsFirstInstall),
+					"apply_time_source":  target.ApplyTimeSource,
 				},
 			})
 		}
