@@ -90,10 +90,10 @@ func (c controllerLeaderPendingUpdate) Evaluate(snap *collector.Snapshot, cfg Co
 		},
 		Remediation: []*cluster_doctorpb.RemediationStep{
 			step(1, "Check the status of each follower controller — they must reach the target build before the leader can resign",
-				fmt.Sprintf("globular cluster get-node-plan --service cluster-controller")),
+				"globular cluster get-node-plan --service cluster-controller"),
 			step(2, "If a follower is stuck installing the update, check its node-agent logs",
 				fmt.Sprintf("globular node logs --node %s --unit cluster-controller.service", rec.LeaderNodeID)),
-			step(3, fmt.Sprintf("If followers cannot update automatically, deploy the target version manually to each follower first, then the leader"),
+			step(3, "If followers cannot update automatically, deploy the target version manually to each follower first, then the leader",
 				fmt.Sprintf("globular deploy cluster-controller --version %s", rec.TargetVersion)),
 		},
 		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,

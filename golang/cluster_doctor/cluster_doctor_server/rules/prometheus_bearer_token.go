@@ -44,7 +44,7 @@ func (prometheusBearerTokenFile) Evaluate(_ *collector.Snapshot, _ Config) []Fin
 				}),
 			},
 			Remediation: []*cluster_doctorpb.RemediationStep{
-				step(1, fmt.Sprintf("Generate the token file: provision-minio-token.sh"), "sudo provision-minio-token.sh"),
+				step(1, "Generate the token file: provision-minio-token.sh", "sudo provision-minio-token.sh"),
 				step(2, "Verify file permissions (must be readable by the prometheus user)", fmt.Sprintf("ls -la %s", path)),
 				step(3, "Reload Prometheus after creating the file", "curl -sS -X POST http://127.0.0.1:9090/-/reload"),
 			},
