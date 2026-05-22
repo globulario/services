@@ -176,15 +176,38 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, no
 			// Waiting for scylla-server.service to start.
 			if nodeHasScyllaRunning(node) {
 				node.ScyllaJoinPhase = ScyllaJoinStarted
+				// Clear replace_address once bootstrap succeeded — it must not
+				// persist into subsequent restarts, which would re-trigger a
+				// replace of an already-healthy node.
+				if node.ScyllaReplaceAddress != "" {
+					log.Printf("scylla join: node %s bootstrap succeeded with replace_address; clearing replace_address", node.NodeID)
+					node.ScyllaReplaceAddress = ""
+				}
 				dirty = true
 				log.Printf("scylla join: node %s scylla-server started", node.NodeID)
 				continue
 			}
 			if now.Sub(node.ScyllaJoinStartedAt) > scyllaJoinTimeout {
-				log.Printf("scylla join: node %s timed out waiting for scylla-server to start", node.NodeID)
-				node.ScyllaJoinPhase = ScyllaJoinFailed
-				node.ScyllaJoinError = "timeout waiting for scylla-server.service to start"
-				dirty = true
+				ip := nodeRoutableIP(node)
+				if node.ScyllaJoinRestarts == 0 && ip != "" && node.ScyllaReplaceAddress == "" {
+					// First timeout: scylla-server never started. The most common
+					// cause is the node's IP still being DN in gossip (it was
+					// cleaned without decommissioning). Retry once with
+					// replace_address_first_boot so ScyllaDB can claim the DN slot
+					// instead of refusing to bootstrap.
+					node.ScyllaReplaceAddress = ip
+					node.ScyllaJoinPhase = ScyllaJoinNone // will re-enter via prepared
+					node.ScyllaJoinRestarts = 1
+					node.ScyllaJoinStartedAt = now
+					node.ScyllaJoinError = "retrying with replace_address_first_boot (IP may still be DN in gossip ring)"
+					dirty = true
+					log.Printf("scylla join: node %s timed out waiting for scylla-server — retrying with replace_address_first_boot=%s", node.NodeID, ip)
+				} else {
+					log.Printf("scylla join: node %s timed out waiting for scylla-server to start", node.NodeID)
+					node.ScyllaJoinPhase = ScyllaJoinFailed
+					node.ScyllaJoinError = "timeout waiting for scylla-server.service to start"
+					dirty = true
+				}
 			}
 
 		case ScyllaJoinStarted:

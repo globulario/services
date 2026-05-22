@@ -320,4 +320,123 @@ func TestRenderScyllaConfig_SingleNode(t *testing.T) {
 	if !strings.Contains(content, "seeds: '10.0.0.5'") {
 		t.Errorf("single-node seeds wrong, got:\n%s", content)
 	}
+	// No replace_address_first_boot for normal joins.
+	if strings.Contains(content, "replace_address_first_boot") {
+		t.Errorf("unexpected replace_address_first_boot in normal join config")
+	}
+}
+
+// TestRenderScyllaConfig_ReplaceAddress verifies that replace_address_first_boot
+// is emitted when a node is re-joining with a DN entry still in the ring.
+func TestRenderScyllaConfig_ReplaceAddress(t *testing.T) {
+	ctx := &serviceConfigContext{
+		Membership: &clusterMembership{
+			ClusterID: "globular.local",
+			Nodes: []memberNode{
+				{NodeID: "n1", Hostname: "db-1", IP: "10.0.0.5", Profiles: []string{"database"}},
+				{NodeID: "n2", Hostname: "db-2", IP: "10.0.0.6", Profiles: []string{"database"}},
+			},
+		},
+		CurrentNode:          &memberNode{NodeID: "n1", Hostname: "db-1", IP: "10.0.0.5", Profiles: []string{"database"}},
+		ClusterID:            "globular.local",
+		ScyllaReplaceAddress: "10.0.0.5",
+	}
+
+	content, ok := renderScyllaConfig(ctx)
+	if !ok {
+		t.Fatal("expected renderScyllaConfig to succeed")
+	}
+	if !strings.Contains(content, "replace_address_first_boot: '10.0.0.5'") {
+		t.Errorf("expected replace_address_first_boot in re-join config, got:\n%s", content)
+	}
+}
+
+// TestReconcileScyllaJoin_ReplaceAddressOnTimeout verifies that when a node fails
+// to start scylla-server (its IP is DN in the ring), the controller retries once
+// with replace_address_first_boot before marking the join as failed.
+func TestReconcileScyllaJoin_ReplaceAddressOnTimeout(t *testing.T) {
+	mgr := newScyllaClusterManager()
+
+	node := &nodeState{
+		NodeID:              "dn-node",
+		Profiles:            []string{"scylla"},
+		Identity:            storedIdentity{Ips: []string{"10.0.0.20"}},
+		Units:               []unitStatusRecord{{Name: "scylla-server.service", State: "inactive"}},
+		ScyllaJoinPhase:     ScyllaJoinConfigured,
+		ScyllaJoinStartedAt: time.Now().Add(-(scyllaJoinTimeout + time.Second)),
+		ScyllaJoinRestarts:  0,
+		ScyllaReplaceAddress: "",
+	}
+
+	dirty := mgr.reconcileScyllaJoinPhases(context.Background(), []*nodeState{node})
+
+	if !dirty {
+		t.Fatal("expected dirty=true after DN timeout")
+	}
+	if node.ScyllaJoinPhase != ScyllaJoinNone {
+		t.Errorf("expected phase=None for replace retry, got %q", node.ScyllaJoinPhase)
+	}
+	if node.ScyllaReplaceAddress != "10.0.0.20" {
+		t.Errorf("expected ScyllaReplaceAddress=10.0.0.20, got %q", node.ScyllaReplaceAddress)
+	}
+	if node.ScyllaJoinRestarts != 1 {
+		t.Errorf("expected ScyllaJoinRestarts=1, got %d", node.ScyllaJoinRestarts)
+	}
+}
+
+// TestReconcileScyllaJoin_FailAfterReplaceTimeout verifies that a second timeout
+// (replace_address also failed) marks the join as Failed rather than looping.
+func TestReconcileScyllaJoin_FailAfterReplaceTimeout(t *testing.T) {
+	mgr := newScyllaClusterManager()
+
+	node := &nodeState{
+		NodeID:               "dn-node",
+		Profiles:             []string{"scylla"},
+		Identity:             storedIdentity{Ips: []string{"10.0.0.20"}},
+		Units:                []unitStatusRecord{{Name: "scylla-server.service", State: "inactive"}},
+		ScyllaJoinPhase:      ScyllaJoinConfigured,
+		ScyllaJoinStartedAt:  time.Now().Add(-(scyllaJoinTimeout + time.Second)),
+		ScyllaJoinRestarts:   1,
+		ScyllaReplaceAddress: "10.0.0.20",
+	}
+
+	dirty := mgr.reconcileScyllaJoinPhases(context.Background(), []*nodeState{node})
+
+	if !dirty {
+		t.Fatal("expected dirty=true")
+	}
+	if node.ScyllaJoinPhase != ScyllaJoinFailed {
+		t.Errorf("expected phase=Failed after replace also timed out, got %q", node.ScyllaJoinPhase)
+	}
+}
+
+// TestReconcileScyllaJoin_ClearsReplaceAddressOnSuccess verifies that a
+// successful start clears ScyllaReplaceAddress so it doesn't persist into
+// future restarts.
+func TestReconcileScyllaJoin_ClearsReplaceAddressOnSuccess(t *testing.T) {
+	mgr := newScyllaClusterManager()
+
+	node := &nodeState{
+		NodeID:   "dn-node",
+		Profiles: []string{"scylla"},
+		Identity: storedIdentity{Ips: []string{"10.0.0.20"}},
+		Units: []unitStatusRecord{
+			{Name: "scylla-server.service", State: "active"},
+		},
+		ScyllaJoinPhase:      ScyllaJoinConfigured,
+		ScyllaJoinStartedAt:  time.Now().Add(-10 * time.Second),
+		ScyllaReplaceAddress: "10.0.0.20",
+	}
+
+	dirty := mgr.reconcileScyllaJoinPhases(context.Background(), []*nodeState{node})
+
+	if !dirty {
+		t.Fatal("expected dirty=true after service started")
+	}
+	if node.ScyllaJoinPhase != ScyllaJoinStarted {
+		t.Errorf("expected phase=Started, got %q", node.ScyllaJoinPhase)
+	}
+	if node.ScyllaReplaceAddress != "" {
+		t.Errorf("ScyllaReplaceAddress should be cleared after successful start, got %q", node.ScyllaReplaceAddress)
+	}
 }

@@ -64,15 +64,26 @@ func MustCanonical(raw string) string {
 	return c
 }
 
-// Equal returns true if a and b represent the same semantic version
-// after canonicalization. Returns false if either is invalid.
+// Equal returns true if a and b represent the same version.
+// For valid semver inputs both are canonicalized before comparison.
+// For non-semver exact tags (e.g. RELEASE.2025-09-07T16-13-09Z), NormalizeExact
+// is used so that two identical non-semver strings compare as equal rather than
+// always returning false.
 func Equal(a, b string) bool {
 	ca, errA := Canonical(a)
 	cb, errB := Canonical(b)
-	if errA != nil || errB != nil {
-		return false
+	if errA == nil && errB == nil {
+		return ca == cb
 	}
-	return ca == cb
+	// Both non-semver: fall back to NormalizeExact string comparison.
+	if errA != nil && errB != nil {
+		na, errNA := NormalizeExact(a)
+		nb, errNB := NormalizeExact(b)
+		if errNA == nil && errNB == nil {
+			return na == nb
+		}
+	}
+	return false
 }
 
 // Compare performs full semver comparison of a and b, returning

@@ -304,11 +304,21 @@ type nodeState struct {
 	MinioJoinPhase     MinioJoinPhase `json:"minio_join_phase,omitempty"`
 	MinioJoinStartedAt time.Time      `json:"minio_join_started_at,omitempty"`
 	MinioJoinError     string         `json:"minio_join_error,omitempty"`
+	// ScyllaHostID is the UUID reported by this node's ScyllaDB instance via
+	// heartbeat (installed_build_ids["scylla:host_id"]). Used by RemoveNode to
+	// call nodetool removenode on a healthy peer when this node is removed.
+	// Empty until the node's ScyllaDB has fully started and reported at least one heartbeat.
+	ScyllaHostID string `json:"scylla_host_id,omitempty"`
 	// ScyllaDB join state machine (gossip-based cluster expansion)
-	ScyllaJoinPhase     ScyllaJoinPhase `json:"scylla_join_phase,omitempty"`
-	ScyllaJoinStartedAt time.Time       `json:"scylla_join_started_at,omitempty"`
-	ScyllaJoinError     string          `json:"scylla_join_error,omitempty"`
-	ScyllaJoinRestarts  int             `json:"scylla_join_restarts,omitempty"`
+	ScyllaJoinPhase        ScyllaJoinPhase `json:"scylla_join_phase,omitempty"`
+	ScyllaJoinStartedAt    time.Time       `json:"scylla_join_started_at,omitempty"`
+	ScyllaJoinError        string          `json:"scylla_join_error,omitempty"`
+	ScyllaJoinRestarts     int             `json:"scylla_join_restarts,omitempty"`
+	// ScyllaReplaceAddress is set when a node rejoins after being removed without
+	// decommissioning (its IP is still DN in the gossip ring). The rendered
+	// scylla.yaml will include replace_address_first_boot so ScyllaDB can claim
+	// ownership of the dead node's tokens instead of refusing to bootstrap.
+	ScyllaReplaceAddress string `json:"scylla_replace_address,omitempty"`
 	// Bootstrap phase state machine (phased node initialization)
 	BootstrapPhase     BootstrapPhase `json:"bootstrap_phase,omitempty"`
 	BootstrapStartedAt time.Time      `json:"bootstrap_started_at,omitempty"`

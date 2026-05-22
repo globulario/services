@@ -110,7 +110,7 @@ func (srv *NodeAgentServer) ensureRuntimeTLSConvergence(ctx context.Context) {
 		// Chain is valid — also check IP SAN coverage so that new IPs
 		// (secondary interfaces, VIP changes) trigger cert re-issuance.
 		requiredIPs := make([]net.IP, 0)
-		for _, s := range collectNodeIPs() {
+		for _, s := range gatherIPs() {
 			if ip := net.ParseIP(s); ip != nil {
 				requiredIPs = append(requiredIPs, ip)
 			}
@@ -453,7 +453,7 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *cluster_controllerpb.Cluste
 	// Collect IP SANs: node's routable IPs + ingress VIP (if this node
 	// participates in keepalived). Without the VIP in the cert, any gRPC
 	// client connecting via the floating VIP will fail TLS verification.
-	ips := collectNodeIPs()
+	ips := gatherIPs()
 	if vip := srv.lookupIngressVIP(); vip != "" {
 		ips = append(ips, vip)
 	}
@@ -604,23 +604,6 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *cluster_controllerpb.Cluste
 		}
 	}
 	return nil
-}
-
-// collectNodeIPs returns the non-loopback unicast IPs of this node.
-func collectNodeIPs() []string {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return nil
-	}
-	var out []string
-	for _, a := range addrs {
-		ipNet, ok := a.(*net.IPNet)
-		if !ok || ipNet.IP.IsLoopback() || ipNet.IP.IsLinkLocalUnicast() {
-			continue
-		}
-		out = append(out, ipNet.IP.String())
-	}
-	return out
 }
 
 // lookupIngressVIP reads the ingress spec from etcd and returns the VIP

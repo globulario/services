@@ -337,6 +337,7 @@ func (srv *server) RemoveNode(ctx context.Context, req *cluster_controllerpb.Rem
 		srv.unlock()
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
+	scyllaHostID := node.ScyllaHostID // capture before state deletion
 
 	// Topology preflight: block removal if it would violate safety invariants
 	// (Case 12: TOPOLOGY_SAFETY_DRIFT). Force=true overrides the guard.
@@ -439,8 +440,41 @@ func (srv *server) RemoveNode(ctx context.Context, req *cluster_controllerpb.Rem
 			fmt.Sprintf("purged node from %d release objects", releasesCleaned), 0)
 	}
 
+	// Remove node from ScyllaDB gossip ring via a healthy peer.
+	// Non-fatal: if it fails, log and continue — operator can run
+	// "nodetool removenode <host_id>" manually.
+	var scyllaRingErr error
+	if scyllaHostID != "" {
+		scyllaStepSeq := srv.workflowRec.RecordStep(ctx, repairRunID, &workflow.StepParams{
+			StepKey: "repair_scylla_ring_remove",
+			Title:   "Remove node from ScyllaDB gossip ring",
+			Actor:   workflow.ActorController,
+			Phase:   workflow.PhasePublish,
+			Status:  workflow.StepRunning,
+			Message: fmt.Sprintf("nodetool removenode %s", scyllaHostID),
+		})
+		scyllaRingErr = srv.removeNodeFromScyllaRing(ctx, nodeID, scyllaHostID)
+		if scyllaRingErr != nil {
+			log.Printf("remove-node: ScyllaDB ring removal non-fatal: %v", scyllaRingErr)
+			srv.workflowRec.CompleteStep(ctx, repairRunID, scyllaStepSeq,
+				fmt.Sprintf("warn: %v — run 'nodetool removenode %s' manually", scyllaRingErr, scyllaHostID), 0)
+		} else {
+			srv.workflowRec.CompleteStep(ctx, repairRunID, scyllaStepSeq,
+				fmt.Sprintf("host %s removed from ScyllaDB ring", scyllaHostID), 0)
+		}
+	}
+
+	scyllaSuffix := ""
+	if scyllaHostID == "" {
+		scyllaSuffix = " (ScyllaDB host ID unknown — removenode skipped)"
+	} else if scyllaRingErr != nil {
+		scyllaSuffix = fmt.Sprintf(" (ScyllaDB ring removal failed: run 'nodetool removenode %s')", scyllaHostID)
+	} else {
+		scyllaSuffix = fmt.Sprintf(" (ScyllaDB host %s removed from ring)", scyllaHostID)
+	}
+
 	srv.workflowRec.FinishRun(ctx, repairRunID, workflow.Succeeded,
-		fmt.Sprintf("node %s removed: %d etcd keys cleaned, %d releases purged", nodeID, totalDeleted, releasesCleaned),
+		fmt.Sprintf("node %s removed: %d etcd keys cleaned, %d releases purged%s", nodeID, totalDeleted, releasesCleaned, scyllaSuffix),
 		"", workflow.NoFailure)
 
 	// Close agent client if we have one

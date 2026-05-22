@@ -316,6 +316,12 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 			node.InstalledBuildIDs = installedBuildIDs
 			changed = true
 		}
+		// Promote ScyllaDB host UUID to a dedicated field for easy access in
+		// RemoveNode. The key is "scylla:host_id" by convention with the node agent.
+		if hostID := strings.TrimSpace(installedBuildIDs["scylla:host_id"]); hostID != "" && node.ScyllaHostID != hostID {
+			node.ScyllaHostID = hostID
+			changed = true
+		}
 	}
 	// Store hardware capabilities if reported.
 	if caps := nodeStatus.GetCapabilities(); caps != nil {

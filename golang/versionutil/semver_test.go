@@ -151,12 +151,33 @@ func TestEqual(t *testing.T) {
 		{"garbage", "v0.1.0", false},
 		{"1.0.0-alpha", "1.0.0-alpha", true},
 		{"v1.0.0", "1.0.1", false},
+		// Non-semver exact tags: identical strings must compare equal.
+		{"RELEASE.2025-09-07T16-13-09Z", "RELEASE.2025-09-07T16-13-09Z", true},
+		{"RELEASE.2025-09-07T16-13-09Z+b1", "RELEASE.2025-09-07T16-13-09Z+b1", true},
+		{"RELEASE.2025-09-07T16-13-09Z", "RELEASE.2025-08-01T00-00-00Z", false},
+		// Mixed semver vs non-semver: always false.
+		{"1.2.3", "RELEASE.2025-09-07T16-13-09Z", false},
 	}
 	for _, tt := range tests {
 		got := Equal(tt.a, tt.b)
 		if got != tt.want {
 			t.Errorf("Equal(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
 		}
+	}
+}
+
+func TestEqualFullNonSemver(t *testing.T) {
+	// EqualFull must not report drift when installed == desired for non-semver packages.
+	tag := "RELEASE.2025-09-07T16-13-09Z"
+	if !EqualFull(tag, 1, tag, 1) {
+		t.Errorf("EqualFull(%q, 1, %q, 1) = false, want true", tag, tag)
+	}
+	if EqualFull(tag, 1, tag, 2) {
+		t.Errorf("EqualFull(%q, 1, %q, 2) = true, want false (build differs)", tag, tag)
+	}
+	other := "RELEASE.2025-08-01T00-00-00Z"
+	if EqualFull(tag, 1, other, 1) {
+		t.Errorf("EqualFull(%q, 1, %q, 1) = true, want false (tag differs)", tag, other)
 	}
 }
 

@@ -48,6 +48,8 @@ func (srv *NodeAgentServer) RunWorkflow(ctx context.Context, req *node_agentpb.R
 		return srv.runProbeScyllaHealth(ctx, req)
 	case "wipe-scylla-data":
 		return srv.runWipeScyllaData(ctx, req)
+	case "scylla-remove-node":
+		return srv.runScyllaRemoveNode(ctx, req)
 	case "probe-etcd-health":
 		return srv.runProbeEtcdHealth(ctx, req)
 	case "wipe-etcd-and-rejoin":

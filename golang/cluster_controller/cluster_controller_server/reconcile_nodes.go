@@ -1391,16 +1391,17 @@ func (srv *server) renderedConfigForNode(node *nodeState) map[string]string {
 	srv.unlock()
 
 	ctx := &serviceConfigContext{
-		Membership:         membership,
-		CurrentNode:        currentMember,
-		ClusterID:          membership.ClusterID,
-		Domain:             domain,
-		ExternalDomain:     externalDomain,
-		EtcdState:          etcdState,
-		MinioPoolNodes:     minioPoolNodes,
-		MinioCredentials:   minioCreds,
-		MinioNodePaths:     minioNodePaths,
-		MinioDrivesPerNode: minioDrivesPerNode,
+		Membership:           membership,
+		CurrentNode:          currentMember,
+		ClusterID:            membership.ClusterID,
+		Domain:               domain,
+		ExternalDomain:       externalDomain,
+		EtcdState:            etcdState,
+		MinioPoolNodes:       minioPoolNodes,
+		MinioCredentials:     minioCreds,
+		MinioNodePaths:       minioNodePaths,
+		MinioDrivesPerNode:   minioDrivesPerNode,
+		ScyllaReplaceAddress: node.ScyllaReplaceAddress,
 	}
 
 	serviceConfigs := renderServiceConfigs(ctx)
@@ -1455,16 +1456,17 @@ func (srv *server) renderServiceConfigsForNodeInMembership(node *nodeState, memb
 	srv.unlock()
 
 	ctx := &serviceConfigContext{
-		Membership:         membership,
-		CurrentNode:        currentMember,
-		ClusterID:          membership.ClusterID,
-		Domain:             domain,
-		ExternalDomain:     externalDomain,
-		EtcdState:          etcdState,
-		MinioPoolNodes:     minioPool,
-		MinioCredentials:   minioCr,
-		MinioNodePaths:     minioNP,
-		MinioDrivesPerNode: minioDPN,
+		Membership:           membership,
+		CurrentNode:          currentMember,
+		ClusterID:            membership.ClusterID,
+		Domain:               domain,
+		ExternalDomain:       externalDomain,
+		EtcdState:            etcdState,
+		MinioPoolNodes:       minioPool,
+		MinioCredentials:     minioCr,
+		MinioNodePaths:       minioNP,
+		MinioDrivesPerNode:   minioDPN,
+		ScyllaReplaceAddress: node.ScyllaReplaceAddress,
 	}
 	return renderServiceConfigs(ctx)
 }

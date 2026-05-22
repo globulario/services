@@ -51,6 +51,11 @@ type serviceConfigContext struct {
 	MinioCredentials   *minioCredentials // cluster-scoped MinIO root credentials
 	MinioNodePaths     map[string]string // IP → base data path (default: /var/lib/globular/minio)
 	MinioDrivesPerNode int               // drives per node (0/1 = single, 2+ = multi-drive with data1, data2, ...)
+	// ScyllaReplaceAddress is non-empty when this node is re-joining after being
+	// removed without prior decommission. The IP is still DN in gossip; setting
+	// replace_address_first_boot lets ScyllaDB claim those tokens instead of
+	// refusing to bootstrap.
+	ScyllaReplaceAddress string
 }
 
 // profilesForEtcd lists the profiles that run etcd.
@@ -600,6 +605,14 @@ func renderScyllaConfig(ctx *serviceConfigContext) (string, bool) {
 
 	// Developer mode — required for posix network stack without full scylla_setup.
 	sb.WriteString("developer_mode: true\n")
+
+	// replace_address_first_boot: written only when this node is re-joining after
+	// its IP was left DN in the ring (clean without decommission). Tells ScyllaDB
+	// to claim the dead node's tokens rather than refusing to bootstrap.
+	if ctx.ScyllaReplaceAddress != "" {
+		sb.WriteString("\n")
+		sb.WriteString(fmt.Sprintf("replace_address_first_boot: '%s'\n", ctx.ScyllaReplaceAddress))
+	}
 
 	return sb.String(), true
 }

@@ -1022,6 +1022,11 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 	if buildID := LoadInstalledAwarenessBuildID(); buildID != "" {
 		statusReq.InstalledBuildIds["awareness_bundle"] = buildID
 	}
+	// Report ScyllaDB host UUID so the controller can call nodetool removenode
+	// on a healthy peer when this node is removed from the cluster.
+	if hostID := readScyllaHostID(ctx); hostID != "" {
+		statusReq.InstalledBuildIds[scyllaHostIDKey] = hostID
+	}
 
 	// Phase 1: local discovery (systemd units, version markers, config files).
 	// Only report authoritative (ManagedInstalled) observations. Non-authoritative
