@@ -171,18 +171,23 @@ func TestScyllaJoin_HappyPath(t *testing.T) {
 	}
 }
 
-// TestScyllaJoin_Timeout tests that a stuck join times out.
+// TestScyllaJoin_Timeout tests that a join that has already exhausted the
+// replace_address_first_boot retry is marked as Failed on the second timeout.
+// (The first timeout triggers a retry; see TestReconcileScyllaJoin_ReplaceAddressOnTimeout
+// for the first-timeout path.)
 func TestScyllaJoin_Timeout(t *testing.T) {
 	mgr := newScyllaClusterManager()
 
 	node := &nodeState{
-		NodeID:              "n1",
-		Identity:            storedIdentity{Hostname: "slow-scylla", Ips: []string{"10.0.0.5"}},
-		Profiles:            []string{"scylla"},
-		Units:               []unitStatusRecord{{Name: "scylla-server.service", State: "inactive"}},
-		BootstrapPhase:      BootstrapStorageJoining,
-		ScyllaJoinPhase:     ScyllaJoinConfigured,
-		ScyllaJoinStartedAt: time.Now().Add(-scyllaJoinTimeout - time.Minute),
+		NodeID:               "n1",
+		Identity:             storedIdentity{Hostname: "slow-scylla", Ips: []string{"10.0.0.5"}},
+		Profiles:             []string{"scylla"},
+		Units:                []unitStatusRecord{{Name: "scylla-server.service", State: "inactive"}},
+		BootstrapPhase:       BootstrapStorageJoining,
+		ScyllaJoinPhase:      ScyllaJoinConfigured,
+		ScyllaJoinStartedAt:  time.Now().Add(-scyllaJoinTimeout - time.Minute),
+		ScyllaJoinRestarts:   1,
+		ScyllaReplaceAddress: "10.0.0.5",
 	}
 	nodes := []*nodeState{node}
 
