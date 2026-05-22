@@ -42,12 +42,32 @@ func (srv *server) resumeOrphanedRun(ctx context.Context, runID string) error {
 	if clusterID == "" {
 		return fmt.Errorf("run %s not found in workflow_runs", runID)
 	}
-	// Resume with nil endpoints — the all-steps-succeeded guard in
-	// ResumeRun will finalize completed runs without re-execution.
-	// For incomplete runs, the preflight will fail (no handlers), but
-	// the error is returned to the orphan scanner which will retry on
-	// the next cycle when the controller has registered its actors.
-	return srv.ResumeRun(ctx, clusterID, runID, nil)
+	// Resolve the controller endpoint so the resumed run can dispatch actor
+	// callbacks. The controller proxies all actor types (node-agent, installer,
+	// repository, workflow-service). Falls back to nil (probe-only mode) when
+	// the controller is not yet discoverable — the orphan scanner will retry on
+	// the next cycle once the controller re-registers in etcd.
+	actorEndpoints := resolveOrphanActorEndpoints()
+	return srv.ResumeRun(ctx, clusterID, runID, actorEndpoints)
+}
+
+// resolveOrphanActorEndpoints looks up the cluster-controller's gRPC address
+// from the etcd service registry so orphaned runs can dispatch actor callbacks.
+// The controller proxies all actor types, matching the pattern used by
+// executeWorkflowCentralized in the cluster controller.
+// Returns nil when the controller is not yet discoverable (probe-only mode).
+func resolveOrphanActorEndpoints() map[string]string {
+	addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", "")
+	if addr == "" {
+		return nil
+	}
+	return map[string]string{
+		"cluster-controller": addr,
+		"node-agent":         addr,
+		"installer":          addr,
+		"repository":         addr,
+		"workflow-service":   addr,
+	}
 }
 
 // ResumeRun resumes an orphaned workflow run. It loads the persisted state,

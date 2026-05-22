@@ -105,7 +105,16 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 	engine.RegisterNodeRecoveryControllerActions(defaultRouter, srv.buildNodeRecoveryControllerConfig())
 	engine.RegisterRepositoryActions(defaultRouter, srv.buildRepositoryConfig())
 	engine.RegisterObjectStoreControllerActions(defaultRouter, srv.buildObjectStoreControllerConfig())
-	engine.RegisterNodeDirectApplyActions(defaultRouter, srv.buildObjectStoreNodeDirectApplyConfig())
+	// Full node-apply config covers all node.* actions (install, verify, restart,
+	// sync, etc.) needed by release.apply.package on orphan resume. This is a
+	// strict superset of buildObjectStoreNodeDirectApplyConfig which only wired
+	// stop and restart for the topology workflow.
+	engine.RegisterNodeDirectApplyActions(defaultRouter, srv.buildNodeDirectApplyConfig())
+	// Generic release config handles controller.release.* callbacks for orphaned
+	// release.apply.package runs where no per-correlation router is registered.
+	// Uses relID parameter rather than captured releaseName; generation guards
+	// are disabled (0) since the orphan scanner doesn't know the original gen.
+	engine.RegisterReleaseControllerActions(defaultRouter, srv.buildGenericReleaseControllerConfig())
 	srv.actorServer.SetDefaultRouter(defaultRouter)
 
 	// Staggered initial enqueue: wait for readiness predicates to pass, then

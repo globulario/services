@@ -554,6 +554,97 @@ func (srv *server) buildReleaseControllerConfigWithGen(releaseName, pkgKind stri
 	}
 }
 
+// buildGenericReleaseControllerConfig returns a ReleaseControllerConfig for the
+// defaultRouter used during orphan run resumption. Unlike
+// buildReleaseControllerConfigWithGen, closures derive the release name from
+// the relID parameter rather than a captured variable, so the config works for
+// any release without prior knowledge of its name or package kind.
+// dispatchGeneration guards are disabled (0 = accept any generation) because
+// the orphan scanner does not know the original dispatch generation.
+func (srv *server) buildGenericReleaseControllerConfig() engine.ReleaseControllerConfig {
+	return engine.ReleaseControllerConfig{
+		MarkReleaseResolved: func(ctx context.Context, relID string) error {
+			rt := srv.inferReleaseResourceType(ctx, relID)
+			return srv.patchReleasePhase(ctx, rt, relID, cluster_controllerpb.ReleasePhaseResolved, "")
+		},
+		MarkReleaseApplying: func(ctx context.Context, relID string) error {
+			return nil
+		},
+		MarkReleaseFailed: func(ctx context.Context, relID, reason string) error {
+			rt := srv.inferReleaseResourceType(ctx, relID)
+			return srv.patchReleasePhaseGuarded(ctx, rt, relID, cluster_controllerpb.ReleasePhaseFailed, reason, 0)
+		},
+		RecheckConvergence: func(ctx context.Context, relID string) error {
+			if srv.enqueueReconcile != nil {
+				srv.enqueueReconcile()
+			}
+			return nil
+		},
+		SelectInfraTargets: func(ctx context.Context, candidates []any, pkgName, desiredHash string) ([]any, error) {
+			return srv.selectReleaseTargets(ctx, candidates, pkgName, "", desiredHash)
+		},
+		SelectPackageTargets: func(ctx context.Context, candidates []any, pkgName, pkgKind, desiredHash string) ([]any, error) {
+			return srv.selectReleaseTargets(ctx, candidates, pkgName, pkgKind, desiredHash)
+		},
+		FinalizeNoop: func(ctx context.Context, relID string) error {
+			rt := srv.inferReleaseResourceType(ctx, relID)
+			return srv.patchReleasePhase(ctx, rt, relID, cluster_controllerpb.ReleasePhaseAvailable, "no targets required update")
+		},
+		MarkNodeStarted: func(ctx context.Context, relID, nodeID string) error {
+			rt := srv.inferReleaseResourceType(ctx, relID)
+			return srv.patchReleaseNodeStatus(ctx, rt, relID, nodeID, func(n *cluster_controllerpb.NodeReleaseStatus) {
+				n.UpdatedUnixMs = time.Now().UnixMilli()
+			})
+		},
+		MarkNodeSucceeded: func(ctx context.Context, relID, nodeID, version, hash string) error {
+			rt := srv.inferReleaseResourceType(ctx, relID)
+			return srv.patchReleaseNodeStatusGuarded(ctx, rt, relID, nodeID, 0, func(n *cluster_controllerpb.NodeReleaseStatus) {
+				n.Phase = cluster_controllerpb.ReleasePhaseAvailable
+				n.InstalledVersion = version
+				n.UpdatedUnixMs = time.Now().UnixMilli()
+				n.ErrorMessage = ""
+				if strings.TrimSpace(hash) != "" {
+					n.InstalledHash = hash
+					n.ProofStatus = RolloutProofInstalledVerified
+					n.ProofFinding = ""
+				} else {
+					n.ProofStatus = RolloutProofInventoryClaim
+					n.ProofFinding = ""
+				}
+			})
+		},
+		MarkNodeFailed: func(ctx context.Context, relID, nodeID, reason string) error {
+			rt := srv.inferReleaseResourceType(ctx, relID)
+			return srv.patchReleaseNodeStatusGuarded(ctx, rt, relID, nodeID, 0, func(n *cluster_controllerpb.NodeReleaseStatus) {
+				n.Phase = cluster_controllerpb.ReleasePhaseFailed
+				n.ErrorMessage = reason
+				n.UpdatedUnixMs = time.Now().UnixMilli()
+			})
+		},
+		AggregateDirectApply: func(ctx context.Context, relID, pkgName string) (map[string]any, error) {
+			return map[string]any{"release_id": relID, "package_name": pkgName, "status": "ok"}, nil
+		},
+		FinalizeDirectApply: func(ctx context.Context, relID string, aggregate map[string]any) error {
+			rt := srv.inferReleaseResourceType(ctx, relID)
+			finalPhase := cluster_controllerpb.ReleasePhaseAvailable
+			if status, ok := aggregate["status"].(string); ok && status != "ok" {
+				finalPhase = cluster_controllerpb.ReleasePhaseDegraded
+			}
+			return srv.patchReleasePhaseGuarded(ctx, rt, relID, finalPhase, "", 0)
+		},
+	}
+}
+
+// inferReleaseResourceType checks whether relID is an InfrastructureRelease;
+// falls back to ServiceRelease. Used by buildGenericReleaseControllerConfig
+// where the package kind is unknown at construction time.
+func (srv *server) inferReleaseResourceType(ctx context.Context, relID string) string {
+	if obj, _, err := srv.resources.Get(ctx, "InfrastructureRelease", relID); err == nil && obj != nil {
+		return "InfrastructureRelease"
+	}
+	return "ServiceRelease"
+}
+
 // releaseTargetCandidate holds the subset of node state needed for target
 // selection, snapshotted under the lock so that etcd I/O can happen without
 // holding srv.mu.
