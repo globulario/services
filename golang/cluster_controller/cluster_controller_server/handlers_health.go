@@ -1000,6 +1000,18 @@ func (srv *server) evaluateNodeStatus(node *nodeState, units []unitStatusRecord)
 	if len(required) == 0 {
 		return "ready", ""
 	}
+	// MinIO topology contract: when a node is explicitly held as non_member
+	// (pending apply-topology admission), minio and its sidecar are intentionally
+	// not running. This is not a health failure — exclude them from the required
+	// set so the node can reach "ready" status and allow service releases to
+	// converge on the node.
+	if node.MinioJoinPhase == MinioJoinNonMember {
+		delete(required, "globular-minio.service")
+		delete(required, "globular-sidekick.service")
+		if len(required) == 0 {
+			return "ready", ""
+		}
+	}
 	// keepalived is ingress-gated — see GetNodeHealthDetailV1 for full
 	// rationale. Best-effort lookup with a short timeout; failure preserves
 	// the existing fail-open behaviour.
