@@ -464,6 +464,17 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 				continue
 			}
 		}
+		// Skip nodes with stale heartbeats — they are definitively offline.
+		// Including an offline node in the release wave causes the workflow to
+		// fail on every attempt and keeps the release stuck in FAILED. When the
+		// node comes back online its heartbeat resumes and hasUnservedNodes will
+		// detect it as unserved, re-entering PENDING to dispatch the install.
+		if time.Since(node.LastSeen) > heartbeatStaleThreshold {
+			log.Printf("%s %s: skipping node %s/%s (stale heartbeat: last seen %s ago)",
+				h.ResourceType, h.Name, id, node.Identity.Hostname,
+				time.Since(node.LastSeen).Truncate(time.Second))
+			continue
+		}
 		// Gate workload services on RuntimeLocalDependencies: if a service
 		// requires event/rbac/etc. and those deps are not yet active on this
 		// node, skip it so the semaphore slot stays free for dep installs.
@@ -740,6 +751,14 @@ func (srv *server) hasUnservedNodes(h *releaseHandle, blockedNodes map[string]st
 		}
 		if node.Status == "unreachable" || node.Status == "removed" ||
 			node.Status == "blocked" || node.Status == "draining" {
+			continue
+		}
+		// Skip nodes with stale heartbeats — they are definitively offline.
+		// An offline node is not "unserved" in the meaningful sense: it will
+		// receive the release when it rejoins and its heartbeat resumes.
+		// Without this filter, a dead node keeps hasUnservedNodes returning
+		// true, cycling FAILED → PENDING → FAILED indefinitely.
+		if time.Since(node.LastSeen) > heartbeatStaleThreshold {
 			continue
 		}
 		// Convergence signal #2: node reports the right version installed.

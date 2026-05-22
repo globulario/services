@@ -516,6 +516,15 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 		newEtcdEndpointReconciler(srv).Start(ctx)
 	})
 
+	// Stale instance purger: leader-only background loop that removes "closed"
+	// service instance entries for nodes with stale heartbeats. Without this,
+	// a dead node's closed entry (with a high mod_revision from shutdown) can
+	// outrank a live node's "running" entry in service discovery, routing all
+	// traffic to a dead address.
+	safeGo("stale-instance-purger", func() {
+		srv.runStaleInstancePurger(ctx)
+	})
+
 	// Trigger A: Auto-import desired state from installed services at startup.
 	// Waits for at least one node to report installed versions, then checks if
 	// desired state is empty. If so, runs importInstalledToDesired to backfill.
