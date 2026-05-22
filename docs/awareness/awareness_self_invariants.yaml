@@ -136,10 +136,8 @@ invariants:
       deciding package identity) must be flagged by semantic-diff and
       held to a stricter awareness coverage bar than ordinary changes.
     protects:
-      symbols:
-        - semanticdiff.AnalyzeDiff
       files:
-        - golang/awareness/semanticdiff/
+        - golang/awareness/integrity/trust.go
     enforcement: |
       semanticdiff already detects forbidden layer-authority transitions.
       The trust envelope must report TrustLimited or worse for any patch

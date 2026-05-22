@@ -1997,7 +1997,8 @@ invariants:
             - /globular/ingress/v1/spec
             - "/globular/ingress/v1/status/<node-id>"
         files:
-            - golang/node_agent/internal/supervisor/keepalived_render.go
+            - golang/node_agent/node_agent_server/internal/ingress/keepalived/render.go
+            - golang/node_agent/node_agent_server/internal/actions/keepalived.go
         symbols:
             - renderKeepalivedConfig
             - vrrpScriptForCluster
@@ -2723,6 +2724,10 @@ invariants:
         - rely_on_format_json_presence_as_wipe_completion_signal    # MinIO recreates empty .minio.sys subdirs during healing
         - skip_wipe_when_minio_is_running                           # the wipe target is exactly the format from the OLD topology
         - approve_transition_then_immediately_revoke_to_clear_state # leaves cluster in undefined state, may re-trigger if revoke is read stale
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/minio_format_backup.go
+          - golang/node_agent/node_agent_server/minio_systemd_reconcile.go
 
     - id: objectstore.minio.format_json_durable_in_etcd
       title: Every per-drive .minio.sys/format.json must have a current snapshot in etcd, scoped by topology fingerprint
@@ -2757,6 +2762,10 @@ invariants:
         - overwrite_existing_on_disk_format_with_etcd_snapshot     # MinIO's on-disk bytes are authoritative when present
         - back_up_format_json_to_minio_itself                       # MinIO can't read its own format ⇒ can't read its own backup
         - skip_purge_on_destructive_transition                      # restore would race with the new topology's first format
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/minio_format_backup.go
+          - golang/node_agent/node_agent_server/minio_systemd_reconcile.go
 
     # ── Diagnostic Honesty Refactor (Phase 8) ────────────────────────────
     # The Prime Directive: no component reports healthy / installed /

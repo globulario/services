@@ -29,6 +29,10 @@ invariants:
       must read from the runtime authority (systemd, health-check RPC, live probe).
       It must never read from desired state, desired release records, or install
       workflow completions as a substitute for runtime evidence.
+    protects:
+      files:
+        - golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+        - golang/node_agent/node_agent_server/runtime_proof.go
     forbidden_fixes:
       - forbidden.runtime_from_desired
       - marking_available_from_local_success_only
@@ -56,6 +60,10 @@ invariants:
       Install status must be read from /globular/nodes/{node_id}/packages/{kind}/{name}
       (installed-state in etcd). It must never be inferred from repository catalog
       availability, BOM membership, or workflow dispatch alone.
+    protects:
+      files:
+        - golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+        - golang/node_agent/node_agent_server/installed_services.go
     forbidden_fixes:
       - marking_available_from_local_success_only
       - mark_release_available_from_local_success
@@ -80,6 +88,10 @@ invariants:
       status. Callers — CLI, frontend, MCP tools — must poll or stream workflow status
       and report terminal state to the user. Early-return success after dispatch is
       explicitly forbidden.
+    protects:
+      files:
+        - golang/workflow/workflow_server/step_receipts.go
+        - golang/cluster_controller/cluster_controller_server/workflow_invariant.go
     forbidden_fixes:
       - forbidden.optimistic_destructive_success
       - marking_available_from_local_success_only
@@ -106,6 +118,10 @@ invariants:
         KNOWN_DOWN   — NodeRecord present and explicitly reports unhealthy/unreachable
       Only KNOWN_DOWN nodes count toward quorum loss findings.
       DataIncomplete snapshots must emit a caveat, not a quorum-loss finding.
+    protects:
+      files:
+        - golang/cluster_doctor/cluster_doctor_server/rules/objectstore_physical_overlap.go
+        - golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
     forbidden_fixes:
       - forbidden.partial_snapshot_false_quorum_loss
     required_tests:
@@ -133,6 +149,10 @@ invariants:
       /globular/ingress/v1/status/{node_id} and look for the MASTER state.
       Never assume a node holds the VIP because its profile includes 'gateway'
       or because globular-keepalived is installed on it.
+    protects:
+      files:
+        - golang/cluster_controller/cluster_controller_server/state.go
+        - golang/node_agent/node_agent_server/internal/actions/keepalived.go
     forbidden_fixes:
       - forbidden.vip_without_runtime_proof
     required_tests:
@@ -159,6 +179,10 @@ invariants:
       All listener bind addresses must use 0.0.0.0, not 127.0.0.1.
       If a TLS or SAN error occurs, fix the certificate or the DNS record —
       never switch to loopback as a workaround.
+    protects:
+      files:
+        - golang/config/endpoint_resolver.go
+        - golang/netutil/node_identity.go
     forbidden_fixes:
       - forbidden.localhost_dns_bypass
     required_tests:
@@ -181,6 +205,10 @@ invariants:
       the gRPC health RPC, or a live socket connect. Desired state records may be
       read to understand intent; they must never substitute for a live probe when
       the question is about current availability.
+    protects:
+      files:
+        - golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+        - golang/cluster_doctor/cluster_doctor_server/rules/installed_state_runtime_mismatch.go
     forbidden_fixes:
       - forbidden.runtime_from_desired
       - assume_installed_means_running
@@ -212,6 +240,10 @@ invariants:
       UNKNOWN must never be coerced to HEALTHY. When the data source is absent or stale,
       the rollup must emit UNKNOWN or STALE — not a passing result.
       Doctor rules, health dashboards, and CLI output must all respect this.
+    protects:
+      files:
+        - golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+        - golang/cluster_doctor/cluster_doctor_server/rules/installed_state_runtime_mismatch.go
     forbidden_fixes:
       - forbidden.unknown_as_healthy
     required_tests:
@@ -245,6 +277,10 @@ invariants:
       Only KNOWN_BAD contributes to severity escalation. UNKNOWN requires a caveat,
       not a critical finding. Rules that cannot distinguish the two must emit UNKNOWN
       and defer to the operator.
+    protects:
+      files:
+        - golang/awareness/analysis/contextnav/evidence.go
+        - golang/awareness/preflight/report.go
     forbidden_fixes:
       - forbidden.missing_inventory_as_down
       - forbidden.partial_snapshot_false_quorum_loss
@@ -274,6 +310,9 @@ invariants:
       Never use PrimaryIP(), Ips[0], or AdvertiseIp without first filtering the VIP.
       The VIP must be read from /globular/ingress/v1/spec and excluded before any
       identity-bearing operation.
+    protects:
+      files:
+        - golang/cluster_controller/cluster_controller_server/state.go
     forbidden_fixes:
       - forbidden.vip_as_node_identity
       - hardcode_node_to_pool_mapping_to_avoid_filter
@@ -305,6 +344,10 @@ invariants:
       terminal state (SUCCEEDED, FAILED, BLOCKED) is observed.
       Success must be reported only after terminal state is confirmed.
       Destructive operations must require explicit operator confirmation before dispatch.
+    protects:
+      files:
+        - golang/workflow/workflow_server/executor.go
+        - golang/workflow/engine/engine.go
     forbidden_fixes:
       - forbidden.dispatch_as_success
       - forbidden.optimistic_destructive_success
