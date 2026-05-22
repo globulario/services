@@ -773,7 +773,12 @@ func initializeServerDefaults() *server {
 	s.Port = defaultPort
 	s.Proxy = defaultProxy
 	s.Protocol = "grpc"
-	s.Version = ""
+	// Version is injected at build time via -X main.Version=<ver> ldflags.
+	// See docs/awareness/failure_modes.yaml#service.runtime_version_empty_from_main —
+	// hardcoding "" here clears the ldflags-injected value, leaving --describe with
+	// Version="" and the verifier degrading to service.runtime_identity_unproven
+	// every time the marker/etcd record disagrees with --describe.
+	s.Version = Version
 	s.PublisherID = "localhost"
 	s.Description = "Repository service where packages are stored."
 	s.Keywords = []string{"Repo", "Repository", "Package", "Service"}

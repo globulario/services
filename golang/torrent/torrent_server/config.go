@@ -63,7 +63,12 @@ func DefaultConfig() *Config {
 		Port:            defaultPort,
 		Proxy:           defaultProxy,
 		Protocol:        "grpc",
-		Version:         "",
+		// Version is injected at build time via -X main.Version=<ver> ldflags.
+		// See docs/awareness/failure_modes.yaml#service.runtime_version_empty_from_main —
+		// hardcoding "" here clears the ldflags-injected value, leaving --describe with
+		// Version="" and the verifier degrading to service.runtime_identity_unproven
+		// every time the marker/etcd record disagrees with --describe.
+		Version:         Version,
 		PublisherID:     "localhost",
 		Description:     "Torrent gRPC service for Globular.",
 		Keywords:        []string{"Torrent", "Download", "P2P", "Service"},

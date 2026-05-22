@@ -1927,6 +1927,64 @@ failure_modes:
       required_tests:
         - TestVerifyTarget_FirstInstallProcessOlderThanApply_BootstrapOrderingSkew
 
+    - id: service.runtime_version_empty_from_main
+      title: Service main hardcodes Version="" which wipes the ldflags-injected build-time value
+      severity: degraded
+      symptoms:
+        - "`<svc>_server --describe` prints `\"Version\": \"\"` even though the binary was built with `-X main.Version=<ver>`"
+        - "`<svc>_server --version` prints an empty line"
+        - on a Day-0 cluster, the controller's health check reports `version:<svc> FAIL — not installed (desired X.Y.Z)` because the heartbeat resolves the empty --describe Version to the `0.0.1` package-default fallback
+        - cluster-doctor's services drift surface shows `~ version drift` (desired X.Y.Z, installed 0.0.1) until the controller auto-dispatches install-package
+        - after auto-reconcile, the version marker is correct but the binary still under-reports — verifier flags service.runtime_identity_unproven if the runtime-proof sweep races the version-marker write
+      root_cause: |
+        Two shapes of the same bug in service entrypoints:
+
+        1. Direct: `srv.Version = ""` in main() (monitoring_server,
+           repository_server pre-2026-05-21).
+        2. Indirect: a Config struct with `Version: ""` default that
+           the server struct copies via `Version: cfg.Version`
+           (torrent_server pre-2026-05-21).
+
+        Both shapes execute AFTER the package-level `Version` variable
+        is set by `-X main.Version=<ver>` ldflags injection, so the
+        ldflags value gets clobbered to "" before any caller observes
+        it. The bug stayed invisible from Sep 2025 until 2026-05-20 when
+        the verifier package (golang/verifier/) was wired into the
+        cluster-doctor sweep — before that, no diagnostic surface
+        actually compared --describe Version against desired.
+
+        Day-0 visibility chain: install.sh deploys the binary (or a
+        bootstrap shim) → version marker is whatever apply-package
+        wrote → heartbeat reports installed version → controller hash
+        differs → workflow re-installs from repository → marker updated
+        → drift clears. But during the gap (and on every fresh boot
+        before reconcile lands), the doctor surface shows the WARN.
+      architecture_fix: |
+        Every service main MUST initialise its Version field from the
+        package-level Version variable that gen-version.sh / ldflags
+        populates. Working pattern (search, title, media, dns, file,
+        ai-*, ...):
+
+          srv.Version = Version             // direct
+          // OR
+          cfg.Version = Version             // through DefaultConfig
+
+        The build/gen-version.sh sentinel in zz_version_generated.go
+        already panics at init() if `Version` is empty, so the build
+        side of the contract is enforced. The remaining hole is the
+        service-init side: a forgotten `srv.Version = ""` silently
+        defeats the entire ldflags pipeline.
+      known_bad_fixes:
+        - Editing zz_version_generated.go directly (it's regenerated; the fix won't survive a build)
+        - Reading Version from etcd at init time (the value isn't available pre-bootstrap and forms a Day-0 chicken-and-egg with the verifier)
+        - Suppressing the runtime_identity_unproven WARN globally — that's a known_bad_fix already listed under service.runtime_identity_unproven and would hide genuine stuck-agent cases
+        - Special-casing the affected services in detectGlobularBinaryVersion to fall back to the marker file when --describe returns empty (papers over the bug for one consumer while leaving the verifier's runtime probe broken)
+      related_invariants:
+        - health.must_not_use_inventory_as_runtime_truth
+        - rollout.convergence_requires_runtime_proof
+      required_tests:
+        - TestServiceVersion_DescribeReportsBuildTimeVersion (per-service _test.go: assert --describe Version equals the package Version variable)
+
     - id: service.running_version_mismatch
       title: Live process /version response disagrees with the desired version
       severity: critical
