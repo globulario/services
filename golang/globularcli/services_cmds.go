@@ -1513,35 +1513,14 @@ func scanLocalInstalledServices() (map[string]string, error) {
 		}
 	}
 
-	// Source 3: active systemd units (same as node agent loadSystemdUnits).
-	// Infrastructure services are excluded, matching the node agent's infra set.
-	infra := map[string]bool{
-		"etcd": true, "minio": true, "envoy": true,
-		"xds": true, "gateway": true,
-	}
-	out, err := exec.Command("systemctl", "list-units",
-		"--type=service", "--state=active", "--no-legend", "--no-pager",
-		"globular-*.service").Output()
-	if err == nil {
-		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-			fields := strings.Fields(line)
-			if len(fields) == 0 {
-				continue
-			}
-			key, _ := identity.NormalizeServiceKey(fields[0])
-			if key == "" || infra[key] {
-				continue
-			}
-			if _, exists := installed[key]; exists {
-				continue
-			}
-			installed[key] = "0.0.1" // fallback, same as node agent
-		}
-	}
+	// Source 3 removed: previously fell back to "0.0.1" for any active
+	// globular-*.service without a version marker or config entry. That
+	// fabricated phantom "extras" in the CLI report (typically `torrent`
+	// and `node-agent`) which the node-agent heartbeat correctly excludes
+	// from InstalledVersions — node-agent's heartbeat.go drops entries
+	// whose source is non-authoritative or whose version is "unknown" /
+	// "". To match the cluster's actual applied-hash inputs, the CLI
+	// must apply the same filter: no marker + no config = not reported.
 
 	return installed, nil
 }

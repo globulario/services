@@ -334,7 +334,12 @@ func main() {
 	srv.Proxy = defaultProxy
 	srv.Protocol = "grpc"
 	srv.PublisherID = "localhost"
-	srv.Version = ""
+	// Version is injected at build time via -X main.Version=<ver> ldflags.
+	// Without this, --describe returns Version="" and the node-agent
+	// version probe falls back to 0.0.1, which then trips
+	// service.runtime_identity_unproven plus a perpetual services-hash
+	// mismatch until the controller dispatches a re-install.
+	srv.Version = Version
 	srv.Keywords = make([]string, 0)
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
@@ -572,63 +577,20 @@ func main() {
 		srv.ConfigPath = args[1]
 	}
 
-	// Flags first (no etcd/config access here)
+	// --debug must run BEFORE the shared informational-flag handler so the
+	// debug logger is in effect for describe/health output and any errors.
 	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			srv.Process = os.Getpid()
-			srv.State = "starting"
-
-			// Safe defaults for domain/address without etcd
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				srv.Domain = strings.ToLower(v)
-			} else {
-				srv.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				srv.Address = strings.ToLower(v)
-			} else {
-				srv.Address = "0.0.0.0:" + Utility.ToString(srv.Port)
-			}
-
-			b, err := globular.DescribeJSON(srv)
-			if err != nil {
-				logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
-			return
-
-		case "--health":
-			if srv.Port == 0 || srv.Name == "" {
-				logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(srv, &globular.HealthOptions{
-				Timeout:     1500 * time.Millisecond,
-				ServiceName: "",
-			})
-			if err != nil {
-				logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
-			return
-		
-		case "--debug":
+		if strings.ToLower(a) == "--debug" {
 			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-		case "--help", "-h", "/?":
-			printUsage()
-			return
-		case "--version", "-v":
-			fmt.Println(srv.Version)
-			return
-		default:
-			// skip unknown flags for now (e.g. positional args)	
-
 		}
+	}
+
+	// Delegate --describe / --health / --help / --version to the shared
+	// helper. It centralises the "localhost" describe-fallback domain and
+	// the 0.0.0.0 listen-address — keeping monitoring's behaviour
+	// identical to every other Globular service.
+	if globular.HandleInformationalFlags(srv, args, logger, printUsage) {
+		return
 	}
 
 	// Now safe to access config (may read etcd / file fallback)

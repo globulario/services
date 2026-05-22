@@ -14,6 +14,12 @@ import (
 func DriftReport(snap *collector.Snapshot, nodeID string, version string, fresh Freshness) *cluster_doctorpb.DriftReport {
 	var items []*cluster_doctorpb.DriftItem
 
+	// Mirror the rules-package waiver: when /globular/ingress/v1/spec is
+	// explicitly disabled (Day-0 default), keepalived.service is expected
+	// to be installed-but-inactive. node_units_running.go already skips
+	// the corresponding finding; emitting a drift item here defeats that.
+	ingressDisabled := rules.IngressIsDisabled(snap)
+
 	for _, node := range snap.Nodes {
 		nid := node.GetNodeId()
 		if nodeID != "" && nid != nodeID {
@@ -77,6 +83,9 @@ func DriftReport(snap *collector.Snapshot, nodeID string, version string, fresh 
 				case rules.UnitStateDisabled:
 					cat = cluster_doctorpb.DriftCategory_UNIT_DISABLED
 				default:
+					continue
+				}
+				if u.GetName() == "keepalived.service" && ingressDisabled {
 					continue
 				}
 				items = append(items, &cluster_doctorpb.DriftItem{

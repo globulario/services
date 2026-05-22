@@ -24,7 +24,7 @@ func (nodeUnitsRunning) Evaluate(snap *collector.Snapshot, cfg Config) []Finding
 	// inventory directly and would otherwise emit a parallel WARN on the
 	// same package, doubling the dashboard noise on every healthy Day-0
 	// cluster.
-	ingressDisabled := ingressIsDisabled(snap)
+	ingressDisabled := IngressIsDisabled(snap)
 
 	for _, node := range snap.Nodes {
 		nodeID := node.GetNodeId()

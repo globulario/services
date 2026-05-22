@@ -30,7 +30,7 @@ func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Conf
 	// The doctor used to fire on every cluster that hadn't yet configured a
 	// VIP, surfacing as ERROR installed_state_runtime_mismatch even though
 	// the cluster was healthy as designed.
-	ingressDisabled := ingressIsDisabled(snap)
+	ingressDisabled := IngressIsDisabled(snap)
 
 	for _, node := range snap.Nodes {
 		nodeID := node.GetNodeId()
@@ -170,13 +170,17 @@ func packageUnit(name string) string {
 	}
 }
 
-// ingressIsDisabled returns true when the cluster's ingress spec at
+// IngressIsDisabled returns true when the cluster's ingress spec at
 // /globular/ingress/v1/spec is explicitly disabled. Conservative on
 // failure: if the spec is missing, malformed, or unreadable, returns
 // false so existing fail-open behavior is preserved. The caller MUST NOT
 // gate ERROR-severity rules on a "disabled" determination derived from
 // failure to read — only on a confirmed `mode: "disabled"`.
-func ingressIsDisabled(snap *collector.Snapshot) bool {
+//
+// Exported so the render package can apply the same waiver to drift
+// items (otherwise the keepalived-inactive drift fires on every
+// Day-0 cluster even though the rules package has already waived it).
+func IngressIsDisabled(snap *collector.Snapshot) bool {
 	if snap == nil || !snap.IngressSpecPresent {
 		return false
 	}
