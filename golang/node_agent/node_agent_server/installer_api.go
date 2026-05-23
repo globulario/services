@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -332,17 +331,18 @@ func splitHostPort(addr string) (string, string, error) {
 }
 
 func isLocalEndpoint(addr, localIP string) bool {
-	host := strings.TrimSpace(addr)
-	if h, _, err := net.SplitHostPort(addr); err == nil {
-		host = strings.TrimSpace(h)
-	}
-	if host == "" {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
 		return false
 	}
-	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+	if config.IsLoopbackEndpoint(addr) {
 		return true
 	}
-	if localIP != "" && host == localIP {
+	host, _, err := splitHostPort(addr)
+	if err != nil || host == "" {
+		host = addr
+	}
+	if localIP != "" && strings.TrimSpace(host) == strings.TrimSpace(localIP) {
 		return true
 	}
 	return false
