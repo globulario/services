@@ -95,6 +95,9 @@ func sourceWithAuthority(authority string) string {
 func toProtoFindings(findings []rules.Finding) []*cluster_doctorpb.Finding {
 	out := make([]*cluster_doctorpb.Finding, 0, len(findings))
 	for _, f := range findings {
+		if f.InvariantStatus == cluster_doctorpb.InvariantStatus_INVARIANT_PASS {
+			continue
+		}
 		out = append(out, f.ToProto())
 	}
 	return out
