@@ -39,6 +39,10 @@ const (
 // commandPackages is the set of binary-only packages that have no systemd unit.
 // Skip is safe for these when version (and optional build_id) match because
 // there is no runtime state to check.
+//
+// Must stay in sync with KindCommand entries in component_catalog.go (controller).
+// The node-agent cannot import the controller's catalog, so this list is maintained
+// manually. Add entries here whenever a new COMMAND-kind package is added to the catalog.
 var commandPackages = map[string]bool{
 	"restic":      true,
 	"rclone":      true,
@@ -47,6 +51,10 @@ var commandPackages = map[string]bool{
 	"mc":          true,
 	"etcdctl":     true,
 	"globular-cli": true,
+	"cli":          true,
+	"sha256sum":    true,
+	"yt-dlp":       true,
+	"claude":       true,
 }
 
 var commandBinaryExistsFunc = commandBinaryExists

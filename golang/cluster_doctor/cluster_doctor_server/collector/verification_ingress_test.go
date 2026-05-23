@@ -141,3 +141,52 @@ func TestIngressDisabledFromSnapshot(t *testing.T) {
 		})
 	}
 }
+
+// COMMAND-kind packages: RuntimeNeeded must be cleared so the verifier does
+// not emit runtime_identity_unproven for CLI binaries (mc, restic, etc.).
+func TestApplyCommandKindPolicyToTargets_ClearsRuntimeNeeded(t *testing.T) {
+	snap := &Snapshot{
+		NodePackageKinds: map[string]map[string]string{
+			"node-1": {"mc": "COMMAND", "restic": "COMMAND", "envoy": "SERVICE"},
+		},
+		DesiredServiceTargets: map[string]*DesiredServiceTarget{
+			"mc":     {Service: "mc", RuntimeNeeded: true},
+			"restic": {Service: "restic", RuntimeNeeded: true},
+			"envoy":  {Service: "envoy", RuntimeNeeded: true},
+		},
+	}
+	applyCommandKindPolicyToTargets(snap)
+	if snap.DesiredServiceTargets["mc"].RuntimeNeeded {
+		t.Error("mc (COMMAND) must have RuntimeNeeded=false")
+	}
+	if snap.DesiredServiceTargets["restic"].RuntimeNeeded {
+		t.Error("restic (COMMAND) must have RuntimeNeeded=false")
+	}
+	if !snap.DesiredServiceTargets["envoy"].RuntimeNeeded {
+		t.Error("envoy (SERVICE) must NOT have RuntimeNeeded cleared")
+	}
+}
+
+func TestApplyCommandKindPolicyToTargets_NilSafe(t *testing.T) {
+	// Must not panic on nil snap or empty maps.
+	applyCommandKindPolicyToTargets(nil)
+	applyCommandKindPolicyToTargets(&Snapshot{})
+	applyCommandKindPolicyToTargets(&Snapshot{NodePackageKinds: map[string]map[string]string{}})
+}
+
+func TestApplyCommandKindPolicyToTargets_MultipleNodes(t *testing.T) {
+	// If any node says COMMAND, RuntimeNeeded is cleared (kind is uniform across nodes).
+	snap := &Snapshot{
+		NodePackageKinds: map[string]map[string]string{
+			"node-1": {"ffmpeg": "COMMAND"},
+			"node-2": {"ffmpeg": "COMMAND"},
+		},
+		DesiredServiceTargets: map[string]*DesiredServiceTarget{
+			"ffmpeg": {Service: "ffmpeg", RuntimeNeeded: true},
+		},
+	}
+	applyCommandKindPolicyToTargets(snap)
+	if snap.DesiredServiceTargets["ffmpeg"].RuntimeNeeded {
+		t.Error("ffmpeg (COMMAND on all nodes) must have RuntimeNeeded=false")
+	}
+}

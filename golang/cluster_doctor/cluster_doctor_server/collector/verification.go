@@ -98,6 +98,12 @@ func (c *Collector) fetchDesiredServiceTargets(ctx context.Context, snap *Snapsh
 	// This prevents the verifier from raising runtime_identity_unproven
 	// every sweep on a Day-0 / pre-ingress cluster.
 	applyIngressPolicyToTargets(snap)
+
+	// Clear RuntimeNeeded for COMMAND-kind packages (mc, restic, ffmpeg, etc.)
+	// — they have no systemd unit and no running process to prove. The default
+	// RuntimeNeeded=true would generate permanent runtime_identity_unproven
+	// incidents for every installed command binary.
+	applyCommandKindPolicyToTargets(snap)
 }
 
 // applyIngressPolicyToTargets patches per-target expectations using the
@@ -112,6 +118,38 @@ func applyIngressPolicyToTargets(snap *Snapshot) {
 	}
 	if tgt := snap.DesiredServiceTargets["keepalived"]; tgt != nil {
 		tgt.RuntimeNeeded = false
+	}
+}
+
+// applyCommandKindPolicyToTargets clears RuntimeNeeded for any target
+// whose package kind is COMMAND according to the per-node installed-state
+// records in snap.NodePackageKinds.
+//
+// COMMAND packages (mc, restic, ffmpeg, sctool, etcdctl, etc.) are CLI
+// binaries with no systemd unit and no long-running process. Keeping
+// RuntimeNeeded=true for them causes the verifier to emit a permanent
+// runtime_identity_unproven finding every sweep — the binary is installed
+// correctly but no process matches it. This function suppresses those false
+// positives by marking the target as binary-install-only.
+func applyCommandKindPolicyToTargets(snap *Snapshot) {
+	if snap == nil {
+		return
+	}
+	commandPackages := make(map[string]bool)
+	for _, kinds := range snap.NodePackageKinds {
+		for name, kind := range kinds {
+			if kind == "COMMAND" {
+				commandPackages[name] = true
+			}
+		}
+	}
+	if len(commandPackages) == 0 {
+		return
+	}
+	for name, tgt := range snap.DesiredServiceTargets {
+		if tgt != nil && commandPackages[name] {
+			tgt.RuntimeNeeded = false
+		}
 	}
 }
 

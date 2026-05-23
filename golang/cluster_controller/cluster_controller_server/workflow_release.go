@@ -1117,18 +1117,12 @@ func (srv *server) reportStepFailed(runID, stepID, errMsg string) {
 
 // skipRuntimeCheck returns true for command-style packages without a long-running unit.
 // These are binary-only tools installed to disk; they have no systemd service to probe.
-// Expanding this list here also gates serviceHealthyForRelease — a package listed here
-// is treated as "always healthy" from a runtime perspective.
+// Packages listed here are treated as "always healthy" from a runtime perspective.
+//
+// Derived from the catalog so this list stays in sync as new COMMAND packages are added.
 func skipRuntimeCheck(name string) bool {
-	switch strings.ToLower(strings.TrimSpace(name)) {
-	case "restic", "rclone", "ffmpeg", "sctool", "mc",
-		// Utility binaries published under ServiceRelease (kind=SERVICE, systemd=none).
-		// They have no systemd unit so serviceHealthyForRelease would always return
-		// false, causing permanent false-DEGRADED drift on every reconcile cycle.
-		"etcdctl", "sha256sum", "yt-dlp":
-		return true
-	}
-	return false
+	comp := CatalogByName(strings.ToLower(strings.TrimSpace(name)))
+	return comp != nil && comp.Kind == KindCommand
 }
 
 // dedupRestart ensures only one restart is in progress for a given (node, unit)

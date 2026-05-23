@@ -251,3 +251,20 @@ func TestCommandPackageDoesNotSkipWhenChecksumReadFails(t *testing.T) {
 		t.Fatalf("expected installSkipDeniedVersion when checksum read fails, got %d", result)
 	}
 }
+
+// TestNewCommandPackagesAreRecognized verifies that all packages added to
+// commandPackages in v1.2.64+ are treated as binary-only (no systemd unit).
+// Missing entries cause the skip check to try a unit lookup, which always
+// fails and triggers unnecessary reinstalls.
+func TestNewCommandPackagesAreRecognized(t *testing.T) {
+	newEntries := []string{"sha256sum", "yt-dlp", "claude", "cli"}
+	for _, name := range newEntries {
+		if !isCommandPackage(name) {
+			t.Errorf("isCommandPackage(%q) = false, want true — missing from commandPackages map", name)
+		}
+		unit := packageUnit(name)
+		if unit != "" {
+			t.Errorf("packageUnit(%q) = %q, want empty string — COMMAND packages must have no unit", name, unit)
+		}
+	}
+}
