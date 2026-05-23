@@ -51,13 +51,26 @@ func (srv *server) resumeOrphanedRun(ctx context.Context, runID string) error {
 	return srv.ResumeRun(ctx, clusterID, runID, actorEndpoints)
 }
 
-// resolveOrphanActorEndpoints looks up the cluster-controller's gRPC address
-// from the etcd service registry so orphaned runs can dispatch actor callbacks.
-// The controller proxies all actor types, matching the pattern used by
-// executeWorkflowCentralized in the cluster controller.
+// resolveOrphanActorEndpoints looks up the cluster-controller's direct gRPC
+// address so orphaned runs can dispatch actor callbacks.
+//
+// IMPORTANT: must NOT use config.ResolveServiceAddr — that function routes
+// through meshRouteAddrs which rewrites the port to 443 (Envoy). Envoy does
+// not serve WorkflowActorService and returns text/html, causing every actor
+// dispatch to fail with "unexpected HTTP status code received from server: 200".
+//
+// Resolution order:
+//  1. ResolveLocalServiceAddr — returns the local controller's direct port when
+//     this workflow node is co-located with a controller instance (common case).
+//  2. ResolveControllerDirectAddr — reads the leader's config from etcd directly,
+//     bypassing mesh routing. Used when the local node has no controller.
+//
 // Returns nil when the controller is not yet discoverable (probe-only mode).
 func resolveOrphanActorEndpoints() map[string]string {
-	addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", "")
+	addr := config.ResolveLocalServiceAddr("cluster_controller.ClusterControllerService")
+	if addr == "" {
+		addr = config.ResolveControllerDirectAddr()
+	}
 	if addr == "" {
 		return nil
 	}

@@ -645,3 +645,41 @@ func ResolveServiceAddr(serviceName, fallback string) string {
 	// Random load balancing across all available instances.
 	return addrs[rand.Intn(len(addrs))]
 }
+
+// ResolveControllerDirectAddr returns the cluster-controller leader's direct
+// gRPC address (host:port, e.g. "10.0.0.8:12000") without routing through the
+// Envoy service mesh.
+//
+// Actor callbacks during orphan run resume MUST use the direct port — Envoy at
+// port 443 does not serve WorkflowActorService and returns text/html, causing
+// all actor dispatches to fail with "unexpected HTTP status code received from
+// server: 200 (OK)".
+//
+// The controller writes its address to etcd under its service ID when it gains
+// leadership (setLeader). Unlike ResolveServiceAddr, this function does NOT
+// call meshRouteAddrs, so the raw port from etcd is preserved.
+func ResolveControllerDirectAddr() string {
+	cfg, err := GetServiceConfigurationByExactId("cluster_controller.ClusterControllerService")
+	if err != nil {
+		return ""
+	}
+	host, _ := cfg["Address"].(string)
+	if host == "" {
+		return ""
+	}
+	// Address may already be "host:port" in some configs — strip port if present.
+	if h, _, e := net.SplitHostPort(host); e == nil {
+		host = h
+	}
+	var port int
+	switch p := cfg["Port"].(type) {
+	case float64:
+		port = int(p)
+	case int:
+		port = p
+	}
+	if host == "" || port == 0 {
+		return ""
+	}
+	return net.JoinHostPort(host, strconv.Itoa(port))
+}
