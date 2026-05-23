@@ -10,10 +10,24 @@ package rules
 import (
 	"testing"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
 	"github.com/globulario/services/golang/verifier"
 )
+
+// nodeRecordsWithPhase returns a single-element NodeRecord slice whose
+// bootstrap_phase metadata is set to phase. Used to simulate a node in a
+// specific bootstrap state for runtimeVerification tests.
+func nodeRecordsWithPhase(nodeID, phase string) []*cluster_controllerpb.NodeRecord {
+	meta := map[string]string{}
+	if phase != "" {
+		meta["bootstrap_phase"] = phase
+	}
+	return []*cluster_controllerpb.NodeRecord{
+		{NodeId: nodeID, Metadata: meta},
+	}
+}
 
 func TestRuntimeVerification_NilResult_NoFindings(t *testing.T) {
 	snap := &collector.Snapshot{} // VerifierResult nil
@@ -229,5 +243,99 @@ func TestRuntimeVerification_PerTargetAndCrossSurfaceTogether(t *testing.T) {
 	got := (runtimeVerification{}).Evaluate(snap, testConfig())
 	if len(got) != 2 {
 		t.Fatalf("expected 2 findings (1 per-target + 1 cross); got %d", len(got))
+	}
+}
+
+// TestRuntimeVerification_UnprovenBootstrappingNode pins that
+// service.runtime_identity_unproven is downgraded to INFO+PASS when the
+// node that emitted it is in an active bootstrap phase. Services on
+// bootstrapping nodes have not been installed via the pipeline yet, so no
+// entrypoint_checksum exists to compare against — the finding is expected and
+// must not open an incident.
+func TestRuntimeVerification_UnprovenBootstrappingNode(t *testing.T) {
+	bootstrapPhases := []string{
+		"admitted",
+		"infra_preparing",
+		"etcd_joining",
+		"etcd_ready",
+		"xds_ready",
+		"envoy_ready",
+		"awareness_ready",
+		"bootstrap_failed",
+	}
+	for _, phase := range bootstrapPhases {
+		t.Run(phase, func(t *testing.T) {
+			snap := &collector.Snapshot{
+				Nodes: nodeRecordsWithPhase("dell-node", phase),
+				VerifierResult: &verifier.Result{
+					Verdicts: []verifier.Verdict{
+						{
+							Target:      verifier.Target{Service: "rbac", NodeID: "dell-node"},
+							ProofStatus: verifier.ProofUnknown,
+							Findings: []verifier.Finding{
+								{
+									ID:       verifier.FindingRuntimeIdentityUnproven,
+									Severity: verifier.SeverityDegraded,
+									Service:  "rbac",
+									NodeID:   "dell-node",
+								},
+							},
+						},
+					},
+				},
+			}
+			got := (runtimeVerification{}).Evaluate(snap, testConfig())
+			if len(got) != 1 {
+				t.Fatalf("phase=%s: expected 1 finding; got %d", phase, len(got))
+			}
+			f := got[0]
+			if f.InvariantStatus != cluster_doctorpb.InvariantStatus_INVARIANT_PASS {
+				t.Errorf("phase=%s: runtime_identity_unproven on bootstrapping node must be INVARIANT_PASS; got %v",
+					phase, f.InvariantStatus)
+			}
+			if f.Severity != cluster_doctorpb.Severity_SEVERITY_INFO {
+				t.Errorf("phase=%s: runtime_identity_unproven on bootstrapping node must be SEVERITY_INFO; got %v",
+					phase, f.Severity)
+			}
+		})
+	}
+}
+
+// TestRuntimeVerification_UnprovenWorkloadReadyNode ensures that
+// runtime_identity_unproven is NOT suppressed once the node reaches
+// workload_ready — at that point services should be installed and proofs
+// should exist, so the finding is a real signal.
+func TestRuntimeVerification_UnprovenWorkloadReadyNode(t *testing.T) {
+	for _, phase := range []string{"workload_ready", "storage_joining", ""} {
+		t.Run("phase="+phase, func(t *testing.T) {
+			snap := &collector.Snapshot{
+				Nodes: nodeRecordsWithPhase("n1", phase),
+				VerifierResult: &verifier.Result{
+					Verdicts: []verifier.Verdict{
+						{
+							Target:      verifier.Target{Service: "repo", NodeID: "n1"},
+							ProofStatus: verifier.ProofUnknown,
+							Findings: []verifier.Finding{
+								{
+									ID:       verifier.FindingRuntimeIdentityUnproven,
+									Severity: verifier.SeverityDegraded,
+									Service:  "repo",
+									NodeID:   "n1",
+								},
+							},
+						},
+					},
+				},
+			}
+			got := (runtimeVerification{}).Evaluate(snap, testConfig())
+			if len(got) != 1 {
+				t.Fatalf("phase=%q: expected 1 finding; got %d", phase, len(got))
+			}
+			f := got[0]
+			if f.InvariantStatus != cluster_doctorpb.InvariantStatus_INVARIANT_FAIL {
+				t.Errorf("phase=%q: runtime_identity_unproven on ready node must remain INVARIANT_FAIL; got %v",
+					phase, f.InvariantStatus)
+			}
+		})
 	}
 }

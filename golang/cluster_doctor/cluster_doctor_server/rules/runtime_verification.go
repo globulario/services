@@ -32,12 +32,18 @@ func (runtimeVerification) Evaluate(snap *collector.Snapshot, _ Config) []Findin
 	}
 	r := snap.VerifierResult
 
+	// Build the set of nodes that are currently in an active bootstrap phase
+	// (i.e. not yet workload_ready / storage_joining). Services on these nodes
+	// have not been installed via the pipeline yet, so runtime_identity_unproven
+	// is expected and must not surface as an actionable finding.
+	bootstrapNodes := bootstrappingNodeSet(snap)
+
 	var out []Finding
 
 	// Per-target verdicts → one doctor Finding per verifier.Finding.
 	for _, v := range r.Verdicts {
 		for _, f := range v.Findings {
-			out = append(out, verifierFindingToDoctorFinding(v, f))
+			out = append(out, verifierFindingToDoctorFinding(v, f, bootstrapNodes))
 		}
 	}
 
@@ -51,7 +57,24 @@ func (runtimeVerification) Evaluate(snap *collector.Snapshot, _ Config) []Findin
 	return out
 }
 
-func verifierFindingToDoctorFinding(v verifier.Verdict, f verifier.Finding) Finding {
+// bootstrappingNodeSet returns a set of node IDs whose bootstrap_phase metadata
+// indicates they have not yet reached workload_ready or storage_joining.
+// Nodes with no bootstrap_phase (legacy / pre-join) are treated as ready.
+func bootstrappingNodeSet(snap *collector.Snapshot) map[string]bool {
+	out := make(map[string]bool)
+	for _, n := range snap.Nodes {
+		phase := n.GetMetadata()["bootstrap_phase"]
+		switch phase {
+		case "", "workload_ready", "storage_joining":
+			// terminal or legacy — not bootstrapping
+		default:
+			out[n.GetNodeId()] = true
+		}
+	}
+	return out
+}
+
+func verifierFindingToDoctorFinding(v verifier.Verdict, f verifier.Finding, bootstrapNodes map[string]bool) Finding {
 	tgt := v.Target
 	entity := tgt.NodeID + "/" + tgt.Service
 	summary := fmt.Sprintf("[%s] %s/%s: %s",
@@ -66,8 +89,16 @@ func verifierFindingToDoctorFinding(v verifier.Verdict, f verifier.Finding) Find
 	// opens an OPEN incident per (service, node) for what is just a
 	// "this is normal" diagnostic note. Mark them as PASS so the
 	// incident scanner's "skip PASS" filter drops them.
+	//
+	// runtime_identity_unproven on a bootstrapping node is equally benign:
+	// the service hasn't been installed via the pipeline yet so there is no
+	// entrypoint_checksum to compare against. Downgrade to INFO+PASS until
+	// the node reaches workload_ready.
 	status := cluster_doctorpb.InvariantStatus_INVARIANT_FAIL
 	if sev == cluster_doctorpb.Severity_SEVERITY_INFO {
+		status = cluster_doctorpb.InvariantStatus_INVARIANT_PASS
+	} else if f.ID == verifier.FindingRuntimeIdentityUnproven && bootstrapNodes[tgt.NodeID] {
+		sev = cluster_doctorpb.Severity_SEVERITY_INFO
 		status = cluster_doctorpb.InvariantStatus_INVARIANT_PASS
 	}
 
