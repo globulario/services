@@ -205,6 +205,17 @@ func controllerMarkFailed(cfg ControllerConfig) ActionHandler {
 		reason := fmt.Sprint(req.With["reason"])
 		nodeID := fmt.Sprint(req.Inputs["node_id"])
 		log.Printf("actor[controller]: node %s bootstrap FAILED: %s", nodeID, reason)
+		// Advance the controller's bootstrap state machine to bootstrap_failed.
+		// Without this the node stays at whatever mid-join phase it occupied
+		// when the workflow failed (e.g. xds_ready) and neither the 5-minute
+		// phase timeout nor the recovery mechanism can re-trigger the join
+		// workflow in time — they either wait for a service that was never
+		// installed, or the recovery guard blocks re-triggering.
+		if cfg.SetBootstrapPhase != nil {
+			if err := cfg.SetBootstrapPhase(ctx, nodeID, "bootstrap_failed"); err != nil {
+				log.Printf("actor[controller]: WARNING: failed to set bootstrap_failed for node %s: %v", nodeID, err)
+			}
+		}
 		if cfg.EmitEvent != nil {
 			cfg.EmitEvent(ctx, "node.bootstrap.failed", map[string]any{
 				"node_id": nodeID, "reason": reason,

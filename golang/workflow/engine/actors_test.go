@@ -206,3 +206,34 @@ func TestNodeJoinWithInstallFailure(t *testing.T) {
 		}
 	}
 }
+
+// TestControllerMarkFailed_SetsBootstrapFailed ensures that the
+// controller.bootstrap.mark_failed action advances the node's bootstrap state
+// to bootstrap_failed via SetBootstrapPhase. Without this call the node stays
+// at whatever mid-join phase it occupied when the workflow failed (e.g.
+// xds_ready) and neither the phase timeout nor the recovery mechanism can
+// re-trigger the join workflow in time.
+func TestControllerMarkFailed_SetsBootstrapFailed(t *testing.T) {
+	var gotNodeID, gotPhase string
+	handler := controllerMarkFailed(ControllerConfig{
+		SetBootstrapPhase: func(_ context.Context, nodeID, phase string) error {
+			gotNodeID = nodeID
+			gotPhase = phase
+			return nil
+		},
+		EmitEvent: func(_ context.Context, _ string, _ map[string]any) error { return nil },
+	})
+
+	if _, err := handler(context.Background(), ActionRequest{
+		With:   map[string]any{"reason": "join_workflow_failed"},
+		Inputs: map[string]any{"node_id": "n1"},
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotNodeID != "n1" {
+		t.Errorf("SetBootstrapPhase node_id: want n1, got %q", gotNodeID)
+	}
+	if gotPhase != "bootstrap_failed" {
+		t.Errorf("SetBootstrapPhase phase: want bootstrap_failed, got %q", gotPhase)
+	}
+}

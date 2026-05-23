@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/workflow"
+	"google.golang.org/grpc"
 )
 
 // mockEmitter captures emitted events for test assertions.
@@ -788,5 +790,70 @@ func TestFilterActionsByMaxTier(t *testing.T) {
 	all := filterActionsByMaxTier(actions, TierWorkload)
 	if len(all) != 5 {
 		t.Fatalf("expected 5 actions for workload tier, got %d", len(all))
+	}
+}
+
+// TestRecoverStuck_XdsReadyAllowsRetrigger verifies that a node stuck at
+// xds_ready past the recovery grace period is eligible for join workflow
+// re-triggering. This is a regression test for the bug where
+// controllerMarkFailed did not set bootstrap_failed and the recovery guard
+// included xds_ready, leaving nodes permanently stuck after a failed join.
+func TestRecoverStuck_XdsReadyAllowsRetrigger(t *testing.T) {
+	stale := time.Now().Add(-3 * time.Minute)
+	node := &nodeState{
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "joiner"},
+		Profiles:           []string{"core", "gateway"},
+		BootstrapPhase:     BootstrapXdsReady,
+		AgentEndpoint:      "10.0.0.20:11000",
+		BootstrapStartedAt: stale,
+		LastSeen:           stale,
+	}
+
+	dialCalled := make(chan struct{}, 1)
+	srv := newTestServerWithNodes(node)
+	srv.testDialNodeAgent = func(_ string) (*grpc.ClientConn, error) {
+		select {
+		case dialCalled <- struct{}{}:
+		default:
+		}
+		return nil, fmt.Errorf("test: no real agent")
+	}
+
+	srv.recoverStuckBootstrapWorkflows([]*nodeState{node}, time.Now())
+
+	select {
+	case <-dialCalled:
+		// Correct: re-trigger was attempted for xds_ready.
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected join workflow re-trigger for xds_ready stuck node, got none")
+	}
+}
+
+// TestRecoverStuck_StorageJoiningBlocksRetrigger verifies that storage_joining
+// nodes are still protected — re-triggering the join workflow there could wipe
+// ScyllaDB data.
+func TestRecoverStuck_StorageJoiningBlocksRetrigger(t *testing.T) {
+	stale := time.Now().Add(-3 * time.Minute)
+	node := &nodeState{
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "storage-node"},
+		Profiles:           []string{"core", "gateway", "storage"},
+		BootstrapPhase:     BootstrapStorageJoining,
+		AgentEndpoint:      "10.0.0.20:11000",
+		BootstrapStartedAt: stale,
+		LastSeen:           stale,
+	}
+
+	srv := newTestServerWithNodes(node)
+	srv.testDialNodeAgent = func(_ string) (*grpc.ClientConn, error) {
+		t.Error("dial must not be called for storage_joining node")
+		return nil, fmt.Errorf("test: no real agent")
+	}
+
+	srv.recoverStuckBootstrapWorkflows([]*nodeState{node}, time.Now())
+
+	if node.BootstrapWorkflowActive {
+		t.Fatal("BootstrapWorkflowActive must remain false for storage_joining guarded node")
 	}
 }

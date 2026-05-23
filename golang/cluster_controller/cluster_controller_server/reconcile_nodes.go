@@ -1571,17 +1571,22 @@ func (srv *server) recoverStuckBootstrapWorkflows(nodes []*nodeState, now time.T
 			continue
 		}
 
-		// CRITICAL: do NOT re-trigger the join workflow on nodes that have
-		// already installed infrastructure (storage_joining or later).
-		// The join workflow reinstalls packages like ScyllaDB, which wipes
-		// their data and destroys Raft identity — causing unrecoverable
-		// quorum deadlocks. For these phases, let the bootstrap phase
-		// machine handle timeouts and retries without re-running join.
+		// CRITICAL: do NOT re-trigger the join workflow once ScyllaDB data may
+		// exist (storage_joining or later). Re-running the join workflow at
+		// that point can trigger the ScyllaDB post-install wipe and destroy
+		// Raft identity — causing unrecoverable quorum deadlocks.
+		//
+		// Phases before storage_joining (etcd_ready, xds_ready, envoy_ready)
+		// are safe to re-trigger: all package installs are idempotent (same
+		// version = skip), and a join workflow that failed at those phases
+		// left later packages (Envoy, gateway, ScyllaDB) un-installed.
+		// xds_ready is explicitly excluded here because a join workflow can
+		// fail after installing xDS but before installing Envoy, leaving the
+		// node stuck waiting for a service that will never start on its own.
 		if node.BootstrapPhase == BootstrapStorageJoining ||
 			node.BootstrapPhase == BootstrapEtcdReady ||
-			node.BootstrapPhase == BootstrapXdsReady ||
 			node.BootstrapPhase == BootstrapEnvoyReady {
-			log.Printf("bootstrap-recovery: node %s (%s) at phase %s — skipping join re-trigger (infra already installed)",
+			log.Printf("bootstrap-recovery: node %s (%s) at phase %s — skipping join re-trigger (storage data may exist)",
 				node.NodeID, node.Identity.Hostname, node.BootstrapPhase)
 			continue
 		}
