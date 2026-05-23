@@ -842,12 +842,33 @@ func (srv *server) importUpstreamArtifact(
 		if existingByID.GetBuildNumber() >= n.BuildNumber {
 			blobPresent, blobReason := srv.artifactBlobStatus(ctx, ref, existingByID.GetBuildNumber(), existingByID.GetSizeBytes())
 			if blobPresent {
-				if curr := srv.readArtifactState(ctx, artifactKeyWithBuild(ref, existingByID.GetBuildNumber())); curr == PipelineUnspecified || curr == PipelinePublished {
+				{
+					existingBuildKey := artifactKeyWithBuild(ref, existingByID.GetBuildNumber())
+					curr := srv.readArtifactState(ctx, existingBuildKey)
 					idemFields := stateFields
 					idemFields.BuildNumber = existingByID.GetBuildNumber()
 					idemFields.SizeBytes = existingByID.GetSizeBytes()
-					_ = srv.transitionArtifactState(ctx, artifactKeyWithBuild(ref, existingByID.GetBuildNumber()), PipelinePublished,
-						"import_idempotent_skip", workflowRunID, idemFields)
+					switch curr {
+					case PipelineManifestWritten:
+						// Ledger append was interrupted on a prior sync; retry to complete
+						// the pipeline. appendToLedger is idempotent for the same build_id.
+						if ledgerErr := srv.appendToLedger(ctx, n.Publisher, n.Name, n.Version,
+							n.BuildID, existingByID.GetChecksum(), n.Platform, existingByID.GetSizeBytes()); ledgerErr != nil {
+							slog.Error("upstream: idempotent ledger retry failed — artifact stays at MANIFEST_WRITTEN",
+								"key", existingBuildKey, "err", ledgerErr)
+							return fmt.Errorf("append to ledger (retry): %w", ledgerErr)
+						}
+						_ = srv.transitionArtifactState(ctx, existingBuildKey, PipelineLedgerWritten,
+							"ledger_retry_success", workflowRunID, idemFields)
+						_ = srv.transitionArtifactState(ctx, existingBuildKey, PipelinePublished,
+							"import_idempotent_resume", workflowRunID, idemFields)
+					case PipelineLedgerWritten:
+						_ = srv.transitionArtifactState(ctx, existingBuildKey, PipelinePublished,
+							"import_idempotent_resume", workflowRunID, idemFields)
+					default:
+						_ = srv.transitionArtifactState(ctx, existingBuildKey, PipelinePublished,
+							"import_idempotent_skip", workflowRunID, idemFields)
+					}
 				}
 				slog.Info("upstream: same build_id already present at equal/higher build_number, skipping import",
 					"source", src.GetName(), "publisher", n.Publisher,
@@ -888,14 +909,32 @@ func (srv *server) importUpstreamArtifact(
 			// bytes are the same — only the metadata record differs.
 			if existing.GetBuildNumber() == n.BuildNumber {
 				existingKey := artifactKeyWithBuild(ref, existing.GetBuildNumber())
-				if curr := srv.readArtifactState(ctx, existingKey); curr == PipelineUnspecified || curr == PipelinePublished {
+				{
+					curr := srv.readArtifactState(ctx, existingKey)
 					idemFields := stateFields
 					idemFields.BuildNumber = existing.GetBuildNumber()
 					idemFields.SizeBytes = existing.GetSizeBytes()
-					_ = srv.transitionArtifactState(ctx, existingKey, PipelinePublished,
-						"import_idempotent_skip", workflowRunID, idemFields)
+					switch curr {
+					case PipelineManifestWritten:
+						if ledgerErr := srv.appendToLedger(ctx, n.Publisher, n.Name, n.Version,
+							existing.GetBuildId(), digest, n.Platform, existing.GetSizeBytes()); ledgerErr != nil {
+							slog.Error("upstream: idempotent ledger retry (digest path) failed — artifact stays at MANIFEST_WRITTEN",
+								"key", existingKey, "err", ledgerErr)
+							return fmt.Errorf("append to ledger (retry): %w", ledgerErr)
+						}
+						_ = srv.transitionArtifactState(ctx, existingKey, PipelineLedgerWritten,
+							"ledger_retry_success", workflowRunID, idemFields)
+						_ = srv.transitionArtifactState(ctx, existingKey, PipelinePublished,
+							"import_idempotent_resume", workflowRunID, idemFields)
+					case PipelineLedgerWritten:
+						_ = srv.transitionArtifactState(ctx, existingKey, PipelinePublished,
+							"import_idempotent_resume", workflowRunID, idemFields)
+					default:
+						_ = srv.transitionArtifactState(ctx, existingKey, PipelinePublished,
+							"import_idempotent_skip", workflowRunID, idemFields)
+					}
 				}
-					slog.Info("upstream: identical artifact already exists (blob verified), skipping import",
+				slog.Info("upstream: identical artifact already exists (blob verified), skipping import",
 						"source", src.GetName(), "publisher", n.Publisher,
 						"name", n.Name, "version", n.Version, "platform", n.Platform,
 						"build_number", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),

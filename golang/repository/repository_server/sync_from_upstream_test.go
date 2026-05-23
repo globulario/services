@@ -1565,3 +1565,136 @@ func TestScenarioD_ReleaseIndexPin_ResolveByBuildIDIsDeterministic(t *testing.T)
 		t.Errorf("resolution_source = %q, want exact-build_id", resp.GetResolutionSource())
 	}
 }
+
+// TestImportIdempotentResumesFromManifestWritten is the regression test for the
+// artifact_state MANIFEST_WRITTEN → PUBLISHED stall. Before the fix, when a
+// sync interrupted after the manifest was persisted but before the ledger append
+// completed, a subsequent processSyncEntry call would find the blob present,
+// call importUpstreamArtifact, which would find the build_id already registered
+// and — because the idempotent-skip condition only covered Unspecified|Published
+// — skip all remaining pipeline steps and return nil, leaving the artifact
+// permanently at MANIFEST_WRITTEN. DownloadArtifact and the resolver never saw
+// it as installable, causing DesiredBuildIdOrphaned errors on every reconcile.
+func TestImportIdempotentResumesFromManifestWritten(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	const (
+		buildID  = "01JMANIFEST-ONLY-BUILD-ID0000"
+		checksum = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	)
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "sidekick",
+		Version: "7.0.1", Platform: "linux_amd64",
+		Kind: repopb.ArtifactKind_INFRASTRUCTURE,
+	}
+	manifest := &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 300, BuildId: buildID, Checksum: checksum, SizeBytes: 42,
+	}
+
+	// Seed the artifact at MANIFEST_WRITTEN: binary present, manifest written,
+	// but no ledger entry and artifact_state = MANIFEST_WRITTEN.
+	key := artifactKeyWithBuild(ref, manifest.GetBuildNumber())
+	_ = srv.Storage().MkdirAll(ctx, artifactsDir, 0o755)
+	mjson, err := marshalManifestWithState(manifest, repopb.PublishState_PUBLISHED)
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	binary := make([]byte, 42)
+	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(key), binary, 0o644); err != nil {
+		t.Fatalf("write binary: %v", err)
+	}
+	// Advance state to MANIFEST_WRITTEN (Unspecified→MANIFEST_WRITTEN is legal).
+	if err := srv.transitionArtifactState(ctx, key, PipelineManifestWritten,
+		"test_setup", "", ArtifactStateFields{BuildNumber: 300}); err != nil {
+		t.Fatalf("set MANIFEST_WRITTEN: %v", err)
+	}
+	if got := srv.readArtifactState(ctx, key); got != PipelineManifestWritten {
+		t.Fatalf("precondition: artifact_state = %q, want MANIFEST_WRITTEN", got)
+	}
+
+	// Re-import: importUpstreamArtifact must complete the pipeline to PUBLISHED.
+	n := &normalizedEntry{
+		Publisher: "core@globular.io", Name: "sidekick",
+		Version: "7.0.1", Platform: "linux_amd64",
+		BuildID: buildID, BuildNumber: 300,
+		Digest: checksum,
+	}
+	if err := srv.importUpstreamArtifact(ctx, n, binary, checksum,
+		&repopb.UpstreamSource{Name: "test-source"}, "v7.0.1",
+		ArtifactStateFields{}, ""); err != nil {
+		t.Fatalf("importUpstreamArtifact: %v", err)
+	}
+
+	if got := srv.readArtifactState(ctx, key); got != PipelinePublished {
+		t.Errorf("artifact_state = %q after resume, want PUBLISHED", got)
+	}
+}
+
+// TestImportIdempotentResumesFromLedgerWritten verifies that an artifact stuck
+// at LEDGER_WRITTEN (ledger append completed but PUBLISHED transition was
+// interrupted) also advances to PUBLISHED on retry.
+func TestImportIdempotentResumesFromLedgerWritten(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	const (
+		buildID  = "01JLEDGER-WRITTEN-BUILD-ID000"
+		checksum = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	)
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "authentication",
+		Version: "1.2.0", Platform: "linux_amd64",
+		Kind: repopb.ArtifactKind_SERVICE,
+	}
+	manifest := &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 200, BuildId: buildID, Checksum: checksum, SizeBytes: 50,
+	}
+
+	key := artifactKeyWithBuild(ref, manifest.GetBuildNumber())
+	_ = srv.Storage().MkdirAll(ctx, artifactsDir, 0o755)
+	mjson, err := marshalManifestWithState(manifest, repopb.PublishState_PUBLISHED)
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	binary := make([]byte, 50)
+	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(key), binary, 0o644); err != nil {
+		t.Fatalf("write binary: %v", err)
+	}
+	// Write ledger entry so the retry doesn't need to do it.
+	if err := srv.appendToLedger(ctx, "core@globular.io", "authentication", "1.2.0",
+		buildID, checksum, "linux_amd64", 50); err != nil {
+		t.Fatalf("seed ledger: %v", err)
+	}
+	// Advance to LEDGER_WRITTEN via legal edges.
+	if err := srv.transitionArtifactState(ctx, key, PipelineManifestWritten,
+		"test_setup", "", ArtifactStateFields{BuildNumber: 200}); err != nil {
+		t.Fatalf("set MANIFEST_WRITTEN: %v", err)
+	}
+	if err := srv.transitionArtifactState(ctx, key, PipelineLedgerWritten,
+		"test_setup", "", ArtifactStateFields{BuildNumber: 200}); err != nil {
+		t.Fatalf("set LEDGER_WRITTEN: %v", err)
+	}
+
+	n := &normalizedEntry{
+		Publisher: "core@globular.io", Name: "authentication",
+		Version: "1.2.0", Platform: "linux_amd64",
+		BuildID: buildID, BuildNumber: 200,
+		Digest: checksum,
+	}
+	if err := srv.importUpstreamArtifact(ctx, n, binary, checksum,
+		&repopb.UpstreamSource{Name: "test-source"}, "v1.2.0",
+		ArtifactStateFields{}, ""); err != nil {
+		t.Fatalf("importUpstreamArtifact: %v", err)
+	}
+
+	if got := srv.readArtifactState(ctx, key); got != PipelinePublished {
+		t.Errorf("artifact_state = %q after resume, want PUBLISHED", got)
+	}
+}
