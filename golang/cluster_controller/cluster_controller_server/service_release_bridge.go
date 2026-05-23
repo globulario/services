@@ -161,11 +161,16 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 	srv.retryStuckReleases(ctx)
 }
 
-// retryStuckReleases finds ServiceRelease objects stuck in RESOLVED and
-// re-enqueues them through the work queue so the workflow path picks them up
-// again. Unlike the previous implementation, this does NOT call
-// reconcileRelease directly — doing so bypassed the work queue's dedup and
-// rate limiting, amplifying the reconcile storm.
+// retryStuckReleases finds ServiceRelease and InfrastructureRelease objects
+// stuck in RESOLVED and re-enqueues them through the work queue so the
+// workflow path picks them up again. Unlike the previous implementation, this
+// does NOT call reconcileRelease directly — doing so bypassed the work queue's
+// dedup and rate limiting, amplifying the reconcile storm.
+//
+// InfrastructureRelease coverage is required because their "retry" patch was a
+// no-op (missing case in applyPatchToInfraStatus) which stopped the
+// watch-driven retry loop — making this periodic safety net the only
+// path back when the watcher loop stalls.
 func (srv *server) retryStuckReleases(ctx context.Context) {
 	if srv.resources == nil || srv.releaseEnqueue == nil {
 		return
@@ -181,6 +186,23 @@ func (srv *server) retryStuckReleases(ctx context.Context) {
 		}
 		if rel.Status.Phase == cluster_controllerpb.ReleasePhaseResolved {
 			srv.releaseEnqueue(rel.Meta.Name)
+		}
+	}
+
+	if srv.infraReleaseEnqueue == nil {
+		return
+	}
+	infraReleases, _, err := srv.resources.List(ctx, "InfrastructureRelease", "")
+	if err != nil {
+		return
+	}
+	for _, obj := range infraReleases {
+		rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
+		if !ok || rel.Status == nil || rel.Meta == nil {
+			continue
+		}
+		if rel.Status.Phase == cluster_controllerpb.ReleasePhaseResolved {
+			srv.infraReleaseEnqueue(rel.Meta.Name)
 		}
 	}
 }

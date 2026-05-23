@@ -1014,6 +1014,18 @@ func applyPatchToInfraStatus(s *cluster_controllerpb.InfrastructureReleaseStatus
 			s.ObservedGeneration = p.ObservedGeneration
 		}
 		applyWorkflowFields()
+	case "retry":
+		// Transient workflow error (workflow service unreachable, circuit breaker
+		// open, etc.). Update Message and TransitionReason so the etcd write fires
+		// a watch event and the reconcile loop re-enqueues this release for retry.
+		// InfrastructureReleaseStatus has no RetryCount/NextRetryUnixMs fields —
+		// without this case the patch is a no-op, patchInfraReleaseStatus's
+		// equality guard skips the Apply, no watch event fires, and the release
+		// stays stuck at WAVE_BLOCKED forever (observed: sidekick NUC 26-min stall).
+		if p.Message != "" {
+			s.Message = p.Message
+		}
+		applyWorkflowFields()
 	}
 }
 
