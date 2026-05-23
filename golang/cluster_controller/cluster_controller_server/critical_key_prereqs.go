@@ -103,3 +103,34 @@ func writeCriticalKeyBlock(ctx context.Context, nodeIDs []string, pkgName, kind,
 func criticalKeyBlockActionID(nodeID, kind, pkgName string) string {
 	return fmt.Sprintf("controller/%s/%s/%s/critical_key_block", nodeID, kind, pkgName)
 }
+
+// writeRuntimeDepBlock writes OutcomeBlockedMissingNativeDep for each node in
+// nodeIDs. Called when reconcileResolved skips a node because its runtime local
+// dependencies (e.g. minio for sidekick) are not yet active. The record is
+// picked up by convergenceBlockedNodes so hasUnservedNodes skips the node,
+// breaking the AVAILABLE → PENDING → no-op spin loop.
+//
+// The action ID is deterministic — repeated calls overwrite the same record so
+// no stale accumulation occurs. The record is superseded by any successful
+// convergence result written by the node-agent on successful install.
+func writeRuntimeDepBlock(ctx context.Context, nodeIDs []string, pkgName, kind string, missing []string) {
+	missingStr := fmt.Sprintf("%v", missing)
+	for _, nodeID := range nodeIDs {
+		r := &installed_state.ConvergenceResultV1{
+			ActionID:        fmt.Sprintf("controller/%s/%s/%s/runtime_dep_block", nodeID, kind, pkgName),
+			WorkflowID:      "controller-preflight",
+			Package:         pkgName,
+			NodeID:          nodeID,
+			Outcome:         installed_state.OutcomeBlockedMissingNativeDep,
+			ReasonCode:      "runtime_deps_not_ready",
+			UnblockPolicy:   "deps_must_be_active:" + missingStr,
+			Evidence:        map[string]string{"missing_deps": missingStr},
+			SourceComponent: "cluster-controller",
+		}
+		bctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		if err := criticalKeyWriteResult(bctx, r); err != nil {
+			log.Printf("runtime-dep-block: write block for %s/%s on %s: %v", kind, pkgName, nodeID, err)
+		}
+		cancel()
+	}
+}

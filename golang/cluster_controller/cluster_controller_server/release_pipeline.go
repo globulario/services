@@ -431,6 +431,8 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	// Collect eligible nodes — same filtering as before.
 	isWorkload := h.ResourceType == "ServiceRelease" || h.ResourceType == "ApplicationRelease"
 	nodeIDs := make([]string, 0, len(srv.state.Nodes))
+	var depBlockedNodeIDs []string // nodes skipped due to unmet RuntimeLocalDependencies
+	var depBlockedMissing []string // the missing deps (last set wins; used for logging)
 	serviceName := h.Name
 	if idx := strings.LastIndex(serviceName, "/"); idx >= 0 {
 		serviceName = serviceName[idx+1:]
@@ -479,12 +481,19 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 		// requires event/rbac/etc. and those deps are not yet active on this
 		// node, skip it so the semaphore slot stays free for dep installs.
 		// The release stays RESOLVED and retries on the next reconcile cycle.
+		//
+		// Collect dep-blocked nodes separately so we can write
+		// OutcomeBlockedMissingNativeDep after releasing the lock. Without
+		// this, hasUnservedNodes treats dep-blocked nodes as permanently unserved
+		// and cycles AVAILABLE → PENDING → no-op indefinitely.
 		if catalogEntry != nil && len(catalogEntry.RuntimeLocalDependencies) > 0 {
 			healthy := buildHealthySet(node.Units)
 			missing := checkRuntimeDeps(catalogEntry, healthy, node.InstalledVersions, node)
 			if len(missing) > 0 {
 				log.Printf("%s %s: skipping node %s — deps not ready: %v",
 					h.ResourceType, h.Name, node.Identity.Hostname, missing)
+				depBlockedNodeIDs = append(depBlockedNodeIDs, id)
+				depBlockedMissing = missing
 				continue
 			}
 		}
@@ -492,17 +501,27 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	}
 	srv.unlock()
 
-	if len(nodeIDs) == 0 {
-		return
-	}
-
-	// Determine package kind from release type.
+	// Determine package kind from release type (needed for both dep-block
+	// records and the dispatch below).
 	pkgKind := "SERVICE"
 	switch h.ResourceType {
 	case "InfrastructureRelease":
 		pkgKind = "INFRASTRUCTURE"
 	case "ApplicationRelease":
 		pkgKind = "WORKLOAD"
+	}
+
+	// Write OutcomeBlockedMissingNativeDep for each dep-blocked node so that
+	// convergenceBlockedNodes picks them up. Without this, hasUnservedNodes
+	// treats these nodes as unserved and the release cycles AVAILABLE → PENDING
+	// → no-op indefinitely (the sidekick spin loop on nodes where minio is
+	// blocked by topology).
+	if len(depBlockedNodeIDs) > 0 && h.InstalledStateName != "" {
+		writeRuntimeDepBlock(ctx, depBlockedNodeIDs, h.InstalledStateName, pkgKind, depBlockedMissing)
+	}
+
+	if len(nodeIDs) == 0 {
+		return
 	}
 	// Auto-correct SERVICE→COMMAND when the repository's authoritative kind
 	// is COMMAND. ServiceDesiredVersion always labels entries as SERVICE

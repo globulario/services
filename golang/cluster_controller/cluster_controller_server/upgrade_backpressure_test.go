@@ -149,6 +149,56 @@ func TestDriftSuppressionGatesDispatch(t *testing.T) {
 	}
 }
 
+// TestRuntimeDepBlockStopsSpinLoop verifies the fix for the sidekick
+// AVAILABLE → PENDING → AVAILABLE spin loop. Before the fix, nodes skipped by
+// reconcileResolved due to unmet RuntimeLocalDependencies (e.g. sidekick needing
+// minio) had no convergence outcome record, so hasUnservedNodes treated them as
+// unserved and re-entered PENDING on every reconcile cycle even though those
+// nodes could not receive a dispatch.
+//
+// After the fix, reconcileResolved writes OutcomeBlockedMissingNativeDep for
+// dep-blocked nodes, which convergenceBlockedNodes picks up. This test verifies
+// the hasUnservedNodes side of the contract: when all unserved nodes are
+// dep-blocked, hasUnservedNodes must return false.
+func TestRuntimeDepBlockStopsSpinLoop(t *testing.T) {
+	state := &controllerState{
+		Nodes: map[string]*nodeState{
+			// n1: sidekick already installed (served).
+			"n1": {NodeID: "n1", Status: "ready", LastSeen: time.Now(), BootstrapPhase: BootstrapWorkloadReady,
+				InstalledVersions: map[string]string{"sidekick": "7.0.0"}},
+			// n2, n3: sidekick NOT installed, minio (dep) not yet active.
+			"n2": {NodeID: "n2", Status: "ready", LastSeen: time.Now(), BootstrapPhase: BootstrapWorkloadReady},
+			"n3": {NodeID: "n3", Status: "ready", LastSeen: time.Now(), BootstrapPhase: BootstrapWorkloadReady},
+		},
+	}
+	srv := newTestServer(t, state)
+
+	h := &releaseHandle{
+		Name:               "core@globular.io/sidekick",
+		ResourceType:       "InfrastructureRelease",
+		Phase:              cluster_controllerpb.ReleasePhaseAvailable,
+		ResolvedVersion:    "7.0.0",
+		InstalledStateName: "sidekick",
+		InstalledStateKind: "INFRASTRUCTURE",
+		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
+			{NodeID: "n1", Phase: cluster_controllerpb.ReleasePhaseAvailable},
+		},
+		PatchStatus: func(_ context.Context, _ statusPatch) error { return nil },
+	}
+
+	// Without dep-block records: n2 and n3 appear unserved → spin loop fires.
+	if !srv.hasUnservedNodes(h, map[string]struct{}{}) {
+		t.Fatal("n2 and n3 are unserved — hasUnservedNodes should return true before dep-block records exist")
+	}
+
+	// Simulate writeRuntimeDepBlock having written OutcomeBlockedMissingNativeDep
+	// for n2 and n3: pass them in as blockedNodes.
+	depBlocked := map[string]struct{}{"n2": {}, "n3": {}}
+	if srv.hasUnservedNodes(h, depBlocked) {
+		t.Fatal("n2 and n3 are dep-blocked — hasUnservedNodes must return false (spin loop must stop)")
+	}
+}
+
 // TestUpgradeLoopStopsWhenAllServedOrBlocked verifies that hasUnservedNodes
 // returns false when every node is either served (AVAILABLE) or blocked —
 // preventing the controller from re-dispatching in a tight loop.
