@@ -490,12 +490,17 @@ func resolveArtifactByBuildID(ctx context.Context, repoAddr, buildID, service, p
 
 // shortHash returns the first 12 chars of a hex digest for log readability.
 func shortHash(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	s = strings.TrimPrefix(s, "sha256:")
+	s = canonicalSHA256(s)
 	if len(s) <= 12 {
 		return s
 	}
 	return s[:12]
+}
+
+func canonicalSHA256(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.TrimPrefix(s, "sha256:")
+	return s
 }
 
 // artifact.verify performs a simple existence/digest check if provided.
@@ -508,7 +513,7 @@ func (artifactVerifyAction) Validate(args *structpb.Struct) error { return nil }
 func (artifactVerifyAction) Apply(ctx context.Context, args *structpb.Struct) (string, error) {
 	fields := args.GetFields()
 	path := strings.TrimSpace(fields["artifact_path"].GetStringValue())
-	expected := strings.ToLower(strings.TrimSpace(fields["expected_sha256"].GetStringValue()))
+	expected := canonicalSHA256(fields["expected_sha256"].GetStringValue())
 	if path == "" {
 		return "", fmt.Errorf("artifact_path is required")
 	}
@@ -542,7 +547,7 @@ func (artifactVerifyAction) Apply(ctx context.Context, args *structpb.Struct) (s
 		return "", fmt.Errorf("hash artifact: %w", err)
 	}
 	got := hex.EncodeToString(h.Sum(nil))
-	if got != expected {
+	if canonicalSHA256(got) != expected {
 		return "", fmt.Errorf("artifact digest mismatch: want %s got %s", expected, got)
 	}
 	return fmt.Sprintf("artifact verified sha256=%s", got), nil
@@ -1124,8 +1129,8 @@ func downloadArtifactFromRepository(ctx context.Context, addr string, ref *repos
 	}
 
 	if expectedSHA256 != "" {
-		got := hex.EncodeToString(hasher.Sum(nil))
-		if got != strings.ToLower(expectedSHA256) {
+		got := canonicalSHA256(hex.EncodeToString(hasher.Sum(nil)))
+		if got != canonicalSHA256(expectedSHA256) {
 			os.Remove(tmpPath)
 			return fmt.Errorf("artifact digest mismatch: want %s got %s", expectedSHA256, got)
 		}
@@ -1340,8 +1345,8 @@ func verifyFileSHA256(path, expected string) error {
 	if _, err := io.Copy(h, f); err != nil {
 		return err
 	}
-	got := hex.EncodeToString(h.Sum(nil))
-	if got != strings.ToLower(expected) {
+	got := canonicalSHA256(hex.EncodeToString(h.Sum(nil)))
+	if got != canonicalSHA256(expected) {
 		return fmt.Errorf("sha256 mismatch: want %s got %s", expected, got)
 	}
 	return nil

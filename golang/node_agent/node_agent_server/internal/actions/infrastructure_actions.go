@@ -79,6 +79,9 @@ func installerEngineInstall(component, version, stagingDir, dataDirsStr string) 
 	if err != nil {
 		return "", fmt.Errorf("infrastructure.install: installer engine failed for %s: %w", component, err)
 	}
+	if err := ensureScyllaManagerConfigureScript(component); err != nil {
+		return "", err
+	}
 
 	// Create data directories if specified (same as legacy path).
 	if dataDirsStr != "" {
@@ -96,6 +99,52 @@ func installerEngineInstall(component, version, stagingDir, dataDirsStr string) 
 	stepCount := len(report.Results)
 	failedCount := report.ErrorCount()
 	return fmt.Sprintf("infrastructure %s@%s installed via installer engine (%d steps, %d failed)", component, version, stepCount, failedCount), nil
+}
+
+func ensureScyllaManagerConfigureScript(component string) error {
+	if component != "scylla-manager" {
+		return nil
+	}
+	const scriptPath = "/usr/lib/globular/bin/scylla-manager-configure"
+	if fi, err := os.Stat(scriptPath); err == nil && fi.Mode().Perm()&0o111 != 0 {
+		return nil
+	}
+	const script = `#!/bin/sh
+# Generate scylla-manager config with the correct CQL host.
+CFG="/var/lib/globular/scylla-manager/scylla-manager.yaml"
+if [ -f "$CFG" ]; then
+  exit 0
+fi
+SCYLLA_CFG="/etc/scylla/scylla.yaml"
+CQL_HOST=""
+if [ -f "$SCYLLA_CFG" ]; then
+  CQL_HOST=$(grep -E '^rpc_address:' "$SCYLLA_CFG" | awk '{print $2}' | tr -d "[:space:]'\"")
+  [ -z "$CQL_HOST" ] && CQL_HOST=$(grep -E '^listen_address:' "$SCYLLA_CFG" | awk '{print $2}' | tr -d "[:space:]'\"")
+fi
+if [ -z "$CQL_HOST" ] || [ "$CQL_HOST" = "0.0.0.0" ]; then
+  CQL_HOST=$(ss -lnt | awk '/:9042 /{split($4,a,":"); print a[1]; exit}')
+fi
+if [ -z "$CQL_HOST" ] || [ "$CQL_HOST" = "127.0.0.1" ]; then
+  echo "scylla-manager-configure: cannot determine ScyllaDB routable IP — aborting" >&2
+  exit 1
+fi
+cat > "$CFG" <<EOCONF
+# Scylla Manager configuration (managed by Globular)
+http: ${CQL_HOST}:5080
+
+database:
+  hosts:
+    - ${CQL_HOST}
+  port: 9042
+EOCONF
+chown globular:globular "$CFG"
+chmod 0640 "$CFG"
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		return fmt.Errorf("infrastructure.install: write %s: %w", scriptPath, err)
+	}
+	log.Printf("[installer-engine] repaired missing helper %s for scylla-manager", scriptPath)
+	return nil
 }
 
 // ── infrastructure.uninstall ────────────────────────────────────────────────

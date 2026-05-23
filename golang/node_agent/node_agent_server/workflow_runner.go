@@ -352,6 +352,26 @@ func resolveLatestManifest(ctx context.Context, pkgName, pkgKind, repoAddr strin
 	platform := runtime.GOOS + "_" + runtime.GOARCH
 	kind := mapKindStringToProto(pkgKind)
 	repo := repositorypb.NewPackageRepositoryClient(conn)
+
+	// Primary path: resolve latest STABLE artifact identity through the
+	// repository resolver. This is the authoritative "latest published"
+	// contract for first-install Day-1 paths.
+	resolved, rerr := repo.ResolveArtifact(withAgentAuth(ctx), &repositorypb.ResolveArtifactRequest{
+		PublisherId: defaultPublisherID,
+		Name:        pkgName,
+		Kind:        kind,
+		Platform:    platform,
+		Channel:     repositorypb.ArtifactChannel_STABLE,
+	})
+	if rerr == nil {
+		m := resolved.GetManifest()
+		if m != nil && m.GetRef() != nil && strings.TrimSpace(m.GetRef().GetVersion()) != "" {
+			return m.GetRef().GetVersion(), m.GetBuildId(), m.GetChecksum(), nil
+		}
+	}
+
+	// Compatibility fallback: some older repository paths still rely on the
+	// manifest getter with an empty version to imply "latest".
 	resp, err := repo.GetArtifactManifest(withAgentAuth(ctx), &repositorypb.GetArtifactManifestRequest{
 		Ref: &repositorypb.ArtifactRef{
 			PublisherId: defaultPublisherID,
@@ -362,6 +382,9 @@ func resolveLatestManifest(ctx context.Context, pkgName, pkgKind, repoAddr strin
 		},
 	})
 	if err != nil {
+		if rerr != nil {
+			return "", "", "", fmt.Errorf("ResolveArtifact %s: %v; GetArtifactManifest %s: %w", pkgName, rerr, pkgName, err)
+		}
 		return "", "", "", fmt.Errorf("GetArtifactManifest %s: %w", pkgName, err)
 	}
 	m := resp.GetManifest()

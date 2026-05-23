@@ -58,9 +58,37 @@ var localPackageDirs = []string{
 // cached content.
 func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repositoryAddr, desiredVersion string, buildID string, expectedSHA256 string) error {
 	platform := runtime.GOOS + "_" + runtime.GOARCH
-	version := desiredVersion
+	version := strings.TrimSpace(desiredVersion)
 	if version == "" {
-		version = resolvePackageVersion(name)
+		// Never fetch artifacts with the synthetic 0.0.0-dev sentinel.
+		// Resolve a real package version from authoritative sources.
+		repoForResolve := strings.TrimSpace(repositoryAddr)
+		if repoForResolve == "" {
+			repoForResolve = strings.TrimSpace(srv.discoverRepositoryAddr())
+		}
+		if repoForResolve != "" {
+			if v, b, c, err := resolveLatestManifestFunc(ctx, name, kind, repoForResolve); err == nil && strings.TrimSpace(v) != "" {
+				version = strings.TrimSpace(v)
+				if strings.TrimSpace(buildID) == "" {
+					buildID = strings.TrimSpace(b)
+				}
+				if strings.TrimSpace(expectedSHA256) == "" {
+					expectedSHA256 = strings.TrimSpace(c)
+				}
+				log.Printf("installer-api: resolved latest manifest for %s (%s): version=%s build_id=%s", name, kind, version, buildID)
+			} else if err != nil {
+				log.Printf("installer-api: latest manifest resolution failed for %s (%s): %v", name, kind, err)
+			}
+		}
+		if version == "" {
+			if bomVersion, bomErr := resolveVersionFromReleaseIndexFunc(name); bomErr == nil && strings.TrimSpace(bomVersion) != "" {
+				version = strings.TrimSpace(bomVersion)
+				log.Printf("installer-api: using release-index version for %s (%s): %s", name, kind, version)
+			}
+		}
+		if version == "" {
+			return fmt.Errorf("resolve package version for %s (%s): no desired version provided and latest-version resolution failed (repo + release-index)", name, kind)
+		}
 	}
 
 	artifactPath := fmt.Sprintf("/var/lib/globular/staging/%s/%s/latest.artifact",
