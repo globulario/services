@@ -801,6 +801,12 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			}
 			defer conn.Close()
 
+			// NOTE: desiredHash is the convergence identity hash (sha256 of
+			// publisher/service=version+build metadata), NOT the binary SHA256.
+			// Do NOT forward it as expected_sha256 to artifact.fetch — that
+			// would cause a guaranteed hash mismatch and fail every download.
+			// Binary SHA256 propagation requires resolved_entrypoint_checksum
+			// from the release status, which is a separate TODO.
 			client := node_agentpb.NewNodeAgentServiceClient(conn)
 			resp, err := client.RunWorkflow(ctx, &node_agentpb.RunWorkflowRequest{
 				WorkflowName: "install-package",
@@ -809,7 +815,6 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 					"version":      version,
 					"kind":         kind,
 					"build_id":     buildID,
-					"desired_hash": desiredHash,
 					"build_number": strconv.FormatInt(buildNumber, 10),
 				},
 			})
