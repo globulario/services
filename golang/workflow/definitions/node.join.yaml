@@ -220,7 +220,6 @@ spec:
           - { name: rbac, kind: SERVICE }
           - { name: resource, kind: SERVICE }
           - { name: authentication, kind: SERVICE }
-          - { name: discovery, kind: SERVICE }
           - { name: repository, kind: SERVICE }
           - { name: monitoring, kind: SERVICE }
       timeout: $.install_timeout
@@ -239,7 +238,6 @@ spec:
             - { name: rbac, kind: SERVICE }
             - { name: resource, kind: SERVICE }
             - { name: authentication, kind: SERVICE }
-            - { name: discovery, kind: SERVICE }
             - { name: repository, kind: SERVICE }
             - { name: monitoring, kind: SERVICE }
         success:

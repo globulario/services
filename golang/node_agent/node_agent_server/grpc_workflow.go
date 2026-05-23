@@ -89,6 +89,9 @@ func (srv *NodeAgentServer) RunWorkflow(ctx context.Context, req *node_agentpb.R
 	if _, ok := inputs["node_ip"]; !ok && srv.state != nil {
 		inputs["node_ip"] = srv.state.AdvertiseIP
 	}
+	if _, ok := inputs["repository_address"]; !ok {
+		inputs["repository_address"] = srv.discoverRepositoryAddr()
+	}
 
 	log.Printf("grpc-workflow: starting %s (def=%s)", name, defPath)
 	start := time.Now()

@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"runtime"
 	"strings"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/ingress"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
@@ -33,19 +37,43 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 
 	// Wire node-agent actions.
 	repoAddr := ""
-	if srv.state != nil && srv.state.ControllerEndpoint != "" {
+	if inputs != nil {
+		if addr, ok := inputs["repository_address"].(string); ok {
+			repoAddr = strings.TrimSpace(addr)
+		}
+	}
+	if repoAddr == "" {
 		repoAddr = srv.discoverRepositoryAddr()
 	}
 
 	engine.RegisterNodeAgentActions(router, engine.NodeAgentConfig{
 		NodeID: srv.nodeID,
 		FetchAndInstall: func(ctx context.Context, pkg engine.PackageRef) error {
+			if pkg.Name == "keepalived" && !srv.shouldInstallKeepalived(ctx) {
+				log.Printf("workflow-runner: skipping keepalived (ingress disabled or node is not a VIP participant)")
+				return nil
+			}
+			// "discovery" is a retired package from older node.join definitions.
+			// Keep execution compatible with stale on-node workflow files until
+			// workflow package refresh lands everywhere.
+			if pkg.Name == "discovery" {
+				log.Printf("workflow-runner: skipping deprecated package %s from stale workflow definition", pkg.Name)
+				return nil
+			}
 			// Fast path: skip if already installed and the unit is active.
 			// The local join workflow has no version context, so any installed
 			// version is acceptable.
 			existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, pkg.Kind, pkg.Name)
 			if skipIfAlreadyInstalled(ctx, pkg.Name, existing, supervisor.IsActive) {
 				return nil
+			}
+			// Runtime fast path: if installed-state is missing/stale but the unit
+			// is already active, treat the package as satisfied for Day-1 join.
+			if unit := packageUnit(pkg.Name); unit != "" {
+				if active, _ := supervisor.IsActive(ctx, unit); active {
+					log.Printf("workflow-runner: %s unit %s already active (installed-state missing/stale), skipping reinstall", pkg.Name, unit)
+					return nil
+				}
 			}
 			// If installed but inactive, try to start the unit before falling back
 			// to a full reinstall. A stopped unit (e.g. envoy after xds_ready reset)
@@ -78,7 +106,17 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 				if v, b, c, err := resolveLatestManifestFunc(ctx, pkg.Name, pkg.Kind, repoAddr); err == nil {
 					version, buildID, checksum = v, b, c
 				} else {
-					log.Printf("workflow-runner: resolve latest manifest for %s: %v (falling back to empty version)", pkg.Name, err)
+					// Day-1 fallback: use the active release BOM package version
+					// when repository latest-resolution fails. This avoids
+					// version="" -> 0.0.0-dev sentinel installs, and matches
+					// Day-0 staged artifacts like envoy_<ver>_linux_amd64.tgz.
+					bomVersion, bomErr := resolveVersionFromReleaseIndexFunc(pkg.Name)
+					if bomErr == nil && strings.TrimSpace(bomVersion) != "" {
+						version = bomVersion
+						log.Printf("workflow-runner: resolve latest manifest for %s failed (%v); using release-index version %s", pkg.Name, err, version)
+					} else {
+						log.Printf("workflow-runner: resolve latest manifest for %s failed (%v); release-index fallback unavailable (%v)", pkg.Name, err, bomErr)
+					}
 				}
 			}
 			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, version, buildID, checksum)
@@ -267,9 +305,37 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 	return run, err
 }
 
+func (srv *NodeAgentServer) shouldInstallKeepalived(ctx context.Context) bool {
+	etcdClient, err := config.GetEtcdClient()
+	if err != nil || etcdClient == nil {
+		// Fail open for bootstrap: if etcd is unavailable, keep legacy behavior.
+		return true
+	}
+	readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	resp, err := etcdClient.Get(readCtx, "/globular/ingress/v1/spec")
+	if err != nil || resp == nil || len(resp.Kvs) == 0 {
+		return true
+	}
+	var spec ingress.Spec
+	if err := json.Unmarshal(resp.Kvs[0].Value, &spec); err != nil {
+		return true
+	}
+	if spec.Mode != ingress.ModeVIPFailover || spec.VIPFailover == nil {
+		return false
+	}
+	for _, participant := range spec.VIPFailover.Participants {
+		if strings.TrimSpace(participant) == strings.TrimSpace(srv.nodeID) {
+			return true
+		}
+	}
+	return false
+}
+
 // resolveLatestManifestFunc is the implementation used by FetchAndInstall for
 // first-time installs. Overridable in tests via the variable below.
 var resolveLatestManifestFunc = resolveLatestManifest
+var resolveVersionFromReleaseIndexFunc = resolveVersionFromReleaseIndex
 
 // resolveLatestManifest queries the repository for the latest published manifest
 // of pkgName/pkgKind and returns (version, buildID, checksum). Called by the
@@ -303,6 +369,40 @@ func resolveLatestManifest(ctx context.Context, pkgName, pkgKind, repoAddr strin
 		return "", "", "", fmt.Errorf("GetArtifactManifest %s: empty manifest", pkgName)
 	}
 	return m.GetRef().GetVersion(), m.GetBuildId(), m.GetChecksum(), nil
+}
+
+const releaseIndexPath = "/var/lib/globular/release-index.json"
+
+type releaseIndexDoc struct {
+	Packages []struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	} `json:"packages"`
+}
+
+// resolveVersionFromReleaseIndex reads the active BOM and returns the package
+// version for pkgName. It is a Day-1 degraded-path fallback when repository
+// latest-manifest resolution is unavailable.
+func resolveVersionFromReleaseIndex(pkgName string) (string, error) {
+	raw, err := os.ReadFile(releaseIndexPath)
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", releaseIndexPath, err)
+	}
+	var idx releaseIndexDoc
+	if err := json.Unmarshal(raw, &idx); err != nil {
+		return "", fmt.Errorf("parse %s: %w", releaseIndexPath, err)
+	}
+	target := strings.TrimSpace(pkgName)
+	for _, p := range idx.Packages {
+		if strings.TrimSpace(p.Name) == target {
+			v := strings.TrimSpace(p.Version)
+			if v == "" {
+				return "", fmt.Errorf("package %s has empty version in %s", target, releaseIndexPath)
+			}
+			return v, nil
+		}
+	}
+	return "", fmt.Errorf("package %s not found in %s", target, releaseIndexPath)
 }
 
 // skipIfAlreadyInstalled returns true when existing is non-nil with status

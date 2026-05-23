@@ -79,6 +79,24 @@ func TestSkipIfAlreadyInstalled_CommandPackage(t *testing.T) {
 	}
 }
 
+// TestRuntimeFastPath_SkipsWhenUnitActiveWithoutInstalledState documents the
+// Day-1 fallback where installed-state can be stale/missing but runtime unit
+// proof is already active.
+func TestRuntimeFastPath_SkipsWhenUnitActiveWithoutInstalledState(t *testing.T) {
+	existing := (*node_agentpb.InstalledPackage)(nil)
+	if skipIfAlreadyInstalled(context.Background(), "envoy", existing, alwaysActive) {
+		t.Fatal("skipIfAlreadyInstalled must be false when record is nil")
+	}
+	unit := packageUnit("envoy")
+	if unit == "" {
+		t.Fatal("expected envoy to have a unit")
+	}
+	active, _ := alwaysActive(context.Background(), unit)
+	if !active {
+		t.Fatal("expected active runtime proof")
+	}
+}
+
 // TestResolveLatestManifestFuncCalledForFirstInstall — when existing is nil
 // (first-time install), resolveLatestManifestFunc must be invoked so a real
 // version is passed to InstallPackage instead of the 0.0.0-dev sentinel.
@@ -143,15 +161,26 @@ func TestResolveLatestManifestFuncCalledForFirstInstall(t *testing.T) {
 	}
 }
 
-// TestResolveLatestManifestFuncErrorFallsThrough — when resolveLatestManifestFunc
-// returns an error (repo unreachable), FetchAndInstall falls through with empty
-// version. This is expected degraded behavior, not a silent success.
-func TestResolveLatestManifestFuncErrorFallsThrough(t *testing.T) {
-	prev := resolveLatestManifestFunc
+// TestResolveLatestManifestFuncErrorFallsBackToReleaseIndex — when repository
+// latest-manifest resolution fails for first install, the runner should use the
+// BOM version from release-index.json instead of leaving version empty
+// (which would become the 0.0.0-dev sentinel).
+func TestResolveLatestManifestFuncErrorFallsBackToReleaseIndex(t *testing.T) {
+	prevResolve := resolveLatestManifestFunc
+	prevBOM := resolveVersionFromReleaseIndexFunc
 	resolveLatestManifestFunc = func(_ context.Context, _, _, _ string) (string, string, string, error) {
 		return "", "", "", fmt.Errorf("repo unreachable")
 	}
-	t.Cleanup(func() { resolveLatestManifestFunc = prev })
+	resolveVersionFromReleaseIndexFunc = func(pkgName string) (string, error) {
+		if pkgName != "gateway" {
+			t.Fatalf("expected pkgName gateway, got %s", pkgName)
+		}
+		return "0.0.1", nil
+	}
+	t.Cleanup(func() {
+		resolveLatestManifestFunc = prevResolve
+		resolveVersionFromReleaseIndexFunc = prevBOM
+	})
 
 	existing := (*node_agentpb.InstalledPackage)(nil)
 	repoAddr := "10.0.0.63:443"
@@ -163,13 +192,14 @@ func TestResolveLatestManifestFuncErrorFallsThrough(t *testing.T) {
 	} else if repoAddr != "" {
 		if v, b, c, err := resolveLatestManifestFunc(context.Background(), "gateway", "SERVICE", repoAddr); err == nil {
 			version, buildID, checksum = v, b, c
+		} else if bomVersion, bomErr := resolveVersionFromReleaseIndexFunc("gateway"); bomErr == nil {
+			version = bomVersion
 		}
-		// err != nil → version stays ""
 	}
-	// Verify the fallback: all empty (caller will pass "" to InstallPackage,
-	// which falls back to resolvePackageVersion → 0.0.0-dev — an error state).
-	if version != "" || buildID != "" || checksum != "" {
-		t.Fatalf("expected empty fallback on resolver error, got version=%q buildID=%q checksum=%q",
-			version, buildID, checksum)
+	if version != "0.0.1" {
+		t.Fatalf("expected release-index fallback version 0.0.1, got %q", version)
+	}
+	if buildID != "" || checksum != "" {
+		t.Fatalf("expected no buildID/checksum from release-index fallback, got buildID=%q checksum=%q", buildID, checksum)
 	}
 }

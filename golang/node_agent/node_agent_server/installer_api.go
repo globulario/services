@@ -9,11 +9,14 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
 	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -228,8 +231,26 @@ func (srv *NodeAgentServer) findLocalPackage(name, version, platform string) str
 				return path
 			}
 		}
+		// Day-1 degraded fallback: if exact-version lookup misses (e.g. caller
+		// has no authoritative version and would otherwise use 0.0.0-dev),
+		// accept the newest local versioned artifact for this platform.
+		// This preserves bootstrap progress when repository/latest resolution is
+		// unavailable but a Day-0-staged package exists on disk.
+		if wildcard := findLocalPackageAnyVersion(dir, name, platform); wildcard != "" {
+			return wildcard
+		}
 	}
 	return ""
+}
+
+func findLocalPackageAnyVersion(dir, name, platform string) string {
+	pattern := filepath.Join(dir, fmt.Sprintf("%s_*_%s.tgz", name, platform))
+	matches, err := filepath.Glob(pattern)
+	if err != nil || len(matches) == 0 {
+		return ""
+	}
+	sort.Strings(matches)
+	return matches[len(matches)-1]
 }
 
 func (srv *NodeAgentServer) installPayload(ctx context.Context, name, version, artifactPath string) error {
@@ -279,6 +300,20 @@ func (srv *NodeAgentServer) writeMarker(name, version string) error {
 }
 
 func (srv *NodeAgentServer) discoverRepositoryAddr() string {
+	// Primary source of truth: service discovery from etcd. Prefer a non-local
+	// endpoint to avoid self-routing loops during Day-1 when the local gateway
+	// advertises :443 but upstream repository isn't actually ready.
+	if addrs := config.ResolveServiceAddrs("repository.PackageRepository"); len(addrs) > 0 {
+		localIP := strings.TrimSpace(config.GetRoutableIPv4())
+		for _, addr := range addrs {
+			if !isLocalEndpoint(addr, localIP) {
+				return strings.TrimSpace(addr)
+			}
+		}
+		// No remote endpoint found; fall back to the first discovered address.
+		return strings.TrimSpace(addrs[0])
+	}
+	// Fallback for early bootstrap cases where service discovery is not ready.
 	if srv.state != nil && srv.state.ControllerEndpoint != "" {
 		host, _, err := splitHostPort(srv.state.ControllerEndpoint)
 		if err == nil && host != "" {
@@ -294,6 +329,23 @@ func splitHostPort(addr string) (string, string, error) {
 	}
 	idx := strings.LastIndex(addr, ":")
 	return addr[:idx], addr[idx+1:], nil
+}
+
+func isLocalEndpoint(addr, localIP string) bool {
+	host := strings.TrimSpace(addr)
+	if h, _, err := net.SplitHostPort(addr); err == nil {
+		host = strings.TrimSpace(h)
+	}
+	if host == "" {
+		return false
+	}
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return true
+	}
+	if localIP != "" && host == localIP {
+		return true
+	}
+	return false
 }
 
 // resolvePackageVersion returns the sentinel version used when the controller
