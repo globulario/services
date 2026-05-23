@@ -286,9 +286,11 @@ func main() {
 	}()
 
 	log.Printf("node agent listening on %s", address)
+	serveDone := make(chan struct{})
 	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("grpc serve failed: %v", err)
+		defer close(serveDone)
+		if err := grpcServer.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+			log.Printf("grpc serve failed: %v", err)
 		}
 	}()
 
@@ -308,8 +310,35 @@ func main() {
 
 	<-ctx.Done()
 	log.Printf("shutting down node agent (signal received)")
-	grpcServer.GracefulStop()
+	globular_service.SdNotify("STOPPING=1")
+	stopGRPCServerWithDeadline(grpcServer, 5*time.Second)
+	select {
+	case <-serveDone:
+	case <-time.After(2 * time.Second):
+		log.Printf("grpc serve goroutine did not exit after forced stop")
+	}
 	log.Printf("node agent stopped")
+}
+
+func stopGRPCServerWithDeadline(grpcServer *grpc.Server, deadline time.Duration) {
+	done := make(chan struct{})
+
+	go func() {
+		grpcServer.GracefulStop()
+		close(done)
+	}()
+
+	timer := time.NewTimer(deadline)
+	defer timer.Stop()
+
+	select {
+	case <-done:
+		log.Printf("grpc graceful shutdown completed")
+	case <-timer.C:
+		log.Printf("grpc graceful shutdown exceeded %s; forcing Stop()", deadline)
+		grpcServer.Stop()
+		<-done
+	}
 }
 
 // metricsPortDefault is the preferred port for the node_agent metrics HTTP

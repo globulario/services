@@ -247,6 +247,9 @@ steps:
           ExecStart={{.Prefix}}/bin/<<% .ExecName %>>
           Restart=always
           RestartSec=2
+          TimeoutStopSec=15
+          KillSignal=SIGTERM
+          KillMode=control-group
           LimitNOFILE=524288
 
           [Install]
