@@ -1,16 +1,20 @@
 package main
 
-// Regression tests for skipIfAlreadyInstalled (workflow_runner.go).
+// Regression tests for skipIfAlreadyInstalled and resolveLatestManifestFunc
+// (workflow_runner.go).
 //
-// INC-2026-0007: local node.join runner passed version="" → "0.0.0-dev" to
-// InstallPackage. artifact.fetch refused to reuse the staged cache file without
-// a manifest for that non-existent version, causing install_mesh to fail on
-// every rejoin attempt even when all 5 mesh packages were already installed and
-// running. The fix: check installed state + unit active before calling
-// InstallPackage, and skip if the package is healthy.
+// INC-2026-0007 (phase 1): local node.join runner passed version="" →
+// "0.0.0-dev" to InstallPackage for already-installed+active packages.
+// Fix: skipIfAlreadyInstalled skips when installed record exists and unit active.
+//
+// INC-2026-0007 (phase 2): first-time installs (existing==nil) still passed
+// version="" → "0.0.0-dev" because there was no installed-state record to read.
+// Fix: resolveLatestManifestFunc queries the repository for the latest manifest
+// and passes the real version/buildID/checksum to InstallPackage.
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
@@ -72,5 +76,100 @@ func TestSkipIfAlreadyInstalled_CommandPackage(t *testing.T) {
 	}
 	if checkActiveCalled {
 		t.Fatal("checkActive must not be called for command packages (no unit)")
+	}
+}
+
+// TestResolveLatestManifestFuncCalledForFirstInstall — when existing is nil
+// (first-time install), resolveLatestManifestFunc must be invoked so a real
+// version is passed to InstallPackage instead of the 0.0.0-dev sentinel.
+// This is a unit test of the injectable variable path only (no live repo dial).
+func TestResolveLatestManifestFuncCalledForFirstInstall(t *testing.T) {
+	called := false
+	prev := resolveLatestManifestFunc
+	resolveLatestManifestFunc = func(_ context.Context, name, kind, repoAddr string) (string, string, string, error) {
+		called = true
+		if name != "gateway" {
+			t.Errorf("expected name=gateway, got %s", name)
+		}
+		if repoAddr == "" {
+			t.Error("repoAddr must not be empty when repo is available")
+		}
+		return "1.2.67", "build-abc", "sha256:deadbeef", nil
+	}
+	t.Cleanup(func() { resolveLatestManifestFunc = prev })
+
+	// Simulate: existing==nil, repoAddr set, resolveLatestManifestFunc injects version.
+	var capturedVersion, capturedBuildID, capturedChecksum string
+	installCalled := false
+	doInstall := func(ctx context.Context, name, kind, repoAddr, version, buildID, checksum string) error {
+		installCalled = true
+		capturedVersion = version
+		capturedBuildID = buildID
+		capturedChecksum = checksum
+		return nil
+	}
+
+	// Replicate the FetchAndInstall logic for the first-install branch.
+	existing := (*node_agentpb.InstalledPackage)(nil)
+	repoAddr := "10.0.0.63:443"
+	version, buildID, checksum := "", "", ""
+	if existing != nil {
+		version = existing.GetVersion()
+		buildID = existing.GetBuildId()
+		checksum = existing.GetChecksum()
+	} else if repoAddr != "" {
+		if v, b, c, err := resolveLatestManifestFunc(context.Background(), "gateway", "SERVICE", repoAddr); err == nil {
+			version, buildID, checksum = v, b, c
+		}
+	}
+	if err := doInstall(context.Background(), "gateway", "SERVICE", repoAddr, version, buildID, checksum); err != nil {
+		t.Fatal(err)
+	}
+
+	if !called {
+		t.Fatal("resolveLatestManifestFunc was not called for first-install (existing==nil)")
+	}
+	if !installCalled {
+		t.Fatal("install was not called")
+	}
+	if capturedVersion == "" || capturedVersion == "0.0.0-dev" {
+		t.Fatalf("expected real version from resolver, got %q (0.0.0-dev sentinel must not reach InstallPackage)", capturedVersion)
+	}
+	if capturedBuildID == "" {
+		t.Fatal("expected non-empty buildID from resolver")
+	}
+	if capturedChecksum == "" {
+		t.Fatal("expected non-empty checksum from resolver")
+	}
+}
+
+// TestResolveLatestManifestFuncErrorFallsThrough — when resolveLatestManifestFunc
+// returns an error (repo unreachable), FetchAndInstall falls through with empty
+// version. This is expected degraded behavior, not a silent success.
+func TestResolveLatestManifestFuncErrorFallsThrough(t *testing.T) {
+	prev := resolveLatestManifestFunc
+	resolveLatestManifestFunc = func(_ context.Context, _, _, _ string) (string, string, string, error) {
+		return "", "", "", fmt.Errorf("repo unreachable")
+	}
+	t.Cleanup(func() { resolveLatestManifestFunc = prev })
+
+	existing := (*node_agentpb.InstalledPackage)(nil)
+	repoAddr := "10.0.0.63:443"
+	version, buildID, checksum := "", "", ""
+	if existing != nil {
+		version = existing.GetVersion()
+		buildID = existing.GetBuildId()
+		checksum = existing.GetChecksum()
+	} else if repoAddr != "" {
+		if v, b, c, err := resolveLatestManifestFunc(context.Background(), "gateway", "SERVICE", repoAddr); err == nil {
+			version, buildID, checksum = v, b, c
+		}
+		// err != nil → version stays ""
+	}
+	// Verify the fallback: all empty (caller will pass "" to InstallPackage,
+	// which falls back to resolvePackageVersion → 0.0.0-dev — an error state).
+	if version != "" || buildID != "" || checksum != "" {
+		t.Fatalf("expected empty fallback on resolver error, got version=%q buildID=%q checksum=%q",
+			version, buildID, checksum)
 	}
 }

@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"runtime"
 	"strings"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/installed_state"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
+	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
 )
@@ -59,9 +62,26 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 					log.Printf("workflow-runner: %s start failed — proceeding with reinstall", pkg.Name)
 				}
 			}
-			// Engine PackageRef currently lacks build_number/expected_sha256;
-			// the fetch layer resolves the manifest digest from the repository.
-			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, "", "", "")
+			// Re-install using identity from the installed-state record when
+			// available. This allows artifact.fetch to reuse the staged cache
+			// file via checksum match rather than failing with "refuse blind
+			// reuse" (the 0.0.0-dev sentinel).
+			version, buildID, checksum := "", "", ""
+			if existing != nil {
+				version = existing.GetVersion()
+				buildID = existing.GetBuildId()
+				checksum = existing.GetChecksum()
+			} else if repoAddr != "" {
+				// First-install: no etcd record yet. Resolve the latest published
+				// manifest so InstallPackage gets a real version instead of the
+				// 0.0.0-dev sentinel that causes artifact.fetch to fail.
+				if v, b, c, err := resolveLatestManifestFunc(ctx, pkg.Name, pkg.Kind, repoAddr); err == nil {
+					version, buildID, checksum = v, b, c
+				} else {
+					log.Printf("workflow-runner: resolve latest manifest for %s: %v (falling back to empty version)", pkg.Name, err)
+				}
+			}
+			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, version, buildID, checksum)
 		},
 		IsServiceActive: func(name string) bool {
 			return engine.DefaultIsServiceActive(name)
@@ -245,6 +265,44 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 	}
 
 	return run, err
+}
+
+// resolveLatestManifestFunc is the implementation used by FetchAndInstall for
+// first-time installs. Overridable in tests via the variable below.
+var resolveLatestManifestFunc = resolveLatestManifest
+
+// resolveLatestManifest queries the repository for the latest published manifest
+// of pkgName/pkgKind and returns (version, buildID, checksum). Called by the
+// workflow-runner FetchAndInstall closure for first-time installs where no
+// installed-state record exists, to avoid the 0.0.0-dev sentinel that causes
+// artifact.fetch to fail.
+func resolveLatestManifest(ctx context.Context, pkgName, pkgKind, repoAddr string) (version, buildID, checksum string, err error) {
+	conn, _, err := actions.DialRepository(ctx, repoAddr)
+	if err != nil {
+		return "", "", "", fmt.Errorf("dial repository: %w", err)
+	}
+	defer conn.Close()
+
+	platform := runtime.GOOS + "_" + runtime.GOARCH
+	kind := mapKindStringToProto(pkgKind)
+	repo := repositorypb.NewPackageRepositoryClient(conn)
+	resp, err := repo.GetArtifactManifest(withAgentAuth(ctx), &repositorypb.GetArtifactManifestRequest{
+		Ref: &repositorypb.ArtifactRef{
+			PublisherId: defaultPublisherID,
+			Name:        pkgName,
+			Platform:    platform,
+			Kind:        kind,
+			// Version left empty → repository returns the latest published version.
+		},
+	})
+	if err != nil {
+		return "", "", "", fmt.Errorf("GetArtifactManifest %s: %w", pkgName, err)
+	}
+	m := resp.GetManifest()
+	if m == nil {
+		return "", "", "", fmt.Errorf("GetArtifactManifest %s: empty manifest", pkgName)
+	}
+	return m.GetRef().GetVersion(), m.GetBuildId(), m.GetChecksum(), nil
 }
 
 // skipIfAlreadyInstalled returns true when existing is non-nil with status
