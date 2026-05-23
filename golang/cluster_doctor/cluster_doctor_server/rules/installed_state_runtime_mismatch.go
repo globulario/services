@@ -133,21 +133,24 @@ func normalizeInstalledName(name string) string {
 
 // packageIsCommand returns true when the package has no systemd unit to check.
 //
-// Primary source: nodeKinds (from etcd /globular/nodes/{id}/packages/{KIND}/{name}).
-// Any package recorded as "COMMAND" in etcd is skipped — no static list needed.
+// Static list is checked first and is authoritative for known command packages.
+// This handles nodes where mc/restic/etc were installed before the kind sidecar
+// was introduced: their etcd entry is under INFRASTRUCTURE (not COMMAND), so
+// an etcd-first check would return false and fire a spurious incident.
 //
-// Fallback: a minimal static list covers packages installed before the kind
-// sidecar was introduced (Day-0 bootstrapped nodes that predate this fix).
-// This list should NOT grow; add new packages to the workflow spec instead.
+// For new packages not in the static list, etcd kind "COMMAND" is the fallback.
+// This list should NOT grow; new command packages must be added to the workflow
+// spec with kind=COMMAND so the etcd path covers them automatically.
 func packageIsCommand(name string, nodeKinds map[string]string) bool {
-	if kind, ok := nodeKinds[name]; ok {
-		return kind == "COMMAND"
-	}
-	// Fallback for pre-kind-sidecar installs only.
+	// Static list wins — authoritative for pre-kind-sidecar installs.
 	switch name {
 	case "rclone", "restic", "mc", "sctool", "etcdctl", "ffmpeg",
 		"globular-cli", "cli", "sha256sum", "yt-dlp", "claude":
 		return true
+	}
+	// Dynamic fallback: trust etcd COMMAND kind for newer packages.
+	if kind, ok := nodeKinds[name]; ok {
+		return kind == "COMMAND"
 	}
 	return false
 }

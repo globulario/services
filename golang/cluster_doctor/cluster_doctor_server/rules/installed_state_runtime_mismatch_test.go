@@ -169,15 +169,23 @@ func TestPackageIsCommand_FallbackList(t *testing.T) {
 }
 
 func TestPackageIsCommand_EtcdKindWins(t *testing.T) {
-	// A package recorded as COMMAND in etcd is skipped even if absent from fallback list.
+	// A package recorded as COMMAND in etcd is skipped even if absent from static list.
 	kinds := map[string]string{"new-tool": "COMMAND"}
 	if !packageIsCommand("new-tool", kinds) {
 		t.Error("etcd COMMAND kind must mark package as command")
 	}
-	// A package recorded as SERVICE in etcd is NOT a command, even if it looks like one.
+
+	// Static list is authoritative for known command packages — a stale INFRASTRUCTURE
+	// or SERVICE etcd entry (from a pre-kind-sidecar install) must NOT cause the
+	// rule to fire a spurious incident for a definitionally command-only package.
+	// rclone has no systemd unit by design; no etcd kind can override that.
 	kinds2 := map[string]string{"rclone": "SERVICE"}
-	if packageIsCommand("rclone", kinds2) {
-		t.Error("etcd SERVICE kind must override fallback COMMAND classification")
+	if !packageIsCommand("rclone", kinds2) {
+		t.Error("static list must win over stale non-COMMAND etcd kind for known command packages")
+	}
+	kinds3 := map[string]string{"mc": "INFRASTRUCTURE"}
+	if !packageIsCommand("mc", kinds3) {
+		t.Error("mc must not fire when etcd has stale INFRASTRUCTURE kind from pre-kind-sidecar install")
 	}
 }
 
