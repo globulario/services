@@ -864,6 +864,10 @@ func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {
 func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot) {
 	repoCtx, cancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 	defer cancel()
+	if c.clusterID != "" {
+		md := metadata.Pairs("cluster_id", c.clusterID)
+		repoCtx = metadata.NewOutgoingContext(repoCtx, md)
+	}
 
 	// GetRepositoryStatus — must answer even when Scylla is down.
 	statusResp, statusErr := c.repoClient.GetRepositoryStatus(repoCtx, &repopb.GetRepositoryStatusRequest{})
@@ -901,6 +905,10 @@ func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot) {
 	// ListRepositoryFindings — integrity findings from the repository catalog.
 	findCtx, findCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 	defer findCancel()
+	if c.clusterID != "" {
+		md := metadata.Pairs("cluster_id", c.clusterID)
+		findCtx = metadata.NewOutgoingContext(findCtx, md)
+	}
 
 	findResp, findErr := c.repoClient.ListRepositoryFindings(findCtx, &repopb.ListRepositoryFindingsRequest{})
 	if findErr != nil {
@@ -957,6 +965,10 @@ func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot) {
 	// degrades to silent (no signal → no finding) instead of guessing.
 	listCtx, listCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 	defer listCancel()
+	if c.clusterID != "" {
+		md := metadata.Pairs("cluster_id", c.clusterID)
+		listCtx = metadata.NewOutgoingContext(listCtx, md)
+	}
 
 	listResp, listErr := c.repoClient.ListArtifacts(listCtx, &repopb.ListArtifactsRequest{})
 	if listErr != nil {

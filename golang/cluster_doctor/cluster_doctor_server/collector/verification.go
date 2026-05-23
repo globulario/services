@@ -31,6 +31,7 @@ import (
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/verifier"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc/metadata"
 )
 
 // fetchDesiredServiceTargets reads ServiceRelease and InfrastructureRelease
@@ -251,6 +252,10 @@ func (c *Collector) enrichTargetsWithEntrypointChecksum(ctx context.Context, sna
 	cache := newEntrypointCache()
 	fetchCtx, cancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 	defer cancel()
+	if c.clusterID != "" {
+		md := metadata.Pairs("cluster_id", c.clusterID)
+		fetchCtx = metadata.NewOutgoingContext(fetchCtx, md)
+	}
 
 	for _, dst := range snap.DesiredServiceTargets {
 		if dst == nil || strings.TrimSpace(dst.DesiredBuildID) == "" {
