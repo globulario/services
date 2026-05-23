@@ -39,11 +39,25 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 		FetchAndInstall: func(ctx context.Context, pkg engine.PackageRef) error {
 			// Fast path: skip if already installed and the unit is active.
 			// The local join workflow has no version context, so any installed
-			// version is acceptable. Packages that are installed but inactive
-			// proceed to reinstall via InstallPackage below.
+			// version is acceptable.
 			existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, pkg.Kind, pkg.Name)
 			if skipIfAlreadyInstalled(ctx, pkg.Name, existing, supervisor.IsActive) {
 				return nil
+			}
+			// If installed but inactive, try to start the unit before falling back
+			// to a full reinstall. A stopped unit (e.g. envoy after xds_ready reset)
+			// often just needs a restart, not a fresh download.
+			if existing != nil && strings.EqualFold(existing.GetStatus(), "installed") {
+				unit := packageUnit(pkg.Name)
+				if unit != "" {
+					if startErr := supervisor.Start(ctx, unit); startErr == nil {
+						if waitErr := supervisor.WaitActive(ctx, unit, 30*time.Second); waitErr == nil {
+							log.Printf("workflow-runner: %s started (was inactive), skipping reinstall", pkg.Name)
+							return nil
+						}
+					}
+					log.Printf("workflow-runner: %s start failed — proceeding with reinstall", pkg.Name)
+				}
 			}
 			// Engine PackageRef currently lacks build_number/expected_sha256;
 			// the fetch layer resolves the manifest digest from the repository.
