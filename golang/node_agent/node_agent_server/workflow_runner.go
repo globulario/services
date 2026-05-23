@@ -9,6 +9,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/installed_state"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
@@ -36,6 +37,14 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 	engine.RegisterNodeAgentActions(router, engine.NodeAgentConfig{
 		NodeID: srv.nodeID,
 		FetchAndInstall: func(ctx context.Context, pkg engine.PackageRef) error {
+			// Fast path: skip if already installed and the unit is active.
+			// The local join workflow has no version context, so any installed
+			// version is acceptable. Packages that are installed but inactive
+			// proceed to reinstall via InstallPackage below.
+			existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, pkg.Kind, pkg.Name)
+			if skipIfAlreadyInstalled(ctx, pkg.Name, existing, supervisor.IsActive) {
+				return nil
+			}
 			// Engine PackageRef currently lacks build_number/expected_sha256;
 			// the fetch layer resolves the manifest digest from the repository.
 			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, "", "", "")
@@ -222,4 +231,27 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 	}
 
 	return run, err
+}
+
+// skipIfAlreadyInstalled returns true when existing is non-nil with status
+// "installed" AND the package's systemd unit is active (or the package is a
+// command with no unit). Used by the local join runner's FetchAndInstall fast
+// path — the join workflow has no version context, so any installed+running
+// version is acceptable. Packages that are installed but inactive still go
+// through the full reinstall path.
+func skipIfAlreadyInstalled(ctx context.Context, name string, existing *node_agentpb.InstalledPackage, checkActive func(context.Context, string) (bool, error)) bool {
+	if existing == nil || !strings.EqualFold(existing.GetStatus(), "installed") {
+		return false
+	}
+	unit := packageUnit(name)
+	if unit == "" {
+		// Command packages have no unit — installed state is sufficient proof.
+		log.Printf("workflow-runner: %s already installed@%s (command), skipping", name, existing.GetVersion())
+		return true
+	}
+	active, _ := checkActive(ctx, unit)
+	if active {
+		log.Printf("workflow-runner: %s already installed@%s and active, skipping", name, existing.GetVersion())
+	}
+	return active
 }
