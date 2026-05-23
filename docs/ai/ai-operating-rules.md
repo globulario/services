@@ -420,7 +420,45 @@ Reasons:
 - Modify binary content to fake a version bump.
 - Use `build-all-packages.sh` as a recovery tool — it is for creating new releases, not restoring existing ones.
 
-## 15. The North Star
+## 15. Deploying a package — MCP tools only, never `cp`
+
+When the user asks to "deploy," "install," or "push a fix" to the cluster, always use the MCP package pipeline. **Never write a binary directly to `/usr/lib/globular/bin/` or any other node path.**
+
+**Forbidden — in any context, for any reason:**
+
+```bash
+# These commands are NEVER acceptable for deploying to a Globular cluster
+sudo cp <binary> /usr/lib/globular/bin/<binary>
+scp <binary> <node>:/usr/lib/globular/bin/<binary>
+rsync <binary> <node>:/usr/lib/globular/bin/
+```
+
+**Why direct copy is always wrong:**
+
+1. **Layer 3 (Installed) is poisoned.** The etcd installed-state record still carries the old `build_id` and `entrypoint_checksum`. The node-agent does not know the binary changed. The reconciler will eventually overwrite it.
+2. **Layer 4 (Runtime) fires immediately.** The verifier computes `sha256(/usr/lib/globular/bin/<binary>)` on every sweep and compares it to the repository's `entrypoint_checksum`. A locally-built binary — even with correct ldflags — has a different checksum than what the repository recorded for the published artifact. `package.installed_binary_hash_mismatch` will appear in the doctor report within seconds.
+3. **Other nodes stay on the old version.** The cluster is now split. The reconciler treats every other node as authoritative and the manually-patched node as drifted. It will revert the change on next convergence.
+4. **The cluster can never be in sync.** Even if the running binary is functionally correct, the infrastructure's truth model disagrees. Automated remediation, rollback decisions, and canary analysis all operate on the recorded checksums — not on what is actually running.
+
+**Correct deploy flow (5 steps):**
+
+```
+1. go build -ldflags "-X main.Version=<v>" -trimpath → binary in /tmp
+2. sudo cp /tmp/<bin> /var/lib/globular/packages/out/<svc>-build/bin/<bin>
+3. mcp__globular__package_build  (spec + root → .tgz with correct entrypoint_checksum)
+4. mcp__globular__package_publish (.tgz → repository; assigns build_id)
+5. globular services desired set <svc> <v>  +  globular services repair
+```
+
+Full procedure with authentication, spec extraction, and verification:
+`docs/operational-knowledge/deploy-package-via-mcp.md`
+
+**If a binary needs to be restored (e.g. after an accidental overwrite):**
+Download from the GitHub release for that version — never rebuild from source. The released binary's checksum matches what the repository already recorded. See Rule 14 (Repository artifact recovery).
+
+---
+
+## 16. The North Star
 
 Globular should be AI-operable because its truth is explicit.
 
