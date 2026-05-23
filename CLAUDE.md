@@ -84,6 +84,56 @@ Layer 4: Runtime Health (systemd)  — "Is it running and healthy?"
 - **No tokens stored in the codebase** — never commit JWTs, API keys, or credentials to source. Tokens are ephemeral (generated at runtime or cached in `~/.config/globular/token` per user)
 - All gRPC RPCs must have `(globular.auth.authz)` annotations
 
+### 7. Every incident MUST be recorded in awareness — no exceptions
+
+When diagnosing or fixing any bug, incident, or unexpected cluster behavior:
+
+**BEFORE touching files:**
+```bash
+globular awareness session-start         # register intent, check graph freshness
+globular awareness incident-pattern match \
+  --task "<what you're doing>" \
+  --file <file-you-will-edit>            # warn if this resembles a past incident
+```
+
+**BEFORE editing each file:**
+```bash
+globular awareness impact-path --file <path>   # blast radius check
+```
+
+**AFTER all edits, BEFORE committing:**
+```bash
+globular awareness scan-violations       # catch invariant violations
+```
+
+**AFTER the fix is committed — MANDATORY closure:**
+```bash
+# 1. Record in failure knowledge graph (symptoms + causes + resolution + wrong fixes + tests)
+globular awareness failure learn-incident \
+  --incident "INC-YYYY-NNNN" \
+  --category "<snake_case_category>" \
+  --symptom "..." \
+  --cause "..." \
+  --resolution "..." \
+  --wrong-fix "..." \
+  --test "<TestName> in <file>"
+
+# 2. Record incident pattern so future sessions are warned when touching related files
+#    Write a JSON file and then:
+globular awareness incident-pattern record --file pattern.json --incident INC-YYYY-NNNN
+```
+
+**Why this is non-negotiable:**
+- The failure knowledge graph is the cluster's institutional memory. Skipping it means the next session — or the next engineer — hits the same bug with no warning.
+- `incident-pattern match` runs BEFORE editing and warns when the current task resembles a past incident, failed proposal, or known trap. It only works if incidents were recorded.
+- The awareness pre-commit hook (`AWARENESS PRE-COMMIT GUARD`) passing is necessary but not sufficient — it does not record anything. Recording is a manual post-fix step.
+
+**Permissions note:** If `failure learn-incident` fails with `permission denied` on `/var/lib/globular/awareness/failure_graph/`, run:
+```bash
+sudo mkdir -p /var/lib/globular/awareness/failure_graph/{nodes,edges,incidents}
+sudo chmod -R 777 /var/lib/globular/awareness/failure_graph
+```
+
 ---
 
 ## ARCHITECTURE NOTES
