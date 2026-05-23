@@ -104,12 +104,23 @@ func (certificateSANCoverage) Evaluate(snap *collector.Snapshot, _ Config) []Fin
 			sanSet[strings.TrimSpace(san)] = true
 		}
 
-		// Check that every IP the node advertises is covered.
+		// Check that the primary IP is covered by the cert.
+		// The node-agent sorts IPs wired-first; the first element is the primary
+		// IP that gRPC clients connect to. Secondary IPs (WiFi, additional NICs)
+		// are excluded: the cert is cluster-wide and issued by the leader with its
+		// own interface set — secondary IPs on other nodes are never included, so
+		// firing on them produces permanent false-positive incidents.
 		var missing []string
-		for _, ipStr := range node.GetIdentity().GetIps() {
+		nodeIPs := node.GetIdentity().GetIps()
+		for i, ipStr := range nodeIPs {
 			ip := net.ParseIP(strings.TrimSpace(ipStr))
 			if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
 				continue
+			}
+			// Only check the primary IP (first in the wired-preferred sorted list).
+			// Secondary IPs are skipped — they aren't used for gRPC connections.
+			if i > 0 {
+				break
 			}
 			if !sanSet[ip.String()] {
 				missing = append(missing, ip.String())

@@ -33,12 +33,19 @@ func (nodeUnitsRunning) Evaluate(snap *collector.Snapshot, cfg Config) []Finding
 			continue
 		}
 
+		// Minio non-member check is per-node; compute once per node.
+		minioNonMember := nodeIsMinioNonMember(nodeID, snap)
+
 		for _, u := range inv.GetUnits() {
 			state := NormalizeUnitState(u.GetState())
 			if state != UnitStateFailed && state != UnitStateInactive {
 				continue
 			}
 			if u.GetName() == "keepalived.service" && ingressDisabled {
+				continue
+			}
+			// minio and sidekick are inactive by design on non-member nodes.
+			if isMinioOrSidekickUnit(u.GetName()) && minioNonMember {
 				continue
 			}
 

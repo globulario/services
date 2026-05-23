@@ -426,3 +426,41 @@ func (objectstoreMinioExistingDataGuard) Evaluate(snap *collector.Snapshot, _ Co
 		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 	}}
 }
+
+// ─── Shared MinIO membership helper ──────────────────────────────────────────
+
+// nodeIsMinioNonMember returns true when nodeID is NOT part of the MinIO pool
+// defined in ObjectStoreDesiredState.Nodes. On non-member nodes, minio and
+// sidekick are installed but intentionally inactive — rules must not fire on
+// them to avoid false-positive incidents.
+//
+// Returns false (conservative) when ObjectStoreDesired is nil or the pool is
+// empty: when membership is unknown, do NOT suppress findings.
+func nodeIsMinioNonMember(nodeID string, snap *collector.Snapshot) bool {
+	desired := snap.ObjectStoreDesired
+	if desired == nil || len(desired.Nodes) == 0 {
+		return false
+	}
+	poolIPs := make(map[string]bool, len(desired.Nodes))
+	for _, ip := range desired.Nodes {
+		poolIPs[strings.TrimSpace(ip)] = true
+	}
+	for _, n := range snap.Nodes {
+		if n.GetNodeId() != nodeID {
+			continue
+		}
+		for _, ip := range n.GetIdentity().GetIps() {
+			if poolIPs[strings.TrimSpace(ip)] {
+				return false // in the pool
+			}
+		}
+		return true // none of the node's IPs are in the pool
+	}
+	return false // node not found — conservative
+}
+
+// isMinioOrSidekickUnit reports whether a systemd unit name belongs to the
+// minio/sidekick stack (units that are inactive by design on non-member nodes).
+func isMinioOrSidekickUnit(unitName string) bool {
+	return unitName == "globular-minio.service" || unitName == "globular-sidekick.service"
+}

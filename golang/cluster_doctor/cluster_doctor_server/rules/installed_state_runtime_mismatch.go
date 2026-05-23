@@ -56,6 +56,7 @@ func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Conf
 		}
 
 		nodeKinds := snap.NodePackageKinds[nodeID] // may be nil
+		minioNonMember := nodeIsMinioNonMember(nodeID, snap)
 
 		for name, version := range health.GetInstalledVersions() {
 			canon := normalizeInstalledName(name)
@@ -68,6 +69,11 @@ func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Conf
 			// Ingress-gated: keepalived is "installed but inactive" by
 			// design when the ingress spec is disabled. Skip — not a mismatch.
 			if canon == "keepalived" && ingressDisabled {
+				continue
+			}
+			// MinIO non-member: minio and sidekick are installed but inactive
+			// by design on nodes that are not part of the MinIO pool.
+			if (canon == "minio" || canon == "sidekick") && minioNonMember {
 				continue
 			}
 			unit := packageUnit(canon)
