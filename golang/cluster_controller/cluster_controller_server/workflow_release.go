@@ -787,7 +787,7 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 
 func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 	return engine.NodeDirectApplyConfig{
-		InstallPackage: func(ctx context.Context, name, version, kind, buildID string, buildNumber int64) error {
+		InstallPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash string, buildNumber int64) error {
 			nc, _ := engine.GetNodeContext(ctx)
 			nodeID, endpoint := nc.NodeID, nc.AgentEndpoint
 			if endpoint == "" {
@@ -809,6 +809,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 					"version":      version,
 					"kind":         kind,
 					"build_id":     buildID,
+					"desired_hash": desiredHash,
 					"build_number": strconv.FormatInt(buildNumber, 10),
 				},
 			})
