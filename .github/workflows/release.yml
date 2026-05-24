@@ -6,6 +6,10 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
+      version:
+        description: 'Release version to build (e.g. 1.2.69) — required for manual runs'
+        type: string
+        default: ''
       force_full_rebuild:
         description: 'Force full rebuild — treat all packages as changed'
         type: boolean
@@ -85,10 +89,16 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+            TAG="v${VERSION}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+            TAG="${GITHUB_REF_NAME}"
+          fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          echo "Building platform release: ${VERSION} (${GITHUB_REF_NAME})"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Building platform release: ${VERSION} (${TAG})"
 
       # ═══════════════════════════════════════════════════════════════════════
       # BOM: Fetch previous release index for change detection
