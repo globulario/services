@@ -1034,6 +1034,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
           name: "Globular ${{ steps.version.outputs.version }}"
           files: |
             dist/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
