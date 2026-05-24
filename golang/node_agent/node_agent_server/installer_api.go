@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -49,131 +48,43 @@ var localPackageDirs = []string{
 	"/var/lib/globular/staging/local",
 }
 
-// InstallPackage fetches and installs a package artifact.
-//
-// Artifact identity MUST be propagated end-to-end:
-//   - buildNumber identifies which build of this version is expected
-//   - expectedSHA256 is verified against the fetched bytes (if provided)
-//
-// Either value may be zero/empty; when both are missing, artifact.fetch will
-// resolve the digest from the repository manifest before trusting any cached
-// bytes. The contract is: no install ever silently succeeds on unvalidated
-// cached content.
+// InstallPackage installs a package artifact from local disk.
+// Packages are distributed via the gateway's /join/packages/ endpoint and
+// stored in /var/lib/globular/packages/ before the node-agent starts.
+// The repository/MinIO path has been removed — local disk is the sole source.
 func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repositoryAddr, desiredVersion string, buildID string, expectedSHA256 string) error {
 	platform := runtime.GOOS + "_" + runtime.GOARCH
 	version := strings.TrimSpace(desiredVersion)
 	if version == "" {
-		// Never fetch artifacts with the synthetic 0.0.0-dev sentinel.
-		// Resolve a real package version from authoritative sources.
-		repoForResolve := strings.TrimSpace(repositoryAddr)
-		if repoForResolve == "" {
-			repoForResolve = strings.TrimSpace(srv.discoverRepositoryAddr())
-		}
-		if repoForResolve != "" {
-			if v, b, c, err := resolveLatestManifestFunc(ctx, name, kind, repoForResolve); err == nil && strings.TrimSpace(v) != "" {
-				version = strings.TrimSpace(v)
-				if strings.TrimSpace(buildID) == "" {
-					buildID = strings.TrimSpace(b)
-				}
-				if strings.TrimSpace(expectedSHA256) == "" {
-					expectedSHA256 = strings.TrimSpace(c)
-				}
-				log.Printf("installer-api: resolved latest manifest for %s (%s): version=%s build_id=%s", name, kind, version, buildID)
-			} else if err != nil {
-				log.Printf("installer-api: latest manifest resolution failed for %s (%s): %v", name, kind, err)
-			}
+		if bomVersion, bomErr := resolveVersionFromReleaseIndexFunc(name); bomErr == nil && strings.TrimSpace(bomVersion) != "" {
+			version = strings.TrimSpace(bomVersion)
+			log.Printf("installer-api: resolved %s version from release-index: %s", name, version)
 		}
 		if version == "" {
-			if bomVersion, bomErr := resolveVersionFromReleaseIndexFunc(name); bomErr == nil && strings.TrimSpace(bomVersion) != "" {
-				version = strings.TrimSpace(bomVersion)
-				log.Printf("installer-api: using release-index version for %s (%s): %s", name, kind, version)
-			}
-		}
-		if version == "" {
-			return fmt.Errorf("resolve package version for %s (%s): no desired version provided and latest-version resolution failed (repo + release-index)", name, kind)
+			return fmt.Errorf("resolve package version for %s (%s): no desired version provided and release-index lookup failed", name, kind)
 		}
 	}
 
 	artifactPath := fmt.Sprintf("/var/lib/globular/staging/%s/%s/latest.artifact",
 		defaultPublisherID, name)
 
-	// Try fetching from repository first.
-	if repositoryAddr == "" {
-		repositoryAddr = srv.discoverRepositoryAddr()
+	// Local-only: find the .tgz package on disk.
+	localPath := srv.findLocalPackage(name, version, platform)
+	if localPath == "" {
+		return fmt.Errorf("install %s: package not found in local dirs %v (version=%s) — ensure packages were downloaded during join", name, localPackageDirs, version)
 	}
+	log.Printf("installer-api: installing %s from local package %s", name, localPath)
 
-	fetched := false
-	var fetchErr error
-	if repositoryAddr != "" {
-		fetchHandler := actions.Get("artifact.fetch")
-		if fetchHandler != nil {
-			fetchArgs, err := structpb.NewStruct(map[string]any{
-				"service":         name,
-				"version":         version,
-				"platform":        platform,
-				"artifact_path":   artifactPath,
-				"publisher_id":    defaultPublisherID,
-				"repository_addr": repositoryAddr,
-				"artifact_kind":   kind,
-				"build_id":        buildID,
-				"expected_sha256": expectedSHA256,
-			})
-			if err == nil {
-				log.Printf("installer-api: fetching %s (%s) build_id=%s from %s",
-					name, kind, buildID, repositoryAddr)
-				if _, fe := fetchHandler.Apply(ctx, fetchArgs); fe == nil {
-					fetched = true
-				} else {
-					fetchErr = fe
-					log.Printf("installer-api: repo fetch failed for %s: %v — trying local fallback", name, fe)
-				}
-			}
-		}
+	// Copy the .tgz to the staging path so the install handlers can find it.
+	if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
+		return fmt.Errorf("create staging dir: %w", err)
 	}
-
-	// Fallback fail-closed: if the repository told us this build_id is orphaned
-	// (demoted: archived/yanked/revoked) or not in the catalog at all, we must
-	// NOT install whatever .tgz happens to live in /var/lib/globular/packages/.
-	// Without a manifest+checksum proof, blind reuse of pinned bytes silently
-	// runs a build the repository said "stop on". This is the
-	// fallback.requires_manifest_checksum invariant.
-	//
-	// Network/TLS/auth failures (ErrRepositoryUnreachable) are recoverable —
-	// the local pinned tarball may still be the right bytes — and the existing
-	// fallback path continues unchanged for that case. The cache decision
-	// matrix in artifact.fetch will still refuse to reuse cached bytes without
-	// a checksum proof, so even the unreachable case can't silently install
-	// the wrong build.
-	if fetchErr != nil {
-		if errors.Is(fetchErr, actions.ErrBuildIDOrphaned) ||
-			errors.Is(fetchErr, actions.ErrBuildIDNotFound) {
-			return fmt.Errorf("install %s build_id=%s blocked: RELEASE_BLOCKED_REPOSITORY_ORPHANED_BUILD_ID — repository demoted or never published this build_id; refusing local fallback to avoid installing unverifiable bytes: %w",
-				name, buildID, fetchErr)
-		}
+	src, err := os.ReadFile(localPath)
+	if err != nil {
+		return fmt.Errorf("read local package %s: %w", localPath, err)
 	}
-
-	// Local fallback: find a .tgz package on disk.
-	if !fetched {
-		localPath := srv.findLocalPackage(name, version, platform)
-		if localPath == "" {
-			if repositoryAddr == "" {
-				return fmt.Errorf("no repository address available and no local package for %s", name)
-			}
-			return fmt.Errorf("fetch %s: repository unreachable and no local package found", name)
-		}
-		log.Printf("installer-api: using local package %s for %s", localPath, name)
-
-		// Copy the .tgz to the staging path so the install handlers can find it.
-		if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
-			return fmt.Errorf("create staging dir: %w", err)
-		}
-		src, err := os.ReadFile(localPath)
-		if err != nil {
-			return fmt.Errorf("read local package %s: %w", localPath, err)
-		}
-		if err := os.WriteFile(artifactPath, src, 0o644); err != nil {
-			return fmt.Errorf("write staging artifact: %w", err)
-		}
+	if err := os.WriteFile(artifactPath, src, 0o644); err != nil {
+		return fmt.Errorf("write staging artifact: %w", err)
 	}
 
 	// Try to read the real version from the artifact manifest (package.json).

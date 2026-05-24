@@ -317,20 +317,9 @@ spec:
         idempotency: verify_then_continue
         resume_policy: verify_effect
 
-    - id: publish_bootstrap_artifacts
-      title: Publish local bootstrap artifacts to repository
-      dependsOn: [bootstrap_first_node]
-      actor: repository
-      action: repository.publish_bootstrap_artifacts
-      with:
-        source: local-bootstrap-cache
-      execution:
-        idempotency: verify_then_continue
-        resume_policy: verify_effect
-
     - id: import_installed_into_desired
       title: Import installed packages into desired state
-      dependsOn: [publish_bootstrap_artifacts]
+      dependsOn: [bootstrap_first_node]
       actor: cluster-controller
       action: controller.seed_desired_from_installed
       execution:

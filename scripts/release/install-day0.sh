@@ -1734,14 +1734,26 @@ if [[ ! -f "${STATE_DIR}/release-index.json" ]]; then
   log_warn "Include release-index.json in the installer bundle for deterministic installs."
 fi
 
-# already present. Non-fatal: install completes even if some packages fail.
-log_step "Publishing Bootstrap Artifacts to Repository"
-if [[ -x "$SCRIPT_DIR/ensure-bootstrap-artifacts.sh" ]]; then
-  "$SCRIPT_DIR/ensure-bootstrap-artifacts.sh" "$PKG_DIR" "$GLOBULAR_CLI" || \
-    log_warn "Some artifacts failed to publish — run ensure-bootstrap-artifacts.sh manually"
-else
-  log_warn "ensure-bootstrap-artifacts.sh not found — skipping artifact publish"
-fi
+# ── Copy package artifacts to local distribution directory ─────────────────────
+# Packages are served to joining nodes via the gateway's /join/packages/ endpoint.
+# This replaces the MinIO publish step — local disk is the sole package authority.
+log_step "Copying Package Artifacts to /var/lib/globular/packages/"
+DIST_PKG_DIR="${STATE_DIR}/packages"
+mkdir -p "${DIST_PKG_DIR}"
+_copied=0
+_skipped=0
+for _tgz in "$PKG_DIR/"*.tgz; do
+  [[ -f "$_tgz" ]] || continue
+  _dest="${DIST_PKG_DIR}/$(basename "$_tgz")"
+  if [[ -f "$_dest" ]]; then
+    _skipped=$((_skipped + 1))
+  else
+    cp "$_tgz" "$_dest" && _copied=$((_copied + 1)) || \
+      log_warn "Failed to copy $(basename "$_tgz") to ${DIST_PKG_DIR}"
+  fi
+done
+chown -R globular:globular "${DIST_PKG_DIR}" 2>/dev/null || true
+log_success "Package distribution ready: ${_copied} copied, ${_skipped} already present (${DIST_PKG_DIR})"
 
 # ── Seed desired state from installed packages (Layer 2) ─────────────────────
 # The controller knows what is in the repository (Layer 1). We seed Layer 2
