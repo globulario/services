@@ -431,8 +431,13 @@ func (c *Collector) runVerification(ctx context.Context, snap *Snapshot) {
 	now := time.Now()
 	var verdicts []verifier.Verdict
 
+	// Track which (nodeID, service) pairs have been scheduled so the
+	// catch-up pass below doesn't duplicate them.
+	scheduled := make(map[string]bool)
+
 	for _, dst := range snap.DesiredServiceTargets {
 		for _, nodeID := range dst.RequiredNodes {
+			scheduled[nodeID+"/"+dst.Service] = true
 			installInfo := resolvePerNodeInstallInfo(ctx, nodeID, dst)
 			tgt := verifier.Target{
 				Service:                   dst.Service,
@@ -454,6 +459,44 @@ func (c *Collector) runVerification(ctx context.Context, snap *Snapshot) {
 				// doctor can scrape. Phase 5b's effective-config drift
 				// sub-check is skipped when RenderedUnit is empty; it
 				// remains live for callers that DO have the rendered text.
+			}
+			verdicts = append(verdicts, verifier.VerifyTarget(tgt, ev, now))
+		}
+	}
+
+	// Catch-up pass: verify any (node, service) pair where the service is
+	// actually installed on the node but the node is missing from the
+	// ServiceRelease's status node list. This happens when a node joins
+	// after the release was already AVAILABLE — the status captures only
+	// the founding cohort, so RequiredNodes above never includes the new
+	// node. Without this pass, the new node gets a permanent FAIL from
+	// handlers_health ("no verifier verdict yet") even though the service
+	// is installed and running correctly.
+	for nodeID, kinds := range snap.NodePackageKinds {
+		for svcName := range kinds {
+			if scheduled[nodeID+"/"+svcName] {
+				continue
+			}
+			dst, ok := snap.DesiredServiceTargets[svcName]
+			if !ok || dst == nil {
+				continue
+			}
+			installInfo := resolvePerNodeInstallInfo(ctx, nodeID, dst)
+			tgt := verifier.Target{
+				Service:                   dst.Service,
+				NodeID:                    nodeID,
+				DesiredVersion:            dst.DesiredVersion,
+				DesiredBuildID:            dst.DesiredBuildID,
+				DesiredEntrypointChecksum: dst.DesiredEntrypointChecksum,
+				DesiredPackageDigest:      dst.DesiredPackageDigest,
+				RuntimeNeeded:             dst.RuntimeNeeded,
+				ApplyTime:                 installInfo.applyTime,
+				ApplyTimeSource:           installInfo.applyTimeSource,
+				IsFirstInstall:            installInfo.isFirstInstall,
+				WrapsUpstreamBinary:       dst.WrapsUpstreamBinary,
+			}
+			ev := verifier.Evidence{
+				Proof: findProofForService(snap.RuntimeProofs[nodeID], dst.Service),
 			}
 			verdicts = append(verdicts, verifier.VerifyTarget(tgt, ev, now))
 		}
