@@ -269,8 +269,18 @@ jobs:
           chmod +x ffmpeg
 
           echo "-> scylla-manager + agent + sctool (latest stable from GitHub)..."
-          SCYLLA_MGR_VERSION=$(curl -fsSL "https://api.github.com/repos/scylladb/scylla-manager/releases" \
-            | python3 -c "import json,sys; releases=[r for r in json.load(sys.stdin) if r['assets'] and not r['prerelease']]; print(releases[0]['tag_name'].lstrip('v'))")
+          SCYLLA_MGR_VERSION=$(curl -fsSL "https://api.github.com/repos/scylladb/scylla-manager/releases?per_page=100" \
+            | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+releases = [r for r in data if not r.get('prerelease') and not r.get('draft') and r.get('assets')]
+if not releases:
+    # fallback: accept any non-draft release
+    releases = [r for r in data if not r.get('draft')]
+if not releases:
+    sys.exit('ERROR: no scylla-manager stable release found')
+print(releases[0]['tag_name'].lstrip('v'))
+")
           echo "  version: ${SCYLLA_MGR_VERSION}"
           echo "SCYLLA_MGR_VERSION=${SCYLLA_MGR_VERSION}" >> "$GITHUB_ENV"
           curl -fsSL "https://github.com/scylladb/scylla-manager/releases/download/v${SCYLLA_MGR_VERSION}/scylla-manager_${SCYLLA_MGR_VERSION}_linux_x86_64.tar.gz" \
