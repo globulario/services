@@ -119,7 +119,26 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 					}
 				}
 			}
-			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, version, buildID, checksum)
+			if err := srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, version, buildID, checksum); err != nil {
+				return err
+			}
+			// Start the unit after a successful first-install. install_payload only
+			// extracts binary + unit file; it does not start the service. Without this
+			// step, SERVICE packages installed during the join workflow stay disabled
+			// and inactive after the join completes because the controller reconciler
+			// sees installed==desired and dispatches no further actions.
+			//
+			// minio and sidekick are excluded: minio requires MinIO cluster membership
+			// before it can start, and sidekick is its sidecar. Both are activated by
+			// a dedicated storage-join workflow once membership is established.
+			if unit := packageUnit(pkg.Name); unit != "" && pkg.Name != "minio" && pkg.Name != "sidekick" {
+				if startErr := supervisor.Start(ctx, unit); startErr != nil {
+					log.Printf("workflow-runner: %s post-install start failed (non-fatal): %v", pkg.Name, startErr)
+				} else {
+					log.Printf("workflow-runner: %s started after install", pkg.Name)
+				}
+			}
+			return nil
 		},
 		IsServiceActive: func(name string) bool {
 			return engine.DefaultIsServiceActive(name)
