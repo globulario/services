@@ -159,6 +159,16 @@ func canSkipInstallPackage(
 	// Runtime proof: unit must be active.
 	active, err := isActive(ctx, unit)
 	if err == nil && active {
+		// Also require entrypoint_checksum to be present. Without it the runtime
+		// verifier produces no verdict (UNVERIFIED finding) and the heartbeat
+		// reports hash_drift. Force a re-apply so ApplyPackageRelease writes the
+		// checksum — the reconciler must not skip a package that is running but
+		// unverified, even when version and build_id match.
+		if existing.GetMetadata()["entrypoint_checksum"] == "" {
+			return installSkipDeniedVersion, fmt.Sprintf(
+				"install-package %s: %s active at %s but entrypoint_checksum missing — reapplying to register proof",
+				pkgName, unit, desiredVersion)
+		}
 		return installSkipAllowed, fmt.Sprintf(
 			"install-package %s: %s active at %s, skipping", pkgName, unit, desiredVersion)
 	}
