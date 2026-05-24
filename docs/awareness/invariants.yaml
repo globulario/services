@@ -2996,3 +2996,76 @@ invariants:
         - service.running_binary_hash_mismatch
         - service.old_pid_after_upgrade
         - service.runtime_identity_unproven
+
+    - id: install.join_path_must_complete_install_contract
+      title: Every install path must complete the full install contract — start unit, write entrypoint_checksum, preserve metadata
+      severity: critical
+      status: active
+      summary: |
+        There are two install paths in the node-agent:
+          1. ApplyPackageRelease — the reconciler path. Starts the unit, writes
+             entrypoint_checksum to the etcd installed-state record, preserves
+             existing metadata. This path is complete.
+          2. InstallPackage — the join-workflow path (called from FetchAndInstall
+             in workflow_runner.go). Historically only extracted the binary and
+             wrote a local marker file. This left nodes in a permanently degraded
+             state: units inactive, entrypoint_checksum absent from etcd,
+             hash_drift and UNVERIFIED findings on every joined node until the
+             reconciler ran a full ApplyPackageRelease pass.
+
+        The invariant: EVERY install path must complete the same contract:
+          - Start the systemd unit (supervisor.Start) after binary extraction,
+            except minio and sidekick which require cluster membership first.
+          - Write entrypoint_checksum to the etcd installed-state record
+            immediately after install (writeInstalledStateChecksum).
+          - Use read-modify-write when updating the etcd record — never a full
+            replace that clears fields written by other paths (artifact Checksum,
+            Platform, BuildNumber, existing Metadata fields).
+          - installedBinaryPath must probe the _server-suffixed path first and
+            fall back to the plain package name — some services (e.g. mcp) do
+            not follow the {name}_server binary naming convention.
+
+        The reconciler (ApplyPackageRelease) is a DRIFT CORRECTOR, not a
+        first-time installer. It must not be required to finish what the join
+        workflow should have done in a single pass.
+      protects:
+        state:
+            - /globular/nodes/{node_id}/packages/{kind}/{name}
+        files:
+            - golang/node_agent/node_agent_server/installer_api.go
+            - golang/node_agent/node_agent_server/workflow_runner.go
+            - golang/node_agent/node_agent_server/apply_package_release.go
+            - golang/node_agent/node_agent_server/internal/actions/package_state.go
+        symbols:
+            - InstallPackage
+            - writeInstalledStateChecksum
+            - installedBinaryPath
+            - FetchAndInstall
+            - packageReportStateAction.Apply
+      enforcement: |
+        Before editing any file in the protects.files list, verify:
+          1. The install path being modified calls supervisor.Start after install
+             (except minio/sidekick).
+          2. The install path writes entrypoint_checksum to etcd via
+             writeInstalledStateChecksum or equivalent.
+          3. Any etcd write to InstalledPackage reads the existing record first
+             and merges — never replaces with a sparse struct.
+          4. installedBinaryPath probes the _server path then falls back to
+             the plain name — never assumes all SERVICE binaries end in _server.
+        If a new install path is added (e.g. repair, rollback, force-reinstall),
+        it MUST implement all four points or explicitly justify why each is not
+        applicable.
+      forbidden_fixes:
+        - making_reconciler_responsible_for_starting_join_installed_units
+        - full_replace_of_installedpackage_without_reading_existing_record
+        - assuming_service_binary_always_named_{name}_server
+        - skipping_entrypoint_checksum_write_because_applypackagerelease_will_fix_it
+      required_tests:
+        - TestInstallPackage_WritesEntrypointChecksumToEtcd
+        - TestInstallPackage_PreservesExistingMetadata
+        - TestInstalledBinaryPath_FallsBackToPlainName
+        - TestPackageReportState_PreservesExistingMetadata
+      related_failure_modes:
+        - service.runtime_identity_unproven
+        - installed_state_runtime_mismatch
+        - service.unit_inactive_after_join
