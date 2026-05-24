@@ -104,6 +104,34 @@ func criticalKeyBlockActionID(nodeID, kind, pkgName string) string {
 	return fmt.Sprintf("controller/%s/%s/%s/critical_key_block", nodeID, kind, pkgName)
 }
 
+// clearRuntimeDepBlock deletes stale dep-block records for nodes whose
+// RuntimeLocalDependencies are now satisfied. Both the action key and the
+// latest-outcome key are deleted so the reconciler re-dispatches the install.
+// Best-effort: errors are logged but do not abort the caller.
+func clearRuntimeDepBlock(ctx context.Context, nodeIDs []string, pkgName, kind string) {
+	for _, nodeID := range nodeIDs {
+		actionID := fmt.Sprintf("controller/%s/%s/%s/runtime_dep_block", nodeID, kind, pkgName)
+		// Delete the action record (written by writeRuntimeDepBlock).
+		bctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		if err := installed_state.DeleteConvergenceResult(bctx, actionID); err != nil {
+			log.Printf("runtime-dep-block: clear action for %s/%s on %s: %v", kind, pkgName, nodeID, err)
+		}
+		cancel()
+		// Delete the latest-outcome record that blocks hasUnservedNodes.
+		cli, cerr := criticalKeyGetEtcdClient()
+		if cerr != nil {
+			log.Printf("runtime-dep-block: etcd client for latest clear %s/%s on %s: %v", kind, pkgName, nodeID, cerr)
+			continue
+		}
+		lctx, lcancel := context.WithTimeout(ctx, 5*time.Second)
+		latestKey := installed_state.ConvergenceLatestKey(nodeID, pkgName)
+		if _, err := cli.Delete(lctx, latestKey); err != nil {
+			log.Printf("runtime-dep-block: clear latest for %s/%s on %s: %v", kind, pkgName, nodeID, err)
+		}
+		lcancel()
+	}
+}
+
 // writeRuntimeDepBlock writes OutcomeBlockedMissingNativeDep for each node in
 // nodeIDs. Called when reconcileResolved skips a node because its runtime local
 // dependencies (e.g. minio for sidekick) are not yet active. The record is

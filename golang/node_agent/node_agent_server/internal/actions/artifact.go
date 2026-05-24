@@ -418,6 +418,27 @@ var (
 	ErrRepositoryUnreachable = errors.New("RepositoryUnreachable")
 )
 
+// isRepositoryBackpressure returns true when err signals that the repository is
+// temporarily overloaded (ResourceExhausted / server overloaded / too many
+// concurrent requests). This is a transient capacity signal — the caller must
+// retry with backoff, not mark the install as permanently failed.
+//
+// Permanent artifact identity failures (checksum mismatch, orphaned build,
+// manifest missing) must NOT be classified here.
+func isRepositoryBackpressure(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "code = resourceexhausted") ||
+		strings.Contains(s, "resourceexhausted") ||
+		strings.Contains(s, "resource exhausted") ||
+		strings.Contains(s, "server overloaded") ||
+		strings.Contains(s, "too many concurrent requests") ||
+		strings.Contains(s, "repository overloaded") ||
+		strings.Contains(s, "repository backpressure")
+}
+
 // resolveArtifactByBuildID resolves the exact build_number and checksum for a
 // given build_id by calling ResolveArtifact on the repository. This is the
 // correct path for controllers that dispatch workflows with a known build_id
@@ -471,6 +492,11 @@ func resolveArtifactByBuildID(ctx context.Context, repoAddr, buildID, service, p
 			return 0, "", fmt.Errorf("resolve artifact by build_id %s: %v: %w", buildID, err, ErrBuildIDOrphaned)
 		case strings.Contains(emsg, "code = NotFound"):
 			return 0, "", fmt.Errorf("resolve artifact by build_id %s: %v: %w", buildID, err, ErrBuildIDNotFound)
+		case isRepositoryBackpressure(err):
+			// Repository backpressure (ResourceExhausted / server overloaded) is
+			// transient — the caller must retry with backoff, not treat this as a
+			// permanent bootstrap failure.
+			return 0, "", fmt.Errorf("repository backpressure while resolving artifact build_id=%s: %v: %w", buildID, err, ErrRepositoryUnreachable)
 		case strings.Contains(emsg, "code = Unavailable") || strings.Contains(emsg, "code = DeadlineExceeded") ||
 			strings.Contains(emsg, "code = Unauthenticated") || strings.Contains(emsg, "connection refused") ||
 			strings.Contains(emsg, "no such host"):

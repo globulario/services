@@ -77,6 +77,69 @@ type PackageRef struct {
 // Node-agent actions
 // --------------------------------------------------------------------------
 
+// joinInstallConcurrencyLimit caps concurrent repository fetches during
+// node.install_packages steps. A fresh joining node should not saturate the
+// repository while other nodes are converging simultaneously.
+const joinInstallConcurrencyLimit = 3
+
+// joinInstallRetryDelays is the backoff schedule for transient repository
+// errors during join. 6 total attempts (1 initial + 5 retries).
+// Day-1 join invariant: repository backpressure is transient — retry with
+// backoff; only permanent artifact identity failures may mark bootstrap failed.
+var joinInstallRetryDelays = []time.Duration{
+	5 * time.Second,
+	10 * time.Second,
+	20 * time.Second,
+	40 * time.Second,
+	60 * time.Second,
+}
+
+// isTransientJoinInstallError returns true when the error is repository
+// backpressure or transient network unavailability that warrants a retry.
+// Permanent errors (checksum mismatch, orphaned build, manifest corruption,
+// NotFound) return false.
+func isTransientJoinInstallError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "repository unreachable") ||
+		strings.Contains(s, "repository backpressure") ||
+		strings.Contains(s, "server overloaded") ||
+		strings.Contains(s, "too many concurrent requests") ||
+		strings.Contains(s, "resourceexhausted") ||
+		strings.Contains(s, "resource exhausted") ||
+		strings.Contains(s, "repository unavailable")
+}
+
+// installWithJoinRetry runs fn with bounded exponential backoff for transient
+// repository errors. Permanent errors are returned immediately.
+func installWithJoinRetry(ctx context.Context, pkgName string, fn func(context.Context) error) error {
+	var lastErr error
+	for attempt := 0; attempt <= len(joinInstallRetryDelays); attempt++ {
+		if attempt > 0 {
+			delay := joinInstallRetryDelays[attempt-1]
+			log.Printf("join-install: transient repository error for %s attempt=%d/%d — retrying in %s: %v",
+				pkgName, attempt, len(joinInstallRetryDelays)+1, delay, lastErr)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+		if err := fn(ctx); err == nil {
+			return nil
+		} else {
+			lastErr = err
+			if !isTransientJoinInstallError(err) {
+				return err
+			}
+		}
+	}
+	return fmt.Errorf("join install %s: repository backpressure after %d attempts: %w",
+		pkgName, len(joinInstallRetryDelays)+1, lastErr)
+}
+
 func nodeInstallPackages(cfg NodeAgentConfig) ActionHandler {
 	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
 		pkgs, err := extractPackageList(req.With)
@@ -90,10 +153,13 @@ func nodeInstallPackages(cfg NodeAgentConfig) ActionHandler {
 		log.Printf("actor[node-agent]: installing %d packages: %s",
 			len(pkgs), packageNames(pkgs))
 
-		// Install all packages in parallel within this step.
+		// Limit concurrent fetches to avoid overwhelming the repository when
+		// multiple nodes are converging simultaneously. Each install retries on
+		// transient repository backpressure before failing the step.
+		sem := make(chan struct{}, joinInstallConcurrencyLimit)
 		var wg sync.WaitGroup
 		var mu sync.Mutex
-		var errors []string
+		var errs []string
 		installed := 0
 
 		for _, pkg := range pkgs {
@@ -101,10 +167,21 @@ func nodeInstallPackages(cfg NodeAgentConfig) ActionHandler {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				start := time.Now()
-				if err := cfg.FetchAndInstall(ctx, pkg); err != nil {
+				select {
+				case sem <- struct{}{}:
+					defer func() { <-sem }()
+				case <-ctx.Done():
 					mu.Lock()
-					errors = append(errors, fmt.Sprintf("%s: %v", pkg.Name, err))
+					errs = append(errs, fmt.Sprintf("%s: %v", pkg.Name, ctx.Err()))
+					mu.Unlock()
+					return
+				}
+				start := time.Now()
+				if err := installWithJoinRetry(ctx, pkg.Name, func(attemptCtx context.Context) error {
+					return cfg.FetchAndInstall(attemptCtx, pkg)
+				}); err != nil {
+					mu.Lock()
+					errs = append(errs, fmt.Sprintf("%s: %v", pkg.Name, err))
 					mu.Unlock()
 					log.Printf("actor[node-agent]: FAILED %s (%v)", pkg.Name, err)
 					return
@@ -117,9 +194,9 @@ func nodeInstallPackages(cfg NodeAgentConfig) ActionHandler {
 		}
 		wg.Wait()
 
-		if len(errors) > 0 {
+		if len(errs) > 0 {
 			return nil, fmt.Errorf("failed to install %d/%d packages: %s",
-				len(errors), len(pkgs), strings.Join(errors, "; "))
+				len(errs), len(pkgs), strings.Join(errs, "; "))
 		}
 
 		return &ActionResult{

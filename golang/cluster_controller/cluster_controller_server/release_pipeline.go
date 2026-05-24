@@ -431,8 +431,9 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	// Collect eligible nodes — same filtering as before.
 	isWorkload := h.ResourceType == "ServiceRelease" || h.ResourceType == "ApplicationRelease"
 	nodeIDs := make([]string, 0, len(srv.state.Nodes))
-	var depBlockedNodeIDs []string // nodes skipped due to unmet RuntimeLocalDependencies
-	var depBlockedMissing []string // the missing deps (last set wins; used for logging)
+	var depBlockedNodeIDs []string  // nodes skipped due to unmet RuntimeLocalDependencies
+	var depBlockedMissing []string  // the missing deps (last set wins; used for logging)
+	var depClearedNodeIDs []string  // nodes whose deps were previously blocked but are now satisfied
 	serviceName := h.Name
 	if idx := strings.LastIndex(serviceName, "/"); idx >= 0 {
 		serviceName = serviceName[idx+1:]
@@ -496,6 +497,8 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 				depBlockedMissing = missing
 				continue
 			}
+			// Deps are now satisfied for this node — track it for stale block cleanup.
+			depClearedNodeIDs = append(depClearedNodeIDs, id)
 		}
 		nodeIDs = append(nodeIDs, id)
 	}
@@ -518,6 +521,14 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	// blocked by topology).
 	if len(depBlockedNodeIDs) > 0 && h.InstalledStateName != "" {
 		writeRuntimeDepBlock(ctx, depBlockedNodeIDs, h.InstalledStateName, pkgKind, depBlockedMissing)
+	}
+
+	// Clear any stale dep-block records for nodes whose deps are now satisfied.
+	// Without this, a block written during a bootstrap race (deps installed but
+	// not yet active when the block was written) persists forever and requires
+	// manual etcd key deletion to unblock convergence.
+	if len(depClearedNodeIDs) > 0 && h.InstalledStateName != "" {
+		clearRuntimeDepBlock(ctx, depClearedNodeIDs, h.InstalledStateName, pkgKind)
 	}
 
 	if len(nodeIDs) == 0 {
