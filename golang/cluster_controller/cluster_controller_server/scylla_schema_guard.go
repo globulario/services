@@ -46,9 +46,32 @@ var criticalScyllaKeyspaces = []string{
 	"local_resource",
 	"ai_memory",
 	"globular_events",
+	"repository",
 }
 
 const scyllaSchemaGuardEnforceRequestKey = "/globular/scylla/schema_guard/enforce_request"
+
+func (srv *server) requestScyllaSchemaGuardEnforce(ctx context.Context, reason string) {
+	if srv == nil {
+		return
+	}
+	kv := srv.kv
+	if kv == nil {
+		kv = srv.etcdClient
+	}
+	if kv == nil {
+		return
+	}
+	if strings.TrimSpace(reason) == "" {
+		reason = "manual"
+	}
+	payload := fmt.Sprintf("%d:%s", time.Now().Unix(), reason)
+	wctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if _, err := kv.Put(wctx, scyllaSchemaGuardEnforceRequestKey, payload); err != nil {
+		log.Printf("scylla_schema_guard: enforce request write failed: %v", err)
+	}
+}
 
 type schemaGuardStatus struct {
 	Keyspace               string `json:"keyspace"`

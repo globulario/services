@@ -139,6 +139,7 @@ func NewRegistry(cfg Config) *Registry {
 		// Complements ingressAmbiguousDisableRejected which fires on node status.
 		ingressUnguardedDisableIntent{},
 		scyllaKeyspaceRFPolicyViolation{},
+		repositoryKeyspaceRFPolicyViolation{},
 		// Critical-key registry presence: key is absent from etcd.
 		criticalKeyRegistryPresence{},
 		// Critical-key ownership completeness: key in live-check list has no

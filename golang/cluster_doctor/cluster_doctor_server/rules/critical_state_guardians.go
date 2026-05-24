@@ -180,3 +180,49 @@ func (scyllaKeyspaceRFPolicyViolation) Evaluate(snap *collector.Snapshot, _ Conf
 	}
 	return findings
 }
+
+type repositoryKeyspaceRFPolicyViolation struct{}
+
+func (repositoryKeyspaceRFPolicyViolation) ID() string       { return "repository.keyspace.rf_policy_violation" }
+func (repositoryKeyspaceRFPolicyViolation) Category() string { return "repository" }
+func (repositoryKeyspaceRFPolicyViolation) Scope() string    { return "cluster" }
+
+func (repositoryKeyspaceRFPolicyViolation) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	raw, ok := snap.ScyllaSchemaGuardStatus["repository"]
+	if !ok {
+		return nil
+	}
+	violation, _ := raw["violation"].(bool)
+	if !violation {
+		return nil
+	}
+	currentRF := fmt.Sprintf("%v", raw["current_rf"])
+	requiredRF := fmt.Sprintf("%v", raw["required_rf"])
+	lastErr := strings.TrimSpace(fmt.Sprintf("%v", raw["last_error"]))
+	summary := fmt.Sprintf("Repository keyspace replication policy violated (current=%s required=%s).", currentRF, requiredRF)
+	if lastErr != "" && lastErr != "<nil>" {
+		summary += " " + lastErr
+	}
+	return []Finding{{
+		FindingID:   FindingID("repository.keyspace.rf_policy_violation", "cluster", "repository"),
+		InvariantID: "repository.keyspace.rf_policy_violation",
+		Severity:    cluster_doctorpb.Severity_SEVERITY_CRITICAL,
+		Category:    "repository",
+		EntityRef:   "cluster",
+		Summary:     summary,
+		Evidence: []*cluster_doctorpb.Evidence{
+			kvEvidence("etcd", "Get(/globular/scylla/schema_guard/repository)", map[string]string{
+				"keyspace":    "repository",
+				"current_rf":  currentRF,
+				"required_rf": requiredRF,
+				"last_error":  lastErr,
+			}),
+		},
+		Remediation: []*cluster_doctorpb.RemediationStep{
+			step(1, "Run schema guard now", "globular scylla schema enforce"),
+			step(2, "Verify repository keyspace RF", "globular scylla schema status"),
+			step(3, "Repair Scylla after RF raise", "nodetool repair repository"),
+		},
+		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+	}}
+}

@@ -1454,6 +1454,9 @@ func (srv *server) publishScyllaHostsIfNeeded(ctx context.Context) {
 		return
 	}
 	log.Printf("scylla hosts updated in etcd: %v", hosts)
+	// Membership changed (node join/leave/profile shift): force immediate RF
+	// policy re-evaluation instead of waiting for the periodic schema-guard tick.
+	srv.requestScyllaSchemaGuardEnforce(ctx, "scylla_hosts_changed")
 }
 
 // clusterVIPFromSpec reads the cluster VIP from the ingress spec stored in etcd.
