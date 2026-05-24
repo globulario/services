@@ -14,8 +14,11 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/installed_state"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
 	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -190,14 +193,55 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	pinArtifact(name, version, platform, artifactPath)
 
 	// Install.
+	var installErr error
 	switch strings.ToUpper(kind) {
 	case "INFRASTRUCTURE":
-		return srv.installInfra(ctx, name, version, artifactPath)
-	case "COMMAND":
-		return srv.installPayload(ctx, name, version, artifactPath)
-	default:
-		return srv.installPayload(ctx, name, version, artifactPath)
+		installErr = srv.installInfra(ctx, name, version, artifactPath)
+	default: // SERVICE, COMMAND
+		installErr = srv.installPayload(ctx, name, version, artifactPath)
 	}
+	if installErr != nil {
+		return installErr
+	}
+
+	// Write entrypoint_checksum to the etcd installed-state record. Without
+	// this, the heartbeat compares the binary hash against an empty checksum
+	// and reports hash_drift, and the runtime verifier has no hash to produce
+	// a VERIFIED verdict (UNVERIFIED finding). ApplyPackageRelease does this
+	// on the normal reconciler path; here we mirror that behaviour for packages
+	// installed via the join workflow.
+	srv.writeInstalledStateChecksum(ctx, name, strings.ToUpper(kind), version, buildID)
+	return nil
+}
+
+// writeInstalledStateChecksum computes the SHA256 of the installed binary and
+// writes it to the etcd installed-state record as entrypoint_checksum. Called
+// from the join-workflow install path to prevent hash_drift and UNVERIFIED.
+// Best-effort: failures are logged but never block the install.
+func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, name, kind, version, buildID string) {
+	path := installedBinaryPath(name, kind)
+	hash, err := cachedSha256(path)
+	if err != nil || hash == "" {
+		log.Printf("installer-api: skip entrypoint_checksum for %s (%s): binary not hashable: %v", name, kind, err)
+		return
+	}
+	now := time.Now().Unix()
+	pkg := &node_agentpb.InstalledPackage{
+		NodeId:        srv.nodeID,
+		Name:          name,
+		Version:       version,
+		Kind:          kind,
+		Status:        "installed",
+		InstalledUnix: now,
+		UpdatedUnix:   now,
+		BuildId:       buildID,
+		Metadata:      map[string]string{"entrypoint_checksum": hash},
+	}
+	if werr := installed_state.WriteInstalledPackage(ctx, pkg); werr != nil {
+		log.Printf("installer-api: write installed-state for %s: %v (non-fatal)", name, werr)
+		return
+	}
+	log.Printf("installer-api: stored entrypoint_checksum for %s: %s", name, hash[:16])
 }
 
 // pinArtifact copies the fetched artifact to the local pinned directory.
