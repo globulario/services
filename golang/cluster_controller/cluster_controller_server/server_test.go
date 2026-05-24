@@ -428,3 +428,35 @@ func TestGetClusterHealthAllHealthy(t *testing.T) {
 		t.Fatalf("expected 2 healthy nodes, got %d", resp.GetHealthyNodes())
 	}
 }
+
+func TestGetClusterHealthConvergingScyllaInactiveIsUnhealthy(t *testing.T) {
+	state := newControllerState()
+	now := time.Now()
+	state.MinioPoolNodes = []string{"10.0.0.102"}
+	state.Nodes["node-1"] = &nodeState{
+		NodeID:   "node-1",
+		Identity: storedIdentity{Hostname: "lenovo", Ips: []string{"10.0.0.102"}},
+		Profiles: []string{"storage"},
+		Status:   "converging",
+		LastSeen: now.Add(-20 * time.Second),
+		Units: []unitStatusRecord{
+			{Name: "globular-etcd.service", State: "active"},
+			{Name: "scylla-server.service", State: "inactive"},
+			{Name: "globular-minio.service", State: "inactive"},
+		},
+	}
+	srv := newServer(defaultClusterControllerConfig(), "", "", state, nil)
+	resp, err := srv.GetClusterHealth(context.Background(), &cluster_controllerpb.GetClusterHealthRequest{})
+	if err != nil {
+		t.Fatalf("GetClusterHealth error: %v", err)
+	}
+	if resp.GetHealthyNodes() != 0 {
+		t.Fatalf("expected 0 healthy nodes, got %d", resp.GetHealthyNodes())
+	}
+	if resp.GetUnhealthyNodes() != 1 {
+		t.Fatalf("expected 1 unhealthy node, got %d", resp.GetUnhealthyNodes())
+	}
+	if resp.GetStatus() != "unhealthy" {
+		t.Fatalf("expected unhealthy cluster status, got %s", resp.GetStatus())
+	}
+}

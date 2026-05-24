@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -16,7 +17,10 @@ import (
 const nodeRemovalRequestPrefix = "/globular/controller/node_removals/requests/"
 
 type nodeRemovalRequest struct {
-	NodeID string `json:"node_id,omitempty"`
+	NodeID        string `json:"node_id,omitempty"`
+	Hostname      string `json:"hostname,omitempty"`
+	IP            string `json:"ip,omitempty"`
+	AgentEndpoint string `json:"agent_endpoint,omitempty"`
 }
 
 // processNodeRemovalRequests drains explicit removal requests written by
@@ -68,18 +72,29 @@ func (srv *server) processNodeRemovalRequests(ctx context.Context) {
 }
 
 // handleNodeRemovalRequest applies one queued node removal request.
-// Returns handled=false for malformed requests that should be skipped.
+// Returns handled=true for all parsed requests (including malformed payloads)
+// so the queue entry is consumed and cannot wedge reconcile forever.
 func (srv *server) handleNodeRemovalRequest(ctx context.Context, key string, value []byte) (handled bool, err error) {
-	nodeID := strings.TrimPrefix(key, nodeRemovalRequestPrefix)
-	if nodeID == "" {
-		var req nodeRemovalRequest
-		if uerr := json.Unmarshal(value, &req); uerr == nil {
-			nodeID = strings.TrimSpace(req.NodeID)
+	req := nodeRemovalRequest{NodeID: strings.TrimSpace(strings.TrimPrefix(key, nodeRemovalRequestPrefix))}
+	if len(value) > 0 {
+		var payload nodeRemovalRequest
+		if uerr := json.Unmarshal(value, &payload); uerr == nil {
+			if req.NodeID == "" {
+				req.NodeID = strings.TrimSpace(payload.NodeID)
+			}
+			req.Hostname = strings.TrimSpace(payload.Hostname)
+			req.IP = strings.TrimSpace(payload.IP)
+			req.AgentEndpoint = strings.TrimSpace(payload.AgentEndpoint)
 		}
 	}
+
+	nodeID, rerr := srv.resolveNodeRemovalTarget(req)
+	if rerr != nil {
+		return true, rerr
+	}
 	if nodeID == "" {
-		log.Printf("node-removal-requests: skip malformed request key=%q", key)
-		return false, nil
+		log.Printf("node-removal-requests: consumed malformed request key=%q", key)
+		return true, nil
 	}
 
 	_, rmErr := srv.RemoveNode(ctx, &cluster_controllerpb.RemoveNodeRequest{
@@ -96,4 +111,61 @@ func (srv *server) handleNodeRemovalRequest(ctx context.Context, key string, val
 		log.Printf("node-removal-requests: node %s already absent, clearing stale request", nodeID)
 	}
 	return true, nil
+}
+
+func (srv *server) resolveNodeRemovalTarget(req nodeRemovalRequest) (string, error) {
+	if srv == nil {
+		return "", nil
+	}
+	// Priority 1: exact node_id match.
+	if req.NodeID != "" {
+		srv.lock("resolve-node-removal:id")
+		_, ok := srv.state.Nodes[req.NodeID]
+		srv.unlock()
+		if ok {
+			return req.NodeID, nil
+		}
+		// Fall through to selector-based resolution if possible. If no selector
+		// resolves, return original node_id so RemoveNode emits NotFound and the
+		// stale request is still consumed.
+	}
+
+	selector := strings.ToLower(strings.TrimSpace(req.Hostname))
+	matches := make([]string, 0, 1)
+	srv.lock("resolve-node-removal:selectors")
+	for id, n := range srv.state.Nodes {
+		if n == nil {
+			continue
+		}
+		if selector != "" && strings.EqualFold(strings.TrimSpace(n.Identity.Hostname), selector) {
+			matches = append(matches, id)
+			continue
+		}
+		if req.IP != "" {
+			for _, ip := range n.Identity.Ips {
+				if strings.TrimSpace(ip) == req.IP {
+					matches = append(matches, id)
+					goto nextNode
+				}
+			}
+		}
+		if req.AgentEndpoint != "" && strings.TrimSpace(n.AgentEndpoint) == req.AgentEndpoint {
+			matches = append(matches, id)
+		}
+	nextNode:
+	}
+	srv.unlock()
+
+	switch len(matches) {
+	case 0:
+		if req.NodeID != "" {
+			return req.NodeID, nil
+		}
+		return "", nil
+	case 1:
+		return matches[0], nil
+	default:
+		return "", fmt.Errorf("node-removal-requests: ambiguous target hostname=%q ip=%q endpoint=%q matches=%v",
+			req.Hostname, req.IP, req.AgentEndpoint, matches)
+	}
 }

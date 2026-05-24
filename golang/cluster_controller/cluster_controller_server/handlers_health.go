@@ -41,11 +41,17 @@ func (srv *server) GetClusterHealth(ctx context.Context, req *cluster_controller
 
 		// Determine node health status
 		timeSinceSeen := now.Sub(node.LastSeen)
+		infraRuntimeOK, infraReason := bootstrapRequiredInfraRuntimeConverged(node, now, srv.state.MinioPoolNodes)
 		isHealthy := (node.Status == "healthy" || node.Status == "ready" || node.Status == "converging")
 		switch {
-		case isHealthy && timeSinceSeen < healthyThreshold:
+		case isHealthy && timeSinceSeen < healthyThreshold && infraRuntimeOK:
 			nodeHealth.Status = "healthy"
 			resp.HealthyNodes++
+		case isHealthy && timeSinceSeen < healthyThreshold && !infraRuntimeOK:
+			nodeHealth.Status = "unhealthy"
+			nodeHealth.FailedChecks = 1
+			nodeHealth.LastError = infraReason
+			resp.UnhealthyNodes++
 		case node.Status == "unhealthy" || node.Status == "degraded" || node.LastError != "":
 			nodeHealth.Status = "unhealthy"
 			nodeHealth.FailedChecks = 1

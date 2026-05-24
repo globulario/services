@@ -63,7 +63,10 @@ _ETCD_CACERT="${_PKI_DIR}/ca.crt"
 _ETCD_CERT="${_PKI_DIR}/issued/etcd/client.crt"
 _ETCD_KEY="${_PKI_DIR}/issued/etcd/client.key"
 _NODE_IP=$(hostname -I | awk '{print $1}')
+_HOSTNAME=$(hostname)
 _ETCD_ENDPOINT="https://${_NODE_IP}:2379"
+_NODE_AGENT_PORT="11000"
+_NODE_AGENT_ENDPOINT=""
 
 # Locate globular CLI binary
 _GLOBULAR_BIN=$(command -v globular 2>/dev/null || true)
@@ -83,6 +86,19 @@ try:
 except Exception:
     pass
 " 2>/dev/null || true)
+  _NODE_AGENT_ENDPOINT=$(python3 -c "
+import json
+try:
+    d = json.load(open('$_STATE_FILE'))
+    ip = (d.get('advertise_ip') or '').strip()
+    if ip:
+        print(f'{ip}:${_NODE_AGENT_PORT}')
+except Exception:
+    pass
+" 2>/dev/null || true)
+fi
+if [[ -z "$_NODE_AGENT_ENDPOINT" && -n "$_NODE_IP" ]]; then
+  _NODE_AGENT_ENDPOINT="${_NODE_IP}:${_NODE_AGENT_PORT}"
 fi
 
 # Resolve gateway host from controller endpoint metadata when available.
@@ -149,13 +165,22 @@ if [[ -n "$_NODE_ID" ]]; then
       if [[ -n "$_ETCDCTL_BIN" ]] \
         && [[ -f "$_ETCD_CACERT" ]] && [[ -f "$_ETCD_CERT" ]] && [[ -f "$_ETCD_KEY" ]]; then
         _REQ_KEY="/globular/controller/node_removals/requests/${_NODE_ID}"
-        _REQ_VAL=$(printf '{"node_id":"%s","hostname":"%s","requested_ip":"%s","source":"clean-node.sh","requested_at":"%s"}' \
-          "$_NODE_ID" "$(hostname)" "$_NODE_IP" "$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+        _REQ_VAL=$(printf '{"node_id":"%s","hostname":"%s","ip":"%s","agent_endpoint":"%s","source":"clean-node.sh","requested_at":"%s"}' \
+          "$_NODE_ID" "$_HOSTNAME" "$_NODE_IP" "$_NODE_AGENT_ENDPOINT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)")
         if ETCDCTL_API=3 "$_ETCDCTL_BIN" \
           --endpoints="$_ETCD_ENDPOINT" \
           --cacert="$_ETCD_CACERT" --cert="$_ETCD_CERT" --key="$_ETCD_KEY" \
           put "$_REQ_KEY" "$_REQ_VAL" >/dev/null 2>&1; then
           log_success "Queued cluster removal request at ${_REQ_KEY}"
+          # Alias keys improve survivability when node_id changed across reinstall.
+          for _ALIAS in "$_HOSTNAME" "$_NODE_IP"; do
+            [[ -z "$_ALIAS" ]] && continue
+            _REQ_ALIAS_KEY="/globular/controller/node_removals/requests/selector:${_ALIAS}"
+            ETCDCTL_API=3 "$_ETCDCTL_BIN" \
+              --endpoints="$_ETCD_ENDPOINT" \
+              --cacert="$_ETCD_CACERT" --cert="$_ETCD_CERT" --key="$_ETCD_KEY" \
+              put "$_REQ_ALIAS_KEY" "$_REQ_VAL" >/dev/null 2>&1 || true
+          done
         else
           log_warn "Failed to queue controller removal request in etcd"
         fi

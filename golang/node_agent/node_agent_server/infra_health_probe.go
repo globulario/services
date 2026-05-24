@@ -8,8 +8,13 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
+	"os/user"
+	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -32,6 +37,9 @@ import (
 //  2. Fallback: TCP connect to port 9042 on the node's interfaces.
 func (srv *NodeAgentServer) runProbeScyllaHealth(ctx context.Context, req *node_agentpb.RunWorkflowRequest) (*node_agentpb.RunWorkflowResponse, error) {
 	start := time.Now()
+	if err := validateScyllaRuntimePrereqs(); err != nil {
+		return probeFail(start, err.Error()), nil
+	}
 
 	// Collect local IPs for matching nodetool output.
 	localIPs := localIPv4Set()
@@ -89,6 +97,74 @@ func (srv *NodeAgentServer) runProbeScyllaHealth(ctx context.Context, req *node_
 	}
 
 	return probeFail(start, "CQL port 9042 unreachable on all local interfaces and nodetool unavailable or failed"), nil
+}
+
+func validateScyllaRuntimePrereqs() error {
+	required := []string{
+		"/etc/scylla/scylla.yaml",
+		"/var/lib/globular/pki/ca.crt",
+		"/var/lib/globular/pki/issued/services/service.crt",
+		"/var/lib/globular/pki/issued/services/service.key",
+	}
+	for _, p := range required {
+		if fi, err := os.Stat(p); err != nil {
+			return fmt.Errorf("scylla prereq missing/unreadable: %s (%v)", p, err)
+		} else if fi.IsDir() {
+			return fmt.Errorf("scylla prereq invalid: %s is a directory", p)
+		}
+	}
+	// Fail fast on common PKI permission bugs that make scylla fail with opaque
+	// TLS startup errors even though files exist.
+	scyllaUser, err := user.Lookup("scylla")
+	if err != nil {
+		return fmt.Errorf("scylla user lookup failed: %v", err)
+	}
+	uid, err := strconv.Atoi(scyllaUser.Uid)
+	if err != nil {
+		return fmt.Errorf("invalid scylla uid %q: %v", scyllaUser.Uid, err)
+	}
+	gid, err := strconv.Atoi(scyllaUser.Gid)
+	if err != nil {
+		return fmt.Errorf("invalid scylla gid %q: %v", scyllaUser.Gid, err)
+	}
+	for _, p := range []string{
+		"/var/lib/globular/pki/ca.crt",
+		"/var/lib/globular/pki/issued/services/service.crt",
+		"/var/lib/globular/pki/issued/services/service.key",
+	} {
+		if err := requireReadableByUnixUser(p, uid, gid); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func requireReadableByUnixUser(path string, uid, gid int) error {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", path, err)
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("stat metadata unavailable: %s", path)
+	}
+	mode := fi.Mode().Perm()
+	fuid := int(st.Uid)
+	fgid := int(st.Gid)
+	readable := false
+	switch {
+	case uid == fuid && (mode&0o400) != 0:
+		readable = true
+	case gid == fgid && (mode&0o040) != 0:
+		readable = true
+	case (mode & 0o004) != 0:
+		readable = true
+	}
+	if !readable {
+		return fmt.Errorf("scylla prereq unreadable by scylla user: %s (mode=%#o owner=%d:%d scylla=%d:%d)",
+			filepath.Clean(path), mode, fuid, fgid, uid, gid)
+	}
+	return nil
 }
 
 // runProbeEtcdHealth checks whether etcd is healthy on this node.
