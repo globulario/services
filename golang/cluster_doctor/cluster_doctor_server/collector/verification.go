@@ -238,8 +238,8 @@ func infraReleaseToTarget(rel *cluster_controllerpb.InfrastructureRelease, nodes
 
 // enrichTargetsWithEntrypointChecksum fills DesiredEntrypointChecksum on
 // every target by looking up the artifact manifest in the repository.
-// One RPC per unique build_id; results cached so a re-resolution of the
-// same release doesn't re-fetch.
+// One RPC per unique cache key; when DesiredBuildID is present we key by
+// build_id, otherwise we key by (publisher, service, version).
 //
 // Best-effort: a manifest fetch failure leaves the target's
 // DesiredEntrypointChecksum empty, which the verifier handles cleanly
@@ -258,7 +258,7 @@ func (c *Collector) enrichTargetsWithEntrypointChecksum(ctx context.Context, sna
 	}
 
 	for _, dst := range snap.DesiredServiceTargets {
-		if dst == nil || strings.TrimSpace(dst.DesiredBuildID) == "" {
+		if dst == nil {
 			continue
 		}
 		info := cache.lookupOrFetch(fetchCtx, c, dst)
@@ -285,7 +285,7 @@ type manifestInfo struct {
 // one RPC per unique release across the whole desired set.
 type entrypointCache struct {
 	mu sync.Mutex
-	m  map[string]manifestInfo // build_id → manifest facts
+	m  map[string]manifestInfo // cache key → manifest facts
 }
 
 func newEntrypointCache() *entrypointCache {
@@ -313,8 +313,9 @@ func manifestEntrypointsAreNoopOnly(entrypoints []string) bool {
 
 func (e *entrypointCache) lookupOrFetch(ctx context.Context, c *Collector, dst *DesiredServiceTarget) manifestInfo {
 	bid := strings.TrimSpace(dst.DesiredBuildID)
+	key := entrypointCacheKey(dst)
 	e.mu.Lock()
-	cs, hit := e.m[bid]
+	cs, hit := e.m[key]
 	e.mu.Unlock()
 	if hit {
 		return cs
@@ -338,9 +339,9 @@ func (e *entrypointCache) lookupOrFetch(ctx context.Context, c *Collector, dst *
 		// resolver and the repository disagree about which build is
 		// installable — log it loudly and refuse the value (better to
 		// degrade to unproven than to apply the wrong checksum).
-		if rid := strings.TrimSpace(m.GetBuildId()); rid != "" && rid != bid {
+		if shouldRejectManifestForBuildMismatch(bid, m.GetBuildId()) {
 			log.Printf("verification: repo returned build_id=%s for %s but desired=%s — refusing checksum",
-				rid, dst.Service, bid)
+				strings.TrimSpace(m.GetBuildId()), dst.Service, bid)
 			got.checksum = ""
 			// We still trust the wrapsUpstream signal — it doesn't
 			// depend on which build is installable; the package is or
@@ -351,9 +352,29 @@ func (e *entrypointCache) lookupOrFetch(ctx context.Context, c *Collector, dst *
 	}
 
 	e.mu.Lock()
-	e.m[bid] = got
+	e.m[key] = got
 	e.mu.Unlock()
 	return got
+}
+
+func entrypointCacheKey(dst *DesiredServiceTarget) string {
+	if dst == nil {
+		return ""
+	}
+	if bid := strings.TrimSpace(dst.DesiredBuildID); bid != "" {
+		return "build:" + bid
+	}
+	return "svc:" + strings.TrimSpace(dst.PublisherID) + "/" +
+		strings.TrimSpace(dst.Service) + "/" + strings.TrimSpace(dst.DesiredVersion)
+}
+
+func shouldRejectManifestForBuildMismatch(desiredBuildID, manifestBuildID string) bool {
+	db := strings.TrimSpace(desiredBuildID)
+	mb := strings.TrimSpace(manifestBuildID)
+	if db == "" || mb == "" {
+		return false
+	}
+	return db != mb
 }
 
 // normalizeEntrypointChecksum strips the sha256: prefix and lower-cases

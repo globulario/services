@@ -190,3 +190,49 @@ func TestApplyCommandKindPolicyToTargets_MultipleNodes(t *testing.T) {
 		t.Error("ffmpeg (COMMAND on all nodes) must have RuntimeNeeded=false")
 	}
 }
+
+func TestEntrypointCacheKey_UsesBuildIDWhenPresent(t *testing.T) {
+	key := entrypointCacheKey(&DesiredServiceTarget{
+		PublisherID:    "core@globular.io",
+		Service:        "mcp",
+		DesiredVersion: "1.2.64",
+		DesiredBuildID: "b-123",
+	})
+	if key != "build:b-123" {
+		t.Fatalf("entrypointCacheKey() = %q, want %q", key, "build:b-123")
+	}
+}
+
+func TestEntrypointCacheKey_FallsBackToServiceTupleWhenBuildIDMissing(t *testing.T) {
+	key := entrypointCacheKey(&DesiredServiceTarget{
+		PublisherID:    "core@globular.io",
+		Service:        "log",
+		DesiredVersion: "1.2.64",
+	})
+	want := "svc:core@globular.io/log/1.2.64"
+	if key != want {
+		t.Fatalf("entrypointCacheKey() = %q, want %q", key, want)
+	}
+}
+
+func TestRejectManifestForBuildMismatch(t *testing.T) {
+	cases := []struct {
+		name       string
+		desiredBID string
+		manifestID string
+		want       bool
+	}{
+		{"same", "bid-1", "bid-1", false},
+		{"different", "bid-1", "bid-2", true},
+		{"desired empty", "", "bid-2", false},
+		{"manifest empty", "bid-1", "", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := shouldRejectManifestForBuildMismatch(c.desiredBID, c.manifestID); got != c.want {
+				t.Fatalf("shouldRejectManifestForBuildMismatch(%q,%q)=%v want=%v",
+					c.desiredBID, c.manifestID, got, c.want)
+			}
+		})
+	}
+}
