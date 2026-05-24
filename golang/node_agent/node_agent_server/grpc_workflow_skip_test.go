@@ -12,6 +12,14 @@ import (
 
 func installedPkg(version, buildID string) *node_agentpb.InstalledPackage {
 	return &node_agentpb.InstalledPackage{
+		Version:  version,
+		BuildId:  buildID,
+		Metadata: map[string]string{"entrypoint_checksum": "abc123"},
+	}
+}
+
+func installedPkgNoChecksum(version, buildID string) *node_agentpb.InstalledPackage {
+	return &node_agentpb.InstalledPackage{
 		Version: version,
 		BuildId: buildID,
 	}
@@ -22,8 +30,8 @@ func alwaysInactive(_ context.Context, _ string) (bool, error) { return false, n
 func alwaysLoaded(_ context.Context, _ string) (bool, error)   { return true, nil }
 func alwaysUnloaded(_ context.Context, _ string) (bool, error) { return false, nil }
 
-// TestInstallPackageSkipsOnlyWhenRuntimeActive — happy path: version matches AND
-// unit is active → skip is allowed.
+// TestInstallPackageSkipsOnlyWhenRuntimeActive — happy path: version matches,
+// unit is active, entrypoint_checksum present → skip is allowed.
 func TestInstallPackageSkipsOnlyWhenRuntimeActive(t *testing.T) {
 	result, reason := canSkipInstallPackage(
 		context.Background(),
@@ -34,6 +42,21 @@ func TestInstallPackageSkipsOnlyWhenRuntimeActive(t *testing.T) {
 	)
 	if result != installSkipAllowed {
 		t.Fatalf("expected installSkipAllowed, got %d (%s)", result, reason)
+	}
+}
+
+// TestInstallPackageDoesNotSkipWhenChecksumMissing — unit is active and version
+// matches but entrypoint_checksum absent → must re-apply to register proof.
+func TestInstallPackageDoesNotSkipWhenChecksumMissing(t *testing.T) {
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"myservice", "SERVICE", "1.2.3", "", "",
+		installedPkgNoChecksum("1.2.3", ""),
+		alwaysActive,
+		alwaysLoaded,
+	)
+	if result != installSkipDeniedVersion {
+		t.Fatalf("expected installSkipDeniedVersion, got %d (%s)", result, reason)
 	}
 }
 
