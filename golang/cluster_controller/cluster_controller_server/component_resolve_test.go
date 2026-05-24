@@ -358,6 +358,41 @@ func TestDay1Phase_InfraNotInstalled(t *testing.T) {
 	}
 }
 
+func TestDay1Phase_MinioNonMember_DoesNotReportInfraNotInstalled(t *testing.T) {
+	units := []unitStatusRecord{
+		{Name: "globular-etcd.service", State: "active"},
+		{Name: "scylla-server.service", State: "active"},
+		{Name: "globular-gateway.service", State: "active"},
+		{Name: "globular-xds.service", State: "active"},
+		{Name: "globular-envoy.service", State: "active"},
+		{Name: "globular-alertmanager.service", State: "active"},
+		{Name: "globular-node-exporter.service", State: "active"},
+		{Name: "globular-prometheus.service", State: "active"},
+		{Name: "globular-scylla-manager.service", State: "active"},
+		{Name: "globular-scylla-manager-agent.service", State: "active"},
+		// minio/sidekick intentionally absent while node is non_member.
+	}
+	intent, err := ResolveNodeIntent("n1", []string{"core", "storage", "control-plane", "gateway"}, units, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node := &nodeState{
+		NodeID:         "n1",
+		BootstrapPhase: BootstrapWorkloadReady,
+		Profiles:       []string{"core", "storage", "control-plane", "gateway"},
+		MinioJoinPhase: MinioJoinNonMember,
+		ResolvedIntent: intent,
+		Units:          units,
+	}
+	phase, reason := ComputeDay1Phase(node)
+	if phase == Day1InfraPlanned {
+		t.Fatalf("unexpected infra planned for non_member node: %s", reason)
+	}
+	if strings.Contains(reason, "infra not installed:") {
+		t.Fatalf("reason should not report minio/sidekick as not installed for non_member: %s", reason)
+	}
+}
+
 func TestFilterIntentByDesiredRemovesUndesiredCatalogWorkloads(t *testing.T) {
 	intent, err := ResolveNodeIntent("n1", []string{"core"}, nil, nil)
 	if err != nil {

@@ -567,6 +567,12 @@ func ComputeDay1Phase(node *nodeState) (Day1Phase, string) {
 			if c.Optional {
 				continue // optional components (e.g. keepalived) don't block infra readiness
 			}
+			// MinIO topology contract: when this node is explicitly out of the
+			// MinIO pool, minio/sidekick are intentionally held inactive. They
+			// may be installed but must not block Day-1 infra readiness.
+			if node.MinioJoinPhase == MinioJoinNonMember && (c.Name == "minio" || c.Name == "sidekick") {
+				continue
+			}
 			if !healthyUnits[strings.ToLower(c.Unit)] {
 				allInfraHealthy = false
 				unhealthyInfra = append(unhealthyInfra, c.Name)
