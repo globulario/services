@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/workflow/v1alpha1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // RegisterNodeAgentActions registers all node-agent actor handlers.
@@ -98,9 +100,18 @@ var joinInstallRetryDelays = []time.Duration{
 // backpressure or transient network unavailability that warrants a retry.
 // Permanent errors (checksum mismatch, orphaned build, manifest corruption,
 // NotFound) return false.
+//
+// gRPC status codes are checked first (definitive), then string matching
+// for wrapped or non-gRPC errors.
 func isTransientJoinInstallError(err error) bool {
 	if err == nil {
 		return false
+	}
+	if st, ok := status.FromError(err); ok {
+		switch st.Code() {
+		case codes.ResourceExhausted, codes.Unavailable, codes.DeadlineExceeded:
+			return true
+		}
 	}
 	s := strings.ToLower(err.Error())
 	return strings.Contains(s, "repository unreachable") ||

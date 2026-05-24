@@ -7,6 +7,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // TestIsTransientJoinInstallError verifies the backpressure classifier.
@@ -36,6 +39,35 @@ func TestIsTransientJoinInstallError(t *testing.T) {
 	for _, err := range permanent {
 		if isTransientJoinInstallError(err) {
 			t.Errorf("expected permanent (non-transient) for %v", err)
+		}
+	}
+}
+
+// TestIsTransientJoinInstallError_GRPCStatusCodes verifies the classifier
+// detects transient errors via gRPC status codes (before string matching).
+func TestIsTransientJoinInstallError_GRPCStatusCodes(t *testing.T) {
+	transientCodes := []codes.Code{
+		codes.ResourceExhausted,
+		codes.Unavailable,
+		codes.DeadlineExceeded,
+	}
+	for _, c := range transientCodes {
+		err := status.Errorf(c, "synthetic grpc error")
+		if !isTransientJoinInstallError(err) {
+			t.Errorf("expected transient for gRPC code %s", c)
+		}
+	}
+
+	permanentCodes := []codes.Code{
+		codes.NotFound,
+		codes.InvalidArgument,
+		codes.FailedPrecondition,
+		codes.AlreadyExists,
+	}
+	for _, c := range permanentCodes {
+		err := status.Errorf(c, "synthetic grpc error")
+		if isTransientJoinInstallError(err) {
+			t.Errorf("expected permanent for gRPC code %s", c)
 		}
 	}
 }
