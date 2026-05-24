@@ -313,6 +313,50 @@ var cliCommands = map[string]CLICommand{
 		Examples: []string{"globular dns a set --name host.globular.internal. --ip 10.0.0.1"},
 		Rules:    []string{"DNS records MUST have trailing dot"},
 	},
+
+	// Node management
+	"cluster nodes": {
+		Path:        "cluster nodes",
+		Description: "Inspect and manage cluster nodes",
+		FollowUp:    []string{"cluster nodes list", "cluster nodes get", "cluster nodes profiles set", "cluster nodes remove"},
+	},
+	"cluster nodes list": {
+		Path:        "cluster nodes list",
+		Description: "List all nodes registered in the cluster",
+		Examples:    []string{"globular cluster nodes list"},
+		FollowUp:    []string{"cluster nodes get", "cluster nodes remove"},
+	},
+	"cluster nodes remove": {
+		Path:        "cluster nodes remove",
+		Description: "Remove a node from the cluster. Deregisters it from the controller, prunes xDS endpoints, evicts from MinIO pool.",
+		Long: `Remove a node from the cluster.
+
+IMPORTANT: This command only removes the node from the controller registry.
+For a fully clean removal with no trace left in etcd, ScyllaDB, or MinIO,
+run the clean script ON THE NODE FIRST:
+
+  curl -sfL https://<controller>:8443/clean -k | sudo bash -s -- --force
+
+Then call this command with --force --drain=false.
+
+If the node agent is still running after removal, it will re-register itself.
+Always run the clean script first to prevent this.`,
+		Flags: []CLIFlag{
+			{Name: "force", Type: "bool", Required: false, Default: "false", Help: "Force removal even if node is unreachable"},
+			{Name: "drain", Type: "bool", Required: false, Default: "true", Help: "Stop services gracefully before removal — set false only when node is already dead"},
+		},
+		Examples: []string{
+			"globular cluster nodes remove e26a33f3-4ac8-5e40-bc76-b924b2277c5f",
+			"globular cluster nodes remove e26a33f3-4ac8-5e40-bc76-b924b2277c5f --force --drain=false",
+		},
+		Rules: []string{
+			"Run the clean script on the node BEFORE this command for a full no-trace removal",
+			"Use --force only when node is unreachable",
+			"Use --drain=false only when node is already dead (agent not running)",
+			"If node re-registers after removal, the agent is still running — clean the node first",
+		},
+		FollowUp: []string{"cluster nodes list", "cluster_get_health"},
+	},
 }
 
 // ── Workflow Registry ────────────────────────────────────────────────────────
@@ -366,6 +410,17 @@ var cliWorkflows = map[string]CLIWorkflow{
 			{Order: 4, Action: "run_command", Command: "globular repository cleanup --orphans --duplicates", Description: "Execute cleanup"},
 		},
 	},
+	"remove_node": {
+		Task:        "remove_node",
+		Description: "Cleanly remove a node from the cluster, erasing all traces from etcd, ScyllaDB, and MinIO",
+		Steps: []WorkflowStep{
+			{Order: 1, Action: "observe", Command: "cluster_list_nodes", Description: "Confirm node ID and current status"},
+			{Order: 2, Action: "run_command", Command: "curl -sfL https://<controller>:8443/clean -k | sudo bash -s -- --force", Description: "Run clean script ON the node — decommissions ScyllaDB, removes etcd member, stops services, wipes /var/lib/globular (requires SSH to target node)"},
+			{Order: 3, Action: "call_mcp", Command: "cluster_remove_node {\"node_id\": \"<id>\", \"force\": true, \"drain\": false}", Description: "Remove node from cluster controller registry (xDS + MinIO pool eviction)"},
+			{Order: 4, Action: "observe", Command: "cluster_list_nodes", Description: "Verify node no longer appears in cluster"},
+			{Order: 5, Action: "observe", Command: "cluster_get_health", Description: "Confirm remaining nodes are healthy"},
+		},
+	},
 	"bootstrap_cluster": {
 		Task:        "bootstrap_cluster",
 		Description: "Initialize a new Globular cluster",
@@ -412,6 +467,8 @@ var cliExamples = []CLIExample{
 	{Command: "globular cluster bootstrap --domain globular.internal", Description: "Initialize first cluster node", Category: "cluster"},
 	{Command: "globular cluster token create", Description: "Create a join token", Category: "cluster"},
 	{Command: "globular cluster join --token <token> --controller host:12000", Description: "Join a node to the cluster", Category: "cluster"},
+	{Command: "globular cluster nodes remove <node_id> --force --drain=false", Description: "Force-remove a dead/unreachable node from cluster registry", Category: "cluster"},
+	{Command: "globular cluster nodes remove <node_id>", Description: "Cleanly drain and remove a reachable node from the cluster", Category: "cluster"},
 
 	// Services
 	{Command: "globular services repair --dry-run", Description: "Preview reconciliation changes", Category: "services"},

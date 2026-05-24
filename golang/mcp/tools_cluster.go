@@ -565,4 +565,53 @@ func registerClusterTools(s *server) {
 			"observed_at": id.GetObservedAt(),
 		}, nil
 	})
+
+	// ── cluster_remove_node ─────────────────────────────────────────────
+	s.register(toolDef{
+		Name: "cluster_remove_node",
+		Description: "Remove a node from the cluster. Calls the RemoveNode RPC on the cluster controller, " +
+			"which deregisters the node, prunes its xDS endpoints, and evicts it from the MinIO pool. " +
+			"Use force=true when the node agent is unreachable. Use drain=false only when the node is " +
+			"already dead. For a clean removal with full local wipe (etcd member removal, ScyllaDB " +
+			"decommission, service shutdown), run the clean script on the node first: " +
+			"curl -sfL https://<controller>:8443/clean -k | sudo bash -s -- --force",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"node_id": {Type: "string", Description: "Node UUID or hostname to remove"},
+				"force":   {Type: "boolean", Description: "Force removal even if node is unreachable (default: false)"},
+				"drain":   {Type: "boolean", Description: "Stop services gracefully before removal (default: true; set false only if node is already dead)"},
+			},
+			Required: []string{"node_id"},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		nodeID := getStr(args, "node_id")
+		if nodeID == "" {
+			return nil, fmt.Errorf("node_id is required")
+		}
+		force := getBool(args, "force", false)
+		drain := getBool(args, "drain", true)
+
+		conn, err := s.clients.get(ctx, controllerEndpoint())
+		if err != nil {
+			return nil, err
+		}
+		client := cluster_controllerpb.NewClusterControllerServiceClient(conn)
+
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 30*time.Second)
+		defer cancel()
+
+		resp, err := client.RemoveNode(callCtx, &cluster_controllerpb.RemoveNodeRequest{
+			NodeId: nodeID,
+			Force:  force,
+			Drain:  drain,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("RemoveNode: %w", err)
+		}
+		return map[string]interface{}{
+			"operation_id": resp.GetOperationId(),
+			"message":      resp.GetMessage(),
+		}, nil
+	})
 }
