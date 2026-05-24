@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/operator"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/repository/repositorypb"
-	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -24,6 +24,11 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	if !srv.mustBeLeader() {
 		return
 	}
+	// Process explicit node-leave requests queued by clean-node flows before
+	// regular convergence work. This keeps cluster membership authoritative
+	// when a departing node could not call RemoveNode directly via gateway/CLI.
+	srv.processNodeRemovalRequests(ctx)
+
 	if !srv.reconcileRunning.CompareAndSwap(false, true) {
 		return
 	}
@@ -82,6 +87,9 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 
 	// etcd, ScyllaDB, and MinIO join phases are now driven by
 	// cluster.reconcile workflow scan_drift action (see reconcile_actions.go).
+	// Sweep stale runtime dependency blocks (e.g. scylla-manager blocked on
+	// scylladb join race) once node health/join phases are updated.
+	srv.sweepRuntimeDepBlocks(ctx, nodes)
 
 	for _, node := range nodes {
 		if node == nil || node.NodeID == "" {
@@ -523,8 +531,8 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 		// app's transitive dependency closure.
 		isMaterializable :=
 			comp.Kind == KindInfrastructure ||
-			comp.Kind == KindCommand ||
-			(comp.Kind == KindWorkload && (runtimeDepsOfDesired[compName] || comp.PlatformDefault))
+				comp.Kind == KindCommand ||
+				(comp.Kind == KindWorkload && (runtimeDepsOfDesired[compName] || comp.PlatformDefault))
 		if !isMaterializable {
 			continue
 		}
@@ -714,10 +722,10 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 // so new Day-1 nodes can inherit the cluster's active workload set.
 //
 // Priority:
-//   1. Nodes in Day1Ready with Status=ready
-//   2. Any Status=ready node
-//   3. Any node that reports the workload as installed
-//   4. Existing ServiceDesiredVersion object (if present)
+//  1. Nodes in Day1Ready with Status=ready
+//  2. Any Status=ready node
+//  3. Any node that reports the workload as installed
+//  4. Existing ServiceDesiredVersion object (if present)
 func (srv *server) resolveWorkloadVersion(componentName string) (version, source string) {
 	selectBest := func(current, candidate string) string {
 		if current == "" {
@@ -1519,7 +1527,6 @@ func normalizeDomains(domains []string) []string {
 	}
 	return out
 }
-
 
 // Deprecated: dispatchPlan is a no-op — ApplyPlan RPC removed.
 // Network config and auto-repair should use workflow-native paths.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -31,6 +32,8 @@ var packageCriticalKeyPrereqs = map[string][]string{
 var (
 	criticalKeyGetEtcdClient = config.GetEtcdClient
 	criticalKeyWriteResult   = installed_state.WriteConvergenceResult
+	criticalKeyListResults   = installed_state.ListConvergenceResults
+	runtimeDepBlockClearFn   = clearRuntimeDepBlock
 )
 
 // criticalKeyPrereqStatus evaluates required critical keys for a package dispatch.
@@ -160,5 +163,97 @@ func writeRuntimeDepBlock(ctx context.Context, nodeIDs []string, pkgName, kind s
 			log.Printf("runtime-dep-block: write block for %s/%s on %s: %v", kind, pkgName, nodeID, err)
 		}
 		cancel()
+	}
+}
+
+// sweepRuntimeDepBlocks clears stale runtime dependency blocks that are now
+// satisfied according to current node health and join phases.
+//
+// Why this exists:
+//   - write/clear in reconcileResolved is edge-triggered by release events.
+//   - During node rejoin races, a block can be written before infra deps become
+//     verified, and no later event may revisit that release to clear it.
+//   - This periodic sweep is level-triggered safety: once deps are healthy, the
+//     stale BLOCKED_MISSING_NATIVE_DEP record is removed automatically.
+func (srv *server) sweepRuntimeDepBlocks(ctx context.Context, nodes []*nodeState) {
+	for _, node := range nodes {
+		if node == nil || node.NodeID == "" {
+			continue
+		}
+		results, err := criticalKeyListResults(ctx, node.NodeID)
+		if err != nil {
+			log.Printf("runtime-dep-block: list results for %s: %v", node.NodeID, err)
+			continue
+		}
+		if len(results) == 0 {
+			continue
+		}
+
+		healthy := buildHealthySet(node.Units)
+		for _, r := range results {
+			if r == nil {
+				continue
+			}
+			if r.Outcome != installed_state.OutcomeBlockedMissingNativeDep ||
+				r.ReasonCode != "runtime_deps_not_ready" {
+				continue
+			}
+
+			pkgName := normalizeComponentName(strings.TrimSpace(r.Package))
+			if pkgName == "" {
+				continue
+			}
+			comp := CatalogByName(pkgName)
+			if comp == nil || len(comp.RuntimeLocalDependencies) == 0 {
+				continue
+			}
+			// Still blocked in reality — keep the record.
+			if len(checkRuntimeDeps(comp, healthy, node.InstalledVersions, node)) > 0 {
+				continue
+			}
+
+			kind := runtimeDepBlockKindFromActionID(r.ActionID)
+			if kind == "" {
+				kind = runtimeDepBlockKindFromComponent(comp)
+			}
+			runtimeDepBlockClearFn(ctx, []string{node.NodeID}, pkgName, kind)
+			log.Printf("runtime-dep-block: auto-cleared stale block for %s/%s on %s",
+				kind, pkgName, node.NodeID)
+		}
+	}
+}
+
+func runtimeDepBlockKindFromActionID(actionID string) string {
+	// Format written by writeRuntimeDepBlock:
+	// controller/<node_id>/<kind>/<pkg>/runtime_dep_block
+	parts := strings.Split(actionID, "/")
+	if len(parts) < 5 {
+		return ""
+	}
+	if parts[0] != "controller" {
+		return ""
+	}
+	kind := strings.TrimSpace(parts[2])
+	switch kind {
+	case "SERVICE", "INFRASTRUCTURE", "WORKLOAD", "COMMAND":
+		return kind
+	default:
+		return ""
+	}
+}
+
+func runtimeDepBlockKindFromComponent(c *Component) string {
+	if c == nil {
+		return "SERVICE"
+	}
+	switch c.Kind {
+	case KindInfrastructure:
+		return "INFRASTRUCTURE"
+	case KindWorkload:
+		return "WORKLOAD"
+	case KindCommand:
+		return "COMMAND"
+	default:
+		return "SERVICE"
 	}
 }

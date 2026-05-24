@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -133,5 +134,121 @@ func TestWriteCriticalKeyBlock_CheckErrorPayload(t *testing.T) {
 	}
 	if captured.Evidence["check_error"] == "" {
 		t.Fatal("expected check_error evidence")
+	}
+}
+
+func TestRuntimeDepBlockKindFromActionID(t *testing.T) {
+	got := runtimeDepBlockKindFromActionID("controller/node-1/INFRASTRUCTURE/scylla-manager/runtime_dep_block")
+	if got != "INFRASTRUCTURE" {
+		t.Fatalf("kind=%q, want INFRASTRUCTURE", got)
+	}
+	if runtimeDepBlockKindFromActionID("bad-action-id") != "" {
+		t.Fatal("expected invalid action id to return empty kind")
+	}
+}
+
+func TestSweepRuntimeDepBlocks_ClearsWhenDepsSatisfied(t *testing.T) {
+	origList := criticalKeyListResults
+	origClear := runtimeDepBlockClearFn
+	t.Cleanup(func() {
+		criticalKeyListResults = origList
+		runtimeDepBlockClearFn = origClear
+	})
+
+	criticalKeyListResults = func(context.Context, string) ([]*installed_state.ConvergenceResultV1, error) {
+		return []*installed_state.ConvergenceResultV1{
+			{
+				ActionID:   "controller/node-1/INFRASTRUCTURE/scylla-manager/runtime_dep_block",
+				Package:    "scylla-manager",
+				NodeID:     "node-1",
+				Outcome:    installed_state.OutcomeBlockedMissingNativeDep,
+				ReasonCode: "runtime_deps_not_ready",
+			},
+		}, nil
+	}
+
+	var clearedNode, clearedPkg, clearedKind string
+	runtimeDepBlockClearFn = func(_ context.Context, nodeIDs []string, pkgName, kind string) {
+		if len(nodeIDs) > 0 {
+			clearedNode = nodeIDs[0]
+		}
+		clearedPkg = pkgName
+		clearedKind = kind
+	}
+
+	srv := newTestServer(t, newControllerState())
+	node := &nodeState{
+		NodeID:          "node-1",
+		ScyllaJoinPhase: ScyllaJoinVerified,
+		Units: []unitStatusRecord{
+			{Name: "scylla-server.service", State: "active"},
+		},
+	}
+	srv.sweepRuntimeDepBlocks(context.Background(), []*nodeState{node})
+
+	if clearedNode != "node-1" || clearedPkg != "scylla-manager" || clearedKind != "INFRASTRUCTURE" {
+		t.Fatalf("unexpected clear call: node=%q pkg=%q kind=%q", clearedNode, clearedPkg, clearedKind)
+	}
+}
+
+func TestSweepRuntimeDepBlocks_DoesNotClearWhenDepsMissing(t *testing.T) {
+	origList := criticalKeyListResults
+	origClear := runtimeDepBlockClearFn
+	t.Cleanup(func() {
+		criticalKeyListResults = origList
+		runtimeDepBlockClearFn = origClear
+	})
+
+	criticalKeyListResults = func(context.Context, string) ([]*installed_state.ConvergenceResultV1, error) {
+		return []*installed_state.ConvergenceResultV1{
+			{
+				ActionID:   "controller/node-1/INFRASTRUCTURE/scylla-manager/runtime_dep_block",
+				Package:    "scylla-manager",
+				NodeID:     "node-1",
+				Outcome:    installed_state.OutcomeBlockedMissingNativeDep,
+				ReasonCode: "runtime_deps_not_ready",
+			},
+		}, nil
+	}
+
+	called := false
+	runtimeDepBlockClearFn = func(_ context.Context, _ []string, _ string, _ string) {
+		called = true
+	}
+
+	srv := newTestServer(t, newControllerState())
+	node := &nodeState{
+		NodeID:          "node-1",
+		ScyllaJoinPhase: ScyllaJoinConfigured, // not verified yet
+		Units: []unitStatusRecord{
+			{Name: "scylla-server.service", State: "active"},
+		},
+	}
+	srv.sweepRuntimeDepBlocks(context.Background(), []*nodeState{node})
+	if called {
+		t.Fatal("expected no clear call while deps are still missing")
+	}
+}
+
+func TestSweepRuntimeDepBlocks_ListErrorIsNonFatal(t *testing.T) {
+	origList := criticalKeyListResults
+	origClear := runtimeDepBlockClearFn
+	t.Cleanup(func() {
+		criticalKeyListResults = origList
+		runtimeDepBlockClearFn = origClear
+	})
+
+	criticalKeyListResults = func(context.Context, string) ([]*installed_state.ConvergenceResultV1, error) {
+		return nil, fmt.Errorf("etcd timeout")
+	}
+	called := false
+	runtimeDepBlockClearFn = func(_ context.Context, _ []string, _ string, _ string) {
+		called = true
+	}
+
+	srv := newTestServer(t, newControllerState())
+	srv.sweepRuntimeDepBlocks(context.Background(), []*nodeState{{NodeID: "node-1"}})
+	if called {
+		t.Fatal("clear should not be called on list error")
 	}
 }

@@ -85,16 +85,10 @@ except Exception:
 " 2>/dev/null || true)
 fi
 
-# ── 0.1 Remove from cluster controller ───────────────────────────────────────
-# Primary: gateway HTTP API (DELETE /api/cluster/nodes/<id>). The gateway uses
-# its own controller auth — no user token is required on the cleaning node.
-# Fallback: globular CLI (needs a cached token at ~/.config/globular/token).
-
-if [[ -n "$_NODE_ID" ]]; then
-  # Derive gateway host from controller_endpoint in state.json (strip scheme/port).
-  _GATEWAY_HOST="globular.internal"
-  if [[ -f "$_STATE_FILE" ]] && command -v python3 >/dev/null 2>&1; then
-    _GH=$(python3 -c "
+# Resolve gateway host from controller endpoint metadata when available.
+_GATEWAY_HOST="globular.internal"
+if [[ -f "$_STATE_FILE" ]] && command -v python3 >/dev/null 2>&1; then
+  _GH=$(python3 -c "
 import json, re
 try:
     d = json.load(open('$_STATE_FILE'))
@@ -104,9 +98,15 @@ try:
     if ep: print(ep)
 except Exception: pass
 " 2>/dev/null || true)
-    [[ -n "$_GH" ]] && _GATEWAY_HOST="$_GH"
-  fi
+  [[ -n "$_GH" ]] && _GATEWAY_HOST="$_GH"
+fi
 
+# ── 0.1 Remove from cluster controller ───────────────────────────────────────
+# Primary: gateway HTTP API (DELETE /api/cluster/nodes/<id>). The gateway uses
+# its own controller auth — no user token is required on the cleaning node.
+# Fallback: globular CLI (needs a cached token at ~/.config/globular/token).
+
+if [[ -n "$_NODE_ID" ]]; then
   log_info "Removing node ${_NODE_ID} from cluster via gateway API (${_GATEWAY_HOST}:8443)..."
   _HTTP_STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
     -X DELETE "https://${_GATEWAY_HOST}:8443/api/cluster/nodes/${_NODE_ID}" \
@@ -117,17 +117,52 @@ except Exception: pass
     log_success "Node removed from cluster controller"
   else
     log_warn "Gateway API returned HTTP ${_HTTP_STATUS} — falling back to globular CLI..."
+    _REMOVED=0
     if [[ -n "$_GLOBULAR_BIN" ]]; then
-      _REMOVE_ERR=$("$_GLOBULAR_BIN" cluster nodes remove "$_NODE_ID" --force --drain=false 2>&1 || true)
-      if echo "$_REMOVE_ERR" | grep -q "^message:"; then
-        log_success "Node removed from cluster controller (via CLI)"
+      # Try CLI with explicit token discovery (root + regular users) because
+      # the clean script often runs under sudo on nodes without root token cache.
+      _TOKENS=()
+      [[ -f /root/.config/globular/token ]] && _TOKENS+=("/root/.config/globular/token")
+      for h in /home/*; do
+        [[ -f "$h/.config/globular/token" ]] && _TOKENS+=("$h/.config/globular/token")
+      done
+      _TOKENS+=("") # final attempt without explicit token
+
+      for _TKF in "${_TOKENS[@]}"; do
+        if [[ -n "$_TKF" ]]; then
+          _TOK=$(tr -d '\n' <"$_TKF" 2>/dev/null || true)
+          [[ -z "$_TOK" ]] && continue
+          _REMOVE_ERR=$("$_GLOBULAR_BIN" cluster nodes remove "$_NODE_ID" --force --drain=false --token "$_TOK" 2>&1 || true)
+        else
+          _REMOVE_ERR=$("$_GLOBULAR_BIN" cluster nodes remove "$_NODE_ID" --force --drain=false 2>&1 || true)
+        fi
+        if echo "$_REMOVE_ERR" | grep -qi "removed from cluster"; then
+          _REMOVED=1
+          log_success "Node removed from cluster controller (via CLI)"
+          break
+        fi
+      done
+    fi
+
+    if [[ "$_REMOVED" -eq 0 ]]; then
+      log_warn "CLI removal failed or unavailable; queueing controller-side removal request in etcd..."
+      if [[ -n "$_ETCDCTL_BIN" ]] \
+        && [[ -f "$_ETCD_CACERT" ]] && [[ -f "$_ETCD_CERT" ]] && [[ -f "$_ETCD_KEY" ]]; then
+        _REQ_KEY="/globular/controller/node_removals/requests/${_NODE_ID}"
+        _REQ_VAL=$(printf '{"node_id":"%s","hostname":"%s","requested_ip":"%s","source":"clean-node.sh","requested_at":"%s"}' \
+          "$_NODE_ID" "$(hostname)" "$_NODE_IP" "$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+        if ETCDCTL_API=3 "$_ETCDCTL_BIN" \
+          --endpoints="$_ETCD_ENDPOINT" \
+          --cacert="$_ETCD_CACERT" --cert="$_ETCD_CERT" --key="$_ETCD_KEY" \
+          put "$_REQ_KEY" "$_REQ_VAL" >/dev/null 2>&1; then
+          log_success "Queued cluster removal request at ${_REQ_KEY}"
+        else
+          log_warn "Failed to queue controller removal request in etcd"
+        fi
       else
-        log_warn "CLI removal also failed: ${_REMOVE_ERR}"
-        log_warn "Run manually after cleanup: globular cluster nodes remove ${_NODE_ID} --force --drain=false"
+        log_warn "Cannot queue etcd removal request (etcdctl/certs missing)"
       fi
-    else
-      log_warn "globular CLI not found — run manually after cleanup:"
-      log_warn "  curl -X DELETE https://${_GATEWAY_HOST}:8443/api/cluster/nodes/${_NODE_ID} -k -d '{\"force\":true,\"drain\":false}'"
+      log_warn "Run manually after cleanup: globular cluster nodes remove ${_NODE_ID} --force --drain=false"
     fi
   fi
 elif [[ -z "$_NODE_ID" ]]; then
@@ -227,6 +262,11 @@ for timer in $(systemctl list-timers 'scylla-*' --no-pager --no-legend --plain 2
   systemctl stop "$timer" 2>/dev/null || true
   systemctl disable "$timer" 2>/dev/null || true
 done
+
+# Clear failed-unit memory so rejoin does not inherit stale "failed" state
+# from pre-clean crashed services.
+systemctl reset-failed 'globular-*' 2>/dev/null || true
+systemctl reset-failed 'scylla-*' 2>/dev/null || true
 
 # ── Phase 2: Force-kill survivors ─────────────────────────────────────────────
 

@@ -382,6 +382,10 @@ func (srv *server) RemoveNode(ctx context.Context, req *cluster_controllerpb.Rem
 	if persistErr != nil {
 		return nil, status.Errorf(codes.Internal, "persist node removal: %v", persistErr)
 	}
+	// Update Scylla seed host list immediately after membership change so
+	// readers (repository/workflow/event) do not keep stale departed nodes
+	// until the next periodic reconcile cycle.
+	srv.publishScyllaHostsIfNeeded(ctx)
 
 	// ── REPAIR workflow run ─────────────────────────────────────────────
 	// Clean ALL etcd state for this node inside a visible REPAIR run.
