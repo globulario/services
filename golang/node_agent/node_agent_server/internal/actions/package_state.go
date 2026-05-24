@@ -76,15 +76,25 @@ func (packageReportStateAction) Apply(ctx context.Context, args *structpb.Struct
 
 	now := time.Now().Unix()
 
-	// Check if there's an existing record (to preserve installed_unix).
+	// Check if there's an existing record (to preserve installed_unix and
+	// metadata fields like entrypoint_checksum written by other paths).
 	existing, _ := installed_state.GetInstalledPackage(ctx, nodeID, kind, name)
 	installedUnix := now
 	if existing != nil && existing.InstalledUnix > 0 {
 		installedUnix = existing.InstalledUnix
 	}
 
-	// Build metadata from extra fields.
+	// Build metadata: seed from existing record so fields like
+	// entrypoint_checksum (written by writeInstalledStateChecksum) survive
+	// a report_state overwrite. Args from the workflow step take precedence.
 	metadata := make(map[string]string)
+	if existing != nil {
+		for k, v := range existing.GetMetadata() {
+			if v != "" {
+				metadata[k] = v
+			}
+		}
+	}
 	for k, v := range fields {
 		switch k {
 		case "node_id", "name", "version", "kind", "publisher_id", "platform",

@@ -225,18 +225,29 @@ func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, nam
 		log.Printf("installer-api: skip entrypoint_checksum for %s (%s): binary not hashable: %v", name, kind, err)
 		return
 	}
+
+	// Read-modify-write: preserve all fields written by package.report_state
+	// (Checksum/artifact hash, Platform, BuildNumber, etc.) and only add
+	// entrypoint_checksum. A full replace would silently clear those fields.
+	pkg, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
 	now := time.Now().Unix()
-	pkg := &node_agentpb.InstalledPackage{
-		NodeId:        srv.nodeID,
-		Name:          name,
-		Version:       version,
-		Kind:          kind,
-		Status:        "installed",
-		InstalledUnix: now,
-		UpdatedUnix:   now,
-		BuildId:       buildID,
-		Metadata:      map[string]string{"entrypoint_checksum": hash},
+	if pkg == nil {
+		pkg = &node_agentpb.InstalledPackage{
+			NodeId:        srv.nodeID,
+			Name:          name,
+			Version:       version,
+			Kind:          kind,
+			Status:        "installed",
+			InstalledUnix: now,
+			BuildId:       buildID,
+		}
 	}
+	pkg.UpdatedUnix = now
+	if pkg.Metadata == nil {
+		pkg.Metadata = make(map[string]string)
+	}
+	pkg.Metadata["entrypoint_checksum"] = hash
+
 	if werr := installed_state.WriteInstalledPackage(ctx, pkg); werr != nil {
 		log.Printf("installer-api: write installed-state for %s: %v (non-fatal)", name, werr)
 		return
