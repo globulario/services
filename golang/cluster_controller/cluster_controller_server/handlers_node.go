@@ -406,6 +406,12 @@ func (srv *server) RemoveNode(ctx context.Context, req *cluster_controllerpb.Rem
 		{fmt.Sprintf("globular/cluster/v1/observed_hash_services/%s", nodeID), "repair_observed_hash_deleted", "Delete observed service hash"},
 		{fmt.Sprintf("globular/cluster/v1/applied_hash_services/%s", nodeID), "repair_applied_hash_deleted", "Delete applied service hash"},
 		{fmt.Sprintf("globular/cluster/v1/fail_count_services/%s", nodeID), "repair_fail_count_deleted", "Delete fail count"},
+		// Convergence outcome records (package install/block history).
+		// Stale BLOCKED_MISSING_NATIVE_DEP records here permanently prevent
+		// convergence on rejoin — they must be wiped on node removal.
+		{fmt.Sprintf("/globular/convergence/nodes/%s/", nodeID), "repair_convergence_outcomes_deleted", "Delete convergence outcome records"},
+		// Convergence action records written by the controller (dep-block actions).
+		{fmt.Sprintf("/globular/convergence/actions/controller/%s/", nodeID), "repair_convergence_actions_deleted", "Delete convergence action records"},
 	}
 
 	var totalDeleted int64
