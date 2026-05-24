@@ -74,7 +74,15 @@ var applyMu sync.Mutex
 // use "<name>" binaries.
 func installedBinaryPath(name, kind string) string {
 	if strings.EqualFold(kind, "SERVICE") {
-		return filepath.Join(globularBinDir, strings.ReplaceAll(name, "-", "_")+"_server")
+		// Most services follow the {name}_server convention. A few (e.g. mcp)
+		// ship a binary with the plain package name. Probe the _server path
+		// first; fall back to the plain name when the file doesn't exist so
+		// cachedSha256 can still hash the actual installed binary.
+		withSuffix := filepath.Join(globularBinDir, strings.ReplaceAll(name, "-", "_")+"_server")
+		if _, err := os.Stat(withSuffix); err == nil {
+			return withSuffix
+		}
+		return filepath.Join(globularBinDir, strings.ReplaceAll(name, "-", "_"))
 	}
 	return filepath.Join(globularBinDir, name)
 }
