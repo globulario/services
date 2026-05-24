@@ -43,6 +43,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: services
+          ref: ${{ inputs.version != '' && format('refs/tags/v{0}', inputs.version) || github.ref }}
 
       - name: Checkout packages
         uses: actions/checkout@v4
