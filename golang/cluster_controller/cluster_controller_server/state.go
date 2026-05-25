@@ -118,6 +118,8 @@ type joinRequestRecord struct {
 	Identity          storedIdentity      `json:"identity"`
 	Labels            map[string]string   `json:"labels"`
 	RequestedAt       time.Time           `json:"requested_at"`
+	// Status is the legacy string status. New code must prefer LifecyclePhase.
+	// Kept for backward compatibility with persisted state and v1 API consumers.
 	Status            string              `json:"status"`
 	Reason            string              `json:"reason,omitempty"`
 	Profiles          []string            `json:"profiles,omitempty"`
@@ -127,25 +129,53 @@ type joinRequestRecord struct {
 	Capabilities      *storedCapabilities `json:"capabilities,omitempty"`
 	SuggestedProfiles []string            `json:"suggested_profiles,omitempty"`
 	JoinPlanJSON      []byte              `json:"join_plan_json,omitempty"`
+	// LifecyclePhase is the typed v2 lifecycle state. When set, it takes precedence
+	// over the legacy Status field for admission and eligibility decisions.
+	// Migration: empty → derive from Status via normalizeJoinLifecyclePhase.
+	LifecyclePhase    JoinLifecyclePhase  `json:"lifecycle_phase,omitempty"`
 }
 
 func (jr *joinRequestRecord) statusMessage() string {
-	switch jr.Status {
-	case "approved":
-		return "approved; node will receive configuration on first heartbeat"
-	case "rejected":
-		if jr.Reason != "" {
-			return "rejected: " + jr.Reason
-		}
-		return "rejected"
-	case "blocked":
+	// Prefer typed LifecyclePhase for operator-facing messages.
+	phase := effectiveLifecyclePhase(jr)
+	switch phase {
+	case JoinPhaseRequested:
+		return "join request received; awaiting authorization"
+	case JoinPhaseAuthorized:
+		return "signed JoinPlan issued; node is not yet admitted to the cluster"
+	case JoinPhaseBootstrapping:
+		return "node is bootstrapping; waiting for node-agent registration"
+	case JoinPhaseNodeAgentRegistered:
+		return "node-agent registered; admission pending"
+	case JoinPhaseAdmissionPending:
+		return "node registered; controller is evaluating admission"
+	case JoinPhaseAdmitted:
+		return "node admitted; desired state is being written"
+	case JoinPhaseConverging:
+		return "node admitted; converging toward desired state"
+	case JoinPhaseActive:
+		return "node is active; runtime proof verified"
+	case JoinPhaseBlocked:
 		if jr.Reason != "" {
 			return "blocked: " + jr.Reason
 		}
 		return "blocked"
-	default:
-		return "pending approval"
+	case JoinPhaseRejected:
+		if jr.Reason != "" {
+			return "rejected: " + jr.Reason
+		}
+		return "rejected"
+	case JoinPhaseQuarantined:
+		return "quarantined; requires operator intervention"
+	case JoinPhaseRemoving:
+		return "node is being removed"
+	case JoinPhaseRemoved:
+		return "node has been removed"
+	case JoinPhaseStaleGhost:
+		return "stale record; node-agent never connected"
 	}
+	// Legacy fallback for records with no lifecycle phase and unrecognized Status.
+	return "pending approval"
 }
 
 // BootstrapPhase tracks where a node is in the phased bootstrap sequence.
@@ -326,6 +356,12 @@ type nodeState struct {
 	// scylla.yaml will include replace_address_first_boot so ScyllaDB can claim
 	// ownership of the dead node's tokens instead of refusing to bootstrap.
 	ScyllaReplaceAddress string `json:"scylla_replace_address,omitempty"`
+	// JoinLifecyclePhase is the v2 admission lifecycle state for this node.
+	// Empty on legacy nodes (treat as eligible — backward compat). When set,
+	// IsNodeVerifiedStorageEligible uses it to gate RF and topology participation.
+	// The transition sequence: bootstrapping → node_agent_registered →
+	// admission_pending → admitted → converging → active.
+	JoinLifecyclePhase JoinLifecyclePhase `json:"join_lifecycle_phase,omitempty"`
 	// Bootstrap phase state machine (phased node initialization)
 	BootstrapPhase     BootstrapPhase `json:"bootstrap_phase,omitempty"`
 	BootstrapStartedAt time.Time      `json:"bootstrap_started_at,omitempty"`

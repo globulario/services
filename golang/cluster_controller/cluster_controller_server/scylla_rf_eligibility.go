@@ -21,6 +21,19 @@ func nodeStorageEligibilityReason(n *nodeState) string {
 		return "nil node"
 	}
 
+	// JoinLifecyclePhase gate (v2): when the node carries a typed lifecycle
+	// phase, it must be admitted or active. Nodes in join_requested,
+	// join_authorized, bootstrapping, node_agent_registered, or
+	// admission_pending are not yet cluster members and must not count toward
+	// RF, topology quorum, or workflow scheduling decisions.
+	//
+	// Legacy nodes with an empty JoinLifecyclePhase keep existing behavior —
+	// backward compat: upgrading the controller must not instantly make all
+	// existing nodes ineligible.
+	if lp := n.JoinLifecyclePhase; lp != "" && !lp.EligibleForClusterDecisions() {
+		return "lifecycle:" + string(lp)
+	}
+
 	// Hard status exclusions.
 	switch n.Status {
 	case "removed":
@@ -75,9 +88,8 @@ func nodeStorageEligibilityReason(n *nodeState) string {
 		}
 	}
 
-	// TODO(v2-join-Phase-B): once REGISTERED/ADMITTED lifecycle states exist,
-	// exclude nodes that are registered but not yet admitted. Until then,
-	// Status + BootstrapPhase are the only admission proxies.
+	// v2-join Phase B: JoinLifecyclePhase gate at top of this function handles
+	// registered-but-not-admitted nodes. The TODO here is resolved.
 
 	// TODO(v2-join-Phase-C): exclude nodes whose AgentEndpoint is empty or
 	// whose LastSeen is stale beyond a configurable threshold, indicating the

@@ -116,12 +116,14 @@ func (srv *server) requestJoinAuthorizationCore(req *JoinAuthorizationRequest) (
 		Labels:            copyLabels(req.Labels),
 		RequestedAt:       time.Now(),
 		Status:            "pending",
+		LifecyclePhase:    JoinPhaseRequested,
 		SuggestedProfiles: deduceProfiles(caps, countNodesWithProfile(srv.state.Nodes, "storage")),
 	}
 	srv.state.JoinRequests[joinID] = jr
 
 	// Preflight: hostname/IP stability, no conflicts.
 	if ok, reason := srv.evaluateJoinPreflightLocked(jr); !ok {
+		jr.LifecyclePhase = JoinPhaseBlocked
 		srv.unlock()
 		_ = srv.persistStateLocked(false)
 		return &JoinAuthorizationResponse{
@@ -140,6 +142,10 @@ func (srv *server) requestJoinAuthorizationCore(req *JoinAuthorizationRequest) (
 		srv.unlock()
 		return nil, status.Errorf(codes.Internal, "build join plan: %v", err)
 	}
+
+	// Signed JoinPlan issued: the installer is authorized to attempt bootstrap.
+	// This is NOT admission — the node does not become RF/topology eligible here.
+	jr.LifecyclePhase = JoinPhaseAuthorized
 
 	// Store the signed plan JSON so GetJoinRequestStatus can return it.
 	if planJSON, merr := json.Marshal(plan); merr == nil {

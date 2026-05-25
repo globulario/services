@@ -404,6 +404,37 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		go srv.triggerJoinWorkflow(nodeID, newEndpoint)
 	}
 
+	// Advance join lifecycle phase on node-agent contact.
+	// When a bootstrapping node first connects, it transitions to
+	// node_agent_registered. We then move to admission_pending until full proof
+	// is available (TODO Phase F: typed intents + stronger admission proof).
+	// Legacy nodes with empty JoinLifecyclePhase are not touched.
+	switch node.JoinLifecyclePhase {
+	case JoinPhaseBootstrapping, JoinPhaseAuthorized:
+		if newEndpoint != "" {
+			node.JoinLifecyclePhase = JoinPhaseNodeAgentRegistered
+			changed = true
+		}
+	case JoinPhaseNodeAgentRegistered:
+		// TODO(v2-join-Phase-F): advance to admitted only after typed intent proof.
+		// For now, move to admission_pending to signal the controller is evaluating.
+		node.JoinLifecyclePhase = JoinPhaseAdmissionPending
+		changed = true
+	case JoinPhaseAdmissionPending:
+		// TODO(v2-join-Phase-F): verify runtime proof (node_principal, cert, unit state).
+		// Temporarily admit when BootstrapPhase reaches admitted or beyond, since
+		// existing bootstrap machinery already implies basic identity trust.
+		if bootstrapPhaseReady(node.BootstrapPhase) {
+			node.JoinLifecyclePhase = JoinPhaseAdmitted
+			changed = true
+		}
+	case JoinPhaseAdmitted:
+		if node.BootstrapPhase == BootstrapWorkloadReady && healthStatus == "ready" {
+			node.JoinLifecyclePhase = JoinPhaseActive
+			changed = true
+		}
+	}
+
 	// Commit or discard pending rendered config hashes based on node health:
 	// a healthy report confirms the rendered config is on disk; a failed report
 	// clears pending so the next reconcile cycle retries.

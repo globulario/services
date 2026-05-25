@@ -81,6 +81,7 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 		Labels:            copyLabels(req.GetLabels()),
 		RequestedAt:       time.Now(),
 		Status:            "pending",
+		LifecyclePhase:    JoinPhaseRequested,
 		Capabilities:      capsToStored(caps),
 		SuggestedProfiles: deduceProfiles(caps, countNodesWithProfile(srv.state.Nodes, "storage")),
 	}
@@ -94,6 +95,7 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 		srv.approveJoinRecordLocked(jr, nil)
 	} else {
 		jr.Status = "blocked"
+		jr.LifecyclePhase = JoinPhaseBlocked
 		jr.Reason = preflightReason
 	}
 
@@ -266,6 +268,13 @@ func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []str
 	nodeID := deterministicNodeID(jr.Identity, jr.Labels)
 	jr.AssignedNodeID = nodeID
 	jr.Status = "approved"
+	// TODO(v2-join): legacy RequestJoin still creates node state during approval.
+	// New signed JoinPlan flow should advance to admitted only after node-agent proof.
+	// For now set LifecyclePhase = join_authorized to match the v2 path; the node
+	// itself gets bootstrapping so RF eligibility gates correctly.
+	if jr.LifecyclePhase != JoinPhaseAuthorized {
+		jr.LifecyclePhase = JoinPhaseAuthorized
+	}
 
 	// Compute the node's advertised FQDN for DNS registration.
 	// Format: <hostname>.<cluster-domain> (e.g. globule-dell.globular.internal)
@@ -291,6 +300,10 @@ func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []str
 		BootstrapPhase:        BootstrapAdmitted,
 		BootstrapStartedAt:    time.Now(),
 		AdvertiseFqdn:         advertiseFqdn,
+		// TODO(v2-join): advance to admitted only after node-agent proof (Phase F).
+		// Set bootstrapping so RF eligibility gates correctly: the node is not yet
+		// eligible until node-agent registers and admission is confirmed.
+		JoinLifecyclePhase:    JoinPhaseBootstrapping,
 	}
 	srv.state.Nodes[nodeID] = node
 	srv.removeStaleNodesLocked(nodeID, jr.Identity, "")
@@ -363,6 +376,7 @@ func (srv *server) RejectJoin(ctx context.Context, req *cluster_controllerpb.Rej
 		return nil, status.Error(codes.FailedPrecondition, "request not pending")
 	}
 	jr.Status = "rejected"
+	jr.LifecyclePhase = JoinPhaseRejected
 	jr.Reason = req.GetReason()
 	if err := srv.persistStateLocked(true); err != nil {
 		return nil, status.Errorf(codes.Internal, "persist join request: %v", err)
