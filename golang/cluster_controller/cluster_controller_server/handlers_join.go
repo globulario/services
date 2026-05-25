@@ -303,7 +303,13 @@ func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []str
 		// TODO(v2-join): advance to admitted only after node-agent proof (Phase F).
 		// Set bootstrapping so RF eligibility gates correctly: the node is not yet
 		// eligible until node-agent registers and admission is confirmed.
-		JoinLifecyclePhase:    JoinPhaseBootstrapping,
+		JoinLifecyclePhase: JoinPhaseBootstrapping,
+		// Infrastructure intents: profiles are capability labels; intents are
+		// controller-authorized membership. RFEligible starts false for all new
+		// nodes — runtime proof required before the controller sets it true.
+		EtcdMemberIntent:  initialEtcdIntentForProfiles(profiles),
+		ScyllaIntent:      initialScyllaIntentForProfiles(profiles),
+		ObjectStoreIntent: initialObjectStoreIntentForProfiles(profiles),
 	}
 	srv.state.Nodes[nodeID] = node
 	srv.removeStaleNodesLocked(nodeID, jr.Identity, "")

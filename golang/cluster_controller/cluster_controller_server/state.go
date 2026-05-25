@@ -379,6 +379,19 @@ type nodeState struct {
 	// Day 1 resolved intent (populated during reconcile from profile + catalog resolution).
 	ResolvedIntent *NodeIntent `json:"resolved_intent,omitempty"`
 
+	// Infrastructure intents — controller-authorized membership records.
+	//
+	// Design rule (v2-join Phase F-lite):
+	//   profiles  = capability labels ("this node CAN run storage")
+	//   intents   = controller authorization ("this node IS authorized to join")
+	//   runtime   = observed truth ("this node HAS joined and is healthy")
+	//
+	// When present, eligibility predicates prefer intents over profile inference.
+	// Legacy nodes with nil intents keep existing profile-based behavior.
+	EtcdMemberIntent  *EtcdMemberIntent  `json:"etcd_member_intent,omitempty"`
+	ScyllaIntent      *ScyllaIntent      `json:"scylla_intent,omitempty"`
+	ObjectStoreIntent *ObjectStoreIntent `json:"object_store_intent,omitempty"`
+
 	// Per-file content hashes of the last successfully applied rendered service configs (Phase 4b).
 	// Map key is the output file path; value is sha256 hex of the file content.
 	// Committed only after the node agent reports apply success (not just on dispatch).

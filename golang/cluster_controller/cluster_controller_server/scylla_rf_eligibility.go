@@ -91,6 +91,27 @@ func nodeStorageEligibilityReason(n *nodeState) string {
 	// v2-join Phase B: JoinLifecyclePhase gate at top of this function handles
 	// registered-but-not-admitted nodes. The TODO here is resolved.
 
+	// ScyllaIntent gate (v2 Phase F-lite): when the node carries an explicit
+	// ScyllaIntent, it governs RF eligibility entirely.
+	//
+	//   - ScyllaIntent.Member=false → node is not authorized for Scylla; ineligible
+	//   - ScyllaIntent.RFEligible=false → node joined but not yet proven safe to
+	//     count toward RF (still bootstrapping Scylla, or runtime proof missing)
+	//   - ScyllaIntent.RFEligible=true → controller has authorized RF participation;
+	//     the existing Scylla runtime health checks below still apply
+	//
+	// Legacy nodes with nil ScyllaIntent keep existing behavior (backward compat).
+	// TODO(v2-join): require ScyllaIntent after migration is complete.
+	if si := n.ScyllaIntent; si != nil {
+		if !si.Member {
+			return "scylla_intent:not_member"
+		}
+		if !si.RFEligible {
+			return "scylla_intent:rf_not_eligible"
+		}
+		// RFEligible=true: still apply runtime health checks below.
+	}
+
 	// TODO(v2-join-Phase-C): exclude nodes whose AgentEndpoint is empty or
 	// whose LastSeen is stale beyond a configurable threshold, indicating the
 	// node-agent has disconnected. Currently omitted to avoid false exclusions
