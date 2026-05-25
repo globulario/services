@@ -795,10 +795,32 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 		installedBID := lookupInstalledVersionFromMap(node.InstalledBuildIDs, svc)
 		canonSvc := canonicalServiceName(svc)
 		proof := verdicts[canonSvc]
+		installedUnix := installedAt[canonSvc]
 		v := decideVersionVerdictWithInstallTime(
 			desiredVer, desiredBID, installedVer, installedBID,
-			hasInstalled, proof, installedAt[canonSvc],
+			hasInstalled, proof, installedUnix,
 		)
+
+		// Self-heal: when the verdict is claim_only (UNVERIFIED) with
+		// service.runtime_identity_unproven and we are past the Day-0 grace
+		// window, trigger a targeted sweep so the doctor picks this pair up on
+		// the next cycle rather than waiting for the full sweep schedule.
+		// We do NOT trigger during the grace window — the verifier itself
+		// handles Day-0 gracefully and a targeted sweep is unnecessary noise.
+		if v.ProofStatus == "claim_only" && v.FindingID == verifier.FindingRuntimeIdentityUnproven {
+			pastGrace := installedUnix > 0 &&
+				time.Since(time.Unix(installedUnix, 0)) >= verifier.Day0UnprovenGraceWindow
+			if pastGrace {
+				// Enrich reason with the expected verification key so operators
+				// can inspect or manually trigger a doctor sweep.
+				expectedKey := verifier.EtcdKeyForVerification(nodeID, svc)
+				if v.Reason != "" && !strings.Contains(v.Reason, expectedKey) {
+					v.Reason += fmt.Sprintf("; expected_key=%s", expectedKey)
+				}
+				go requestVerifierSweep(ctx, nodeID, svc, verifier.FindingRuntimeIdentityUnproven)
+			}
+		}
+
 		checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
 			Subsystem:   "version:" + svc,
 			Ok:          v.Ok,

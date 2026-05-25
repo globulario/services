@@ -464,6 +464,39 @@ func (c *Collector) runVerification(ctx context.Context, snap *Snapshot) {
 		}
 	}
 
+	// Targeted sweep requests: the controller writes these when it detects a
+	// persistent runtime_identity_unproven finding past the Day-0 grace window.
+	// We inject them now so the pair is verified in this sweep cycle without
+	// waiting for the next scheduled pass.
+	for _, req := range sweepRequestedPairs(ctx) {
+		if scheduled[req.NodeID+"/"+req.Service] {
+			continue // already in the normal sweep set; no need to duplicate
+		}
+		dst, ok := snap.DesiredServiceTargets[req.Service]
+		if !ok || dst == nil {
+			continue
+		}
+		scheduled[req.NodeID+"/"+req.Service] = true
+		installInfo := resolvePerNodeInstallInfo(ctx, req.NodeID, dst)
+		tgt := verifier.Target{
+			Service:                   dst.Service,
+			NodeID:                    req.NodeID,
+			DesiredVersion:            dst.DesiredVersion,
+			DesiredBuildID:            dst.DesiredBuildID,
+			DesiredEntrypointChecksum: dst.DesiredEntrypointChecksum,
+			DesiredPackageDigest:      dst.DesiredPackageDigest,
+			RuntimeNeeded:             dst.RuntimeNeeded,
+			ApplyTime:                 installInfo.applyTime,
+			ApplyTimeSource:           installInfo.applyTimeSource,
+			IsFirstInstall:            installInfo.isFirstInstall,
+			WrapsUpstreamBinary:       dst.WrapsUpstreamBinary,
+		}
+		ev := verifier.Evidence{
+			Proof: findProofForService(snap.RuntimeProofs[req.NodeID], dst.Service),
+		}
+		verdicts = append(verdicts, verifier.VerifyTarget(tgt, ev, now))
+	}
+
 	// Catch-up pass: verify any (node, service) pair where the service is
 	// actually installed on the node but the node is missing from the
 	// ServiceRelease's status node list. This happens when a node joins

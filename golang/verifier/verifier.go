@@ -397,16 +397,32 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 			severity = SeverityInfo
 			reasonNote = "no runtime proof yet — within Day-0 first-install grace window"
 		}
+		ev := map[string]string{
+			"reason":                    reasonNote,
+			"is_first_install":          fmt.Sprintf("%v", target.IsFirstInstall),
+			"apply_time_source":         target.ApplyTimeSource,
+			"expected_verification_key": EtcdKeyForVerification(target.NodeID, target.Service),
+		}
+		if !target.ApplyTime.IsZero() {
+			ev["apply_time_ago_seconds"] = fmt.Sprintf("%.0f", now.Sub(target.ApplyTime).Seconds())
+		}
+		// Remaining grace window inside Day-0 first-install window.
+		if target.IsFirstInstall && !target.ApplyTime.IsZero() {
+			remaining := Day0UnprovenGraceWindow - now.Sub(target.ApplyTime)
+			if remaining < 0 {
+				remaining = 0
+			}
+			ev["grace_remaining_seconds"] = fmt.Sprintf("%.0f", remaining.Seconds())
+		} else {
+			ev["grace_remaining_seconds"] = "0"
+		}
 		v.Findings = append(v.Findings, Finding{
 			ID:       FindingRuntimeIdentityUnproven,
 			Severity: severity,
 			Service:  target.Service,
 			NodeID:   target.NodeID,
 			Detected: now,
-			Evidence: map[string]string{
-				"reason":           reasonNote,
-				"is_first_install": fmt.Sprintf("%v", target.IsFirstInstall),
-			},
+			Evidence: ev,
 		})
 		v.Reason = "no runtime proof available"
 		return v
