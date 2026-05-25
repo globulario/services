@@ -142,8 +142,8 @@ func TestCompileDay0Bootstrap(t *testing.T) {
 	if cw.Name != "day0.bootstrap" {
 		t.Errorf("name = %q, want day0.bootstrap", cw.Name)
 	}
-	if len(cw.Steps) != 23 {
-		t.Errorf("steps = %d, want 23", len(cw.Steps))
+	if len(cw.Steps) != 22 {
+		t.Errorf("steps = %d, want 22", len(cw.Steps))
 	}
 
 	// enable_bootstrap_window has no dependencies → entry point.

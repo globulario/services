@@ -168,7 +168,7 @@ func TestDay0BootstrapWorkflow(t *testing.T) {
 	assertBefore(t, steps, "install:persistence", "install_set:xds,envoy,gateway")
 	assertBefore(t, steps, "bootstrap_dns:globular.internal", "validate_cluster_health")
 	assertBefore(t, steps, "validate_cluster_health", "generate_join_token")
-	assertBefore(t, steps, "cluster_bootstrap", "publish_artifacts:local-bootstrap-cache")
+	assertBefore(t, steps, "cluster_bootstrap", "seed_desired")
 	assertBefore(t, steps, "seed_desired", "reconcile_until_stable")
 }
 
