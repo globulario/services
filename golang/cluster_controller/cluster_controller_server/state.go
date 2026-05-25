@@ -126,6 +126,7 @@ type joinRequestRecord struct {
 	NodePrincipal     string              `json:"node_principal,omitempty"`
 	Capabilities      *storedCapabilities `json:"capabilities,omitempty"`
 	SuggestedProfiles []string            `json:"suggested_profiles,omitempty"`
+	JoinPlanJSON      []byte              `json:"join_plan_json,omitempty"`
 }
 
 func (jr *joinRequestRecord) statusMessage() string {

@@ -419,5 +419,6 @@ func (srv *server) GetJoinRequestStatus(ctx context.Context, req *cluster_contro
 		Profiles:      append([]string(nil), jr.Profiles...),
 		NodeToken:     jr.NodeToken,
 		NodePrincipal: jr.NodePrincipal,
+		PlanJson:      append([]byte(nil), jr.JoinPlanJSON...),
 	}, nil
 }

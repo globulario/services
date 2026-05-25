@@ -52,6 +52,7 @@ const (
 	ClusterControllerService_PreviewDesiredServices_FullMethodName    = "/cluster_controller.ClusterControllerService/PreviewDesiredServices"
 	ClusterControllerService_ResignLeadership_FullMethodName          = "/cluster_controller.ClusterControllerService/ResignLeadership"
 	ClusterControllerService_DeployControlPlanePackage_FullMethodName = "/cluster_controller.ClusterControllerService/DeployControlPlanePackage"
+	ClusterControllerService_RequestJoinAuthorization_FullMethodName  = "/cluster_controller.ClusterControllerService/RequestJoinAuthorization"
 )
 
 // ClusterControllerServiceClient is the client API for ClusterControllerService service.
@@ -109,6 +110,10 @@ type ClusterControllerServiceClient interface {
 	// control-plane service. Updates followers first, transfers leadership,
 	// then updates the old leader. Returns the workflow run ID on acceptance.
 	DeployControlPlanePackage(ctx context.Context, in *DeployControlPlanePackageRequest, opts ...grpc.CallOption) (*DeployControlPlanePackageResponse, error)
+	// RequestJoinAuthorization is the v2 join path. The installer submits a join
+	// token and its stable identity; the controller returns a signed JoinPlan.
+	// The gateway is a courier — it MUST NOT modify the plan or assign profiles.
+	RequestJoinAuthorization(ctx context.Context, in *JoinAuthorizationRequest, opts ...grpc.CallOption) (*JoinAuthorizationResponse, error)
 }
 
 type clusterControllerServiceClient struct {
@@ -438,6 +443,16 @@ func (c *clusterControllerServiceClient) DeployControlPlanePackage(ctx context.C
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) RequestJoinAuthorization(ctx context.Context, in *JoinAuthorizationRequest, opts ...grpc.CallOption) (*JoinAuthorizationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(JoinAuthorizationResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_RequestJoinAuthorization_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterControllerServiceServer is the server API for ClusterControllerService service.
 // All implementations should embed UnimplementedClusterControllerServiceServer
 // for forward compatibility.
@@ -493,6 +508,10 @@ type ClusterControllerServiceServer interface {
 	// control-plane service. Updates followers first, transfers leadership,
 	// then updates the old leader. Returns the workflow run ID on acceptance.
 	DeployControlPlanePackage(context.Context, *DeployControlPlanePackageRequest) (*DeployControlPlanePackageResponse, error)
+	// RequestJoinAuthorization is the v2 join path. The installer submits a join
+	// token and its stable identity; the controller returns a signed JoinPlan.
+	// The gateway is a courier — it MUST NOT modify the plan or assign profiles.
+	RequestJoinAuthorization(context.Context, *JoinAuthorizationRequest) (*JoinAuthorizationResponse, error)
 }
 
 // UnimplementedClusterControllerServiceServer should be embedded to have
@@ -594,6 +613,9 @@ func (UnimplementedClusterControllerServiceServer) ResignLeadership(context.Cont
 }
 func (UnimplementedClusterControllerServiceServer) DeployControlPlanePackage(context.Context, *DeployControlPlanePackageRequest) (*DeployControlPlanePackageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeployControlPlanePackage not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) RequestJoinAuthorization(context.Context, *JoinAuthorizationRequest) (*JoinAuthorizationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequestJoinAuthorization not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) testEmbeddedByValue() {}
 
@@ -1166,6 +1188,24 @@ func _ClusterControllerService_DeployControlPlanePackage_Handler(srv interface{}
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_RequestJoinAuthorization_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JoinAuthorizationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).RequestJoinAuthorization(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_RequestJoinAuthorization_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).RequestJoinAuthorization(ctx, req.(*JoinAuthorizationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterControllerService_ServiceDesc is the grpc.ServiceDesc for ClusterControllerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1292,6 +1332,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeployControlPlanePackage",
 			Handler:    _ClusterControllerService_DeployControlPlanePackage_Handler,
+		},
+		{
+			MethodName: "RequestJoinAuthorization",
+			Handler:    _ClusterControllerService_RequestJoinAuthorization_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

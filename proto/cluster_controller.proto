@@ -129,6 +129,30 @@ message GetJoinRequestStatusResponse {
   string message = 4;
   string node_token = 5;      // JWT with node_<uuid> principal
   string node_principal = 6;  // e.g., "node_<uuid>"
+  bytes plan_json = 7;        // JSON-encoded JoinPlan (set after authorization)
+}
+
+// JoinAuthorizationRequest is the v2 join path. The installer calls this with
+// a join token and stable identity; the controller returns a signed JoinPlan.
+message JoinAuthorizationRequest {
+  string join_token = 1;
+  NodeIdentity identity = 2;
+  map<string,string> labels = 3;
+  NodeCapabilities capabilities = 4;
+  string nonce = 5;
+  string installer_version = 6;
+  string cluster_id = 7;
+}
+
+// JoinAuthorizationResponse carries the signed JoinPlan on success.
+// plan_json is a JSON-encoded JoinPlan. The installer must validate the
+// signature before executing any cluster-affecting step.
+message JoinAuthorizationResponse {
+  bool allowed = 1;
+  string denied_reason = 2;
+  string join_id = 3;
+  bytes plan_json = 4;
+  int64 controller_generation = 5;
 }
 
 message JoinRequestRecord {
@@ -682,6 +706,18 @@ service ClusterControllerService {
       permission: "admin"
       resource_template: "/cluster_controller/deploy"
       default_role_hint: "admin"
+    };
+  };
+
+  // RequestJoinAuthorization is the v2 join path. The installer submits a join
+  // token and its stable identity; the controller returns a signed JoinPlan.
+  // The gateway is a courier — it MUST NOT modify the plan or assign profiles.
+  rpc RequestJoinAuthorization(JoinAuthorizationRequest) returns (JoinAuthorizationResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.join.authorize"
+      permission: "write"
+      collection_template: "/cluster_controller/join/authorizations"
+      default_role_hint: "editor"
     };
   };
 }
