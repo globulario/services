@@ -143,6 +143,19 @@ func (srv *server) runScyllaSchemaGuard(ctx context.Context) {
 	}
 	defer session.Close()
 
+	// Phase D — DDL preflight: verify that Scylla Raft Group 0 can reach
+	// schema agreement before attempting any DDL. Checked once per guard pass.
+	// If the preflight is not OK, all CREATE/ALTER operations are skipped for
+	// this pass — violations are still detected and reported, but no DDL is
+	// issued. Unknown Group 0 state BLOCKS DDL (fail closed).
+	pctx, pcancel := context.WithTimeout(ctx, 10*time.Second)
+	preflight := CanScyllaDDLProceed(pctx, session)
+	pcancel()
+	ddlAllowed := preflight.OK
+	if !ddlAllowed {
+		log.Printf("scylla_schema_guard: DDL blocked — Raft Group 0 health is unknown or unhealthy; schema mutation skipped (reason=%s)", preflight.Reason)
+	}
+
 	requiredRF := desiredRFForCluster(srv.storageControlPlaneNodeCount())
 	for _, ks := range criticalScyllaKeyspaces {
 		kctx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -153,6 +166,16 @@ func (srv *server) runScyllaSchemaGuard(ctx context.Context) {
 			// Missing keyspace is a transient state: attempt to create it.
 			// Only raise a Violation if creation also fails.
 			if gerr == gocql.ErrNotFound {
+				if !ddlAllowed {
+					_ = srv.markSchemaGuardStatus(ctx, ks, schemaGuardStatus{
+						Keyspace:      ks,
+						RequiredRF:    requiredRF,
+						Violation:     true,
+						LastError:     fmt.Sprintf("keyspace missing; DDL blocked by preflight (reason=%s)", preflight.Reason),
+						UpdatedAtUnix: time.Now().Unix(),
+					})
+					continue
+				}
 				cctx, ccancel := context.WithTimeout(ctx, 10*time.Second)
 				createCQL := fmt.Sprintf(
 					"CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class':'SimpleStrategy','replication_factor':%d}",
@@ -196,6 +219,18 @@ func (srv *server) runScyllaSchemaGuard(ctx context.Context) {
 		violation := currentRF < requiredRF && requiredRF > 1
 		if violation {
 			scyllaSchemaGuardViolation.WithLabelValues(ks).Set(1)
+			if !ddlAllowed {
+				_ = srv.markSchemaGuardStatus(ctx, ks, schemaGuardStatus{
+					Keyspace:      ks,
+					Strategy:      strategy,
+					CurrentRF:     currentRF,
+					RequiredRF:    requiredRF,
+					Violation:     true,
+					LastError:     fmt.Sprintf("RF raise blocked by preflight (reason=%s)", preflight.Reason),
+					UpdatedAtUnix: time.Now().Unix(),
+				})
+				continue
+			}
 			kctx2, cancel2 := context.WithTimeout(ctx, 10*time.Second)
 			aerr := ensureKeyspaceRF(kctx2, session, ks, strategy, requiredRF)
 			cancel2()
