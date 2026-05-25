@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -123,6 +124,11 @@ func nodeAllRoutableIPs(node *nodeState) []string {
 		if ip == "" || ip == "127.0.0.1" || ip == "::1" {
 			continue
 		}
+		// Skip container/VM bridge ranges (172.16-31.x, 192.168.122.x Docker/libvirt).
+		// These are local-only interfaces that will never reach remote cluster peers.
+		if isContainerBridgeIP(ip) {
+			continue
+		}
 		if _, ok := seen[ip]; ok {
 			continue
 		}
@@ -130,6 +136,20 @@ func nodeAllRoutableIPs(node *nodeState) []string {
 		out = append(out, ip)
 	}
 	return out
+}
+
+// isContainerBridgeIP returns true for IPs in bridge ranges used by Docker,
+// libvirt, and similar container runtimes that are not reachable cluster-wide.
+func isContainerBridgeIP(ip string) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+	// 172.16.0.0/12 — Docker default bridge range
+	_, bridge, _ := net.ParseCIDR("172.16.0.0/12")
+	// 192.168.122.0/24 — libvirt default NAT network
+	_, libvirt, _ := net.ParseCIDR("192.168.122.0/24")
+	return bridge.Contains(parsed) || libvirt.Contains(parsed)
 }
 
 // nodeAnyIPIsEtcdMember checks if ANY of the node's IPs matches an existing
