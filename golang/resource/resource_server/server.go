@@ -1017,11 +1017,13 @@ func computeBackendConfig(s *server, scyllaDetected bool) {
 	// Backend host: resolve using env > tcp probe > node IP (NOT service listen address)
 	resolvedHost, err := resolveScyllaHost(int(s.Backend_port))
 	if err != nil {
-		// ScyllaDB host unknown — do NOT fall back to localhost (wrong on multi-node
-		// clusters). Leave address empty; the connection attempt will fail with a
-		// clear error and the start-up retry loop will re-attempt resolution.
-		logger.Error("scylla host resolution failed; service will not connect until etcd is reachable", "error", err)
-		s.Backend_address = ""
+		// ScyllaDB host unknown — use this node's routable IP as best-effort
+		// fallback. Do NOT use "localhost" — ScyllaDB may not be on the same node
+		// in multi-node clusters. gocql will retry on connection failure.
+		logger.Warn("scylla host resolution failed; using local routable IP as fallback", "error", err)
+		if ip := config.GetRoutableIPv4(); ip != "" {
+			s.Backend_address = ip
+		}
 	} else {
 		s.Backend_address = resolvedHost
 	}
