@@ -36,9 +36,8 @@ import (
 )
 
 func main() {
-	// Enable MinIO as the single source of truth for workflow definitions.
-	// Falls back to local disk if MinIO is unreachable (e.g. during bootstrap).
-	v1alpha1.EnableMinIOFetcher()
+	// All workflow definitions live in etcd — always available on every node.
+	v1alpha1.EnableEtcdFetcher()
 
 	// All configuration comes from CLI flags (bootstrap-time) or the state file.
 	// No os.Getenv calls — etcd is the runtime source of truth.

@@ -2,7 +2,7 @@
 // executor described in docs/centralized-workflow-execution.md.
 //
 // The executor:
-//  1. Loads the workflow definition from MinIO (single source of truth)
+//  1. Loads the workflow definition from etcd (single source of truth)
 //  2. Builds a remote-dispatch Router using RegisterFallback per actor
 //  3. Runs the engine to completion
 //  4. Auto-records runs/steps to ScyllaDB as execution proceeds
@@ -34,7 +34,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// ExecuteWorkflow loads a workflow definition from MinIO, builds a remote-
+// ExecuteWorkflow loads a workflow definition from etcd, builds a remote-
 // dispatch router for actor callbacks, runs the engine, and auto-records
 // the entire run to ScyllaDB.
 func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteWorkflowRequest) (*workflowpb.ExecuteWorkflowResponse, error) {
@@ -48,9 +48,10 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		return nil, fmt.Errorf("cluster_id is required")
 	}
 
-	// ── 1. Load definition: etcd (core) → MinIO (service-owned) ─────────
-	// Core workflows live in etcd so they're always available.
-	// Service-owned workflows live in MinIO.
+	// ── 1. Load definition: etcd → local disk (bootstrap fallback) ───────
+	// All workflow definitions live in etcd under /globular/workflows/.
+	// Local disk (/var/lib/globular/workflows/) is a bootstrap fallback
+	// for the window before SeedCoreWorkflows has run on a new cluster.
 	var defYAML []byte
 	if v1alpha1.EtcdFetcher != nil {
 		if b, ferr := v1alpha1.EtcdFetcher(req.WorkflowName); ferr == nil && len(b) > 0 {
@@ -58,14 +59,18 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		}
 	}
 	if len(defYAML) == 0 {
-		var err error
-		defYAML, err = config.GetClusterConfig("workflows/" + req.WorkflowName + ".yaml")
-		if err != nil {
-			return nil, fmt.Errorf("load definition %s: %w", req.WorkflowName, err)
+		for _, path := range []string{
+			"/var/lib/globular/workflows/" + req.WorkflowName,
+			"/usr/lib/globular/workflows/" + req.WorkflowName,
+		} {
+			if b, err := os.ReadFile(path); err == nil && len(b) > 0 {
+				defYAML = b
+				break
+			}
 		}
 	}
 	if len(defYAML) == 0 {
-		return nil, fmt.Errorf("workflow definition %q not found (checked etcd and MinIO)", req.WorkflowName)
+		return nil, fmt.Errorf("workflow definition %q not found (etcd + local disk checked)", req.WorkflowName)
 	}
 
 	loader := v1alpha1.NewLoader()

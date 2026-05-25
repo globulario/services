@@ -1585,12 +1585,11 @@ func (srv *server) DiagnoseRun(_ context.Context, req *workflowpb.DiagnoseRunReq
 }
 
 // ---------------------------------------------------------------------------
-// Workflow Definitions (MinIO-backed single source of truth)
+// Workflow Definitions
 // ---------------------------------------------------------------------------
 
 // ListWorkflowDefinitions returns the list of YAML workflow definitions stored
-// in etcd under /globular/workflows/. Falls back to MinIO for any definitions
-// not present in etcd (service-owned workflows such as compute jobs).
+// in etcd under /globular/workflows/.
 func (srv *server) ListWorkflowDefinitions(_ context.Context, _ *workflowpb.ListWorkflowDefinitionsRequest) (*workflowpb.ListWorkflowDefinitionsResponse, error) {
 	// No requireHealthy check — definitions come from etcd which is always reachable.
 	seen := make(map[string]bool)
@@ -1619,42 +1618,18 @@ func (srv *server) ListWorkflowDefinitions(_ context.Context, _ *workflowpb.List
 		}
 	}
 
-	// Fallback: MinIO globular-config/workflows/ (service-specific definitions)
-	if keys, merr := config.ListClusterConfigPrefix("workflows/"); merr == nil {
-		for _, key := range keys {
-			if !strings.HasSuffix(key, ".yaml") {
-				continue
-			}
-			name := strings.TrimSuffix(strings.TrimPrefix(key, "workflows/"), ".yaml")
-			if seen[name] {
-				continue // already returned from etcd
-			}
-			data, rerr := config.GetClusterConfig(key)
-			if rerr != nil || data == nil {
-				defs = append(defs, &workflowpb.WorkflowDefinitionSummary{Name: name})
-				continue
-			}
-			displayName, description := parseWorkflowMetadata(string(data), name)
-			defs = append(defs, &workflowpb.WorkflowDefinitionSummary{
-				Name:        name,
-				DisplayName: displayName,
-				Description: description,
-			})
-		}
-	}
-
 	return &workflowpb.ListWorkflowDefinitionsResponse{Definitions: defs}, nil
 }
 
 // GetWorkflowDefinition returns the raw YAML content for a workflow definition.
-// Checks etcd first, then falls back to MinIO.
+// Reads from etcd; falls back to local disk for bootstrap scenarios.
 func (srv *server) GetWorkflowDefinition(_ context.Context, req *workflowpb.GetWorkflowDefinitionRequest) (*workflowpb.GetWorkflowDefinitionResponse, error) {
 	// No requireHealthy check — definitions come from etcd which is always reachable.
 	if req.Name == "" {
 		return nil, fmt.Errorf("workflow name is required")
 	}
 
-	// Primary source: etcd
+	// Primary: etcd /globular/workflows/<name>
 	if cli, err := config.GetEtcdClient(); err == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		resp, etcdErr := cli.Get(ctx, v1alpha1.EtcdWorkflowPrefix+req.Name)
@@ -1667,19 +1642,20 @@ func (srv *server) GetWorkflowDefinition(_ context.Context, req *workflowpb.GetW
 		}
 	}
 
-	// Fallback: MinIO
-	key := "workflows/" + req.Name + ".yaml"
-	data, err := config.GetClusterConfig(key)
-	if err != nil {
-		return nil, fmt.Errorf("workflow definition %q not found (etcd + MinIO checked)", req.Name)
+	// Fallback: local disk (bootstrap window before SeedCoreWorkflows runs)
+	for _, path := range []string{
+		"/var/lib/globular/workflows/" + req.Name,
+		"/usr/lib/globular/workflows/" + req.Name,
+	} {
+		if b, err := os.ReadFile(path); err == nil && len(b) > 0 {
+			return &workflowpb.GetWorkflowDefinitionResponse{
+				Name:        req.Name,
+				YamlContent: string(b),
+			}, nil
+		}
 	}
-	if data == nil {
-		return nil, fmt.Errorf("workflow definition %q not found", req.Name)
-	}
-	return &workflowpb.GetWorkflowDefinitionResponse{
-		Name:        req.Name,
-		YamlContent: string(data),
-	}, nil
+
+	return nil, fmt.Errorf("workflow definition %q not found", req.Name)
 }
 
 // parseWorkflowMetadata extracts displayName and description from a workflow YAML

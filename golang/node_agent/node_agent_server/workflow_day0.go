@@ -201,15 +201,15 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 				}
 			}
 
-			// Upload workflow definitions to globular-config/workflows/ in MinIO.
-			// Same pattern as pki/ca.pem and ai/CLAUDE.md — cluster-wide config.
+			// Seed workflow definitions to etcd under /globular/workflows/.
+			// etcd is the sole source of truth for workflow definitions.
 			workflowDir := "/var/lib/globular/workflows"
 			entries, err := os.ReadDir(workflowDir)
 			if err != nil {
 				log.Printf("day0: no workflow definitions at %s: %v", workflowDir, err)
 				return nil
 			}
-			uploaded := 0
+			definitions := make(map[string][]byte)
 			for _, e := range entries {
 				if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
 					continue
@@ -219,14 +219,13 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 					log.Printf("day0: read %s: %v", e.Name(), err)
 					continue
 				}
-				key := "workflows/" + e.Name()
-				if err := config.PutClusterConfig(key, data); err != nil {
-					log.Printf("day0: upload %s to MinIO: %v", key, err)
-					continue
-				}
-				uploaded++
+				definitions[e.Name()] = data
 			}
-			log.Printf("day0: %d workflow definitions uploaded to MinIO globular-config/workflows/", uploaded)
+			if err := v1alpha1.SeedCoreWorkflows(definitions); err != nil {
+				log.Printf("day0: seed workflows to etcd: %v", err)
+			} else {
+				log.Printf("day0: %d workflow definitions seeded to etcd", len(definitions))
+			}
 
 			if err := seedDay0Webroot(ctx, client, minioCfg, domain); err != nil {
 				return err

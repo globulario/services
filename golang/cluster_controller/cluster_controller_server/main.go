@@ -83,11 +83,8 @@ var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 }))
 
 func main() {
-	// Enable etcd as the primary source for core workflow definitions.
-	// etcd is always available (on every node) — no MinIO dependency.
+	// All workflow definitions live in etcd — always available on every node.
 	v1alpha1.EnableEtcdFetcher()
-	// MinIO as fallback for service-owned workflows (compute, doctor, etc.).
-	v1alpha1.EnableMinIOFetcher()
 
 	// Define CLI flags
 	cfgPath := flag.String("config", "/var/lib/globular/cluster-controller/config.json", "cluster controller configuration file")

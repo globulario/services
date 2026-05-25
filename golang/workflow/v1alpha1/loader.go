@@ -18,14 +18,9 @@ type Loader struct{}
 func NewLoader() *Loader { return &Loader{} }
 
 // EtcdFetcher is an optional callback that loads a workflow definition
-// by name from etcd. Core workflows live in etcd so they're available even
-// when MinIO is down. Checked FIRST — before MinIO and disk.
+// by name from etcd. All workflow definitions live in etcd under
+// /globular/workflows/<name>. Checked before the local disk fallback.
 var EtcdFetcher func(name string) ([]byte, error)
-
-// MinIOFetcher is an optional callback that loads a workflow definition
-// by name from MinIO (globular-config bucket). Checked after etcd.
-// Service-owned workflows (compute, doctor) live here.
-var MinIOFetcher func(name string) ([]byte, error)
 
 // workflowNameFromPath extracts the workflow name from a disk path like
 // "/var/lib/globular/workflow/definitions/day0.bootstrap.yaml" → "day0.bootstrap"
@@ -37,7 +32,7 @@ func workflowNameFromPath(path string) string {
 func (l *Loader) LoadFile(path string) (*WorkflowDefinition, error) {
 	name := workflowNameFromPath(path)
 
-	// Priority 1: etcd (core workflows — always available if etcd is up)
+	// Priority 1: etcd (authoritative — seeded at Day-0, always available)
 	if EtcdFetcher != nil {
 		if b, err := EtcdFetcher(name); err == nil && len(b) > 0 {
 			if def, derr := l.LoadBytes(b); derr == nil {
@@ -46,16 +41,7 @@ func (l *Loader) LoadFile(path string) (*WorkflowDefinition, error) {
 		}
 	}
 
-	// Priority 2: MinIO (service-owned workflows)
-	if MinIOFetcher != nil {
-		if b, err := MinIOFetcher(name); err == nil && len(b) > 0 {
-			if def, derr := l.LoadBytes(b); derr == nil {
-				return def, nil
-			}
-		}
-	}
-
-	// Priority 3: local disk (fallback)
+	// Priority 2: local disk (bootstrap fallback before etcd is seeded)
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read workflow definition %q: %w", path, err)

@@ -18,6 +18,7 @@ import (
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/workflow/engine"
+	"github.com/globulario/services/golang/workflow/v1alpha1"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -638,7 +639,7 @@ func resolveWorkflowPath(name string) string {
 
 	// Not found on disk — try fetching from MinIO (once).
 	fetchWorkflowDefsOnce.Do(func() {
-		fetchWorkflowDefsFromMinIO()
+		fetchWorkflowDefsFromEtcd()
 	})
 
 	// Retry after fetch.
@@ -650,13 +651,17 @@ func resolveWorkflowPath(name string) string {
 	return ""
 }
 
-// fetchWorkflowDefsFromMinIO downloads workflow definitions from the
-// globular-config bucket in MinIO to /var/lib/globular/workflows/.
-func fetchWorkflowDefsFromMinIO() {
+// fetchWorkflowDefsFromEtcd caches workflow definitions from etcd to
+// /var/lib/globular/workflows/ so the local disk fallback in LoadFile works
+// on nodes that joined before SeedCoreWorkflows ran.
+func fetchWorkflowDefsFromEtcd() {
+	if v1alpha1.EtcdFetcher == nil {
+		log.Printf("workflow-resolver: etcd fetcher not configured — skipping cache")
+		return
+	}
 	destDir := "/var/lib/globular/workflows"
 	os.MkdirAll(destDir, 0o755)
 
-	// List known workflow definitions and fetch each from MinIO.
 	knownDefs := []string{
 		"day0.bootstrap.yaml",
 		"node.bootstrap.yaml",
@@ -670,13 +675,9 @@ func fetchWorkflowDefsFromMinIO() {
 
 	fetched := 0
 	for _, name := range knownDefs {
-		key := "workflows/" + name
-		data, err := config.GetClusterConfig(key)
+		data, err := v1alpha1.EtcdFetcher(name)
 		if err != nil {
-			log.Printf("workflow-resolver: fetch %s from MinIO: %v", key, err)
-			continue
-		}
-		if data == nil {
+			log.Printf("workflow-resolver: fetch %s from etcd: %v", name, err)
 			continue
 		}
 		dest := filepath.Join(destDir, name)
@@ -687,8 +688,8 @@ func fetchWorkflowDefsFromMinIO() {
 		fetched++
 	}
 	if fetched > 0 {
-		log.Printf("workflow-resolver: fetched %d workflow definitions from MinIO to %s", fetched, destDir)
+		log.Printf("workflow-resolver: cached %d workflow definitions from etcd to %s", fetched, destDir)
 	} else {
-		log.Printf("workflow-resolver: no workflow definitions found in MinIO")
+		log.Printf("workflow-resolver: no workflow definitions found in etcd")
 	}
 }
