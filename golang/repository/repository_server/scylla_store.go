@@ -347,45 +347,24 @@ func (s *scyllaStore) Close() {
 }
 
 // Reconnect closes the existing session and establishes a new one.
+// Uses connectScylla() so the keyspace and schema are recreated if ScyllaDB
+// was restarted from a clean state (e.g. after a node was removed without
+// decommissioning, which can cause the remaining node to wipe and re-bootstrap).
 func (s *scyllaStore) Reconnect() error {
 	s.Close()
 
-	hosts, err := config.GetScyllaHosts()
-	if err != nil {
-		return fmt.Errorf("scylla reconnect: %w", err)
-	}
-
-	rf := len(hosts)
-	if rf > 3 {
-		rf = 3
-	}
-	if rf < 1 {
-		rf = 1
-	}
-	consistency := gocql.Quorum
-	if rf < 2 {
-		consistency = gocql.One
-	}
-
-	cluster := gocql.NewCluster(hosts...)
-	cluster.Port = scyllaPort
-	cluster.Consistency = consistency
-	cluster.Timeout = 10 * time.Second
-	cluster.ConnectTimeout = 10 * time.Second
-	cluster.Keyspace = scyllaKeyspace
-
-	session, err := retryScyllaConnect(cluster, 3)
+	newStore, err := connectScylla()
 	if err != nil {
 		return fmt.Errorf("scylla reconnect: %w", err)
 	}
 
 	s.mu.Lock()
-	s.session = session
-	s.hosts = hosts
-	s.rf = rf
+	s.session = newStore.session
+	s.hosts = newStore.hosts
+	s.rf = newStore.rf
 	s.mu.Unlock()
 
-	slog.Info("scylladb reconnected", "hosts", hosts, "keyspace", scyllaKeyspace, "rf", rf)
+	slog.Info("scylladb reconnected", "hosts", newStore.hosts, "keyspace", scyllaKeyspace, "rf", newStore.rf)
 	return nil
 }
 

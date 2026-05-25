@@ -127,19 +127,28 @@ func validateScyllaRuntimePrereqs() error {
 	if err != nil {
 		return fmt.Errorf("invalid scylla gid %q: %v", scyllaUser.Gid, err)
 	}
+	// Collect all group IDs: primary + supplementary.
+	gids := []int{gid}
+	if groupIDs, err := scyllaUser.GroupIds(); err == nil {
+		for _, gidStr := range groupIDs {
+			if g, err := strconv.Atoi(gidStr); err == nil && g != gid {
+				gids = append(gids, g)
+			}
+		}
+	}
 	for _, p := range []string{
 		"/var/lib/globular/pki/ca.crt",
 		"/var/lib/globular/pki/issued/services/service.crt",
 		"/var/lib/globular/pki/issued/services/service.key",
 	} {
-		if err := requireReadableByUnixUser(p, uid, gid); err != nil {
+		if err := requireReadableByUnixUser(p, uid, gids); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func requireReadableByUnixUser(path string, uid, gid int) error {
+func requireReadableByUnixUser(path string, uid int, gids []int) error {
 	fi, err := os.Stat(path)
 	if err != nil {
 		return fmt.Errorf("stat %s: %w", path, err)
@@ -155,14 +164,21 @@ func requireReadableByUnixUser(path string, uid, gid int) error {
 	switch {
 	case uid == fuid && (mode&0o400) != 0:
 		readable = true
-	case gid == fgid && (mode&0o040) != 0:
-		readable = true
 	case (mode & 0o004) != 0:
 		readable = true
+	default:
+		if (mode & 0o040) != 0 {
+			for _, g := range gids {
+				if g == fgid {
+					readable = true
+					break
+				}
+			}
+		}
 	}
 	if !readable {
-		return fmt.Errorf("scylla prereq unreadable by scylla user: %s (mode=%#o owner=%d:%d scylla=%d:%d)",
-			filepath.Clean(path), mode, fuid, fgid, uid, gid)
+		return fmt.Errorf("scylla prereq unreadable by scylla user: %s (mode=%#o owner=%d:%d scylla=%d:%v)",
+			filepath.Clean(path), mode, fuid, fgid, uid, gids)
 	}
 	return nil
 }

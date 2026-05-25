@@ -224,6 +224,7 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, no
 
 			if minWaitMet && (probeOK || m.isNodeInRing(node)) {
 				node.ScyllaJoinPhase = ScyllaJoinVerified
+				node.ScyllaWasEverVerified = true
 				node.ScyllaJoinError = ""
 				dirty = true
 				log.Printf("scylla join: node %s verified in gossip ring (probe=%v)", node.NodeID, probeOK)
@@ -232,6 +233,7 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, no
 			// Fallback: if no probe is available, use elapsed-only heuristic.
 			if minWaitMet && m.probeNodeHealth == nil {
 				node.ScyllaJoinPhase = ScyllaJoinVerified
+				node.ScyllaWasEverVerified = true
 				node.ScyllaJoinError = ""
 				dirty = true
 				log.Printf("scylla join: node %s verified in gossip ring (heuristic)", node.NodeID)
@@ -253,10 +255,13 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, no
 					node.ScyllaJoinStartedAt = now
 					node.ScyllaJoinError = "restarted scylla-server (Raft join stuck)"
 					dirty = true
-				} else if node.ScyllaJoinRestarts >= 1 && m.wipeScyllaData != nil {
+				} else if node.ScyllaJoinRestarts >= 1 && m.wipeScyllaData != nil && !node.ScyllaWasEverVerified {
 					// Second timeout: restart didn't help. The stale Raft group
 					// state from a failed first boot prevents re-joining. Wipe
 					// data and restart for a clean Raft bootstrap.
+					// SAFETY: only wipe nodes that have never successfully joined.
+					// Existing cluster members regressing through probe failure must
+					// never be wiped — that destroys data on healthy nodes.
 					log.Printf("scylla join: node %s timed out again — wiping stale Raft data and restarting (attempt %d)",
 						node.NodeID, node.ScyllaJoinRestarts+1)
 					if err := m.wipeScyllaData(ctx, node.AgentEndpoint); err != nil {
@@ -289,6 +294,10 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, no
 					log.Printf("scylla join: node %s probe regression detected, resetting to started", node.NodeID)
 					node.ScyllaJoinPhase = ScyllaJoinStarted
 					node.ScyllaJoinStartedAt = now
+					// Reset restarts so the restart/wipe pipeline starts fresh.
+					// This node was previously verified — ScyllaWasEverVerified
+					// will gate the wipe and prevent data loss.
+					node.ScyllaJoinRestarts = 0
 					node.ScyllaJoinError = "probe regression: node no longer healthy"
 					dirty = true
 				}

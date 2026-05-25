@@ -314,6 +314,12 @@ type nodeState struct {
 	ScyllaJoinStartedAt    time.Time       `json:"scylla_join_started_at,omitempty"`
 	ScyllaJoinError        string          `json:"scylla_join_error,omitempty"`
 	ScyllaJoinRestarts     int             `json:"scylla_join_restarts,omitempty"`
+	// ScyllaWasEverVerified is set once a node reaches ScyllaJoinVerified. It gates
+	// the wipe escalation in the restart/wipe pipeline: we must never wipe an
+	// existing cluster member that is only experiencing a temporary probe regression
+	// (e.g. because a peer was removed). The wipe is only safe for nodes that have
+	// never successfully joined the ring.
+	ScyllaWasEverVerified  bool            `json:"scylla_was_ever_verified,omitempty"`
 	// ScyllaReplaceAddress is set when a node rejoins after being removed without
 	// decommissioning (its IP is still DN in the gossip ring). The rendered
 	// scylla.yaml will include replace_address_first_boot so ScyllaDB can claim

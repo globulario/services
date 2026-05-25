@@ -415,6 +415,92 @@ func TestReconcileScyllaJoin_FailAfterReplaceTimeout(t *testing.T) {
 	}
 }
 
+// TestScyllaJoin_VerifiedNodeNeverWiped tests the critical invariant: a node that
+// was previously verified (ScyllaWasEverVerified=true) must never have its data
+// wiped even after a probe regression and two restart timeouts.
+// Regression: removing a peer caused the surviving node's ScyllaDB to be wiped.
+func TestScyllaJoin_VerifiedNodeNeverWiped(t *testing.T) {
+	wipeCalled := false
+	mgr := newScyllaClusterManager()
+	mgr.wipeScyllaData = func(_ context.Context, _ string) error {
+		wipeCalled = true
+		return nil
+	}
+	mgr.restartService = func(_ context.Context, _, _ string) error { return nil }
+	mgr.probeNodeHealth = func(_ context.Context, _ string) bool { return false }
+
+	// Simulate a node that was previously verified (an existing cluster member).
+	node := &nodeState{
+		NodeID:               "ryzen",
+		Profiles:             []string{"scylla"},
+		Identity:             storedIdentity{Hostname: "globule-ryzen", Ips: []string{"10.0.0.63"}},
+		AgentEndpoint:        "10.0.0.63:11000",
+		Units:                []unitStatusRecord{{Name: "scylla-server.service", State: "active"}},
+		ScyllaJoinPhase:      ScyllaJoinStarted,
+		ScyllaJoinStartedAt:  time.Now().Add(-(scyllaRaftRestartTimeout + time.Minute)),
+		ScyllaJoinRestarts:   0,
+		ScyllaWasEverVerified: true, // this node was a cluster member
+	}
+	nodes := []*nodeState{node}
+
+	// First timeout: restart fires (OK for verified nodes too — just a gentle nudge).
+	dirty := mgr.reconcileScyllaJoinPhases(context.Background(), nodes)
+	if !dirty {
+		t.Fatal("expected dirty after first timeout")
+	}
+	if node.ScyllaJoinRestarts != 1 {
+		t.Fatalf("expected ScyllaJoinRestarts=1 after first timeout, got %d", node.ScyllaJoinRestarts)
+	}
+	if wipeCalled {
+		t.Fatal("wipe must not be called on first timeout")
+	}
+
+	// Second timeout: wipe must NOT fire because ScyllaWasEverVerified=true.
+	node.ScyllaJoinStartedAt = time.Now().Add(-(scyllaRaftRestartTimeout + time.Minute))
+	dirty = mgr.reconcileScyllaJoinPhases(context.Background(), nodes)
+	if !dirty {
+		t.Fatal("expected dirty after second timeout")
+	}
+	if wipeCalled {
+		t.Fatal("wipe must never be called on a previously-verified node — it would destroy cluster data")
+	}
+	// Node should be marked failed, not wiped.
+	if node.ScyllaJoinPhase != ScyllaJoinFailed {
+		t.Fatalf("expected ScyllaJoinFailed after second timeout without wipe, got %s", node.ScyllaJoinPhase)
+	}
+}
+
+// TestScyllaJoin_RegressionResetsRestarts verifies that when a verified node
+// regresses due to a probe failure, ScyllaJoinRestarts is reset to 0 so it
+// doesn't immediately skip straight to wipe on the next timeout cycle.
+func TestScyllaJoin_RegressionResetsRestarts(t *testing.T) {
+	mgr := newScyllaClusterManager()
+	mgr.probeNodeHealth = func(_ context.Context, _ string) bool { return false }
+
+	node := &nodeState{
+		NodeID:                "ryzen",
+		Profiles:              []string{"scylla"},
+		Identity:              storedIdentity{Hostname: "globule-ryzen", Ips: []string{"10.0.0.63"}},
+		AgentEndpoint:         "10.0.0.63:11000",
+		Units:                 []unitStatusRecord{{Name: "scylla-server.service", State: "active"}},
+		ScyllaJoinPhase:       ScyllaJoinVerified,
+		ScyllaJoinRestarts:    2, // had restarts from a prior join attempt
+		ScyllaWasEverVerified: true,
+	}
+	nodes := []*nodeState{node}
+
+	dirty := mgr.reconcileScyllaJoinPhases(context.Background(), nodes)
+	if !dirty {
+		t.Fatal("expected dirty on probe regression")
+	}
+	if node.ScyllaJoinPhase != ScyllaJoinStarted {
+		t.Fatalf("expected ScyllaJoinStarted after regression, got %s", node.ScyllaJoinPhase)
+	}
+	if node.ScyllaJoinRestarts != 0 {
+		t.Fatalf("expected ScyllaJoinRestarts=0 after regression, got %d", node.ScyllaJoinRestarts)
+	}
+}
+
 // TestReconcileScyllaJoin_ClearsReplaceAddressOnSuccess verifies that a
 // successful start clears ScyllaReplaceAddress so it doesn't persist into
 // future restarts.
