@@ -317,10 +317,7 @@ func (srv *server) storageControlPlaneNodeCount() int {
 	}
 	count := 0
 	for _, n := range srv.state.Nodes {
-		if n == nil {
-			continue
-		}
-		if n.Status == "removed" || n.Status == "blocked" || n.Status == "unreachable" {
+		if !IsNodeVerifiedStorageEligible(n) {
 			continue
 		}
 		profiles := map[string]bool{}
