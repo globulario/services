@@ -149,6 +149,38 @@ func (srv *server) runScyllaSchemaGuard(ctx context.Context) {
 		strategy, currentRF, rfMap, gerr := getKeyspaceReplication(kctx, session, ks)
 		cancel()
 		if gerr != nil {
+			// Distinguish "keyspace doesn't exist yet" from a real query error.
+			// Missing keyspace is a transient state: attempt to create it.
+			// Only raise a Violation if creation also fails.
+			if gerr == gocql.ErrNotFound {
+				cctx, ccancel := context.WithTimeout(ctx, 10*time.Second)
+				createCQL := fmt.Sprintf(
+					"CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class':'SimpleStrategy','replication_factor':%d}",
+					ks, requiredRF,
+				)
+				cerr := session.Query(createCQL).WithContext(cctx).Consistency(gocql.Quorum).Exec()
+				ccancel()
+				if cerr != nil {
+					_ = srv.markSchemaGuardStatus(ctx, ks, schemaGuardStatus{
+						Keyspace:      ks,
+						RequiredRF:    requiredRF,
+						Violation:     true,
+						LastError:     fmt.Sprintf("keyspace missing, auto-create failed: %v", cerr),
+						UpdatedAtUnix: time.Now().Unix(),
+					})
+				} else {
+					log.Printf("scylla_schema_guard: auto-created missing keyspace %s (RF=%d)", ks, requiredRF)
+					_ = srv.markSchemaGuardStatus(ctx, ks, schemaGuardStatus{
+						Keyspace:      ks,
+						Strategy:      "SimpleStrategy",
+						CurrentRF:     requiredRF,
+						RequiredRF:    requiredRF,
+						Violation:     false,
+						UpdatedAtUnix: time.Now().Unix(),
+					})
+				}
+				continue
+			}
 			_ = srv.markSchemaGuardStatus(ctx, ks, schemaGuardStatus{
 				Keyspace:      ks,
 				RequiredRF:    requiredRF,
