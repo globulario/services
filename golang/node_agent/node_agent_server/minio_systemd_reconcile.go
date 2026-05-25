@@ -130,15 +130,20 @@ func (srv *NodeAgentServer) resolveMinioNodeIP() (string, error) {
 // enforceMinioRuntimeMembership checks pool admission and enforces the hold.
 //
 //   - Package installed != runtime authorized.
-//   - ObjectStoreDesiredState.Nodes is the runtime allow-list.
+//   - Phase E.2: nodeIsTopologyMember is the primary gate; it uses NodeID-based
+//     admission (v2 mode) when state.AuthorizedMembers is non-nil, or falls
+//     back to the legacy IP-in-Nodes check when it is nil.
 //
 // Returns true when the node is admitted and rendering may proceed.
-// Returns false when the node is not in the pool; enforceMinioHeld is called
-// to stop the service if active (no data wipe).
+// Returns false when the node is not admitted; enforceMinioHeld is called to
+// stop the service if active (no data wipe, no config change).
 func (srv *NodeAgentServer) enforceMinioRuntimeMembership(ctx context.Context, state *config.ObjectStoreDesiredState, nodeIP string) bool {
-	if nodeIPInPool(nodeIP, state) {
+	allowed, reason := nodeIsTopologyMember(srv.nodeID, nodeIP, state)
+	if allowed {
 		return true
 	}
+	log.Printf("minio-topology-gate: node %s (ip=%s) not admitted — %s (gen=%d)",
+		srv.nodeID, nodeIP, reason, state.Generation)
 	srv.enforceMinioHeld(ctx, nodeIP, state.Generation)
 	return false
 }

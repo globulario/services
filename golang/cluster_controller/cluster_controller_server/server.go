@@ -1211,20 +1211,45 @@ func (srv *server) buildObjectStoreDesiredStateLocked() (*config.ObjectStoreDesi
 		nodePaths[k] = v
 	}
 
+	// Phase E.2: populate AuthorizedMembers for node-agent generation enforcement.
+	// When DesiredObjectStoreMembers is non-nil, emit slim admission records so
+	// node-agents can check NodeID + IntentGeneration instead of just IP.
+	// nil desired list → nil AuthorizedMembers (legacy IP-in-Nodes gate applies).
+	var authorizedMembers []config.ObjectStoreMemberSlim
+	if srv.state.DesiredObjectStoreMembers != nil {
+		authorizedMembers = make([]config.ObjectStoreMemberSlim, 0, len(srv.state.DesiredObjectStoreMembers))
+		for _, m := range srv.state.DesiredObjectStoreMembers {
+			// Only emit admitted records for nodes in eligible lifecycle states.
+			node := srv.state.Nodes[m.NodeID]
+			admitted := nodeIsObjectStoreMemberAdmitted(node)
+			blockedReason := ""
+			if !admitted {
+				blockedReason = objectStoreMemberBlockedReason(node)
+			}
+			authorizedMembers = append(authorizedMembers, config.ObjectStoreMemberSlim{
+				NodeID:           m.NodeID,
+				IntentGeneration: uint64(srv.state.ObjectStoreGeneration),
+				Admitted:         admitted,
+				BlockedReason:    blockedReason,
+			})
+		}
+	}
+
 	return &config.ObjectStoreDesiredState{
-		Mode:             mode,
-		Generation:       srv.state.ObjectStoreGeneration,
-		Endpoint:         endpoint,
-		AccessKey:        accessKey,
-		SecretKey:        secretKey,
-		Bucket:           "globular",
-		Prefix:           domain,
-		Nodes:            append([]string(nil), allowedPool...),
-		DrivesPerNode:    srv.state.MinioDrivesPerNode,
-		VolumesHash:      config.ComputeVolumesHash(nodeVolumes),
-		NodePaths:        nodePaths,
-		CredentialsReady: credentialsReady,
-		EndpointReady:    endpointReady,
+		Mode:              mode,
+		Generation:        srv.state.ObjectStoreGeneration,
+		Endpoint:          endpoint,
+		AccessKey:         accessKey,
+		SecretKey:         secretKey,
+		Bucket:            "globular",
+		Prefix:            domain,
+		Nodes:             append([]string(nil), allowedPool...),
+		DrivesPerNode:     srv.state.MinioDrivesPerNode,
+		VolumesHash:       config.ComputeVolumesHash(nodeVolumes),
+		NodePaths:         nodePaths,
+		CredentialsReady:  credentialsReady,
+		EndpointReady:     endpointReady,
+		AuthorizedMembers: authorizedMembers,
 	}, false
 }
 

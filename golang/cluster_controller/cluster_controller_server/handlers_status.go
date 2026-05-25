@@ -406,32 +406,50 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 
 	// Advance join lifecycle phase on node-agent contact.
 	// When a bootstrapping node first connects, it transitions to
-	// node_agent_registered. We then move to admission_pending until full proof
-	// is available (TODO Phase F: typed intents + stronger admission proof).
+	// node_agent_registered. Subsequent phases require admission proof
+	// (Phase B.1: identity + JoinPlan correlation before admitted/active).
 	// Legacy nodes with empty JoinLifecyclePhase are not touched.
 	switch node.JoinLifecyclePhase {
 	case JoinPhaseBootstrapping, JoinPhaseAuthorized:
+		// Heartbeat alone advances to node_agent_registered — no proof required yet.
 		if newEndpoint != "" {
 			node.JoinLifecyclePhase = JoinPhaseNodeAgentRegistered
 			changed = true
 		}
 	case JoinPhaseNodeAgentRegistered:
-		// TODO(v2-join-Phase-F): advance to admitted only after typed intent proof.
-		// For now, move to admission_pending to signal the controller is evaluating.
+		// Move to admission_pending to signal evaluation is underway.
+		// Admission itself requires proof (checked on the next heartbeat).
 		node.JoinLifecyclePhase = JoinPhaseAdmissionPending
 		changed = true
 	case JoinPhaseAdmissionPending:
-		// TODO(v2-join-Phase-F): verify runtime proof (node_principal, cert, unit state).
-		// Temporarily admit when BootstrapPhase reaches admitted or beyond, since
-		// existing bootstrap machinery already implies basic identity trust.
-		if bootstrapPhaseReady(node.BootstrapPhase) {
+		// Heartbeat alone is NOT sufficient for admission.
+		// The node must present identity proof correlated with its signed JoinPlan.
+		result := EvaluateNodeAdmissionProof(srv.state, node)
+		proofStatus := buildNodeAdmissionStatus(result)
+		node.LastAdmissionProof = proofStatus
+		changed = true
+		if result.OK {
 			node.JoinLifecyclePhase = JoinPhaseAdmitted
-			changed = true
+			log.Printf("lifecycle: node %s admitted (join_id correlation passed, v2_plan=%v)",
+				nodeID, result.Proof.HasJoinPlan)
+			node.lastAdmissionReason = ""
+		} else if admissionShouldLog(node.lastAdmissionReason, result.Reason) {
+			log.Printf("lifecycle: %s", admissionProofSummaryLine(nodeID, result))
+			node.lastAdmissionReason = result.Reason
 		}
 	case JoinPhaseAdmitted:
-		if node.BootstrapPhase == BootstrapWorkloadReady && healthStatus == "ready" {
+		// Active requires full runtime convergence proof, not just health status.
+		result := EvaluateNodeAdmissionProof(srv.state, node)
+		if node.LastAdmissionProof == nil || !node.LastAdmissionProof.ActiveOK {
+			proofStatus := buildNodeAdmissionStatus(result)
+			node.LastAdmissionProof = proofStatus
+			changed = true
+		}
+		if result.ActiveOK {
 			node.JoinLifecyclePhase = JoinPhaseActive
 			changed = true
+			log.Printf("lifecycle: node %s promoted to active (runtime proof complete)", nodeID)
+			node.lastAdmissionReason = ""
 		}
 	}
 

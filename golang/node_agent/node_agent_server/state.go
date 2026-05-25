@@ -22,6 +22,14 @@ type nodeAgentState struct {
 	NodeName      string `json:"node_name"`
 	AdvertiseIP   string `json:"advertise_ip"`
 	AdvertiseFQDN string `json:"advertise_fqdn"`
+
+	// v2 join path: join_id is set by the installer via /join/authorize before
+	// any cluster-affecting step. The node-agent uses it as the request_id for
+	// GetJoinRequestStatus polling, bypassing the v1 RequestJoin call.
+	JoinID string `json:"join_id,omitempty"`
+	// JoinPlanJSON is the raw JoinPlan JSON written by the installer alongside
+	// the join_id. The node-agent validates the plan before polling for admission.
+	JoinPlanJSON []byte `json:"join_plan_json,omitempty"`
 }
 
 func newNodeAgentState() *nodeAgentState {

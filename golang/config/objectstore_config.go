@@ -96,6 +96,48 @@ type ObjectStoreDesiredState struct {
 
 	// WrittenAt records when this state was last published by the controller.
 	WrittenAt time.Time `json:"written_at"`
+
+	// AuthorizedMembers is the Phase E.2 node-agent enforcement gate.
+	// When non-nil, node-agents use NodeID-based admission instead of the
+	// legacy IP-in-Nodes check. Only entries with Admitted=true and a matching
+	// IntentGeneration may render active MinIO topology config.
+	//
+	// nil  → legacy mode: Nodes (IP list) is the admission gate.
+	// []   → v2 mode with no admitted members: all nodes are held.
+	//
+	// The controller populates this from DesiredObjectStoreMembers whenever it
+	// publishes a new desired state generation.
+	AuthorizedMembers []ObjectStoreMemberSlim `json:"authorized_members,omitempty"`
+}
+
+// ObjectStoreMemberSlim is the minimal authorized-member record published to
+// etcd for node-agent generation enforcement (Phase E.2).
+//
+// The controller writes this record into ObjectStoreDesiredState.AuthorizedMembers
+// for every node it has explicitly authorized for MinIO pool membership. Node
+// agents check whether their own NodeID appears here before rendering topology
+// config or allowing globular-minio.service to start.
+//
+// Admitted is set to true only when:
+//   - ObjectStoreIntent.Member=true for this node
+//   - node lifecycle is admitted/converging/active
+//   - node is not blocked/removing/removed/bootstrap-failed
+//
+// An entry with Admitted=false means the controller is tracking the node but it
+// has not yet reached the required lifecycle state; the node-agent must hold MinIO.
+type ObjectStoreMemberSlim struct {
+	// NodeID is the controller-assigned node identifier.
+	NodeID string `json:"node_id"`
+	// IntentGeneration is the ObjectStoreGeneration at which this member was
+	// authorized. The node-agent rejects membership when this does not match
+	// ObjectStoreDesiredState.Generation — it indicates a stale or mis-applied record.
+	IntentGeneration uint64 `json:"intent_generation"`
+	// Admitted is true when the controller has confirmed all eligibility conditions:
+	// ObjectStoreIntent.Member=true, lifecycle eligible, not blocked/removed.
+	// false = hold MinIO; true = eligible to render topology config.
+	Admitted bool `json:"admitted"`
+	// BlockedReason is a human-readable explanation when Admitted=false.
+	BlockedReason string `json:"blocked_reason,omitempty"`
 }
 
 // EtcdKeyNodeRenderedGeneration returns the etcd key where a node agent

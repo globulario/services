@@ -1039,6 +1039,8 @@ func (srv *NodeAgentServer) applyApprovedNodeID(nodeID string) {
 	srv.nodeID = nodeID
 	srv.state.NodeID = nodeID
 	srv.state.RequestID = ""
+	srv.state.JoinID = ""       // clear v2 join_id so auto-join doesn't re-fire on restart
+	srv.state.JoinPlanJSON = nil // clear stored plan; no longer needed after approval
 	srv.joinRequestID = ""
 	srv.joinToken = "" // clear so auto-join doesn't re-fire on restart
 	srv.stateMu.Unlock()

@@ -44,8 +44,17 @@ func nodeHasMinioRunning(node *nodeState) bool {
 //   - node has a routable IP
 //   - node is not mid-join
 //   - node is in correct bootstrap phase
+//
+// Phase E-lite: if the node carries an explicit ObjectStoreIntent with
+// Member=false, it is excluded immediately regardless of profile. The
+// authoritative membership gate (DesiredObjectStoreMembers) is checked
+// in reconcileMinioJoinPhases before this function is called.
 func nodeIsPreparedForMinioJoin(node *nodeState) bool {
 	if node == nil {
+		return false
+	}
+	// Explicit controller exclusion takes precedence over profile.
+	if node.ObjectStoreIntent != nil && !node.ObjectStoreIntent.Member {
 		return false
 	}
 	if !nodeHasProfile(&memberNode{Profiles: node.Profiles}, profilesForMinio) {
@@ -101,8 +110,20 @@ func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *c
 		if node == nil {
 			continue
 		}
-		if !nodeHasProfile(&memberNode{Profiles: node.Profiles}, profilesForMinio) {
+		// Phase E-lite membership gate: when DesiredObjectStoreMembers is non-nil
+		// (v2 mode), only explicitly listed nodes are eligible. Legacy clusters with
+		// nil desired list fall back to the profile check for backward compat.
+		memberStatus := objectStoreMembershipStatus(node, state.DesiredObjectStoreMembers)
+		switch memberStatus {
+		case "not_listed", "intent_not_member":
 			continue
+		case "explicit_desired_state":
+			// v2 mode: explicit authorization — skip profile check
+		case "legacy_profile_derived":
+			// legacy mode: apply profilesForMinio filter as before
+			if !nodeHasProfile(&memberNode{Profiles: node.Profiles}, profilesForMinio) {
+				continue
+			}
 		}
 
 		switch node.MinioJoinPhase {

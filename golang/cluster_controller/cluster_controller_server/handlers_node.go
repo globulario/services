@@ -58,6 +58,10 @@ func (srv *server) ListNodes(ctx context.Context, req *cluster_controllerpb.List
 		if node.Day1PhaseReason != "" {
 			meta["day1_phase_reason"] = node.Day1PhaseReason
 		}
+		// Phase B.2: admission proof observability.
+		for k, v := range admissionStatusMetadata(node) {
+			meta[k] = v
+		}
 		if node.ResolvedIntent != nil {
 			meta["desired_infra"] = strings.Join(node.ResolvedIntent.DesiredInfraNames, ",")
 			meta["desired_workloads"] = strings.Join(node.ResolvedIntent.DesiredWorkloadNames, ",")

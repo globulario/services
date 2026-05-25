@@ -92,6 +92,23 @@ type controllerState struct {
 	// Monotonically increasing. Node agents compare their observed generation to detect drift.
 	ObjectStoreGeneration int64 `json:"objectstore_generation,omitempty"`
 
+	// DesiredObjectStoreMembers is the Phase E-lite explicit desired membership list.
+	// When non-nil, reconcileMinioJoinPhases uses this list as the authoritative gate
+	// instead of the profile-derived profilesForMinio check.
+	//
+	// nil → legacy mode: profilesForMinio governs (backward compat for existing clusters).
+	// non-nil → v2 mode: only nodes listed here may join the MinIO erasure pool.
+	//
+	// Populated by approveJoinRecordLocked (Day-0 bootstrap) or apply-topology calls.
+	// On first upgrade, objectStoreDesiredMembersFromIntents migrates from intent flags.
+	DesiredObjectStoreMembers []ObjectStoreMember `json:"desired_objectstore_members,omitempty"`
+
+	// PendingObjectStoreTransition is the in-flight topology transition record.
+	// Phase E.1: membership changes must go through a generation-gated transition.
+	// nil means no transition is currently pending or applying.
+	// Once applied (status==applied), callers may clear this field or archive it.
+	PendingObjectStoreTransition *ObjectStoreTopologyTransition `json:"pending_objectstore_transition,omitempty"`
+
 	// CAGeneration is incremented each time the cluster CA is rotated.
 	// Monotonically increasing. Published in CAMetadata so doctor rules can track
 	// per-node CA drift (node still on generation N-1 after controller moved to N).
@@ -408,6 +425,15 @@ type nodeState struct {
 	// RestartAttempts tracks lightweight restart attempts per service (in-memory only).
 	// Keyed by canonical service name. Resets on controller restart.
 	RestartAttempts map[string]*restartAttempt `json:"-"`
+	// LastAdmissionProof is the most recently stored admission proof evaluation
+	// result. Updated on every heartbeat where EvaluateNodeAdmissionProof is
+	// called. nil for legacy nodes (empty JoinLifecyclePhase) or nodes that
+	// have not been evaluated yet. Persisted so operators can query it.
+	LastAdmissionProof *AdmissionProofStatus `json:"last_admission_proof,omitempty"`
+	// lastAdmissionReason is the reason string from the last *logged* proof
+	// evaluation. In-memory only (json:"-") — used to suppress repeated
+	// identical log lines. Resets on controller restart (acceptable).
+	lastAdmissionReason string `json:"-"`
 }
 
 // restartAttempt tracks lightweight restart attempts for a single service.
@@ -571,6 +597,19 @@ func loadControllerState(path string) (*controllerState, error) {
 	// Older versions wrote FQDNs (e.g. "globule-ryzen.globular.internal") instead
 	// of bare IPs, which causes resolveMinioEndpointLocked to reject them.
 	migratePoolNodeHostnames(state)
+	// Phase E-lite migration: if DesiredObjectStoreMembers is nil but nodes carry
+	// ObjectStoreIntent.Member=true (set by Phase F-lite), this is a first boot
+	// after upgrade. Populate DesiredObjectStoreMembers from intent flags so that
+	// existing pool members are not locked out by the v2 gate.
+	// Nodes without a routable IP (not yet registered) stay in nil desired — they
+	// will be added on their next heartbeat via the reconcile path.
+	if state.DesiredObjectStoreMembers == nil {
+		migrated := objectStoreDesiredMembersFromIntents(state.Nodes, uint64(state.ObjectStoreGeneration))
+		if len(migrated) > 0 {
+			state.DesiredObjectStoreMembers = migrated
+			log.Printf("objectstore_migration: populated DesiredObjectStoreMembers from %d node intents", len(migrated))
+		}
+	}
 	return state, nil
 }
 

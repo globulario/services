@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os/exec"
 	"time"
@@ -13,6 +14,7 @@ import (
 // described by state. Returns false for nil state, empty node list, or empty IP.
 //
 // Pure function — no I/O. Safe to call from tests without a live cluster.
+// Preserved for legacy clusters where AuthorizedMembers is nil.
 func nodeIPInPool(nodeIP string, state *config.ObjectStoreDesiredState) bool {
 	if state == nil || nodeIP == "" {
 		return false
@@ -23,6 +25,63 @@ func nodeIPInPool(nodeIP string, state *config.ObjectStoreDesiredState) bool {
 		}
 	}
 	return false
+}
+
+// nodeIsTopologyMember is the Phase E.2 node-agent topology gate.
+// It returns (true, "") when this node may render active MinIO topology config
+// and start globular-minio.service. It returns (false, reason) otherwise.
+//
+// v2 mode (state.AuthorizedMembers non-nil):
+//   - The node must appear in AuthorizedMembers by NodeID.
+//   - The entry must have Admitted=true.
+//   - The entry's IntentGeneration must match state.Generation.
+//
+// legacy mode (state.AuthorizedMembers nil):
+//   - Falls back to nodeIPInPool (IP-based check) for backward compat.
+//
+// Phase E.2 invariants enforced here:
+//   - "node not listed in approved objectstore topology"  → member missing or empty list
+//   - "objectstore generation mismatch; topology not applied" → IntentGeneration drift
+//   - "blocked: <reason>"  → Admitted=false (controller set this from lifecycle/intent)
+//
+// Pure function — no I/O. Safe to call from unit tests without a live cluster.
+func nodeIsTopologyMember(nodeID, nodeIP string, state *config.ObjectStoreDesiredState) (bool, string) {
+	if state == nil {
+		return false, "objectstore desired state not available"
+	}
+
+	// v2 mode: use explicit NodeID-based authorization list.
+	if state.AuthorizedMembers != nil {
+		if nodeID == "" {
+			return false, "node not listed in approved objectstore topology"
+		}
+		for _, m := range state.AuthorizedMembers {
+			if m.NodeID != nodeID {
+				continue
+			}
+			// Found the node. Check admission and generation.
+			if !m.Admitted {
+				reason := m.BlockedReason
+				if reason == "" {
+					reason = "node not yet admitted to objectstore topology"
+				}
+				return false, fmt.Sprintf("blocked: %s", reason)
+			}
+			if m.IntentGeneration != uint64(state.Generation) {
+				return false, fmt.Sprintf("objectstore generation mismatch; topology not applied (node_gen=%d desired_gen=%d)",
+					m.IntentGeneration, state.Generation)
+			}
+			return true, ""
+		}
+		// NodeID not found in the authorized list.
+		return false, "node not listed in approved objectstore topology"
+	}
+
+	// legacy mode: fall back to IP-in-pool check.
+	if nodeIPInPool(nodeIP, state) {
+		return true, ""
+	}
+	return false, "node not listed in approved objectstore topology"
 }
 
 // enforceMinioHeld stops globular-minio.service if it is currently active and

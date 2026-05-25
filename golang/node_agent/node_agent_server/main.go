@@ -133,11 +133,16 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Auto-initiate join if a token is present but no request is in flight.
-	// The node-agent state file written by the join script seeds join_token and
-	// controller_endpoint; this goroutine fires the RequestJoin RPC and then
-	// hands off to startJoinApprovalWatcher to poll for admission.
-	if srv.joinToken != "" && srv.joinRequestID == "" {
+	// Auto-initiate join if a join credential is present but no request is in flight.
+	//
+	// v2 path: state.JoinID is set by the installer via /join/authorize.
+	//   autoInitiateJoin validates the stored JoinPlan and polls GetJoinRequestStatus.
+	//
+	// v1 legacy path: joinToken is set without a JoinPlan.
+	//   autoInitiateJoin calls RequestJoin directly.
+	hasV2JoinID := srv.state != nil && srv.state.JoinID != "" && srv.nodeID == ""
+	hasV1Token := srv.joinToken != "" && srv.joinRequestID == ""
+	if (hasV2JoinID || hasV1Token) && srv.joinRequestID == "" {
 		go srv.autoInitiateJoin(ctx)
 	}
 

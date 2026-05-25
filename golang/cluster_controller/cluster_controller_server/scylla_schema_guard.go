@@ -56,7 +56,7 @@ func (srv *server) requestScyllaSchemaGuardEnforce(ctx context.Context, reason s
 		return
 	}
 	kv := srv.kv
-	if kv == nil {
+	if kv == nil && srv.etcdClient != nil {
 		kv = srv.etcdClient
 	}
 	if kv == nil {
