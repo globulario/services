@@ -1136,7 +1136,10 @@ if [[ "$USE_WORKFLOW" == "1" ]]; then
     WORKFLOW_RC=${PIPESTATUS[0]}
   else
     # No grpcurl — try the globular CLI with a RunWorkflow-equivalent command.
-    GLOBULAR_CLI="/usr/lib/globular/bin/globularcli"
+    GLOBULAR_CLI="/usr/local/bin/globular"
+    if [[ ! -x "$GLOBULAR_CLI" ]]; then
+      GLOBULAR_CLI="/usr/lib/globular/bin/globular"
+    fi
     if [[ ! -x "$GLOBULAR_CLI" ]]; then
       GLOBULAR_CLI="$(command -v globular 2>/dev/null || true)"
     fi
@@ -1588,8 +1591,14 @@ else
   VALIDATION_PASSED=0
 fi
 
-# Globular CLI path — used by artifact publish and desired-state import below.
-GLOBULAR_CLI="/usr/lib/globular/bin/globularcli"
+# Locate the Globular CLI.
+# install.sh installs it at /usr/local/bin/globular from the tarball root before
+# this script runs. The globular-cli package also installs it at $PREFIX/bin/globular.
+# The binary is named "globular" (not "globularcli") per the package spec entrypoint.
+GLOBULAR_CLI="/usr/local/bin/globular"
+if [[ ! -x "$GLOBULAR_CLI" ]]; then
+  GLOBULAR_CLI="/usr/lib/globular/bin/globular"
+fi
 
 # ── Day-0 Join Token ─────────────────────────────────────────────────────────
 # Generate a shared join token so the first node can self-register with

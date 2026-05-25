@@ -558,18 +558,10 @@ log_success "node-agent ready on :11000"
 # ─── Step 17: Join the cluster ─────────────────────────────────────────────────
 log_step "Cluster Join (triggering node.join workflow)"
 
-GLOBULAR_CLI="/usr/lib/globular/bin/globularcli"
+GLOBULAR_CLI="/usr/local/bin/globular"
+[[ -x "$GLOBULAR_CLI" ]] || GLOBULAR_CLI="/usr/lib/globular/bin/globular"
 [[ -x "$GLOBULAR_CLI" ]] || GLOBULAR_CLI="$(command -v globular 2>/dev/null || true)"
 [[ -n "$GLOBULAR_CLI" && -x "$GLOBULAR_CLI" ]] || die "globular CLI not found (is globular-cli package installed?)"
-
-# Install globular-cli if not yet present (it may have been included already)
-if [[ ! -x "$GLOBULAR_CLI" ]]; then
-  CLI_PKG="$PKG_DIR/globular-cli_0.0.1_linux_amd64.tgz"
-  [[ -f "$CLI_PKG" ]] && run_install "$CLI_PKG"
-  GLOBULAR_CLI="$(command -v globular 2>/dev/null || true)"
-fi
-
-[[ -n "$GLOBULAR_CLI" && -x "$GLOBULAR_CLI" ]] || die "globular CLI still not found after install"
 
 log_substep "Running: globular cluster join"
 log_substep "  Controller: $CONTROLLER_ADDR"
