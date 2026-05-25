@@ -16,6 +16,8 @@ type fakeQuerier struct {
 	peersErr           error
 	members            []group0Member
 	membersErr         error
+	raftStateMembers   []group0Member
+	raftStateErr       error
 }
 
 func (f *fakeQuerier) queryLocalInfo(_ context.Context) (localInfo, error) {
@@ -31,6 +33,13 @@ func (f *fakeQuerier) queryPeerSchemas(_ context.Context) ([]peerSchemaRow, erro
 
 func (f *fakeQuerier) queryGroup0Members(_ context.Context) ([]group0Member, error) {
 	return f.members, f.membersErr
+}
+
+func (f *fakeQuerier) queryRaftStateFallback(_ context.Context) ([]group0Member, error) {
+	if f.raftStateErr != nil {
+		return nil, f.raftStateErr
+	}
+	return f.raftStateMembers, nil
 }
 
 // healthyQuerier returns a fully-healthy fakeQuerier: local node + two peers,
@@ -122,11 +131,13 @@ func TestCanScyllaDDLProceed_SchemaAgreementUnavailable_PeerDisagrees(t *testing
 }
 
 // TestCanScyllaDDLProceed_Unknown_Group0TableMissing covers the fail-closed
-// rule: when the Raft Group 0 table is absent, DDL is blocked rather than
-// assumed safe.
+// rule: when both raft_group0_members and raft_state are absent, DDL is
+// blocked. The raft_state fallback (ScyllaDB 2025.x+) is tried first; only
+// when it also returns ErrGroup0TableMissing is DDLPreflightUnknown returned.
 func TestCanScyllaDDLProceed_Unknown_Group0TableMissing(t *testing.T) {
 	q := healthyQuerier()
 	q.membersErr = ErrGroup0TableMissing
+	q.raftStateErr = ErrGroup0TableMissing // both tables absent — full unknown
 	r := canScyllaDDLProceedWith(context.Background(), q)
 	if r.OK {
 		t.Fatal("missing Group 0 table must block DDL (fail closed)")
@@ -330,6 +341,7 @@ func TestCanScyllaDDLProceed_FindingTextIncludesVoterDetails(t *testing.T) {
 func TestCanScyllaDDLProceed_Unknown_FindingText(t *testing.T) {
 	q := healthyQuerier()
 	q.membersErr = ErrGroup0TableMissing
+	q.raftStateErr = ErrGroup0TableMissing // both tables absent
 	r := canScyllaDDLProceedWith(context.Background(), q)
 	ft := Group0FindingText(r)
 	if !strings.Contains(ft, "cannot be proven") {
@@ -337,5 +349,60 @@ func TestCanScyllaDDLProceed_Unknown_FindingText(t *testing.T) {
 	}
 	if !strings.Contains(ft, "upgrade") && !strings.Contains(ft, "manually") {
 		t.Errorf("unknown finding must include guidance; got: %s", ft)
+	}
+}
+
+// ── Regression: ScyllaDB 2025.x+ raft_state fallback ────────────────────────
+
+// TestCanScyllaDDLProceed_RaftStateFallback_OK verifies that when
+// system.raft_group0_members is absent (ScyllaDB 2025.x+), a healthy
+// system.raft_state with a single CURRENT voter allows DDL to proceed.
+// Regression for: DDL permanently blocked on ScyllaDB 2025.3.x clusters.
+func TestCanScyllaDDLProceed_RaftStateFallback_OK(t *testing.T) {
+	q := healthyQuerier()
+	q.membersErr = ErrGroup0TableMissing // raft_group0_members absent
+	q.raftStateMembers = []group0Member{
+		{ServerID: "uuid-local", CanVote: boolPtr(true)},
+	}
+	r := canScyllaDDLProceedWith(context.Background(), q)
+	if !r.OK {
+		t.Fatalf("raft_state fallback with healthy voter must allow DDL, got reason=%q finding=%q",
+			r.Reason, Group0FindingText(r))
+	}
+	if r.Reason != DDLPreflightOK {
+		t.Fatalf("expected reason=%q, got %q", DDLPreflightOK, r.Reason)
+	}
+}
+
+// TestCanScyllaDDLProceed_RaftStateFallback_BothMissing verifies fail-closed:
+// when both raft_group0_members and raft_state are absent, DDL is blocked.
+func TestCanScyllaDDLProceed_RaftStateFallback_BothMissing(t *testing.T) {
+	q := healthyQuerier()
+	q.membersErr = ErrGroup0TableMissing
+	q.raftStateErr = ErrGroup0TableMissing
+	r := canScyllaDDLProceedWith(context.Background(), q)
+	if r.OK {
+		t.Fatal("both tables absent must block DDL (fail closed)")
+	}
+	if r.Reason != DDLPreflightUnknown {
+		t.Fatalf("expected %q, got %q", DDLPreflightUnknown, r.Reason)
+	}
+}
+
+// TestCanScyllaDDLProceed_RaftStateFallback_StaleVoter verifies that a
+// stale voter in raft_state (can_vote=false, not in gossip) blocks DDL.
+func TestCanScyllaDDLProceed_RaftStateFallback_StaleVoter(t *testing.T) {
+	q := healthyQuerier()
+	q.membersErr = ErrGroup0TableMissing
+	q.raftStateMembers = []group0Member{
+		{ServerID: "uuid-local", CanVote: boolPtr(true)},
+		{ServerID: "uuid-dead-nuc", CanVote: boolPtr(true)}, // not in gossip
+	}
+	r := canScyllaDDLProceedWith(context.Background(), q)
+	if r.OK {
+		t.Fatal("stale voter in raft_state must block DDL")
+	}
+	if r.Reason != DDLPreflightGroup0StaleVoter {
+		t.Fatalf("expected %q, got %q", DDLPreflightGroup0StaleVoter, r.Reason)
 	}
 }

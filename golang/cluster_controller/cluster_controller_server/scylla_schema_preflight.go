@@ -87,6 +87,10 @@ type scyllaPreflightQuerier interface {
 	// queryGroup0Members returns members from system.raft_group0_members.
 	// Returns ErrGroup0TableMissing when the table does not exist.
 	queryGroup0Members(ctx context.Context) ([]group0Member, error)
+	// queryRaftStateFallback reads system.raft_state (ScyllaDB 2025.x+), which
+	// replaced system.raft_group0_members. Called when queryGroup0Members returns
+	// ErrGroup0TableMissing. Returns ErrGroup0TableMissing if also absent.
+	queryRaftStateFallback(ctx context.Context) ([]group0Member, error)
 }
 
 // ErrGroup0TableMissing is returned by queryGroup0Members when the Raft Group 0
@@ -104,7 +108,8 @@ var ErrGroup0TableMissing = fmt.Errorf("system.raft_group0_members table not fou
 //  2. system.peers schema_versions all agree with local → DDL can propagate.
 //  3. system.raft_group0_members: cross-reference voter IDs against gossip;
 //     detect stale voters (not in gossip or can_vote=false).
-//     Table missing → DDLPreflightUnknown (BLOCKS DDL, fail closed).
+//     Table missing → try system.raft_state (ScyllaDB 2025.x+ fallback).
+//     Both missing → DDLPreflightUnknown (BLOCKS DDL, fail closed).
 func CanScyllaDDLProceed(ctx context.Context, session *gocql.Session) DDLPreflightResult {
 	if session == nil {
 		return preflightFail(DDLPreflightScyllaUnavailable).withDetail("reason", "nil session")
@@ -156,19 +161,28 @@ func canScyllaDDLProceedWith(ctx context.Context, q scyllaPreflightQuerier) DDLP
 
 	// Layer 3: Raft Group 0 voter health via gossip cross-reference.
 	//
-	// If system.raft_group0_members does not exist, we cannot verify voter
-	// health → DDLPreflightUnknown → DDL blocked (fail closed). A single
-	// dead voter in Raft membership causes a silent DDL hang that can freeze
-	// the entire cluster's schema management.
+	// Tries system.raft_group0_members first (pre-2025 Scylla). If absent,
+	// falls back to system.raft_state (ScyllaDB 2025.x+). A single dead voter
+	// in Raft membership causes a silent DDL hang; fail closed when unknown.
 	members, err := q.queryGroup0Members(ctx)
 	if err != nil {
 		if err == ErrGroup0TableMissing {
+			// raft_group0_members absent — try raft_state (ScyllaDB 2025.x+).
+			members, err = q.queryRaftStateFallback(ctx)
+			if err != nil {
+				if err == ErrGroup0TableMissing {
+					return preflightFail(DDLPreflightUnknown).
+						withDetail("reason", "raft_group0_members_table_missing")
+				}
+				return preflightFail(DDLPreflightUnknown).
+					withDetail("reason", "raft_state_query_failed").
+					withDetail("error", err.Error())
+			}
+		} else {
 			return preflightFail(DDLPreflightUnknown).
-				withDetail("reason", "raft_group0_members_table_missing")
+				withDetail("reason", "group0_members_query_failed").
+				withDetail("error", err.Error())
 		}
-		return preflightFail(DDLPreflightUnknown).
-			withDetail("reason", "group0_members_query_failed").
-			withDetail("error", err.Error())
 	}
 
 	// Build the structured view. Cross-references member server_ids against
@@ -224,9 +238,10 @@ func (g *gocqlQuerier) queryPeerSchemas(ctx context.Context) ([]peerSchemaRow, e
 	return rows, iter.Close()
 }
 
-// queryGroup0Members first tries to fetch server_id and can_vote. If can_vote
-// does not exist in this Scylla version, it falls back to server_id only.
-// If the table itself is absent, it returns ErrGroup0TableMissing.
+// queryGroup0Members fetches server_id and can_vote from
+// system.raft_group0_members. Returns ErrGroup0TableMissing when the table
+// is absent; the caller then tries queryRaftStateFallback. Falls back to
+// server_id only when can_vote is missing (older Scylla schema).
 func (g *gocqlQuerier) queryGroup0Members(ctx context.Context) ([]group0Member, error) {
 	iter := g.session.Query(`SELECT server_id, can_vote FROM system.raft_group0_members`).
 		WithContext(ctx).Consistency(gocql.One).Iter()
@@ -245,6 +260,31 @@ func (g *gocqlQuerier) queryGroup0Members(ctx context.Context) ([]group0Member, 
 		if strings.Contains(msg, "can_vote") || strings.Contains(msg, "Undefined name") {
 			// can_vote column absent (older Scylla) — retry with server_id only.
 			return g.queryGroup0MembersBasic(ctx)
+		}
+		return nil, err
+	}
+	return members, nil
+}
+
+// queryRaftStateFallback reads system.raft_state (ScyllaDB 2025.x+), which
+// replaced system.raft_group0_members. Filters CURRENT members in Go since
+// the table is tiny (one row per node per group).
+func (g *gocqlQuerier) queryRaftStateFallback(ctx context.Context) ([]group0Member, error) {
+	iter := g.session.Query(`SELECT server_id, can_vote, disposition FROM system.raft_state`).
+		WithContext(ctx).Consistency(gocql.One).Iter()
+	var members []group0Member
+	var sID string
+	var cv bool
+	var disposition string
+	for iter.Scan(&sID, &cv, &disposition) {
+		if disposition == "CURRENT" {
+			v := cv
+			members = append(members, group0Member{ServerID: sID, CanVote: &v})
+		}
+	}
+	if err := iter.Close(); err != nil {
+		if isGroup0TableMissingErr(err.Error()) {
+			return nil, ErrGroup0TableMissing
 		}
 		return nil, err
 	}
