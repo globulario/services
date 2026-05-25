@@ -183,8 +183,7 @@ func newEtcdClient() (*clientv3.Client, error) {
 	// Read endpoints from the cluster config file (same source the node-agent uses).
 	endpoints := readEndpointsFile(etcdEndpointsFile)
 	if len(endpoints) == 0 {
-		// Fallback to localhost (works on control-plane nodes where etcd runs locally).
-		endpoints = []string{"https://localhost:2379"}
+		return nil, fmt.Errorf("etcd endpoints not configured: %s is missing or empty — cannot write installed-state without cluster connection", etcdEndpointsFile)
 	}
 
 	certFile := "/var/lib/globular/pki/issued/services/service.crt"

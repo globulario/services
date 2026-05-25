@@ -1017,9 +1017,11 @@ func computeBackendConfig(s *server, scyllaDetected bool) {
 	// Backend host: resolve using env > tcp probe > node IP (NOT service listen address)
 	resolvedHost, err := resolveScyllaHost(int(s.Backend_port))
 	if err != nil {
-		logger.Warn("scylla host resolution failed, will retry during connect", "error", err)
-		// Fallback to localhost as last resort - connection will be retried
-		s.Backend_address = "localhost"
+		// ScyllaDB host unknown — do NOT fall back to localhost (wrong on multi-node
+		// clusters). Leave address empty; the connection attempt will fail with a
+		// clear error and the start-up retry loop will re-attempt resolution.
+		logger.Error("scylla host resolution failed; service will not connect until etcd is reachable", "error", err)
+		s.Backend_address = ""
 	} else {
 		s.Backend_address = resolvedHost
 	}
@@ -1050,9 +1052,10 @@ func resolveRbacEndpoint(bootstrap bool) (string, error) {
 		}
 		addr := strings.TrimSpace(Utility.ToString(cfg["Address"]))
 		port := Utility.ToInt(cfg["Port"])
-		if addr == "" && port > 0 {
-			addr = fmt.Sprintf("127.0.0.1:%d", port)
-		} else if port > 0 && !strings.Contains(addr, ":") {
+		if addr == "" {
+			continue // no address in config — skip rather than assume 127.0.0.1
+		}
+		if port > 0 && !strings.Contains(addr, ":") {
 			addr = fmt.Sprintf("%s:%d", addr, port)
 		}
 		if addr == "" {

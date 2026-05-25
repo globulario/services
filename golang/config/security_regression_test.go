@@ -73,6 +73,26 @@ func TestSecurityRegressions(t *testing.T) {
 		}
 	})
 
+	t.Run("NoLocalhostEtcdFallback", func(t *testing.T) {
+		// Hard rule: services must error out when etcd endpoints are unavailable.
+		// Never silently fall back to localhost:2379 — that breaks multi-node clusters
+		// by silently connecting to a potentially wrong or stale etcd instance.
+		violations := scanForPattern(t, repoRoot, []string{
+			"golang/cmd",
+			"golang/cluster_controller",
+			"golang/node_agent",
+			"golang/cluster_doctor",
+		}, regexp.MustCompile(`"https?://localhost:2379"|"https?://127\.0\.0\.1:2379"`), []string{
+			"_test.go",
+			"security_regression",
+		})
+		if len(violations) > 0 {
+			t.Errorf("Found localhost etcd fallback in %d file(s) — services must error out when etcd endpoints are unconfigured:\n%s",
+				len(violations), formatViolations(violations))
+		}
+	})
+
+
 	t.Run("TLSRequiredByDefault", func(t *testing.T) {
 		// H4: Environment variables for insecure mode must default to false/disabled
 		t.Run("NodeAgentInsecure", func(t *testing.T) {
