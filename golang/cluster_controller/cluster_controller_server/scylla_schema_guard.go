@@ -153,7 +153,7 @@ func (srv *server) runScyllaSchemaGuard(ctx context.Context) {
 	pcancel()
 	ddlAllowed := preflight.OK
 	if !ddlAllowed {
-		log.Printf("scylla_schema_guard: DDL blocked — Raft Group 0 health is unknown or unhealthy; schema mutation skipped (reason=%s)", preflight.Reason)
+		log.Printf("scylla_schema_guard: %s", Group0FindingText(preflight))
 	}
 
 	requiredRF := desiredRFForCluster(srv.storageControlPlaneNodeCount())
