@@ -100,11 +100,14 @@ func (srv *NodeAgentServer) runProbeScyllaHealth(ctx context.Context, req *node_
 }
 
 func validateScyllaRuntimePrereqs() error {
+	// Only check files that ScyllaDB actually reads at runtime.
+	// The rendered scylla.yaml uses plain CQL with no TLS — service.crt and
+	// service.key are Globular gRPC certs and are NOT referenced by ScyllaDB.
+	// Checking them caused a false probe failure (scylla user can't read 0400
+	// gRPC key), which triggered wipe-scylla-data on otherwise healthy nodes.
 	required := []string{
 		"/etc/scylla/scylla.yaml",
 		"/var/lib/globular/pki/ca.crt",
-		"/var/lib/globular/pki/issued/services/service.crt",
-		"/var/lib/globular/pki/issued/services/service.key",
 	}
 	for _, p := range required {
 		if fi, err := os.Stat(p); err != nil {
@@ -113,8 +116,8 @@ func validateScyllaRuntimePrereqs() error {
 			return fmt.Errorf("scylla prereq invalid: %s is a directory", p)
 		}
 	}
-	// Fail fast on common PKI permission bugs that make scylla fail with opaque
-	// TLS startup errors even though files exist.
+	// Verify the scylla user can read the CA cert (needed for inter-node gossip
+	// trust in future TLS configurations). service.crt/.key are gRPC-only.
 	scyllaUser, err := user.Lookup("scylla")
 	if err != nil {
 		return fmt.Errorf("scylla user lookup failed: %v", err)
@@ -127,7 +130,6 @@ func validateScyllaRuntimePrereqs() error {
 	if err != nil {
 		return fmt.Errorf("invalid scylla gid %q: %v", scyllaUser.Gid, err)
 	}
-	// Collect all group IDs: primary + supplementary.
 	gids := []int{gid}
 	if groupIDs, err := scyllaUser.GroupIds(); err == nil {
 		for _, gidStr := range groupIDs {
@@ -136,14 +138,8 @@ func validateScyllaRuntimePrereqs() error {
 			}
 		}
 	}
-	for _, p := range []string{
-		"/var/lib/globular/pki/ca.crt",
-		"/var/lib/globular/pki/issued/services/service.crt",
-		"/var/lib/globular/pki/issued/services/service.key",
-	} {
-		if err := requireReadableByUnixUser(p, uid, gids); err != nil {
-			return err
-		}
+	if err := requireReadableByUnixUser("/var/lib/globular/pki/ca.crt", uid, gids); err != nil {
+		return err
 	}
 	return nil
 }
