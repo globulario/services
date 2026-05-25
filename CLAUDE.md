@@ -13,7 +13,7 @@ This file is read automatically by Claude Code at the start of every session. It
 5. Know the encoding before changing a type: proto, JSON, or internal-only.
 6. Know the route before calling an RPC: mesh-routable or direct-only.
 7. GitHub is a provider, not the architecture. Controller and node-agent stay provider-neutral.
-8. MinIO is a cache for packages, not package authority.
+8. MinIO is for secondary user data only (files, search indexes). Packages live in /var/lib/globular/packages/ (POSIX CAS). ScyllaDB is the package index. Never look in MinIO for packages, certificates, or workflows.
 9. Day-0 reads release-index.json. Day-1 joins from active BOM, not latest.
 10. Do not infer truth from filenames when a manifest exists.
 11. Keep scripts phase-oriented and idempotent.
