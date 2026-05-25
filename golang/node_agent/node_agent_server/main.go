@@ -134,6 +134,14 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Auto-initiate join if a token is present but no request is in flight.
+	// The node-agent state file written by the join script seeds join_token and
+	// controller_endpoint; this goroutine fires the RequestJoin RPC and then
+	// hands off to startJoinApprovalWatcher to poll for admission.
+	if srv.joinToken != "" && srv.joinRequestID == "" {
+		go srv.autoInitiateJoin(ctx)
+	}
+
 	go func() {
 		var etcdErr error
 		if srv.isEtcdManaged() {

@@ -1040,6 +1040,7 @@ func (srv *NodeAgentServer) applyApprovedNodeID(nodeID string) {
 	srv.state.NodeID = nodeID
 	srv.state.RequestID = ""
 	srv.joinRequestID = ""
+	srv.joinToken = "" // clear so auto-join doesn't re-fire on restart
 	srv.stateMu.Unlock()
 	if err := srv.saveState(); err != nil {
 		log.Printf("warn: persist approved node id: %v", err)
