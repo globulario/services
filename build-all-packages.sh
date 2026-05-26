@@ -157,6 +157,21 @@ else
     echo "  ✓ mcp ($(ls -lh "${PACKAGES_ROOT}/bin/mcp" | awk '{print $5}'))"
 fi
 
+# Bundle intent graph nodes into the MCP package payload so they are deployed
+# to /var/lib/globular/intent/ on every node that installs the MCP package.
+# The data/intent/ directory inside the payload root is bundled automatically
+# by 'globular pkg build' and extracted as PACKAGE_ROOT/data/intent/ during
+# install, where the post-install.sh script copies them to /var/lib/globular/intent/.
+MCP_INTENT_SRC="${SERVICES_ROOT}/docs/intent"
+MCP_DATA_DIR="${PACKAGES_ROOT}/metadata/mcp/data/intent"
+if [[ -d "${MCP_INTENT_SRC}" ]]; then
+    mkdir -p "${MCP_DATA_DIR}"
+    cp -a "${MCP_INTENT_SRC}/." "${MCP_DATA_DIR}/"
+    echo "  ✓ intent nodes bundled into mcp payload ($(ls "${MCP_DATA_DIR}" | wc -l) files)"
+else
+    echo "  ⚠ intent source not found at ${MCP_INTENT_SRC} — skipping intent bundle"
+fi
+
 # Claude CLI — copy from system PATH if available, else install via npm
 CLAUDE_META="${PACKAGES_ROOT}/metadata/claude/package.json"
 CLAUDE_VERSION=$(python3 -c "import json; print(json.load(open('${CLAUDE_META}'))['version'])")
