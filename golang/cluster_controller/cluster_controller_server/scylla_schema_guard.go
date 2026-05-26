@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -154,6 +156,15 @@ func (srv *server) runScyllaSchemaGuard(ctx context.Context) {
 	ddlAllowed := preflight.OK
 	if !ddlAllowed {
 		log.Printf("scylla_schema_guard: %s", Group0FindingText(preflight))
+		// Ghost voters (not_in_gossip) are nodes that were wiped without decommission
+		// and rejoined under a new UUID. They block all DDL indefinitely unless removed.
+		// Attempt auto-removal via the ScyllaDB REST API. Only removes when ≥3 healthy
+		// voters remain and only for not_in_gossip reason (not for can_vote=false).
+		if preflight.Reason == DDLPreflightGroup0StaleVoter {
+			rctx, rcancel := context.WithTimeout(ctx, 120*time.Second)
+			tryRemoveScyllaGhostVoters(rctx, preflight, hosts[0])
+			rcancel()
+		}
 	}
 
 	requiredRF := desiredRFForCluster(srv.storageControlPlaneNodeCount())
@@ -342,6 +353,61 @@ func (srv *server) markSchemaGuardStatus(ctx context.Context, keyspace string, s
 	defer cancel()
 	_, err = srv.etcdClient.Put(wctx, k, string(b))
 	return err
+}
+
+// tryRemoveScyllaGhostVoters removes Raft Group 0 members that are completely
+// absent from gossip (StaleReason == "not_in_gossip"). These are ghosts from
+// nodes that were hard-wiped without decommission and subsequently rejoined
+// under a new host_id. They block DDL indefinitely and must be removed.
+//
+// Safety: only removes when the post-removal healthy-voter count stays ≥3.
+// can_vote=false voters (temporarily suspended, may recover) are left alone.
+//
+// Calls: POST http://<scylla_host>:10000/storage_service/remove_node?host_id=<UUID>
+func tryRemoveScyllaGhostVoters(ctx context.Context, preflight DDLPreflightResult, scyllaHost string) {
+	if preflight.Group0 == nil || preflight.Group0.StaleVoters == 0 {
+		return
+	}
+	healthyVoters := preflight.Group0.TotalVoters - preflight.Group0.StaleVoters
+	if healthyVoters < 3 {
+		log.Printf("scylla_schema_guard: skipping ghost voter removal — only %d healthy voter(s) remain (need ≥3 for quorum safety)", healthyVoters)
+		return
+	}
+	for _, voter := range preflight.Group0.Voters {
+		if voter.StaleReason != "not_in_gossip" {
+			continue // can_vote=false voters may recover; never auto-remove them
+		}
+		log.Printf("scylla_schema_guard: removing ghost Raft voter %s (not_in_gossip, %d healthy voters remain)", voter.ServerID, healthyVoters)
+		if err := callScyllaRemoveNode(ctx, scyllaHost, voter.ServerID); err != nil {
+			log.Printf("scylla_schema_guard: removenode %s failed: %v — will retry next pass", voter.ServerID, err)
+		} else {
+			log.Printf("scylla_schema_guard: ghost voter %s removed; DDL preflight should pass next guard tick", voter.ServerID)
+		}
+	}
+}
+
+// scyllaRESTPort is the ScyllaDB admin REST API port. Overridden in tests.
+var scyllaRESTPort = "10000"
+
+// callScyllaRemoveNode calls the ScyllaDB REST API to remove a dead node by host_id.
+// The ScyllaDB REST API runs on port 10000 (plain HTTP). This is equivalent to
+// `nodetool removenode <host_id>` and cleans up both gossip and Raft Group 0 state.
+func callScyllaRemoveNode(ctx context.Context, host, hostID string) error {
+	url := fmt.Sprintf("http://%s:%s/storage_service/remove_node?host_id=%s", host, scyllaRESTPort, hostID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("REST call: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return nil
 }
 
 func (srv *server) storageControlPlaneNodeCount() int {
