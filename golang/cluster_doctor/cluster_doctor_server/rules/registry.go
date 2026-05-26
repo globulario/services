@@ -192,6 +192,13 @@ func NewRegistry(cfg Config) *Registry {
 		// (per-target + cross-cutting) into a doctor rules.Finding so
 		// claim-vs-proof drift surfaces alongside every other invariant.
 		runtimeVerification{},
+		// Verdict coverage: every installed SERVICE-kind package must have
+		// a verifier verdict in the current sweep. Fires when the catch-up
+		// pass silently skips a service (e.g. ServiceRelease transiently
+		// FAILED). Root cause of INC-2026-0008 (persistence UNVERIFIED
+		// after platform-upgrade). Fixed in v1.2.87 by minimalTargetFromInstalled;
+		// this invariant is the regression gate.
+		verifierVerdictCoverage{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)
