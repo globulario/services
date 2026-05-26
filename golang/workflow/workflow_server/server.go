@@ -440,6 +440,10 @@ func (srv *server) Init() error {
 		srv.deferStore = newScyllaDeferStateStore(srv.getSession)
 	}
 
+	// Retention pruner — delete terminal workflow runs beyond the keep limit
+	// to prevent unbounded partition growth and tombstone pressure.
+	go newRetentionPruner(srv.getSession, srv.Domain, logger).Start(context.Background())
+
 	// AL-1: Connect to ai-memory for incident projection.
 	// Best-effort — if ai-memory is unavailable, incidents are skipped.
 	if memAddr := config.ResolveLocalServiceAddr("ai_memory.AiMemoryService"); memAddr != "" {
