@@ -675,11 +675,52 @@ func isWiredInterface(name string) bool {
 		strings.HasPrefix(name, "enx")
 }
 
+// defaultGatewayIPs returns the set of default-gateway IPs from the kernel
+// routing table (/proc/net/route). These are the IPs of upstream routers, not
+// addresses this node owns — they must never appear in the node's identity IP
+// list or in /globular/cluster/scylla/hosts.
+func defaultGatewayIPs() map[string]bool {
+	gws := make(map[string]bool)
+	data, err := os.ReadFile("/proc/net/route")
+	if err != nil {
+		return gws
+	}
+	for _, line := range strings.Split(string(data), "\n")[1:] {
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+		// Column 1 is Destination (little-endian hex). Default route = "00000000".
+		if fields[1] != "00000000" {
+			continue
+		}
+		// Column 2 is Gateway (little-endian hex).
+		var gw uint32
+		if _, err := fmt.Sscanf(fields[2], "%x", &gw); err != nil {
+			continue
+		}
+		if gw == 0 {
+			continue
+		}
+		// Convert little-endian to dotted-decimal.
+		ip := net.IPv4(byte(gw), byte(gw>>8), byte(gw>>16), byte(gw>>24))
+		gws[ip.String()] = true
+	}
+	return gws
+}
+
 func gatherIPs() []string {
 	type ifaceIP struct {
 		ip    string
 		wired bool
 	}
+
+	// Exclude default gateway IPs — they belong to the upstream router, not
+	// to this node. If a transient interface (keepalived, PPPoE, bridge) is
+	// momentarily bound to the gateway address, gatherIPs must not report it
+	// as a node-owned address; doing so would corrupt /globular/cluster/scylla/hosts.
+	gatewayIPs := defaultGatewayIPs()
+
 	var collected []ifaceIP
 	seen := make(map[string]struct{})
 	ifaces, err := net.Interfaces()
@@ -714,6 +755,10 @@ func gatherIPs() []string {
 			}
 			text := ip.String()
 			if _, ok := seen[text]; ok {
+				continue
+			}
+			// Skip upstream gateway addresses — this node does not own them.
+			if gatewayIPs[text] {
 				continue
 			}
 			seen[text] = struct{}{}

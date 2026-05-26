@@ -1466,6 +1466,9 @@ func (srv *server) publishScyllaHostsIfNeeded(ctx context.Context) {
 		if ip == "" {
 			continue
 		}
+		// Guard: reject any IP that is not a valid unicast address or that
+		// looks like an upstream gateway (x.x.x.1 last octet alone is too
+		// aggressive, so we TCP-probe instead — see below).
 		hosts = append(hosts, ip)
 	}
 	srv.unlock()
@@ -1473,6 +1476,32 @@ func (srv *server) publishScyllaHostsIfNeeded(ctx context.Context) {
 	if len(hosts) == 0 {
 		return
 	}
+
+	// TCP-probe each candidate on the ScyllaDB CQL port (9042) before
+	// writing. This is the definitive guard against stale or misrouted IPs
+	// (e.g. an upstream router address that transiently appeared on a node
+	// interface) ever poisoning /globular/cluster/scylla/hosts.
+	//
+	// Probe is fast (500 ms timeout) and only runs when the list would change,
+	// so the cost on the normal reconcile path is negligible.
+	const scyllaPort = "9042"
+	var verified []string
+	for _, h := range hosts {
+		addr := net.JoinHostPort(h, scyllaPort)
+		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
+		if err != nil {
+			log.Printf("scylla hosts: skipping %s — not reachable on :%s (%v)", h, scyllaPort, err)
+			continue
+		}
+		conn.Close()
+		verified = append(verified, h)
+	}
+	if len(verified) == 0 {
+		// All probes failed — ScyllaDB may be starting up. Keep the existing
+		// list rather than replacing it with an empty set.
+		return
+	}
+	hosts = verified
 
 	sort.Strings(hosts)
 
