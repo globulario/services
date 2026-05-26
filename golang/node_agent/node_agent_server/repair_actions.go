@@ -145,7 +145,7 @@ func (srv *NodeAgentServer) repairVerifyRuntime(ctx context.Context, nodeID stri
 	}
 
 	// Check 2: All managed systemd units should be active.
-	units := detectUnits(ctx)
+	units := detectUnits(ctx, false)
 	failedUnits := 0
 	for _, u := range units {
 		if u.State != "active" && u.State != "" {

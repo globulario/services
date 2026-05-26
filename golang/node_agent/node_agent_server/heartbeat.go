@@ -998,7 +998,17 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 		return fmt.Errorf("node ID not assigned — heartbeat skipped")
 	}
 	identity := srv.buildNodeIdentity()
-	units := convertNodeAgentUnits(detectUnits(ctx))
+	// Skip globular-minio.service from the unit baseline when this node is not
+	// a member of the MinIO pool. The topology gate already stops the service on
+	// non-members; reporting it as inactive would produce a false-positive drift
+	// finding in the cluster doctor. Fail open: if the objectstore state cannot
+	// be loaded, treat the node as a member (include the minio health check).
+	skipMinio := false
+	if osState, osErr := config.LoadObjectStoreDesiredState(ctx); osErr == nil {
+		isMember, _ := nodeIsTopologyMember(srv.nodeID, nodeRoutableIP(), osState)
+		skipMinio = !isMember
+	}
+	units := convertNodeAgentUnits(detectUnits(ctx, skipMinio))
 	statusReq := &cluster_controllerpb.NodeStatus{
 		NodeId:            srv.nodeID,
 		Identity:          identity,

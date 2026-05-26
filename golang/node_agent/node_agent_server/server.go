@@ -792,7 +792,12 @@ func (srv *NodeAgentServer) buildNodeIdentity() *cluster_controllerpb.NodeIdenti
 	}
 }
 
-func detectUnits(ctx context.Context) []*node_agentpb.UnitStatus {
+// detectUnits reports the active/inactive state of every managed systemd unit
+// on this node. Set skipMinioService=true when the node is not a member of the
+// MinIO pool — the topology gate already stopped globular-minio.service on
+// non-members, so reporting it as inactive would produce a false-positive drift
+// finding in the cluster doctor.
+func detectUnits(ctx context.Context, skipMinioService bool) []*node_agentpb.UnitStatus {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -805,12 +810,14 @@ func detectUnits(ctx context.Context) []*node_agentpb.UnitStatus {
 		"globular-event.service",
 		"globular-rbac.service",
 		"globular-file.service",
-		"globular-minio.service",
 		"globular-gateway.service",
 		"globular-xds.service",
 		"globular-envoy.service",
 		"scylla-server.service",
 		"keepalived.service",
+	}
+	if !skipMinioService {
+		baseline = append(baseline, "globular-minio.service")
 	}
 
 	// Dynamic discovery: find all installed globular-*.service unit files.
@@ -829,6 +836,13 @@ func detectUnits(ctx context.Context) []*node_agentpb.UnitStatus {
 		}
 	}
 	discoverCancel()
+
+	// Dynamic discovery (systemctl list-unit-files glob) adds all globular-*.service
+	// entries unconditionally. Remove minio explicitly for non-pool nodes so they
+	// don't generate false-positive drift findings.
+	if skipMinioService {
+		delete(discovered, "globular-minio.service")
+	}
 
 	// Build sorted unit list for deterministic output.
 	unitList := make([]string, 0, len(discovered))

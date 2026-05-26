@@ -93,7 +93,7 @@ func (srv *NodeAgentServer) GetInventory(ctx context.Context, _ *node_agentpb.Ge
 			Identity:   srv.buildNodeIdentity(),
 			UnixTime:   timestamppb.Now(),
 			Components: components,
-			Units:      detectUnits(ctx),
+			Units:      detectUnits(ctx, false),
 		},
 	}
 	return resp, nil
