@@ -286,10 +286,18 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 	nowMs := time.Now().UnixMilli()
 	wfKind := computeWorkflowKind(ctx, h)
 
-	// Idempotency guard: skip re-resolution if already resolved for this generation.
+	// Idempotency guard: skip re-resolution if already resolved for this generation
+	// AND the resolved version matches spec. Without the version check, a BOM
+	// update (e.g. etcd 1.2.79→3.5.14) that doesn't bump generation will never
+	// re-resolve — the reconciler trusts the stale resolution forever.
+	specVersion := ""
+	if h.ResolverSpec != nil {
+		specVersion = h.ResolverSpec.Version
+	}
 	if h.ObservedGeneration == h.Generation &&
 		h.ResolvedVersion != "" &&
-		h.ResolvedArtifactDigest != "" {
+		h.ResolvedArtifactDigest != "" &&
+		(specVersion == "" || h.ResolvedVersion == specVersion) {
 		h.PatchStatus(ctx, statusPatch{
 			Phase:            cluster_controllerpb.ReleasePhaseResolved,
 			TransitionReason: "already_resolved",
