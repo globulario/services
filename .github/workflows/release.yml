@@ -681,19 +681,6 @@ jobs:
           rm -rf dist/bin
           df -h /
 
-      # ── Publish globular-installer as a standalone asset ─────────────────
-      # Day-1 join scripts download this directly from GitHub as a fallback
-      # when the gateway can't serve /join/bin/globular-installer. Having it
-      # as an individual asset avoids extracting the full ~500 MB tarball.
-      - name: Prepare globular-installer standalone asset
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          cp dist/release-bin/globular-installer "dist/globular-installer-${VERSION}-linux-amd64"
-          sha256sum "dist/globular-installer-${VERSION}-linux-amd64" \
-            > "dist/globular-installer-${VERSION}-linux-amd64.sha256"
-          echo "Standalone installer: $(ls -lh dist/globular-installer-${VERSION}-linux-amd64 | awk '{print $5}')"
-
       # ── Build awareness bundle ───────────────────────────────────────────
       # Ships graph.db + invariants/failure-modes YAML + seeds inside the
       # release tarball so install-day0.sh can install it locally before
@@ -1055,8 +1042,6 @@ jobs:
           files: |
             dist/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
             dist/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz.sha256
-            dist/globular-installer-${{ steps.version.outputs.version }}-linux-amd64
-            dist/globular-installer-${{ steps.version.outputs.version }}-linux-amd64.sha256
             dist/packages/*.tgz
             dist/release-index.json
             dist/awareness/awareness-bundle-*.tar.gz
