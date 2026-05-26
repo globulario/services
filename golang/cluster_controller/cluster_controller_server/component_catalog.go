@@ -623,12 +623,6 @@ func buildCatalog() []*Component {
 			Profiles: []string{"core", "compute"},
 		},
 		{
-			Name:     "cli",
-			Kind:     KindCommand,
-			Priority: 900,
-			Profiles: []string{"core", "compute"},
-		},
-		{
 			Name:     "sha256sum",
 			Kind:     KindCommand,
 			Priority: 900,
