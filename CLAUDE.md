@@ -144,22 +144,22 @@ sudo chmod -R 777 /var/lib/globular/awareness/failure_graph
 services/
 ├── proto/                     # 38 .proto files (authoritative API contracts)
 ├── golang/                    # All Go services (33 binaries)
-│   ├── cluster_controller/    # Central control plane (port 12000)
-│   ├── node_agent/            # Node executor (port 11000)
-│   ├── workflow/              # Workflow engine (port 10220)
-│   ├── cluster_doctor/        # Health analysis (port 12005)
+│   ├── cluster_controller/    # Central control plane (bootstrap port 12000)
+│   ├── node_agent/            # Node executor (bootstrap port 11000)
+│   ├── workflow/              # Workflow engine
+│   ├── cluster_doctor/        # Health analysis
 │   ├── repository/            # Package registry (MinIO-backed)
-│   ├── authentication/        # JWT tokens (port 10101)
-│   ├── rbac/                  # Permission enforcement (port 10104)
-│   ├── dns/                   # Authoritative DNS (port 10006)
-│   ├── ai_memory/             # Persistent AI knowledge (port 10200, ScyllaDB)
-│   ├── ai_executor/           # Diagnosis + remediation (port 10230)
-│   ├── ai_watcher/            # Event monitoring (port 10210)
-│   ├── ai_router/             # Dynamic routing (port 10240)
+│   ├── authentication/        # JWT tokens
+│   ├── rbac/                  # Permission enforcement
+│   ├── dns/                   # Authoritative DNS
+│   ├── ai_memory/             # Persistent AI knowledge (ScyllaDB-backed)
+│   ├── ai_executor/           # Diagnosis + remediation
+│   ├── ai_watcher/            # Event monitoring
+│   ├── ai_router/             # Dynamic routing
 │   ├── domain/                # ACME cert management (runs in controller)
 │   ├── compute/               # Batch jobs (not yet in build manifest)
 │   ├── globularcli/           # CLI tool
-│   ├── mcp/                   # MCP server (129+ tools, port 10260)
+│   ├── mcp/                   # MCP server (129+ tools)
 │   ├── globular_service/      # Shared primitives (lifecycle, config, CLI helpers)
 │   ├── interceptors/          # gRPC middleware (auth → RBAC → audit)
 │   ├── config/                # etcd-backed config
@@ -169,6 +169,8 @@ services/
 ├── generateCode.sh            # Proto → Go/TypeScript + build services
 └── build-all-packages.sh      # Package build pipeline
 ```
+
+> **Note**: Service ports are runtime attributes resolved from etcd — never hardcode them. Query `service_config_list` for current values. Only `cluster_controller` (12000) and `node_agent` (11000) are fixed bootstrap ports used before etcd is available.
 
 ### Key File Paths (ACTUAL, VERIFIED)
 
@@ -223,13 +225,15 @@ Config fallback chain: etcd → local seed file → global config → hardcoded 
 
 ### Current Cluster (5 nodes)
 
+> **Note**: Node profiles are runtime attributes managed by the cluster or set manually. Query `cluster_list_nodes` for authoritative current state.
+
 | Node | IP | Profiles |
 |------|-----|----------|
-| globule-ryzen | 10.0.0.63 | compute, control-plane, core, gateway, storage |
-| globule-nuc | 10.0.0.8 | compute, control-plane, core, gateway, storage |
-| globule-dell | 10.0.0.20 | compute, control-plane, core, gateway, storage |
-| globule-hp-01 | 10.0.0.9 | control-plane, core, gateway, storage |
-| globule-lenovo | 10.0.0.102 | control-plane, core, gateway, storage |
+| globule-ryzen | 10.0.0.63 | control-plane, core, storage |
+| globule-nuc | 10.0.0.8 | control-plane, core, storage |
+| globule-dell | 10.0.0.20 | control-plane, core, storage |
+| globule-hp-01 | 10.0.0.9 | control-plane, core, storage |
+| globule-lenovo | 10.0.0.102 | control-plane, core, storage |
 
 - **VIP**: 10.0.0.100 (keepalived, floats between ryzen and nuc)
 - **DMZ**: Router forwards all external traffic to VIP
@@ -315,6 +319,16 @@ The canonical script is at `scripts/clean-node.sh` (also embedded in the gateway
 ---
 
 ## AI RULES (for AI agents operating on this codebase)
+
+### Intent Graph — architectural meaning
+
+Before significant design or code changes, call `intent_explain` on the primary file, service, or concept. Use the returned intent nodes to understand why the code is shaped the way it is before proposing changes.
+
+Intent nodes live in `docs/intent/*.yaml`. If no intent node exists for the area you are changing, say so and proceed cautiously.
+
+Do not blindly obey intent nodes. Treat them as architectural pressure. If a proposed change conflicts with an intent node, explain the conflict before proceeding.
+
+---
 
 ### Awareness workflow — required sequence
 

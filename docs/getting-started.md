@@ -187,15 +187,15 @@ Your Machine
 ├── etcd (2379)              — Cluster state, configuration
 ├── Cluster Controller (12000) — Desired state management
 ├── Node Agent (11000)       — Local service executor
-├── Workflow Service (10220) — Orchestration engine
+├── Workflow Service         — Orchestration engine
 ├── Envoy Gateway (443/8443) — External traffic entry
 ├── xDS Server (8081)        — Gateway configuration
-├── Authentication (10101)   — JWT tokens
-├── RBAC (10104)             — Permission enforcement
-├── Repository + MinIO (9000) — Package storage
-├── DNS (10006/53)           — Service resolution
-├── Monitoring + Prometheus   — Metrics collection
-├── AI Memory (10200)        — Persistent AI knowledge
+├── Authentication           — JWT tokens
+├── RBAC                     — Permission enforcement
+├── Repository + MinIO       — Package storage
+├── DNS (53)                 — Service resolution
+├── Monitoring + Prometheus  — Metrics collection
+├── AI Memory                — Persistent AI knowledge
 └── Echo Service             — Your deployed service
 ```
 

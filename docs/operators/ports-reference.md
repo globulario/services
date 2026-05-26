@@ -65,12 +65,12 @@ These ports must be open between cluster nodes:
 
 | Port | Protocol | Service | Purpose |
 |------|----------|---------|---------|
-| 10101 | gRPC/TLS | Authentication | Token generation, validation, password management |
-| 10102 | gRPC/TLS | Event | Publish-subscribe event bus |
-| 10103 | gRPC/TLS | File | File management |
-| 10104 | gRPC/TLS | RBAC | Role-based access control |
+| 10004 | gRPC/TLS | Authentication | Token generation, validation, password management |
+| 10050 | gRPC/TLS | Event | Publish-subscribe event bus |
+| 10005 | gRPC/TLS | File | File management |
+| 10002 | gRPC/TLS | RBAC | Role-based access control |
 | 10006 | gRPC/TLS | DNS | Zone management, record CRUD |
-| 10029 | gRPC/TLS | Discovery | Service and package discovery |
+| 10003 | gRPC/TLS | Repository | Package registry (MinIO-backed) |
 | 10100 | gRPC/TLS | Log | Centralized logging |
 
 ### AI Services
@@ -94,19 +94,19 @@ These ports must be open between cluster nodes:
 
 | Port | Protocol | Service | Purpose |
 |------|----------|---------|---------|
-| 10105 | gRPC/TLS | Persistence | Database access layer |
-| 10106 | gRPC/TLS | Storage | Object/blob storage |
-| 10107 | gRPC/TLS | SQL | SQL database access |
-| 10108 | gRPC/TLS | Search | Full-text search |
-| 10109 | gRPC/TLS | Mail | SMTP email |
-| 10110 | gRPC/TLS | Media | Audio/video management |
-| 10111 | gRPC/TLS | Title | Title/metadata service |
-| 10112 | gRPC/TLS | Blog | Blog/CMS engine |
-| 10113 | gRPC/TLS | Conversation | Chat management |
-| 10114 | gRPC/TLS | Catalog | Component catalog |
-| 10115 | gRPC/TLS | LDAP | LDAP authentication provider |
-| 10116 | gRPC/TLS | Torrent | Torrent downloads |
-| 10117 | gRPC/TLS | Resource | Package descriptors, accounts, groups |
+| 10035 | gRPC/TLS | Persistence | Database access layer |
+| 10005 | gRPC/TLS | Storage | Key-value store (BadgerDB/ScyllaDB-backed) |
+| 10008 | gRPC/TLS | SQL | SQL database access |
+| 10013 | gRPC/TLS | Search | Full-text search |
+| 10014 | gRPC/TLS | Mail | SMTP email |
+| 10029 | gRPC/TLS | Media | Audio/video management |
+| 10017 | gRPC/TLS | Title | Title/metadata service |
+| 10015 | gRPC/TLS | Blog | Blog/CMS engine |
+| 10016 | gRPC/TLS | Conversation | Chat management |
+| 10009 | gRPC/TLS | Catalog | Component catalog |
+| 10012 | gRPC/TLS | LDAP | LDAP authentication provider |
+| 10021 | gRPC/TLS | Torrent | Torrent downloads |
+| 10010 | gRPC/TLS | Resource | Package descriptors, accounts, groups |
 
 ### Internal / Management
 

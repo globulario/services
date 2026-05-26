@@ -99,6 +99,7 @@ type ToolGroupConfig struct {
 	Browser     bool `json:"browser"`     // default true (Chrome DevTools Protocol bridge)
 	AIExecutor  bool `json:"ai_executor"` // default true (AI executor peer collaboration)
 	Awareness   bool `json:"awareness"`   // default true (awareness graph tools)
+	Intent      bool `json:"intent"`      // default true (architectural intent graph)
 	Auth        bool `json:"auth"`        // default false (deferred)
 	DNS         bool `json:"dns"`         // default false (deferred)
 	Aggregator  bool `json:"aggregator"`  // default true (cluster MCP aggregator)
@@ -166,6 +167,7 @@ func defaultConfig() *MCPConfig {
 			Browser:     true,
 			AIExecutor:  true,
 			Awareness:   true,
+			Intent:      true,
 			Auth:        false, // deferred
 			DNS:         false, // deferred
 			Aggregator:  true,
@@ -266,6 +268,7 @@ func applyToolGroupDefaults(rawJSON []byte, cfg *MCPConfig) {
 		"etcd":       &cfg.ToolGroups.Etcd,
 		"monitoring": &cfg.ToolGroups.Monitoring,
 		"awareness":  &cfg.ToolGroups.Awareness,
+		"intent":     &cfg.ToolGroups.Intent,
 		"aggregator": &cfg.ToolGroups.Aggregator,
 	}
 
