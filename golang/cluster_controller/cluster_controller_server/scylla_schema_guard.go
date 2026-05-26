@@ -133,14 +133,29 @@ func (srv *server) runScyllaSchemaGuard(ctx context.Context) {
 	if err != nil || len(hosts) == 0 {
 		return
 	}
-	cluster := gocql.NewCluster(hosts...)
-	cluster.Port = 9042
-	cluster.Timeout = 5 * time.Second
-	cluster.ConnectTimeout = 5 * time.Second
-	cluster.Consistency = gocql.One
-	session, err := cluster.CreateSession()
-	if err != nil {
-		log.Printf("scylla_schema_guard: open session failed: %v", err)
+	// Pin to a single ScyllaDB host so that system.local and system.peers queries
+	// always execute on the same node. With multiple contact points, gocql may
+	// route those two queries to different nodes: the node handling system.peers
+	// never appears in its own result set, and since system.local came from a
+	// different node, the system.peers-handling node's UUID is absent from the
+	// gossip map — causing a false "not_in_gossip" stale-voter report. Single-host
+	// pinning fixes this: system.local gives the host's UUID and system.peers gives
+	// all other nodes, together covering every cluster member.
+	var session *gocql.Session
+	for _, host := range hosts {
+		cl := gocql.NewCluster(host)
+		cl.DisableInitialHostLookup = true
+		cl.Port = 9042
+		cl.Timeout = 5 * time.Second
+		cl.ConnectTimeout = 5 * time.Second
+		cl.Consistency = gocql.One
+		if s, serr := cl.CreateSession(); serr == nil {
+			session = s
+			break
+		}
+	}
+	if session == nil {
+		log.Printf("scylla_schema_guard: open session failed: no host available")
 		return
 	}
 	defer session.Close()

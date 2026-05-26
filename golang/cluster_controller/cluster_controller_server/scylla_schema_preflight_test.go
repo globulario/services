@@ -406,3 +406,51 @@ func TestCanScyllaDDLProceed_RaftStateFallback_StaleVoter(t *testing.T) {
 		t.Fatalf("expected %q, got %q", DDLPreflightGroup0StaleVoter, r.Reason)
 	}
 }
+
+// TestCanScyllaDDLProceed_RaftStateFallback_PeerQueriedFromDifferentNode
+// is a regression test for INC-2026-0011: the gocql session routes
+// queryLocalInfo and queryPeerSchemas to different ScyllaDB nodes. The node
+// handling queryPeerSchemas never appears in its own system.peers result, so
+// its UUID is absent from the gossip map — causing a false not_in_gossip stale
+// voter report that permanently blocks RF raises.
+//
+// Scenario: localInfo came from node A, but queryPeerSchemas ran on node B.
+// The gossip map contains A (as "local") + A's peers (all except A) = every
+// node except B. B is in raft_state but falsely marked not_in_gossip.
+//
+// The fix (single-host session pinning) is at the gocql layer, but the
+// collectGroup0View logic must correctly classify what it receives. This test
+// verifies that when all raft_state voters ARE present in the combined
+// localHostID + peers list, no false stale is reported.
+func TestCanScyllaDDLProceed_RaftStateFallback_NoPeerQueryNodeFalseStale(t *testing.T) {
+	// Five-node cluster: local=A, peers={B,C,D,E}, raft_state={A,B,C,D,E}.
+	// Before the fix, if queryPeerSchemas ran on E, E would be missing from
+	// the gossip map and falsely stale. Simulate the CORRECT behavior: with
+	// single-host pinning, queryLocalInfo and queryPeerSchemas both run on A,
+	// so the gossip map = {A(local), B, C, D, E} = all five nodes.
+	q := &fakeQuerier{
+		localHostID:        "uuid-A",
+		localSchemaVersion: "schema-1",
+		peers: []peerSchemaRow{
+			{Peer: "10.0.0.8", SchemaVersion: "schema-1", HostID: "uuid-B"},
+			{Peer: "10.0.0.20", SchemaVersion: "schema-1", HostID: "uuid-C"},
+			{Peer: "10.0.0.9", SchemaVersion: "schema-1", HostID: "uuid-D"},
+			{Peer: "10.0.0.102", SchemaVersion: "schema-1", HostID: "uuid-E"},
+		},
+		membersErr: ErrGroup0TableMissing,
+		raftStateMembers: []group0Member{
+			{ServerID: "uuid-A", CanVote: boolPtr(true)},
+			{ServerID: "uuid-B", CanVote: boolPtr(true)},
+			{ServerID: "uuid-C", CanVote: boolPtr(true)},
+			{ServerID: "uuid-D", CanVote: boolPtr(true)},
+			{ServerID: "uuid-E", CanVote: boolPtr(true)},
+		},
+	}
+	r := canScyllaDDLProceedWith(context.Background(), q)
+	if !r.OK {
+		t.Fatalf("all 5 voters in gossip must pass: reason=%q finding=%q", r.Reason, Group0FindingText(r))
+	}
+	if r.Group0 == nil || r.Group0.StaleVoters != 0 {
+		t.Fatalf("expected 0 stale voters, got %d", r.Group0.StaleVoters)
+	}
+}
