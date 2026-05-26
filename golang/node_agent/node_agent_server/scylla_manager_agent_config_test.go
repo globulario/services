@@ -28,6 +28,45 @@ func TestUpsertAuthToken(t *testing.T) {
 	}
 }
 
+// TestCurrentAuthToken pins the helper that the reconciler uses to detect
+// per-node UUID drift. Must strip quotes and ignore comments.
+func TestCurrentAuthToken(t *testing.T) {
+	cases := []struct {
+		name, content, want string
+	}{
+		{"empty", "", ""},
+		{"plain", "auth_token: abc123\n", "abc123"},
+		{"quoted", "auth_token: \"abc123\"\n", "abc123"},
+		{"single-quoted", "auth_token: 'abc123'\n", "abc123"},
+		{"blank-value", "auth_token: \n", ""},
+		{"commented-out", "# auth_token: ignored\nauth_token: real\n", "real"},
+		{"only-comment", "# auth_token: ignored\n", ""},
+	}
+	for _, tc := range cases {
+		if got := currentAuthToken(tc.content); got != tc.want {
+			t.Errorf("%s: currentAuthToken = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestDeriveClusterScopedScyllaAuthToken_Stable pins that the derivation is
+// deterministic — every node calling this with the same domain + CA on disk
+// must produce the same token. Without this, sctool cluster add succeeds on
+// the coordinator host and returns HTTP 401 on every other host.
+func TestDeriveClusterScopedScyllaAuthToken_Stable(t *testing.T) {
+	a := deriveClusterScopedScyllaAuthToken()
+	b := deriveClusterScopedScyllaAuthToken()
+	if a == "" {
+		t.Fatal("derived token must not be empty")
+	}
+	if a != b {
+		t.Fatalf("derivation must be deterministic across calls: %q vs %q", a, b)
+	}
+	if len(a) != 48 {
+		t.Errorf("derived token length = %d, want 48 hex chars", len(a))
+	}
+}
+
 func TestHasScyllaAPIURL(t *testing.T) {
 	cases := []struct {
 		content    string

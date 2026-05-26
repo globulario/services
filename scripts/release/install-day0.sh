@@ -1373,11 +1373,23 @@ if [[ -f /etc/systemd/system/globular-mcp.service ]]; then
   log_substep "MCP server restarted"
 fi
 
-# Configure scylla-manager-agent (auth token, port, ScyllaDB API address, MinIO S3 creds)
+# Configure scylla-manager-agent — MinIO S3 backup creds + scylla api block.
+# NOTE: auth_token, https/prometheus/debug ports, and scylla api_address are
+# owned by the node-agent reconciler (see
+# golang/node_agent/node_agent_server/scylla_manager_agent_config.go). It
+# derives a cluster-wide token from sha256(domain|ca_hash) so every agent
+# shares the same value — required for `sctool cluster add` to authenticate
+# against every host. Installing a per-node UUID here would silently win the
+# race against the reconciler and break manager → agent auth on the 4
+# non-coordinator hosts. The reconciler also overrides any port choice here.
+#
+# Likewise the local `sctool cluster add` block this script used to run is
+# gone — backup_manager's ensureScyllaRegistered handles registration once
+# the agent has a stable token, using the manager's actual HTTPS endpoint
+# (read from /var/lib/globular/scylla-manager/scylla-manager.yaml).
 AGENT_CONFIG="/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml"
-AGENT_TOKEN_FILE="/var/lib/globular/scylla-manager-agent/auth_token.txt"
 
-# Detect ScyllaDB listen address (needed for agent config and cluster registration)
+# Detect ScyllaDB listen address (needed for S3 endpoint hint to MinIO)
 SCYLLA_IP=""
 if [[ -f /etc/scylla/scylla.yaml ]]; then
   # Strip quotes and whitespace from value (YAML may wrap IPs in single/double quotes)
@@ -1390,19 +1402,8 @@ if [[ -z "$SCYLLA_IP" ]]; then
   SCYLLA_IP=$(hostname -I | awk '{print $1}')
 fi
 
-# Generate auth token (idempotent)
-# Owned by scylla:globular so the agent (runs as scylla) can read it
-# and backup-manager (runs as globular) can also read it via group.
-if [[ -d /var/lib/globular/scylla-manager-agent ]] && [[ ! -f "$AGENT_TOKEN_FILE" ]]; then
-  cat /proc/sys/kernel/random/uuid > "$AGENT_TOKEN_FILE"
-  chown scylla:globular "$AGENT_TOKEN_FILE"
-  chmod 0640 "$AGENT_TOKEN_FILE"
-fi
-
-if [[ -f "$AGENT_CONFIG" ]] && ! grep -q "^auth_token:" "$AGENT_CONFIG"; then
-  log_substep "Configuring scylla-manager-agent..."
-
-  AGENT_TOKEN=$(cat "$AGENT_TOKEN_FILE")
+if [[ -f "$AGENT_CONFIG" ]] && ! grep -q "^s3:" "$AGENT_CONFIG"; then
+  log_substep "Configuring scylla-manager-agent S3 access..."
 
   # Read MinIO credentials for S3 backup access
   MINIO_CRED_FILE="${STATE_DIR}/minio/credentials"
@@ -1421,7 +1422,7 @@ s3:
 # Skip TLS verification for internal MinIO with self-signed certs
 rclone:
   insecure_skip_verify: true"
-      log_substep "MinIO S3 credentials included in agent config"
+      log_substep "MinIO S3 credentials prepared for agent config"
     else
       log_substep "Warning: could not parse MinIO credentials from $MINIO_CRED_FILE"
     fi
@@ -1429,79 +1430,25 @@ rclone:
     log_substep "Warning: MinIO credentials file not found at $MINIO_CRED_FILE — agent will not have S3 access"
   fi
 
-  cat > "$AGENT_CONFIG" <<AGENTEOF
-# Scylla Manager Agent configuration (managed by Globular)
-auth_token: ${AGENT_TOKEN}
-
-# Ports 56090/56091 avoid conflict with Globular service range (10000-10200)
-https: 0.0.0.0:56090
-prometheus: 0.0.0.0:56091
-debug: ${SCYLLA_IP}:56092
-
-# ScyllaDB API address — must match api_address/api_port in scylla.yaml
-# Scylla's REST API listens on port 10000 by default (see /etc/scylla/scylla.yaml).
-scylla:
-  api_address: "${SCYLLA_IP}"
-  api_port: "10000"
-${AGENT_S3_BLOCK}
-AGENTEOF
-  chown scylla:globular "$AGENT_CONFIG"
-  chmod 0640 "$AGENT_CONFIG"
-
-  log_success "scylla-manager-agent configured (token generated, port=56090, scylla=${SCYLLA_IP})"
-
-  # Restart agent with new config
-  systemctl restart globular-scylla-manager-agent.service 2>/dev/null || true
+  # Append the S3 block. Token + ports + scylla block come from the node-agent
+  # reconciler on its first heartbeat after this script finishes. Until then
+  # the agent runs on its built-in defaults — the reconciler restarts it once
+  # the canonical values are written.
+  if [[ -n "$AGENT_S3_BLOCK" ]]; then
+    printf "%s\n" "$AGENT_S3_BLOCK" >> "$AGENT_CONFIG"
+    chown scylla:globular "$AGENT_CONFIG"
+    chmod 0640 "$AGENT_CONFIG"
+    log_success "scylla-manager-agent S3 config appended (endpoint=https://${SCYLLA_IP}:9000)"
+  fi
 fi
 
 # Always ensure the agent config directory is owned by scylla (agent runs as scylla)
-# with globular group so backup-manager can read auth tokens.
+# with globular group so backup-manager can read it.
 if [[ -d /var/lib/globular/scylla-manager-agent ]]; then
   chmod 0750 /var/lib/globular/scylla-manager-agent
   chown scylla:globular /var/lib/globular/scylla-manager-agent
-  # Fix ownership of all files inside too (covers auth_token.txt, config, etc.)
+  # Fix ownership of files inside too.
   chown scylla:globular /var/lib/globular/scylla-manager-agent/* 2>/dev/null || true
-fi
-
-# Register ScyllaDB cluster in scylla-manager (idempotent — works on fresh install or reinstall)
-if [[ -f "$AGENT_TOKEN_FILE" ]] && command -v sctool &>/dev/null; then
-  AGENT_TOKEN=$(cat "$AGENT_TOKEN_FILE")
-  log_substep "Ensuring ScyllaDB is registered in scylla-manager..."
-
-  # Wait for agent to be ready (up to 15s).
-  # The agent requires auth, so any HTTP response (even 401) means it's up.
-  for i in $(seq 1 15); do
-    HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 1 -k "https://${SCYLLA_IP}:56090/api/v1/version" 2>/dev/null || echo "000")
-    if [[ "$HTTP_CODE" != "000" ]]; then
-      break
-    fi
-    sleep 1
-  done
-
-  # Wait for scylla-manager server to be ready (up to 15s)
-  for i in $(seq 1 15); do
-    if sctool status &>/dev/null 2>&1; then
-      break
-    fi
-    sleep 1
-  done
-
-  # Check if already registered
-  if ! sctool cluster list 2>/dev/null | grep -q "$DOMAIN"; then
-    REGISTER_OUT=$(sctool --api-url "http://${SCYLLA_IP}:5080/api/v1" cluster add \
-      --host "${SCYLLA_IP}" \
-      --name "${DOMAIN}" \
-      --auth-token "${AGENT_TOKEN}" \
-      --port 56090 2>&1) && \
-      log_success "ScyllaDB cluster registered as '${DOMAIN}'" || \
-      log_substep "Warning: cluster registration failed: ${REGISTER_OUT}"
-  else
-    # Already registered — ensure auth token is current
-    sctool --api-url "http://${SCYLLA_IP}:5080/api/v1" cluster update -c "${DOMAIN}" \
-      --auth-token "${AGENT_TOKEN}" \
-      --port 56090 2>/dev/null || true
-    log_substep "ScyllaDB cluster '${DOMAIN}' already registered (auth token refreshed)"
-  fi
 fi
 
 log_step "Workload Services"

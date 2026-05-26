@@ -69,16 +69,23 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 			return
 		}
 	}
-	hasToken := hasNonEmptyAuthToken(content)
+	// The auth token must be the SAME on every agent in the cluster — the
+	// scylla-manager server caches one token per cluster and uses it to talk
+	// to every host. A per-node random UUID (e.g. one minted by an install
+	// script) silently breaks `sctool cluster add` with HTTP 401 against the
+	// non-coordinator hosts. So compare against the derived cluster-wide
+	// value, not just "is anything there?".
+	derivedToken := deriveClusterScopedScyllaAuthToken()
+	tokenMatches := currentAuthToken(content) == derivedToken
 	hasURL := hasScyllaAPIURL(content, nodeIP)
 	hasPorts := hasScyllaAgentPorts(content, nodeIP)
-	if hasToken && hasURL && hasPorts {
+	if tokenMatches && hasURL && hasPorts {
 		return
 	}
 
 	updated := content
-	if !hasToken {
-		updated = upsertAuthToken(updated, deriveClusterScopedScyllaAuthToken())
+	if !tokenMatches {
+		updated = upsertAuthToken(updated, derivedToken)
 	}
 	if !hasURL && nodeIP != "" {
 		updated = upsertScyllaAPIURL(updated, nodeIP)
@@ -106,7 +113,7 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 	// "permission denied". Mode 0640 only helps if the group is scylla.
 	chgrpScyllaAgentConfig(cfgPath)
 	log.Printf("nodeagent: ensured scylla-manager-agent config in %s (token=%v api_url=%v ports=%v)",
-		cfgPath, !hasToken, !hasURL, !hasPorts)
+		cfgPath, !tokenMatches, !hasURL, !hasPorts)
 
 	// The agent loads its config once at startup; a yaml change has zero
 	// effect until the unit is restarted. Without this, every reconcile that
@@ -376,6 +383,12 @@ func upsertScyllaAgentPorts(content, nodeIP string) string {
 }
 
 func hasNonEmptyAuthToken(content string) bool {
+	return currentAuthToken(content) != ""
+}
+
+// currentAuthToken returns the first non-comment auth_token value found in the
+// YAML, with surrounding quotes stripped. Returns "" if none present or empty.
+func currentAuthToken(content string) string {
 	for _, raw := range strings.Split(content, "\n") {
 		line := strings.TrimSpace(raw)
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -383,11 +396,10 @@ func hasNonEmptyAuthToken(content string) bool {
 		}
 		if strings.HasPrefix(line, "auth_token:") {
 			v := strings.TrimSpace(strings.TrimPrefix(line, "auth_token:"))
-			v = strings.Trim(v, `"'`)
-			return v != ""
+			return strings.Trim(v, `"'`)
 		}
 	}
-	return false
+	return ""
 }
 
 func upsertAuthToken(content, token string) string {
