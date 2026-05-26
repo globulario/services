@@ -23,6 +23,7 @@ import (
 	"github.com/globulario/services/golang/dnsprovider"
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
+	"github.com/go-acme/lego/v4/challenge/dns01"
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/registration"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -566,20 +567,20 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 	}
 
 	// Set DNS-01 challenge provider.
-	// For locally-managed zones (provider type "local"), the cluster's own DNS
-	// service is authoritative. Public resolvers (1.1.1.1, 8.8.8.8) will never
-	// see the _acme-challenge TXT record, so we use the local nameserver (UDP:53)
-	// for the propagation check instead.
+	// Always disable lego's built-in authoritative-NS propagation check: lego
+	// queries the NS record for the zone, resolves the nameserver to a local IP,
+	// and tries UDP port 53 — which refuses connections inside the cluster.
+	// Our solver's own waitForPropagation handles verification correctly:
+	//   - publish_external=true  → public resolvers (1.1.1.1, 8.8.8.8) — TXT is
+	//                              visible externally so LE validation will succeed.
+	//   - publish_external=false → provider API query (internal zone, no public check).
 	legoProvider := NewLegoProvider(provider, spec.Zone)
-	if localNS := r.resolveLocalNS(); localNS != "" && provider.Name() == "local" {
-		legoProvider.solver.SetPropagator(&PublicResolverPropagator{
-			Resolvers: []string{localNS},
-		})
-		r.logger.Info("using local nameserver for ACME propagation check",
-			"fqdn", spec.FQDN,
-			"nameserver", localNS)
+	if spec.PublishExternal {
+		legoProvider.solver.SetPropagator(NewPublicResolverPropagator())
+		r.logger.Info("using public resolvers for ACME propagation check",
+			"fqdn", spec.FQDN)
 	}
-	if err := client.Challenge.SetDNS01Provider(legoProvider); err != nil {
+	if err := client.Challenge.SetDNS01Provider(legoProvider, dns01.DisableCompletePropagationRequirement()); err != nil {
 		return fmt.Errorf("failed to set DNS-01 provider: %w", err)
 	}
 
@@ -622,7 +623,7 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 			if err := r.ensureRegistration(ctx, client, user, domainDir); err != nil {
 				return fmt.Errorf("failed to re-register ACME account: %w", err)
 			}
-			if err := client.Challenge.SetDNS01Provider(legoProvider); err != nil {
+			if err := client.Challenge.SetDNS01Provider(legoProvider, dns01.DisableCompletePropagationRequirement()); err != nil {
 				return fmt.Errorf("failed to set DNS-01 provider on retry: %w", err)
 			}
 			certificates, err = client.Certificate.Obtain(request)
