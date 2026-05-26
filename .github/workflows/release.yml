@@ -558,19 +558,21 @@ jobs:
               if not entrypoint:
                   entrypoint = binary
 
-              # Compute binary SHA256
-              h = hashlib.sha256()
-              with open(bin_path, "rb") as f:
-                  for chunk in iter(lambda: f.read(8192), b""):
-                      h.update(chunk)
-              checksum = f"sha256:{h.hexdigest()}"
-
-              # Assemble package directory
+              # Assemble package directory first, then hash the file that
+              # is actually in the tarball — guarantees stored checksum
+              # matches what node-agent will find after extraction.
               tmpdir = tempfile.mkdtemp()
               shutil.copytree(meta_dir, tmpdir, dirs_exist_ok=True)
               os.makedirs(f"{tmpdir}/bin", exist_ok=True)
               shutil.copy2(bin_path, f"{tmpdir}/bin/{entrypoint}")
               os.chmod(f"{tmpdir}/bin/{entrypoint}", 0o755)
+
+              # Compute SHA256 from the file inside the package, not the source.
+              h = hashlib.sha256()
+              with open(f"{tmpdir}/bin/{entrypoint}", "rb") as f:
+                  for chunk in iter(lambda: f.read(8192), b""):
+                      h.update(chunk)
+              checksum = f"sha256:{h.hexdigest()}"
 
               # Stamp package.json with real version, checksum, build_id.
               # Each package gets its own unique build_id (UUIDv4) so the
