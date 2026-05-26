@@ -1,0 +1,55 @@
+id: workflow.terminal_runs_must_be_bounded
+level: invariant
+title: Terminal workflow runs must have retention — unbounded accumulation is a system failure
+status: learned_from_incident
+
+intent: |
+  Completed workflow runs are historical records. They serve debugging and
+  auditing but have no operational effect. Without retention, they accumulate
+  unboundedly in a single ScyllaDB partition, creating tombstone pressure
+  that degrades read performance cluster-wide.
+
+  The workflow service must actively prune terminal runs beyond a configured
+  limit. The pruner must also clean associated tables (steps, events,
+  artifact refs, secondary indexes) to avoid orphaned data.
+
+agent_guidance: |
+  If ScyllaDB CPU is high and tombstone warnings mention workflow.workflow_runs,
+  check the row count. If it exceeds the retention limit (default 1000),
+  the pruner may not be running or may not be keeping up with creation rate.
+
+  Do not set TTL as the sole solution — it only affects new writes.
+  Do not reduce gc_grace_seconds below 10 days on multi-node clusters.
+  The correct fix is the retention pruner plus manual compaction for
+  immediate relief.
+
+bad_smells:
+  - workflow_runs count in the tens of thousands
+  - ScyllaDB tombstone warnings on workflow.workflow_runs
+  - sustained high CPU from read-path tombstone scanning
+  - workflow_steps count 10x workflow_runs count
+  - single partition key (cluster_id) holding all runs
+
+expressed_by:
+  - services/golang/workflow/workflow_server/retention.go
+  - services/golang/workflow/workflow_server/schema.go
+
+related_invariants:
+  - reconciliation.must_be_idempotent_and_bounded
+
+activation_triggers:
+  - ScyllaDB high CPU
+  - tombstone warning
+  - workflow_runs unbounded
+  - workflow retention
+  - terminal runs accumulating
+
+zooms_out_to:
+  - workflow.source_of_operational_truth
+
+related_to:
+  - reconciliation.must_be_idempotent_and_bounded
+  - health.requires_fresh_evidence
+
+zooms_in_to:
+  - workflow.step_receipts_are_evidence

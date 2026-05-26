@@ -1,0 +1,52 @@
+id: version_identity.upstream_version_is_package_version
+level: invariant
+title: Infrastructure packages must use their upstream version, not the platform build number
+status: learned_from_incident
+
+intent: |
+  When a Globular package wraps an upstream binary (etcd, envoy, prometheus),
+  the package version must be the upstream version (e.g. 3.5.14), not the
+  Globular platform build number (e.g. 1.2.79). The version in the package
+  spec, the release-index, and the repository must all agree.
+
+  Mixing version schemes creates permanent drift: the reconciler sees
+  desired=1.2.79 vs installed=3.5.14, cannot converge, and creates
+  thousands of no-op workflows that flood ScyllaDB with tombstones.
+
+agent_guidance: |
+  Before publishing an infrastructure package, verify that the version in
+  the spec metadata matches the upstream binary version, not the platform
+  release number. Check release-index.json for consistency. If you see a
+  version like 1.2.X for etcd, prometheus, or envoy, it is almost certainly
+  wrong — those use upstream semver.
+
+bad_smells:
+  - infrastructure package version matches platform release pattern (1.2.X)
+  - release-index.json has different version scheme for same-kind packages
+  - reconciler creating thousands of no-op workflows for one component
+  - InfrastructureRelease transition count in the hundreds of thousands
+
+expressed_by:
+  - services/release-index.json
+  - packages/specs/etcd_service.yaml
+  - services/build-all-packages.sh
+
+related_invariants:
+  - package.identity_requires_build_id
+
+activation_triggers:
+  - etcd version
+  - infrastructure version mismatch
+  - release-index wrong version
+  - reconciler storm
+  - no-op workflows
+
+zooms_out_to:
+  - state.repository_desired_installed_runtime
+
+related_to:
+  - package.identity_requires_build_id
+  - reconciliation.must_be_idempotent_and_bounded
+
+zooms_in_to:
+  - desired.build_id_immutable_after_resolution

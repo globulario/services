@@ -1,0 +1,47 @@
+id: reconciler.resolution_must_match_spec
+level: invariant
+title: Resolved version must match spec version before skipping re-resolution
+status: learned_from_incident
+
+intent: |
+  The reconciler's idempotency guard must verify that the cached resolved
+  version actually matches what the spec requests. A generation-only check
+  is insufficient: the spec version can change (via BOM update) without
+  bumping the generation. If the guard skips re-resolution based on
+  generation alone, the release stays stuck at the old version forever.
+
+agent_guidance: |
+  When debugging a release stuck at an old version despite a newer artifact
+  being published, check whether status.resolved_version matches spec.version.
+  If they differ and transition_reason is "already_resolved", the idempotency
+  guard is the problem — the release needs to be reset to PENDING with
+  cleared resolution fields to force re-resolve.
+
+bad_smells:
+  - release stuck at old version with transition_reason=already_resolved
+  - spec.version differs from status.resolved_version
+  - new artifact published but never deployed
+  - resolved_build_number points to an older build than the latest published
+
+expressed_by:
+  - services/golang/cluster_controller/cluster_controller_server/release_pipeline.go
+
+related_invariants:
+  - desired.build_id_immutable_after_resolution
+
+activation_triggers:
+  - already_resolved
+  - stuck release
+  - version not upgrading
+  - BOM update not applied
+  - stale resolution
+
+zooms_out_to:
+  - reconciliation.must_be_idempotent_and_bounded
+
+related_to:
+  - version_identity.upstream_version_is_package_version
+  - state.repository_desired_installed_runtime
+
+zooms_in_to:
+  - desired.build_id_immutable_after_resolution
