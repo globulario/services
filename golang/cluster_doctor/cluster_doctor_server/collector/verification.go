@@ -472,9 +472,16 @@ func (c *Collector) runVerification(ctx context.Context, snap *Snapshot) {
 		if scheduled[req.NodeID+"/"+req.Service] {
 			continue // already in the normal sweep set; no need to duplicate
 		}
-		dst, ok := snap.DesiredServiceTargets[req.Service]
-		if !ok || dst == nil {
-			continue
+		dst := snap.DesiredServiceTargets[req.Service]
+		if dst == nil {
+			// ServiceRelease is transiently FAILED or missing. Build a minimal
+			// target from the installed package so the sweep still produces a
+			// verdict. Without this, the sweep request is silently dropped and
+			// the service stays UNVERIFIED until the release recovers.
+			dst = minimalTargetFromInstalled(ctx, req.NodeID, req.Service)
+			if dst == nil {
+				continue // truly not installed — nothing to verify
+			}
 		}
 		scheduled[req.NodeID+"/"+req.Service] = true
 		installInfo := resolvePerNodeInstallInfo(ctx, req.NodeID, dst)
@@ -499,21 +506,29 @@ func (c *Collector) runVerification(ctx context.Context, snap *Snapshot) {
 
 	// Catch-up pass: verify any (node, service) pair where the service is
 	// actually installed on the node but the node is missing from the
-	// ServiceRelease's status node list. This happens when a node joins
-	// after the release was already AVAILABLE — the status captures only
-	// the founding cohort, so RequiredNodes above never includes the new
-	// node. Without this pass, the new node gets a permanent FAIL from
-	// handlers_health ("no verifier verdict yet") even though the service
-	// is installed and running correctly.
+	// ServiceRelease's status node list, or the ServiceRelease is transiently
+	// FAILED. This happens when a node joins after the release was already
+	// AVAILABLE (status captures only the founding cohort), or when a resolve
+	// failure temporarily clears the desired target. Without this pass, the
+	// node gets a permanent FAIL from handlers_health ("no verifier verdict
+	// yet") even though the service is installed and running correctly.
 	for nodeID, kinds := range snap.NodePackageKinds {
 		for svcName := range kinds {
 			if scheduled[nodeID+"/"+svcName] {
 				continue
 			}
-			dst, ok := snap.DesiredServiceTargets[svcName]
-			if !ok || dst == nil {
-				continue
+			dst := snap.DesiredServiceTargets[svcName]
+			if dst == nil {
+				// ServiceRelease transiently FAILED — build a minimal target so
+				// the verifier still writes a verdict. The claim layer in the
+				// health handler is responsible for version comparison; the
+				// verifier only needs enough to prove binary identity.
+				dst = minimalTargetFromInstalled(ctx, nodeID, svcName)
+				if dst == nil {
+					continue // not installed → skip
+				}
 			}
+			scheduled[nodeID+"/"+svcName] = true
 			installInfo := resolvePerNodeInstallInfo(ctx, nodeID, dst)
 			tgt := verifier.Target{
 				Service:                   dst.Service,
@@ -617,6 +632,29 @@ func resolvePerNodeInstallInfo(ctx context.Context, nodeID string, dst *DesiredS
 		}
 	}
 	return perNodeInstallInfo{applyTimeSource: "unknown"}
+}
+
+// minimalTargetFromInstalled builds a DesiredServiceTarget from the etcd
+// installed-state record for (nodeID, svcName) when no ServiceRelease target
+// is available (e.g. the release is transiently FAILED). The target carries
+// no desired version or checksum — the verifier uses it only to prove binary
+// identity (installedKnown + runtimeOK), and the claim layer in the health
+// handler handles version comparison independently. Returns nil when the
+// service is not found in the installed-state for either SERVICE or
+// INFRASTRUCTURE kind.
+func minimalTargetFromInstalled(ctx context.Context, nodeID, svcName string) *DesiredServiceTarget {
+	for _, kind := range []string{"SERVICE", "INFRASTRUCTURE"} {
+		pkg, err := installed_state.GetInstalledPackage(ctx, nodeID, kind, svcName)
+		if err != nil || pkg == nil {
+			continue
+		}
+		return &DesiredServiceTarget{
+			Service:       strings.TrimSpace(pkg.GetName()),
+			RuntimeNeeded: strings.EqualFold(kind, "SERVICE"),
+			RequiredNodes: []string{nodeID},
+		}
+	}
+	return nil
 }
 
 // findProofForService scans a per-node proofs slice for the matching
