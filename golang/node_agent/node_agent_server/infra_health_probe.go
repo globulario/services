@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -31,26 +32,53 @@ import (
 
 // runProbeScyllaHealth checks whether ScyllaDB is healthy on this node.
 //
-// Strategy:
-//  1. Try `nodetool status` and look for a line containing the node's IP
-//     with status "UN" (Up Normal).
-//  2. Fallback: TCP connect to port 9042 on the node's interfaces.
+// Every failed attempt includes join-progress metrics (operation mode,
+// streaming %, gossip peer count) in the error message so operators can
+// track progress in workflow logs instead of waiting blindly for a timeout.
+//
+// Stuck detection: if bootstrap streaming is 100% complete but the node is
+// still JOINING with no live gossip peers, the Raft topology coordinator is
+// blocked by a stale dead node in system.topology — a specific error is
+// returned immediately rather than waiting out the full retry window.
+//
+// Strategy order:
+//  1. Collect join metrics via REST API (port 10000) + Prometheus (port 9180).
+//  2. If stuck condition detected: return actionable error immediately.
+//  3. nodetool status — "UN" → healthy.
+//  4. REST API says "NORMAL" → healthy (nodetool-independent fallback).
+//  5. TCP connect to CQL port 9042.
 func (srv *NodeAgentServer) runProbeScyllaHealth(ctx context.Context, req *node_agentpb.RunWorkflowRequest) (*node_agentpb.RunWorkflowResponse, error) {
 	start := time.Now()
 	if err := validateScyllaRuntimePrereqs(); err != nil {
 		return probeFail(start, err.Error()), nil
 	}
 
-	// Collect local IPs for matching nodetool output.
 	localIPs := localIPv4Set()
+	// Try 127.0.0.1 first (works when ScyllaDB listens on 0.0.0.0), then node IPs.
+	probeAddrs := append([]string{"127.0.0.1"}, mapKeys(localIPs)...)
 
-	// --- Strategy 1: nodetool status ---
-	// Pass -h <node_ip> explicitly: scylla.yaml binds api_address to the node's
-	// routable IP, not 127.0.0.1 (which is nodetool's default target).
+	// Best-effort metrics collection for rich diagnostics.
+	jm := collectScyllaJoinMetrics(ctx, probeAddrs)
+	if s := jm.format(); s != "" {
+		log.Printf("probe-scylla-health:%s", s)
+	}
+
+	// Stuck detection: streaming 100% done but still JOINING with no live peers.
+	// Cause: Raft topology coordinator waiting for a dead node still in system.topology.
+	if jm.OperationMode == "JOINING" &&
+		jm.BootstrapValid && jm.BootstrapPct >= 1.0 &&
+		jm.GossipValid && jm.GossipLive == 0 {
+		return probeFail(start,
+			"ScyllaDB bootstrap streaming complete (100%) but Raft topology coordinator "+
+				"is blocked: gossip_live=0 while mode=JOINING. "+
+				"Likely cause: stale dead node in system.topology. "+
+				"Fix: run RemoveNode for the dead host ID from a live ring member."), nil
+	}
+
+	// Strategy 1: nodetool status — "UN" (Up Normal) confirms healthy.
 	if nodetool, err := exec.LookPath("nodetool"); err == nil {
 		cmdCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
-		// Pick the first local IP to use as the API host.
 		var apiHost string
 		for ip := range localIPs {
 			apiHost = ip
@@ -66,8 +94,6 @@ func (srv *NodeAgentServer) runProbeScyllaHealth(ctx context.Context, req *node_
 			scanner := bufio.NewScanner(strings.NewReader(string(out)))
 			for scanner.Scan() {
 				line := scanner.Text()
-				// nodetool status lines look like:
-				// UN  10.0.0.5  123.45 KiB  256  ?  rack1  datacenter1
 				fields := strings.Fields(line)
 				if len(fields) < 2 {
 					continue
@@ -78,25 +104,178 @@ func (srv *NodeAgentServer) runProbeScyllaHealth(ctx context.Context, req *node_
 					if status == "UN" {
 						return probeOK(start), nil
 					}
-					return probeFail(start, fmt.Sprintf("nodetool status reports %s for %s", status, ip)), nil
+					return probeFail(start, fmt.Sprintf("nodetool status=%s for %s%s",
+						status, ip, jm.format())), nil
 				}
 			}
-			// nodetool ran but our IP wasn't listed — node may not be in the ring yet.
-			return probeFail(start, fmt.Sprintf("nodetool status ran but local IP not found in output; local IPs: %v", mapKeys(localIPs))), nil
+			return probeFail(start, fmt.Sprintf("nodetool ran but local IP not in ring yet%s; local IPs: %v",
+				jm.format(), mapKeys(localIPs))), nil
 		}
-		// nodetool failed — fall through to TCP probe.
 		log.Printf("probe-scylla-health: nodetool failed: %v", err)
 	}
 
-	// --- Strategy 2: TCP connect to CQL port 9042 ---
-	// ScyllaDB binds to the node's advertised IP, not 127.0.0.1.
+	// Strategy 2: REST API reports NORMAL — accept without nodetool.
+	if jm.OperationMode == "NORMAL" {
+		return probeOK(start), nil
+	}
+
+	// Strategy 3: TCP connect to CQL port 9042.
 	for ip := range localIPs {
 		if tryTCPConnect(ip, 9042, 2*time.Second) {
 			return probeOK(start), nil
 		}
 	}
 
-	return probeFail(start, "CQL port 9042 unreachable on all local interfaces and nodetool unavailable or failed"), nil
+	return probeFail(start, fmt.Sprintf("CQL port 9042 unreachable and nodetool unavailable%s", jm.format())), nil
+}
+
+// scyllaJoinMetrics holds a snapshot of ScyllaDB join-progress state for
+// operator visibility in probe error messages.
+type scyllaJoinMetrics struct {
+	OperationMode  string  // "NORMAL", "JOINING", "STARTING", etc. Empty when unavailable.
+	BootstrapPct   float64 // avg of scylla_streaming_finished_percentage{ops="bootstrap"} (0–1).
+	BootstrapValid bool    // false when no bootstrap streaming metric was present.
+	GossipLive     int     // scylla_gossip_live peer count.
+	GossipValid    bool    // false when gossip metric was absent.
+}
+
+// format returns a short bracketed summary, e.g. " [mode=JOINING bootstrap=75% gossip_live=2]".
+// Returns "" when no data was collected.
+func (m scyllaJoinMetrics) format() string {
+	if m.OperationMode == "" && !m.BootstrapValid && !m.GossipValid {
+		return ""
+	}
+	var parts []string
+	if m.OperationMode != "" {
+		parts = append(parts, "mode="+m.OperationMode)
+	}
+	if m.BootstrapValid {
+		parts = append(parts, fmt.Sprintf("bootstrap=%.0f%%", m.BootstrapPct*100))
+	}
+	if m.GossipValid {
+		parts = append(parts, fmt.Sprintf("gossip_live=%d", m.GossipLive))
+	}
+	return " [" + strings.Join(parts, " ") + "]"
+}
+
+// collectScyllaJoinMetrics queries the ScyllaDB REST API (port 10000) for the
+// operation mode string and the Prometheus endpoint (port 9180) for streaming
+// and gossip metrics. All queries are best-effort; returns zero value on error.
+func collectScyllaJoinMetrics(ctx context.Context, addrs []string) scyllaJoinMetrics {
+	var m scyllaJoinMetrics
+	for _, addr := range addrs {
+		if mode := queryScyllaOperationModeREST(ctx, addr); mode != "" {
+			m.OperationMode = mode
+			break
+		}
+	}
+	for _, addr := range addrs {
+		if collectScyllaPrometheusMetrics(ctx, addr, &m) {
+			break
+		}
+	}
+	return m
+}
+
+// queryScyllaOperationModeREST calls GET /storage_service/operation_mode on the
+// ScyllaDB REST API (port 10000) and returns the mode string ("NORMAL", "JOINING",
+// etc.). Returns "" on any error.
+func queryScyllaOperationModeREST(ctx context.Context, addr string) string {
+	rctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(rctx, http.MethodGet,
+		fmt.Sprintf("http://%s:10000/storage_service/operation_mode", addr), nil)
+	if err != nil {
+		return ""
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	var mode string
+	if err := json.NewDecoder(resp.Body).Decode(&mode); err != nil {
+		return ""
+	}
+	return strings.ToUpper(strings.TrimSpace(mode))
+}
+
+// collectScyllaPrometheusMetrics scrapes http://<addr>:9180/metrics and fills
+// GossipLive and BootstrapPct in m. Returns true when at least one metric was found.
+func collectScyllaPrometheusMetrics(ctx context.Context, addr string, m *scyllaJoinMetrics) bool {
+	rctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(rctx, http.MethodGet,
+		fmt.Sprintf("http://%s:9180/metrics", addr), nil)
+	if err != nil {
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+
+	var bootstrapSum float64
+	var bootstrapCount int
+	found := false
+
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) == 0 || line[0] == '#' {
+			continue
+		}
+		name, value := parsePrometheusLine(line)
+		switch name {
+		case "scylla_gossip_live":
+			if v, err := strconv.Atoi(value); err == nil {
+				m.GossipLive = v
+				m.GossipValid = true
+				found = true
+			}
+		case "scylla_streaming_finished_percentage":
+			if strings.Contains(line, `ops="bootstrap"`) {
+				if v, err := strconv.ParseFloat(value, 64); err == nil {
+					bootstrapSum += v
+					bootstrapCount++
+					found = true
+				}
+			}
+		}
+	}
+	if bootstrapCount > 0 {
+		m.BootstrapPct = bootstrapSum / float64(bootstrapCount)
+		m.BootstrapValid = true
+	}
+	return found
+}
+
+// parsePrometheusLine extracts the metric name and value from a Prometheus
+// text-format line. Handles both labeled (name{k=v} val) and plain (name val)
+// forms. Returns empty strings when parsing fails.
+func parsePrometheusLine(line string) (name, value string) {
+	if idx := strings.Index(line, "{"); idx >= 0 {
+		name = line[:idx]
+		if end := strings.LastIndex(line, "} "); end >= 0 {
+			if parts := strings.Fields(line[end+2:]); len(parts) > 0 {
+				value = parts[0]
+			}
+		}
+	} else {
+		parts := strings.Fields(line)
+		if len(parts) >= 2 {
+			name = parts[0]
+			value = parts[1]
+		}
+	}
+	return
 }
 
 func validateScyllaRuntimePrereqs() error {
