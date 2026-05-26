@@ -73,6 +73,8 @@ Day-0 through Day-2 operational guides.
 High availability, failure handling, networking, and certificate management.
 
 - [High Availability](operators/high-availability.md) — Leader election, etcd quorum, MinIO erasure coding, failover
+- [MinIO Operational Runbook](operators/minio-operational-runbook.md) — Incident playbooks: ScyllaDB host poisoning, format.json mismatch, crash-loop suppressor, executor lease conflicts
+- [MinIO Topology Validation](operators/minio-topology-validation.md) — Convergence proofs, per-node fingerprint checks, doctor invariants
 - [Cluster Self-Healing Reference](operators/cluster-self-healing.md) — What the cluster fixes automatically, what it cannot, operator signals and actions
 - [Failure Scenarios and Recovery](operators/failure-scenarios.md) — Infrastructure, service, and node failure catalog
 - [Node Full-Reseed Recovery](operators/node-recovery.md) — Complete wipe-and-rebuild workflow: snapshot, fencing, reprovision, reseed, verify

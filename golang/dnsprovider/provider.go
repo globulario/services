@@ -94,6 +94,31 @@ type Config struct {
 	Timeout time.Duration `json:"timeout,omitempty"`
 }
 
+// Preflighter is implemented by providers that can self-test their
+// configuration before being used. Callers (e.g. the domain reconciler)
+// should call Preflight once after construction; if it fails, the provider
+// is not safe to use and any downstream work (ACME, A-record publish) must
+// be skipped. The probe is expected to:
+//   - confirm the underlying control connection is reachable
+//   - exercise a write→read→delete cycle so the caller has positive proof
+//     the provider can mutate the zone
+//
+// Implementations should pick a probe name that cannot collide with real
+// records (e.g., a "_globular-probe-<nonce>" subdomain).
+type Preflighter interface {
+	Preflight(ctx context.Context, zone string) error
+}
+
+// SelfRepairer is implemented by providers whose constructor can detect
+// and correct broken configuration (e.g., a missing or out-of-range port
+// in the credentials block). Callers should check RepairedConfig() right
+// after construction and, when ok==true, persist the corrected Config
+// back to wherever the original came from (typically etcd) so the same
+// repair does not have to happen on every reload.
+type SelfRepairer interface {
+	RepairedConfig() (Config, bool)
+}
+
 // ProviderError wraps provider-specific errors with context.
 type ProviderError struct {
 	Provider string // Provider name

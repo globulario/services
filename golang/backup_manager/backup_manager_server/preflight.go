@@ -93,8 +93,9 @@ func isLegacyScyllaManagerDefault(u string) bool {
 }
 
 // detectScyllaManagerAPIURL reads the scylla-manager config yaml and returns
-// the HTTPS API URL with /api/v1 appended (e.g. "https://10.0.0.63:5443/api/v1").
-// Returns empty string if the config is not found or has no https: field.
+// the API URL with /api/v1 appended (e.g. "http://10.0.0.63:5080/api/v1").
+// Prefers https: over http: when both are present.
+// Returns empty string if the config is not found or has no listener field.
 func detectScyllaManagerAPIURL() string {
 	configPaths := []string{
 		"/var/lib/globular/scylla-manager/scylla-manager.yaml",
@@ -111,16 +112,50 @@ func detectScyllaManagerAPIURL() string {
 	if len(data) == 0 {
 		return ""
 	}
+	var httpURL string
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "https:") {
 			addr := strings.TrimSpace(strings.TrimPrefix(line, "https:"))
 			if addr != "" {
-				return "https://" + addr
+				return "https://" + resolveWildcardAddr(addr)
+			}
+		}
+		if strings.HasPrefix(line, "http:") && !strings.HasPrefix(line, "https:") {
+			addr := strings.TrimSpace(strings.TrimPrefix(line, "http:"))
+			if addr != "" {
+				httpURL = "http://" + resolveWildcardAddr(addr)
 			}
 		}
 	}
-	return ""
+	return httpURL
+}
+
+// resolveWildcardAddr replaces a 0.0.0.0 bind address with the node's
+// outbound LAN IP so the URL is usable as a client endpoint.
+func resolveWildcardAddr(hostport string) string {
+	host, port, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return hostport
+	}
+	if host == "0.0.0.0" || host == "" {
+		if ip := outboundIP(); ip != "" {
+			return net.JoinHostPort(ip, port)
+		}
+	}
+	return hostport
+}
+
+// outboundIP returns the preferred outbound LAN IP by dialling a dummy UDP
+// connection. Returns empty string on failure.
+func outboundIP() string {
+	conn, err := net.Dial("udp", "8.8.8.8:53")
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+	addr := conn.LocalAddr().(*net.UDPAddr)
+	return addr.IP.String()
 }
 
 // ensureScyllaRegistered checks if ScyllaDB is running and registered in
@@ -808,7 +843,9 @@ func (srv *server) TestScyllaConnection(_ context.Context, rqst *backup_managerp
 	}
 
 	// 2. scylla-manager server reachable
-	out, err := runDiagCmd(apiArgs([]string{"sctool", "version"})...)
+	versionArgs := apiArgs([]string{"sctool", "version"})
+	slog.Info("TestScyllaConnection: running sctool", "args", versionArgs, "apiURL", apiURL)
+	out, err := runDiagCmd(versionArgs...)
 	if err != nil {
 		fail("scylla_manager_server", "scylla-manager is not reachable: "+out,
 			"Start scylla-manager: sudo systemctl start globular-scylla-manager.service")

@@ -1087,6 +1087,43 @@ func (r *Reconciler) getProvider(ctx context.Context, providerRef, zone string) 
 		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}
 
+	// If the provider self-repaired its configuration during construction
+	// (e.g. missing or out-of-range port → port resolved from etcd), persist
+	// the corrected Config back to etcd so the same fix does not have to
+	// happen on every reload. The CAS write changes the ModRevision, which
+	// invalidates our cache on the next pass and triggers a clean reload.
+	if rep, ok := provider.(dnsprovider.SelfRepairer); ok {
+		if newCfg, repaired := rep.RepairedConfig(); repaired {
+			data, marshalErr := json.Marshal(newCfg)
+			if marshalErr != nil {
+				r.logger.Warn("failed to marshal repaired provider config",
+					"ref", providerRef,
+					"error", marshalErr)
+			} else if _, putErr := r.etcdClient.Put(ctx, key, string(data)); putErr != nil {
+				r.logger.Warn("provider auto-repaired its config but persist failed",
+					"ref", providerRef,
+					"error", putErr)
+			} else {
+				r.logger.Info("provider config repaired and persisted to etcd",
+					"ref", providerRef,
+					"zone", zone)
+			}
+		}
+	}
+
+	// Preflight the provider end-to-end (Set/Get/Remove TXT) before handing
+	// it out. A broken provider that silently fails SetTXT is the single
+	// largest source of ACME failures + Let's Encrypt rate-limit burn, so
+	// fail fast and noisily here instead.
+	if pf, ok := provider.(dnsprovider.Preflighter); ok {
+		if pfErr := pf.Preflight(ctx, zone); pfErr != nil {
+			return nil, fmt.Errorf("provider %q preflight failed: %w", providerRef, pfErr)
+		}
+		r.logger.Info("provider preflight passed",
+			"ref", providerRef,
+			"zone", zone)
+	}
+
 	// Cache it with metadata
 	r.providersMu.Lock()
 	r.providers[providerRef] = &cachedProvider{
