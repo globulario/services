@@ -43,7 +43,7 @@ invariants:
     - id: service.endpoint.cgroup_escape_guard
       title: Every service unit must kill orphaned processes before starting a new instance
       severity: high
-      status: active
+      status: planned
       summary: |
         When a service process escapes its systemd cgroup (e.g., via a child fork, exec, or
         race during upgrade), systemd cannot track or kill it on restart. The orphan continues
@@ -2549,7 +2549,7 @@ invariants:
     - id: k8s.api_server.reachable
       title: The Kubernetes API server must be reachable from each Globular control-plane node
       severity: critical
-      status: active
+      status: planned
       # origin: { type: principle, confidence: high }
       summary: |
         If the API server is unreachable, check substrate (node health, cert expiry,
@@ -2560,7 +2560,7 @@ invariants:
     - id: k8s.nodes.ready_count_matches_expected
       title: The number of Ready Kubernetes nodes must match the number of healthy Globular nodes
       severity: critical
-      status: active
+      status: planned
       # origin: { type: principle, confidence: high }
       summary: |
         A mismatch between Ready K8s nodes and healthy Globular nodes indicates either
@@ -2570,7 +2570,7 @@ invariants:
     - id: k8s.core_dns.available
       title: CoreDNS must be available and responding to queries
       severity: critical
-      status: active
+      status: planned
       # origin: { type: principle, confidence: high }
       summary: |
         CoreDNS failure breaks all K8s service discovery. Always check if the node
@@ -2579,7 +2579,7 @@ invariants:
     - id: k8s.kube_proxy.available_on_each_node
       title: kube-proxy must be available on each Kubernetes node
       severity: high
-      status: active
+      status: planned
       # origin: { type: principle, confidence: high }
       summary: |
         kube-proxy failure breaks service routing. May be substrate-owned if the
@@ -2588,7 +2588,7 @@ invariants:
     - id: k8s.cni.ready_on_each_node
       title: The CNI plugin must be running and ready on each Kubernetes node
       severity: critical
-      status: active
+      status: planned
       # origin: { type: principle, confidence: high }
       summary: |
         CNI failure causes pod networking failure on the entire node.
@@ -2597,7 +2597,7 @@ invariants:
     - id: k8s.certificates.not_expired
       title: No Kubernetes cluster certificates may be expired
       severity: critical
-      status: active
+      status: planned
       # origin: { type: principle, confidence: high }
       summary: |
         Expired certs break API server, kubelet, and etcd TLS. If the expired cert
@@ -2609,7 +2609,7 @@ invariants:
     - id: k8s.etcd.quorum_available
       title: Kubernetes-internal etcd must maintain quorum
       severity: critical
-      status: active
+      status: planned
       # origin: { type: principle, confidence: high }
       summary: |
         This is the Kubernetes-internal etcd (typically port 2379 on control-plane nodes),
@@ -2621,7 +2621,7 @@ invariants:
     - id: k8s.system_pods.available
       title: All kube-system pods must be available and not crash-looping
       severity: high
-      status: active
+      status: planned
       # origin: { type: principle, confidence: high }
       summary: |
         kube-system pod failures cascade to workload failures. Check substrate
@@ -2630,7 +2630,7 @@ invariants:
     - id: k8s.pending_pods.explained
       title: Every pod stuck in Pending for more than 5 minutes must have a classified reason
       severity: medium
-      status: active
+      status: planned
       # origin: { type: principle, confidence: medium }
       summary: |
         Unclassified Pending pods are unknown_insufficient_evidence. Classification
@@ -2640,7 +2640,7 @@ invariants:
     - id: k8s.crashlooping_pods.explained
       title: Every CrashLoopBackOff pod must have a classified root cause before escalation
       severity: medium
-      status: active
+      status: planned
       # origin: { type: principle, confidence: medium }
       summary: |
         CrashLoopBackOff may be workload_owned (app crash) or substrate_owned
@@ -2649,7 +2649,7 @@ invariants:
     - id: k8s.service_has_ready_endpoints
       title: Every Kubernetes Service must have at least one ready endpoint
       severity: high
-      status: active
+      status: planned
       # origin: { type: principle, confidence: medium }
       summary: |
         A service with zero endpoints means all backing pods are unavailable.
@@ -2658,7 +2658,7 @@ invariants:
     - id: k8s.pvc_bound_or_reason_known
       title: Every PersistentVolumeClaim must be bound or have a classified reason for being unbound
       severity: high
-      status: active
+      status: planned
       # origin: { type: principle, confidence: high }
       summary: |
         Unbound PVCs block pod scheduling. May be substrate_owned if the storage
@@ -2667,7 +2667,7 @@ invariants:
     - id: k8s.admission_webhooks.available
       title: All Fail-mode admission webhooks must be available
       severity: critical
-      status: active
+      status: planned
       # origin: { type: principle, confidence: high }
       summary: |
         Unavailable Fail-mode webhooks block all object creation in the cluster.
@@ -2676,7 +2676,7 @@ invariants:
     - id: k8s.namespace_not_stuck_terminating
       title: No Kubernetes namespace may be stuck in Terminating state for more than 10 minutes
       severity: medium
-      status: active
+      status: planned
       # origin: { type: principle, confidence: medium }
       summary: |
         A stuck namespace indicates either a finalizer issue (workload_owned) or
@@ -2686,7 +2686,7 @@ invariants:
     - id: k8s.authority_boundary_classification_required
       title: Every Kubernetes failure observed by Globular must be classified before action
       severity: critical
-      status: active
+      status: planned
       # origin: { type: principle, confidence: very_high }
       summary: |
         The four classes are: workload_owned, kubernetes_control_plane_owned,

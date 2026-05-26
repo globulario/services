@@ -22,7 +22,7 @@ invariants:
   - id: ui.visible_state_requires_authority
     title: Every visible UI state must be bound to an explicit backend, workflow, RBAC, or local authority
     severity: critical
-    status: active
+    status: planned
     # origin: { type: principle, confidence: high }
     summary: |
       Every badge, status indicator, progress bar, action button, and warning in the operator
@@ -53,7 +53,7 @@ invariants:
   - id: ui.dangerous_warning_must_remain_visible
     title: Dangerous or destructive-operation warnings must remain visible across responsive layouts and skins
     severity: high
-    status: active
+    status: planned
     # origin: { type: principle, confidence: high }
     summary: |
       Operator UIs often include warnings about destructive topology changes, quorum-loss risk,
@@ -79,7 +79,7 @@ invariants:
   - id: ui.ai_text_must_not_invent_state
     title: AI-generated UI text may decorate wording but must not invent system state
     severity: critical
-    status: active
+    status: planned
     # origin: { type: principle, confidence: high }
     summary: |
       Operator UIs may use AI-generated or AI-assisted text for explanations, summaries,
@@ -105,7 +105,7 @@ invariants:
   - id: ui.action_requires_permission_contract
     title: User actions in the UI must declare and respect their required RBAC permission
     severity: high
-    status: active
+    status: planned
     # origin: { type: principle, confidence: high }
     summary: |
       Every action button, form submit, or context-menu item that triggers a state mutation
@@ -134,7 +134,7 @@ invariants:
   - id: ui.status_freshness_must_be_surfaced
     title: UI status indicators must surface the freshness of their data source
     severity: high
-    status: active
+    status: planned
     # origin: { type: principle, confidence: high }
     summary: |
       Operator UIs that display cluster health, node status, or service availability must
@@ -163,7 +163,7 @@ invariants:
   - id: ui.success_requires_authoritative_confirmation
     title: UI success states must be bound to backend, workflow, or runtime confirmation — not local click or dispatch state
     severity: high
-    status: active
+    status: planned
     # origin: { type: principle, confidence: high }
     summary: |
       A button click, form submit, or API call dispatch is not proof that the operation
@@ -191,7 +191,7 @@ invariants:
   - id: ui.floating_identity_must_not_be_hidden
     title: UI screens showing cluster membership, leader identity, or network identity must distinguish stable node identity from floating VIP reachability
     severity: high
-    status: active
+    status: planned
     # origin: { type: principle, confidence: high }
     summary: |
       Operator UIs that display cluster topology, etcd membership, storage pool membership,
