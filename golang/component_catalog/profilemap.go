@@ -41,7 +41,7 @@ var ProfilePackages = map[string][]string{
 	"compute": {
 		"ai-executor", "ai-memory", "ai-router", "ai-watcher",
 		"alertmanager", "authentication", "blog", "catalog", "claude",
-		"cli", "conversation", "dns", "echo", "etcd", "etcdctl", "event",
+		"conversation", "dns", "echo", "etcd", "etcdctl", "event",
 		"ffmpeg", "file", "globular-cli", "ldap", "log", "mail", "mc",
 		"media", "minio", "monitoring", "node-agent", "node-exporter",
 		"persistence", "prometheus", "rbac", "rclone", "repository",
@@ -59,7 +59,7 @@ var ProfilePackages = map[string][]string{
 	},
 	"core": {
 		"ai-executor", "ai-memory", "ai-router", "ai-watcher",
-		"alertmanager", "authentication", "claude", "cli", "dns", "etcd",
+		"alertmanager", "authentication", "claude", "dns", "etcd",
 		"etcdctl", "event", "ffmpeg", "file", "globular-cli", "log",
 		"mc", "media", "minio", "monitoring", "node-agent",
 		"node-exporter", "persistence", "prometheus", "rbac", "rclone",
