@@ -580,18 +580,20 @@ func resolvePerNodeInstallInfo(ctx context.Context, nodeID string, dst *DesiredS
 		installedUnix := pkg.GetInstalledUnix()
 		updatedUnix := pkg.GetUpdatedUnix()
 
-		var applyTime time.Time
-		var source string
-		if installedUnix > 0 {
-			applyTime = time.Unix(installedUnix, 0)
-			source = "installed_package.installed_unix"
-		} else if updatedUnix > 0 {
-			applyTime = time.Unix(updatedUnix, 0)
-			source = "installed_package.updated_unix_fallback"
+		// ApplyTime = most-recent of installedUnix and updatedUnix.
+		// On fresh install both are the same. On upgrade updatedUnix is newer.
+		// Using the latest gives the verifier an accurate "when was this last
+		// applied" so the grace window fires correctly for both installs and upgrades.
+		latestUnix := installedUnix
+		source := "installed_package.installed_unix"
+		if updatedUnix > latestUnix {
+			latestUnix = updatedUnix
+			source = "installed_package.updated_unix"
 		}
-		if applyTime.IsZero() {
+		if latestUnix == 0 {
 			continue
 		}
+		applyTime := time.Unix(latestUnix, 0)
 
 		// IsFirstInstall: installed and updated within 60s = same operation (Day-0 install).
 		// A fresh install records installedUnix ≈ updatedUnix; any subsequent re-apply

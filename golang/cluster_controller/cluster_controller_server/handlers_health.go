@@ -556,9 +556,13 @@ func (srv *server) loadInstalledUnixForNode(ctx context.Context, nodeID string) 
 		if name == "" {
 			continue
 		}
+		// Use max(installedUnix, updatedUnix) so upgrades also get the
+		// Day-0 grace window: the service restarts on upgrade and needs
+		// ~1-2 min before the proof RPC succeeds. Using only installedUnix
+		// (original first-install time) means upgrades never get grace.
 		ts := p.GetInstalledUnix()
-		if ts == 0 {
-			ts = p.GetUpdatedUnix()
+		if u := p.GetUpdatedUnix(); u > ts {
+			ts = u
 		}
 		if ts == 0 {
 			continue

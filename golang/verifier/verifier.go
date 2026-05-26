@@ -94,23 +94,25 @@ func installedPathIsUpstream(path string) bool {
 
 // isDay0UnprovenGrace reports whether a missing-or-partial-proof finding
 // for this target should be downgraded to info severity because the
-// install is still inside its Day-0 grace window. The grace condition is
-// deliberately strict:
+// apply (first install or upgrade) is still inside its grace window.
 //
-//   - IsFirstInstall must be true (the doctor populates this from the
-//     InstalledPackage record's installedUnix vs updatedUnix; an upgrade
-//     never carries IsFirstInstall=true).
-//   - ApplyTime must be non-zero and within Day0UnprovenGraceWindow.
+// Condition: ApplyTime must be non-zero and within Day0UnprovenGraceWindow.
 //
-// Both conditions together mean: "the controller just applied this
-// service for the first time, and the proof RPC hasn't had a chance to
-// run yet." Outside the grace window, or on any upgrade, the finding
-// retains its degraded severity so a real "stuck node-agent / proof
-// never lands" condition still surfaces.
+// ApplyTime is the most-recent of installedUnix and updatedUnix for this
+// (node, service), populated by the collector's resolvePerNodeInstallInfo.
+// On a fresh install both timestamps match (ApplyTime = now). On an
+// upgrade updatedUnix is the recent one; the collector sets ApplyTime to
+// max(installedUnix, updatedUnix) so upgrades also get the grace window.
+//
+// Why upgrades need grace: after an upgrade the service restarts; the
+// node-agent's GetServiceRuntimeProof RPC won't return a proof until the
+// new process is up (typically < 2 min). Without grace the verifier
+// emits DEGRADED for every upgrade during that restart window, which
+// opens false-positive incidents on every deployment.
+//
+// If the service is genuinely stuck (crash-loop, proof RPC broken) the
+// grace window is bounded — DEGRADED surfaces after Day0UnprovenGraceWindow.
 func isDay0UnprovenGrace(target Target, now time.Time) bool {
-	if !target.IsFirstInstall {
-		return false
-	}
 	if target.ApplyTime.IsZero() {
 		return false
 	}

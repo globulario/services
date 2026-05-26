@@ -283,13 +283,35 @@ func TestVerifyTarget_FirstInstallStaleApply_NoProof_StaysDegraded(t *testing.T)
 	}
 }
 
-// Upgrade (IsFirstInstall=false) never qualifies for the grace, even
-// if the apply happened seconds ago. A missing proof during an upgrade
-// is a real signal that something went wrong with the restart sequence.
-func TestVerifyTarget_Upgrade_NoProof_StaysDegraded(t *testing.T) {
+// Upgrade within the grace window gets info severity, not degraded.
+// After an upgrade the service restarts and the proof RPC won't succeed
+// until the new binary is up (~1-2 min). The grace window prevents false
+// UNVERIFIED findings during that restart window.
+func TestVerifyTarget_Upgrade_NoProof_WithinGrace_IsInfo(t *testing.T) {
 	tgt := targetFoo()
 	tgt.IsFirstInstall = false
-	tgt.ApplyTime = time.Now().Add(-10 * time.Second) // fresh apply
+	tgt.ApplyTime = time.Now().Add(-10 * time.Second) // fresh upgrade
+	v := VerifyTarget(tgt, Evidence{}, time.Now())
+	var found *Finding
+	for i := range v.Findings {
+		if v.Findings[i].ID == FindingRuntimeIdentityUnproven {
+			found = &v.Findings[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("missing %s finding; got %+v", FindingRuntimeIdentityUnproven, v.Findings)
+	}
+	if found.Severity != SeverityInfo {
+		t.Errorf("Severity=%q want=%q (upgrade within grace — should be info)", found.Severity, SeverityInfo)
+	}
+}
+
+// After the grace window expires an upgrade with no proof escalates to degraded.
+func TestVerifyTarget_Upgrade_NoProof_AfterGrace_Degraded(t *testing.T) {
+	tgt := targetFoo()
+	tgt.IsFirstInstall = false
+	tgt.ApplyTime = time.Now().Add(-(Day0UnprovenGraceWindow + time.Minute)) // past grace
 	v := VerifyTarget(tgt, Evidence{}, time.Now())
 	var found *Finding
 	for i := range v.Findings {
@@ -302,7 +324,7 @@ func TestVerifyTarget_Upgrade_NoProof_StaysDegraded(t *testing.T) {
 		t.Fatalf("missing %s finding; got %+v", FindingRuntimeIdentityUnproven, v.Findings)
 	}
 	if found.Severity != SeverityDegraded {
-		t.Errorf("Severity=%q want=%q (upgrade — no grace)", found.Severity, SeverityDegraded)
+		t.Errorf("Severity=%q want=%q (upgrade past grace — should be degraded)", found.Severity, SeverityDegraded)
 	}
 }
 
