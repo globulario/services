@@ -328,7 +328,6 @@ spec:
           - { name: mc, kind: COMMAND }
           - { name: sctool, kind: COMMAND }
           - { name: ffmpeg, kind: COMMAND }
-          - { name: cli, kind: COMMAND }
           - { name: sha256sum, kind: COMMAND }
           - { name: yt-dlp, kind: COMMAND }
           - { name: claude, kind: COMMAND }
@@ -350,7 +349,6 @@ spec:
             - { name: mc, kind: COMMAND }
             - { name: sctool, kind: COMMAND }
             - { name: ffmpeg, kind: COMMAND }
-            - { name: cli, kind: COMMAND }
             - { name: sha256sum, kind: COMMAND }
             - { name: yt-dlp, kind: COMMAND }
             - { name: claude, kind: COMMAND }
