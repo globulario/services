@@ -168,9 +168,13 @@ spec:
       with:
         probe: probe-scylla-health
       retry:
-        maxAttempts: 60
-        backoff: 10s
-      timeout: 15m
+        # 120 attempts × 15s backoff = 30 minutes of polling.
+        # The 3rd-node bootstrap competes with the RF-raise repair streaming
+        # that fires after the 2nd node joined; in developer_mode (single shard)
+        # this can exceed 15 minutes. 30m covers the worst realistic case.
+        maxAttempts: 120
+        backoff: 15s
+      timeout: 35m
       execution:
         idempotency: safe_retry
         resume_policy: retry
