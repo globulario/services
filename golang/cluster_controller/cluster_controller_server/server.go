@@ -1053,8 +1053,28 @@ func (srv *server) removeStaleNodesLocked(newNodeID string, newIdentity storedId
 		}
 	}
 	for _, id := range toRemove {
+		stale := srv.state.Nodes[id]
 		log.Printf("removeStaleNodesLocked: removing duplicate/stale node %s (same host as %s)", id, newNodeID)
 		delete(srv.state.Nodes, id)
+
+		// ScyllaDB ring cleanup: when a stale node had ScyllaDB, its host ID may
+		// still be in system.topology as a dead entry. If the joining node tries
+		// to start ScyllaDB while that entry exists, the Raft topology coordinator
+		// blocks all new joins with "Dead nodes: {old_uuid}".
+		// Schedule async cleanup so the ring is clean before install_scylladb runs.
+		// The goroutine blocks on srv.lock() until the current lock is released.
+		if stale != nil && len(stale.Identity.Ips) > 0 && nodeHasScyllaProfile(stale) {
+			staleID := id
+			hostID := stale.ScyllaHostID
+			ips := append([]string(nil), stale.Identity.Ips...)
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer cancel()
+				if err := srv.removeNodeFromScyllaRing(ctx, staleID, hostID, ips); err != nil {
+					log.Printf("removeStaleNodesLocked: scylla ring cleanup for %s: %v", staleID, err)
+				}
+			}()
+		}
 	}
 }
 
