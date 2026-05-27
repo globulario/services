@@ -136,7 +136,10 @@ jobs:
           ./bin/globular awareness graph-integrity \
             --docs-dir ../docs/awareness \
             --repo-root .. \
-            --json | tee ../.awareness/graph-integrity-report.json
+            --json | tee ../.awareness/graph-integrity-raw.log
+          # graph-integrity may emit INFO/WARN log lines before JSON payload.
+          # Extract from the first JSON object start so jq always parses valid JSON.
+          sed -n '/^{/,$p' ../.awareness/graph-integrity-raw.log > ../.awareness/graph-integrity-report.json
           STATUS=$(jq -r '.status' ../.awareness/graph-integrity-report.json)
           EXIT_CODE=$(jq '.exit_code' ../.awareness/graph-integrity-report.json)
           echo "graph integrity status: $STATUS (exit_code=$EXIT_CODE)"

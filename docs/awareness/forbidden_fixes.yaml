@@ -2152,3 +2152,39 @@ forbidden_fixes:
     After dispatch, poll GetServiceRuntimeProof until running_exe_sha256
     matches expected_sha256 (or a timeout). Apply success without proof
     is INSTALLED_CLAIMED, not RUNTIME_VERIFIED.
+- id: change_desired_version_or_build_id_by_hand_to_clear_error
+  summary: 'Manually editing desired version/build_id in etcd to hide an orphaned desired build_id mismatch instead of repairing repository identity and desired-resolution links.'
+  related_invariants:
+  - repository.desired_build_id_must_resolve
+  safe_alternative: 'Repair repository metadata/build_id mapping and let controller reconcile desired state from authoritative records; never hand-edit desired build identifiers.'
+- id: disable_require_checksum_to_allow_unverifiable_fallback
+  summary: 'Turning off checksum requirements so fallback installs proceed without verifiable artifact identity.'
+  related_invariants:
+  - repository.fallback_requires_manifest_and_checksum
+  safe_alternative: 'Keep checksum enforcement on; repair manifest/checksum availability or block install with degraded finding.'
+- id: manually_copy_package_blobs_without_index_repair
+  summary: 'Copying package blobs into object storage manually without repairing Scylla metadata/index rows and provenance links.'
+  related_invariants:
+  - repository.metadata_first
+  safe_alternative: 'Use repository repair/import workflows that update metadata and blob provenance atomically.'
+- id: restart_node_agent_repeatedly_hoping_repository_recovers
+  summary: 'Repeatedly restarting node-agent as a blind recovery for repository desired-build resolution failures.'
+  related_invariants:
+  - repository.desired_build_id_must_resolve
+  safe_alternative: 'Diagnose and repair repository identity/index inconsistencies first; restart agents only after authoritative state is corrected.'
+- id: restart_dns_only_to_force_record_refresh
+  summary: 'Restarting DNS service to force record refresh while desired DNS records remain incorrect in authority state.'
+  related_invariants:
+  - dns.records_must_be_installed_and_runtime_healthy
+  safe_alternative: 'Fix desired DNS records at authority layer and then reconcile/runtime-verify.'
+- id: hardcode_known_good_nodes_in_dns_config
+  summary: 'Hardcoding static node targets in DNS configuration to mask desired-record drift.'
+  related_invariants:
+  - dns.records_must_be_installed_and_runtime_healthy
+  - dns.wildcard_must_not_include_unhealthy_nodes
+  safe_alternative: 'Derive DNS targets from authoritative desired state and runtime health gating.'
+- id: remove_profile_from_node_to_hide_record
+  summary: 'Removing node profiles to hide incorrect DNS publication instead of fixing desired DNS state and health filters.'
+  related_invariants:
+  - dns.records_must_be_installed_and_runtime_healthy
+  safe_alternative: 'Preserve intended profiles and correct DNS desired/runtime reconciliation logic.'
