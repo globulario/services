@@ -320,11 +320,16 @@ func (s *ClusterDoctorServer) GetClusterReport(ctx context.Context, req *cluster
 			_ = f // suppress unused
 		}
 	}
-	appendRemediationGateEvidence(findings)
+	gateSummary := appendRemediationGateEvidence(findings)
 
 	s.cacheFindings(findings)
-
-	return render.ClusterReport(snap, findings, s.version, fresh), nil
+	report := render.ClusterReport(snap, findings, s.version, fresh)
+	if report.CountsByCategory == nil {
+		report.CountsByCategory = map[string]uint32{}
+	}
+	report.CountsByCategory["remediation_gate.escalated"] = uint32(gateSummary.Escalated)
+	report.CountsByCategory["remediation_gate.cooldown"] = uint32(gateSummary.Cooldown)
+	return report, nil
 }
 
 // dispositionToProto maps the rules-layer disposition string to the proto enum.
