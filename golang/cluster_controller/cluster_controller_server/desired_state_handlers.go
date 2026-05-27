@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/globulario/services/golang/audittrail"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
@@ -292,6 +293,14 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	if err != nil {
 		return err
 	}
+	_ = audittrail.WriteDesiredWriteRecord(ctx, audittrail.DesiredWriteRecord{
+		Service:   canon,
+		Actor:     "cluster-controller",
+		Source:    "upsertOne",
+		Action:    "upsert_desired",
+		Reason:    "authoritative desired-state update",
+		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+	})
 
 	// Bridge: ensure a corresponding ServiceRelease exists so the release
 	// reconciler can track per-service lifecycle phases.

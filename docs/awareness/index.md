@@ -52,6 +52,7 @@ Or in an MCP-aware client, call `awareness.preflight`. The result tells you:
 | [MCP Tools](mcp_tools.md) | The full MCP tool surface (`awareness.*`) |
 | [MCP Server](mcp_server.md) | Server architecture and configuration |
 | [Preflight Audit](preflight_audit.md) | What `awareness.preflight` actually checks |
+| [Intent Audit v1.1](intent-audit-v1.1.md) | Source/runtime audit contract, provenance causality, and agent rules |
 | [Live Overlay](live_overlay.md) | Combining static graph + live runtime evidence |
 | [Graph Integrity](graph_integrity.md) | Invariants the graph itself must uphold |
 | [Graph Coverage](graph_coverage.md) | What percentage of code is covered by knowledge |

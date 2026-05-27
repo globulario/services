@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/audittrail"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_service"
@@ -15,6 +16,7 @@ import (
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/workflow/engine"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 // Leader-only mutation rule:
@@ -997,6 +999,7 @@ func (srv *server) reconcileDesiredFromRepository(ctx context.Context) {
 	}
 
 	updated := 0
+	provenanceServices := srv.currentDesiredWriteProvenanceServices(ctx)
 	for _, obj := range items {
 		sdv, ok := obj.(*cluster_controllerpb.ServiceDesiredVersion)
 		if !ok || sdv.Spec == nil {
@@ -1010,7 +1013,9 @@ func (srv *server) reconcileDesiredFromRepository(ctx context.Context) {
 		desiredBuild := sdv.Spec.BuildNumber
 
 		// Find the highest build number for the desired version among all artifacts.
+		// Also capture the build_id for stable convergence identity.
 		var bestBuild int64
+		var bestBuildID string
 		for _, art := range allArts {
 			ref := art.GetRef()
 			if ref == nil {
@@ -1019,11 +1024,15 @@ func (srv *server) reconcileDesiredFromRepository(ctx context.Context) {
 			artCanon := canonicalServiceName(ref.GetName())
 			if artCanon == canon && ref.GetVersion() == desiredVer && art.GetBuildNumber() > bestBuild {
 				bestBuild = art.GetBuildNumber()
+				bestBuildID = art.GetBuildId()
 			}
 		}
 
 		if bestBuild > desiredBuild {
 			sdv.Spec.BuildNumber = bestBuild
+			if bestBuildID != "" {
+				sdv.Spec.BuildID = bestBuildID
+			}
 			if sdv.Meta != nil {
 				sdv.Meta.Generation++
 			}
@@ -1031,14 +1040,64 @@ func (srv *server) reconcileDesiredFromRepository(ctx context.Context) {
 				logger.Info("reconcileDesiredFromRepository: updated desired build",
 					"service", canon, "version", desiredVer,
 					"old_build", desiredBuild, "new_build", bestBuild)
+				_ = audittrail.WriteDesiredWriteRecord(ctx, audittrail.DesiredWriteRecord{
+					Service:   canon,
+					Actor:     "cluster-controller",
+					Source:    "reconcileDesiredFromRepository",
+					Action:    "backfill_build_id",
+					Reason:    "published build advanced desired-state pin",
+					Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+				})
 				srv.ensureServiceRelease(ctx, canon, "", desiredVer, bestBuild)
 				updated++
 			}
+			continue
+		}
+
+		// Legacy provenance backfill marker: desired-state records that predate
+		// provenance emission must still become attributable to an authority.
+		if !provenanceServices[canon] {
+			_ = audittrail.WriteDesiredWriteRecord(ctx, audittrail.DesiredWriteRecord{
+				Service:   canon,
+				Actor:     "cluster-controller",
+				Source:    "reconcileDesiredFromRepository",
+				Action:    "legacy_backfill_marker",
+				Reason:    "desired-state record predates provenance emission",
+				Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+			})
+			provenanceServices[canon] = true
 		}
 	}
 	if updated > 0 {
 		logger.Info("reconcileDesiredFromRepository: updated desired builds from repository", "count", updated)
 	}
+}
+
+func (srv *server) currentDesiredWriteProvenanceServices(ctx context.Context) map[string]bool {
+	out := map[string]bool{}
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return out
+	}
+	qctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	resp, err := cli.Get(qctx, "/globular/audit/desired_writes/", clientv3.WithPrefix())
+	if err != nil {
+		return out
+	}
+	for _, kv := range resp.Kvs {
+		var rec struct {
+			Service string `json:"service"`
+		}
+		if err := json.Unmarshal(kv.Value, &rec); err != nil {
+			continue
+		}
+		svc := canonicalServiceName(strings.TrimSpace(rec.Service))
+		if svc != "" {
+			out[svc] = true
+		}
+	}
+	return out
 }
 
 const controllerTargetBuildKey = "/globular/system/controller-target-build"

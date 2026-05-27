@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/audittrail"
 	"github.com/globulario/services/golang/config"
 	"github.com/spf13/cobra"
 )
@@ -244,6 +245,14 @@ func upsertServiceDesiredVersion(serviceName, publisherID, version string, build
 	if err != nil {
 		return fmt.Errorf("etcd put %s: %w", key, err)
 	}
+	_ = audittrail.WriteDesiredWriteRecord(ctx, audittrail.DesiredWriteRecord{
+		Service:   serviceName,
+		Actor:     "operator-cli",
+		Source:    "upsertServiceDesiredVersion",
+		Action:    "upsert_desired",
+		Reason:    "authoritative desired-state update via CLI",
+		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+	})
 	return nil
 }
 

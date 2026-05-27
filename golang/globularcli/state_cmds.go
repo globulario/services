@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/audittrail"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
@@ -47,11 +48,11 @@ Anomaly types:
 }
 
 var (
-	fixSafe          bool
-	fixInstalled     bool
-	fixNodeID        string
-	fixServiceName   string
-	fixLimit         int
+	fixSafe            bool
+	fixInstalled       bool
+	fixNodeID          string
+	fixServiceName     string
+	fixLimit           int
 	fixIncludeCritical bool
 )
 
@@ -93,14 +94,14 @@ type anomaly struct {
 
 // canonReport is the full scan result.
 type canonReport struct {
-	Timestamp         string    `json:"timestamp"`
-	TotalServices     int       `json:"total_services"`
-	TotalNodes        int       `json:"total_nodes"`
-	TotalArtifacts    int       `json:"total_artifacts"`
-	Anomalies         []anomaly `json:"anomalies"`
-	CanonicalPercent  float64   `json:"canonical_percent"`
-	CountByType       map[string]int `json:"count_by_type"`
-	DesiredServices   map[string]bool `json:"-"` // services with desired-state entries
+	Timestamp        string          `json:"timestamp"`
+	TotalServices    int             `json:"total_services"`
+	TotalNodes       int             `json:"total_nodes"`
+	TotalArtifacts   int             `json:"total_artifacts"`
+	Anomalies        []anomaly       `json:"anomalies"`
+	CanonicalPercent float64         `json:"canonical_percent"`
+	CountByType      map[string]int  `json:"count_by_type"`
+	DesiredServices  map[string]bool `json:"-"` // services with desired-state entries
 }
 
 func runCanonicalize(cmd *cobra.Command, args []string) error {
@@ -140,6 +141,8 @@ func runCanonicalize(cmd *cobra.Command, args []string) error {
 	// ── Safe repair pass ──────────────────────────────────────────────
 	repaired := 0
 	repairFailed := 0
+	provenanceBackfilled := 0
+	provenanceBackfillFailed := 0
 	if fixSafe {
 		fmt.Println()
 		fmt.Println("[FIX] Repairing safe anomalies (A4 + A2)...")
@@ -156,8 +159,10 @@ func runCanonicalize(cmd *cobra.Command, args []string) error {
 		a2Repaired, a2Failed := repairDesiredStateBuildID(ctx, report)
 		repaired += a2Repaired
 		repairFailed += a2Failed
+		provenanceBackfilled, provenanceBackfillFailed = repairDesiredWriteProvenanceLegacy(ctx)
 
 		fmt.Printf("\n  Repaired: %d  Failed: %d  Skipped (A4): %d\n", repaired, repairFailed, a4Count)
+		fmt.Printf("  Provenance backfilled: %d  Failed: %d\n", provenanceBackfilled, provenanceBackfillFailed)
 	}
 
 	// ── Installed-state repair pass ───────────────────────────────────
@@ -192,6 +197,8 @@ func runCanonicalize(cmd *cobra.Command, args []string) error {
 	if fixSafe {
 		fmt.Printf("  A2 repaired:        %d\n", repaired)
 		fmt.Printf("  A2 failed:          %d\n", repairFailed)
+		fmt.Printf("  Legacy provenance:  %d\n", provenanceBackfilled)
+		fmt.Printf("  Prov backfill fail: %d\n", provenanceBackfillFailed)
 	}
 	if fixInstalled {
 		fmt.Printf("  A3 repaired:        %d\n", installedRepaired)
@@ -393,7 +400,7 @@ func scanInstalledState(ctx context.Context, report *canonReport) error {
 	withBuildID := 0
 	staleCount := 0
 	// Track build_id coverage per service
-	svcNodes := make(map[string]map[string]bool)    // service → {nodeID: hasBuildID}
+	svcNodes := make(map[string]map[string]bool) // service → {nodeID: hasBuildID}
 
 	for _, kv := range resp.Kvs {
 		key := string(kv.Key)
@@ -602,6 +609,14 @@ func repairDesiredStateBuildID(ctx context.Context, report *canonReport) (repair
 		} else {
 			fmt.Printf("  A2: repaired %s (version=%s build=%d) — build_id resolved\n",
 				e.service, e.version, e.buildNumber)
+			_ = audittrail.WriteDesiredWriteRecord(ctx, audittrail.DesiredWriteRecord{
+				Service:   e.service,
+				Actor:     "canonicalize-tool",
+				Source:    "state.canonicalize.fix-safe-A2",
+				Action:    "backfill_build_id",
+				Reason:    "repair desired-state missing build_id",
+				Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+			})
 			writeAuditRecord(ctx, auditRecord{
 				Action:      "fix-safe-A2",
 				Service:     e.service,
@@ -614,6 +629,65 @@ func repairDesiredStateBuildID(ctx context.Context, report *canonReport) (repair
 	}
 
 	return repaired, failed
+}
+
+// repairDesiredWriteProvenanceLegacy emits provenance markers for desired-state
+// services whose records predate desired-write provenance emission.
+func repairDesiredWriteProvenanceLegacy(ctx context.Context) (backfilled, failed int) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		fmt.Printf("  provenance backfill skipped: etcd client error: %v\n", err)
+		return 0, 1
+	}
+
+	dResp, err := cli.Get(ctx, "/globular/resources/ServiceDesiredVersion/", clientv3.WithPrefix())
+	if err != nil {
+		fmt.Printf("  provenance backfill skipped: desired-state read failed: %v\n", err)
+		return 0, 1
+	}
+	if len(dResp.Kvs) == 0 {
+		return 0, 0
+	}
+
+	pResp, err := cli.Get(ctx, "/globular/audit/desired_writes/", clientv3.WithPrefix())
+	if err != nil {
+		fmt.Printf("  provenance backfill warning: cannot read existing provenance: %v\n", err)
+	}
+	covered := map[string]bool{}
+	for _, kv := range pResp.Kvs {
+		var rec struct {
+			Service string `json:"service"`
+		}
+		if err := json.Unmarshal(kv.Value, &rec); err != nil {
+			continue
+		}
+		svc := strings.TrimSpace(rec.Service)
+		if svc != "" {
+			covered[svc] = true
+		}
+	}
+
+	for _, kv := range dResp.Kvs {
+		key := strings.TrimPrefix(string(kv.Key), "/globular/resources/ServiceDesiredVersion/")
+		svc := strings.TrimSpace(key)
+		if svc == "" || covered[svc] {
+			continue
+		}
+		if err := audittrail.WriteDesiredWriteRecord(ctx, audittrail.DesiredWriteRecord{
+			Service:   svc,
+			Actor:     "canonicalize-tool",
+			Source:    "state.canonicalize.provenance-backfill",
+			Action:    "legacy_backfill_marker",
+			Reason:    "desired-state record predates provenance emission",
+			Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+		}); err != nil {
+			failed++
+			continue
+		}
+		covered[svc] = true
+		backfilled++
+	}
+	return backfilled, failed
 }
 
 // ── A3 repair: installed-state build_id ───────────────────────────────────
@@ -634,7 +708,9 @@ func repairInstalledStateBuildID(ctx context.Context, nodeID string) (repaired, 
 		BuildNumber int64  `json:"build_number"`
 		BuildID     string `json:"build_id"`
 	}
-	type dRec struct{ Spec *dSpec `json:"spec"` }
+	type dRec struct {
+		Spec *dSpec `json:"spec"`
+	}
 
 	dResp, err := cli.Get(ctx, "/globular/resources/ServiceDesiredVersion/",
 		clientv3.WithPrefix(), clientv3.WithLimit(500))
@@ -1059,4 +1135,3 @@ func fmtArtifactName(m *repopb.ArtifactManifest) string {
 	ref := m.GetRef()
 	return fmt.Sprintf("%s/%s@%s", ref.GetPublisherId(), ref.GetName(), ref.GetVersion())
 }
-

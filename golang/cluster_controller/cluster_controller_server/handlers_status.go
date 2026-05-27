@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/globulario/services/golang/audittrail"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/cluster_controller/resourcestore"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -657,6 +658,14 @@ func (srv *server) ApplyServiceDesiredVersion(ctx context.Context, req *cluster_
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "apply service desired version: %v", err)
 	}
+	_ = audittrail.WriteDesiredWriteRecord(ctx, audittrail.DesiredWriteRecord{
+		Service:   canon,
+		Actor:     "cluster-controller",
+		Source:    "ApplyServiceDesiredVersion",
+		Action:    "apply_desired_version",
+		Reason:    "explicit desired-state API write",
+		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+	})
 	return applied.(*cluster_controllerpb.ServiceDesiredVersion), nil
 }
 
