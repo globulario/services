@@ -13,13 +13,13 @@ import (
 
 	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
-	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/render"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/grpc"
@@ -28,7 +28,6 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
-
 
 // ClusterDoctorServer implements ClusterDoctorServiceServer.
 type ClusterDoctorServer struct {
@@ -39,16 +38,16 @@ type ClusterDoctorServer struct {
 	// with source="follower" in freshness headers.
 	isAuthoritative atomic.Bool
 
-	mu           sync.Mutex
-	cfg          *clusterdoctorConfig
-	collector    *collector.Collector
-	registry     *rules.Registry
-	version      string
-	eventClient  *event_client.Event_Client
+	mu          sync.Mutex
+	cfg         *clusterdoctorConfig
+	collector   *collector.Collector
+	registry    *rules.Registry
+	version     string
+	eventClient *event_client.Event_Client
 
 	// cached findings from the last snapshot, keyed by finding_id
 	// used by ExplainFinding to avoid re-fetching.
-	lastFindings []rules.Finding
+	lastFindings   []rules.Finding
 	lastFindingsMu sync.RWMutex
 
 	// executor runs structured RemediationActions with hardcoded blocklists.
@@ -321,6 +320,7 @@ func (s *ClusterDoctorServer) GetClusterReport(ctx context.Context, req *cluster
 			_ = f // suppress unused
 		}
 	}
+	appendRemediationGateEvidence(findings)
 
 	s.cacheFindings(findings)
 
@@ -351,6 +351,7 @@ func (s *ClusterDoctorServer) GetNodeReport(ctx context.Context, req *cluster_do
 	}
 
 	findings := s.registry.EvaluateForNode(snap, req.GetNodeId())
+	appendRemediationGateEvidence(findings)
 	s.cacheFindings(findings)
 
 	return render.NodeReport(snap, req.GetNodeId(), findings, s.version, fresh), nil

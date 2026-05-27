@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -107,6 +107,23 @@ func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *clust
 		}, nil
 	}
 
+	gateKey := remediationGateKey(findingID, req.GetStepIndex(), action.GetActionType())
+
+	// If this action was repeatedly cooldown-rejected, keep autonomy bounded
+	// until an operator provides an approval token.
+	if gate, ok := remediationGateGet(gateKey); ok && gate.Escalated && req.GetApprovalToken() == "" {
+		reason := "auto-remediation escalated after repeated cooldown rejections; operator approval required"
+		audit.Rejected = true
+		audit.Reason = reason
+		id := auditRemediation(ctx, audit)
+		return &cluster_doctorpb.ExecuteRemediationResponse{
+			Executed: false,
+			Status:   "rejected",
+			Reason:   reason,
+			AuditId:  id,
+		}, nil
+	}
+
 	// Approval check.
 	needsApproval, reason := requiresApproval(action)
 	if needsApproval {
@@ -139,9 +156,12 @@ func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *clust
 	// Bounded autonomy: even low-risk auto-executable actions must be rate-limited
 	// to prevent tight remediation loops when a finding persists.
 	if !needsApproval && req.GetApprovalToken() == "" && !req.GetDryRun() {
-		cdKey := autoRemediationCooldownKey(findingID, req.GetStepIndex(), action.GetActionType())
-		if ok, wait := allowAutoRemediationNow(cdKey, time.Now()); !ok {
+		if ok, wait := allowAutoRemediationNow(gateKey, time.Now()); !ok {
+			gate := remediationGateRecordCooldownRejection(gateKey, time.Now())
 			reason := "auto-remediation cooldown active (" + wait.Round(time.Second).String() + " remaining)"
+			if gate.Escalated {
+				reason = "auto-remediation escalated after repeated cooldown rejections; operator approval required"
+			}
 			audit.Rejected = true
 			audit.Reason = reason
 			id := auditRemediation(ctx, audit)
@@ -173,6 +193,9 @@ func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *clust
 	}
 
 	audit.Executed = !req.GetDryRun()
+	if req.GetApprovalToken() != "" && !req.GetDryRun() {
+		remediationGateClear(gateKey)
+	}
 	id := auditRemediation(ctx, audit)
 	stat := "executed"
 	if req.GetDryRun() {
