@@ -22,8 +22,9 @@ func newDenyTestServer(t *testing.T) *server {
 		t.Fatalf("open bigcache: %v", err)
 	}
 	srv := &server{
-		cache:  cache,
-		Domain: "test.local",
+		cache:       cache,
+		permissions: cache,
+		Domain:      "test.local",
 	}
 	return srv
 }
