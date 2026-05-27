@@ -299,7 +299,7 @@ func validateReleaseIndex(idx map[string]interface{}, strict bool) releaseIndexV
 			if isNumeric {
 				addErr("version_authority.numeric_build_id", pkgLabel,
 					fmt.Sprintf("%s: build_id %q is numeric-only — use UUID or upstream-derived id; "+
-						"numeric build_ids are confused with build_number and break install identity",
+						"numeric build_ids are confused with build_number and break install mapping",
 						pkgLabel, buildID))
 			} else {
 				checks++

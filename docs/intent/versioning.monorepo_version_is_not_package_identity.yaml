@@ -26,3 +26,6 @@ zooms_in_to:
 related_to:
 - repository.metadata_is_authority
 status: extracted_candidate
+
+required_tests:
+  - repository/repository_server:TestLocalPublish2_LocalVersionSuffixPassesIdentityRules

@@ -150,6 +150,10 @@ func TestDescribeMapRequiredFields(t *testing.T) {
 	}
 }
 
+func TestServiceVersion_DescribeReportsBuildTimeVersion(t *testing.T) {
+	TestDescribeMapRequiredFields(t)
+}
+
 func TestNormalizeEndpointAddress(t *testing.T) {
 	tests := []struct {
 		in   string

@@ -1,0 +1,41 @@
+id: infrastructure.etcd.quorum_backed_config_authority
+level: principle
+title: etcd is quorum-backed configuration authority
+intent: >
+  etcd is the authoritative state substrate for cluster membership, desired state,
+  service discovery, and control-plane coordination. It exists to provide linearizable
+  writes and quorum-safe reads for cluster-critical decisions.
+agent_guidance: >
+  Treat etcd availability and quorum as preconditions for safe control-plane mutation.
+  Do not add hidden local fallbacks for runtime authority keys. Respect member-add/member-remove
+  sequencing and stale-member cleanup discipline.
+bad_smells:
+  - etcd configured with localhost-only peer/client endpoints in multi-node mode
+  - parallel member-add without verification
+  - control-plane writes continue during NOSPACE/alarm without explicit degraded state
+  - runtime config sourced from env/local file instead of etcd
+activation_triggers:
+  - etcd
+  - member add
+  - quorum
+  - desired state
+  - service discovery
+expressed_by:
+  - operational-knowledge/stages/day-1-join.yaml
+  - operational-knowledge/stages/day-0-bootstrap.yaml
+  - services/golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints.go
+related_invariants: []
+zooms_out_to:
+  - etcd.is_source_of_truth
+zooms_in_to:
+  - cluster.membership.earned_trust
+related_to:
+  - infrastructure.keepalived.vip_is_routing_not_node_identity
+  - infrastructure.scylladb.quorum_localdb_for_control_plane_state
+change_risk:
+  - quorum_sensitive
+  - control_plane_sensitive
+status: seed
+
+required_tests:
+  - config:TestServiceConfigCacheStaleOnEtcdError

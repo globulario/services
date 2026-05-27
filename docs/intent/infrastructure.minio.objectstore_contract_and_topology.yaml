@@ -1,0 +1,40 @@
+id: infrastructure.minio.objectstore_contract_and_topology
+level: principle
+title: MinIO objectstore is contract-driven and topology-gated
+intent: >
+  MinIO provides cluster object storage for artifacts, webroot, and backup payloads.
+  It must be managed through an explicit topology contract because drive/member shape
+  changes are potentially destructive.
+agent_guidance: >
+  Treat topology changes as controlled workflows with quorum prechecks. Distinguish
+  metadata authority from blob path availability. Never perform implicit reformat or
+  pool mutation without explicit operator intent and evidence.
+bad_smells:
+  - minio started with argv drive set that contradicts on-disk format
+  - pool changes applied without contract/admission workflow
+  - repository read path hard-gated on blob health (creates recovery deadlock)
+  - storage node admitted without verified topology evidence
+activation_triggers:
+  - minio
+  - objectstore topology
+  - pool admission
+  - format.json
+expressed_by:
+  - operational-knowledge/stages/day-1-objectstore.yaml
+  - operational-knowledge/runbooks/safe-minio-topology-restart.yaml
+  - operational-knowledge/runbooks/add-node-to-minio-pool.yaml
+related_invariants: []
+zooms_out_to:
+  - objectstore.topology_requires_contract
+zooms_in_to:
+  - objectstore.destructive_changes_require_approval
+related_to:
+  - infrastructure.keepalived.vip_is_routing_not_node_identity
+  - infrastructure.sidekick.minio_auxiliary_must_not_be_identity_authority
+change_risk:
+  - data_safety_sensitive
+  - topology_sensitive
+status: seed
+
+required_tests:
+  - node_agent/node_agent_server/internal/actions:TestLoadMinioConfigEtcdFirst

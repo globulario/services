@@ -1,0 +1,56 @@
+id: service_version.generated_source_and_build_injection_contract
+level: principle
+title: Service version comes from generated source and build injection contract
+intent: >
+  Service runtime version identity is defined by `zz_version_generated.go` and
+  build-time ldflags injection. Services must expose non-empty version metadata
+  consistently for describe, verifier, release, and operational diagnostics.
+
+agent_guidance: >
+  Keep version provenance explicit: generated source provides baseline, build
+  injects final identity, runtime surfaces it through service config/describe.
+  Never hardcode ad hoc version constants in service codepaths.
+
+bad_smells:
+  - service DefaultConfig sets Version to empty string
+  - zz_version_generated.go removed or hand-edited
+  - Version declared as const (ldflags cannot override)
+  - build path skips ldflags and deploys placeholder version
+  - runtime reports version unrelated to repository artifact identity
+
+activation_triggers:
+  - zz_version_generated.go
+  - Version variable
+  - ldflags
+  - --version
+  - --describe
+  - build pipeline
+  - deploy
+
+expressed_by:
+  - operational-knowledge/stages/service-version-management.yaml
+  - services/golang/deploy/deploy.go
+  - services/golang/*/*_server/zz_version_generated.go
+
+related_invariants: []
+
+zooms_out_to:
+  - versioning.monorepo_version_is_not_package_identity
+
+zooms_in_to:
+  - package.identity_requires_build_id
+  - infrastructure.grpc_backbone.services_clients_interceptors_contract
+
+related_to:
+  - repository.metadata_is_authority
+  - runtime.identity_requires_verification
+
+change_risk:
+  - control_plane_sensitive
+  - release_pipeline_sensitive
+  - observability_sensitive
+
+status: seed
+
+required_tests:
+  - versionutil:TestGeneratedVersionFilesContract

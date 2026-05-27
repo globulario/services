@@ -140,7 +140,7 @@ var repoDedupReportCmd = &cobra.Command{
 	Long: `Reports duplicate groups in the repository:
   - same checksum across multiple builds (dedupe/alias candidates)
   - same package identity with different checksums (multiple real builds)
-  - same build_id reused across multiple checksums (identity conflict)`,
+  - same build_id associated with multiple checksums (conflict)`,
 	RunE: runRepoDedupReport,
 }
 

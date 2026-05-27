@@ -26,3 +26,6 @@ zooms_in_to:
 related_to:
 - health.requires_fresh_evidence
 status: extracted_candidate
+
+required_tests:
+  - awareness/graph:TestGraphBuildMetadata_RecordsDurationAndCounts

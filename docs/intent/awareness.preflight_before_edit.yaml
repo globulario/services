@@ -26,3 +26,6 @@ zooms_in_to:
 related_to:
 - globular.vision.ai_operable_cluster
 status: extracted_candidate
+
+required_tests:
+  - mcp:TestPreflightReturnsCompactEnvelope

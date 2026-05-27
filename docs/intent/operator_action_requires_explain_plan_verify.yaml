@@ -29,3 +29,6 @@ zooms_in_to:
 related_to:
 - audit.every_authority_change_is_explainable
 status: extracted_candidate
+
+required_tests:
+  - workflow/engine:TestDoctorFindingWorkflow_MissingApproval

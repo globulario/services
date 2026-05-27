@@ -1,0 +1,21 @@
+id: awareness.intent_schema_is_enforced
+level: safety_rule
+title: Intent schema validation is enforced
+intent: >
+  Awareness and intent source files must parse and pass schema validation; CI
+  must fail on structural errors.
+agent_guidance: >
+  Treat invalid YAML, duplicate IDs, missing required fields, and malformed
+  relationships as hard failures.
+activation_triggers:
+  - intent schema
+  - validation
+  - ci gate
+bad_smells:
+  - invalid yaml ignored
+  - duplicate intent ids
+related_to:
+  - awareness.compiled_graph_must_match_sources
+required_tests:
+  - awareness:TestIntentSchemaValidation
+status: seed

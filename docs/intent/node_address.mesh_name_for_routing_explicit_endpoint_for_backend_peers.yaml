@@ -1,0 +1,65 @@
+id: node_address.mesh_name_for_routing_explicit_endpoint_for_backend_peers
+level: principle
+title: Use mesh names for routed APIs and explicit endpoints for backend peers
+
+intent: >
+  Node/service addressing must match the connection mode. For mesh-routed public
+  service APIs, use the cluster mesh name and let routing policy resolve the
+  target. For backend peer/control paths, resolve and dial explicit stable
+  endpoints from etcd/service discovery. Loopback/localhost are forbidden for
+  remote peer addressing.
+
+agent_guidance: >
+  Choose address mode deliberately before wiring a client call:
+  (1) mesh-routed API call -> cluster mesh FQDN
+  (2) backend peer/control call -> explicit resolved endpoint.
+  Never hardcode backend addresses/ports. Never use localhost for remote peers.
+
+bad_smells:
+  - backend peer dialed via localhost or 127.0.0.1
+  - explicit peer control call sent through mesh when direct endpoint is required
+  - hardcoded host:port for cluster service connection
+  - mixing routing and identity assumptions (TLS name does not match target mode)
+  - fallback to local endpoint when etcd resolution fails
+
+activation_triggers:
+  - mesh routing
+  - backend peer
+  - controller rpc
+  - node-agent rpc
+  - endpoint resolution
+  - localhost
+  - service discovery
+
+expressed_by:
+  - services/golang/node_agent/node_agent_server/service_discovery.go
+  - services/golang/cluster_controller/cluster_controller_server/leader_proxy.go
+  - services/golang/cluster_controller/cluster_controller_server/agentclient.go
+  - services/golang/netutil/node_identity.go
+
+related_invariants:
+  - etcd.endpoint_reachability
+
+zooms_out_to:
+  - etcd.is_source_of_truth
+
+zooms_in_to:
+  - dns_pki.explicit_identity_over_convenient_routing
+  - node_identity.hostname_ip_for_membership_domain_mac_for_other_axes
+
+related_to:
+  - globular.security.ceremony_over_configuration
+  - health.requires_fresh_evidence
+
+required_tests:
+  - security:TestMeshServerNameFromTarget
+  - security:TestMeshConnectionDoesNotSkipTLSVerification
+  - cluster_controller/cluster_controller_server:TestLeaderForward
+  - node_agent/node_agent_server:TestApplyPackageFallsBackToResolvedRepositoryAddr
+
+change_risk:
+  - routing_sensitive
+  - tls_pki_sensitive
+  - control_plane_sensitive
+
+status: seed

@@ -1,0 +1,48 @@
+id: profile.intent_is_controller_owned_placement_contract
+level: principle
+title: Profile intent is controller-owned placement contract
+intent: Profiles encode node placement intent (what should run where), not runtime health or package identity. Profile assignment is owned by the controller and carried as a signed JoinPlan contract.
+agent_guidance: Treat profiles as authoritative intent only after controller-issued validation. Enforce canonical normalization, reject unknown profiles at join/bootstrap gates, and keep profile policy shared across controller and node-agent.
+bad_smells:
+- gateway or installer invents profiles
+- JoinPlan accepts unknown profiles
+- controller and node-agent normalize profiles differently
+- Day-0 default profiles omit storage for founding node
+- profile mismatch is "fixed" by editing etcd without join/reconcile evidence
+- profile state is used as runtime health evidence
+activation_triggers:
+- profile
+- assigned_profiles
+- JoinPlan
+- bootstrap
+- founding quorum
+- placement intent
+- normalize profiles
+expressed_by:
+- operational-knowledge/stages/profile-system.yaml
+- operational-knowledge/stages/day-0-bootstrap.yaml
+- operational-knowledge/stages/day-1-join.yaml
+- operators/adding-nodes.md
+related_invariants:
+- founding.quorum.three_nodes_required
+zooms_out_to:
+- state.repository_desired_installed_runtime
+zooms_in_to:
+- cluster.membership.earned_trust
+- day0_day1_are_repeatable_ceremonies
+- local_success_not_global_convergence
+related_to:
+- etcd.is_source_of_truth
+- remediation.must_go_through_workflow
+- workflow.source_of_operational_truth
+change_risk:
+- control_plane_sensitive
+- placement_safety_sensitive
+- convergence_sensitive
+required_tests:
+- component_catalog:TestNormalizeProfiles_ExpandsInheritanceAndCanonicalizes
+- component_catalog:TestUnknownProfiles
+- cluster_controller/cluster_controller_server:TestJoinAuthorization_UnknownAssignedProfileRejected
+- node_agent/node_agent_server:TestNodeJoinPlanGate_RefusesUnknownProfiles
+- node_agent/node_agent_server:TestBootstrapFirstNodeRequiresControllerBind
+status: extracted_candidate

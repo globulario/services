@@ -1,0 +1,18 @@
+id: rbac.permission_changes_require_audit_and_owner
+level: safety_rule
+title: RBAC permission changes require owner and audit context
+intent: >
+  RBAC mutations are authority changes and must include actor, owner, target,
+  reason, and audit trace.
+agent_guidance: >
+  Enforce deny-overrides-allow and require explicit reversible migration paths
+  for role/action/resource changes.
+activation_triggers:
+  - rbac change
+  - permission mutation
+  - role update
+related_to:
+  - security.deny_overrides_allow
+required_tests:
+  - rbac:TestPermissionChangeAuditRequired
+status: seed

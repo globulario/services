@@ -1,0 +1,50 @@
+id: infrastructure.installed_artifacts.runtime_layout_and_authority_boundaries
+level: principle
+title: Installed artifacts have fixed runtime layout and authority boundaries
+intent: >
+  Globular nodes must use a stable runtime artifact layout: executables under
+  /usr/lib/globular/bin and mutable cluster state under /var/lib/globular.
+  Disk artifacts are split by authority: etcd is the source of truth for
+  desired/runtime authority state, while local files are executable payload,
+  runtime cache, backup copy, and secret material with strict permissions.
+agent_guidance: >
+  Treat /usr/lib/globular/bin as installed artifact output only (never ad-hoc
+  manual deployment). Treat /var/lib/globular as state root with explicit
+  subdirectory contracts. Never elevate local backup/cache files to authority.
+  Validate owner/mode for secret-bearing files and reject fallback patterns
+  that bypass etcd authority keys.
+bad_smells:
+  - service binary copied directly into /usr/lib/globular/bin outside package pipeline
+  - local config under /var/lib/globular/config treated as authority when etcd disagrees
+  - token or private key stored world-readable
+  - redundant per-service state folders created without canonical contract
+  - runtime reads from /etc/globular or ad-hoc paths instead of canonical state root
+activation_triggers:
+  - /usr/lib/globular/bin
+  - /var/lib/globular
+  - installed artifacts
+  - state root
+  - permissions
+  - pki
+expressed_by:
+  - operational-knowledge/stages/installed-artifact-system.yaml
+  - services/golang/config/config.go
+  - services/golang/node_agent/node_agent_server/internal/actions/artifact.go
+  - services/golang/process/process.go
+related_invariants: []
+zooms_out_to:
+  - etcd.is_source_of_truth
+zooms_in_to:
+  - security.tokens_certificates_keys.cluster_trust_contract
+related_to:
+  - infrastructure.etcd.quorum_backed_config_authority
+  - infrastructure.ingress.external_domain_tls_termination_and_control_plane_boundaries
+change_risk:
+  - filesystem_layout_sensitive
+  - security_boundary_sensitive
+  - convergence_sensitive
+status: seed
+
+required_tests:
+  - config:TestGetCACertificatePathCanonical
+  - verifier:TestEtcdKeyForVerification_LayoutMatchesBrief

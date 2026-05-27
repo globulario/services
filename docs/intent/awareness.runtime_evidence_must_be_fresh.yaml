@@ -1,0 +1,17 @@
+id: awareness.runtime_evidence_must_be_fresh
+level: constraint
+title: Runtime evidence must be fresh and attributable
+intent: >
+  Runtime-derived claims must include timestamp, source, scope identity, and
+  freshness horizon; stale runtime evidence cannot be treated as current proof.
+agent_guidance: >
+  Require freshness checks before using runtime evidence in safety decisions.
+activation_triggers:
+  - runtime evidence
+  - stale evidence
+  - ttl
+related_to:
+  - runtime.identity.requires_proof
+required_tests:
+  - awareness:TestRuntimeEvidenceFreshnessGate
+status: seed

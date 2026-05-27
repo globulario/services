@@ -1,0 +1,17 @@
+id: service.installation_is_not_runtime_truth
+level: principle
+title: Installation success is not runtime truth
+intent: >
+  A successful install/update step does not prove runtime health; running state
+  and service proof must be validated separately.
+agent_guidance: >
+  Keep installed and runtime layers distinct in diagnosis and enforcement.
+activation_triggers:
+  - install success
+  - runtime failure
+  - verification
+related_to:
+  - state.repository_desired_installed_runtime
+required_tests:
+  - verifier:TestInstalledDoesNotImplyRuntimeHealthy
+status: seed

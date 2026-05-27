@@ -1,0 +1,18 @@
+id: awareness.compiled_graph_must_match_sources
+level: invariant
+title: Compiled awareness graph must match sources
+intent: >
+  The compiled awareness graph cache is a build artifact derived from source
+  docs and must remain structurally valid and in sync with sources.
+agent_guidance: >
+  Rebuild graph after source edits. Reject graph outputs with null edges, empty
+  node sets, or dangling edge endpoints.
+activation_triggers:
+  - graph build
+  - graph cache
+  - awareness compile
+related_to:
+  - awareness.intent_schema_is_enforced
+required_tests:
+  - awareness:TestGraphBuildProducesValidShape
+status: seed

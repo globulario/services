@@ -1,0 +1,19 @@
+id: desired_state.is_authority
+level: invariant
+title: Desired state is authority for what should run
+intent: >
+  Desired state is the authoritative declaration of intended package/service
+  versions; installed/runtime observations must converge to it, not redefine it.
+agent_guidance: >
+  Do not mutate desired state to match transient installed/runtime drift. Repair
+  convergence paths instead.
+activation_triggers:
+  - desired state
+  - reconcile
+  - drift
+related_to:
+  - etcd.is_source_of_truth
+  - state.repository_desired_installed_runtime
+required_tests:
+  - cluster_controller:TestDesiredStateDrivesReconcile
+status: seed

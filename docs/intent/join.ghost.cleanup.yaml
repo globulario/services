@@ -1,0 +1,21 @@
+id: join.ghost.cleanup
+level: mechanism
+title: Ghost membership must be cleared before re-admission
+intent: >
+  Stale/ghost membership records from failed joins must be removed before a
+  node is re-admitted, so trust and quorum state stay consistent.
+agent_guidance: >
+  During rejoin flows, verify ghost/member cleanup happened before member-add
+  and desired-state writes.
+activation_triggers:
+  - ghost member
+  - rejoin
+  - membership repair
+bad_smells:
+  - member add with stale ghost present
+  - duplicate node identity entries
+related_to:
+  - cluster.membership.earned_trust
+required_tests:
+  - cluster_controller:TestGhostMemberCleanupBeforeReadmit
+status: seed

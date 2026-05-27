@@ -44,6 +44,7 @@ zooms_out_to:
 zooms_in_to:
   - desired_state.is_authority
   - degraded_is_explicit_not_hidden
+  - node_address.mesh_name_for_routing_explicit_endpoint_for_backend_peers
 
 required_tests:
   - globular_service:TestSecurityFlagsDoNotFallbackToEnvInProduction

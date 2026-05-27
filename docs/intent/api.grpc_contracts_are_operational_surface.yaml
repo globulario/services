@@ -27,3 +27,6 @@ zooms_in_to:
 related_to:
 - doctor.findings_are_operator_language
 status: extracted_candidate
+
+required_tests:
+  - cluster_doctor/cluster_doctor_server/rules:TestGrpcBackboneContract_ClusterIDViolation

@@ -1,0 +1,17 @@
+id: service.dependencies_are_declared_contracts_not_start_order_guesses
+level: invariant
+title: Service dependencies are declared contracts, not start-order guesses
+intent: >
+  Cross-service dependencies must be explicitly declared and validated by
+  readiness contracts, not inferred from startup ordering or timing.
+agent_guidance: >
+  Model dependency by service identity + capability + readiness gate.
+activation_triggers:
+  - service dependency
+  - readiness
+  - startup ordering
+related_to:
+  - api.grpc_contracts_are_operational_surface
+required_tests:
+  - workflow:TestDependencyReadinessGate
+status: seed

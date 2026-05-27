@@ -26,7 +26,8 @@ zooms_in_to:
 - node_agent.is_executor_not_cluster_brain
 related_to:
 - remediation.must_go_through_workflow
-required_tests: []  # controller has no exec.Command — enforced by make check-services
+required_tests:
+  - cluster_controller/cluster_controller_server:TestRequestJoin_DoesNotAdmitNodeWhenPreflightFails
 change_risk:
 - authority_boundary_sensitive
 - workflow_sensitive

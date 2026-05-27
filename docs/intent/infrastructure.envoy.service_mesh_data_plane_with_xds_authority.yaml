@@ -1,0 +1,38 @@
+id: infrastructure.envoy.service_mesh_data_plane_with_xds_authority
+level: principle
+title: Envoy is data plane; xDS is authority for dynamic config
+intent: >
+  Envoy is the traffic data plane and must consume explicit dynamic config from xDS/control-plane
+  sources rather than ad hoc local overrides. Mesh behavior depends on consistent identity, routing,
+  and certificate semantics.
+agent_guidance: >
+  Keep routing decisions and cert identity aligned with xDS intent. Avoid static local overrides
+  that diverge from control-plane policy. Validate that listener/cluster updates converge across nodes.
+bad_smells:
+  - envoy static local config overrides intended xDS control state
+  - mesh routing relies on localhost shortcuts
+  - inconsistent listener state across control-plane nodes
+  - xDS updates accepted without validation evidence
+activation_triggers:
+  - envoy
+  - xds
+  - mesh
+  - listener
+  - route config
+expressed_by:
+  - operational-knowledge/stages/day-1-keepalived.yaml
+  - services/golang/cluster_controller/cluster_controller_server/ingress_spec_guard.go
+  - services/golang/node_agent/node_agent_server/xds_config_reconcile.go
+related_invariants: []
+zooms_out_to:
+  - node_address.mesh_name_for_routing_explicit_endpoint_for_backend_peers
+zooms_in_to: []
+related_to:
+  - dns_pki.explicit_identity_over_convenient_routing
+change_risk:
+  - routing_sensitive
+  - control_plane_sensitive
+status: seed
+
+required_tests:
+  - workflow:TestIntegrationWorkflowThroughEnvoy

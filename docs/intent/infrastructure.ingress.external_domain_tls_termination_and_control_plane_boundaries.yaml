@@ -1,0 +1,65 @@
+id: infrastructure.ingress.external_domain_tls_termination_and_control_plane_boundaries
+level: principle
+title: Ingress exposes external domains, but authority stays in etcd/control-plane
+intent: >
+  Ingress is the external entrypoint contract: domain -> DNS -> TLS certificate ->
+  Envoy listeners/routes -> backend services. It terminates client traffic and
+  enforces routing policy, but does not own cluster authority or bootstrap identity.
+
+agent_guidance: >
+  Treat ingress as a composed control path. Domain ownership and ACME challenge
+  success are preconditions; PKI identity (SAN coverage) must match served names;
+  xDS/Envoy runtime must converge from authoritative state. Keep bootstrap substrate
+  endpoints explicit until infra is healthy, then use DNS names for steady-state
+  client/service discovery.
+
+bad_smells:
+  - ingress routing configured as authority source for cluster state
+  - day-0/day-1 infra bootstrap depends on unresolved internal ingress DNS
+  - ACME DNS-01 attempted without authoritative NS delegation for domain
+  - wildcard or VIP routing assumed valid while certificate SAN does not match
+  - panic or silent localhost fallback in ingress/acme control path
+  - xDS data plane diverges from controller ingress intent
+
+activation_triggers:
+  - ingress
+  - gateway
+  - envoy
+  - xds
+  - acme
+  - public domain
+  - tls certificate
+  - port 443
+  - dns challenge
+
+expressed_by:
+  - operational-knowledge/runbooks/setup-public-domain-acme.yaml
+  - operational-knowledge/service-roles/ingress.yaml
+  - services/golang/cluster_controller/cluster_controller_server/ingress_spec_guard.go
+  - services/golang/node_agent/node_agent_server/ingress_reconcile.go
+  - services/golang/node_agent/node_agent_server/internal/actions/tls_acme.go
+
+related_invariants: []
+
+zooms_out_to:
+  - dns_pki.explicit_identity_over_convenient_routing
+
+zooms_in_to:
+  - infrastructure.gateway.ingress_edge_not_authority
+  - infrastructure.envoy.service_mesh_data_plane_with_xds_authority
+  - infrastructure.xds.control_plane_configuration_contract
+
+related_to:
+  - etcd.is_source_of_truth
+  - infrastructure.dns.authoritative_discovery_with_bootstrap_boundaries
+  - node_address.mesh_name_for_routing_explicit_endpoint_for_backend_peers
+
+change_risk:
+  - routing_sensitive
+  - tls_pki_sensitive
+  - control_plane_sensitive
+
+status: seed
+
+required_tests:
+  - config:TestIngressCLIWorksWithDNSDisabled

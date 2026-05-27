@@ -1,0 +1,34 @@
+id: infrastructure.xds.control_plane_configuration_contract
+level: principle
+title: xDS is the contract surface for mesh and ingress configuration
+intent: >
+  xDS is the control-plane contract that distributes validated routing/listener state to Envoy.
+  It exists to centralize dynamic network intent and prevent node-local config drift.
+agent_guidance: >
+  Keep xDS inputs deterministic and derived from authoritative cluster state. Reject ambiguous
+  profile/topology assumptions when generating xDS payloads.
+bad_smells:
+  - xDS payload includes endpoints from stale or non-admitted nodes
+  - xDS configuration generated from runtime guesses instead of authoritative state
+  - profile-only inference used as readiness proof for routing inclusion
+activation_triggers:
+  - xds
+  - route generation
+  - ingress
+  - endpoint set
+expressed_by:
+  - services/golang/cluster_controller/cluster_controller_server/service_config.go
+  - services/golang/node_agent/node_agent_server/xds_config_reconcile.go
+related_invariants: []
+zooms_out_to:
+  - infrastructure.envoy.service_mesh_data_plane_with_xds_authority
+zooms_in_to: []
+related_to:
+  - node_address.mesh_name_for_routing_explicit_endpoint_for_backend_peers
+change_risk:
+  - routing_sensitive
+  - control_plane_sensitive
+status: seed
+
+required_tests:
+  - node_agent/node_agent_server/internal/actions/serviceports:TestEnsureServicePortReadyHealsConflict_XDS

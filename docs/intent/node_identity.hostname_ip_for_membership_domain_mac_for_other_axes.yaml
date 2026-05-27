@@ -1,0 +1,69 @@
+id: node_identity.hostname_ip_for_membership_domain_mac_for_other_axes
+level: principle
+title: Node identity for membership is hostname+IPs; domain and MAC are separate axes
+
+intent: >
+  In Globular join/admission, node identity is the stable host identity presented
+  in JoinPlan and join requests: hostname (required) plus routable IPs (supporting
+  evidence). Cluster domain and MAC address are important, but they are not the
+  same identity axis as join membership identity. Domain identifies cluster/routing
+  scope; MAC supports stable local node-id/token/issuer mechanics.
+
+agent_guidance: >
+  Keep identity axes explicit and non-interchangeable. Do not replace join
+  hostname/IP verification with MAC-only checks. Do not treat domain as a node
+  identifier. Enforce that JoinPlan expected hostname is present and validated
+  before join side effects.
+
+bad_smells:
+  - join plan accepted without expected hostname
+  - MAC reused as sole membership identity proof
+  - domain used as per-node identity
+  - non-routable or localhost address accepted as node identity endpoint
+  - identity checks differ between controller and node-agent validators
+  - node-id fallback path silently treated as admission proof
+
+activation_triggers:
+  - JoinPlan
+  - expected_node_identity
+  - hostname
+  - ips
+  - mac
+  - domain
+  - node admission
+
+expressed_by:
+  - services/golang/cluster_controller/cluster_controller_server/joinplan_types.go
+  - services/golang/cluster_controller/cluster_controller_server/joinplan_validate.go
+  - services/golang/node_agent/node_agent_server/join_plan_gate.go
+  - services/golang/node_agent/node_agent_server/identity/validation.go
+  - services/golang/netutil/node_identity.go
+
+related_invariants:
+  - join.token.validated.before.phase
+  - founding.quorum.three_nodes_required
+
+zooms_out_to:
+  - cluster.membership.earned_trust
+
+zooms_in_to:
+  - profile.intent_is_controller_owned_placement_contract
+  - health.requires_fresh_evidence
+
+related_to:
+  - etcd.is_source_of_truth
+  - state.repository_desired_installed_runtime
+
+required_tests:
+  - cluster_controller/cluster_controller_server:TestJoinAuthorization_NoPlanWhenGatewayAssignsNoProfiles
+  - cluster_controller/cluster_controller_server:TestJoinAuthorization_WrongNodeIdentityFailsValidation
+  - node_agent/node_agent_server:TestNodeJoinPlanGate_RefusesNoProfiles
+  - node_agent/node_agent_server:TestNodeJoinPlanGate_RefusesMissingExpectedHostname
+  - node_agent/node_agent_server:TestNodeJoinPlanGate_RefusesWrongIdentity
+
+change_risk:
+  - security_sensitive
+  - membership_sensitive
+  - bootstrap_sensitive
+
+status: seed

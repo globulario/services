@@ -26,6 +26,7 @@ zooms_out_to:
 zooms_in_to: []
 related_to:
 - etcd.is_source_of_truth
+- node_address.mesh_name_for_routing_explicit_endpoint_for_backend_peers
 required_tests:
 - security:TestMeshConnectionDoesNotSkipTLSVerification
 - security:TestMeshServerNameFromTarget

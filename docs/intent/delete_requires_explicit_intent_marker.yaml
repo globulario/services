@@ -1,0 +1,18 @@
+id: delete_requires_explicit_intent_marker
+level: safety_rule
+title: Deletion requires explicit intent marker
+intent: >
+  Destructive deletion/removal actions must require explicit operator or
+  workflow intent markers, never inferred from missing state alone.
+agent_guidance: >
+  Treat absence as uncertain evidence unless a delete marker/approved workflow
+  says otherwise.
+activation_triggers:
+  - delete
+  - remove
+  - missing state
+related_to:
+  - missing_state_is_not_delete_intent
+required_tests:
+  - workflow:TestDeleteRequiresExplicitIntent
+status: seed

@@ -1,0 +1,68 @@
+id: security.tokens_certificates_keys.cluster_trust_contract
+level: principle
+title: Tokens, certificates, and keys have distinct trust contracts
+intent: >
+  Globular security uses short-lived bearer tokens for user/session authorization,
+  mTLS certificates for service and client identity, and private keys as non-exportable
+  signing/decryption authority. These artefacts are not interchangeable and must be
+  handled with explicit lifecycle boundaries.
+
+agent_guidance: >
+  Prefer ephemeral credentials. Never persist sensitive secrets by default. Validate
+  certificate identity (SAN/CN + issuer trust) instead of bypassing TLS checks. Keep
+  private keys filesystem-scoped with least privilege and never log raw key or token
+  material.
+
+bad_smells:
+  - jwt token persisted on disk by default
+  - token reused as durable machine identity
+  - insecure tls fallback used outside bootstrap exceptions
+  - private key mode broader than owner-read/write
+  - wildcard cert used to hide incorrect service identity routing
+  - auth context inferred from network location rather than verified jwt/mtls identity
+  - certificate rollback executed as a quick fix without staged trust validation
+
+activation_triggers:
+  - token
+  - jwt
+  - certificate
+  - pki
+  - ca
+  - private key
+  - mtls
+  - tls
+  - auth
+
+expressed_by:
+  - operational-knowledge/stages/security-system.yaml
+  - services/golang/security/jwt.go
+  - services/golang/security/tls.go
+  - services/golang/config/pki_config.go
+  - services/golang/globularcli/auth_cmds.go
+  - services/golang/globularcli/root.go
+
+related_invariants: []
+
+zooms_out_to:
+  - globular.security.ceremony_over_configuration
+
+zooms_in_to:
+  - dns_pki.explicit_identity_over_convenient_routing
+  - security.deny_overrides_allow
+
+related_to:
+  - etcd.is_source_of_truth
+  - audit.every_authority_change_is_explainable
+  - infrastructure.ingress.external_domain_tls_termination_and_control_plane_boundaries
+
+change_risk:
+  - security_boundary_sensitive
+  - tls_pki_sensitive
+  - trust_model_sensitive
+  - certificate_rollback_sensitive
+
+status: seed
+
+required_tests:
+  - globularcli:TestAuthLoginDoesNotPersistTokenByDefault
+  - config:TestGetCACertificatePathCanonical

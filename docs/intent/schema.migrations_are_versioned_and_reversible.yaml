@@ -1,0 +1,16 @@
+id: schema.migrations_are_versioned_and_reversible
+level: constraint
+title: Schema migrations are versioned, idempotent, and reversible
+intent: >
+  etcd/Scylla/repository schema evolution must use explicit versions and
+  idempotent migrations, with explicit approval markers for destructive steps.
+agent_guidance: >
+  Forbid silent reset-to-empty behavior and require reversible migration plans
+  or explicit non-reversible rationale.
+activation_triggers:
+  - schema migration
+  - data model change
+  - destructive migration
+required_tests:
+  - migration:TestSchemaMigrationsIdempotent
+status: seed

@@ -1,0 +1,21 @@
+id: join.token.validation
+level: mechanism
+title: Join token validation gates admission
+intent: >
+  A node join request must present a valid, non-expired, intended token before
+  any admission side effects occur.
+agent_guidance: >
+  Reject invalid, expired, or audience-mismatched tokens before writing node
+  membership state. Never treat reachability as a token substitute.
+activation_triggers:
+  - join token
+  - admission
+  - bootstrap
+bad_smells:
+  - admission without token verification
+  - expired token accepted
+related_to:
+  - cluster.membership.earned_trust
+required_tests:
+  - cluster_controller:TestJoinTokenValidation
+status: seed

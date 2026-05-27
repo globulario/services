@@ -29,3 +29,6 @@ zooms_in_to:
 related_to:
 - degraded_is_explicit_not_hidden
 status: extracted_candidate
+
+required_tests:
+  - workflow/engine:TestDoctorFindingWorkflow_HappyPath

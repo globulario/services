@@ -1,0 +1,46 @@
+id: infrastructure.keepalived.vip_is_routing_not_node_identity
+level: principle
+title: Keepalived VIP is routing indirection, not node identity
+intent: >
+  Keepalived provides high-availability virtual IP ownership for ingress continuity.
+  VIP presence must never be treated as stable node identity or persisted as peer identity.
+
+  Example: `192.0.0.100` is a cluster VIP (floating ingress address), not a node address.
+  At any time one eligible node owns it; ownership may move during failover.
+agent_guidance: >
+  Use stable node IP for identity and peer membership; use VIP only for service ingress.
+  Ensure certificate SANs, DNS records, and control-plane endpoint logic handle VIP failover
+  without contaminating node identity state.
+
+  Address semantics:
+  - `192.0.0.100` (VIP): ingress/routing target for clients.
+  - `10.0.0.63`, `10.0.0.8`, ... (stable node IPs): node identity and peer membership.
+  - Never write VIP into etcd/scylla/minio peer identity sets.
+bad_smells:
+  - node publishes VIP as its own stable identity address
+  - etcd/scylla peer lists contain VIP instead of member stable IPs
+  - failover health script checks bypass real service health
+  - TLS SAN excludes VIP while clients route through VIP
+activation_triggers:
+  - keepalived
+  - vip
+  - vrrp
+  - failover
+expressed_by:
+  - operational-knowledge/stages/day-1-keepalived.yaml
+  - intent/vip_management_requires_explicit_owner.yaml
+  - services/golang/cluster_controller/cluster_controller_server/dns_state.go
+related_invariants: []
+zooms_out_to:
+  - vip_management_requires_explicit_owner
+zooms_in_to: []
+related_to:
+  - dns_pki.explicit_identity_over_convenient_routing
+  - node_identity.hostname_ip_for_membership_domain_mac_for_other_axes
+change_risk:
+  - routing_sensitive
+  - tls_pki_sensitive
+status: seed
+
+required_tests:
+  - node_agent/node_agent_server/internal/actions/keepalived:TestKeepalivedAction_Apply_NodeNotInParticipants

@@ -24,3 +24,6 @@ zooms_in_to: []
 related_to:
 - workflow.source_of_operational_truth
 status: extracted_candidate
+
+required_tests:
+  - cluster_controller/cluster_controller_server:TestUIUsesBackendAuthorityPaths

@@ -1,0 +1,18 @@
+id: runtime.identity.requires_proof
+level: invariant
+title: Runtime identity requires proof
+intent: >
+  Runtime service identity must be proven by executable hash/process proof and
+  expected launch contract, not assumed from package metadata alone.
+agent_guidance: >
+  Use runtime verification evidence when asserting running identity.
+activation_triggers:
+  - runtime proof
+  - service identity
+  - verifier
+related_to:
+  - state.repository_desired_installed_runtime
+  - service.installation_is_not_runtime_truth
+required_tests:
+  - verifier:TestRuntimeIdentityProofRequired
+status: seed

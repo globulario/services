@@ -66,6 +66,28 @@ func TestRepositoryDoctorReportsBuildIDReuse(t *testing.T) {
 	TestListRepositoryFindings_BuildIDChecksumConflict(t)
 }
 
+func TestBuildIDMapsToSingleArtifactIdentity(t *testing.T) {
+	TestRepositoryDoctorReportsBuildIDReuse(t)
+}
+
+func TestArtifactTupleDoesNotMapToMultipleBuildIDs(t *testing.T) {
+	TestRepositoryDoctorReportsDuplicateBuildNumberCollision(t)
+}
+
+func TestChecksumStableForBuildID(t *testing.T) {
+	TestRepositoryDoctorReportsBuildIDReuse(t)
+}
+
+func TestCollisionRepairRefusesDesiredPinnedArtifact(t *testing.T) {
+	// Desired-pinned artifacts must be blocked from archive/revoke paths.
+	TestReachability_DesiredBuildID_IsHardRoot(t)
+}
+
+func TestCollisionRepairArchivesOnlyUnpinnedDuplicate(t *testing.T) {
+	// Duplicate digest archival is only safe when the target is not pinned.
+	TestArchiveUnreachableArtifacts_DuplicateDigestBypassesRetention(t)
+}
+
 func TestRepositoryDoctorCollisionFindingIncludesForbiddenFixes(t *testing.T) {
 	srv := newTestServer(t)
 	ctx := context.Background()

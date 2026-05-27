@@ -26,3 +26,6 @@ zooms_in_to: []
 related_to:
 - objectstore.topology_requires_contract
 status: extracted_candidate
+
+required_tests:
+  - verifier:TestClassifyGap_MissingVerdict_SweepAgeUnknown

@@ -513,7 +513,7 @@ func (srv *server) processSyncEntry(
 			}
 		}
 		// existing build_id is older build_number; proceed to import at upstream
-		// build_number so highest build_number is retained for this identity.
+		// build_number so highest build_number is retained for this artifact.
 	}
 
 	if ledger != nil {

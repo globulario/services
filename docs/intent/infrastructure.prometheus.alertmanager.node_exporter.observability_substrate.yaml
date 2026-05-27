@@ -1,0 +1,35 @@
+id: infrastructure.prometheus.alertmanager.node_exporter.observability_substrate
+level: principle
+title: Prometheus, Alertmanager, and node-exporter form observability substrate
+intent: >
+  Observability infrastructure provides live evidence for runtime and convergence diagnostics.
+  It is required for explainable operations, not merely dashboard convenience.
+agent_guidance: >
+  Preserve scrape/auth paths and alert pipeline integrity during upgrades and profile changes.
+  Treat missing metrics as degraded evidence, not silent success.
+bad_smells:
+  - metrics pipeline down but control-plane reports healthy by assumption
+  - alertmanager unavailable without surfaced degraded state
+  - node-exporter missing on nodes expected by profile policy
+activation_triggers:
+  - prometheus
+  - alertmanager
+  - node-exporter
+  - scrape
+  - alert
+expressed_by:
+  - operational-knowledge/service-roles/cluster-doctor.yaml
+  - services/golang/cluster_doctor/cluster_doctor_server/rules/prometheus_runtime.go
+related_invariants: []
+zooms_out_to:
+  - observability.must_explain_cause_not_only_metric
+zooms_in_to:
+  - doctor.findings_are_operator_language
+related_to:
+  - degraded_is_explicit_not_hidden
+change_risk:
+  - observability_sensitive
+status: seed
+
+required_tests:
+  - mcp:TestRuntimeActivationCheck_EtcdResolvedWithStaticPrometheusIsLive

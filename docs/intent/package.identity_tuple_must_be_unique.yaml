@@ -1,8 +1,14 @@
 id: package.identity_tuple_must_be_unique
 level: invariant
 title: Package artifact identity tuple must be unique and resolvable
-intent: Each artifact build_id must resolve to one and only one package identity tuple: publisher, name, version, platform, kind, build_number, checksum. The inverse lane tuple must not resolve to multiple build_ids.
-agent_guidance: Use build_id as convergence identity. Use build_number only for display or explicit lane selection. If repository indexes disagree, repair repository indexes and metadata; do not mutate desired state to match corruption.
+intent: >
+  Each artifact build_id must resolve to one and only one package identity tuple:
+  publisher, name, version, platform, kind, build_number, checksum.
+  The inverse lane tuple must not resolve to multiple build_ids.
+agent_guidance: >
+  Use build_id as convergence identity. Use build_number only for display or
+  explicit lane selection. If repository indexes disagree, repair repository
+  indexes and metadata; do not mutate desired state to match corruption.
 bad_smells:
 - build_id reused by another package
 - same lane resolves to two build_ids

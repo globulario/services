@@ -1,0 +1,38 @@
+id: infrastructure.scylladb.quorum_localdb_for_control_plane_state
+level: principle
+title: ScyllaDB provides quorum local-db substrate for stateful platform services
+intent: >
+  ScyllaDB is used for durable low-latency replicated state required by stateful
+  platform services. It is managed as infrastructure because replication, bootstrap,
+  and schema lifecycle must be coordinated with cluster topology.
+agent_guidance: >
+  Enforce sequential join/bootstrap behavior, maintain replication-factor safety,
+  and do not couple service rollout to unsafe schema/topology shortcuts. For first-start
+  sensitive paths, preserve controlled install choreography.
+bad_smells:
+  - multiple new scylla members bootstrapped in parallel during founding expansion
+  - replication-factor reduced automatically during node loss
+  - package upgrade bypasses controlled first-start scripts
+  - service relies on scylla being writable without health/quorum checks
+activation_triggers:
+  - scylladb
+  - replication factor
+  - schema
+  - storage quorum
+expressed_by:
+  - operational-knowledge/stages/day-1-join.yaml
+  - operational-knowledge/stages/day-1-objectstore.yaml
+  - services/golang/cluster_controller/cluster_controller_server/scylla_rf_eligibility.go
+related_invariants: []
+zooms_out_to:
+  - quorum_safety_before_storage_mutation
+zooms_in_to: []
+related_to:
+  - infrastructure.etcd.quorum_backed_config_authority
+change_risk:
+  - data_safety_sensitive
+  - quorum_sensitive
+status: seed
+
+required_tests:
+  - workflow/workflow_server:TestClaimRunWithoutScylla

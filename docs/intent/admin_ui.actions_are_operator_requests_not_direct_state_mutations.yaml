@@ -1,0 +1,18 @@
+id: admin_ui.actions_are_operator_requests_not_direct_state_mutations
+level: safety_rule
+title: Admin UI actions are operator requests, not direct state mutation
+intent: >
+  Admin/frontend surfaces are client planes that submit requests to authority
+  services/workflows; they must not mutate authoritative etcd state directly.
+agent_guidance: >
+  UI must display operation lifecycle state and relevant doctor finding IDs
+  while backend services perform authoritative mutations.
+activation_triggers:
+  - admin ui
+  - frontend action
+  - state mutation
+related_to:
+  - frontend_and_admin_are_clients_not_authorities
+required_tests:
+  - admin:TestUIUsesBackendAuthorityPaths
+status: seed

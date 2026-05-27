@@ -37,3 +37,6 @@ zooms_in_to: []
 related_to:
 - doctor.findings_are_operator_language
 status: seed
+
+required_tests:
+  - mcp:TestLearnFromFix_BlindSpotWhenVerificationMissing

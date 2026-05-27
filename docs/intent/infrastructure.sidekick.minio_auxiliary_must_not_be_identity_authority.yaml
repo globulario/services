@@ -1,0 +1,32 @@
+id: infrastructure.sidekick.minio_auxiliary_must_not_be_identity_authority
+level: mechanism
+title: Sidekick is MinIO auxiliary runtime, never authority source
+intent: >
+  Sidekick supports MinIO operational behavior but does not define objectstore topology,
+  membership authority, or identity truth. Authority remains in controller/etcd contract.
+agent_guidance: >
+  Treat sidekick health as supporting evidence only. Do not use sidekick state to infer
+  authoritative topology or to bypass objectstore admission/contract rules.
+bad_smells:
+  - sidekick status used as sole admission proof
+  - sidekick config treated as topology authority
+  - objectstore decisions made without controller contract state
+activation_triggers:
+  - sidekick
+  - minio auxiliary
+  - objectstore admission
+expressed_by:
+  - operational-knowledge/stages/day-1-objectstore.yaml
+  - services/golang/node_agent/node_agent_server/minio_contract_reconcile.go
+related_invariants: []
+zooms_out_to:
+  - infrastructure.minio.objectstore_contract_and_topology
+zooms_in_to: []
+related_to:
+  - objectstore.topology_requires_contract
+change_risk:
+  - topology_sensitive
+status: seed
+
+required_tests:
+  - node_agent/node_agent_server/internal/actions:TestNodeAgentDoesNotTreatLocalMinioJsonAsAuthority

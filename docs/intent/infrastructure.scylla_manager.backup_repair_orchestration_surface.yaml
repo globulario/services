@@ -1,0 +1,34 @@
+id: infrastructure.scylla_manager.backup_repair_orchestration_surface
+level: principle
+title: Scylla manager components provide controlled backup and repair orchestration
+intent: >
+  Scylla-manager and scylla-manager-agent coordinate backup/repair operations for ScyllaDB.
+  They are infrastructure because they affect replication safety and recovery correctness.
+agent_guidance: >
+  Keep manager/agent deployment aligned with scylla topology and authentication setup.
+  Do not run repair/backup orchestration paths without explicit readiness checks.
+bad_smells:
+  - manager active while agent unavailable on required nodes
+  - repair/backup tasks launched without topology readiness
+  - orchestration config drift hidden from operators
+activation_triggers:
+  - scylla-manager
+  - scylla-manager-agent
+  - repair
+  - backup orchestration
+expressed_by:
+  - operational-knowledge/runbooks/restore-from-backup.yaml
+  - services/golang/node_agent/node_agent_server/scylla_manager_agent_config.go
+related_invariants: []
+zooms_out_to:
+  - backup.must_be_restorable_not_just_taken
+zooms_in_to: []
+related_to:
+  - infrastructure.scylladb.quorum_localdb_for_control_plane_state
+change_risk:
+  - data_safety_sensitive
+  - recovery_path_sensitive
+status: seed
+
+required_tests:
+  - workflow/workflow_server:TestWorkflowScyllaReconnectAfterPingFailure

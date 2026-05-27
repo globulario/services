@@ -1,0 +1,19 @@
+id: awareness.intent_lifecycle_is_explicit
+level: operator_model
+title: Intent lifecycle state is explicit
+intent: >
+  Every intent carries explicit lifecycle status so agents can distinguish
+  advisory candidates from active enforceable rules.
+agent_guidance: >
+  Do not treat extracted_candidate as enforcement authority. Deprecated and
+  superseded intents must include replacement/reason context.
+activation_triggers:
+  - intent status
+  - intent promotion
+  - intent deprecation
+related_to:
+  - awareness.intent_schema_is_enforced
+status: seed
+
+required_tests:
+  - awareness/intentaudit:TestLoadDir_WithNewMetadata

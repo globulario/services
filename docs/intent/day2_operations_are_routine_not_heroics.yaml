@@ -30,3 +30,6 @@ zooms_in_to:
 related_to:
 - globular.vision.explicit_convergence
 status: extracted_candidate
+
+required_tests:
+  - globularcli:TestPreflightNeedsSelfHeal_ProceedFresh

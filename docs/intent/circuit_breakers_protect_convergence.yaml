@@ -39,3 +39,6 @@ zooms_in_to:
 related_to:
 - degraded_is_explicit_not_hidden
 status: seed
+
+required_tests:
+  - repository/repository_server:TestT2_ScyllaDown_RequireWriteBlocked

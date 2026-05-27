@@ -1,0 +1,69 @@
+id: infrastructure.grpc_backbone.services_clients_interceptors_contract
+level: principle
+title: gRPC backbone defines service runtime contract and trust boundaries
+intent: >
+  The Globular microservice backbone is the composition of service runtime
+  (`globular_service`), service clients (`globular_client`), and server/client
+  interceptors. Together they define how services start, stop, authenticate,
+  authorize, observe health, and call each other safely.
+
+agent_guidance: >
+  Treat service/server/client/interceptor behavior as one architecture surface.
+  Do not patch one layer in isolation when the effect crosses lifecycle, authz,
+  transport, or observability. Keep TLS and metadata policies centralized.
+
+bad_smells:
+  - service startup bypasses shared Init/StartService path
+  - ad hoc grpc.Dial with missing cluster_id/token propagation
+  - rpc admitted without interceptor authz or cluster boundary checks
+  - readiness inferred from process state without grpc/tcp evidence
+  - client retry/reconnect loops implemented outside shared interceptors
+  - health endpoint blocked or throttled by authz/rate control
+
+activation_triggers:
+  - globular_service
+  - globular_client
+  - interceptors
+  - grpc server
+  - grpc dial
+  - service lifecycle
+  - health check
+  - cluster_id
+  - x-call-depth
+
+expressed_by:
+  - operational-knowledge/stages/grpc-service-backbone.yaml
+  - services/golang/globular_service/services.go
+  - services/golang/globular_service/lifecycle.go
+  - services/golang/globular_client/clients.go
+  - services/golang/globular_client/ClientInterceptors.go
+  - services/golang/interceptors/ServerInterceptors.go
+
+related_invariants: []
+
+zooms_out_to:
+  - subsystem.boundaries_define_authority
+
+zooms_in_to:
+  - api.grpc_contracts_are_operational_surface
+  - security.tokens_certificates_keys.cluster_trust_contract
+  - runtime_health.requires_live_observation
+
+related_to:
+  - etcd.is_source_of_truth
+  - workflow.source_of_operational_truth
+  - security.deny_overrides_allow
+
+required_tests:
+  - globular_client:TestMeshConnectionDoesNotSkipTLSVerification
+  - interceptors:TestIntegration_BootstrapExpires
+  - interceptors:TestIntegration_RemoteBootstrapDenied
+  - interceptors:TestDenyOverridesSAAllow
+  - interceptors:TestClusterIDEnforcementInitializedCluster
+
+change_risk:
+  - security_boundary_sensitive
+  - routing_sensitive
+  - control_plane_sensitive
+
+status: seed

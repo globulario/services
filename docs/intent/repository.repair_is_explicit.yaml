@@ -1,0 +1,18 @@
+id: repository.repair_is_explicit
+level: constraint
+title: Repository repair is explicit and auditable
+intent: >
+  Repository repair/mutation actions must be explicit operator decisions with
+  traceable audit context, never silent auto-corrections.
+agent_guidance: >
+  Prefer explicit repair workflows and finding-linked remediation over hidden
+  index rewrites.
+activation_triggers:
+  - repository repair
+  - index mismatch
+  - checksum mismatch
+related_to:
+  - repository.lifecycle_state_machine
+required_tests:
+  - repository:TestRepairActionsRequireExplicitIntent
+status: seed

@@ -27,7 +27,8 @@ zooms_in_to:
 - runtime_health.requires_live_observation
 related_to:
 - workflow.source_of_operational_truth
-required_tests: [] # test_coverage_gap: no direct test for node-agent scope boundary; tests exist in controller/workflow for desired-state ownership
+required_tests:
+  - node_agent/node_agent_server/internal/actions:TestNodeAgentDoesNotTreatLocalMinioJsonAsAuthority
 change_risk:
 - authority_boundary_sensitive
 - state_model_sensitive

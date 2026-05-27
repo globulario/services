@@ -1,0 +1,62 @@
+id: infrastructure.dns.authoritative_discovery_with_bootstrap_boundaries
+level: principle
+title: DNS is authoritative discovery, but bootstrap has explicit endpoint boundaries
+
+intent: >
+  Globular DNS provides authoritative internal and optional public zone resolution
+  for steady-state service discovery and ingress naming. During early bootstrap and
+  join phases, critical substrate paths must not depend on DNS records that themselves
+  require the substrate to be healthy.
+
+agent_guidance: >
+  Use DNS for steady-state lookups and externally served zones, but keep bootstrap
+  control paths anchored on explicit stable endpoints from authoritative state.
+  Avoid circular dependencies where DNS readiness depends on services that are
+  trying to resolve through DNS to start.
+
+bad_smells:
+  - control-plane bootstrap blocked on DNS lookup of not-yet-ready infra service
+  - scylla seed/member endpoint set to unresolved FQDN during day-0/day-1 bootstrap
+  - dns role records used as runtime readiness proof
+  - dns write/read cache behavior treated as authority instead of gRPC store state
+  - localhost fallback used to hide unresolved cluster DNS in multi-node mode
+
+activation_triggers:
+  - dns
+  - service discovery
+  - bootstrap
+  - scylla hosts
+  - globular.internal
+  - authoritative zone
+
+expressed_by:
+  - operational-knowledge/dns-records.md
+  - operational-knowledge/stages/day-0-bootstrap.yaml
+  - operational-knowledge/stages/day-1-join.yaml
+  - services/golang/cluster_controller/cluster_controller_server/server.go
+  - services/golang/node_agent/node_agent_server/dns_sync.go
+
+related_invariants: []
+
+zooms_out_to:
+  - dns_pki.explicit_identity_over_convenient_routing
+
+zooms_in_to:
+  - infrastructure.scylladb.quorum_localdb_for_control_plane_state
+  - node_address.mesh_name_for_routing_explicit_endpoint_for_backend_peers
+
+related_to:
+  - etcd.is_source_of_truth
+  - health.requires_fresh_evidence
+
+required_tests:
+  - node_agent/node_agent_server:TestDNSSync_PublishesOnlyOwnFQDN
+  - node_agent/node_agent_server:TestDNSSync_DoesNotPublishRoleRecordsDuringDay1
+  - cluster_controller/cluster_controller_server:TestStableIPSkipsVIP
+
+change_risk:
+  - bootstrap_sensitive
+  - routing_sensitive
+  - control_plane_sensitive
+
+status: seed
