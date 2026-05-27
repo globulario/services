@@ -177,6 +177,46 @@ func TestRepairArtifact_DryRun_MissingBlob(t *testing.T) {
 	}
 }
 
+func TestRepairArtifact_UsesLatestExistingBuildWhenBroken(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "echo",
+		Version: "1.0.0", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
+	}
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 1, BuildId: "v1",
+		Checksum: "sha256:abc", SizeBytes: 100,
+	})
+	key := artifactKeyWithBuild(ref, 1)
+	if err := srv.Storage().Remove(ctx, binaryStorageKey(key)); err != nil {
+		t.Fatalf("delete blob: %v", err)
+	}
+	// Mark the row explicitly broken/non-installable to mirror production
+	// missing-blob findings.
+	if err := srv.transitionArtifactState(ctx, key, PipelineBrokenMissingBlob, "test_force_broken", "", ArtifactStateFields{
+		BlobKey: binaryStorageKey(key), Checksum: "sha256:abc", SizeBytes: 100,
+		BuildID: "v1", BuildNumber: 1, PublisherID: "core@globular.io",
+		Name: "echo", Version: "1.0.0", Platform: "linux_amd64",
+	}); err != nil {
+		t.Fatalf("set broken state: %v", err)
+	}
+
+	// Build number intentionally omitted; repair must still target build 1.
+	resp, err := srv.RepairArtifact(ctx, &repopb.RepairArtifactRequest{
+		Ref: ref, DryRun: true,
+	})
+	if err != nil {
+		t.Fatalf("RepairArtifact: %v", err)
+	}
+	if resp.GetArtifactKey() != key {
+		t.Fatalf("artifact key mismatch: got %q want %q", resp.GetArtifactKey(), key)
+	}
+	if resp.GetAction() != "would_repair_blob" {
+		t.Fatalf("expected action=would_repair_blob, got %q", resp.GetAction())
+	}
+}
+
 // ── ExplainArtifact RPC ────────────────────────────────────────────────────
 
 func TestExplainArtifact_RendersFullPicture(t *testing.T) {

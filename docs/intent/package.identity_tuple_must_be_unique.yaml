@@ -1,0 +1,50 @@
+id: package.identity_tuple_must_be_unique
+level: invariant
+title: Package artifact identity tuple must be unique and resolvable
+intent: Each artifact build_id must resolve to one and only one package identity tuple: publisher, name, version, platform, kind, build_number, checksum. The inverse lane tuple must not resolve to multiple build_ids.
+agent_guidance: Use build_id as convergence identity. Use build_number only for display or explicit lane selection. If repository indexes disagree, repair repository indexes and metadata; do not mutate desired state to match corruption.
+bad_smells:
+- build_id reused by another package
+- same lane resolves to two build_ids
+- desired build_id points at missing repository index
+- package kind differs between desired, repository, installed, runtime
+- checksum differs for same build_id
+activation_triggers:
+- package identity
+- artifact identity
+- build_id
+- build_number
+- checksum
+- kind mismatch
+- repository index
+related_invariants:
+- package.identity_requires_build_id
+- repository.metadata_first
+- repository.package_build_lane_unique
+zooms_out_to:
+- state.repository_desired_installed_runtime
+zooms_in_to:
+- repository.build_number_collision_is_corruption
+- repository.desired_build_ids_resolve
+related_to:
+- installed_state.owned_by_node_agent
+- runtime.identity_requires_verification
+change_risk:
+- package_identity_sensitive
+- repository_sensitive
+runtime_evidence:
+  repository_queries:
+  - list all artifacts and indexes by build_id
+  checks:
+  - build_id must map to exactly one artifact tuple
+  - tuple must map to at most one build_id
+  - checksum for build_id must be stable across manifest, ledger, and blob metadata
+violation_patterns:
+- "build_id.*reused"
+- "same.*tuple.*multiple build_id"
+- "build_number.*identity"
+required_tests:
+- repository:TestBuildIDMapsToSingleArtifactIdentity
+- repository:TestArtifactTupleDoesNotMapToMultipleBuildIDs
+- repository:TestChecksumStableForBuildID
+status: proposed

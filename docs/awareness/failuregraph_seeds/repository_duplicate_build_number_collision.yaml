@@ -1,0 +1,31 @@
+id: repository_duplicate_build_number_collision
+kind: failure_mode
+title: Duplicate build_number lane maps to multiple build_ids
+symptoms:
+  - cluster.services.drift desired/applied hash mismatch even though visible build_number appears unchanged
+  - repository doctor identity reports DesiredBuildIdOrphaned or collision findings
+  - repair/sync repeatedly chooses wrong build or says no builds
+  - package version appears published twice with different build_id/checksum
+likely_root_causes:
+  - repository accepted same package/version/platform/build_number twice with different build_id
+  - upstream sync imported duplicate build metadata without collision gate
+  - repair path used installable-only latest resolver and skipped broken rows
+  - platform or version canonicalization changed between publish and repair
+forbidden_fixes:
+  - package_identity.do_not_delete_desired_build_id
+  - package_identity.do_not_treat_build_number_as_identity
+  - package_identity.do_not_select_latest_to_escape_collision
+safe_diagnosis:
+  - group repository artifacts by publisher,name,version,platform,build_number and count distinct build_id
+  - group repository artifacts by build_id and count distinct package tuples
+  - check desired pins before demoting or archiving any duplicate
+  - compare manifest checksum, ledger checksum, and blob checksum for each candidate
+safe_repairs:
+  - if identical digest duplicate, collapse alias to canonical build_id and keep idempotent path
+  - if different digest duplicate, quarantine/mark BROKEN the unpinned non-canonical row
+  - if desired pins one duplicate, keep desired-pinned build_id and repair repository indexes around it
+required_doctor_findings:
+  - RepositoryBuildNumberCollision
+  - RepositoryBuildIDReuse
+  - RepositoryChecksumDivergence
+  - DesiredBuildIdOrphaned

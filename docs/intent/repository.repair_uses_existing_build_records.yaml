@@ -1,0 +1,34 @@
+id: repository.repair_uses_existing_build_records
+level: mechanism
+title: Repository repair selects existing broken builds, not only installable builds
+intent: Repository repair must operate on existing build records even when their publish_state is BROKEN, MANIFEST_WRITTEN, BLOB_WRITTEN, or otherwise not installable. Repair must not require an installable artifact to repair a broken artifact.
+agent_guidance: In repair paths, resolve the exact build_id or build_number when supplied. When build_number is omitted, select the latest existing build record, not latest installable build. Do not report no builds merely because all rows are broken.
+bad_smells:
+- repair says no builds while doctor reports BROKEN_MISSING_BLOB
+- repair uses resolveLatestBuildNumber installable resolver
+- repair cannot operate on BROKEN_MISSING_BLOB rows
+- repair hides build-index problems by changing desired
+activation_triggers:
+- repository repair
+- BROKEN_MISSING_BLOB
+- no builds for
+- repair-index
+- missing blob
+related_invariants:
+- repository.repair_selects_existing_build
+- repository.desired_build_ids_resolve
+zooms_out_to:
+- repository.metadata_is_authority
+related_to:
+- repository.build_number_collision_is_corruption
+change_risk:
+- repository_sensitive
+- repair_sensitive
+violation_patterns:
+- "RepairArtifact.*resolveLatestBuildNumber"
+- "repair.*installable"
+required_tests:
+- repository:TestRepairArtifactUsesLatestExistingBuildWhenBroken
+- repository:TestRepairArtifactDryRunMissingBlob
+- repository:TestRepositoryRepairDoesNotRequireInstallableState
+status: proposed

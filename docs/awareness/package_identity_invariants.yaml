@@ -1,0 +1,86 @@
+invariants:
+  - id: repository.package_build_lane_unique
+    title: Repository build-number lane must map to at most one build_id
+    severity: critical
+    status: proposed
+    summary: >
+      For a given publisher, package name, version, platform, and build_number,
+      the repository must expose at most one canonical build_id. Multiple build_id
+      values under the same lane make desired/applied hashes diverge while the
+      human-visible build_number appears unchanged.
+    forbidden_fixes:
+      - delete_desired_build_id
+      - select_latest_to_hide_collision
+      - overwrite_existing_build_id
+      - archive_desired_pinned_artifact_without_safety_check
+    required_tests:
+      - TestRepositoryDoctorReportsDuplicateBuildNumberCollision
+      - TestPublishRejectsSameBuildNumberDifferentBuildID
+      - TestRepairDoesNotUseBuildNumberAsIdentity
+
+  - id: repository.build_id_global_unique
+    title: build_id must identify exactly one artifact tuple
+    severity: critical
+    status: proposed
+    summary: >
+      A build_id is the canonical artifact identity. It must not be reused across
+      package names, versions, platforms, kinds, or checksums. If a build_id maps
+      to more than one artifact tuple, repository metadata is corrupt and
+      convergence must stop before install.
+    forbidden_fixes:
+      - reuse_build_id_for_new_artifact
+      - rewrite_manifest_to_match_desired
+      - silently_pick_first_build_id_match
+    required_tests:
+      - TestBuildIDMapsToSingleArtifactIdentity
+      - TestRepositoryDoctorReportsBuildIDReuse
+
+  - id: repository.publish_idempotent_same_digest
+    title: Re-publishing identical artifact bytes must return existing build_id
+    severity: high
+    status: proposed
+    summary: >
+      CI retries and upstream sync retries are allowed only when the artifact
+      bytes/digest are identical. The repository must return the existing build_id
+      for identical bytes and reject different bytes under the same immutable
+      package/version/build lane.
+    forbidden_fixes:
+      - allocate_new_build_id_for_same_digest_retry
+      - accept_different_digest_same_published_version
+      - bypass_version_immutability_on_retry
+    required_tests:
+      - TestUploadIdempotentSameDigestReturnsExistingBuildID
+      - TestUploadDifferentDigestSamePublishedVersionRejected
+
+  - id: repository.repair_selects_existing_build
+    title: Repair must select broken existing builds, not only installable builds
+    severity: high
+    status: proposed
+    summary: >
+      Repair exists to heal broken rows. If repair resolves only installable
+      artifacts, it will fail on BROKEN_MISSING_BLOB and other broken states with
+      misleading "no builds" errors. Repair selection must use existing build
+      records and then repair state toward installability.
+    forbidden_fixes:
+      - use_installable_latest_resolver_for_repair
+      - say_no_builds_when_broken_rows_exist
+      - mutate_desired_to_avoid_repair
+    required_tests:
+      - TestRepairArtifactUsesLatestExistingBuildWhenBroken
+      - TestRepositoryRepairDoesNotRequireInstallableState
+
+  - id: repository.collision_repair_requires_desired_safety
+    title: Collision repair must check desired pins before archiving or demoting artifacts
+    severity: critical
+    status: proposed
+    summary: >
+      A duplicate/corrupt repository row may not be archived, deleted, demoted, or
+      overwritten until the repair path proves that no desired state pins that
+      build_id. Desired pins are the cluster contract.
+    forbidden_fixes:
+      - archive_without_desired_check
+      - delete_collision_row_without_desired_check
+      - clear_desired_to_allow_archive
+    required_tests:
+      - TestCollisionRepairRefusesDesiredPinnedArtifact
+      - TestCollisionRepairArchivesOnlyUnpinnedDuplicate

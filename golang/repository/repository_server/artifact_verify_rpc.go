@@ -34,7 +34,9 @@ func (srv *server) VerifyArtifact(ctx context.Context, req *repopb.VerifyArtifac
 
 	buildNumber := req.GetBuildNumber()
 	if buildNumber == 0 {
-		buildNumber = srv.resolveLatestBuildNumber(ctx, ref)
+		// Repair targets are frequently non-installable (BROKEN_*). Using the
+		// installable-only resolver here makes those rows impossible to repair.
+		buildNumber = srv.resolveLatestExistingBuildNumber(ctx, ref)
 	}
 	if buildNumber == 0 {
 		return nil, status.Errorf(codes.NotFound, "no PUBLISHED builds for %s/%s@%s [%s]",
@@ -149,7 +151,9 @@ func (srv *server) RepairArtifact(ctx context.Context, req *repopb.RepairArtifac
 
 	buildNumber := req.GetBuildNumber()
 	if buildNumber == 0 {
-		buildNumber = srv.resolveLatestBuildNumber(ctx, ref)
+		// Repair targets are frequently non-installable (BROKEN_*). Using the
+		// installable-only resolver here makes those rows impossible to repair.
+		buildNumber = srv.resolveLatestExistingBuildNumber(ctx, ref)
 	}
 	if buildNumber == 0 {
 		return nil, status.Errorf(codes.NotFound, "no builds for %s/%s@%s [%s]",

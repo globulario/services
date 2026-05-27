@@ -1,0 +1,38 @@
+id: repository.publish_is_idempotent_by_digest
+level: mechanism
+title: Publishing same bytes is idempotent, publishing different bytes under same immutable lane is rejected
+intent: Repository publish/upload may accept a retry of the exact same artifact bytes and return the existing build_id, but it must reject a different digest for an already published immutable version/build lane.
+agent_guidance: Preserve retry safety without allowing duplicate package versions. Idempotent publish means same digest returns same build_id. Different digest under the same package/version/channel/platform/build lane is a collision, not a new valid publish.
+bad_smells:
+- second publish of same version creates new build_id
+- same version/build_number with different checksum
+- CI retry creates duplicate artifact row
+- version immutability gate runs before digest idempotency check
+activation_triggers:
+- publish
+- upload artifact
+- idempotent
+- digest
+- checksum
+- duplicate version
+related_invariants:
+- repository.publish_idempotent_same_digest
+- repository.version_immutable_after_publish
+zooms_out_to:
+- repository.metadata_is_authority
+zooms_in_to:
+- repository.build_number_collision_is_corruption
+related_to:
+- package.identity_tuple_must_be_unique
+change_risk:
+- repository_sensitive
+- package_identity_sensitive
+violation_patterns:
+- "uuid.NewV7.*before.*idempotent"
+- "different digest.*same version.*accepted"
+- "same version.*new build_id"
+required_tests:
+- repository:TestUploadIdempotentSameDigestReturnsExistingBuildID
+- repository:TestUploadDifferentDigestSamePublishedVersionRejected
+- repository:TestVersionImmutabilityRunsAfterDigestIdempotency
+status: proposed

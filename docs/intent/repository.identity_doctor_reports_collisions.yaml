@@ -1,0 +1,42 @@
+id: repository.identity_doctor_reports_collisions
+level: mechanism
+title: Repository doctor reports package identity collisions before repair
+intent: Repository doctor identity must report build_id and build_number lane collisions as explicit findings with operator language before any automated repair is attempted.
+agent_guidance: Add doctor findings for duplicate build_id reuse, duplicate build_number lane, checksum divergence, kind mismatch, and desired build_id orphaning. Findings must include forbidden fixes and safe repair suggestions.
+bad_smells:
+- package collision appears only as services drift hash mismatch
+- duplicate build records hidden by latest selection
+- doctor reports only missing blob but not duplicate identity
+- automated repair archives a desired-pinned artifact
+activation_triggers:
+- repository doctor identity
+- cluster.services.drift
+- desired build orphan
+- package collision
+- duplicate build
+related_invariants:
+- doctor.findings_are_operator_language
+- repository.package_identity_findings_are_actionable
+zooms_out_to:
+- repository.metadata_is_authority
+zooms_in_to:
+- repository.build_number_collision_is_corruption
+- package.identity_tuple_must_be_unique
+related_to:
+- workflow.source_of_operational_truth
+change_risk:
+- doctor_sensitive
+- repository_sensitive
+runtime_evidence:
+  repository_queries:
+  - scan artifact manifest/index rows for duplicate identity lanes
+  checks:
+  - collisions produce stable finding IDs and evidence fields
+violation_patterns:
+- "duplicate.*ignored"
+- "collision.*latest"
+required_tests:
+- repository:TestRepositoryDoctorReportsDuplicateBuildNumberCollision
+- repository:TestRepositoryDoctorReportsBuildIDReuse
+- repository:TestRepositoryDoctorCollisionFindingIncludesForbiddenFixes
+status: proposed

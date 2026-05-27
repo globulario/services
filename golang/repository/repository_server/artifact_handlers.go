@@ -617,6 +617,55 @@ func (srv *server) resolveLatestBuildNumber(ctx context.Context, ref *repopb.Art
 	return best
 }
 
+// resolveLatestExistingBuildNumber returns the highest build_number for the
+// artifact identity regardless of installability state. This is used by repair
+// flows where the target is often BROKEN_* and therefore intentionally not
+// installable.
+func (srv *server) resolveLatestExistingBuildNumber(ctx context.Context, ref *repopb.ArtifactRef) int64 {
+	// Scylla-first: use ledger rows directly.
+	if srv.scylla != nil {
+		rows, err := srv.scylla.ListManifests(ctx)
+		if err != nil {
+			slog.Warn("resolveLatestExistingBuildNumber: scylla unavailable, falling back to minio", "err", err)
+		} else {
+			prefix := ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform() + "%"
+			var best int64
+			for _, row := range rows {
+				if !strings.HasPrefix(row.ArtifactKey, prefix) {
+					continue
+				}
+				if row.BuildNumber > best {
+					best = row.BuildNumber
+				}
+			}
+			return best
+		}
+	}
+
+	// Legacy / degraded fallback: scan cached MinIO directory.
+	names := srv.cachedDirNames(ctx)
+	if names == nil {
+		return 0
+	}
+	prefix := ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform() + "%"
+	suffix := ".manifest.json"
+	var best int64
+	for _, name := range names {
+		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
+			continue
+		}
+		numStr := strings.TrimSuffix(strings.TrimPrefix(name, prefix), suffix)
+		bn, err := strconv.ParseInt(numStr, 10, 64)
+		if err != nil || bn <= 0 {
+			continue
+		}
+		if bn > best {
+			best = bn
+		}
+	}
+	return best
+}
+
 // findExistingArtifactByDigest returns an existing artifact with the same
 // package identity and content digest. Build numbers are display metadata; the
 // repository must not create a second build row for identical bytes just

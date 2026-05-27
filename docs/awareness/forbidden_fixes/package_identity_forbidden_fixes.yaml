@@ -1,0 +1,32 @@
+forbidden_fixes:
+  - id: package_identity.do_not_delete_desired_build_id
+    title: Do not delete desired build_id to clear repository findings
+    applies_to:
+      - repository.desired_build_ids_resolve
+      - package.identity_tuple_must_be_unique
+      - repository.build_number_collision_is_corruption
+    reason: Desired build_id is the convergence contract. Deleting it hides repository corruption and can roll the cluster to an unintended artifact.
+    safer_alternative: Repair repository metadata/index/blob state or perform an explicit operator-approved desired roll-forward with provenance.
+
+  - id: package_identity.do_not_treat_build_number_as_identity
+    title: Do not use build_number as artifact identity
+    applies_to:
+      - package.identity_tuple_must_be_unique
+      - repository.build_number_collision_is_corruption
+    reason: build_number is scoped and human-readable; build_id is the canonical artifact identity.
+    safer_alternative: Resolve and compare by build_id; use build_number only as a scoped lane selector.
+
+  - id: package_identity.do_not_select_latest_to_escape_collision
+    title: Do not select latest artifact to escape a collision
+    applies_to:
+      - desired.build_id_immutable_after_resolution
+      - repository.identity_doctor_reports_collisions
+    reason: Latest selection can move the convergence target and create install storms.
+    safer_alternative: Report collision, inspect desired pins, repair indexes, then explicitly roll forward only if approved.
+
+  - id: package_identity.do_not_archive_desired_pinned_artifact
+    title: Do not archive, quarantine, or delete a desired-pinned artifact without safety proof
+    applies_to:
+      - repository.collision_repair_requires_desired_safety
+    reason: Desired-pinned artifacts are part of the active cluster contract.
+    safer_alternative: Use doctor safety check to prove the artifact is unpinned or create an explicit desired-state migration first.

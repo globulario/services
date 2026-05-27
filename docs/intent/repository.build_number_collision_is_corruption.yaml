@@ -1,0 +1,51 @@
+id: repository.build_number_collision_is_corruption
+level: invariant
+title: Same package/version/platform/build_number must not map to multiple build_ids
+intent: A repository build-number lane is unambiguous. For a given publisher, package name, version, platform, and build_number, there must be exactly zero or one canonical build_id. If two different build_id values exist for that same lane, repository metadata is corrupt and desired/runtime convergence can drift.
+agent_guidance: Do not treat build_number as artifact identity. Detect duplicate build_id values under the same package/version/platform/build_number lane, quarantine or archive the non-canonical row only after proving it is not desired-pinned, and report a doctor finding before repair.
+bad_smells:
+- same build_number has two build_id values
+- repository publish accepts same version/build twice with different digest
+- desired_hash changes while desired build_number looks unchanged
+- cluster services drift after package repair
+- repair chooses latest build_number when desired pins build_id
+activation_triggers:
+- build_number collision
+- duplicate build_id
+- same build number
+- services state hash mismatch
+- cluster.services.drift
+- package publish
+- repository repair
+- repository doctor identity
+related_invariants:
+- repository.package_build_lane_unique
+- package.identity_requires_build_id
+- repository.desired_build_ids_resolve
+zooms_out_to:
+- repository.metadata_is_authority
+zooms_in_to:
+- package.identity_tuple_must_be_unique
+- repository.identity_doctor_reports_collisions
+related_to:
+- desired.build_id_immutable_after_resolution
+- repository.repair_uses_existing_build_records
+change_risk:
+- repository_sensitive
+- package_identity_sensitive
+- reconciliation_sensitive
+runtime_evidence:
+  repository_queries:
+  - group artifacts by publisher,name,version,platform,build_number and count distinct build_id
+  checks:
+  - distinct build_id count per build_number lane must be <= 1
+  - if collision exists, check whether any build_id is desired-pinned before repair
+violation_patterns:
+- "same build_number.*different build_id"
+- "BuildNumber.*BuildId.*collision"
+- "resolveLatestBuildNumber.*repair"
+required_tests:
+- repository:TestRepositoryDoctorReportsDuplicateBuildNumberCollision
+- repository:TestPublishRejectsSameBuildNumberDifferentBuildID
+- repository:TestRepairDoesNotUseBuildNumberAsIdentity
+status: proposed
