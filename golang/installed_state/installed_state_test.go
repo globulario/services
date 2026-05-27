@@ -67,14 +67,14 @@ func TestUnmarshalPackage_Invalid(t *testing.T) {
 	}
 }
 
-func TestWriteInstalledPackage_ControllerOnlyGuard(t *testing.T) {
+func TestWriteInstalledPackage_ValidatesNodeID(t *testing.T) {
 	err := WriteInstalledPackage(context.Background(), &node_agentpb.InstalledPackage{
-		NodeId:  "n1",
+		NodeId:  "",
 		Name:    "workflow",
 		Kind:    "SERVICE",
 		Version: "1.0.0",
 	})
 	if err == nil {
-		t.Fatal("expected controller-only guard error")
+		t.Fatal("expected node_id validation error")
 	}
 }

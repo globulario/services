@@ -98,6 +98,7 @@ func TestCommandPackageDoesNotRequireRuntime(t *testing.T) {
 
 func TestNoDuplicateRuntimeRepairCooldown(t *testing.T) {
 	key := runtimeRepairCooldownKey("n1", "minio", "INFRASTRUCTURE", "1.0.0", "", "")
+	runtimeRepairCooldownByTarget.Delete(key)
 	now := time.Now()
 	ok, _ := shouldDispatchRuntimeRepair(key, now)
 	if !ok {
