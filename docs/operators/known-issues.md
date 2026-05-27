@@ -172,9 +172,9 @@ Some older docs reference the workflow service on port **13000** or **10004**. B
 
 `cluster_doctor`'s own `config.go` had drifted to `Port: 12100` / `Proxy: 12101` (commit `549ca75c`) while every other source of truth — MCP tools, package metadata `awareness.yaml`, docs, CLAUDE.md — said **12005**. Re-aligned source to `Port: 12005` / `Proxy: 12006`. No deployed cluster is affected because the runtime port comes from etcd, not the source default.
 
-### Certificate path `/etc/globular/creds/` does not exist
+### Legacy `/etc` certificate path does not exist
 
-Some older internal notes and early documentation reference `/etc/globular/creds/` for certificates. This path does not exist and never did. All certificates are under `/var/lib/globular/pki/`. Specifically:
+Some older internal notes and early documentation reference a legacy `/etc` credentials path for certificates. That path does not exist and never did. All certificates are under `/var/lib/globular/pki/`. Specifically:
 
 | What | Path |
 |------|------|

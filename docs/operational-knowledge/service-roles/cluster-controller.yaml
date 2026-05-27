@@ -43,15 +43,15 @@ entries:
       coordinates, node-agent executes". Anything mutating systemd, packages, or the local
       filesystem on a node MUST go through node-agent.
 
-      **High availability**: Multi-leader-eligible via etcd lease at `/globular/clustercontroller/leader/`.
-      Leader address published at `/globular/clustercontroller/leader/addr`. Followers proxy
+      **High availability**: Multi-leader-eligible via etcd lease at `/globular/cluster_controller/leader/`.
+      Leader address published at `/globular/cluster_controller/leader/addr`. Followers proxy
       writes to the current leader.
 
       **Critical state in etcd**:
-      - `/globular/clustercontroller/state` — full in-memory mirror, periodically flushed
-      - `/globular/clustercontroller/leader/<lease-id>` — current leader's lease
-      - `/globular/clustercontroller/leader/addr` — current leader's host:port
-      - `/globular/clustercontroller/epoch` — election epoch counter
+      - `/globular/cluster_controller/state` — full in-memory mirror, periodically flushed
+      - `/globular/cluster_controller/leader/<lease-id>` — current leader's lease
+      - `/globular/cluster_controller/leader/addr` — current leader's host:port
+      - `/globular/cluster_controller/epoch` — election epoch counter
     links:
       awareness_invariants:
         - install.result.atomic_commit
@@ -66,7 +66,7 @@ entries:
       services_present: []
     content: |
       **Symptom: workflow says 'no leader available'**
-      → Read `/globular/clustercontroller/leader/addr`. If empty, etcd lease expired and
+      → Read `/globular/cluster_controller/leader/addr`. If empty, etcd lease expired and
         election is in progress (~10s). If non-empty but the address is unreachable, that
         node is down — restart its controller and a new election fires.
 

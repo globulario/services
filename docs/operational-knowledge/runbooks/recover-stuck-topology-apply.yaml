@@ -55,7 +55,7 @@ entries:
       - phase: plan
         description: "Identify current leader and the controllers that need restart"
         commands:
-          - cmd: "etcdctl ... get /globular/clustercontroller/leader/addr --print-value-only"
+          - cmd: "etcdctl ... get /globular/cluster_controller/leader/addr --print-value-only"
             expect: "host:port of the current leader (e.g. 10.0.0.8:12000)"
           - cmd: "for HOST in <all-nodes>; do ssh dave@$HOST 'systemctl show globular-cluster-controller.service --no-pager | grep ActiveEnterTimestamp'; done"
             expect: "every controller's start time"

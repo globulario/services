@@ -48,7 +48,7 @@ Every gRPC request goes through a 7-step interceptor chain before the handler ru
 ```
 
 Step 6 is where roles and permissions are checked. The interceptor:
-1. Looks up the gRPC method in the permission descriptor (e.g., `/cluster_controller.ClusterController/GetHealth` → action `cluster_controller.cluster.health`)
+1. Looks up the gRPC method in the permission descriptor (e.g., `cluster_controller.ClusterController.GetHealth` → action `cluster_controller.cluster.health`)
 2. Looks up the caller's roles from the RBAC service (`subject` → `[role1, role2, ...]`)
 3. Checks whether any of those roles grants the required action
 4. If no role matches, returns `PermissionDenied`

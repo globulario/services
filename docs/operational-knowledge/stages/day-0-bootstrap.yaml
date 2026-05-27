@@ -91,7 +91,7 @@ entries:
       | Service private key | /var/lib/globular/pki/issued/services/service.key |
       | Ed25519 signing keys | /var/lib/globular/keys/<id>_private |
 
-      `/etc/globular/creds/` does NOT exist. If you see a doc reference to that path it is wrong.
+      The legacy `/etc` credentials path does NOT exist. If you see a doc reference to it, it is wrong.
     links:
       awareness_invariants:
         - pki.ca_metadata_must_be_published

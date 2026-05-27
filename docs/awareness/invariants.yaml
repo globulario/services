@@ -1931,7 +1931,7 @@ invariants:
       protects:
         state:
             - "/globular/nodes/<id> with profiles list"
-            - "/globular/clustercontroller/state.Nodes profiles per node"
+            - "/globular/cluster_controller/state.Nodes profiles per node"
         files:
             - golang/cluster_controller/cluster_controller_server/founding_profiles.go
             - golang/cluster_controller/cluster_controller_server/server.go

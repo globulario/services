@@ -66,7 +66,7 @@ entries:
       - `config/` — rendered runtime config fragments (etcd.yaml, endpoints, install-policy, tls symlink/materialized views).
       - `services/` — service config JSON files.
       - `nodeagent/state.json` — node-agent local state cache.
-      - `clustercontroller/state.json` — controller local backup copy of authoritative etcd state.
+      - `cluster_controller/state.json` — controller local backup copy of authoritative etcd state.
       - `repository/`, `staging/`, `packages/` — artifacts/install receipts/staging.
       - `domains/`, `objectstore/`, `minio/`, `prometheus/`, `awareness/`, `operational-knowledge/`.
 
@@ -120,7 +120,7 @@ entries:
       cluster_phases: [day-2]
       services_present: [cluster-controller]
     content: |
-      Current code uses `/var/lib/globular/clustercontroller/state.json` for controller
+      Current code uses `/var/lib/globular/cluster_controller/state.json` for controller
       backup state. Keep this path stable for compatibility unless a migration plan is
       implemented. Avoid introducing parallel aliases (e.g., both `cluster-controller`
-      and `clustercontroller`) without explicit migration and dual-read/write guardrails.
+      and `cluster_controller`) without explicit migration and dual-read/write guardrails.
