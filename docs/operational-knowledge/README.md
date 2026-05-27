@@ -28,6 +28,11 @@ docs/operational-knowledge/
 │   ├── day-1-objectstore.yaml        ✓ shipped
 │   ├── day-1-deploy-pipeline.yaml    ✓ shipped
 │   ├── package-system.yaml           ✓ shipped (anatomy, identity, install, validation, anti-patterns)
+│   ├── profile-system.yaml           ✓ shipped (intent, invariants, normalization, enforcement)
+│   ├── security-system.yaml          ✓ shipped (token/cert/key policy and lifecycle boundaries)
+│   ├── grpc-service-backbone.yaml    ✓ shipped (service/client/interceptor architecture blueprint)
+│   ├── service-version-management.yaml ✓ shipped (zz_version_generated + ldflags contract)
+│   ├── installed-artifact-system.yaml ✓ shipped (filesystem layout, authority boundary, permission model)
 │   └── day-2-maintenance.yaml        ✓ shipped
 ├── runbooks/                # codified procedures (mirrors objectstore-nfs-remediation.yaml shape)
 │   ├── add-node-to-minio-pool.yaml             ✓ shipped
@@ -50,7 +55,9 @@ docs/operational-knowledge/
     ├── workflow.yaml                ✓ shipped
     ├── ai-watcher.yaml              ✓ shipped
     ├── ai-executor.yaml             ✓ shipped
-    └── ai-router.yaml               ✓ shipped
+    ├── ai-router.yaml               ✓ shipped
+    ├── dns.yaml                     ✓ shipped
+    └── ingress.yaml                 ✓ shipped
 ```
 
 Every entry becomes one row in AI Memory with `provenance.source = "seed"`.

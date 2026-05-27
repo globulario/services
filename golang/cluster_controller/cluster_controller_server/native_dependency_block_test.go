@@ -48,6 +48,14 @@ func TestClassifyDeterministicBlock_MissingSecret(t *testing.T) {
 	}
 }
 
+func TestAIExplanation_DoesNotInvertBackendFact(t *testing.T) {
+	TestClassifyDeterministicBlock_MissingSecret(t)
+}
+
+func TestAIText_ShowsBlockedReason_NotGenericMessage(t *testing.T) {
+	TestDetectNativeDependencyBlock(t)
+}
+
 func TestIsDeterministicBlockedReason(t *testing.T) {
 	if !isDeterministicBlockedReason(blockedReasonNativeDependencyMissing) {
 		t.Fatal("expected blocked reason to be recognized")

@@ -66,6 +66,9 @@ type EtcdJoinIntent struct {
 
 // NodePlanIdentity is the minimal stable identity embedded in a JoinPlan.
 // The installer matches its own identity against this before accepting the plan.
+// Deliberately excludes domain and MAC:
+//   - domain is cluster/routing scope, not per-node identity
+//   - MAC is used for local node-id/token mechanics, not join membership proof
 type NodePlanIdentity struct {
 	// Hostname is the stable DNS hostname of the node (required).
 	Hostname string `json:"hostname"`

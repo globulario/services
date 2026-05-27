@@ -127,8 +127,8 @@ The full schema is `Manifest` in `golang/globularcli/pkgpack/manifest.go`. Requi
 |---|---|---|---|
 | `type` | enum | spec `metadata.kind` | `service` \| `infrastructure` \| `command` \| `application` (rare). MUST match `registry.yaml`. |
 | `name` | string | spec `metadata.name` | Canonical hyphenated name (`cluster-controller`, `node-agent`). |
-| `version` | string | `--version` at build | Semver `MAJOR.MINOR.PATCH`. NEVER hardcoded in source — injected via ldflags. |
-| `build_number` | int64 | `--build-number` at build | Display-only monotonic counter. **Never used for convergence.** |
+| `version` | string | `--version` at build | Exact version tag. SemVer is preferred for Globular-built services, but upstream-native tags are allowed (for example `RELEASE.2025-09-07T16-13-09Z`). NEVER hardcoded in source — injected via ldflags for Go services. |
+| `build_number` | int64 | `--build-number` at build | Display-only monotonic counter. **Plain integer only. Never encoded in `version`. Never used for convergence.** |
 | `build_id` | string | repository (post-upload) | UUIDv7. **The sole identity used for convergence.** Empty in the committed reference copy. |
 | `platform` | string | build host or `--platform` | `<goos>_<goarch>` (e.g. `linux_amd64`). |
 | `publisher` | string | `--publisher` | Defaults to `core@globular.io`. |
@@ -155,6 +155,7 @@ The full schema is `Manifest` in `golang/globularcli/pkgpack/manifest.go`. Requi
 - `type` in `package.json` MUST equal `metadata.kind` in the spec MUST equal the entry in `registry.yaml` MUST equal `component_catalog.go`. The `validate-package-metadata.sh` script enforces this across all four sources.
 - `entrypoint_checksum` is computed from the BUILT binary. If a fix is hot-deployed by `go build` without ldflags, the checksum will diverge — node-agent runtime check will report `hash_drift` and the package will never converge. **NEVER hot-deploy locally-built binaries.**
 - `build_id` is empty in the committed `package.json` but is the **sole** identifier used for convergence after upload. Convergence by `build_number` is a bug.
+- `version` MUST NOT encode build numbers (`1.2.3+b325`, `1.2.3-b12`, etc.). Build ordering uses `build_number` only.
 
 ---
 
@@ -248,7 +249,7 @@ Spec `content:` blocks (in `install_files`, `install_services`) and dir paths su
 
 ### 5.4 Spec validation rules
 
-`pkgpack.ValidateSpec` enforces (and the build will fail on any violation):
+`pkgpack.ValidateSpec`, `ValidateVersionBuildSemantics`, and package guards enforce (and the build will fail on any violation):
 
 - `version: 1` exactly.
 - `metadata.name` resolvable (from `metadata.name`, `service.name`, or filename).
@@ -258,6 +259,8 @@ Spec `content:` blocks (in `install_files`, `install_services`) and dir paths su
 - `steps` non-empty; every step has a unique `id` and non-empty `type`.
 - For `kind: service` — exactly one `install_package_payload` step exists.
 - For `kind: infrastructure` — same, UNLESS `metadata.entrypoint: noop` (the OS-managed exception).
+- `version` is a valid exact tag and `build_number` is a non-negative plain integer.
+- `version` must not embed build tokens (`+bNN`, `-bNN`, `.bNN`).
 
 `validate-package-metadata.sh` additionally enforces cross-source consistency:
 
@@ -369,7 +372,7 @@ Globular tracks three distinct identifiers, and confusing them is one of the mos
 
 | Identifier | Type | Allocated by | Used for |
 |---|---|---|---|
-| **`version`** | semver string (`1.2.3`) | `globular deploy --bump {patch,minor,major}` reserves the next via the repository's `AllocateUpload` RPC | Human-readable. Goes into the manifest, the artifact filename, and the release tag. |
+| **`version`** | exact tag (`1.2.3`, `RELEASE.2025-...`) | `globular deploy --bump {patch,minor,major}` for Globular-built packages, or upstream tag for wrapped artifacts | Human-readable release label. Goes into the manifest and artifact filename. |
 | **`build_number`** | int64 monotonic | Stamped at build time by `BuildOptions.BuildNumber` | **Display only.** NEVER used for convergence. Drift here is harmless. |
 | **`build_id`** | UUIDv7 string | Repository service, post-upload | **The sole identity for convergence.** Node-agent verifies the installed `build_id` matches the desired `build_id`. |
 
@@ -382,6 +385,7 @@ Hard rules:
 2. The platform release version (the value in `release-index.json` after `globular repo sync --tag vX.Y.Z`) is **not** the package version. Only packages that changed get a new version. Platform release = BOM of (package, version) pairs.
 3. `build_id` is empty in committed `package.json` files. It only exists in the manifest stored in MinIO + ScyllaDB AFTER the repository accepts the upload.
 4. `--bump` reservations hold for 5 minutes. A failed publish does not release the reservation early. Retry with the same `--bump` value to re-allocate the same version.
+5. Use one and only one build-number format: integer `build_number`. Never encode build numbers in `version`.
 
 The convergence flow:
 
@@ -496,7 +500,7 @@ Spec scripts run in all three contexts; they MUST detect which (e.g. `systemctl 
 The build entry point is `BuildPackages` in `golang/globularcli/pkgpack/builder.go`, invoked by `globular pkg build`. Minimum required inputs:
 
 - `--spec` (or `--spec-dir`) — one or more spec YAML files.
-- `--version` — semver string; normalised via `versionutil.NormalizeExact`.
+- `--version` — exact version tag; normalized via `versionutil.NormalizeExact` (SemVer for Globular-built services, upstream-native tags allowed).
 - `--out` — output directory.
 - One of: `--root`, `--bin-dir` + `--config-dir`, or `--installer-root` + `--assets` — where the built binary and config templates are found.
 
@@ -514,6 +518,15 @@ What the builder does:
 
 The result is one immutable `.tgz` ready for upload to the repository.
 
+`VerifyTGZ` gates that matter for operators and AI agents:
+
+- `package.json` must exist and carry `name`, `version`, `platform`, `publisher`.
+- `version` and `build_number` semantics must be valid (`build_number` integer, no embedded build token in version).
+- `entrypoint` must exist inside archive.
+- if `entrypoint_checksum` is set, it must be `sha256:<64hex>` and must match the actual entrypoint bytes.
+- `scripts/*.sh` entries must be executable.
+- `systemd/*.service` files are validated for duplicate singleton `[Service]` directives.
+
 ---
 
 ## 11. Publishing a package
@@ -528,6 +541,12 @@ After build, publish via `globular pkg publish` or `globular deploy <service>` (
    - Writes the metadata index row in ScyllaDB.
    - Writes a local installable receipt under `/var/lib/globular/repository/installable/`.
 3. **Activate (optional)** — the repository can promote the artifact to the active release set.
+
+CLI-side preflight before upload (`globular pkg publish`) blocks package identity mistakes before bytes hit the network:
+
+- invalid `version` format
+- negative `build_number`
+- embedded build token in `version` (for example `1.2.3+b325`)
 
 Failure modes:
 
@@ -640,6 +659,76 @@ When adding a new package:
     globular pkg status <name>
     ```
 
+## 13.1 Modifying an existing package and republishing (operator-safe procedure)
+
+Use this exact sequence when changing an existing package. This is the default AI-agent flow.
+
+1. Change package definition files only:
+   - `packages/specs/<name>_*.yaml`
+   - `packages/metadata/<name>/package.json`
+   - `packages/metadata/<name>/systemd/*`
+   - `packages/metadata/<name>/config/*`
+   - `packages/metadata/<name>/scripts/*`
+2. Keep kind stable unless this is an intentional migration; if kind changes, update all authorities in the same change:
+   - `packages/specs/... metadata.kind`
+   - `packages/metadata/.../package.json type`
+   - `packages/registry.yaml`
+   - runtime catalog mapping (`component_catalog.go`)
+3. Run source validation:
+   - `cd packages && ./scripts/validate-package-metadata.sh`
+4. Build package:
+   - `globular pkg build --spec packages/specs/<name>_service.yaml --version <version> --build-number <N> --out <out-dir> --root <payload-root>`
+5. Validate built artifact:
+   - `globular pkg validate --file <out-dir>/<name>_<version>_<platform>.tgz`
+6. Publish:
+   - `globular pkg publish --file <artifact.tgz> --repository <repo-addr>`
+   - preferred release path for platform packages: `globular deploy <name> --bump patch|minor|major`
+7. Move desired state and reconcile:
+   - `globular services desired set <name> <version>`
+   - `globular services repair`
+8. Verify all 4 layers:
+   - repository manifest exists and is `PUBLISHED`
+   - desired state points to the target build identity
+   - installed-state updated on all target nodes
+   - runtime hash and unit health are verified (no doctor package/hash drift)
+
+## 13.2 Debian `.deb` strategy (when and how)
+
+Use `.deb` packaging only for daemons that are OS-managed upstream (today primarily ScyllaDB-family workflows).
+
+Rules:
+
+1. Prefer `install_local_debs` with bundled `.deb` files for deterministic offline install.
+2. Use `install_os_packages` only when online apt install is unavoidable.
+3. For OS-managed daemons, use `metadata.entrypoint: noop` and/or `install_bins: false` so the package does not claim ownership of upstream binary bytes.
+4. For daemons with first-start one-way state (ScyllaDB), bracket dpkg install with:
+   - `prevent-autostart.sh`
+   - `allow-autostart.sh`
+   - controlled post-install script
+5. Do not convert normal Globular services to `.deb`; services should ship built binaries in `bin/`.
+
+## 13.3 Kind-specific minimum contracts
+
+`service`:
+- must include `install_package_payload`
+- must install and manage a systemd unit
+- should include service config generation (`ensure_service_config`) unless explicitly stateless
+
+`infrastructure`:
+- must include `install_package_payload` unless explicit `entrypoint: noop` exception
+- lifecycle scripts are common and expected
+- unit naming may use upstream unit if intentionally delegated
+
+`command`:
+- no systemd unit
+- binary install only
+- `start_services` / `enable_services` should not be present
+
+`application`:
+- content package, not daemon package
+- no `bin/` requirement
+- must still carry valid manifest identity fields
+
 ---
 
 ## 14. Anti-patterns — things AI agents and humans get wrong
@@ -655,6 +744,7 @@ Pulled from the codebase's accumulated incident memory. AI agents MUST refuse to
 | Adding `start_services` only in Day-0 scripts | Every spec MUST start its own service. Day-0 cannot be a hidden dependency. |
 | Forgetting to update `registry.yaml` | Validation will fail across `validate-package-metadata.sh` + `component_catalog.go` + spec kind. |
 | Overloading `build_number` for convergence | `build_id` is convergence identity. `build_number` is display only. |
+| Encoding build number in version (`1.2.3+b325`) | Rejected by validation; causes sort/order confusion. Use integer `build_number` only. |
 | Using `pkill -f <name>` in scripts | Matches parent shell argv → self-SIGKILL. Always `pkill -x <binary>`. |
 | Hot-deploying a locally-built binary to a node | No ldflags → wrong version + wrong checksum → runtime check reports drift → leader election can break. Always go through `deploy`. |
 | Reformatting MinIO drive count without `mc mirror` backup | Drive count mismatch → silent reformat or data wipe. |

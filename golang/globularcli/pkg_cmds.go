@@ -174,7 +174,7 @@ func init() {
 	pkgBuildCmd.Flags().StringVar(&pkgBinDir, "bin-dir", "", "explicit path to bin directory")
 	pkgBuildCmd.Flags().StringVar(&pkgConfigDir, "config-dir", "", "explicit path to config directory")
 	pkgBuildCmd.Flags().StringVar(&pkgScriptsDir, "scripts-dir", "", "directory containing per-service post-install scripts")
-	pkgBuildCmd.Flags().StringVar(&pkgVersion, "version", "0.0.1", "package version (placeholder — repository assigns actual version on publish)")
+	pkgBuildCmd.Flags().StringVar(&pkgVersion, "version", "0.0.1", "package version tag (SemVer preferred; upstream-native tags allowed when supported)")
 	pkgBuildCmd.Flags().Int64Var(&pkgBuildNumber, "build-number", 0, "build iteration within version (0 = legacy)")
 	pkgBuildCmd.Flags().StringVar(&pkgPublisher, "publisher", "core@globular.io", "publisher identifier")
 	pkgBuildCmd.Flags().StringVar(&pkgPlatform, "platform", fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH), "target platform (goos_goarch)")
@@ -191,7 +191,7 @@ func init() {
 
 	pkgRegisterCmd.Flags().StringVar(&pkgRegisterFile, "file", "", "path to a package tgz (reads metadata from manifest)")
 	pkgRegisterCmd.Flags().StringVar(&pkgRegisterName, "name", "", "package name (required when --file not given)")
-	pkgRegisterCmd.Flags().StringVar(&pkgRegisterVersion, "version", "", "package version (required when --file not given)")
+	pkgRegisterCmd.Flags().StringVar(&pkgRegisterVersion, "version", "", "package version tag (required when --file not given)")
 	pkgRegisterCmd.Flags().StringVar(&pkgRegisterType, "type", "service", "package type: service|application")
 	pkgRegisterCmd.Flags().StringVar(&pkgRegisterPublisher, "publisher", "", "publisher ID (overrides manifest)")
 
@@ -320,9 +320,6 @@ func runPkgValidate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	verStr := summary.Version
-	if summary.BuildNumber > 0 {
-		verStr = fmt.Sprintf("%s+b%d", summary.Version, summary.BuildNumber)
-	}
 	fmt.Printf("verified: name=%s version=%s platform=%s entrypoint=%s configs=%d systemd=%d file=%s\n",
 		summary.Name, verStr, summary.Platform, summary.Entrypoint,
 		summary.ConfigCount, summary.SystemdCount, pkgVerifyFile)
@@ -559,6 +556,11 @@ func publishOne(file, token string) pkgPublishOne {
 		summary.Version = cv
 	}
 	r.version = summary.Version
+	if err := pkgpack.ValidateVersionBuildSemantics(summary.Version, summary.BuildNumber); err != nil {
+		r.err = fmt.Errorf("invalid package identity: %w", err)
+		r.duration = time.Since(start)
+		return r
+	}
 
 	publisher := pkgPublishPublisher
 	if publisher == "" {

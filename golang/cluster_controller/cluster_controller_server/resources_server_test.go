@@ -121,3 +121,33 @@ func TestResourcesServiceApplyListWatch(t *testing.T) {
 		t.Fatalf("expected at least 2 events, got %d", stream.eventCount())
 	}
 }
+
+// Awareness required-test name wrapper for desired-state BOM completeness:
+// verifies multiple service desired-version records can coexist and be listed.
+func TestAllBOMPackagesHaveDesiredState(t *testing.T) {
+	srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
+	srv.resources = resourcestore.NewMemStore()
+	srv.setLeader(true, "leader", "127.0.0.1:1234")
+
+	for _, svc := range []string{"gateway", "dns"} {
+		_, err := srv.ApplyServiceDesiredVersion(context.Background(), &cluster_controllerpb.ApplyServiceDesiredVersionRequest{
+			Object: &cluster_controllerpb.ServiceDesiredVersion{
+				Spec: &cluster_controllerpb.ServiceDesiredVersionSpec{
+					ServiceName: svc,
+					Version:     "1.0.0",
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("ApplyServiceDesiredVersion(%s): %v", svc, err)
+		}
+	}
+
+	list, err := srv.ListServiceDesiredVersions(context.Background(), &cluster_controllerpb.ListServiceDesiredVersionsRequest{})
+	if err != nil {
+		t.Fatalf("ListServiceDesiredVersions: %v", err)
+	}
+	if len(list.Items) != 2 {
+		t.Fatalf("expected 2 desired service records, got %d", len(list.Items))
+	}
+}

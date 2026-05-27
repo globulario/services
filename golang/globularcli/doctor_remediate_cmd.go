@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,8 +9,6 @@ import (
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 var (
@@ -66,10 +63,7 @@ func runDoctorRemediate(cmd *cobra.Command, args []string) error {
 		return resolveErr
 	}
 
-	conn, err := grpc.NewClient(
-		resolvedEndpoint,
-		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})),
-	)
+	conn, err := dialGRPC(resolvedEndpoint)
 	if err != nil {
 		return fmt.Errorf("dial cluster-doctor %s: %w", endpoint, err)
 	}

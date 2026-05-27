@@ -215,6 +215,15 @@ func TestSelfReview_ClosedGap_UnverifiedWhenNoTests(t *testing.T) {
 	}
 }
 
+// Awareness required-test name wrappers for impact CI verification gates.
+func TestAwarenessImpactCI_ExitsOneOnMissingTest(t *testing.T) {
+	TestSelfReview_ClosedGap_UnverifiedWhenNoTests(t)
+}
+
+func TestAwarenessImpactCI_PassesWhenTestsPresent(t *testing.T) {
+	TestSelfReview_ClosedGap_TestsVerified(t)
+}
+
 // buildFakePlaybookDocs creates a temp docs/awareness dir with a synthetic
 // agent_playbooks.yaml containing one capability_gap_pattern for test isolation.
 func buildFakePlaybookDocs(t *testing.T, status string, testsRequired []string) string {

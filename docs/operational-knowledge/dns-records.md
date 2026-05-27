@@ -36,7 +36,7 @@ globular dns inspect      <name> --types A,AAAA,TXT,SRV
 
 **The CLI is missing `mx`, `ns`, `cname`, `caa`, `soa`, `uri`, `afsdb`.** Proto and server fully support all of them — but no CLI subcommand exists yet. Don't waste time looking; use one of the other two paths until the CLI is closed.
 
-The CLI uses the cached token at `~/.config/globular/token`. If the token is expired:
+Use an explicit token (`--token` or env injection). If the token is expired:
 
 ```
 globular auth login --user sa
@@ -69,7 +69,7 @@ Read paths (`GetA`, `GetMx`, `GetText`, etc.) are read-only and never need appro
 ### 2.3 `grpcurl` directly — fallback when MCP isn't around
 
 ```bash
-TOKEN=$(cat ~/.config/globular/token)
+TOKEN="${TOKEN:?set TOKEN from 'globular auth login' output}"
 grpcurl -insecure -cacert /var/lib/globular/pki/ca.pem \
   -H "token: $TOKEN" \
   -d '{"id":"globular.io","mx":{"preference":1,"mx":"ASPMX.L.GOOGLE.COM."},"ttl":3600}' \
@@ -342,7 +342,7 @@ Things that will burn time or break the zone. AI agents MUST refuse to propose t
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `Unauthenticated: authentication required: provide --token or configure client certificates` | Token expired or missing. | `globular auth login --user sa` — refreshes `~/.config/globular/token`. Or use MCP `grpc_call` which holds its own context. |
+| `Unauthenticated: authentication required: provide --token or configure client certificates` | Token expired or missing. | `globular auth login --user sa` then pass `--token` explicitly (or set `TOKEN` env). Or use MCP `grpc_call` which holds its own context. |
 | `PermissionDenied: the domain X is not managed by this DNS` | Zone not in `GetDomains`. | `SetDomains` first to include `X`. |
 | `dig` returns NXDOMAIN but `Get*` returns the record | Resolver cache / TTL not expired / DNS service didn't reload after restart. | Wait the previous TTL out; `systemctl restart globular-dns.service` if persistent. |
 | Records appear after restart with default config | Zones were re-registered from defaults; persisted zones in Scylla were missed. Known issue per CLAUDE.md — DNS zones can be in-memory. | Re-register via `SetDomains` + per-record set calls. |
@@ -351,8 +351,7 @@ Things that will burn time or break the zone. AI agents MUST refuse to propose t
 
 Stale token symptoms:
 
-- Token cache age: `stat -c '%y' ~/.config/globular/token`
-- Decode payload: `cat ~/.config/globular/token | cut -d. -f2 | base64 -d` — look at `exp` (Unix epoch).
+- Decode payload: `printf '%s' "$TOKEN" | cut -d. -f2 | base64 -d` — look at `exp` (Unix epoch).
 - If `~/.config/globular/` is owned by root from a prior `sudo`: `sudo chown -R $USER:$USER ~/.config/globular/`.
 
 ---

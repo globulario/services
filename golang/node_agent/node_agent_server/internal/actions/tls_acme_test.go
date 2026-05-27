@@ -95,6 +95,15 @@ func TestACMEEnsureApplyDisabled(t *testing.T) {
 	}
 }
 
+func TestDNSDialOption_NoPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("dnsDialOption panicked: %v", r)
+		}
+	}()
+	_, _ = dnsDialOption()
+}
+
 func TestACMEEnsureApplyValidCert(t *testing.T) {
 	// Save and restore original nowFunc
 	originalNow := nowFunc

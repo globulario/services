@@ -37,8 +37,8 @@ const (
 )
 
 // dnsDialOption returns gRPC dial options with TLS for DNS service connections.
-// Returns error dial option if CA cannot be loaded (fail-secure, no silent downgrade).
-func dnsDialOption() grpc.DialOption {
+// Fail-secure: no insecure fallback and no panic on missing trust roots.
+func dnsDialOption() (grpc.DialOption, error) {
 	// H2 Hardening: Use canonical PKI paths for cluster CA
 	_, caCrtPath, caBundlePath := config.GetCanonicalCAPaths()
 
@@ -64,13 +64,11 @@ func dnsDialOption() grpc.DialOption {
 				RootCAs:    certPool,
 				MinVersion: tls.VersionTLS12,
 			}
-			return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
+			return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), nil
 		}
 	}
 
-	// Day-0 Security: NO INSECURE FALLBACK - fail loudly if CA not available
-	// ACME requires secure DNS communication; if CA is missing, system is misconfigured
-	panic(fmt.Sprintf("DNS CA not found at any of %v (loaded from %s) - cannot establish secure connection for ACME", allPaths, loadedFrom))
+	return nil, fmt.Errorf("DNS CA not found at any of %v (loaded from %s) - cannot establish secure connection for ACME", allPaths, loadedFrom)
 }
 
 type acmeEnsureAction struct{}
@@ -104,8 +102,11 @@ func (acmeEnsureAction) Apply(ctx context.Context, args *structpb.Struct) (strin
 	adminEmail := strings.TrimSpace(fields["admin_email"].GetStringValue())
 	dnsAddr := strings.TrimSpace(fields["dns_addr"].GetStringValue())
 	if dnsAddr == "" {
-		// Discover DNS service endpoint dynamically
-		dnsAddr = config.ResolveDNSGrpcEndpoint("127.0.0.1:10033")
+		// Discover DNS service endpoint dynamically (no localhost fallback).
+		dnsAddr = config.ResolveDNSGrpcEndpoint("")
+	}
+	if strings.TrimSpace(dnsAddr) == "" {
+		return "", errors.New("dns_addr is required: failed to discover DNS gRPC endpoint from authoritative runtime sources")
 	}
 
 	paths := tlsPaths(args)
@@ -196,7 +197,11 @@ func (p *globularDNSProvider) Present(domain, token, keyAuth string) error {
 	fqdn = strings.TrimSuffix(fqdn, ".")
 
 	// Connect to DNS service with TLS
-	cc, err := grpc.Dial(p.dnsAddr, dnsDialOption())
+	dialOpt, err := dnsDialOption()
+	if err != nil {
+		return err
+	}
+	cc, err := grpc.Dial(p.dnsAddr, dialOpt)
 	if err != nil {
 		return fmt.Errorf("dial DNS service: %w", err)
 	}
@@ -228,7 +233,11 @@ func (p *globularDNSProvider) CleanUp(domain, token, keyAuth string) error {
 	fqdn = strings.TrimSuffix(fqdn, ".")
 
 	// Connect to DNS service with TLS
-	cc, err := grpc.Dial(p.dnsAddr, dnsDialOption())
+	dialOpt, err := dnsDialOption()
+	if err != nil {
+		return err
+	}
+	cc, err := grpc.Dial(p.dnsAddr, dialOpt)
 	if err != nil {
 		return fmt.Errorf("dial DNS service: %w", err)
 	}
@@ -252,7 +261,11 @@ func (p *globularDNSProvider) CleanUp(domain, token, keyAuth string) error {
 
 // waitForPropagation queries DNS until TXT record is visible
 func (p *globularDNSProvider) waitForPropagation(fqdn, value string) error {
-	cc, err := grpc.Dial(p.dnsAddr, dnsDialOption())
+	dialOpt, err := dnsDialOption()
+	if err != nil {
+		return err
+	}
+	cc, err := grpc.Dial(p.dnsAddr, dialOpt)
 	if err != nil {
 		return fmt.Errorf("dial DNS service: %w", err)
 	}

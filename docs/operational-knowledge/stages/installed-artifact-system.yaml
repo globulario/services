@@ -1,0 +1,126 @@
+schema_version: 1
+file_kind: stage
+metadata:
+  title: "Installed artifact system — filesystem layout, authority, and permissions"
+  description: |
+    Canonical runtime artifact map for Globular nodes: where binaries live, where
+    mutable state lives, what is authoritative versus cache/backup, and expected
+    permission posture for sensitive files.
+  source_documents:
+    - golang/config/config.go
+    - golang/node_agent/node_agent_server/internal/actions/artifact.go
+    - golang/process/process.go
+    - golang/cluster_controller/cluster_controller_server/state.go
+    - docs/ai/ai-operating-rules.md
+
+entries:
+
+  - id: ops.artifacts.root-layout
+    type: ARCHITECTURE
+    title: "Two-root runtime layout: binaries vs mutable state"
+    tags: [always, artifacts, filesystem]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Canonical roots:
+      - `/usr/lib/globular/bin/` — installed executable entrypoints.
+      - `/var/lib/globular/` — mutable state root (`GetStateRootDir` default on Linux).
+
+      Contract:
+      - executables are package-pipeline outputs (repository/install workflow), not ad-hoc copied bytes;
+      - mutable operational files (etcd data, PKI, runtime render config, receipts, local caches) stay under state root;
+      - no new runtime owner paths under `/etc/globular` for mutable state.
+
+  - id: ops.artifacts.authority-boundary
+    type: DECISION
+    title: "Authority boundary: etcd authority, disk as runtime materialization"
+    tags: [always, artifacts, etcd, authority]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: [cluster-controller, node-agent]
+    content: |
+      etcd remains the source of truth for cluster authority keys (desired state,
+      service discovery, workflow state, control-plane coordination).
+
+      On-disk files under `/var/lib/globular` are classified as:
+      - runtime materialization (rendered config, downloaded artifacts, installed files),
+      - local backup copy (e.g., controller state disk backup),
+      - cache/staging,
+      - secret/key material.
+
+      Disk files must never silently override etcd authority when values diverge.
+      If etcd is unavailable, control-plane writes should fail/degrade explicitly.
+
+  - id: ops.artifacts.subdir-contract
+    type: REFERENCE
+    title: "State-root subdirectory contract"
+    tags: [always, artifacts, layout, reference]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Canonical high-signal paths under `/var/lib/globular`:
+      - `pki/` — cluster CA + issued service certificates (sensitive).
+      - `etcd/` — etcd data directory.
+      - `config/` — rendered runtime config fragments (etcd.yaml, endpoints, install-policy, tls symlink/materialized views).
+      - `services/` — service config JSON files.
+      - `nodeagent/state.json` — node-agent local state cache.
+      - `clustercontroller/state.json` — controller local backup copy of authoritative etcd state.
+      - `repository/`, `staging/`, `packages/` — artifacts/install receipts/staging.
+      - `domains/`, `objectstore/`, `minio/`, `prometheus/`, `awareness/`, `operational-knowledge/`.
+
+      Notes:
+      - `config/` is operational render/cache, not authority.
+      - local backup files are restore aids and diagnostics, not writer authority sources.
+
+  - id: ops.artifacts.permission-baseline
+    type: DECISION
+    title: "Permission baseline by artifact class"
+    tags: [always, artifacts, permissions, security]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Baseline permission posture:
+      - etcd data dir: `0700` (owner-only).
+      - state directories (non-secret): usually `0755` unless tighter isolation required.
+      - private keys, token files, secret credentials: owner-restricted (`0600` or stricter).
+      - public cert/chain material: readable (`0644`) when needed by dependent processes.
+
+      Existing code path `ensureEtcdAndScyllaPerms` enforces:
+      - etcd data dir `0700`,
+      - TLS private material restricted (`0640` root:scylla or `0600` fallback),
+      - public cert material readable (`0644`).
+
+      Any new artifact type must declare owner/group/mode explicitly in code and docs.
+
+  - id: ops.artifacts.anti-patterns
+    type: ANTI_PATTERN
+    title: "Filesystem anti-patterns that poison convergence"
+    tags: [always, artifacts, anti-pattern]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [node-agent]
+    content: |
+      Do not:
+      - bypass package publishing/install by copying binaries directly into `/usr/lib/globular/bin`;
+      - store mutable authority config under ad-hoc paths and read them preferentially over etcd;
+      - create per-service top-level state directories without canonical contract;
+      - make rollback/repair by deleting broad state roots without scoped procedure.
+
+      Convergence consequence:
+      - verifier/doctor will surface binary hash mismatch, runtime drift, or identity conflicts.
+
+  - id: ops.artifacts.current-audit-notes
+    type: WARNING
+    title: "Current audit note: naming consistency hotspots"
+    tags: [always, artifacts, audit]
+    applies_when:
+      cluster_phases: [day-2]
+      services_present: [cluster-controller]
+    content: |
+      Current code uses `/var/lib/globular/clustercontroller/state.json` for controller
+      backup state. Keep this path stable for compatibility unless a migration plan is
+      implemented. Avoid introducing parallel aliases (e.g., both `cluster-controller`
+      and `clustercontroller`) without explicit migration and dual-read/write guardrails.

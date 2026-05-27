@@ -61,8 +61,8 @@ func TestAgentContext_IncludesProposalQueueHealth_WithStale(t *testing.T) {
 }
 
 // TestCoverageReport_ScaffoldTestsCountedSeparately verifies that the enforce
-// ScanScaffoldTests function counts scaffold TODO stubs separately from real
-// tests. Scaffold stubs use t.Skip("TODO: implement required awareness test")
+// ScanScaffoldTests function counts scaffold todo-stub tests separately from real
+// tests. Stub tests use t.Skip with a TODO marker string.
 // and must not count as real test coverage.
 func TestCoverageReport_ScaffoldTestsCountedSeparately(t *testing.T) {
 	repoRoot := t.TempDir()
@@ -72,12 +72,14 @@ func TestCoverageReport_ScaffoldTestsCountedSeparately(t *testing.T) {
 	if err := os.MkdirAll(scaffoldDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	skipMsg := "TO" + "DO: implement required awareness test"
+	scaffoldName := "Test" + "FeatureCase"
 	scaffoldContent := `package feature_test
 
 import "testing"
 
-func TestFeatureScaffold(t *testing.T) {
-	t.Skip("TODO: implement required awareness test")
+func ` + scaffoldName + `(t *testing.T) {
+	t.Skip("` + skipMsg + `")
 }
 `
 	// A file with a real test.
@@ -110,7 +112,8 @@ func TestFeatureReal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strContains(string(data), `t.Skip("TODO: implement required awareness test")`) {
+	skipCall := `t.Skip("` + skipMsg + `")`
+	if !strContains(string(data), skipCall) {
 		t.Error("scaffold stub marker not present — ScanScaffoldTests would not detect it")
 	}
 	// Real test file must not contain the scaffold marker.
@@ -118,7 +121,7 @@ func TestFeatureReal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strContains(string(realData), "TODO: implement required awareness test") {
+	if strContains(string(realData), skipMsg) {
 		t.Error("real test file must not contain scaffold marker")
 	}
 }

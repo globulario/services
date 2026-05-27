@@ -26,6 +26,8 @@ func NewRegistry(cfg Config) *Registry {
 		promRuntime{},
 		// Local filesystem checks
 		prometheusBearerTokenFile{},
+		artifactFilesystemSafetyLocal{},
+		artifactLayoutDriftLocal{},
 		// Operational diagnostics (multi-node expansion, bootstrap, etcd)
 		etcdQuorumHealth{},
 		staleNodeDetection{},
@@ -54,6 +56,9 @@ func NewRegistry(cfg Config) *Registry {
 		// Distinct from release.blocked_workflow_unavailable (which is metric-
 		// derived) — this fires when the doctor collector itself cannot connect.
 		workflowServiceReachable{},
+		// Backbone guard: direct observations of gRPC contract regressions
+		// (cluster_id propagation, call-depth loops, public probe admission).
+		grpcBackboneContract{},
 		// Artifact identity invariants (cache digest, installed digest,
 		// desired/installed build drift). Consumes per-node reports from
 		// VerifyPackageIntegrity collected in Snapshot.IntegrityReports.
@@ -180,9 +185,16 @@ func NewRegistry(cfg Config) *Registry {
 		// Local package identity lane invariants:
 		//   local_override_active  — WARN when any artifact in the repository
 		//     carries a local/dev/hotfix version suffix (+local., -dev., -hotfix.).
+		//   runtime_version_identity_lane — WARN when a node reports a
+		//     local/dev/hotfix installed version but no matching active local
+		//     override exists for that package/version.
+		//   runtime_version_override_divergence — WARN when a node reports a
+		//     different local runtime version/build_id than the active override.
 		//   official_identity_sealed — ERROR when a checksum mismatch finding
 		//     affects an official-publisher (core@globular.io) artifact, indicating
 		//     that different bytes were silently stored under an official identity.
+		runtimeVersionIdentityLane{},
+		runtimeVersionOverrideDivergence{},
 		localOverrideActive{},
 		localOverrideStale{},
 		officialIdentitySealed{},

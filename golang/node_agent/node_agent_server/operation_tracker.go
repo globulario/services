@@ -10,6 +10,7 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/component_catalog"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,7 +23,13 @@ func (srv *NodeAgentServer) BootstrapFirstNode(ctx context.Context, req *node_ag
 
 	profiles := append([]string(nil), req.GetProfiles()...)
 	if len(profiles) == 0 {
-		profiles = []string{"control-plane", "gateway"}
+		// Day-0 invariant: founding node must start with quorum-safe profiles.
+		profiles = []string{"core", "control-plane", "storage"}
+	}
+	profiles = component_catalog.NormalizeProfiles(profiles)
+	if unknown := component_catalog.UnknownProfiles(profiles); len(unknown) > 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "unknown bootstrap profiles %v (known: %v)",
+			unknown, component_catalog.ProfileNames())
 	}
 
 	bindAddr := strings.TrimSpace(req.GetControllerBind())

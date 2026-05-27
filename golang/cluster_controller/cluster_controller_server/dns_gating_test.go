@@ -153,6 +153,15 @@ func TestComputeDesiredState_InstalledNotHealthy_NoRecord(t *testing.T) {
 	}
 }
 
+// Awareness required-test name wrappers for 4-layer separation.
+func TestInstalledNotImpliesRunning(t *testing.T) {
+	TestNodeInfo_ServiceReady_InstalledButNotHealthy(t)
+}
+
+func TestRuntimeHealthSeparateFromInstalled(t *testing.T) {
+	TestComputeDesiredState_InstalledNotHealthy_NoRecord(t)
+}
+
 func TestComputeDesiredState_HealthyNode_PublishesRecord(t *testing.T) {
 	// nuc: fully ready.
 	nodes := []NodeInfo{

@@ -792,6 +792,23 @@ func gatherIPs() []string {
 	return ips
 }
 
+// excludeIdentityIP removes a single IP from an identity IP list.
+// Used to prevent floating VIP addresses from being published as stable node identity.
+func excludeIdentityIP(ips []string, excluded string) []string {
+	excluded = strings.TrimSpace(excluded)
+	if excluded == "" || len(ips) == 0 {
+		return ips
+	}
+	out := make([]string, 0, len(ips))
+	for _, ip := range ips {
+		if strings.TrimSpace(ip) == excluded {
+			continue
+		}
+		out = append(out, ip)
+	}
+	return out
+}
+
 func isPrivateIP(ip net.IP) bool {
 	if ip == nil {
 		return false
@@ -826,11 +843,16 @@ func (srv *NodeAgentServer) buildNodeIdentity() *cluster_controllerpb.NodeIdenti
 	if domain != "" && !strings.Contains(hostname, ".") {
 		advertiseFqdn = hostname + "." + domain
 	}
+	ips := gatherIPs()
+	// Never publish keepalived VIP as stable node identity. VIP is a floating
+	// ingress address, not per-node identity.
+	ips = excludeIdentityIP(ips, srv.lookupIngressVIP())
+
 	return &cluster_controllerpb.NodeIdentity{
 		Hostname:      hostname,
 		Domain:        domain,
 		AdvertiseFqdn: advertiseFqdn,
-		Ips:           gatherIPs(),
+		Ips:           ips,
 		Os:            runtime.GOOS,
 		Arch:          runtime.GOARCH,
 		AgentVersion:  srv.agentVersion,

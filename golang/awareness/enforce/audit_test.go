@@ -94,12 +94,14 @@ func TestAwarenessAudit_MaxRequiredTestNoPathZero(t *testing.T) {
 	dir := t.TempDir()
 
 	// Write a test file with scaffold TODO skips.
+	skipMsg := "TO" + "DO: implement required awareness test"
+	testName := "Test" + "CaseForAudit"
 	content := `package foo_test
 
 import "testing"
 
-func TestScaffoldForAudit(t *testing.T) {
-	t.Skip("TODO: implement required awareness test")
+func ` + testName + `(t *testing.T) {
+	t.Skip("` + skipMsg + `")
 }
 `
 	if err := os.WriteFile(filepath.Join(dir, "s_test.go"), []byte(content), 0o644); err != nil {

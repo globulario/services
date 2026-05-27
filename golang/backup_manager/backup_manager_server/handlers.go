@@ -1173,8 +1173,8 @@ func (srv *server) deleteReplicatedCapsule(backupID string, dest DestinationConf
 			if sk := dest.Options["secret_key"]; sk != "" {
 				args = append(args, "--s3-secret-access-key", sk)
 			}
-			// Skip TLS verification for internal MinIO with self-signed certs
-			if strings.HasPrefix(dest.Options["endpoint"], "https") {
+			// Explicit operator override only.
+			if strings.HasPrefix(dest.Options["endpoint"], "https") && allowMinioInsecureSkipVerify(dest.Options) {
 				args = append(args, "--no-check-certificate")
 			}
 		}

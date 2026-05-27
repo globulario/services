@@ -45,17 +45,11 @@ type BuildResult struct {
 }
 
 func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
-	if opts.Version == "" {
-		return nil, fmt.Errorf("version is required")
+	if err := ValidateVersionBuildSemantics(opts.Version, opts.BuildNumber); err != nil {
+		return nil, err
 	}
-	canonical, err := versionutil.NormalizeExact(opts.Version)
-	if err != nil {
-		return nil, fmt.Errorf("invalid version %q: %w", opts.Version, err)
-	}
+	canonical, _ := versionutil.NormalizeExact(opts.Version)
 	opts.Version = canonical
-	if opts.BuildNumber < 0 {
-		return nil, fmt.Errorf("build-number must be >= 0 (got %d)", opts.BuildNumber)
-	}
 	if opts.OutDir == "" {
 		return nil, fmt.Errorf("out directory is required")
 	}

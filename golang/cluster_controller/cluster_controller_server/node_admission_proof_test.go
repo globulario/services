@@ -216,6 +216,10 @@ func TestAdmissionProof_ScyllaFailedBlocksAdmission(t *testing.T) {
 	}
 }
 
+func TestClassifierBlocksWhenScyllaFailed(t *testing.T) {
+	TestAdmissionProof_ScyllaFailedBlocksAdmission(t)
+}
+
 // ── Test 8: objectstore generation mismatch does not block base admission ──────
 
 func TestAdmissionProof_ObjectstoreGenerationMismatchDoesNotBlockAdmission(t *testing.T) {

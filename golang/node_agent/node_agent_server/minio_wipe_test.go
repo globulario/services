@@ -301,3 +301,8 @@ func TestAtomicWriteIfChanged_NoWriteWhenSame(t *testing.T) {
 		t.Error("expected changed=false when content unchanged")
 	}
 }
+
+// Awareness required-test name wrapper for destructive transition approval gate.
+func TestApprovedTransitionRequiredForWipe(t *testing.T) {
+	TestTransitionAuthorizesWipe_NotApproved_NotAuthorized(t)
+}

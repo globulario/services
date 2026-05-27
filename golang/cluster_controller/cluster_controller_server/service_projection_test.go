@@ -141,6 +141,11 @@ func TestComputeServiceProjection_DesiredNotInstalled(t *testing.T) {
 	}
 }
 
+// Awareness required-test name wrapper.
+func TestBOMMembership_DoesNotImplyInstalled(t *testing.T) {
+	TestComputeServiceProjection_DesiredNotInstalled(t)
+}
+
 func TestComputeServiceProjection_PartialRollout(t *testing.T) {
 	// Partial node matches → partial rollout.
 	desired := &DesiredIdentity{Name: "dns", Kind: "SERVICE", Version: "2.0.0", BuildNumber: 1}

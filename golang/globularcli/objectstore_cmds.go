@@ -418,7 +418,7 @@ func runObjectstoreTopologyStatus(cmd *cobra.Command, args []string) error {
 		httpClient := &http.Client{
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // MinIO health probe; internal endpoint
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: rootCfg.insecure}, //nolint:gosec // Explicit operator override only.
 			},
 		}
 		if resp, err := httpClient.Do(req); err != nil {

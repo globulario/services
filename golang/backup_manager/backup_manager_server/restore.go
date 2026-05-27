@@ -560,7 +560,7 @@ func (srv *server) FetchCapsuleFromRemote(backupID string, art *backup_managerpb
 				if sk := dest.Options["secret_key"]; sk != "" {
 					args = append(args, "--s3-secret-access-key", sk)
 				}
-				if strings.HasPrefix(endpoint, "https") {
+				if strings.HasPrefix(endpoint, "https") && allowMinioInsecureSkipVerify(dest.Options) {
 					args = append(args, "--no-check-certificate")
 				}
 			}

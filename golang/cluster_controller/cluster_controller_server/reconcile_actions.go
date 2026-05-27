@@ -295,27 +295,31 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 			}
 		}
 
-		// Check for unmanaged packages (installed but not desired).
-		// Scan both SERVICE and INFRASTRUCTURE kinds.
-		for _, kind := range []string{"SERVICE", "INFRASTRUCTURE"} {
-			allInstalled, err := installed_state.ListAllNodes(ctx, kind, "")
-			if err != nil {
-				continue
-			}
-			for _, pkg := range allInstalled {
-				if pkg.GetNodeId() != node.NodeID {
+		// Check for unmanaged packages (installed but not desired) only when
+		// service-removal is enabled. Otherwise these drifts are not actionable
+		// (choose_workflow=noop) and become permanent workflow.drift_stuck noise.
+		if srv.enableServiceRemoval {
+			// Scan both SERVICE and INFRASTRUCTURE kinds.
+			for _, kind := range []string{"SERVICE", "INFRASTRUCTURE"} {
+				allInstalled, err := installed_state.ListAllNodes(ctx, kind, "")
+				if err != nil {
 					continue
 				}
-				canon := canonicalServiceName(pkg.GetName())
-				if _, desired := desiredCanon[canon]; !desired && canon != "" {
-					driftItems = append(driftItems, map[string]any{
-						"type":         "unmanaged_package",
-						"node_id":      node.NodeID,
-						"package_name": canon,
-						"kind":         kind,
-						"version":      pkg.GetVersion(),
-						"hostname":     node.Identity.Hostname,
-					})
+				for _, pkg := range allInstalled {
+					if pkg.GetNodeId() != node.NodeID {
+						continue
+					}
+					canon := canonicalServiceName(pkg.GetName())
+					if _, desired := desiredCanon[canon]; !desired && canon != "" {
+						driftItems = append(driftItems, map[string]any{
+							"type":         "unmanaged_package",
+							"node_id":      node.NodeID,
+							"package_name": canon,
+							"kind":         kind,
+							"version":      pkg.GetVersion(),
+							"hostname":     node.Identity.Hostname,
+						})
+					}
 				}
 			}
 		}
@@ -395,6 +399,12 @@ func (srv *server) reconcileClassifyDrift(ctx context.Context, driftReport []any
 	// so classify_drift isn't delayed by telemetry bookkeeping.
 	if srv.workflowRec != nil {
 		go srv.clearResolvedDrift(context.Background(), currentRefs)
+		if !srv.enableServiceRemoval {
+			// When removal is disabled, unmanaged_package is intentionally
+			// non-actionable; proactively clear legacy unresolved rows to avoid
+			// persistent workflow.drift_stuck findings.
+			go srv.clearUnmanagedDriftObservations(context.Background())
+		}
 	}
 
 	log.Printf("reconcile-workflow: classify_drift selected %d remediation items (max=%d)", len(result), maxRemediations)
@@ -424,6 +434,37 @@ func (srv *server) clearResolvedDrift(ctx context.Context, current map[string]ma
 	// client helper). Defer full implementation — stale rows will age out via
 	// operator action or explicit ClearDriftObservation from remediation.
 	_ = current
+}
+
+// clearUnmanagedDriftObservations clears all unresolved unmanaged_package rows.
+// Used only when enableServiceRemoval=false, where unmanaged drift is
+// intentionally not remediated and would otherwise stick forever as noop.
+func (srv *server) clearUnmanagedDriftObservations(ctx context.Context) {
+	if srv.workflowClient == nil {
+		return
+	}
+	clusterID := strings.TrimSpace(srv.cfg.ClusterDomain)
+	if clusterID == "" {
+		return
+	}
+	resp, err := srv.workflowClient.ListDriftUnresolved(ctx, &workflowpb.ListDriftUnresolvedRequest{
+		ClusterId: clusterID,
+		DriftType: "unmanaged_package",
+		MinCycles: 1,
+	})
+	if err != nil || resp == nil {
+		return
+	}
+	for _, item := range resp.GetItems() {
+		if item == nil || strings.TrimSpace(item.GetEntityRef()) == "" {
+			continue
+		}
+		_, _ = srv.workflowClient.ClearDriftObservation(ctx, &workflowpb.ClearDriftObservationRequest{
+			ClusterId: clusterID,
+			DriftType: "unmanaged_package",
+			EntityRef: item.GetEntityRef(),
+		})
+	}
 }
 
 // reconcileFinalizeClean runs when no drift is found.

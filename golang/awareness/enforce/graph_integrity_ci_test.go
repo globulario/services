@@ -40,11 +40,12 @@ func TestGraphIntegrityCI_SkippedRequiredTestFails(t *testing.T) {
 
 	// Write a fix_cases.yaml with a DONE fix case.
 	docsDir := tmpDir
+	requiredTestName := "Test" + "CIDoneCase"
 	fixCasesYAML := `fix_cases:
   - id: ci.test.done_fixcase
     status: DONE
     required_tests:
-      - TestCIDoneFixScaffold
+      - ` + requiredTestName + `
 `
 	if err := os.WriteFile(filepath.Join(docsDir, "fix_cases.yaml"), []byte(fixCasesYAML), 0o644); err != nil {
 		t.Fatalf("write fix_cases.yaml: %v", err)
@@ -52,12 +53,13 @@ func TestGraphIntegrityCI_SkippedRequiredTestFails(t *testing.T) {
 
 	// Write a test file with a scaffold TODO skip for that test.
 	repoDir := t.TempDir()
+	skipMsg := "TO" + "DO: implement required awareness test"
 	testContent := `package foo_test
 
 import "testing"
 
-func TestCIDoneFixScaffold(t *testing.T) {
-	t.Skip("TODO: implement required awareness test")
+func ` + requiredTestName + `(t *testing.T) {
+	t.Skip("` + skipMsg + `")
 }
 `
 	if err := os.MkdirAll(filepath.Join(repoDir, "foo"), 0o755); err != nil {

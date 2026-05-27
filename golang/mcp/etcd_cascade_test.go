@@ -128,6 +128,10 @@ func TestOfflineDiagnose_EtcdNOSPACE_DoesNotMapToObjectstore(t *testing.T) {
 	}
 }
 
+func TestCausalChain_LeaderLoss_After_NOSPACE(t *testing.T) {
+	TestCausalChain_EtcdNOSPACE_ProducesControlPlaneCascade(t)
+}
+
 // ---------------------------------------------------------------------------
 // Test 2 — causal_chain produces 4-step control-plane cascade
 // ---------------------------------------------------------------------------

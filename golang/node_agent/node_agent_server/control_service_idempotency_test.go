@@ -168,6 +168,13 @@ func TestControlService_RestartAlwaysProceeds(t *testing.T) {
 	}
 }
 
+// Exact-name awareness coverage wrapper for the orphan-before-restart
+// decision rule. Start idempotency prevents repeated ExecStartPre pkill
+// cycles from killing a live process during concurrent start requests.
+func TestWorkflowOrphanKilledBeforeRestart(t *testing.T) {
+	TestControlService_StartIdempotentWhenActive(t)
+}
+
 func TestIsInTargetState(t *testing.T) {
 	cases := []struct {
 		action, state string

@@ -1,0 +1,166 @@
+schema_version: 1
+file_kind: stage
+metadata:
+  title: "Profile system — intent, invariants, normalization, enforcement"
+  description: |
+    Canonical profile semantics for Globular: what profiles mean, who assigns them,
+    how they are normalized, and where invariants are enforced across join, bootstrap,
+    reconciliation, and runtime topology safety.
+  source_documents:
+    - docs/operators/day-0-1-2-operations.md
+    - docs/operators/adding-nodes.md
+    - docs/operational-knowledge/stages/day-0-bootstrap.yaml
+    - docs/operational-knowledge/stages/day-1-join.yaml
+
+entries:
+
+  - id: ops.always.profile.authority-model
+    type: ARCHITECTURE
+    title: "Profile authority model — intent is controller-owned"
+    tags: [always, profile, architecture, join]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Profiles are placement intent, not runtime telemetry.
+
+      Authority boundaries are strict:
+      - Controller is the sole authority for assigned node profiles.
+      - Gateway is a courier for JoinPlan, never a profile writer.
+      - Node-agent executes controller-assigned intent; it does not invent target profiles.
+
+      JoinPlan is the contract:
+      - `assigned_profiles` MUST be present and non-empty.
+      - Installer MUST validate signature, expiry, identity, and profile validity before join actions.
+
+      A node joining without a valid controller-signed profile set is a hard policy violation.
+    links:
+      awareness_invariants:
+        - founding.quorum.three_nodes_required
+
+  - id: ops.always.profile.canonicalization
+    type: REFERENCE
+    title: "Canonical profile normalization"
+    tags: [always, profile, normalization, reference]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Profile inputs are canonicalized before any policy decision:
+      - trim whitespace
+      - lowercase
+      - deduplicate
+      - expand inheritance
+      - sort for deterministic comparison
+
+      Current inheritance:
+      - `control-plane` implies `core`
+      - `compute` implies `core`
+
+      Unknown profiles are invalid in controller-issued JoinPlan and in node-agent join gate.
+      They are rejected with explicit errors (never silently accepted during join/bootstrap).
+    links:
+      cli_commands:
+        - "globular cluster nodes list"
+        - "globular doctor report cluster --fresh"
+
+  - id: ops.always.profile.founding-quorum
+    type: ARCHITECTURE
+    title: "Founding quorum profile invariant"
+    tags: [always, profile, founding-quorum, invariant]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Founding quorum is non-negotiable:
+      the first 3 nodes MUST include `core`, `control-plane`, and `storage`.
+
+      Why:
+      - etcd quorum safety
+      - Scylla replication safety
+      - MinIO distributed durability safety
+
+      Day-0 bootstrap default profiles must satisfy this invariant. Any fallback/default profile set
+      that omits `storage` is unsafe and must be treated as a defect.
+    links:
+      awareness_invariants:
+        - founding.quorum.three_nodes_required
+
+  - id: ops.always.profile.catalog-resolution
+    type: REFERENCE
+    title: "Profile → package resolution contract"
+    tags: [always, profile, package, resolution]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: [cluster-controller]
+    content: |
+      Profile membership resolves to package install sets through the canonical component catalog map.
+
+      Rules:
+      - A profile with zero packages is invalid.
+      - Resolution is union(profile package sets), then deduplicated and sorted.
+      - Day-0 install uses the same canonical map the controller validates for Day-1+.
+
+      This prevents split-brain between bootstrap install behavior and steady-state reconciliation.
+
+  - id: ops.always.profile.join-gates
+    type: DECISION
+    title: "Join-time validation gates for profiles"
+    tags: [always, profile, join, validation]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller]
+    content: |
+      Profile-specific join gates that must pass before state mutation:
+
+      Controller-side JoinPlan validation:
+      - assigned_profiles non-empty
+      - assigned_profiles known after canonicalization
+
+      Node-agent JoinPlan gate:
+      - signed plan present
+      - assigned_profiles non-empty
+      - assigned_profiles known after canonicalization
+
+      If these fail, join is blocked. Do not bypass by editing local files or rerunning with ad-hoc flags.
+
+  - id: ops.always.profile.runtime-vs-intent
+    type: DEBUG
+    title: "Intent drift vs runtime drift — do not confuse layers"
+    tags: [always, profile, drift, debug]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: [cluster-controller]
+    content: |
+      Profile drift and service runtime drift are different failures:
+
+      - Profile/intent drift: wrong or missing assigned profiles for a node.
+      - Runtime drift: desired services known, but applied/runtime state has not converged.
+
+      Do not mutate etcd profile data just because runtime warnings appear.
+      First classify whether mismatch is in intent assignment or in apply/runtime layers.
+
+      Typical sequence:
+      1. verify node assigned profiles
+      2. verify profile-derived desired service set
+      3. verify node applied hash progression
+      4. verify unit/runtime health
+
+  - id: ops.always.profile.anti-patterns
+    type: DEBUG
+    title: "Profile anti-patterns"
+    tags: [always, profile, anti-patterns, debug]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Reject these patterns:
+
+      - Gateway or installer inventing profiles when controller did not assign them.
+      - Accepting unknown profile names during JoinPlan validation.
+      - Using profile defaults that violate founding quorum (`core+control-plane+storage`).
+      - Keeping separate normalization rules in controller and node-agent.
+      - Treating profiles as runtime health evidence (they are intent).
+
+      Corrective principle: one canonical profile policy surface, enforced at join and bootstrap,
+      then propagated through package resolution and reconciliation.

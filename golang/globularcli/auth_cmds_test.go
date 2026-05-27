@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -127,5 +129,66 @@ func TestRootPassPolicyFailure(t *testing.T) {
 	}
 	if fc.rootCalled {
 		t.Fatalf("SetRootPassword should not be called on policy failure")
+	}
+}
+
+func TestAuthLoginDoesNotPersistTokenByDefault(t *testing.T) {
+	fc := &fakeAuthClient{}
+	oldClient := authClientFactory
+	oldConn := authConnFactory
+	oldUser, oldPass, oldSave := authLoginUser, authLoginPassword, authLoginSave
+	oldHome := os.Getenv("HOME")
+	defer func() {
+		authClientFactory = oldClient
+		authConnFactory = oldConn
+		authLoginUser, authLoginPassword, authLoginSave = oldUser, oldPass, oldSave
+		_ = os.Setenv("HOME", oldHome)
+	}()
+	authClientFactory = func(conn grpc.ClientConnInterface) authServiceClient { return fc }
+	authConnFactory = func() (grpc.ClientConnInterface, func(), error) { return authFakeConn{}, func() {}, nil }
+
+	home := t.TempDir()
+	_ = os.Setenv("HOME", home)
+	authLoginUser, authLoginPassword = "sa", "StrongPassword123!"
+	authLoginSave = false
+
+	if err := authLoginCmd.RunE(nil, nil); err != nil {
+		t.Fatalf("login failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".config", "globular", "token")); err == nil {
+		t.Fatalf("token file should not exist by default")
+	}
+}
+
+func TestAuthLoginPersistsTokenWhenExplicitlyRequested(t *testing.T) {
+	fc := &fakeAuthClient{}
+	oldClient := authClientFactory
+	oldConn := authConnFactory
+	oldUser, oldPass, oldSave := authLoginUser, authLoginPassword, authLoginSave
+	oldHome := os.Getenv("HOME")
+	defer func() {
+		authClientFactory = oldClient
+		authConnFactory = oldConn
+		authLoginUser, authLoginPassword, authLoginSave = oldUser, oldPass, oldSave
+		_ = os.Setenv("HOME", oldHome)
+	}()
+	authClientFactory = func(conn grpc.ClientConnInterface) authServiceClient { return fc }
+	authConnFactory = func() (grpc.ClientConnInterface, func(), error) { return authFakeConn{}, func() {}, nil }
+
+	home := t.TempDir()
+	_ = os.Setenv("HOME", home)
+	authLoginUser, authLoginPassword = "sa", "StrongPassword123!"
+	authLoginSave = true
+
+	if err := authLoginCmd.RunE(nil, nil); err != nil {
+		t.Fatalf("login failed: %v", err)
+	}
+	tokenPath := filepath.Join(home, ".config", "globular", "token")
+	b, err := os.ReadFile(tokenPath)
+	if err != nil {
+		t.Fatalf("expected token file: %v", err)
+	}
+	if strings.TrimSpace(string(b)) != "tok" {
+		t.Fatalf("unexpected token content: %q", string(b))
 	}
 }

@@ -286,6 +286,11 @@ func TestAbsoluteTarPathFails(t *testing.T) {
 	}
 }
 
+// Awareness required-test name wrapper for archive path traversal rejection.
+func TestArchiveExtractionRejectsZipSlip(t *testing.T) {
+	TestTarTraversalFails(t)
+}
+
 // 8. Symlink escape fails with AWARENESS_BUNDLE_VERIFY_FAILED.
 // We test both flavors operators are likely to encounter:
 //

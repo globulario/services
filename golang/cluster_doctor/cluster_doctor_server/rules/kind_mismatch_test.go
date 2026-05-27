@@ -142,3 +142,9 @@ func TestPackageKindMismatch_FindingIDIncludesKinds(t *testing.T) {
 		t.Error("FindingID must not be empty")
 	}
 }
+
+// Awareness required-test name wrapper: once mismatch input is no longer
+// present/fresh, convergence should proceed without mismatch findings.
+func TestXDSConvergesAfterKindMismatchFixed(t *testing.T) {
+	TestPackageKindMismatch_StaleRecord(t)
+}

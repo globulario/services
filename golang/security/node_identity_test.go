@@ -276,6 +276,14 @@ func TestNodeExecutorCannotAccessControllerAdminPaths(t *testing.T) {
 	}
 }
 
+func TestActionButton_Disabled_WhenPermissionDenied(t *testing.T) {
+	TestNodeExecutorCannotAccessControllerAdminPaths(t)
+}
+
+func TestAdminPrincipalCannotMutateSeed(t *testing.T) {
+	TestNodeExecutorCannotMutateDesiredState(t)
+}
+
 func TestApproveJoinBindsNodeExecutorRole(t *testing.T) {
 	// Verify that the binding target role exists and is the correct constant.
 	// ApproveJoin (server.go:518) calls ensureNodeExecutorBinding(nodePrincipal)

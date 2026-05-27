@@ -131,6 +131,21 @@ func TestNodeJoinPlanGate_RefusesWrongNodeIdentity(t *testing.T) {
 	}
 }
 
+func TestNodeJoinPlanGate_RefusesMissingExpectedHostname(t *testing.T) {
+	pub, priv := testKeyPair(t)
+	planJSON := signedPlanJSON(t, priv, func(p *nodeJoinPlan) {
+		p.ExpectedNodeIdentity.Hostname = ""
+	})
+
+	_, err := validateNodeJoinPlan(planJSON, NodeJoinPlanParams{
+		PublicKey:                 pub,
+		SkipSignatureVerification: true,
+	})
+	if !errors.Is(err, ErrNodePlanWrongIdentity) {
+		t.Errorf("missing expected hostname: want ErrNodePlanWrongIdentity, got %v", err)
+	}
+}
+
 // ── Test 7: installer refuses wrong cluster ───────────────────────────────────
 
 func TestNodeJoinPlanGate_RefusesWrongCluster(t *testing.T) {
@@ -197,6 +212,21 @@ func TestNodeJoinPlanGate_RefusesNoProfiles(t *testing.T) {
 	})
 	if !errors.Is(err, ErrNodePlanNoProfiles) {
 		t.Errorf("no profiles: want ErrNodePlanNoProfiles, got %v", err)
+	}
+}
+
+func TestNodeJoinPlanGate_RefusesUnknownProfiles(t *testing.T) {
+	pub, priv := testKeyPair(t)
+	planJSON := signedPlanJSON(t, priv, func(p *nodeJoinPlan) {
+		p.AssignedProfiles = []string{"core", "unknown-profile"}
+	})
+
+	_, err := validateNodeJoinPlan(planJSON, NodeJoinPlanParams{
+		PublicKey:                 pub,
+		SkipSignatureVerification: true,
+	})
+	if !errors.Is(err, ErrNodePlanUnknownProfiles) {
+		t.Errorf("unknown profiles: want ErrNodePlanUnknownProfiles, got %v", err)
 	}
 }
 

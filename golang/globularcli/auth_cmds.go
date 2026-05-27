@@ -3,8 +3,8 @@
 //   globular auth login --user <email> --password <pass>
 //   globular auth install-certs
 //
-// On login success, the token is written to ~/.config/globular/token so that
-// subsequent CLI invocations can auto-load it without repeating --token.
+// On login success, the token is printed to stdout. By default it is NOT
+// persisted to disk; use --save-token for explicit local caching.
 //
 // install-certs calls IssueClientCertificate on the auth service (requires a
 // valid token from 'auth login') and saves the resulting cluster CA, client
@@ -62,13 +62,14 @@ var (
 
 	authLoginUser     string
 	authLoginPassword string
+	authLoginSave     bool
 	rootOld           string
 	rootNew           string
 	rootConfirm       string
 
 	authLoginCmd = &cobra.Command{
 		Use:   "login",
-		Short: "Authenticate and cache a token for CLI use",
+		Short: "Authenticate and print a short-lived token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if authLoginUser == "" {
 				return errors.New("--user is required")
@@ -103,15 +104,16 @@ var (
 				return errors.New("server returned an empty token")
 			}
 
-			// Write token to well-known file (best-effort; warn on failure).
-			tokenPath := tokenFilePath()
-			savedMsg := ""
-			if err := os.MkdirAll(filepath.Dir(tokenPath), 0700); err != nil {
-				fmt.Fprintf(os.Stderr, "WARNING: could not create token directory: %v\n", err)
-			} else if err := os.WriteFile(tokenPath, []byte(token), 0600); err != nil {
-				fmt.Fprintf(os.Stderr, "WARNING: could not write token file: %v\n", err)
-			} else {
-				savedMsg = fmt.Sprintf("\nToken saved to %s", tokenPath)
+			savedMsg := "\nToken was NOT saved to disk (default policy)."
+			if authLoginSave {
+				tokenPath := tokenFilePath()
+				if err := os.MkdirAll(filepath.Dir(tokenPath), 0700); err != nil {
+					fmt.Fprintf(os.Stderr, "WARNING: could not create token directory: %v\n", err)
+				} else if err := os.WriteFile(tokenPath, []byte(token), 0600); err != nil {
+					fmt.Fprintf(os.Stderr, "WARNING: could not write token file: %v\n", err)
+				} else {
+					savedMsg = fmt.Sprintf("\nToken saved to %s (0600)", tokenPath)
+				}
 			}
 
 			fmt.Printf("Authenticated as %q%s\nToken: %s\n", authLoginUser, savedMsg, token)
@@ -235,6 +237,7 @@ require mTLS will work without a --ca flag or manual certificate setup.`,
 func init() {
 	authLoginCmd.Flags().StringVar(&authLoginUser, "user", "", "User email or name")
 	authLoginCmd.Flags().StringVar(&authLoginPassword, "password", "", "User password")
+	authLoginCmd.Flags().BoolVar(&authLoginSave, "save-token", false, "Persist token to ~/.config/globular/token (discouraged; explicit opt-in)")
 
 	authRootPassCmd.Flags().StringVar(&rootOld, "old", "", "Current root password")
 	authRootPassCmd.Flags().StringVar(&rootNew, "new", "", "New root password")

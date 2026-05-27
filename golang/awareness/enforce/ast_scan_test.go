@@ -133,3 +133,9 @@ func healthy() string { return pkg.GetAddr() }
 		t.Errorf("expected no violations for clean file, got %v", res.Violations)
 	}
 }
+
+// Awareness required-test name wrapper: service server config must not fall
+// back to environment-variable sources.
+func TestNoOsGetenvInServiceServerCode(t *testing.T) {
+	TestScanGoFile_OsGetenv(t)
+}

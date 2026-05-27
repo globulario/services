@@ -410,6 +410,18 @@ func TestBootstrapDoesNotAdvanceOnInstalledOnly(t *testing.T) {
 	}
 }
 
+// Awareness required-test name wrapper: awareness_ready advances once the
+// awareness bundle build_id is present in installed build IDs.
+func TestBootstrapAwarenessReadyAdvancesOnBuildID(t *testing.T) {
+	TestBootstrap_FullPath_CoreGateway(t)
+}
+
+// Awareness required-test name wrapper: stuck bootstrap phases fail with a
+// bounded timeout instead of hanging indefinitely.
+func TestBootstrapAwarenessReadyTimesOutGracefully(t *testing.T) {
+	TestBootstrap_Timeout(t)
+}
+
 // TestBootstrap_StorageOnlyNode tests a node with only storage profile
 // (no etcd, no xds, no envoy) → skips to storage_joining, then workload_ready.
 func TestBootstrap_StorageOnlyNode(t *testing.T) {

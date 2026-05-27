@@ -32,3 +32,35 @@ func TestPersistentPreRunSetsCACertEnv(t *testing.T) {
 	}
 }
 
+func TestPersistentPreRunTokenFileIsExplicitOptIn(t *testing.T) {
+	home := t.TempDir()
+	tokenPath := filepath.Join(home, "token.txt")
+	if err := os.WriteFile(tokenPath, []byte("abc123"), 0o600); err != nil {
+		t.Fatalf("write token: %v", err)
+	}
+
+	oldToken := rootCfg.token
+	oldEnv := os.Getenv("GLOBULAR_TOKEN_FILE")
+	defer func() {
+		rootCfg.token = oldToken
+		_ = os.Setenv("GLOBULAR_TOKEN_FILE", oldEnv)
+	}()
+
+	rootCfg.token = ""
+	_ = os.Unsetenv("GLOBULAR_TOKEN_FILE")
+	if err := rootCmd.PersistentPreRunE(nil, nil); err != nil {
+		t.Fatalf("PreRunE error: %v", err)
+	}
+	if rootCfg.token != "" {
+		t.Fatalf("token should stay empty without opt-in env; got %q", rootCfg.token)
+	}
+
+	rootCfg.token = ""
+	_ = os.Setenv("GLOBULAR_TOKEN_FILE", tokenPath)
+	if err := rootCmd.PersistentPreRunE(nil, nil); err != nil {
+		t.Fatalf("PreRunE error (opt-in): %v", err)
+	}
+	if rootCfg.token != "abc123" {
+		t.Fatalf("expected token from opt-in file, got %q", rootCfg.token)
+	}
+}

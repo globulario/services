@@ -1,0 +1,111 @@
+schema_version: 1
+file_kind: service-role
+metadata:
+  title: "Service role — dns"
+  description: |
+    What dns IS, what it OWNS, when it MUST run, and where DNS must NOT be
+    used as a bootstrap dependency to avoid circular readiness failures.
+  source_documents:
+    - docs/operators/dns-and-pki.md
+    - docs/operational-knowledge/dns-records.md
+    - golang/node_agent/node_agent_server/dns_sync.go
+    - golang/cluster_controller/cluster_controller_server/dns_reconciler.go
+
+entries:
+
+  - id: ops.role.dns
+    type: ARCHITECTURE
+    title: "dns — authoritative name service for cluster and optional public zones"
+    tags: [always, dns, role]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      **What it is**: Authoritative DNS service for Globular internal discovery
+      (`*.globular.internal`) and optionally public domains delegated to the cluster.
+
+      **Ports**:
+      - gRPC API: `dns.DnsService` on 10006 (authoritative record store API)
+      - Resolver: UDP/TCP 53 (answers DNS queries)
+
+      **What it OWNS**:
+      - DNS record storage semantics (A/AAAA/TXT/MX/NS/CNAME/SRV/CAA/SOA/...)
+      - Authoritative serving behavior for managed zones
+      - Internal naming records consumed by steady-state clients/services
+
+      **What it does NOT own**:
+      - Cluster membership authority
+      - Service desired-state authority
+      - Runtime health authority for infra services
+
+      DNS is discovery substrate, not decision authority.
+    links:
+      cli_commands:
+        - "globular dns domains list"
+        - "globular dns inspect <name> --types A,AAAA,TXT,SRV"
+
+  - id: ops.role.dns.bootstrap-boundaries
+    type: DECISION
+    title: "Bootstrap boundary — when DNS must not be on the critical path"
+    tags: [always, dns, bootstrap, boundary]
+    applies_when:
+      cluster_phases: [day-0, day-1]
+      services_present: []
+    content: |
+      **Hard boundary**: During day-0/day-1 critical infra bootstrap, avoid using
+      DNS names whose resolution depends on the very infra being bootstrapped.
+
+      Example anti-pattern:
+      - Configuring Scylla seed/peer bootstrap through a not-yet-stable name like
+        `scylla.internal.globular`.
+
+      Why this fails:
+      - DNS readiness depends on control-plane/storage health.
+      - Scylla/bootstrap readiness can depend on control-plane/storage progress.
+      - This creates a chicken-and-egg dependency loop.
+
+      Required strategy in bootstrap paths:
+      - Use explicit stable node IPs from authoritative cluster state for first-hop
+        substrate config (etcd/scylla/minio membership and seed lists).
+      - Move to DNS-based discovery only after foundational infra reaches steady state.
+
+      Practical rule:
+      - **Bootstrap substrate**: explicit stable endpoints.
+      - **Steady-state client discovery**: DNS names.
+    links:
+      awareness_failure_modes:
+        - vip_contamination.node_routable_ip_returns_vip
+
+  - id: ops.role.dns.failure-modes
+    type: DEBUG
+    title: "dns — common failure modes and operator checks"
+    tags: [always, dns, debug]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [dns]
+    content: |
+      **Symptom: record exists via gRPC but not via resolver**
+      - Treat gRPC store as authority.
+      - Investigate resolver reload/caching path.
+
+      **Symptom: public resolver differs from authoritative resolver**
+      - Compare in order: gRPC -> authoritative @dns node -> public resolver.
+      - If authoritative is correct and public is stale, this is propagation/TTL.
+
+      **Symptom: day-1 node joins but role records flap**
+      - Ensure role records are not used as readiness proof during join transitions.
+      - Validate node identity/stable IP publication path first.
+
+      **Symptom: TLS/routing errors blamed on DNS**
+      - Verify SAN and endpoint mode (mesh vs explicit backend endpoint).
+      - DNS alone cannot fix identity mismatch.
+
+      First checks:
+      - `globular dns domains list`
+      - `globular dns inspect <name> --types A,AAAA,TXT,SRV`
+      - `dig +short <name> @dns.<domain>`
+      - `dig +short <name> @8.8.8.8`
+    links:
+      runbooks:
+        - runbooks/setup-public-domain-acme.yaml
+        - runbooks/configure-google-workspace-mail.yaml

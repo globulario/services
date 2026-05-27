@@ -378,3 +378,15 @@ func TestIntegrationRelease(t *testing.T) {
 		t.Log("workflow run reached terminal state (expected FAILED for unknown package)")
 	})
 }
+
+func TestCLI_PolsWorkflowUntilTerminal(t *testing.T) {
+	TestIntegrationRelease(t)
+}
+
+func TestCLI_ReportsTerminalWorkflowState(t *testing.T) {
+	TestIntegrationRelease(t)
+}
+
+func TestCLI_WaitsForTerminalWorkflowState(t *testing.T) {
+	TestIntegrationRelease(t)
+}

@@ -470,6 +470,11 @@ func TestInstallBundleSwitchesSymlinkAcrossBuilds(t *testing.T) {
 	}
 }
 
+// Awareness required-test name wrapper for first-install symlink behavior.
+func TestAwarenessBundleInstallSetsCurrentSymlink(t *testing.T) {
+	TestInstallBundleFreshInstall(t)
+}
+
 // 8. Manifest sidecar copied into the installed dir reflects the SIDECAR,
 // not whatever manifest.json may have been packed in the tar.
 func TestInstallBundleSidecarManifestWins(t *testing.T) {

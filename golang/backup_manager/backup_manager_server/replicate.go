@@ -18,6 +18,16 @@ import (
 	"github.com/globulario/services/golang/backup_manager/backup_managerpb"
 )
 
+// allowMinioInsecureSkipVerify returns true only when destination options
+// explicitly request TLS verification bypass.
+func allowMinioInsecureSkipVerify(opts map[string]string) bool {
+	if opts == nil {
+		return false
+	}
+	v := strings.TrimSpace(strings.ToLower(opts["insecure_skip_verify"]))
+	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
 // replicateToDestinations copies the backup capsule (artifacts/<backup_id>/)
 // to all configured destinations.
 func (srv *server) replicateToDestinations(backupID string, plan *backup_managerpb.BackupPlan) []*backup_managerpb.ReplicationResult {
@@ -158,8 +168,8 @@ func (srv *server) replicateMinio(backupID, capsuleDir string, dest DestinationC
 		args = append(args, "--s3-no-check-bucket")
 	}
 
-	// Skip TLS verification for internal MinIO with self-signed certs
-	if strings.HasPrefix(endpoint, "https") && srv.MinioSecure {
+	// Explicit operator override only.
+	if strings.HasPrefix(endpoint, "https") && allowMinioInsecureSkipVerify(dest.Options) {
 		args = append(args, "--no-check-certificate")
 	}
 

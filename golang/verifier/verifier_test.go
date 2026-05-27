@@ -619,6 +619,11 @@ func TestVerifyTarget_RunningDiffersFromInstalled_StillFires(t *testing.T) {
 	}
 }
 
+// Awareness required-test name wrapper for stale-runtime binary mismatch.
+func TestVerifyTarget_OldBinaryOnDisk_InstalledHashMismatch(t *testing.T) {
+	TestVerifyTarget_RunningDiffersFromInstalled_StillFires(t)
+}
+
 func TestVerifyTarget_PackageDigestNotComparedToBinary(t *testing.T) {
 	// Stronger pin: even with a totally hostile package_digest value
 	// (the same hash byte-equal to hashB which would otherwise be a

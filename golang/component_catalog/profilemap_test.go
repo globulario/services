@@ -137,6 +137,22 @@ func TestHasProfile(t *testing.T) {
 	}
 }
 
+func TestNormalizeProfiles_ExpandsInheritanceAndCanonicalizes(t *testing.T) {
+	got := NormalizeProfiles([]string{" Control-Plane ", "gateway", "GATEWAY"})
+	want := []string{"control-plane", "core", "gateway"}
+	if !equalSorted(got, want) {
+		t.Fatalf("NormalizeProfiles mismatch: got %v want %v", got, want)
+	}
+}
+
+func TestUnknownProfiles(t *testing.T) {
+	got := UnknownProfiles([]string{"core", "unknown", "  ", "UNKNOWN"})
+	want := []string{"unknown"}
+	if !equalSorted(got, want) {
+		t.Fatalf("UnknownProfiles mismatch: got %v want %v", got, want)
+	}
+}
+
 func equalSorted(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

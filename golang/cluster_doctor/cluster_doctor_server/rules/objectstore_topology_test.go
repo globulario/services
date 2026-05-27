@@ -364,6 +364,10 @@ func TestPostApplyHealth_NoInventory_DataIncomplete_Suppressed(t *testing.T) {
 	}
 }
 
+func TestCollectorGap_ProducesUnknown_NotHealthy(t *testing.T) {
+	TestPostApplyHealth_NoInventory_DataIncomplete_Suppressed(t)
+}
+
 // TestPostApplyHealth_KnownDown_DataIncomplete_StillFires verifies that a
 // confirmed-down node (inventory present, MinIO inactive) still fires CRITICAL
 // even when DataIncomplete=true.

@@ -203,3 +203,16 @@ func TestResolveLatestManifestFuncErrorFallsBackToReleaseIndex(t *testing.T) {
 		t.Fatalf("expected no buildID/checksum from release-index fallback, got buildID=%q checksum=%q", buildID, checksum)
 	}
 }
+
+// Awareness required-test name wrappers for installed-state/runtime semantics.
+func TestInstalledIndicator_BoundToInstalledStateRecord(t *testing.T) {
+	TestSkipIfAlreadyInstalled_NotInstalled(t)
+}
+
+func TestInstalledState_NotDerivedFromCatalog(t *testing.T) {
+	TestSkipIfAlreadyInstalled_StatusNotInstalled(t)
+}
+
+func TestBuildIDNotResolvedAtNodeAgent(t *testing.T) {
+	TestResolveLatestManifestFuncCalledForFirstInstall(t)
+}

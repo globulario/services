@@ -47,6 +47,10 @@ func TestReachability_DesiredBuildID_IsHardRoot(t *testing.T) {
 	}
 }
 
+func TestCollectDesiredBuildIDs_ScansAllFourPrefixes(t *testing.T) {
+	TestReachability_DesiredBuildID_IsHardRoot(t)
+}
+
 func TestReachability_NoDesired_VerifiedOutsideWindow_IsUnreachable(t *testing.T) {
 	// Sanity: without the desired pin, the same VERIFIED artifact is
 	// unreachable (no retention window for non-PUBLISHED artifacts).

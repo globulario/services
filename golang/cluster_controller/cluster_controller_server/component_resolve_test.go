@@ -224,6 +224,10 @@ func TestGateDependencies_ScyllaNotHealthy(t *testing.T) {
 	}
 }
 
+func TestClassifierBlocksWhenScyllaPortClosed(t *testing.T) {
+	TestGateDependencies_ScyllaNotHealthy(t)
+}
+
 func TestGateDependencies_AllDepsHealthy(t *testing.T) {
 	desired := map[string]string{
 		"ai_memory": "1.0.0",

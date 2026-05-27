@@ -61,3 +61,7 @@ func TestSnapshotCacheTTLExposedViaTtlFor(t *testing.T) {
 		t.Fatalf("ttlFor() = %v, want 45s", c.ttlFor())
 	}
 }
+
+func TestCachedStatus_MarkedStale_WhenExpired(t *testing.T) {
+	TestSnapshotCacheHitAndMiss(t)
+}

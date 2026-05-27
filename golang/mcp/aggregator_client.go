@@ -57,6 +57,7 @@ type aggRPCResponse struct {
 // ── TLS helpers ───────────────────────────────────────────────────────────────
 
 const clusterCAPath = "/var/lib/globular/pki/ca.crt"
+const mcpAllowUnverifiedFallbackEnv = "GLOBULAR_MCP_ALLOW_UNVERIFIED_FALLBACK"
 
 func buildAggregatorTLSConfig(skipVerify bool) *tls.Config {
 	caCert, err := os.ReadFile(clusterCAPath)
@@ -121,6 +122,9 @@ func doSendWithTLSFallback(ctx context.Context, endpoint string, body []byte, se
 		return resp, trust, nil
 	}
 	if isTLSError(err) {
+		if !allowUnverifiedFallback() {
+			return nil, MCPTrustNone, fmt.Errorf("TLS verification failed for %s and unverified fallback is disabled (%s not true): %w", endpoint, mcpAllowUnverifiedFallbackEnv, err)
+		}
 		log.Printf("aggregator: TLS verification failed for %s: %v — retrying unverified", endpoint, err)
 		resp, _, _, err = sendHTTPMCPRequest(ctx, endpoint, body, sessionID, timeout, true)
 		if err == nil {
@@ -197,7 +201,7 @@ func acquireMCPSession(ctx context.Context, endpoint string, timeout time.Durati
 
 	// Verified TLS first; fall back to InsecureSkipVerify on TLS failure.
 	resp, trust, sid, err := sendHTTPMCPRequest(ctx, endpoint, body, "", timeout, false)
-	if err != nil && isTLSError(err) {
+	if err != nil && isTLSError(err) && allowUnverifiedFallback() {
 		resp, _, sid, err = sendHTTPMCPRequest(ctx, endpoint, body, "", timeout, true)
 		trust = MCPTrustUnverified
 	}
@@ -219,6 +223,11 @@ func acquireMCPSession(ctx context.Context, endpoint string, timeout time.Durati
 		}
 	}
 	return sid, trust, nil
+}
+
+func allowUnverifiedFallback() bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(mcpAllowUnverifiedFallbackEnv)))
+	return v == "1" || v == "true" || v == "yes" || v == "on"
 }
 
 // releaseMCPSession sends a DELETE /mcp with the session id so the server

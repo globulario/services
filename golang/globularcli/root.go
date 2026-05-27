@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -33,8 +32,9 @@ var rootCfg = struct {
 var rootCmd = &cobra.Command{
 	Use:   "globular",
 	Short: "Globular control-plane CLI",
-	// Auto-load cached token when --token is not explicitly provided.
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Do not auto-load token from disk by default. Disk token loading is an
+		// explicit opt-in via GLOBULAR_TOKEN_FILE for controlled automation.
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Resolve CA certificate and export as GLOBULAR_CA_CERT so that all
 		// service client code (InitClient → GetEtcdTLS → GetCACertificatePath)
 		// finds the right CA regardless of install layout.
@@ -58,13 +58,13 @@ var rootCmd = &cobra.Command{
 			_ = os.Setenv("GLOBULAR_CA_CERT", rootCfg.caFile)
 		}
 		if rootCfg.token == "" {
-			home := os.Getenv("HOME")
-			if home == "" {
-				home, _ = os.UserHomeDir()
-			}
-			tokenFile := filepath.Join(home, ".config", "globular", "token")
-			if data, err := os.ReadFile(tokenFile); err == nil {
-				rootCfg.token = strings.TrimSpace(string(data))
+			// Explicit opt-in only: allow controlled token-file usage in automation.
+			tokenFile := strings.TrimSpace(os.Getenv("GLOBULAR_TOKEN_FILE"))
+			if tokenFile != "" {
+				data, err := os.ReadFile(tokenFile)
+				if err == nil {
+					rootCfg.token = strings.TrimSpace(string(data))
+				}
 			}
 		}
 		return nil

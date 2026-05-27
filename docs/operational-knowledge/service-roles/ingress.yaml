@@ -1,0 +1,96 @@
+schema_version: 1
+file_kind: service-role
+metadata:
+  title: "Service role — ingress"
+  description: |
+    End-to-end ingress contract: external domain exposure, TLS termination,
+    Envoy/xDS runtime flow, and bootstrap boundaries.
+  source_documents:
+    - docs/operational-knowledge/runbooks/setup-public-domain-acme.yaml
+    - docs/operators/dns-and-pki.md
+    - golang/cluster_controller/cluster_controller_server/ingress_spec_guard.go
+    - golang/node_agent/node_agent_server/ingress_reconcile.go
+    - golang/node_agent/node_agent_server/internal/actions/tls_acme.go
+
+entries:
+
+  - id: ops.role.ingress
+    type: ARCHITECTURE
+    title: "ingress — external traffic edge and TLS termination plane"
+    tags: [always, ingress, gateway, envoy, xds]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [gateway]
+    content: |
+      **Role**: Ingress accepts external client traffic and maps domain + SNI +
+      path/host rules to cluster backends.
+
+      **Composed path**:
+      1. Authoritative DNS resolves domain.
+      2. Certificate identity (SAN/CN) matches requested host.
+      3. Envoy listener/route config is delivered from xDS intent.
+      4. Upstream backend is selected and proxied.
+
+      **Ingress is not authority**:
+      - Not membership authority.
+      - Not desired-state authority.
+      - Not package/release authority.
+      - Not identity authority.
+
+  - id: ops.role.ingress.ports-and-redirection
+    type: DECISION
+    title: "Ports and redirection boundaries"
+    tags: [always, ingress, tls, ports]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [gateway]
+    content: |
+      **Client edge**:
+      - HTTP/HTTPS ingress enters at edge ports (80/443 by policy).
+      - TLS termination is performed at ingress (Envoy/gateway path).
+
+      **Control plane**:
+      - xDS drives dynamic listener/route policy.
+      - Keepalived/VIP is transport failover only, never identity authority.
+
+      **Rule**:
+      - Redirect behavior and listener wiring must be controlled by ingress spec +
+        xDS state, not ad-hoc node-local static overrides.
+
+  - id: ops.role.ingress.acme-dns01
+    type: DECISION
+    title: "ACME DNS-01 and PKI contract"
+    tags: [always, ingress, acme, dns, pki]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, dns, gateway]
+    content: |
+      ACME issuance requires:
+      - domain delegated to authoritative NS that can answer `_acme-challenge` TXT;
+      - writable DNS API path for TXT set/remove;
+      - certificate storage/sync path to ingress runtime.
+
+      PKI role in ingress:
+      - certificate SAN set is the identity contract for served names;
+      - routing convenience must not bypass SAN mismatch;
+      - wildcard assumptions do not replace explicit SAN validation.
+
+      Operational boundary:
+      - If DNS authority is not delegated yet, ACME DNS-01 is expected to fail;
+      - do not treat that as ingress runtime corruption.
+
+  - id: ops.role.ingress.bootstrap-boundary
+    type: DECISION
+    title: "When NOT to use ingress naming in bootstrap"
+    tags: [always, ingress, bootstrap, boundary]
+    applies_when:
+      cluster_phases: [day-0, day-1]
+      services_present: []
+    content: |
+      Do not make early substrate bootstrap depend on unresolved ingress/DNS names.
+      Example anti-pattern: using `scylla.internal.globular` for first-hop seed/member
+      wiring before DNS and control-plane are stable.
+
+      Bootstrap rule:
+      - infra membership/seeds use explicit stable endpoints from authoritative state;
+      - ingress/domain routing is layered on top after foundational infra converges.

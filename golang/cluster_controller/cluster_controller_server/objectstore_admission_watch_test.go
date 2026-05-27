@@ -119,3 +119,11 @@ func TestApplyWatchLoop_HealthyEvent_UpdatesRev(t *testing.T) {
 	// Use time.After to silence "unused variable" if the test fails fast.
 	_ = time.Now()
 }
+
+func TestApplyWatcherRecoversFromCompactedRevision(t *testing.T) {
+	TestApplyWatchLoop_Compacted_ReturnsCompactedAndUpdatesRev(t)
+}
+
+func TestApplyWatcherReestablishesWithLatestRev(t *testing.T) {
+	TestApplyWatchLoop_HealthyEvent_UpdatesRev(t)
+}

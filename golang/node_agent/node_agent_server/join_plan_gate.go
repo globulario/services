@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/component_catalog"
 	"github.com/globulario/services/golang/security"
 )
 
@@ -20,6 +21,7 @@ var (
 	ErrNodePlanWrongCluster    = errors.New("join blocked: JoinPlan cluster mismatch")
 	ErrNodePlanWrongIdentity   = errors.New("join blocked: JoinPlan node identity mismatch")
 	ErrNodePlanNoProfiles      = errors.New("join blocked: JoinPlan has no assigned profiles")
+	ErrNodePlanUnknownProfiles = errors.New("join blocked: JoinPlan has unknown assigned profiles")
 	ErrNodePlanMalformed       = errors.New("join blocked: JoinPlan is malformed")
 	ErrNodePlanMalformedIntent = errors.New("join blocked: malformed etcd join intent")
 	ErrNodePlanStaleGeneration = errors.New("join blocked: JoinPlan generation stale")
@@ -121,18 +123,24 @@ func validateNodeJoinPlan(planJSON []byte, params NodeJoinPlanParams) (*nodeJoin
 	}
 
 	// 4. Node identity: hostname is the minimum stable identifier.
-	if params.NodeHostname != "" && plan.ExpectedNodeIdentity.Hostname != "" {
-		if !strings.EqualFold(plan.ExpectedNodeIdentity.Hostname, params.NodeHostname) {
-			return nil, fmt.Errorf("%w: plan issued for %q, node is %q",
-				ErrNodePlanWrongIdentity,
-				plan.ExpectedNodeIdentity.Hostname,
-				params.NodeHostname)
-		}
+	if strings.TrimSpace(plan.ExpectedNodeIdentity.Hostname) == "" {
+		return nil, fmt.Errorf("%w: plan has no expected hostname", ErrNodePlanWrongIdentity)
+	}
+	if params.NodeHostname != "" &&
+		!strings.EqualFold(plan.ExpectedNodeIdentity.Hostname, params.NodeHostname) {
+		return nil, fmt.Errorf("%w: plan issued for %q, node is %q",
+			ErrNodePlanWrongIdentity,
+			plan.ExpectedNodeIdentity.Hostname,
+			params.NodeHostname)
 	}
 
 	// 5. Profiles must come from the controller — not the gateway.
 	if len(plan.AssignedProfiles) == 0 {
 		return nil, ErrNodePlanNoProfiles
+	}
+	if unknown := component_catalog.UnknownProfiles(plan.AssignedProfiles); len(unknown) > 0 {
+		return nil, fmt.Errorf("%w: %v (known: %v)",
+			ErrNodePlanUnknownProfiles, unknown, component_catalog.ProfileNames())
 	}
 
 	// 6. EtcdJoinIntent structural validity.

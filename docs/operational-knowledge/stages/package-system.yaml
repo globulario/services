@@ -108,7 +108,7 @@ entries:
 
       | Identifier      | Type           | Allocated by                          | Purpose                                              |
       |-----------------|----------------|---------------------------------------|------------------------------------------------------|
-      | `version`       | semver string  | `globular deploy --bump {patch,...}` reserves via repository | Human-readable; goes in manifest + filename. |
+      | `version`       | version tag    | `globular deploy --bump {patch,...}` reserves via repository | Human-readable; goes in manifest + filename. |
       | `build_number`  | int64 counter  | Stamped at build time (`--build-number`) | DISPLAY ONLY. Never used for convergence. |
       | `build_id`      | UUIDv7 string  | Repository service, post-upload       | SOLE identity used for convergence. Empty in committed `package.json`. |
 
@@ -116,6 +116,8 @@ entries:
 
       - `Version = ""` in source. NEVER hardcode. Injected via ldflags at build:
         `-ldflags "-X main.Version=1.2.3 -X main.BuildNumber=42"`
+      - Build numbers are plain integers only. Never encode build identity inside
+        `version` (reject forms like `1.2.3+b325`, `1.2.3-b12`, `1.2.3-build7`).
       - Platform release version (release-index.json after `globular repo sync --tag vX.Y.Z`)
         is NOT the package version. Only changed packages get a new version.
       - `--bump` reservations hold for 5 minutes. Failed publish does NOT release early.
@@ -251,6 +253,10 @@ entries:
         - kind=service MUST have exactly one `install_package_payload` step.
         - kind=infrastructure MUST have `install_package_payload` UNLESS
           `metadata.entrypoint: "noop"` (OS-managed exception).
+        - Version/build semantics MUST pass:
+          - version string is structurally valid for Globular package manifests.
+          - build_number is a plain integer and non-negative.
+          - version must not embed build tokens (`+bNN`, `-bNN`, `-buildNN`, etc.).
 
       Built-tarball guards (`assertPackageGuards`):
         - `bin/<exec>` exists in the tarball.
@@ -270,10 +276,62 @@ entries:
         - `entrypoint_checksum` from manifest matches SHA256 of `/proc/<pid>/exe`
           (detects hot-deploy drift and `(deleted)` inode hazards).
         - `installed.build_id` == `desired.build_id`.
+
+      Publish preflight validation (CLI side) MUST reject publish when:
+        - `version` is malformed for package policy.
+        - `build_number` is negative or non-integer.
+        - `version` embeds a build token instead of using `build_number`.
     links:
       cli_commands:
         - "cd packages && ./scripts/validate-package-metadata.sh"
         - "globular pkg verify <path>.tgz"
+
+  - id: ops.always.package.kind-contracts
+    type: REFERENCE
+    title: "Kind-specific minimum contracts"
+    tags: [always, package, kind, validation]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Minimum requirements by package kind:
+
+      - `service`:
+        - Exposes a Globular API and participates in mesh routing/discovery.
+        - MUST include `install_package_payload`, `ensure_service_config`,
+          `install_services`, `start_services`, and runtime health checks.
+      - `infrastructure`:
+        - Hosts a control-plane/storage daemon (etcd, MinIO, ScyllaDB, envoy, keepalived).
+        - MAY use OS-managed delivery (`install_local_debs`, `install_os_packages`) with
+          `entrypoint: noop` where appropriate; otherwise follows service-like lifecycle.
+      - `command`:
+        - CLI-only artifact; no long-running daemon contract.
+        - MUST NOT require systemd unit installation/start in canonical flow.
+      - `application`:
+        - Rare whole-platform bundle; must still declare explicit install recipe and
+          pass identity/manifest validation.
+
+      Any ambiguity between kinds is a release-blocking validation error.
+
+  - id: ops.always.package.deb-strategy
+    type: REFERENCE
+    title: "Debian .deb usage strategy"
+    tags: [always, package, deb, infrastructure]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      `.deb` artifacts are for OS-managed components, mostly infrastructure daemons.
+
+      Rules:
+        - Prefer bundled offline `.deb` (`install_local_debs`) for deterministic installs.
+        - Use `install_os_packages` only when online apt resolution is intentional.
+        - For first-start-sensitive daemons (ScyllaDB), bracket dpkg with
+          `prevent-autostart.sh` and `allow-autostart.sh` to prevent accidental bootstrap.
+        - Never treat `.deb` identity as package identity; Globular convergence still keys
+          on package manifest/build_id.
+        - `.deb` presence does not bypass package validation gates (manifest, checksums,
+          recipe validity, kind consistency).
 
   - id: ops.always.package.authoring-checklist
     type: SKILL
@@ -367,6 +425,8 @@ entries:
         package.json / catalog.
       - Overloading `build_number` for convergence — `build_id` is convergence identity;
         `build_number` is display only.
+      - Encoding build number inside `version` (for example `1.2.3+b325`) — ordering and
+        policy checks become ambiguous; keep build identity only in `build_number`.
       - Using `pkill -f <name>` in scripts — matches parent shell argv → self-SIGKILL.
         Always `pkill -x <binary>`.
       - Hot-deploying a locally-built binary to a node — no ldflags → wrong version

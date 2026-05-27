@@ -222,6 +222,30 @@ func TestJoinAuthorization_NoPlanWhenGatewayAssignsNoProfiles(t *testing.T) {
 	}
 }
 
+func TestJoinAuthorization_UnknownAssignedProfileRejected(t *testing.T) {
+	pub, priv, kid := generateTestKeyPair(t)
+
+	plan := &JoinPlan{
+		JoinID:           "test-join-unknown-profile",
+		ClusterID:        "cluster-abc",
+		IssuedAt:         time.Now(),
+		ExpiresAt:        time.Now().Add(time.Hour),
+		AssignedProfiles: []string{"core", "unknown-profile"},
+		AssignedNodeID:   "node-1",
+		ExpectedNodeIdentity: NodePlanIdentity{
+			Hostname: "node-01",
+		},
+	}
+	if err := signJoinPlanWithKey(plan, priv, kid); err != nil {
+		t.Fatalf("sign plan: %v", err)
+	}
+
+	err := ValidateJoinPlan(plan, JoinPlanValidationParams{PublicKey: pub})
+	if err == nil || !strings.Contains(err.Error(), "unknown assigned profiles") {
+		t.Fatalf("expected unknown-profile validation error, got: %v", err)
+	}
+}
+
 // TestJoinAuthorization_InstallerRefusesUnsignedPlan verifies that a plan
 // with an empty signature is rejected with ErrJoinPlanNoSignature.
 func TestJoinAuthorization_InstallerRefusesUnsignedPlan(t *testing.T) {

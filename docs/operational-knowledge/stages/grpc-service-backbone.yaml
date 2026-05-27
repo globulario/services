@@ -1,0 +1,131 @@
+schema_version: 1
+file_kind: stage
+metadata:
+  title: "Service backbone — gRPC service/client/interceptor architecture"
+  description: |
+    Canonical blueprint for how Globular services run and collaborate over gRPC:
+    lifecycle, startup/stop, config ownership, client dialing, metadata propagation,
+    authz interception, and health/readiness semantics.
+  source_documents:
+    - golang/globular_service/services.go
+    - golang/globular_service/lifecycle.go
+    - golang/globular_service/describe_health.go
+    - golang/globular_client/clients.go
+    - golang/globular_client/ClientInterceptors.go
+    - golang/interceptors/ServerInterceptors.go
+
+entries:
+
+  - id: ops.grpc.backbone.ownership
+    type: ARCHITECTURE
+    title: "Backbone ownership split: runtime, client, policy"
+    tags: [always, grpc, architecture]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Globular gRPC backbone has three responsibilities:
+
+      - `globular_service`: service runtime contract (init/start/stop/save, server construction, TLS, health registration).
+      - `globular_client`: client bootstrap, endpoint normalization, TLS dial, readiness checks, reconnect behavior.
+      - `interceptors`: admission/authz/security/audit policy on RPC calls.
+
+      This split is intentional:
+      - services define behavior, not transport policy internals;
+      - clients consume services through shared dial/retry/metadata policy;
+      - interceptors enforce trust and authorization centrally.
+
+  - id: ops.grpc.backbone.service-lifecycle
+    type: DECISION
+    title: "Service lifecycle contract"
+    tags: [always, grpc, lifecycle]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Service lifecycle contract:
+      - `InitService` loads identity/config baselines, desired-state values, TLS paths, and startup runtime snapshot.
+      - `InitGrpcServer` applies standard keepalive, middleware, metrics, health server, and security interceptors.
+      - `StartService` binds, handles port conflict reallocation, starts serve loop, and persists runtime state.
+      - `StopService` gracefully stops gRPC server and marks runtime state accordingly.
+
+      Rules:
+      - do not bypass shared start/stop helpers in service implementations;
+      - do not mutate desired config from runtime observations;
+      - startup fallback behavior must remain explicit and auditable.
+
+  - id: ops.grpc.backbone.client-usage
+    type: DECISION
+    title: "How services use other services via clients"
+    tags: [always, grpc, client, mesh]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      Cross-service calls must use shared client mechanisms:
+      - `globular_client.GetClient(...)` for typed service clients;
+      - centralized address normalization to routable `host:port`;
+      - shared TLS config and readiness probing;
+      - shared client interceptors for metadata (`cluster_id`, `x-call-depth`) and reconnect policy.
+
+      Anti-patterns:
+      - ad hoc gRPC dials without metadata propagation;
+      - direct localhost shortcuts for remote service calls;
+      - service-specific retry loops that bypass shared reconnect policy.
+
+  - id: ops.grpc.backbone.rpc-validation
+    type: ARCHITECTURE
+    title: "RPC validation and enforcement path"
+    tags: [always, grpc, authz, security]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Every RPC traverses interceptor policy:
+      - unauthenticated allowlist for bootstrap/public endpoints (health/login/reflection);
+      - auth context extraction (JWT/mTLS + metadata);
+      - cluster boundary checks (`cluster_id` enforcement after initialization);
+      - call-depth guard (`x-call-depth`) to prevent circular call storms;
+      - RBAC/resource permission evaluation;
+      - audit/security event emission.
+
+      This is the authoritative validation surface for RPC admission.
+      Service handlers must not re-implement parallel ad hoc authorization systems.
+
+      Doctor-enforced invariant linkage:
+      - `grpc.backbone.contract` surfaces runtime-observed regressions in this
+        contract (cluster_id propagation breaks, call-depth loop guard trips,
+        and public probe admission denials).
+
+  - id: ops.grpc.backbone.health-readiness
+    type: REFERENCE
+    title: "Health and readiness semantics"
+    tags: [always, grpc, health, readiness]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Health/readiness are evidence-based, not process-only:
+      - gRPC health service registration is standard in server bootstrap;
+      - readiness combines server init + state + bindability;
+      - operational checks use process/tcp/grpc signals in order;
+      - health probes must not be blocked by normal RBAC controls.
+
+      Operational rule:
+      - "running process" is insufficient proof; grpc/tcp evidence is required for runtime health claims.
+
+  - id: ops.grpc.backbone.config-members
+    type: REFERENCE
+    title: "Why services carry shared config members"
+    tags: [always, grpc, config]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Common service config members (name, id, domain, address, port, tls paths, dependencies,
+      keepalive/update flags, permissions) exist because they are consumed by shared runtime
+      bootstrap and control-plane automation (registration, desired/runtime split, package metadata,
+      lifecycle supervision, and operational tooling).
+
+      Changing semantics of these members is a backbone-level change and must be treated as
+      cross-service architecture migration, not local refactor.

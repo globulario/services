@@ -256,3 +256,9 @@ func TestRenderMinioSystemdOverride_ParityWithController_Distributed(t *testing.
 		t.Errorf("parity: got:\n%q\nwant:\n%q", got, want)
 	}
 }
+
+// Awareness required-test name wrapper for topology render parity invariant.
+func TestTopologyRenderParity(t *testing.T) {
+	TestRenderMinioEnv_ParityWithController_Distributed(t)
+	TestRenderMinioSystemdOverride_ParityWithController_Distributed(t)
+}

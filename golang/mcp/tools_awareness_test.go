@@ -418,3 +418,8 @@ func TestAwarenessApproveProposalDoesNotPromote(t *testing.T) {
 		t.Error("approve_proposal must not set status=PROMOTED")
 	}
 }
+
+// Awareness required-test name wrapper.
+func TestApproveProposalDoesNotPromote(t *testing.T) {
+	TestAwarenessApproveProposalDoesNotPromote(t)
+}

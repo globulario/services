@@ -1,0 +1,142 @@
+schema_version: 1
+file_kind: stage
+metadata:
+  title: "Security system — token, certificate, and key policy"
+  description: |
+    Canonical cluster security policy for credential types and lifecycle boundaries:
+    JWT tokens, internal PKI, external ACME certificates, and private-key handling.
+  source_documents:
+    - docs/operators/security.md
+    - docs/operators/dns-and-pki.md
+    - golang/security/jwt.go
+    - golang/security/tls.go
+    - golang/config/pki_config.go
+    - golang/globularcli/auth_cmds.go
+    - golang/globularcli/root.go
+
+entries:
+
+  - id: ops.security.credential-separation
+    type: ARCHITECTURE
+    title: "Credential separation: token vs certificate vs key"
+    tags: [always, security, auth, pki]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Globular has three distinct credential classes:
+
+      - **JWT token**: short-lived authorization bearer for user/session flows.
+      - **Certificate**: identity assertion anchored in cluster/public trust chain.
+      - **Private key**: signing authority; must remain secret and filesystem-restricted.
+
+      Do not treat these as interchangeable:
+      - token is not machine identity,
+      - certificate is not authorization grant,
+      - private key is never transport metadata.
+
+  - id: ops.security.token-policy
+    type: DECISION
+    title: "Token policy — ephemeral by default, explicit persistence only"
+    tags: [always, security, token, jwt]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [authentication]
+    content: |
+      Token handling policy:
+      - JWT tokens are short-lived and should be used ephemerally.
+      - CLI login must not persist token to disk by default.
+      - Disk persistence is explicit opt-in for constrained automation paths only.
+      - Any persisted token file must be owner-only (`0600`) and treated as secret.
+
+      Operational implications:
+      - Prefer `--token` or ephemeral env injection in CI/runtime automation.
+      - Do not rely on hidden token auto-load from home directory.
+      - Rotate/re-authenticate rather than extending token lifetime excessively.
+
+  - id: ops.security.internal-pki-policy
+    type: DECISION
+    title: "Internal PKI policy — cluster CA is trust anchor for mTLS"
+    tags: [always, security, pki, mtls]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: [cluster-controller, node-agent]
+    content: |
+      Internal service-to-service and control-plane calls rely on mTLS chained to
+      the cluster CA (`/var/lib/globular/pki/ca.crt` with etcd-published CA metadata).
+
+      Rules:
+      - verify issuer and SAN identity for every TLS peer;
+      - no insecure TLS bypass outside explicitly documented bootstrap exceptions;
+      - CLI `--insecure` is explicit operator override only (never implicit default);
+      - CA rotation must follow staged trust migration (never single-step hard replace).
+
+      Explicit insecure exceptions must be opt-in and auditable:
+      - MCP unverified TLS fallback requires `GLOBULAR_MCP_ALLOW_UNVERIFIED_FALLBACK=true`.
+      - Backup destination TLS bypass requires destination option `insecure_skip_verify=true`.
+
+  - id: ops.security.external-cert-policy
+    type: DECISION
+    title: "External certificate policy — ingress/public domains"
+    tags: [always, security, ingress, acme, tls]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [gateway, dns]
+    content: |
+      Public-domain certificates (ACME DNS-01) are ingress-facing certificates used
+      for external HTTPS/SNI flows. They do not replace internal cluster CA authority.
+
+      Rules:
+      - internal mTLS trust stays on cluster CA,
+      - external leaf cert SANs must match served public domains,
+      - DNS delegation/challenge failures are operational readiness issues, not identity overrides.
+
+  - id: ops.security.private-key-policy
+    type: REFERENCE
+    title: "Private-key handling policy"
+    tags: [always, security, keys]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Private-key policy:
+      - never log private key or token content;
+      - never commit keys/tokens in source or runbooks;
+      - enforce owner-only file permissions for private keys;
+      - treat key copy/backup as explicit ceremony with auditability.
+
+      If a key is suspected leaked:
+      - rotate affected key material,
+      - invalidate dependent credentials,
+      - verify cluster trust chain convergence before resuming normal operations.
+
+  - id: ops.security.certificate-rollback-policy
+    type: DECISION
+    title: "Certificate rollback policy — explicit, gated, and reversible"
+    tags: [always, security, pki, rollback, tls]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, node-agent]
+    content: |
+      Certificate rollback is an incident operation, not a convenience operation.
+      It is allowed only when a newer cert/cert-chain rollout causes verified
+      production impact and operator intent is explicit.
+
+      Rules:
+      - do not rollback CA/certificates as first response; diagnose SAN/issuer/chain mismatch first;
+      - do not single-step rollback trust anchors without staged trust validation;
+      - preserve rollback evidence (what changed, why, on which nodes) for auditability.
+
+      Mandatory gates before rollback:
+      - explicit operator approval and incident context;
+      - known-good previous cert/chain identity (issuer + SAN set + validity);
+      - convergence plan covering all impacted nodes and control-plane services.
+
+      Mandatory verification after rollback:
+      - cluster doctor PKI checks are clean (or explicitly waived with reason);
+      - mTLS paths succeed for controller/node-agent/service clients;
+      - ingress/public cert behavior matches expected domain/SAN coverage;
+      - no node remains on mixed unintended trust state.
+
+      Never reopen repository write operations until post-rollback trust convergence
+      is verified across the active cluster.

@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -68,6 +69,7 @@ func (srv *NodeAgentServer) writeBinaryHashMismatchInstalledState(
 
 // applyMu prevents concurrent ApplyPackageRelease calls for the same package.
 var applyMu sync.Mutex
+var embeddedBuildTokenPattern = regexp.MustCompile(`(?i)(?:^|[.+-])b[0-9]+(?:$|[.+-])`)
 
 // installedBinaryPath returns the expected deployed executable path for a package.
 // SERVICE packages use "<name>_server" binaries; INFRASTRUCTURE/COMMAND packages
@@ -114,6 +116,16 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	}
 	if version == "" {
 		return nil, fmt.Errorf("version is required")
+	}
+	if normalized, err := versionutil.NormalizeExact(version); err != nil {
+		return nil, fmt.Errorf("invalid version %q: %w", version, err)
+	} else if embeddedBuildTokenPattern.MatchString(strings.ToLower(normalized)) {
+		return nil, fmt.Errorf("version %q embeds a build token; use build_number as a plain integer field", version)
+	} else {
+		version = normalized
+	}
+	if req.GetBuildNumber() < 0 {
+		return nil, fmt.Errorf("invalid build_number %d: must be >= 0", req.GetBuildNumber())
 	}
 	if platform == "" {
 		platform = runtime.GOOS + "_" + runtime.GOARCH

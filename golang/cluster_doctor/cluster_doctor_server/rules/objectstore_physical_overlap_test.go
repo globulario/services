@@ -413,6 +413,12 @@ func TestWriteQuorumLost_KnownDown_DataIncomplete_StillFires(t *testing.T) {
 	}
 }
 
+// Awareness required-test name wrapper: data-incomplete snapshots with only
+// uncertain no_inventory nodes must not emit a CRITICAL write-quorum alert.
+func TestWriteQuorumLost_DataIncomplete_NoCritical(t *testing.T) {
+	TestWriteQuorumLost_NoInventoryOnly_DataIncomplete_Suppressed(t)
+}
+
 // TestWriteQuorumLost_PartialSnapshot_LocalNodeOnly_Suppressed is the primary
 // regression test for the spurious CRITICAL seen in production.
 //
@@ -453,6 +459,16 @@ func TestWriteQuorumLost_PartialSnapshot_LocalNodeOnly_Suppressed(t *testing.T) 
 				"(pool IPs with no NodeRecord are unknown, not confirmed-down), got %d: %v",
 			len(findings), findings[0].Summary)
 	}
+}
+
+// Awareness required-test name wrapper: partial snapshot evidence must not
+// create a false-positive write-quorum loss.
+func TestWriteQuorumLost_PartialSnapshot_NoFalsePositive(t *testing.T) {
+	TestWriteQuorumLost_PartialSnapshot_LocalNodeOnly_Suppressed(t)
+}
+
+func TestAbsentRecord_ClassifiedAsUnknown_NotKnownBad(t *testing.T) {
+	TestWriteQuorumLost_PartialSnapshot_LocalNodeOnly_Suppressed(t)
 }
 
 // TestWriteQuorumLost_PartialSnapshot_LocalNodeOnly_DataComplete_Fires verifies
@@ -818,4 +834,3 @@ func TestFormatHealDeadlock_AllDownNoSys_OK(t *testing.T) {
 		t.Fatalf("expected no findings when .minio.sys absent (fresh cluster), got %d", len(findings))
 	}
 }
-

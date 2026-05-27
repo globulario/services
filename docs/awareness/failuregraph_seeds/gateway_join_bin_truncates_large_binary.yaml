@@ -15,7 +15,7 @@ signatures:
   - "missing section headers at"
   - "exec format error"
   - node_agent_server file size is exactly 32768 bytes
-  - "/join/bin/" + truncated download (size << expected)
+  - "/join/bin/ download was truncated (size much smaller than expected)"
 
 symptoms:
   - id: SYM-binary_size_32k_exactly

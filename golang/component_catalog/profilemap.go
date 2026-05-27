@@ -27,6 +27,13 @@ import (
 	"strings"
 )
 
+// ProfileInheritance defines implicit profile expansion rules.
+// A control-plane node is always a core node; same for compute.
+var ProfileInheritance = map[string][]string{
+	"control-plane": {"core"},
+	"compute":       {"core"},
+}
+
 // ProfilePackages maps each profile to the set of package names that
 // belong to it. Generated from the controller's catalog (every Component
 // whose Profiles list contains the profile, regardless of Kind — services,
@@ -106,8 +113,7 @@ func ProfileNames() []string {
 // bootstrap should treat it as fatal; idle reconciliation should not).
 func PackagesForProfiles(profiles []string) []string {
 	seen := make(map[string]struct{})
-	for _, p := range profiles {
-		key := strings.ToLower(strings.TrimSpace(p))
+	for _, key := range NormalizeProfiles(profiles) {
 		if key == "" {
 			continue
 		}
@@ -132,4 +138,48 @@ func PackagesForProfiles(profiles []string) []string {
 func HasProfile(profile string) bool {
 	_, ok := ProfilePackages[strings.ToLower(strings.TrimSpace(profile))]
 	return ok
+}
+
+// NormalizeProfiles canonicalizes profile names:
+// - trims whitespace
+// - lowercases
+// - deduplicates
+// - expands inheritance (transitively)
+// - sorts
+func NormalizeProfiles(raw []string) []string {
+	seen := make(map[string]struct{}, len(raw))
+	var out []string
+	var visit func(string)
+	visit = func(name string) {
+		key := strings.ToLower(strings.TrimSpace(name))
+		if key == "" {
+			return
+		}
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		out = append(out, key)
+		for _, inherited := range ProfileInheritance[key] {
+			visit(inherited)
+		}
+	}
+	for _, p := range raw {
+		visit(p)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// UnknownProfiles returns the unknown profile names after canonicalization.
+// It excludes empty/whitespace inputs.
+func UnknownProfiles(raw []string) []string {
+	normalized := NormalizeProfiles(raw)
+	var unknown []string
+	for _, p := range normalized {
+		if !HasProfile(p) {
+			unknown = append(unknown, p)
+		}
+	}
+	return unknown
 }

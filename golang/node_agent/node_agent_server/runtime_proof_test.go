@@ -312,6 +312,11 @@ func TestCollectServiceRuntimeProof_ExecStartFallback_NonConventionalBinary(t *t
 	}
 }
 
+// Awareness required-test name wrapper for installed binary path fallback.
+func TestInstalledBinaryPath_FallsBackToPlainName(t *testing.T) {
+	TestCollectServiceRuntimeProof_ExecStartFallback_NonConventionalBinary(t)
+}
+
 // /proc/<pid> mtime gives nanosecond-precision process start time. The
 // verifier compares it against the controller's millisecond-precision
 // ApplyTime; without finer-grained input from node-agent, systemd's

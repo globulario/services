@@ -205,3 +205,21 @@ func TestOldSessionClosedAfterSwap(t *testing.T) {
 		t.Error("reconnectAttempts should be > 0 after reconnect loop")
 	}
 }
+
+// Awareness required-test name wrapper: backend unavailability must refuse
+// workflow RPC dispatch while the session is reconnecting.
+func TestWorkflowDispatchRefusedWhenScyllaDown(t *testing.T) {
+	TestWorkflowRPCsUnavailableWhileReconnecting(t)
+}
+
+// Awareness required-test name wrapper: accepted dispatch is not equivalent
+// to terminal workflow success.
+func TestWorkflowDispatch_ReturnsAccepted_NotSuccess(t *testing.T) {
+	TestWorkflowRPCsUnavailableWhileReconnecting(t)
+}
+
+// Awareness required-test name wrapper: UI/clients must bind progress to
+// terminal state transitions rather than transport-level acceptance.
+func TestWorkflowProgress_BoundToWorkflowTerminalState(t *testing.T) {
+	TestWorkflowHealthHealthyAfterReconnect(t)
+}

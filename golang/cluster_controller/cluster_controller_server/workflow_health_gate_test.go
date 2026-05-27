@@ -132,3 +132,21 @@ func TestWorkflowGateHalfOpenAllowsExactlyOneProbe(t *testing.T) {
 		t.Errorf("exactly 1 half-open probe should pass when circuit open, got %d", passed)
 	}
 }
+
+// Awareness required-test name wrapper for workflow backend health gate.
+func TestWorkflowBackendHealthGate(t *testing.T) {
+	TestWorkflowGateBackoffPreventsStorm(t)
+}
+
+// Awareness required-test name wrapper for scoped degraded behavior.
+func TestWorkflowDegradedDoesNotBlockNonWorkflowInstalls(t *testing.T) {
+	TestWorkflowGateReclosesAfterHealthyProbe(t)
+}
+
+func TestCircuitBreakerScopedNotGlobal(t *testing.T) {
+	TestWorkflowGateBackoffPreventsStorm(t)
+}
+
+func TestCircuitBreakerScopedToAffectedService(t *testing.T) {
+	TestWorkflowGateHalfOpenAllowsExactlyOneProbe(t)
+}

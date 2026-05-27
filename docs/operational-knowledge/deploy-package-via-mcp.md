@@ -52,7 +52,9 @@ The publish step requires an authenticated token. Get one with:
 globular auth login --user sa --password <sa-password>
 ```
 
-The token is cached at `~/.config/globular/token`. The MCP server (running as `globular`) reads from `/var/lib/globular/.config/globular/token` — write the token there if the MCP publish step fails with "authentication required":
+Token handling is ephemeral by default (login prints token; no implicit disk cache).
+If the MCP publish step fails with "authentication required", pass the token explicitly.
+Only if you must use a token file for the MCP service account, do it explicitly:
 
 ```bash
 TOKEN=$(globular auth login --user sa --password <sa-password> 2>&1 | grep "^Token:" | awk '{print $2}')

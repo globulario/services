@@ -159,19 +159,18 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 			// Empty profiles is a hard error — every node must have a
 			// profile (the architectural invariant enforced cluster-wide
 			// in ResolveNodeIntent).
-			if len(profiles) == 0 {
+			normalized := component_catalog.NormalizeProfiles(profiles)
+			if len(normalized) == 0 {
 				return fmt.Errorf("day0 install_profile_sets: profiles must not be empty (every node must have a profile)")
 			}
-			for _, p := range profiles {
-				if !component_catalog.HasProfile(p) {
-					return fmt.Errorf("day0 install_profile_sets: unknown profile %q (known: %v)", p, component_catalog.ProfileNames())
-				}
+			if unknown := component_catalog.UnknownProfiles(normalized); len(unknown) > 0 {
+				return fmt.Errorf("day0 install_profile_sets: unknown profiles %v (known: %v)", unknown, component_catalog.ProfileNames())
 			}
-			packages := component_catalog.PackagesForProfiles(profiles)
+			packages := component_catalog.PackagesForProfiles(normalized)
 			if len(packages) == 0 {
-				return fmt.Errorf("day0 install_profile_sets: profiles %v resolved to zero packages — catalog/profilemap is in a broken state", profiles)
+				return fmt.Errorf("day0 install_profile_sets: profiles %v resolved to zero packages — catalog/profilemap is in a broken state", normalized)
 			}
-			log.Printf("day0: install_profile_sets profiles=%v → %d packages", profiles, len(packages))
+			log.Printf("day0: install_profile_sets profiles=%v → %d packages", normalized, len(packages))
 			var errs []string
 			for _, pkg := range packages {
 				kind := inferPackageKind(pkg)

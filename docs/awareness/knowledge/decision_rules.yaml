@@ -69,12 +69,12 @@ decision_rules:
     trigger:
       - mcp fails to start
       - port 10260 already in use after upgrade
-      - journald shows "bind: address already in use" for mcp_server
+      - 'journald shows "bind: address already in use" for mcp_server'
     decision: |
       Has ExecStartPre=+/bin/sh -c 'pkill -9 -x mcp_server || true' been added
       to the globular-mcp.service unit file AND its inline spec counterpart?
       If no: add it before attempting manual restart. MUST use -x (process-name
-      match), never -f — `pkill -f` matches the parent shell's argv and self-SIGKILLs.
+      match), never -f. `pkill -f` matches the parent shell's argv and can self-SIGKILL.
     forbidden_if:
       - manually killing mcp_server without adding the ExecStartPre guard
       - assuming a service restart handles the orphan on future upgrades
@@ -167,7 +167,7 @@ decision_rules:
       - INC-2026-0003
     trigger:
       - InfrastructureRelease stuck in FAILED
-      - "version unresolved" for infra service
+      - version unresolved for infra service
       - resolveInfraVersion returns empty string
     decision: |
       Does the service have a ConvergenceResultV1 / installed record written to etcd
@@ -280,7 +280,7 @@ decision_rules:
       - INC-2026-0003
     trigger:
       - MinIO returns SKIP_NO_QUORUM
-      - storage_nodes_below_quorum: N (need 3)
+      - "storage_nodes_below_quorum: N (need 3)"
       - minio inactive on node despite disk available
     decision: |
       How many storage nodes are currently in the cluster?
@@ -324,7 +324,7 @@ decision_rules:
       - calling awareness.decision_context before rebuilding after a YAML edit
       - treating "checked_clean" from a stale graph as evidence of safety
     required_evidence_before:
-      - awareness.session_start returns graph.stale: false
+      - "awareness.session_start returns graph.stale: false"
       - graph build timestamp is AFTER the YAML file's mtime
     required_verification_after:
       - awareness.decision_context for the edited file returns non-empty decision_paths

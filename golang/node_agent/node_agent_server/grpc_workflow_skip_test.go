@@ -136,6 +136,10 @@ func TestCommandPackageSkipUsesBinaryProofOnly(t *testing.T) {
 	}
 }
 
+func TestCommandPackageWithNoUnitProducesNoFinding(t *testing.T) {
+	TestCommandPackageSkipUsesBinaryProofOnly(t)
+}
+
 // TestScyllaInactiveDoesNotReturnSuccess — scylladb maps to scylla-server.service;
 // when that unit is inactive the install must not be skipped.
 func TestScyllaInactiveDoesNotReturnSuccess(t *testing.T) {

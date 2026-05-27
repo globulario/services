@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/globulario/services/golang/component_catalog"
 )
 
 // Sentinel errors for JoinPlan validation.
@@ -16,6 +18,7 @@ var (
 	ErrJoinPlanWrongCluster     = errors.New("join plan is for a different cluster")
 	ErrJoinPlanWrongIdentity    = errors.New("join plan is for a different node identity")
 	ErrJoinPlanNoProfiles       = errors.New("join plan has no assigned profiles")
+	ErrJoinPlanUnknownProfiles  = errors.New("join plan has unknown assigned profiles")
 	ErrJoinPlanMalformedIntent  = errors.New("join plan has malformed etcd join intent")
 	ErrJoinPlanStaleGeneration  = errors.New("join plan controller generation is stale")
 )
@@ -78,6 +81,10 @@ func ValidateJoinPlan(plan *JoinPlan, params JoinPlanValidationParams) error {
 	// An empty profile list indicates the gateway assigned nothing (forbidden).
 	if len(plan.AssignedProfiles) == 0 {
 		return ErrJoinPlanNoProfiles
+	}
+	if unknown := component_catalog.UnknownProfiles(plan.AssignedProfiles); len(unknown) > 0 {
+		return fmt.Errorf("%w: %v (known: %v)",
+			ErrJoinPlanUnknownProfiles, unknown, component_catalog.ProfileNames())
 	}
 
 	// 6. EtcdJoinIntent structural validity.

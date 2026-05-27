@@ -4,9 +4,12 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -33,6 +36,11 @@ func writeTGZ(t *testing.T, path string, entries map[string][]byte) {
 	}
 }
 
+func sha256Hex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
 func TestVerifyTGZ_ApplicationPackage(t *testing.T) {
 	dir := t.TempDir()
 	tgzPath := filepath.Join(dir, "app.tgz")
@@ -41,6 +49,8 @@ func TestVerifyTGZ_ApplicationPackage(t *testing.T) {
 		Type:    "application",
 		Name:    "webadmin",
 		Version: "1.0.0",
+		Platform: "linux_amd64",
+		Publisher: "core@globular.io",
 	}
 	mdata, _ := json.Marshal(manifest)
 
@@ -66,7 +76,7 @@ func TestVerifyTGZ_ApplicationNoBinOK(t *testing.T) {
 	dir := t.TempDir()
 	tgzPath := filepath.Join(dir, "app.tgz")
 
-	manifest := Manifest{Type: "application", Name: "myapp", Version: "2.0.0"}
+	manifest := Manifest{Type: "application", Name: "myapp", Version: "2.0.0", Platform: "linux_amd64", Publisher: "core@globular.io"}
 	mdata, _ := json.Marshal(manifest)
 
 	// Application with no bin/ or specs/ — should be valid.
@@ -85,7 +95,7 @@ func TestVerifyTGZ_ApplicationEmptyContent(t *testing.T) {
 	dir := t.TempDir()
 	tgzPath := filepath.Join(dir, "app.tgz")
 
-	manifest := Manifest{Type: "application", Name: "empty", Version: "1.0.0"}
+	manifest := Manifest{Type: "application", Name: "empty", Version: "1.0.0", Platform: "linux_amd64", Publisher: "core@globular.io"}
 	mdata, _ := json.Marshal(manifest)
 
 	// Only package.json, no content files.
@@ -103,7 +113,7 @@ func TestVerifyTGZ_ServiceStillRequiresBin(t *testing.T) {
 	dir := t.TempDir()
 	tgzPath := filepath.Join(dir, "svc.tgz")
 
-	manifest := Manifest{Name: "gateway", Version: "1.0.0"} // Type defaults to "service"
+	manifest := Manifest{Name: "gateway", Version: "1.0.0", Platform: "linux_amd64", Publisher: "core@globular.io"} // Type defaults to "service"
 	mdata, _ := json.Marshal(manifest)
 
 	// Service package with no bin/ should fail.
@@ -122,7 +132,7 @@ func TestVerifyTGZ_InfrastructurePackage(t *testing.T) {
 	dir := t.TempDir()
 	tgzPath := filepath.Join(dir, "etcd.tgz")
 
-	manifest := Manifest{Type: "infrastructure", Name: "etcd", Version: "3.5.14"}
+	manifest := Manifest{Type: "infrastructure", Name: "etcd", Version: "3.5.14", Platform: "linux_amd64", Publisher: "core@globular.io"}
 	mdata, _ := json.Marshal(manifest)
 
 	// Infrastructure: bin/ required, specs/ NOT required, systemd/ and config/ optional.
@@ -152,7 +162,7 @@ func TestVerifyTGZ_InfrastructureNoBin(t *testing.T) {
 	dir := t.TempDir()
 	tgzPath := filepath.Join(dir, "bad.tgz")
 
-	manifest := Manifest{Type: "infrastructure", Name: "etcd", Version: "3.5.14"}
+	manifest := Manifest{Type: "infrastructure", Name: "etcd", Version: "3.5.14", Platform: "linux_amd64", Publisher: "core@globular.io"}
 	mdata, _ := json.Marshal(manifest)
 
 	// Infrastructure without bin/ should fail.
@@ -171,7 +181,7 @@ func TestVerifyTGZ_TypeDefault(t *testing.T) {
 	dir := t.TempDir()
 	tgzPath := filepath.Join(dir, "svc.tgz")
 
-	manifest := Manifest{Name: "gateway", Version: "1.0.0"} // empty Type → "service"
+	manifest := Manifest{Name: "gateway", Version: "1.0.0", Platform: "linux_amd64", Publisher: "core@globular.io"} // empty Type → "service"
 	mdata, _ := json.Marshal(manifest)
 
 	writeTGZ(t, tgzPath, map[string][]byte{
@@ -217,5 +227,110 @@ func TestVerifyTGZ_AwarenessBundleShapeRejected(t *testing.T) {
 
 	if _, err := VerifyTGZ(tgzPath); err == nil {
 		t.Fatal("VerifyTGZ should reject an awareness bundle (no package.json) — use `awareness bundle publish` instead")
+	}
+}
+
+func TestVerifyTGZ_RejectsEmbeddedBuildTokenInVersion(t *testing.T) {
+	dir := t.TempDir()
+	tgzPath := filepath.Join(dir, "badver.tgz")
+
+	manifest := Manifest{Name: "dns", Version: "1.2.3+b325", Platform: "linux_amd64", Publisher: "core@globular.io"}
+	mdata, _ := json.Marshal(manifest)
+
+	writeTGZ(t, tgzPath, map[string][]byte{
+		"package.json":       mdata,
+		"bin/dns_server":     []byte("binary"),
+		"specs/dns.yaml":     []byte("steps: []"),
+		"config/dns/config":  []byte("x"),
+	})
+
+	_, err := VerifyTGZ(tgzPath)
+	if err == nil || !strings.Contains(err.Error(), "embeds a build token") {
+		t.Fatalf("expected embedded build token error, got %v", err)
+	}
+}
+
+func TestVerifyTGZ_RejectsEntrypointChecksumMismatch(t *testing.T) {
+	dir := t.TempDir()
+	tgzPath := filepath.Join(dir, "badsha.tgz")
+	payload := []byte("binary-v1")
+
+	manifest := Manifest{
+		Name:               "dns",
+		Version:            "1.2.3",
+		Platform:           "linux_amd64",
+		Publisher:          "core@globular.io",
+		Entrypoint:         "bin/dns_server",
+		EntrypointChecksum: "sha256:" + strings.Repeat("a", 64),
+	}
+	mdata, _ := json.Marshal(manifest)
+
+	writeTGZ(t, tgzPath, map[string][]byte{
+		"package.json":   mdata,
+		"bin/dns_server": payload,
+		"specs/dns.yaml": []byte("steps: []"),
+	})
+
+	_, err := VerifyTGZ(tgzPath)
+	if err == nil || !strings.Contains(err.Error(), "entrypoint_checksum mismatch") {
+		t.Fatalf("expected entrypoint checksum mismatch, got %v", err)
+	}
+}
+
+func TestVerifyTGZ_AcceptsEntrypointChecksumMatch(t *testing.T) {
+	dir := t.TempDir()
+	tgzPath := filepath.Join(dir, "goodsha.tgz")
+	payload := []byte("binary-v1")
+
+	manifest := Manifest{
+		Name:               "dns",
+		Version:            "1.2.3",
+		Platform:           "linux_amd64",
+		Publisher:          "core@globular.io",
+		Entrypoint:         "bin/dns_server",
+		EntrypointChecksum: "sha256:" + sha256Hex(payload),
+	}
+	mdata, _ := json.Marshal(manifest)
+
+	writeTGZ(t, tgzPath, map[string][]byte{
+		"package.json":   mdata,
+		"bin/dns_server": payload,
+		"specs/dns.yaml": []byte("steps: []"),
+	})
+
+	if _, err := VerifyTGZ(tgzPath); err != nil {
+		t.Fatalf("expected checksum match to pass, got %v", err)
+	}
+}
+
+func TestVerifyTGZ_RejectsDuplicateSystemdSingletonDirective(t *testing.T) {
+	dir := t.TempDir()
+	tgzPath := filepath.Join(dir, "badsystemd.tgz")
+
+	unit := `[Unit]
+Description=dns
+[Service]
+Type=simple
+Type=forking
+ExecStart=/usr/lib/globular/bin/dns_server
+`
+	manifest := Manifest{
+		Type:      "infrastructure",
+		Name:      "dns",
+		Version:   "1.2.3",
+		Platform:  "linux_amd64",
+		Publisher: "core@globular.io",
+	}
+	mdata, _ := json.Marshal(manifest)
+
+	writeTGZ(t, tgzPath, map[string][]byte{
+		"package.json":                mdata,
+		"bin/dns_server":              []byte("binary"),
+		"systemd/globular-dns.service": []byte(unit),
+	})
+
+	_, err := VerifyTGZ(tgzPath)
+	if err == nil || !strings.Contains(err.Error(), "duplicate singleton directive") {
+		t.Fatalf("expected duplicate systemd directive error, got %v", err)
 	}
 }

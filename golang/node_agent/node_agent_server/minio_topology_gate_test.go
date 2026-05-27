@@ -143,3 +143,8 @@ func TestTopologyGate_MultipleDay1NodesHeld(t *testing.T) {
 		}
 	}
 }
+
+// Awareness required-test name wrapper for objectstore topology contract.
+func TestMinioHeldWhenNodeNotInPool(t *testing.T) {
+	TestTopologyGate_Day1NodeNotAdmitted(t)
+}
