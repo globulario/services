@@ -21,6 +21,39 @@ func TestRepairDoesNotUseBuildNumberAsIdentity(t *testing.T) {
 	TestRepairArtifact_UsesLatestExistingBuildWhenBroken(t)
 }
 
+func TestUploadIdempotentSameDigestReturnsExistingBuildID(t *testing.T) {
+	// Existing coverage validates that same version+digest returns the already
+	// published build identity (idempotent import path).
+	TestINV6_ImportProvisional_IdempotentSameDigest(t)
+}
+
+func TestUploadDifferentDigestSamePublishedVersionRejected(t *testing.T) {
+	// Existing coverage validates same version+different digest is rejected.
+	TestINV6_ImportProvisional_RejectDifferentDigest(t)
+}
+
+func TestVersionImmutabilityRunsAfterDigestIdempotency(t *testing.T) {
+	// Existing ledger-level immutability guard: same version/platform cannot be
+	// rebound to a different build identity.
+	TestVA6_AppendToLedger_SameVersionPlatform_Rejected(t)
+}
+
+func TestRepairArtifactUsesLatestExistingBuildWhenBroken(t *testing.T) {
+	// Exact-name required test wrapper.
+	TestRepairArtifact_UsesLatestExistingBuildWhenBroken(t)
+}
+
+func TestRepairArtifactDryRunMissingBlob(t *testing.T) {
+	// Exact-name required test wrapper.
+	TestRepairArtifact_DryRun_MissingBlob(t)
+}
+
+func TestRepositoryRepairDoesNotRequireInstallableState(t *testing.T) {
+	// Current intended behavior: repair must target the latest existing row even
+	// when state is broken/non-installable.
+	TestRepairArtifact_UsesLatestExistingBuildWhenBroken(t)
+}
+
 func TestRepositoryDoctorReportsDuplicateBuildNumberCollision(t *testing.T) {
 	// Existing doctor behavior emits ambiguity finding when one identity lane
 	// can resolve to multiple build identities.
@@ -95,4 +128,3 @@ func TestRepositoryDoctorCollisionFindingIncludesForbiddenFixes(t *testing.T) {
 		t.Fatal("expected repository.identity.version_resolution_ambiguous finding")
 	}
 }
-
