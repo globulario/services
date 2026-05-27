@@ -102,6 +102,12 @@ entries:
       → Either the finding's tier is not in ai-executor's allowlist, OR ai-executor is
         unhealthy. Inspect ai-executor logs and its action history.
 
+      **Symptom: auto-remediation is rate-limited or escalated and operators need quick visibility**
+      → Check doctor report category counters:
+        - `remediation_gate.cooldown` = findings currently blocked by cooldown window
+        - `remediation_gate.escalated` = findings escalated after repeated cooldown rejects
+      If `remediation_gate.escalated` > 0, operator approval token is required for execution.
+
       **Symptom: same finding-id keeps appearing across many sessions, never closed out**
       → The auto-remediation isn't sufficient OR the underlying invariant isn't being
         addressed. Promote it to a failure_mode in `docs/awareness/failure_modes.yaml` so

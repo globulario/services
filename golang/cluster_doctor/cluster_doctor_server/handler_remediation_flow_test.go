@@ -1,0 +1,100 @@
+package main
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+)
+
+type fakeNodeAgentDialer struct{}
+
+func (f *fakeNodeAgentDialer) SystemctlAction(_ context.Context, nodeID, unit, verb string) (string, error) {
+	return "ok:" + verb + ":" + unit + ":" + nodeID, nil
+}
+
+func (f *fakeNodeAgentDialer) FileDelete(_ context.Context, nodeID, path string) error {
+	_ = nodeID
+	_ = path
+	return nil
+}
+
+func TestExecuteRemediation_EscalationClearsOnApprovalThenReturnsToCooldown(t *testing.T) {
+	withStubbedGatePersistence(t)
+
+	findingID := "finding-remediation-flow"
+	action := &cluster_doctorpb.RemediationAction{
+		ActionType: cluster_doctorpb.ActionType_SYSTEMCTL_RESTART,
+		Risk:       cluster_doctorpb.ActionRisk_RISK_LOW,
+		Params: map[string]string{
+			"unit":    "globular-node-agent.service",
+			"node_id": "node-1",
+		},
+	}
+	key := remediationGateKey(findingID, 0, action.GetActionType())
+	autoRemediationCooldownByTarget.Delete(key)
+	autoRemediationGateByTarget.Delete(key)
+
+	srv := &ClusterDoctorServer{
+		executor: &ActionExecutor{nodeAgentDialer: &fakeNodeAgentDialer{}},
+		lastFindings: []rules.Finding{{
+			FindingID: findingID,
+			Remediation: []*cluster_doctorpb.RemediationStep{{
+				Order:  1,
+				Action: action,
+			}},
+		}},
+	}
+	srv.isAuthoritative.Store(true)
+
+	ctx := context.Background()
+
+	first, err := srv.ExecuteRemediation(ctx, &cluster_doctorpb.ExecuteRemediationRequest{FindingId: findingID, StepIndex: 0})
+	if err != nil {
+		t.Fatalf("first execute failed: %v", err)
+	}
+	if first.GetStatus() != "executed" {
+		t.Fatalf("first execute status=%q, want executed", first.GetStatus())
+	}
+
+	for i := 0; i < autoRemediationEscalationThreshold; i++ {
+		resp, err := srv.ExecuteRemediation(ctx, &cluster_doctorpb.ExecuteRemediationRequest{FindingId: findingID, StepIndex: 0})
+		if err != nil {
+			t.Fatalf("cooldown attempt %d failed: %v", i+1, err)
+		}
+		if i < autoRemediationEscalationThreshold-1 && !strings.Contains(resp.GetReason(), "cooldown active") {
+			t.Fatalf("attempt %d expected cooldown reason, got %q", i+1, resp.GetReason())
+		}
+		if i == autoRemediationEscalationThreshold-1 && !strings.Contains(resp.GetReason(), "operator approval required") {
+			t.Fatalf("attempt %d expected escalation reason, got %q", i+1, resp.GetReason())
+		}
+	}
+
+	approved, err := srv.ExecuteRemediation(ctx, &cluster_doctorpb.ExecuteRemediationRequest{
+		FindingId:     findingID,
+		StepIndex:     0,
+		ApprovalToken: "approved-token",
+	})
+	if err != nil {
+		t.Fatalf("approved execute failed: %v", err)
+	}
+	if approved.GetStatus() != "executed" {
+		t.Fatalf("approved execute status=%q, want executed", approved.GetStatus())
+	}
+	if gate, ok := remediationGateGet(key); ok && gate.Escalated {
+		t.Fatalf("gate should be cleared after approved execution, got %+v", gate)
+	}
+
+	postClear, err := srv.ExecuteRemediation(ctx, &cluster_doctorpb.ExecuteRemediationRequest{FindingId: findingID, StepIndex: 0})
+	if err != nil {
+		t.Fatalf("post-clear execute failed: %v", err)
+	}
+	if !strings.Contains(postClear.GetReason(), "cooldown active") {
+		t.Fatalf("post-clear expected cooldown reason, got %q", postClear.GetReason())
+	}
+	if strings.Contains(postClear.GetReason(), "operator approval required") {
+		t.Fatalf("post-clear should not be escalated immediately, got %q", postClear.GetReason())
+	}
+}
