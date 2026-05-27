@@ -1,0 +1,6 @@
+node	reachable	minio_service_state	configured_endpoints	running_endpoints	format_json_endpoints	includes_10.0.0.102	matches_etcd_contract	safe_to_start
+10.0.0.8	yes	active(running)	4 (from distributed contract)	4 (63,20,8,9)	5	unknown_directly (indirect yes)	no	no
+10.0.0.9	yes	active(running)	unknown (distributed drop-in unreadable)	3 (20,8,9)	5	unknown_directly (indirect yes)	no	no
+10.0.0.20	yes	active(running)	4 (from distributed contract)	4 (63,20,8,9)	5	unknown_directly (indirect yes)	no	no
+10.0.0.63	yes	inactive/crashloop observed	4 (/var/lib/globular/minio/minio.env)	4 target (63,20,8,9)	5 (from fatal log)	likely yes	no	no
+10.0.0.102	no	unknown	unknown	unknown	unknown	yes (node in prior 5-set evidence)	no	no

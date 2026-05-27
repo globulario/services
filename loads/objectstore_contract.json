@@ -1,0 +1,35 @@
+{
+  "source": {
+    "node": "10.0.0.8",
+    "key": "/globular/objectstore/config",
+    "read_at": "2026-05-27T08:05:11-04:00",
+    "method": "sudo etcdctl --endpoints=https://10.0.0.8:2379 ... get -w json"
+  },
+  "contract": {
+    "mode": "distributed",
+    "generation": 1,
+    "endpoint": "10.0.0.63:9000",
+    "nodes": [
+      "10.0.0.63",
+      "10.0.0.20",
+      "10.0.0.8",
+      "10.0.0.9"
+    ],
+    "drives_per_node": 1,
+    "node_paths": {
+      "10.0.0.63": "/mnt/data",
+      "10.0.0.20": "/mnt/data",
+      "10.0.0.8": "/mnt/data",
+      "10.0.0.9": "/mnt/data"
+    },
+    "volumes_hash": "2ca9fe3dfeceafec69df7c971a8ca92383572e84d3c630a1149b7722ad3e9ef9",
+    "credentials_ready": true,
+    "endpoint_ready": true,
+    "written_at": "2026-05-27T08:05:11.313668184-04:00"
+  },
+  "transition_state": {
+    "present": false,
+    "approved_topology_transition": null,
+    "note": "No transition fields found in this key payload."
+  }
+}
