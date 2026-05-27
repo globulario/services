@@ -2,13 +2,35 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"sync"
+	"time"
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+const autoRemediationCooldown = 60 * time.Second
+
+var autoRemediationCooldownByTarget sync.Map // key -> time.Time
+
+func autoRemediationCooldownKey(findingID string, stepIndex uint32, actionType cluster_doctorpb.ActionType) string {
+	return fmt.Sprintf("%s|%s|%d", findingID, actionType.String(), stepIndex)
+}
+
+func allowAutoRemediationNow(key string, now time.Time) (bool, time.Duration) {
+	if v, ok := autoRemediationCooldownByTarget.Load(key); ok {
+		last := v.(time.Time)
+		if elapsed := now.Sub(last); elapsed < autoRemediationCooldown {
+			return false, autoRemediationCooldown - elapsed
+		}
+	}
+	autoRemediationCooldownByTarget.Store(key, now)
+	return true, 0
+}
 
 // ExecuteRemediation runs a structured RemediationAction attached to a
 // previously-seen finding. See executor.go for the allowlist/blocklist
@@ -86,7 +108,8 @@ func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *clust
 	}
 
 	// Approval check.
-	if needs, reason := requiresApproval(action); needs {
+	needsApproval, reason := requiresApproval(action)
+	if needsApproval {
 		if req.GetApprovalToken() == "" {
 			audit.Rejected = true
 			audit.Reason = reason
@@ -108,6 +131,24 @@ func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *clust
 				Executed: false,
 				Status:   "rejected",
 				Reason:   "approval_token invalid",
+				AuditId:  id,
+			}, nil
+		}
+	}
+
+	// Bounded autonomy: even low-risk auto-executable actions must be rate-limited
+	// to prevent tight remediation loops when a finding persists.
+	if !needsApproval && req.GetApprovalToken() == "" && !req.GetDryRun() {
+		cdKey := autoRemediationCooldownKey(findingID, req.GetStepIndex(), action.GetActionType())
+		if ok, wait := allowAutoRemediationNow(cdKey, time.Now()); !ok {
+			reason := "auto-remediation cooldown active (" + wait.Round(time.Second).String() + " remaining)"
+			audit.Rejected = true
+			audit.Reason = reason
+			id := auditRemediation(ctx, audit)
+			return &cluster_doctorpb.ExecuteRemediationResponse{
+				Executed: false,
+				Status:   "rejected",
+				Reason:   reason,
 				AuditId:  id,
 			}, nil
 		}

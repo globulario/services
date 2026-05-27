@@ -3069,3 +3069,29 @@ invariants:
         - service.runtime_identity_unproven
         - installed_state_runtime_mismatch
         - service.unit_inactive_after_join
+
+    - id: remediation.auto_execution_is_rate_limited
+      title: Auto-remediation execution is rate-limited per finding/action
+      severity: high
+      status: active
+      summary: |
+        Low-risk auto-remediations may execute without manual approval, but they must be
+        bounded with a cooldown per finding-step/action key. This prevents tight self-heal
+        loops when a finding persists and preserves operator control for persistent failures.
+      protects:
+        state:
+            - /globular/cluster_doctor/audit/{audit_id}
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+        symbols:
+            - allowAutoRemediationNow
+            - ExecuteRemediation
+      forbidden_fixes:
+        - auto_remediation_without_cooldown
+        - repeated_auto_restart_until_start_limit
+        - bypass_approval_gate_for_medium_high_risk
+      required_tests:
+        - TestAutoRemediationCooldown_AllowsFirstBlocksSecond
+        - TestAutoRemediationCooldown_Expires
+      related_failure_modes:
+        - services.drift_never_escalates

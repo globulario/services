@@ -1,0 +1,32 @@
+id: autonomy.remediation_is_bounded_and_escalates
+level: principle
+title: Autonomous remediation is bounded and escalates on persistence
+intent: Low-risk auto-remediations may run without manual approval, but must be rate-limited and must escalate to operator-driven flow when the same finding persists.
+agent_guidance: Do not implement free-running auto-repair loops. Always enforce cooldown/rate limits on auto paths and preserve explicit approval gates for medium/high risk actions.
+bad_smells:
+- repeated auto-restart loops for same finding
+- no cooldown on auto remediation
+- low-risk path bypasses audit
+- persistent finding never escalates
+activation_triggers:
+- cluster-doctor remediation
+- auto remediation
+- risk low
+- approval gate
+- cooldown
+expressed_by:
+- awareness/remediation_contracts.yaml
+- awareness/invariants.yaml
+related_invariants:
+- remediation.auto_execution_is_rate_limited
+zooms_out_to:
+- operator_action_requires_explain_plan_verify
+zooms_in_to:
+- remediation.must_go_through_workflow
+related_to:
+- workflow.terminal_runs_must_be_bounded
+required_tests:
+- cluster_doctor/cluster_doctor_server:TestAutoRemediationCooldown_AllowsFirstBlocksSecond
+- cluster_doctor/cluster_doctor_server:TestAutoRemediationCooldown_Expires
+- workflow/engine:TestDoctorFindingWorkflow_MissingApproval
+status: seed
