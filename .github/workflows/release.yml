@@ -90,13 +90,30 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          if [[ -n "${{ inputs.version }}" ]]; then
+          EVENT="${{ github.event_name }}"
+          INPUT_VERSION="${{ inputs.version }}"
+          REF_NAME="${GITHUB_REF_NAME}"
+
+          if [[ "${EVENT}" == "workflow_dispatch" ]]; then
+            if [[ -z "${INPUT_VERSION}" ]]; then
+              echo "error: manual Release requires inputs.version (e.g. 1.2.110), got empty input on ref '${REF_NAME}'" >&2
+              exit 1
+            fi
+            VERSION="${INPUT_VERSION}"
+            TAG="v${VERSION}"
+          elif [[ -n "${INPUT_VERSION}" ]]; then
             VERSION="${{ inputs.version }}"
             TAG="v${VERSION}"
           else
-            VERSION="${GITHUB_REF_NAME#v}"
-            TAG="${GITHUB_REF_NAME}"
+            VERSION="${REF_NAME#v}"
+            TAG="${REF_NAME}"
           fi
+
+          if [[ ! "${VERSION}" =~ ^[0-9]+(\.[0-9]+){1,3}([.-][0-9A-Za-z._-]+)?$ ]]; then
+            echo "error: version '${VERSION}' is invalid; expected numeric SemVer-like value (example: 1.2.110)" >&2
+            exit 1
+          fi
+
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "Building platform release: ${VERSION} (${TAG})"
