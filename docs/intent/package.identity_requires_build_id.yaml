@@ -29,4 +29,16 @@ zooms_in_to:
 - desired_hash.is_convergence_identity
 related_to:
 - repository.metadata_is_authority
+required_tests:
+- repository/repository_server:TestVA4_BuildIDIsInstallIdentity_TwoVersionsTwoBuilds
+- repository/repository_server:TestINV3_BuildIdServerGenerated
+- repository/repository_server:TestINV1_ReleasedArtifactImmutable_DifferentDigest
+- repository/repository_server:TestFindExistingArtifactByDigestIgnoresBuildNumber
+- repository/repository_server:TestMigrateBuildIDs_Idempotent
+change_risk:
+- state_model_sensitive
+- supply_chain_sensitive
+violation_patterns:
+- "version.*==.*installed"
+- "drift.*version.*only"
 status: extracted_candidate

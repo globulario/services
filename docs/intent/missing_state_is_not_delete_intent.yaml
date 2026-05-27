@@ -28,4 +28,10 @@ zooms_in_to:
 - delete_requires_explicit_intent_marker
 related_to:
 - etcd.is_source_of_truth
+required_tests:
+- workflow:TestReconcile_OneMissingPackage
+- awareness/extractors/clusterstate:TestConvergenceExtractor_InstalledMissing
+change_risk:
+- state_model_sensitive
+- destructive_action_sensitive
 status: extracted_candidate

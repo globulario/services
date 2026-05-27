@@ -26,4 +26,16 @@ zooms_in_to:
 - backup.provider_results_are_explicit
 related_to:
 - degraded_is_explicit_not_hidden
+required_tests:
+- backup_manager:TestRetention_MinRestoreTestedToKeep
+- backup_manager:TestArtifact_RestoreTestReportRoundTrip
+- backup_manager:TestWriteMainRestoreScript_InsertsPhase1b_BetweenPhase1AndPhase2
+- backup_manager:TestServiceDataForRestore_FilterByService
+- backup_manager:TestServiceDataForRestore_SkipRebuildable
+- backup_manager:TestServiceDataForRestore_IncludeRebuildable
+- backup_manager:TestServiceDataForRestore_CacheNeverRestored
+- backup_manager:TestListArtifacts_FilterByQualityState
+change_risk:
+- data_safety_sensitive
+- recovery_path_sensitive
 status: extracted_candidate

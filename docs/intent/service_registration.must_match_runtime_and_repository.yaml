@@ -25,4 +25,12 @@ zooms_out_to:
 zooms_in_to: []
 related_to:
 - doctor.findings_are_operator_language
+required_tests:
+- cluster_controller:TestComputeServiceProjection_DesiredNotInstalled
+- cluster_controller:TestComputeServiceProjection_AllConverged
+- cluster_controller:TestComputeServiceProjection_PartialRollout
+- cluster_controller:TestRenderServiceConfigsUsesRegistry
+change_risk:
+- state_model_sensitive
+- registration_sensitive
 status: extracted_candidate

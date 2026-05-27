@@ -1058,7 +1058,7 @@ func meshEnabled() bool {
 	conn, err := tls.DialWithDialer(
 		&net.Dialer{Timeout: 500 * time.Millisecond},
 		"tcp", target,
-		&tls.Config{InsecureSkipVerify: true}, //nolint:gosec // probe only, real conn uses proper certs
+		&tls.Config{InsecureSkipVerify: true}, //nolint:gosec // Probe-only: tests Envoy reachability, not identity. Production traffic uses getMeshConn which verifies TLS.
 	)
 	if err != nil {
 		if meshAvail {
@@ -1126,8 +1126,17 @@ func getMeshConn(client Client) (*grpc.ClientConn, error) {
 		if tlsErr != nil {
 			return nil, fmt.Errorf("mesh TLS config: %w", tlsErr)
 		}
-		tcfg.ServerName = ""
-		tcfg.InsecureSkipVerify = true // Envoy cert may not match hostname
+		// Set ServerName to the mesh target hostname so TLS verification
+		// matches the Envoy sidecar certificate's SAN. If the mesh target
+		// is an IP (e.g. 127.0.0.1:443), SAN verification uses the IP
+		// directly. Override via MESH_TLS_SERVER_NAME if the Envoy cert
+		// uses a different identity.
+		// InsecureSkipVerify defaults to false — production traffic is always verified.
+		if override := os.Getenv("MESH_TLS_SERVER_NAME"); override != "" {
+			tcfg.ServerName = override
+		} else if meshHost, _, splitErr := net.SplitHostPort(target); splitErr == nil && meshHost != "" {
+			tcfg.ServerName = meshHost
+		}
 		cc, err = grpc.Dial(target,
 			grpc.WithTransportCredentials(credentials.NewTLS(tcfg)),
 			grpc.WithUnaryInterceptor(clientInterceptor(nil)),

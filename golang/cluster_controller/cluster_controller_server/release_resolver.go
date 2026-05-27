@@ -426,9 +426,10 @@ func (r *ReleaseResolver) dialRepositoryDirect(ctx context.Context, addr string)
 
 	dt := config.ResolveDialTarget(addr)
 	tlsCfg := &tls.Config{
-		ServerName:         dt.ServerName,
-		RootCAs:            pool,
-		InsecureSkipVerify: true, // inter-service direct gRPC — auth via JWT, not cert CN
+		ServerName: dt.ServerName,
+		RootCAs:    pool,
+		// InsecureSkipVerify removed — ServerName from ResolveDialTarget
+		// matches the service certificate SANs (*.globular.internal).
 	}
 
 	// Load mTLS client certificate if available — some auth interceptors

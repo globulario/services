@@ -45,4 +45,15 @@ zooms_in_to:
   - join.token.validation
   - join.ghost.cleanup
 
+required_tests:
+  - cluster_controller:TestEtcdRejoin_RefuseIfSoleMember
+  - cluster_controller:TestEtcdRejoin_TransitionsToInProgress
+  - cluster_controller:TestEtcdRejoin_RefuseIfNotInRejoinState
+  - cluster_controller:TestBootstrap_EtcdRejoin_AdvancesAfterRecovery
+
+change_risk:
+  - security_sensitive
+  - quorum_sensitive
+  - bootstrap_sensitive
+
 status: seed

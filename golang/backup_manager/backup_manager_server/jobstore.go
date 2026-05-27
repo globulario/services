@@ -1,115 +1,121 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
+	"time"
 
 	"github.com/globulario/services/golang/backup_manager/backup_managerpb"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 )
 
-// jobStore persists BackupJob and BackupArtifact records as JSON files.
-type jobStore struct {
-	mu      sync.RWMutex
-	dataDir string
-	jobsDir string
-	artsDir string
-	// deleted tracks job IDs that have been deleted during this process lifetime.
-	// SaveJob refuses to write jobs in this set, preventing zombie resurrection.
-	deleted map[string]struct{}
-}
+const (
+	etcdJobPrefix = "/globular/backup/jobs/"
+	etcdArtPrefix = "/globular/backup/artifacts/"
+	etcdTimeout   = 5 * time.Second
+)
 
-func newJobStore(dataDir string) (*jobStore, error) {
-	s := &jobStore{
-		dataDir: dataDir,
-		jobsDir: filepath.Join(dataDir, "jobs"),
-		artsDir: filepath.Join(dataDir, "artifacts"),
-		deleted: make(map[string]struct{}),
-	}
-	for _, d := range []string{s.jobsDir, s.artsDir} {
-		if err := os.MkdirAll(d, 0755); err != nil {
-			return nil, fmt.Errorf("create dir %s: %w", d, err)
-		}
-	}
-	// Clean up any leftover .tmp files from incomplete atomic writes.
-	// These can cause zombie jobs if they later get renamed to .json.
-	if entries, err := os.ReadDir(s.jobsDir); err == nil {
-		for _, e := range entries {
-			if !e.IsDir() && strings.HasSuffix(e.Name(), ".json.tmp") {
-				_ = os.Remove(filepath.Join(s.jobsDir, e.Name()))
-			}
-		}
-	}
-	return s, nil
+// jobStore persists BackupJob and BackupArtifact records in etcd.
+// All nodes share the same data, so round-robin routing is transparent.
+type jobStore struct {
+	dataDir    string // local filesystem for capsule validation only
+	etcdNewFn  func() (*clientv3.Client, error)
 }
 
 var jsonOpts = protojson.MarshalOptions{Indent: "  "}
 
-// writeMsg atomically writes a protobuf message as JSON.
-// Writes to a .tmp file first, then renames (atomic on same filesystem).
-func writeMsg(path string, msg proto.Message) error {
-	data, err := jsonOpts.Marshal(msg)
-	if err != nil {
-		return err
+func newJobStore(dataDir string, etcdClientFn func() (*clientv3.Client, error)) (*jobStore, error) {
+	// Ensure local dirs still exist for capsule validation
+	for _, d := range []string{
+		filepath.Join(dataDir, "artifacts"),
+	} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			return nil, fmt.Errorf("create dir %s: %w", d, err)
+		}
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return &jobStore{
+		dataDir:   dataDir,
+		etcdNewFn: etcdClientFn,
+	}, nil
 }
 
-func readMsg(path string, msg proto.Message) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	return protojson.Unmarshal(data, msg)
+// etcd returns a short-lived etcd client. Caller must close it.
+func (s *jobStore) etcd() (*clientv3.Client, error) {
+	return s.etcdNewFn()
 }
 
 // --- Jobs ---
 
 func (s *jobStore) SaveJob(job *backup_managerpb.BackupJob) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.deleted[job.JobId]; ok {
-		return nil // job was deleted, refuse to recreate it
+	data, err := jsonOpts.Marshal(job)
+	if err != nil {
+		return fmt.Errorf("marshal job: %w", err)
 	}
-	return writeMsg(filepath.Join(s.jobsDir, job.JobId+".json"), job)
+	cli, err := s.etcd()
+	if err != nil {
+		return fmt.Errorf("etcd client: %w", err)
+	}
+	defer cli.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), etcdTimeout)
+	defer cancel()
+
+	_, err = cli.Put(ctx, etcdJobPrefix+job.JobId, string(data))
+	return err
 }
 
 func (s *jobStore) GetJob(jobID string) (*backup_managerpb.BackupJob, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	job := &backup_managerpb.BackupJob{}
-	if err := readMsg(filepath.Join(s.jobsDir, jobID+".json"), job); err != nil {
+	cli, err := s.etcd()
+	if err != nil {
+		return nil, fmt.Errorf("etcd client: %w", err)
+	}
+	defer cli.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), etcdTimeout)
+	defer cancel()
+
+	resp, err := cli.Get(ctx, etcdJobPrefix+jobID)
+	if err != nil {
 		return nil, err
+	}
+	if len(resp.Kvs) == 0 {
+		return nil, fmt.Errorf("job %s not found", jobID)
+	}
+
+	job := &backup_managerpb.BackupJob{}
+	if err := protojson.Unmarshal(resp.Kvs[0].Value, job); err != nil {
+		return nil, fmt.Errorf("unmarshal job: %w", err)
 	}
 	return job, nil
 }
 
 func (s *jobStore) ListJobs(state backup_managerpb.BackupJobState, planName string, limit, offset uint32) ([]*backup_managerpb.BackupJob, uint32, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	cli, err := s.etcd()
+	if err != nil {
+		return nil, 0, fmt.Errorf("etcd client: %w", err)
+	}
+	defer cli.Close()
 
-	entries, err := os.ReadDir(s.jobsDir)
+	ctx, cancel := context.WithTimeout(context.Background(), etcdTimeout)
+	defer cancel()
+
+	resp, err := cli.Get(ctx, etcdJobPrefix, clientv3.WithPrefix())
 	if err != nil {
 		return nil, 0, err
 	}
 
 	var all []*backup_managerpb.BackupJob
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
-			continue
-		}
+	for _, kv := range resp.Kvs {
 		job := &backup_managerpb.BackupJob{}
-		if err := readMsg(filepath.Join(s.jobsDir, e.Name()), job); err != nil {
+		if err := protojson.Unmarshal(kv.Value, job); err != nil {
+			slog.Warn("skipping corrupt job in etcd", "key", string(kv.Key), "error", err)
 			continue
 		}
 		if state != backup_managerpb.BackupJobState_BACKUP_JOB_STATE_UNSPECIFIED && job.State != state {
@@ -138,67 +144,101 @@ func (s *jobStore) ListJobs(state backup_managerpb.BackupJobState, planName stri
 }
 
 func (s *jobStore) DeleteJob(jobID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	path := filepath.Join(s.jobsDir, jobID+".json")
-	// Remove the main file
-	err := os.Remove(path)
-	// Also remove any leftover .tmp file from writeMsg
-	_ = os.Remove(path + ".tmp")
-	// Record deletion so SaveJob won't resurrect this job
-	s.deleted[jobID] = struct{}{}
+	cli, err := s.etcd()
+	if err != nil {
+		return fmt.Errorf("etcd client: %w", err)
+	}
+	defer cli.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), etcdTimeout)
+	defer cancel()
+
+	_, err = cli.Delete(ctx, etcdJobPrefix+jobID)
 	return err
 }
 
 // --- Artifacts ---
 
 func (s *jobStore) SaveArtifact(art *backup_managerpb.BackupArtifact) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	data, err := jsonOpts.Marshal(art)
+	if err != nil {
+		return fmt.Errorf("marshal artifact: %w", err)
+	}
+	cli, err := s.etcd()
+	if err != nil {
+		return fmt.Errorf("etcd client: %w", err)
+	}
+	defer cli.Close()
 
-	dir := filepath.Join(s.artsDir, art.BackupId)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-	manifestPath := filepath.Join(dir, "manifest.json")
-	if err := writeMsg(manifestPath, art); err != nil {
-		return err
-	}
-	// Compute checksum on the final written bytes and store separately.
-	data, err := os.ReadFile(manifestPath)
+	ctx, cancel := context.WithTimeout(context.Background(), etcdTimeout)
+	defer cancel()
+
+	_, err = cli.Put(ctx, etcdArtPrefix+art.BackupId, string(data))
 	if err != nil {
 		return err
 	}
+
+	// Also write local manifest for capsule validation
+	dir := filepath.Join(s.dataDir, "artifacts", art.BackupId)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		slog.Warn("could not create local artifact dir", "error", err)
+		return nil // etcd write succeeded, local is best-effort
+	}
+	manifestPath := filepath.Join(dir, "manifest.json")
+	if err := os.WriteFile(manifestPath, data, 0644); err != nil {
+		slog.Warn("could not write local manifest", "error", err)
+		return nil
+	}
 	checksum := fmt.Sprintf("%x", sha256.Sum256(data))
-	return os.WriteFile(filepath.Join(dir, "manifest.sha256"), []byte(checksum+"\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "manifest.sha256"), []byte(checksum+"\n"), 0644)
+	return nil
 }
 
 func (s *jobStore) GetArtifact(backupID string) (*backup_managerpb.BackupArtifact, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	art := &backup_managerpb.BackupArtifact{}
-	if err := readMsg(filepath.Join(s.artsDir, backupID, "manifest.json"), art); err != nil {
+	cli, err := s.etcd()
+	if err != nil {
+		return nil, fmt.Errorf("etcd client: %w", err)
+	}
+	defer cli.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), etcdTimeout)
+	defer cancel()
+
+	resp, err := cli.Get(ctx, etcdArtPrefix+backupID)
+	if err != nil {
 		return nil, err
+	}
+	if len(resp.Kvs) == 0 {
+		return nil, fmt.Errorf("artifact %s not found", backupID)
+	}
+
+	art := &backup_managerpb.BackupArtifact{}
+	if err := protojson.Unmarshal(resp.Kvs[0].Value, art); err != nil {
+		return nil, fmt.Errorf("unmarshal artifact: %w", err)
 	}
 	return art, nil
 }
 
 func (s *jobStore) ListArtifacts(planName string, mode backup_managerpb.BackupMode, qualityState backup_managerpb.QualityState, limit, offset uint32) ([]*backup_managerpb.BackupArtifact, uint32, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	cli, err := s.etcd()
+	if err != nil {
+		return nil, 0, fmt.Errorf("etcd client: %w", err)
+	}
+	defer cli.Close()
 
-	entries, err := os.ReadDir(s.artsDir)
+	ctx, cancel := context.WithTimeout(context.Background(), etcdTimeout)
+	defer cancel()
+
+	resp, err := cli.Get(ctx, etcdArtPrefix, clientv3.WithPrefix())
 	if err != nil {
 		return nil, 0, err
 	}
 
 	var all []*backup_managerpb.BackupArtifact
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
+	for _, kv := range resp.Kvs {
 		art := &backup_managerpb.BackupArtifact{}
-		if err := readMsg(filepath.Join(s.artsDir, e.Name(), "manifest.json"), art); err != nil {
+		if err := protojson.Unmarshal(kv.Value, art); err != nil {
+			slog.Warn("skipping corrupt artifact in etcd", "key", string(kv.Key), "error", err)
 			continue
 		}
 		if planName != "" && art.PlanName != planName {
@@ -230,29 +270,47 @@ func (s *jobStore) ListArtifacts(planName string, mode backup_managerpb.BackupMo
 }
 
 func (s *jobStore) DeleteArtifact(backupID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return os.RemoveAll(filepath.Join(s.artsDir, backupID))
+	cli, err := s.etcd()
+	if err != nil {
+		return fmt.Errorf("etcd client: %w", err)
+	}
+	defer cli.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), etcdTimeout)
+	defer cancel()
+
+	_, err = cli.Delete(ctx, etcdArtPrefix+backupID)
+	if err != nil {
+		return err
+	}
+
+	// Also remove local capsule data
+	_ = os.RemoveAll(filepath.Join(s.dataDir, "artifacts", backupID))
+	return nil
 }
 
-// ValidateArtifact checks manifest integrity.
-// When deep=true, it verifies the manifest.json checksum against manifest.sha256.
+// ValidateArtifact checks manifest integrity using local capsule files.
 func (s *jobStore) ValidateArtifact(backupID string, deep bool) (bool, []*backup_managerpb.ValidationIssue) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	var issues []*backup_managerpb.ValidationIssue
-	artDir := filepath.Join(s.artsDir, backupID)
+	artDir := filepath.Join(s.dataDir, "artifacts", backupID)
 	manifestPath := filepath.Join(artDir, "manifest.json")
 
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
-		issues = append(issues, &backup_managerpb.ValidationIssue{
-			Severity: backup_managerpb.BackupSeverity_BACKUP_SEVERITY_ERROR,
-			Code:     "MANIFEST_MISSING",
-			Message:  fmt.Sprintf("cannot read manifest: %v", err),
-		})
-		return false, issues
+		// Try fetching from etcd and writing locally first
+		art, etcdErr := s.GetArtifact(backupID)
+		if etcdErr != nil {
+			issues = append(issues, &backup_managerpb.ValidationIssue{
+				Severity: backup_managerpb.BackupSeverity_BACKUP_SEVERITY_ERROR,
+				Code:     "MANIFEST_MISSING",
+				Message:  fmt.Sprintf("cannot read manifest locally or from etcd: %v / %v", err, etcdErr),
+			})
+			return false, issues
+		}
+		// Write it locally for validation
+		_ = os.MkdirAll(artDir, 0755)
+		data, _ = jsonOpts.Marshal(art)
+		_ = os.WriteFile(manifestPath, data, 0644)
 	}
 
 	art := &backup_managerpb.BackupArtifact{}
@@ -285,7 +343,6 @@ func (s *jobStore) ValidateArtifact(backupID string, deep bool) (bool, []*backup
 			}
 		}
 
-		// Verify capsule directory structure
 		providerDir := filepath.Join(artDir, "provider")
 		payloadDir := filepath.Join(artDir, "payload")
 		if _, err := os.Stat(providerDir); os.IsNotExist(err) {

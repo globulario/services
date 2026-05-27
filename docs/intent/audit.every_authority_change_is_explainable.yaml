@@ -27,4 +27,15 @@ zooms_in_to:
 - security.deny_overrides_allow
 related_to:
 - doctor.findings_are_operator_language
+change_risk:
+- security_boundary_sensitive
+- observability_sensitive
+required_tests:
+- interceptors:TestIntegration_AuditLoggingStructured
+- interceptors:TestIntegration_AuditLogNoDenialSampling
+- repository/repository_server:TestWorkflowReceiptsContainArtifactStateTransitions
+- repository/repository_server:TestSetArtifactState_QuarantineDualStampsPipelineState
+- repository/repository_server:TestSetArtifactState_RevokeDualStampsPipelineState
+- cluster_controller/cluster_controller_server:TestRequestJoin_PendingAttemptIsAuditedButNotActiveNode
+- cluster_doctor/cluster_doctor_server/rules:TestExplicitValidDisableStopsRuntimeAndAuditable
 status: extracted_candidate

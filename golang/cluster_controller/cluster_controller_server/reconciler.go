@@ -280,28 +280,41 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 				continue
 			}
 
-			// Resolve the desired artifact via ReleaseResolver. This:
-			//   1. Resolves build_number=0 to the latest PUBLISHED build for the
-			//      pinned version (so `services desired set <svc> <ver>` without
-			//      --build-number picks up the current build at dispatch time).
-			//   2. Implicitly validates the artifact is PUBLISHED (via
-			//      getLatestPublished filtering) and exists in the repository.
-			// Maintains the truth chain: Repository → Desired → Installed → Runtime.
-			resolver := &ReleaseResolver{
-				RepositoryAddr: repo.Address,
-				ArtifactKind:   repositorypb.ArtifactKind_SERVICE,
-			}
-			resolved, err := resolver.Resolve(ctx, &cluster_controllerpb.ServiceReleaseSpec{
-				PublisherID: defaultPublisherID(),
-				ServiceName: name,
-				Version:     dv.version,
-				BuildNumber: dv.buildNumber,
-				Platform:    r.srv.getNodePlatform(nodeID),
-			})
-			if err != nil {
-				log.Printf("drift-reconciler: skipping node=%s pkg=%s@%s-b%d — resolve failed: %v",
-					nodeID, name, dv.version, dv.buildNumber, err)
-				continue
+			// Resolve the desired artifact. If the desired state is fully
+			// pinned (version + build_number both set), use the persisted
+			// values directly — do not re-resolve from the repository.
+			// This implements desired.build_id_immutable_after_resolution:
+			// once a desired version resolves to a build_id, the
+			// convergence target is immutable until an explicit
+			// desired-state update changes it.
+			var resolved *ResolvedArtifact
+			if dv.version != "" && dv.buildNumber > 0 {
+				// Desired state is fully resolved — skip repository re-resolution.
+				resolved = &ResolvedArtifact{
+					Version:     dv.version,
+					BuildNumber: dv.buildNumber,
+					BuildID:     dv.buildID,
+				}
+			} else {
+				// First resolution or unresolved desired state — resolve
+				// from the repository to pick the latest published artifact.
+				resolver := &ReleaseResolver{
+					RepositoryAddr: repo.Address,
+					ArtifactKind:   repositorypb.ArtifactKind_SERVICE,
+				}
+				var err error
+				resolved, err = resolver.Resolve(ctx, &cluster_controllerpb.ServiceReleaseSpec{
+					PublisherID: defaultPublisherID(),
+					ServiceName: name,
+					Version:     dv.version,
+					BuildNumber: dv.buildNumber,
+					Platform:    r.srv.getNodePlatform(nodeID),
+				})
+				if err != nil {
+					log.Printf("drift-reconciler: skipping node=%s pkg=%s@%s-b%d — resolve failed: %v",
+						nodeID, name, dv.version, dv.buildNumber, err)
+					continue
+				}
 			}
 			// Part 3: Validate desired kind matches repository manifest kind.
 			// A mismatch (e.g. INFRASTRUCTURE in repo but SERVICE in desired)

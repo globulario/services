@@ -48,5 +48,17 @@ related_to:
   - package.identity_requires_build_id
   - reconciliation.must_be_idempotent_and_bounded
 
+required_tests:
+- repository:TestResolveVersionIntentExactAcceptsUpstreamNativeVersion
+- cluster_controller:TestDecideVersionVerdict_BuildIdsDiffer_VersionsDiffer_Mismatch
+- cluster_controller:TestIdentitiesMatch_VersionMismatch
+- awareness/enforce:TestCrossLayerInvariants_DesiredInstalledVersionMismatch
+- awareness/extractors/clusterstate:TestConvergenceExtractor_VersionMismatch
+
+change_risk:
+- state_model_sensitive
+- reconciliation_sensitive
+- version_identity_sensitive
+
 zooms_in_to:
   - desired.build_id_immutable_after_resolution

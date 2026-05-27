@@ -2,7 +2,6 @@ package security
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/globulario/services/golang/config"
@@ -26,22 +25,26 @@ func RequireNodeIdentity() bool {
 }
 
 // configBool reads a boolean flag from the local config (etcd-synced).
-// Falls back to an env var of the same name uppercased with underscores
-// (e.g. "DeprecateSANodeAuth" → DEPRECATE_SA_NODE_AUTH) when the local config
-// is unavailable. This allows override in dev/test environments without etcd.
+//
+// If the local config is unavailable, the flag defaults to false. Env var
+// fallback was removed because it created a shadow truth path for
+// security-critical flags — violating etcd.is_source_of_truth. See intent
+// node: etcd.is_source_of_truth.
 func configBool(key string) bool {
 	cfg, err := config.GetLocalConfig(true)
-	if err == nil {
-		switch v := cfg[key].(type) {
-		case bool:
-			return v
-		case string:
-			return strings.EqualFold(strings.TrimSpace(v), "true")
-		}
+	if err != nil {
+		// etcd config unavailable — default to false rather than consulting
+		// env vars. Log so operators can diagnose missing config.
+		fmt.Printf("security: configBool(%q): local config unavailable (%v), defaulting to false\n", key, err)
+		return false
 	}
-	// Env var fallback: camelCase → UPPER_SNAKE_CASE
-	envKey := camelToUpperSnake(key)
-	return strings.EqualFold(strings.TrimSpace(os.Getenv(envKey)), "true")
+	switch v := cfg[key].(type) {
+	case bool:
+		return v
+	case string:
+		return strings.EqualFold(strings.TrimSpace(v), "true")
+	}
+	return false
 }
 
 // camelToUpperSnake converts a camelCase or PascalCase key to UPPER_SNAKE_CASE.

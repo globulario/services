@@ -24,4 +24,15 @@ zooms_out_to:
 zooms_in_to: []
 related_to:
 - state.repository_desired_installed_runtime
+change_risk:
+- convergence_sensitive
+- state_model_sensitive
+required_tests:
+- cluster_controller/cluster_controller_server:TestInfraDesiredHashConsistency
+- cluster_controller/cluster_controller_server:TestLookupServiceReleaseBuildIDUsesDesiredHash
+- workflow/workflow_server:TestDriftWorkflowUsesDesiredHash
+- cluster_doctor/cluster_doctor_server/rules:TestClusterServicesDrift_EmptyDesiredHash
+- mcp:TestPreflightClassifiesDesiredHashAsMismatch
+- awareness/debugsession:TestDebugSession_DesiredHashMismatch_FindsInvariant
+- awareness/debugsession:TestDebugSession_DesiredHashMismatch_AgentOutputHasRootCausePath
 status: extracted_candidate

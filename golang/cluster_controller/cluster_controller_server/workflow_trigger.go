@@ -33,7 +33,7 @@ func (srv *server) triggerJoinWorkflow(nodeID, agentEndpoint string) {
 		srv.unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(srv.getLeaderCtx(), 30*time.Minute)
 	defer cancel()
 
 	log.Printf("workflow-trigger: connecting to node-agent at %s for node %s", agentEndpoint, nodeID)
@@ -74,7 +74,7 @@ func (srv *server) triggerJoinWorkflow(nodeID, agentEndpoint string) {
 // controller. It advances the node from admitted → workload_ready by
 // polling in-memory node state for convergence conditions.
 func (srv *server) triggerBootstrapWorkflow(nodeID string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(srv.getLeaderCtx(), 30*time.Minute)
 	defer cancel()
 
 	log.Printf("workflow-trigger: starting bootstrap workflow for node %s", nodeID)

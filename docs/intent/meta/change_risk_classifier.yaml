@@ -1,0 +1,162 @@
+# Change-risk classifier for Awareness preflight.
+#
+# Given a list of changed files, returns relevant intent nodes, required
+# tests, forbidden fixes, and known risky patterns. AI agents and CI hooks
+# use this to scope their pre-edit audit.
+#
+# Categories are ordered by blast radius. A file may match multiple categories.
+
+categories:
+
+  security_sensitive:
+    description: Changes to authentication, authorization, RBAC, tokens, or trust boundaries.
+    file_patterns:
+      - rbac/
+      - security/
+      - authentication/
+      - interceptors/
+      - pki
+    symbol_patterns:
+      - ValidateAccess
+      - ValidateAction
+      - deny
+      - allow
+      - token
+      - certificate
+      - bootstrap
+    intent_nodes:
+      - security.deny_overrides_allow
+      - globular.security.ceremony_over_configuration
+      - bootstrap.window_is_not_steady_state_auth
+      - audit.every_authority_change_is_explainable
+
+  state_model_sensitive:
+    description: Changes to desired, installed, or runtime state layers.
+    file_patterns:
+      - installed_state/
+      - cluster_controller/cluster_controller_server/reconcil
+      - cluster_controller/cluster_controller_server/release_
+      - cluster_controller/cluster_controller_server/repair_
+      - node_agent/node_agent_server/heartbeat
+      - node_agent/node_agent_server/installed_services
+    symbol_patterns:
+      - DesiredState
+      - InstalledPackage
+      - BuildID
+      - BuildNumber
+      - desired_hash
+      - convergence
+    intent_nodes:
+      - state.repository_desired_installed_runtime
+      - desired.build_id_immutable_after_resolution
+      - desired_hash.is_convergence_identity
+      - installed_state.owned_by_node_agent
+      - runtime_observation_must_not_mutate_desired
+      - package.identity_requires_build_id
+
+  authority_boundary_sensitive:
+    description: Changes that cross subsystem ownership boundaries.
+    file_patterns:
+      - cluster_controller/cluster_controller_server/convergence_committer
+      - cluster_controller/cluster_controller_server/workflow_trigger
+      - cluster_controller/cluster_controller_server/deploy_control_plane
+      - node_agent/node_agent_server/minio_
+    symbol_patterns:
+      - CommitInstalledPackage
+      - WriteInstalledPackage
+      - setLeader
+      - getLeaderCtx
+      - isLeader
+    intent_nodes:
+      - subsystem.boundaries_define_authority
+      - controller.decides_but_does_not_execute_leaf_work
+      - node_agent.is_executor_not_cluster_brain
+
+  workflow_sensitive:
+    description: Changes to workflow dispatch, execution, or remediation.
+    file_patterns:
+      - workflow/
+      - cluster_controller/cluster_controller_server/remediation_
+      - cluster_doctor/cluster_doctor_server/rules/healer
+      - cluster_doctor/cluster_doctor_server/healer_loop
+    symbol_patterns:
+      - ExecuteWorkflow
+      - StartRun
+      - RecordStep
+      - FinishRun
+      - RunRemediation
+      - healAction
+    intent_nodes:
+      - workflow.source_of_operational_truth
+      - remediation.must_go_through_workflow
+      - workflow.step_receipts_are_evidence
+      - workflow.terminal_runs_must_be_bounded
+
+  reconciliation_sensitive:
+    description: Changes to convergence loops, drift detection, or retry logic.
+    file_patterns:
+      - cluster_controller/cluster_controller_server/reconcil
+      - cluster_controller/cluster_controller_server/release_pipeline
+      - cluster_controller/cluster_controller_server/release_resolver
+    symbol_patterns:
+      - reconcile
+      - drift
+      - resolver.Resolve
+      - context.Background
+      - singleflight
+      - backoff
+    intent_nodes:
+      - reconciliation.must_be_idempotent_and_bounded
+      - circuit_breakers_protect_convergence
+      - reconciler.resolution_must_match_spec
+
+  tls_pki_sensitive:
+    description: Changes to TLS configuration, certificate handling, or PKI.
+    file_patterns:
+      - security/tls
+      - security/bootstrap
+      - globular_client/clients
+      - node_agent/node_agent_server/certificate
+      - config/endpoint_resolver
+    symbol_patterns:
+      - InsecureSkipVerify
+      - insecure_skip_verify
+      - ServerName
+      - tls.Config
+      - x509
+      - SAN
+      - certificate
+    intent_nodes:
+      - dns_pki.explicit_identity_over_convenient_routing
+
+  backup_restore_sensitive:
+    description: Changes to backup, restore, or recovery paths.
+    file_patterns:
+      - backup_manager/
+      - backup_hook/
+    symbol_patterns:
+      - restic
+      - snapshot
+      - restore
+      - recovery_capsule
+    intent_nodes:
+      - backup.must_be_restorable_not_just_taken
+      - backup.provider_results_are_explicit
+      - backup.recovery_capsule_is_independent
+
+  observability_sensitive:
+    description: Changes to metrics, findings, or doctor rules.
+    file_patterns:
+      - cluster_doctor/
+      - workflow/workflow_server/metrics
+      - monitoring/
+    symbol_patterns:
+      - prometheus
+      - Finding
+      - metric
+      - counter
+      - gauge
+    intent_nodes:
+      - observability.must_explain_cause_not_only_metric
+      - doctor.findings_are_operator_language
+      - health.requires_fresh_evidence

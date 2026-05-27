@@ -23,4 +23,20 @@ zooms_out_to:
 zooms_in_to: []
 related_to:
 - globular.security.ceremony_over_configuration
+change_risk:
+- security_boundary_sensitive
+- trust_model_sensitive
+required_tests:
+- repository/repository_server:TestSignaturePolicy_Required_AllowsValidSignature
+- repository/repository_server:TestSignaturePolicy_Required_BlocksMissingSignature
+- repository/repository_server:TestSignaturePolicy_NotRequired_AllowsMissing
+- repository/repository_server:TestSignaturePolicy_RevokedKeyAlwaysBlocks
+- repository/repository_server:TestSignaturePolicy_AllowUnsignedLocalDev
+- repository/repository_server:TestResolver_BlocksMissingRequiredSignature
+- repository/repository_server:TestSignature_ValidTrustedPublisher_AllowsVerify
+- repository/repository_server:TestSignature_MissingSignature
+- repository/repository_server:TestSignature_InvalidSignature_Detected
+- repository/repository_server:TestSignature_RevokedKey_BlocksVerification
+- repository/repository_server:TestSignature_UntrustedPublisher
+- repository/repository_server:TestRollbackCandidate_BlocksRevokedPublisherKey
 status: extracted_candidate

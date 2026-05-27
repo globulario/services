@@ -23,4 +23,14 @@ zooms_out_to:
 zooms_in_to: []
 related_to:
 - audit.every_authority_change_is_explainable
+required_tests:
+- repository:TestDefaultMergeStrategy_PerKind
+- repository:TestResolveConfigEntry_FillsDefaults
+- repository:TestResolveConfigEntry_SecretForcesSensitive
+- repository:TestRecordAndListConfigReceipts
+- repository:TestConfigReceipts_RedactsSecretPath
+- repository:TestConfigReceipts_ConflictFilterReturnsOnlyConflicts
+change_risk:
+- config_sensitive
+- operator_trust_sensitive
 status: extracted_candidate

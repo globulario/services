@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"log/slog"
@@ -98,12 +97,9 @@ func (srv *server) newMinioClient() (*minio.Client, error) {
 	// Cluster DNS dialer for *.globular.internal names + TLS.
 	transport := &http.Transport{DialContext: config.ClusterDialContext}
 	if srv.MinioSecure {
-		tlsCfg := &tls.Config{}
-		if caCert := srv.loadMinioCA(); caCert != nil {
-			pool := caCert
-			tlsCfg.RootCAs = pool
-		} else {
-			tlsCfg.InsecureSkipVerify = true
+		tlsCfg, err := config.MinIOTLSConfig(srv.MinioEndpoint)
+		if err != nil {
+			return nil, fmt.Errorf("MinIO TLS config: %w", err)
 		}
 		transport.TLSClientConfig = tlsCfg
 	}

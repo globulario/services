@@ -1,23 +1,36 @@
 id: installed_state.owned_by_node_agent
 level: principle
-title: Installed state is owned by node-agent observation
-intent: Installed state records what is actually present on a node and is written by the node agent, not inferred by the controller or repository.
-agent_guidance: Do not let the controller write installed truth. Install actors must commit installed state durably before claiming cluster progress.
+title: Installed state is a split-authority model
+intent: >
+  Installed state records what is actually present on a node. The node-agent
+  emits local install evidence (ConvergenceResultV1) via best-effort heartbeat
+  writes. The controller's convergence committer validates this evidence and
+  commits the authoritative InstalledPackage record to etcd. Neither side acts
+  alone: the node-agent observes, the controller validates and commits.
+agent_guidance: >
+  Node-agent emits convergence evidence but does not own the final installed
+  record. The controller validates evidence before committing. Do not let the
+  controller fabricate installed state without node-agent evidence. Do not let
+  the node-agent overwrite controller-committed records (build_id guard).
 bad_smells:
-- controller writes installed state
+- controller fabricates installed state without node-agent evidence
 - install returns success before etcd commit
 - runtime health inferred as install state
 - desired state copied into installed state
+- node-agent overwrites controller-committed build_id record
 activation_triggers:
 - installed state
 - node-agent
 - package registry
 - install result
 - heartbeat
+- convergence committer
 expressed_by:
 - awareness/authority_rules.yaml
 - awareness/subsystem_boundaries.yaml
 - operators/convergence-model.md
+- services/golang/installed_state/installed_state.go
+- services/golang/cluster_controller/cluster_controller_server/convergence_committer.go
 related_invariants:
 - infra.heartbeat_not_desired_authority
 zooms_out_to:
@@ -27,4 +40,21 @@ zooms_in_to:
 - install.result_requires_durable_commit
 related_to:
 - runtime_health.requires_live_observation
-status: extracted_candidate
+required_tests:
+- installed_state:TestWriteInstalledPackage_ControllerOnlyGuard
+- installed_state:TestCommitConvergenceWithInstallPromotion
+- cluster_controller:TestUpgradeDoesNotLoopWhenInstallSucceedsButInstalledStateCommitIsDelayed
+change_risk:
+- state_model_sensitive
+- authority_boundary_sensitive
+exceptions:
+- name: convergence_committer_validates_and_commits
+  description: >
+    Controller commits via convergence_committer after validating node-agent
+    ConvergenceResultV1 evidence. The controller does not fabricate state; it
+    validates evidence before committing the authoritative record.
+  bounded: true
+  permanent: true
+violation_patterns:
+- "controller fabricating InstalledPackage without ConvergenceResultV1 source"
+status: seed

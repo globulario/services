@@ -1,13 +1,21 @@
 id: subsystem.boundaries_define_authority
 level: principle
 title: Subsystem boundaries define ownership and authority
-intent: Each subsystem owns specific state and must not mutate or infer the state owned by another subsystem.
-agent_guidance: Before adding cross-subsystem behavior, identify who owns desired, installed, runtime, artifact, inventory, and remediation authority.
+intent: >
+  Each subsystem owns specific state and must not mutate or infer the state
+  owned by another subsystem. Where authority is shared (e.g. installed state),
+  the split must be explicit: one subsystem observes/emits evidence, the other
+  validates and commits.
+agent_guidance: >
+  Before adding cross-subsystem behavior, identify who owns desired, installed,
+  runtime, artifact, inventory, and remediation authority. Installed state uses
+  a split model: node-agent emits evidence, controller validates and commits.
 bad_smells:
-- controller writes installed state
+- controller fabricates installed state without node-agent evidence
 - node-agent writes desired state
 - repository decides runtime health
 - objectstore infers inventory truth
+- authority split undocumented
 activation_triggers:
 - subsystem boundary
 - ownership
@@ -28,4 +36,8 @@ zooms_in_to:
 - objectstore.topology_requires_contract
 related_to:
 - etcd.is_source_of_truth
-status: extracted_candidate
+required_tests:
+- installed_state:TestWriteInstalledPackage_ControllerOnlyGuard
+- installed_state:TestCommitConvergenceWithInstallPromotion
+- repository:TestGetArtifactVersionsUsesPublishStateColumn
+status: seed

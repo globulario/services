@@ -53,3 +53,17 @@ related_to:
 
 zooms_in_to:
   - workflow.step_receipts_are_evidence
+
+required_tests:
+  - backup_manager/backup_manager_server:TestRetention_PromotedNeverDeleted
+  - backup_manager/backup_manager_server:TestRetention_KeepDays
+  - backup_manager/backup_manager_server:TestRetention_MaxTotalBytes
+  - backup_manager/backup_manager_server:TestRetention_NoPolicyKeepsAll
+  - backup_manager/backup_manager_server:TestRetention_DryRunOutput
+  # test_coverage_gap: no workflow-specific retention pruner test yet
+change_risk:
+  - data_retention_sensitive
+  - scylladb_sensitive
+violation_patterns:
+  - "workflow_runs.*without.*retention"
+  - "unbounded.*accumulation"

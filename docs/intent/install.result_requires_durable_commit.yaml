@@ -24,4 +24,11 @@ zooms_out_to:
 zooms_in_to: []
 related_to:
 - workflow.step_receipts_are_evidence
+required_tests:
+- installed_state:TestWriteConvergenceResultValidationFirst
+- installed_state:TestCommitConvergenceWithInstallValidation
+- awareness/bundlesync:TestSpec7_InstallIsAtomic
+change_risk:
+- state_model_sensitive
+- persistence_sensitive
 status: extracted_candidate

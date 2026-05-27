@@ -1,0 +1,110 @@
+# Audit history schema for intent drift tracking.
+#
+# Each entry records the result of an intent audit pass. This allows
+# Awareness to distinguish new regressions from known gaps, and to
+# track when an intent started or stopped failing.
+#
+# History is append-only. Entries are written by the audit tool after
+# each pass. The most recent entry per intent_id is the current status.
+
+schema:
+  fields:
+    intent_id:
+      type: string
+      description: The intent node being audited.
+    status:
+      type: enum
+      values: [pass, violation, test_coverage_gap, accepted_exception, not_testable]
+      description: Audit result for this intent.
+    previous_status:
+      type: string
+      description: Status from the previous audit (null if first audit).
+    changed_at:
+      type: datetime
+      description: When this status was recorded.
+    pass_id:
+      type: string
+      description: Identifier for the audit pass (e.g. "pass-3", "2026-05-26-fix").
+    files_changed:
+      type: list
+      description: Files that changed since the previous audit.
+    evidence:
+      type: string
+      description: Brief evidence supporting the status.
+    agent_or_author:
+      type: string
+      description: Who ran the audit.
+
+# Seed data from Pass 1-3 audit results.
+history:
+  - intent_id: security.deny_overrides_allow
+    status: pass
+    previous_status: violation
+    changed_at: "2026-05-26"
+    pass_id: pass-1
+    evidence: "deny check moved before sa/owner in validateAccess; 7 tests added"
+    agent_or_author: claude-opus-4.6
+
+  - intent_id: desired.build_id_immutable_after_resolution
+    status: pass
+    previous_status: violation
+    changed_at: "2026-05-26"
+    pass_id: pass-1
+    evidence: "pinned build guard added; resolver skipped when version+buildNumber set; 3 tests"
+    agent_or_author: claude-opus-4.6
+
+  - intent_id: dns_pki.explicit_identity_over_convenient_routing
+    status: pass
+    previous_status: violation
+    changed_at: "2026-05-26"
+    pass_id: pass-1
+    evidence: "InsecureSkipVerify removed from mesh; ServerName set from target; 3 tests"
+    agent_or_author: claude-opus-4.6
+
+  - intent_id: etcd.is_source_of_truth
+    status: pass
+    previous_status: violation
+    changed_at: "2026-05-26"
+    pass_id: pass-1
+    evidence: "env var fallback removed from configBool; 1 test added"
+    agent_or_author: claude-opus-4.6
+
+  - intent_id: installed_state.owned_by_node_agent
+    status: accepted_exception
+    previous_status: violation
+    changed_at: "2026-05-26"
+    pass_id: pass-1
+    evidence: "intent updated to document split-authority model"
+    agent_or_author: claude-opus-4.6
+
+  - intent_id: observability.must_explain_cause_not_only_metric
+    status: pass
+    previous_status: violation
+    changed_at: "2026-05-26"
+    pass_id: pass-1
+    evidence: "workflow_name label added to all counters"
+    agent_or_author: claude-opus-4.6
+
+  - intent_id: reconciliation.must_be_idempotent_and_bounded
+    status: pass
+    previous_status: violation
+    changed_at: "2026-05-26"
+    pass_id: pass-3
+    evidence: "6 leadership-risk contexts fixed with getLeaderCtx; remediation_consumer bounded"
+    agent_or_author: claude-opus-4.6
+
+  - intent_id: remediation.must_go_through_workflow
+    status: accepted_exception
+    previous_status: violation
+    changed_at: "2026-05-26"
+    pass_id: pass-1
+    evidence: "healer direct actions documented as bounded exceptions"
+    agent_or_author: claude-opus-4.6
+
+  - intent_id: workflow.source_of_operational_truth
+    status: accepted_exception
+    previous_status: violation
+    changed_at: "2026-05-26"
+    pass_id: pass-1
+    evidence: "AI remediation wraps restart in workflow audit record; healer exceptions documented"
+    agent_or_author: claude-opus-4.6

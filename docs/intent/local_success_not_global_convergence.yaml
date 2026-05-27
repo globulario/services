@@ -25,4 +25,12 @@ zooms_in_to:
 - install.result_requires_durable_commit
 related_to:
 - workflow.source_of_operational_truth
+required_tests:
+- installed_state:TestCommitConvergenceWithInstallValidation
+- installed_state:TestCommitConvergenceWithInstallPromotion
+- installed_state:TestValidateConvergenceResult
+- awareness/extractors/clusterstate:TestConvergenceExtractor_DesiredInstalledRuntimeOK
+change_risk:
+- state_model_sensitive
+- convergence_sensitive
 status: extracted_candidate

@@ -25,4 +25,21 @@ zooms_in_to:
 - audit.every_authority_change_is_explainable
 related_to:
 - bootstrap.window_is_not_steady_state_auth
+required_tests:
+- rbac/rbac_server:TestDenyOverridesSAAllow
+- rbac/rbac_server:TestSAAllowedWhenNoDeny
+- rbac/rbac_server:TestSAAllowedWhenNoPermissionsExist
+- rbac/rbac_server:TestDenyOverridesOwnerAllow
+- rbac/rbac_server:TestSADenyOnParentPath
+- rbac/rbac_server:TestSALegacyDomainFormat
+- rbac/rbac_server:TestSADifferentPermissionNotDenied
+change_risk:
+- security_sensitive
+violation_patterns:
+- "allow checked before deny"
+- "bareID.*sa.*return true"
+exceptions:
+- name: validateAction_no_deny
+  scope: method-level validateAction
+  reason: validateAction has no deny mechanism — design gap, documented
 status: extracted_candidate

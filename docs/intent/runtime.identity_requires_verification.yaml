@@ -25,4 +25,12 @@ zooms_out_to:
 zooms_in_to: []
 related_to:
 - package.identity_requires_build_id
+required_tests:
+- cluster_doctor:TestOfficialIdentitySealed_NoFindings_Silent
+- cluster_doctor:TestOfficialIdentitySealed_OfficialChecksumMismatch_ErrorFires
+- cluster_doctor:TestOfficialIdentitySealed_NonOfficialMismatch_Silent
+- workflow:TestNodeRepair_ChecksumDriftSuccess
+change_risk:
+- security_sensitive
+- state_model_sensitive
 status: extracted_candidate

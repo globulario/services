@@ -185,7 +185,7 @@ func TestCommitConvergenceWithInstallPromotion(t *testing.T) {
 	// Verify that CommitConvergenceWithInstall sets default timestamps on pkg
 	// before marshal — observable without etcd by checking the validation path.
 	pkg := &node_agentpb.InstalledPackage{
-		NodeId: "n1", Name: "w", Kind: "SERVICE",
+		NodeId: "n1", Name: "w", Kind: "SERVICE", Version: "1.0.0",
 		// UpdatedUnix and InstalledUnix deliberately zero — should be filled in.
 	}
 	result := &ConvergenceResultV1{

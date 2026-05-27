@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"time"
 
@@ -101,10 +102,16 @@ func (srv *server) discoverNodes() []TopologyNode {
 	if err != nil {
 		slog.Warn("could not discover cluster nodes, using local node", "error", err)
 		hostname, _ := os.Hostname()
+		// srv.Address is "host:port" (e.g. "10.0.0.20:10040"); strip
+		// the service port so nodeAgentEndpoint can append :11000.
+		addr := srv.Address
+		if h, _, splitErr := net.SplitHostPort(addr); splitErr == nil {
+			addr = h
+		}
 		return []TopologyNode{{
 			NodeID:   srv.Id,
 			Hostname: hostname,
-			Address:  srv.Address,
+			Address:  addr,
 			Status:   "self",
 		}}
 	}
@@ -113,10 +120,11 @@ func (srv *server) discoverNodes() []TopologyNode {
 
 // listNodesFromController calls the cluster controller's ListNodes RPC.
 func (srv *server) listNodesFromController() ([]TopologyNode, error) {
-	addr := config.ResolveServiceAddr(
-		"cluster_controller.ClusterControllerService",
-		"",
-	)
+	// Use the direct address (host:12000) to bypass the Envoy mesh.
+	// ResolveServiceAddr returns the mesh-routed address (host:443)
+	// which requires TLS — but the controller's native gRPC port is
+	// plaintext and avoids the TLS handshake entirely.
+	addr := config.ResolveControllerDirectAddr()
 	if addr == "" {
 		return nil, fmt.Errorf("cluster controller address not found in etcd")
 	}
@@ -124,7 +132,6 @@ func (srv *server) listNodesFromController() ([]TopologyNode, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Cluster controller runs plain gRPC (no TLS)
 	cc, err := grpc.DialContext(ctx, addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithBlock(),

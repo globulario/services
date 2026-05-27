@@ -27,4 +27,11 @@ zooms_in_to:
 - runtime_health.requires_live_observation
 related_to:
 - workflow.source_of_operational_truth
+required_tests: [] # test_coverage_gap: no direct test for node-agent scope boundary; tests exist in controller/workflow for desired-state ownership
+change_risk:
+- authority_boundary_sensitive
+- state_model_sensitive
+violation_patterns:
+- "node.*agent.*desired.*state.*write"
+- "node.*agent.*cluster.*policy"
 status: extracted_candidate

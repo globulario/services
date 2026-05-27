@@ -47,4 +47,21 @@ zooms_in_to:
   - service.installation_is_not_runtime_truth
   - runtime.identity.requires_proof
 
+change_risk:
+  - state_model_sensitive
+  - convergence_sensitive
+
+required_tests:
+  - awareness/enforce:TestCrossLayer_DesiredInstalledMismatch
+  - awareness/enforce:TestCrossLayer_InstalledWithoutUnit
+  - awareness/enforce:TestCrossLayerInvariants_DesiredInstalledVersionMismatch
+  - awareness/enforce:TestCrossLayerInvariants_InstalledWithoutUnit
+  - awareness/extractors/clusterstate:TestConvergenceExtractor_DesiredInstalledRuntimeOK
+  - awareness/extractors/clusterstate:TestConvergenceExtractor_BuildIDMismatch
+  - awareness/extractors/clusterstate:TestConvergenceExtractor_RuntimeDead
+  - awareness/extractors/clusterstate:TestConvergenceExtractor_InstalledMissing
+  - awareness/extractors/clusterstate:TestConvergenceExtractor_VersionMismatch
+  - awareness/runtime:TestDesiredInstalledMismatchCreatesStateDelta
+  - awareness/analysis/contextnav:TestFalsifiers_DesiredInstalledFamily
+
 status: seed

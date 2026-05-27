@@ -43,5 +43,13 @@ related_to:
   - version_identity.upstream_version_is_package_version
   - state.repository_desired_installed_runtime
 
+required_tests:
+- cluster_controller:TestDriftReconcilerUsesPinnedDesiredBuild
+- cluster_controller:TestPinnedBuildStaysStableAfterNewPublish
+
+change_risk:
+- reconciliation_sensitive
+- state_model_sensitive
+
 zooms_in_to:
   - desired.build_id_immutable_after_resolution

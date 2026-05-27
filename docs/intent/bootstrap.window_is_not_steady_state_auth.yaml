@@ -25,4 +25,16 @@ zooms_in_to:
 - day0_day1_are_repeatable_ceremonies
 related_to:
 - cluster.membership.earned_trust
+required_tests:
+- interceptors:TestIntegration_BootstrapExpires
+- interceptors:TestIntegration_RemoteBootstrapDenied
+- interceptors:TestAcceptance_BootstrapAllowlistMethodsWork
+- rbac/rbac_server:TestPostBootstrap_NormalRBACWorks
+- rbac/rbac_server:TestMgmtProtection_BootstrapBypass
+change_risk:
+- security_sensitive
+- bootstrap_sensitive
+violation_patterns:
+- "bootstrap.*permanent"
+- "bootstrap.*bypass.*RBAC"
 status: extracted_candidate

@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/globulario/services/golang/awareness/intentaudit"
 	"github.com/globulario/services/golang/awareness/preflight"
 	"github.com/globulario/services/golang/awareness/runtime"
 )
@@ -137,6 +138,39 @@ Examples:
 		}
 
 		fmt.Fprint(os.Stdout, out)
+
+		// ── Intent audit preflight (change-risk) ────────────────────────
+		// If files were specified, run the intent change-risk classifier
+		// to surface which intents and tests are relevant.
+		if len(preflightCfg.files) > 0 {
+			intentDir := filepath.Join(repoRoot, "docs", "intent")
+			classifierPath := filepath.Join(intentDir, "meta", "change_risk_classifier.yaml")
+
+			if _, statErr := os.Stat(classifierPath); statErr == nil {
+				rc, rcErr := intentaudit.LoadClassifier(classifierPath)
+				if rcErr == nil {
+					nodes, _ := intentaudit.LoadDir(intentDir)
+					merged := rc.MergedPreflight(preflightCfg.files, nodes)
+					if len(merged.IntentsToAudit) > 0 {
+						fmt.Fprintln(os.Stdout, "")
+						fmt.Fprintln(os.Stdout, "## Intent Audit Preflight")
+						fmt.Fprintf(os.Stdout, "  risk categories: %v\n", merged.RiskCategories)
+						fmt.Fprintf(os.Stdout, "  intents to audit: %v\n", merged.IntentsToAudit)
+						if len(merged.RequiredTests) > 0 {
+							fmt.Fprintf(os.Stdout, "  required tests: %v\n", merged.RequiredTests)
+						}
+						scopeCSV := ""
+						for i, id := range merged.IntentsToAudit {
+							if i > 0 {
+								scopeCSV += ","
+							}
+							scopeCSV += id
+						}
+						fmt.Fprintf(os.Stdout, "  suggested: globular awareness intent-audit --scope %s\n", scopeCSV)
+					}
+				}
+			}
+		}
 
 		return nil
 	},

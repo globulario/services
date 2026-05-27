@@ -26,4 +26,20 @@ zooms_in_to:
 - node_agent.is_executor_not_cluster_brain
 related_to:
 - remediation.must_go_through_workflow
+required_tests: []  # controller has no exec.Command — enforced by make check-services
+change_risk:
+- authority_boundary_sensitive
+- workflow_sensitive
+violation_patterns:
+- "exec.Command in cluster_controller"
+- "os/exec import in cluster_controller"
+- "systemctl in controller non-comment code"
+exceptions:
+- name: convergence_committer_installed_state
+  description: >
+    Controller commits installed state via convergence_committer after
+    validating node-agent ConvergenceResultV1 evidence.
+  see: installed_state.owned_by_node_agent
+  bounded: true
+  permanent: true
 status: extracted_candidate

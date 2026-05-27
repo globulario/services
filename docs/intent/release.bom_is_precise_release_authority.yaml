@@ -24,4 +24,17 @@ zooms_out_to:
 zooms_in_to: []
 related_to:
 - day0_day1_are_repeatable_ceremonies
+required_tests:
+- repository:TestVA1_V2BOM_PlatformReleaseIsMetadataNotVersion
+- repository:TestVA1_V2BOM_PlatformReleaseFieldIsOnTopLevelOnly
+- repository:TestValidateReleaseIndex_V1_Valid
+- repository:TestValidateReleaseIndex_MissingReleaseTag
+- repository:TestValidateReleaseIndex_EntryMissingVersion
+- repository:TestReleaseIndexV2InstallRejectsMissingBuildID
+- repository:TestScenarioD_ReleaseIndexPin_ResolveByBuildIDIsDeterministic
+- mcp:TestLoadReleaseIndexBOMShape
+- mcp:TestLoadReleaseIndexBOMShapePrefersCanonicalName
+change_risk:
+- state_model_sensitive
+- bootstrap_sensitive
 status: extracted_candidate

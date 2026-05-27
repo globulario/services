@@ -314,7 +314,7 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	logger.Info("executor: starting workflow",
 		"workflow", req.WorkflowName, "run_id", runID,
 		"actors", fmt.Sprintf("%v", mapKeys(req.ActorEndpoints)))
-	srv.metricsRunStart(runID, time.Now())
+	srv.metricsRunStart(runID, req.WorkflowName, time.Now())
 
 	logger.Info("executor: engine.Execute starting", "run_id", runID, "steps", len(def.Spec.Steps))
 	run, execErr := eng.Execute(ctx, def, inputs)

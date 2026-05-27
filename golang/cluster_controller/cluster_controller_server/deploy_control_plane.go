@@ -112,8 +112,9 @@ func (srv *server) DeployControlPlanePackage(ctx context.Context, req *cluster_c
 	}
 
 	// ── Dispatch async — don't block the RPC ──
+	// Use leader-scoped context so the deploy stops if leadership is lost.
 	go func() {
-		err := srv.RunControllerDeployWorkflow(context.Background(), pkgName, pkgKind, version, resolvedBuild)
+		err := srv.RunControllerDeployWorkflow(srv.getLeaderCtx(), pkgName, pkgKind, version, resolvedBuild)
 		if err != nil {
 			log.Printf("deploy-control-plane: workflow FAILED for %s@%s+%d: %v", pkgName, version, resolvedBuild, err)
 		} else {

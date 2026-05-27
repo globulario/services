@@ -25,4 +25,17 @@ zooms_in_to:
 - release.bom_is_precise_release_authority
 related_to:
 - package.identity_requires_build_id
+required_tests:
+- repository/repository_server:TestDeriveUpstreamBuildID_Deterministic
+- repository/repository_server:TestDeriveUpstreamBuildID_DifferentInputs
+- repository/repository_server:TestNormalizeReleaseEntry_ChannelFallsBackToSource
+- repository/repository_server:TestUpstreamFallbackAllowed_NoUpstreamImport
+- repository/repository_server:TestUpstreamFallbackAllowed_MissingChecksum
+- repository/repository_server:TestScenarioA_DuplicateUpstreamPackage_DedupesWithAlias
+- repository/repository_server:TestScenarioB_UpstreamBuildIDReuseRejected
+change_risk:
+- supply_chain_sensitive
+violation_patterns:
+- "github.*only.*upstream"
+- "provider.*hardcode"
 status: extracted_candidate

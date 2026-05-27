@@ -6,14 +6,11 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -472,7 +469,7 @@ func (srv *server) ensureMinioClient() error {
 	// Cluster DNS dialer for *.globular.internal names.
 	transport := &http.Transport{DialContext: config.ClusterDialContext}
 	if cfg.Secure {
-		tlsCfg, err := buildMinioTLSConfig(cfg)
+		tlsCfg, err := config.MinIOTLSConfig(cfg.Endpoint)
 		if err != nil {
 			return fmt.Errorf("build minio TLS config: %w", err)
 		}
@@ -490,27 +487,6 @@ func (srv *server) ensureMinioClient() error {
 	return nil
 }
 
-// buildMinioTLSConfig returns a *tls.Config for the MinIO endpoint.
-// For loopback endpoints with no CA bundle, InsecureSkipVerify is used
-// (acceptable because traffic is local-only).
-func buildMinioTLSConfig(cfg *config.MinioProxyConfig) (*tls.Config, error) {
-	// Loopback endpoints always skip verification — traffic is local-only and
-	// after a backup restore the CA may not match MinIO's current cert.
-	host, _, _ := net.SplitHostPort(cfg.Endpoint)
-	if host == "127.0.0.1" || host == "::1" || host == "localhost" {
-		return &tls.Config{InsecureSkipVerify: true}, nil //nolint:gosec // loopback only
-	}
-	if cfg.CABundlePath != "" {
-		caCert, err := os.ReadFile(cfg.CABundlePath)
-		if err != nil {
-			return nil, fmt.Errorf("read CA bundle %q: %w", cfg.CABundlePath, err)
-		}
-		pool := x509.NewCertPool()
-		pool.AppendCertsFromPEM(caCert)
-		return &tls.Config{RootCAs: pool}, nil
-	}
-	return nil, nil
-}
 
 func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
 	// etcd-only — no env vars, no disk contracts, no loopback.

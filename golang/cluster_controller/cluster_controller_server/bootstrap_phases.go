@@ -408,7 +408,7 @@ func requiredBootstrapInfraPackages(node *nodeState, poolNodes []string) []strin
 			continue
 		}
 		// Non-pool-member nodes correctly hold MinIO inactive; skip the runtime
-		// check so bootstrap is not permanently blocked at envoy_ready.
+		// check so bootstrap is not blocked at envoy_ready.
 		if name == "minio" {
 			if node.MinioJoinPhase == MinioJoinNonMember {
 				continue

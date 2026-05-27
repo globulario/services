@@ -25,4 +25,16 @@ zooms_in_to:
 - rollback.must_be_operator_chosen
 related_to:
 - backup.must_be_restorable_not_just_taken
+required_tests:
+- repository/repository_server:TestListRollbackCandidates_PicksPreviousAndEvaluates
+- repository/repository_server:TestListRollbackCandidates_RevokedNotEligible
+- repository/repository_server:TestRollbackCandidate_BlocksRevokedPublisherKey
+- globularcli:TestRunReleaseRollback
+- globularcli:TestRunReleaseRollbackRequiresTarget
+change_risk:
+- deployment_sensitive
+- state_model_sensitive
+violation_patterns:
+- "auto.*rollback.*on.*fail"
+- "previous.*version.*on.*error"
 status: extracted_candidate

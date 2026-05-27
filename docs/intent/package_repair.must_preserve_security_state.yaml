@@ -24,4 +24,17 @@ zooms_in_to:
 - repository.signature_policy_gates_trust
 related_to:
 - degraded_is_explicit_not_hidden
+change_risk:
+- security_boundary_sensitive
+- data_safety_sensitive
+required_tests:
+- repository/repository_server:TestRevokedArtifactNotAutoRepaired
+- repository/repository_server:TestRepairArtifact_RevokedNotRepaired
+- repository/repository_server:TestRepairArtifact_DryRun_MissingBlob
+- repository/repository_server:TestQuarantinedArtifactNotInstallable
+- repository/repository_server:TestIsTransitionAllowed_RepairChain
+- repository/repository_server:TestPublishedMetadataMissingBlobBecomesBrokenAndRepairs
+- repository/repository_server:TestPublishedMetadataChecksumMismatchBecomesBrokenAndRepairs
+- repository/repository_server:TestTrustModel_S2_BlobMissing_UpstreamRepairs
+- repository/repository_server:TestRepairArtifactFromUpstream_RebuildsMissingBlob
 status: extracted_candidate

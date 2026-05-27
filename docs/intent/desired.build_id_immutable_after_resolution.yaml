@@ -26,4 +26,18 @@ zooms_in_to:
 - desired_hash.is_convergence_identity
 related_to:
 - etcd.is_source_of_truth
+required_tests:
+- cluster_controller:TestDriftReconcilerUsesPinnedDesiredBuild
+- cluster_controller:TestPinnedBuildSkipsRepoKindCheck
+- cluster_controller:TestPinnedBuildStaysStableAfterNewPublish
+change_risk:
+- state_model_sensitive
+- reconciliation_sensitive
+runtime_evidence:
+  etcd_keys:
+  - /globular/resources/ServiceDesiredVersion/{service}
+  checks:
+  - build_id must not change between consecutive reconciliation cycles unless an explicit desired-state update occurred
+violation_patterns:
+- "resolver.Resolve called when buildNumber > 0"
 status: extracted_candidate

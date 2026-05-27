@@ -334,7 +334,7 @@ func (srv *server) Init() error {
 	if err := os.MkdirAll(srv.DataDir, 0755); err != nil {
 		return fmt.Errorf("create data dir %s: %w", srv.DataDir, err)
 	}
-	srv.store, err = newJobStore(srv.DataDir)
+	srv.store, err = newJobStore(srv.DataDir, srv.etcdClient)
 	if err != nil {
 		return fmt.Errorf("init job store: %w", err)
 	}

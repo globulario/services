@@ -56,4 +56,21 @@ zooms_in_to:
   - health.requires_fresh_evidence
   - circuit_breakers_protect_convergence
 
+required_tests:
+  - repository/repository_server:TestT6_MinioDown_ServiceModeDegraded
+  - repository/repository_server:TestGetRepositoryStatus_NilWatchdog_ReturnsDegraded
+  - repository/repository_server:TestServiceMode_PreInit_ReturnsDegraded
+  - cluster_controller/cluster_controller_server:TestDetectInfraDrift_UnitInactive_DowngradesToDegraded
+  - cluster_controller/cluster_controller_server:TestDetectInfraDrift_HashDrift_DowngradesToDegraded
+  - cluster_controller/cluster_controller_server:TestHasUnservedNodes_DegradedNode_IsUnserved
+  - cluster_controller/cluster_controller_server:TestBuildObjectStore_NilCredentials_PublishesDegradedContract
+  - node_agent/node_agent_server:TestCollectServiceRuntimeProof_SystemctlShowError_DegradedNotFatal
+  - workflow/engine:TestReconcile_OneDegradedNode
+change_risk:
+  - health_sensitive
+  - observability_sensitive
+violation_patterns:
+  - "error.*swallowed.*default"
+  - "unknown.*rendered.*healthy"
+
 status: seed

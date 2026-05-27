@@ -5,11 +5,8 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -508,7 +505,7 @@ func (srv *server) ensureMinioClient() error {
 	// resolve via Globular DNS (system resolver has no knowledge of them).
 	transport := &http.Transport{DialContext: config.ClusterDialContext}
 	if cfg.Secure {
-		tlsCfg, err := buildMinioTLSConfig(cfg)
+		tlsCfg, err := config.MinIOTLSConfig(cfg.Endpoint)
 		if err != nil {
 			return fmt.Errorf("build minio TLS config: %w", err)
 		}
@@ -525,52 +522,6 @@ func (srv *server) ensureMinioClient() error {
 	return nil
 }
 
-// buildMinioTLSConfig returns a tls.Config for the MinIO endpoint.
-// If CABundlePath is set, it is loaded for server-cert verification.
-// For loopback endpoints with no CA bundle, InsecureSkipVerify is used
-// (acceptable because traffic is local-only).
-func buildMinioTLSConfig(cfg *config.MinioProxyConfig) (*tls.Config, error) {
-	// Loopback or same-host endpoints skip verification — MinIO is always
-	// co-located on the same node, traffic never leaves the machine.
-	host, _, _ := net.SplitHostPort(cfg.Endpoint)
-	if host == "127.0.0.1" || host == "::1" || host == "localhost" || isLocalIP(host) {
-		return &tls.Config{InsecureSkipVerify: true}, nil //nolint:gosec // local only
-	}
-	caPath := cfg.CABundlePath
-	if caPath == "" {
-		// Fallback: try the well-known cluster CA path. Without this,
-		// secure connections to MinIO fail with "certificate signed by
-		// unknown authority" when the etcd config doesn't include caBundlePath.
-		const defaultCAPath = "/var/lib/globular/pki/ca.pem"
-		if _, err := os.Stat(defaultCAPath); err == nil {
-			caPath = defaultCAPath
-		}
-	}
-	if caPath != "" {
-		caCert, err := os.ReadFile(caPath)
-		if err != nil {
-			return nil, fmt.Errorf("read CA bundle %q: %w", caPath, err)
-		}
-		pool := x509.NewCertPool()
-		pool.AppendCertsFromPEM(caCert)
-		return &tls.Config{RootCAs: pool}, nil
-	}
-	return nil, nil
-}
-
-// isLocalIP checks if the given IP belongs to this machine's network interfaces.
-func isLocalIP(ip string) bool {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return false
-	}
-	for _, a := range addrs {
-		if ipNet, ok := a.(*net.IPNet); ok && ipNet.IP.String() == ip {
-			return true
-		}
-	}
-	return false
-}
 
 func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
 	// etcd is the only source of truth. No env vars, no disk contracts, no

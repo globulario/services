@@ -1020,10 +1020,13 @@ func reallocatePort(s Service, oldPort int) (int, error) {
 		host = addr
 	}
 	// Fall back to the real node IP rather than loopback.
+	// Intent: degraded_is_explicit_not_hidden — never silently register
+	// a loopback address that hides a real network problem.
 	if host == "" || host == "localhost" || host == "127.0.0.1" || host == "::1" {
 		if ip, ipErr := Utility.GetPrimaryIPAddress(); ipErr == nil && ip != "" {
 			host = ip
 		} else {
+			slog.Warn("primary IP discovery failed; service address will use loopback — cluster routing will be degraded")
 			host = "localhost"
 		}
 	}

@@ -45,4 +45,26 @@ zooms_in_to:
   - desired_state.is_authority
   - degraded_is_explicit_not_hidden
 
+required_tests:
+  - globular_service:TestSecurityFlagsDoNotFallbackToEnvInProduction
+
+change_risk:
+  - state_model_sensitive
+  - security_sensitive
+
+violation_patterns:
+  - "os\\.Getenv.*service.config"
+  - "hardcoded.*address.*:1[0-9]{4}"
+
+exceptions:
+  - name: GLOBULAR_STATE_DIR
+    scope: process-level
+    reason: Process-level override for state directory path, not cluster configuration
+  - name: NOTIFY_SOCKET_WATCHDOG_USEC
+    scope: systemd integration
+    reason: NOTIFY_SOCKET and WATCHDOG_USEC are systemd integration variables, not cluster config
+  - name: MESH_TLS_SERVER_NAME
+    scope: explicit escape hatch
+    reason: Explicit escape hatch for TLS server name override in mesh connections
+
 status: seed

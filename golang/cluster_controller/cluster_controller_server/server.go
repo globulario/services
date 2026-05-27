@@ -162,7 +162,10 @@ type server struct {
 	leaderID                   atomic.Value
 	leaderAddr                 atomic.Value
 	leaderEpoch                atomic.Int64
-	resignCh                   chan struct{} // signal leader election to resign
+	leaderCtx                  context.Context    // cancelled when leadership is lost
+	leaderCancel               context.CancelFunc // called by setLeader(false, ...)
+	leaderCtxMu                sync.Mutex         // guards leaderCtx/leaderCancel
+	resignCh                   chan struct{}       // signal leader election to resign
 	lastHeartbeatProcessed     atomic.Int64  // UnixNano of last successful ReportNodeStatus
 	reconcileRunning           atomic.Bool
 	clusterReconcileRunning    atomic.Bool
@@ -757,6 +760,23 @@ func (srv *server) setLeader(isLeader bool, id, addr string) {
 	srv.leader.Store(isLeader)
 	srv.leaderID.Store(id)
 	srv.leaderAddr.Store(addr)
+
+	srv.leaderCtxMu.Lock()
+	if isLeader {
+		// Create a new leader-scoped context. All leader-only goroutines
+		// must derive from this context so they stop when leadership is lost.
+		ctx, cancel := context.WithCancel(context.Background())
+		srv.leaderCtx = ctx
+		srv.leaderCancel = cancel
+	} else {
+		// Cancel the leader context — all leader-scoped goroutines will
+		// observe ctx.Done() and stop.
+		if srv.leaderCancel != nil {
+			srv.leaderCancel()
+		}
+	}
+	srv.leaderCtxMu.Unlock()
+
 	if !isLeader {
 		srv.leaderEpoch.Store(0) // clear epoch on demotion
 		// Cancel all in-flight workflow goroutines. After demotion, this
@@ -849,6 +869,22 @@ func (srv *server) writeRoutingRefresh() {
 	} else {
 		log.Printf("leader: wrote routing refresh (epoch=%d)", epoch)
 	}
+}
+
+// getLeaderCtx returns the current leader-scoped context. It is cancelled
+// when leadership is lost. Leader-only goroutines must derive their context
+// from this rather than context.Background() to ensure they stop on resign.
+// Returns a cancelled context if not currently leader.
+func (srv *server) getLeaderCtx() context.Context {
+	srv.leaderCtxMu.Lock()
+	ctx := srv.leaderCtx
+	srv.leaderCtxMu.Unlock()
+	if ctx == nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // immediately cancelled — not leader
+		return ctx
+	}
+	return ctx
 }
 
 // requireLeader returns nil if this instance is the active leader.
@@ -1068,7 +1104,7 @@ func (srv *server) removeStaleNodesLocked(newNodeID string, newIdentity storedId
 			hostID := stale.ScyllaHostID
 			ips := append([]string(nil), stale.Identity.Ips...)
 			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				ctx, cancel := context.WithTimeout(srv.getLeaderCtx(), 5*time.Minute)
 				defer cancel()
 				if err := srv.removeNodeFromScyllaRing(ctx, staleID, hostID, ips); err != nil {
 					log.Printf("removeStaleNodesLocked: scylla ring cleanup for %s: %v", staleID, err)

@@ -151,6 +151,17 @@ jobs:
             jq '.invalid_shapes[]' ../.awareness/graph-integrity-report.json
           fi
 
+      - name: Intent audit (architecture regression check)
+        # Runs the intent-vs-code audit engine. Fails on real violations only.
+        # Test coverage gaps are not fatal yet — too many intent nodes lack
+        # required_tests metadata. Use --fail-on gap once coverage stabilizes.
+        run: |
+          ./bin/globular awareness intent-audit \
+            --fail-on violation \
+            --history /tmp/intent-audit-history.jsonl \
+            --format text
+          echo "::notice::Intent audit passed — no violations"
+
       - name: Awareness semantic-diff authority gate
         # P1-6: catches authority-crossing patches (Repository → Desired →
         # Installed → Runtime) merging without strong awareness coverage.

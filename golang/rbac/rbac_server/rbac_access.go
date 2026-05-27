@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
@@ -300,12 +301,6 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 		return false
 	}
 
-	// Test if the user is the sa (bare "sa" or legacy "sa@domain")
-	if subjectType == rbacpb.SubjectType_ACCOUNT && bareID(subject) == "sa" {
-		fmt.Println("Subject is service account, allowing access")
-		return true
-	}
-
 	permissions, err := srv.getResourcePermissions(path)
 	if err == nil {
 		if permissions.Allowed != nil {
@@ -408,24 +403,27 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 }
 
 func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-	// Fast path: the system account (sa) always has full access.
-	// This check runs BEFORE validateSubject so it does not depend on the
-	// Resource service being reachable.  It handles both bare "sa" and the
-	// legacy "sa@domain" format.
-	if subjectType == rbacpb.SubjectType_ACCOUNT && bareID(subject) == "sa" {
-		return true, false, nil
-	}
+	// Validate subject first. For sa we attempt validation but allow
+	// fallthrough if the Resource service is unreachable — sa must work
+	// even during bootstrap.
+	isSA := subjectType == rbacpb.SubjectType_ACCOUNT && bareID(subject) == "sa"
 
-	subject, err := srv.validateSubject(subject, subjectType)
+	validatedSubject, err := srv.validateSubject(subject, subjectType)
 	if err != nil {
-		return false, false, err
+		if !isSA {
+			return false, false, err
+		}
+		// sa may not be resolvable during bootstrap; use bare id
+		validatedSubject = bareID(subject)
 	}
+	subject = validatedSubject
 
 	if len(path) == 0 {
 		return false, false, errors.New("no path was given to validate access for suject " + subject)
 	}
 
-	// .hidden and HLS chunk policy
+	// .hidden and HLS chunk policy — these are structural bypasses,
+	// not subject-based, so they run before deny checks.
 	if strings.Contains(path, "/.hidden/") {
 		return true, false, nil
 	}
@@ -436,7 +434,24 @@ func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType
 		}
 	}
 
-	// owners have full access
+	// --- DENY FIRST (security.deny_overrides_allow) ---
+	// Explicit deny overrides ALL subjects, including sa and owners.
+	if isDenied := srv.validateAccessDenied(subject, subjectType, name, path); isDenied {
+		if isSA {
+			slog.Warn("sa account explicitly denied",
+				"permission", name, "path", path)
+		}
+		return false, true, nil
+	}
+
+	// sa fast path: if no explicit deny was found, sa has full access.
+	if isSA {
+		slog.Info("sa account RBAC bypass (no deny rule matched)",
+			"permission", name, "path", path)
+		return true, false, nil
+	}
+
+	// owners have full access (deny was already checked above)
 	if srv.isOwner(subject, subjectType, path) {
 		return true, false, nil
 	} else if name == "owner" {
@@ -461,11 +476,6 @@ func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType
 			}
 		}
 		return false, false, nil
-	}
-
-	// explicit denials override
-	if isDenied := srv.validateAccessDenied(subject, subjectType, name, path); isDenied {
-		return false, true, nil
 	}
 
 	// then allows

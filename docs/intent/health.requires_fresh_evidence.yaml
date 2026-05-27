@@ -25,4 +25,16 @@ zooms_out_to:
 zooms_in_to: []
 related_to:
 - runtime_health.requires_live_observation
+required_tests:
+- mcp:TestFreshnessStatusReady
+- mcp:TestFreshnessStatusStaleOnBuildIDDrift
+- mcp:TestSessionStart_GraphStale_CriticalOrWarning
+- mcp:TestHealthPulse_GraphStaleCritical
+- mcp:TestFileImpact_StaleGraph_LowersConfidence
+- config:TestServiceConfigCacheStaleOnEtcdError
+- config:TestScyllaHostsCacheStaleOnEtcdDown
+- globularcli:TestPreflight_LiveOverlayStaleLowersConfidence
+change_risk:
+- health_sensitive
+- freshness_sensitive
 status: extracted_candidate

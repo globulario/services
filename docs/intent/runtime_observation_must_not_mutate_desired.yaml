@@ -1,7 +1,7 @@
 id: runtime_observation_must_not_mutate_desired
 level: principle
 title: Runtime observation must not become desired authority
-intent: Heartbeats and runtime probes describe what is observed, not what should be true. Desired state belongs to the controller’s authority path.
+intent: Heartbeats and runtime probes describe what is observed, not what should be true. Desired state belongs to the controller's authority path.
 agent_guidance: If runtime disagrees with desired, report drift or trigger workflow. Do not rewrite desired state from runtime observation.
 bad_smells:
 - heartbeat writes desired state
@@ -24,4 +24,20 @@ zooms_out_to:
 zooms_in_to: []
 related_to:
 - installed_state.owned_by_node_agent
+required_tests:
+- cluster_controller:TestTopologyStatus_ObservabilityPathDoesNotMutateState
+- cluster_controller:TestComputeDesiredState_PlannedNotInstalled_NoRecord
+- cluster_controller:TestComputeDesiredState_InstalledNotHealthy_NoRecord
+- awareness_intentaudit:TestRuntimeObservationDoesNotMutateDesired_Pass
+- awareness_intentaudit:TestRuntimeObservationDoesNotMutateDesired_Unknown
+change_risk:
+- state_model_sensitive
+- authority_boundary_sensitive
+violation_patterns:
+- "heartbeat writing desired"
+- "node-agent calling SetDesired or PutDesired"
+runtime_evidence:
+  etcd_keys:
+  - path: "/globular/nodes/{node_id}/status"
+    check: "must not contain desired fields"
 status: extracted_candidate

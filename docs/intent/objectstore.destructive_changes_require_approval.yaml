@@ -25,4 +25,32 @@ zooms_out_to:
 zooms_in_to: []
 related_to:
 - node_recovery.fence_before_destructive_reseed
+required_tests:
+- node_agent/node_agent_server:TestTransitionAuthorizesWipe_NilTransition_NotAuthorized
+- node_agent/node_agent_server:TestTransitionAuthorizesWipe_GenerationMismatch_NotAuthorized
+- node_agent/node_agent_server:TestTransitionAuthorizesWipe_NotDestructive_NotAuthorized
+- node_agent/node_agent_server:TestTransitionAuthorizesWipe_NotApproved_NotAuthorized
+- node_agent/node_agent_server:TestTransitionAuthorizesWipe_NodeNotInPlan_NotAuthorized
+- node_agent/node_agent_server:TestTransitionAuthorizesWipe_StandaloneToDistributed_Authorized
+- cluster_doctor/cluster_doctor_server/rules:TestDestructiveGuard_FingerprintChange_NoTransition_Critical
+- cluster_doctor/cluster_doctor_server/rules:TestDestructiveGuard_FingerprintChange_ApprovedTransition_NoFinding
+- cluster_doctor/cluster_doctor_server/rules:TestDestructiveGuard_FingerprintChange_UnapprovedTransition_Warn
+- cluster_controller/cluster_controller_server:TestComputeTopologyDestructiveness_StandaloneToDistributed_Destructive
+change_risk:
+- data_loss_sensitive
+- topology_sensitive
+violation_patterns:
+- "clearMinio.*Sys.*without"
+- "os\\.RemoveAll.*minio"
+- "destructive.*skip.*generation"
+exceptions:
+- name: approved_wipe_execution
+  description: >
+    os.RemoveAll inside clearMinioSysIfTransitionApproved is the actual
+    wipe action that runs AFTER transitionAuthorizesWipe() confirms
+    approval, generation match, and node presence in wipe plan.
+  files:
+    - node_agent/node_agent_server/minio_systemd_reconcile.go
+  bounded: true
+  permanent: true
 status: extracted_candidate

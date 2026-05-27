@@ -30,4 +30,21 @@ zooms_in_to:
 - workflow.backend_health_gate_before_dispatch
 related_to:
 - degraded_is_explicit_not_hidden
+change_risk:
+- convergence_sensitive
+- stability_sensitive
+required_tests:
+- node_agent/node_agent_server:TestControlService_StartIdempotentWhenActive
+- node_agent/node_agent_server:TestControlService_StopIdempotentWhenInactive
+- node_agent/node_agent_server/internal/actions:TestServiceUninstall_Idempotent
+- node_agent/node_agent_server/internal/actions:TestWriteFileIfChanged_Idempotency
+- repository/repository_server:TestTransitionArtifactState_IdempotentSelfTransition
+- repository/repository_server:TestConformance_IdempotentRepublish
+- repository/repository_server:TestPublishReconciler_RespectsRetryLimit
+- cluster_controller/cluster_controller_server:TestWorkflowGateBackoffPreventsStorm
+- cluster_controller/cluster_controller_server:TestDriftSuppressedTransientWithBackoff
+- cluster_controller/cluster_controller_server:TestConvergenceBackoffValues
+- cluster_controller/cluster_controller_server:TestClassifyWorkflowError_CircuitBreaker
+- workflow/engine:TestReleaseTopologyLock_Idempotent
+- internal/depcache:TestCacheSingleflightCoalesce
 status: extracted_candidate

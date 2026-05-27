@@ -26,4 +26,14 @@ zooms_in_to:
 - workflow.step_receipts_are_evidence
 related_to:
 - circuit_breakers_protect_convergence
+change_risk:
+- workflow_sensitive
+- convergence_sensitive
+required_tests:
+- cluster_controller/cluster_controller_server:TestWorkflowGateReclosesAfterHealthyProbe
+- cluster_controller/cluster_controller_server:TestWorkflowGateBackoffPreventsStorm
+- cluster_controller/cluster_controller_server:TestWorkflowGateExpiresCooldownEvenWithoutProbe
+- cluster_controller/cluster_controller_server:TestWorkflowGateHalfOpenAllowsExactlyOneProbe
+- workflow/workflow_server:TestOrphanScannerDoesNotPanicWithoutScylla
+- workflow/workflow_server:TestWorkflowHealthHealthyAfterReconnect
 status: extracted_candidate

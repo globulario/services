@@ -27,4 +27,18 @@ zooms_in_to:
 - remediation.must_go_through_workflow
 related_to:
 - degraded_is_explicit_not_hidden
+required_tests:
+- workflow/engine:TestDoctorFindingWorkflow_HappyPath
+- workflow/engine:TestDoctorFindingWorkflow_MissingApproval
+- workflow/engine:TestDoctorFindingWorkflow_HighRiskApproved
+- workflow/engine:TestDoctorFindingWorkflow_NoStructuredAction
+- workflow/engine:TestDoctorFindingDefinitionNoPlanWords
+- repository/repository_server:TestListRepositoryFindings_PublishedMissingBlob
+- repository/repository_server:TestListRepositoryFindings_BuildIDChecksumConflict
+change_risk:
+- operator_facing_sensitive
+- observability_sensitive
+violation_patterns:
+- "finding.*without.*id"
+- "log.*only.*no.*finding"
 status: extracted_candidate

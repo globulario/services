@@ -30,4 +30,8 @@ zooms_in_to:
 - package.identity_requires_build_id
 related_to:
 - objectstore.topology_requires_contract
+required_tests:
+- repository:TestVA3_NonPublishedArtifact_NotInstallable
+- repository:TestQuarantinedArtifactNotInstallable
+- repository:TestGetArtifactVersionsUsesPublishStateColumn
 status: extracted_candidate

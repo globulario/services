@@ -452,7 +452,7 @@ func (srv *server) applyObjectStoreTopologyRequest(ctx context.Context, req *con
 	// ── Step 8: Trigger topology workflow asynchronously ──────────────────────
 	capturedGen := newGen
 	safeGo("objectstore-apply-workflow", func() {
-		wctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+		wctx, cancel := context.WithTimeout(srv.getLeaderCtx(), 20*time.Minute)
 		defer cancel()
 		if _, err := srv.RunObjectStoreTopologyWorkflow(wctx, capturedGen); err != nil {
 			log.Printf("objectstore-apply: topology workflow failed: %v", err)

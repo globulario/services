@@ -29,4 +29,24 @@ zooms_in_to:
 - objectstore.destructive_changes_require_approval
 related_to:
 - inventory.missing_means_uncertain
+required_tests:
+- cluster_doctor:TestQuorumShape_StandaloneMode_OK
+- cluster_doctor:TestQuorumShape_DistributedOneNode_CRITICAL
+- cluster_doctor:TestQuorumShape_TwoNodesTwoDrivesTotal_WARN
+- cluster_doctor:TestQuorumShape_FourDrives_OK
+- cluster_doctor:TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
+- cluster_doctor:TestWriteQuorumLost_VIPHolder_RealDowntimeStillFires
+- cluster_doctor:TestWriteQuorumLost_OneNodeActive_CRITICAL
+- cluster_doctor:TestWriteQuorumLost_AllActive_OK
+- cluster_doctor:TestWriteQuorumLost_NoInventoryOnly_DataIncomplete_Suppressed
+- cluster_doctor:TestWriteQuorumLost_NoInventory_DataComplete_Fires
+- cluster_doctor:TestWriteQuorumLost_KnownDown_DataIncomplete_StillFires
+- cluster_doctor:TestWriteQuorumLost_StaleRemoteInventory_Suppressed
+- cluster_doctor:TestWriteQuorumLost_StaleInventory_DataComplete_StillFires
+- cluster_controller:TestRemoveNodeNotFound
+- cluster_controller:TestRemoveNodeSuccess
+change_risk:
+- quorum_sensitive
+- data_safety_sensitive
+- topology_sensitive
 status: extracted_candidate

@@ -1,13 +1,29 @@
 id: remediation.must_go_through_workflow
 level: principle
 title: Remediation is a workflow, not a hidden command
-intent: Self-healing actions must be resolved, assessed, approved/executed, and verified through the same workflow and audit model as other cluster mutations.
-agent_guidance: Do not add healer shortcuts that run commands directly from diagnosis code. Create remediation actions and execute through workflow contracts.
+intent: >
+  Self-healing actions must be resolved, assessed, approved/executed, and
+  verified through the same workflow and audit model as other cluster mutations.
+  Two known exceptions exist in the current build:
+    1. The cluster doctor healer (healer.go) executes bounded auto-heal
+       actions (delete_stale_cache, clear_resolved_drift) via direct RPCs
+       with JSONL audit trail — not through the workflow engine.
+    2. The AI remediation consumer (remediation_consumer.go) wraps a direct
+       node-agent restart call in a workflow run record — the workflow is
+       an audit wrapper, not the execution coordinator.
+  Both exceptions are bounded, audited, and rate-limited. Converting them
+  to full workflow-backed actions is planned but not yet implemented.
+agent_guidance: >
+  Do not add healer shortcuts that run commands directly from diagnosis code.
+  Create remediation actions and execute through workflow contracts. The
+  existing healer exceptions are explicitly bounded (MaxActions, MaxFailures
+  circuit breaker) and must not be expanded without workflow backing.
 bad_smells:
 - doctor directly mutates service state
 - healer shells into node without workflow
 - auto-fix has no approval/receipt
 - repair skips verify phase
+- new healer action added without workflow backing
 activation_triggers:
 - remediation
 - self-healing
@@ -19,6 +35,8 @@ expressed_by:
 - operators/cluster-doctor.md
 - operators/cluster-self-healing.md
 - awareness/remediation_contracts.yaml
+- services/golang/cluster_doctor/cluster_doctor_server/rules/healer.go
+- services/golang/cluster_controller/cluster_controller_server/remediation_consumer.go
 related_invariants: []
 zooms_out_to:
 - workflow.source_of_operational_truth
@@ -26,4 +44,29 @@ zooms_in_to:
 - doctor.findings_are_operator_language
 related_to:
 - degraded_is_explicit_not_hidden
-status: extracted_candidate
+required_tests:
+- cluster_doctor:TestRunRemediationWorkflowRequiresWorkflowClient
+- cluster_doctor:TestRunRemediationWorkflowRequiresFindingID
+- workflow_engine:TestDoctorFindingWorkflow_PipelineSteps
+change_risk:
+- workflow_sensitive
+- security_sensitive
+exceptions:
+- name: healer_bounded_auto_actions
+  description: >
+    Healer executes delete_stale_cache and clear_resolved_drift via direct
+    RPCs with JSONL audit trail. Bounded by MaxActions and MaxFailures
+    circuit breaker.
+  bounded: true
+  permanent: false
+- name: ai_remediation_consumer_audit_wrapper
+  description: >
+    AI remediation consumer wraps a direct node-agent restart call in a
+    workflow run record. The workflow is an audit wrapper, not the execution
+    coordinator.
+  bounded: true
+  permanent: false
+violation_patterns:
+- "new healer action added without workflow backing"
+- "doctor directly calling exec.Command"
+status: seed

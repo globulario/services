@@ -127,7 +127,7 @@ type server struct {
 
 	// Metrics bookkeeping (low cardinality, held locally)
 	metricsMu    sync.Mutex
-	runStart     map[string]time.Time // run_id -> start time
+	runStart     map[string]activeRun // run_id -> start info
 	lastStepUnix time.Time
 }
 

@@ -1,20 +1,48 @@
 package main
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/globulario/services/golang/backup_manager/backup_managerpb"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 func setupTestStore(t *testing.T) *jobStore {
 	t.Helper()
+
+	// These tests require a running etcd. Skip in CI/unit-test-only mode.
+	etcdEndpoint := os.Getenv("TEST_ETCD_ENDPOINT")
+	if etcdEndpoint == "" {
+		t.Skip("TEST_ETCD_ENDPOINT not set — skipping etcd-backed jobstore tests")
+	}
+
 	dir := t.TempDir()
-	store, err := newJobStore(dir)
+	store, err := newJobStore(dir, func() (*clientv3.Client, error) {
+		return clientv3.New(clientv3.Config{
+			Endpoints:   []string{etcdEndpoint},
+			DialTimeout: 5 * time.Second,
+		})
+	})
 	if err != nil {
 		t.Fatalf("newJobStore: %v", err)
 	}
+
+	// Clean up test keys after the test
+	t.Cleanup(func() {
+		cli, err := store.etcd()
+		if err != nil {
+			return
+		}
+		defer cli.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		cli.Delete(ctx, etcdJobPrefix, clientv3.WithPrefix())
+		cli.Delete(ctx, etcdArtPrefix, clientv3.WithPrefix())
+	})
+
 	return store
 }
 

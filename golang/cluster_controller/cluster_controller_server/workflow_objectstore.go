@@ -482,7 +482,11 @@ func (srv *server) ensureMinioBuckets(desired *configpkg.ObjectStoreDesiredState
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: true,
 	}
-	tlsCfg := &tls.Config{InsecureSkipVerify: true} // cluster-internal, CA trusted
+	tlsCfg, err := configpkg.MinIOTLSConfig(desired.Endpoint)
+	if err != nil {
+		log.Printf("objectstore-buckets: TLS config failed: %v", err)
+		return
+	}
 	opts.Transport = &http.Transport{TLSClientConfig: tlsCfg}
 
 	client, err := minio.New(desired.Endpoint, opts)
@@ -782,7 +786,7 @@ func (srv *server) maybeRunObjectStoreTopologyWorkflow(ctx context.Context) {
 	log.Printf("objectstore-topology: triggering topology workflow gen=%d", targetGen)
 	capturedGen := targetGen
 	go func() {
-		wctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+		wctx, cancel := context.WithTimeout(srv.getLeaderCtx(), 20*time.Minute)
 		defer cancel()
 		if _, err := srv.RunObjectStoreTopologyWorkflow(wctx, capturedGen); err != nil {
 			log.Printf("objectstore-topology: workflow failed: %v", err)

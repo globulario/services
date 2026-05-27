@@ -23,4 +23,15 @@ zooms_out_to:
 zooms_in_to: []
 related_to:
 - degraded_is_explicit_not_hidden
+required_tests:
+- backup_manager:TestEvaluateResticResult_Exit0Success
+- backup_manager:TestEvaluateResticResult_Exit3AllOptional
+- backup_manager:TestEvaluateResticResult_OtherExitDefersToCaller
+- backup_manager:TestClassifyResticWarnings_OnlyOptional
+- backup_manager:TestClassifyResticWarnings_RequiredMissing
+- backup_manager:TestClassifyResticWarnings_IgnoresUnrelatedErrors
+- backup_manager:TestRunResticBackup_RequiredMissingFailsClean
+change_risk:
+- data_safety_sensitive
+- observability_sensitive
 status: extracted_candidate

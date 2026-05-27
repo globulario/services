@@ -1,13 +1,24 @@
 id: knowledge.promote_incidents_into_graph
 level: pattern
 title: Incidents become reusable knowledge
-intent: Failure discoveries should be captured as decisions, failure modes, forbidden fixes, tests, and eventually promoted into the graph so agents do not relearn the same lesson.
-agent_guidance: After a fix, add or update knowledge artifacts when the failure teaches a reusable architectural rule.
+intent: >
+  Failure discoveries should be captured as decisions, failure modes, forbidden
+  fixes, tests, and eventually promoted into the graph so agents do not relearn
+  the same lesson. Currently, incident promotion is a manual operator step via
+  CLI (globular awareness failure learn-incident). The MCP failure-learning
+  tools are registered as discoverable stubs but are not implemented in the
+  current build.
+agent_guidance: >
+  After a fix, add or update knowledge artifacts when the failure teaches a
+  reusable architectural rule. Use the CLI path (globular awareness failure
+  learn-incident) for promotion. The MCP tools for failure learning are stubs
+  and will return "not_available" — do not rely on them for automated promotion.
 bad_smells:
 - same failure recurs with no graph update
 - fix lacks failure mode entry
 - proposal queue ignored
 - lesson remains only in chat
+- MCP tool advertises capability it cannot fulfill
 activation_triggers:
 - incident
 - proposal
@@ -18,10 +29,11 @@ expressed_by:
 - awareness/proposal_queue.md
 - awareness/container_training_loop.md
 - awareness/daily_workflow.md
+- services/golang/mcp/tools_awareness_failurelearning.go
 related_invariants: []
 zooms_out_to:
 - awareness.graph_is_compiled_context_not_authority
 zooms_in_to: []
 related_to:
 - doctor.findings_are_operator_language
-status: extracted_candidate
+status: seed

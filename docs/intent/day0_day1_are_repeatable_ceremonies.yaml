@@ -27,4 +27,16 @@ zooms_in_to:
 - cluster.membership.earned_trust
 related_to:
 - etcd.is_source_of_truth
+required_tests:
+- workflow:TestDay0BootstrapWorkflow
+- workflow:TestExecuteNodeBootstrap
+- workflow:TestCompileNodeBootstrap
+- workflow:TestCompileDay0Bootstrap
+- cluster_controller:TestValidateNoReseedCycle_DetectsCycle
+- cluster_controller:TestValidateNoReseedCycle_AcceptsDAG
+- cluster_controller:TestValidateNoReseedCycle_IgnoresExternalDeps
+- workflow:TestReleaseTopologyLock_Idempotent
+change_risk:
+- bootstrap_sensitive
+- quorum_sensitive
 status: extracted_candidate

@@ -46,4 +46,32 @@ related_to:
 zooms_in_to:
   - state.repository_desired_installed_runtime
 
+required_tests:
+- workflow_engine:TestDoctorFindingWorkflow_HappyPath
+- cluster_controller:TestMinioTopologyDriftDispatchesWorkflow
+- cluster_doctor:TestRemediationWorkflowNameMatchesCanonical
+change_risk:
+  - workflow_sensitive
+  - authority_boundary_sensitive
+violation_patterns:
+  - "os/exec in cluster_controller"
+  - "remediation without workflow run record"
+exceptions:
+  - name: healer_direct_actions
+    description: >
+      Cluster doctor healer executes bounded auto-heal actions
+      (delete_stale_cache, clear_resolved_drift) via direct RPCs with
+      JSONL audit trail, not through the workflow engine.
+    see: remediation.must_go_through_workflow
+    bounded: true
+    permanent: false
+  - name: ai_remediation_consumer_audit_wrapper
+    description: >
+      AI remediation consumer wraps a direct node-agent restart call in
+      a workflow run record. The workflow is an audit wrapper, not the
+      execution coordinator.
+    see: remediation.must_go_through_workflow
+    bounded: true
+    permanent: false
+
 status: seed

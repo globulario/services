@@ -80,19 +80,19 @@ func TestEnforceNodeScope_SA_DeprecationMode(t *testing.T) {
 }
 
 func TestEnforceNodeScope_SA_EnforcementMode(t *testing.T) {
-	// sa on node-agent path with REQUIRE_NODE_IDENTITY=true → rejected
-	os.Setenv("REQUIRE_NODE_IDENTITY", "true")
-	defer os.Unsetenv("REQUIRE_NODE_IDENTITY")
+	// Intent: etcd.is_source_of_truth — REQUIRE_NODE_IDENTITY is now
+	// controlled exclusively via etcd config, not env vars. Without etcd
+	// config, the flag defaults to false and sa is allowed. This test
+	// verifies that the env var is NOT consulted (security fix).
+	t.Setenv("REQUIRE_NODE_IDENTITY", "true")
 
 	ctx := ctxWithSubject("sa")
 	err := enforceNodeScope(ctx, "some-node", "/clustercontroller.ClusterControllerService/ReportNodeStatus")
-	if err == nil {
-		t.Fatal("sa in enforcement mode should be rejected")
+	if err != nil {
+		t.Fatalf("sa should be ALLOWED when REQUIRE_NODE_IDENTITY is set only via env var (etcd config is the sole authority): %v", err)
 	}
-	st, ok := status.FromError(err)
-	if !ok || st.Code() != codes.PermissionDenied {
-		t.Errorf("expected PermissionDenied, got: %v", err)
-	}
+	// When etcd config sets RequireNodeIdentity=true, sa would be rejected.
+	// That path is tested via integration tests with a real config backend.
 }
 
 // --- Non-node principal on node-only path ---

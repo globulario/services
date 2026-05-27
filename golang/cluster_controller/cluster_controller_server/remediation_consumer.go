@@ -131,8 +131,12 @@ func (rc *remediationConsumer) handleRestartRequested(evt *eventpb.Event) {
 	}
 
 	// ── Workflow: track the restart as an auditable run ────────────────
+	// Intent: reconciliation.must_be_idempotent_and_bounded — use bounded
+	// context instead of context.Background() to prevent unbounded hangs
+	// if workflow recording is slow.
 
-	ctx := context.Background()
+	ctx, cancel := withBounded(boundedLong)
+	defer cancel()
 	runID := ""
 	if rc.srv.workflowRec != nil {
 		runID = rc.srv.workflowRec.StartRun(ctx, &workflow.RunParams{

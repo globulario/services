@@ -29,4 +29,15 @@ zooms_in_to:
 - security.deny_overrides_allow
 related_to:
 - audit.every_authority_change_is_explainable
+change_risk:
+- security_boundary_sensitive
+- trust_model_sensitive
+required_tests:
+- interceptors:TestIntegration_BootstrapExpires
+- interceptors:TestIntegration_RemoteBootstrapDenied
+- interceptors:TestIntegration_AuditLoggingStructured
+- rbac/rbac_server:TestDenyOverridesSAAllow
+- rbac/rbac_server:TestDenyOverridesOwnerAllow
+- rbac/rbac_server:TestMgmtProtection_BootstrapBypass
+- cluster_controller/cluster_controller_server:TestJoinAuthorization_SignatureVerifiesWithTestKey
 status: extracted_candidate

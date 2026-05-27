@@ -27,4 +27,8 @@ zooms_in_to:
 - repository.repair_is_explicit
 related_to:
 - degraded_is_explicit_not_hidden
+required_tests:
+- repository:TestTransitionArtifactState_RejectsIllegalTransition
+- repository:TestArtifactStateHappyPathSync
+- repository:TestPromoteArtifact_InvalidTransition
 status: extracted_candidate

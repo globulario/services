@@ -25,4 +25,11 @@ zooms_out_to:
 zooms_in_to: []
 related_to:
 - globular.vision.ai_operable_cluster
+required_tests:
+- cluster_controller:TestTopologyStatus_OutputIsStableAndSerializable
+- globularcli:TestLocalHealthStatusJSONSchema
+- globularcli:TestDomainStatusJSONFieldStability
+change_risk:
+- observability_sensitive
+- api_contract_sensitive
 status: extracted_candidate

@@ -1,0 +1,70 @@
+# Runtime evidence schema for intent verification.
+#
+# Source-code audit proves the code is shaped correctly. Runtime evidence
+# proves the running cluster actually behaves correctly. This schema
+# defines the report shape for runtime intent checks.
+#
+# Not all intents have runtime evidence. Only intents where source
+# compliance is insufficient (e.g., convergence behavior depends on
+# etcd state at runtime) need this.
+
+report_shape:
+  intent_id: string
+  status: pass | fail | unknown | not_checked
+  evidence_source: etcd | prometheus | grpc_health | systemd | logs
+  checked_at: datetime
+  details: string
+  recommended_action: string
+
+# Runtime checks for high-value intents.
+checks:
+
+  desired.build_id_immutable_after_resolution:
+    etcd_keys:
+      - /globular/resources/ServiceDesiredVersion/{name}
+    checks:
+      - "desired build_id must not change unless desired spec generation changes"
+      - "installed build_id must converge to desired build_id"
+      - "repository latest publication must not move pinned desired target"
+    how_to_verify: >
+      Compare ServiceDesiredVersion.spec.build_id across two snapshots taken
+      before and after a repository publish. If build_id changed without a
+      spec.generation bump, the intent is violated.
+
+  installed_state.owned_by_node_agent:
+    etcd_keys:
+      - /globular/nodes/{node_id}/packages/{kind}/{name}
+    checks:
+      - "InstalledPackage records with build_id must have been written by convergence_committer"
+      - "node-agent WriteInstalledPackage must not overwrite controller-committed records"
+    how_to_verify: >
+      Read InstalledPackage records. Records with build_id set were committed
+      by the controller. If a record's build_id disappears or changes without
+      a new convergence result, the authority model is violated.
+
+  workflow.source_of_operational_truth:
+    etcd_keys:
+      - /globular/resources/ServiceRelease/{name}
+    checks:
+      - "every service state transition has a corresponding workflow run"
+      - "no release phase changes without workflow step receipts"
+    how_to_verify: >
+      Query workflow_runs table for the last N service deployments. Each
+      should have a run with terminal status. Missing runs indicate
+      imperative shortcuts.
+
+  etcd.is_source_of_truth:
+    checks:
+      - "no service reads runtime config from environment variables"
+      - "no service falls back to local files when etcd is down"
+    how_to_verify: >
+      Set REQUIRE_NODE_IDENTITY=true as env var (not etcd config). If
+      the flag activates, the env var fallback is still present.
+
+  security.deny_overrides_allow:
+    checks:
+      - "sa account denied on explicitly denied path"
+      - "owner denied on explicitly denied path"
+    how_to_verify: >
+      Set a deny rule on /test/deny for sa. Call ValidateAccess as sa
+      on /test/deny. Expect denied=true.

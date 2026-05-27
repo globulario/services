@@ -26,4 +26,32 @@ zooms_out_to:
 zooms_in_to: []
 related_to:
 - etcd.is_source_of_truth
+required_tests:
+- security:TestMeshConnectionDoesNotSkipTLSVerification
+- security:TestMeshServerNameFromTarget
+- security:TestMeshServerNameOverride
+change_risk:
+- tls_pki_sensitive
+- security_sensitive
+violation_patterns:
+- "InsecureSkipVerify.*true in non-test non-bootstrap code"
+exceptions:
+- name: bootstrap_tls_bypass
+  scope: security/tls.go
+  reason: Bootstrap TLS bypass for initial CA fetch before trust is established
+  files:
+  - security/tls.go
+  - security/bootstrap.go
+- name: reachability_probe
+  scope: clients.go:1061
+  reason: Reachability probe uses InsecureSkipVerify to test connectivity before full TLS setup
+  files:
+  - globular_client/clients.go
+- name: loopback_minio
+  scope: repository/media/file servers
+  reason: Loopback MinIO connections for local file serving where TLS identity is not meaningful
+  files:
+  - repository/repository_server
+  - media/media_server
+  - file/file_server
 status: extracted_candidate
