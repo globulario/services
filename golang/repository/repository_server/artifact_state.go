@@ -468,18 +468,42 @@ func (srv *server) isInstallableForRef(ctx context.Context, ref *repopb.Artifact
 func (srv *server) canSkipDueToExistingState(ctx context.Context, artifactKey string) (bool, ArtifactPipelineState) {
 	s := srv.readArtifactState(ctx, artifactKey)
 	switch s {
-	case PipelinePublished:
-		return true, s
-	case PipelineUnspecified:
-		// Legacy row with no recorded state — caller is responsible for the
-		// blob-verified check, which it has already done. Allow skip and let
-		// caller stamp PUBLISHED to lift the row out of legacy state.
-		slog.Info("artifact-state: legacy artifact_state missing — treating as eligible for idempotent PUBLISHED stamp",
-			"artifact_key", artifactKey)
+	case PipelinePublished, PipelineUnspecified:
+		// PUBLISHED and Unspecified-but-blob-verified rows are both nominally
+		// eligible for skip — but only if the manifest is actually present.
+		// A row with NULL manifest_json (skeleton row from an interrupted sync)
+		// would otherwise be stamped PUBLISHED and silently kept broken, with
+		// the controller hitting "proto: syntax error" forever on lookup.
+		// See docs/intent/repository.metadata_is_authority.yaml.
+		if !srv.manifestJSONPresent(ctx, artifactKey) {
+			slog.Warn("artifact-state: row exists but manifest_json is missing — refusing skip, forcing full re-import",
+				"artifact_key", artifactKey, "state", string(s))
+			return false, s
+		}
+		if s == PipelineUnspecified {
+			slog.Info("artifact-state: legacy artifact_state missing — treating as eligible for idempotent PUBLISHED stamp",
+				"artifact_key", artifactKey)
+		}
 		return true, s
 	default:
 		return false, s
 	}
+}
+
+// manifestJSONPresent reports whether the Scylla manifests row for artifactKey
+// has a non-empty manifest_json column. A row created only via
+// UpdateArtifactState (UPSERT without manifest_json) appears in the table but
+// has manifest_json=NULL — it must NOT be treated as "manifest present".
+func (srv *server) manifestJSONPresent(ctx context.Context, artifactKey string) bool {
+	if srv.scylla == nil {
+		// No ledger available — fall back to legacy behavior (assume present).
+		return true
+	}
+	row, err := srv.scylla.GetManifest(ctx, artifactKey)
+	if err != nil || row == nil {
+		return false
+	}
+	return len(row.ManifestJSON) > 0
 }
 
 // readArtifactState returns the current pipeline state for an artifact key.
