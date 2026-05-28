@@ -27,12 +27,19 @@ spec:
       publisher: { type: string, default: "core@globular.io" }
       repository_addr: { type: string, default: "" }
       force: { type: boolean, default: false }
+      # BINARY sha256 from the repository manifest's entrypoint_checksum.
+      # Propagated to node-agent's ApplyPackageRelease.expected_sha256.
+      # The node-agent verify gate refuses verified SUCCESS without it. An
+      # empty value is allowed for legacy manifests; the node-agent then
+      # writes installed_unverified honestly. NEVER synthesize this value.
+      expected_sha256: { type: string, default: "" }
       resign_reason: { type: string, default: "leader-aware rolling update" }
   defaults:
     package_kind: SERVICE
     build_number: 0
     publisher: "core@globular.io"
     force: false
+    expected_sha256: ""
 
   strategy:
     mode: single
@@ -86,6 +93,7 @@ spec:
             publisher: $.publisher
             repository_addr: $.repository_addr
             force: $.force
+            expected_sha256: $.expected_sha256
           timeout: 5m
           execution:
             idempotency: verify_then_continue
@@ -173,6 +181,7 @@ spec:
         publisher: $.publisher
         repository_addr: $.repository_addr
         force: $.force
+        expected_sha256: $.expected_sha256
       timeout: 5m
       execution:
         idempotency: verify_then_continue

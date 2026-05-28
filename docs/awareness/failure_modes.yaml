@@ -2576,3 +2576,56 @@ failure_modes:
         - TestSyncFromUpstream_NoArchEntryNotFilteredByPlatform
         - TestSyncFromUpstream_ArchSpecificEntryStillFilteredOnMismatch
         - TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly
+    - id: controller.apply_package_missing_expected_sha256_blocks_verified_install
+      title: Controller dispatch builds ApplyPackageRelease without expected_sha256, blocking verified install success
+      severity: critical
+      symptoms:
+        - node-agent install-package writes installed_unverified with reason "no expected_sha256 provided in apply request"
+        - drift-reconciler redispatches every 30 seconds because Ok=false from the apply
+        - cluster_doctor reports controller.apply_package_missing_expected_sha256_blocks_verified_install
+        - normal install pipeline never reaches Status=installed; bridge-recovery is repeatedly needed
+        - controller-self-update dispatches package digest as ExpectedSha256 and every apply fails with failed_binary_hash_mismatch
+      root_cause: |
+        The v1.2.116 node-agent verify gate (verifyInstalledBinaryHashStrict) requires
+        expected_sha256 to declare BinaryVerified. Without it the gate returns
+        BinaryUnverified and the caller writes installed_unverified with Ok=false.
+        Until v1.2.119, the controller-side dispatch chain (remoteApplyPackageRelease,
+        followerSelfApply, release.apply.package and release.apply.controller
+        workflows) never propagated manifest.entrypoint_checksum from the resolver
+        into the apply request — even though ReleaseResolver.Resolve already read
+        the value. The dispatch path simply dropped it.
+
+        followerSelfApply additionally used target.Checksum (PACKAGE TARBALL sha256
+        prefixed with "sha256:") as ExpectedSha256, a hash-schema confusion that
+        guaranteed failed_binary_hash_mismatch on every self-update.
+      resolution: |
+        v1.2.119: every controller ApplyPackageRelease dispatch resolves
+        manifest.entrypoint_checksum (BINARY sha256) and passes it as
+        ExpectedSha256. RunPackageReleaseWorkflow accepts
+        resolved_entrypoint_checksum and propagates it through workflow inputs
+        into the install_package step. ControllerDeployConfig.ApplyPackageRelease
+        and NodeDirectApplyConfig.InstallPackage both grew an expectedSha256
+        parameter. The audit test TestDispatch_AuditAllCallSitesSetExpectedSha256
+        walks every ApplyPackageReleaseRequest literal in the source tree and
+        fails if a new site is added without ExpectedSha256 set (or without an
+        explicit allow-list entry documenting the degraded exception).
+      known_bad_fixes:
+        - disabling the node-agent verify gate so missing expected_sha256 returns SUCCESS
+        - synthesizing expected_sha256 from the binary already on disk
+        - parsing filename to derive expected_sha256
+        - mutating desired state to match installed runtime after verification fails
+        - adding a parallel ApplyPackageRelease dispatch path that bypasses manifest resolution
+        - passing the package tarball sha256 as ExpectedSha256 (hash-schema confusion)
+      related_invariants:
+        - controller.apply_package_release_requires_manifest_checksum
+        - runtime.success_requires_expected_binary_checksum
+        - repository.metadata_is_authority
+        - desired_installed_runtime_identity_must_match
+      required_tests:
+        - TestDispatch_PopulatesExpectedSha256FromManifest
+        - TestDispatch_EmptyManifestChecksumPropagatesAsEmpty
+        - TestDispatch_ControllerDeployPropagatesExpectedSha256
+        - TestDispatch_ControllerDeployEmptyExpectedSha256PropagatesAsEmpty
+        - TestDispatch_WithBlockOverridesInputs
+        - TestDispatch_AuditAllCallSitesSetExpectedSha256
+        - TestDispatch_ResolverEntrypointChecksumIsBinaryHash

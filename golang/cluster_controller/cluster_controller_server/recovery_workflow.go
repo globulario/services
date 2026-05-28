@@ -441,13 +441,18 @@ func (srv *server) recoveryReseed(ctx context.Context, nodeID string, exactRequi
 		_ = srv.putArtifactResult(ctx, result)
 
 		// Apply via node-agent (same path as repair).
+		// art.Checksum is the BINARY sha256 (manifest.entrypoint_checksum) per
+		// snapshot capture (recovery_snapshot.go:88). Pass as expected_sha256
+		// so the node-agent verify gate can prove identity. Empty value (no
+		// manifest at snapshot time) propagates honestly to installed_unverified.
 		err := srv.remoteApplyPackageRelease(ctx, nodeID, agentEndpoint,
 			art.Name, art.Kind, art.Version,
 			art.PublisherID,
 			repoInfo.Address,
 			art.BuildNumber,
 			false, // force
-			art.BuildID)
+			art.BuildID,
+			art.Checksum)
 		now := time.Now().UTC()
 		result.FinishedAt = &now
 

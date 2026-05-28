@@ -1001,8 +1001,16 @@ func releaseFinalizeDirectApply(cfg ReleaseControllerConfig) ActionHandler {
 // --------------------------------------------------------------------------
 
 // NodeDirectApplyConfig provides dependencies for direct node-agent package operations.
+//
+// InstallPackage carries expectedSha256 separately from desiredHash because the
+// two are different hash schemas. desiredHash is the convergence identity hash
+// (sha256 of publisher/service=version+build metadata). expectedSha256 is the
+// BINARY sha256 from the repository manifest's entrypoint_checksum — the value
+// node-agent compares against the installed binary in verifyInstalledBinaryHashStrict.
+// Passing one for the other is the v1.2.56/v1.2.57/v1.2.58 hash-schema-confusion
+// bug class. See invariant runtime.success_requires_expected_binary_checksum.
 type NodeDirectApplyConfig struct {
-	InstallPackage         func(ctx context.Context, name, version, kind, buildID, desiredHash string, buildNumber int64) error
+	InstallPackage         func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error
 	VerifyPackageInstalled func(ctx context.Context, name, version, hash string) error
 	RestartPackageService  func(ctx context.Context, name string) error
 	MaybeRestartPackage    func(ctx context.Context, name, kind, restartPolicy string) error
@@ -1087,6 +1095,13 @@ func nodeInstallPackage(cfg NodeDirectApplyConfig) ActionHandler {
 		if desiredHash == "<nil>" {
 			desiredHash = ""
 		}
+		// expected_sha256 is the BINARY hash from the repository manifest's
+		// entrypoint_checksum — required by the node-agent verify gate to
+		// prove the installed binary matches the desired artifact.
+		expectedSha256 := fmt.Sprint(req.With["expected_sha256"])
+		if expectedSha256 == "<nil>" {
+			expectedSha256 = ""
+		}
 		var buildNumber int64
 		switch v := req.With["build_number"].(type) {
 		case int64:
@@ -1103,7 +1118,7 @@ func nodeInstallPackage(cfg NodeDirectApplyConfig) ActionHandler {
 			}
 		}
 		if cfg.InstallPackage != nil {
-			if err := cfg.InstallPackage(ctx, name, version, kind, buildID, desiredHash, buildNumber); err != nil {
+			if err := cfg.InstallPackage(ctx, name, version, kind, buildID, desiredHash, expectedSha256, buildNumber); err != nil {
 				return nil, fmt.Errorf("install %s: %w", name, err)
 			}
 		}

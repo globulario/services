@@ -33,7 +33,7 @@ import (
 //     the ApplyPackageRelease RPC.
 //   - No rollback is needed: the cluster is in a safe degraded state
 //     with N-1 nodes upgraded.
-func (srv *server) RunControllerDeployWorkflow(ctx context.Context, pkgName, pkgKind, version string, buildNumber int64) error {
+func (srv *server) RunControllerDeployWorkflow(ctx context.Context, pkgName, pkgKind, version string, buildNumber int64, expectedSha256 string) error {
 	router := engine.NewRouter()
 	engine.RegisterControllerDeployActions(router, srv.buildControllerDeployConfig())
 
@@ -43,12 +43,13 @@ func (srv *server) RunControllerDeployWorkflow(ctx context.Context, pkgName, pkg
 		pkgName, version, buildNumber, time.Now().UnixMilli())
 
 	inputs := map[string]any{
-		"cluster_id":    srv.cfg.ClusterDomain,
-		"package_name":  pkgName,
-		"package_kind":  pkgKind,
-		"version":       version,
-		"build_number":  buildNumber,
-		"resign_reason": fmt.Sprintf("rolling update %s@%s+%d", pkgName, version, buildNumber),
+		"cluster_id":      srv.cfg.ClusterDomain,
+		"package_name":    pkgName,
+		"package_kind":    pkgKind,
+		"version":         version,
+		"build_number":    buildNumber,
+		"expected_sha256": expectedSha256, // BINARY hash from manifest.entrypoint_checksum
+		"resign_reason":   fmt.Sprintf("rolling update %s@%s+%d", pkgName, version, buildNumber),
 	}
 
 	log.Printf("controller-deploy: starting leader-aware rollout for %s/%s@%s (build %d, correlation=%s)",
@@ -108,8 +109,8 @@ func (srv *server) buildControllerDeployConfig() engine.ControllerDeployConfig {
 			return srv.confirmLeadershipMoved(ctx, oldLeaderNodeID)
 		},
 
-		ApplyPackageRelease: func(ctx context.Context, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr string, buildNumber int64, force bool, buildID string) error {
-			return srv.remoteApplyPackageRelease(ctx, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr, buildNumber, force, buildID)
+		ApplyPackageRelease: func(ctx context.Context, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr string, buildNumber int64, force bool, buildID, expectedSha256 string) error {
+			return srv.remoteApplyPackageRelease(ctx, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr, buildNumber, force, buildID, expectedSha256)
 		},
 	}
 }
@@ -256,7 +257,16 @@ func (srv *server) confirmLeadershipMoved(ctx context.Context, oldLeaderNodeID s
 
 // remoteApplyPackageRelease calls the node-agent's ApplyPackageRelease RPC
 // on a remote node to install a package.
-func (srv *server) remoteApplyPackageRelease(ctx context.Context, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr string, buildNumber int64, force bool, buildID string) error {
+//
+// expectedSha256 is the BINARY sha256 from the repository manifest's
+// entrypoint_checksum. It is propagated as ApplyPackageReleaseRequest.ExpectedSha256
+// — the node-agent verify gate (verifyInstalledBinaryHashStrict) refuses verified
+// SUCCESS without it. Callers MUST resolve the manifest and pass this value; an
+// empty string is permitted only when the manifest itself has no checksum (legacy
+// artifacts) and propagates through as installed_unverified. Synthesising this
+// value from anywhere other than manifest authority is forbidden — see invariant
+// controller.apply_package_release_requires_manifest_checksum.
+func (srv *server) remoteApplyPackageRelease(ctx context.Context, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr string, buildNumber int64, force bool, buildID, expectedSha256 string) error {
 	conn, endpointUsed, err := srv.dialNodeAgentForNode(nodeID, agentEndpoint)
 	if err != nil {
 		return fmt.Errorf("connect to node %s at %s: %w", nodeID, agentEndpoint, err)
@@ -264,6 +274,9 @@ func (srv *server) remoteApplyPackageRelease(ctx context.Context, nodeID, agentE
 	defer conn.Close()
 
 	client := node_agentpb.NewNodeAgentServiceClient(conn)
+
+	log.Printf("controller-deploy: dispatching apply %s/%s@%s+%d to node %s (build_id=%s expected_sha256_present=%t)",
+		pkgKind, pkgName, version, buildNumber, nodeID, buildID, expectedSha256 != "")
 
 	resp, err := client.ApplyPackageRelease(ctx, &node_agentpb.ApplyPackageReleaseRequest{
 		PackageName:    pkgName,
@@ -273,6 +286,7 @@ func (srv *server) remoteApplyPackageRelease(ctx context.Context, nodeID, agentE
 		RepositoryAddr: repoAddr,
 		BuildNumber:    buildNumber,
 		BuildId:        buildID,
+		ExpectedSha256: expectedSha256,
 		Force:          force,
 		OperationId:    fmt.Sprintf("controller-deploy/%s@%s-b%d", pkgName, version, buildNumber),
 	})

@@ -962,6 +962,14 @@ func repairInstalledStateBuildID(ctx context.Context, nodeID string) (repaired, 
 
 		reqCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
+		// ExpectedSha256 intentionally omitted: this is an operator
+		// metadata-repair escape hatch (Force=true). The node-agent will
+		// write installed_unverified — the honest signal that identity is
+		// unproven. The next controller reconcile pass DOES resolve manifest
+		// and re-dispatches with ExpectedSha256, transitioning the state to
+		// verified installed. Synthesising a hash here is forbidden — see
+		// invariant controller.apply_package_release_requires_manifest_checksum
+		// and the allow-list entry in dispatch_expected_sha256_test.go.
 		resp, err := agentClient.ApplyPackageRelease(reqCtx, &node_agentpb.ApplyPackageReleaseRequest{
 			PackageName:    svc,
 			PackageKind:    kind,

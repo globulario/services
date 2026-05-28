@@ -4059,3 +4059,82 @@ invariants:
         - TestMetaIntentRequirementChildAlignmentContractIsActive
       related_failure_modes:
         - services.drift_never_escalates
+    - id: controller.apply_package_release_requires_manifest_checksum
+      title: Every controller ApplyPackageRelease dispatch that expects verified SUCCESS must carry expected_sha256 from manifest.entrypoint_checksum
+      severity: critical
+      status: active
+      summary: |
+        The controller is the join point between repository authority (which
+        holds the manifest's entrypoint_checksum) and node-agent execution
+        (which compares the installed binary hash against expected). If the
+        controller fails to forward the checksum, the verify gate cannot
+        complete — every install is honestly reported as installed_unverified,
+        but the cluster never reaches verified state and bridge-recovery is
+        repeatedly needed to install fresh binaries.
+
+        This invariant requires that every ApplyPackageRelease dispatch from
+        the controller resolves the package manifest (already done for
+        asset_url and build_id) and reads entrypoint_checksum at the same
+        time, then sets the ExpectedSha256 field on the request struct (or
+        the workflow inputs that flow into it).
+
+        Missing entrypoint_checksum in the manifest is acceptable but must
+        propagate as the empty string. The node-agent gate then writes
+        installed_unverified honestly. A controller-side synthesis or
+        fallback that fills in a hash from any source other than manifest
+        authority is forbidden — passing the package tarball sha256 (the
+        v1.2.56/v1.2.57/v1.2.58 hash-schema confusion) is specifically
+        forbidden because it guarantees failed_binary_hash_mismatch on every
+        apply.
+
+        The audit test walks every ApplyPackageReleaseRequest literal in the
+        source tree and fails if a new site is added without ExpectedSha256
+        set, or without an explicit allow-list entry documenting the
+        degraded exception. There should be very few degraded entries
+        (operator escape hatch, rollback previous-revision).
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/workflow_controller_deploy.go
+          - golang/cluster_controller/cluster_controller_server/workflow_release.go
+          - golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
+          - golang/cluster_controller/cluster_controller_server/repair_node_workflow.go
+          - golang/cluster_controller/cluster_controller_server/recovery_workflow.go
+          - golang/cluster_controller/cluster_controller_server/release_resolver.go
+          - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+          - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+          - golang/cluster_controller/cluster_controller_server/deploy_control_plane.go
+          - golang/workflow/engine/actors.go
+          - golang/workflow/engine/actors_controller_deploy.go
+          - golang/workflow/definitions/release.apply.package.yaml
+          - golang/workflow/definitions/release.apply.controller.yaml
+          - golang/node_agent/node_agent_server/apply_package_release.go
+          - golang/node_agent/node_agent_server/apply_package_verify.go
+        symbols:
+          - ApplyPackageRelease
+          - ApplyPackageReleaseRequest.ExpectedSha256
+          - ResolvedArtifact.EntrypointChecksum
+          - verifyInstalledBinaryHashStrict
+          - remoteApplyPackageRelease
+          - followerSelfApply
+          - RunPackageReleaseWorkflow
+          - RunControllerDeployWorkflow
+          - resolveControllerEntrypointChecksum
+          - resolveManifestEntrypointChecksumForRepair
+      forbidden_fixes:
+        - disable_node_agent_verify_gate_to_make_installs_pass
+        - treat_missing_expected_checksum_as_success
+        - synthesize_expected_sha256_from_installed_binary
+        - use_filename_as_binary_identity_proof
+        - parallel_apply_dispatch_path_without_manifest_identity
+        - mutate_desired_to_match_runtime_after_verification_fails
+        - pass_package_tarball_sha256_as_expected_sha256
+      required_tests:
+        - TestDispatch_PopulatesExpectedSha256FromManifest
+        - TestDispatch_EmptyManifestChecksumPropagatesAsEmpty
+        - TestDispatch_ControllerDeployPropagatesExpectedSha256
+        - TestDispatch_ControllerDeployEmptyExpectedSha256PropagatesAsEmpty
+        - TestDispatch_WithBlockOverridesInputs
+        - TestDispatch_AuditAllCallSitesSetExpectedSha256
+        - TestDispatch_ResolverEntrypointChecksumIsBinaryHash
+      related_failure_modes:
+        - controller.apply_package_missing_expected_sha256_blocks_verified_install
