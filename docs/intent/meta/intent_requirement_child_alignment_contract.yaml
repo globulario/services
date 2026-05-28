@@ -1,0 +1,129 @@
+id: meta.intent_requirement_child_alignment_contract
+kind: meta_intent_contract
+title: Requirement-born child intents must preserve parent intent direction
+status: active
+owner: awareness
+severity: critical
+
+summary: >
+  Every requirement created by an intent may create lower-level child intents.
+  Those child intents are valid only when they preserve, specialize, or operationalize
+  the direction of the parent intent. A child intent must not broaden, invert,
+  bypass, duplicate, or replace the parent intent.
+
+core_law: >
+  Intent creates requirements. Requirements may create child intents. Every child
+  intent must prove alignment to its parent intent before it may create code,
+  workflow steps, service boundaries, schema, remediation, or operational behavior.
+
+canonical_loop:
+  - parent_intent
+  - creates_requirement
+  - requirement_creates_child_intent
+  - child_intent_alignment_check
+  - capability_resolution
+  - implementation_or_block
+  - evidence_feedback
+
+required_edges:
+  - from: intent
+    edge: creates_requirement
+    to: requirement
+  - from: requirement
+    edge: creates_child_intent
+    to: intent
+  - from: child_intent
+    edge: must_align_with
+    to: parent_intent
+  - from: child_intent
+    edge: resolves_requirement
+    to: requirement
+  - from: requirement
+    edge: resolved_as
+    to:
+      - satisfied_by_existing_capability
+      - extends_existing_capability
+      - creates_new_capability
+      - blocked_by_conflict
+      - unknown_impact
+
+alignment_verdicts:
+  aligned:
+    meaning: Child intent specializes or operationalizes the parent intent without changing authority or direction.
+    allowed_to_generate: true
+  partially_aligned:
+    meaning: Child intent supports the parent but introduces risk, ambiguity, or shared ownership that must be bounded.
+    allowed_to_generate: false
+    required_action: produce_bounded_impact_report
+  conflicting:
+    meaning: Child intent inverts, bypasses, duplicates, or replaces parent direction.
+    allowed_to_generate: false
+    required_action: block_and_escalate_design_decision
+  duplicate:
+    meaning: Child intent recreates a capability already owned elsewhere.
+    allowed_to_generate: false
+    required_action: link_to_existing_capability_or_extend_owner
+  unknown_impact:
+    meaning: Awareness cannot prove alignment from current graph evidence.
+    allowed_to_generate: false
+    required_action: run_awareness_preflight_and_expand_context
+
+alignment_questions:
+  - Does the child intent preserve the parent intent's authority boundary?
+  - Does it specialize the parent instead of broadening it?
+  - Does it avoid creating a second source of truth?
+  - Does it avoid duplicating an existing capability owner?
+  - Does it avoid bypassing workflow, RBAC, audit, repository, objectstore, or node-agent contracts?
+  - Does runtime evidence remain evidence rather than authority?
+  - Does remediation remain bounded, explicit, audited, and workflow-mediated?
+
+forbidden_child_intent_drift:
+  - child_intent_broadens_parent_scope
+  - child_intent_inverts_parent_direction
+  - child_intent_bypasses_parent_authority
+  - child_intent_replaces_source_of_truth
+  - child_intent_duplicates_existing_capability
+  - child_intent_hides_degraded_or_unknown_state
+  - child_intent_turns_observation_into_mutation
+  - child_intent_turns_convenience_into_authority
+  - child_intent_skips_audit_or_operator_approval
+  - child_intent_makes_remediation_unbounded
+
+capability_resolution_rule: >
+  Before any implementation is created or modified, every child intent must resolve
+  its requirements to reuse, extend, create, block, or unknown impact. Unknown impact
+  is a stop condition, not permission to improvise.
+
+agent_enforcement:
+  before_edit:
+    - identify_parent_intent
+    - list_requirements_created_by_parent
+    - list_child_intents_created_by_each_requirement
+    - prove_child_parent_alignment
+    - resolve_child_requirements_to_existing_capabilities
+    - classify_unknowns_and_conflicts
+  hard_blocks:
+    - missing_parent_intent
+    - missing_requirement
+    - missing_child_alignment_verdict
+    - unresolved_requirement
+    - unknown_impact_without_report
+    - conflicting_or_duplicate_child_intent
+  required_output:
+    - parent_intent
+    - requirement
+    - child_intent
+    - alignment_verdict
+    - capability_resolution
+    - reused_or_extended_owner
+    - forbidden_drift_checked
+    - required_tests_or_invariants
+
+example:
+  parent_intent: repository.metadata_is_authority
+  requirement: durable_artifact_storage
+  aligned_child_intent: objectstore.provides_blob_storage_only
+  conflicting_child_intent: objectstore.derives_artifact_identity_from_bucket_listing
+  reason: >
+    Durable blob storage supports repository authority only if object storage remains
+    a storage substrate. It conflicts if objectstore becomes metadata authority.

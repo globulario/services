@@ -3607,3 +3607,43 @@ invariants:
         - TestApprovalTokenBindsActionTargetAndGeneration
       related_failure_modes:
         - services.drift_never_escalates
+    - id: awareness.child_intent_must_align_with_parent
+      title: Requirement-born child intents must preserve parent intent direction
+      severity: critical
+      status: active
+      summary: |
+        Intent creates requirements; requirements may create child intents. Every child
+        intent must prove alignment with its parent before it may create code, workflow
+        steps, schema, remediation, or operational behavior. A child intent may specialize
+        or operationalize the parent — it must not broaden, invert, bypass, duplicate, or
+        replace it. Without this rule, decomposition silently drifts: a technically useful
+        child intent can quietly reroute authority, hide degraded state, or duplicate an
+        owned capability while still "resolving" its requirement. See
+        docs/intent/meta/intent_requirement_child_alignment_contract.yaml and
+        docs/awareness/intent_alignment_preflight.md.
+      protects:
+        files:
+            - docs/intent/meta/intent_requirement_child_alignment_contract.yaml
+            - docs/intent/
+        symbols:
+            - intent.parent_intent
+            - intent.created_from_requirement
+            - intent.alignment.verdict
+            - intent.capability_resolution.verdict
+      forbidden_fixes:
+        - child_intent_broadens_parent_scope
+        - child_intent_inverts_parent_direction
+        - child_intent_bypasses_parent_authority
+        - child_intent_replaces_source_of_truth
+        - child_intent_duplicates_existing_capability
+        - child_intent_hides_degraded_or_unknown_state
+        - child_intent_turns_observation_into_mutation
+        - child_intent_turns_convenience_into_authority
+        - child_intent_skips_audit_or_operator_approval
+        - child_intent_makes_remediation_unbounded
+        - generate_code_when_alignment_verdict_is_unknown_impact
+        - generate_code_when_alignment_verdict_is_conflicting
+      required_tests:
+        - TestMetaIntentRequirementChildAlignmentContractIsActive
+      related_failure_modes:
+        - services.drift_never_escalates

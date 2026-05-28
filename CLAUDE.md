@@ -328,6 +328,31 @@ Intent nodes live in `docs/intent/*.yaml`. If no intent node exists for the area
 
 Do not blindly obey intent nodes. Treat them as architectural pressure. If a proposed change conflicts with an intent node, explain the conflict before proceeding.
 
+### Intent alignment preflight — CLOSES THE LOOP
+
+The intent graph has parent-level intents (`globular.vision.*`, `etcd.is_source_of_truth`, `repository.metadata_is_authority`, etc.). Those intents create requirements. Requirements can create lower-level child intents — and **every child intent must preserve its parent's direction, authority boundary, and purpose.**
+
+This is the recursion guard that keeps the architecture coherent across years and across AI agents. A child intent may **specialize** or **operationalize** its parent. It must **not** broaden, invert, bypass, duplicate, or replace it.
+
+Before generating or modifying code for any non-trivial change, run the alignment preflight from `docs/awareness/intent_alignment_preflight.md` and produce a verdict for each of:
+
+- `parent_intent` — which existing intent is this work descended from?
+- `requirement` — what requirement did the parent create that this work resolves?
+- `child_intent` — what new direction does this work operationalize?
+- `alignment.verdict` — one of: `aligned` | `partially_aligned` | `conflicting` | `duplicate` | `unknown_impact`
+- `capability_resolution.verdict` — one of: `reuse` | `extend` | `create` | `block` | `unknown_impact`
+- `forbidden_drift_checked` — confirm the change does not violate the 10 forbidden drift patterns
+
+**Only `aligned` permits code generation.** Any other verdict requires either an impact report (`partially_aligned`), an escalated design decision (`conflicting`), a link to the existing owner (`duplicate`), or awareness preflight to expand context (`unknown_impact`).
+
+Hard stop conditions — do not edit code when:
+- no parent intent is identified
+- no requirement is identified
+- alignment verdict is `conflicting`, `duplicate` (with no reuse path), or `unknown_impact`
+- the change would create or move a source of truth without an approved intent
+
+Full spec: `docs/awareness/intent_alignment_definition.md`. Meta-contract: `docs/intent/meta/intent_requirement_child_alignment_contract.yaml`. Invariant: `awareness.child_intent_must_align_with_parent`.
+
 ---
 
 ### Awareness workflow — required sequence
