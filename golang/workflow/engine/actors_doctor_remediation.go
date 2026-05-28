@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/globulario/services/golang/remediation"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
@@ -288,11 +289,70 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 			"remaining_related":     v.RemainingRelated,
 		}
 		req.Outputs["verification"] = out
+
+		// Assemble the structured remediation.Outcome from this workflow
+		// run's accumulated state. The Outcome encodes the truth-
+		// consistency contract: SUCCEEDED iff dispatched + verified +
+		// resolved. Emitted as a workflow output so callers (CLI, MCP,
+		// dashboards) can read the verdict without re-deriving it from
+		// step-level errors. See
+		// docs/intent/workflow.remediation_truth_consistency.yaml.
+		outcome := buildRemediationOutcome(req, findingID, v)
+		req.Outputs["remediation_outcome"] = outcomeAsMap(outcome)
+
 		if !v.Converged {
-			return nil, fmt.Errorf("verify_convergence: finding %s still present after remediation", findingID)
+			// "Verified but invariant present" — the workflow MUST NOT
+			// report success. Failing the step here propagates to the
+			// run-level status so a green workflow status cannot hide an
+			// unresolved doctor finding.
+			return nil, fmt.Errorf("verify_convergence: finding %s still present after remediation (status=%s)",
+				findingID, outcome.Status())
 		}
 		return &ActionResult{OK: true, Output: out}, nil
 	}
+}
+
+// outcomeAsMap projects a remediation.Outcome into the workflow's
+// generic step-output shape. Tests should assert against the canonical
+// Outcome methods (Status / IsSuccess / Reason); this map is for
+// out-of-process consumers (CLI, MCP).
+func outcomeAsMap(o remediation.Outcome) map[string]any {
+	return map[string]any{
+		"finding_id":       o.FindingID,
+		"workflow_run_id":  o.WorkflowRunID,
+		"dispatched":       o.Dispatched,
+		"verified":         o.Verified,
+		"finding_resolved": o.FindingResolved,
+		"dispatch_error":   o.DispatchError,
+		"status":           string(o.Status()),
+		"reason":           o.Reason(),
+		"is_success":       o.IsSuccess(),
+	}
+}
+
+// buildRemediationOutcome assembles the verdict from the verify step's
+// view of run state. It reads back the execute_remediation output that
+// the prior step wrote into req.Outputs so the verdict reflects the full
+// resolve → execute → verify chain in one place.
+func buildRemediationOutcome(req ActionRequest, findingID string, v *Verification) remediation.Outcome {
+	out := remediation.Outcome{
+		FindingID:     findingID,
+		WorkflowRunID: req.RunID,
+		Verified:      true,
+		VerifiedAt:    time.Now(),
+	}
+	if v != nil {
+		out.FindingResolved = v.Converged
+	}
+	if exec, ok := req.Outputs["execution_result"].(map[string]any); ok {
+		if executed, ok := exec["executed"].(bool); ok {
+			out.Dispatched = executed
+		}
+		if reason, ok := exec["reason"].(string); ok && reason != "" {
+			out.DispatchError = reason
+		}
+	}
+	return out
 }
 
 func doctorMarkFailed(cfg DoctorRemediationConfig) ActionHandler {
