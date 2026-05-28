@@ -3607,6 +3607,54 @@ invariants:
         - TestApprovalTokenBindsActionTargetAndGeneration
       related_failure_modes:
         - services.drift_never_escalates
+    - id: repository.published_requires_verified_manifest
+      title: A repository row must not be treated as PUBLISHED unless its manifest_json is present and parseable
+      severity: critical
+      status: active
+      summary: |
+        Repository skip-eligibility, install-eligibility, and convergence resolution must
+        require BOTH the artifact_state column AND a non-empty parseable manifest_json
+        column. A row whose artifact_state says PUBLISHED but whose manifest_json is NULL
+        (or empty, or unparseable) is a broken row that resulted from an interrupted write
+        sequence (UpdateArtifactState ran, PutManifest did not). Treating such a row as
+        valid published state silently keeps it broken: every downstream consumer hits
+        "parse manifest from ledger: proto: syntax error (line 1:1): unexpected token"
+        forever, and every retry of sync stamps PUBLISHED again without ever repairing.
+
+        Skip is legal only when the manifest is actually parseable. The empty/legacy
+        state backfill path remains, but ONLY when manifest_json is genuinely present.
+
+        Reference incident: INC-2026-0012 (v1.2.113 sync produced 24/36 skeleton rows;
+        the 14 services depending on them got stuck at v1.2.110 with no
+        release.apply.package workflow ever firing). Fix: commit d2ef80ee.
+
+        See also: docs/intent/repository.metadata_is_authority.yaml,
+        docs/intent/state.repository_desired_installed_runtime.yaml.
+      protects:
+        files:
+            - golang/repository/repository_server/artifact_state.go
+            - golang/repository/repository_server/sync_from_upstream.go
+            - golang/repository/repository_server/scylla_store.go
+        symbols:
+            - canSkipDueToExistingState
+            - manifestJSONPresent
+            - readArtifactState
+            - transitionArtifactState
+            - PutManifest
+            - UpdateArtifactState
+      forbidden_fixes:
+        - stamp_published_without_verified_manifest
+        - treat_empty_artifact_state_as_safe_legacy_success_without_manifest_verification
+        - solve_convergence_by_deleting_desired_pins
+        - bypass_repository_authority_with_runtime_observation
+        - skip_predicate_relies_on_state_column_alone
+        - re_create_skeleton_row_on_idempotent_skip_path
+      required_tests:
+        - TestCanSkipDueToExistingState_NullManifestJSONRefusesSkip
+        - TestManifestJSONPresent_DirectChecks
+      related_failure_modes:
+        - manifest_skeleton_row_published_with_null_json
+        - services.drift_never_escalates
     - id: awareness.child_intent_must_align_with_parent
       title: Requirement-born child intents must preserve parent intent direction
       severity: critical
