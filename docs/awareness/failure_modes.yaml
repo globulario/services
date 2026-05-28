@@ -2379,12 +2379,12 @@ failure_modes:
       title: Explicit version request silently resolves to older local archive via wildcard fallback, installing the wrong binary
       severity: critical
       symptoms:
-        - apply-package declares "running and verified" for vX.Y.Z but installed binary --version reports vA.B.C (older)
-        - node-agent log shows "installing repository from local package /var/lib/globular/packages/repository_<older>_linux_amd64.tgz" when caller requested newer version
-        - pin-artifact step saves the requested-version .tgz but install already ran from a different file
-        - ServiceRelease workflow RUN_STATUS_SUCCEEDED but cluster_get_convergence_detail still shows drift
-        - subsequent sync attempts return SYNC_SKIPPED "blob verified" because the older local cache is treated as authoritative presence
-        - controller log: "ensureServiceRelease: ... recreating (phase=WAITING)" before the install dispatches an apparently-current workflow
+        - apply-package declares running-and-verified for the requested version but the installed binary reports an older version when invoked with --version
+        - node-agent log line installing-from-local-package references a filename that encodes an older version than the caller requested
+        - pin-artifact step saves the requested-version .tgz to the pinned dir but install already ran from a different file in the unpinned dir
+        - ServiceRelease workflow reports RUN_STATUS_SUCCEEDED but cluster_get_convergence_detail still shows version drift for the same package
+        - subsequent sync attempts return SYNC_SKIPPED with detail already-present-with-matching-digest blob-verified because the older local cache is treated as authoritative presence
+        - controller release-pipeline log shows ensureServiceRelease recreating in phase WAITING before a fresh dispatch then a stale workflow finalizes as ok
       root_cause: |
         Two compounding gaps in the install pipeline:
 
