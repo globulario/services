@@ -3831,6 +3831,145 @@ invariants:
         - TestMaterializeLocalPackageArchive_VersionMatchesImportedManifest
       related_failure_modes:
         - release.explicit_version_wildcard_installs_wrong_version
+    - id: service.runtime_dir_name_must_be_canonical
+      title: Each service has exactly one canonical runtime directory name; legacy aliases must not become authoritative namespaces
+      severity: warn
+      status: active
+      summary: |
+        Service runtime state under /var/lib/globular/ must use one canonical
+        directory name per logical service. The canonical form is the service's
+        hyphenated package name (e.g. cluster-doctor, node-agent, ai-executor).
+        Legacy aliases (underscore-form like cluster_doctor, no-separator form
+        like clusterdoctor) may be RECOGNIZED for cleanup classification, but
+        must not be ACTIVE runtime directories.
+
+        Without this rule, different code paths derive directory names
+        independently — one writes /var/lib/globular/cluster-doctor, another
+        /var/lib/globular/cluster_doctor — and the duplicates drift in
+        ownership (one path may run as globular, the other as root). The
+        runtime then has multiple dirs claiming to hold the same service's
+        state, no single authoritative one, and a doctor allowlist that grows
+        forever to suppress the noise.
+
+        Resolution: golang/cluster_doctor/cluster_doctor_server/rules/canonical_runtime_dir.go
+        provides CanonicalRuntimeDir(name) + LegacyRuntimeAliases(canonical).
+        Every call site that constructs a service runtime dir path MUST use
+        the canonical helper; ad hoc underscore-to-hyphen conversion in
+        scattered call sites is forbidden.
+
+        See failure_mode filesystem.service_runtime_dir_naming_drift.
+      protects:
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/rules/canonical_runtime_dir.go
+            - golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local.go
+        symbols:
+            - CanonicalRuntimeDir
+            - LegacyRuntimeAliases
+            - AllRuntimeDirAliases
+            - canonicalToLegacy
+            - legacyToCanonical
+      forbidden_fixes:
+        - forbidden.fix.layout_drift_by_expanding_allowlist_only
+        - forbidden.fix.delete_legacy_runtime_dirs_without_evidence
+        - let_each_service_invent_its_own_runtime_dir_normalization
+        - create_new_runtime_dir_under_legacy_alias_name
+      required_tests:
+        - TestLayoutDrift_ClusterDoctorAliasesAreDeterministic
+        - TestLayoutDrift_NodeAgentAliasesAreDeterministic
+        - TestLayoutDrift_NonEmptyDuplicateAliasProducesDuplicateWarn
+        - TestCanonicalRuntimeDir_NoMutationForUnknownNames
+      related_failure_modes:
+        - filesystem.service_runtime_dir_naming_drift
+    - id: doctor.layout_drift_must_reflect_real_risk
+      title: Layout drift findings must distinguish legitimate runtime dirs, cleanup candidates, and real risks — not flood every unknown name as WARN
+      severity: warn
+      status: active
+      summary: |
+        The artifact.layout_drift_local rule must classify each unexpected
+        top-level entry under /var/lib/globular/ by EVIDENCE, not by absence
+        from a hard-coded list. The classification matrix:
+
+          - canonical active runtime dir w/ expected owner+mode → OK (silent)
+          - legitimate service runtime dir from installed-state → OK (silent)
+          - empty duplicate legacy alias → INFO (cleanup candidate)
+          - non-empty duplicate legacy alias → WARN (operator review)
+          - unknown empty dir → INFO (cleanup candidate)
+          - unknown non-empty dir → WARN
+          - transient backup file (*.bak.*, day0-install.jsonl) → INFO
+
+        Sensitive runtime dirs (etcd) keep separate strict permission
+        invariants regardless of allowlist status — the layout rule does not
+        enforce or suppress them.
+
+        Without this distinction, every new service produces a WARN until
+        someone adds its name to the hard-coded list; legacy aliases that
+        could be safely cleaned up are flagged with the same severity as
+        truly anomalous dirs; operators lose the ability to triage layout
+        findings by risk.
+      protects:
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local.go
+        symbols:
+            - classifyEntry
+            - discoverInstalledRuntimeDirs
+            - platformBaseAllowlist
+            - dirClassification
+            - classOK
+            - classCleanupEmpty
+            - classCleanupTransient
+            - classWarnDuplicate
+            - classWarnUnknown
+      forbidden_fixes:
+        - forbidden.fix.layout_drift_by_expanding_allowlist_only
+        - forbidden.fix.hide_permission_error_with_allowlist
+        - treat_empty_and_non_empty_duplicates_as_same_risk
+        - emit_warn_for_all_unknown_entries_regardless_of_emptiness_or_install_state
+      required_tests:
+        - TestLayoutDrift_LegitimateInstalledServiceRuntimeDir_NoDrift
+        - TestLayoutDrift_UnknownNonEmptyDir_ProducesWarn
+        - TestLayoutDrift_EmptyLegacyAliasOfInstalledService_IsCleanupCandidate
+        - TestLayoutDrift_NonEmptyDuplicateAliasProducesDuplicateWarn
+        - TestLayoutDrift_TransientBackupFile_IsCleanupCandidate
+        - TestLayoutDrift_HiddenDir_IsSilent
+        - TestLayoutDrift_KnownServicesIncluded
+      related_failure_modes:
+        - filesystem.service_runtime_dir_naming_drift
+    - id: sensitive_runtime_dirs_require_strict_permissions
+      title: Sensitive runtime dirs (etcd, keys, tokens, pki) must enforce strict permissions regardless of layout allowlist
+      severity: critical
+      status: active
+      summary: |
+        etcd's data directory must be mode 0700. Other sensitive runtime
+        directories (private keys, tokens, PKI material) have analogous
+        strict permission requirements. These permission rules are SEPARATE
+        invariants from the layout/naming rule and must be enforced
+        independently — the layout rule listing a name in its allowlist
+        must NOT cause permission enforcement to be skipped.
+
+        First surfaced 2026-05-28 on globule-ryzen: etcd dir was mode 0750
+        instead of 0700. The artifact.filesystem_safety_local rule correctly
+        emitted ERROR even though etcd was on the layout allowlist. That
+        separation is the contract; future refactors must preserve it.
+      protects:
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/rules/artifact_filesystem_safety_local.go
+            - golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local.go
+        symbols:
+            - artifactFilesystemSafetyLocal
+            - artifactLayoutDriftLocal
+        state:
+            - /var/lib/globular/etcd
+            - /var/lib/globular/keys
+            - /var/lib/globular/tokens
+            - /var/lib/globular/pki
+      forbidden_fixes:
+        - forbidden.fix.hide_permission_error_with_allowlist
+        - suppress_permission_finding_because_layout_rule_passed
+        - merge_layout_and_permission_rules_into_one
+      required_tests:
+        - TestLayoutDrift_PlatformBaseSilentDoesNotSuppressOtherInvariants
+      related_failure_modes:
+        - filesystem.service_runtime_dir_naming_drift
     - id: awareness.child_intent_must_align_with_parent
       title: Requirement-born child intents must preserve parent intent direction
       severity: critical

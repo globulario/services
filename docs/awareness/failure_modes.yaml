@@ -2447,3 +2447,67 @@ failure_modes:
         - TestMaterializeLocalPackageArchive_VersionMatchesImportedManifest
         - TestVerifyStrict_OldBinaryMustNotSatisfyNewExpectedHash
         - TestVerifyStrict_MissingExpectedChecksum_ReturnsUnverified
+    - id: filesystem.service_runtime_dir_naming_drift
+      title: Multiple naming conventions for the same logical service runtime directory produce duplicate empty namespaces and noisy layout drift
+      severity: warn
+      symptoms:
+        - cluster doctor reports artifact.layout_drift_local with hyphenated and underscored variants of the same service name listed as unexpected
+        - directories like cluster-doctor cluster_doctor clusterdoctor coexist under /var/lib/globular for the same logical service
+        - duplicate runtime directories with different ownership (e.g. node-agent is globular-globular, node_agent is root-root)
+        - several pairs appear empty but cannot be safely auto-cleaned because no contract names them
+        - layout drift WARN count grows over time as new services are added by different code paths
+      root_cause: |
+        Service runtime directory identity was never made canonical. Different code paths derived directory names independently:
+
+        - some paths used the package name verbatim (hyphenated, e.g. cluster-doctor)
+        - others substituted underscores for hyphens to match Go binary identifier rules (cluster_doctor)
+        - older code dropped separators altogether (clusterdoctor)
+
+        Each path could MkdirAll its preferred form, leaving residue from every convention. The doctor's hard-coded allowlist had to enumerate every variant or emit false WARNs for legitimate runtime state. The list grew without ever fixing the underlying identity problem.
+
+        Compounding: there was no centralized helper to resolve "what is the canonical runtime dir for service X". The duplicates also produced ownership drift because the path that created the dir set the ownership; later writes to the alternate name happened as a different user.
+
+        First surfaced 2026-05-28 on globule-ryzen: 4 AI services + node-agent + cluster-doctor + cluster-controller + backup-manager + scylla-manager each had hyphen+underscore pair dirs.
+      detection: |
+        - cluster doctor artifact.layout_drift_local finding lists hyphenated and underscored variants of the same service name
+        - ls /var/lib/globular shows pairs like cluster-doctor and cluster_doctor with matching prefix
+        - stat reveals ownership differs between paired dirs
+        - one of the pair is empty
+      resolution: |
+        v1.2.117: refactor artifact_layout_drift_local.go from hard-coded allowlist to a canonical-runtime-dir model with evidence-based classification.
+
+        New canonical_runtime_dir.go provides:
+          CanonicalRuntimeDir(name) - returns the canonical form, mapping known legacy aliases
+          LegacyRuntimeAliases(canonical) - returns known historical aliases
+          AllRuntimeDirAliases(name) - returns canonical + aliases
+          IsKnownRuntimeDirAlias(name) - reports membership in the alias model
+
+        Doctor rule classifies each unknown top-level entry as:
+          classOK - platform base or canonical installed runtime dir
+          classCleanupEmpty - empty legacy alias of installed-or-known service (INFO)
+          classCleanupTransient - backup files like *.bak.* or day0-install.jsonl (INFO)
+          classWarnDuplicate - non-empty legacy alias coexisting with canonical (WARN, operator review)
+          classWarnUnknown - truly unknown dir (WARN)
+
+        Layout rule remains layout-only: it does NOT enforce or suppress permission invariants. Sensitive dirs like etcd are enforced by separate rules.
+      known_bad_fixes:
+        - silencing the warning by appending random names to a hard-coded allowlist forever
+        - auto-deleting non-empty legacy duplicate dirs (may have real data)
+        - chmod/chown service dirs without proving the active runtime path first
+        - mutating installed state to hide layout drift
+        - treating empty and non-empty duplicates as the same risk
+        - letting each service invent its own runtime dir normalization
+        - suppressing real permission errors because a directory name is now allowlisted
+      related_invariants:
+        - service.runtime_dir_name_must_be_canonical
+        - doctor.layout_drift_must_reflect_real_risk
+        - sensitive_runtime_dirs_require_strict_permissions
+      required_tests:
+        - TestLayoutDrift_LegitimateInstalledServiceRuntimeDir_NoDrift
+        - TestLayoutDrift_UnknownNonEmptyDir_ProducesWarn
+        - TestLayoutDrift_EmptyLegacyAliasOfInstalledService_IsCleanupCandidate
+        - TestLayoutDrift_ClusterDoctorAliasesAreDeterministic
+        - TestLayoutDrift_NodeAgentAliasesAreDeterministic
+        - TestLayoutDrift_KnownServicesIncluded
+        - TestLayoutDrift_PlatformBaseSilentDoesNotSuppressOtherInvariants
+        - TestLayoutDrift_NonEmptyDuplicateAliasProducesDuplicateWarn
