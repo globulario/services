@@ -4195,3 +4195,46 @@ invariants:
       related_failure_modes:
         - workflow.stale_definitions_block_expected_sha256_propagation
         - controller.apply_package_missing_expected_sha256_blocks_verified_install
+    - id: etcd.must_have_free_backend_space_for_reconciliation
+      title: Reconciliation classification must distinguish persistence-blocked (etcd NOSPACE) from controller/verification failure
+      severity: critical
+      status: active
+      summary: |
+        Reconciliation depends on etcd writes for leader election, installed_state
+        persistence, runtime_dep_blocks, and convergence commits. If etcd raises
+        alarm:NOSPACE, every reconciliation cycle fails at the persistence layer,
+        not at the controller code path or the verification chain.
+
+        Globular MUST classify this case as persistence-blocked. Diagnoses that
+        attribute the resulting FAILED_TRANSIENT outcomes to controller logic,
+        workflow dispatch, the apply-package contract, or the v1.2.119
+        verification chain are wrong — they will lead to forbidden fixes
+        (weakening verification, mutating state, deleting random keys).
+
+        The correct remediation is the standard etcd compact + defrag + disarm
+        sequence (snapshot first), captured in remediation contract
+        remediation.etcd_nospace_compact_defrag_disarm. After writes resume,
+        normal reconciliation continues without code change.
+
+        If alarm returns under load, the live keyspace itself is too large for
+        the quota; produce an impact report inventorying the largest prefixes
+        before raising the quota or designing retention policy. Increasing
+        quota MUST NOT be the first response.
+      protects:
+        files:
+          - /var/lib/globular/etcd/member/snap/db
+          - golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
+          - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+          - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+        symbols:
+          - etcdctl
+          - mvcc
+          - alarm:NOSPACE
+      forbidden_fixes:
+        - etcd_nospace_by_deleting_random_keys
+        - clear_alarm_before_defrag
+        - blame_verification_for_persistence_block
+        - increase_quota_first
+      required_tests: []
+      related_failure_modes:
+        - etcd.nospace_alarm_blocks_reconciliation

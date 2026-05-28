@@ -2675,3 +2675,59 @@ failure_modes:
       required_tests:
         - TestDispatch_PopulatesExpectedSha256FromManifest
         - TestDispatch_AuditAllCallSitesSetExpectedSha256
+    - id: etcd.nospace_alarm_blocks_reconciliation
+      title: etcd reaches backend quota and raises alarm:NOSPACE, blocking all controller writes and reconciliation
+      severity: critical
+      symptoms:
+        - controller logs show repeated "rpc error code = ResourceExhausted desc = etcdserver: mvcc: database space exceeded"
+        - convergence-committer reports outcome=FAILED_TRANSIENT for every service every cycle
+        - leader election refresh publish failed context deadline exceeded
+        - "runtime-dep-block: write block ... etcd put ... mvcc: database space exceeded"
+        - drift cannot be redispatched, installed_state cannot be persisted
+        - no new apply-package attempts fire; reconciliation appears frozen even though dispatch code is correct
+        - etcdctl endpoint health returns "Active Alarm(s) NOSPACE" and unhealthy
+      root_cause: |
+        etcd's mvcc backend reached its configured quota (default 2 GiB) and
+        the storage maintainer raised alarm:NOSPACE. While the alarm is
+        active, etcd accepts reads but rejects all writes. Globular's
+        controller depends on etcd writes for leader election, installed_state
+        persistence, runtime_dep_blocks, and convergence commits, so every
+        reconciliation cycle fails at the persistence layer regardless of
+        whether the controller code path is correct.
+
+        This is a persistence-layer failure, NOT a defect in the v1.2.119
+        verification chain, the workflow dispatch path, or the apply-package
+        contract.
+      resolution: |
+        Standard etcd maintenance, ordered:
+          1. capture endpoint status + alarms + health for the incident record
+          2. snapshot save to /var/lib/globular/recovery/etcd-snapshots/
+          3. read current revision via endpoint status --write-out=json
+          4. etcdctl compact <REV>
+          5. etcdctl defrag --command-timeout=5m
+          6. etcdctl alarm disarm
+          7. verify writes resume via test put/get/del and re-check alarm list
+          8. observe Globular reconciliation resume
+
+        If alarm returns under load, the live keyspace itself is too large
+        for the quota — produce loads/etcd_nospace_recovery_impact_report.md
+        with prefix inventory before raising quota or designing retention.
+      known_bad_fixes:
+        - clearing alarm:NOSPACE without first compacting and defragging
+          (the underlying space is still exhausted; writes will fail again immediately)
+        - deleting etcd keys blindly to free space without a prefix inventory
+          and documented retention policy
+        - increasing etcd quota as the first response (skips diagnosis of
+          which prefix is growing; defers the cleanup that will eventually
+          be required anyway)
+        - treating the resulting FAILED_TRANSIENT convergence outcomes as a
+          v1.2.119 verification chain defect
+        - weakening the node-agent verify gate because controller writes are blocked
+        - mutating desired or installed state to silence the reconciliation backlog
+        - restarting random Globular services hoping they pick up correct state
+          while etcd still refuses writes
+        - running `rm -rf` against etcd data directory
+      related_invariants:
+        - etcd.must_have_free_backend_space_for_reconciliation
+        - etcd.is_source_of_truth
+      required_tests: []
