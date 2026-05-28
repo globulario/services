@@ -44,5 +44,6 @@ change_risk:
 status: accepted
 required_tests:
   - dependency:TestCriticalDependencyDeclaresDegradationMode
-  - dependency:TestRepositoryReadOnlyWhenBlobStoreUnavailable
+  - dependency:TestRepositoryMinioIsDegradedNotReadOnly
   - dependency:TestWorkflowDispatchBlocksWhenRequiredDependencyModeIsStop
+  - repository:TestDependencyDeclarationMatchesLiveEnforcement
