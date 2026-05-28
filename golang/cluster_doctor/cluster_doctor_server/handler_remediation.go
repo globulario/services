@@ -178,6 +178,27 @@ func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *clust
 	// Bounded autonomy: even low-risk auto-executable actions must be rate-limited
 	// to prevent tight remediation loops when a finding persists.
 	if !needsApproval && req.GetApprovalToken() == "" && !req.GetDryRun() {
+		recentFailures := countRecentFailedActionAttempts(
+			ctx,
+			f.InvariantID,
+			audit.EvidenceDigest,
+			action.GetActionType().String(),
+			time.Now().Add(-remediationFailureEscalationWindow),
+			500,
+		)
+		if recentFailures >= remediationFailureEscalationThreshold {
+			reason := fmt.Sprintf("auto-remediation escalated after %d failed attempts in %s; operator approval required", recentFailures, remediationFailureEscalationWindow)
+			audit.Rejected = true
+			audit.Reason = reason
+			id := auditRemediation(ctx, audit)
+			return &cluster_doctorpb.ExecuteRemediationResponse{
+				Executed: false,
+				Status:   "rejected",
+				Reason:   reason,
+				AuditId:  id,
+			}, nil
+		}
+
 		if ok, wait := allowAutoRemediationNow(gateKey, time.Now()); !ok {
 			gate := remediationGateRecordCooldownRejection(gateKey, time.Now())
 			reason := "auto-remediation cooldown active (" + wait.Round(time.Second).String() + " remaining)"

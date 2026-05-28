@@ -83,3 +83,24 @@ func TestExplainFinding_AppendsHistoricalHint(t *testing.T) {
 		t.Fatalf("expected plan_diff hint, got %v", resp.GetPlanDiff())
 	}
 }
+
+func TestCountRecentFailedActionAttempts_RespectsWindowAndFailureSignal(t *testing.T) {
+	orig := listRemediationAuditsFn
+	listRemediationAuditsFn = func(context.Context, int) ([]RemediationAudit, error) {
+		now := time.Now().Unix()
+		return []RemediationAudit{
+			{InvariantID: "inv-1", EvidenceDigest: "sha256:x", ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "failed", Timestamp: now - 60},
+			{InvariantID: "inv-1", EvidenceDigest: "sha256:x", ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "failed", Timestamp: now - 120},
+			{InvariantID: "inv-1", EvidenceDigest: "sha256:x", ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "", Timestamp: now - 180},
+			{InvariantID: "inv-1", EvidenceDigest: "sha256:x", ActionType: "SYSTEMCTL_RESTART", Executed: true, Reason: "", Timestamp: now - 240},
+			{InvariantID: "inv-1", EvidenceDigest: "sha256:x", ActionType: "FILE_DELETE", Executed: false, Reason: "failed", Timestamp: now - 60},
+			{InvariantID: "inv-1", EvidenceDigest: "sha256:x", ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "failed", Timestamp: now - 7200},
+		}, nil
+	}
+	defer func() { listRemediationAuditsFn = orig }()
+
+	got := countRecentFailedActionAttempts(context.Background(), "inv-1", "sha256:x", "SYSTEMCTL_RESTART", time.Now().Add(-30*time.Minute), 200)
+	if got != 2 {
+		t.Fatalf("expected 2 recent failed attempts, got %d", got)
+	}
+}

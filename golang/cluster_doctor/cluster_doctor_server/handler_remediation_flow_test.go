@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
@@ -133,5 +134,71 @@ func TestExecuteRemediation_RejectsWhenFindingHasNoInvariantOrEvidence(t *testin
 	}
 	if resp.GetStatus() != "rejected" || !strings.Contains(resp.GetReason(), "policy guardrail") {
 		t.Fatalf("expected policy guardrail rejection, got status=%q reason=%q", resp.GetStatus(), resp.GetReason())
+	}
+}
+
+func TestExecuteRemediation_RequiresApprovalAfterRepeatedFailures(t *testing.T) {
+	withStubbedGatePersistence(t)
+	origAudits := listRemediationAuditsFn
+	listRemediationAuditsFn = func(context.Context, int) ([]RemediationAudit, error) {
+		now := time.Now().Unix()
+		return []RemediationAudit{
+			{InvariantID: "runtime.desired_enabled_not_alive", EvidenceDigest: "sha256:fail", ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "failed", Timestamp: now - 30},
+			{InvariantID: "runtime.desired_enabled_not_alive", EvidenceDigest: "sha256:fail", ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "failed", Timestamp: now - 60},
+			{InvariantID: "runtime.desired_enabled_not_alive", EvidenceDigest: "sha256:fail", ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "failed", Timestamp: now - 90},
+		}, nil
+	}
+	defer func() { listRemediationAuditsFn = origAudits }()
+
+	ev := []*cluster_doctorpb.Evidence{{
+		SourceService: "cluster_controller",
+		SourceRpc:     "GetClusterHealthV1",
+		KeyValues:     map[string]string{"node": "node-1", "unit": "globular-node-agent.service"},
+		Timestamp:     timestamppb.Now(),
+	}}
+	digest := digestFindingEvidence(ev)
+	// Rebind stub with computed digest match.
+	listRemediationAuditsFn = func(context.Context, int) ([]RemediationAudit, error) {
+		now := time.Now().Unix()
+		return []RemediationAudit{
+			{InvariantID: "runtime.desired_enabled_not_alive", EvidenceDigest: digest, ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "failed", Timestamp: now - 30},
+			{InvariantID: "runtime.desired_enabled_not_alive", EvidenceDigest: digest, ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "failed", Timestamp: now - 60},
+			{InvariantID: "runtime.desired_enabled_not_alive", EvidenceDigest: digest, ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "failed", Timestamp: now - 90},
+		}, nil
+	}
+
+	srv := &ClusterDoctorServer{
+		executor: &ActionExecutor{nodeAgentDialer: &fakeNodeAgentDialer{}},
+		lastFindings: []rules.Finding{{
+			FindingID:   "finding-failure-escalation",
+			InvariantID: "runtime.desired_enabled_not_alive",
+			Summary:     "unit is not running",
+			Evidence:    ev,
+			Remediation: []*cluster_doctorpb.RemediationStep{{
+				Order: 1,
+				Action: &cluster_doctorpb.RemediationAction{
+					ActionType: cluster_doctorpb.ActionType_SYSTEMCTL_RESTART,
+					Risk:       cluster_doctorpb.ActionRisk_RISK_LOW,
+					Params:     map[string]string{"unit": "globular-node-agent.service", "node_id": "node-1"},
+				},
+			}},
+		}},
+	}
+	srv.isAuthoritative.Store(true)
+
+	resp, err := srv.ExecuteRemediation(context.Background(), &cluster_doctorpb.ExecuteRemediationRequest{FindingId: "finding-failure-escalation", StepIndex: 0})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetStatus() != "rejected" || !strings.Contains(resp.GetReason(), "failed attempts") {
+		t.Fatalf("expected failure-escalation rejection, got status=%q reason=%q", resp.GetStatus(), resp.GetReason())
+	}
+
+	approved, err := srv.ExecuteRemediation(context.Background(), &cluster_doctorpb.ExecuteRemediationRequest{FindingId: "finding-failure-escalation", StepIndex: 0, ApprovalToken: "ok"})
+	if err != nil {
+		t.Fatalf("approved call error: %v", err)
+	}
+	if approved.GetStatus() != "executed" {
+		t.Fatalf("approved call should execute, got status=%q", approved.GetStatus())
 	}
 }

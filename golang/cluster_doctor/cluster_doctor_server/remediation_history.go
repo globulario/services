@@ -12,6 +12,9 @@ import (
 )
 
 const remediationAuditEtcdPrefix = "/globular/cluster_doctor/audit/"
+const remediationFailureEscalationThreshold = 3
+
+var remediationFailureEscalationWindow = 30 * time.Minute
 
 var listRemediationAuditsFn = listRemediationAuditsFromEtcd
 
@@ -95,4 +98,28 @@ func historicalActionsHint(stats []remediationActionStat) string {
 		hint += fmt.Sprintf(" %s(success=%d,last=%s);", s.ActionType, s.Successes, time.Unix(s.LastTs, 0).UTC().Format(time.RFC3339))
 	}
 	return hint
+}
+
+func countRecentFailedActionAttempts(ctx context.Context, invariantID, evidenceDigest, actionType string, since time.Time, limit int) int {
+	if invariantID == "" || evidenceDigest == "" || actionType == "" {
+		return 0
+	}
+	audits, err := listRemediationAuditsFn(ctx, limit)
+	if err != nil {
+		return 0
+	}
+	sinceUnix := since.Unix()
+	count := 0
+	for _, a := range audits {
+		if a.InvariantID != invariantID || a.EvidenceDigest != evidenceDigest || a.ActionType != actionType {
+			continue
+		}
+		if a.Timestamp < sinceUnix || a.DryRun {
+			continue
+		}
+		if !a.Executed && a.Reason != "" {
+			count++
+		}
+	}
+	return count
 }
