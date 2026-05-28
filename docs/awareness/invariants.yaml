@@ -4138,3 +4138,60 @@ invariants:
         - TestDispatch_ResolverEntrypointChecksumIsBinaryHash
       related_failure_modes:
         - controller.apply_package_missing_expected_sha256_blocks_verified_install
+    - id: workflow.definitions_must_thread_required_verification_fields
+      title: Active workflow YAML definitions must thread all verification fields the controller code expects
+      severity: critical
+      status: active
+      summary: |
+        Active workflow definitions used by the controller (loaded from
+        /var/lib/globular/workflows/ at startup, seeded into etcd) MUST thread
+        every verification field the controller code resolves and intends to
+        propagate. For v1.2.119 this specifically means: release.apply.package
+        and release.apply.controller MUST declare resolved_entrypoint_checksum
+        as an input and thread it into install_package's with: block as
+        expected_sha256. Any drift between the controller binary's
+        expectations and the workflow definitions silently breaks the chain —
+        the controller asks for a field the definition does not declare, the
+        actor receives empty, ApplyPackageReleaseRequest.ExpectedSha256 is
+        empty, and the node-agent honestly writes installed_unverified even
+        though the controller's resolved manifest had the value.
+
+        This invariant binds the runtime YAML definition to the controller
+        code shipping it: when the controller binary changes the inputs it
+        wants from a workflow, the active YAML on every controller node MUST
+        change with it. install-day0.sh already performs this sync at Day-0;
+        the upgrade pipeline must perform the equivalent step at every
+        controller upgrade, or the workflow YAMLs must be packaged with the
+        controller so package install carries them.
+
+        Empty propagation is allowed for legacy artifacts (no manifest
+        checksum); silent omission of the field from the workflow itself is
+        not — that produces empty regardless of authority and masks the
+        verification contract.
+      protects:
+        files:
+          - /var/lib/globular/workflows/release.apply.package.yaml
+          - /var/lib/globular/workflows/release.apply.controller.yaml
+          - golang/workflow/definitions/release.apply.package.yaml
+          - golang/workflow/definitions/release.apply.controller.yaml
+          - scripts/release/install-day0.sh
+          - golang/cluster_controller/cluster_controller_server/invariant_enforcement.go
+          - golang/workflow/v1alpha1/etcd_fetcher.go
+        symbols:
+          - resolved_entrypoint_checksum
+          - expected_sha256
+          - SeedCoreWorkflows
+          - loadCoreWorkflowsFromDisk
+          - workflowDefinitionsDir
+      forbidden_fixes:
+        - expected_sha256_by_binary_bridge_for_stale_workflow
+        - ignore_missing_workflow_checksum_field
+        - partial_workflow_sync
+        - mark_installed_state_verified_to_silence_missing_field
+        - treat_empty_expected_sha256_as_success
+      required_tests:
+        - TestDispatch_PopulatesExpectedSha256FromManifest
+        - TestDispatch_AuditAllCallSitesSetExpectedSha256
+      related_failure_modes:
+        - workflow.stale_definitions_block_expected_sha256_propagation
+        - controller.apply_package_missing_expected_sha256_blocks_verified_install

@@ -2629,3 +2629,49 @@ failure_modes:
         - TestDispatch_WithBlockOverridesInputs
         - TestDispatch_AuditAllCallSitesSetExpectedSha256
         - TestDispatch_ResolverEntrypointChecksumIsBinaryHash
+    - id: workflow.stale_definitions_block_expected_sha256_propagation
+      title: Stale workflow YAML definitions on disk break the v1.2.119 expected_sha256 propagation chain
+      severity: critical
+      symptoms:
+        - controller dispatches log expected_sha256_present=false despite running the v1.2.119 binary
+        - workflow-seed log shows etcd workflow entries that lack resolved_entrypoint_checksum / expected_sha256 fields
+        - node-agent honestly writes installed_unverified or rejects installs as binary hash mismatch
+        - cluster_doctor reports installed-state drift but the controller binary commit is correct
+      root_cause: |
+        The v1.2.119 cluster-controller binary correctly resolves
+        manifest.entrypoint_checksum and threads it into workflow inputs as
+        resolved_entrypoint_checksum. But the controller seeds the workflow
+        definition for release.apply.package / release.apply.controller from
+        /var/lib/globular/workflows/*.yaml. install-day0.sh installs those YAMLs
+        once at Day-0; nothing keeps them in sync when the controller binary
+        is upgraded via the normal install pipeline. A pre-v1.2.119 YAML on
+        disk does not declare the new resolved_entrypoint_checksum input
+        and does not thread it to install_package's with: block. The result:
+        the controller code asks the workflow engine for an input that the
+        loaded definition does not contain, the actor receives empty, and the
+        ApplyPackageReleaseRequest carries ExpectedSha256="" — silently
+        breaking the verification contract that the binary was supposed
+        to enforce.
+      resolution: |
+        Sync golang/workflow/definitions/*.yaml to /var/lib/globular/workflows/
+        (the same operation install-day0.sh performs at Day-0), chown to globular,
+        and restart globular-cluster-controller so it re-seeds etcd. After
+        restart, /globular/workflows/release.apply.* in etcd carries the new
+        fields and subsequent dispatches log expected_sha256_present=true.
+
+        The forward fix is to package the workflow YAMLs with cluster-controller
+        so the install pipeline updates both atomically.
+      known_bad_fixes:
+        - using a cluster-controller binary bridge to mask the missing field
+        - patching the controller or node-agent to ignore the missing checksum field
+        - syncing only one workflow YAML and leaving the package/controller
+          pair inconsistent
+        - mutating installed_state to verified to silence the gap
+        - treating empty expected_sha256 as success in any layer
+      related_invariants:
+        - workflow.definitions_must_thread_required_verification_fields
+        - controller.apply_package_release_requires_manifest_checksum
+        - runtime.success_requires_expected_binary_checksum
+      required_tests:
+        - TestDispatch_PopulatesExpectedSha256FromManifest
+        - TestDispatch_AuditAllCallSitesSetExpectedSha256
