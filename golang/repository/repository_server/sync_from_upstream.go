@@ -39,6 +39,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -1119,7 +1121,90 @@ func (srv *server) importUpstreamArtifact(
 		slog.Warn("upstream: failed to persist release/build alias", "err", err,
 			"release_tag", releaseTag, "build_number", n.BuildNumber, "canonical_build_id", n.BuildID)
 	}
+
+	// Materialize the .tgz into the local install package directory so
+	// node-agent's local-only install path can find the exact-version
+	// archive. Without this, install workflows hit findLocalPackage with
+	// no exact match and either fall back to wildcard (silently installing
+	// the wrong version — see installer.explicit_version_requires_exact_local_package)
+	// or fail outright. Best-effort, idempotent, atomic via temp+rename.
+	materializeLocalPackageArchive(n.Name, n.Version, n.Platform, n.Filename, data)
+
 	return nil
+}
+
+// localInstallPackageDir is the directory where node-agent's local-only
+// install path searches for .tgz archives by exact version. Repository sync
+// materializes imported artifacts here so the install side can resolve
+// <name>_<version>_<platform>.tgz without any further round-trip.
+//
+// Exposed as a var so tests can redirect to a temp dir.
+var localInstallPackageDir = "/var/lib/globular/packages"
+
+// materializeLocalPackageArchive writes the imported .tgz to the local
+// install package directory atomically via temp file + rename.
+//
+// Contract:
+//   - Idempotent: if a file with matching size+digest exists, no-op.
+//   - Atomic: target file is either fully written with correct content or
+//     not present at all. Partial writes leave only a temp file (then removed).
+//   - Best-effort: filesystem failures are logged at WARN but do not surface
+//     to the caller — the repository service's own storage still holds the
+//     canonical artifact, and the install path can degrade gracefully.
+//   - Filename: if upstream provided n.Filename it is preserved; otherwise
+//     the canonical <name>_<version>_<platform>.tgz is used.
+//
+// See docs/intent/repository.sync_materializes_imported_package_archive.yaml.
+func materializeLocalPackageArchive(name, version, platform, filename string, data []byte) {
+	if len(data) == 0 {
+		return
+	}
+	if filename == "" {
+		filename = fmt.Sprintf("%s_%s_%s.tgz", name, version, platform)
+	}
+	dir := localInstallPackageDir
+	target := filepath.Join(dir, filename)
+
+	// Idempotency: skip if an existing file already matches the new bytes.
+	if existing, err := os.ReadFile(target); err == nil && len(existing) == len(data) {
+		if sha256.Sum256(existing) == sha256.Sum256(data) {
+			return
+		}
+	}
+
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		slog.Warn("materialize: mkdir failed; local install path will need other source",
+			"dir", dir, "err", err)
+		return
+	}
+	tmp, err := os.CreateTemp(dir, filename+".tmp-*")
+	if err != nil {
+		slog.Warn("materialize: create temp failed; local install path will need other source",
+			"dir", dir, "err", err)
+		return
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		slog.Warn("materialize: write failed; partial temp removed",
+			"target", target, "err", err)
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		slog.Warn("materialize: close failed; partial temp removed",
+			"target", target, "err", err)
+		return
+	}
+	if err := os.Rename(tmpPath, target); err != nil {
+		_ = os.Remove(tmpPath)
+		slog.Warn("materialize: atomic rename failed; partial temp removed",
+			"from", tmpPath, "to", target, "err", err)
+		return
+	}
+	slog.Info("materialize: wrote local install package archive",
+		"path", target, "bytes", len(data))
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
