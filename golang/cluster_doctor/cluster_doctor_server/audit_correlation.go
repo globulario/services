@@ -5,35 +5,24 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/grpc/metadata"
+	"github.com/globulario/services/golang/remediation"
 )
 
-// AuditCorrelationMetadataKey is the gRPC metadata key callers (workflow,
-// CLI) set to propagate a correlation id through the doctor remediation
-// surface. The doctor reads it; if absent, a new id is minted so every
-// audit record carries a non-empty correlation id. See
-// docs/intent/audit.retention_and_correlation_policy.yaml.
-const AuditCorrelationMetadataKey = "x-globular-correlation-id"
-
-// AuditWorkflowRunMetadataKey carries the workflow run id when the doctor
-// is invoked from a workflow remediation actor. Empty when the doctor was
-// called directly (CLI, MCP).
-const AuditWorkflowRunMetadataKey = "x-globular-workflow-run-id"
+// Re-exported here for backward compatibility with existing callers; the
+// canonical constants live in golang/remediation/correlation.go so the
+// workflow engine can set them without importing cluster_doctor.
+const (
+	AuditCorrelationMetadataKey = remediation.CorrelationMetadataKey
+	AuditWorkflowRunMetadataKey = remediation.WorkflowRunMetadataKey
+)
 
 // correlationIDFromContext extracts the caller-supplied correlation id
 // from gRPC metadata, falling back to a deterministic id derived from the
 // finding + step so audits remain joinable even when the caller forgot
 // to set one.
 func correlationIDFromContext(ctx context.Context, findingID string, stepIndex uint32) string {
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		if vals := md.Get(AuditCorrelationMetadataKey); len(vals) > 0 && vals[0] != "" {
-			return vals[0]
-		}
-	}
-	if md, ok := metadata.FromOutgoingContext(ctx); ok {
-		if vals := md.Get(AuditCorrelationMetadataKey); len(vals) > 0 && vals[0] != "" {
-			return vals[0]
-		}
+	if cid := remediation.CorrelationFromContext(ctx); cid != "" {
+		return cid
 	}
 	// Fallback: deterministic id so the same (finding, step) issued without
 	// a correlation header still groups together across retries.
@@ -43,15 +32,5 @@ func correlationIDFromContext(ctx context.Context, findingID string, stepIndex u
 // workflowRunIDFromContext extracts the workflow run id when present.
 // Returns "" when the call did not originate from a workflow.
 func workflowRunIDFromContext(ctx context.Context) string {
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		if vals := md.Get(AuditWorkflowRunMetadataKey); len(vals) > 0 {
-			return vals[0]
-		}
-	}
-	if md, ok := metadata.FromOutgoingContext(ctx); ok {
-		if vals := md.Get(AuditWorkflowRunMetadataKey); len(vals) > 0 {
-			return vals[0]
-		}
-	}
-	return ""
+	return remediation.WorkflowRunFromContext(ctx)
 }

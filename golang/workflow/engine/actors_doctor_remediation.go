@@ -5,8 +5,23 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/globulario/services/golang/remediation"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
 )
+
+// withRemediationCorrelation stamps the doctor-facing context with the
+// workflow run id and a correlation id derived from the run + step so
+// every audit record the doctor writes joins back to the workflow run.
+// The doctor reads these via remediation.CorrelationFromContext /
+// WorkflowRunFromContext (incoming-context path). See
+// docs/intent/audit.retention_and_correlation_policy.yaml.
+func withRemediationCorrelation(ctx context.Context, req ActionRequest) context.Context {
+	correlationID := req.RunID
+	if req.StepID != "" {
+		correlationID = req.RunID + "/" + req.StepID
+	}
+	return remediation.WithCorrelationAsIncoming(ctx, correlationID, req.RunID)
+}
 
 // --------------------------------------------------------------------------
 // Doctor remediation actions (remediate.doctor.finding workflow)
@@ -109,6 +124,7 @@ func doctorResolveFinding(cfg DoctorRemediationConfig) ActionHandler {
 		if cfg.ResolveFinding == nil {
 			return nil, fmt.Errorf("resolve_finding: no ResolveFinding handler configured")
 		}
+		ctx = withRemediationCorrelation(ctx, req)
 		rf, err := cfg.ResolveFinding(ctx, findingID, stepIndex)
 		if err != nil {
 			return nil, fmt.Errorf("resolve_finding: %w", err)
@@ -222,6 +238,7 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 		if cfg.ExecuteRemediation == nil {
 			return nil, fmt.Errorf("execute_remediation: no ExecuteRemediation handler configured")
 		}
+		ctx = withRemediationCorrelation(ctx, req)
 		res, err := cfg.ExecuteRemediation(ctx, findingID, stepIndex, approvalToken, dryRun)
 		if err != nil {
 			return nil, fmt.Errorf("execute_remediation: %w", err)
@@ -260,6 +277,7 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 			req.Outputs["verification"] = out
 			return &ActionResult{OK: true, Output: out}, nil
 		}
+		ctx = withRemediationCorrelation(ctx, req)
 		v, err := cfg.VerifyConvergence(ctx, findingID, nodeID)
 		if err != nil {
 			return nil, fmt.Errorf("verify_convergence: %w", err)
