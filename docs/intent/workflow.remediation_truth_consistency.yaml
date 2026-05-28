@@ -1,0 +1,46 @@
+id: workflow.remediation_truth_consistency
+level: contract
+title: Workflow outcomes must reflect remediation truth, not dispatch success
+intent: >
+  A workflow that performs or authorizes remediation must not report success merely because commands
+  were dispatched. Success requires verified invariant resolution, durable evidence, and consistent
+  final state across repository, desired, installed, and runtime layers where applicable.
+agent_guidance: >
+  Separate action dispatch from remediation proof. Mark runs as blocked, degraded, failed, or
+  verification_pending when invariant resolution is not proven. Do not let green workflow status hide
+  unresolved doctor findings, stale runtime identity, failed post-checks, or partial node convergence.
+bad_smells:
+  - workflow run is SUCCESS but the original doctor finding remains active
+  - command exit code is treated as invariant repair proof
+  - post-check is skipped after override or degraded dependency
+  - partial target success is reported as cluster success
+  - remediation callback updates status before durable verification evidence exists
+activation_triggers:
+  - workflow outcome
+  - remediation success
+  - invariant resolution
+  - post-check
+  - verified repair
+  - ExecuteRemediation
+expressed_by:
+  - services/golang/remediation/outcome.go
+  - services/golang/workflow/engine/actors_doctor_remediation.go
+related_invariants:
+  - workflow.success_requires_verified_invariant_resolution
+  - remediation.dispatch_is_not_repair_truth
+zooms_out_to:
+  - workflow.source_of_operational_truth
+zooms_in_to: []
+related_to:
+  - workflow.step_receipts_are_evidence
+  - evidence.provenance_trust_levels
+  - local_success_not_global_convergence
+change_risk:
+  - workflow_sensitive
+  - remediation_sensitive
+  - correctness_sensitive
+status: accepted
+required_tests:
+  - remediation:TestRemediationWorkflowSuccessRequiresFindingResolved
+  - remediation:TestDispatchSuccessWithoutVerificationIsPending
+  - remediation:TestFindingRemainsActiveUntilVerifiedResolution

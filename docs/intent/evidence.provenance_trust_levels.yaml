@@ -1,0 +1,53 @@
+id: evidence.provenance_trust_levels
+level: contract
+title: Evidence provenance defines authoritative, degraded, stale, and untrusted facts
+intent: >
+  Evidence used by operators, workflows, doctors, and AI agents must carry provenance and trust
+  level. The system must distinguish authoritative evidence from degraded, stale, inferred, or
+  untrusted evidence so weak observations cannot silently become operational authority.
+agent_guidance: >
+  Before acting, classify evidence by source, freshness, signature or writer identity, read path,
+  correlation id, and authority domain. Prefer authoritative sources such as etcd contracts,
+  signed workflow receipts, verifier attestations, and node-agent commits. Treat logs, screenshots,
+  shell output, cached status, partial reads, and failed dependency views as degraded or stale unless
+  promoted by an explicit verifier.
+bad_smells:
+  - agent treats logs as source of truth when etcd contract exists
+  - stale telemetry is used to authorize remediation
+  - evidence has no writer identity, timestamp, source, or collection path
+  - inferred state is displayed as fact
+  - dependency outage hides evidence quality downgrade
+activation_triggers:
+  - evidence
+  - provenance
+  - stale
+  - degraded evidence
+  - trust level
+  - source of truth
+  - runtime evidence
+expressed_by:
+  - intent/meta/runtime_evidence_schema.yaml
+  - services/golang/evidence/trust.go
+  - services/golang/cluster_doctor/cluster_doctor_server/evidence_provenance.go
+  - services/golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+related_invariants:
+  - evidence.must_carry_provenance_and_trust_level
+  - stale_evidence_must_not_authorize_remediation
+zooms_out_to:
+  - state.repository_desired_installed_runtime
+zooms_in_to:
+  - health.requires_fresh_evidence
+  - awareness.runtime_evidence_must_be_fresh
+related_to:
+  - workflow.step_receipts_are_evidence
+  - installed_state.owned_by_node_agent
+  - runtime_observation_must_not_mutate_desired
+change_risk:
+  - observability_sensitive
+  - authority_sensitive
+  - remediation_sensitive
+status: accepted
+required_tests:
+  - doctor:TestFindingIncludesEvidenceTrustLevel
+  - doctor:TestRemediationBlocksOnStaleEvidence
+  - evidence:TestPreflightReportsWeakEvidenceAsUncertain

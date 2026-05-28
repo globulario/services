@@ -1,0 +1,50 @@
+id: remediation.failure_rate_policy
+level: contract
+title: Remediation failure-rate policy is cluster-wide and action-class aware
+intent: >
+  Remediation throttling must use a cluster-wide standard for N failures in a T window by action
+  class, not isolated doctor-local counters. Repeated failures must trip circuit breakers, suppress
+  storm loops, and escalate with evidence instead of retrying blindly.
+agent_guidance: >
+  Record remediation attempts and failures under a shared policy key with action_class, target,
+  finding_id, actor, window, threshold, and breaker state. Apply the same semantics whether the
+  attempt was triggered by doctor, workflow, operator, or agent. Retry only when policy allows and
+  evidence changed enough to justify another attempt.
+bad_smells:
+  - each service has different hard-coded retry thresholds
+  - doctor allows retries that workflow policy would block
+  - failures are counted per process and reset on restart
+  - remediation loop continues with identical evidence
+  - action classes like restart, reseed, repair, topology-change share one generic threshold
+activation_triggers:
+  - failure rate
+  - retry window
+  - circuit breaker
+  - remediation retry
+  - N failures
+  - action class
+  - storm
+expressed_by:
+  - services/golang/remediation/policy.go
+  - services/golang/cluster_doctor/cluster_doctor_server/failure_policy.go
+  - services/golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+  - services/golang/cluster_doctor/cluster_doctor_server/remediation_history.go
+related_invariants:
+  - remediation.failure_rate_policy_must_be_cluster_wide
+  - remediation.must_not_retry_without_changed_evidence_or_policy_budget
+zooms_out_to:
+  - circuit_breakers_protect_convergence
+zooms_in_to: []
+related_to:
+  - autonomy.remediation_is_bounded_and_escalates
+  - workflow.terminal_runs_must_be_bounded
+  - reconciliation.must_be_idempotent_and_bounded
+change_risk:
+  - remediation_sensitive
+  - availability_sensitive
+  - control_plane_sensitive
+status: accepted
+required_tests:
+  - remediation:TestFailureRatePolicyBlocksAfterThresholdByActionClass
+  - remediation:TestFailureRatePolicyPersistsAcrossRestart
+  - remediation:TestRemediationCircuitBreakerUsesSharedPolicy

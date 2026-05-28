@@ -1,0 +1,46 @@
+id: service.dependency_degradation_modes
+level: contract
+title: Service dependency degradation modes define stop, hold, read-only, and degraded behavior
+intent: >
+  Every critical service must declare what happens when each required dependency is unhealthy.
+  The contract must say whether the service must stop, hold writes, enter read-only mode, degrade
+  specific features, continue with cached state, or refuse startup until authority returns.
+agent_guidance: >
+  Do not invent dependency behavior from start order or health vibes. Add explicit dependency
+  modes with dependency name, authority role, failure class, allowed operations, blocked operations,
+  operator message, and recovery condition. Prefer safe degradation over hidden partial writes.
+bad_smells:
+  - service keeps accepting writes when its authority dependency is unavailable
+  - dependency list only controls start order
+  - degraded mode differs between startup and steady state
+  - operator cannot tell which features are safe while dependency is down
+  - cached or fallback state is used without freshness and authority boundaries
+activation_triggers:
+  - dependency unhealthy
+  - degraded mode
+  - read only
+  - service dependency
+  - startup gate
+  - dependency contract
+  - critical service
+expressed_by:
+  - services/golang/dependency/modes.go
+related_invariants:
+  - service.dependencies_must_define_degradation_mode
+  - dependency_failure_must_not_create_hidden_authority
+zooms_out_to:
+  - service.dependencies_are_declared_contracts_not_start_order_guesses
+zooms_in_to: []
+related_to:
+  - platform_status.is_contract_not_vibe
+  - degraded_is_explicit_not_hidden
+  - repository.metadata_is_authority
+change_risk:
+  - dependency_sensitive
+  - availability_sensitive
+  - data_safety_sensitive
+status: accepted
+required_tests:
+  - dependency:TestCriticalDependencyDeclaresDegradationMode
+  - dependency:TestRepositoryReadOnlyWhenBlobStoreUnavailable
+  - dependency:TestWorkflowDispatchBlocksWhenRequiredDependencyModeIsStop

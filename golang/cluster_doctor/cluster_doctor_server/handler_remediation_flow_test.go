@@ -8,8 +8,35 @@ import (
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/security/approvaltest"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// mintApprovalForFinding returns a token bound to the same tuple the
+// remediation handler expects (action class + entity ref + evidence digest
+// + finding id). Tests that exercise the approval path use this to satisfy
+// the security.ValidateApprovalToken contract introduced with
+// docs/intent/remediation.token_contract.yaml.
+func mintApprovalForFinding(t *testing.T, f rules.Finding, action *cluster_doctorpb.RemediationAction) string {
+	t.Helper()
+	approvaltest.Install(t, "", "")
+	target := f.EntityRef
+	if strings.TrimSpace(target) == "" {
+		target = f.FindingID
+	}
+	tok, err := security.MintApprovalToken(security.MintApprovalRequest{
+		Actor:       "test-operator",
+		ActionClass: action.GetActionType().String(),
+		Target:      target,
+		Generation:  digestFindingEvidence(f.Evidence),
+		FindingID:   f.FindingID,
+	})
+	if err != nil {
+		t.Fatalf("mint approval token: %v", err)
+	}
+	return tok
+}
 
 type fakeNodeAgentDialer struct{}
 
@@ -82,10 +109,11 @@ func TestExecuteRemediation_EscalationClearsOnApprovalThenReturnsToCooldown(t *t
 		}
 	}
 
+	approvalToken := mintApprovalForFinding(t, srv.lastFindings[0], action)
 	approved, err := srv.ExecuteRemediation(ctx, &cluster_doctorpb.ExecuteRemediationRequest{
 		FindingId:     findingID,
 		StepIndex:     0,
-		ApprovalToken: "approved-token",
+		ApprovalToken: approvalToken,
 	})
 	if err != nil {
 		t.Fatalf("approved execute failed: %v", err)
@@ -157,13 +185,17 @@ func TestExecuteRemediation_RequiresApprovalAfterRepeatedFailures(t *testing.T) 
 		Timestamp:     timestamppb.Now(),
 	}}
 	digest := digestFindingEvidence(ev)
-	// Rebind stub with computed digest match.
+	// SYSTEMCTL_RESTART trips at threshold 5 under the cluster-wide policy
+	// (see golang/remediation/policy.go DefaultFailureRatePolicy). Stub
+	// five failed attempts — the next live call must escalate.
 	listRemediationAuditsFn = func(context.Context, int) ([]RemediationAudit, error) {
 		now := time.Now().Unix()
 		return []RemediationAudit{
 			{InvariantID: "runtime.desired_enabled_not_alive", EvidenceDigest: digest, ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "failed", Timestamp: now - 30},
 			{InvariantID: "runtime.desired_enabled_not_alive", EvidenceDigest: digest, ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "failed", Timestamp: now - 60},
 			{InvariantID: "runtime.desired_enabled_not_alive", EvidenceDigest: digest, ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "failed", Timestamp: now - 90},
+			{InvariantID: "runtime.desired_enabled_not_alive", EvidenceDigest: digest, ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "failed", Timestamp: now - 120},
+			{InvariantID: "runtime.desired_enabled_not_alive", EvidenceDigest: digest, ActionType: "SYSTEMCTL_RESTART", Executed: false, Reason: "failed", Timestamp: now - 150},
 		}, nil
 	}
 
@@ -190,11 +222,12 @@ func TestExecuteRemediation_RequiresApprovalAfterRepeatedFailures(t *testing.T) 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if resp.GetStatus() != "rejected" || !strings.Contains(resp.GetReason(), "failed attempts") {
-		t.Fatalf("expected failure-escalation rejection, got status=%q reason=%q", resp.GetStatus(), resp.GetReason())
+	if resp.GetStatus() != "rejected" || !strings.Contains(resp.GetReason(), "failure-rate breaker open") {
+		t.Fatalf("expected failure-rate breaker rejection, got status=%q reason=%q", resp.GetStatus(), resp.GetReason())
 	}
 
-	approved, err := srv.ExecuteRemediation(context.Background(), &cluster_doctorpb.ExecuteRemediationRequest{FindingId: "finding-failure-escalation", StepIndex: 0, ApprovalToken: "ok"})
+	approvalTok := mintApprovalForFinding(t, srv.lastFindings[0], srv.lastFindings[0].Remediation[0].GetAction())
+	approved, err := srv.ExecuteRemediation(context.Background(), &cluster_doctorpb.ExecuteRemediationRequest{FindingId: "finding-failure-escalation", StepIndex: 0, ApprovalToken: approvalTok})
 	if err != nil {
 		t.Fatalf("approved call error: %v", err)
 	}

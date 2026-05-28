@@ -202,14 +202,28 @@ func (e *ActionExecutor) fileDelete(ctx context.Context, params map[string]strin
 
 // ── Audit logging ────────────────────────────────────────────────────────────
 
+// RemediationAuditRetention is the cluster-wide retention window for
+// remediation audit records. Operators and compliance tooling must read
+// this constant rather than the inline lease number in auditRemediation —
+// the retention policy is declared, not buried. See
+// docs/intent/audit.retention_and_correlation_policy.yaml.
+const RemediationAuditRetention = 30 * 24 * time.Hour
+
 // auditRemediation writes a brief audit record to etcd. Append-only, used
-// for forensics. Failures here are logged but never block execution.
+// for forensics. Failures here are logged but never block execution. The
+// record is stamped with a correlation id (generated if absent), redacted
+// of any approval-token material that may have leaked into params, and
+// leased for RemediationAuditRetention.
 func auditRemediation(ctx context.Context, audit RemediationAudit) string {
 	ts := time.Now().Unix()
 	audit.Timestamp = ts
 	if audit.AuditID == "" {
 		audit.AuditID = fmt.Sprintf("rem-%d", ts)
 	}
+	if audit.CorrelationID == "" {
+		audit.CorrelationID = audit.AuditID
+	}
+	audit = audit.Redacted()
 	cli, err := config.GetEtcdClient()
 	if err != nil {
 		return audit.AuditID
@@ -218,8 +232,7 @@ func auditRemediation(ctx context.Context, audit RemediationAudit) string {
 	putCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	if body := audit.JSON(); body != "" {
-		// TTL: 30 days
-		lease, err := cli.Grant(putCtx, 30*24*3600)
+		lease, err := cli.Grant(putCtx, int64(RemediationAuditRetention/time.Second))
 		if err == nil {
 			cli.Put(putCtx, key, body, clientv3.WithLease(lease.ID))
 		} else {
@@ -237,10 +250,14 @@ func auditRemediation(ctx context.Context, audit RemediationAudit) string {
 // +globular:schema:since_version="0.0.1"
 type RemediationAudit struct {
 	AuditID        string            `json:"audit_id"`
+	CorrelationID  string            `json:"correlation_id,omitempty"`  // links doctor finding → workflow run → action → verification
+	WorkflowRunID  string            `json:"workflow_run_id,omitempty"` // set when the doctor was invoked from a workflow
+	TokenJTI       string            `json:"token_jti,omitempty"`       // jti of the approval token that authorized the action (never the token itself)
 	Timestamp      int64             `json:"timestamp"`
 	FindingID      string            `json:"finding_id"`
 	InvariantID    string            `json:"invariant_id,omitempty"`
 	EvidenceDigest string            `json:"evidence_digest,omitempty"`
+	EvidenceTrust  string            `json:"evidence_trust,omitempty"` // AUTHORITATIVE|DEGRADED|STALE|UNTRUSTED
 	FindingSummary string            `json:"finding_summary,omitempty"`
 	StepIndex      uint32            `json:"step_index"`
 	ActionType     string            `json:"action_type"`
@@ -251,6 +268,53 @@ type RemediationAudit struct {
 	Reason         string            `json:"reason,omitempty"`
 	Subject        string            `json:"subject"`
 	Params         map[string]string `json:"params"`
+}
+
+// Redacted returns a copy of a with any approval-token-like material in
+// Params replaced by the literal "<redacted>". Keys that look like tokens,
+// secrets, or passwords are stripped regardless of value. Values that look
+// like JWTs (three base64 segments separated by ".") are stripped even if
+// the key looks innocuous. See
+// docs/intent/audit.retention_and_correlation_policy.yaml.
+func (a RemediationAudit) Redacted() RemediationAudit {
+	if len(a.Params) == 0 {
+		return a
+	}
+	out := a
+	out.Params = make(map[string]string, len(a.Params))
+	for k, v := range a.Params {
+		if isSensitiveParamKey(k) || looksLikeJWT(v) {
+			out.Params[k] = "<redacted>"
+			continue
+		}
+		out.Params[k] = v
+	}
+	return out
+}
+
+func isSensitiveParamKey(k string) bool {
+	lk := strings.ToLower(strings.TrimSpace(k))
+	switch lk {
+	case "approval_token", "token", "secret", "password", "api_key", "jwt", "authorization":
+		return true
+	}
+	return strings.Contains(lk, "token") || strings.Contains(lk, "secret") || strings.Contains(lk, "password")
+}
+
+func looksLikeJWT(v string) bool {
+	v = strings.TrimSpace(v)
+	if len(v) < 20 || !strings.HasPrefix(v, "ey") {
+		return false
+	}
+	if strings.Count(v, ".") != 2 {
+		return false
+	}
+	for _, seg := range strings.Split(v, ".") {
+		if len(seg) < 2 {
+			return false
+		}
+	}
+	return true
 }
 
 // JSON returns the audit record serialized to JSON for etcd storage.

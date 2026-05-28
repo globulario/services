@@ -13,9 +13,19 @@ import (
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	"github.com/globulario/services/golang/evidence"
+	"github.com/globulario/services/golang/remediation"
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// approvalReplayStore tracks single-use approval-token jtis. Process-local
+// for now; production should swap in an etcd-backed store with TTL matching
+// the token expiry so replay protection survives leader handoff. The doctor
+// is leader-only (see ExecuteRemediation guard), so process-local is safe
+// against accidental double-execution but not against leader failover.
+var approvalReplayStore = security.NewInMemoryReplayStore()
 
 const autoRemediationCooldown = 60 * time.Second
 
@@ -90,6 +100,8 @@ func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *clust
 	subject := callerSubject(ctx)
 	audit := RemediationAudit{
 		FindingID:      findingID,
+		CorrelationID:  correlationIDFromContext(ctx, findingID, req.GetStepIndex()),
+		WorkflowRunID:  workflowRunIDFromContext(ctx),
 		InvariantID:    f.InvariantID,
 		FindingSummary: f.Summary,
 		EvidenceDigest: digestFindingEvidence(f.Evidence),
@@ -108,6 +120,30 @@ func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *clust
 		audit.Rejected = true
 		audit.Reason = reason
 		id := auditRemediation(ctx, audit)
+		return &cluster_doctorpb.ExecuteRemediationResponse{
+			Executed: false,
+			Status:   "rejected",
+			Reason:   reason,
+			AuditId:  id,
+		}, nil
+	}
+
+	// Evidence trust gate: stale or untrusted evidence must not authorize
+	// privileged remediation. Dry-runs are allowed through so operators can
+	// inspect what would happen. See
+	// docs/intent/evidence.provenance_trust_levels.yaml.
+	trust := findingEvidenceTrust(f, time.Now())
+	audit.EvidenceTrust = string(trust)
+	if !req.GetDryRun() && !evidence.AuthorizesRemediation(trust) {
+		reason := fmt.Sprintf("remediation blocked: evidence trust=%s (re-collect evidence before retry)", trust)
+		audit.Rejected = true
+		audit.Reason = reason
+		id := auditRemediation(ctx, audit)
+		slog.Warn("remediation blocked on weak evidence",
+			"finding_id", findingID,
+			"trust", trust,
+			"action_type", action.GetActionType().String(),
+		)
 		return &cluster_doctorpb.ExecuteRemediationResponse{
 			Executed: false,
 			Status:   "rejected",
@@ -160,34 +196,58 @@ func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *clust
 				AuditId:  id,
 			}, nil
 		}
-		// Verify the token. Today this is a placeholder — a fuller impl
-		// would check a signed JWT or an operator-issued one-time token.
-		if !isValidApprovalToken(ctx, req.GetApprovalToken(), findingID, subject) {
+		// Verify the signed approval token. The token is bound to this
+		// finding, action class, target entity, and evidence digest so it
+		// cannot authorize a different action or be replayed against later
+		// evidence. See docs/intent/remediation.token_contract.yaml.
+		expect := security.ApprovalExpectation{
+			ActionClass: action.GetActionType().String(),
+			Target:      approvalTargetForFinding(f),
+			Generation:  audit.EvidenceDigest,
+			FindingID:   findingID,
+		}
+		validatedClaims, vErr := security.ValidateApprovalToken(req.GetApprovalToken(), expect, approvalReplayStore)
+		if vErr == nil && validatedClaims != nil {
+			audit.TokenJTI = validatedClaims.ID
+		}
+		if vErr != nil {
+			rejectReason := "approval_token invalid: " + vErr.Error()
 			audit.Rejected = true
-			audit.Reason = "approval_token invalid"
+			audit.Reason = rejectReason
 			id := auditRemediation(ctx, audit)
+			slog.Warn("remediation approval token rejected",
+				"finding_id", findingID,
+				"action_type", action.GetActionType().String(),
+				"subject", subject,
+				"err", vErr,
+			)
 			return &cluster_doctorpb.ExecuteRemediationResponse{
 				Executed: false,
 				Status:   "rejected",
-				Reason:   "approval_token invalid",
+				Reason:   rejectReason,
 				AuditId:  id,
 			}, nil
 		}
 	}
 
 	// Bounded autonomy: even low-risk auto-executable actions must be rate-limited
-	// to prevent tight remediation loops when a finding persists.
+	// to prevent tight remediation loops when a finding persists. The policy
+	// is cluster-wide and action-class aware — see
+	// docs/intent/remediation.failure_rate_policy.yaml.
 	if !needsApproval && req.GetApprovalToken() == "" && !req.GetDryRun() {
+		policy := loadFailureRatePolicy(ctx)
+		class := remediation.NormalizeActionClass(action.GetActionType().String())
+		classPolicy := policy.For(class)
 		recentFailures := countRecentFailedActionAttempts(
 			ctx,
 			f.InvariantID,
 			audit.EvidenceDigest,
 			action.GetActionType().String(),
-			time.Now().Add(-remediationFailureEscalationWindow),
+			time.Now().Add(-classPolicy.Window),
 			500,
 		)
-		if recentFailures >= remediationFailureEscalationThreshold {
-			reason := fmt.Sprintf("auto-remediation escalated after %d failed attempts in %s; operator approval required", recentFailures, remediationFailureEscalationWindow)
+		if ok, breakerReason := policy.Allow(class, recentFailures); !ok {
+			reason := fmt.Sprintf("auto-remediation escalated: %s — operator approval required", breakerReason)
 			audit.Rejected = true
 			audit.Reason = reason
 			id := auditRemediation(ctx, audit)
@@ -296,12 +356,13 @@ func callerSubject(ctx context.Context) string {
 	return "system"
 }
 
-// isValidApprovalToken verifies the operator-issued approval token. For the
-// initial rollout this accepts any non-empty token but records it in the
-// audit log. A fuller implementation would verify JWT + scope + expiry.
-func isValidApprovalToken(ctx context.Context, token, findingID, subject string) bool {
-	_ = ctx
-	_ = findingID
-	_ = subject
-	return token != ""
+// approvalTargetForFinding returns the stable target identifier the approval
+// token must bind to. Prefers the finding's EntityRef (node/service) so an
+// operator approval cannot be replayed against a different entity that
+// happens to surface the same finding id later.
+func approvalTargetForFinding(f rules.Finding) string {
+	if strings.TrimSpace(f.EntityRef) != "" {
+		return f.EntityRef
+	}
+	return f.FindingID
 }

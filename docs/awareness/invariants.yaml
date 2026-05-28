@@ -3095,3 +3095,504 @@ invariants:
         - TestAutoRemediationCooldown_Expires
       related_failure_modes:
         - services.drift_never_escalates
+
+    - id: remediation.token_must_be_scoped_and_non_replayable
+      title: Approval tokens must be signed, scoped, audience-bound, expiring, and single-use
+      severity: critical
+      status: active
+      summary: |
+        Every approval token presented to a remediation surface must be a signed JWT
+        (EdDSA / Ed25519) carrying an explicit audience ("remediation:<cluster_id>"), an
+        expiry within bounds, a subject (operator identity), and a jti recorded in a
+        replay store the first time it is presented. A token validator that accepts any
+        non-empty string is a security regression: the cluster's autonomy bound becomes
+        "did the caller type something" instead of "is this an authorized remediation".
+        See docs/intent/remediation.token_contract.yaml.
+      protects:
+        state:
+            - /globular/cluster_doctor/audit/{audit_id}
+        files:
+            - golang/security/approval_token.go
+            - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+        symbols:
+            - MintApprovalToken
+            - ValidateApprovalToken
+            - ExecuteRemediation
+      forbidden_fixes:
+        - approval_token_validator_accepts_any_non_empty_string
+        - approval_token_validator_skips_signature_check
+        - approval_token_replayed_after_successful_execution
+        - approval_token_missing_audience_or_expiry
+      required_tests:
+        - TestApprovalTokenRejectsEmptyOrUnsignedToken
+        - TestApprovalTokenRejectsWrongAudience
+        - TestApprovalTokenRejectsExpiredToken
+        - TestApprovalTokenRejectsReplay
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: operator.override_requires_scope_reason_expiry_and_verification
+      title: Operator overrides are structured intent with mandatory verification
+      severity: critical
+      status: active
+      summary: |
+        An operator-issued override that bypasses a policy gate must be a structured
+        Override carrying Actor, Reason (≥10 chars), PolicyID, Scope, IssuedAt, Expiry,
+        and CorrelationID. Validate() rejects empty fields, past expiries, and lifetimes
+        longer than 1 hour. RequiresVerification() is unconditionally true — overrides
+        bypass the GATE, not the verification step. Outcome.IsSuccess() still demands
+        FindingResolved. See docs/intent/operator.override_intent.yaml.
+      protects:
+        files:
+            - golang/remediation/override.go
+        symbols:
+            - Override
+            - Validate
+            - RequiresVerification
+            - NewAuditEntry
+      forbidden_fixes:
+        - force_flag_without_structured_override
+        - override_with_unbounded_expiry
+        - override_skips_verification_step
+        - override_treated_as_implicit_success
+      required_tests:
+        - TestOverrideRequiresReasonScopeAndExpiry
+        - TestOverrideStillRequiresVerification
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: force_action_must_not_hide_policy_gate
+      title: Override audit must explicitly name the bypassed policy
+      severity: critical
+      status: active
+      summary: |
+        Every OverrideAuditEntry must carry BypassedPolicy (the policy id that was
+        overridden), Actor, Reason, Scope, OutcomeStatus, and FindingResolved. An auditor
+        reading the JSON record alone must be able to answer "what was bypassed, by whom,
+        why, and was the underlying invariant verified?" without joining back to the
+        workflow run.
+      protects:
+        files:
+            - golang/remediation/override.go
+        symbols:
+            - OverrideAuditEntry
+            - NewAuditEntry
+      forbidden_fixes:
+        - audit_omits_bypassed_policy_id
+        - audit_buries_override_in_generic_reason_field
+        - override_audit_strips_actor_for_privacy
+        - override_audit_skipped_for_dry_run_overrides
+      required_tests:
+        - TestOverrideAuditNamesBypassedPolicy
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: workflow.success_requires_verified_invariant_resolution
+      title: Workflow remediation success requires verified invariant resolution, not dispatch success
+      severity: critical
+      status: active
+      summary: |
+        A remediation workflow may report SUCCEEDED to operators only when (a) the
+        executor accepted the action, (b) the verify_convergence step ran, and (c) the
+        underlying doctor finding cleared. Dispatch success — the executor returning
+        exit 0 — is necessary but never sufficient. Outcome.IsSuccess() encodes this
+        rule and Outcome.Status() returns PENDING_VERIFICATION / DEGRADED / FAILED for
+        every weaker combination. See
+        docs/intent/workflow.remediation_truth_consistency.yaml.
+      protects:
+        files:
+            - golang/remediation/outcome.go
+            - golang/workflow/engine/actors_doctor_remediation.go
+        symbols:
+            - Outcome
+            - IsSuccess
+            - Status
+            - doctorVerifyConvergence
+      forbidden_fixes:
+        - workflow_succeeded_without_verify_step_running
+        - workflow_succeeded_when_finding_still_active
+        - dispatch_exit_zero_treated_as_invariant_repair
+        - verification_skipped_on_override
+      required_tests:
+        - TestRemediationWorkflowSuccessRequiresFindingResolved
+        - TestDispatchSuccessWithoutVerificationIsPending
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: remediation.dispatch_is_not_repair_truth
+      title: Findings stay active until a verified-resolution outcome is recorded
+      severity: high
+      status: active
+      summary: |
+        ActiveFindings.Record only clears a finding from the active set when the
+        recorded Outcome reports IsSuccess(). Pending, Degraded, and Failed outcomes
+        keep the finding active so the next doctor sweep surfaces it. This makes
+        "dispatch ≠ repair" visible in the operator-facing surface — the finding
+        list — not just buried in workflow run details.
+      protects:
+        files:
+            - golang/remediation/outcome.go
+        symbols:
+            - ActiveFindings
+            - Record
+            - IsActive
+      forbidden_fixes:
+        - finding_cleared_on_dispatch_alone
+        - finding_cleared_on_pending_outcome
+        - finding_cleared_on_degraded_outcome
+        - finding_cleared_on_failed_outcome
+      required_tests:
+        - TestFindingRemainsActiveUntilVerifiedResolution
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: service.dependencies_must_define_degradation_mode
+      title: Every critical service declares per-dependency degradation modes
+      severity: high
+      status: active
+      summary: |
+        Each critical service registers a ServiceContract listing every required
+        dependency and the explicit Mode (ignore / degraded / read_only / hold / stop)
+        that applies when that dependency is unhealthy. Operators reading the registry
+        must always get a definitive answer to "what happens if X is down?" — silence
+        or "unknown mode" must be a hard validation failure. See
+        docs/intent/service.dependency_degradation_modes.yaml.
+      protects:
+        files:
+            - golang/dependency/modes.go
+        symbols:
+            - ServiceContract
+            - DependencyContract
+            - Register
+            - Lookup
+            - AllowOperation
+            - Mode
+      forbidden_fixes:
+        - dependency_mode_inferred_from_start_order
+        - dependency_unhealthy_silently_ignored
+        - service_registered_with_empty_dependencies
+        - unknown_mode_treated_as_ignore
+      required_tests:
+        - TestCriticalDependencyDeclaresDegradationMode
+        - TestRepositoryReadOnlyWhenBlobStoreUnavailable
+        - TestUnknownModeIsRejected
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: dependency_failure_must_not_create_hidden_authority
+      title: Dependency failure must not let a service silently assume authority it doesn't own
+      severity: critical
+      status: active
+      summary: |
+        When a dependency that holds authority (etcd for config truth, MinIO for object
+        storage, ScyllaDB for indexed state) is unhealthy, the dependent service must
+        refuse the operations that need that authority. ModeReadOnly blocks writes,
+        ModeHold blocks dispatch, ModeStop blocks everything — including reads — because
+        the service has no fresh authority basis to answer from. Hidden fallbacks
+        (cached state served as fact, ad-hoc local writes that bypass the down
+        dependency) are exactly the silent-authority pattern this invariant forbids.
+      protects:
+        files:
+            - golang/dependency/modes.go
+        symbols:
+            - AllowOperation
+            - ModeReadOnly
+            - ModeHold
+            - ModeStop
+      forbidden_fixes:
+        - read_only_mode_serves_cached_writes
+        - hold_mode_allows_dispatch_with_stale_inputs
+        - stop_mode_serves_stale_reads
+        - blocked_operations_list_quietly_emptied
+      required_tests:
+        - TestWorkflowDispatchBlocksWhenRequiredDependencyModeIsStop
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: runtime.identity_attestation_must_bind_pid_hash_service_and_build
+      title: Runtime attestation binds PID, exe path, binary hash, service id, build id, and launch authority
+      severity: critical
+      status: active
+      summary: |
+        A running process is not trustworthy by name or port alone. The attestation must
+        bind the kernel PID, the resolved /proc/<pid>/exe path, the sha256 of those bytes,
+        the cluster service identifier, the build id reported at runtime, and the launch
+        authority (systemd unit or other launcher). Mismatch on any binding returns a
+        non-TRUSTED verdict; callers must refuse to honor the process as the expected
+        service. See docs/intent/runtime.identity_attestation.yaml.
+      protects:
+        files:
+            - golang/attestation/attestation.go
+            - golang/node_agent/node_agent_server/runtime_proof.go
+            - golang/verifier/verifier.go
+        symbols:
+            - RuntimeAttestation
+            - VerifyAttestation
+            - MustTrust
+            - collectServiceRuntimeProof
+      forbidden_fixes:
+        - process_trusted_by_port_listening_alone
+        - process_trusted_by_systemd_active_alone
+        - binary_hash_check_skipped_for_known_service
+        - build_id_mismatch_demoted_to_warning
+      required_tests:
+        - TestRuntimeAttestationBindsPidHashServiceAndBuild
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: stale_or_orphan_process_must_not_be_trusted
+      title: Orphan processes and replayed attestations must be flagged as untrusted
+      severity: critical
+      status: active
+      summary: |
+        Two cases must always reject:
+        (1) Orphan — a running process with no recorded launch authority. Even when every
+        other binding matches, an orphan must return VerdictOrphan.
+        (2) Stale observation — an attestation whose ObservedAt predates the process's
+        ProcessStartTime. That is physically impossible for an honest observer and
+        indicates the attestation was replayed from a previous PID generation or forged.
+        Must return VerdictStaleObservation.
+      protects:
+        files:
+            - golang/attestation/attestation.go
+        symbols:
+            - VerifyAttestation
+      forbidden_fixes:
+        - orphan_process_treated_as_trusted_when_bindings_match
+        - replayed_attestation_treated_as_live
+        - missing_launch_authority_silently_ignored
+        - observed_at_clamped_to_process_start_to_pass_check
+      required_tests:
+        - TestOrphanProcessIsUntrustedWithoutAttestation
+        - TestVerifierRejectsAttestationOlderThanProcessStart
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: audit.records_must_be_correlated_and_retained
+      title: Remediation audit records carry correlation, declared retention, and propagate cross-service
+      severity: high
+      status: active
+      summary: |
+        Every audit record emitted from the remediation path must include AuditID,
+        CorrelationID (either propagated from the caller via x-globular-correlation-id
+        metadata or deterministically derived), Subject, FindingID, EvidenceDigest, and
+        a record of which approval-token jti authorized the action (never the token
+        itself). Records are leased in etcd for RemediationAuditRetention so retention
+        is declared at the code level rather than as inline magic numbers. See
+        docs/intent/audit.retention_and_correlation_policy.yaml.
+      protects:
+        state:
+            - /globular/cluster_doctor/audit/{audit_id}
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/executor.go
+            - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+            - golang/cluster_doctor/cluster_doctor_server/audit_correlation.go
+        symbols:
+            - RemediationAudit
+            - RemediationAuditRetention
+            - auditRemediation
+            - correlationIDFromContext
+            - workflowRunIDFromContext
+      forbidden_fixes:
+        - audit_record_without_correlation_id
+        - audit_retention_as_inline_magic_number
+        - workflow_run_id_dropped_at_doctor_boundary
+        - token_jti_replaced_by_raw_token_in_audit
+      required_tests:
+        - TestRemediationAuditCarriesCorrelationFields
+        - TestAuditRetentionPolicyIsExplicit
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: audit.must_redact_secret_material
+      title: Audit writers must redact approval-token and secret material before persisting
+      severity: critical
+      status: active
+      summary: |
+        RemediationAudit.Redacted() must strip any Params entry whose key indicates a
+        token/secret/password/api_key OR whose value matches a JWT shape. Compliance
+        boundary: even if a caller accidentally puts a raw token in remediation params,
+        the durable etcd record must not contain it. The TokenJTI field is the only
+        token-related material allowed in audit records — and it is a public identifier,
+        not a credential.
+      protects:
+        state:
+            - /globular/cluster_doctor/audit/{audit_id}
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/executor.go
+        symbols:
+            - Redacted
+            - isSensitiveParamKey
+            - looksLikeJWT
+            - auditRemediation
+      forbidden_fixes:
+        - audit_persists_raw_approval_token
+        - audit_persists_jwt_in_params
+        - redaction_skipped_when_dry_run
+        - secret_keyword_check_removed
+      required_tests:
+        - TestAuditRedactsApprovalTokenMaterial
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: remediation.failure_rate_policy_must_be_cluster_wide
+      title: Remediation failure-rate policy is cluster-wide and action-class aware
+      severity: high
+      status: active
+      summary: |
+        Failure-rate throttling must come from a single shared policy (golang/remediation/
+        policy.go) consulted by every surface that issues or coordinates remediation —
+        doctor handler, workflow actors, future controllers. Hard-coded per-package
+        thresholds violate this invariant. Per-action-class budgets are required because
+        SYSTEMCTL_RESTART has very different risk than PACKAGE_REINSTALL.
+        See docs/intent/remediation.failure_rate_policy.yaml.
+      protects:
+        state:
+            - /globular/cluster_doctor/failure_rate_policy
+            - /globular/cluster_doctor/audit/{audit_id}
+        files:
+            - golang/remediation/policy.go
+            - golang/cluster_doctor/cluster_doctor_server/failure_policy.go
+            - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+        symbols:
+            - DefaultFailureRatePolicy
+            - LoadFromEtcd
+            - loadFailureRatePolicy
+            - ExecuteRemediation
+      forbidden_fixes:
+        - per_package_failure_threshold_constants
+        - single_global_threshold_for_all_action_classes
+        - failure_policy_disappears_when_etcd_unavailable
+        - workflow_disagrees_with_doctor_on_threshold
+      required_tests:
+        - TestFailureRatePolicyBlocksAfterThresholdByActionClass
+        - TestRemediationCircuitBreakerUsesSharedPolicy
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: remediation.must_not_retry_without_changed_evidence_or_policy_budget
+      title: Remediation retries require changed evidence or remaining policy budget
+      severity: high
+      status: active
+      summary: |
+        A remediation attempt for the same (invariant, evidence_digest, action_class)
+        tuple consumes one slot of the action's policy budget. When the budget is
+        exhausted the breaker must open and only an operator override can resume. The
+        budget must persist across doctor restarts — the audit log in etcd is the source
+        of truth for failure counts, and the failure-rate policy itself can be operator-
+        published at /globular/cluster_doctor/failure_rate_policy with defaults merging
+        in for unnamed classes.
+      protects:
+        state:
+            - /globular/cluster_doctor/audit/{audit_id}
+            - /globular/cluster_doctor/failure_rate_policy
+        files:
+            - golang/remediation/policy.go
+            - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+            - golang/cluster_doctor/cluster_doctor_server/remediation_history.go
+        symbols:
+            - countRecentFailedActionAttempts
+            - Allow
+            - LoadFromEtcd
+      forbidden_fixes:
+        - failure_counter_reset_on_process_restart
+        - empty_etcd_policy_treated_as_no_throttling
+        - partial_override_silently_disables_defaults
+        - retry_loop_continues_with_identical_evidence
+      required_tests:
+        - TestFailureRatePolicyPersistsAcrossRestart
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: evidence.must_carry_provenance_and_trust_level
+      title: Evidence used for decisions must carry source, writer, timestamp, and a classifier-derived trust level
+      severity: high
+      status: active
+      summary: |
+        Every observation that flows into operator or agent decisions must record where it
+        came from (source), who wrote it (writer identity), when it was observed (timestamp),
+        and an optional correlation id linking related observations. Without these fields an
+        observation cannot be classified by golang/evidence.Classify and must default to
+        UNTRUSTED — silence is not freshness. See
+        docs/intent/evidence.provenance_trust_levels.yaml.
+      protects:
+        files:
+            - golang/evidence/trust.go
+            - golang/cluster_doctor/cluster_doctor_server/evidence_provenance.go
+            - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+        symbols:
+            - Classify
+            - Provenance
+            - evidenceToProvenance
+            - findingEvidenceTrust
+      forbidden_fixes:
+        - evidence_used_without_writer_identity
+        - evidence_used_without_timestamp
+        - unknown_source_treated_as_authoritative
+        - missing_evidence_treated_as_safe_default
+      required_tests:
+        - TestClassify_AuthoritativeWhenFresh
+        - TestClassify_UntrustedWhenProvenanceIncomplete
+        - TestFindingIncludesEvidenceTrustLevel
+        - TestPreflightReportsWeakEvidenceAsUncertain
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: stale_evidence_must_not_authorize_remediation
+      title: Stale or untrusted evidence must not authorize privileged remediation
+      severity: critical
+      status: active
+      summary: |
+        Privileged remediation actions (anything past the dry-run boundary) must be gated on
+        evidence trust. Evidence classified STALE or UNTRUSTED by golang/evidence.Classify
+        must block remediation with a reason that names the trust level — operators must
+        re-collect fresh evidence before retrying. DEGRADED evidence may proceed but the
+        downgrade must be recorded in audit so the decision is explainable later.
+      protects:
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+            - golang/cluster_doctor/cluster_doctor_server/evidence_provenance.go
+        symbols:
+            - ExecuteRemediation
+            - findingEvidenceTrust
+            - AuthorizesRemediation
+      forbidden_fixes:
+        - remediation_proceeds_on_stale_evidence
+        - missing_evidence_authorizes_remediation
+        - trust_gate_bypassed_in_live_execution
+        - audit_omits_evidence_trust_level
+      required_tests:
+        - TestRemediationBlocksOnStaleEvidence
+        - TestWorst_ReturnsLowest
+      related_failure_modes:
+        - services.drift_never_escalates
+
+    - id: remediation.approval_must_bind_action_target_and_generation
+      title: Approval tokens authorize exactly one (action_class, target, generation, finding_id) tuple
+      severity: critical
+      status: active
+      summary: |
+        A signed approval token is not a blanket bypass. It must bind to the exact action
+        class (e.g. SYSTEMCTL_STOP), the exact target entity (node/service identifier),
+        the evidence digest that triggered the finding, and the finding id. A token issued
+        for one finding/action/evidence must not authorize a different action, a different
+        entity, or the same action against re-evaluated evidence (because the generation
+        digest changes). Mismatch on any field is a hard rejection. See
+        docs/intent/remediation.token_contract.yaml.
+      protects:
+        files:
+            - golang/security/approval_token.go
+            - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+        symbols:
+            - ValidateApprovalToken
+            - approvalTargetForFinding
+            - ExecuteRemediation
+      forbidden_fixes:
+        - approval_authorizes_different_action_class_than_minted
+        - approval_authorizes_different_target_than_minted
+        - approval_accepted_after_evidence_digest_changed
+        - approval_ignores_finding_id_binding
+      required_tests:
+        - TestApprovalTokenBindsActionTargetAndGeneration
+      related_failure_modes:
+        - services.drift_never_escalates

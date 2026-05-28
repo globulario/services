@@ -1,0 +1,48 @@
+id: operator.override_intent
+level: contract
+title: Operator overrides are explicit intent with mandatory verification and audit
+intent: >
+  A human operator may force an action despite policy gates only through explicit override intent.
+  The override must state who forced it, why the gate was bypassed, which policy was overridden,
+  the exact target and generation, time bounds, accepted risk, and the required post-action
+  verification plan.
+agent_guidance: >
+  Never convert an operator command into an implicit bypass. Require structured override reason,
+  policy id, scope, expiry, correlation id, and verifier obligations. After the action, mark the
+  workflow incomplete or degraded until mandatory verification proves the invariant was restored or
+  records the remaining risk.
+bad_smells:
+  - force flag bypasses a gate without reason or audit
+  - override succeeds without post-action verification
+  - override applies cluster-wide when operator intended one target
+  - policy gate disappears from workflow outcome
+  - agent suggests force as the first fix instead of last-resort escalation
+activation_triggers:
+  - operator override
+  - force
+  - bypass policy
+  - manual override
+  - break glass
+  - post-action verification
+expressed_by:
+  - services/golang/remediation/override.go
+  - services/golang/remediation/outcome.go
+related_invariants:
+  - operator.override_requires_scope_reason_expiry_and_verification
+  - force_action_must_not_hide_policy_gate
+zooms_out_to:
+  - operator_action_requires_explain_plan_verify
+zooms_in_to: []
+related_to:
+  - remediation.token_contract
+  - audit.retention_and_correlation_policy
+  - workflow.remediation_truth_consistency
+change_risk:
+  - operator_sensitive
+  - remediation_sensitive
+  - safety_sensitive
+status: accepted
+required_tests:
+  - remediation:TestOverrideRequiresReasonScopeAndExpiry
+  - remediation:TestOverrideStillRequiresVerification
+  - remediation:TestOverrideAuditNamesBypassedPolicy

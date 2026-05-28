@@ -12,9 +12,6 @@ import (
 )
 
 const remediationAuditEtcdPrefix = "/globular/cluster_doctor/audit/"
-const remediationFailureEscalationThreshold = 3
-
-var remediationFailureEscalationWindow = 30 * time.Minute
 
 var listRemediationAuditsFn = listRemediationAuditsFromEtcd
 

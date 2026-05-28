@@ -1,0 +1,51 @@
+id: audit.retention_and_correlation_policy
+level: contract
+title: Audit records have retention, redaction, indexing, and cross-service correlation guarantees
+intent: >
+  Remediation and authority-changing actions must produce durable audit records with explicit
+  retention, redaction, indexing, and correlation policy. Operators must be able to trace a decision
+  across doctor finding, workflow run, approval token, actor identity, service call, node-agent action,
+  verification result, and final invariant state.
+agent_guidance: >
+  When adding or changing remediation paths, emit audit events with stable action_id,
+  correlation_id, finding_id, workflow_run_id, step_run_id, token_id, actor, target, generation,
+  evidence references, before/after state, and redaction class. Do not log secrets or raw tokens.
+  Make retention and indexes explicit rather than backend-default folklore.
+bad_smells:
+  - remediation audit has no correlation id across services
+  - token or secret material appears in audit payloads
+  - audit TTL differs by service without policy
+  - audit cannot answer who approved, what ran, and whether verification passed
+  - records are only local logs and disappear with node loss
+activation_triggers:
+  - audit
+  - retention
+  - TTL
+  - correlation id
+  - remediation audit
+  - redaction
+  - workflow run
+expressed_by:
+  - intent/meta/audit_history_schema.yaml
+  - services/golang/cluster_doctor/cluster_doctor_server/executor.go
+  - services/golang/cluster_doctor/cluster_doctor_server/audit_correlation.go
+  - services/golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+related_invariants:
+  - audit.records_must_be_correlated_and_retained
+  - audit.must_redact_secret_material
+zooms_out_to:
+  - audit.every_authority_change_is_explainable
+zooms_in_to: []
+related_to:
+  - workflow.step_receipts_are_evidence
+  - operator_action_requires_explain_plan_verify
+  - remediation.token_contract
+change_risk:
+  - audit_sensitive
+  - security_sensitive
+  - compliance_sensitive
+status: accepted
+required_tests:
+  - doctor:TestRemediationAuditCarriesCorrelationFields
+  - doctor:TestAuditRedactsApprovalTokenMaterial
+  - doctor:TestAuditRetentionPolicyIsExplicit

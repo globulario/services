@@ -1,0 +1,51 @@
+id: runtime.identity_attestation
+level: contract
+title: Runtime identity attestation binds PID, binary hash, service id, build id, and launch authority
+intent: >
+  Running processes must not be trusted by name, port, or PID alone. Runtime identity requires an
+  attestation that binds PID, executable path, binary hash, service identity, build id, launch
+  authority, installed record, desired generation, and observation timestamp.
+agent_guidance: >
+  Treat stale or orphan processes as untrusted until attested. Verify that the running PID maps to
+  the expected executable, checksum/build_id, service id, package identity, systemd unit or launch
+  record, and desired generation. Mark runtime identity as unverified when any binding is missing,
+  stale, or contradicts installed/desired state.
+bad_smells:
+  - runtime health trusts a process because a port answers
+  - PID belongs to old binary after upgrade or restart
+  - service name matches but build_id/hash does not
+  - orphan process survives uninstall or failed restart
+  - verifier record is older than process start time or desired generation
+activation_triggers:
+  - runtime identity
+  - attestation
+  - PID
+  - binary hash
+  - orphan process
+  - stale process
+  - build_id
+  - verifier
+expressed_by:
+  - services/golang/attestation/attestation.go
+  - services/golang/node_agent/node_agent_server/runtime_proof.go
+  - services/golang/verifier/verifier.go
+related_invariants:
+  - runtime.identity_attestation_must_bind_pid_hash_service_and_build
+  - stale_or_orphan_process_must_not_be_trusted
+zooms_out_to:
+  - runtime.identity_requires_verification
+zooms_in_to:
+  - runtime.identity.requires_proof
+related_to:
+  - service.installation_is_not_runtime_truth
+  - desired.build_id_immutable_after_resolution
+  - package.identity_requires_build_id
+change_risk:
+  - runtime_sensitive
+  - security_sensitive
+  - release_sensitive
+status: accepted
+required_tests:
+  - attestation:TestRuntimeAttestationBindsPidHashServiceAndBuild
+  - attestation:TestOrphanProcessIsUntrustedWithoutAttestation
+  - attestation:TestVerifierRejectsAttestationOlderThanProcessStart

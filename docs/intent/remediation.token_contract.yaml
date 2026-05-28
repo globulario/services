@@ -1,0 +1,52 @@
+id: remediation.token_contract
+level: contract
+title: Remediation approval tokens are scoped, expiring, audience-bound, and non-replayable
+intent: >
+  Remediation approval tokens are authority grants, not convenience strings. Every token used to
+  authorize remediation must define exact action scope, target scope, actor identity, audience,
+  expiry, issued-at time, nonce or token id, and replay policy before any privileged action is
+  accepted.
+agent_guidance: >
+  Never treat a non-empty token as approval. Validate signature, issuer, audience, expiry,
+  not-before/issued-at bounds, allowed action class, target resource, generation or desired hash
+  binding, and single-use replay state. Refuse or escalate when any claim is missing, ambiguous,
+  expired, reused, or broader than the requested remediation.
+bad_smells:
+  - token validation only checks that a token string is non-empty
+  - approval token can authorize a different action class than the requested remediation
+  - token can be replayed after a successful or failed action
+  - token has no audience binding to workflow, remediation service, cluster, or node
+  - token lacks expiry, issued-at, nonce, actor identity, or target generation
+activation_triggers:
+  - remediation token
+  - approval token
+  - ExecuteRemediation
+  - privileged remediation
+  - replay
+  - token validation
+expressed_by:
+  - services/golang/security/approval_token.go
+  - services/golang/security/approvaltest/keyring.go
+  - services/golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+  - services/golang/workflow/engine/actors_doctor_remediation.go
+related_invariants:
+  - remediation.token_must_be_scoped_and_non_replayable
+  - remediation.approval_must_bind_action_target_and_generation
+zooms_out_to:
+  - autonomy.remediation_is_bounded_and_escalates
+zooms_in_to: []
+related_to:
+  - operator_action_requires_explain_plan_verify
+  - security.tokens_certificates_keys.cluster_trust_contract
+  - audit.every_authority_change_is_explainable
+change_risk:
+  - security_sensitive
+  - remediation_sensitive
+  - authority_sensitive
+status: accepted
+required_tests:
+  - security:TestApprovalTokenRejectsEmptyOrUnsignedToken
+  - security:TestApprovalTokenRejectsWrongAudience
+  - security:TestApprovalTokenRejectsExpiredToken
+  - security:TestApprovalTokenRejectsReplay
+  - security:TestApprovalTokenBindsActionTargetAndGeneration
