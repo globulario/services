@@ -1,0 +1,87 @@
+id: release.noarch_artifacts_are_first_class_in_sync
+level: contract
+title: Architecture-independent release artifacts (noarch) are first-class members of the BOM and must flow through sync without silent filtering
+intent: >
+  A release artifact whose payload has no native-code architecture binding — the
+  awareness bundle being the canonical example — is declared with platform "noarch"
+  in the BOM. Such entries are authoritative members of the release and must be
+  processed by every consumer that walks the BOM, irrespective of the consumer's
+  own target platform (linux_amd64, etc).
+
+  The repository's sync-from-upstream code MUST treat "noarch" as a wildcard
+  membership in any target-platform filter. An arch-specific consumer running on
+  linux_amd64 syncs both linux_amd64 entries AND noarch entries; an arch-specific
+  consumer on linux_arm64 syncs both linux_arm64 entries AND noarch entries.
+
+  This intent does NOT broaden filtering for arch-specific entries (a
+  linux_amd64 consumer must still skip a linux_arm64 entry). It only specializes
+  the filter for the architecture-independent case, where the BOM's
+  authoritative declaration is "this artifact is content-portable, accept it on
+  every platform".
+
+agent_guidance: >
+  When writing or reviewing any code that filters BOM entries by platform, you
+  MUST honor "noarch" as a wildcard match. A silent skip on noarch is an
+  invisible bug — the artifact is in the BOM, the consumer walks the BOM,
+  yet nothing surfaces as missing or rejected. The DesiredBuildIdOrphaned
+  finding will fire downstream because desired-state pins a build_id whose
+  artifact was never synced.
+
+  When introducing a new artifact kind whose payload is architecture-independent
+  (compiled YAML knowledge, signed manifests, configuration sets, etc.), declare
+  its platform as "noarch" in the BOM. Do NOT pretend it is linux_amd64 — that
+  duplicates the artifact under every arch namespace and breaks identity.
+
+  When debugging "the bundle never imports", check the platform filter first.
+  A silent platform-mismatch skip leaves zero log trace and zero error result —
+  the symptom is just an absent entry in sync_results and a downstream orphan
+  finding.
+
+bad_smells:
+  - sync skips entries by strict platform equality without honoring noarch
+  - awareness bundle declared with platform=linux_amd64 to "work around" the sync filter
+  - separate hidden code path that imports bundles via a non-sync route
+  - kind-specific bypass in sync that handles AWARENESS_BUNDLE outside the normal entry loop
+  - import-policy or downstream code that re-applies a strict platform check after sync already accepted the entry
+  - tests that assert "sync silently skips entries with mismatched platforms" without distinguishing noarch from arch-specific
+
+activation_triggers:
+  - awareness bundle sync
+  - noarch
+  - AWARENESS_BUNDLE
+  - platform filter
+  - BOM membership
+  - DesiredBuildIdOrphaned for globular-awareness-bundle
+  - repository_upstream_sync returns zero results for noarch entry
+
+expressed_by:
+  - services/golang/repository/repository_server/sync_from_upstream.go
+  - services/golang/repository/repository_server/release_index.go
+  - intent/meta/runtime_evidence_schema.yaml
+
+related_invariants:
+  - repository.sync_must_not_silently_drop_noarch_artifacts
+  - repository.imported_package_must_be_local_install_resolvable
+  - release.bom_is_precise_release_authority
+
+zooms_out_to:
+  - release.bom_is_precise_release_authority
+  - awareness.compiled_graph_must_match_sources
+
+zooms_in_to: []
+
+related_to:
+  - awareness.graph_is_compiled_context_not_authority
+  - repository.metadata_is_authority
+  - state.repository_desired_installed_runtime
+
+change_risk:
+  - state_model_sensitive
+  - bootstrap_sensitive
+
+status: accepted
+
+required_tests:
+  - repository:TestSyncFromUpstream_NoArchEntryNotFilteredByPlatform
+  - repository:TestSyncFromUpstream_ArchSpecificEntryStillFilteredOnMismatch
+  - repository:TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly

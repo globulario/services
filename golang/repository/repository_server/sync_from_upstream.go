@@ -285,8 +285,15 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 	var imported, skipped, rejected, failed int32
 
 	for _, entry := range idx.Packages {
-		// Platform filter
-		if entry.Platform != targetPlatform {
+		// Platform filter — honours architecture-independent ("noarch") entries
+		// as first-class members of the BOM. The awareness bundle is the
+		// canonical noarch artifact: its payload (compiled graph + YAML
+		// knowledge) has no native-code architecture binding, and the BOM
+		// authoritatively declares it portable across every target. Skipping
+		// noarch entries silently is the failure mode the
+		// repository.sync_must_not_silently_drop_noarch_artifacts invariant
+		// catches. See docs/intent/release.noarch_artifacts_are_first_class_in_sync.yaml.
+		if !platformMatchesTarget(entry.Platform, targetPlatform) {
 			continue
 		}
 		// Name filter
@@ -1208,6 +1215,44 @@ func materializeLocalPackageArchive(name, version, platform, filename string, da
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// noArchPlatform is the BOM-level signal that a release artifact's payload has
+// no native-code architecture binding (compiled YAML knowledge, signed
+// manifests, configuration sets, etc.). The canonical example is the awareness
+// bundle. A noarch entry is a first-class BOM member and must be processed by
+// any consumer regardless of the consumer's own target platform.
+//
+// This constant lives next to platformMatchesTarget so the two halves of the
+// rule — the signal string and the matcher — cannot drift apart.
+const noArchPlatform = "noarch"
+
+// platformMatchesTarget reports whether a BOM entry's declared platform is
+// acceptable for a consumer with the given target platform. Rules:
+//
+//   - exact match (e.g. linux_amd64 == linux_amd64) → accept
+//   - entry is noarch                               → accept on every target
+//   - entry is empty                                → accept on every target
+//     (legacy entries from before platform was mandatory; the downstream
+//     install path enforces its own arch checks)
+//   - anything else                                 → reject (filter out)
+//
+// The matcher MUST be the single point that interprets noarch. Any future code
+// that filters BOM entries by platform must call this helper rather than
+// re-implementing the comparison; otherwise the filter drifts back to silent
+// platform-equality and noarch artifacts get dropped invisibly. See
+// docs/intent/release.noarch_artifacts_are_first_class_in_sync.yaml and
+// invariant repository.sync_must_not_silently_drop_noarch_artifacts.
+func platformMatchesTarget(entryPlatform, targetPlatform string) bool {
+	entry := strings.TrimSpace(entryPlatform)
+	target := strings.TrimSpace(targetPlatform)
+	if entry == "" {
+		return true
+	}
+	if strings.EqualFold(entry, noArchPlatform) {
+		return true
+	}
+	return entry == target
+}
 
 // sourceOptsFromProto maps a proto UpstreamSource to a provider-neutral SourceOpts.
 // This is the single place where proto fields are mapped to provider config.

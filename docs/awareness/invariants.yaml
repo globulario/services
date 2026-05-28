@@ -3970,6 +3970,55 @@ invariants:
         - TestLayoutDrift_PlatformBaseSilentDoesNotSuppressOtherInvariants
       related_failure_modes:
         - filesystem.service_runtime_dir_naming_drift
+    - id: repository.sync_must_not_silently_drop_noarch_artifacts
+      title: Sync's platform filter MUST honour "noarch" as a wildcard match — silent dropping of noarch BOM entries is a forbidden invisible failure
+      severity: critical
+      status: active
+      summary: |
+        The repository's sync_from_upstream code walks the BOM and applies a
+        platform filter to skip entries that don't target the consumer's arch
+        (typically linux_amd64). The filter MUST recognize platform="noarch"
+        as a wildcard: noarch entries describe architecture-independent
+        payloads (compiled YAML knowledge, signed manifests, configuration
+        sets — the awareness bundle is the canonical example) and the BOM
+        authoritatively declares them portable across every target.
+
+        Silent dropping of noarch entries is the worst class of failure: zero
+        log trace, zero rejection result, just an absent entry. The orphan
+        only surfaces later as a DesiredBuildIdOrphaned finding, divorced
+        from the cause. v1.2.117 produced 1 such finding for
+        globular-awareness-bundle even after 11 sibling services were
+        repaired via the new repair_blob path.
+
+        The matcher MUST be a single point in the codebase
+        (platformMatchesTarget in sync_from_upstream.go) so the noarch rule
+        cannot drift back to strict equality through copy-paste in a future
+        filter.
+
+        See docs/intent/release.noarch_artifacts_are_first_class_in_sync.yaml
+        and docs/awareness/failure_modes.repository.sync_silently_drops_noarch_artifacts.
+      protects:
+        files:
+            - golang/repository/repository_server/sync_from_upstream.go
+        symbols:
+            - platformMatchesTarget
+            - noArchPlatform
+            - SyncFromUpstream
+      forbidden_fixes:
+        - declare_noarch_artifact_with_linux_amd64_to_work_around_filter
+        - add_kind_specific_bypass_for_awareness_bundle_in_sync_loop
+        - remove_platform_filter_entirely
+        - import_bundle_via_separate_non_sync_code_path
+        - treat_any_unknown_platform_as_noarch
+        - reimplement_platform_comparison_outside_platform_matches_target
+        - retry_sync_with_different_target_platform_to_catch_noarch_entries
+      required_tests:
+        - TestPlatformMatchesTarget
+        - TestSyncFromUpstream_NoArchEntryNotFilteredByPlatform
+        - TestSyncFromUpstream_ArchSpecificEntryStillFilteredOnMismatch
+        - TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly
+      related_failure_modes:
+        - repository.sync_silently_drops_noarch_artifacts
     - id: awareness.child_intent_must_align_with_parent
       title: Requirement-born child intents must preserve parent intent direction
       severity: critical

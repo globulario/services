@@ -2511,3 +2511,68 @@ failure_modes:
         - TestLayoutDrift_KnownServicesIncluded
         - TestLayoutDrift_PlatformBaseSilentDoesNotSuppressOtherInvariants
         - TestLayoutDrift_NonEmptyDuplicateAliasProducesDuplicateWarn
+    - id: repository.sync_silently_drops_noarch_artifacts
+      title: BOM entries with platform=noarch are silently dropped by the sync platform filter, producing zero-result imports and downstream orphan findings
+      severity: critical
+      symptoms:
+        - repository_upstream_sync returns zero results for a BOM entry that exists in the release-index.json
+        - DesiredBuildIdOrphaned critical finding fires for globular-awareness-bundle even though the bundle is in the release
+        - manifests table has no row for the bundle artifact_key (not even a skeleton)
+        - ServiceRelease stays WAITING with reason artifact_not_published indefinitely
+        - cluster-doctor reports artifact_not_published but the artifact is sitting in the GitHub release
+        - sync logs do not contain a rejection or error for the dropped entry
+      root_cause: |
+        The sync entry loop in sync_from_upstream.go used strict equality to filter BOM
+        entries by platform against the consumer's targetPlatform (linux_amd64). The
+        awareness bundle is published with platform=noarch because its payload
+        (compiled graph + YAML knowledge) has no native-code architecture binding,
+        and the BOM authoritatively declares it portable across every target.
+
+        Strict equality treats noarch as "wrong platform" and continues past the
+        entry without surfacing any signal. The downstream code (processSyncEntry,
+        importUpstreamArtifact, materializeLocalPackageArchive) is never reached
+        for that entry. No row is written; no error is logged; the sync result
+        object has zero entries for that name. The doctor's DesiredBuildIdOrphaned
+        rule only fires later, divorced from the cause.
+
+        First surfaced 2026-05-28: 11 sibling services were repaired via repair_blob
+        but globular-awareness-bundle remained orphaned because the platform filter
+        rejected it before any code in the sync path could see it.
+      detection: |
+        - repository_upstream_sync with only=<bundle-name> returns empty results array
+        - cqlsh "SELECT count(*) FROM repository.manifests WHERE name='globular-awareness-bundle';" returns 0
+        - controller log: "ServiceRelease core@globular.io/awareness-bundle: artifact not in repository, entering WAITING"
+        - BOM has the bundle entry with platform=noarch (verify with curl + python: jq for platform)
+      resolution: |
+        v1.2.118 sync_from_upstream.go: replace strict equality with platformMatchesTarget helper.
+
+        platformMatchesTarget(entry, target):
+          - empty entry: accept (legacy grandfathering)
+          - case-insensitive noarch: accept on every target
+          - exact equal: accept
+          - otherwise: reject
+
+        Constant noArchPlatform and the helper live next to each other so the
+        signal string and matcher cannot drift. Helper is the SINGLE point in
+        the codebase that interprets noarch; any future filter must call it
+        rather than reimplement the comparison.
+
+        Layout: the helper does NOT broaden filtering for arch-specific entries.
+        A linux_arm64 entry is still rejected on a linux_amd64 consumer. Only
+        the noarch case is specialized.
+      known_bad_fixes:
+        - declaring the awareness bundle with platform=linux_amd64 to work around the filter (duplicates artifact under every arch namespace, breaks identity)
+        - adding a kind-specific bypass for AWARENESS_BUNDLE in the sync loop (parallel hidden path, future kinds re-create the same gap)
+        - removing the platform filter entirely (would accept genuinely wrong-arch entries, breaking the per-arch separation rule)
+        - importing the bundle via a separate non-sync code path (creates two source-of-truth import flows for the same BOM)
+        - treating any unknown platform as noarch (silently accepts typos and corrupted BOM entries)
+        - retrying sync with a different targetPlatform to "catch" noarch entries (timing-dependent, races with the controller)
+      related_invariants:
+        - repository.sync_must_not_silently_drop_noarch_artifacts
+        - release.noarch_artifacts_are_first_class_in_sync
+        - repository.imported_package_must_be_local_install_resolvable
+      required_tests:
+        - TestPlatformMatchesTarget
+        - TestSyncFromUpstream_NoArchEntryNotFilteredByPlatform
+        - TestSyncFromUpstream_ArchSpecificEntryStillFilteredOnMismatch
+        - TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly
