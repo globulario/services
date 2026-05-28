@@ -35,11 +35,15 @@ func TestCriticalDependencyDeclaresDegradationMode(t *testing.T) {
 	}
 }
 
-// TestRepositoryReadOnlyWhenBlobStoreUnavailable — contract test. The
-// repository's MinIO dependency declares ModeReadOnly: reads must still
-// answer (the local POSIX CAS still works), writes must refuse with a
-// clear operator-facing reason.
-func TestRepositoryReadOnlyWhenBlobStoreUnavailable(t *testing.T) {
+// TestRepositoryMinioIsDegradedNotReadOnly — contract test. The
+// repository's MinIO dependency is a SECONDARY (mirror) authority, not a
+// primary one — the local POSIX CAS is the installability authority.
+// When MinIO is down, the repository degrades (mirror writes skipped)
+// but continues to accept writes against the local POSIX CAS. This is
+// distinct from the ScyllaDB dependency, where unavailability does
+// drop the service to read_only. See
+// docs/operators/remediation-contracts.md §6 and dep_health.go.
+func TestRepositoryMinioIsDegradedNotReadOnly(t *testing.T) {
 	c := Lookup("repository")
 	if c == nil {
 		t.Fatal("repository contract missing")
@@ -48,27 +52,32 @@ func TestRepositoryReadOnlyWhenBlobStoreUnavailable(t *testing.T) {
 	if dep.Name == "" {
 		t.Fatal("repository must declare minio dependency")
 	}
-	if dep.Mode != ModeReadOnly {
-		t.Fatalf("repository minio mode: got %s, want read_only", dep.Mode)
+	if dep.Mode != ModeDegraded {
+		t.Fatalf("repository minio mode: got %s, want degraded — MinIO is a mirror, not primary authority", dep.Mode)
 	}
 
-	// Reads allowed.
-	if ok, reason := AllowOperation(dep, OperationReadOnly); !ok {
-		t.Fatalf("read while MinIO down must be allowed for repository: %s", reason)
-	}
-	// Writes refused with a reason that names the dependency.
-	ok, reason := AllowOperation(dep, OperationWrite)
-	if ok {
-		t.Fatal("write while MinIO down must be refused for repository")
-	}
-	if !strings.Contains(reason, "minio") {
-		t.Fatalf("refusal reason must name the dependency, got: %q", reason)
+	// Under degraded, reads/writes/dispatch all proceed by default —
+	// only operations explicitly listed in BlockedOperations refuse.
+	// The minio dependency's BlockedOperations is empty (mirror-class
+	// gating happens inside the repository's CapRepoMirror check, not at
+	// the broad operation level).
+	for _, op := range []Operation{OperationReadOnly, OperationWrite, OperationDispatch} {
+		if ok, reason := AllowOperation(dep, op); !ok {
+			t.Fatalf("op %s under MinIO-degraded must be allowed (mirror gating is separate): %s", op, reason)
+		}
 	}
 
-	// Dispatch (control-plane work) is also blocked under read_only since
-	// dispatch is a write-class action.
-	if ok, _ := AllowOperation(dep, OperationDispatch); ok {
-		t.Fatal("dispatch while MinIO down must be refused for repository")
+	// And: the ScyllaDB dependency IS the one that drops the repository
+	// to read_only — primary metadata authority for the package index.
+	scylla := c.For("scylladb")
+	if scylla.Mode != ModeReadOnly {
+		t.Fatalf("scylladb mode: got %s, want read_only", scylla.Mode)
+	}
+	if ok, _ := AllowOperation(scylla, OperationWrite); ok {
+		t.Fatal("write while ScyllaDB down must be refused")
+	}
+	if ok, _ := AllowOperation(scylla, OperationDispatch); ok {
+		t.Fatal("dispatch while ScyllaDB down must be refused")
 	}
 }
 

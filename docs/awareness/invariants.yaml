@@ -3265,6 +3265,8 @@ invariants:
       protects:
         files:
             - golang/dependency/modes.go
+            - golang/repository/repository_server/dep_health.go
+            - golang/repository/repository_server/dependency_contract_test.go
         symbols:
             - ServiceContract
             - DependencyContract
@@ -3272,15 +3274,19 @@ invariants:
             - Lookup
             - AllowOperation
             - Mode
+            - RequireCapability
+            - OperationalStatus
       forbidden_fixes:
         - dependency_mode_inferred_from_start_order
         - dependency_unhealthy_silently_ignored
         - service_registered_with_empty_dependencies
         - unknown_mode_treated_as_ignore
+        - declared_mode_drifts_from_live_enforcement
       required_tests:
         - TestCriticalDependencyDeclaresDegradationMode
-        - TestRepositoryReadOnlyWhenBlobStoreUnavailable
+        - TestRepositoryMinioIsDegradedNotReadOnly
         - TestUnknownModeIsRejected
+        - TestDependencyDeclarationMatchesLiveEnforcement
       related_failure_modes:
         - services.drift_never_escalates
 

@@ -25,6 +25,8 @@ activation_triggers:
   - critical service
 expressed_by:
   - services/golang/dependency/modes.go
+  - services/golang/repository/repository_server/dep_health.go
+  - services/golang/repository/repository_server/dependency_contract_test.go
 related_invariants:
   - service.dependencies_must_define_degradation_mode
   - dependency_failure_must_not_create_hidden_authority

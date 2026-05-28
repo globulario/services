@@ -247,31 +247,46 @@ func firstNonEmpty(a, b string) string {
 // ─────────────────────────────────────────────────────────────────────
 
 func init() {
-	// repository — write-class operations need MinIO. Reads can serve
-	// from the local POSIX CAS so the dependency degrades to read_only,
-	// not stop.
+	// repository — declarations mirror the live enforcement in
+	// golang/repository/repository_server/dep_health.go. Keep these in
+	// sync; the package-level test in
+	// golang/repository/repository_server/dependency_contract_test.go
+	// asserts they agree at CI time.
+	//
+	// ScyllaDB: indexed read+write authority; both CapRepoWrite and
+	// CapRepoQuery are blocked when it's unhealthy, but CapRepoRead
+	// (local POSIX CAS) still answers — hence read_only.
+	//
+	// MinIO: ONLY the mirror capability is gated by it. Broader writes
+	// proceed (the local POSIX CAS is the installability authority).
+	// Hence degraded, not read_only.
+	//
+	// etcd: hard startup prerequisite — the service can't bootstrap its
+	// config or register itself without etcd. Not enforced at the RPC
+	// boundary (dep_health.go doesn't probe etcd) because the service
+	// can't run at all without it; controller-side observation handles
+	// total absence.
 	Register(&ServiceContract{
 		ServiceID: "repository",
 		Dependencies: []DependencyContract{
 			{
-				Name:              "etcd",
-				Mode:              ModeStop,
-				AuthorityRole:     "config_truth",
-				BlockedOperations: []string{string(OperationRead), string(OperationWrite), string(OperationDispatch)},
-				OperatorMessage:   "repository cannot serve without etcd config authority",
+				Name:            "etcd",
+				Mode:            ModeStop,
+				AuthorityRole:   "config_truth",
+				OperatorMessage: "repository cannot bootstrap or register without etcd config authority",
 			},
 			{
 				Name:              "minio",
-				Mode:              ModeReadOnly,
-				AuthorityRole:     "object_store",
-				BlockedOperations: []string{string(OperationWrite)},
-				OperatorMessage:   "repository writes require MinIO; reads serve from local POSIX CAS",
+				Mode:              ModeDegraded,
+				AuthorityRole:     "object_store_mirror",
+				BlockedOperations: []string{}, // mirror-class only; other writes proceed
+				OperatorMessage:   "MinIO mirror unavailable: mirror writes skipped; local POSIX CAS is authoritative",
 			},
 			{
 				Name:            "scylladb",
 				Mode:            ModeReadOnly,
 				AuthorityRole:   "package_index",
-				OperatorMessage: "package index writes require ScyllaDB",
+				OperatorMessage: "ScyllaDB unavailable: write/query capabilities blocked; verified local reads available",
 			},
 		},
 	})
