@@ -130,9 +130,93 @@ func normalizeHash(h string) string {
 	return strings.TrimPrefix(s, "sha256:")
 }
 
+// BinaryVerdict is the explicit outcome of the post-install hash gate. The
+// "missing checksum" case is no longer collapsed into "verified": apply-package
+// callers MUST treat it as Unverified (degraded, not success).
+//
+// Verdict semantics:
+//   - BinaryVerified   — expected provided, actual matched. Caller may declare SUCCESS.
+//   - BinaryUnverified — expected NOT provided (legacy caller / older release-index).
+//                         Binary is on disk but its identity is unproven. Caller
+//                         must record an UNVERIFIED installed-state, NOT SUCCESS.
+//   - BinaryMismatch   — expected provided, actual differs. Returned via error.
+//   - BinaryMissing    — expected provided, binary absent. Returned via error.
+//
+// See docs/intent/runtime.success_requires_verified_identity.yaml and
+// invariant runtime.success_requires_expected_binary_checksum.
+type BinaryVerdict string
+
+const (
+	BinaryVerified   BinaryVerdict = "VERIFIED"
+	BinaryUnverified BinaryVerdict = "UNVERIFIED"
+	BinaryMismatch   BinaryVerdict = "MISMATCH"
+	BinaryMissing    BinaryVerdict = "MISSING"
+)
+
+// StatusBinaryUnverified is the installed_state.Status written when apply
+// completes but no expected_sha256 was provided to prove binary identity.
+// This is NOT a failure — the install ran, the service is up — but it is
+// explicitly NOT a verified success. Doctor / verifier lift this into a
+// package.installed_binary_unverified finding so the gap is visible.
+const StatusBinaryUnverified = "installed_unverified"
+
+// verifyInstalledBinaryHashStrict is the verdict-returning replacement for
+// verifyInstalledBinaryHash. It NEVER collapses missing-expected into success.
+//
+// Use this from production apply-package callsites. The caller decides what
+// to do with BinaryUnverified — typically: write installed-state with
+// Status=installed_unverified instead of installed, and return Ok=false with
+// a degraded reason. Do not declare SUCCESS.
+func verifyInstalledBinaryHashStrict(name, kind, expectedSHA256, buildID, operationID string) (actualHash string, verdict BinaryVerdict, err error) {
+	path := installedBinaryPath(name, kind)
+	expected := normalizeHash(expectedSHA256)
+
+	actual, hashErr := cachedSha256(path)
+
+	if expected == "" {
+		// No expected provided — degraded path. Return whatever hash we
+		// could read (possibly empty if the binary is missing) and let the
+		// caller record an UNVERIFIED installed-state.
+		if hashErr != nil {
+			return "", BinaryUnverified, nil
+		}
+		return actual, BinaryUnverified, nil
+	}
+
+	if hashErr != nil {
+		return "", BinaryMissing, &BinaryMissingError{
+			Package:     name,
+			Kind:        kind,
+			Path:        path,
+			Expected:    expected,
+			BuildID:     buildID,
+			OperationID: operationID,
+			Underlying:  hashErr,
+		}
+	}
+	if actual != expected {
+		return actual, BinaryMismatch, &BinaryHashMismatchError{
+			Package:     name,
+			Kind:        kind,
+			Path:        path,
+			Expected:    expected,
+			Actual:      actual,
+			BuildID:     buildID,
+			OperationID: operationID,
+		}
+	}
+	return actual, BinaryVerified, nil
+}
+
 // verifyInstalledBinaryHash is the Phase 1 synchronous proof gate. It must be
 // called after the payload extraction step in ApplyPackageRelease and before
 // installed_state is written with Status="installed".
+//
+// DEPRECATED: this function returns (hash, nil) for empty expected, silently
+// treating "no proof" as "verified". Use verifyInstalledBinaryHashStrict and
+// branch on the returned BinaryVerdict. The shim is kept so legacy test
+// fixtures continue to document the historical behavior. All production
+// apply-package callsites in apply_package_release.go have been migrated.
 //
 // Contract: the returned error is NON-NIL only when a proof check FAILED
 // (expected was supplied and either the binary is missing or its hash drifts).

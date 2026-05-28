@@ -3655,6 +3655,182 @@ invariants:
       related_failure_modes:
         - manifest_skeleton_row_published_with_null_json
         - services.drift_never_escalates
+    - id: installer.explicit_version_requires_exact_artifact
+      title: When the caller passes an explicit package version, the install path must match it exactly — no wildcard fallback
+      severity: critical
+      status: active
+      summary: |
+        node-agent's findLocalPackage searches localPackageDirs for a .tgz matching
+        the requested package name, version, and platform. When the exact .tgz is
+        absent, the historical Day-1 wildcard fallback returned the
+        lexicographic-newest version of the package in the same dir. That
+        fallback was meant for bootstrap callers with no authoritative version
+        ("" or "0.0.0-dev"), but it fired for any cache miss — including Day-2
+        upgrades with an explicit version request.
+
+        Result: a request for v1.2.115 silently substituted v1.2.110 from
+        /var/lib/globular/packages/, the install reported SUCCESS, the cluster
+        kept reporting drift forever, and the controller's release pipeline
+        could not converge. See failure_modes.release.explicit_version_wildcard_installs_wrong_version.
+
+        Rule: an explicit version is a binding contract. Missing exact match
+        returns "" — the caller surfaces "package not found" rather than
+        substituting another version.
+      protects:
+        files:
+            - golang/node_agent/node_agent_server/installer_api.go
+        symbols:
+            - findLocalPackage
+            - isExplicitVersion
+            - findLocalPackageAnyVersion
+      forbidden_fixes:
+        - allow_wildcard_fallback_when_caller_passed_explicit_version
+        - treat_older_local_archive_as_satisfying_newer_desired_version
+        - declare_install_success_when_local_cache_did_not_have_exact_version
+      required_tests:
+        - TestFindLocalPackage_ExplicitVersion_NoExact_ReturnsEmpty
+        - TestFindLocalPackage_ExplicitVersion_v1_2_115_MustNotResolve_v1_2_110
+        - TestFindLocalPackage_ExplicitVersion_ReturnsExactMatch
+        - TestFindLocalPackage_EmptyVersion_AllowsWildcard
+        - TestIsExplicitVersion
+      related_failure_modes:
+        - release.explicit_version_wildcard_installs_wrong_version
+    - id: repository.imported_package_must_be_local_install_resolvable
+      title: A successfully imported package must be materialized where the local-only install path searches for it
+      severity: critical
+      status: active
+      summary: |
+        repository_upstream_sync's importUpstreamArtifact stores artifacts in the
+        repository service's storage (Scylla manifest + MinIO blob). But
+        node-agent's install path is local-only — it searches
+        /var/lib/globular/packages/ (and the pinned dir) for a .tgz by exact
+        filename. Nothing bridged the two: new versions arrived in the
+        repository service but the local install dir was never updated.
+
+        Day-2 upgrades therefore could not find the new version locally,
+        triggered the (now-fixed) wildcard fallback, and silently installed an
+        older version. The fix in installer_api closes the read side; this
+        invariant closes the supply side.
+
+        Rule: after a successful import (PipelinePublished transition + alias
+        persisted), the imported .tgz bytes are written atomically (temp + rename)
+        to /var/lib/globular/packages/ so the local-only install path can
+        resolve the exact-version filename without any further round-trip.
+        Idempotent on matching size + sha256.
+      protects:
+        files:
+            - golang/repository/repository_server/sync_from_upstream.go
+        symbols:
+            - importUpstreamArtifact
+            - materializeLocalPackageArchive
+            - localInstallPackageDir
+      forbidden_fixes:
+        - leave_local_install_dir_empty_after_repository_import
+        - assume_install_path_can_reach_repository_service_for_blob_bytes
+        - partial_write_to_final_local_path_without_atomic_rename
+        - skip_materialization_when_size_or_digest_differs_from_existing_local_file
+      required_tests:
+        - TestMaterializeLocalPackageArchive_WritesTgzToLocalInstallDir
+        - TestMaterializeLocalPackageArchive_RespectsUpstreamFilename
+        - TestMaterializeLocalPackageArchive_IsIdempotent
+        - TestMaterializeLocalPackageArchive_FailedImportDoesNotWriteFinal
+        - TestMaterializeLocalPackageArchive_VersionMatchesImportedManifest
+        - TestMaterializeLocalPackageArchive_DigestPreservation
+      related_failure_modes:
+        - release.explicit_version_wildcard_installs_wrong_version
+    - id: runtime.success_requires_expected_binary_checksum
+      title: apply-package may not declare SUCCESS unless the installed binary hash matches the expected manifest checksum
+      severity: critical
+      status: active
+      summary: |
+        apply-package's post-install proof gate (verifyInstalledBinaryHash) had a
+        silent degraded path: when the caller did not pass expected_sha256, the
+        function returned (actual_hash, nil) — collapsing "no proof provided"
+        into "verified". The caller then declared "running and verified" and
+        wrote installed-state Status=installed even though the binary identity
+        was completely unproven.
+
+        Combined with the local-cache wildcard fallback, this allowed
+        installing v1.2.110's binary while the manifest declared v1.2.115:
+        no expected hash was propagated by the legacy callsite, verifyInstalledBinaryHash
+        returned the actual hash without comparison, apply-package reported SUCCESS.
+
+        Rule: apply-package's verify gate returns an explicit verdict
+        (Verified / Unverified / Mismatch / Missing). Only Verified permits
+        SUCCESS. Unverified (no expected provided) writes installed-state with
+        Status=installed_unverified and returns Ok=false — the gap is operator-visible
+        rather than masquerading. Mismatch and Missing remain hard failures.
+      protects:
+        files:
+            - golang/node_agent/node_agent_server/apply_package_verify.go
+            - golang/node_agent/node_agent_server/apply_package_release.go
+        symbols:
+            - verifyInstalledBinaryHashStrict
+            - BinaryVerdict
+            - BinaryVerified
+            - BinaryUnverified
+            - StatusBinaryUnverified
+            - writeBinaryUnverifiedInstalledState
+      forbidden_fixes:
+        - declare_apply_package_success_based_only_on_systemd_active_state
+        - collapse_missing_expected_checksum_into_verified_success
+        - mutate_desired_state_to_match_installed_runtime_when_verification_fails
+        - silently_return_actual_hash_as_proof_when_no_expected_was_provided
+      required_tests:
+        - TestVerifyStrict_RunningServiceMatchingChecksum_ReturnsVerified
+        - TestVerifyStrict_RunningServiceMismatchingChecksum_ReturnsMismatch
+        - TestVerifyStrict_MissingBinary_ReturnsMissing
+        - TestVerifyStrict_MissingExpectedChecksum_ReturnsUnverified
+        - TestVerifyStrict_OldBinaryMustNotSatisfyNewExpectedHash
+      related_failure_modes:
+        - release.explicit_version_wildcard_installs_wrong_version
+    - id: desired_installed_runtime_identity_must_match
+      title: Across Desired -> Installed -> Runtime the binary identity must agree — version, build_id, and entrypoint_checksum
+      severity: critical
+      status: active
+      summary: |
+        The 4-layer model (Repository -> Desired -> Installed -> Runtime) is only
+        sound when identity propagates faithfully across the layer boundaries.
+        Desired declares "we want repository@1.2.115 build 366 with entrypoint_checksum
+        cee70c5a"; Installed must reflect the same identity tuple; Runtime must
+        prove it by hashing what's actually on disk and running.
+
+        The v1.2.115 install incident showed all three layer transitions
+        failing identity: Desired said 1.2.115/366/cee70c5a, Installed wrote
+        Status=installed for 1.2.115 but the binary was actually
+        1.2.110/365/479e9393, Runtime systemd reported active for a process
+        loading the wrong binary. Each layer agreed locally but not with the
+        layer above.
+
+        Rule: the three fixes in v1.2.116 enforce identity at each transition.
+        Installer refuses to substitute identity (read side). Sync materializes
+        identity-correct artifact to local cache (supply side). Verify gate
+        proves identity by checksum before SUCCESS (verify side). When any
+        check fails, installed-state reflects the failure honestly; identity
+        is never silently downgraded to match what happened to land on disk.
+      protects:
+        files:
+            - golang/node_agent/node_agent_server/installer_api.go
+            - golang/node_agent/node_agent_server/apply_package_release.go
+            - golang/node_agent/node_agent_server/apply_package_verify.go
+            - golang/repository/repository_server/sync_from_upstream.go
+        symbols:
+            - findLocalPackage
+            - materializeLocalPackageArchive
+            - verifyInstalledBinaryHashStrict
+            - writeBinaryUnverifiedInstalledState
+            - writeBinaryHashMismatchInstalledState
+      forbidden_fixes:
+        - declare_installed_state_status_installed_when_runtime_identity_was_not_proved
+        - mutate_desired_pin_to_whatever_installed_to_force_alignment
+        - infer_desired_from_runtime_observation
+        - degrade_identity_silently_when_a_layer_transition_loses_evidence
+      required_tests:
+        - TestVerifyStrict_OldBinaryMustNotSatisfyNewExpectedHash
+        - TestFindLocalPackage_ExplicitVersion_v1_2_115_MustNotResolve_v1_2_110
+        - TestMaterializeLocalPackageArchive_VersionMatchesImportedManifest
+      related_failure_modes:
+        - release.explicit_version_wildcard_installs_wrong_version
     - id: awareness.child_intent_must_align_with_parent
       title: Requirement-born child intents must preserve parent intent direction
       severity: critical

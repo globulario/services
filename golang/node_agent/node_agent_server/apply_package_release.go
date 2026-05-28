@@ -21,6 +21,58 @@ import (
 	"github.com/globulario/services/golang/versionutil"
 )
 
+// writeBinaryUnverifiedInstalledState records an apply that completed without
+// a provable binary identity (no expected_sha256 from manifest, or legacy
+// caller). The service may be running, but we cannot claim VERIFIED. Doctor /
+// verifier lift this into a package.installed_binary_unverified finding so the
+// gap is operator-visible rather than masquerading as success.
+//
+// Returns a degraded response (Ok=false, Status=installed_unverified). Callers
+// must NOT treat this as a SUCCESS path even though no error is set.
+func (srv *NodeAgentServer) writeBinaryUnverifiedInstalledState(
+	ctx context.Context,
+	req *node_agentpb.ApplyPackageReleaseRequest,
+	name, kind, version, actualHash, reason string,
+) *node_agentpb.ApplyPackageReleaseResponse {
+	path := installedBinaryPath(name, kind)
+	meta := map[string]string{
+		"finding":        "package.installed_binary_unverified",
+		"installed_path": path,
+		"reason":         reason,
+		"apply_run_id":   req.GetOperationId(),
+	}
+	if actualHash != "" {
+		meta["actual_sha256"] = actualHash
+	}
+	if bid := strings.TrimSpace(req.GetBuildId()); bid != "" {
+		meta["expected_build_id"] = bid
+	}
+	_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
+		NodeId:      srv.nodeID,
+		Name:        name,
+		Version:     version,
+		Kind:        kind,
+		Status:      StatusBinaryUnverified,
+		UpdatedUnix: time.Now().Unix(),
+		OperationId: req.GetOperationId(),
+		BuildNumber: req.GetBuildNumber(),
+		BuildId:     strings.TrimSpace(req.GetBuildId()),
+		Checksum:    actualHash,
+		Metadata:    meta,
+	})
+	log.Printf("apply-package: UNVERIFIED %s/%s@%s — %s (binary hash present but no expected checksum to compare)",
+		kind, name, version, reason)
+	return &node_agentpb.ApplyPackageReleaseResponse{
+		Ok:          false,
+		Message:     fmt.Sprintf("installed but unverified: %s", reason),
+		PackageName: name,
+		Version:     version,
+		Status:      StatusBinaryUnverified,
+		ErrorDetail: reason,
+		OperationId: req.GetOperationId(),
+	}
+}
+
 // writeBinaryHashMismatchInstalledState records a failed apply when the
 // post-install proof gate (Phase 1 of the diagnostic honesty refactor) rejects
 // the deployed binary. The status string is consumed by doctor / the future
@@ -343,9 +395,13 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		// declare it "installed", verify the bytes on disk hash to the
 		// expected artifact-manifest digest. Mismatch / missing → fail apply
 		// and write structured evidence to installed_state.
-		actualHash, verr := verifyInstalledBinaryHash(name, kind, req.GetExpectedSha256(), buildID, operationID)
+		actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID)
 		if verr != nil {
 			return srv.writeBinaryHashMismatchInstalledState(ctx, req, name, kind, version, verr), nil
+		}
+		if verdict == BinaryUnverified {
+			return srv.writeBinaryUnverifiedInstalledState(ctx, req, name, kind, version, actualHash,
+				"no expected_sha256 provided in apply request — cannot prove installed binary matches the desired artifact"), nil
 		}
 
 		pkg := &node_agentpb.InstalledPackage{
@@ -502,9 +558,13 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		// Phase 1 proof gate: see COMMAND branch above. Same contract for
 		// binary-only packages — disk hash must match the manifest before
 		// we mark installed.
-		actualHash, verr := verifyInstalledBinaryHash(name, kind, req.GetExpectedSha256(), buildID, operationID)
+		actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID)
 		if verr != nil {
 			return srv.writeBinaryHashMismatchInstalledState(ctx, req, name, kind, version, verr), nil
+		}
+		if verdict == BinaryUnverified {
+			return srv.writeBinaryUnverifiedInstalledState(ctx, req, name, kind, version, actualHash,
+				"no expected_sha256 provided in apply request — cannot prove installed binary matches the desired artifact"), nil
 		}
 
 		binaryOnlyPkg := &node_agentpb.InstalledPackage{
@@ -603,9 +663,13 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// to the expected artifact-manifest digest before we declare installed.
 	// Mismatch / missing → fail apply and write structured evidence; do NOT
 	// mark installed.
-	actualHash, verr := verifyInstalledBinaryHash(name, kind, req.GetExpectedSha256(), buildID, operationID)
+	actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID)
 	if verr != nil {
 		return srv.writeBinaryHashMismatchInstalledState(ctx, req, name, kind, version, verr), nil
+	}
+	if verdict == BinaryUnverified {
+		return srv.writeBinaryUnverifiedInstalledState(ctx, req, name, kind, version, actualHash,
+			"no expected_sha256 provided in apply request — cannot prove installed binary matches the desired artifact"), nil
 	}
 
 	// Write installed-state ONLY after the service is confirmed active AND

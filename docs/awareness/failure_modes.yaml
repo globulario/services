@@ -2375,3 +2375,75 @@ failure_modes:
         - TestAggregateRolloutProof_PartialRollout_PartialNotConvergedFinding
         - TestAggregateRolloutProof_MismatchFloor_KeepsPerNodeFinding
         - TestAggregateRolloutProof_NotAtAvailable_NoPartialFinding
+    - id: release.explicit_version_wildcard_installs_wrong_version
+      title: Explicit version request silently resolves to older local archive via wildcard fallback, installing the wrong binary
+      severity: critical
+      symptoms:
+        - apply-package declares "running and verified" for vX.Y.Z but installed binary --version reports vA.B.C (older)
+        - node-agent log shows "installing repository from local package /var/lib/globular/packages/repository_<older>_linux_amd64.tgz" when caller requested newer version
+        - pin-artifact step saves the requested-version .tgz but install already ran from a different file
+        - ServiceRelease workflow RUN_STATUS_SUCCEEDED but cluster_get_convergence_detail still shows drift
+        - subsequent sync attempts return SYNC_SKIPPED "blob verified" because the older local cache is treated as authoritative presence
+        - controller log: "ensureServiceRelease: ... recreating (phase=WAITING)" before the install dispatches an apparently-current workflow
+      root_cause: |
+        Two compounding gaps in the install pipeline:
+
+        (a) installer_api.findLocalPackage falls back to findLocalPackageAnyVersion (wildcard,
+            lexicographic-newest) whenever the exact-version .tgz isn't on disk, regardless of
+            whether the caller passed an explicit version. The fallback was designed for Day-1
+            bootstrap when caller has no authoritative version, but it fires for any cache miss.
+
+        (b) repository_upstream_sync imports into the repository service's storage (Scylla manifest
+            + MinIO blob) but never materializes the .tgz to /var/lib/globular/packages/ — the
+            local-only path node-agent reads from. So new versions arrive in the repository service
+            but never in the local cache. Day-2 upgrades therefore find no exact-version .tgz
+            locally, and bug (a) substitutes the older archive.
+
+        Together: caller asks for v1.2.115 → no v1.2.115 tgz locally → wildcard returns
+        v1.2.110 tgz → installer extracts v1.2.110 binary → apply-package's verify gate either
+        sees no expected_sha256 (legacy degraded path) or compares actual against missing expected
+        and returns nil error — install reports SUCCESS at v1.2.115.
+
+        First seen 2026-05-28 during v1.2.115 ServiceRelease for repository: installed binary
+        sha256=479e9393 (v1.2.110), expected manifest sha256=cee70c5a (v1.2.115 inner binary).
+        Workflow declared SUCCEEDED. Convergence stalled.
+      detection: |
+        - Compare installed binary --version against ServiceRelease version.
+        - Compare sha256sum of installed binary against repository manifest's entrypoint_checksum.
+        - cluster_get_convergence_detail: services show as installed=NEW but service-reported
+          version is still OLD.
+        - ls /var/lib/globular/packages/ — if no <name>_<new_version>_<platform>.tgz exists for
+          a recently-dispatched ServiceRelease, the materialize step never ran.
+      resolution: |
+        Three layered fixes (v1.2.116):
+
+        Read-side: installer_api.findLocalPackage refuses wildcard when caller passed an explicit
+        version (anything other than "" or "0.0.0-dev"). Missing exact match → return "" so the
+        installer surfaces "not found" rather than silently substituting.
+
+        Supply-side: repository_upstream_sync's importUpstreamArtifact success path calls
+        materializeLocalPackageArchive to write the .tgz to /var/lib/globular/packages/ via
+        temp+atomic rename, idempotent on matching size+sha256.
+
+        Verify-side: verifyInstalledBinaryHashStrict returns an explicit BinaryVerdict
+        (Verified / Unverified / Mismatch / Missing). Missing expected_sha256 is now Unverified
+        (writes installed-state with status=installed_unverified, Ok=false), not silent success.
+        Mismatch and missing-binary remain hard failures via BinaryHashMismatchError / BinaryMissingError.
+      known_bad_fixes:
+        - Allowing wildcard fallback when the caller passed an explicit version, on the theory that "newest local is probably close enough"
+        - Declaring apply-package SUCCESS based only on systemd ActiveState — service is up, but not necessarily the desired binary
+        - Treating older local archives as satisfying newer desired versions via lexicographic substitution
+        - Repairing by editing desired pins to whatever happened to install (mutates desired state from runtime observation)
+        - Bypassing repository manifest authority with filesystem observation alone (ls of /var/lib/globular/packages/ is not the manifest)
+      related_invariants:
+        - installer.explicit_version_requires_exact_artifact
+        - repository.imported_package_must_be_local_install_resolvable
+        - runtime.success_requires_expected_binary_checksum
+        - desired_installed_runtime_identity_must_match
+      required_tests:
+        - TestFindLocalPackage_ExplicitVersion_NoExact_ReturnsEmpty
+        - TestFindLocalPackage_ExplicitVersion_v1_2_115_MustNotResolve_v1_2_110
+        - TestMaterializeLocalPackageArchive_WritesTgzToLocalInstallDir
+        - TestMaterializeLocalPackageArchive_VersionMatchesImportedManifest
+        - TestVerifyStrict_OldBinaryMustNotSatisfyNewExpectedHash
+        - TestVerifyStrict_MissingExpectedChecksum_ReturnsUnverified
