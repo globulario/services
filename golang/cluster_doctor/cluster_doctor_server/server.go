@@ -386,12 +386,25 @@ func (s *ClusterDoctorServer) ExplainFinding(_ context.Context, req *cluster_doc
 		return nil, status.Errorf(codes.NotFound, "finding %s not found in last snapshot; call GetClusterReport first", req.GetFindingId())
 	}
 
+	why := f.Summary
+	evidenceDigest := digestFindingEvidence(f.Evidence)
+	historical := summarizeHistoricalSuccessfulActions(context.Background(), f.InvariantID, evidenceDigest, 200)
+	if hint := historicalActionsHint(historical); hint != "" {
+		why = why + " | " + hint
+	}
+
+	planDiff := []string{}
+	if len(historical) > 0 {
+		planDiff = append(planDiff, "historical_success_actions_present")
+	}
+
 	return &cluster_doctorpb.FindingExplanation{
 		FindingId:   f.FindingID,
 		InvariantId: f.InvariantID,
-		WhyFailed:   f.Summary,
+		WhyFailed:   why,
 		Remediation: f.Remediation,
 		Evidence:    f.Evidence,
+		PlanDiff:    planDiff,
 	}, nil
 }
 
