@@ -27,6 +27,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
@@ -43,6 +44,8 @@ const (
 	// maxArtifactBytes caps a single artifact download (500 MiB).
 	maxArtifactBytes = 500 << 20
 )
+
+var releaseTagPattern = regexp.MustCompile(`^v\d+(\.\d+){1,3}([.\-][0-9A-Za-z._\-]+)?$`)
 
 // releaseIndex is the top-level release-index.json document.
 type releaseIndex struct {
@@ -300,6 +303,9 @@ func ValidateReleaseIndex(idx *releaseIndex) error {
 
 	if idx.ReleaseTag == "" {
 		return fmt.Errorf("release_tag is required")
+	}
+	if !releaseTagPattern.MatchString(idx.ReleaseTag) {
+		return fmt.Errorf("release_tag %q is not a version tag (expected vX.Y.Z); BOM was likely authored with a branch ref instead of the release version", idx.ReleaseTag)
 	}
 
 	isV2 := sv == SchemaVersionV2

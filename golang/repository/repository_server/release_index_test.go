@@ -127,6 +127,34 @@ func TestValidateReleaseIndex_MissingReleaseTag(t *testing.T) {
 	}
 }
 
+// Regression: v1.2.111's release pipeline authored a BOM with
+// release_tag="master" (the branch name) because the index generator read
+// GITHUB_REF_NAME instead of the resolved version tag. Every consumer that
+// followed the BOM's asset_url hit /releases/download/master/<file>.tgz (404)
+// even though the artifacts were correctly uploaded under /v1.2.111/.
+// The validator must reject branch-shaped release_tag values so a busted
+// BOM never reaches sync.
+func TestValidateReleaseIndex_BranchNameReleaseTagRejected(t *testing.T) {
+	for _, bad := range []string{"master", "main", "release-1.2", "v1", "1.2.111"} {
+		idx := validIndex()
+		idx.ReleaseTag = bad
+		err := ValidateReleaseIndex(idx)
+		if err == nil || !strings.Contains(err.Error(), "not a version tag") {
+			t.Fatalf("release_tag=%q should be rejected; got: %v", bad, err)
+		}
+	}
+}
+
+func TestValidateReleaseIndex_VersionTagAccepted(t *testing.T) {
+	for _, good := range []string{"v1.2.111", "v1.0.0", "v2.0.0-rc1", "v1.2.3.4"} {
+		idx := validIndex()
+		idx.ReleaseTag = good
+		if err := ValidateReleaseIndex(idx); err != nil {
+			t.Fatalf("release_tag=%q should be accepted; got: %v", good, err)
+		}
+	}
+}
+
 func TestValidateReleaseIndex_EntryMissingName(t *testing.T) {
 	idx := validIndex()
 	idx.Packages[0].Name = ""

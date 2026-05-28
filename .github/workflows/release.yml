@@ -744,15 +744,19 @@ jobs:
       - name: Generate release index (v2 BOM)
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
           BUILD_NUMBER: ${{ steps.build_identity.outputs.build_number }}
           BUILD_ID: ${{ steps.build_identity.outputs.build_id }}
         run: |
           python3 <<'PYEOF'
-          import json, hashlib, tarfile, glob, os, sys
+          import json, hashlib, tarfile, glob, os, re, sys
           from datetime import datetime, timezone
 
           version      = os.environ["RELEASE_VERSION"]
-          tag          = os.environ["GITHUB_REF_NAME"]
+          tag          = os.environ["RELEASE_TAG"]
+          if not re.fullmatch(r"v\d+(\.\d+){1,3}([.-][0-9A-Za-z._-]+)?", tag):
+              print(f"ERROR: RELEASE_TAG={tag!r} is not a version tag (vX.Y.Z); refusing to author BOM", file=sys.stderr)
+              sys.exit(1)
           repo         = os.environ["GITHUB_REPOSITORY"]
           build_number = os.environ["BUILD_NUMBER"]
           build_id     = os.environ["BUILD_ID"]
