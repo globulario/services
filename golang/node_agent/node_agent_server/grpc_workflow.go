@@ -126,6 +126,31 @@ func (srv *NodeAgentServer) RunWorkflow(ctx context.Context, req *node_agentpb.R
 	return resp, nil
 }
 
+// extractRunInstallPackageHashes returns the two strictly-separate hash schemas
+// the install-package workflow carries:
+//
+//   - convergenceHash: ComputeReleaseDesiredHash output
+//     (publisher/name=version+b:N;), used ONLY by canSkipInstallPackage to
+//     decide whether the installed package already matches desired, and as
+//     LocalHash in the convergence result (stamped as pkg.Checksum so the
+//     controller's classifyPackageConvergence stops re-dispatching).
+//
+//   - expectedSha256: BINARY sha256 from the repository manifest's
+//     entrypoint_checksum, used ONLY as ApplyPackageReleaseRequest.ExpectedSha256
+//     for the node-agent's verifyInstalledBinaryHashStrict gate.
+//
+// These two schemas MUST NOT be aliased. The historical fallback
+// (`if desired_hash=="" then desired_hash = expected_sha256`) silently routed
+// the convergence identity hash into the binary verify gate — the v1.2.119
+// regression that produced installed_binary_hash_mismatch on every dispatch.
+// See invariant runtime.success_requires_expected_binary_checksum and the
+// hash schema documentation in release_resolver.go ResolvedArtifact.
+func extractRunInstallPackageHashes(inputs map[string]string) (convergenceHash, expectedSha256 string) {
+	convergenceHash = strings.TrimSpace(inputs["desired_hash"])
+	expectedSha256 = strings.TrimSpace(inputs["expected_sha256"])
+	return
+}
+
 // runInstallPackage handles the synthetic "install-package" workflow.
 // The controller sends this when it wants a single package installed on this node.
 func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_agentpb.RunWorkflowRequest) (*node_agentpb.RunWorkflowResponse, error) {
@@ -171,14 +196,11 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 	// Check if already installed at the desired version with runtime proof.
 	desiredVersion := inputs["version"]
 	buildID := inputs["build_id"]
-	desiredHash := strings.TrimSpace(inputs["desired_hash"])
-	if desiredHash == "" {
-		desiredHash = strings.TrimSpace(inputs["expected_sha256"])
-	}
+	convergenceHash, expectedSha256 := extractRunInstallPackageHashes(inputs)
 	if desiredVersion != "" {
 		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, pkgKind, pkgName)
 		skipResult, reason := canSkipInstallPackage(
-			ctx, pkgName, pkgKind, desiredVersion, desiredHash, buildID, existing,
+			ctx, pkgName, pkgKind, desiredVersion, convergenceHash, buildID, existing,
 			supervisor.IsActive, supervisor.IsLoaded,
 		)
 		wfID := inputs["workflow_id"]
@@ -197,7 +219,7 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 				DesiredBuildID:  buildID,
 				LocalVersion:    existing.GetVersion(),
 				LocalBuildID:    existing.GetBuildId(),
-				LocalHash:       desiredHash,
+				LocalHash:       convergenceHash,
 				Outcome:         installed_state.OutcomeSuccessLocalPendingSync,
 				SourceComponent: "node-agent",
 				Evidence:        map[string]string{"kind": pkgKind, "skip_reason": "already_converged"},
@@ -224,7 +246,7 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 						DesiredBuildID:  buildID,
 						LocalVersion:    existing.GetVersion(),
 						LocalBuildID:    existing.GetBuildId(),
-						LocalHash:       desiredHash,
+						LocalHash:       convergenceHash,
 						Outcome:         installed_state.OutcomeSuccessLocalPendingSync,
 						SourceComponent: "node-agent",
 						Evidence:        map[string]string{"kind": pkgKind, "skip_reason": "repaired_via_start"},
@@ -295,12 +317,14 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		log.Printf("grpc-workflow: install-package %s (%s)", pkgName, pkgKind)
 	}
 	start := time.Now()
+	log.Printf("grpc-workflow: install-package %s dispatching apply (build_id=%s expected_sha256_present=%t)",
+		pkgName, buildID, expectedSha256 != "")
 	applyResp, err := srv.ApplyPackageRelease(ctx, &node_agentpb.ApplyPackageReleaseRequest{
 		PackageName:    pkgName,
 		PackageKind:    pkgKind,
 		Version:        desiredVersion,
 		Publisher:      defaultPublisherID,
-		ExpectedSha256: desiredHash,
+		ExpectedSha256: expectedSha256, // BINARY hash from manifest.entrypoint_checksum (NOT convergenceHash)
 		OperationId:    inputs["workflow_id"],
 		BuildId:        buildID,
 	})
@@ -382,7 +406,7 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 			LocalBuildID:    buildID,
 			// LocalHash tells the controller what artifact digest was installed so
 			// it can stamp pkg.Checksum and stop re-dispatching on checksum mismatch.
-			LocalHash:       desiredHash,
+			LocalHash:       convergenceHash,
 			Outcome:         installed_state.OutcomeSuccessLocalPendingSync,
 			SourceComponent: "node-agent",
 			Evidence:        map[string]string{"kind": pkgKind},
@@ -394,8 +418,8 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		// output). apply_package_release stamps the binary SHA256 which never matches
 		// the convergence hash — causing a perpetual redispatch loop. Overwrite
 		// Checksum with the convergence hash received from the workflow dispatcher.
-		if strings.ToUpper(pkgKind) == "INFRASTRUCTURE" && desiredHash != "" {
-			if stampErr := StampInfraConvergenceHash(ctx, srv.nodeID, pkgName, desiredHash); stampErr != nil {
+		if strings.ToUpper(pkgKind) == "INFRASTRUCTURE" && convergenceHash != "" {
+			if stampErr := StampInfraConvergenceHash(ctx, srv.nodeID, pkgName, convergenceHash); stampErr != nil {
 				log.Printf("grpc-workflow: stamp convergence hash for %s failed (non-fatal): %v", pkgName, stampErr)
 			} else {
 				log.Printf("grpc-workflow: stamped convergence hash for INFRASTRUCTURE/%s", pkgName)

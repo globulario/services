@@ -4238,3 +4238,74 @@ invariants:
       required_tests: []
       related_failure_modes:
         - etcd.nospace_alarm_blocks_reconciliation
+    - id: install_package.hash_schemas_must_not_alias
+      title: install-package workflow's two hash inputs are distinct schemas and must never alias into a single value
+      severity: critical
+      status: active
+      summary: |
+        The install-package workflow carries two hashes with strictly distinct
+        meanings:
+
+          - desired_hash    = convergence identity hash. Schema:
+                              sha256("<publisher>/<name>=<version>+b:<N>;") via
+                              ComputeReleaseDesiredHash. Used ONLY for
+                              convergence comparison (canSkipInstallPackage,
+                              StampInfraConvergenceHash, LocalHash in
+                              ConvergenceResultV1).
+
+          - expected_sha256 = BINARY sha256 from the repository manifest's
+                              entrypoint_checksum. Used ONLY as
+                              ApplyPackageReleaseRequest.ExpectedSha256 and
+                              compared against the installed binary by
+                              verifyInstalledBinaryHashStrict.
+
+        These two MUST be extracted into distinct variables and threaded
+        through distinct code paths. Any fallback (`if A=="" then A = B`),
+        any helper that "normalises" both into one value, and any aliasing
+        through `desiredHash` style variables that downstream sites then feed
+        into ExpectedSha256, recreates the v1.2.119 regression in which the
+        convergence identity hash silently became the binary verify hash and
+        every dispatched install was rejected with
+        installed_binary_hash_mismatch.
+
+        Empty propagation is the correct behaviour for either schema being
+        absent. When desired_hash is empty, canSkipInstallPackage falls back
+        to version/buildID matching. When expected_sha256 is empty, the
+        verify gate writes installed_unverified honestly. Cross-feeding the
+        other schema is forbidden.
+
+        Pinned by extractRunInstallPackageHashes and the
+        TestExtractRunInstallPackageHashes_* test suite.
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/grpc_workflow.go
+          - golang/node_agent/node_agent_server/apply_package_verify.go
+          - golang/cluster_controller/cluster_controller_server/release_hash.go
+          - golang/cluster_controller/cluster_controller_server/workflow_release.go
+          - golang/workflow/engine/actors.go
+          - golang/workflow/definitions/release.apply.package.yaml
+        symbols:
+          - extractRunInstallPackageHashes
+          - runInstallPackage
+          - ComputeReleaseDesiredHash
+          - ComputeInfrastructureDesiredHash
+          - verifyInstalledBinaryHashStrict
+          - ApplyPackageReleaseRequest.ExpectedSha256
+          - StampInfraConvergenceHash
+      forbidden_fixes:
+        - reintroduce_install_package_hash_alias_fallback
+        - normalise_two_hash_schemas_into_one_value
+        - use_convergence_hash_as_binary_identity_proof
+        - use_binary_hash_as_convergence_identity
+        - downgrade_verify_gate_to_pass_aliased_hash
+      required_tests:
+        - TestExtractRunInstallPackageHashes_BothPresent
+        - TestExtractRunInstallPackageHashes_OnlyConvergence
+        - TestExtractRunInstallPackageHashes_OnlyBinary
+        - TestExtractRunInstallPackageHashes_BothEmpty
+        - TestExtractRunInstallPackageHashes_Whitespace
+        - TestRunInstallPackageHashSchema_PhantomHashIsConvergenceIdentity
+        - TestDispatch_ResolverEntrypointChecksumIsBinaryHash
+      related_failure_modes:
+        - node_agent.install_package_aliases_convergence_hash_into_expected_sha256
+        - controller.apply_package_missing_expected_sha256_blocks_verified_install

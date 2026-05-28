@@ -2731,3 +2731,75 @@ failure_modes:
         - etcd.must_have_free_backend_space_for_reconciliation
         - etcd.is_source_of_truth
       required_tests: []
+    - id: node_agent.install_package_aliases_convergence_hash_into_expected_sha256
+      title: install-package fallback aliased desired_hash (convergence identity) into ExpectedSha256 (binary verify), failing every dispatched install
+      severity: critical
+      symptoms:
+        - "apply-package: REJECTED SERVICE/<pkg>@<ver> — installed binary hash mismatch ... expected sha256=<de2b04ff...>, actual sha256=<entrypoint_checksum value>"
+        - same build_id reported in both the manifest and the rejection log, yet the hashes differ
+        - failing_on increases for every service the controller dispatches once expected_sha256 starts flowing through workflow inputs
+        - convergence-committer reports outcome=FAILED for every dispatched install
+        - the rejected "expected" hash matches ComputeReleaseDesiredHash output, not any binary or tarball sha256
+      root_cause: |
+        Before v1.2.119, the install-package workflow inputs did not carry
+        desired_hash. The node-agent runInstallPackage path had a fallback:
+
+            desiredHash := strings.TrimSpace(inputs["desired_hash"])
+            if desiredHash == "" {
+                desiredHash = strings.TrimSpace(inputs["expected_sha256"])
+            }
+            ApplyPackageReleaseRequest{ ExpectedSha256: desiredHash }
+
+        which was harmless only because neither key was set.
+
+        The v1.2.119 controller dispatch starts supplying BOTH desired_hash
+        (convergence identity = ComputeReleaseDesiredHash output) and
+        expected_sha256 (manifest entrypoint_checksum). The fallback then
+        bound the FIRST one — the convergence identity hash — to
+        ExpectedSha256, sending a hash with the wrong schema into the
+        node-agent verify gate. The gate honestly returned
+        installed_binary_hash_mismatch because the convergence identity
+        could never equal the binary sha256.
+
+        Net effect: every install dispatched through the v1.2.119 chain
+        appeared to fail, even though the local package CAS, the repository
+        Scylla manifest, and the installed binary all agreed on the binary
+        sha256. The system was correct end to end except for one variable
+        aliasing in the node-agent.
+
+        Sentinel value: for dns@1.2.113+364 the phantom hash was
+        de2b04ff64ce4489f2d8a6b151571f6f3941cb28674e0124e9d3db2d739ad414 =
+        sha256("core@globular.io/dns=1.2.113+b:364;").
+      resolution: |
+        Split the two schemas at extraction time, never alias:
+
+            convergenceHash := strings.TrimSpace(inputs["desired_hash"])
+            expectedSha256  := strings.TrimSpace(inputs["expected_sha256"])
+
+        canSkipInstallPackage and LocalHash / StampInfraConvergenceHash use
+        convergenceHash. ApplyPackageReleaseRequest.ExpectedSha256 uses
+        expectedSha256 only. When expected_sha256 is empty the verify gate
+        writes installed_unverified honestly — the contract calls for
+        explicit-empty propagation, not a same-call fallback.
+
+        Captured by extractRunInstallPackageHashes; pinned by
+        TestExtractRunInstallPackageHashes_* and
+        TestRunInstallPackageHashSchema_PhantomHashIsConvergenceIdentity.
+      known_bad_fixes:
+        - reintroducing the fallback under a "graceful degradation" label
+        - shortening the function by combining both keys into one variable
+        - "normalising" the convergence hash and the binary hash with a single helper
+        - changing ComputeReleaseDesiredHash to return the entrypoint_checksum so the alias works
+        - using inputs["expected_sha256"] as the convergence hash when desired_hash is absent
+        - downgrading the verify gate to "warn" so installs pass even with the wrong-schema hash
+      related_invariants:
+        - install_package.hash_schemas_must_not_alias
+        - controller.apply_package_release_requires_manifest_checksum
+        - runtime.success_requires_expected_binary_checksum
+      required_tests:
+        - TestExtractRunInstallPackageHashes_BothPresent
+        - TestExtractRunInstallPackageHashes_OnlyConvergence
+        - TestExtractRunInstallPackageHashes_OnlyBinary
+        - TestExtractRunInstallPackageHashes_BothEmpty
+        - TestExtractRunInstallPackageHashes_Whitespace
+        - TestRunInstallPackageHashSchema_PhantomHashIsConvergenceIdentity
