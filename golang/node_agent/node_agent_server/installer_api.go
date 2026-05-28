@@ -211,12 +211,23 @@ func pinArtifact(name, version, platform, artifactPath string) {
 // findLocalPackage searches localPackageDirs for a .tgz matching the package.
 // Naming convention: <name>_<version>_<platform>.tgz  (e.g. dns_0.0.1_linux_amd64.tgz)
 // Also checks for just <name>_<version>.tgz and <name>.tgz as fallbacks.
+//
+// Version contract:
+//   - An EXPLICIT version (e.g. "1.2.115") is honored exactly. The wildcard
+//     fallback is FORBIDDEN — returning an older local archive when the caller
+//     requested a specific version silently installs the wrong binary and
+//     declares success. See INC-2026-0012 follow-up: v1.2.110 was installed
+//     when v1.2.115 was requested because the wildcard fired on cache miss.
+//   - An EMPTY ("") or dev ("0.0.0-dev") version is the only signal that the
+//     caller has no authoritative version and the Day-1 bootstrap wildcard
+//     fallback is permitted.
 func (srv *NodeAgentServer) findLocalPackage(name, version, platform string) string {
 	candidates := []string{
 		fmt.Sprintf("%s_%s_%s.tgz", name, version, platform),
 		fmt.Sprintf("%s_%s.tgz", name, version),
 		fmt.Sprintf("%s.tgz", name),
 	}
+	explicitVersion := isExplicitVersion(version)
 	for _, dir := range localPackageDirs {
 		for _, c := range candidates {
 			path := filepath.Join(dir, c)
@@ -224,16 +235,35 @@ func (srv *NodeAgentServer) findLocalPackage(name, version, platform string) str
 				return path
 			}
 		}
-		// Day-1 degraded fallback: if exact-version lookup misses (e.g. caller
-		// has no authoritative version and would otherwise use 0.0.0-dev),
-		// accept the newest local versioned artifact for this platform.
-		// This preserves bootstrap progress when repository/latest resolution is
+		if explicitVersion {
+			// Caller passed a specific version — refuse to substitute another
+			// version's archive. See repository.imported_package_must_be_local_install_resolvable.
+			continue
+		}
+		// Day-1 degraded fallback: caller has no authoritative version (empty
+		// or 0.0.0-dev). Accept the newest local versioned artifact for this
+		// platform so bootstrap can progress when repository resolution is
 		// unavailable but a Day-0-staged package exists on disk.
 		if wildcard := findLocalPackageAnyVersion(dir, name, platform); wildcard != "" {
 			return wildcard
 		}
 	}
 	return ""
+}
+
+// isExplicitVersion reports whether version is a real authoritative version
+// requirement (vs an empty/dev placeholder that signals "caller has no version").
+// Only "" and "0.0.0-dev" are non-explicit; anything else binds the install
+// to an exact local archive match.
+func isExplicitVersion(version string) bool {
+	v := strings.TrimSpace(version)
+	if v == "" {
+		return false
+	}
+	if v == "0.0.0-dev" {
+		return false
+	}
+	return true
 }
 
 func findLocalPackageAnyVersion(dir, name, platform string) string {
