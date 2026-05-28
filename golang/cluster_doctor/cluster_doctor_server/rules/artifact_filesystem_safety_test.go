@@ -3,6 +3,7 @@ package rules
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -50,8 +51,20 @@ func TestArtifactFilesystemSafetyLocal_WarnsOnUnsafeModes(t *testing.T) {
 	})
 
 	findings := (artifactFilesystemSafetyLocal{}).Evaluate(nil, testConfig())
-	if len(findings) < 3 {
-		t.Fatalf("expected >=3 findings, got %d: %+v", len(findings), findings)
+	if len(findings) < 2 {
+		t.Fatalf("expected >=2 findings, got %d: %+v", len(findings), findings)
+	}
+	var sawEtcd, sawCA bool
+	for _, f := range findings {
+		if strings.Contains(f.Summary, "etcd data dir must be mode 0700") {
+			sawEtcd = true
+		}
+		if strings.Contains(f.Summary, "CA private key is too permissive") {
+			sawCA = true
+		}
+	}
+	if !sawEtcd || !sawCA {
+		t.Fatalf("expected deterministic etcd+ca.key findings, got: %+v", findings)
 	}
 }
 
