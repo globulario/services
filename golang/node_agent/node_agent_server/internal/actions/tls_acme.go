@@ -100,18 +100,11 @@ func (acmeEnsureAction) Apply(ctx context.Context, args *structpb.Struct) (strin
 
 	domain := strings.TrimSpace(fields["domain"].GetStringValue())
 	adminEmail := strings.TrimSpace(fields["admin_email"].GetStringValue())
-	dnsAddr := strings.TrimSpace(fields["dns_addr"].GetStringValue())
-	if dnsAddr == "" {
-		// Discover DNS service endpoint dynamically (no localhost fallback).
-		dnsAddr = config.ResolveDNSGrpcEndpoint("")
-	}
-	if strings.TrimSpace(dnsAddr) == "" {
-		return "", errors.New("dns_addr is required: failed to discover DNS gRPC endpoint from authoritative runtime sources")
-	}
 
 	paths := tlsPaths(args)
 
-	// Check if cert renewal is needed
+	// Check if cert renewal is needed before resolving DNS — a valid cert
+	// short-circuits the entire ACME flow and never needs the DNS endpoint.
 	needsRenewal, reason, err := needsCertRenewal(paths.fullchain, domain)
 	if err != nil {
 		return "", fmt.Errorf("check cert renewal: %w", err)
@@ -119,6 +112,15 @@ func (acmeEnsureAction) Apply(ctx context.Context, args *structpb.Struct) (strin
 
 	if !needsRenewal {
 		return "certificate valid, no renewal needed", nil
+	}
+
+	dnsAddr := strings.TrimSpace(fields["dns_addr"].GetStringValue())
+	if dnsAddr == "" {
+		// Discover DNS service endpoint dynamically (no localhost fallback).
+		dnsAddr = config.ResolveDNSGrpcEndpoint("")
+	}
+	if strings.TrimSpace(dnsAddr) == "" {
+		return "", errors.New("dns_addr is required: failed to discover DNS gRPC endpoint from authoritative runtime sources")
 	}
 
 	// Perform ACME DNS-01 challenge
