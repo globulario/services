@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"testing"
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
@@ -10,10 +11,10 @@ func TestHardBlocklist(t *testing.T) {
 	// ETCD_PUT, ETCD_DELETE, NODE_REMOVE must ALWAYS be blocked regardless
 	// of risk tag. That's the projection-clauses.md Clause 8 invariant.
 	cases := []struct {
-		name       string
-		action     cluster_doctorpb.ActionType
-		risk       cluster_doctorpb.ActionRisk
-		wantBlock  bool
+		name      string
+		action    cluster_doctorpb.ActionType
+		risk      cluster_doctorpb.ActionRisk
+		wantBlock bool
 	}{
 		{"etcd_put LOW tagged still blocked", cluster_doctorpb.ActionType_ETCD_PUT, cluster_doctorpb.ActionRisk_RISK_LOW, true},
 		{"etcd_put HIGH tagged still blocked", cluster_doctorpb.ActionType_ETCD_PUT, cluster_doctorpb.ActionRisk_RISK_HIGH, true},
@@ -40,11 +41,11 @@ func TestSafeTrashAllowlist(t *testing.T) {
 	}{
 		{"/usr/lib/globular/bin/cluster_controller_server.tmp", true},
 		{"/usr/lib/globular/bin/file_server.bak", true},
-		{"/usr/lib/globular/bin/cluster_controller_server", false},  // no suffix
-		{"/usr/lib/globular/data/stuff.tmp", false},                  // wrong prefix
-		{"/etc/globular/config.tmp", false},                          // wrong prefix
-		{"/usr/lib/globular/bin/", false},                            // empty filename
-		{"/tmp/whatever.tmp", false},                                 // wrong prefix
+		{"/usr/lib/globular/bin/cluster_controller_server", false}, // no suffix
+		{"/usr/lib/globular/data/stuff.tmp", false},                // wrong prefix
+		{"/etc/globular/config.tmp", false},                        // wrong prefix
+		{"/usr/lib/globular/bin/", false},                          // empty filename
+		{"/tmp/whatever.tmp", false},                               // wrong prefix
 		{"", false},
 	}
 	for _, tc := range cases {
@@ -133,5 +134,35 @@ func TestRequiresApproval(t *testing.T) {
 				t.Fatalf("requiresApproval = %v, want %v", got, tc.wantApprove)
 			}
 		})
+	}
+}
+
+func TestRemediationAuditJSON_IncludesProvenanceFields(t *testing.T) {
+	a := RemediationAudit{
+		AuditID:        "rem-1",
+		Timestamp:      123,
+		FindingID:      "f-1",
+		InvariantID:    "runtime.desired_enabled_not_alive",
+		EvidenceDigest: "sha256:abc",
+		FindingSummary: "unit stopped",
+		StepIndex:      1,
+		ActionType:     "SYSTEMCTL_RESTART",
+		Risk:           "RISK_LOW",
+		DryRun:         false,
+		Executed:       true,
+		Rejected:       false,
+		Subject:        "system",
+		Params:         map[string]string{"unit": "globular-node-agent.service"},
+	}
+
+	var out map[string]any
+	if err := json.Unmarshal([]byte(a.JSON()), &out); err != nil {
+		t.Fatalf("invalid audit json: %v", err)
+	}
+	if out["invariant_id"] != a.InvariantID {
+		t.Fatalf("invariant_id missing from audit json")
+	}
+	if out["evidence_digest"] != a.EvidenceDigest {
+		t.Fatalf("evidence_digest missing from audit json")
 	}
 }

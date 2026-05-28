@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -235,39 +236,29 @@ func auditRemediation(ctx context.Context, audit RemediationAudit) string {
 // +globular:schema:invariants="Immutable after write; TTL-leased in etcd (30 days); never blocked by audit write failure"
 // +globular:schema:since_version="0.0.1"
 type RemediationAudit struct {
-	AuditID    string `json:"audit_id"`
-	Timestamp  int64  `json:"timestamp"`
-	FindingID  string `json:"finding_id"`
-	StepIndex  uint32 `json:"step_index"`
-	ActionType string `json:"action_type"`
-	Risk       string `json:"risk"`
-	DryRun     bool   `json:"dry_run"`
-	Executed   bool   `json:"executed"`
-	Rejected   bool   `json:"rejected"`
-	Reason     string `json:"reason,omitempty"`
-	Subject    string `json:"subject"`
-	Params     map[string]string `json:"params"`
+	AuditID        string            `json:"audit_id"`
+	Timestamp      int64             `json:"timestamp"`
+	FindingID      string            `json:"finding_id"`
+	InvariantID    string            `json:"invariant_id,omitempty"`
+	EvidenceDigest string            `json:"evidence_digest,omitempty"`
+	FindingSummary string            `json:"finding_summary,omitempty"`
+	StepIndex      uint32            `json:"step_index"`
+	ActionType     string            `json:"action_type"`
+	Risk           string            `json:"risk"`
+	DryRun         bool              `json:"dry_run"`
+	Executed       bool              `json:"executed"`
+	Rejected       bool              `json:"rejected"`
+	Reason         string            `json:"reason,omitempty"`
+	Subject        string            `json:"subject"`
+	Params         map[string]string `json:"params"`
 }
 
 // JSON returns the audit record serialized to JSON for etcd storage.
 // Tiny inline implementation — audit records are write-only.
 func (a RemediationAudit) JSON() string {
-	// Use fmt.Sprintf for stability — avoids pulling encoding/json just
-	// for an append-only audit record. The shape is fixed.
-	paramsStr := "{"
-	first := true
-	for k, v := range a.Params {
-		if !first {
-			paramsStr += ","
-		}
-		paramsStr += fmt.Sprintf("%q:%q", k, v)
-		first = false
+	b, err := json.Marshal(a)
+	if err != nil {
+		return ""
 	}
-	paramsStr += "}"
-	return fmt.Sprintf(
-		`{"audit_id":%q,"timestamp":%d,"finding_id":%q,"step_index":%d,"action_type":%q,"risk":%q,"dry_run":%t,"executed":%t,"rejected":%t,"reason":%q,"subject":%q,"params":%s}`,
-		a.AuditID, a.Timestamp, a.FindingID, a.StepIndex,
-		a.ActionType, a.Risk, a.DryRun, a.Executed, a.Rejected,
-		a.Reason, a.Subject, paramsStr,
-	)
+	return string(b)
 }

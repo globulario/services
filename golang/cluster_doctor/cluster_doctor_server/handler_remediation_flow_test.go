@@ -7,6 +7,7 @@ import (
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type fakeNodeAgentDialer struct{}
@@ -40,7 +41,15 @@ func TestExecuteRemediation_EscalationClearsOnApprovalThenReturnsToCooldown(t *t
 	srv := &ClusterDoctorServer{
 		executor: &ActionExecutor{nodeAgentDialer: &fakeNodeAgentDialer{}},
 		lastFindings: []rules.Finding{{
-			FindingID: findingID,
+			FindingID:   findingID,
+			InvariantID: "runtime.desired_enabled_not_alive",
+			Summary:     "unit is not running",
+			Evidence: []*cluster_doctorpb.Evidence{{
+				SourceService: "cluster_controller",
+				SourceRpc:     "GetClusterHealthV1",
+				KeyValues:     map[string]string{"node": "node-1", "unit": "globular-node-agent.service"},
+				Timestamp:     timestamppb.Now(),
+			}},
 			Remediation: []*cluster_doctorpb.RemediationStep{{
 				Order:  1,
 				Action: action,
@@ -96,5 +105,33 @@ func TestExecuteRemediation_EscalationClearsOnApprovalThenReturnsToCooldown(t *t
 	}
 	if strings.Contains(postClear.GetReason(), "operator approval required") {
 		t.Fatalf("post-clear should not be escalated immediately, got %q", postClear.GetReason())
+	}
+}
+
+func TestExecuteRemediation_RejectsWhenFindingHasNoInvariantOrEvidence(t *testing.T) {
+	withStubbedGatePersistence(t)
+	findingID := "finding-missing-policy-context"
+	srv := &ClusterDoctorServer{
+		executor: &ActionExecutor{nodeAgentDialer: &fakeNodeAgentDialer{}},
+		lastFindings: []rules.Finding{{
+			FindingID: findingID,
+			Remediation: []*cluster_doctorpb.RemediationStep{{
+				Order: 1,
+				Action: &cluster_doctorpb.RemediationAction{
+					ActionType: cluster_doctorpb.ActionType_SYSTEMCTL_RESTART,
+					Risk:       cluster_doctorpb.ActionRisk_RISK_LOW,
+					Params:     map[string]string{"unit": "globular-node-agent.service", "node_id": "node-1"},
+				},
+			}},
+		}},
+	}
+	srv.isAuthoritative.Store(true)
+
+	resp, err := srv.ExecuteRemediation(context.Background(), &cluster_doctorpb.ExecuteRemediationRequest{FindingId: findingID, StepIndex: 0})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetStatus() != "rejected" || !strings.Contains(resp.GetReason(), "policy guardrail") {
+		t.Fatalf("expected policy guardrail rejection, got status=%q reason=%q", resp.GetStatus(), resp.GetReason())
 	}
 }

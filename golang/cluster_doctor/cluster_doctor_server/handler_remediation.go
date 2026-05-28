@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -85,13 +89,31 @@ func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *clust
 
 	subject := callerSubject(ctx)
 	audit := RemediationAudit{
-		FindingID:  findingID,
-		StepIndex:  req.GetStepIndex(),
-		ActionType: action.GetActionType().String(),
-		Risk:       action.GetRisk().String(),
-		DryRun:     req.GetDryRun(),
-		Subject:    subject,
-		Params:     action.GetParams(),
+		FindingID:      findingID,
+		InvariantID:    f.InvariantID,
+		FindingSummary: f.Summary,
+		EvidenceDigest: digestFindingEvidence(f.Evidence),
+		StepIndex:      req.GetStepIndex(),
+		ActionType:     action.GetActionType().String(),
+		Risk:           action.GetRisk().String(),
+		DryRun:         req.GetDryRun(),
+		Subject:        subject,
+		Params:         action.GetParams(),
+	}
+
+	// Runtime policy guardrail: autonomous remediation must carry explicit
+	// invariant identity and evidence so every action is causally attributable.
+	if f.InvariantID == "" || len(f.Evidence) == 0 {
+		reason := "remediation requires finding invariant_id and evidence (policy guardrail)"
+		audit.Rejected = true
+		audit.Reason = reason
+		id := auditRemediation(ctx, audit)
+		return &cluster_doctorpb.ExecuteRemediationResponse{
+			Executed: false,
+			Status:   "rejected",
+			Reason:   reason,
+			AuditId:  id,
+		}, nil
 	}
 
 	// Hard blocklist — never run.
@@ -213,6 +235,33 @@ func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *clust
 		Output:   output,
 		AuditId:  id,
 	}, nil
+}
+
+func digestFindingEvidence(evidence []*cluster_doctorpb.Evidence) string {
+	if len(evidence) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(evidence))
+	for _, ev := range evidence {
+		if ev == nil {
+			continue
+		}
+		kvPairs := make([]string, 0, len(ev.GetKeyValues()))
+		for k, v := range ev.GetKeyValues() {
+			kvPairs = append(kvPairs, k+"="+v)
+		}
+		sort.Strings(kvPairs)
+		timestamp := ""
+		if ev.GetTimestamp() != nil {
+			timestamp = fmt.Sprintf("%d", ev.GetTimestamp().GetSeconds())
+		}
+		parts = append(parts,
+			ev.GetSourceService()+"|"+ev.GetSourceRpc()+"|"+timestamp+"|"+strings.Join(kvPairs, ","),
+		)
+	}
+	sort.Strings(parts)
+	sum := sha256.Sum256([]byte(strings.Join(parts, "\n")))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 // callerSubject extracts the calling principal's identity for audit logging.
