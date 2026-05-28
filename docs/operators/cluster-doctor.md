@@ -266,6 +266,47 @@ The healer has multiple safety mechanisms:
 globular doctor heal-history
 ```
 
+## Remediation Intelligence (New)
+
+Cluster-doctor remediation now has four additional safety/intelligence layers:
+
+1. **Durable escalation gate**
+- Cooldown/escalation state is persisted under `/globular/cluster_doctor/remediation_gate/*`.
+- A doctor restart no longer resets escalation behavior.
+
+2. **Runtime policy guardrail**
+- `ExecuteRemediation` now rejects context-free execution.
+- A finding must carry both `invariant_id` and evidence before remediation is allowed.
+
+3. **Provenance in remediation audit**
+- Audit records now include:
+  - `invariant_id`
+  - `evidence_digest` (sha256 over normalized evidence)
+  - `finding_summary`
+- This creates a stable correlation key for incident analysis and repeat-pattern detection.
+
+4. **Bounded autonomy by recent failure history**
+- Even low-risk actions are escalated to approval when the same
+  `invariant_id + evidence_digest + action_type` has repeated failed attempts
+  in a recent window.
+- Current gate: 3 failed attempts in 30 minutes.
+
+### Operator Signals
+
+`globular doctor report` now includes category counters:
+- `remediation_gate.cooldown`
+- `remediation_gate.escalated`
+
+If `remediation_gate.escalated > 0`, operator approval is required for those actions.
+
+### ExplainFinding Memory Hints
+
+`globular doctor explain <finding-id>` now appends historical success hints when available:
+- Top previously successful action types for similar evidence
+- Success count and last-seen timestamp
+
+This is advisory context, not an automatic override of policy gates.
+
 ### Approval Workflow
 
 For high-risk actions, the doctor uses a structured approval workflow:

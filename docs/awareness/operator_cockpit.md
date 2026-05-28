@@ -148,3 +148,41 @@ proposal_queue.stale_proposals = 3
 ```
 
 **Action:** Either add an `implements` edge in the YAML knowledge or add the implementation code. Never delete the invariant to fix CI.
+
+---
+
+## Doctor Remediation Signals (End-User View)
+
+Awareness now includes stronger remediation observability from cluster-doctor.
+
+### New Report Counters
+
+When you run `globular doctor report` (or consume doctor findings through AI tooling), watch:
+
+| Counter | Meaning |
+|--------|---------|
+| `remediation_gate.cooldown` | Actions currently rate-limited by cooldown |
+| `remediation_gate.escalated` | Actions escalated and requiring operator approval |
+
+If `remediation_gate.escalated` is non-zero, do not expect fully autonomous repair for those findings.
+
+### ExplainFinding Now Includes Historical Success Hints
+
+`globular doctor explain <finding-id>` may include:
+- historical successful action type(s)
+- success count
+- last successful timestamp
+
+These hints are derived from remediation audit provenance and correlated by:
+- `invariant_id`
+- `evidence_digest`
+- `action_type`
+
+Treat this as confidence context, not proof. Keep normal safety gates active.
+
+### Why This Matters
+
+- Prevents endless low-risk retry loops from silently repeating
+- Preserves escalation behavior across restarts
+- Gives operators and agents a concrete “what worked before” signal
+- Keeps remediation causally attributable for incident review
