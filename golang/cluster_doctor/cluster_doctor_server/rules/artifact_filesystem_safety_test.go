@@ -26,6 +26,20 @@ func TestArtifactFilesystemSafetyLocal_WarnsOnUnsafeModes(t *testing.T) {
 	if err := os.WriteFile(policy, []byte("{}"), 0o666); err != nil {
 		t.Fatal(err)
 	}
+	// Runner umask may narrow modes from WriteFile/MkdirAll. Force the
+	// intended insecure modes so findings are deterministic across CI hosts.
+	if err := os.Chmod(binDir, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(etcdDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(caKey, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(policy, 0o666); err != nil {
+		t.Fatal(err)
+	}
 
 	oldBin, oldEtcd, oldCA, oldPolicy, oldRootOwner := artifactBinDirPath, artifactEtcdDataDirPath, artifactCAKeyPath, artifactInstallPolicyPath, artifactRequireRootCAOwner
 	artifactBinDirPath, artifactEtcdDataDirPath, artifactCAKeyPath, artifactInstallPolicyPath = binDir, etcdDir, caKey, policy
