@@ -328,6 +328,15 @@ type Verdict struct {
 	Findings    []Finding
 	// Reason summarizes the verdict in one line for operator UIs.
 	Reason string
+	// AttestationVerdict is the runtime-identity verdict derived from the
+	// attestation contract — TRUSTED / MISMATCH / ORPHAN / STALE_OBSERVATION
+	// / UNVERIFIED. Distinct from ProofStatus (which folds in inventory
+	// claims, version checks, fallbacks); attestation is a focused
+	// "do PID/hash/service/build all bind?" verdict. See
+	// docs/intent/runtime.identity_attestation.yaml.
+	AttestationVerdict string
+	// AttestationReason explains a non-TRUSTED AttestationVerdict.
+	AttestationReason string
 }
 
 // Result is the cluster-wide roll-up across all per-target verdicts +
@@ -621,6 +630,7 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 	//    coveted runtime_verified.
 	v.ProofStatus = computeProofStatus(target, proof, v.Findings)
 	v.Reason = buildReason(v.ProofStatus, v.Findings)
+	v.AttestationVerdict, v.AttestationReason = AttestVerdict(target, proof)
 	return v
 }
 
