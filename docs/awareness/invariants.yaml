@@ -3111,18 +3111,23 @@ invariants:
       protects:
         state:
             - /globular/cluster_doctor/audit/{audit_id}
+            - /globular/cluster_doctor/approval_replay/{jti}
         files:
             - golang/security/approval_token.go
             - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+            - golang/cluster_doctor/cluster_doctor_server/approval_replay_etcd.go
         symbols:
             - MintApprovalToken
             - ValidateApprovalToken
             - ExecuteRemediation
+            - etcdReplayStore
       forbidden_fixes:
         - approval_token_validator_accepts_any_non_empty_string
         - approval_token_validator_skips_signature_check
         - approval_token_replayed_after_successful_execution
         - approval_token_missing_audience_or_expiry
+        - replay_store_silently_accepts_when_etcd_unavailable
+        - replay_store_falls_back_to_process_local_on_etcd_error
       required_tests:
         - TestApprovalTokenRejectsEmptyOrUnsignedToken
         - TestApprovalTokenRejectsWrongAudience

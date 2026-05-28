@@ -18,12 +18,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// approvalReplayStore tracks single-use approval-token jtis. Process-local
-// for now; production should swap in an etcd-backed store with TTL matching
-// the token expiry so replay protection survives leader handoff. The doctor
-// is leader-only (see ExecuteRemediation guard), so process-local is safe
-// against accidental double-execution but not against leader failover.
-var approvalReplayStore = security.NewInMemoryReplayStore()
+// approvalReplayStore tracks single-use approval-token jtis. Backed by
+// etcd so the single-use guarantee survives doctor restart and leader
+// failover — see approval_replay_etcd.go. The doctor is leader-only
+// (see ExecuteRemediation guard) but a leadership transition between
+// mint and validate must not let a token be replayed against the new
+// leader.
+var approvalReplayStore security.ReplayStore = newEtcdReplayStore()
 
 const autoRemediationCooldown = 60 * time.Second
 

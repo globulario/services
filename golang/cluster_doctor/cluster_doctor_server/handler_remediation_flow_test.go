@@ -18,9 +18,14 @@ import (
 // + finding id). Tests that exercise the approval path use this to satisfy
 // the security.ValidateApprovalToken contract introduced with
 // docs/intent/remediation.token_contract.yaml.
+//
+// Also installs an in-memory stub for the etcd-backed replay store so
+// the handler's ValidateApprovalToken call doesn't try to reach a real
+// etcd from the test process.
 func mintApprovalForFinding(t *testing.T, f rules.Finding, action *cluster_doctorpb.RemediationAction) string {
 	t.Helper()
 	approvaltest.Install(t, "", "")
+	withStubbedEtcdReplay(t)
 	target := f.EntityRef
 	if strings.TrimSpace(target) == "" {
 		target = f.FindingID
