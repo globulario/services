@@ -38,6 +38,7 @@ var (
 	recoverSnapshotID          string
 	recoverNote                string
 	recoverJSON                bool
+	recoverOverride            OverrideFlags
 )
 
 var nodeRecoverFullReseedCmd = &cobra.Command{
@@ -76,6 +77,7 @@ func init() {
 	nodeRecoverFullReseedCmd.Flags().StringVar(&recoverSnapshotID, "snapshot-id", "", "Reuse an existing snapshot instead of capturing a new one")
 	nodeRecoverFullReseedCmd.Flags().StringVar(&recoverNote, "note", "", "Optional note for audit trail")
 	nodeRecoverFullReseedCmd.Flags().BoolVar(&recoverJSON, "json", false, "Output result in JSON")
+	AttachOverrideFlags(nodeRecoverFullReseedCmd, &recoverOverride)
 	nodeRecoverFullReseedCmd.MarkFlagRequired("node-id")
 	nodeRecoverFullReseedCmd.MarkFlagRequired("reason")
 
@@ -83,6 +85,37 @@ func init() {
 }
 
 func runNodeRecoverFullReseed(cmd *cobra.Command, args []string) error {
+	// --force bypasses cluster safety checks (quorum, storage nodes).
+	// Per docs/intent/operator.override_intent.yaml, a bare bypass flag
+	// is forbidden — the operator must supply structured override
+	// intent. Build and validate the Override before talking to the
+	// controller so the gate-bypassing RPC is never sent without proper
+	// auditability inputs.
+	if recoverForce {
+		// Default the override scope to the target node id when the
+		// operator didn't override it — most full-reseed overrides are
+		// scoped to one node.
+		if recoverOverride.Scope == "" {
+			recoverOverride.Scope = "node:" + recoverNodeID
+		}
+		if recoverOverride.PolicyID == "" {
+			recoverOverride.PolicyID = "node.recovery.cluster_safety_checks"
+		}
+		override, err := BuildOverride(recoverOverride)
+		if err != nil {
+			return err
+		}
+		// Tag the note with override metadata so the server-side audit
+		// (which doesn't yet understand Override directly) captures the
+		// who/why/policy. When the server adds first-class Override
+		// support, swap this for a structured field on the proto.
+		recoverNote = fmt.Sprintf("[override actor=%s policy=%s scope=%s expiry=%s correlation=%s reason=%q]%s%s",
+			override.Actor, override.PolicyID, override.Scope,
+			override.Expiry.Format(time.RFC3339),
+			override.CorrelationID, override.Reason,
+			separatorIfNonEmpty(recoverNote), recoverNote)
+	}
+
 	autoDiscoverController(cmd)
 	conn, err := controllerClient()
 	if err != nil {
