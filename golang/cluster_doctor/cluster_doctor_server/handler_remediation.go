@@ -2,17 +2,15 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"log/slog"
-	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	"github.com/globulario/services/golang/cluster_doctor/evidencedigest"
 	"github.com/globulario/services/golang/evidence"
 	"github.com/globulario/services/golang/remediation"
 	"github.com/globulario/services/golang/security"
@@ -318,31 +316,11 @@ func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *clust
 	}, nil
 }
 
+// digestFindingEvidence delegates to the shared package so the
+// server-side audit digest and the CLI mint-approval --generation
+// always produce identical bytes for identical input.
 func digestFindingEvidence(evidence []*cluster_doctorpb.Evidence) string {
-	if len(evidence) == 0 {
-		return ""
-	}
-	parts := make([]string, 0, len(evidence))
-	for _, ev := range evidence {
-		if ev == nil {
-			continue
-		}
-		kvPairs := make([]string, 0, len(ev.GetKeyValues()))
-		for k, v := range ev.GetKeyValues() {
-			kvPairs = append(kvPairs, k+"="+v)
-		}
-		sort.Strings(kvPairs)
-		timestamp := ""
-		if ev.GetTimestamp() != nil {
-			timestamp = fmt.Sprintf("%d", ev.GetTimestamp().GetSeconds())
-		}
-		parts = append(parts,
-			ev.GetSourceService()+"|"+ev.GetSourceRpc()+"|"+timestamp+"|"+strings.Join(kvPairs, ","),
-		)
-	}
-	sort.Strings(parts)
-	sum := sha256.Sum256([]byte(strings.Join(parts, "\n")))
-	return "sha256:" + hex.EncodeToString(sum[:])
+	return evidencedigest.Of(evidence)
 }
 
 // callerSubject extracts the calling principal's identity for audit logging.
