@@ -1982,6 +1982,7 @@ failure_modes:
       related_invariants:
         - health.must_not_use_inventory_as_runtime_truth
         - rollout.convergence_requires_runtime_proof
+        - service.lifecycle.version_field_must_not_be_overwritten
       required_tests:
         - "TestServiceVersion_DescribeReportsBuildTimeVersion"
 
@@ -2803,3 +2804,67 @@ failure_modes:
         - TestExtractRunInstallPackageHashes_BothEmpty
         - TestExtractRunInstallPackageHashes_Whitespace
         - TestRunInstallPackageHashSchema_PhantomHashIsConvergenceIdentity
+
+    - id: release_pipeline.set_fields_silent_noop_on_wrong_kind
+      title: SetFields case added to wrong apply function (or dispatch result discarded) leaves release stuck while controller logs intent every cycle
+      severity: critical
+      symptoms:
+        - "controller logs `applyPatchToSvcStatus: unknown SetFields=<label>` (or App/Infra variant) on every reconcile tick"
+        - "controller logs intent like `marking AVAILABLE` repeatedly while the ServiceRelease / InfrastructureRelease etcd state stays at `phase=RESOLVED`"
+        - "release stuck with `WAVE_BLOCKED` or `RUN_STATUS_FAILED` message and `RetryCount=0`, `NextRetryUnixMs=0`"
+        - "drift-reconciler is the only path back to convergence; `globular services repair` consistently unsticks a deploy that wouldn't recover on its own"
+        - reconcile loop is hot but etcd never advances
+      root_cause: |
+        Two symmetric defects in release_pipeline.go, both silent:
+
+        1. Routing-side: `applyPatchToSvcStatus`, `applyPatchToAppStatus`,
+           `applyPatchToInfraStatus` have near-identical bodies. A new
+           SetFields case (e.g. `"available"`, `"retry"`,
+           `"awareness_bundle"`) added to the wrong apply function takes
+           the default branch, returns false, and `patchReleaseStatus`'s
+           equality guard skips Apply. Compile-time: no error. Runtime:
+           the canary log fires every reconcile cycle.
+
+        2. Dispatch-side: workflow runners
+           (`RunPackageReleaseWorkflow`, etc.) return `(resp, err)` where
+           `resp.Status` encodes per-wave outcomes (`RUN_STATUS_FAILED`,
+           `WAVE_BLOCKED`) independently of `err`. A call site that
+           writes `_, err := workflow.Run(...)` and only branches on
+           `err != nil` drops the wave-failure response. `RetryCount` is
+           never incremented, `NextRetryUnixMs` is never set, the
+           reconciler's NextRetry guard sees zero and never re-enqueues.
+           Drift-reconciler becomes the only recovery path.
+
+        Both defects appear together because patch-apply and dispatch
+        live in the same file and follow the same shape across Svc/App/Infra.
+      architecture_fix: |
+        - Pin every SetFields label to its matching release-kind apply
+          function. Tests must enumerate which labels each function accepts;
+          a wrong-switch route fails the test, not just lints clean.
+        - Replace every `_, err := workflow.Run(...)` dispatch site with
+          either `dispatchWaveResult(handle, resp, err)` or explicit
+          three-branch handling (engine error / wave failure / full
+          success). The `"retry"` SetFields case must increment
+          `RetryCount` and set `NextRetryUnixMs` (Svc/App; Infra uses
+          watch-event re-enqueue but the retry path still needs the case).
+        - When you fix one pipeline (Svc/App/Infra), audit the other two
+          for the symmetric gap on BOTH the patch-apply and dispatch sides.
+      known_bad_fixes:
+        - adding the SetFields case to all three apply functions "to be safe" — silent overwrite of one kind's status by another's patch path
+        - tightening `patchReleaseStatus`'s equality guard so the no-op becomes a no-op-with-write
+        - re-enqueueing via drift-reconciler timer instead of explicit retry counters (drift-reconciler is recovery, not retry policy)
+        - raising the reconciler tick rate to make drift-reconciler the only path back run faster (mask, not fix)
+        - increasing workflow queue capacity to hide the retry storm
+      related_invariants:
+        - release_pipeline.set_fields_routing_must_match_release_kind
+        - workflow.dispatch_is_not_completion
+        - workflow.success_requires_backend_confirmation
+        - convergence.no_infinite_retry
+      related_services:
+        - cluster-controller
+        - workflow-service
+      required_tests:
+        - TestApplyPatchTo_SetFieldsRoutingMatchesReleaseKind
+        - TestApplyPatchTo_UnknownSetFieldsEmitsCanaryLogAndReturnsFalse
+        - TestRunPackageReleaseWorkflow_WaveBlockedResponseTriggersRetry
+        - TestRunPackageReleaseWorkflow_DispatchSiteInspectsRespStatus

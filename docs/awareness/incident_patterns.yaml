@@ -1,0 +1,136 @@
+# incident_patterns.yaml
+#
+# Reusable failure signatures extracted from real Globular incidents.
+# The awareness preflight reads this file via knowledge.Load and surfaces
+# matching patterns BEFORE an agent edits a file, so a past trap can warn
+# a future session.
+#
+# Schema (see globulario/awareness/knowledge/knowledge.go IncidentPattern):
+#   id, title, severity, failure_mode, root_cause, lesson,
+#   edit_shapes, wrong_fixes, files, related_invariants, related_symbols.
+
+incident_patterns:
+  - id: pat.service_main_clobbers_ldflags_version
+    title: Service main() hardcodes Version="" and wipes the build-time ldflags injection
+    severity: degraded
+    failure_mode: service.runtime_version_empty_from_main
+    root_cause: |
+      The build-side `gen-version.sh` + `-X main.Version=<ver>` ldflags
+      pipeline sets the package-level `Version` variable at process start.
+      A service `main()` (or its Config default factory) that then assigns
+      a literal — `srv.Version = ""`, `Version: ""` in a Config struct,
+      `srv.Version = "0.0.1"` — runs AFTER the ldflags assignment and
+      clobbers the injected value. Every downstream consumer
+      (`--describe`, `--version`, the verifier, the heartbeat) sees the
+      literal, not the build value. The bug is silent: no compile error,
+      no test failure unless the suite explicitly probes `--describe`.
+    lesson: |
+      In every Globular service entrypoint, populate the Version field
+      from the package-level `Version` symbol — `srv.Version = Version`
+      or `cfg.Version = Version` inside a `DefaultConfig()` factory.
+      Never write a literal version string into a Version-named field.
+      The build-side sentinel in `zz_version_generated.go` catches an
+      empty package variable but cannot catch a main() that re-assigns
+      it post-init.
+    edit_shapes:
+      - assigning a string literal to a Version-named struct field in a service main
+      - introducing a Config struct whose default factory leaves Version blank or hardcoded
+      - copying Version via cfg.Version where cfg was constructed without reading the package Version symbol
+      - editing zz_version_generated.go directly (regenerated; fix won't survive a build)
+    wrong_fixes:
+      - special-casing the affected service in detectGlobularBinaryVersion to fall back to the marker file
+      - reading Version from etcd at service init time (chicken-and-egg with the verifier on Day-0)
+      - suppressing service.runtime_identity_unproven globally to silence the warning
+      - hardcoding the desired version in main() so --describe matches the marker
+    files:
+      - golang/globular_service/services.go
+      - golang/repository/repository_server/main.go
+      - golang/monitoring/monitoring_server/main.go
+      - golang/torrent/torrent_server/main.go
+    related_invariants:
+      - service.lifecycle.version_field_must_not_be_overwritten
+      - health.must_not_use_inventory_as_runtime_truth
+      - rollout.convergence_requires_runtime_proof
+    related_symbols:
+      - Version
+      - LifecycleManager
+      - DefaultConfig
+      - srv.Version
+      - cfg.Version
+
+  - id: pat.release_pipeline_setfields_wrong_switch_or_dispatch_discard
+    title: SetFields case added to wrong apply function (or wave-blocked dispatch result discarded) leaves release stuck
+    severity: critical
+    failure_mode: release_pipeline.set_fields_silent_noop_on_wrong_kind
+    root_cause: |
+      `release_pipeline.go` has three near-identical SetFields apply
+      functions — `applyPatchToSvcStatus`, `applyPatchToAppStatus`,
+      `applyPatchToInfraStatus` — for the three release kinds. Two
+      symmetric defects, both silent at compile time:
+
+      1. Adding a SetFields case to the wrong apply function. The wrong
+         function's default branch returns false; `patchReleaseStatus`'s
+         equality guard then skips Apply; the reconcile loop logs
+         intent (e.g. `marking AVAILABLE`) every cycle while etcd state
+         never moves.
+
+      2. Discarding the workflow dispatch response. Workflow runners
+         return `(resp, err)` where `resp.Status` encodes per-wave
+         outcomes (`RUN_STATUS_FAILED`, `WAVE_BLOCKED`) independently of
+         `err`. A `_, err := workflow.Run(...)` site that only branches
+         on `err != nil` drops the wave-failure result. RetryCount stays
+         at 0, NextRetryUnixMs is never set, the reconciler's NextRetry
+         guard sees zero, and the release sits at `phase=RESOLVED` with
+         a WAVE_BLOCKED message until drift-reconciler eventually
+         re-enqueues it.
+
+      Both gaps appear together because patch-apply and dispatch live in
+      the same file and follow the same shape across Svc/App/Infra.
+      Incident history: INC-2026-0014 / PAT-850bae27 (svc setfields
+      mis-route, A5 closure), INC-2026-0017 / PAT-e24ac20d (svc
+      dispatch-side wave-blocked discard, commit a03b1937), commit
+      504d35ba (infra `"retry"` case missing). See MEMORY.md
+      `feedback_release_pipeline_setfields_routing` and
+      `feedback_wave_blocked_must_dispatch_retry`.
+    lesson: |
+      Before adding a SetFields case, grep callers for the label string
+      and route it ONLY to the apply function of the matching
+      `*ReleaseHandle.PatchStatus` closure. The default branch in each
+      apply function must log
+      `applyPatchTo*Status: unknown SetFields=<label>` so a misroute
+      produces a canary on every reconcile tick. At dispatch sites,
+      never `_, err := workflow.Run(...)`. Use
+      `dispatchWaveResult(handle, resp, err)` or explicit branches for
+      engine error / wave failure / full success. When fixing one of
+      the three parallel pipelines (Svc/App/Infra), audit the other
+      two for the symmetric gap on both the patch-apply and dispatch
+      sides.
+    edit_shapes:
+      - adding a SetFields case to applyPatchToSvcStatus/AppStatus/InfraStatus without verifying which release kind sends the label
+      - dispatching a release workflow with `_, err := workflow.Run(...)` and branching only on err != nil
+      - copying a fix from one of Svc/App/Infra to one sibling but not the other (asymmetry)
+      - tightening patchReleaseStatus' equality guard instead of fixing the misrouted SetFields
+    wrong_fixes:
+      - adding the SetFields case to all three apply functions "to be safe" — silent overwrite of one kind's status by another's patch path
+      - re-enqueueing via drift-reconciler timer instead of explicit RetryCount + NextRetryUnixMs
+      - raising the reconciler tick rate so drift-reconciler runs more often (mask, not fix)
+      - increasing workflow queue capacity to hide the retry storm
+      - returning err from the dispatch site to "make the failure loud" — the engine-level err is nil for wave failures by contract
+    files:
+      - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+      - golang/cluster_controller/cluster_controller_server/workflow_release.go
+    related_invariants:
+      - release_pipeline.set_fields_routing_must_match_release_kind
+      - workflow.dispatch_is_not_completion
+      - workflow.success_requires_backend_confirmation
+      - convergence.no_infinite_retry
+    related_symbols:
+      - applyPatchToSvcStatus
+      - applyPatchToAppStatus
+      - applyPatchToInfraStatus
+      - patchReleaseStatus
+      - RunPackageReleaseWorkflow
+      - dispatchWaveResult
+      - svcReleaseHandle.PatchStatus
+      - appReleaseHandle.PatchStatus
+      - infraReleaseHandle.PatchStatus

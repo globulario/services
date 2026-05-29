@@ -4309,3 +4309,120 @@ invariants:
       related_failure_modes:
         - node_agent.install_package_aliases_convergence_hash_into_expected_sha256
         - controller.apply_package_missing_expected_sha256_blocks_verified_install
+
+    - id: service.lifecycle.version_field_must_not_be_overwritten
+      title: Service main must initialise its Version field from the package-level Version variable, never from a literal
+      severity: degraded
+      status: active
+      summary: |
+        Every Globular service entrypoint must populate its `Version` field
+        (on the server struct or its Config) from the package-level `Version`
+        symbol that ldflags injection writes at build time
+        (`-X main.Version=<ver>`). Writing a literal — `srv.Version = ""`,
+        `srv.Version = "0.0.1"`, or `Version: ""` inside a Config default —
+        runs AFTER the ldflags assignment and silently wipes the injected
+        value. The bug is invisible at compile time and only surfaces when
+        a verifier or `--describe` consumer reads the field and finds it
+        empty.
+      protects:
+        state:
+            - /globular/nodes/{node_id}/packages/{kind}/{name}
+        files:
+            - golang/globular_service/services.go
+            - golang/repository/repository_server/main.go
+            - golang/monitoring/monitoring_server/main.go
+            - golang/torrent/torrent_server/main.go
+        symbols:
+            - Version
+            - LifecycleManager
+            - DefaultConfig
+            - srv.Version
+            - cfg.Version
+      enforcement: |
+        Working pattern (verified across search, title, media, dns, file,
+        ai-* services): `srv.Version = Version` immediately after
+        constructing the server struct, OR `cfg.Version = Version` inside
+        a `DefaultConfig()` factory. The build-side sentinel in
+        `zz_version_generated.go` panics at init() when the package
+        variable is empty but cannot catch a main() that clobbers it
+        post-init. Reviewers and code-search hooks must grep every
+        `*_server/server.go` and `*_server/main.go` for `Version` and
+        confirm no literal assignment is present.
+      forbidden_fixes:
+        - hardcoding_a_literal_version_in_service_main
+        - reading_version_from_etcd_at_service_init_to_paper_over_empty_ldflags
+        - special_casing_the_affected_service_in_detectGlobularBinaryVersion
+        - editing_zz_version_generated_go_to_force_a_value
+      required_tests:
+        - TestServiceVersion_DescribeReportsBuildTimeVersion
+      related_failure_modes:
+        - service.runtime_version_empty_from_main
+        - service.runtime_identity_unproven
+
+    - id: release_pipeline.set_fields_routing_must_match_release_kind
+      title: Every SetFields label routed in release_pipeline.go must go to the apply function matching its release kind, and every dispatch result must be inspected (not discarded)
+      severity: critical
+      status: active
+      summary: |
+        `release_pipeline.go` has three near-identical SetFields apply
+        functions — `applyPatchToSvcStatus`, `applyPatchToAppStatus`,
+        `applyPatchToInfraStatus` — corresponding to the three release
+        kinds (ServiceRelease, ApplicationRelease, InfrastructureRelease).
+        Adding a new SetFields label (e.g. `"available"`, `"retry"`,
+        `"awareness_bundle"`) to the wrong apply function is a SILENT
+        defect: the wrong function returns false from its default branch,
+        `patchReleaseStatus`'s equality guard then skips Apply, and the
+        reconcile loop logs intent (e.g. `marking AVAILABLE`) on every
+        cycle while etcd never advances. The mirror trap is on the
+        dispatch side: workflow runners return `(resp, err)` where
+        `resp.Status` encodes per-wave success/failure independently of
+        the engine-level `err`. A call site that writes `_, err :=` and
+        only branches on `err != nil` drops `RUN_STATUS_FAILED` /
+        `WAVE_BLOCKED` results — the release stays at RESOLVED with
+        zero retry counters and only the drift-reconciler can ever
+        unstick it.
+      protects:
+        state:
+            - /globular/resources/ServiceRelease/{name}
+            - /globular/resources/ApplicationRelease/{name}
+            - /globular/resources/InfrastructureRelease/{name}
+        files:
+            - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+            - golang/cluster_controller/cluster_controller_server/workflow_release.go
+        symbols:
+            - applyPatchToSvcStatus
+            - applyPatchToAppStatus
+            - applyPatchToInfraStatus
+            - patchReleaseStatus
+            - RunPackageReleaseWorkflow
+            - dispatchWaveResult
+            - svcReleaseHandle.PatchStatus
+            - appReleaseHandle.PatchStatus
+            - infraReleaseHandle.PatchStatus
+      enforcement: |
+        Before adding a SetFields case, grep the codebase for the label
+        string in caller closures
+        (e.g. `SetFields:.*"available"`) and route the new case to the
+        apply function of the matching `*ReleaseHandle.PatchStatus`
+        closure — ONLY that one. The default branch must log
+        `applyPatchTo*Status: unknown SetFields=<label>` so misroutes
+        produce a canary in the controller log on every reconcile tick.
+        For dispatch sites, never discard the workflow `resp` — either
+        use `dispatchWaveResult(handle, resp, err)` or explicit branches
+        for engine-error / wave-failure / full-success. When fixing one
+        of the three parallel pipelines (Svc/Infra/App), audit the
+        symmetric pipelines for the mirror gap on both the patch-apply
+        side AND the dispatch side.
+      forbidden_fixes:
+        - adding_set_fields_case_to_the_wrong_apply_function
+        - allowing_default_branch_to_silently_return_false_without_canary_log
+        - discarding_workflow_response_with_underscore_and_branching_only_on_err
+        - tightening_equality_guard_to_paper_over_misrouted_setfields
+        - re_enqueueing_via_drift_reconciler_instead_of_explicit_retry_counter
+      required_tests:
+        - TestApplyPatchTo_SetFieldsRoutingMatchesReleaseKind
+        - TestApplyPatchTo_UnknownSetFieldsEmitsCanaryLogAndReturnsFalse
+        - TestRunPackageReleaseWorkflow_WaveBlockedResponseTriggersRetry
+        - TestRunPackageReleaseWorkflow_DispatchSiteInspectsRespStatus
+      related_failure_modes:
+        - release_pipeline.set_fields_silent_noop_on_wrong_kind
