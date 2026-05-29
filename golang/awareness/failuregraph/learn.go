@@ -38,7 +38,7 @@ func LearnFromIncident(ctx context.Context, s *Store, incidentID string, categor
 				continue
 			}
 			n := FailureNode{
-				ID:        nodePrefix(nodeType) + sanitizeID(item)[:12],
+				ID:        nodePrefix(nodeType) + idFragment(item),
 				NodeType:  nodeType,
 				Name:      item,
 				Summary:   item,
@@ -88,10 +88,10 @@ func LearnFromIncident(ctx context.Context, s *Store, incidentID string, categor
 		// Pick the first cause as parent or fall back to category
 		parentID := catID
 		if len(causes) > 0 {
-			parentID = nodePrefix(NodeTypeRootCause) + sanitizeID(causes[0])[:12]
+			parentID = nodePrefix(NodeTypeRootCause) + idFragment(causes[0])
 		}
 		resNode := FailureNode{
-			ID:       nodePrefix(NodeTypeResolution) + sanitizeID(res)[:12],
+			ID:       nodePrefix(NodeTypeResolution) + idFragment(res),
 			NodeType: NodeTypeResolution,
 			Name:     res,
 			Summary:  res,
@@ -116,6 +116,18 @@ func LearnFromIncident(ctx context.Context, s *Store, incidentID string, categor
 	}
 
 	return nodeCount, edgeCount, nil
+}
+
+// idFragment is sanitizeID clamped to the 12-byte node-ID suffix used by
+// LearnFromIncident. Without the clamp, any incident input shorter than 12
+// chars after sanitization (e.g. a one-line test or a tight cause string)
+// panics on the slice. The closure ritual must be robust to short inputs.
+func idFragment(s string) string {
+	id := sanitizeID(s)
+	if len(id) > 12 {
+		return id[:12]
+	}
+	return id
 }
 
 // sanitizeID converts a human-readable string into a safe ID fragment.

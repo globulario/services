@@ -188,6 +188,30 @@ func TestLearnFromIncident(t *testing.T) {
 	}
 }
 
+// TestLearnFromIncident_ShortInputsDoNotPanic guards the 12-byte slice
+// suffix in node-ID construction. Before idFragment() clamped the slice,
+// any input shorter than 12 chars after sanitization panicked here —
+// breaking the closure ritual for terse symptoms, single-word causes,
+// and test-suite inputs.
+func TestLearnFromIncident_ShortInputsDoNotPanic(t *testing.T) {
+	_, s := openTestStore(t)
+	ctx := context.Background()
+
+	nodes, edges, err := failuregraph.LearnFromIncident(ctx, s, "INC-SHORT", "c",
+		[]string{"s"},
+		[]string{"x"},
+		[]string{"y"},
+		[]string{"z"},
+		[]string{"t"},
+	)
+	if err != nil {
+		t.Fatalf("LearnFromIncident with short inputs: %v", err)
+	}
+	if nodes == 0 || edges == 0 {
+		t.Errorf("expected nodes and edges to be created from short inputs, got nodes=%d edges=%d", nodes, edges)
+	}
+}
+
 // Test 9: SeedDefaults is idempotent.
 func TestSeedDefaultsIdempotent(t *testing.T) {
 	_, s := openTestStore(t)
