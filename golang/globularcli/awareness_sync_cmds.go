@@ -370,24 +370,15 @@ func resolveExpectedRelease() (*bundlesync.ReleaseIndex, error) {
 	return loadReleaseIndexFromDisk(pickReleaseIndexPath())
 }
 
+// loadReleaseIndexFromDisk wraps bundlesync.LoadReleaseIndex. The shared
+// implementation accepts the production BOM schema (v1/v2 packages array,
+// AWARENESS_BUNDLE entry), the flat shape used by tests, and the
+// {"active": {...}} nested shape. Keeping a thin local wrapper preserves the
+// existing call sites while routing every CLI install through one parser —
+// the previous local copy only knew flat + nested and broke against every
+// real v2 release-index.
 func loadReleaseIndexFromDisk(path string) (*bundlesync.ReleaseIndex, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read release-index %s: %w", path, err)
-	}
-	// Flat shape first.
-	var flat bundlesync.ReleaseIndex
-	if err := json.Unmarshal(data, &flat); err == nil && flat.Version != "" {
-		return &flat, nil
-	}
-	// Then nested {"active":{...}}.
-	var nested struct {
-		Active *bundlesync.ReleaseIndex `json:"active"`
-	}
-	if err := json.Unmarshal(data, &nested); err == nil && nested.Active != nil && nested.Active.Version != "" {
-		return nested.Active, nil
-	}
-	return nil, fmt.Errorf("release-index %s: no usable version/build_id", path)
+	return bundlesync.LoadReleaseIndex(path)
 }
 
 func loadClusterCAPool(path string) (*x509.CertPool, error) {
