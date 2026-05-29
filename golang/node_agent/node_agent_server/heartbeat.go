@@ -400,6 +400,18 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 	// treat it as healthy.
 	srv.detectPartialApply(ctx, now)
 
+	// Phase 1.75 (Project B): Post-restart self-hosted runtime proof.
+	// Self-hosted control-plane components (node-agent, cluster-controller,
+	// cluster-doctor) restart themselves during apply, which can interrupt
+	// the workflow ConvergenceResultV1 receipt path. The heartbeat refresh
+	// at Phase 1 only fires on version change, leaving same-version stale
+	// failures untouched and buildId-guarded records frozen. This phase
+	// runs a narrow proof: manifest entrypoint_checksum vs /proc/PID/exe
+	// sha256 — and refreshes installed_state only when proof passes. See
+	// loads/self_install_record_refresh_impact.md and invariant
+	// self_hosted_runtime_proof_may_refresh_installed_state.
+	srv.refreshSelfHostedInstalledState(ctx)
+
 	// Phase 2: Enrich existing records with correct version/kind from repo.
 	srv.syncRepoArtifactsToEtcd(ctx, now, platform, &synced)
 
