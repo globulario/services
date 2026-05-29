@@ -1,0 +1,52 @@
+# Project S package deploy — pre-flight evidence
+# Timestamp: Fri 29 May 2026 11:39:12 AM EDT
+
+## scylla-manager systemd state
+MainPID=510410
+Result=success
+NRestarts=0
+ActiveState=active
+SubState=running
+ActiveEnterTimestamp=Fri 2026-05-29 10:45:08 EDT
+
+## process command line
+    PID USER     
+ 510410 globular /usr/lib/globular/bin/scylla_manager --config-file /var/lib/globular/scylla-manager/scylla-manager.yaml
+
+## GET /api/v1/version
+{"version":"3.10.1"}
+
+## GET /api/v1/clusters
+[{"id":"932c01cb-8c50-4a30-b90d-e2f08c10a17c","name":"globular-internal","labels":null,"host":"10.0.0.63","port":5612,"auth_token":"6c7e1273d0d8386488773f0eb938570d991e9ed577aaef9f","force_tls_disabled":false,"force_non_ssl_session_port":false}]
+
+## scylla_manager.cluster (CQL)
+
+ id                                   | name              | host      | port
+--------------------------------------+-------------------+-----------+------
+ 932c01cb-8c50-4a30-b90d-e2f08c10a17c | globular-internal | 10.0.0.63 | 5612
+
+(1 rows)
+
+## sctool task list
+├─────────────────────────────────────────────┼────────┼──────────────┼────────┼─────────────────┼─────────┼───────┼────────────────────────┼────────────┼────────┼────────────────────────┤
+│ backup/105a3d1f-8625-4298-9374-dfc4ee4cf664 │        │              │        │ America/Toronto │ 1       │ 0     │ 29 May 26 10:46:36 EDT │            │ DONE   │                        │
+│ backup/3b966c52-056e-47ca-9c2b-55e313b8b689 │        │              │        │ America/Toronto │ 1       │ 0     │ 29 May 26 10:46:26 EDT │            │ DONE   │                        │
+│ healthcheck/cql                             │        │ * * * * *    │        │ America/Toronto │ 56      │ 0     │ 29 May 26 11:39:00 EDT │            │ DONE   │ 29 May 26 11:40:00 EDT │
+│ healthcheck/alternator                      │        │ * * * * *    │        │ America/Toronto │ 56      │ 0     │ 29 May 26 11:39:00 EDT │            │ DONE   │ 29 May 26 11:40:00 EDT │
+│ healthcheck/rest                            │        │ * * * * *    │        │ America/Toronto │ 56      │ 0     │ 29 May 26 11:39:00 EDT │            │ DONE   │ 29 May 26 11:40:00 EDT │
+│ repair/all-weekly                           │        │ 0 23 * * SAT │        │ America/Toronto │ 0       │ 0     │                        │            │ NEW    │ 30 May 26 23:00:00 EDT │
+╰─────────────────────────────────────────────┴────────┴──────────────┴────────┴─────────────────┴─────────┴───────┴────────────────────────┴────────────┴────────┴────────────────────────╯
+
+## MinIO backup artifacts
+378
+(line count of artifact tree above)
+
+## installed scylla-manager package version
+version=1.2.72 build=? buildId=15540395 checksum=d3ce41024a6ef704
+
+## installed scylla-manager-agent package version
+version=1.2.108 build=? buildId=de884d0d checksum=0ad6cad5e09bc181
+
+## fresh doctor (scylla-manager findings only)
+total findings: 24
+scylla-manager findings: 0

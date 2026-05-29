@@ -1,0 +1,25 @@
+{
+  "status": "healthy",
+  "summary": {
+    "nodes": 0,
+    "edges": 0,
+    "invalid_shapes": 0,
+    "stale_edges": 0,
+    "missing_tests": 0,
+    "contradictions": 0,
+    "orphan_nodes": 0,
+    "edges_without_provenance": 0
+  },
+  "invalid_shapes": null,
+  "trust_levels": {
+    "strict_verified": 0,
+    "verified": 0,
+    "declared": 0,
+    "inferred": 0,
+    "proposal": 0,
+    "stale": 0,
+    "invalid": 0
+  },
+  "recommended_actions": null,
+  "exit_code": 0
+}

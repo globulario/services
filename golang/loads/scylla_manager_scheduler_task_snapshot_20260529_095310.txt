@@ -1,0 +1,8 @@
+
+ cluster_id                           | type        | id                                   | deleted | enabled | error_count | labels | last_error | last_success                    | name | properties | sched | status  | success_count
+--------------------------------------+-------------+--------------------------------------+---------+---------+-------------+--------+------------+---------------------------------+------+------------+-------+---------+---------------
+ 15098bd9-3b0c-49f7-b036-2eede2528361 | healthcheck | 25ed47a4-99c7-4f74-a359-17d36c604bc4 |    null |    null |        null |   null |       null | 2026-05-29 13:52:06.826000+0000 | null |       null |  null | ABORTED |          1486
+ 15098bd9-3b0c-49f7-b036-2eede2528361 | healthcheck | 2d66ab4d-4a04-42a1-bc97-9de5f9fc9a9e |    null |    null |        null |   null |       null | 2026-05-29 13:52:22.163000+0000 | null |       null |  null | RUNNING |          1485
+ 15098bd9-3b0c-49f7-b036-2eede2528361 | healthcheck | b034574c-1b76-419e-a608-697e4a984cbc |    null |    null |        null |   null |       null | 2026-05-29 13:53:08.244000+0000 | null |       null |  null |    DONE |          1486
+
+(3 rows)

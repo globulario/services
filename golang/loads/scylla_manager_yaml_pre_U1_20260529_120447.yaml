@@ -1,0 +1,7 @@
+# Scylla Manager configuration (managed by Globular)
+http: 10.0.0.63:5080
+
+database:
+  hosts:
+    - 10.0.0.63
+  port: 9042

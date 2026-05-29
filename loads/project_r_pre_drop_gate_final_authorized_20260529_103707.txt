@@ -1,0 +1,49 @@
+# Project R — FINAL AUTHORIZED pre-drop gate
+# Timestamp: Fri 29 May 2026 10:37:07 AM EDT
+# Amendment: scheduler_task_run = 1 accepted iff orphan-healthcheck-only
+
+## Table row counts
+  cluster: 0
+  scheduler_task: 3
+  scheduler_task_run: 1
+  backup_run: 0
+  backup_run_progress: 0
+  repair_run: 0
+  repair_run_state: 0
+  restore_run: 0
+  restore_run_progress: 0
+  secrets: 0
+  drawer: 0
+  one2onerestore_run_table_progress: 0
+  one2onerestore_run_view_progress: 0
+  tablet_repair_run_progress: 0
+  validate_backup_run_progress: 0
+  gocqlx_migrate: 33
+
+## scheduler_task (must be only 3 orphan healthchecks)
+
+ cluster_id                           | type        | id                                   | name | status
+--------------------------------------+-------------+--------------------------------------+------+---------
+ 15098bd9-3b0c-49f7-b036-2eede2528361 | healthcheck | 25ed47a4-99c7-4f74-a359-17d36c604bc4 | null |    DONE
+ 15098bd9-3b0c-49f7-b036-2eede2528361 | healthcheck | 2d66ab4d-4a04-42a1-bc97-9de5f9fc9a9e | null | RUNNING
+ 15098bd9-3b0c-49f7-b036-2eede2528361 | healthcheck | b034574c-1b76-419e-a608-697e4a984cbc | null |    DONE
+
+(3 rows)
+
+## scheduler_task_run (must satisfy amended bounded rule)
+
+ cluster_id                           | type        | task_id                              | status
+--------------------------------------+-------------+--------------------------------------+--------
+ 15098bd9-3b0c-49f7-b036-2eede2528361 | healthcheck | 25ed47a4-99c7-4f74-a359-17d36c604bc4 |   DONE
+
+(1 rows)
+
+## Application keyspaces (OUT OF SCOPE)
+
+ai_conversations      log_registry      system_distributed           
+ai_memory             rbac_permissions  system_distributed_everywhere
+
+## ScyllaDB CQL health
+--------------------------------------
+ e678f0f0-5b6b-11f1-912d-07d0280571fa
+

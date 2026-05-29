@@ -1,0 +1,16 @@
+# Project R pre-drop gate evidence
+# Timestamp: Fri 29 May 2026 10:33:10 AM EDT
+
+  cluster:  rows
+  backup_run:  rows
+  repair_run:  rows
+  secrets:  rows
+  scheduler_task_run:  rows
+
+## Application keyspaces (OUT OF SCOPE — not touched):
+
+ai_conversations      log_registry      system_distributed           
+ai_memory             rbac_permissions  system_distributed_everywhere
+
+## ScyllaDB health check:
+ 53a53400-5b6b-11f1-912d-07d0280571fa
