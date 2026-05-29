@@ -1,0 +1,24 @@
+field	value	evidence_source
+node	globule-ryzen	cluster_list_nodes
+ip	10.0.0.63	cluster_list_nodes
+systemd_execstart_path	/mnt/40F43F08F43EFFA8/minio/data (positional arg, IGNORED at runtime)	/etc/systemd/system/globular-minio.service
+systemd_env_minio_volumes	/var/lib/globular/minio/data (MINIO_VOLUMES env, AUTHORITATIVE)	/var/lib/globular/minio/minio.env
+contract_path	/var/lib/globular/minio (contract) → /var/lib/globular/minio/data (actual MinIO data dir)	/globular/objectstore/config node_paths
+runtime_path_exists	YES — /mnt/40F43F08F43EFFA8/minio/data is a directory containing stale leftover data	stat
+contract_path_exists	YES — /var/lib/globular/minio/data is a directory, active	stat
+runtime_path_size	378M (stale leftover; mtime 2026-04-29)	du -sh
+contract_path_size	320M (active; mtime 2026-05-27)	du -sh
+runtime_path_bucket_count	2 (globular, globular-search-index)	ls
+contract_path_bucket_count	3 (globular, globular-config, globular-search-index)	ls
+format_json_runtime_cluster_id	1b3577da-d6dc-4dbb-bcda-901ef87d049c (xl, 3-drive set, "this"=d2fa8438)	/mnt/.../format.json
+format_json_contract_cluster_id	7e935e5e-c09e-4c72-88d1-662a78bbaa12 (xl-single, single-drive, "this"=0f1f7918)	/var/lib/globular/minio/data/.minio.sys/format.json
+minio_process_uses_path	/var/lib/globular/minio/data — proven by write test: a freshly-piped object (test-token-1780022126.txt) landed at /var/lib/globular/minio/data/globular/test-token-...txt, NOT at /mnt/...	mc pipe + find
+minio_env_priority	MINIO_VOLUMES env overrides the positional ExecStart arg; the positional /mnt/... is functionally dead	live test confirms env path wins
+repo_mirror_recent_success	YES — 29 files modified at /var/lib/globular/minio/data in last 60 min (including v1.2.120/v1.2.122 deploy provenance.json + .usage-cache.bin updates); 0 files modified at /mnt/...	find -mmin -60
+repo_mirror_init_log	"minio storage configured endpoint=10.0.0.63:9000 bucket=globular" + "repository storage initialized local=/var/lib/globular/repository mirror_available=true" at 22:07:12	journalctl globular-repository
+topology_generation	0 (per /globular/nodes/<id>/objectstore/rendered_generation)	etcdctl get
+storage_nodes_reporting	1 (only globule-ryzen)	cluster_list_nodes
+quorum_state	1/3 — below founding minimum; reconciler SKIP_NO_QUORUM	/globular/objectstore/reconcile/last
+classification	contract_path_active_runtime_path_stale	derived from evidence
+recommended_action	(NOT this project; only inventory) — cosmetic: remove the misleading positional arg from ExecStart so future operators don't believe /mnt/... is in use; archival: stale /mnt/40F43F08F43EFFA8/minio/data with old 3-drive XL format.json can be reviewed for archival; both subject to operator approval before action	derived
+risk	low — runtime is correct (contract path is active); the ExecStart-arg cosmetic gap is misleading but functionally inert; data orphaning concern from Project E inventory was mitigated by the env override discovery	derived
