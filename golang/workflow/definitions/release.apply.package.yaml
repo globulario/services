@@ -254,6 +254,12 @@ spec:
             package_name: $.package_name
             version: $.resolved_version
             desired_hash: $.desired_hash
+            # Project J: thread the BINARY sha256 (manifest entrypoint_checksum)
+            # so the sync actor writes InstalledPackage.Checksum with the binary
+            # hash. INC-2026-0014's hash_schemas_must_not_alias invariant
+            # forbids aliasing desired_hash (synthetic identity) into the
+            # binary-sha256 slot.
+            resolved_entrypoint_checksum: $.resolved_entrypoint_checksum
             package_kind: $.package_kind
             build_id: $.resolved_build_id
           execution:

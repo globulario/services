@@ -1205,7 +1205,24 @@ func nodeSyncPackageState(cfg NodeDirectApplyConfig) ActionHandler {
 		ctx = enrichNodeContext(ctx, req)
 		name := fmt.Sprint(req.With["package_name"])
 		version := fmt.Sprint(req.With["version"])
-		hash := fmt.Sprint(req.With["desired_hash"])
+		// Project J: read the BINARY sha256 (resolved_entrypoint_checksum
+		// from the manifest), NOT the synthetic identity desired_hash.
+		// InstalledPackage.Checksum is the binary sha256 across every
+		// other writer (apply_package_release.go, self_hosted_runtime_proof
+		// writer); the committer was the only path aliasing desired_hash
+		// into it. The phantom value sha256("publisher/name=version+b:build;…")
+		// is INC-2026-0014 territory — explicitly forbidden by
+		// install_package.hash_schemas_must_not_alias.
+		//
+		// Fallback rule: when resolved_entrypoint_checksum is absent or
+		// the synthesized "<nil>" string (older releases / pre-manifest
+		// dispatch paths), pass an empty string. The heartbeat /
+		// self-hosted proof writer will fill it from on-disk truth on the
+		// next cycle. We MUST NOT regress to writing desired_hash.
+		hash := fmt.Sprint(req.With["resolved_entrypoint_checksum"])
+		if hash == "<nil>" || hash == "" {
+			hash = ""
+		}
 		kind := fmt.Sprint(req.With["package_kind"])
 		buildID := fmt.Sprint(req.With["build_id"])
 		if buildID == "<nil>" {
