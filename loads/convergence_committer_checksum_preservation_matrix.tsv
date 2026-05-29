@@ -1,0 +1,32 @@
+field	value	evidence_source
+bug_id	convergence_committer_writes_desired_hash_into_checksum	derived
+primary_call_site	golang/workflow/engine/actors.go:1208	grep
+primary_call_site_code	hash := fmt.Sprint(req.With["desired_hash"])	source
+secondary_call_site	golang/cluster_controller/cluster_controller_server/workflow_release.go:986	grep
+secondary_call_site_code	SyncInstalledPackage: writes Checksum: hash → CommitInstalledPackage	source
+sink_function	installed_state.CommitInstalledPackage in golang/installed_state/installed_state.go:57	grep
+sink_writes	pkg.Checksum (whatever caller passed)	source
+desired_hash_actual_value	ComputeReleaseDesiredHash(publisher, name, version, build_number, config) = sha256(synthetic identity string)	memory + INC-2026-0014
+desired_hash_example_dns	de2b04ff64ce4489...  = sha256("core@globular.io/dns=1.2.113+b:364;")	MEMORY.md
+checksum_proto_intent	binary sha256 (the entrypoint_checksum) per heartbeat path usage	source review
+correct_value_in_workflow_inputs	resolved_entrypoint_checksum (binary sha256 from manifest)	workflow_release.go:63
+correct_value_not_used_by_sync	nodeSyncPackageState reads req.With["desired_hash"], NOT req.With["resolved_entrypoint_checksum"]	actors.go:1208
+self_hosted_proof_writer_writes	binary sha256 (proof.ManifestChecksum from CAS manifest)	self_hosted_runtime_proof_writer.go applySelfHostedInstalledStateRefresh
+node_agent_apply_writes	actualHash from verifyInstalledBinaryHashStrict (proven on-disk binary sha256)	apply_package_release.go:60,418,581,690
+affected_records_per_node	24 of 25 SERVICE records on globule-ryzen carry wrong checksum (mcp is the exception — has no binary at conventional path)	live etcd survey
+example_dns_recorded	de2b04ff64ce4489	live etcd
+example_dns_on_disk	6ed1f9c85ad27d6f	sha256sum
+example_rbac_recorded	474921eca48ac51a	live etcd
+example_rbac_on_disk	96f8a02896d712fe	sha256sum
+example_event_recorded	9a235232c718c466	live etcd
+example_event_on_disk	f735b99059059742	sha256sum
+heartbeat_compensation_active_for	node-agent, cluster-controller, cluster-doctor, repository (Project B + Project F follow-up)	self_hosted_runtime_proof_writer.go selfHostedServiceNames
+heartbeat_compensation_works	YES — all 4 self-hosted records show recorded == on_disk	live etcd
+remaining_drift	20 ordinary SERVICE records on globule-ryzen still carry the wrong checksum	24 - 4
+hash_schema_distinction	desired_hash ≠ resolved_entrypoint_checksum ≠ resolved_artifact_digest ≠ actualHash	INC-2026-0014 memory
+already_documented_invariant	install_package.hash_schemas_must_not_alias (from INC-2026-0014)	docs/awareness/invariants.yaml
+classification	convergence_committer_writes_wrong_hash_schema (primary) + checksum_consumer_must_be_binary_sha256 (architectural)	derived
+recommended_fix	change actors.go:1208 to read req.With["resolved_entrypoint_checksum"] (the binary sha256) instead of req.With["desired_hash"]. Also clarify proto comment on InstalledPackage.Checksum.	derived (NOT executed in this project)
+forbidden_fix	suppress doctor's installed_state checksum drift findings instead of fixing the writer	per architecture
+risk	medium — the wrong value causes doctor "installed_state checksum drifts from manifest" findings (we saw it for workflow), and would break a future verifier that trusts InstalledPackage.Checksum end-to-end. Today Project B's heartbeat re-write compensates for self-hosted only.	derived
+project_j_scope	inventory only — code fix is a follow-up Project K (or wherever) after the user authorises	per handoff
