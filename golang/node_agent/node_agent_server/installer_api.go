@@ -115,6 +115,18 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 		return installErr
 	}
 
+	// Project T: persist the manifest's entrypoint binary filename as a
+	// sidecar so the verifier/drift logic can resolve the installed binary
+	// path without inferring it from the package name. Pre-fix, packages
+	// whose name uses hyphens but whose entrypoint uses underscores (e.g.
+	// scylla-manager → scylla_manager) caused the verifier to look at the
+	// wrong path and the drift reconciler to dispatch reinstall forever.
+	if entrypoint := readArtifactManifestEntrypoint(artifactPath); entrypoint != "" {
+		if err := versionutil.WriteEntrypoint(name, entrypoint); err != nil {
+			log.Printf("installer-api: warn write entrypoint sidecar for %s: %v", name, err)
+		}
+	}
+
 	// Write entrypoint_checksum to the etcd installed-state record. Without
 	// this, the heartbeat compares the binary hash against an empty checksum
 	// and reports hash_drift, and the runtime verifier has no hash to produce
@@ -383,6 +395,52 @@ func isLocalEndpoint(addr, localIP string) bool {
 // diverge silently whenever etcd/envoy/scylladb ship a new release.
 func resolvePackageVersion(_ string) string {
 	return "0.0.0-dev"
+}
+
+// readArtifactManifestEntrypoint reads the `entrypoint` field from a
+// staged artifact's package.json manifest. The artifact is a .tgz
+// containing a top-level package.json with at least {"entrypoint": "..."}.
+// Returns empty string when the entrypoint cannot be determined; callers
+// should fall back to the legacy name-inferred path.
+//
+// Project T: introduced so the installer can persist the manifest-declared
+// binary filename and the verifier can resolve the installed binary path
+// from the package's own metadata instead of inferring it from the
+// package name.
+func readArtifactManifestEntrypoint(artifactPath string) string {
+	f, err := os.Open(artifactPath)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return ""
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err != nil {
+			return ""
+		}
+		name := filepath.Clean(hdr.Name)
+		if name == "package.json" || name == "./package.json" {
+			data, err := io.ReadAll(io.LimitReader(tr, 32*1024))
+			if err != nil {
+				return ""
+			}
+			var manifest struct {
+				Entrypoint string `json:"entrypoint"`
+			}
+			if err := json.Unmarshal(data, &manifest); err != nil {
+				return ""
+			}
+			return strings.TrimSpace(manifest.Entrypoint)
+		}
+	}
 }
 
 // readArtifactManifestVersion reads the version from a staged artifact's
