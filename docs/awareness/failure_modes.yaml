@@ -2676,10 +2676,10 @@ failure_modes:
         - TestDispatch_PopulatesExpectedSha256FromManifest
         - TestDispatch_AuditAllCallSitesSetExpectedSha256
     - id: etcd.nospace_alarm_blocks_reconciliation
-      title: etcd reaches backend quota and raises alarm:NOSPACE, blocking all controller writes and reconciliation
+      title: "etcd reaches backend quota and raises alarm:NOSPACE, blocking all controller writes and reconciliation"
       severity: critical
       symptoms:
-        - controller logs show repeated "rpc error code = ResourceExhausted desc = etcdserver: mvcc: database space exceeded"
+        - 'controller logs show repeated "rpc error code = ResourceExhausted desc = etcdserver: mvcc: database space exceeded"'
         - convergence-committer reports outcome=FAILED_TRANSIENT for every service every cycle
         - leader election refresh publish failed context deadline exceeded
         - "runtime-dep-block: write block ... etcd put ... mvcc: database space exceeded"
@@ -2788,7 +2788,7 @@ failure_modes:
       known_bad_fixes:
         - reintroducing the fallback under a "graceful degradation" label
         - shortening the function by combining both keys into one variable
-        - "normalising" the convergence hash and the binary hash with a single helper
+        - '"normalising" the convergence hash and the binary hash with a single helper'
         - changing ComputeReleaseDesiredHash to return the entrypoint_checksum so the alias works
         - using inputs["expected_sha256"] as the convergence hash when desired_hash is absent
         - downgrading the verify gate to "warn" so installs pass even with the wrong-schema hash
