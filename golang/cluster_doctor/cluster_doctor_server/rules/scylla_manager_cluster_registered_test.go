@@ -35,11 +35,38 @@ func mkSnap(invs ...*node_agentpb.Inventory) *collector.Snapshot {
 	return &collector.Snapshot{Inventories: m}
 }
 
+// withTestEndpoint pins the HTTP probe base URL for tests written before
+// U.3. After U.3 the rule probes HTTPS first; this helper now also pins
+// the HTTPS base to a URL that will fail with connection-refused so the
+// pre-U.3 tests exercise the HTTP path. New U.3 tests pin both bases
+// explicitly via withTestBases.
 func withTestEndpoint(t *testing.T, url string) {
 	t.Helper()
-	prev := scyllaManagerEndpoint
-	scyllaManagerEndpoint = url
-	t.Cleanup(func() { scyllaManagerEndpoint = prev })
+	prevHTTPS := scyllaManagerHTTPSBase
+	prevHTTP := scyllaManagerHTTPBase
+	scyllaManagerHTTPBase = url
+	scyllaManagerHTTPSBase = "https://127.0.0.1:1" // unreachable → conn refused → fall back
+	t.Cleanup(func() {
+		scyllaManagerHTTPSBase = prevHTTPS
+		scyllaManagerHTTPBase = prevHTTP
+	})
+}
+
+// withTestBases pins both bases (HTTPS and HTTP) plus the CA path for
+// the U.3 tests that exercise the strict-trust HTTPS path.
+func withTestBases(t *testing.T, httpsURL, httpURL, caPath string) {
+	t.Helper()
+	prevHTTPS := scyllaManagerHTTPSBase
+	prevHTTP := scyllaManagerHTTPBase
+	prevCA := scyllaManagerCAPath
+	scyllaManagerHTTPSBase = httpsURL
+	scyllaManagerHTTPBase = httpURL
+	scyllaManagerCAPath = caPath
+	t.Cleanup(func() {
+		scyllaManagerHTTPSBase = prevHTTPS
+		scyllaManagerHTTPBase = prevHTTP
+		scyllaManagerCAPath = prevCA
+	})
 }
 
 // 1. The literal Project R bug repro: unit active, /api/v1/clusters returns [] → ERROR
@@ -162,7 +189,7 @@ func TestScyllaManagerClusterRegistered_MultiNode_AnyActive(t *testing.T) {
 // 7. Remediation steps point at the package-shipped script (Project S
 // enforcement path) and the manual sctool fallback.
 func TestScyllaManagerClusterRegistered_RemediationMentionsScript(t *testing.T) {
-	f := newScyllaManagerUnregisteredFinding()
+	f := newScyllaManagerUnregisteredFinding("http", "")
 	if len(f.Remediation) < 2 {
 		t.Fatalf("expected 2 remediation steps, got %d", len(f.Remediation))
 	}
