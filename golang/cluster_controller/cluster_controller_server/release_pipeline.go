@@ -627,6 +627,7 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 			h.ResolvedVersion,
 			h.DesiredHash,
 			h.ResolvedBuildID,
+			h.ResolvedEntrypointChecksum, // v1.2.119: BINARY hash → ExpectedSha256
 			h.ResolvedBuildNumber,
 			nodeIDs,
 			h.Generation, // generation guard: callbacks skip writes if generation advanced

@@ -2576,3 +2576,230 @@ failure_modes:
         - TestSyncFromUpstream_NoArchEntryNotFilteredByPlatform
         - TestSyncFromUpstream_ArchSpecificEntryStillFilteredOnMismatch
         - TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly
+    - id: controller.apply_package_missing_expected_sha256_blocks_verified_install
+      title: Controller dispatch builds ApplyPackageRelease without expected_sha256, blocking verified install success
+      severity: critical
+      symptoms:
+        - node-agent install-package writes installed_unverified with reason "no expected_sha256 provided in apply request"
+        - drift-reconciler redispatches every 30 seconds because Ok=false from the apply
+        - cluster_doctor reports controller.apply_package_missing_expected_sha256_blocks_verified_install
+        - normal install pipeline never reaches Status=installed; bridge-recovery is repeatedly needed
+        - controller-self-update dispatches package digest as ExpectedSha256 and every apply fails with failed_binary_hash_mismatch
+      root_cause: |
+        The v1.2.116 node-agent verify gate (verifyInstalledBinaryHashStrict) requires
+        expected_sha256 to declare BinaryVerified. Without it the gate returns
+        BinaryUnverified and the caller writes installed_unverified with Ok=false.
+        Until v1.2.119, the controller-side dispatch chain (remoteApplyPackageRelease,
+        followerSelfApply, release.apply.package and release.apply.controller
+        workflows) never propagated manifest.entrypoint_checksum from the resolver
+        into the apply request — even though ReleaseResolver.Resolve already read
+        the value. The dispatch path simply dropped it.
+
+        followerSelfApply additionally used target.Checksum (PACKAGE TARBALL sha256
+        prefixed with "sha256:") as ExpectedSha256, a hash-schema confusion that
+        guaranteed failed_binary_hash_mismatch on every self-update.
+      resolution: |
+        v1.2.119: every controller ApplyPackageRelease dispatch resolves
+        manifest.entrypoint_checksum (BINARY sha256) and passes it as
+        ExpectedSha256. RunPackageReleaseWorkflow accepts
+        resolved_entrypoint_checksum and propagates it through workflow inputs
+        into the install_package step. ControllerDeployConfig.ApplyPackageRelease
+        and NodeDirectApplyConfig.InstallPackage both grew an expectedSha256
+        parameter. The audit test TestDispatch_AuditAllCallSitesSetExpectedSha256
+        walks every ApplyPackageReleaseRequest literal in the source tree and
+        fails if a new site is added without ExpectedSha256 set (or without an
+        explicit allow-list entry documenting the degraded exception).
+      known_bad_fixes:
+        - disabling the node-agent verify gate so missing expected_sha256 returns SUCCESS
+        - synthesizing expected_sha256 from the binary already on disk
+        - parsing filename to derive expected_sha256
+        - mutating desired state to match installed runtime after verification fails
+        - adding a parallel ApplyPackageRelease dispatch path that bypasses manifest resolution
+        - passing the package tarball sha256 as ExpectedSha256 (hash-schema confusion)
+      related_invariants:
+        - controller.apply_package_release_requires_manifest_checksum
+        - runtime.success_requires_expected_binary_checksum
+        - repository.metadata_is_authority
+        - desired_installed_runtime_identity_must_match
+      required_tests:
+        - TestDispatch_PopulatesExpectedSha256FromManifest
+        - TestDispatch_EmptyManifestChecksumPropagatesAsEmpty
+        - TestDispatch_ControllerDeployPropagatesExpectedSha256
+        - TestDispatch_ControllerDeployEmptyExpectedSha256PropagatesAsEmpty
+        - TestDispatch_WithBlockOverridesInputs
+        - TestDispatch_AuditAllCallSitesSetExpectedSha256
+        - TestDispatch_ResolverEntrypointChecksumIsBinaryHash
+    - id: workflow.stale_definitions_block_expected_sha256_propagation
+      title: Stale workflow YAML definitions on disk break the v1.2.119 expected_sha256 propagation chain
+      severity: critical
+      symptoms:
+        - controller dispatches log expected_sha256_present=false despite running the v1.2.119 binary
+        - workflow-seed log shows etcd workflow entries that lack resolved_entrypoint_checksum / expected_sha256 fields
+        - node-agent honestly writes installed_unverified or rejects installs as binary hash mismatch
+        - cluster_doctor reports installed-state drift but the controller binary commit is correct
+      root_cause: |
+        The v1.2.119 cluster-controller binary correctly resolves
+        manifest.entrypoint_checksum and threads it into workflow inputs as
+        resolved_entrypoint_checksum. But the controller seeds the workflow
+        definition for release.apply.package / release.apply.controller from
+        /var/lib/globular/workflows/*.yaml. install-day0.sh installs those YAMLs
+        once at Day-0; nothing keeps them in sync when the controller binary
+        is upgraded via the normal install pipeline. A pre-v1.2.119 YAML on
+        disk does not declare the new resolved_entrypoint_checksum input
+        and does not thread it to install_package's with: block. The result:
+        the controller code asks the workflow engine for an input that the
+        loaded definition does not contain, the actor receives empty, and the
+        ApplyPackageReleaseRequest carries ExpectedSha256="" — silently
+        breaking the verification contract that the binary was supposed
+        to enforce.
+      resolution: |
+        Sync golang/workflow/definitions/*.yaml to /var/lib/globular/workflows/
+        (the same operation install-day0.sh performs at Day-0), chown to globular,
+        and restart globular-cluster-controller so it re-seeds etcd. After
+        restart, /globular/workflows/release.apply.* in etcd carries the new
+        fields and subsequent dispatches log expected_sha256_present=true.
+
+        The forward fix is to package the workflow YAMLs with cluster-controller
+        so the install pipeline updates both atomically.
+      known_bad_fixes:
+        - using a cluster-controller binary bridge to mask the missing field
+        - patching the controller or node-agent to ignore the missing checksum field
+        - syncing only one workflow YAML and leaving the package/controller
+          pair inconsistent
+        - mutating installed_state to verified to silence the gap
+        - treating empty expected_sha256 as success in any layer
+      related_invariants:
+        - workflow.definitions_must_thread_required_verification_fields
+        - controller.apply_package_release_requires_manifest_checksum
+        - runtime.success_requires_expected_binary_checksum
+      required_tests:
+        - TestDispatch_PopulatesExpectedSha256FromManifest
+        - TestDispatch_AuditAllCallSitesSetExpectedSha256
+    - id: etcd.nospace_alarm_blocks_reconciliation
+      title: "etcd reaches backend quota and raises alarm:NOSPACE, blocking all controller writes and reconciliation"
+      severity: critical
+      symptoms:
+        - 'controller logs show repeated "rpc error code = ResourceExhausted desc = etcdserver: mvcc: database space exceeded"'
+        - convergence-committer reports outcome=FAILED_TRANSIENT for every service every cycle
+        - leader election refresh publish failed context deadline exceeded
+        - "runtime-dep-block: write block ... etcd put ... mvcc: database space exceeded"
+        - drift cannot be redispatched, installed_state cannot be persisted
+        - no new apply-package attempts fire; reconciliation appears frozen even though dispatch code is correct
+        - etcdctl endpoint health returns "Active Alarm(s) NOSPACE" and unhealthy
+      root_cause: |
+        etcd's mvcc backend reached its configured quota (default 2 GiB) and
+        the storage maintainer raised alarm:NOSPACE. While the alarm is
+        active, etcd accepts reads but rejects all writes. Globular's
+        controller depends on etcd writes for leader election, installed_state
+        persistence, runtime_dep_blocks, and convergence commits, so every
+        reconciliation cycle fails at the persistence layer regardless of
+        whether the controller code path is correct.
+
+        This is a persistence-layer failure, NOT a defect in the v1.2.119
+        verification chain, the workflow dispatch path, or the apply-package
+        contract.
+      resolution: |
+        Standard etcd maintenance, ordered:
+          1. capture endpoint status + alarms + health for the incident record
+          2. snapshot save to /var/lib/globular/recovery/etcd-snapshots/
+          3. read current revision via endpoint status --write-out=json
+          4. etcdctl compact <REV>
+          5. etcdctl defrag --command-timeout=5m
+          6. etcdctl alarm disarm
+          7. verify writes resume via test put/get/del and re-check alarm list
+          8. observe Globular reconciliation resume
+
+        If alarm returns under load, the live keyspace itself is too large
+        for the quota — produce loads/etcd_nospace_recovery_impact_report.md
+        with prefix inventory before raising quota or designing retention.
+      known_bad_fixes:
+        - clearing alarm:NOSPACE without first compacting and defragging
+          (the underlying space is still exhausted; writes will fail again immediately)
+        - deleting etcd keys blindly to free space without a prefix inventory
+          and documented retention policy
+        - increasing etcd quota as the first response (skips diagnosis of
+          which prefix is growing; defers the cleanup that will eventually
+          be required anyway)
+        - treating the resulting FAILED_TRANSIENT convergence outcomes as a
+          v1.2.119 verification chain defect
+        - weakening the node-agent verify gate because controller writes are blocked
+        - mutating desired or installed state to silence the reconciliation backlog
+        - restarting random Globular services hoping they pick up correct state
+          while etcd still refuses writes
+        - running `rm -rf` against etcd data directory
+      related_invariants:
+        - etcd.must_have_free_backend_space_for_reconciliation
+        - etcd.is_source_of_truth
+      required_tests: []
+    - id: node_agent.install_package_aliases_convergence_hash_into_expected_sha256
+      title: install-package fallback aliased desired_hash (convergence identity) into ExpectedSha256 (binary verify), failing every dispatched install
+      severity: critical
+      symptoms:
+        - "apply-package: REJECTED SERVICE/<pkg>@<ver> — installed binary hash mismatch ... expected sha256=<de2b04ff...>, actual sha256=<entrypoint_checksum value>"
+        - same build_id reported in both the manifest and the rejection log, yet the hashes differ
+        - failing_on increases for every service the controller dispatches once expected_sha256 starts flowing through workflow inputs
+        - convergence-committer reports outcome=FAILED for every dispatched install
+        - the rejected "expected" hash matches ComputeReleaseDesiredHash output, not any binary or tarball sha256
+      root_cause: |
+        Before v1.2.119, the install-package workflow inputs did not carry
+        desired_hash. The node-agent runInstallPackage path had a fallback:
+
+            desiredHash := strings.TrimSpace(inputs["desired_hash"])
+            if desiredHash == "" {
+                desiredHash = strings.TrimSpace(inputs["expected_sha256"])
+            }
+            ApplyPackageReleaseRequest{ ExpectedSha256: desiredHash }
+
+        which was harmless only because neither key was set.
+
+        The v1.2.119 controller dispatch starts supplying BOTH desired_hash
+        (convergence identity = ComputeReleaseDesiredHash output) and
+        expected_sha256 (manifest entrypoint_checksum). The fallback then
+        bound the FIRST one — the convergence identity hash — to
+        ExpectedSha256, sending a hash with the wrong schema into the
+        node-agent verify gate. The gate honestly returned
+        installed_binary_hash_mismatch because the convergence identity
+        could never equal the binary sha256.
+
+        Net effect: every install dispatched through the v1.2.119 chain
+        appeared to fail, even though the local package CAS, the repository
+        Scylla manifest, and the installed binary all agreed on the binary
+        sha256. The system was correct end to end except for one variable
+        aliasing in the node-agent.
+
+        Sentinel value: for dns@1.2.113+364 the phantom hash was
+        de2b04ff64ce4489f2d8a6b151571f6f3941cb28674e0124e9d3db2d739ad414 =
+        sha256("core@globular.io/dns=1.2.113+b:364;").
+      resolution: |
+        Split the two schemas at extraction time, never alias:
+
+            convergenceHash := strings.TrimSpace(inputs["desired_hash"])
+            expectedSha256  := strings.TrimSpace(inputs["expected_sha256"])
+
+        canSkipInstallPackage and LocalHash / StampInfraConvergenceHash use
+        convergenceHash. ApplyPackageReleaseRequest.ExpectedSha256 uses
+        expectedSha256 only. When expected_sha256 is empty the verify gate
+        writes installed_unverified honestly — the contract calls for
+        explicit-empty propagation, not a same-call fallback.
+
+        Captured by extractRunInstallPackageHashes; pinned by
+        TestExtractRunInstallPackageHashes_* and
+        TestRunInstallPackageHashSchema_PhantomHashIsConvergenceIdentity.
+      known_bad_fixes:
+        - reintroducing the fallback under a "graceful degradation" label
+        - shortening the function by combining both keys into one variable
+        - '"normalising" the convergence hash and the binary hash with a single helper'
+        - changing ComputeReleaseDesiredHash to return the entrypoint_checksum so the alias works
+        - using inputs["expected_sha256"] as the convergence hash when desired_hash is absent
+        - downgrading the verify gate to "warn" so installs pass even with the wrong-schema hash
+      related_invariants:
+        - install_package.hash_schemas_must_not_alias
+        - controller.apply_package_release_requires_manifest_checksum
+        - runtime.success_requires_expected_binary_checksum
+      required_tests:
+        - TestExtractRunInstallPackageHashes_BothPresent
+        - TestExtractRunInstallPackageHashes_OnlyConvergence
+        - TestExtractRunInstallPackageHashes_OnlyBinary
+        - TestExtractRunInstallPackageHashes_BothEmpty
+        - TestExtractRunInstallPackageHashes_Whitespace
+        - TestRunInstallPackageHashSchema_PhantomHashIsConvergenceIdentity

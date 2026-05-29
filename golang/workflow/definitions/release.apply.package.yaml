@@ -37,12 +37,20 @@ spec:
       runtime_check: { type: string, default: auto }
       resolved_build_id: { type: string, default: "" }
       resolved_build_number: { type: integer, default: 0 }
+      # BINARY sha256 from the repository manifest's entrypoint_checksum.
+      # Propagated to node-agent's ApplyPackageRelease.expected_sha256.
+      # The node-agent verify gate refuses verified SUCCESS without it. An
+      # empty value is allowed for legacy manifests; the node-agent then
+      # writes installed_unverified honestly. NEVER synthesize this value
+      # from desired_hash, filename parsing, or runtime observation.
+      resolved_entrypoint_checksum: { type: string, default: "" }
   defaults:
     max_parallel_nodes: 2
     execute_timeout: 20m
     verify_timeout: 10m
     restart_policy: auto
     runtime_check: auto
+    resolved_entrypoint_checksum: ""
   strategy:
     mode: single
   steps:
@@ -156,6 +164,8 @@ spec:
             package_name: $.package_name
             version: $.resolved_version
             desired_hash: $.desired_hash
+            # BINARY sha256 — node-agent verify gate compares against installed binary
+            expected_sha256: $.resolved_entrypoint_checksum
             kind: $.package_kind
             build_id: $.resolved_build_id
             build_number: $.resolved_build_number

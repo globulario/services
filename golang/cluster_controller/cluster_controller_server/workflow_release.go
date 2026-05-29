@@ -29,7 +29,14 @@ const (
 // RunPackageReleaseWorkflow delegates execution of the release.apply.package
 // workflow to the centralized WorkflowService. The controller orchestrates;
 // per-node steps call node-agents via gRPC actor callbacks.
-func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, pkgKind, version, desiredHash, resolvedBuildID string, resolvedBuildNumber int64, candidateNodes []string, opts ...int64) (*workflowpb.ExecuteWorkflowResponse, error) {
+//
+// resolvedEntrypointChecksum is the BINARY sha256 from the repository
+// manifest's entrypoint_checksum. It flows through the workflow inputs into
+// the install_package step's `expected_sha256` field and ultimately into
+// ApplyPackageReleaseRequest.ExpectedSha256 — the node-agent verify gate
+// refuses verified SUCCESS without it. An empty value is permitted only when
+// the manifest itself has no checksum (legacy artifacts). NEVER synthesize.
+func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, pkgKind, version, desiredHash, resolvedBuildID, resolvedEntrypointChecksum string, resolvedBuildNumber int64, candidateNodes []string, opts ...int64) (*workflowpb.ExecuteWorkflowResponse, error) {
 	var dispatchGen int64
 	if len(opts) > 0 {
 		dispatchGen = opts[0]
@@ -44,17 +51,18 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	}
 
 	inputs := map[string]any{
-		"cluster_id":             srv.cfg.ClusterDomain,
-		"release_id":             releaseID,
-		"release_name":           releaseName,
-		"package_name":           pkgName,
-		"package_kind":           pkgKind,
-		"resolved_version":       version,
-		"desired_hash":           desiredHash,
-		"resolved_build_id":      resolvedBuildID,     // Phase 2: exact artifact identity
-		"resolved_build_number":  resolvedBuildNumber, // build_number passed to install_package step
-		"candidate_nodes":        nodesAny,
-		"max_parallel_nodes":     maxParallelNodesForKind(pkgKind),
+		"cluster_id":                  srv.cfg.ClusterDomain,
+		"release_id":                  releaseID,
+		"release_name":                releaseName,
+		"package_name":                pkgName,
+		"package_kind":                pkgKind,
+		"resolved_version":            version,
+		"desired_hash":                desiredHash,
+		"resolved_build_id":           resolvedBuildID,            // Phase 2: exact artifact identity
+		"resolved_build_number":       resolvedBuildNumber,        // build_number passed to install_package step
+		"resolved_entrypoint_checksum": resolvedEntrypointChecksum, // v1.2.119: BINARY sha256 for ExpectedSha256
+		"candidate_nodes":             nodesAny,
+		"max_parallel_nodes":          maxParallelNodesForKind(pkgKind),
 	}
 
 	correlationID := releaseID
@@ -138,8 +146,8 @@ func (srv *server) publishWaveState(ctx context.Context, releaseName, pkgKind, s
 
 // RunInfraReleaseWorkflow executes the infrastructure-specific release workflow.
 // Delegates to RunPackageReleaseWorkflow with kind=INFRASTRUCTURE.
-func (srv *server) RunInfraReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, version, desiredHash, resolvedBuildID string, resolvedBuildNumber int64, candidateNodes []string) (*workflowpb.ExecuteWorkflowResponse, error) {
-	return srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, "INFRASTRUCTURE", version, desiredHash, resolvedBuildID, resolvedBuildNumber, candidateNodes)
+func (srv *server) RunInfraReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, version, desiredHash, resolvedBuildID, resolvedEntrypointChecksum string, resolvedBuildNumber int64, candidateNodes []string) (*workflowpb.ExecuteWorkflowResponse, error) {
+	return srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, "INFRASTRUCTURE", version, desiredHash, resolvedBuildID, resolvedEntrypointChecksum, resolvedBuildNumber, candidateNodes)
 }
 
 // RunRemovePackageWorkflow delegates execution of the release.remove.package
@@ -787,35 +795,40 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 
 func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 	return engine.NodeDirectApplyConfig{
-		InstallPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash string, buildNumber int64) error {
+		InstallPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error {
 			nc, _ := engine.GetNodeContext(ctx)
 			nodeID, endpoint := nc.NodeID, nc.AgentEndpoint
 			if endpoint == "" {
 				return fmt.Errorf("no agent endpoint for node %s", nodeID)
 			}
 
-			log.Printf("release-workflow: installing %s@%s+%d (%s) build_id=%s on node %s via %s", name, version, buildNumber, kind, buildID, nodeID, endpoint)
+			log.Printf("release-workflow: installing %s@%s+%d (%s) build_id=%s expected_sha256_present=%t on node %s via %s",
+				name, version, buildNumber, kind, buildID, expectedSha256 != "", nodeID, endpoint)
 			conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
 			if err != nil {
 				return fmt.Errorf("connect to node %s: %w", nodeID, err)
 			}
 			defer conn.Close()
 
-			// NOTE: desiredHash is the convergence identity hash (sha256 of
-			// publisher/service=version+build metadata), NOT the binary SHA256.
-			// Do NOT forward it as expected_sha256 to artifact.fetch — that
-			// would cause a guaranteed hash mismatch and fail every download.
-			// Binary SHA256 propagation requires resolved_entrypoint_checksum
-			// from the release status, which is a separate TODO.
+			// HASH SCHEMA — two distinct hashes are propagated to the node-agent:
+			//   desired_hash    = convergence identity (sha256 of metadata)
+			//   expected_sha256 = BINARY sha256 from repository manifest.entrypoint_checksum
+			//
+			// expected_sha256 is what the node-agent verify gate compares against
+			// the installed binary. It MUST come from manifest authority — never
+			// from desired_hash, filename parsing, or runtime observation. See
+			// invariant controller.apply_package_release_requires_manifest_checksum.
 			client := node_agentpb.NewNodeAgentServiceClient(conn)
 			resp, err := client.RunWorkflow(ctx, &node_agentpb.RunWorkflowRequest{
 				WorkflowName: "install-package",
 				Inputs: map[string]string{
-					"package_name": name,
-					"version":      version,
-					"kind":         kind,
-					"build_id":     buildID,
-					"build_number": strconv.FormatInt(buildNumber, 10),
+					"package_name":    name,
+					"version":         version,
+					"kind":            kind,
+					"build_id":        buildID,
+					"build_number":    strconv.FormatInt(buildNumber, 10),
+					"desired_hash":    desiredHash,
+					"expected_sha256": expectedSha256,
 				},
 			})
 			if err != nil {

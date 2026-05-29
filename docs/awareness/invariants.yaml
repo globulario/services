@@ -4059,3 +4059,253 @@ invariants:
         - TestMetaIntentRequirementChildAlignmentContractIsActive
       related_failure_modes:
         - services.drift_never_escalates
+    - id: controller.apply_package_release_requires_manifest_checksum
+      title: Every controller ApplyPackageRelease dispatch that expects verified SUCCESS must carry expected_sha256 from manifest.entrypoint_checksum
+      severity: critical
+      status: active
+      summary: |
+        The controller is the join point between repository authority (which
+        holds the manifest's entrypoint_checksum) and node-agent execution
+        (which compares the installed binary hash against expected). If the
+        controller fails to forward the checksum, the verify gate cannot
+        complete — every install is honestly reported as installed_unverified,
+        but the cluster never reaches verified state and bridge-recovery is
+        repeatedly needed to install fresh binaries.
+
+        This invariant requires that every ApplyPackageRelease dispatch from
+        the controller resolves the package manifest (already done for
+        asset_url and build_id) and reads entrypoint_checksum at the same
+        time, then sets the ExpectedSha256 field on the request struct (or
+        the workflow inputs that flow into it).
+
+        Missing entrypoint_checksum in the manifest is acceptable but must
+        propagate as the empty string. The node-agent gate then writes
+        installed_unverified honestly. A controller-side synthesis or
+        fallback that fills in a hash from any source other than manifest
+        authority is forbidden — passing the package tarball sha256 (the
+        v1.2.56/v1.2.57/v1.2.58 hash-schema confusion) is specifically
+        forbidden because it guarantees failed_binary_hash_mismatch on every
+        apply.
+
+        The audit test walks every ApplyPackageReleaseRequest literal in the
+        source tree and fails if a new site is added without ExpectedSha256
+        set, or without an explicit allow-list entry documenting the
+        degraded exception. There should be very few degraded entries
+        (operator escape hatch, rollback previous-revision).
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/workflow_controller_deploy.go
+          - golang/cluster_controller/cluster_controller_server/workflow_release.go
+          - golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
+          - golang/cluster_controller/cluster_controller_server/repair_node_workflow.go
+          - golang/cluster_controller/cluster_controller_server/recovery_workflow.go
+          - golang/cluster_controller/cluster_controller_server/release_resolver.go
+          - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+          - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+          - golang/cluster_controller/cluster_controller_server/deploy_control_plane.go
+          - golang/workflow/engine/actors.go
+          - golang/workflow/engine/actors_controller_deploy.go
+          - golang/workflow/definitions/release.apply.package.yaml
+          - golang/workflow/definitions/release.apply.controller.yaml
+          - golang/node_agent/node_agent_server/apply_package_release.go
+          - golang/node_agent/node_agent_server/apply_package_verify.go
+        symbols:
+          - ApplyPackageRelease
+          - ApplyPackageReleaseRequest.ExpectedSha256
+          - ResolvedArtifact.EntrypointChecksum
+          - verifyInstalledBinaryHashStrict
+          - remoteApplyPackageRelease
+          - followerSelfApply
+          - RunPackageReleaseWorkflow
+          - RunControllerDeployWorkflow
+          - resolveControllerEntrypointChecksum
+          - resolveManifestEntrypointChecksumForRepair
+      forbidden_fixes:
+        - disable_node_agent_verify_gate_to_make_installs_pass
+        - treat_missing_expected_checksum_as_success
+        - synthesize_expected_sha256_from_installed_binary
+        - use_filename_as_binary_identity_proof
+        - parallel_apply_dispatch_path_without_manifest_identity
+        - mutate_desired_to_match_runtime_after_verification_fails
+        - pass_package_tarball_sha256_as_expected_sha256
+      required_tests:
+        - TestDispatch_PopulatesExpectedSha256FromManifest
+        - TestDispatch_EmptyManifestChecksumPropagatesAsEmpty
+        - TestDispatch_ControllerDeployPropagatesExpectedSha256
+        - TestDispatch_ControllerDeployEmptyExpectedSha256PropagatesAsEmpty
+        - TestDispatch_WithBlockOverridesInputs
+        - TestDispatch_AuditAllCallSitesSetExpectedSha256
+        - TestDispatch_ResolverEntrypointChecksumIsBinaryHash
+      related_failure_modes:
+        - controller.apply_package_missing_expected_sha256_blocks_verified_install
+    - id: workflow.definitions_must_thread_required_verification_fields
+      title: Active workflow YAML definitions must thread all verification fields the controller code expects
+      severity: critical
+      status: active
+      summary: |
+        Active workflow definitions used by the controller (loaded from
+        /var/lib/globular/workflows/ at startup, seeded into etcd) MUST thread
+        every verification field the controller code resolves and intends to
+        propagate. For v1.2.119 this specifically means: release.apply.package
+        and release.apply.controller MUST declare resolved_entrypoint_checksum
+        as an input and thread it into install_package's with: block as
+        expected_sha256. Any drift between the controller binary's
+        expectations and the workflow definitions silently breaks the chain —
+        the controller asks for a field the definition does not declare, the
+        actor receives empty, ApplyPackageReleaseRequest.ExpectedSha256 is
+        empty, and the node-agent honestly writes installed_unverified even
+        though the controller's resolved manifest had the value.
+
+        This invariant binds the runtime YAML definition to the controller
+        code shipping it: when the controller binary changes the inputs it
+        wants from a workflow, the active YAML on every controller node MUST
+        change with it. install-day0.sh already performs this sync at Day-0;
+        the upgrade pipeline must perform the equivalent step at every
+        controller upgrade, or the workflow YAMLs must be packaged with the
+        controller so package install carries them.
+
+        Empty propagation is allowed for legacy artifacts (no manifest
+        checksum); silent omission of the field from the workflow itself is
+        not — that produces empty regardless of authority and masks the
+        verification contract.
+      protects:
+        files:
+          - /var/lib/globular/workflows/release.apply.package.yaml
+          - /var/lib/globular/workflows/release.apply.controller.yaml
+          - golang/workflow/definitions/release.apply.package.yaml
+          - golang/workflow/definitions/release.apply.controller.yaml
+          - scripts/release/install-day0.sh
+          - golang/cluster_controller/cluster_controller_server/invariant_enforcement.go
+          - golang/workflow/v1alpha1/etcd_fetcher.go
+        symbols:
+          - resolved_entrypoint_checksum
+          - expected_sha256
+          - SeedCoreWorkflows
+          - loadCoreWorkflowsFromDisk
+          - workflowDefinitionsDir
+      forbidden_fixes:
+        - expected_sha256_by_binary_bridge_for_stale_workflow
+        - ignore_missing_workflow_checksum_field
+        - partial_workflow_sync
+        - mark_installed_state_verified_to_silence_missing_field
+        - treat_empty_expected_sha256_as_success
+      required_tests:
+        - TestDispatch_PopulatesExpectedSha256FromManifest
+        - TestDispatch_AuditAllCallSitesSetExpectedSha256
+      related_failure_modes:
+        - workflow.stale_definitions_block_expected_sha256_propagation
+        - controller.apply_package_missing_expected_sha256_blocks_verified_install
+    - id: etcd.must_have_free_backend_space_for_reconciliation
+      title: Reconciliation classification must distinguish persistence-blocked (etcd NOSPACE) from controller/verification failure
+      severity: critical
+      status: active
+      summary: |
+        Reconciliation depends on etcd writes for leader election, installed_state
+        persistence, runtime_dep_blocks, and convergence commits. If etcd raises
+        alarm:NOSPACE, every reconciliation cycle fails at the persistence layer,
+        not at the controller code path or the verification chain.
+
+        Globular MUST classify this case as persistence-blocked. Diagnoses that
+        attribute the resulting FAILED_TRANSIENT outcomes to controller logic,
+        workflow dispatch, the apply-package contract, or the v1.2.119
+        verification chain are wrong — they will lead to forbidden fixes
+        (weakening verification, mutating state, deleting random keys).
+
+        The correct remediation is the standard etcd compact + defrag + disarm
+        sequence (snapshot first), captured in remediation contract
+        remediation.etcd_nospace_compact_defrag_disarm. After writes resume,
+        normal reconciliation continues without code change.
+
+        If alarm returns under load, the live keyspace itself is too large for
+        the quota; produce an impact report inventorying the largest prefixes
+        before raising the quota or designing retention policy. Increasing
+        quota MUST NOT be the first response.
+      protects:
+        files:
+          - /var/lib/globular/etcd/member/snap/db
+          - golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
+          - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+          - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+        symbols:
+          - etcdctl
+          - mvcc
+          - alarm:NOSPACE
+      forbidden_fixes:
+        - etcd_nospace_by_deleting_random_keys
+        - clear_alarm_before_defrag
+        - blame_verification_for_persistence_block
+        - increase_quota_first
+      required_tests: []
+      related_failure_modes:
+        - etcd.nospace_alarm_blocks_reconciliation
+    - id: install_package.hash_schemas_must_not_alias
+      title: install-package workflow's two hash inputs are distinct schemas and must never alias into a single value
+      severity: critical
+      status: active
+      summary: |
+        The install-package workflow carries two hashes with strictly distinct
+        meanings:
+
+          - desired_hash    = convergence identity hash. Schema:
+                              sha256("<publisher>/<name>=<version>+b:<N>;") via
+                              ComputeReleaseDesiredHash. Used ONLY for
+                              convergence comparison (canSkipInstallPackage,
+                              StampInfraConvergenceHash, LocalHash in
+                              ConvergenceResultV1).
+
+          - expected_sha256 = BINARY sha256 from the repository manifest's
+                              entrypoint_checksum. Used ONLY as
+                              ApplyPackageReleaseRequest.ExpectedSha256 and
+                              compared against the installed binary by
+                              verifyInstalledBinaryHashStrict.
+
+        These two MUST be extracted into distinct variables and threaded
+        through distinct code paths. Any fallback (`if A=="" then A = B`),
+        any helper that "normalises" both into one value, and any aliasing
+        through `desiredHash` style variables that downstream sites then feed
+        into ExpectedSha256, recreates the v1.2.119 regression in which the
+        convergence identity hash silently became the binary verify hash and
+        every dispatched install was rejected with
+        installed_binary_hash_mismatch.
+
+        Empty propagation is the correct behaviour for either schema being
+        absent. When desired_hash is empty, canSkipInstallPackage falls back
+        to version/buildID matching. When expected_sha256 is empty, the
+        verify gate writes installed_unverified honestly. Cross-feeding the
+        other schema is forbidden.
+
+        Pinned by extractRunInstallPackageHashes and the
+        TestExtractRunInstallPackageHashes_* test suite.
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/grpc_workflow.go
+          - golang/node_agent/node_agent_server/apply_package_verify.go
+          - golang/cluster_controller/cluster_controller_server/release_hash.go
+          - golang/cluster_controller/cluster_controller_server/workflow_release.go
+          - golang/workflow/engine/actors.go
+          - golang/workflow/definitions/release.apply.package.yaml
+        symbols:
+          - extractRunInstallPackageHashes
+          - runInstallPackage
+          - ComputeReleaseDesiredHash
+          - ComputeInfrastructureDesiredHash
+          - verifyInstalledBinaryHashStrict
+          - ApplyPackageReleaseRequest.ExpectedSha256
+          - StampInfraConvergenceHash
+      forbidden_fixes:
+        - reintroduce_install_package_hash_alias_fallback
+        - normalise_two_hash_schemas_into_one_value
+        - use_convergence_hash_as_binary_identity_proof
+        - use_binary_hash_as_convergence_identity
+        - downgrade_verify_gate_to_pass_aliased_hash
+      required_tests:
+        - TestExtractRunInstallPackageHashes_BothPresent
+        - TestExtractRunInstallPackageHashes_OnlyConvergence
+        - TestExtractRunInstallPackageHashes_OnlyBinary
+        - TestExtractRunInstallPackageHashes_BothEmpty
+        - TestExtractRunInstallPackageHashes_Whitespace
+        - TestRunInstallPackageHashSchema_PhantomHashIsConvergenceIdentity
+        - TestDispatch_ResolverEntrypointChecksumIsBinaryHash
+      related_failure_modes:
+        - node_agent.install_package_aliases_convergence_hash_into_expected_sha256
+        - controller.apply_package_missing_expected_sha256_blocks_verified_install

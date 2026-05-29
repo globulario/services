@@ -1365,14 +1365,29 @@ func (srv *server) followerSelfApply(ctx context.Context, target *controllerTarg
 		return
 	}
 
-	// Explicit apply: package name, version, build, optional checksum.
+	// v1.2.119: target.Checksum stored in /globular/system/controller-target-build
+	// is the PACKAGE TARBALL sha256 (prefixed with "sha256:") — the WRONG schema
+	// for ExpectedSha256, which the node-agent verify gate compares against the
+	// INSTALLED BINARY. Passing it would cause every self-update to fail with
+	// failed_binary_hash_mismatch. Resolve the manifest from the repository to
+	// get entrypoint_checksum (binary sha256) — the only authority for this value.
+	// See hash schema documentation in release_resolver.go ResolvedArtifact.
+	expectedBinarySha256 := srv.resolveControllerEntrypointChecksum(ctx, target)
+
+	logger.Info("controller-self-update: dispatching apply",
+		"target", targetLabel,
+		"build_id", target.BuildNumber,
+		"expected_sha256_present", expectedBinarySha256 != "",
+	)
+
+	// Explicit apply: package name, version, build, BINARY checksum from manifest.
 	resp, err := agent.ApplyPackageRelease(ctx, &node_agentpb.ApplyPackageReleaseRequest{
 		PackageName:    "cluster-controller",
 		PackageKind:    "SERVICE",
 		Version:        target.Version,
 		BuildNumber:    target.BuildNumber,
-		ExpectedSha256: target.Checksum, // strongest signal when available
-		Force:          true,            // bypass idempotency — we want this exact build
+		ExpectedSha256: expectedBinarySha256, // BINARY hash from manifest.entrypoint_checksum
+		Force:          true,                 // bypass idempotency — we want this exact build
 	})
 	if err != nil {
 		logger.Warn("controller-self-update: ApplyPackageRelease failed",
@@ -1391,6 +1406,36 @@ func (srv *server) followerSelfApply(ctx context.Context, target *controllerTarg
 		"checksum", resp.GetChecksum())
 	// The node-agent will install the package and restart the controller unit.
 	// On restart, this function will find cmp >= 0 and return early.
+}
+
+// resolveControllerEntrypointChecksum fetches the cluster-controller manifest
+// from the repository and returns its entrypoint_checksum (BINARY sha256).
+// Returns empty string if the repository is unreachable or the manifest has
+// no checksum — the node-agent then writes installed_unverified honestly.
+// NEVER synthesises a hash. See invariant
+// controller.apply_package_release_requires_manifest_checksum.
+func (srv *server) resolveControllerEntrypointChecksum(ctx context.Context, target *controllerTargetBuild) string {
+	if target == nil {
+		return ""
+	}
+	repo := resolveRepositoryInfo()
+	if repo.Address == "" {
+		return ""
+	}
+	resolver := &ReleaseResolver{RepositoryAddr: repo.Address}
+	spec := &cluster_controllerpb.ServiceReleaseSpec{
+		PublisherID: defaultPublisherID(),
+		ServiceName: "cluster-controller",
+		Version:     target.Version,
+		BuildNumber: target.BuildNumber,
+	}
+	resolved, err := resolver.Resolve(ctx, spec)
+	if err != nil || resolved == nil {
+		logger.Info("controller-self-update: manifest resolve failed — dispatch will be unverified",
+			"target_version", target.Version, "target_build", target.BuildNumber, "err", err)
+		return ""
+	}
+	return resolved.EntrypointChecksum
 }
 
 // evaluateControllerFollowers checks each follower's readiness to take over

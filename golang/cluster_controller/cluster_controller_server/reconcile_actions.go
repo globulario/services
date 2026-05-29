@@ -716,6 +716,13 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 				version := fmt.Sprint(inputs["resolved_version"])
 				desiredHash := fmt.Sprint(inputs["desired_hash"])
 				resolvedBuildID := fmt.Sprint(inputs["resolved_build_id"])
+				// v1.2.119: BINARY hash from manifest.entrypoint_checksum.
+				// Empty when parent workflow did not supply it; node-agent then
+				// writes installed_unverified honestly.
+				resolvedEntrypointChecksum := ""
+				if v, ok := inputs["resolved_entrypoint_checksum"].(string); ok {
+					resolvedEntrypointChecksum = v
+				}
 				var resolvedBuildNumber int64
 				switch v := inputs["resolved_build_number"].(type) {
 				case int64:
@@ -731,7 +738,7 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 					candidateStrs[i] = fmt.Sprint(c)
 				}
 
-				resp, err := srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, pkgKind, version, desiredHash, resolvedBuildID, resolvedBuildNumber, candidateStrs)
+				resp, err := srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, pkgKind, version, desiredHash, resolvedBuildID, resolvedEntrypointChecksum, resolvedBuildNumber, candidateStrs)
 				if err != nil {
 					return "", err
 				}

@@ -275,13 +275,21 @@ func (srv *server) repairPackagesViaAgent(ctx context.Context, nodeID string, re
 
 		log.Printf("repair: applying %s/%s@%s to node %s via %s", pkg.Kind, pkg.Name, pkg.ExpectedVersion, nodeID, agentEndpoint)
 
+		// v1.2.119: resolve manifest entrypoint_checksum so the node-agent verify
+		// gate can prove the installed binary matches the desired artifact.
+		// Empty result is acceptable for legacy manifests — node-agent then
+		// writes installed_unverified honestly. Synthesizing this value is
+		// forbidden (invariant controller.apply_package_release_requires_manifest_checksum).
+		expectedSha256 := srv.resolveManifestEntrypointChecksumForRepair(ctx, pkg)
+
 		err := srv.remoteApplyPackageRelease(ctx, nodeID, agentEndpoint,
 			pkg.Name, pkg.Kind, pkg.ExpectedVersion,
 			"", // publisher — resolved by node-agent
 			repo.Address,
 			pkg.ExpectedBuildNum,
 			false, // force
-			pkg.ExpectedBuildID)
+			pkg.ExpectedBuildID,
+			expectedSha256)
 		if err != nil {
 			log.Printf("repair: ApplyPackageRelease %s failed: %v", name, err)
 			failed++
@@ -301,6 +309,34 @@ func (srv *server) repairPackagesViaAgent(ctx context.Context, nodeID string, re
 		"skipped":  skipped,
 		"node_id":  nodeID,
 	}, nil
+}
+
+// resolveManifestEntrypointChecksumForRepair fetches the manifest
+// entrypoint_checksum (BINARY sha256) for a repair intent. Returns empty
+// string if the manifest is unavailable or has no checksum — the node-agent
+// then writes installed_unverified honestly. NEVER returns a synthesized or
+// observed hash.
+func (srv *server) resolveManifestEntrypointChecksumForRepair(ctx context.Context, pkg PackageRepairIntent) string {
+	// Pre-populated by the classifier if available (preferred fast path).
+	if pkg.ExpectedChecksum != "" {
+		return pkg.ExpectedChecksum
+	}
+	repo := resolveRepositoryInfo()
+	if repo.Address == "" {
+		return ""
+	}
+	resolver := &ReleaseResolver{RepositoryAddr: repo.Address}
+	spec := &cluster_controllerpb.ServiceReleaseSpec{
+		PublisherID: defaultPublisherID(),
+		ServiceName: pkg.Name,
+		Version:     pkg.ExpectedVersion,
+		BuildNumber: pkg.ExpectedBuildNum,
+	}
+	resolved, err := resolver.Resolve(ctx, spec)
+	if err != nil || resolved == nil {
+		return ""
+	}
+	return resolved.EntrypointChecksum
 }
 
 // repairVerifyRuntimeFromController verifies repair postconditions using

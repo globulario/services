@@ -25,7 +25,15 @@ type ControllerDeployConfig struct {
 	ConfirmLeadershipMoved func(ctx context.Context, oldLeaderNodeID string) error
 
 	// ApplyPackageRelease calls the remote node-agent to install a package.
-	ApplyPackageRelease func(ctx context.Context, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr string, buildNumber int64, force bool, buildID string) error
+	//
+	// expectedSha256 is the BINARY sha256 from the repository manifest's
+	// entrypoint_checksum, propagated as ApplyPackageReleaseRequest.ExpectedSha256.
+	// The node-agent verify gate refuses verified SUCCESS without it. An empty
+	// value is allowed for legacy manifests; the node-agent then writes
+	// installed_unverified honestly. Synthesizing this value from anywhere
+	// other than manifest authority is forbidden — see invariant
+	// controller.apply_package_release_requires_manifest_checksum.
+	ApplyPackageRelease func(ctx context.Context, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr string, buildNumber int64, force bool, buildID, expectedSha256 string) error
 }
 
 // ControllerDiscovery is the result of replica discovery.
@@ -273,11 +281,20 @@ func deployApplyPackageRelease(cfg ControllerDeployConfig) ActionHandler {
 		if id, ok := req.With["build_id"].(string); ok && id != "" {
 			buildID = id
 		}
+		// v1.2.119: read expected_sha256 (BINARY hash from manifest.entrypoint_checksum)
+		// from workflow inputs or step with-block. Required by node-agent verify gate.
+		expectedSha256 := ""
+		if h, ok := req.Inputs["expected_sha256"].(string); ok {
+			expectedSha256 = h
+		}
+		if h, ok := req.With["expected_sha256"].(string); ok && h != "" {
+			expectedSha256 = h
+		}
 
 		if cfg.ApplyPackageRelease == nil {
 			return nil, fmt.Errorf("ApplyPackageRelease not configured")
 		}
-		if err := cfg.ApplyPackageRelease(ctx, nodeID, endpoint, pkgName, pkgKind, version, publisher, repoAddr, buildNumber, force, buildID); err != nil {
+		if err := cfg.ApplyPackageRelease(ctx, nodeID, endpoint, pkgName, pkgKind, version, publisher, repoAddr, buildNumber, force, buildID, expectedSha256); err != nil {
 			return nil, fmt.Errorf("apply %s@%s on node %s: %w", pkgName, version, nodeID, err)
 		}
 

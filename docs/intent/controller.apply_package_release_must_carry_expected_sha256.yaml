@@ -1,0 +1,68 @@
+id: controller.apply_package_release_must_carry_expected_sha256
+level: implementation
+status: accepted
+title: Controller ApplyPackageRelease dispatch must carry manifest entrypoint_checksum as ExpectedSha256
+
+intent: |
+  The controller is the join point between repository authority (which holds the
+  manifest's entrypoint_checksum) and node-agent execution (which compares the
+  installed binary hash against expected). Every controller-side
+  ApplyPackageRelease dispatch that expects verified SUCCESS MUST carry
+  expected_sha256 from the resolved repository manifest's entrypoint_checksum.
+
+  This intent completes the verification contract introduced by v1.2.116's
+  runtime.success_requires_expected_binary_checksum. The node-agent verify gate
+  refuses verified SUCCESS without it (correctly); the gap was that the
+  controller never wired the proof material through.
+
+parent_intents:
+  - runtime.success_requires_expected_binary_checksum
+  - repository.metadata_is_authority
+  - state.repository_desired_installed_runtime
+  - controller.decides_but_does_not_execute_leaf_work
+  - desired_installed_runtime_identity_must_match
+
+agent_guidance: |
+  When adding or modifying any ApplyPackageRelease dispatch path:
+    1. Resolve the manifest via ReleaseResolver.Resolve to get EntrypointChecksum.
+    2. Pass it as ExpectedSha256 in the request struct (or thread it through
+       workflow inputs as expected_sha256 / resolved_entrypoint_checksum).
+    3. If the manifest has no entrypoint_checksum, propagate the empty string —
+       the node-agent gate writes installed_unverified honestly. NEVER synthesize.
+    4. The TestDispatch_AuditAllCallSitesSetExpectedSha256 audit will catch
+       new sites that miss the field. Add to allowedDegradedSites only with a
+       documented invariant exception.
+
+bad_smells:
+  - ApplyPackageReleaseRequest literal without ExpectedSha256
+  - assigning target.Checksum (package digest, "sha256:" prefix) to ExpectedSha256
+  - dispatch path that does not call GetArtifactManifest
+  - synthesized or filename-derived expected_sha256
+  - workflow inputs that drop resolved_entrypoint_checksum
+
+activation_triggers:
+  - ApplyPackageRelease
+  - ExpectedSha256
+  - entrypoint_checksum
+  - verifyInstalledBinaryHashStrict
+  - installed_unverified
+  - controller dispatch
+  - manifest resolve
+
+expressed_by:
+  - awareness/failure_modes.yaml:controller.apply_package_missing_expected_sha256_blocks_verified_install
+  - awareness/invariants.yaml:controller.apply_package_release_requires_manifest_checksum
+  - golang/cluster_controller/cluster_controller_server/workflow_controller_deploy.go
+  - golang/cluster_controller/cluster_controller_server/workflow_release.go
+  - golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
+  - golang/workflow/definitions/release.apply.package.yaml
+  - golang/workflow/definitions/release.apply.controller.yaml
+
+required_tests:
+  - TestDispatch_PopulatesExpectedSha256FromManifest
+  - TestDispatch_EmptyManifestChecksumPropagatesAsEmpty
+  - TestDispatch_ControllerDeployPropagatesExpectedSha256
+  - TestDispatch_ControllerDeployEmptyExpectedSha256PropagatesAsEmpty
+  - TestDispatch_WithBlockOverridesInputs
+  - TestDispatch_AuditAllCallSitesSetExpectedSha256
+  - TestDispatch_ResolverEntrypointChecksumIsBinaryHash
