@@ -217,6 +217,10 @@ func NewRegistry(cfg Config) *Registry {
 		// `WorkingDirectory=/var/lib/globular/...` that would crash with
 		// status=200/CHDIR if the dir is missing.
 		systemdWorkingDirectoryMustBeOptional{},
+		// Project S: backup-readiness gate. Fires when scylla-manager is
+		// running but no Scylla cluster is registered with it — the
+		// "running but unconfigured" state Project R recovered from.
+		scyllaManagerClusterRegistered{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)
