@@ -3,9 +3,53 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 )
+
+// MigrateLegacyStatePathOnce relocates an existing state.json from the
+// pre-Project-O `nodeagent/` (no separator) directory to the canonical
+// `node-agent/` (hyphenated) directory. Idempotent.
+//
+// Rules (mirrors Project O.3 spec):
+//   - If canonical exists  → keep canonical, leave legacy untouched, log warn
+//     when both are present so the operator can resolve manually.
+//   - If only legacy exists → create canonical's parent dir with safe perms,
+//     rename legacy → canonical.
+//   - Neither exists       → no-op.
+//
+// Failure to migrate is logged but NOT fatal — the load step decides whether
+// the canonical path is loadable from whatever ended up there.
+func MigrateLegacyStatePathOnce(canonical, legacy string) {
+	if canonical == "" || legacy == "" || canonical == legacy {
+		return
+	}
+	legacyExists := pathExists(legacy)
+	canonicalExists := pathExists(canonical)
+	if !legacyExists {
+		return
+	}
+	if canonicalExists {
+		log.Printf("state-migration: both %s and %s exist — canonical wins, legacy left in place for operator review", canonical, legacy)
+		return
+	}
+	parent := filepath.Dir(canonical)
+	if err := os.MkdirAll(parent, 0o750); err != nil {
+		log.Printf("state-migration: WARN create parent %s: %v", parent, err)
+		return
+	}
+	if err := os.Rename(legacy, canonical); err != nil {
+		log.Printf("state-migration: WARN rename %s → %s: %v", legacy, canonical, err)
+		return
+	}
+	log.Printf("state-migration: moved %s → %s", legacy, canonical)
+}
+
+func pathExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
+}
 
 type nodeAgentState struct {
 	ControllerEndpoint string `json:"controller_endpoint"`

@@ -25,6 +25,7 @@ import (
 
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions/serviceports"
+	"github.com/globulario/services/golang/systemdutil"
 	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/config"
@@ -1384,41 +1385,37 @@ func allowMissingSHA256() bool {
 	return AllowMissingSHA256
 }
 
-// normalizeUnitWorkingDirectory rewrites a rendered systemd unit file,
-// replacing any fragile WorkingDirectory line that points at the Globular
-// state dir (without the '-' optional prefix) with the safe form.
-//
-// systemd evaluates WorkingDirectory= before ExecStartPre runs, so a missing
-// directory causes status=200/CHDIR.  The '-' prefix makes the directory
-// optional: systemd falls back to '/' and ExecStartPre can then create it.
-//
-// Accepts a path to the (already template-rendered) unit file. Rewrites in
-// place only if a fragile line is found.
+// normalizeUnitWorkingDirectory rewrites a rendered systemd unit file in
+// place, delegating the parse + rewrite to the shared systemdutil package
+// so the CLI install path (golang/globularcli/services_cmds.go) and the
+// node-agent install path (this file) cannot drift. See Project O / the
+// claude_project_o_rescope_workingdirectory_instructions.md handoff.
 func normalizeUnitWorkingDirectory(path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	lines := strings.Split(string(data), "\n")
-	changed := false
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, "WorkingDirectory=") {
-			continue
-		}
-		val := strings.TrimPrefix(trimmed, "WorkingDirectory=")
-		if strings.HasPrefix(val, "/var/lib/globular/") {
-			// Replace only the value part, preserving any leading whitespace.
-			prefix := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
-			lines[i] = prefix + "WorkingDirectory=-" + val
-			changed = true
-			log.Printf("install: normalized fragile WorkingDirectory in %s: %q → %q", filepath.Base(path), trimmed, strings.TrimSpace(lines[i]))
-		}
-	}
-	if !changed {
+	out := systemdutil.NormalizeUnitWorkingDirectory(data)
+	if len(out) == len(data) && bytesEqual(out, data) {
 		return nil
 	}
-	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644)
+	log.Printf("install: normalized fragile WorkingDirectory in %s", filepath.Base(path))
+	return os.WriteFile(path, out, 0o644)
+}
+
+// bytesEqual is a small no-alloc equality check used only by
+// normalizeUnitWorkingDirectory's fast-path. Avoids pulling in bytes.Equal
+// in this hot install loop just for the length-already-equal short-circuit.
+func bytesEqual(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // ensureServiceStateDir creates the given directory with the correct ownership
