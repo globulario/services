@@ -176,13 +176,75 @@ func (srv *server) RepairArtifact(ctx context.Context, req *repopb.RepairArtifac
 	}
 	_ = subject // recorded in transition reason via the helper
 
+	// Project D: probe whether the CAS files are self-healing.
+	//
+	// When a Scylla row exists with NULL manifest_json (skeleton from a
+	// pre-d2ef80ee partial write), readManifestAndStateByKey returns an
+	// error and verifyArtifactIntegrity reports BROKEN_MANIFEST_MISSING.
+	// But the CAS .manifest.json file may still be intact on local POSIX
+	// storage. Probe the local file directly, bypassing the Scylla read.
+	// Returns (manifest, true) when the local manifest + blob both validate.
+	probeLocalManifestAndBlob := func() (*repopb.ArtifactManifest, bool) {
+		if srv.localStorage == nil {
+			return nil, false
+		}
+		mKey := manifestStorageKey(key)
+		mData, mErr := srv.localStorage.ReadFile(ctx, mKey)
+		if mErr != nil || len(mData) == 0 {
+			return nil, false
+		}
+		manifest, _, parseErr := unmarshalManifestWithState(mData)
+		if parseErr != nil || manifest == nil {
+			return nil, false
+		}
+		binKey := binaryStorageKey(key)
+		fi, statErr := srv.localStorage.Stat(ctx, binKey)
+		if statErr != nil {
+			return nil, false
+		}
+		if declared := manifest.GetSizeBytes(); declared > 0 && fi.Size() != declared {
+			return nil, false
+		}
+		if expected := manifest.GetChecksum(); expected != "" {
+			actual, readErr := checksumLocalFile(srv.localStorage.LocalPath(binKey))
+			if readErr != nil || !digestEqual(actual, expected) {
+				return nil, false
+			}
+		}
+		return manifest, true
+	}
+
 	// Dry-run path: probe and return what would happen.
 	if req.GetDryRun() {
 		v, _ := srv.verifyArtifactIntegrity(ctx, ref, buildNumber)
 		switch v.Status {
 		case VerifyOK:
-			resp.Action = "skipped_ok"
-			resp.Detail = "no repair needed"
+			// Project D: when integrity is OK but the Scylla pipeline state
+			// is not PUBLISHED, the row is either a skeleton (publish_state
+			// and/or artifact_state null) or missing entirely. The blob and
+			// CAS manifest are healthy — only the index step is broken. The
+			// repair is to re-run completePublish from the existing local
+			// manifest, NOT to re-fetch from upstream.
+			if ArtifactPipelineState(resp.ArtifactStateBefore) != PipelinePublished {
+				resp.Action = "would_repair_publish_index"
+				resp.Detail = "integrity OK but Scylla state not PUBLISHED; would re-run completePublish from local manifest"
+			} else {
+				resp.Action = "skipped_ok"
+				resp.Detail = "no repair needed"
+			}
+		case VerifyBrokenManifestMissing:
+			// Project D: BROKEN_MANIFEST_MISSING can mean two things:
+			//   (1) the CAS .manifest.json file is genuinely absent — true broken
+			//   (2) the Scylla row is a skeleton (NULL manifest_json) so the
+			//       ledger-first read fails, but the CAS file is intact
+			// Probe the local CAS directly to distinguish.
+			if _, ok := probeLocalManifestAndBlob(); ok {
+				resp.Action = "would_repair_publish_index"
+				resp.Detail = "Scylla manifest_json is null (skeleton row) but local CAS manifest+blob are intact; would re-publish from local manifest"
+			} else {
+				resp.Action = "would_skip"
+				resp.Detail = "BROKEN_MANIFEST_MISSING — local CAS manifest also absent"
+			}
 		case VerifyBrokenMissingBlob:
 			resp.Action = "would_repair_blob"
 			resp.Detail = "blob missing; would re-import from upstream"
@@ -195,6 +257,109 @@ func (srv *server) RepairArtifact(ctx context.Context, req *repopb.RepairArtifac
 		}
 		resp.ArtifactStateAfter = resp.ArtifactStateBefore
 		return resp, nil
+	}
+
+	// Project D: integrity-OK-but-Scylla-broken path.
+	//
+	// The blob and CAS manifest are valid but the Scylla repository.manifests
+	// row is in a skeleton state (publish_state=null AND/OR manifest_json=null)
+	// OR the artifact_state pipeline column is stuck at a non-PUBLISHED value
+	// (e.g. DOWNLOADING from a partially-completed previous publish).
+	//
+	// Trigger conditions — repair when ANY of these is true:
+	//   (a) artifact_state pipeline column != PUBLISHED (Group B "missing row"
+	//       and DOWNLOADING-stuck cases), OR
+	//   (b) Scylla's readManifestAndStateByKey fails (NULL manifest_json
+	//       skeleton — the row exists but the JSON column is null, so the
+	//       canonical read can't parse it).
+	//
+	// Condition (b) is the gateway/globular-cli/minio case where
+	// artifact_state is already PUBLISHED but publish_state and manifest_json
+	// are NULL — the row was partially written by a pre-d2ef80ee publish.
+	// Without this condition the precondition (a) skips the backfill and the
+	// resolver continues to fail because publish_state is what it reads.
+	//
+	// The straightforward path — completePublish — calls
+	// transitionArtifactState which only permits PUBLISHED as the terminal
+	// of the LedgerWritten happy path. Calling it from DOWNLOADING /
+	// BlobVerified / etc. fails with "illegal transition". For a backfill
+	// scenario the artifact's lifecycle was already proven (.bin +
+	// .manifest.json on local POSIX CAS with matching size + sha256). The
+	// state machine's progressive stages are not the right tool — we are
+	// re-establishing PUBLISHED authority from existing bytes, not advancing
+	// a new artifact through the pipeline.
+	//
+	// Use the repository-owned write primitives directly:
+	//   1. syncManifestToScylla(... manifest, PUBLISHED, manifestJSON)  → fills the row + manifest_json
+	//   2. scylla.UpdatePublishState(... "PUBLISHED")                   → ensures the column is PUBLISHED
+	//   3. transitionArtifactState(... PipelinePublished) BEST-EFFORT   → tries to align artifact_state
+	//
+	// Step 3 may fail with "illegal transition" — that's tolerated for
+	// backfill because the source of truth (manifest_json + publish_state)
+	// is now correct. The artifact_state column drift is documented in the
+	// open observations of the result report.
+	needsBackfill := ArtifactPipelineState(resp.ArtifactStateBefore) != PipelinePublished
+	if !needsBackfill {
+		// Condition (b): even when artifact_state says PUBLISHED, the
+		// canonical Scylla manifest read may fail because manifest_json is
+		// NULL. The resolver consults publish_state + manifest_json — if
+		// either is broken, the resolver can't use this artifact.
+		_, _, scyManifest, scyErr := srv.readManifestAndStateByKey(ctx, key)
+		if scyErr != nil || scyManifest == nil {
+			needsBackfill = true
+		}
+	}
+	if needsBackfill {
+		manifest, ok := probeLocalManifestAndBlob()
+		if ok {
+			mKey := manifestStorageKey(key)
+			mData, mErr := srv.localStorage.ReadFile(ctx, mKey)
+			if mErr == nil && len(mData) > 0 {
+				// Step 1: write the full row (manifest_json + initial publish_state).
+				// syncManifestToScylla → PutManifest is the canonical repository-owned
+				// path that publish writes use; never a raw INSERT.
+				srv.syncManifestToScylla(ctx, key, manifest, repopb.PublishState_PUBLISHED, mData)
+
+				// Step 2: ensure publish_state column is PUBLISHED. Idempotent.
+				if srv.scylla != nil {
+					if updErr := srv.scylla.UpdatePublishState(ctx, key, repopb.PublishState_PUBLISHED.String()); updErr != nil {
+						slog.Warn("repair: UpdatePublishState failed during backfill",
+							"artifact_key", key, "err", updErr)
+					}
+				}
+
+				// Step 3: best-effort transition of artifact_state. The state
+				// machine may reject (DOWNLOADING → PUBLISHED is not a legal
+				// edge); that's acceptable for backfill — the row is now
+				// PUBLISHED in the SOLE authoritative column.
+				ref := manifest.GetRef()
+				stateFields := ArtifactStateFields{
+					BlobKey:     binaryStorageKey(key),
+					Checksum:    manifest.GetChecksum(),
+					SizeBytes:   manifest.GetSizeBytes(),
+					BuildID:     manifest.GetBuildId(),
+					BuildNumber: manifest.GetBuildNumber(),
+					PublisherID: ref.GetPublisherId(),
+					Name:        ref.GetName(),
+					Version:     ref.GetVersion(),
+					Platform:    ref.GetPlatform(),
+				}
+				if transErr := srv.transitionArtifactState(ctx, key, PipelinePublished,
+					"project_d_backfill", "", stateFields); transErr != nil {
+					slog.Info("repair: artifact_state transition not legal from this state — publish_state column authority is sufficient",
+						"artifact_key", key, "state_before", resp.ArtifactStateBefore, "err", transErr)
+				}
+
+				resp.ArtifactStateAfter = string(srv.readArtifactState(ctx, key))
+				resp.Action = "repair_publish_index"
+				resp.Detail = "Scylla manifest_json + publish_state column backfilled from local CAS via repository-owned primitives"
+				slog.Info("repair: publish-index backfilled from local CAS",
+					"artifact_key", key,
+					"state_before", resp.ArtifactStateBefore,
+					"state_after", resp.ArtifactStateAfter)
+				return resp, nil
+			}
+		}
 	}
 
 	// Real repair path. RepairArtifactFromUpstream enforces REVOKED /
