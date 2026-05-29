@@ -1,0 +1,49 @@
+field	value	evidence_source
+artifact	minio	desired-state etcd
+publisher	core@globular.io	desired-state etcd
+desired_version	1.2.70	/globular/resources/InfrastructureRelease/core@globular.io/minio (spec.version)
+desired_build_id	cecdb364-35f6-4e2a-a4bc-00a0dd268f4a	same record (status.resolved_build_id)
+installed_state_version	1.2.70	/globular/nodes/eb9a2dac-…/packages/INFRASTRUCTURE/minio
+installed_state_status	installed	same record
+installed_state_buildId	cecdb364	same record
+installed_state_checksum	4ae4b4b064aaac52	same record (note: SERVICE/minio not present)
+release_phase	DEGRADED	InfrastructureRelease.status.phase
+release_message	WAVE_BLOCKED max_parallel_nodes=1 total_nodes=1 total_waves=1 note=RUN_STATUS_SUCCEEDED	InfrastructureRelease.status.message
+release_per_node_phase	DEGRADED (1 node: eb9a2dac, error_message empty)	InfrastructureRelease.status.nodes
+release_last_transition	1780020200215 = 2026-05-28 22:23:20 EDT	last_transition_unix_ms
+systemd_unit_active	YES — active (running) since 2026-05-28 22:03:19 EDT	systemctl status globular-minio.service
+systemd_unit_mainpid	121365	systemctl show MainPID
+systemd_unit_execstart_path	/usr/lib/globular/bin/minio server /mnt/40F43F08F43EFFA8/minio/data --address 10.0.0.63:9000 --console-address 127.0.0.1:9001	/etc/systemd/system/globular-minio.service
+systemd_unit_result	success	systemctl show Result
+endpoint_tcp_probe	OPEN (10.0.0.63:9000 accepts TCP connections)	bash /dev/tcp probe
+endpoint_health_probe	HTTP 200 on https://10.0.0.63:9000/minio/health/live (curl, 8.7ms)	live curl
+endpoint_certificate_SAN	includes 10.0.0.63, globule-ryzen.globular.internal, *.globular.internal	openssl s_client
+minio_data_path_used	/mnt/40F43F08F43EFFA8/minio/data	ExecStart argv
+minio_data_path_in_contract	/var/lib/globular/minio	objectstore contract node_paths
+minio_path_mismatch	YES — ExecStart uses /mnt/… but contract node_paths declares /var/lib/globular/minio	cross-check
+format_json_data	xl mode, 3-drive set, "this"=d2fa8438-be5c-417f-a15d-0798a8c70c6b, sets=[d2fa…,4cbc…,fc8d…]	/mnt/40F43F08F43EFFA8/minio/data/.minio.sys/format.json
+format_json_data1	xl mode, 6-drive set, "this"=2a84ad30, sets include 7885aca9, 26711f49, c3e793ea, 27bfedfb, 2a84ad30, 2bddb740	/mnt/40F43F08F43EFFA8/minio/data1/.minio.sys/format.json
+format_json_data2	xl mode, same 6-drive set as data1, "this"=2bddb740	/mnt/40F43F08F43EFFA8/minio/data2/.minio.sys/format.json
+format_json_consistency	NO — data is single-set-3-drive; data1+data2 are single-set-6-drive with different cluster identity	cross-check
+objectstore_contract_mode	standalone	/globular/objectstore/config
+objectstore_contract_endpoint	10.0.0.63:9000	same
+objectstore_contract_nodes	["10.0.0.63"]	same
+objectstore_contract_node_paths	{"10.0.0.63": "/var/lib/globular/minio"}	same
+objectstore_contract_credentials_ready	true	same
+objectstore_contract_endpoint_ready	true	same
+objectstore_contract_written_at	2026-05-28T22:26:27Z	same
+objectstore_reconciler_outcome	SKIP_NO_QUORUM	/globular/objectstore/reconcile/last
+objectstore_reconciler_reason	storage_nodes_below_quorum:1	same
+objectstore_reconciler_storage_nodes	1	same
+cluster_node_count	1 (only globule-ryzen reporting)	cluster_list_nodes
+cluster_storage_quorum_required	3	per architecture (founding quorum)
+cluster_quorum_state	1/3 (degraded, single-node cluster running infrastructure in standalone)	derived
+node_profiles	[control-plane, core, storage]	cluster_list_nodes
+node_in_storage_profile	YES	derived
+repository_minio_mirror_recent_writes	none failed in last 5 minutes (silent — endpoint healthy)	journalctl globular-repository
+doctor_minio_inactive_finding	NOT in latest 5s-cache snapshot (was CRITICAL pre-22:03:19; cleared once unit started)	cluster_get_doctor_report
+doctor_objectstore_finding	objectstore.endpoint_unreachable previously top-issue; now absent	cluster_get_doctor_report
+doctor_minio_runtime_mismatch	NO finding for minio in latest snapshot (other services still have installed_state_runtime_mismatch — not minio)	cluster_get_doctor_report
+why_release_still_degraded	per-node phase DEGRADED is stale — written by the convergence-committer when unit was inactive (pre-22:03:19) or by a workflow result evaluating WAVE_BLOCKED. The release record has not been re-evaluated since MinIO came back up at 22:03:19. No active error message.	derived from message+phase
+classification	objectstore_topology_mismatch (primary) + desired_runtime_profile_mismatch (secondary)	derived
+risk	medium — MinIO is functional at the endpoint level (curl 200); the DEGRADED phase is stale state; the contract/path mismatch could silently fail on the next reconcile cycle if quorum reaches 3 and the topology workflow attempts to move data	derived
