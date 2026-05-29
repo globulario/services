@@ -61,7 +61,16 @@ func readOrGenerateMinioCredentials() *minioCredentials {
 	return creds
 }
 
-const defaultClusterStatePath = "/var/lib/globular/clustercontroller/state.json"
+// defaultClusterStatePath is the canonical state-file location. The
+// hyphenated directory is the documented runtime-dir convention; the previous
+// "clustercontroller" (no separator) form was a typo that escaped review.
+// MigrateLegacyStatePathOnce handles the rename so existing nodes keep their
+// state across the upgrade.
+const defaultClusterStatePath = "/var/lib/globular/cluster-controller/state.json"
+
+// legacyClusterStatePath is the pre-Project-O location. Kept here for the
+// migration helper only — do not write to it.
+const legacyClusterStatePath = "/var/lib/globular/clustercontroller/state.json"
 
 // controllerState is the in-memory cluster state that cluster-controller
 // persists to etcd (authoritative) and to a local JSON backup. It holds
@@ -544,6 +553,53 @@ func newControllerState() *controllerState {
 		NetworkingGeneration: 1,
 		MinioCredentials:     readOrGenerateMinioCredentials(),
 	}
+}
+
+// MigrateLegacyStatePathOnce relocates an existing state.json from the
+// pre-Project-O `clustercontroller/` (no separator) directory to the
+// canonical `cluster-controller/` (hyphenated) directory. Idempotent.
+//
+// Rules (mirrors Project O.3 spec):
+//   - If canonical exists  → keep canonical, leave legacy untouched, log warn
+//     when both are present so the operator can resolve manually.
+//   - If only legacy exists → create canonical's parent dir with safe perms,
+//     rename legacy → canonical. Old empty parent dir is left in place; a
+//     later verified cleanup may remove it.
+//   - Neither exists       → no-op, caller falls through to the normal "no
+//     state yet" path in loadControllerState.
+//
+// The migration runs at startup before loadControllerState. Failure to
+// migrate is logged but NOT fatal — the load step decides whether the
+// canonical path is loadable from whatever ended up there.
+func MigrateLegacyStatePathOnce(canonical, legacy string) {
+	if canonical == "" || legacy == "" || canonical == legacy {
+		return
+	}
+	legacyExists := pathExists(legacy)
+	canonicalExists := pathExists(canonical)
+	if !legacyExists {
+		return // nothing to do
+	}
+	if canonicalExists {
+		log.Printf("state-migration: both %s and %s exist — canonical wins, legacy left in place for operator review", canonical, legacy)
+		return
+	}
+	// Move legacy → canonical. Ensure parent dir exists with safe permissions.
+	parent := filepath.Dir(canonical)
+	if err := os.MkdirAll(parent, 0o750); err != nil {
+		log.Printf("state-migration: WARN create parent %s: %v", parent, err)
+		return
+	}
+	if err := os.Rename(legacy, canonical); err != nil {
+		log.Printf("state-migration: WARN rename %s → %s: %v", legacy, canonical, err)
+		return
+	}
+	log.Printf("state-migration: moved %s → %s", legacy, canonical)
+}
+
+func pathExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
 }
 
 func loadControllerState(path string) (*controllerState, error) {

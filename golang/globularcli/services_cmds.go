@@ -24,6 +24,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/identity"
+	"github.com/globulario/services/golang/systemdutil"
 	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/spf13/cobra"
@@ -950,6 +951,14 @@ func installServiceTgz(tgzPath, service string) (unitName string, err error) {
 			writeData = rendered.Bytes()
 		}
 		if isUnit {
+			// Make every bare `WorkingDirectory=/var/lib/globular/...` line
+			// optional via the `-` prefix. systemd evaluates WorkingDirectory
+			// before ExecStartPre, so a missing dir fails the unit with
+			// status=200/CHDIR before any recovery mkdir runs. The node-agent
+			// install path (artifact.go) does the same via systemdutil; the
+			// CLI path used to skip it, which left CLI-installed units as
+			// landmines. See Project O.2 / Phase-1 outage report.
+			writeData = systemdutil.NormalizeUnitWorkingDirectory(writeData)
 			for _, dir := range extractUnitWorkingDirectories(writeData) {
 				workDirs[dir] = struct{}{}
 			}

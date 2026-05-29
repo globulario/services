@@ -211,6 +211,12 @@ func NewRegistry(cfg Config) *Registry {
 		// after platform-upgrade). Fixed in v1.2.87 by minimalTargetFromInstalled;
 		// this invariant is the regression gate.
 		verifierVerdictCoverage{},
+		// Project O.5: regression gate for the Phase-1 WorkingDirectory
+		// outage. Catches any future regression where a
+		// `globular-*.service` ships a bare
+		// `WorkingDirectory=/var/lib/globular/...` that would crash with
+		// status=200/CHDIR if the dir is missing.
+		systemdWorkingDirectoryMustBeOptional{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)

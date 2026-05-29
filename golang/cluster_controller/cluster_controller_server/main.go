@@ -144,6 +144,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Project O.3: relocate any pre-canonical state file before load. This is
+	// a one-shot migration; runs at every startup but is idempotent. When the
+	// canonical path is already present, the legacy file is left in place for
+	// operator review rather than overwritten.
+	MigrateLegacyStatePathOnce(*statePath, legacyClusterStatePath)
+
 	// Load controller state
 	logger.Info("loading controller state", "state_path", *statePath)
 	state, err := loadControllerState(*statePath)

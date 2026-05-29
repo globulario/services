@@ -44,7 +44,10 @@ func main() {
 	portFlag := flag.String("port", defaultPort, "gRPC listen port")
 	bootstrapPlanFlag := flag.String("bootstrap-plan", "", "path to bootstrap plan JSON")
 	etcdModeFlag := flag.String("etcd-mode", "managed", "etcd mode: managed|external")
-	statePathFlag := flag.String("state-path", "/var/lib/globular/nodeagent/state.json", "path to node agent state file")
+	// Canonical hyphenated state path. The pre-Project-O default was
+	// /var/lib/globular/nodeagent/state.json (no separator); the migration
+	// helper relocates it on startup.
+	statePathFlag := flag.String("state-path", "/var/lib/globular/node-agent/state.json", "path to node agent state file")
 	advertiseAddrFlag := flag.String("advertise-addr", "", "advertise address (ip:port)")
 	advertiseIPFlag := flag.String("advertise-ip", "", "advertise IP override")
 	clusterModeFlag := flag.Bool("cluster-mode", true, "enable cluster mode (fail if no routable IP)")
@@ -77,6 +80,10 @@ func main() {
 	address := fmt.Sprintf("0.0.0.0:%s", port)
 
 	statePath := *statePathFlag
+	// Project O.3: one-shot relocation of the pre-canonical state file.
+	// Idempotent — safe to call on every startup. Canonical wins when both
+	// exist; legacy is preserved for operator review.
+	MigrateLegacyStatePathOnce(statePath, "/var/lib/globular/nodeagent/state.json")
 	state, err := loadNodeAgentState(statePath)
 	if err != nil {
 		log.Printf("unable to load node agent state %s: %v", statePath, err)
