@@ -143,12 +143,15 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 				return nil, fmt.Errorf("verify snapshot fetch: %w", err)
 			}
 			var findings []rules.Finding
-			if nodeID != "" {
-				findings = s.registry.EvaluateForNode(snap, nodeID)
-			} else {
+			clusterWide := nodeID == ""
+			if clusterWide {
 				findings = s.registry.EvaluateAll(snap)
+			} else {
+				findings = s.registry.EvaluateForNode(snap, nodeID)
 			}
-			s.cacheFindings(findings)
+			// Only cluster-wide evaluations are authoritative for the
+			// cluster.finding.* event delta.
+			s.cacheFindings(findings, clusterWide)
 
 			stillPresent := false
 			for _, f := range findings {

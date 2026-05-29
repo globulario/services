@@ -46,9 +46,19 @@ type ClusterDoctorServer struct {
 	eventClient *event_client.Event_Client
 
 	// cached findings from the last snapshot, keyed by finding_id
-	// used by ExplainFinding to avoid re-fetching.
+	// used by ExplainFinding to avoid re-fetching. Any caller (cluster-wide
+	// or node-scoped) may populate this — it is a lookup cache, not the
+	// authority for change detection.
 	lastFindings   []rules.Finding
 	lastFindingsMu sync.RWMutex
+
+	// lastEmittedFindings is the most recent CLUSTER-WIDE finding set used to
+	// compute the create/resolve delta emitted as cluster.finding.* events.
+	// It is intentionally separate from lastFindings so that a node-scoped
+	// GetNodeReport (which returns a subset) cannot corrupt the cluster-wide
+	// delta and produce spurious "resolved → created" event churn on the
+	// next cluster-wide call. Only cluster-wide paths update this.
+	lastEmittedFindings []rules.Finding
 
 	// executor runs structured RemediationActions with hardcoded blocklists.
 	// Optional: nil means ExecuteRemediation returns a not-configured error.
@@ -322,7 +332,9 @@ func (s *ClusterDoctorServer) GetClusterReport(ctx context.Context, req *cluster
 	}
 	gateSummary := appendRemediationGateEvidence(findings)
 
-	s.cacheFindings(findings)
+	// GetClusterReport produces the full cluster-wide finding set — it is
+	// the authority for the cluster.finding.* event delta.
+	s.cacheFindings(findings, true)
 	report := render.ClusterReport(snap, findings, s.version, fresh)
 	if report.CountsByCategory == nil {
 		report.CountsByCategory = map[string]uint32{}
@@ -357,7 +369,9 @@ func (s *ClusterDoctorServer) GetNodeReport(ctx context.Context, req *cluster_do
 
 	findings := s.registry.EvaluateForNode(snap, req.GetNodeId())
 	appendRemediationGateEvidence(findings)
-	s.cacheFindings(findings)
+	// GetNodeReport returns a subset (one node only); it must NOT update the
+	// cluster-wide delta authority or emit events.
+	s.cacheFindings(findings, false)
 
 	return render.NodeReport(snap, req.GetNodeId(), findings, s.version, fresh), nil
 }
@@ -408,19 +422,47 @@ func (s *ClusterDoctorServer) ExplainFinding(_ context.Context, req *cluster_doc
 	}, nil
 }
 
-// cacheFindings stores the latest findings for ExplainFinding lookups and
-// emits cluster.finding.created / cluster.finding.resolved events on each
-// snapshot delta so ai-watcher (and any operator) can react to changes.
-func (s *ClusterDoctorServer) cacheFindings(findings []rules.Finding) {
+// cacheFindings stores the latest findings for ExplainFinding lookups and,
+// when called from a cluster-wide context (clusterWide=true), emits
+// cluster.finding.created / cluster.finding.resolved events for the delta
+// vs the last cluster-wide snapshot.
+//
+// Why the clusterWide flag exists:
+//
+//	GetClusterReport produces the full cluster-wide finding set (N findings).
+//	GetNodeReport produces a subset (only one node's findings, K < N).
+//	VerifyConvergence may be either, depending on nodeID.
+//
+// All three previously shared a single lastFindings cache for delta
+// computation. The result was spurious "resolved" events on every
+// node-scoped call (N-K findings appear to disappear) followed by spurious
+// "created" events on the next cluster-wide call (the same N-K reappear).
+// On a dashboard polling both endpoints, this produced 100+ events per
+// minute representing 0 actual state changes.
+//
+// Fix: track the delta authority separately. Only cluster-wide callers
+// update lastEmittedFindings and emit events; node-scoped callers only
+// refresh lastFindings for ExplainFinding lookups.
+func (s *ClusterDoctorServer) cacheFindings(findings []rules.Finding, clusterWide bool) {
 	s.lastFindingsMu.Lock()
-	// Index current findings by ID.
+	// Always refresh the lookup cache so ExplainFinding can resolve the
+	// finding_id the caller just observed.
+	s.lastFindings = findings
+
+	if !clusterWide {
+		s.lastFindingsMu.Unlock()
+		return
+	}
+
+	// Cluster-wide path: compute delta against the last cluster-wide snapshot
+	// (NOT against lastFindings, which may have been overwritten by a
+	// node-scoped call since the last emission).
 	current := make(map[string]rules.Finding, len(findings))
 	for _, f := range findings {
 		current[f.FindingID] = f
 	}
-	// Compute delta vs previous snapshot.
-	prev := make(map[string]rules.Finding, len(s.lastFindings))
-	for _, f := range s.lastFindings {
+	prev := make(map[string]rules.Finding, len(s.lastEmittedFindings))
+	for _, f := range s.lastEmittedFindings {
 		prev[f.FindingID] = f
 	}
 	var created, resolved []rules.Finding
@@ -434,8 +476,8 @@ func (s *ClusterDoctorServer) cacheFindings(findings []rules.Finding) {
 			resolved = append(resolved, f)
 		}
 	}
-	// Replace cache with the LATEST evaluation only (drop stale entries).
-	s.lastFindings = findings
+	// Replace the cluster-wide delta authority with the current snapshot.
+	s.lastEmittedFindings = findings
 	s.lastFindingsMu.Unlock()
 
 	// Emit events outside the lock.
