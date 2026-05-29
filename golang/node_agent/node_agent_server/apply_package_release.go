@@ -124,9 +124,27 @@ var applyMu sync.Mutex
 var embeddedBuildTokenPattern = regexp.MustCompile(`(?i)(?:^|[.+-])b[0-9]+(?:$|[.+-])`)
 
 // installedBinaryPath returns the expected deployed executable path for a package.
-// SERVICE packages use "<name>_server" binaries; INFRASTRUCTURE/COMMAND packages
-// use "<name>" binaries.
+//
+// Resolution order:
+//  1. The manifest-declared entrypoint sidecar
+//     (`/var/lib/globular/services/<name>/entrypoint`) written at install time
+//     by readArtifactManifestEntrypoint + versionutil.WriteEntrypoint.
+//     This is the source of truth — Project T (INC-2026-0020).
+//  2. Legacy fallback: infer the path from the package name + kind.
+//     SERVICE packages use "<name>_server" (or "<name>"); INFRASTRUCTURE/
+//     COMMAND packages use "<name>". Only used when no sidecar exists,
+//     which means the package was installed by a pre-Project-T node-agent.
+//
+// The legacy path computation forced strings.ReplaceAll(name, "-", "_") for
+// SERVICE and used the raw name for INFRASTRUCTURE/COMMAND. Both diverge
+// from the manifest's actual entrypoint when the package name uses hyphens
+// but the binary uses underscores (e.g. scylla-manager → scylla_manager).
+// The sidecar removes the divergence; the fallback is preserved only for
+// pre-fix installs that have not yet been reinstalled.
 func installedBinaryPath(name, kind string) string {
+	if entry := versionutil.ReadEntrypoint(name); entry != "" {
+		return filepath.Join(globularBinDir, entry)
+	}
 	if strings.EqualFold(kind, "SERVICE") {
 		// Most services follow the {name}_server convention. A few (e.g. mcp)
 		// ship a binary with the plain package name. Probe the _server path
