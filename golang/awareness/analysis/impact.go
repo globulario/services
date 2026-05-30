@@ -65,6 +65,17 @@ type ImpactResult struct {
 
 	// InferredFailureModes are failure_modes reached only via the broader walk.
 	InferredFailureModes []*graph.Node
+
+	// DirectIncidentPatterns are incident_pattern nodes that explicitly name
+	// this file in their files: list. Same model as DirectInvariants:
+	// determined by 1-hop file → implements → incident_pattern edges. These
+	// are the patterns whose lesson directly governs an edit to this file.
+	DirectIncidentPatterns []*graph.Node
+
+	// InferredIncidentPatterns are incident_pattern nodes reachable via the
+	// broader walk (e.g. patterns whose files: list names a sibling). Useful
+	// general context; bleed-prone across siblings same as InferredInvariants.
+	InferredIncidentPatterns []*graph.Node
 }
 
 // ImpactByFile finds all nodes impacted by changes to the file at filePath,
@@ -85,6 +96,10 @@ func ImpactByFile(ctx context.Context, g *graph.Graph, filePath string) (*Impact
 	directFMIDs, err := failureModesAffectedByInvariants(ctx, g, directInvIDs)
 	if err != nil {
 		return nil, fmt.Errorf("ImpactByFile %s: direct failure modes: %w", filePath, err)
+	}
+	directPatIDs, err := directIncidentPatternIDsForFile(ctx, g, filePath)
+	if err != nil {
+		return nil, fmt.Errorf("ImpactByFile %s: direct incident patterns: %w", filePath, err)
 	}
 
 	result := &ImpactResult{}
@@ -116,6 +131,12 @@ func ImpactByFile(ctx context.Context, g *graph.Graph, filePath string) (*Impact
 				result.DirectFailureModes = append(result.DirectFailureModes, n)
 			} else {
 				result.InferredFailureModes = append(result.InferredFailureModes, n)
+			}
+		case graph.NodeTypeIncidentPattern:
+			if directPatIDs[n.ID] {
+				result.DirectIncidentPatterns = append(result.DirectIncidentPatterns, n)
+			} else {
+				result.InferredIncidentPatterns = append(result.InferredIncidentPatterns, n)
 			}
 		case graph.NodeTypeForbiddenFix:
 			result.ForbiddenFixes = append(result.ForbiddenFixes, n)
@@ -156,6 +177,29 @@ func directInvariantIDsForFile(ctx context.Context, g *graph.Graph, filePath str
 			if strings.HasPrefix(e.Dst, "invariant:") || strings.HasPrefix(e.Dst, "inv:") {
 				out[e.Dst] = true
 			}
+		}
+	}
+	return out, nil
+}
+
+// directIncidentPatternIDsForFile returns the set of incident_pattern node
+// IDs that name this file in their files: list. Mirrors
+// directInvariantIDsForFile: the manual extractor writes a
+// source_file → implements → incident_pattern edge for each file in a
+// pattern's files: list, so a 1-hop outgoing walk from the file along
+// EdgeImplements finds exactly the patterns whose author named this file as
+// a subject. Patterns reached only through sibling/package walks become
+// InferredIncidentPatterns instead, same as the invariant model.
+func directIncidentPatternIDsForFile(ctx context.Context, g *graph.Graph, filePath string) (map[string]bool, error) {
+	out := map[string]bool{}
+	fileID := "source_file:" + filePath
+	edges, err := g.Neighbors(ctx, fileID, "out")
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range edges {
+		if e.Kind == graph.EdgeImplements && strings.HasPrefix(e.Dst, "incident_pattern:") {
+			out[e.Dst] = true
 		}
 	}
 	return out, nil

@@ -30,6 +30,15 @@ const (
 	NodeTypeInvariant           = "invariant"
 	NodeTypeFailureMode         = "failure_mode"
 	NodeTypeForbiddenFix        = "forbidden_fix"
+	// NodeTypeIncidentPattern indexes hand-authored entries from
+	// docs/awareness/incident_patterns.yaml. Distinct from NodeTypeIncident
+	// (the runtime-recorded incident store) — incident_pattern is the
+	// stay-fixed pattern an incident exemplifies, written into the YAML at
+	// build time. The graph node carries only the compact identity fields
+	// (id, summary, severity, failure_mode reference); the long narrative
+	// (root_cause, lesson, edit_shapes) stays in the YAML to keep graph
+	// JSON small. See knowledge.IncidentPattern for the full struct.
+	NodeTypeIncidentPattern = "incident_pattern"
 	NodeTypeTest                = "test"
 	NodeTypeRuntimeState        = "runtime_state"
 	NodeTypeRemediationWorkflow = "remediation_workflow"

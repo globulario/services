@@ -220,14 +220,15 @@ func ClassifyYAMLByTopKey(topKey string) YAMLRole {
 
 // dispatchTable maps top-level YAML keys to the loader that handles them.
 var dispatchTable = map[string]func(context.Context, *graph.Graph, string) error{
-	"invariants":      LoadInvariants,
-	"failure_modes":   LoadFailureModes,
-	"forbidden_fixes": LoadForbiddenFixes,
-	"services":        LoadServices,
-	"patterns":        LoadPatterns,
-	"design_patterns": LoadDesignPatterns,
-	"decision_rules":  LoadDecisionRules,
-	"causal_rules":    LoadCausalRules,
+	"invariants":        LoadInvariants,
+	"failure_modes":     LoadFailureModes,
+	"forbidden_fixes":   LoadForbiddenFixes,
+	"services":          LoadServices,
+	"patterns":          LoadPatterns,
+	"design_patterns":   LoadDesignPatterns,
+	"decision_rules":    LoadDecisionRules,
+	"causal_rules":      LoadCausalRules,
+	"incident_patterns": LoadIncidentPatterns,
 }
 
 // configOnlyKeys are top-level YAML keys that identify files intentionally not

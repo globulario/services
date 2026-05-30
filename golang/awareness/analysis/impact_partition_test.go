@@ -190,6 +190,59 @@ func TestImpactByFile_DirectFailureModesFollowDirectInvariants(t *testing.T) {
 	}
 }
 
+// TestImpactByFile_DirectIncidentPatternPartition extends the partition
+// guarantee to incident_pattern nodes. Mirrors the sibling-bleed scenario
+// from TestImpactByFile_DirectVsInferredPartition: the anchored file must
+// see the pattern in DirectIncidentPatterns; siblings whose file path is
+// not in the pattern's files: list must NOT see it as Direct. This is the
+// regression test that pins materialisation against future regressions of
+// the package-edge bleed.
+func TestImpactByFile_DirectIncidentPatternPartition(t *testing.T) {
+	g := openGraph(t)
+	ctx := context.Background()
+
+	anchored := "golang/cluster_controller/cluster_controller_server/critical_key_prereqs.go"
+	sibling := "golang/cluster_controller/cluster_controller_server/server.go"
+
+	for _, p := range []string{anchored, sibling} {
+		_ = g.AddNode(ctx, graph.Node{
+			ID:   "source_file:" + p,
+			Type: graph.NodeTypeSourceFile,
+			Name: p,
+			Path: p,
+		})
+	}
+
+	// Pattern anchors ONLY to the anchored file. The loader's edges
+	// (incident_pattern → protects → source_file AND source_file →
+	// implements → incident_pattern) are what the impact partition uses
+	// to decide directness.
+	patID := "incident_pattern:pat.example_anchored"
+	_ = g.AddNode(ctx, graph.Node{ID: patID, Type: graph.NodeTypeIncidentPattern, Name: "pat.example_anchored"})
+	_ = g.AddEdge(ctx, graph.Edge{Src: patID, Kind: graph.EdgeProtects, Dst: "source_file:" + anchored})
+	_ = g.AddEdge(ctx, graph.Edge{Src: "source_file:" + anchored, Kind: graph.EdgeImplements, Dst: patID})
+
+	res, err := analysis.ImpactByFile(ctx, g, anchored)
+	if err != nil {
+		t.Fatalf("ImpactByFile(%s): %v", anchored, err)
+	}
+	if !containsByID(res.DirectIncidentPatterns, patID) {
+		t.Errorf("anchored file: DirectIncidentPatterns missing %q\n  got: %s", patID, idsOf(res.DirectIncidentPatterns))
+	}
+	if containsByID(res.InferredIncidentPatterns, patID) {
+		t.Errorf("anchored file: %q must NOT also be in InferredIncidentPatterns", patID)
+	}
+
+	sibRes, err := analysis.ImpactByFile(ctx, g, sibling)
+	if err != nil {
+		t.Fatalf("ImpactByFile(%s): %v", sibling, err)
+	}
+	if containsByID(sibRes.DirectIncidentPatterns, patID) {
+		t.Errorf("sibling %s: DirectIncidentPatterns must NOT contain %q (file is not in pattern's files: list)\n  got: %s",
+			sibling, patID, idsOf(sibRes.DirectIncidentPatterns))
+	}
+}
+
 // helpers — keep them out of the test bodies so the assertions read clean.
 
 func containsByID(nodes []*graph.Node, id string) bool {

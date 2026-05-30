@@ -519,6 +519,8 @@ var awarenessImpactCmd = &cobra.Command{
 		printSection("Impacted invariants (inferred via package/symbol/service)", result.InferredInvariants)
 		printSection("Impacted failure modes (direct)", result.DirectFailureModes)
 		printSection("Impacted failure modes (inferred)", result.InferredFailureModes)
+		printSection("Impacted incident patterns (direct file anchor)", result.DirectIncidentPatterns)
+		printSection("Impacted incident patterns (inferred via package/symbol/service)", result.InferredIncidentPatterns)
 		printSection("Forbidden fixes", result.ForbiddenFixes)
 		printSection("Required tests", result.Tests)
 		printSection("Other nodes", result.Other)
