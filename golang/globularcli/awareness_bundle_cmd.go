@@ -44,6 +44,7 @@ type awarenessBundleManifest struct {
 	BuiltAt       string `json:"built_at"`
 	BuiltBy       string `json:"built_by,omitempty"`
 	SHA256        string `json:"sha256,omitempty"`
+	SizeBytes     int64  `json:"size_bytes,omitempty"`
 
 	// OpsKnowledgeEntries records the per-entry canonical SHA256 of every
 	// operational-knowledge seed entry packed into ops-knowledge/. The
@@ -348,9 +349,36 @@ Prerequisites:
 		// The bundle sha256 here covers the whole archive (manifest + content)
 		// and is what `awareness bundle publish` re-computes before upload.
 		// The repository will record this as the artifact checksum.
+
+		// Write a sidecar manifest.json next to the bundle, with the bundle's
+		// sha256 and size populated. The install command (via
+		// bundlesync.VerifyBundle) requires both to validate the on-disk
+		// archive before swapping the active symlink — without the sidecar,
+		// install fails with "manifest.sha256 is empty" even when the bundle
+		// itself is valid. CI emits this sidecar as part of the artifact
+		// pipeline; previously the local `globular awareness bundle build`
+		// only printed sha256 to stdout, which broke `globular awareness
+		// install` against locally-built bundles on every cluster.
+		bundleInfo, statErr := os.Stat(outputName)
+		if statErr != nil {
+			return fmt.Errorf("stat finalised bundle %s: %w", outputName, statErr)
+		}
+		manifest.SHA256 = sha256sum
+		manifest.SizeBytes = bundleInfo.Size()
+		sidecarJSON, marshalErr := json.MarshalIndent(manifest, "", "  ")
+		if marshalErr != nil {
+			return fmt.Errorf("marshal sidecar manifest: %w", marshalErr)
+		}
+		sidecarPath := outputName + ".manifest.json"
+		if writeErr := os.WriteFile(sidecarPath, sidecarJSON, 0644); writeErr != nil {
+			return fmt.Errorf("write sidecar manifest %s: %w", sidecarPath, writeErr)
+		}
+
 		fmt.Fprintf(os.Stdout, "\nBundle ready:\n")
 		fmt.Fprintf(os.Stdout, "  file:     %s\n", outputName)
+		fmt.Fprintf(os.Stdout, "  sidecar:  %s\n", sidecarPath)
 		fmt.Fprintf(os.Stdout, "  sha256:   %s\n", sha256sum)
+		fmt.Fprintf(os.Stdout, "  size:     %d bytes\n", bundleInfo.Size())
 		fmt.Fprintf(os.Stdout, "  build_id: %s\n", buildID)
 		fmt.Fprintf(os.Stdout, "  files:    %d entries\n", written+1)
 		fmt.Fprintf(os.Stdout, "\nTo publish:\n")
