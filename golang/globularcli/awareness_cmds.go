@@ -509,8 +509,16 @@ var awarenessImpactCmd = &cobra.Command{
 		}
 
 		printSection("Impacted services", result.Services)
-		printSection("Impacted invariants", result.Invariants)
-		printSection("Impacted failure modes", result.FailureModes)
+		// Print Direct first — those are file-specific anchors (the file
+		// appears in protects.{files,enforces_files,...} of the invariant).
+		// Then Inferred — broader package/symbol/service walks that bleed
+		// across siblings in the same package. Labelling the two tiers lets
+		// an agent (or human reviewer) tell at a glance what's specific to
+		// THIS file vs general context.
+		printSection("Impacted invariants (direct file anchor)", result.DirectInvariants)
+		printSection("Impacted invariants (inferred via package/symbol/service)", result.InferredInvariants)
+		printSection("Impacted failure modes (direct)", result.DirectFailureModes)
+		printSection("Impacted failure modes (inferred)", result.InferredFailureModes)
 		printSection("Forbidden fixes", result.ForbiddenFixes)
 		printSection("Required tests", result.Tests)
 		printSection("Other nodes", result.Other)

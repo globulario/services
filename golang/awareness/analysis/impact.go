@@ -14,23 +14,77 @@ import (
 )
 
 // ImpactResult collects nodes reachable from a source file, partitioned by type.
+//
+// The Invariants and FailureModes slices are kept for back-compat with existing
+// callers; new code should read DirectInvariants / InferredInvariants (and the
+// failure_mode pair) separately because the two tiers carry very different
+// signal:
+//
+//   - Direct = the file is the explicit subject of the invariant: it appears
+//     in protects.{files, enforces_files, configures_files, observes_files}
+//     in docs/awareness/invariants.yaml. These matches are file-specific by
+//     construction.
+//
+//   - Inferred = the invariant is reachable via the 6-hop traversal but the
+//     file is not its explicit subject. These matches come from package /
+//     symbol / service edges (e.g. file → defines → symbol → ... → invariant
+//     or file → owned-by → service → ... → invariant) and they SHARE across
+//     siblings in the same package. They are useful broad context but they
+//     should not dominate output for an agent that needs to know what's
+//     specific to the file it's about to edit.
+//
+// Invariants and FailureModes are populated as DirectInvariants ++
+// InferredInvariants (and the FailureModes equivalent) so the back-compat
+// slices are still Direct-first, which fixes ranking for legacy consumers
+// without requiring them to know about the partition.
 type ImpactResult struct {
-	SourceFile    *graph.Node
-	Symbols       []*graph.Node
-	Services      []*graph.Node
-	Invariants    []*graph.Node
-	FailureModes  []*graph.Node
+	SourceFile     *graph.Node
+	Symbols        []*graph.Node
+	Services       []*graph.Node
+	Invariants     []*graph.Node // back-compat: DirectInvariants ++ InferredInvariants
+	FailureModes   []*graph.Node // back-compat: DirectFailureModes ++ InferredFailureModes
 	ForbiddenFixes []*graph.Node
-	Tests         []*graph.Node
-	Other         []*graph.Node
+	Tests          []*graph.Node
+	Other          []*graph.Node
+
+	// DirectInvariants are invariants that explicitly name this file as their
+	// subject via a 1-hop implements / enforces / configures / observes edge
+	// from the file to the invariant. They are the file-specific signal.
+	DirectInvariants []*graph.Node
+
+	// InferredInvariants are invariants reachable through the broader graph
+	// walk (package, symbol, service edges) but where the file is not the
+	// invariant's explicit subject. They typically bleed across siblings in
+	// the same package and should be presented as lower-rank context.
+	InferredInvariants []*graph.Node
+
+	// DirectFailureModes are failure_modes related (via 1-hop "affects" edge)
+	// to at least one DirectInvariant. They are 2 hops from the file but still
+	// file-specific by virtue of their anchor.
+	DirectFailureModes []*graph.Node
+
+	// InferredFailureModes are failure_modes reached only via the broader walk.
+	InferredFailureModes []*graph.Node
 }
 
 // ImpactByFile finds all nodes impacted by changes to the file at filePath,
-// then partitions them by type into an ImpactResult.
+// then partitions them by type into an ImpactResult. Invariants and
+// failure_modes are additionally split into Direct (file-specific anchor) and
+// Inferred (reached via broader package / symbol / service walks) tiers — see
+// the ImpactResult docstring for the rationale.
 func ImpactByFile(ctx context.Context, g *graph.Graph, filePath string) (*ImpactResult, error) {
 	res, err := g.ImpactByFile(ctx, filePath)
 	if err != nil {
 		return nil, fmt.Errorf("ImpactByFile %s: %w", filePath, err)
+	}
+
+	directInvIDs, err := directInvariantIDsForFile(ctx, g, filePath)
+	if err != nil {
+		return nil, fmt.Errorf("ImpactByFile %s: direct invariants: %w", filePath, err)
+	}
+	directFMIDs, err := failureModesAffectedByInvariants(ctx, g, directInvIDs)
+	if err != nil {
+		return nil, fmt.Errorf("ImpactByFile %s: direct failure modes: %w", filePath, err)
 	}
 
 	result := &ImpactResult{}
@@ -52,9 +106,17 @@ func ImpactByFile(ctx context.Context, g *graph.Graph, filePath string) (*Impact
 		case graph.NodeTypeGlobularService:
 			result.Services = append(result.Services, n)
 		case graph.NodeTypeInvariant:
-			result.Invariants = append(result.Invariants, n)
+			if directInvIDs[n.ID] {
+				result.DirectInvariants = append(result.DirectInvariants, n)
+			} else {
+				result.InferredInvariants = append(result.InferredInvariants, n)
+			}
 		case graph.NodeTypeFailureMode:
-			result.FailureModes = append(result.FailureModes, n)
+			if directFMIDs[n.ID] {
+				result.DirectFailureModes = append(result.DirectFailureModes, n)
+			} else {
+				result.InferredFailureModes = append(result.InferredFailureModes, n)
+			}
 		case graph.NodeTypeForbiddenFix:
 			result.ForbiddenFixes = append(result.ForbiddenFixes, n)
 		case graph.NodeTypeTest:
@@ -64,7 +126,61 @@ func ImpactByFile(ctx context.Context, g *graph.Graph, filePath string) (*Impact
 		}
 	}
 
+	// Back-compat: populate the legacy flat slices Direct-first. Existing
+	// consumers that read result.Invariants get the better ranking with no
+	// code change on their side.
+	result.Invariants = append(append([]*graph.Node{}, result.DirectInvariants...), result.InferredInvariants...)
+	result.FailureModes = append(append([]*graph.Node{}, result.DirectFailureModes...), result.InferredFailureModes...)
+
 	return result, nil
+}
+
+// directInvariantIDsForFile returns the set of invariant node IDs that name
+// the file at filePath as their explicit subject. "Explicit subject" means
+// the file appears in protects.{files, enforces_files, configures_files,
+// observes_files} of the invariant — the loader translates each of those
+// into a 1-hop edge from the file to the invariant using the matching edge
+// kind (implements / enforces / configures / observes). Returns an empty set
+// (not nil) when no source_file node exists for the path so callers can
+// always check membership safely.
+func directInvariantIDsForFile(ctx context.Context, g *graph.Graph, filePath string) (map[string]bool, error) {
+	out := map[string]bool{}
+	fileID := "source_file:" + filePath
+	edges, err := g.Neighbors(ctx, fileID, "out")
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range edges {
+		switch e.Kind {
+		case graph.EdgeImplements, graph.EdgeEnforces, graph.EdgeConfigures, graph.EdgeObserves:
+			if strings.HasPrefix(e.Dst, "invariant:") || strings.HasPrefix(e.Dst, "inv:") {
+				out[e.Dst] = true
+			}
+		}
+	}
+	return out, nil
+}
+
+// failureModesAffectedByInvariants walks 1-hop affects edges from each
+// invariant in invIDs and returns the set of failure_mode node IDs they
+// reach. The invariant→failure_mode "affects" edge is how
+// related_failure_modes entries land in the graph, so this is exactly the
+// "failure_modes named on a direct invariant" set — 2 hops total from the
+// file but still file-specific by construction.
+func failureModesAffectedByInvariants(ctx context.Context, g *graph.Graph, invIDs map[string]bool) (map[string]bool, error) {
+	out := map[string]bool{}
+	for invID := range invIDs {
+		edges, err := g.Neighbors(ctx, invID, "out")
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range edges {
+			if e.Kind == graph.EdgeAffects && (strings.HasPrefix(e.Dst, "failure_mode:") || strings.HasPrefix(e.Dst, "fm:")) {
+				out[e.Dst] = true
+			}
+		}
+	}
+	return out, nil
 }
 
 // ExplainedFinding is a single impacted node with its graph path trace.
