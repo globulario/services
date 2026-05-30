@@ -136,53 +136,75 @@ incident_patterns:
       - infraReleaseHandle.PatchStatus
 
   - id: pat.reconcile_stale_dep_block_never_cleared
-    title: writeRuntimeDepBlock writes BLOCKED record but no symmetric sweep clears it once the dep becomes active
+    title: Regression guard — the symmetric sweep that clears BLOCKED dep records must remain in place
     severity: critical
     failure_mode: reconcile.stale_dep_block_persists_after_dep_active
     root_cause: |
-      The controller's reconcile sweep is asymmetric: when a native
-      dependency is not active for node N, `writeRuntimeDepBlock` in
-      `critical_key_prereqs.go` records a `BLOCKED_MISSING_NATIVE_DEP`
-      latest convergence record AND a `runtime_dep_block` controller
-      action key. There is no matching `clearRuntimeDepBlock` sweep
-      that runs on subsequent ticks. When the dep transitions to
-      active, the records linger and `hasUnservedNodes` in
-      `release_pipeline.go` keeps returning true, which prevents the
-      dispatch that would observe the now-active dep and clear the
-      record. The dispatch gate is gated on a record that only the
-      dispatch can clear — an infinite stall by construction.
-      Bootstrap races (node phase advances at t=T while dep
-      observation lands at t=T+Δ) make this hit on every fresh node
-      join. The supported recovery is manual `etcdctl del` of the
-      two stale keys followed by `globular services repair` — that's
-      a runbook, not a fix.
+      Historical incident — INC-2026-0005 (globule-dell Day-1,
+      2026-05-23). At that time, `writeRuntimeDepBlock` in
+      `critical_key_prereqs.go` recorded a
+      `BLOCKED_MISSING_NATIVE_DEP` latest convergence record AND a
+      `runtime_dep_block` controller action key whenever a native
+      dependency was not active for a node, but there was no
+      symmetric clear path that ran on subsequent ticks. The
+      bootstrap race — node phase advances at t=T while dep
+      observation lands at t=T+Δ — meant blocks written during
+      bootstrap outlived the condition that produced them. Three
+      manual `etcdctl del` waves (6 keys during bootstrap, 34 after
+      workload_ready, 2 for the sctool→scylla-manager dep) were
+      needed to converge globule-dell, because `hasUnservedNodes` in
+      `release_pipeline.go` reads the latest convergence record
+      verbatim and refused to dispatch the very work that would have
+      cleared the records.
 
-      INC-2026-0005 (globule-dell Day-1, 2026-05-23) needed three
-      manual clearing waves: 6 keys during bootstrap, 34 keys after
-      workload_ready, 2 keys for the sctool→scylla-manager dep. Each
-      new node join reproduces the trap. See
-      session_dell_join_dep_block_fix.
+      Runtime fix (already shipped, 2026-05-24):
+        - commit e47c2316 — `clearRuntimeDepBlock` + edge-triggered
+          clear in `reconcileResolved`.
+        - commit dba27d03 — `sweepRuntimeDepBlocks` (level-triggered
+          safety net) + unconditional call at the top of
+          `reconcileNodes`.
+        - `checkRuntimeDeps` gates stateful infra deps (scylladb /
+          minio / etcd) on `*JoinPhase == Verified`, not just systemd
+          active. This is what closes INC-2026-0005's race window.
+
+      This pattern is now a regression guard. The architectural
+      answer is the `writeRuntimeDepBlock` + `clearRuntimeDepBlock`
+      + `sweepRuntimeDepBlocks` triad with conservative
+      `checkRuntimeDeps`. The historical edit shape — write without
+      a symmetric clear — is captured here so a future regression is
+      flagged before it ships.
     lesson: |
-      Every controller-written BLOCKED state must be paired with a
-      structural sweep that clears it when the blocking condition is
-      observed false again. Writing the block is half the contract;
-      writing the clear is the other half. The clear sweep must be
-      idempotent and run on every reconcile tick (not only on dep-
-      active state transitions) so bootstrap races cannot leave a
-      stale record outliving the condition that produced it. A
-      manual `etcdctl del` runbook is not a substitute for the
-      sweep — it is evidence the sweep is missing.
+      Every controller-written BLOCKED state must remain paired
+      with a structural sweep that clears it when the blocking
+      condition is observed false again. Writing the block is half
+      the contract; writing the clear is the other half. The clear
+      sweep must remain level-triggered (every reconcile tick),
+      idempotent, and gated on a fresh `checkRuntimeDeps`
+      evaluation. A manual `etcdctl del` runbook is not a
+      substitute for the sweep — if you ever need it on a healthy
+      cluster, the sweep is broken.
+
+      Equally important: `checkRuntimeDeps` must keep the join-phase
+      gate (scylladb / minio / etcd require `*JoinPhase == Verified`,
+      not just systemd active). Weakening this gate to "systemd
+      active is good enough" directly reintroduces INC-2026-0005's
+      race window — the block would be cleared before the dep is
+      actually usable, and the dispatched install would land before
+      the Raft / ring / quorum join completes.
     edit_shapes:
-      - writing a BLOCKED_MISSING_* convergence record without a corresponding clear sweep on the same controller tick path
-      - gating dispatch on a convergence-record outcome that only dispatch itself can move off BLOCKED
-      - relying on "the next install attempt" to clear stale state when the dispatch gate is what's blocking the next install attempt
-      - clearing a dep-block only on the install-success path while the bootstrap path can write a fresh block after that path runs
+      - removing or hoisting `srv.sweepRuntimeDepBlocks(ctx, nodes)` behind a feature flag in `reconcileNodes`
+      - refactoring `sweepRuntimeDepBlocks` to clear records without re-running `checkRuntimeDeps` (e.g. using a "dep reported active recently" timestamp instead of a fresh evaluation)
+      - widening the sweep's filter so it deletes BLOCKED outcomes whose ReasonCode is not `runtime_deps_not_ready`
+      - changing `clearRuntimeDepBlock` to delete only the action key OR only the latest convergence record (must remain BOTH)
+      - changing the deterministic action ID format without updating `runtimeDepBlockKindFromActionID`
+      - loosening `checkRuntimeDeps` to drop the join-phase gate for scylladb / minio / etcd
     wrong_fixes:
-      - elevating `etcdctl del` of the two stale keys to "supported recovery procedure" — leaves the next race unaddressed
+      - elevating `etcdctl del` of the two stale keys to "supported recovery procedure" — implies the sweep is acceptable to bypass
       - masking BLOCKED records in `hasUnservedNodes` so dispatch proceeds anyway — defeats the dep-block gate for legitimate inactive cases
       - increasing the dep-block record's TTL so it expires naturally — replaces a known stall with a longer one
-      - one-shot clear inside `checkRuntimeDeps` at install time only — bootstrap window can re-write the record
+      - one-shot clear inside `checkRuntimeDeps` at install time only — bootstrap window can re-write the record after install runs
       - hardcoding which packages can ignore stale dep-blocks (special-casing always wears out)
+      - removing the join-phase gate to "make convergence faster" — directly reintroduces INC-2026-0005
     files:
       - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
       - golang/cluster_controller/cluster_controller_server/critical_key_prereqs.go
