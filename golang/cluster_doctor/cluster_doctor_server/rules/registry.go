@@ -155,14 +155,6 @@ func NewRegistry(cfg Config) *Registry {
 		dnsServingLastKnownGood{},
 		// Reconcile lane status fallback from etcd (when Prometheus unavailable).
 		reconcileLaneStatusEtcd{},
-		// Awareness: historical incident pattern matching. Degrades gracefully
-		// when AwarenessGraphPath is unset or the graph is unavailable.
-		incidentPatternAwareness{},
-		// Awareness: operational-knowledge seed integrity. Verifies the
-		// active awareness bundle's ops-knowledge payload matches the
-		// per-entry seed_sha256 declared in manifest.json. Degrades to
-		// silent when no bundle is installed yet.
-		opsKnowledgeSeedIntegrity{},
 		// 4-layer integrity rules for the repository/DNS join.
 		// repository.desired_build_ids_resolve fires when an active desired
 		// build_id has no installable artifact (root cause of the production

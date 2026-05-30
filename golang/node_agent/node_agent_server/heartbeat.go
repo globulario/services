@@ -17,7 +17,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
-	"math/rand"
 	"strings"
 	"time"
 
@@ -100,12 +99,6 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	syncTicker := time.NewTicker(5 * time.Minute)
 	defer syncTicker.Stop()
 
-	// Fast-path awareness bundle: check every 60–90 s (jittered) while the bundle
-	// is not yet installed. Jitter spreads simultaneous-join storms across a 30 s
-	// window. Once installed the ticker is stopped — no further overhead.
-	awarenessCheckTicker := time.NewTicker(60*time.Second + time.Duration(rand.Intn(30))*time.Second)
-	defer awarenessCheckTicker.Stop()
-
 	// Attempt controller endpoint recovery every 2 minutes when missing.
 	rediscoverTicker := time.NewTicker(2 * time.Minute)
 	defer rediscoverTicker.Stop()
@@ -172,16 +165,6 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 		case <-heartbeatTimer.C:
 			runHeartbeat()
 			heartbeatTimer.Reset(heartbeatDelay)
-		case <-awarenessCheckTicker.C:
-			// Fetch awareness bundle if not yet installed, then stop the ticker —
-			// no need to keep firing once the bundle is on disk.
-			if LoadInstalledAwarenessBuildID() == "" {
-				withOpTimeout(5*time.Minute, func(ctx context.Context) {
-					FetchAndInstallAwarenessBundle(ctx)
-				})
-			} else {
-				awarenessCheckTicker.Stop()
-			}
 		case <-syncTicker.C:
 			withOpTimeout(30*time.Second, srv.syncInstalledStateToEtcd)
 			withOpTimeout(15*time.Second, srv.syncEtcHosts)
@@ -190,11 +173,6 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			withOpTimeout(10*time.Second, srv.ensureScyllaManagerAgentAuthToken)
 			withOpTimeout(30*time.Second, srv.importProvisionalPackages)
 			withOpTimeout(15*time.Second, srv.reconcileDiskInventory)
-			// Fetch awareness bundle on the 5-minute sync as well (covers upgrades
-			// when a newer bundle is published after initial install).
-			withOpTimeout(5*time.Minute, func(ctx context.Context) {
-				FetchAndInstallAwarenessBundle(ctx)
-			})
 		case <-rediscoverTicker.C:
 			shouldRediscover := srv.controllerEndpoint == "" ||
 				srv.controllerConnState == ConnStateDegraded ||
@@ -750,12 +728,6 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 			continue
 		}
 
-		// AWARENESS_BUNDLE (kind=7) is installed separately and not tracked
-		// as an installed package in etcd — skip it here.
-		if IsAwarenessBundleRef(int32(ref.GetKind())) {
-			continue
-		}
-
 		kind := "SERVICE"
 		switch ref.GetKind() {
 		case 2: // APPLICATION
@@ -1039,11 +1011,6 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 	statusReq.InstalledVersions = make(map[string]string)
 	statusReq.InstalledBuildIds = make(map[string]string)
 
-	// Report installed awareness bundle build_id so the controller can advance
-	// the bootstrap phase machine past awareness_ready.
-	if buildID := LoadInstalledAwarenessBuildID(); buildID != "" {
-		statusReq.InstalledBuildIds["awareness_bundle"] = buildID
-	}
 	// Report ScyllaDB host UUID so the controller can call nodetool removenode
 	// on a healthy peer when this node is removed from the cluster.
 	if hostID := readScyllaHostID(ctx); hostID != "" {

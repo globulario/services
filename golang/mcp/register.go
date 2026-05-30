@@ -82,12 +82,6 @@ func registerAllTools(s *server) {
 	if g.AIExecutor {
 		registerAIExecutorTools(s)
 	}
-	if g.Awareness {
-		registerAwarenessTools(s) // also registers new tools internally
-	}
-	if g.Intent {
-		registerIntentTools(s)
-	}
 	if g.Aggregator {
 		registerAggregatorTools(s)
 	}

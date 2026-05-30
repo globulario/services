@@ -343,9 +343,6 @@ Returns per-node data and a diff summary listing nodes that differ from the firs
 		}, nil
 	})
 
-	// ── mcp.day1_classify_node (cluster-level Day-1 verdict) ────────────────
-	registerAggregatorDay1Tool(s)
-
 	// ── mcp.cluster_snapshot ────────────────────────────────────────────────
 	s.register(toolDef{
 		Name:        "mcp.cluster_snapshot",

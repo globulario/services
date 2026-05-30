@@ -247,8 +247,6 @@ github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S
 github.com/fsnotify/fsnotify v1.9.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/glendc/go-external-ip v0.1.0 h1:iX3xQ2Q26atAmLTbd++nUce2P5ht5P4uD4V7caSY/xg=
 github.com/glendc/go-external-ip v0.1.0/go.mod h1:CNx312s2FLAJoWNdJWZ2Fpf5O4oLsMFwuYviHjS4uJE=
-github.com/globulario/awareness v0.2.1-0.20260529224647-d68582c12cfc h1:VDv9uqhMeDv3+A2xwq6AfptlU8HCYnyrc610Um2yGSI=
-github.com/globulario/awareness v0.2.1-0.20260529224647-d68582c12cfc/go.mod h1:WJ0r45qyhdvCtqPMrnpMCSC4f3NJMpCmt5b6kVmyPOo=
 github.com/globulario/globular-installer v0.0.0-20260520194113-156f49163ef8 h1:vpiNkv6Wx5JJOTovyUhrxQKBSzWGzba1jZ9t3SP84Ng=
 github.com/globulario/globular-installer v0.0.0-20260520194113-156f49163ef8/go.mod h1:n8tkQBstO03f6ZHc6Q3poBy0KWEI0tq89dQRWYC3mTY=
 github.com/globulario/utility v0.1.9 h1:gGaBd7HXMKpqj3uH7a2Kqv3Ikm5rtOMiVdhT6+riTl4=

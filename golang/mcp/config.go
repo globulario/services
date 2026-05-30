@@ -12,16 +12,6 @@ import (
 	"github.com/globulario/services/golang/config"
 )
 
-// AwarenessConfig holds optional overrides for the awareness graph location.
-// When paths are empty, the server auto-detects via git rev-parse and uses
-// the standard .globular/awareness/graph.json location under the repo root.
-type AwarenessConfig struct {
-	DBPath   string `json:"db_path"`   // path to graph.json; empty → auto-detect
-	RepoPath string `json:"repo_path"` // repo root; empty → auto-detect via git
-	DocsDir  string `json:"docs_dir"`  // path to docs/awareness; empty → auto-detect
-	NodeID   string `json:"node_id"`   // optional node ID for runtime bridge labelling
-}
-
 // MCPConfig is the explicit configuration for the Globular MCP server.
 type MCPConfig struct {
 	Enabled        bool     `json:"enabled"`
@@ -31,9 +21,6 @@ type MCPConfig struct {
 
 	// Tool group toggles — each can be enabled/disabled independently.
 	ToolGroups ToolGroupConfig `json:"tool_groups"`
-
-	// Awareness graph configuration (used when tool_groups.awareness is true).
-	Awareness AwarenessConfig `json:"awareness"`
 
 	// Safety: allowlists for risky data surfaces.
 	// If a surface is enabled but its allowlist is empty, access is denied.
@@ -98,8 +85,6 @@ type ToolGroupConfig struct {
 	Monitoring  bool `json:"monitoring"`  // default true (Prometheus metrics)
 	Browser     bool `json:"browser"`     // default true (Chrome DevTools Protocol bridge)
 	AIExecutor  bool `json:"ai_executor"` // default true (AI executor peer collaboration)
-	Awareness   bool `json:"awareness"`   // default true (awareness graph tools)
-	Intent      bool `json:"intent"`      // default true (architectural intent graph)
 	Auth        bool `json:"auth"`        // default false (deferred)
 	DNS         bool `json:"dns"`         // default false (deferred)
 	Aggregator  bool `json:"aggregator"`  // default true (cluster MCP aggregator)
@@ -166,8 +151,6 @@ func defaultConfig() *MCPConfig {
 			Monitoring:  true,
 			Browser:     true,
 			AIExecutor:  true,
-			Awareness:   true,
-			Intent:      true,
 			Auth:        false, // deferred
 			DNS:         false, // deferred
 			Aggregator:  true,
@@ -267,8 +250,6 @@ func applyToolGroupDefaults(rawJSON []byte, cfg *MCPConfig) {
 		"workflow":   &cfg.ToolGroups.Workflow,
 		"etcd":       &cfg.ToolGroups.Etcd,
 		"monitoring": &cfg.ToolGroups.Monitoring,
-		"awareness":  &cfg.ToolGroups.Awareness,
-		"intent":     &cfg.ToolGroups.Intent,
 		"aggregator": &cfg.ToolGroups.Aggregator,
 	}
 

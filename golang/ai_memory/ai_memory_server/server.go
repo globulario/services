@@ -1022,11 +1022,6 @@ func main() {
 		"startup_ms", time.Since(start).Milliseconds(),
 	)
 
-	// Day-1 auto-seeder: populate ai-memory from the operational-knowledge
-	// payload inside the active awareness bundle. Best-effort, idempotent;
-	// stays silent if no bundle is installed yet.
-	srv.startOpsKnowledgeAutoSeed(context.Background())
-
 	lm := globular.NewLifecycleManager(srv, logger)
 	if err := lm.Start(); err != nil {
 		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)

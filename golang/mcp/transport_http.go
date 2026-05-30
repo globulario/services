@@ -293,12 +293,6 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 		s.handleStreamablePost(w, r)
 	})
 
-	// Awareness bundle stream endpoint (Phase B). Serves only the active
-	// bundle at /var/lib/globular/awareness/current/bundle.tar.gz as
-	// application/octet-stream — never base64 in JSON.
-	mux.HandleFunc(awarenessBundleStreamPath, s.awarenessBundleHTTPHandler)
-	mux.HandleFunc(awarenessBundleManifestPath, s.awarenessManifestHTTPHandler)
-
 	// Health endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
