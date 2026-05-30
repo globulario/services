@@ -2868,3 +2868,67 @@ failure_modes:
         - TestApplyPatchTo_UnknownSetFieldsEmitsCanaryLogAndReturnsFalse
         - TestRunPackageReleaseWorkflow_WaveBlockedResponseTriggersRetry
         - TestRunPackageReleaseWorkflow_DispatchSiteInspectsRespStatus
+
+    - id: reconcile.stale_dep_block_persists_after_dep_active
+      title: A node holds its bootstrap phase because a prior BLOCKED_MISSING_NATIVE_DEP record was never cleared after the dep became active
+      severity: high
+      symptoms:
+        - "node stuck at one of: xds_ready / envoy_ready / awareness_ready / workload_ready for >5 min after the blocking infra service is reported active"
+        - "`hasUnservedNodes` returns true for the node yet the reconciler never dispatches an install workflow for the blocked package"
+        - "`globular cluster_get_node_health_detail <node>` shows the blocking dep as active, but the convergence record still reads BLOCKED_MISSING_NATIVE_DEP"
+        - "etcd contains `/globular/convergence/nodes/{node}/packages/{kind}/{pkg}/latest` with outcome=BLOCKED_MISSING_NATIVE_DEP and `/globular/convergence/actions/controller/{node}/{kind}/{pkg}/runtime_dep_block` still present after dep is active"
+        - "manual `etcdctl del` of those two keys followed by `globular services repair` unsticks the node — proves the deps are healthy and the records are stale"
+        - "on a new node join the issue recurs: same races between bootstrap and dep-active observation produce fresh stale records"
+      root_cause: |
+        `writeRuntimeDepBlock` in `critical_key_prereqs.go` records the
+        block on every reconcile tick that sees the dep inactive. The
+        controller has no symmetric sweep that clears those records
+        once the dep is observed active again. Bootstrap-time races
+        make this visible: a node's xds_ready phase writes BLOCKED
+        records at t=T while envoy/xds finishes starting at t=T+Δ;
+        when the next reconcile tick runs, the records are stale but
+        the dispatch gate in `hasUnservedNodes` (release_pipeline.go)
+        reads the latest convergence record verbatim and returns true,
+        which prevents the dispatch that would observe the dep active
+        and clear the record. Result: infinite stall until an operator
+        does manual etcd surgery.
+
+        Incident history: INC-2026-0005 (globule-dell Day-1 join,
+        2026-05-23). Three clearing waves were needed before the node
+        converged: 6 keys during bootstrap, 34 keys after
+        workload_ready, 2 keys for the sctool dep on scylla-manager.
+        See session_dell_join_dep_block_fix.
+      architecture_fix: |
+        Add a structural `clearStaleRuntimeDepBlocks` sweep to the
+        controller reconcile loop. On each tick, for every action key
+        matching `runtime_dep_block` for node N, re-check the blocking
+        dependency's current state. When the dep is observed active:
+          - Delete the per-package latest convergence record at
+            `/globular/convergence/nodes/{node}/packages/{kind}/{pkg}/latest`.
+          - Delete the controller action key at
+            `/globular/convergence/actions/controller/{node}/{kind}/{pkg}/runtime_dep_block`.
+          - Emit an audit event identifying the cleared records and
+            the dep-active observation that triggered the clear.
+        The sweep is idempotent: when the dep is still inactive it
+        leaves the record alone. The clearing is therefore safe even
+        during dep-active flapping — at worst the record is rewritten
+        the next tick.
+      known_bad_fixes:
+        - "treating manual `etcdctl del` as the supported recovery — it leaves the next race unaddressed and bakes the operator into the dispatch loop"
+        - "masking the BLOCKED record in `hasUnservedNodes` so dispatch proceeds anyway — defeats the dep-block gate entirely, breaks legitimate cases where the dep IS inactive"
+        - "increasing the dep-block record's TTL so it expires naturally — replaces a known stall with a longer one, still loses dispatch attempts inside the TTL window"
+        - "only clearing on the install path — bootstrap-race windows can write a BLOCKED record AFTER the install path's clear runs, so the record sticks until the next install attempt that never happens because dispatch is blocked"
+        - "checking join_phase before unit-active in `checkRuntimeDeps` — known dead-code refactor that doesn't address the clearing gap"
+      related_invariants:
+        - reconcile.dep_block_records_must_be_cleared_when_dep_satisfies
+        - convergence.no_infinite_retry
+        - critical_state.absence_is_not_destructive_intent
+      related_services:
+        - cluster-controller
+        - node-agent
+        - etcd
+      required_tests:
+        - TestReconcile_DepBlockClearedWhenDepBecomesActive
+        - TestReconcile_StaleDepBlockDoesNotStallDispatch
+        - TestHasUnservedNodes_StaleDepBlockTreatedAsUnblocked
+        - TestWriteRuntimeDepBlock_RaceWithDepActiveDoesNotPersistStaleRecord

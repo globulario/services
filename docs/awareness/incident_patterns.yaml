@@ -134,3 +134,65 @@ incident_patterns:
       - svcReleaseHandle.PatchStatus
       - appReleaseHandle.PatchStatus
       - infraReleaseHandle.PatchStatus
+
+  - id: pat.reconcile_stale_dep_block_never_cleared
+    title: writeRuntimeDepBlock writes BLOCKED record but no symmetric sweep clears it once the dep becomes active
+    severity: critical
+    failure_mode: reconcile.stale_dep_block_persists_after_dep_active
+    root_cause: |
+      The controller's reconcile sweep is asymmetric: when a native
+      dependency is not active for node N, `writeRuntimeDepBlock` in
+      `critical_key_prereqs.go` records a `BLOCKED_MISSING_NATIVE_DEP`
+      latest convergence record AND a `runtime_dep_block` controller
+      action key. There is no matching `clearRuntimeDepBlock` sweep
+      that runs on subsequent ticks. When the dep transitions to
+      active, the records linger and `hasUnservedNodes` in
+      `release_pipeline.go` keeps returning true, which prevents the
+      dispatch that would observe the now-active dep and clear the
+      record. The dispatch gate is gated on a record that only the
+      dispatch can clear — an infinite stall by construction.
+      Bootstrap races (node phase advances at t=T while dep
+      observation lands at t=T+Δ) make this hit on every fresh node
+      join. The supported recovery is manual `etcdctl del` of the
+      two stale keys followed by `globular services repair` — that's
+      a runbook, not a fix.
+
+      INC-2026-0005 (globule-dell Day-1, 2026-05-23) needed three
+      manual clearing waves: 6 keys during bootstrap, 34 keys after
+      workload_ready, 2 keys for the sctool→scylla-manager dep. Each
+      new node join reproduces the trap. See
+      session_dell_join_dep_block_fix.
+    lesson: |
+      Every controller-written BLOCKED state must be paired with a
+      structural sweep that clears it when the blocking condition is
+      observed false again. Writing the block is half the contract;
+      writing the clear is the other half. The clear sweep must be
+      idempotent and run on every reconcile tick (not only on dep-
+      active state transitions) so bootstrap races cannot leave a
+      stale record outliving the condition that produced it. A
+      manual `etcdctl del` runbook is not a substitute for the
+      sweep — it is evidence the sweep is missing.
+    edit_shapes:
+      - writing a BLOCKED_MISSING_* convergence record without a corresponding clear sweep on the same controller tick path
+      - gating dispatch on a convergence-record outcome that only dispatch itself can move off BLOCKED
+      - relying on "the next install attempt" to clear stale state when the dispatch gate is what's blocking the next install attempt
+      - clearing a dep-block only on the install-success path while the bootstrap path can write a fresh block after that path runs
+    wrong_fixes:
+      - elevating `etcdctl del` of the two stale keys to "supported recovery procedure" — leaves the next race unaddressed
+      - masking BLOCKED records in `hasUnservedNodes` so dispatch proceeds anyway — defeats the dep-block gate for legitimate inactive cases
+      - increasing the dep-block record's TTL so it expires naturally — replaces a known stall with a longer one
+      - one-shot clear inside `checkRuntimeDeps` at install time only — bootstrap window can re-write the record
+      - hardcoding which packages can ignore stale dep-blocks (special-casing always wears out)
+    files:
+      - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
+      - golang/cluster_controller/cluster_controller_server/critical_key_prereqs.go
+      - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+    related_invariants:
+      - reconcile.dep_block_records_must_be_cleared_when_dep_satisfies
+      - convergence.no_infinite_retry
+      - critical_state.absence_is_not_destructive_intent
+    related_symbols:
+      - writeRuntimeDepBlock
+      - checkRuntimeDeps
+      - hasUnservedNodes
+      - clearRuntimeDepBlock

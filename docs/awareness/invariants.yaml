@@ -4426,3 +4426,65 @@ invariants:
         - TestRunPackageReleaseWorkflow_DispatchSiteInspectsRespStatus
       related_failure_modes:
         - release_pipeline.set_fields_silent_noop_on_wrong_kind
+
+    - id: reconcile.dep_block_records_must_be_cleared_when_dep_satisfies
+      title: Runtime dependency-block records must be cleared once the blocking dependency is observed as satisfied
+      severity: high
+      status: active
+      summary: |
+        When the controller writes a `BLOCKED_MISSING_NATIVE_DEP` runtime
+        convergence record (via `writeRuntimeDepBlock` and the
+        `runtime_dep_block` action key), that record encodes a
+        point-in-time observation: dep X is not active for node N. The
+        reconciler's dispatch gate (`hasUnservedNodes` in
+        release_pipeline.go) reads the latest convergence record and
+        refuses to dispatch when it sees BLOCKED. The invariant: when
+        the dep observably transitions to active, BOTH the per-package
+        latest convergence record AND the controller action key must be
+        cleared, so the next reconcile tick can dispatch. A stale
+        BLOCKED record left in etcd after the dep is active produces an
+        infinite stall — the node holds its bootstrap phase
+        (xds_ready / envoy_ready / awareness_ready / workload_ready),
+        `hasUnservedNodes` keeps returning true, and the dispatch gate
+        keeps blocking. The only recovery today is manual `etcdctl del`
+        of the stale keys followed by `globular services repair`; that
+        recovery is not a substitute for the cleanup sweep the
+        invariant requires.
+      protects:
+        state:
+            - /globular/convergence/nodes/{node}/packages/{kind}/{name}/latest
+            - /globular/convergence/actions/controller/{node}/{kind}/{pkg}/runtime_dep_block
+        files:
+            - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
+        symbols:
+            - writeRuntimeDepBlock
+            - checkRuntimeDeps
+            - hasUnservedNodes
+            - clearRuntimeDepBlock
+      enforcement: |
+        On every reconcile sweep that observes a previously-blocking
+        dependency as active for node N, the controller must:
+          1. Delete the matching per-package latest convergence record
+             (key /globular/convergence/nodes/{node}/packages/{kind}/{name}/latest).
+          2. Delete the corresponding controller action key
+             (/globular/convergence/actions/controller/{node}/{kind}/{pkg}/runtime_dep_block).
+          3. Emit an audit event so the clear is traceable.
+        The clear path must be a structural sweep, not a one-shot called
+        only at install time — bootstrap races can write the BLOCKED
+        record AFTER the dep becomes active for the briefest window.
+        The sweep must therefore re-evaluate on every reconcile tick,
+        not only on dep-active state transitions.
+      forbidden_fixes:
+        - manually_delete_dep_block_keys_via_etcdctl_as_recovery_mechanism
+        - mask_stale_dep_blocks_in_hasUnservedNodes_so_dispatch_proceeds_anyway
+        - bypass_dep_block_dispatch_gate_to_unstall_a_specific_node
+        - increase_dep_block_TTL_so_records_expire_naturally_instead_of_being_cleared
+        - silently_skip_dep_block_writes_when_a_concurrent_dep_active_signal_is_pending
+        - clear_dep_block_on_install_path_only_without_a_reconcile_sweep
+      required_tests:
+        - TestReconcile_DepBlockClearedWhenDepBecomesActive
+        - TestReconcile_StaleDepBlockDoesNotStallDispatch
+        - TestHasUnservedNodes_StaleDepBlockTreatedAsUnblocked
+        - TestWriteRuntimeDepBlock_RaceWithDepActiveDoesNotPersistStaleRecord
+      related_failure_modes:
+        - reconcile.stale_dep_block_persists_after_dep_active
