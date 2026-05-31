@@ -23,6 +23,9 @@ code_edges:
   - from: globular.platform:code.go.node_agent.installer.NodeAgentServer_ApplyPackageRelease
     relation: implements
     to: globular.platform:intent.install.result_requires_durable_commit
+  - from: globular.platform:code.go.node_agent.installer.NodeAgentServer_recordRevisionAndReceipts
+    relation: relates_to
+    to: globular.platform:intent.workflow.step_receipts_are_evidence
   - from: globular.platform:code.go.node_agent.installer.NodeAgentServer_writeBinaryUnverifiedInstalledState
     relation: enforces
     to: globular.platform:invariant.state.installed_not_catalog

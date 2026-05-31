@@ -41,3 +41,57 @@ code_edges:
   - from: globular.platform:code.go.cluster_controller.reconciler.server_serviceHealthyForRelease
     relation: tested_by
     to: golang/cluster_controller/cluster_controller_server/release_service_health_test.go:TestServiceHealthyForRelease_Daemon_ActiveUnit_IsHealthy
+  - from: globular.platform:code.go.controller.convergence_committer
+    relation: enforces
+    to: globular.platform:invariant.install.result.atomic_commit
+  - from: globular.platform:code.go.controller.convergence_committer
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.controller.convergence_committer
+    relation: implements
+    to: globular.platform:intent.install.result_requires_durable_commit
+  - from: globular.platform:code.go.controller.convergence_committer
+    relation: implements
+    to: globular.platform:intent.installed_state.owned_by_node_agent
+  - from: globular.platform:code.go.controller.convergence_committer.convergenceCommitter_processResult
+    relation: enforces
+    to: globular.platform:invariant.install.result.atomic_commit
+  - from: globular.platform:code.go.controller.convergence_committer.convergenceCommitter_processResult
+    relation: implements
+    to: globular.platform:intent.install.result_requires_durable_commit
+  - from: globular.platform:code.go.controller.convergence_committer.convergenceCommitter_processResult
+    relation: protects
+    to: globular.platform:failure_mode.install.result.partial_commit
+  - from: globular.platform:code.go.controller.release_pipeline
+    relation: enforces
+    to: globular.platform:invariant.desired.build_id_immutable
+  - from: globular.platform:code.go.controller.release_pipeline
+    relation: enforces
+    to: globular.platform:invariant.release_pipeline.set_fields_routing_must_match_release_kind
+  - from: globular.platform:code.go.controller.release_pipeline
+    relation: implements
+    to: globular.platform:intent.reconciler.resolution_must_match_spec
+  - from: globular.platform:code.go.controller.release_pipeline
+    relation: protects
+    to: globular.platform:failure_mode.release_pipeline.set_fields_silent_noop_on_wrong_kind
+  - from: globular.platform:code.go.controller.release_pipeline.server_reconcileResolved
+    relation: enforces
+    to: globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
+  - from: globular.platform:code.go.controller.release_pipeline.server_reconcileResolved
+    relation: implements
+    to: globular.platform:intent.controller.apply_package_release_must_carry_expected_sha256
+  - from: globular.platform:code.go.controller.release_pipeline.server_reconcileResolved
+    relation: protects
+    to: globular.platform:failure_mode.controller.apply_package_missing_expected_sha256_blocks_verified_install
+  - from: globular.platform:code.go.controller.release_pipeline.server_reconcileResolved
+    relation: protects
+    to: globular.platform:failure_mode.node_agent.install_package_aliases_convergence_hash_into_expected_sha256
+  - from: globular.platform:code.go.controller.release_resolver
+    relation: implements
+    to: globular.platform:intent.controller.apply_package_release_must_carry_expected_sha256
+  - from: globular.platform:code.go.controller.release_resolver
+    relation: implements
+    to: globular.platform:intent.package.identity_tuple_must_be_unique
+  - from: globular.platform:code.go.controller.release_resolver
+    relation: protects
+    to: globular.platform:failure_mode.node_agent.install_package_aliases_convergence_hash_into_expected_sha256

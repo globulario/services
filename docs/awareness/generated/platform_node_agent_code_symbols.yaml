@@ -61,6 +61,17 @@ code_symbols:
         - globular.platform:invariant.state.installed_not_catalog
       implements:
         - globular.platform:intent.install.result_requires_durable_commit
+  - id: globular.platform:code.go.node_agent.installer.NodeAgentServer_recordRevisionAndReceipts
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/package_revision_post.go
+    symbol: NodeAgentServer.recordRevisionAndReceipts
+    kind: method
+    component: node_agent.installer
+    risk: low
+    annotations:
+      relates_to:
+        - globular.platform:intent.workflow.step_receipts_are_evidence
   - id: globular.platform:code.go.node_agent.installer.NodeAgentServer_writeBinaryUnverifiedInstalledState
     namespace: globular.platform
     language: go

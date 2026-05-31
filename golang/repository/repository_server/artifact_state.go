@@ -64,6 +64,13 @@ func computeSHA256(data []byte) string {
 }
 
 // ArtifactPipelineState is the durable pipeline state tracker.
+//
+// @awareness namespace=globular.platform
+// @awareness component=repository.artifact_state
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness protects=globular.platform:failure_mode.package.installed_binary_hash_mismatch
+// @awareness risk=high
 type ArtifactPipelineState string
 
 const (

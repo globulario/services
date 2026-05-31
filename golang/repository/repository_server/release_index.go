@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=repository.release_index
+// @awareness file_role=bom_schema_and_digest_authority
+// @awareness implements=globular.platform:intent.release.bom_is_precise_release_authority
+// @awareness implements=globular.platform:intent.package.identity_tuple_must_be_unique
+// @awareness enforces=globular.platform:invariant.repository.package_build_lane_unique
+// @awareness risk=medium
 package main
 
 // release_index.go — Canonical schema definition and validation for

@@ -1,3 +1,11 @@
+// @awareness namespace=globular.platform
+// @awareness component=controller.convergence_committer
+// @awareness file_role=installed_state_authority
+// @awareness implements=globular.platform:intent.installed_state.owned_by_node_agent
+// @awareness implements=globular.platform:intent.install.result_requires_durable_commit
+// @awareness enforces=globular.platform:invariant.install.result.atomic_commit
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness risk=high
 package main
 
 import (
@@ -122,6 +130,13 @@ func (c *convergenceCommitter) runOnce(ctx context.Context) {
 // authoritative InstalledPackage to etcd. This is the final write that closes
 // the desired→installed loop. It must be atomic — partial writes cause
 // repeated reconcile dispatches.
+//
+// @awareness namespace=globular.platform
+// @awareness component=controller.convergence_committer
+// @awareness implements=globular.platform:intent.install.result_requires_durable_commit
+// @awareness enforces=globular.platform:invariant.install.result.atomic_commit
+// @awareness protects=globular.platform:failure_mode.install.result.partial_commit
+// @awareness risk=high
 //
 //globular:enforces install.result.atomic_commit
 //globular:writes /globular/nodes/{node_id}/packages/{kind}/{name}

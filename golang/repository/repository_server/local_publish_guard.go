@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=repository.local_publish_guard
+// @awareness file_role=identity_lane_enforcer
+// @awareness enforces=globular.platform:invariant.package.official_identity_immutable
+// @awareness enforces=globular.platform:invariant.package.local_publish_requires_local_identity
+// @awareness enforces=globular.platform:invariant.package.promotion_must_use_official_release_pipeline
+// @awareness risk=high
 package main
 
 // local_publish_guard.go — Identity lane enforcement for local/dev/hotfix builds.

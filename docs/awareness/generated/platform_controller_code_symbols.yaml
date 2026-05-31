@@ -85,3 +85,73 @@ code_symbols:
         - globular.platform:intent.runtime_health.requires_live_observation
       tested_by:
         - golang/cluster_controller/cluster_controller_server/release_service_health_test.go:TestServiceHealthyForRelease_Daemon_ActiveUnit_IsHealthy
+  - id: globular.platform:code.go.controller.convergence_committer
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/convergence_committer.go
+    component: controller.convergence_committer
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.install.result.atomic_commit
+        - globular.platform:invariant.state.installed_not_catalog
+      implements:
+        - globular.platform:intent.installed_state.owned_by_node_agent
+        - globular.platform:intent.install.result_requires_durable_commit
+  - id: globular.platform:code.go.controller.convergence_committer.convergenceCommitter_processResult
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/convergence_committer.go
+    symbol: convergenceCommitter.processResult
+    kind: method
+    component: controller.convergence_committer
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.install.result.atomic_commit
+      implements:
+        - globular.platform:intent.install.result_requires_durable_commit
+      protects:
+        - globular.platform:failure_mode.install.result.partial_commit
+  - id: globular.platform:code.go.controller.release_pipeline
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/release_pipeline.go
+    component: controller.release_pipeline
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.desired.build_id_immutable
+        - globular.platform:invariant.release_pipeline.set_fields_routing_must_match_release_kind
+      implements:
+        - globular.platform:intent.reconciler.resolution_must_match_spec
+      protects:
+        - globular.platform:failure_mode.release_pipeline.set_fields_silent_noop_on_wrong_kind
+  - id: globular.platform:code.go.controller.release_pipeline.server_reconcileResolved
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/release_pipeline.go
+    symbol: server.reconcileResolved
+    kind: method
+    component: controller.release_pipeline
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
+      implements:
+        - globular.platform:intent.controller.apply_package_release_must_carry_expected_sha256
+      protects:
+        - globular.platform:failure_mode.controller.apply_package_missing_expected_sha256_blocks_verified_install
+        - globular.platform:failure_mode.node_agent.install_package_aliases_convergence_hash_into_expected_sha256
+  - id: globular.platform:code.go.controller.release_resolver
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/release_resolver.go
+    component: controller.release_resolver
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.controller.apply_package_release_must_carry_expected_sha256
+        - globular.platform:intent.package.identity_tuple_must_be_unique
+      protects:
+        - globular.platform:failure_mode.node_agent.install_package_aliases_convergence_hash_into_expected_sha256
