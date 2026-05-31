@@ -1,3 +1,6 @@
+// @awareness namespace=globular.platform
+// @awareness component=node_agent.installed_state
+// @awareness file_role=installed_state_observer
 package main
 
 import (
@@ -84,6 +87,11 @@ type InstalledServiceInfo struct {
 
 // IsAuthoritative returns true if this observation may participate in
 // convergence checks, desired-state import, and etcd installed-state records.
+//
+// @awareness namespace=globular.platform
+// @awareness component=node_agent.installed_state
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness risk=high
 func (i InstalledServiceInfo) IsAuthoritative() bool {
 	return i.Source == ManagedInstalled
 }
@@ -96,6 +104,12 @@ func (i InstalledServiceInfo) IsAuthoritative() bool {
 //globular:reads /globular/nodes/{node_id}/packages/{kind}/{name}
 //globular:hash_schema installed_services_hash
 //globular:risk infra.heartbeat_sets_desired_state
+// @awareness namespace=globular.platform
+// @awareness component=node_agent.installed_state
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness implements=globular.platform:intent.installed_state.owned_by_node_agent
+// @awareness tested_by=golang/node_agent/node_agent_server/installed_services_test.go:TestComputeInstalledServicesDeterministic
+// @awareness risk=high
 func ComputeInstalledServices(ctx context.Context) (map[ServiceKey]InstalledServiceInfo, string, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -632,6 +646,11 @@ func isHex64(s string) bool {
 //globular:expects_hash_schema infra_desired_hash
 //globular:reads /globular/nodes/{node_id}/packages/INFRASTRUCTURE/{component}
 //globular:writes /globular/nodes/{node_id}/packages/INFRASTRUCTURE/{component}
+// @awareness namespace=globular.platform
+// @awareness component=node_agent.installed_state
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness implements=globular.platform:intent.installed_state.owned_by_node_agent
+// @awareness risk=medium
 func StampInfraConvergenceHash(ctx context.Context, nodeID, component, convergenceHash string) error {
 	if convergenceHash == "" {
 		return nil // nothing to stamp

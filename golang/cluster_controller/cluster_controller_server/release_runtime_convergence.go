@@ -1,3 +1,6 @@
+// @awareness namespace=globular.platform
+// @awareness component=cluster_controller.convergence
+// @awareness file_role=convergence_classifier
 package main
 
 import (
@@ -78,6 +81,11 @@ func runtimeFreshnessThreshold(node *nodeState) time.Duration {
 	}
 }
 
+// @awareness namespace=globular.platform
+// @awareness component=cluster_controller.convergence
+// @awareness implements=globular.platform:intent.runtime_health.requires_live_observation
+// @awareness tested_by=golang/cluster_controller/cluster_controller_server/release_runtime_convergence_test.go:TestRuntimeStaleIsNotConverged
+// @awareness risk=medium
 func runtimeStatusFresh(node *nodeState, now time.Time) (bool, string) {
 	if node == nil {
 		return false, "runtime status unknown (node state unavailable)"
@@ -103,6 +111,13 @@ func runtimeStatusFresh(node *nodeState, now time.Time) (bool, string) {
 //globular:expects_hash_schema service_desired_hash
 //globular:state_transition DESIRED -> INSTALLED
 //globular:risk convergence.classification_error
+// @awareness namespace=globular.platform
+// @awareness component=cluster_controller.convergence
+// @awareness enforces=globular.platform:invariant.state.runtime_not_desired
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness implements=globular.platform:intent.service.installation_is_not_runtime_truth
+// @awareness tested_by=golang/cluster_controller/cluster_controller_server/release_runtime_convergence_test.go:TestRuntimeStaleIsNotConverged
+// @awareness risk=critical
 func classifyPackageConvergence(
 	node *nodeState,
 	pkgName, pkgKind string,
@@ -208,6 +223,11 @@ func classifyPackageConvergence(
 	return pc
 }
 
+// @awareness namespace=globular.platform
+// @awareness component=cluster_controller.convergence
+// @awareness enforces=globular.platform:invariant.state.runtime_not_desired
+// @awareness tested_by=golang/cluster_controller/cluster_controller_server/release_runtime_convergence_test.go:TestPackageRuntimeHealthyOnNode_ServiceActive
+// @awareness risk=high
 func packageRuntimeHealthyOnNode(node *nodeState, pkgName, pkgKind string) (bool, string) {
 	// Build an artificial installed record so classifyPackageConvergence performs
 	// runtime-only checks without version/hash/build gates.

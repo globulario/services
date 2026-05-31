@@ -1,0 +1,46 @@
+code_edges:
+  - from: globular.platform:code.go.node_agent.installed_state.ComputeInstalledServices
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.node_agent.installed_state.ComputeInstalledServices
+    relation: implements
+    to: globular.platform:intent.installed_state.owned_by_node_agent
+  - from: globular.platform:code.go.node_agent.installed_state.ComputeInstalledServices
+    relation: tested_by
+    to: golang/node_agent/node_agent_server/installed_services_test.go:TestComputeInstalledServicesDeterministic
+  - from: globular.platform:code.go.node_agent.installed_state.InstalledServiceInfo_IsAuthoritative
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.node_agent.installed_state.StampInfraConvergenceHash
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.node_agent.installed_state.StampInfraConvergenceHash
+    relation: implements
+    to: globular.platform:intent.installed_state.owned_by_node_agent
+  - from: globular.platform:code.go.node_agent.installer.NodeAgentServer_ApplyPackageRelease
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.node_agent.installer.NodeAgentServer_ApplyPackageRelease
+    relation: implements
+    to: globular.platform:intent.install.result_requires_durable_commit
+  - from: globular.platform:code.go.node_agent.installer.NodeAgentServer_writeBinaryUnverifiedInstalledState
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.node_agent.installer.NodeAgentServer_writeBinaryUnverifiedInstalledState
+    relation: implements
+    to: globular.platform:intent.install.result_requires_durable_commit
+  - from: globular.platform:code.go.node_agent.runtime_proof.NodeAgentServer_GetServiceRuntimeProof
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.node_agent.runtime_proof.NodeAgentServer_GetServiceRuntimeProof
+    relation: implements
+    to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.node_agent.runtime_proof.collectServiceRuntimeProof
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.node_agent.runtime_proof.collectServiceRuntimeProof
+    relation: implements
+    to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.node_agent.runtime_proof.collectServiceRuntimeProof
+    relation: tested_by
+    to: golang/node_agent/node_agent_server/runtime_proof_test.go:TestCollectServiceRuntimeProof_HappyPath

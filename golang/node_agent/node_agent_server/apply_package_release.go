@@ -1,3 +1,6 @@
+// @awareness namespace=globular.platform
+// @awareness component=node_agent.installer
+// @awareness file_role=package_installer
 package main
 
 import (
@@ -29,6 +32,12 @@ import (
 //
 // Returns a degraded response (Ok=false, Status=installed_unverified). Callers
 // must NOT treat this as a SUCCESS path even though no error is set.
+//
+// @awareness namespace=globular.platform
+// @awareness component=node_agent.installer
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness implements=globular.platform:intent.install.result_requires_durable_commit
+// @awareness risk=high
 func (srv *NodeAgentServer) writeBinaryUnverifiedInstalledState(
 	ctx context.Context,
 	req *node_agentpb.ApplyPackageReleaseRequest,
@@ -166,6 +175,12 @@ func installedBinaryPath(name, kind string) string {
 // Authorization: gated by globular.auth.authz with permission="admin" on
 // resource "/node_agent/packages/{package_name}". Only controller workflow
 // execution (sa principal) or cluster admins can invoke this RPC.
+//
+// @awareness namespace=globular.platform
+// @awareness component=node_agent.installer
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness implements=globular.platform:intent.install.result_requires_durable_commit
+// @awareness risk=high
 func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_agentpb.ApplyPackageReleaseRequest) (*node_agentpb.ApplyPackageReleaseResponse, error) {
 	name := strings.TrimSpace(req.GetPackageName())
 	kind := strings.ToUpper(strings.TrimSpace(req.GetPackageKind()))

@@ -1,3 +1,6 @@
+// @awareness namespace=globular.platform
+// @awareness component=cluster_controller.desired_state
+// @awareness file_role=desired_state_writer
 package main
 
 import (

@@ -1,3 +1,6 @@
+// @awareness namespace=globular.platform
+// @awareness component=cluster_controller.reconciler
+// @awareness file_role=release_reconciler
 package main
 
 import (
@@ -198,6 +201,13 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 // reconcileRelease drives the phase state machine for one ServiceRelease
 // using the shared release pipeline.
 // Called from the worker goroutine when the queue key has the "release/" prefix.
+//
+// @awareness namespace=globular.platform
+// @awareness component=cluster_controller.reconciler
+// @awareness enforces=globular.platform:invariant.state.runtime_not_desired
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness implements=globular.platform:intent.desired_state.is_authority
+// @awareness risk=critical
 func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 	if !srv.mustBeLeader() {
 		return
@@ -447,6 +457,12 @@ func (srv *server) reconcileReleaseAvailable(ctx context.Context, rel *cluster_c
 	})
 }
 
+// @awareness namespace=globular.platform
+// @awareness component=cluster_controller.reconciler
+// @awareness enforces=globular.platform:invariant.state.runtime_not_desired
+// @awareness implements=globular.platform:intent.runtime_health.requires_live_observation
+// @awareness tested_by=golang/cluster_controller/cluster_controller_server/release_service_health_test.go:TestServiceHealthyForRelease_Daemon_ActiveUnit_IsHealthy
+// @awareness risk=high
 func (srv *server) serviceHealthyForRelease(node *nodeState, rel *cluster_controllerpb.ServiceRelease) bool {
 	if node == nil || rel == nil || rel.Spec == nil {
 		return false

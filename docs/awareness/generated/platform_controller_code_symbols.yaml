@@ -1,0 +1,87 @@
+code_symbols:
+  - id: globular.platform:code.go.cluster_controller.convergence
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+    component: cluster_controller.convergence
+  - id: globular.platform:code.go.cluster_controller.convergence.classifyPackageConvergence
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+    symbol: classifyPackageConvergence
+    kind: function
+    component: cluster_controller.convergence
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.runtime_not_desired
+        - globular.platform:invariant.state.installed_not_catalog
+      implements:
+        - globular.platform:intent.service.installation_is_not_runtime_truth
+      tested_by:
+        - golang/cluster_controller/cluster_controller_server/release_runtime_convergence_test.go:TestRuntimeStaleIsNotConverged
+  - id: globular.platform:code.go.cluster_controller.convergence.packageRuntimeHealthyOnNode
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+    symbol: packageRuntimeHealthyOnNode
+    kind: function
+    component: cluster_controller.convergence
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.runtime_not_desired
+      tested_by:
+        - golang/cluster_controller/cluster_controller_server/release_runtime_convergence_test.go:TestPackageRuntimeHealthyOnNode_ServiceActive
+  - id: globular.platform:code.go.cluster_controller.convergence.runtimeStatusFresh
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+    symbol: runtimeStatusFresh
+    kind: function
+    component: cluster_controller.convergence
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.runtime_health.requires_live_observation
+      tested_by:
+        - golang/cluster_controller/cluster_controller_server/release_runtime_convergence_test.go:TestRuntimeStaleIsNotConverged
+  - id: globular.platform:code.go.cluster_controller.desired_state
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/desired_state.go
+    component: cluster_controller.desired_state
+  - id: globular.platform:code.go.cluster_controller.reconciler
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/release_reconciler.go
+    component: cluster_controller.reconciler
+  - id: globular.platform:code.go.cluster_controller.reconciler.server_reconcileRelease
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/release_reconciler.go
+    symbol: server.reconcileRelease
+    kind: method
+    component: cluster_controller.reconciler
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.runtime_not_desired
+        - globular.platform:invariant.state.installed_not_catalog
+      implements:
+        - globular.platform:intent.desired_state.is_authority
+  - id: globular.platform:code.go.cluster_controller.reconciler.server_serviceHealthyForRelease
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/release_reconciler.go
+    symbol: server.serviceHealthyForRelease
+    kind: method
+    component: cluster_controller.reconciler
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.runtime_not_desired
+      implements:
+        - globular.platform:intent.runtime_health.requires_live_observation
+      tested_by:
+        - golang/cluster_controller/cluster_controller_server/release_service_health_test.go:TestServiceHealthyForRelease_Daemon_ActiveUnit_IsHealthy

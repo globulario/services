@@ -1,0 +1,43 @@
+code_edges:
+  - from: globular.platform:code.go.cluster_controller.convergence.classifyPackageConvergence
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.cluster_controller.convergence.classifyPackageConvergence
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.cluster_controller.convergence.classifyPackageConvergence
+    relation: implements
+    to: globular.platform:intent.service.installation_is_not_runtime_truth
+  - from: globular.platform:code.go.cluster_controller.convergence.classifyPackageConvergence
+    relation: tested_by
+    to: golang/cluster_controller/cluster_controller_server/release_runtime_convergence_test.go:TestRuntimeStaleIsNotConverged
+  - from: globular.platform:code.go.cluster_controller.convergence.packageRuntimeHealthyOnNode
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.cluster_controller.convergence.packageRuntimeHealthyOnNode
+    relation: tested_by
+    to: golang/cluster_controller/cluster_controller_server/release_runtime_convergence_test.go:TestPackageRuntimeHealthyOnNode_ServiceActive
+  - from: globular.platform:code.go.cluster_controller.convergence.runtimeStatusFresh
+    relation: implements
+    to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.cluster_controller.convergence.runtimeStatusFresh
+    relation: tested_by
+    to: golang/cluster_controller/cluster_controller_server/release_runtime_convergence_test.go:TestRuntimeStaleIsNotConverged
+  - from: globular.platform:code.go.cluster_controller.reconciler.server_reconcileRelease
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.cluster_controller.reconciler.server_reconcileRelease
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.cluster_controller.reconciler.server_reconcileRelease
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.cluster_controller.reconciler.server_serviceHealthyForRelease
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.cluster_controller.reconciler.server_serviceHealthyForRelease
+    relation: implements
+    to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.cluster_controller.reconciler.server_serviceHealthyForRelease
+    relation: tested_by
+    to: golang/cluster_controller/cluster_controller_server/release_service_health_test.go:TestServiceHealthyForRelease_Daemon_ActiveUnit_IsHealthy

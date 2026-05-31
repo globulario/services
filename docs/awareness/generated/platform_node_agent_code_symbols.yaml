@@ -1,0 +1,109 @@
+code_symbols:
+  - id: globular.platform:code.go.node_agent.installed_state
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/installed_services.go
+    component: node_agent.installed_state
+  - id: globular.platform:code.go.node_agent.installed_state.ComputeInstalledServices
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/installed_services.go
+    symbol: ComputeInstalledServices
+    kind: function
+    component: node_agent.installed_state
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+      implements:
+        - globular.platform:intent.installed_state.owned_by_node_agent
+      tested_by:
+        - golang/node_agent/node_agent_server/installed_services_test.go:TestComputeInstalledServicesDeterministic
+  - id: globular.platform:code.go.node_agent.installed_state.InstalledServiceInfo_IsAuthoritative
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/installed_services.go
+    symbol: InstalledServiceInfo.IsAuthoritative
+    kind: method
+    component: node_agent.installed_state
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+  - id: globular.platform:code.go.node_agent.installed_state.StampInfraConvergenceHash
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/installed_services.go
+    symbol: StampInfraConvergenceHash
+    kind: function
+    component: node_agent.installed_state
+    risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+      implements:
+        - globular.platform:intent.installed_state.owned_by_node_agent
+  - id: globular.platform:code.go.node_agent.installer
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/apply_package_release.go
+    component: node_agent.installer
+  - id: globular.platform:code.go.node_agent.installer.NodeAgentServer_ApplyPackageRelease
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/apply_package_release.go
+    symbol: NodeAgentServer.ApplyPackageRelease
+    kind: method
+    component: node_agent.installer
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+      implements:
+        - globular.platform:intent.install.result_requires_durable_commit
+  - id: globular.platform:code.go.node_agent.installer.NodeAgentServer_writeBinaryUnverifiedInstalledState
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/apply_package_release.go
+    symbol: NodeAgentServer.writeBinaryUnverifiedInstalledState
+    kind: method
+    component: node_agent.installer
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+      implements:
+        - globular.platform:intent.install.result_requires_durable_commit
+  - id: globular.platform:code.go.node_agent.runtime_proof
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/runtime_proof.go
+    component: node_agent.runtime_proof
+  - id: globular.platform:code.go.node_agent.runtime_proof.NodeAgentServer_GetServiceRuntimeProof
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/runtime_proof.go
+    symbol: NodeAgentServer.GetServiceRuntimeProof
+    kind: method
+    component: node_agent.runtime_proof
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.runtime_not_desired
+      implements:
+        - globular.platform:intent.runtime_health.requires_live_observation
+  - id: globular.platform:code.go.node_agent.runtime_proof.collectServiceRuntimeProof
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/runtime_proof.go
+    symbol: collectServiceRuntimeProof
+    kind: function
+    component: node_agent.runtime_proof
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.runtime_not_desired
+      implements:
+        - globular.platform:intent.runtime_health.requires_live_observation
+      tested_by:
+        - golang/node_agent/node_agent_server/runtime_proof_test.go:TestCollectServiceRuntimeProof_HappyPath
