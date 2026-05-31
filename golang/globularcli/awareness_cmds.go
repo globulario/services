@@ -41,6 +41,11 @@ import (
 // specific node). When empty, the address is resolved from etcd.
 var awarenessAddrOverride string
 
+// awarenessInsecure disables TLS for the gRPC dial. Localhost-dev only;
+// the standalone awareness-graph defaults to plaintext, and this flag
+// lets the CLI talk to it without TLS plumbing.
+var awarenessInsecure bool
+
 var awarenessCmd = &cobra.Command{
 	Use:   "awareness",
 	Short: "Query the awareness-graph service (briefing/impact/resolve/query)",
@@ -362,7 +367,11 @@ func awarenessTruncate(s string, n int) string { //nolint:unused // used in quer
 // ─── shared helpers ─────────────────────────────────────────────────────
 
 func awarenessDialClient() (*awareness_graph_client.Client, error) {
-	cli, err := awareness_graph_client.New(awarenessAddrOverride)
+	var opts []awareness_graph_client.Option
+	if awarenessInsecure {
+		opts = append(opts, awareness_graph_client.WithInsecure())
+	}
+	cli, err := awareness_graph_client.New(awarenessAddrOverride, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("awareness-graph unreachable: %w (set --awareness-addr or deploy the service)", err)
 	}
@@ -430,6 +439,8 @@ func init() {
 
 	awarenessCmd.PersistentFlags().StringVar(&awarenessAddrOverride, "awareness-addr", "",
 		"Override awareness-graph address (host:port). Defaults to etcd discovery.")
+	awarenessCmd.PersistentFlags().BoolVar(&awarenessInsecure, "awareness-insecure", false,
+		"Disable TLS for the awareness-graph dial. Localhost-dev only.")
 
 	awarenessCmd.AddCommand(awarenessBriefingCmd)
 	awarenessCmd.AddCommand(awarenessImpactCmd)

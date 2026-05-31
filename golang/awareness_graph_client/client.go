@@ -30,7 +30,23 @@ import (
 	"github.com/globulario/services/golang/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
+
+// Option configures a Client at construction time. Use via New(addr, ...Option).
+type Option func(*options)
+
+type options struct {
+	insecure bool
+}
+
+// WithInsecure disables TLS for the gRPC connection. Use only for localhost
+// dev/smoke testing against a non-TLS awareness-graph instance (the standalone
+// server defaults to plaintext). Production deployments MUST use mTLS — never
+// pass this option when talking to a cluster service.
+func WithInsecure() Option {
+	return func(o *options) { o.insecure = true }
+}
 
 // ServiceName is the canonical etcd service registration key for the
 // awareness-graph gRPC service. The awareness-graph repo registers itself
@@ -61,7 +77,15 @@ type Client struct {
 // addr is empty, the address is resolved via etcd; if no registration exists
 // the function returns ErrServiceUnregistered so callers can surface a clear
 // DEGRADED status rather than a generic dial failure.
-func New(addr string) (*Client, error) {
+//
+// Pass WithInsecure() to disable TLS — only appropriate for localhost dev or
+// smoke testing the standalone awareness-graph (which defaults to plaintext).
+func New(addr string, opts ...Option) (*Client, error) {
+	o := &options{}
+	for _, opt := range opts {
+		opt(o)
+	}
+
 	if addr == "" {
 		addr = config.ResolveServiceAddr(ServiceName, "")
 		if addr == "" {
@@ -73,12 +97,18 @@ func New(addr string) (*Client, error) {
 		return nil, fmt.Errorf("awareness_graph_client: invalid address %q", addr)
 	}
 
-	tlsCfg, err := buildTLSConfig(target.ServerName)
-	if err != nil {
-		return nil, err
+	var creds grpc.DialOption
+	if o.insecure {
+		creds = grpc.WithTransportCredentials(insecure.NewCredentials())
+	} else {
+		tlsCfg, err := buildTLSConfig(target.ServerName)
+		if err != nil {
+			return nil, err
+		}
+		creds = grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg))
 	}
 
-	cc, err := grpc.NewClient(target.Address, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
+	cc, err := grpc.NewClient(target.Address, creds)
 	if err != nil {
 		return nil, fmt.Errorf("awareness_graph_client: dial %s: %w", target.Address, err)
 	}
