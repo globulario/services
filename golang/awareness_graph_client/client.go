@@ -92,23 +92,34 @@ func New(addr string, opts ...Option) (*Client, error) {
 			return nil, ErrServiceUnregistered
 		}
 	}
+
+	// awareness-graph is a plaintext gRPC service (TLS:false in etcd).
+	// When insecure mode is requested, dial the raw etcd address directly so
+	// we bypass Envoy mesh routing (which rewrites all ports to 443 and
+	// requires TLS). Going through Envoy would fail because the upstream
+	// cluster only passes its active health check once grpc.health.v1 is
+	// implemented on the backend.
+	if o.insecure {
+		cc, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return nil, fmt.Errorf("awareness_graph_client: dial %s: %w", addr, err)
+		}
+		return &Client{
+			cc:   cc,
+			pb:   awarenesspb.NewAwarenessGraphClient(cc),
+			addr: addr,
+		}, nil
+	}
+
 	target := config.ResolveDialTarget(addr)
 	if target.Address == "" {
 		return nil, fmt.Errorf("awareness_graph_client: invalid address %q", addr)
 	}
-
-	var creds grpc.DialOption
-	if o.insecure {
-		creds = grpc.WithTransportCredentials(insecure.NewCredentials())
-	} else {
-		tlsCfg, err := buildTLSConfig(target.ServerName)
-		if err != nil {
-			return nil, err
-		}
-		creds = grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg))
+	tlsCfg, err := buildTLSConfig(target.ServerName)
+	if err != nil {
+		return nil, err
 	}
-
-	cc, err := grpc.NewClient(target.Address, creds)
+	cc, err := grpc.NewClient(target.Address, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
 	if err != nil {
 		return nil, fmt.Errorf("awareness_graph_client: dial %s: %w", target.Address, err)
 	}
