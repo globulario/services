@@ -699,32 +699,8 @@ jobs:
           mkdir -p dist/release-bin
           [[ -f dist/bin/globular ]] && mv dist/bin/globular dist/release-bin/globular
           [[ -f dist/bin/globular-installer ]] && mv dist/bin/globular-installer dist/release-bin/globular-installer
-          # Keep globularcli — needed by the awareness-bundle step below.
-          [[ -f dist/bin/globularcli ]] && mv dist/bin/globularcli dist/release-bin/globularcli
           rm -rf dist/bin
           df -h /
-
-      # ── Build awareness bundle ───────────────────────────────────────────
-      # Ships graph.db + invariants/failure-modes YAML + seeds inside the
-      # release tarball so install-day0.sh can install it locally before
-      # any awareness check runs. Without this, Phase 8 (Day-1 readiness
-      # gate) reports AWARENESS_BUNDLE_MISSING on every fresh install
-      # until node-agent fetches one from the repository.
-      - name: Build awareness bundle
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-          mkdir -p dist/awareness
-          # Build graph.db (writes to services/.globular/awareness/graph.db).
-          ./dist/release-bin/globularcli awareness build --repo services
-          # Build the bundle tar.gz tagged with the release version so the
-          # classifier's release-index ↔ bundle version match check passes.
-          ./dist/release-bin/globularcli awareness bundle build \
-            --repo services \
-            --version "${VERSION}" \
-            --output-dir dist/awareness
-          ls -la dist/awareness/
 
       # ═══════════════════════════════════════════════════════════════════════
       # BOM: Generate release-index.json v2
@@ -954,11 +930,6 @@ jobs:
           cp dist/packages/*.tgz "${RELEASE_DIR}/packages/" 2>/dev/null || true
           cp dist/unchanged/*.tgz "${RELEASE_DIR}/packages/" 2>/dev/null || true
 
-          # Awareness bundle — shipped INSIDE the release tarball so
-          # install-day0.sh installs it locally before Phase 8 validation.
-          mkdir -p "${RELEASE_DIR}/awareness"
-          cp dist/awareness/awareness-bundle-*.tar.gz "${RELEASE_DIR}/awareness/"
-
           # Release index (the BOM itself)
           cp dist/release-index.json "${RELEASE_DIR}/release-index.json"
 
@@ -1071,7 +1042,6 @@ jobs:
             dist/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz.sha256
             dist/packages/*.tgz
             dist/release-index.json
-            dist/awareness/awareness-bundle-*.tar.gz
           generate_release_notes: true
           body: |
             ## Globular ${{ steps.version.outputs.version }}
