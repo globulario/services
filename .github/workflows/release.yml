@@ -82,10 +82,14 @@ jobs:
           sudo apt-get install -y libsqlite3-dev libwebp-dev unixodbc-dev bzip2 unzip
 
       # ── Go setup ─────────────────────────────────────────────────────────
+      # services/golang/go.mod requires go 1.25 (inherited via the
+      # github.com/globulario/awareness-graph module). The Globular sub-build
+      # (xds + gateway) uses a replace-directive against ../services/golang
+      # so the same toolchain version must be available there too.
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
           cache-dependency-path: services/golang/go.sum
 
       # ── Version ──────────────────────────────────────────────────────────
