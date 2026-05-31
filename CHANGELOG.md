@@ -9,6 +9,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions follow 
 ## [Unreleased]
 
 ### Added
+- **awareness-graph v0.0.7 (platform 1.2.132)** — Phase C+D: intent YAML importer and embed-based store bootstrap
+  - **Phase C — Intent importer**: recursive walker now classifies and imports `docs/intent/` YAML files; 119/123 intent nodes loaded into Oxigraph with typed subclasses (`aw:DesignIntent`, `aw:OperationalIntent`, `aw:ProductIntent`, `aw:ConstraintIntent`); relations emitted: `aw:zoomsInto`, `aw:zoomsOutTo`, `aw:relatedTo`, `aw:expressedBy`, `aw:activationTrigger`, `aw:badSmell`; cross-links to invariants/failure-modes resolved by IRI
+  - **Phase C — detectSchema fix**: composite-key detection (`id` + `level` → intent) now runs before the primary key table so intent files with `required_tests:` data fields are not misclassified
+  - **Phase D — Embedded bootstrap**: `yaml2nt` generates `embeddata/awareness.nt` at build time (9193 triples); `seedIfEmpty()` at startup auto-loads the embedded graph into a fresh Oxigraph store — service is immediately queryable after install with no manual data-load step
+  - `awareness_query(by_class, intent)` and `awareness_resolve(Intent, ...)` MCP tools now return full intent nodes with descriptions and cross-links
 - **Documentation site** at `https://globular.io/docs/` — 50 pages, MkDocs Material, searchable, dark/light mode
 - **GitHub Release workflow** (`.github/workflows/release.yml`) — push a tag, get a tarball
 - **CI doc validation** (`.github/workflows/docs.yml`) — builds docs, validates CLI commands, checks stale paths
