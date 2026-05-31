@@ -1132,28 +1132,6 @@
       "origin_release": "v1.2.42",
       "changed_in_release": false,
       "profiles": []
-    },
-    {
-      "name": "globular-awareness-bundle",
-      "kind": "awareness_bundle",
-      "version": "1.2.106",
-      "build_number": 345,
-      "build_id": "fd1b1071-c627-402c-bfef-0409bb4f2d36",
-      "platform": "noarch",
-      "publisher": "core@globular.io",
-      "channel": "stable",
-      "package_contract_digest": "sha256:56bd8b4029bd92c2ae2ecd919b752b01af61c0f5b140609d8e1ed7d481eb3d9c",
-      "package_digest": "sha256:56bd8b4029bd92c2ae2ecd919b752b01af61c0f5b140609d8e1ed7d481eb3d9c",
-      "entrypoint_checksum": "",
-      "asset_url": "https://github.com/globulario/services/releases/download/v1.2.106/awareness-bundle-1.2.106-fd1b1071.tar.gz",
-      "filename": "awareness-bundle-1.2.106-fd1b1071.tar.gz",
-      "origin_release": "v1.2.106",
-      "changed_in_release": true,
-      "profiles": [],
-      "provides": [],
-      "requires": [],
-      "hard_deps": [],
-      "defaults": {}
     }
   ]
 }
