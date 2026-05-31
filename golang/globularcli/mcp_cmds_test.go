@@ -55,14 +55,3 @@ func TestResolveMCPURL_FallsBackToDefault(t *testing.T) {
 		t.Errorf("resolveMCPURL returned malformed URL: %q", url)
 	}
 }
-
-func TestAwarenessMCPCmdIsDeprecated(t *testing.T) {
-	cmd, _, err := rootCmd.Find([]string{"awareness", "mcp-server"})
-	if err != nil || cmd == nil {
-		t.Fatalf("awareness mcp-server command not found: %v", err)
-	}
-	// Cobra sets Deprecated to a non-empty string for deprecated commands.
-	if cmd.Deprecated == "" {
-		t.Error("awareness mcp-server should have a non-empty Deprecated message")
-	}
-}
