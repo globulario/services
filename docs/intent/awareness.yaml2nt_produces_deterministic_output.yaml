@@ -1,0 +1,28 @@
+id: awareness.yaml2nt_produces_deterministic_output
+level: safety_rule
+title: yaml2nt must produce byte-identical output for the same input on repeated runs
+intent: >
+  The yaml2nt tool is deterministic: given the same YAML sources, two
+  consecutive runs produce identical N-Triples output. Determinism is enforced
+  by sorting emitted triples within each schema importer and by stable iteration
+  over YAML list fields. Random map iteration must not influence output order.
+agent_guidance: >
+  When adding a new schema importer or output field, ensure emitted triples are
+  sorted before writing. Never iterate over Go maps in output-producing code
+  without sorting the keys first.
+activation_triggers:
+  - yaml2nt
+  - deterministic output
+  - N-Triples order
+  - map iteration
+bad_smells:
+  - Go map iterated without key sort in triple emission
+  - two runs of yaml2nt produce different output for same input
+  - CI graph diff shows spurious reorderings
+related_to:
+  - awareness.loadnt_validates_before_loading
+  - awareness.yaml_importer_does_not_silently_skip_in_strict_mode
+  - awareness.compiled_graph_must_match_sources
+required_tests:
+  - awareness:TestYaml2ntIsDeterministic
+status: seed

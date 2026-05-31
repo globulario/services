@@ -1,0 +1,26 @@
+id: awareness.loadnt_validates_before_loading
+level: safety_rule
+title: loadnt must validate N-Triples content before any HTTP write to Oxigraph
+intent: >
+  The loadnt tool validates the full N-Triples stream with
+  extractor.ValidateNTriples before issuing any request to the Oxigraph Graph
+  Store endpoint. An invalid file is rejected entirely — no partial writes.
+agent_guidance: >
+  Never bypass the validation step to speed up a load. A partial write to
+  Oxigraph leaves the graph in an inconsistent state that is invisible to
+  readers until the next full rebuild.
+activation_triggers:
+  - loadnt
+  - ValidateNTriples
+  - Oxigraph load
+  - graph store write
+bad_smells:
+  - loadnt skips validation for performance
+  - partial write to Oxigraph graph store
+  - invalid N-Triples silently ingested
+related_to:
+  - awareness.compiled_graph_must_match_sources
+  - awareness.yaml2nt_produces_deterministic_output
+required_tests:
+  - awareness:TestLoadntRejectsInvalidNTriples
+status: seed

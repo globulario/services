@@ -1,0 +1,8 @@
+id: echo_rpc_returns_input_unchanged
+level: safety_rule
+title: Echo RPC must return the input message field unchanged
+intent: >
+  The Echo RPC handler returns exactly the input message. No transformation,
+  truncation, or enrichment is permitted. This is the defining contract of
+  the reference implementation.
+status: active

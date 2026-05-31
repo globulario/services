@@ -1,0 +1,27 @@
+id: awareness.oxigraph_is_external_runtime_state
+level: operator_model
+title: Oxigraph is external runtime state, not a managed in-process store
+intent: >
+  The awareness-graph server treats Oxigraph as external runtime state. It does
+  not cache, retry, or maintain a local copy of the graph. Failed writes leave
+  Oxigraph unchanged. On startup, the server seeds an empty Oxigraph from the
+  embedded NT; subsequent loads require an explicit graph-rebuild step.
+agent_guidance: >
+  Do not assume Oxigraph reflects the latest graph sources after a server restart.
+  A graph-rebuild step (loadnt) must be triggered explicitly. Failed HTTP writes
+  to Oxigraph are non-retrying — the caller is responsible for retry logic.
+activation_triggers:
+  - Oxigraph
+  - graph store
+  - graph-rebuild
+  - embedded NT
+bad_smells:
+  - server retries Oxigraph writes internally
+  - Oxigraph assumed current after restart without explicit rebuild
+  - local graph cache maintained alongside Oxigraph
+related_to:
+  - awareness.compiled_graph_must_match_sources
+  - awareness.loadnt_validates_before_loading
+required_tests:
+  - awareness:TestServerTreatsOxigraphAsExternalState
+status: seed

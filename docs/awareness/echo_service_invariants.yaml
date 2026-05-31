@@ -1,0 +1,17 @@
+invariants:
+  - id: echo_rpc_is_stateless
+    title: Echo RPC handler must carry no state between calls
+    severity: low
+    status: active
+    protects:
+      files:
+        - golang/echo/echo_server/handlers.go
+        - golang/echo/echo_server/server.go
+
+  - id: echo_rpc_preserves_message_bytes
+    title: Echo RPC must return the input message field byte-for-byte unchanged
+    severity: low
+    status: active
+    protects:
+      files:
+        - golang/echo/echo_server/handlers.go

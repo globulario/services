@@ -1,0 +1,27 @@
+id: awareness.query_does_not_expose_arbitrary_sparql
+level: safety_rule
+title: The Query RPC must never accept or forward arbitrary SPARQL from callers
+intent: >
+  The Query RPC accepts a typed QueryRequest with a closed QueryMode enum. No
+  path through the handler emits a caller-supplied SPARQL string. Each mode maps
+  to a fixed internal query template. Unknown modes return codes.InvalidArgument
+  — never a passthrough.
+agent_guidance: >
+  When adding a new query mode, add it to the closed enum and map it to a
+  fixed template in the handler switch. Never add a "raw" or "custom" mode
+  that forwards caller input as SPARQL.
+activation_triggers:
+  - Query RPC
+  - QueryMode
+  - SPARQL
+  - arbitrary query
+bad_smells:
+  - caller-supplied SPARQL string forwarded to Oxigraph
+  - QueryMode has a "raw" or "passthrough" variant
+  - unknown mode falls through instead of returning InvalidArgument
+related_to:
+  - awareness.mcp_bridge_exposes_safe_tools_only
+required_tests:
+  - awareness:TestQueryRejectsUnknownMode
+  - awareness:TestQueryUsesFixedTemplates
+status: seed

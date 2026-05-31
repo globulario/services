@@ -1,0 +1,27 @@
+id: awareness.impact_distinguishes_direct_and_inferred
+level: mechanism
+title: Impact analysis must partition anchors into Direct and Inferred tiers
+intent: >
+  ImpactForFile must categorize anchored knowledge nodes into Direct (file
+  aw:implements node, single-hop) and Inferred (multi-hop via aw:affects or
+  aw:relatesTo). This partition lets the briefing suppress low-confidence
+  inferred results from compact context without losing them for deep queries.
+agent_guidance: >
+  When reviewing ImpactForFile output, check that direct and inferred anchors
+  are labeled separately. Do not treat inferred anchors as confirmed facts;
+  use them as signals for further investigation.
+activation_triggers:
+  - impact analysis
+  - ImpactForFile
+  - direct anchors
+  - inferred anchors
+bad_smells:
+  - direct and inferred anchors merged without labeling
+  - inferred results presented as confirmed facts
+  - single-hop and multi-hop queries share the same output list
+related_to:
+  - awareness.preflight_before_edit
+  - awareness.unknown_impact_is_signal
+required_tests:
+  - awareness:TestImpactPartitionsDirect And Inferred
+status: seed

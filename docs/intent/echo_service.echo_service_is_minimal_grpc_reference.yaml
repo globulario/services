@@ -1,0 +1,8 @@
+id: echo_service_is_minimal_grpc_reference
+level: principle
+title: Echo service is the minimal gRPC reference implementation
+intent: >
+  The echo service demonstrates the smallest complete Globular gRPC service:
+  proto definition, generated bindings, registered handler, lifecycle wiring,
+  and test coverage. It must not grow beyond this minimal reference scope.
+status: active

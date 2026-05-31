@@ -1,0 +1,25 @@
+id: awareness.briefing_returns_explicit_status
+level: safety_rule
+title: Briefing must always return an explicit BriefingStatus, never default-zero
+intent: >
+  Every call to Briefing must set the Status field in the response. A
+  default-zero status (BRIEFING_STATUS_UNSPECIFIED) signals a bug or missing
+  initialization, not an empty graph. The empty case must be
+  BRIEFING_STATUS_EMPTY; store failures must be CODES_UNAVAILABLE.
+agent_guidance: >
+  If a Briefing response arrives with Status=0 (UNSPECIFIED), treat it as a
+  server-side bug, not as an empty result. Check initialization paths and error
+  handling branches in the server handler.
+activation_triggers:
+  - briefing
+  - BriefingStatus
+  - BRIEFING_STATUS_UNSPECIFIED
+bad_smells:
+  - briefing returns zero-value status
+  - empty graph silently returns UNSPECIFIED
+  - store failure swallowed as empty response
+related_to:
+  - awareness.graph_is_compiled_context_not_authority
+required_tests:
+  - awareness:TestBriefingAlwaysReturnsExplicitStatus
+status: seed

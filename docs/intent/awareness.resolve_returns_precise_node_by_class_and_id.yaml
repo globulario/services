@@ -1,0 +1,29 @@
+id: awareness.resolve_returns_precise_node_by_class_and_id
+level: mechanism
+title: Resolve returns exactly one node by class and bare ID, or Found=false
+intent: >
+  The Resolve RPC takes a (class, id) pair, mints the canonical IRI for that
+  pair, queries the store with DESCRIBE, and returns Found=false when no triples
+  exist. The class switch is a closed whitelist. No fuzzy matching, no class
+  inference from the ID, no fallback to related classes.
+agent_guidance: >
+  If Resolve returns Found=false, the node does not exist in the store under
+  that canonical IRI. Do not retry with a different class or infer the class
+  from the ID format. Report the miss to the caller and let them decide.
+activation_triggers:
+  - Resolve RPC
+  - canonical IRI
+  - DESCRIBE query
+  - Found=false
+bad_smells:
+  - class inferred from ID format
+  - fallback to related class on miss
+  - fuzzy IRI matching
+  - Resolve returns partial results when DESCRIBE finds no triples
+related_to:
+  - awareness.query_does_not_expose_arbitrary_sparql
+  - awareness.impact_distinguishes_direct_and_inferred
+required_tests:
+  - awareness:TestResolveReturnsFoundFalseOnMiss
+  - awareness:TestResolveUsesClosedClassWhitelist
+status: seed

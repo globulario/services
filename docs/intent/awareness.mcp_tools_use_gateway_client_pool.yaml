@@ -1,0 +1,27 @@
+id: awareness.mcp_tools_use_gateway_client_pool
+level: operator_model
+title: Production MCP traffic must route through the Globular gateway client pool, not direct gRPC
+intent: >
+  The awareness-mcp stdio bridge connects directly to a --awareness-addr flag
+  for local/development use. In production, MCP traffic must route through the
+  Globular gateway which resolves endpoints from etcd and applies mTLS. The
+  bridge's direct-connect mode is a known gap — documented so operators know
+  when gateway routing is bypassed.
+agent_guidance: >
+  When diagnosing awareness MCP failures in production, check whether the bridge
+  is connecting directly (--awareness-addr) or through the gateway. Direct
+  connections bypass mTLS and etcd-based endpoint resolution.
+activation_triggers:
+  - awareness-mcp
+  - --awareness-addr
+  - gateway client pool
+  - mTLS bypass
+bad_smells:
+  - production MCP bridge uses --awareness-addr direct connection
+  - awareness traffic bypasses etcd endpoint resolution
+  - no mTLS on awareness-mcp in production
+related_to:
+  - awareness.mcp_bridge_exposes_safe_tools_only
+required_tests:
+  - awareness:TestMCPBridgeDirectConnectDocumented
+status: seed

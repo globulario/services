@@ -1,0 +1,27 @@
+id: awareness.mcp_bridge_exposes_safe_tools_only
+level: safety_rule
+title: The awareness MCP bridge must expose only the three safe read tools
+intent: >
+  The awareness-mcp stdio bridge exposes exactly three tools: awareness_briefing,
+  awareness_impact, awareness_resolve. Arbitrary SPARQL queries, graph mutations,
+  and admin operations must never appear as MCP tools. The tool dispatch switch
+  is a closed whitelist enforced at the callTool boundary.
+agent_guidance: >
+  If a new awareness capability is added, do not expose it as an MCP tool until
+  it has been reviewed for read-safety. The callTool switch must remain a closed
+  whitelist — unknown tool names must return an error, not fall through.
+activation_triggers:
+  - awareness-mcp
+  - MCP bridge
+  - callTool
+  - tool dispatch
+bad_smells:
+  - SPARQL passthrough exposed as MCP tool
+  - graph mutation available via MCP
+  - callTool switch has a default passthrough case
+  - new tool added without whitelist review
+related_to:
+  - awareness.query_does_not_expose_arbitrary_sparql
+required_tests:
+  - awareness:TestMCPBridgeExposesOnlyThreeTools
+status: seed

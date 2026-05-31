@@ -1,0 +1,31 @@
+id: awareness.yaml_importer_does_not_silently_skip_in_strict_mode
+level: safety_rule
+title: YAML importer strict mode must surface all skipped files
+intent: >
+  When yaml2nt is invoked with -strict, every YAML file that is not fully
+  imported (unknown schema, known-unsupported, invalid) must appear in the
+  ImportReport.Skipped() list and cause the process to exit non-zero. Silent
+  skips are forbidden in strict mode — a file that produces 0 triples without
+  an explicit StatusKnownUnsupported entry is a bug.
+agent_guidance: >
+  In strict mode, treat any zero-triple file without a StatusKnownUnsupported
+  entry as a hard failure. Check ImportReport.Skipped() in CI output. Do not
+  add new YAML schemas without a corresponding importer or an explicit
+  KnownUnsupported declaration.
+activation_triggers:
+  - yaml2nt -strict
+  - ImportReport
+  - StatusKnownUnsupported
+  - silent skip
+bad_smells:
+  - strict mode exits zero with skipped files
+  - file produces 0 triples without KnownUnsupported entry
+  - ImportReport.Skipped() not checked in CI
+related_to:
+  - awareness.yaml2nt_produces_deterministic_output
+  - awareness.intent_schema_is_enforced
+  - awareness.compiled_graph_must_match_sources
+required_tests:
+  - awareness:TestStrictModeFailsOnUnknownSchema
+  - awareness:TestStrictModeReportsAllSkipped
+status: seed
