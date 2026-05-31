@@ -93,12 +93,9 @@ func New(addr string, opts ...Option) (*Client, error) {
 		}
 	}
 
-	// awareness-graph is a plaintext gRPC service (TLS:false in etcd).
-	// When insecure mode is requested, dial the raw etcd address directly so
-	// we bypass Envoy mesh routing (which rewrites all ports to 443 and
-	// requires TLS). Going through Envoy would fail because the upstream
-	// cluster only passes its active health check once grpc.health.v1 is
-	// implemented on the backend.
+	// WithInsecure is for dev/standalone use only (e.g. a local awareness-graph
+	// with no cluster PKI). Dial the raw etcd address directly, bypassing the
+	// Envoy mesh rewrite, so the plaintext connection reaches the service port.
 	if o.insecure {
 		cc, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {

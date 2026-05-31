@@ -44,7 +44,7 @@ func (h *awarenessClientHolder) get() (*awareness_graph_client.Client, error) {
 	if h.client != nil {
 		return h.client, nil
 	}
-	cli, err := awareness_graph_client.New("", awareness_graph_client.WithInsecure())
+	cli, err := awareness_graph_client.New("")
 	if err != nil {
 		h.lastErr = err
 		return nil, err
