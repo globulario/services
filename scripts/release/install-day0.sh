@@ -1712,29 +1712,36 @@ chown -R globular:globular "${DIST_PKG_DIR}" 2>/dev/null || true
 log_success "Package distribution ready: ${_copied} copied, ${_skipped} already present (${DIST_PKG_DIR})"
 
 # ── Register packages in repository (Layer 1) ────────────────────────────────
-# The controller resolves artifact versions from the repository service.
-# Publish all local packages so the reconciler can match installed → desired.
-# This replaces the old publish_bootstrap_artifacts workflow step (which also
-# uploaded binaries to MinIO; we dropped MinIO as a distribution path in v1.2.71).
+# Delegates to ensure-bootstrap-artifacts.sh which:
+#   - Discovers the repository endpoint from etcd (no DNS dependency)
+#   - Publishes all CORE_PACKAGES with checksum-based idempotency
+#   - Registers the upstream source (GitHub releases) for Day-1+ sync
+#   - Syncs the full release BOM from the upstream so the catalog is complete
+# Non-fatal: if the script fails, Day-0 continues with whatever was published.
 log_step "Registering Package Artifacts in Repository"
-if [[ -x "$GLOBULAR_CLI" ]]; then
-  # Wait for repository service to be reachable via mesh.
-  for _i in $(seq 1 30); do
-    if "$GLOBULAR_CLI" pkg publish \
-        --dir "$PKG_DIR" \
-        --repository repository.globular.internal \
-        >/dev/null 2>&1; then
-      log_success "All packages registered in repository"
-      break
-    fi
-    if [[ $_i -eq 30 ]]; then
-      log_warn "Could not register packages in repository after 30 attempts — controller may retry later"
-    else
-      sleep 2
-    fi
-  done
+if [[ -x "$SCRIPT_DIR/ensure-bootstrap-artifacts.sh" ]]; then
+  if bash "$SCRIPT_DIR/ensure-bootstrap-artifacts.sh" "$PKG_DIR" "$GLOBULAR_CLI"; then
+    log_success "Bootstrap artifacts registered"
+  else
+    log_warn "ensure-bootstrap-artifacts.sh returned non-zero (non-fatal) — some packages may be missing from repository"
+    log_warn "Re-run manually: bash $SCRIPT_DIR/ensure-bootstrap-artifacts.sh $PKG_DIR"
+  fi
 else
-  log_warn "globular CLI not found — skipping repository registration"
+  log_warn "ensure-bootstrap-artifacts.sh not found at $SCRIPT_DIR — falling back to direct publish"
+  if [[ -x "$GLOBULAR_CLI" ]]; then
+    for _i in $(seq 1 30); do
+      if "$GLOBULAR_CLI" pkg publish \
+          --dir "$PKG_DIR" \
+          --repository repository.globular.internal \
+          >/dev/null 2>&1; then
+        log_success "All packages registered in repository (fallback)"
+        break
+      fi
+      [[ $_i -eq 30 ]] && log_warn "Could not register packages after 30 attempts" || sleep 2
+    done
+  else
+    log_warn "globular CLI not found — skipping repository registration"
+  fi
 fi
 
 # ── Seed desired state from installed packages (Layer 2) ─────────────────────
