@@ -936,6 +936,46 @@ invariants:
         - "The approve_proposal MCP tool is read-only — it marks a proposal for human review but never writes to invariants.yaml or any approved YAML file; that requires explicit CLI 'globular awareness approve-proposal'"
         - "If a new MCP tool is added that could write to docs/awareness/, it must first pass selfcheck TestMCPCheckFailsWhenPromoteProposalExposed"
 
+    - id: mcp.tools.use_gateway_client_pool
+      title: MCP tools must dial services through the shared gateway client pool, never with custom gRPC clients
+      severity: high
+      status: active
+      summary: |
+        Every MCP tool that calls a Globular gRPC service must obtain its connection
+        via s.clients.get(ctx, gatewayEndpoint()) — the shared clientPool defined in
+        golang/mcp/clients.go. Envoy's gRPC path-based routing then delivers the call
+        to the correct service regardless of which node it is running on.
+
+        Creating a standalone *grpc.ClientConn, rolling custom TLS config, or
+        implementing per-tool service discovery (etcd lookup, gateway /config fallback,
+        direct port resolution) is forbidden. Those paths each re-implement logic that
+        is already correct and tested in clients.go, and they bypass the Envoy mesh
+        — breaking HA failover, load balancing, and connection reuse.
+
+        The awareness tools were the canonical example of this mistake: they used a
+        custom awareness_graph_client.Client with its own ResolveServiceAddr call,
+        which failed when the MCP process could not reach etcd directly, producing a
+        misleading "service not registered in etcd" error even when the service was
+        running and Envoy had a valid route.
+      protects:
+        files:
+          - golang/mcp/tools_awareness.go
+          - golang/mcp/tools_backup.go
+          - golang/mcp/tools_cluster.go
+          - golang/mcp/clients.go
+        symbols:
+          - gatewayEndpoint
+          - clientPool.get
+      forbidden_fixes:
+        - mcp_tool_custom_grpc_client
+        - mcp_tool_direct_service_discovery
+      required_tests:
+        - TestAwarenessToolsDialThroughGateway
+      decision_guidance:
+        - "New MCP tool needs to call a gRPC service? Use: conn, err := s.clients.get(ctx, gatewayEndpoint()); stub := mypb.NewMyServiceClient(conn)"
+        - "Never import a *_client package inside golang/mcp/ — the shared pool in clients.go is the only dial path"
+        - "Never call config.ResolveServiceAddr or config.GetMeshAddress from a tool handler — gatewayEndpoint() in clients.go already does this correctly"
+
     - id: awareness.node_context_must_not_flood
       title: Node context results must not flood with irrelevant matches
       severity: medium

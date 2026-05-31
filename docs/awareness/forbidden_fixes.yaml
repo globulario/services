@@ -2188,3 +2188,29 @@ forbidden_fixes:
   related_invariants:
   - dns.records_must_be_installed_and_runtime_healthy
   safe_alternative: 'Preserve intended profiles and correct DNS desired/runtime reconciliation logic.'
+- id: mcp_tool_custom_grpc_client
+  summary: >
+    Creating a standalone gRPC client (custom *grpc.ClientConn, custom TLS config, or a dedicated
+    *_client package) inside a new MCP tool handler instead of using the shared gateway client pool.
+    This was the exact mistake in tools_awareness.go: a bespoke awareness_graph_client.Client did
+    its own etcd service lookup, failed silently when etcd was unreachable from the MCP process,
+    and returned a misleading "service not registered in etcd" error even though the service was
+    running and Envoy had a valid route.
+  related_invariants:
+  - mcp.tools.use_gateway_client_pool
+  safe_alternative: >
+    Use s.clients.get(ctx, gatewayEndpoint()) to get a pooled connection, then wrap it with the
+    generated proto stub: stub := mypb.NewMyServiceClient(conn). Envoy routes the call by gRPC
+    path prefix — no per-tool service discovery needed.
+- id: mcp_tool_direct_service_discovery
+  summary: >
+    Calling config.ResolveServiceAddr, config.GetMeshAddress, or config.GetServicesConfigurationsByName
+    directly inside an MCP tool handler to find a service endpoint. These functions require the
+    MCP process to reach etcd with valid TLS, which may not be available, and they bypass the
+    shared connection pool and Envoy mesh routing.
+  related_invariants:
+  - mcp.tools.use_gateway_client_pool
+  safe_alternative: >
+    Call gatewayEndpoint() (defined in golang/mcp/clients.go) and obtain the connection through
+    s.clients.get(ctx, endpoint). The gatewayEndpoint function already performs the correct mesh
+    address resolution once; the pool reuses connections across all tool calls.
