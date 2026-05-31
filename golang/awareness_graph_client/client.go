@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"time"
 
@@ -51,7 +52,7 @@ func WithInsecure() Option {
 // ServiceName is the canonical etcd service registration key for the
 // awareness-graph gRPC service. The awareness-graph repo registers itself
 // under this name; this client looks it up via config.ResolveServiceAddr.
-const ServiceName = "awareness.AwarenessGraphService"
+const ServiceName = "globular.awareness_graph.AwarenessGraph"
 
 // DefaultTimeout bounds individual RPC calls. Briefing can hit the Oxigraph
 // backend with multi-clause SPARQL; the longer cap covers that.
@@ -116,7 +117,18 @@ func New(addr string, opts ...Option) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	cc, err := grpc.NewClient(target.Address, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
+	dialOpts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg))}
+	// When the dial target is a raw IP (mesh-routed via Envoy on :443), Envoy virtual
+	// host matching uses the gRPC :authority header, which gRPC-go sets to the dial
+	// address (10.x.x.x:443). That IP doesn't match the internal virtual host, so Envoy
+	// falls through to its default route and returns 404 JSON. Override :authority with
+	// the cluster domain so it matches the internal virtual host (same domain used for SNI).
+	if net.ParseIP(target.ServerName) != nil {
+		if domain, err := config.GetDomain(); err == nil && domain != "" {
+			dialOpts = append(dialOpts, grpc.WithAuthority(domain))
+		}
+	}
+	cc, err := grpc.NewClient(target.Address, dialOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("awareness_graph_client: dial %s: %w", target.Address, err)
 	}
@@ -196,6 +208,18 @@ func (c *Client) Query(ctx context.Context, req *awarenesspb.QueryRequest) (*awa
 // cert against the cluster CA, with ServerName pinned to the dial target's
 // cert-valid hostname. Mirrors the pattern used by node_agent ↔ controller.
 func buildTLSConfig(serverName string) (*tls.Config, error) {
+	// RFC 6066: IP literals MUST NOT be used as SNI in TLS ClientHello — Go
+	// silently omits SNI when ServerName is an IP. meshRouteAddrs rewrites
+	// service addresses to host:443 where host is the raw IP from etcd, so
+	// ResolveDialTarget returns an IP as ServerName. Without SNI, Envoy falls
+	// through to its default filter chain (external web handler) and returns
+	// "text/html" for all gRPC requests. Use the cluster domain instead so
+	// Envoy matches the internal filter chain and routes to the service.
+	if net.ParseIP(serverName) != nil {
+		if domain, err := config.GetDomain(); err == nil && domain != "" {
+			serverName = domain
+		}
+	}
 	cfg := &tls.Config{ServerName: serverName}
 
 	caPath := config.GetTLSFile("", "", "ca.crt")

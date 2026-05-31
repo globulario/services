@@ -22,6 +22,8 @@ import (
 
 	awarenesspb "github.com/globulario/awareness-graph/golang/pb"
 	"github.com/globulario/services/golang/awareness_graph_client"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // awarenessClientHolder caches one *Client per MCP server process. The
@@ -52,6 +54,31 @@ func (h *awarenessClientHolder) get() (*awareness_graph_client.Client, error) {
 	h.client = cli
 	h.lastErr = nil
 	return cli, nil
+}
+
+// resetOnTransportError clears the cached client when a transport-layer failure
+// is detected (codes.Unknown, codes.Unavailable). This allows the next call to
+// re-dial with a fresh connection — necessary when the gRPC channel was
+// established before Envoy had the route, or after a mesh reconfiguration.
+// Application-layer errors (InvalidArgument, NotFound, etc.) do NOT reset the
+// connection; only transport errors do.
+func (h *awarenessClientHolder) resetOnTransportError(err error) {
+	if err == nil {
+		return
+	}
+	st, _ := status.FromError(err)
+	switch st.Code() {
+	case codes.Unknown, codes.Unavailable:
+		// Transport errors — the connection itself is broken.
+	default:
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.client != nil {
+		_ = h.client.Close()
+		h.client = nil
+	}
 }
 
 var awarenessClient awarenessClientHolder
@@ -120,6 +147,7 @@ func registerAwarenessBriefingTool(s *server) {
 		}
 		resp, err := cli.Briefing(ctx, file, task, depth)
 		if err != nil {
+			awarenessClient.resetOnTransportError(err)
 			return degradedResult(err), nil
 		}
 		return briefingToMap(resp), nil
@@ -182,6 +210,7 @@ func registerAwarenessImpactTool(s *server) {
 		}
 		resp, err := cli.Impact(ctx, file)
 		if err != nil {
+			awarenessClient.resetOnTransportError(err)
 			return degradedResult(err), nil
 		}
 		return impactToMap(resp), nil
@@ -243,6 +272,7 @@ func registerAwarenessResolveTool(s *server) {
 		}
 		resp, err := cli.Resolve(ctx, class, id)
 		if err != nil {
+			awarenessClient.resetOnTransportError(err)
 			return degradedResult(err), nil
 		}
 		return resolveToMap(resp), nil
@@ -344,6 +374,7 @@ func registerAwarenessQueryTool(s *server) {
 		}
 		resp, err := cli.Query(ctx, req)
 		if err != nil {
+			awarenessClient.resetOnTransportError(err)
 			return degradedResult(err), nil
 		}
 		return queryToMap(resp), nil
