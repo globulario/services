@@ -109,6 +109,11 @@ code_symbols:
         - globular.awareness_graph:failure_mode.awareness.empty_graph_silently_treated_as_no_awareness
       tested_by:
         - golang/server/main_test.go:TestBriefingStoreNil
+  - id: globular.awareness_graph:code.go.server.code_symbol
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/code_symbol.go
+    component: server.code_symbol
   - id: globular.awareness_graph:code.go.server.impact
     namespace: globular.awareness_graph
     language: go
