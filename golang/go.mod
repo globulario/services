@@ -1,6 +1,6 @@
 module github.com/globulario/services/golang
 
-go 1.24.5
+go 1.25.0
 
 require (
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.9.3
@@ -19,6 +19,7 @@ require (
 	github.com/emersion/go-imap v1.2.1
 	github.com/emersion/go-message v0.18.1
 	github.com/emicklei/proto v1.13.2
+	github.com/globulario/awareness-graph v0.0.0-20260530205612-efd26e722bc3
 	github.com/globulario/globular-installer v0.0.0-20260520194113-156f49163ef8
 	github.com/globulario/utility v0.1.9
 	github.com/go-ldap/ldap/v3 v3.4.8
@@ -47,9 +48,9 @@ require (
 	github.com/vjeantet/ldapserver v1.0.1
 	go.etcd.io/etcd/client/v3 v3.5.14
 	go.mongodb.org/mongo-driver v1.16.0
-	golang.org/x/crypto v0.44.0
-	google.golang.org/grpc v1.78.0
-	google.golang.org/protobuf v1.36.10
+	golang.org/x/crypto v0.48.0
+	google.golang.org/grpc v1.81.1
+	google.golang.org/protobuf v1.36.11
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/yaml.v3 v3.0.1
 	sigs.k8s.io/yaml v1.4.0
@@ -59,7 +60,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
@@ -72,9 +73,9 @@ require (
 	github.com/tinylib/msgp v1.3.0 // indirect
 	github.com/txn2/txeh v1.5.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/otel/metric v1.38.0 // indirect
-	golang.org/x/net v0.47.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	go.opentelemetry.io/otel/metric v1.43.0 // indirect
+	golang.org/x/net v0.51.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 )
 
 require (
@@ -216,21 +217,21 @@ require (
 	go.etcd.io/etcd/api/v3 v3.5.14
 	go.etcd.io/etcd/client/pkg/v3 v3.5.14 // indirect
 	go.opencensus.io v0.22.5 // indirect
-	go.opentelemetry.io/otel v1.38.0 // indirect
-	go.opentelemetry.io/otel/trace v1.38.0 // indirect
+	go.opentelemetry.io/otel v1.43.0 // indirect
+	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20241210194714-1829a127f884 // indirect
 	golang.org/x/image v0.0.0-20211028202545-6944b10bf410
-	golang.org/x/mod v0.29.0 // indirect
-	golang.org/x/sync v0.18.0
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/term v0.37.0 // indirect
+	golang.org/x/mod v0.32.0 // indirect
+	golang.org/x/sync v0.20.0
+	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/term v0.40.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	golang.org/x/tools v0.38.0 // indirect
+	golang.org/x/tools v0.41.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20251029180050-ab9386a59fda // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251029180050-ab9386a59fda // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260226221140-a57be14db171 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	lukechampine.com/blake3 v1.1.6 // indirect

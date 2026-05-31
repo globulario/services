@@ -268,6 +268,46 @@ The canonical script is at `scripts/clean-node.sh` (also embedded in the gateway
 
 ---
 
+## AWARENESS USAGE
+
+Awareness is the compact gRPC map of project intent, invariants, failure modes, incident patterns, required tests, and forbidden fixes. It does NOT replace reading code, running tests, or checking runtime state — it shows which floorboards are fragile before you walk in.
+
+**Call awareness before non-trivial edits to:** service lifecycle, package publish/install, repository/discovery, cluster state, etcd state, RBAC/security/token logic, filesystem/upload paths, remediation/recovery code, install scripts, or tests that encode operational contracts.
+
+**Workflow:**
+1. `awareness.briefing` with `file` or `task` — start every non-trivial task here. Reads ~500 tokens by default.
+2. `awareness.impact` on each target file when briefing's coverage is thin — direct + inferred anchors.
+3. `awareness.resolve` on any `referenced_id` you need expanded.
+4. Read the actual code. Patch. Run the required tests from awareness output + nearby regressions.
+5. End the response with the awareness template (below).
+
+**Status handling:**
+- `ok` — treat returned rules as active context. Follow invariants and forbidden fixes; run required tests.
+- `empty` — NOT proof of safety. Say "no direct awareness anchors were found" and continue cautiously.
+- `degraded` or transport error — say awareness was unavailable; use code/tests/docs/runtime as fallback evidence.
+
+**Final response template** (append to every non-trivial code task):
+
+```text
+Awareness used:
+- briefing:
+- impact:
+- resolved IDs:
+- invariants touched:
+- failure modes considered:
+- forbidden fixes avoided:
+- required tests:
+- tests run:
+- remaining uncertainty:
+```
+
+If awareness was unavailable: `Awareness status: DEGRADED — fallback evidence: …`
+If awareness was empty: `Awareness status: EMPTY for the target — code/docs checked manually: …`
+
+Awareness explains *why* code exists, *what* it protects, *which fixes are forbidden*. Awareness cannot prove current etcd state, cluster membership, runtime health, or installed-package state — verify those with live tools.
+
+---
+
 ## AI RULES (for AI agents operating on this codebase)
 
 ### Observe before acting
