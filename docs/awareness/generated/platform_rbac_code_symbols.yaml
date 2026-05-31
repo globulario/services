@@ -1,0 +1,15 @@
+code_symbols:
+  - id: globular.platform:code.go.platform.rbac.access.server_validateAccess
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/rbac_access.go
+    symbol: server.validateAccess
+    kind: method
+    component: platform.rbac.access
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.audit.records_must_be_correlated_and_retained
+      implements:
+        - globular.platform:intent.security.deny_overrides_allow
+        - globular.platform:intent.rbac.permission_changes_require_audit_and_owner

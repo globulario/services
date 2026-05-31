@@ -1,0 +1,34 @@
+code_edges:
+  - from: globular.platform:code.go.platform.interceptors
+    relation: enforces
+    to: globular.platform:invariant.security.unauthenticated_allowlist_must_be_minimal
+  - from: globular.platform:code.go.platform.interceptors
+    relation: implements
+    to: globular.platform:intent.audit.every_authority_change_is_explainable
+  - from: globular.platform:code.go.platform.interceptors
+    relation: implements
+    to: globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+  - from: globular.platform:code.go.platform.interceptors
+    relation: implements
+    to: globular.platform:intent.security.deny_overrides_allow
+  - from: globular.platform:code.go.platform.interceptors.DenyUnmappedMethods
+    relation: enforces
+    to: globular.platform:invariant.security.unauthenticated_allowlist_must_be_minimal
+  - from: globular.platform:code.go.platform.interceptors.DenyUnmappedMethods
+    relation: implements
+    to: globular.platform:intent.security.deny_overrides_allow
+  - from: globular.platform:code.go.platform.interceptors.ServerUnaryInterceptor
+    relation: implements
+    to: globular.platform:intent.audit.every_authority_change_is_explainable
+  - from: globular.platform:code.go.platform.interceptors.ServerUnaryInterceptor
+    relation: implements
+    to: globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+  - from: globular.platform:code.go.platform.interceptors.ServerUnaryInterceptor
+    relation: implements
+    to: globular.platform:intent.security.deny_overrides_allow
+  - from: globular.platform:code.go.platform.interceptors.role_binding.checkRoleBinding
+    relation: implements
+    to: globular.platform:intent.rbac.permission_changes_require_audit_and_owner
+  - from: globular.platform:code.go.platform.interceptors.role_binding.checkRoleBinding
+    relation: implements
+    to: globular.platform:intent.security.deny_overrides_allow

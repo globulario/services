@@ -1,0 +1,64 @@
+code_edges:
+  - from: globular.platform:code.go.platform.security.approval_token
+    relation: enforces
+    to: globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+  - from: globular.platform:code.go.platform.security.approval_token
+    relation: enforces
+    to: globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+  - from: globular.platform:code.go.platform.security.approval_token
+    relation: implements
+    to: globular.platform:intent.remediation.token_contract
+  - from: globular.platform:code.go.platform.security.approval_token.MintApprovalToken
+    relation: enforces
+    to: globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+  - from: globular.platform:code.go.platform.security.approval_token.MintApprovalToken
+    relation: enforces
+    to: globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+  - from: globular.platform:code.go.platform.security.approval_token.MintApprovalToken
+    relation: implements
+    to: globular.platform:intent.remediation.token_contract
+  - from: globular.platform:code.go.platform.security.approval_token.ValidateApprovalToken
+    relation: enforces
+    to: globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+  - from: globular.platform:code.go.platform.security.approval_token.ValidateApprovalToken
+    relation: implements
+    to: globular.platform:intent.remediation.token_contract
+  - from: globular.platform:code.go.platform.security.auth_context
+    relation: implements
+    to: globular.platform:intent.globular.security.ceremony_over_configuration
+  - from: globular.platform:code.go.platform.security.auth_context
+    relation: implements
+    to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - from: globular.platform:code.go.platform.security.auth_context.NewAuthContext
+    relation: implements
+    to: globular.platform:intent.globular.security.ceremony_over_configuration
+  - from: globular.platform:code.go.platform.security.auth_context.NewAuthContext
+    relation: implements
+    to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - from: globular.platform:code.go.platform.security.bootstrap
+    relation: implements
+    to: globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+  - from: globular.platform:code.go.platform.security.bootstrap
+    relation: implements
+    to: globular.platform:intent.globular.security.ceremony_over_configuration
+  - from: globular.platform:code.go.platform.security.bootstrap.BootstrapGate_ShouldAllow
+    relation: implements
+    to: globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+  - from: globular.platform:code.go.platform.security.bootstrap.BootstrapGate_ShouldAllow
+    relation: implements
+    to: globular.platform:intent.globular.security.ceremony_over_configuration
+  - from: globular.platform:code.go.platform.security.jwt
+    relation: enforces
+    to: globular.platform:invariant.security.jwt_signing_key_must_be_cluster_scoped
+  - from: globular.platform:code.go.platform.security.jwt
+    relation: implements
+    to: globular.platform:intent.globular.security.ceremony_over_configuration
+  - from: globular.platform:code.go.platform.security.jwt
+    relation: implements
+    to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - from: globular.platform:code.go.platform.security.jwt.validateTokenInternal
+    relation: enforces
+    to: globular.platform:invariant.security.jwt_signing_key_must_be_cluster_scoped
+  - from: globular.platform:code.go.platform.security.jwt.validateTokenInternal
+    relation: implements
+    to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract

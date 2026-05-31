@@ -1,0 +1,109 @@
+code_symbols:
+  - id: globular.platform:code.go.platform.security.approval_token
+    namespace: globular.platform
+    language: go
+    file: golang/security/approval_token.go
+    component: platform.security.approval_token
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+        - globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+      implements:
+        - globular.platform:intent.remediation.token_contract
+  - id: globular.platform:code.go.platform.security.approval_token.MintApprovalToken
+    namespace: globular.platform
+    language: go
+    file: golang/security/approval_token.go
+    symbol: MintApprovalToken
+    kind: function
+    component: platform.security.approval_token
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+        - globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+      implements:
+        - globular.platform:intent.remediation.token_contract
+  - id: globular.platform:code.go.platform.security.approval_token.ValidateApprovalToken
+    namespace: globular.platform
+    language: go
+    file: golang/security/approval_token.go
+    symbol: ValidateApprovalToken
+    kind: function
+    component: platform.security.approval_token
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+      implements:
+        - globular.platform:intent.remediation.token_contract
+  - id: globular.platform:code.go.platform.security.auth_context
+    namespace: globular.platform
+    language: go
+    file: golang/security/auth_context.go
+    component: platform.security.auth_context
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+        - globular.platform:intent.globular.security.ceremony_over_configuration
+  - id: globular.platform:code.go.platform.security.auth_context.NewAuthContext
+    namespace: globular.platform
+    language: go
+    file: golang/security/auth_context.go
+    symbol: NewAuthContext
+    kind: function
+    component: platform.security.auth_context
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+        - globular.platform:intent.globular.security.ceremony_over_configuration
+  - id: globular.platform:code.go.platform.security.bootstrap
+    namespace: globular.platform
+    language: go
+    file: golang/security/bootstrap.go
+    component: platform.security.bootstrap
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+        - globular.platform:intent.globular.security.ceremony_over_configuration
+  - id: globular.platform:code.go.platform.security.bootstrap.BootstrapGate_ShouldAllow
+    namespace: globular.platform
+    language: go
+    file: golang/security/bootstrap.go
+    symbol: BootstrapGate.ShouldAllow
+    kind: method
+    component: platform.security.bootstrap
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+        - globular.platform:intent.globular.security.ceremony_over_configuration
+  - id: globular.platform:code.go.platform.security.jwt
+    namespace: globular.platform
+    language: go
+    file: golang/security/jwt.go
+    component: platform.security.jwt
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.security.jwt_signing_key_must_be_cluster_scoped
+      implements:
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+        - globular.platform:intent.globular.security.ceremony_over_configuration
+  - id: globular.platform:code.go.platform.security.jwt.validateTokenInternal
+    namespace: globular.platform
+    language: go
+    file: golang/security/jwt.go
+    symbol: validateTokenInternal
+    kind: function
+    component: platform.security.jwt
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.security.jwt_signing_key_must_be_cluster_scoped
+      implements:
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract

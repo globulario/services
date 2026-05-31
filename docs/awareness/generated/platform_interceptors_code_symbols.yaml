@@ -1,0 +1,52 @@
+code_symbols:
+  - id: globular.platform:code.go.platform.interceptors
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/ServerInterceptors.go
+    component: platform.interceptors
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.security.unauthenticated_allowlist_must_be_minimal
+      implements:
+        - globular.platform:intent.security.deny_overrides_allow
+        - globular.platform:intent.audit.every_authority_change_is_explainable
+        - globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+  - id: globular.platform:code.go.platform.interceptors.DenyUnmappedMethods
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/ServerInterceptors.go
+    symbol: DenyUnmappedMethods
+    kind: var
+    component: platform.interceptors
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.security.unauthenticated_allowlist_must_be_minimal
+      implements:
+        - globular.platform:intent.security.deny_overrides_allow
+  - id: globular.platform:code.go.platform.interceptors.ServerUnaryInterceptor
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/ServerInterceptors.go
+    symbol: ServerUnaryInterceptor
+    kind: function
+    component: platform.interceptors
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.security.deny_overrides_allow
+        - globular.platform:intent.audit.every_authority_change_is_explainable
+        - globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+  - id: globular.platform:code.go.platform.interceptors.role_binding.checkRoleBinding
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/role_binding_check.go
+    symbol: checkRoleBinding
+    kind: function
+    component: platform.interceptors.role_binding
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.security.deny_overrides_allow
+        - globular.platform:intent.rbac.permission_changes_require_audit_and_owner
