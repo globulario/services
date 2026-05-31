@@ -5,6 +5,8 @@ golang/resource/resourcepb/minio_proxy_config.go
 golang/tools/stage/
 golang/globularcli/generated/
 generated/
+# Exception: awareness-graph annotation output is checked-in source of truth
+!docs/awareness/generated/
 
 # Release build output
 dist/

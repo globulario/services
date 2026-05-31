@@ -1,0 +1,21 @@
+namespaces:
+  - id: globular.platform
+    label: Globular Platform
+    owns:
+      - docs/awareness
+      - docs/intent
+      - docs/operators
+      - docs/operational-knowledge
+    description: Core Globular platform rules, intents, operations, and contracts.
+
+  - id: globular.awareness_graph
+    label: Awareness Graph
+    owns:
+      - awareness-graph
+    description: RDF-backed awareness service exposing briefing, impact, resolve, and query.
+
+  - id: globular.examples.echo_service
+    label: Echo Service Example
+    owns:
+      - golang/echo/echo_server
+    description: Minimal service used as the pilot for @awareness annotations and agent briefing.

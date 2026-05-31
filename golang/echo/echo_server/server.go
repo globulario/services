@@ -1,6 +1,11 @@
 // Package main provides a minimal Echo gRPC service wired for Globular.
 // It exposes a service with structured logging via slog and a clean,
 // well-documented server type that satisfies Globular's service contract.
+//
+// @awareness namespace=globular.examples.echo_service
+// @awareness component=server
+// @awareness file_role=grpc_service_wiring
+// @awareness implements=globular.examples.echo_service:intent.echo_service_is_minimal_grpc_reference
 package main
 
 import (

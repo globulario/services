@@ -6,6 +6,10 @@ import (
 
 // Config holds the Echo service configuration.
 // It separates declarative configuration from runtime state.
+//
+// @awareness namespace=globular.examples.echo_service
+// @awareness component=server.config
+// @awareness implements=globular.examples.echo_service:intent.echo_service_is_minimal_grpc_reference
 type Config struct {
 	// Service identity
 	ID          string   `json:"Id"`

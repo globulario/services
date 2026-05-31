@@ -12,6 +12,11 @@ import (
 
 // TestEchoHandler validates the Echo RPC handler behavior
 // Phase 1 Step 2: Save() side effect removed - handler is now pure!
+//
+// @awareness namespace=globular.examples.echo_service
+// @awareness component=server.test
+// @awareness enforces=globular.examples.echo_service:invariant.echo_rpc_is_stateless
+// @awareness enforces=globular.examples.echo_service:invariant.echo_rpc_preserves_message_bytes
 func TestEchoHandler(t *testing.T) {
 	// Echo() is now pure - no Save() call, no etcd/TLS required
 	// Input: message
@@ -280,6 +285,12 @@ func TestGetterSetterContract(t *testing.T) {
 }
 
 // TestBehaviorInvariant documents the core Echo service behavior
+//
+// @awareness namespace=globular.examples.echo_service
+// @awareness component=server.test
+// @awareness enforces=globular.examples.echo_service:invariant.echo_rpc_is_stateless
+// @awareness enforces=globular.examples.echo_service:invariant.echo_rpc_preserves_message_bytes
+// @awareness enforces=globular.examples.echo_service:intent.echo_rpc_returns_input_unchanged
 func TestBehaviorInvariant(t *testing.T) {
 	t.Log("Echo Service Behavioral Contract:")
 	t.Log("1. Echo() must return exactly the message it receives")
