@@ -1,0 +1,142 @@
+code_edges:
+  - from: globular.platform:code.go.cluster_doctor.evidence_trust
+    relation: enforces
+    to: globular.platform:invariant.evidence.missing_is_not_known_bad
+  - from: globular.platform:code.go.cluster_doctor.evidence_trust
+    relation: enforces
+    to: globular.platform:invariant.evidence.must_carry_provenance_and_trust_level
+  - from: globular.platform:code.go.cluster_doctor.evidence_trust
+    relation: enforces
+    to: globular.platform:invariant.stale_evidence_must_not_authorize_remediation
+  - from: globular.platform:code.go.cluster_doctor.evidence_trust
+    relation: implements
+    to: globular.platform:intent.evidence.provenance_trust_levels
+  - from: globular.platform:code.go.cluster_doctor.evidence_trust
+    relation: implements
+    to: globular.platform:intent.health.requires_fresh_evidence
+  - from: globular.platform:code.go.cluster_doctor.evidence_trust.findingEvidenceTrust
+    relation: enforces
+    to: globular.platform:invariant.evidence.missing_is_not_known_bad
+  - from: globular.platform:code.go.cluster_doctor.evidence_trust.findingEvidenceTrust
+    relation: enforces
+    to: globular.platform:invariant.evidence.must_carry_provenance_and_trust_level
+  - from: globular.platform:code.go.cluster_doctor.evidence_trust.findingEvidenceTrust
+    relation: enforces
+    to: globular.platform:invariant.stale_evidence_must_not_authorize_remediation
+  - from: globular.platform:code.go.cluster_doctor.evidence_trust.findingEvidenceTrust
+    relation: implements
+    to: globular.platform:intent.evidence.provenance_trust_levels
+  - from: globular.platform:code.go.cluster_doctor.executor
+    relation: enforces
+    to: globular.platform:invariant.audit.must_redact_secret_material
+  - from: globular.platform:code.go.cluster_doctor.executor
+    relation: enforces
+    to: globular.platform:invariant.audit.records_must_be_correlated_and_retained
+  - from: globular.platform:code.go.cluster_doctor.executor
+    relation: enforces
+    to: globular.platform:invariant.force_action_must_not_hide_policy_gate
+  - from: globular.platform:code.go.cluster_doctor.executor
+    relation: implements
+    to: globular.platform:intent.audit.every_authority_change_is_explainable
+  - from: globular.platform:code.go.cluster_doctor.executor
+    relation: implements
+    to: globular.platform:intent.remediation.token_contract
+  - from: globular.platform:code.go.cluster_doctor.executor.auditRemediation
+    relation: enforces
+    to: globular.platform:invariant.audit.must_redact_secret_material
+  - from: globular.platform:code.go.cluster_doctor.executor.auditRemediation
+    relation: enforces
+    to: globular.platform:invariant.audit.records_must_be_correlated_and_retained
+  - from: globular.platform:code.go.cluster_doctor.executor.auditRemediation
+    relation: implements
+    to: globular.platform:intent.audit.every_authority_change_is_explainable
+  - from: globular.platform:code.go.cluster_doctor.executor.auditRemediation
+    relation: implements
+    to: globular.platform:intent.audit.retention_and_correlation_policy
+  - from: globular.platform:code.go.cluster_doctor.executor.hardBlocked
+    relation: enforces
+    to: globular.platform:invariant.force_action_must_not_hide_policy_gate
+  - from: globular.platform:code.go.cluster_doctor.healer
+    relation: enforces
+    to: globular.platform:invariant.remediation.auto_execution_is_rate_limited
+  - from: globular.platform:code.go.cluster_doctor.healer
+    relation: enforces
+    to: globular.platform:invariant.remediation.failure_rate_policy_must_be_cluster_wide
+  - from: globular.platform:code.go.cluster_doctor.healer
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.cluster_doctor.healer
+    relation: implements
+    to: globular.platform:intent.remediation.failure_rate_policy
+  - from: globular.platform:code.go.cluster_doctor.healer.Healer_Evaluate
+    relation: enforces
+    to: globular.platform:invariant.remediation.auto_execution_is_rate_limited
+  - from: globular.platform:code.go.cluster_doctor.healer.Healer_Evaluate
+    relation: enforces
+    to: globular.platform:invariant.remediation.failure_rate_policy_must_be_cluster_wide
+  - from: globular.platform:code.go.cluster_doctor.healer.Healer_Evaluate
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.cluster_doctor.remediation_gate
+    relation: enforces
+    to: globular.platform:invariant.remediation.auto_execution_is_rate_limited
+  - from: globular.platform:code.go.cluster_doctor.remediation_gate
+    relation: enforces
+    to: globular.platform:invariant.remediation.must_not_retry_without_changed_evidence_or_policy_budget
+  - from: globular.platform:code.go.cluster_doctor.remediation_gate
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.cluster_doctor.remediation_gate.remediationGateRecordCooldownRejection
+    relation: enforces
+    to: globular.platform:invariant.remediation.auto_execution_is_rate_limited
+  - from: globular.platform:code.go.cluster_doctor.remediation_gate.remediationGateRecordCooldownRejection
+    relation: enforces
+    to: globular.platform:invariant.remediation.must_not_retry_without_changed_evidence_or_policy_budget
+  - from: globular.platform:code.go.cluster_doctor.remediation_gate.remediationGateRecordCooldownRejection
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.cluster_doctor.remediation_handler
+    relation: enforces
+    to: globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+  - from: globular.platform:code.go.cluster_doctor.remediation_handler
+    relation: enforces
+    to: globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+  - from: globular.platform:code.go.cluster_doctor.remediation_handler
+    relation: enforces
+    to: globular.platform:invariant.stale_evidence_must_not_authorize_remediation
+  - from: globular.platform:code.go.cluster_doctor.remediation_handler
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.cluster_doctor.remediation_handler.ClusterDoctorServer_ExecuteRemediation
+    relation: enforces
+    to: globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+  - from: globular.platform:code.go.cluster_doctor.remediation_handler.ClusterDoctorServer_ExecuteRemediation
+    relation: enforces
+    to: globular.platform:invariant.remediation.auto_execution_is_rate_limited
+  - from: globular.platform:code.go.cluster_doctor.remediation_handler.ClusterDoctorServer_ExecuteRemediation
+    relation: enforces
+    to: globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+  - from: globular.platform:code.go.cluster_doctor.remediation_handler.ClusterDoctorServer_ExecuteRemediation
+    relation: enforces
+    to: globular.platform:invariant.stale_evidence_must_not_authorize_remediation
+  - from: globular.platform:code.go.cluster_doctor.remediation_handler.ClusterDoctorServer_ExecuteRemediation
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.cluster_doctor.remediation_handler.ClusterDoctorServer_ExecuteRemediation
+    relation: implements
+    to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.doctor.layout_drift_must_reflect_real_risk
+  - from: globular.platform:code.go.cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.doctor.must_compare_claims_to_proofs
+  - from: globular.platform:code.go.cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.doctor.findings_are_operator_language
+  - from: globular.platform:code.go.cluster_doctor.rules.Registry_EvaluateAll
+    relation: enforces
+    to: globular.platform:invariant.doctor.must_compare_claims_to_proofs
+  - from: globular.platform:code.go.cluster_doctor.rules.Registry_EvaluateAll
+    relation: implements
+    to: globular.platform:intent.doctor.findings_are_operator_language

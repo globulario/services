@@ -1,0 +1,101 @@
+code_symbols:
+  - id: globular.platform:code.go.ai_executor.action_backend
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/action_backend.go
+    component: ai_executor.action_backend
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.dispatch_is_not_repair_truth
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.ai_executor.action_backend.actionDispatcher_dispatch
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/action_backend.go
+    symbol: actionDispatcher.dispatch
+    kind: method
+    component: ai_executor.action_backend
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.dispatch_is_not_repair_truth
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.ai_executor.diagnoser
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/diagnoser.go
+    component: ai_executor.diagnoser
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.health.requires_fresh_evidence
+        - globular.platform:intent.awareness.runtime_evidence_must_be_fresh
+        - globular.platform:intent.knowledge.promote_incidents_into_graph
+  - id: globular.platform:code.go.ai_executor.diagnoser.diagnoser_diagnose
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/diagnoser.go
+    symbol: diagnoser.diagnose
+    kind: method
+    component: ai_executor.diagnoser
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.health.requires_fresh_evidence
+        - globular.platform:intent.awareness.runtime_evidence_must_be_fresh
+        - globular.platform:intent.knowledge.promote_incidents_into_graph
+  - id: globular.platform:code.go.ai_executor.job_store
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/job_store.go
+    component: ai_executor.job_store
+    risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+        - globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+      implements:
+        - globular.platform:intent.remediation.token_contract
+  - id: globular.platform:code.go.ai_executor.job_store.jobStore_approve
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/job_store.go
+    symbol: jobStore.approve
+    kind: method
+    component: ai_executor.job_store
+    risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+        - globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+      implements:
+        - globular.platform:intent.remediation.token_contract
+  - id: globular.platform:code.go.ai_executor.remediator
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/remediator.go
+    component: ai_executor.remediator
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+        - globular.platform:intent.remediation.must_go_through_workflow
+  - id: globular.platform:code.go.ai_executor.remediator.remediator_execute
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/remediator.go
+    symbol: remediator.execute
+    kind: method
+    component: ai_executor.remediator
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+        - globular.platform:intent.remediation.must_go_through_workflow

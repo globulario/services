@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=ai_executor.action_backend
+// @awareness file_role=action_routing_and_verification
+// @awareness enforces=globular.platform:invariant.remediation.dispatch_is_not_repair_truth
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness risk=high
 package main
 
 import (
@@ -41,6 +47,13 @@ func newActionDispatcher() *actionDispatcher {
 }
 
 // dispatch finds the right backend and executes + verifies.
+// Dispatch success does NOT mean repair is confirmed — verification is required.
+//
+// @awareness namespace=globular.platform
+// @awareness component=ai_executor.action_backend
+// @awareness enforces=globular.platform:invariant.remediation.dispatch_is_not_repair_truth
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness risk=high
 func (ad *actionDispatcher) dispatch(ctx context.Context, action *ai_executorpb.RemediationAction, diagnosis *ai_executorpb.Diagnosis) (string, error) {
 	for _, backend := range ad.backends {
 		if backend.Supports(action.GetType()) {

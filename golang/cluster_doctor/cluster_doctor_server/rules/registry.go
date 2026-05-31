@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=cluster_doctor.rules
+// @awareness file_role=invariant_registry
+// @awareness enforces=globular.platform:invariant.doctor.must_compare_claims_to_proofs
+// @awareness enforces=globular.platform:invariant.doctor.layout_drift_must_reflect_real_risk
+// @awareness implements=globular.platform:intent.doctor.findings_are_operator_language
+// @awareness risk=medium
 package rules
 
 import (
@@ -220,6 +227,12 @@ func NewRegistry(cfg Config) *Registry {
 }
 
 // EvaluateAll runs all invariants against the snapshot and returns all findings.
+//
+// @awareness namespace=globular.platform
+// @awareness component=cluster_doctor.rules
+// @awareness enforces=globular.platform:invariant.doctor.must_compare_claims_to_proofs
+// @awareness implements=globular.platform:intent.doctor.findings_are_operator_language
+// @awareness risk=medium
 func (r *Registry) EvaluateAll(snap *collector.Snapshot) []Finding {
 	var all []Finding
 	for _, inv := range r.invariants {

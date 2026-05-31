@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=ai_executor.remediator
+// @awareness file_role=tier_based_action_dispatcher
+// @awareness enforces=globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness risk=high
 package main
 
 import (
@@ -27,6 +34,14 @@ func newRemediator() *remediator {
 }
 
 // execute runs a remediation action based on the diagnosis and tier.
+// Tier 0 = observe only, Tier 1 = auto-execute, Tier 2 = await approval.
+//
+// @awareness namespace=globular.platform
+// @awareness component=ai_executor.remediator
+// @awareness enforces=globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness risk=high
 func (r *remediator) execute(ctx context.Context, diagnosis *ai_executorpb.Diagnosis, tier int32) *ai_executorpb.RemediationAction {
 	action := &ai_executorpb.RemediationAction{
 		Id:          Utility.RandomUUID(),

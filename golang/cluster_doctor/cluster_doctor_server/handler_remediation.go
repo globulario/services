@@ -1,3 +1,11 @@
+// @awareness namespace=globular.platform
+// @awareness component=cluster_doctor.remediation_handler
+// @awareness file_role=remediation_authority
+// @awareness enforces=globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+// @awareness enforces=globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+// @awareness enforces=globular.platform:invariant.stale_evidence_must_not_authorize_remediation
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness risk=high
 package main
 
 import (
@@ -48,6 +56,16 @@ func allowAutoRemediationNow(key string, now time.Time) (bool, time.Duration) {
 // ExecuteRemediation runs a structured RemediationAction attached to a
 // previously-seen finding. See executor.go for the allowlist/blocklist
 // enforcement and projection-clauses.md Clause 8 for the contract.
+//
+// @awareness namespace=globular.platform
+// @awareness component=cluster_doctor.remediation_handler
+// @awareness enforces=globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+// @awareness enforces=globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+// @awareness enforces=globular.platform:invariant.stale_evidence_must_not_authorize_remediation
+// @awareness enforces=globular.platform:invariant.remediation.auto_execution_is_rate_limited
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness risk=high
 //
 // Flow:
 //  1. Look up finding by ID in the last-report cache.

@@ -1,0 +1,67 @@
+code_edges:
+  - from: globular.platform:code.go.ai_executor.action_backend
+    relation: enforces
+    to: globular.platform:invariant.remediation.dispatch_is_not_repair_truth
+  - from: globular.platform:code.go.ai_executor.action_backend
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.ai_executor.action_backend.actionDispatcher_dispatch
+    relation: enforces
+    to: globular.platform:invariant.remediation.dispatch_is_not_repair_truth
+  - from: globular.platform:code.go.ai_executor.action_backend.actionDispatcher_dispatch
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.ai_executor.diagnoser
+    relation: implements
+    to: globular.platform:intent.awareness.runtime_evidence_must_be_fresh
+  - from: globular.platform:code.go.ai_executor.diagnoser
+    relation: implements
+    to: globular.platform:intent.health.requires_fresh_evidence
+  - from: globular.platform:code.go.ai_executor.diagnoser
+    relation: implements
+    to: globular.platform:intent.knowledge.promote_incidents_into_graph
+  - from: globular.platform:code.go.ai_executor.diagnoser.diagnoser_diagnose
+    relation: implements
+    to: globular.platform:intent.awareness.runtime_evidence_must_be_fresh
+  - from: globular.platform:code.go.ai_executor.diagnoser.diagnoser_diagnose
+    relation: implements
+    to: globular.platform:intent.health.requires_fresh_evidence
+  - from: globular.platform:code.go.ai_executor.diagnoser.diagnoser_diagnose
+    relation: implements
+    to: globular.platform:intent.knowledge.promote_incidents_into_graph
+  - from: globular.platform:code.go.ai_executor.job_store
+    relation: enforces
+    to: globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+  - from: globular.platform:code.go.ai_executor.job_store
+    relation: enforces
+    to: globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+  - from: globular.platform:code.go.ai_executor.job_store
+    relation: implements
+    to: globular.platform:intent.remediation.token_contract
+  - from: globular.platform:code.go.ai_executor.job_store.jobStore_approve
+    relation: enforces
+    to: globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+  - from: globular.platform:code.go.ai_executor.job_store.jobStore_approve
+    relation: enforces
+    to: globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+  - from: globular.platform:code.go.ai_executor.job_store.jobStore_approve
+    relation: implements
+    to: globular.platform:intent.remediation.token_contract
+  - from: globular.platform:code.go.ai_executor.remediator
+    relation: enforces
+    to: globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+  - from: globular.platform:code.go.ai_executor.remediator
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.ai_executor.remediator
+    relation: implements
+    to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.ai_executor.remediator.remediator_execute
+    relation: enforces
+    to: globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+  - from: globular.platform:code.go.ai_executor.remediator.remediator_execute
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.ai_executor.remediator.remediator_execute
+    relation: implements
+    to: globular.platform:intent.remediation.must_go_through_workflow

@@ -1,3 +1,11 @@
+// @awareness namespace=globular.platform
+// @awareness component=cluster_doctor.healer
+// @awareness file_role=auto_heal_policy_engine
+// @awareness enforces=globular.platform:invariant.remediation.auto_execution_is_rate_limited
+// @awareness enforces=globular.platform:invariant.remediation.failure_rate_policy_must_be_cluster_wide
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness implements=globular.platform:intent.remediation.failure_rate_policy
+// @awareness risk=medium
 package rules
 
 import (
@@ -94,6 +102,13 @@ type Healer struct {
 
 // Evaluate runs one pass of the healer against a set of findings.
 // Returns a report describing what was done (or what would be done in dry-run).
+//
+// @awareness namespace=globular.platform
+// @awareness component=cluster_doctor.healer
+// @awareness enforces=globular.platform:invariant.remediation.auto_execution_is_rate_limited
+// @awareness enforces=globular.platform:invariant.remediation.failure_rate_policy_must_be_cluster_wide
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness risk=medium
 //
 // Rate limiting: if MaxActions > 0, execution stops after that many auto-heal
 // actions (remaining findings are classified but not executed). If MaxFailures

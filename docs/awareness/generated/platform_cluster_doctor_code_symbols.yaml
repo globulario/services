@@ -1,0 +1,178 @@
+code_symbols:
+  - id: globular.platform:code.go.cluster_doctor.evidence_trust
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/evidence_provenance.go
+    component: cluster_doctor.evidence_trust
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.evidence.must_carry_provenance_and_trust_level
+        - globular.platform:invariant.evidence.missing_is_not_known_bad
+        - globular.platform:invariant.stale_evidence_must_not_authorize_remediation
+      implements:
+        - globular.platform:intent.evidence.provenance_trust_levels
+        - globular.platform:intent.health.requires_fresh_evidence
+  - id: globular.platform:code.go.cluster_doctor.evidence_trust.findingEvidenceTrust
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/evidence_provenance.go
+    symbol: findingEvidenceTrust
+    kind: function
+    component: cluster_doctor.evidence_trust
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.evidence.missing_is_not_known_bad
+        - globular.platform:invariant.evidence.must_carry_provenance_and_trust_level
+        - globular.platform:invariant.stale_evidence_must_not_authorize_remediation
+      implements:
+        - globular.platform:intent.evidence.provenance_trust_levels
+  - id: globular.platform:code.go.cluster_doctor.executor
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/executor.go
+    component: cluster_doctor.executor
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.force_action_must_not_hide_policy_gate
+        - globular.platform:invariant.audit.records_must_be_correlated_and_retained
+        - globular.platform:invariant.audit.must_redact_secret_material
+      implements:
+        - globular.platform:intent.audit.every_authority_change_is_explainable
+        - globular.platform:intent.remediation.token_contract
+  - id: globular.platform:code.go.cluster_doctor.executor.auditRemediation
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/executor.go
+    symbol: auditRemediation
+    kind: function
+    component: cluster_doctor.executor
+    risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.audit.records_must_be_correlated_and_retained
+        - globular.platform:invariant.audit.must_redact_secret_material
+      implements:
+        - globular.platform:intent.audit.every_authority_change_is_explainable
+        - globular.platform:intent.audit.retention_and_correlation_policy
+  - id: globular.platform:code.go.cluster_doctor.executor.hardBlocked
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/executor.go
+    symbol: hardBlocked
+    kind: function
+    component: cluster_doctor.executor
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.force_action_must_not_hide_policy_gate
+  - id: globular.platform:code.go.cluster_doctor.healer
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/healer.go
+    component: cluster_doctor.healer
+    risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.auto_execution_is_rate_limited
+        - globular.platform:invariant.remediation.failure_rate_policy_must_be_cluster_wide
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+        - globular.platform:intent.remediation.failure_rate_policy
+  - id: globular.platform:code.go.cluster_doctor.healer.Healer_Evaluate
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/healer.go
+    symbol: Healer.Evaluate
+    kind: method
+    component: cluster_doctor.healer
+    risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.auto_execution_is_rate_limited
+        - globular.platform:invariant.remediation.failure_rate_policy_must_be_cluster_wide
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.cluster_doctor.remediation_gate
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/remediation_gate.go
+    component: cluster_doctor.remediation_gate
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.auto_execution_is_rate_limited
+        - globular.platform:invariant.remediation.must_not_retry_without_changed_evidence_or_policy_budget
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.cluster_doctor.remediation_gate.remediationGateRecordCooldownRejection
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/remediation_gate.go
+    symbol: remediationGateRecordCooldownRejection
+    kind: function
+    component: cluster_doctor.remediation_gate
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.auto_execution_is_rate_limited
+        - globular.platform:invariant.remediation.must_not_retry_without_changed_evidence_or_policy_budget
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.cluster_doctor.remediation_handler
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+    component: cluster_doctor.remediation_handler
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+        - globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+        - globular.platform:invariant.stale_evidence_must_not_authorize_remediation
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.cluster_doctor.remediation_handler.ClusterDoctorServer_ExecuteRemediation
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+    symbol: ClusterDoctorServer.ExecuteRemediation
+    kind: method
+    component: cluster_doctor.remediation_handler
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+        - globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+        - globular.platform:invariant.stale_evidence_must_not_authorize_remediation
+        - globular.platform:invariant.remediation.auto_execution_is_rate_limited
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+        - globular.platform:intent.remediation.must_go_through_workflow
+  - id: globular.platform:code.go.cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/registry.go
+    component: cluster_doctor.rules
+    risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.doctor.must_compare_claims_to_proofs
+        - globular.platform:invariant.doctor.layout_drift_must_reflect_real_risk
+      implements:
+        - globular.platform:intent.doctor.findings_are_operator_language
+  - id: globular.platform:code.go.cluster_doctor.rules.Registry_EvaluateAll
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/registry.go
+    symbol: Registry.EvaluateAll
+    kind: method
+    component: cluster_doctor.rules
+    risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.doctor.must_compare_claims_to_proofs
+      implements:
+        - globular.platform:intent.doctor.findings_are_operator_language

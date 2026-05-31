@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=cluster_doctor.remediation_gate
+// @awareness file_role=remediation_rate_limiter
+// @awareness enforces=globular.platform:invariant.remediation.auto_execution_is_rate_limited
+// @awareness enforces=globular.platform:invariant.remediation.must_not_retry_without_changed_evidence_or_policy_budget
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness risk=high
 package main
 
 import (
@@ -41,6 +48,17 @@ func remediationGateEtcdKey(gateKey string) string {
 	return remediationGateEtcdPrefix + gateKey
 }
 
+// remediationGateRecordCooldownRejection increments the escalation counter for
+// a (findingID, stepIndex, actionType) gate key. After
+// autoRemediationEscalationThreshold rejections the gate is escalated — all
+// further auto-executions for that key require operator approval.
+//
+// @awareness namespace=globular.platform
+// @awareness component=cluster_doctor.remediation_gate
+// @awareness enforces=globular.platform:invariant.remediation.auto_execution_is_rate_limited
+// @awareness enforces=globular.platform:invariant.remediation.must_not_retry_without_changed_evidence_or_policy_budget
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness risk=high
 func remediationGateRecordCooldownRejection(key string, now time.Time) remediationGateState {
 	current, _ := remediationGateGet(key)
 	current.CooldownRejections++

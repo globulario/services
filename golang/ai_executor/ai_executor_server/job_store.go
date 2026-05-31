@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=ai_executor.job_store
+// @awareness file_role=tier2_approval_state_machine
+// @awareness enforces=globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+// @awareness enforces=globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+// @awareness implements=globular.platform:intent.remediation.token_contract
+// @awareness risk=medium
 package main
 
 import (
@@ -115,6 +122,15 @@ func (js *jobStore) updateState(incidentID string, state ai_executorpb.JobState)
 }
 
 // approve marks a job as approved and records who approved it.
+// Validates approver identity, idempotency, and expiry before allowing
+// the AWAITING_APPROVAL → APPROVED state transition.
+//
+// @awareness namespace=globular.platform
+// @awareness component=ai_executor.job_store
+// @awareness enforces=globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
+// @awareness enforces=globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
+// @awareness implements=globular.platform:intent.remediation.token_contract
+// @awareness risk=medium
 func (js *jobStore) approve(incidentID, approvedBy string) (*ai_executorpb.Job, error) {
 	js.mu.Lock()
 	defer js.mu.Unlock()
