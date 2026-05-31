@@ -1,0 +1,199 @@
+code_symbols:
+  - id: globular.awareness_graph:code.go.build.loadnt.run
+    namespace: globular.awareness_graph
+    language: go
+    file: cmd/loadnt/main.go
+    symbol: run
+    kind: function
+    component: build.loadnt
+    risk: medium
+    annotations:
+      enforces:
+        - globular.awareness_graph:invariant.ntriples_validated_before_write
+      implements:
+        - globular.awareness_graph:intent.loadnt_validates_before_loading
+      protects:
+        - globular.awareness_graph:failure_mode.unvalidated_ntriples_corrupt_store
+      tested_by:
+        - cmd/loadnt/main_test.go:TestRunValidatesBeforeUpload
+  - id: globular.awareness_graph:code.go.build.loadnt.uploadNTriples
+    namespace: globular.awareness_graph
+    language: go
+    file: cmd/loadnt/main.go
+    symbol: uploadNTriples
+    kind: function
+    component: build.loadnt
+    annotations:
+      implements:
+        - globular.awareness_graph:intent.oxigraph_is_external_runtime_state
+      protects:
+        - globular.awareness_graph:failure_mode.unvalidated_ntriples_corrupt_store
+  - id: globular.awareness_graph:code.go.build.yaml2nt.run
+    namespace: globular.awareness_graph
+    language: go
+    file: cmd/yaml2nt/main.go
+    symbol: run
+    kind: function
+    component: build.yaml2nt
+    risk: medium
+    annotations:
+      enforces:
+        - globular.awareness_graph:invariant.ntriples_validated_before_write
+        - globular.awareness_graph:invariant.yaml_importer_does_not_silently_skip_in_strict_mode
+      implements:
+        - globular.awareness_graph:intent.yaml2nt_produces_deterministic_output
+      protects:
+        - globular.awareness_graph:failure_mode.unvalidated_ntriples_corrupt_store
+      tested_by:
+        - cmd/yaml2nt/main_test.go:TestRunDeterministic
+  - id: globular.awareness_graph:code.go.extractor.ImportAwarenessYAMLs
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/extractor/yaml_import.go
+    symbol: ImportAwarenessYAMLs
+    kind: function
+    component: extractor
+    annotations:
+      implements:
+        - globular.awareness_graph:intent.yaml_importer_does_not_silently_skip_in_strict_mode
+      tested_by:
+        - golang/extractor/yaml_import_dir_test.go:TestImportDir_NoSilentSkip
+  - id: globular.awareness_graph:code.go.mcp.bridge.bridge_callTool
+    namespace: globular.awareness_graph
+    language: go
+    file: cmd/awareness-mcp/main.go
+    symbol: bridge.callTool
+    kind: method
+    component: mcp.bridge
+    risk: high
+    annotations:
+      enforces:
+        - globular.awareness_graph:invariant.mcp_tool_dispatch_is_closed_whitelist
+      implements:
+        - globular.awareness_graph:intent.mcp_bridge_exposes_safe_tools_only
+      protects:
+        - globular.awareness_graph:failure_mode.arbitrary_sparql_exposure
+  - id: globular.awareness_graph:code.go.mcp.bridge.main
+    namespace: globular.awareness_graph
+    language: go
+    file: cmd/awareness-mcp/main.go
+    symbol: main
+    kind: function
+    component: mcp.bridge
+    annotations:
+      relates_to:
+        - globular.awareness_graph:intent.mcp_tools_use_gateway_client_pool
+  - id: globular.awareness_graph:code.go.server.briefing
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/briefing.go
+    component: server.briefing
+    annotations:
+      implements:
+        - globular.awareness_graph:intent.briefing_returns_explicit_status
+        - globular.awareness_graph:intent.compiled_context_not_runtime_authority
+  - id: globular.awareness_graph:code.go.server.briefing.server_Briefing
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/briefing.go
+    symbol: server.Briefing
+    kind: method
+    component: server.briefing
+    risk: high
+    annotations:
+      enforces:
+        - globular.awareness_graph:invariant.briefing_status_is_always_set
+        - globular.awareness_graph:invariant.store_nil_returns_unavailable_not_empty
+      implements:
+        - globular.awareness_graph:intent.briefing_returns_explicit_status
+      protects:
+        - globular.awareness_graph:failure_mode.silent_empty_on_store_failure
+      tested_by:
+        - golang/server/main_test.go:TestBriefingStoreNil
+  - id: globular.awareness_graph:code.go.server.impact
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/impact.go
+    component: server.impact
+    annotations:
+      implements:
+        - globular.awareness_graph:intent.impact_distinguishes_direct_and_inferred
+  - id: globular.awareness_graph:code.go.server.impact.server_Impact
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/impact.go
+    symbol: server.Impact
+    kind: method
+    component: server.impact
+    risk: medium
+    annotations:
+      enforces:
+        - globular.awareness_graph:invariant.store_nil_returns_unavailable_not_empty
+      implements:
+        - globular.awareness_graph:intent.impact_distinguishes_direct_and_inferred
+      protects:
+        - globular.awareness_graph:failure_mode.silent_empty_on_store_failure
+      tested_by:
+        - golang/server/impact_test.go:TestImpactStoreNil
+  - id: globular.awareness_graph:code.go.server.query
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/query.go
+    component: server.query
+    annotations:
+      implements:
+        - globular.awareness_graph:intent.query_does_not_expose_arbitrary_sparql
+        - globular.awareness_graph:intent.compiled_context_not_runtime_authority
+  - id: globular.awareness_graph:code.go.server.query.server_Query
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/query.go
+    symbol: server.Query
+    kind: method
+    component: server.query
+    risk: high
+    annotations:
+      enforces:
+        - globular.awareness_graph:invariant.query_mode_whitelist_is_closed
+        - globular.awareness_graph:invariant.store_nil_returns_unavailable_not_empty
+      implements:
+        - globular.awareness_graph:intent.query_does_not_expose_arbitrary_sparql
+      protects:
+        - globular.awareness_graph:failure_mode.arbitrary_sparql_exposure
+      tested_by:
+        - golang/server/query_test.go:TestQueryUnknownMode
+  - id: globular.awareness_graph:code.go.server.resolve
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/resolve.go
+    component: server.resolve
+    annotations:
+      implements:
+        - globular.awareness_graph:intent.resolve_returns_precise_node_by_class_and_id
+  - id: globular.awareness_graph:code.go.server.resolve.resolveIRIForClassAndID
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/resolve.go
+    symbol: resolveIRIForClassAndID
+    kind: function
+    component: server.resolve
+    annotations:
+      enforces:
+        - globular.awareness_graph:invariant.resolve_class_whitelist_is_closed
+      protects:
+        - globular.awareness_graph:failure_mode.arbitrary_sparql_exposure
+  - id: globular.awareness_graph:code.go.server.resolve.server_Resolve
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/resolve.go
+    symbol: server.Resolve
+    kind: method
+    component: server.resolve
+    risk: low
+    annotations:
+      enforces:
+        - globular.awareness_graph:invariant.store_nil_returns_unavailable_not_empty
+      implements:
+        - globular.awareness_graph:intent.resolve_returns_precise_node_by_class_and_id
+      tested_by:
+        - golang/server/resolve_test.go:TestResolveNotFound
