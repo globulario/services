@@ -197,6 +197,7 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 	desiredVersion := inputs["version"]
 	buildID := inputs["build_id"]
 	convergenceHash, expectedSha256 := extractRunInstallPackageHashes(inputs)
+	forceReinstall := false // set true when unit file is gone so apply-package bypasses its own idempotency guard
 	if desiredVersion != "" {
 		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, pkgKind, pkgName)
 		skipResult, reason := canSkipInstallPackage(
@@ -262,7 +263,7 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 
 		case installSkipDeniedUnitGone:
 			log.Printf("grpc-workflow: %s", reason)
-			// fall through to full reinstall
+			forceReinstall = true // unit file gone: bypass apply-package's build_id idempotency guard
 
 		case installSkipDeniedNoRecord, installSkipDeniedVersion:
 			log.Printf("grpc-workflow: %s", reason)
@@ -327,6 +328,7 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		ExpectedSha256: expectedSha256, // BINARY hash from manifest.entrypoint_checksum (NOT convergenceHash)
 		OperationId:    inputs["workflow_id"],
 		BuildId:        buildID,
+		Force:          forceReinstall,
 	})
 	elapsed := time.Since(start)
 
