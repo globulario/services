@@ -140,6 +140,60 @@ code_edges:
   - from: globular.platform:code.go.cluster_doctor.rules.Registry_EvaluateAll
     relation: implements
     to: globular.platform:intent.doctor.findings_are_operator_language
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.contract_rules
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.contract_rules
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.contract_rules.objectstoreContractMissing
+    relation: enforces
+    to: globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.contract_rules.objectstoreContractMissing
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.contract_rules.objectstoreContractMissing
+    relation: implements
+    to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.contract_rules.objectstoreDestructiveGuard
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.contract_rules.objectstoreDestructiveGuard
+    relation: enforces
+    to: globular.platform:invariant.objectstore.minio.existing_data_guard
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.contract_rules.objectstoreDestructiveGuard
+    relation: implements
+    to: globular.platform:intent.objectstore.destructive_changes_require_approval
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.topology_rules
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.topology_rules
+    relation: implements
+    to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.topology_rules.objectstoreMinioFingerprintDivergence
+    relation: enforces
+    to: globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.topology_rules.objectstoreMinioFingerprintDivergence
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.topology_rules.objectstoreMinioFingerprintDivergence
+    relation: implements
+    to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.topology_rules.objectstoreMinioPostApplyHealth
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.topology_rules.objectstoreMinioPostApplyHealth
+    relation: implements
+    to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.topology_rules.objectstoreMinioTopologyConsistency
+    relation: enforces
+    to: globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.topology_rules.objectstoreMinioTopologyConsistency
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore.topology_rules.objectstoreMinioTopologyConsistency
+    relation: implements
+    to: globular.platform:intent.objectstore.topology_requires_contract
   - from: globular.platform:code.go.platform_cluster_doctor.objectstore_admission
     relation: implements
     to: globular.platform:invariant.objectstore.minio.existing_data_guard

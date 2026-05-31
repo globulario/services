@@ -176,6 +176,96 @@ code_symbols:
         - globular.platform:invariant.doctor.must_compare_claims_to_proofs
       implements:
         - globular.platform:intent.doctor.findings_are_operator_language
+  - id: globular.platform:code.go.platform_cluster_doctor.objectstore.contract_rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_contract.go
+    component: platform_cluster_doctor.objectstore.contract_rules
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.topology_contract
+        - globular.platform:invariant.destructive_actions.require_explicit_guard
+  - id: globular.platform:code.go.platform_cluster_doctor.objectstore.contract_rules.objectstoreContractMissing
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_contract.go
+    symbol: objectstoreContractMissing
+    kind: type
+    component: platform_cluster_doctor.objectstore.contract_rules
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.topology_contract
+        - globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_cluster_doctor.objectstore.contract_rules.objectstoreDestructiveGuard
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_contract.go
+    symbol: objectstoreDestructiveGuard
+    kind: type
+    component: platform_cluster_doctor.objectstore.contract_rules
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.destructive_actions.require_explicit_guard
+        - globular.platform:invariant.objectstore.minio.existing_data_guard
+      implements:
+        - globular.platform:intent.objectstore.destructive_changes_require_approval
+  - id: globular.platform:code.go.platform_cluster_doctor.objectstore.topology_rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_topology.go
+    component: platform_cluster_doctor.objectstore.topology_rules
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.topology_contract
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_cluster_doctor.objectstore.topology_rules.objectstoreMinioFingerprintDivergence
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_topology.go
+    symbol: objectstoreMinioFingerprintDivergence
+    kind: type
+    component: platform_cluster_doctor.objectstore.topology_rules
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.topology_contract
+        - globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_cluster_doctor.objectstore.topology_rules.objectstoreMinioPostApplyHealth
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_topology.go
+    symbol: objectstoreMinioPostApplyHealth
+    kind: type
+    component: platform_cluster_doctor.objectstore.topology_rules
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.topology_contract
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_cluster_doctor.objectstore.topology_rules.objectstoreMinioTopologyConsistency
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_topology.go
+    symbol: objectstoreMinioTopologyConsistency
+    kind: type
+    component: platform_cluster_doctor.objectstore.topology_rules
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.topology_contract
+        - globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
   - id: globular.platform:code.go.platform_cluster_doctor.objectstore_admission
     namespace: globular.platform
     language: go

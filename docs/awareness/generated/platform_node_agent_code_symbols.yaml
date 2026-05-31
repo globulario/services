@@ -159,6 +159,42 @@ code_symbols:
         - globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
       implements:
         - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_node_agent.objectstore.contract_reconcile
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/minio_contract_reconcile.go
+    component: platform_node_agent.objectstore.contract_reconcile
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_node_agent.objectstore.contract_reconcile.NodeAgentServer_reconcileMinioContract
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/minio_contract_reconcile.go
+    symbol: NodeAgentServer.reconcileMinioContract
+    kind: method
+    component: platform_node_agent.objectstore.contract_reconcile
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+        - globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+  - id: globular.platform:code.go.platform_node_agent.objectstore.contract_reconcile.writeMinioContractAtomic
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/minio_contract_reconcile.go
+    symbol: writeMinioContractAtomic
+    kind: function
+    component: platform_node_agent.objectstore.contract_reconcile
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
   - id: globular.platform:code.go.platform_node_agent.objectstore.topology_gate
     namespace: globular.platform
     language: go

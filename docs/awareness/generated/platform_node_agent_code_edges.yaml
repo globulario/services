@@ -77,6 +77,24 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.objectstore.config_enforcer.NodeAgentServer_reconcileMinioSystemdConfig
     relation: implements
     to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_node_agent.objectstore.contract_reconcile
+    relation: enforces
+    to: globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+  - from: globular.platform:code.go.platform_node_agent.objectstore.contract_reconcile
+    relation: implements
+    to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_node_agent.objectstore.contract_reconcile.NodeAgentServer_reconcileMinioContract
+    relation: enforces
+    to: globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+  - from: globular.platform:code.go.platform_node_agent.objectstore.contract_reconcile.NodeAgentServer_reconcileMinioContract
+    relation: implements
+    to: globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+  - from: globular.platform:code.go.platform_node_agent.objectstore.contract_reconcile.NodeAgentServer_reconcileMinioContract
+    relation: implements
+    to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_node_agent.objectstore.contract_reconcile.writeMinioContractAtomic
+    relation: enforces
+    to: globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
   - from: globular.platform:code.go.platform_node_agent.objectstore.topology_gate
     relation: enforces
     to: globular.platform:invariant.objectstore.topology_contract

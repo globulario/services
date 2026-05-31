@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.objectstore.topology_rules
+// @awareness file_role=minio_topology_consistency_and_health_rules
+// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness risk=high
 package rules
 
 import (
@@ -16,7 +22,13 @@ import (
 //
 // CRITICAL: Desired mode is distributed but applied_generation is still at
 //           the standalone level (workflow has never run or was never triggered).
-
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.objectstore.topology_rules
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness enforces=globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
+// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
+// @awareness risk=high
 type objectstoreMinioTopologyConsistency struct{}
 
 func (objectstoreMinioTopologyConsistency) ID() string {
@@ -100,7 +112,13 @@ func (objectstoreMinioTopologyConsistency) Evaluate(snap *collector.Snapshot, _ 
 // A fingerprint divergence means MinIO nodes are not running the same topology.
 // The objectstore.minio.apply_topology_generation workflow should NOT proceed
 // if fingerprints diverge — the check_all_rendered step gates on this.
-
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.objectstore.topology_rules
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness enforces=globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
+// @awareness risk=high
 type objectstoreMinioFingerprintDivergence struct{}
 
 func (objectstoreMinioFingerprintDivergence) ID() string {
@@ -204,7 +222,12 @@ func (objectstoreMinioFingerprintDivergence) Evaluate(snap *collector.Snapshot, 
 //
 // The workflow already verified health at apply time. This invariant detects
 // regressions that occur AFTER the workflow succeeded.
-
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.objectstore.topology_rules
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
+// @awareness risk=high
 type objectstoreMinioPostApplyHealth struct{}
 
 func (objectstoreMinioPostApplyHealth) ID() string { return "objectstore.minio.post_apply_health" }
