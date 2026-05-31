@@ -922,6 +922,7 @@ jobs:
 
           # Operational knowledge — seeded into ai-memory at day-0
           if [[ -d services/docs/operational-knowledge ]]; then
+            mkdir -p "${RELEASE_DIR}/docs"
             cp -r services/docs/operational-knowledge "${RELEASE_DIR}/docs/operational-knowledge"
           fi
 
