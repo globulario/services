@@ -374,6 +374,7 @@ func TestDay1Phase_MinioNonMember_DoesNotReportInfraNotInstalled(t *testing.T) {
 		{Name: "globular-prometheus.service", State: "active"},
 		{Name: "globular-scylla-manager.service", State: "active"},
 		{Name: "globular-scylla-manager-agent.service", State: "active"},
+		{Name: "globular-oxigraph.service", State: "active"},
 		// minio/sidekick intentionally absent while node is non_member.
 	}
 	intent, err := ResolveNodeIntent("n1", []string{"core", "storage", "control-plane", "gateway"}, units, nil)

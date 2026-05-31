@@ -68,6 +68,7 @@ spec:
           - { name: alertmanager, kind: INFRASTRUCTURE }
           - { name: xds, kind: INFRASTRUCTURE }
           - { name: keepalived, kind: INFRASTRUCTURE }
+          - { name: oxigraph, kind: INFRASTRUCTURE }
       timeout: $.install_timeout
       execution:
         idempotency: verify_then_continue
@@ -84,6 +85,7 @@ spec:
             - { name: alertmanager, kind: INFRASTRUCTURE }
             - { name: xds, kind: INFRASTRUCTURE }
             - { name: keepalived, kind: INFRASTRUCTURE }
+            - { name: oxigraph, kind: INFRASTRUCTURE }
         success:
           expr: all_installed == true
 
@@ -275,6 +277,7 @@ spec:
           - { name: cluster-controller, kind: SERVICE }
           - { name: cluster-doctor, kind: SERVICE }
           - { name: mcp, kind: SERVICE }
+          - { name: awareness-graph, kind: SERVICE }
           - { name: ai-memory, kind: SERVICE }
           - { name: ai-executor, kind: SERVICE }
           - { name: ai-watcher, kind: SERVICE }
@@ -310,6 +313,7 @@ spec:
             - { name: cluster-controller, kind: SERVICE }
             - { name: cluster-doctor, kind: SERVICE }
             - { name: mcp, kind: SERVICE }
+            - { name: awareness-graph, kind: SERVICE }
             - { name: ai-memory, kind: SERVICE }
             - { name: ai-executor, kind: SERVICE }
             - { name: ai-watcher, kind: SERVICE }
