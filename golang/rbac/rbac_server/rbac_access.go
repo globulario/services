@@ -1,4 +1,12 @@
 // rbac_access.go: access checks (allowed/denied/owner).
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform.rbac.access
+// @awareness file_role=deny_overrides_allow_enforcement
+// @awareness implements=globular.platform:intent.security.deny_overrides_allow
+// @awareness implements=globular.platform:intent.rbac.permission_changes_require_audit_and_owner
+// @awareness enforces=globular.platform:invariant.audit.records_must_be_correlated_and_retained
+// @awareness risk=high
 
 package main
 
@@ -402,6 +410,16 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 	return false
 }
 
+// validateAccess is the canonical RBAC decision function.
+// deny-overrides-allow: validateAccessDenied runs first; an explicit deny
+// wins unconditionally, even for sa and owners.
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform.rbac.access
+// @awareness implements=globular.platform:intent.security.deny_overrides_allow
+// @awareness implements=globular.platform:intent.rbac.permission_changes_require_audit_and_owner
+// @awareness enforces=globular.platform:invariant.audit.records_must_be_correlated_and_retained
+// @awareness risk=high
 func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
 	// Validate subject first. For sa we attempt validation but allow
 	// fallthrough if the Resource service is unreachable — sa must work

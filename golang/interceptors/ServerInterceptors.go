@@ -1,5 +1,14 @@
 // Package interceptors centralizes server-side validation, authorization,
 // routing (round-robin / broadcasting), and logging for gRPC services.
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform.interceptors
+// @awareness file_role=grpc_auth_enforcement_chain
+// @awareness implements=globular.platform:intent.security.deny_overrides_allow
+// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
+// @awareness implements=globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+// @awareness enforces=globular.platform:invariant.security.unauthenticated_allowlist_must_be_minimal
+// @awareness risk=high
 package interceptors
 
 // NOTE: We intentionally keep the exported API intact. Internal helpers were
@@ -126,10 +135,17 @@ var (
 	// resourceInfos memoizes ResourceInfos for a given gRPC method.
 	resourceInfos sync.Map
 
-	// Phase 4: Deny-by-default enforcement for unmapped methods
-	// When true, methods without RBAC mappings are DENIED (secure default)
-	// When false, methods without RBAC mappings are ALLOWED with warning (permissive mode)
+	// DenyUnmappedMethods controls whether methods without RBAC mappings are denied.
+	// When true, methods without RBAC mappings are DENIED (secure default).
+	// When false, methods without RBAC mappings are ALLOWED with warning (permissive default).
 	// Read from cluster config key "DenyUnmappedMethods" (bool); default false.
+	// Permissive default is a known design gap — see invariant.security.unauthenticated_allowlist_must_be_minimal.
+	//
+	// @awareness namespace=globular.platform
+	// @awareness component=platform.interceptors
+	// @awareness implements=globular.platform:intent.security.deny_overrides_allow
+	// @awareness enforces=globular.platform:invariant.security.unauthenticated_allowlist_must_be_minimal
+	// @awareness risk=high
 	DenyUnmappedMethods = readDenyUnmapped()
 )
 
@@ -812,6 +828,18 @@ func callHandlerWithLogging(ctx context.Context, rqst interface{}, handler grpc.
 	return res, nil
 }
 
+// ServerUnaryInterceptor enforces the full auth pipeline for every unary RPC.
+// Execution order: ACC → call-depth → bootstrap gate → cluster-ID enforcement →
+// unauthenticated allowlist → sa bypass (legacy, expvar-observable) →
+// role binding → resource RBAC → DenyUnmapped.
+// Any reordering of these stages is a security regression.
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform.interceptors
+// @awareness implements=globular.platform:intent.security.deny_overrides_allow
+// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
+// @awareness implements=globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+// @awareness risk=high
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	reqStart := time.Now()
 

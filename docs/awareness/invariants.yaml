@@ -4483,3 +4483,52 @@ invariants:
         - TestSweepRuntimeDepBlocks_ListErrorIsNonFatal
       related_failure_modes:
         - reconcile.stale_dep_block_persists_after_dep_active
+
+    # ── Security / Auth / JWT invariants ─────────────────────────────────────
+
+    - id: security.jwt_signing_key_must_be_cluster_scoped
+      title: JWT signing key must be resolved from the token issuer, not a global secret
+      severity: critical
+      status: active
+      summary: |
+        JWT validation must look up the signing key using the token's issuer claim
+        (iss) against the cluster's registered peer key store. A global shared signing
+        key, a hardcoded key, or a key accepted from an unrecognised issuer breaks
+        cluster-scoped token isolation — any holder of a valid token from a different
+        cluster could authenticate against this one. ValidateToken and
+        validateTokenInternal enforce this via GetPeerPublicKey(iss, kid). Callers
+        must never bypass the issuer lookup.
+      protects:
+        files:
+          - golang/security/jwt.go
+      required_tests:
+        - TestValidateToken_WrongIssuer
+      forbidden_fixes:
+        - accept_token_without_issuer_lookup
+        - use_global_shared_hmac_secret_for_jwt_validation
+        - skip_kid_lookup_when_issuer_is_trusted_service
+        - accept_token_with_unknown_issuer_as_service_account
+
+    - id: security.unauthenticated_allowlist_must_be_minimal
+      title: Unauthenticated method allowlist is an explicit bypass surface and must remain minimal
+      severity: critical
+      status: active
+      summary: |
+        AllowUnauthenticated and AllowUnauthenticatedPrefix in the server interceptor
+        create bypass entries that skip all RBAC and token validation. These lists are
+        a security surface: each entry is a method reachable by any caller on the network
+        without authentication. The default set is health-check, reflection, and the
+        Authenticate RPC (login entry point). Any expansion beyond that must go through
+        a security review and be documented with an explicit rationale. Services that
+        register new bypass entries at init() time without review effectively create
+        unauthenticated RPCs on the cluster-internal gRPC surface.
+      protects:
+        files:
+          - golang/interceptors/ServerInterceptors.go
+      required_tests:
+        - TestAllowlistIsBounded
+      forbidden_fixes:
+        - add_service_prefix_to_allowlist_for_convenience
+        - register_allowunauthenticated_in_init_without_security_review
+        - grow_allowlist_to_avoid_token_plumbing
+        - use_allowunauthenticatedprefix_on_a_full_service_path

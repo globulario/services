@@ -11,6 +11,13 @@
 // because the interceptor's gRPC client lacks mTLS), we fall back to locally
 // loaded cluster-roles.json. This avoids a bootstrap deadlock where services
 // can't call RBAC because RBAC requires auth that depends on RBAC.
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform.interceptors.role_binding
+// @awareness file_role=rbac_lookup_with_ttl_cache
+// @awareness implements=globular.platform:intent.security.deny_overrides_allow
+// @awareness implements=globular.platform:intent.rbac.permission_changes_require_audit_and_owner
+// @awareness risk=medium
 
 package interceptors
 
@@ -49,6 +56,12 @@ var roleBindingCache sync.Map
 // cluster-roles: if ANY locally loaded role grants the method, access is
 // allowed. This is more permissive than the RBAC service path, but it only
 // activates when the RBAC service is unavailable.
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform.interceptors.role_binding
+// @awareness implements=globular.platform:intent.security.deny_overrides_allow
+// @awareness implements=globular.platform:intent.rbac.permission_changes_require_audit_and_owner
+// @awareness risk=medium
 func checkRoleBinding(subject, method, rbacAddr string) (bool, error) {
 	// Check cache first.
 	if roles, ok := getCachedRoleBinding(subject); ok {

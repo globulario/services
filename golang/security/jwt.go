@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform.security.jwt
+// @awareness file_role=jwt_token_mint_and_validate
+// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+// @awareness implements=globular.platform:intent.globular.security.ceremony_over_configuration
+// @awareness enforces=globular.platform:invariant.security.jwt_signing_key_must_be_cluster_scoped
+// @awareness risk=high
 package security
 
 import (
@@ -255,7 +262,14 @@ func ValidateTokenWithAudience(tokenStr string, expectedAudience string) (*Claim
 	return validateTokenInternal(tokenStr, expectedAudience)
 }
 
-// validateTokenInternal is the core validation logic.
+// validateTokenInternal is the core validation logic. Enforces EdDSA algorithm
+// and resolves the signing key by issuer+kid — unknown issuers fail closed.
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform.security.jwt
+// @awareness enforces=globular.platform:invariant.security.jwt_signing_key_must_be_cluster_scoped
+// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+// @awareness risk=high
 func validateTokenInternal(tokenStr string, expectedAudience string) (*Claims, error) {
 	claims := &Claims{}
 
