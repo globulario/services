@@ -155,3 +155,27 @@ code_symbols:
         - globular.platform:intent.package.identity_tuple_must_be_unique
       protects:
         - globular.platform:failure_mode.node_agent.install_package_aliases_convergence_hash_into_expected_sha256
+  - id: globular.platform:code.go.platform.controller.objectstore
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/reconcile_minio.go
+    component: platform.controller.objectstore
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
+      implements:
+        - globular.platform:intent.quorum_safety_before_storage_mutation
+  - id: globular.platform:code.go.platform.controller.objectstore.minioTopologyReconciler
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/reconcile_minio.go
+    symbol: minioTopologyReconciler
+    kind: type
+    component: platform.controller.objectstore
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
+      implements:
+        - globular.platform:intent.quorum_safety_before_storage_mutation

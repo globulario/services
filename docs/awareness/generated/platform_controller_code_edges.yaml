@@ -95,3 +95,15 @@ code_edges:
   - from: globular.platform:code.go.controller.release_resolver
     relation: protects
     to: globular.platform:failure_mode.node_agent.install_package_aliases_convergence_hash_into_expected_sha256
+  - from: globular.platform:code.go.platform.controller.objectstore
+    relation: enforces
+    to: globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
+  - from: globular.platform:code.go.platform.controller.objectstore
+    relation: implements
+    to: globular.platform:intent.quorum_safety_before_storage_mutation
+  - from: globular.platform:code.go.platform.controller.objectstore.minioTopologyReconciler
+    relation: enforces
+    to: globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
+  - from: globular.platform:code.go.platform.controller.objectstore.minioTopologyReconciler
+    relation: implements
+    to: globular.platform:intent.quorum_safety_before_storage_mutation

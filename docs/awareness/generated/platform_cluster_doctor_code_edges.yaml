@@ -140,3 +140,15 @@ code_edges:
   - from: globular.platform:code.go.cluster_doctor.rules.Registry_EvaluateAll
     relation: implements
     to: globular.platform:intent.doctor.findings_are_operator_language
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore_admission
+    relation: implements
+    to: globular.platform:invariant.objectstore.minio.existing_data_guard
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore_admission
+    relation: implements
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore_admission.objectstoreMinioStandaloneSplitbrain
+    relation: implements
+    to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.objectstore_admission.objectstoreMinioStandaloneSplitbrain
+    relation: implements
+    to: globular.platform:invariant.objectstore.topology_contract

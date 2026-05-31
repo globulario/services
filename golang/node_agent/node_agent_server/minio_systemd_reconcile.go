@@ -1,3 +1,11 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.objectstore.config_enforcer
+// @awareness file_role=minio_local_contract_enforcer
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness enforces=globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
+// @awareness enforces=globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
+// @awareness risk=high
 package main
 
 import (
@@ -32,6 +40,14 @@ const (
 //   - Node-agent owns local enforcement: hold non-members, wipe on transition,
 //     render files, reload daemon, report rendered state.
 //   - Node-agent NEVER restarts MinIO independently.
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.objectstore.config_enforcer
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness enforces=globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
+// @awareness enforces=globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
+// @awareness risk=high
 func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 	// 1. Load desired state — bail on transient etcd errors or pre-pool state.
 	state, ok := srv.loadMinioDesiredState(ctx)
@@ -153,6 +169,12 @@ func (srv *NodeAgentServer) enforceMinioRuntimeMembership(ctx context.Context, s
 // TopologyTransition authorizes destructive local cleanup (.minio.sys wipe).
 // No wipe happens without an explicit controller-written transition record.
 // The wipe is idempotent — a no-op when .minio.sys is already absent.
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.objectstore.config_enforcer
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness implements=globular.platform:intent.objectstore.destructive_changes_require_approval
+// @awareness risk=critical
 func (srv *NodeAgentServer) applyApprovedMinioTransition(ctx context.Context, state *config.ObjectStoreDesiredState, nodeIP string) {
 	srv.clearMinioSysIfTransitionApproved(ctx, state, nodeIP)
 }

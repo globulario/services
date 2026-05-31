@@ -4532,3 +4532,30 @@ invariants:
         - register_allowunauthenticated_in_init_without_security_review
         - grow_allowlist_to_avoid_token_plumbing
         - use_allowunauthenticatedprefix_on_a_full_service_path
+
+    - id: objectstore.minio.config_render_source_must_be_etcd
+      title: Local MinIO runtime config files must be rendered from etcd ObjectStoreDesiredState
+      severity: critical
+      status: active
+      summary: |
+        MinIO runtime configuration files on disk — including minio.env and the systemd
+        distributed.conf override — are rendered artifacts of ObjectStoreDesiredState.
+        They must never be authored locally or treated as a source of truth. Each rendered
+        file must carry RenderedArtifactMetadata (SourceEtcdKey, SourceGeneration, RenderedAt,
+        NodeID) proving it originated from etcd. Any path that writes MinIO config without
+        reading from etcd is a bug: it creates configuration that cannot be audited, diffed
+        against desired state, or recovered from etcd on node repair.
+      protects:
+        state:
+          - /globular/objectstore/config
+        files:
+          - golang/node_agent/node_agent_server/minio_contract_reconcile.go
+          - golang/node_agent/node_agent_server/minio_systemd_reconcile.go
+          - golang/config/objectstore_config.go
+      required_tests:
+        - TestReconcileMinioContract_AlwaysSetsRenderedArtifactMetadata
+        - TestLocallyEditedContractCannotBecomeTopologyAuthority
+      forbidden_fixes:
+        - write_minio_config_from_local_state_without_etcd_source
+        - omit_rendered_artifact_metadata_from_minio_contract_file
+        - treat_minio_env_file_as_authoritative_topology_source

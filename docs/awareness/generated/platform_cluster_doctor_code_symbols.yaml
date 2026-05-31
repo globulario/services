@@ -176,3 +176,25 @@ code_symbols:
         - globular.platform:invariant.doctor.must_compare_claims_to_proofs
       implements:
         - globular.platform:intent.doctor.findings_are_operator_language
+  - id: globular.platform:code.go.platform_cluster_doctor.objectstore_admission
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_admission.go
+    component: platform_cluster_doctor.objectstore_admission
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:invariant.objectstore.topology_contract
+        - globular.platform:invariant.objectstore.minio.existing_data_guard
+  - id: globular.platform:code.go.platform_cluster_doctor.objectstore_admission.objectstoreMinioStandaloneSplitbrain
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_admission.go
+    symbol: objectstoreMinioStandaloneSplitbrain
+    kind: type
+    component: platform_cluster_doctor.objectstore_admission
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:invariant.objectstore.topology_contract
+        - globular.platform:intent.objectstore.topology_requires_contract

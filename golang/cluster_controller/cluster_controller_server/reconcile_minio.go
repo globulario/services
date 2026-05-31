@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform.controller.objectstore
+// @awareness file_role=minio_topology_reconciler_controller_side
+// @awareness implements=globular.platform:intent.quorum_safety_before_storage_mutation
+// @awareness enforces=globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
+// @awareness risk=high
 package main
 
 import (
@@ -37,6 +43,16 @@ type minioNodeHealth struct {
 	isStorageNode bool
 }
 
+// minioTopologyReconciler drives controller-side MinIO topology convergence.
+// It compares desired generation against applied generation and dispatches the
+// topology workflow when drift is detected. The quorum guard (storageCount <
+// MinQuorumNodes) prevents workflow dispatch against a degraded storage layer.
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform.controller.objectstore
+// @awareness implements=globular.platform:intent.quorum_safety_before_storage_mutation
+// @awareness enforces=globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
+// @awareness risk=high
 type minioTopologyReconciler struct {
 	srv      *server
 	interval time.Duration

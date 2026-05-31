@@ -1,0 +1,100 @@
+code_symbols:
+  - id: globular.platform:code.go.platform.objectstore.admission
+    namespace: globular.platform
+    language: go
+    file: golang/config/objectstore_admission.go
+    component: platform.objectstore.admission
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.objectstore.destructive_changes_require_approval
+        - globular.platform:invariant.objectstore.minio.existing_data_guard
+  - id: globular.platform:code.go.platform.objectstore.admission.AdmittedDisk
+    namespace: globular.platform
+    language: go
+    file: golang/config/objectstore_admission.go
+    symbol: AdmittedDisk
+    kind: type
+    component: platform.objectstore.admission
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:invariant.objectstore.minio.existing_data_guard
+        - globular.platform:intent.objectstore.destructive_changes_require_approval
+  - id: globular.platform:code.go.platform.objectstore.config_render
+    namespace: globular.platform
+    language: go
+    file: golang/config/minio_runtime_render.go
+    component: platform.objectstore.config_render
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+        - globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+  - id: globular.platform:code.go.platform.objectstore.config_render.RenderMinioEnv
+    namespace: globular.platform
+    language: go
+    file: golang/config/minio_runtime_render.go
+    symbol: RenderMinioEnv
+    kind: function
+    component: platform.objectstore.config_render
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
+        - globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform.objectstore.config_render.RenderMinioSystemdOverride
+    namespace: globular.platform
+    language: go
+    file: golang/config/minio_runtime_render.go
+    symbol: RenderMinioSystemdOverride
+    kind: function
+    component: platform.objectstore.config_render
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform.objectstore.schema
+    namespace: globular.platform
+    language: go
+    file: golang/config/objectstore_config.go
+    component: platform.objectstore.schema
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
+        - globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform.objectstore.schema.ObjectStoreDesiredState
+    namespace: globular.platform
+    language: go
+    file: golang/config/objectstore_config.go
+    symbol: ObjectStoreDesiredState
+    kind: type
+    component: platform.objectstore.schema
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
+        - globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform.objectstore.schema.RenderStateFingerprint
+    namespace: globular.platform
+    language: go
+    file: golang/config/objectstore_config.go
+    symbol: RenderStateFingerprint
+    kind: function
+    component: platform.objectstore.schema
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:invariant.objectstore.topology_contract
+        - globular.platform:intent.objectstore.topology_requires_contract
