@@ -325,10 +325,39 @@ jobs:
           cp "$(which claude)" claude
           chmod +x claude
 
+          echo "-> oxigraph (latest stable from github.com/oxigraph/oxigraph)..."
+          OXIGRAPH_VERSION=$(curl -fsSL \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            -H 'Authorization: Bearer ${{ github.token }}' \
+            "https://api.github.com/repos/oxigraph/oxigraph/releases/latest" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'].lstrip('v'))")
+          echo "  version: ${OXIGRAPH_VERSION}"
+          echo "OXIGRAPH_VERSION=${OXIGRAPH_VERSION}" >> "$GITHUB_ENV"
+          curl -fsSL \
+            "https://github.com/oxigraph/oxigraph/releases/download/v${OXIGRAPH_VERSION}/oxigraph_v${OXIGRAPH_VERSION}_x86_64_linux_gnu" \
+            -o oxigraph
+          chmod +x oxigraph
+
+          echo "-> awareness-graph (latest stable from github.com/globulario/awareness-graph)..."
+          AWARENESS_VERSION=$(curl -fsSL \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            -H 'Authorization: Bearer ${{ github.token }}' \
+            "https://api.github.com/repos/globulario/awareness-graph/releases/latest" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'].lstrip('v'))")
+          echo "  version: ${AWARENESS_VERSION}"
+          echo "AWARENESS_VERSION=${AWARENESS_VERSION}" >> "$GITHUB_ENV"
+          curl -fsSL \
+            "https://github.com/globulario/awareness-graph/releases/download/v${AWARENESS_VERSION}/awareness-graph_${AWARENESS_VERSION}_linux_amd64.tgz" \
+            | tar xzf - --strip-components=2 "./bin/awareness-graph"
+          chmod +x awareness-graph
+
           echo ""
           echo "Infra binaries downloaded:"
           ls -lh etcd etcdctl envoy minio mc prometheus alertmanager node_exporter sidekick restic rclone noop \
-                 sha256sum yt-dlp ffmpeg scylla_manager scylla_manager_agent sctool claude 2>/dev/null || true
+                 sha256sum yt-dlp ffmpeg scylla_manager scylla_manager_agent sctool claude \
+                 oxigraph awareness-graph 2>/dev/null || true
 
       # ── Create noop binary for scylladb/keepalived ──────────────────────
       - name: Create noop binary

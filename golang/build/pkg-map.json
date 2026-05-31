@@ -273,5 +273,15 @@
     "binary": "claude",
     "go_target": "",
     "kind": "command"
+  },
+  "awareness-graph": {
+    "binary": "awareness-graph",
+    "go_target": "",
+    "kind": "service"
+  },
+  "oxigraph": {
+    "binary": "oxigraph",
+    "go_target": "",
+    "kind": "infrastructure"
   }
 }
