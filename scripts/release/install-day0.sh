@@ -1913,9 +1913,13 @@ EOF
     elif [[ -d "docs/operational-knowledge" ]]; then
       OPS_KNOWLEDGE_DIR="$(pwd)/docs/operational-knowledge"
     else
-      die "operational-knowledge directory not found (expected /var/lib/globular/awareness/current/ops-knowledge)"
+      log_warn "operational-knowledge directory not found — skipping ops-knowledge seed (ai-memory will be seeded at day-1)"
+      OPS_KNOWLEDGE_DIR=""
     fi
   fi
+  if [[ -z "$OPS_KNOWLEDGE_DIR" ]]; then
+    : # skip — warned above
+  else
   log_substep "Operational knowledge source: ${OPS_KNOWLEDGE_DIR}"
 
   BOOTSTRAP_SA_CRED="${BOOTSTRAP_SA_CRED:-/var/lib/globular/.bootstrap-sa-password}"
@@ -2022,6 +2026,7 @@ EOF
   else
     log_warn "Ops-knowledge seed skipped at day-0 — ai-memory will be seeded automatically after day-1 workloads start"
   fi
+  fi # end: OPS_KNOWLEDGE_DIR non-empty
 else
   log_warn "globular CLI not found at $GLOBULAR_CLI — cannot initialize AI operational memory. Ops-knowledge seed skipped."
 fi

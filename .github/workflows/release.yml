@@ -920,6 +920,11 @@ jobs:
           mkdir -p "${RELEASE_DIR}/workflows"
           cp services/golang/workflow/definitions/*.yaml "${RELEASE_DIR}/workflows/"
 
+          # Operational knowledge — seeded into ai-memory at day-0
+          if [[ -d services/docs/operational-knowledge ]]; then
+            cp -r services/docs/operational-knowledge "${RELEASE_DIR}/docs/operational-knowledge"
+          fi
+
           # Welcome page assets
           if [[ -d globular-installer/internal/assets/webroot ]]; then
             cp -r globular-installer/internal/assets/webroot "${RELEASE_DIR}/webroot"
