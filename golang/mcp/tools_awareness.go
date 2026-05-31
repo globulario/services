@@ -18,70 +18,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	awarenesspb "github.com/globulario/awareness-graph/golang/pb"
-	"github.com/globulario/services/golang/awareness_graph_client"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
-// awarenessClientHolder caches one *Client per MCP server process. The
-// holder is process-global because the MCP server is a single process and
-// the awareness-graph service address is stable for the cluster's lifetime
-// (re-registration in etcd would require an MCP restart to pick up — that's
-// acceptable for now).
-type awarenessClientHolder struct {
-	mu     sync.Mutex
-	client *awareness_graph_client.Client
-	// failed records the last dial failure. We don't cache it permanently —
-	// every call re-attempts so awareness-graph can come up after MCP starts.
-	// The field exists for diagnostics, not for short-circuiting.
-	lastErr error
-}
-
-func (h *awarenessClientHolder) get() (*awareness_graph_client.Client, error) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.client != nil {
-		return h.client, nil
+func awarenessStub(ctx context.Context, s *server) (awarenesspb.AwarenessGraphClient, string, error) {
+	ep := gatewayEndpoint()
+	if ep == "" {
+		return nil, "", fmt.Errorf("awareness-graph: gateway endpoint unavailable")
 	}
-	cli, err := awareness_graph_client.New("")
+	conn, err := s.clients.get(ctx, ep)
 	if err != nil {
-		h.lastErr = err
-		return nil, err
+		return nil, ep, fmt.Errorf("awareness-graph: dial gateway: %w", err)
 	}
-	h.client = cli
-	h.lastErr = nil
-	return cli, nil
+	return awarenesspb.NewAwarenessGraphClient(conn), ep, nil
 }
-
-// resetOnTransportError clears the cached client when a transport-layer failure
-// is detected (codes.Unknown, codes.Unavailable). This allows the next call to
-// re-dial with a fresh connection — necessary when the gRPC channel was
-// established before Envoy had the route, or after a mesh reconfiguration.
-// Application-layer errors (InvalidArgument, NotFound, etc.) do NOT reset the
-// connection; only transport errors do.
-func (h *awarenessClientHolder) resetOnTransportError(err error) {
-	if err == nil {
-		return
-	}
-	st, _ := status.FromError(err)
-	switch st.Code() {
-	case codes.Unknown, codes.Unavailable:
-		// Transport errors — the connection itself is broken.
-	default:
-		return
-	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.client != nil {
-		_ = h.client.Close()
-		h.client = nil
-	}
-}
-
-var awarenessClient awarenessClientHolder
 
 // degradedResult is the canonical shape every awareness.* tool returns when
 // the awareness-graph service is unreachable. Mirrors the BRIEFING_STATUS_DEGRADED
@@ -141,13 +92,15 @@ func registerAwarenessBriefingTool(s *server) {
 		if file != "" && task != "" {
 			return nil, errors.New("awareness.briefing: 'file' and 'task' are mutually exclusive — pass exactly one")
 		}
-		cli, err := awarenessClient.get()
+		stub, ep, err := awarenessStub(ctx, s)
 		if err != nil {
 			return degradedResult(err), nil
 		}
-		resp, err := cli.Briefing(ctx, file, task, depth)
+		resp, err := stub.Briefing(ctx, &awarenesspb.BriefingRequest{File: file, Task: task, Depth: depth})
 		if err != nil {
-			awarenessClient.resetOnTransportError(err)
+			if isConnError(err) {
+				s.clients.invalidate(ep)
+			}
 			return degradedResult(err), nil
 		}
 		return briefingToMap(resp), nil
@@ -204,13 +157,15 @@ func registerAwarenessImpactTool(s *server) {
 		if file == "" {
 			return nil, errors.New("awareness.impact: 'file' is required")
 		}
-		cli, err := awarenessClient.get()
+		stub, ep, err := awarenessStub(ctx, s)
 		if err != nil {
 			return degradedResult(err), nil
 		}
-		resp, err := cli.Impact(ctx, file)
+		resp, err := stub.Impact(ctx, &awarenesspb.ImpactRequest{File: file})
 		if err != nil {
-			awarenessClient.resetOnTransportError(err)
+			if isConnError(err) {
+				s.clients.invalidate(ep)
+			}
 			return degradedResult(err), nil
 		}
 		return impactToMap(resp), nil
@@ -266,13 +221,15 @@ func registerAwarenessResolveTool(s *server) {
 		if class == "" || id == "" {
 			return nil, errors.New("awareness.resolve: both 'class' and 'id' are required")
 		}
-		cli, err := awarenessClient.get()
+		stub, ep, err := awarenessStub(ctx, s)
 		if err != nil {
 			return degradedResult(err), nil
 		}
-		resp, err := cli.Resolve(ctx, class, id)
+		resp, err := stub.Resolve(ctx, &awarenesspb.ResolveRequest{Class: class, Id: id})
 		if err != nil {
-			awarenessClient.resetOnTransportError(err)
+			if isConnError(err) {
+				s.clients.invalidate(ep)
+			}
 			return degradedResult(err), nil
 		}
 		return resolveToMap(resp), nil
@@ -368,13 +325,15 @@ func registerAwarenessQueryTool(s *server) {
 			}
 		}
 
-		cli, err := awarenessClient.get()
+		stub, ep, err := awarenessStub(ctx, s)
 		if err != nil {
 			return degradedResult(err), nil
 		}
-		resp, err := cli.Query(ctx, req)
+		resp, err := stub.Query(ctx, req)
 		if err != nil {
-			awarenessClient.resetOnTransportError(err)
+			if isConnError(err) {
+				s.clients.invalidate(ep)
+			}
 			return degradedResult(err), nil
 		}
 		return queryToMap(resp), nil
