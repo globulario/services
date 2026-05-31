@@ -39,7 +39,7 @@ When a new Kubernetes failure pattern is observed in production:
        - Test<Name>
    ```
 
-5. **Run graph rebuild**: `globular awareness build --clean`
+5. **Rebuild and reload the awareness graph** (see `yaml2nt` + `loadnt` pipeline)
 
 ---
 

@@ -523,8 +523,7 @@ log is where we earn the right to consolidate.
     Migration executes DDL via `db.Exec(schemaSQL)` and uses WAL
     journal mode, which needs to create `-wal`/`-shm` sidecars in
     the parent directory."
-  - MCP service: "I open the active bundle at
-    `/var/lib/globular/awareness/current/graph.db` as user `globular`."
+  - MCP service: "I open the active bundle as user `globular`."
   - Reality: the service user can't write to a root-owned bundle dir.
     Open fails with "attempt to write a readonly database", awareness
     degrades to noop, and downstream tools (runtime_errors,
@@ -551,7 +550,7 @@ log is where we earn the right to consolidate.
 - **Did the fix simplify or special-case?** **Simplified.** The
   bundle's immutability contract is now honoured by a verb that
   matches it (`OpenReadOnly`). The previous workaround — staging a
-  writable copy of the signed bundle's graph.db under
+  a writable runtime copy of the signed bundle under
   `/var/lib/globular/awareness/runtime/` and pointing MCP at that —
   split authority across two file homes. With this fix the bundle is
   the single source of read truth; the workaround copy can be retired.
@@ -952,7 +951,7 @@ divergence above.
     manifest, the other trusts the tarball.
 
 - **Why unit tests missed it**: every install test ran in `t.TempDir()`
-  and asserted only on `graph.db` + the manifest sidecar
+  and asserted only on the bundle database + the manifest sidecar
   (`install_test.go::TestInstallBundleFreshInstall` etc.). No test
   asserted that the source tarball survived the install. The MCP serve
   tools' tests synthesized their own `bundle.tar.gz` at the active
@@ -1139,9 +1138,8 @@ evidence demanded the cross-node temporal axis.
   - User: "compare node-1 with node-2" — named the temporal axis.
     Root cause found in one step: the post-install re-check loop had
     started a retry storm between the two join events.
-  - Awareness preflight and scan-violations: returned no matched
-    finding, no ranked diagnosis path, no hint toward the temporal
-    axis. Both columns existed in the awareness graph as separate
+  - Awareness preflight: returned no matched finding, no ranked
+    diagnosis path, no hint toward the temporal axis. Both columns existed in the awareness graph as separate
     nodes; no compound invariant linked them; no causal rule described
     the partial-convergence-in-join-order symptom sequence.
 - **Why awareness missed it**:

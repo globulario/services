@@ -44,24 +44,6 @@ Awareness tools will appear automatically in `tools/list` alongside all other Gl
 
 Set `tool_groups.awareness = false` in `/var/lib/globular/mcp/config.json` to exclude awareness tools from the main service.
 
-### Awareness graph configuration
-
-Add an `"awareness"` block to `/var/lib/globular/mcp/config.json` to override path auto-detection:
-
-```json
-{
-  "tool_groups": { "awareness": true },
-  "awareness": {
-    "db_path":   "/path/to/.globular/awareness/graph.db",
-    "repo_path": "/path/to/globulario/services",
-    "docs_dir":  "/path/to/docs/awareness",
-    "node_id":   "globule-ryzen"
-  }
-}
-```
-
-All fields are optional. When empty, the server auto-detects the repo root via `git rev-parse` and uses the standard `.globular/awareness/graph.db` location. If the graph DB is missing the tools degrade gracefully (return structured warnings instead of erroring).
-
 ---
 
 ## Discovering tools
@@ -145,24 +127,6 @@ globular awareness promote-proposal proposals/my-proposal.yaml
 | **No promotion gate bypass** | The tool registry is tested on every CI run: `awareness.promote_proposal` must not be registered. |
 
 ---
-
-## Standalone awareness MCP server (DEPRECATED)
-
-The `globular awareness mcp-server` command remains available for local development, but is no longer the recommended integration point:
-
-```bash
-# Dev-only: start as a separate stdio process
-globular awareness mcp-server
-
-# Explicit paths
-globular awareness mcp-server \
-  --repo    /path/to/globulario/services \
-  --db      /path/to/.globular/awareness/graph.db \
-  --docs    /path/to/docs/awareness \
-  --node-id globule-ryzen
-```
-
-The standalone server will be removed in a future release once all clients have migrated to the main Globular MCP service.
 
 ---
 

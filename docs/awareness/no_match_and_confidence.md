@@ -19,7 +19,7 @@ It means: **the awareness system has no opinion**.
 
 ### When NO_MATCH Is Expected
 
-- The task involves a file that was never indexed (run `globular awareness build`)
+- The task involves a file that has no awareness anchors yet
 - The task description uses terms not in the graph's vocabulary
 - The graph is stale and misses recent additions
 
@@ -58,9 +58,9 @@ Every preflight response includes a `blind_spots` array. Each item describes a c
 |-----------|-------|--------|
 | `live overlay absent` | No live-snapshot run | Run `globular awareness live-snapshot` |
 | `runtime is noop` | No cluster address configured | Accept: local development mode |
-| `graph stale` | Graph rebuild overdue | Run `globular awareness build` |
-| `file not indexed` | New file not in graph | Run `globular awareness build` |
-| `RBAC evidence missing` | RBAC extractor not run | Run `globular awareness build --include-rbac` |
+| `graph stale` | Graph rebuild overdue | Rebuild and reload the awareness graph |
+| `file not indexed` | New file has no awareness anchors | Add `@awareness` annotations and rebuild |
+| `RBAC evidence missing` | RBAC extractor not run | Verify RBAC YAML is in the awareness source dirs |
 
 **Never treat a response as complete if `blind_spots` is non-empty and you're making a risk-gated decision.**
 

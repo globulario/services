@@ -812,8 +812,8 @@ forbidden_fixes:
     therefore never installed on cluster nodes.
 
     '
-  safe_alternative: 'Validate that every service in services.yaml is present in the BOM before publishing; use graph-integrity
-    or CI check to enforce BOM completeness.
+  safe_alternative: 'Validate that every service in services.yaml is present in the BOM before publishing; use the awareness
+    CI check to enforce BOM completeness.
 
     '
   related_invariants:
@@ -989,9 +989,9 @@ forbidden_fixes:
   related_invariants:
     - awareness.knowledge.graph_rebuild_after_yaml_edit
   safe_alternative: |
-    After editing any awareness YAML, run 'globular awareness build' before calling
+    After editing any awareness YAML, rebuild and reload the awareness graph before calling
     awareness.decision_context or any other graph-querying tool. Treat the graph as
-    STALE until the build completes.
+    STALE until the reload completes.
 
 - id: rely_on_stale_graph_after_knowledge_edit
   summary: |
@@ -1001,8 +1001,8 @@ forbidden_fixes:
   related_invariants:
     - awareness.knowledge.graph_rebuild_after_yaml_edit
   safe_alternative: |
-    Check graph freshness with awareness.session_start before using decision_context.
-    If the graph is stale, rebuild. Never treat stale-graph output as current guidance.
+    Check graph freshness before using decision_context.
+    If the graph is stale, rebuild and reload. Never treat stale-graph output as current guidance.
 
 - id: skip_awareness_preflight_before_yaml_edit
   summary: |
@@ -1113,8 +1113,8 @@ forbidden_fixes:
   related_invariants:
     - awareness.weight_learning.human_approval_required
   safe_alternative: |
-    After promoting weight changes to path_weights.yaml, always run
-    'globular awareness build' to recompile the graph with the new weights.
+    After promoting weight changes to path_weights.yaml, always rebuild and reload
+    the awareness graph to incorporate the new weights.
     Verify the ranking changes using awareness.decision_context on a known scenario.
 
 - id: lower_penalty_for_invalid_trust_paths
@@ -1176,8 +1176,8 @@ forbidden_fixes:
   related_invariants:
     - awareness.mcp.decision_context_no_bare_no_match
   safe_alternative: |
-    When graph is unavailable, always include at least: "graph unavailable — run
-    'globular awareness build' first", "cannot check files for decision paths",
+    When graph is unavailable, always include at least: "graph unavailable — rebuild and reload the awareness graph",
+    "cannot check files for decision paths",
     and "runtime not collected". These are always true in no-graph mode.
 
 - id: auto_rollback_on_crash

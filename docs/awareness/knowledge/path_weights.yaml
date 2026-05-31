@@ -3,7 +3,7 @@
 # These are operational heuristics, not ground truth.
 # A high score means "best known path", not "guaranteed safe".
 # Weight changes must be proposed via learn_from_fix and require human approval.
-# After promotion, run: globular awareness build
+# After promotion, rebuild and reload the awareness graph.
 
 trust:
   strict_verified: 40   # required test passed in CI

@@ -79,7 +79,7 @@ preflight_questions:
         - golang/awareness/**
         - docs/awareness/**
     questions:
-      - "After editing YAML files, have you rebuilt the awareness graph? (awareness build)"
+      - "After editing YAML files, have you rebuilt and reloaded the awareness graph?"
       - "Does this change add new invariants without also adding proven_by links?"
       - "If the graph is stale, does the MCP tool expose graph_freshness so the caller knows?"
       - "Are new YAML IDs referenced by at least one test or incident?"

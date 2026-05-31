@@ -4,29 +4,9 @@ Every agent (Claude, GPT, or any code-editing AI) that works on this codebase mu
 
 ---
 
-## Required Workflow (4 steps)
+## Required Workflow (3 steps)
 
-### Step 1: Session Start
-
-Run at the beginning of every development session.
-
-```bash
-# MCP (preferred)
-awareness.session_start {}
-
-# CLI fallback
-globular awareness session-start --output json
-```
-
-Read:
-- `graph.stale` — if true, rebuild before editing
-- `live_overlay.status` — if absent or stale, note the blind spot
-- `proposal_queue.status` — if stale, drain before new work
-- `blind_spots` — address each before proceeding
-
----
-
-### Step 2: Before Editing Any File
+### Step 1: Before Editing Any File
 
 For each file you plan to edit:
 
@@ -50,24 +30,7 @@ Read:
 
 ---
 
-### Step 3: Before Committing
-
-Scan for violations across all changed files.
-
-```bash
-# MCP
-awareness.scan_violations { "paths": ["golang/cluster_controller/server.go"] }
-
-# CLI
-globular awareness scan-violations --paths golang/cluster_controller/server.go --output json
-```
-
-A clean scan with no findings AND no blind spots means the change is safe to commit.  
-A clean scan with blind spots means **the scan could not check everything** — do not treat as safe.
-
----
-
-### Step 4: After a Verified Fix
+### Step 3: After a Verified Fix
 
 When a bug was fixed and the fix is verified by tests:
 
@@ -95,38 +58,14 @@ If `preflight_skip_rate` > 20%, agents are bypassing awareness. Investigate why.
 
 ---
 
-## Hook Configuration
-
-To automatically record session starts and pre-commit checks, configure Claude Code hooks:
-
-```json
-// .claude/settings.json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [{ "type": "command", "command": "globular awareness hook --file \"$CLAUDE_TOOL_INPUT_PATH\"" }]
-      }
-    ]
-  }
-}
-```
-
-See `docs/awareness/claude_hooks.md` for full hook configuration.
-
----
-
 ## What Happens When You Skip
 
 | Skipped Step | Risk |
 |-------------|------|
-| session_start | May work on stale graph — missed invariants |
 | pre_edit_context | May violate a forbidden fix pattern unknowingly |
-| scan_violations | Commits with undetected violations enter the codebase |
 | learn_from_fix | Fix is not remembered — same pattern recurs in next incident |
 
-None of these risks are hypothetical. All four have caused regressions in this codebase.
+None of these risks are hypothetical. Both have caused regressions in this codebase.
 
 ---
 

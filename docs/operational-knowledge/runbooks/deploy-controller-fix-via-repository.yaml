@@ -99,5 +99,5 @@ entries:
 
     follow_up:
       - "Commit the source change with a message referencing the deployed version"
-      - "If this fix uncovered a class of bug, add a failure_mode to docs/awareness/failure_modes.yaml and re-run awareness build"
+      - "If this fix uncovered a class of bug, add a failure_mode to docs/awareness/failure_modes.yaml and rebuild the awareness graph"
       - "If this fix established a new operational procedure, update the relevant runbook in docs/operational-knowledge/runbooks/"

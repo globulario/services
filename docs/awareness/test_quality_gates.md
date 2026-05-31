@@ -57,7 +57,7 @@ It also cross-references DONE fix cases in `fix_cases.yaml`. If a DONE fix case 
 2. Write the real test logic (replace `t.Skip("TODO: ...")`)
 3. Run `globular awareness enforce --max-todo-scaffold-skips 0` to verify no stubs remain
 4. Add the test name to `fix_cases.yaml` `tests` list
-5. Run `globular awareness build` to rebuild the graph
+5. Rebuild and reload the awareness graph
 
 ## Tests
 

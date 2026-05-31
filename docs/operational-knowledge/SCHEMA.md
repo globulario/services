@@ -27,7 +27,7 @@ entries:                              # required; one or more entries
     - day-0 | day-1 | day-2 | always
     - <subsystem>                           # e.g. objectstore, keepalived, etcd, ai-memory
     - <topic>                               # e.g. topology, contract, integrity
-  applies_when:                             # required; AI session-start filters by these
+  applies_when:                             # required; AI briefing filters by these
     cluster_phases: [day-0, day-1, day-2]   # which phases the entry is valid in
     services_present: []                    # services that must be running for entry to apply (empty = always)
     services_healthy: []                    # services that must be healthy (subset of services_present)

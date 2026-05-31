@@ -16,7 +16,6 @@ with the source code. It backs the `globular awareness audit` family of commands
 | `awareness validate-contracts` | Hash schema contracts complete | ERROR findings |
 | `awareness graph-drift` | Stale source_file nodes | ERROR findings |
 | `awareness pr-report` | Changed files only | ERROR findings |
-| `awareness hook` | Pre-edit constraints (informational) | Never (exit 0) |
 
 All commands accept `--json` to output machine-readable results.
 
@@ -48,7 +47,7 @@ All commands accept `--json` to output machine-readable results.
 | `MISSING_HASH_PRODUCER` | ERROR | Hash schema has consumer(s) but no producer |
 | `MISSING_HASH_CONSUMER` | WARNING | Hash schema has producer but no consumer yet |
 | `REQUIRED_TEST_MISSING` | ERROR | tested_by target does not exist in the graph |
-| `REQUIRED_TEST_NO_PATH` | WARNING | Test node has no file path (re-run `awareness build`) |
+| `REQUIRED_TEST_NO_PATH` | WARNING | Test node has no file path |
 | `STALE_SOURCE_FILE_NODE` | WARNING | source_file node exists but file is gone on disk |
 | `ORPHANED_INVARIANT_NODE` | INFO | Invariant node has no enforces/protects edge |
 
@@ -80,7 +79,6 @@ Add to your CI pipeline:
 ```yaml
 - name: Awareness enforcement
   run: |
-    globular awareness build
     globular awareness audit --json | tee audit.json
     jq -e '.pass' audit.json
 ```

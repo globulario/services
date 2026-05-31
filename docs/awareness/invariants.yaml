@@ -1046,11 +1046,11 @@ invariants:
         The awareness graph is compiled from YAML source files (invariants.yaml,
         forbidden_fixes.yaml, causal_rules.yaml, failure_modes.yaml, decision_rules.yaml,
         agent_playbooks.yaml, path_weights.yaml). When any of these files are edited,
-        the SQLite graph.db is stale until 'globular awareness build' runs again.
-        A stale graph returns degraded decision context — missing paths, stale forbidden_fixes,
-        and incomplete blind_spots. Editing knowledge YAML and relying on the old graph for
-        further decisions is a compounding error: the graph cannot reason about changes it
-        has not indexed.
+        the loaded Oxigraph store is stale until the graph is rebuilt (yaml2nt) and
+        reloaded (loadnt). A stale graph returns degraded decision context — missing paths,
+        stale forbidden_fixes, and incomplete blind_spots. Editing knowledge YAML and
+        relying on the old graph for further decisions is a compounding error: the graph
+        cannot reason about changes it has not indexed.
       protects:
         configures_files:
             - docs/awareness/knowledge/causal_rules.yaml
@@ -1091,7 +1091,7 @@ invariants:
       violated_by:
         - awareness.graph.stale_context_drives_decision
       decision_guidance:
-        - "Always run 'globular awareness build --clean' after editing knowledge YAML — not just 'build'. The upsert-only DB accumulates stale edges unless --clean deletes it first."
+        - "Always rebuild and reload the awareness graph after editing knowledge YAML — the Oxigraph store replaces its content atomically (yaml2nt | loadnt), so there are no stale edges."
         - "If graph was not rebuilt after an edit, set GraphIsStale=true in scoring context — it applies -20 penalty to all paths from that graph"
 
     - id: awareness.knowledge.causal_rules_evidence_required
@@ -1235,8 +1235,8 @@ invariants:
         weight changes alter which paths rank as "best known path" — directly affecting
         what decisions the awareness system recommends. Weight changes must be proposed
         via the learn_from_fix workflow, reviewed by a human, and promoted only after
-        explicit approval. After promotion, 'globular awareness build' is required to
-        recompile the graph with the new weights.
+        explicit approval. After promotion, the awareness graph must be rebuilt and
+        reloaded to incorporate the new weights.
       protects:
         configures_files:
             - docs/awareness/knowledge/path_weights.yaml
@@ -1270,7 +1270,7 @@ invariants:
         - TestDecisionIntegrity_WeightsConfigParses
       decision_guidance:
         - "Weight proposals from learn_from_fix go to a pending queue (DomainProposal edges) — they never auto-apply to path_weights.yaml"
-        - "After human approves: (1) edit path_weights.yaml, (2) run 'globular awareness build --clean', (3) verify TestPathScoring_VerifiedDecisionPathBeatsDeclaredInformationPath still passes"
+        - "After human approves: (1) edit path_weights.yaml, (2) rebuild and reload the awareness graph, (3) verify TestPathScoring_VerifiedDecisionPathBeatsDeclaredInformationPath still passes"
         - "Never lower ContradictionPenalty (-100) or InvalidEdgePenalty (-100) — these are absolute safety gates, not tunable weights"
 
     - id: awareness.preflight.required_before_edit
@@ -1371,42 +1371,6 @@ invariants:
         - "missing_links are as important as hits — a file with no graph edges is likely implementing an invariant without declaring it, which is a coverage gap"
         - "Mandatory findings (from forbidden_fix and enforces edges) must be presented first — they are not equal weight to informational findings"
         - "Path traces let the agent understand WHY a file is impacted — without them, the agent cannot determine if the impact is real or transitive noise"
-
-    - id: awareness.cli.build_clean_required_after_yaml_edit
-      title: globular awareness build must use --clean after YAML knowledge edits to prevent stale edge accumulation
-      severity: high
-      status: active
-      summary: |
-        The awareness build command uses SQLite upsert (AddNode/AddEdge). This means
-        edges from a previous build are never removed unless the DB is deleted first.
-        If an invariant's 'files:' list is changed to 'configures_files:', the old
-        'implements' edge survives in graph.db and corrupts impact path traversal.
-        The '--clean' flag deletes graph.db before building, ensuring edge precision.
-        It must be used any time invariants.yaml or other knowledge YAML files change
-        the file-to-invariant edge semantics.
-      protects:
-        files:
-            - golang/globularcli/awareness_cmds.go
-        symbols:
-            - awarenessBuildCmd
-            - cleanBuild
-      forbidden_fixes:
-        - edit_awareness_yaml_without_graph_rebuild
-        - rebuild_awareness_graph_without_clean_after_yaml_edit
-      required_tests:
-        - TestAwarenessBuildCleanRemovesOldDB
-        - TestLearnFromFix_DoesNotApplyWeightsWithoutApproval
-      implemented_by:
-        - file: golang/globularcli/awareness_cmds.go
-          functions:
-            - awarenessBuildCmd
-            - cleanBuild
-          trust: declared
-      verified_by:
-        - TestAwarenessBuildCleanRemovesOldDB
-      decision_guidance:
-        - "Use 'globular awareness build --clean' not just 'build' when any knowledge YAML changes the semantic meaning of file-to-invariant edges (e.g., changing 'files:' to 'configures_files:') — bare 'build' leaves stale edges in graph.db"
-        - "The --clean flag deletes graph.db entirely before rebuilding — it is safe to use after every YAML edit, not just semantic changes"
 
     - id: awareness.ci.impact_ci_enforces_required_tests
       title: awareness impact-ci must exit 1 when required tests are missing for changed files
@@ -1629,60 +1593,6 @@ invariants:
       required_tests:
         - TestFileServiceTLSIdentityMatchesRegistry
         - TestFileClientUsesResolvedServerName
-
-    - id: day1.awareness_bundle_required
-      title: A node must not reach workload_ready without a verified awareness bundle matching the active release
-      severity: critical
-      status: active
-      summary: |
-        The awareness bundle (kind=AWARENESS_BUNDLE) is a compiled release artifact containing
-        the awareness graph.db, YAML knowledge files (services, failure modes, invariants,
-        guardrails), and failuregraph seeds. It is built once on the release machine and
-        distributed through the repository — same authority chain as service packages.
-
-        A joining node must fetch and install the bundle before advancing past the
-        awareness_ready bootstrap phase. MCP reads the graph from the installed bundle
-        (/var/lib/globular/awareness/current/graph.db). Without the bundle, MCP operates
-        in degraded mode and cannot classify failures or run architecture-sensitive preflight.
-
-        The controller enforces this gate: if the bundle is not installed within the
-        bootstrapPhaseTimeout window, the node advances anyway (degraded, not blocked) to
-        avoid making awareness a hard cluster dependency. The gap is recorded and surfaced
-        via health_pulse as AWARENESS_BUNDLE_MISSING.
-      protects:
-        state:
-          - /globular/nodes/{node_id}/packages/AWARENESS_BUNDLE/globular-awareness-bundle
-          - /var/lib/globular/awareness/current/manifest.json
-        files:
-          - golang/cluster_controller/cluster_controller_server/bootstrap_phases.go
-          - golang/cluster_controller/cluster_controller_server/state.go
-          - golang/node_agent/node_agent_server/awareness_bundle.go
-          - golang/node_agent/node_agent_server/heartbeat.go
-          - golang/mcp/tools_awareness.go
-        symbols:
-          - BootstrapAwarenessReady
-          - FetchAndInstallAwarenessBundle
-          - LoadInstalledAwarenessBuildID
-          - bootstrapAwarenessKey
-      enforcement: |
-        - Node-agent fetches the latest AWARENESS_BUNDLE from the repository every 5 minutes
-          (syncTicker) and installs it to /usr/local/share/globular/awareness/<build_id>/.
-        - Node-agent reports installed build_id in InstalledBuildIds["awareness_bundle"].
-        - Controller waits for InstalledBuildIds["awareness_bundle"] != "" at awareness_ready.
-        - MCP prefers /var/lib/globular/awareness/current/graph.db (bundle path) over legacy paths.
-        - Phase times out after bootstrapPhaseTimeout and advances with degraded awareness.
-      forbidden_fixes:
-        - skip_awareness_ready_phase_entirely
-        - hardcode_graph_db_path_on_non_dev_node
-        - treat_empty_installed_build_ids_awareness_bundle_as_ok
-        - load_graph_from_repo_checkout_on_cluster_node
-        - merge_compiled_knowledge_with_runtime_evidence_in_same_directory
-      required_tests:
-        - TestAwarenessBundleInstallSetsCurrentSymlink
-        - TestHeartbeatReportsAwarenessBuildID
-        - TestBootstrapAwarenessReadyAdvancesOnBuildID
-        - TestBootstrapAwarenessReadyTimesOutGracefully
-        - TestMCPLoadsBundlePathFirst
 
     - id: day1.scylla_dependency_gate
       status: active

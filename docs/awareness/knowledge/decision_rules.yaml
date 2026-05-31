@@ -3,8 +3,8 @@
 # Each rule is derived from a real incident or verified operational constraint.
 # Rules encode WHEN a decision is needed, WHAT is forbidden, and WHAT proves the fix.
 #
-# This file is loaded by 'globular awareness build' to populate decision edges in
-# the graph. Editing it requires a graph rebuild before the new rules take effect.
+# This file is loaded by the yaml2nt pipeline to populate decision edges in
+# the graph. Editing it requires a graph rebuild and reload before the new rules take effect.
 #
 # Fields:
 #   id              — unique rule identifier
@@ -318,7 +318,7 @@ decision_rules:
         failure_modes.yaml, or any knowledge/*.yaml file
       - awareness.decision_context called immediately after the edit
     decision: |
-      Has 'globular awareness build' been run AFTER the YAML edit?
+      Has the awareness graph been rebuilt and reloaded AFTER the YAML edit?
       If no: the graph is stale and will not reflect the new invariants/rules.
     forbidden_if:
       - calling awareness.decision_context before rebuilding after a YAML edit

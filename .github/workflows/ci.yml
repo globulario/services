@@ -112,48 +112,6 @@ jobs:
             exit 1
           fi
 
-      - name: Build awareness graph and verify freshness
-        run: |
-          # Build the graph from source YAML truth files.
-          ./bin/globular awareness build \
-            --repo .. \
-            --db ../.globular/awareness/graph.db
-          # Session-start check: graph freshness, runtime, CI, proposals.
-          ./bin/globular awareness session-start \
-            --repo .. \
-            --db ../.globular/awareness/graph.db \
-            --output json | tee ../.awareness/session-start.json
-          # Fail if graph is stale after a fresh build (indicates build error).
-          STALE=$(jq '.graph.stale' ../.awareness/session-start.json)
-          if [ "$STALE" = "true" ]; then
-            echo "::error::Graph is stale immediately after build — awareness build step may have failed"
-            exit 1
-          fi
-          echo "::notice::Graph freshness check passed"
-
-      - name: Graph integrity check
-        run: |
-          ./bin/globular awareness graph-integrity \
-            --docs-dir ../docs/awareness \
-            --repo-root .. \
-            --json | tee ../.awareness/graph-integrity-raw.log
-          # graph-integrity may emit INFO/WARN log lines before JSON payload.
-          # Extract from the first JSON object start so jq always parses valid JSON.
-          sed -n '/^{/,$p' ../.awareness/graph-integrity-raw.log > ../.awareness/graph-integrity-report.json
-          STATUS=$(jq -r '.status' ../.awareness/graph-integrity-report.json)
-          EXIT_CODE=$(jq '.exit_code' ../.awareness/graph-integrity-report.json)
-          echo "graph integrity status: $STATUS (exit_code=$EXIT_CODE)"
-          if [ "$EXIT_CODE" -ge 2 ]; then
-            echo "::error::Graph integrity check failed — critical violations detected"
-            jq '.invalid_shapes[] | select(.severity == "critical")' ../.awareness/graph-integrity-report.json
-            jq '.missing_tests[]' ../.awareness/graph-integrity-report.json
-            exit 1
-          fi
-          if [ "$EXIT_CODE" -eq 1 ]; then
-            echo "::warning::Graph integrity warnings detected"
-            jq '.invalid_shapes[]' ../.awareness/graph-integrity-report.json
-          fi
-
       - name: Intent audit (architecture regression check)
         # Runs the intent-vs-code audit engine. Fails on real violations only.
         # Test coverage gaps are not fatal yet — too many intent nodes lack
@@ -210,8 +168,6 @@ jobs:
           path: |
             .awareness/test-results.json
             .awareness/ci-check-report.json
-            .awareness/graph-integrity-report.json
-            .awareness/session-start.json
             .awareness/semantic-diff-report.json
             .awareness/semantic-diff-stderr.log
 

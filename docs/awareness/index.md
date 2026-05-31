@@ -38,7 +38,7 @@ Or in an MCP-aware client, call `awareness.preflight`. The result tells you:
 
 | Doc | What it covers |
 |-----|----------------|
-| [Daily Workflow](daily_workflow.md) | The default loop: preflight → edit → scan-violations → learn |
+| [Daily Workflow](daily_workflow.md) | The default loop: preflight → edit → learn |
 | [Agent Workflow](agent_workflow.md) | How AI agents are expected to use awareness in a session |
 | [Agent Usage](agent_usage.md) | Concrete agent prompts and patterns |
 | [Operational Handoff](operational_handoff.md) | Resuming a session safely after a break |
@@ -51,10 +51,8 @@ Or in an MCP-aware client, call `awareness.preflight`. The result tells you:
 |-----|----------------|
 | [MCP Tools](mcp_tools.md) | The full MCP tool surface (`awareness.*`) |
 | [MCP Server](mcp_server.md) | Server architecture and configuration |
-| [Preflight Audit](preflight_audit.md) | What `awareness.preflight` actually checks |
 | [Intent Audit v1.1](intent-audit-v1.1.md) | Source/runtime audit contract, provenance causality, and agent rules |
 | [Live Overlay](live_overlay.md) | Combining static graph + live runtime evidence |
-| [Graph Integrity](graph_integrity.md) | Invariants the graph itself must uphold |
 | [Graph Coverage](graph_coverage.md) | What percentage of code is covered by knowledge |
 | [Semantic Navigation](semantic_navigation.md) | Pivot/falsifier model used by `finding_context` |
 | [Annotation Coverage](annotation_coverage.md) | Awareness annotations on protos / Go decls |
@@ -63,7 +61,6 @@ Or in an MCP-aware client, call `awareness.preflight`. The result tells you:
 | [Enforcement](enforcement.md) | Where awareness rules are enforced (CLI, MCP, CI) |
 | [Test Quality Gates](test_quality_gates.md) | Required-test contracts |
 | [Activation Checklist](activation_checklist.md) | What "awareness active" means on a node |
-| [Claude Hooks](claude_hooks.md) | Hooks that wire awareness into Claude Code sessions |
 | [Claude Agent Footer](claude_agent_footer.md) | Required-by-policy session footer |
 
 ## Theory
@@ -92,11 +89,10 @@ why awareness draws the lines it does.
 
 | Situation | What to run |
 |-----------|-------------|
-| Starting a session | `awareness.session_start` (or `globular awareness session-start`) |
+| Starting a session | `awareness.briefing` with `file` or `task` |
 | About to edit a high-risk file | `awareness.decision_context` with the goal + files |
 | Got an error you do not recognize | `awareness.failure_match_error` |
 | Wondering if a bug is already known | `awareness.did_we_fix` |
-| Pre-commit hygiene | `awareness.scan_violations` |
 | After fixing something | `awareness.learn_from_fix` to propose new knowledge |
 | Resuming after a break | `awareness.session_resume_latest` |
 

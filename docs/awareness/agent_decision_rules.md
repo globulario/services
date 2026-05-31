@@ -165,7 +165,7 @@ against future sessions.
 If `preflight` returns `graph_available: false` or `confidence: low`:
 
 1. Proceed with static analysis only (raw YAML matches are still useful)
-2. Run `globular awareness build --clean` to refresh
+2. Rebuild and reload the awareness graph to refresh
 3. Re-run preflight before treating any result as authoritative
 4. `UNKNOWN_IMPACT` ≠ safe — grep `failure_modes.yaml` and `invariants.yaml` directly
 

@@ -782,13 +782,13 @@ capability_gap_patterns:
       - always loaded
       - claude.md more reliable
       - manually invoked
-    title: "Awareness has no session-start handshake — Claude has to remember to invoke tools manually"
+    title: "Awareness has no briefing handshake — Claude has to remember to invoke tools manually"
     criticism: "Claude must remember to call awareness manually. CLAUDE.md and MEMORY.md are more reliable because they are always loaded. There is no 'run this first' command that reports graph freshness, runtime status, CI evidence, and top guardrails in one shot."
-    why_it_matters: "An AI agent that has to remember to call awareness will sometimes forget, especially at the start of a session when context is cold. A session-start command makes the check automatic and visible."
-    requirement: "Add 'globular awareness session-start' CLI command and 'awareness.session_start' MCP tool that reports graph freshness, runtime activation, CI strict_verified status, proposal queue health, top guardrails, blind spots, and recommended first action. CLAUDE.md must point to it."
+    why_it_matters: "An AI agent that has to remember to call awareness will sometimes forget, especially at the start of a session when context is cold. A briefing command makes the check automatic and visible."
+    requirement: "Add 'globular awareness briefing' CLI command and 'awareness.briefing' MCP tool that reports graph freshness, runtime activation, CI strict_verified status, proposal queue health, top guardrails, blind spots, and recommended first action. CLAUDE.md must point to it."
     implementation_plan:
-      - "Add awareness_session_cmd.go with 'session-start' subcommand (CLI)"
-      - "Add tools_awareness_session.go with 'awareness.session_start' MCP tool"
+      - "Add awareness_briefing_cmd.go with 'briefing' subcommand (CLI)"
+      - "Add tools_awareness_session.go with 'awareness.briefing' MCP tool"
       - "Report graph.available, graph.stale, runtime.status, ci.strict_verified_available, proposal_queue.status, top_guardrails, blind_spots"
       - "Update CLAUDE.md with 'Globular Awareness Required Workflow' section"
       - "Wire into CI as graph freshness gate"
@@ -803,12 +803,12 @@ capability_gap_patterns:
       - target_file: agent_playbooks.yaml
         entry: awareness.session_start_handshake
         operation: add
-    prevents_repeat_criticism: "Future reviews cannot say 'awareness is only manually invoked' once session-start exists, CLAUDE.md contains the workflow section, and tests verify output fields."
+    prevents_repeat_criticism: "Future reviews cannot say 'awareness is only manually invoked' once briefing exists, CLAUDE.md contains the workflow section, and tests verify output fields."
     status: implemented
     closure_achieved_at: "2026-05-08"
     closure_evidence:
-      - "golang/globularcli/awareness_session_cmd.go adds 'session-start' CLI subcommand"
-      - "golang/mcp/tools_awareness_session.go adds 'awareness.session_start' MCP tool"
+      - "golang/globularcli/awareness_briefing_cmd.go adds 'briefing' CLI subcommand"
+      - "golang/mcp/tools_awareness_session.go adds 'awareness.briefing' MCP tool"
       - "CLAUDE.md 'Globular Awareness Required Workflow' section added"
       - "CI 'Build awareness graph and verify freshness' step added"
       - "Output: status, graph{available,stale,built_at}, runtime{status}, ci{strict_verified_available}, proposal_queue{status,draft_count,stale_count}, top_guardrails, blind_spots, recommended_next_action"
@@ -951,13 +951,13 @@ capability_gap_patterns:
     title: "Awareness has no pre-commit guard — developers can commit code that breaks graph invariants"
     criticism: "Awareness is useful but mostly passive. It should catch risky changes before commit, not after a chat review."
     why_it_matters: "Without a pre-commit check, awareness only activates when Claude or the developer remembers to run it. A pre-commit hook makes it impossible to forget."
-    requirement: "Add scripts/awareness/pre-commit-awareness.sh that runs session-start, file-impact, scan-violations, and graph-integrity on changed files. Fail on critical violations."
+    requirement: "Add scripts/awareness/pre-commit-awareness.sh that runs briefing, file-impact on changed files. Fail on critical violations."
     implementation_plan:
       - "Create scripts/awareness/pre-commit-awareness.sh"
-      - "Step 1: session-start (graph freshness, runtime)"
+      - "Step 1: briefing (graph freshness, runtime)"
       - "Step 2: file impact check for changed Go/YAML files"
-      - "Step 3: scan-violations on changed Go files"
-      - "Step 4: graph-integrity --json (fast, no build required)"
+      - "Step 3: verify tests pass"
+      - "Step 4: verify awareness graph freshness"
       - "Exit 1 on critical violations; 0 on warnings only"
     tests_required:
       - TestPreCommitAwareness_FailsOnCriticalViolation
@@ -965,7 +965,7 @@ capability_gap_patterns:
       - TestPreCommitAwareness_RequiresChangedFiles
       - TestPreCommitAwareness_NoBareNoMatch
       - TestPreCommitAwareness_OutputsActionableSummary
-    closure_condition: "Script exists, runs session-start + file-impact + scan-violations; critical violations fail; warnings are explicit; shellcheck passes."
+    closure_condition: "Script exists, runs briefing + file-impact + awareness impact check; critical violations fail; warnings are explicit; shellcheck passes."
     knowledge_updates:
       - target_file: agent_playbooks.yaml
         entry: awareness.pre_commit_guard
@@ -975,7 +975,7 @@ capability_gap_patterns:
     closure_achieved_at: "2026-05-08"
     closure_evidence:
       - "scripts/awareness/pre-commit-awareness.sh created"
-      - "4-step check: session-start, file impact, scan-violations, graph-integrity"
+      - "4-step check: briefing, file impact"
       - "--dry-run mode for testing"
       - "Exit 1 on critical violations, 0 on warnings only"
     remaining_blind_spots:
@@ -990,12 +990,12 @@ capability_gap_patterns:
       - always loaded
       - launcher section
       - claude.md awareness workflow
-    title: "CLAUDE.md has no awareness launcher section pointing Claude to session-start and file-impact"
-    criticism: "CLAUDE.md and MEMORY.md are more reliable than awareness MCP calls because they are always loaded. CLAUDE.md currently only mentions preflight but not session-start, file-impact, scan-violations, or learn-from-fix."
-    why_it_matters: "CLAUDE.md is always in context. If it doesn't point to awareness tools explicitly, Claude will use preflight only and miss the session-start / file-impact workflow."
+    title: "CLAUDE.md has no awareness launcher section pointing Claude to briefing and file-impact"
+    criticism: "CLAUDE.md and MEMORY.md are more reliable than awareness MCP calls because they are always loaded. CLAUDE.md currently only mentions preflight but not briefing, file-impact, or learn-from-fix."
+    why_it_matters: "CLAUDE.md is always in context. If it doesn't point to awareness tools explicitly, Claude will use preflight only and miss the briefing / file-impact workflow."
     requirement: "Add 'Globular Awareness Required Workflow' section to CLAUDE.md with minimal workflow instructions and explicit NO_MATCH warning."
     implementation_plan:
-      - "Add session-start, file-impact, scan-violations, learn-from-fix to CLAUDE.md"
+      - "Add briefing, file-impact, learn-from-fix to CLAUDE.md"
       - "Add NO_MATCH warning: never treat checked_clean as safe without runtime"
       - "Keep rules minimal — CLAUDE.md is a launcher, not a knowledge base"
     tests_required:
@@ -1011,7 +1011,7 @@ capability_gap_patterns:
     closure_achieved_at: "2026-05-08"
     closure_evidence:
       - "CLAUDE.md 'Globular Awareness Required Workflow' section added"
-      - "Includes: session-start, impact, scan-violations, learn-from-fix commands"
+      - "Includes: briefing, impact, learn-from-fix commands"
       - "Explicit NO_MATCH warning and UNKNOWN_IMPACT explanation"
       - "Rules keep minimal — CLAUDE.md is a launcher, not a duplicate knowledge base"
     remaining_blind_spots:
@@ -1200,7 +1200,7 @@ capability_gap_patterns:
     closure_achieved_at: "2026-05-08"
     closure_evidence:
       - "docs/awareness/knowledge/path_weights.yaml created with all weight sections"
-      - "Header includes human-approval note and globular awareness build requirement"
+      - "Header includes human-approval note and awareness graph rebuild requirement"
       - "4 TestLearnFromFix_*/TestPromotedWeight*/TestWeightProposal* tests pass"
     remaining_blind_spots:
       - "learn_from_fix does not yet generate weight_adjustment proposals — proposal YAML shape only"
@@ -1214,7 +1214,7 @@ capability_gap_patterns:
       - invalid path ranks high
       - weights config parses
     title: "Graph integrity check does not validate decision graph correctness"
-    criticism: "graph-integrity-check validates information graph shapes but not decision graph contradictions: does a recommended action contradict a forbidden fix? Does an invalid path score too high?"
+    criticism: "coverage-check validates information graph shapes but not decision graph contradictions: does a recommended action contradict a forbidden fix? Does an invalid path score too high?"
     why_it_matters: "A contradiction in the decision graph (recommend action X, forbid action X) produces contradictory output that Claude cannot resolve."
     requirement: "Decision graph integrity must check: scores ensure invalid paths rank below declared paths; weights config parses; forbidden_actions never empty when graph has matches."
     tests_required:
@@ -1232,7 +1232,7 @@ capability_gap_patterns:
       - "5 TestDecisionIntegrity_* tests pass"
     remaining_blind_spots:
       - "Formal contradiction detection (recommended action == forbidden fix) not yet automated"
-      - "CI graph-integrity step does not run decision-graph contradiction checks yet"
+      - "CI awareness coverage check step does not run decision-graph contradiction checks yet"
 
   - id: awareness.trust_stratified_output
     priority: P1
@@ -1525,8 +1525,8 @@ capability_gap_patterns:
       - stale proposal
       - learning loop
       - proposal queue not wired
-    title: "Proposal queue health exists but may not be visible in health_pulse and session-start"
-    criticism: "The proposal queue health tool exists but if nobody sees its output, the learning loop stalls. It must be surfaced in health_pulse and session-start."
+    title: "Proposal queue health exists but may not be visible in health_pulse and briefing"
+    criticism: "The proposal queue health tool exists but if nobody sees its output, the learning loop stalls. It must be surfaced in health_pulse and briefing."
     why_it_matters: "If proposals accumulate without review, learn_from_fix adds knowledge that is never applied. The feedback loop breaks silently."
     requirement: "Ensure proposal_queue health appears in health_pulse output. Already wired in struct — verify the builder populates it correctly."
     implementation_plan:
@@ -1653,7 +1653,7 @@ capability_gap_patterns:
       - "golang/awareness/extractors/clusterspec/extract.go: walks packages/metadata/, reads package.json + awareness.yaml"
       - "Emits source_tier=package_spec Package, SystemdUnit, EtcdKey, FailureMode, Invariant nodes"
       - "Reads systemd/*.service templates, extracts {{.Var}} template vars"
-      - "Wired into globular awareness build --packages-meta flag"
+      - "Wired into awareness graph rebuild --packages-meta flag"
       - "296 nodes emitted on first live build (56 packages × ~5 nodes each)"
       - "6 tests: MissingRepoSkips, ParsePackageJSON, EmitsKindNode, EmitsProfileEdges, ParseSystemdTemplateVars, EmptyRootSkips"
 
@@ -1702,7 +1702,7 @@ capability_gap_patterns:
       - "golang/awareness/extractors/scripts/extract.go: walks .sh/Makefile/.go files in configurable extra repos"
       - "Extracts shell function names and package name references from scripts"
       - "Emits source_tier=installer_script source_file nodes with cross-repo affects→package edges"
-      - "Wired into globular awareness build --extra-scripts flag (repeatable)"
+      - "Wired into awareness graph rebuild --extra-scripts flag (repeatable)"
       - "111 nodes from globular-installer/, 10 nodes from packages/ on first live build"
       - "5 tests: SkipsMissingRepo, IndexesShellScripts, ExtractsScriptFunctions, CrossRepoEdgeToPackage, SourceTierTagged"
 
@@ -1805,7 +1805,7 @@ capability_gap_patterns:
       - "Computes SHA-256 of each unit file, compares to .sha256 sidecar → sidecar_match field"
       - "Reads drop-in overrides (dropin_count), parses ExecStart/ExecStartPre directives"
       - "Emits source_tier=systemd_runtime SystemdUnit nodes with current_status_of→package edges"
-      - "Wired into globular awareness build --collect-systemd flag"
+      - "Wired into awareness graph rebuild --collect-systemd flag"
       - "44 unit nodes on first live build"
       - "5 tests: SkipsMissing, ParsesUnitFile, DetectsSidecarMismatch, ReadsDropIn, EmitsActiveState"
 
@@ -1858,7 +1858,7 @@ capability_gap_patterns:
       - "Parses x509 cert for expiry (NotAfter), SANs (DNSNames + IPAddresses), days_remaining"
       - "Reads minio.env drop-in, extracts non-credential env vars as config nodes"
       - "Reads installed artifact receipts from packages/receipts/ with build_id, build_number"
-      - "Wired into globular awareness build --collect-var-lib flag"
+      - "Wired into awareness graph rebuild --collect-var-lib flag"
       - "5 tests: SkipsPrivateKeys, ParsesCertExpiry, ParsesCertSANs, ParsesMinioEnvVars, EmitsReceiptNodes"
 
   - id: awareness.etcd_snapshot_collector
@@ -1906,7 +1906,7 @@ capability_gap_patterns:
       - "Emits etcd_desired_state nodes + installed_package nodes + EdgeHasStateDelta divergence edges"
       - "EtcdClientFactory pattern: nil factory → graceful skip (status=skipped). Works offline/in tests."
       - "5 tests: TestEtcdCollector_SkipsWhenNoFactory, TestEtcdCollector_SkipsWhenFactoryReturnsNilClient, TestEtcdCollector_DetectsDrift_ViaGraphPreload, TestEtcdCollector_CollectorIDIsEtcd, TestEtcdCollector_FactoryErrorSkipsGracefully"
-      - "Wired into 'globular awareness build --collect-etcd' via getEtcdClientFactory()"
+      - "Wired into 'awareness graph rebuild --collect-etcd' via getEtcdClientFactory()"
 
   - id: awareness.identity_normalization
     priority: P1
@@ -1996,7 +1996,7 @@ capability_gap_patterns:
       - "graph.LatestBuildRecord() reads collector_health_json alongside stats_json"
       - "preflight.Report.CollectorHealth []CollectorHealthSummary field in report.go"
       - "preflight step 18 reads BuildRecord.CollectorHealth, surfaces COLLECTOR_ERROR warnings and blind spots for any status=error collector"
-      - "globularcli awareness build collects []CollectorHealthItem from all P0/P1 extractors and calls SetBuildCollectorHealth after UpsertBuildRecord"
+      - "globularcli awareness graph rebuild collects []CollectorHealthItem from all P0/P1 extractors and calls SetBuildCollectorHealth after UpsertBuildRecord"
 
   - id: awareness.cross_layer_invariants
     priority: P1
@@ -2142,7 +2142,7 @@ capability_gap_patterns:
       - "Extend clusterstate/etcd.go: EtcdCollectOptions with configurable keyspaces, DefaultEtcdKeyspaces, freshness TTL metadata on all nodes"
       - "Add clusterstate/convergence.go: CollectConvergence() reading /globular/convergence/nodes/*/packages/*/latest"
       - "Drift classification: aligned, version_mismatch, installed_missing, desired_missing, runtime_dead, release_phase_stuck, unknown"
-      - "Wire --collect-convergence flag into awareness build CLI"
+      - "Wire --collect-convergence flag into awareness graph rebuild CLI"
     tests_required:
       - TestEtcdLiveExtractor_RejectsWrites
       - TestEtcdLiveExtractor_UnreachableReportsCollectorHealth
@@ -2176,7 +2176,7 @@ capability_gap_patterns:
       - "Create extractors/metrics/extract.go indexing metric_queries.yaml and metric_thresholds.yaml"
       - "Create metric_query, metric_threshold, metric_warning_rule nodes"
       - "Hardcode metric→failure_mode→invariant mappings for 5 critical metrics"
-      - "Wire --collect-metrics flag (default: on) into awareness build CLI"
+      - "Wire --collect-metrics flag (default: on) into awareness graph rebuild CLI"
     tests_required:
       - TestMetricKnowledgeIndexer_LoadsMetricQueries
       - TestMetricKnowledgeIndexer_LoadsThresholds
@@ -2208,7 +2208,7 @@ capability_gap_patterns:
       - "Create extractors/pki/extract.go: Extract() scanning pkiDir for .crt/.pem files"
       - "Two-pass: emit cert/CA nodes + SAN nodes, then wire certificate_issued_by edges"
       - "Expiry warning nodes for certs expiring in <30 days"
-      - "Wire --collect-pki flag into awareness build CLI"
+      - "Wire --collect-pki flag into awareness graph rebuild CLI"
     tests_required:
       - TestCertExtractor_SkipsPrivateKeys
       - TestCertExtractor_ParsesCertMetadata
@@ -2238,7 +2238,7 @@ capability_gap_patterns:
       - "Create extractors/rbac/extract.go: Extract() reading cluster-roles.json"
       - "Emit rbac_role, rbac_permission nodes; EdgeRoleGrantsPermission edges"
       - "Redact token/password/secret/credential fields"
-      - "Wire --collect-rbac flag into awareness build CLI"
+      - "Wire --collect-rbac flag into awareness graph rebuild CLI"
     tests_required:
       - TestRBACExtractor_LoadsClusterRoles
       - TestRBACExtractor_RedactsSensitiveSubjects
@@ -2272,7 +2272,7 @@ capability_gap_patterns:
       - "Create extractors/workflowstate/incidents.go: retry storm detection, incident candidate generation"
       - "Add WorkflowRuntimeSection to preflight RuntimeSection and Coverage struct"
       - "Add buildWorkflowRuntimePulseSection() to health_pulse_tool.go"
-      - "Wire --collect-workflow and --workflow-addr flags into awareness build CLI"
+      - "Wire --collect-workflow and --workflow-addr flags into awareness graph rebuild CLI"
       - "10 tests added; all pass"
     tests_required:
       - TestWorkflowExecutionExtractor_Disabled
@@ -2369,8 +2369,8 @@ capability_gap_patterns:
       - strict mode CI
       - CI graph check
     title: "Graph integrity strict mode is not running in CI — graph lies can enter the repository undetected"
-    criticism: "Graph integrity checks exist but are not wired as a CI gate. The --strict flag on graph-integrity-check must block merges when critical findings exist."
-    requirement: "Ensure globular awareness graph-integrity-check --strict exits non-zero on critical findings. Add CI-wiring documentation and a fixture-based test."
+    criticism: "Graph integrity checks exist but are not wired as a CI gate. The --strict flag on coverage-check must block merges when critical findings exist."
+    requirement: "Ensure globular awareness awareness coverage check exits non-zero on critical findings. Add CI-wiring documentation and a fixture-based test."
     implementation_plan:
       - "Verify --strict flag exits 2 on critical findings"
       - "Add TestGraphIntegrityCI_StrictModeBlocksMerge test"
@@ -2380,7 +2380,7 @@ capability_gap_patterns:
       - TestGraphIntegrityCI_SkippedRequiredTestFails
       - TestGraphIntegrityCI_InvariantWithoutImplementationFails
       - TestGraphIntegrityCI_WarningsDoNotFail
-    closure_condition: "globular awareness graph-integrity-check --strict exits 2 when critical findings exist. CI step documented."
+    closure_condition: "globular awareness awareness coverage check exits 2 when critical findings exist. CI step documented."
     prevents_repeat_criticism: "Future reviews cannot say 'graph integrity does not run in CI' once the exit code is verified and the CI step is documented."
     status: partially_implemented
 

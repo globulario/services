@@ -69,7 +69,7 @@ entries:
       4. **ai-memory** records: incident + classification + action + outcome + timestamp.
          Subsequent sessions can query these as `tags=incident,<finding-id>`.
 
-      The operational session-start (planned, not yet built) will:
+      The operational awareness briefing (planned, not yet built) will:
       - Read doctor's current findings (current cluster state)
       - Query ai-memory for prior incidents matching those finding-ids (have we seen this
         before? what worked?)

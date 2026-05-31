@@ -12,7 +12,7 @@ test passes → incident recorded → proposal drafted → human approves → gr
 
 1. **globular-quickstart** running (`make up && make test-wait` in the quickstart repo)
 2. **globular CLI** in PATH with awareness subcommands (`globular awareness --help`)
-3. `.globular/awareness/graph.db` seeded (run `globular awareness preflight --task test` once)
+3. Awareness graph loaded (run `globular awareness briefing --task test` to verify connectivity)
 
 ---
 
@@ -187,7 +187,7 @@ propose relaxing production invariants based on lab topology.
 
 ### Awareness returns SKIPPED
 - Check `globular awareness --help` is reachable in PATH
-- Verify `.globular/awareness/graph.db` exists (run preflight once standalone)
+- Verify awareness-graph gRPC service is reachable (`globular awareness briefing --task test`)
 - Set `AWARENESS_REQUIRED=1` to get a hard failure instead of silent skip
 
 ### Proposal is missing after failure

@@ -1259,7 +1259,7 @@ failure_modes:
         - "graph_integrity_check reports REQUIRED_TEST_MISSING (severity: critical) for tests that demonstrably exist in source"
         - "coverage_report shows graph_coverage.status = critical with 0 eligible / 0 indexed Go files on a production MCP host"
         - "health_pulse alerts 'N implemented gap(s) have missing tests' when verifyGapTests was actually returning unverified"
-        - "operator restarts MCP and finds it has 'opened (read-write): /var/lib/globular/awareness/graph.db' — a small writable shadow — even though /var/lib/globular/awareness/current/graph.db is installed and ~40 MB"
+        - "operator restarts MCP and finds awareness tools returning empty or degraded results despite the awareness graph being loaded in Oxigraph"
         - "every awareness query from a production MCP host trips at least one critical alert about coverage or missing tests"
       root_cause: |
         Several awareness subsystems ask the same question — "is a real

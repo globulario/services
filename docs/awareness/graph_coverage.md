@@ -28,11 +28,7 @@ When `confidence_impact = high`, preflight demotes confidence from `high` → `m
 
 ## How to improve coverage
 
-Rebuild the graph to pick up new files:
-
-```bash
-globular awareness build --clean
-```
+Rebuild and reload the awareness graph to pick up new files (see `yaml2nt` + `loadnt` pipeline).
 
 The graph builder walks the repo and creates `source_file` nodes for every Go file it processes. Coverage drops when:
 - New packages are added but the graph hasn't been rebuilt

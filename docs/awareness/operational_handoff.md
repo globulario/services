@@ -247,7 +247,6 @@ Merge the generated values into `/var/lib/globular/mcp/config.json`:
 {
   "tool_groups": { "awareness": true },
   "awareness": {
-    "db_path":          "/path/to/.globular/awareness/graph.db",
     "repo_path":        "/path/to/globulario/services",
     "docs_dir":         "/path/to/docs/awareness",
     "controller_addr":  "globular.internal:12000",
