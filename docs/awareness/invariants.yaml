@@ -913,7 +913,8 @@ invariants:
       protects:
         files:
             - golang/awareness/mcp/learning_tool.go
-            - golang/mcp/
+            - golang/mcp/safety.go
+            - golang/mcp/governor.go
       forbidden_fixes:
         - register_promote_proposal_as_mcp_tool
         - allow_mcp_to_write_awareness_yaml_files
@@ -2088,6 +2089,7 @@ invariants:
           - golang/repository/repository_server/publish_workflow.go
           - golang/repository/repository_server/artifact_state.go
           - golang/repository/repository_server/artifact_state_backfill.go
+          - golang/repository/repository_server/artifact_law_validator.go
         symbols:
           - promoteToPublished
           - transitionArtifactState
