@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.executor_resume
+// @awareness file_role=orphan_run_recovery_terminal_steps_skipped_running_steps_resumed
+// @awareness implements=globular.platform:intent.workflow.orphan_recovery_skips_terminal_steps
+// @awareness implements=globular.platform:intent.workflow.resume_policy_verifies_before_reexecute
+// @awareness risk=critical
 // executor_resume.go implements workflow run resumption after executor crash.
 //
 // When an orphaned run is claimed by the orphan scanner, ResumeRun loads

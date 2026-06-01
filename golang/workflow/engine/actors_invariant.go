@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.actors_invariant
+// @awareness file_role=cluster_invariant_enforcement_quorum_pki_disk_workflow_defs_checked_before_emit_completed
+// @awareness implements=globular.platform:intent.workflow.cluster_invariants_gate_mutations
+// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
+// @awareness risk=critical
 package engine
 
 import (

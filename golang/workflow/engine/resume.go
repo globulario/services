@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.engine_resume
+// @awareness file_role=policy_driven_resume_retry_verify_effect_rerun_if_no_receipt_inconclusive_executes
+// @awareness implements=globular.platform:intent.workflow.resume_policy_verifies_before_reexecute
+// @awareness implements=globular.platform:intent.workflow.terminal_runs_must_be_bounded
+// @awareness risk=critical
 // resume.go implements policy-driven step resume for the workflow engine.
 //
 // When the engine runs in resume mode (IsResume=true), steps that are about

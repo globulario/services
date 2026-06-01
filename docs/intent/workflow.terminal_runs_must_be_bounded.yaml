@@ -53,6 +53,8 @@ related_to:
 
 zooms_in_to:
   - workflow.step_receipts_are_evidence
+  - workflow.orphan_recovery_skips_terminal_steps
+  - workflow.resume_policy_verifies_before_reexecute
 
 required_tests:
   - backup_manager/backup_manager_server:TestRetention_PromotedNeverDeleted

@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.engine_preflight
+// @awareness file_role=preexecution_actor_action_pair_validation_missing_handler_is_preflight_error_not_runtime_error
+// @awareness implements=globular.platform:intent.workflow.preflight_validates_all_actor_action_pairs
+// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
+// @awareness risk=high
 // preflight.go — pre-execution validation for compiled workflows.
 //
 // Before a workflow runs, ValidatePreflight walks every step, hook, and

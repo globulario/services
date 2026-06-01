@@ -1,0 +1,45 @@
+id: workflow.infra_desired_hash_must_carry_schema_prefix
+level: mechanism
+title: "Infrastructure desired_hash must carry the infra: schema prefix, never the raw artifact_digest"
+status: active
+
+intent: >
+  For infrastructure releases (InfrastructureRelease desired-state records), the
+  desired_hash field must be stored with the "infra:" prefix schema
+  (e.g., "infra:sha256:<hex>"), NOT as a raw artifact_digest. The workflow handler in
+  infra_release_handler.go must validate that the incoming desired_hash carries this
+  prefix and must reject any value that is a bare sha256 hex or that omits the prefix.
+  This prevents infrastructure desired-hash values from being misinterpreted as
+  installable artifact digests, which would cause the convergence check to compare
+  unlike types and silently suppress upgrades or wipe-loops.
+
+agent_guidance: >
+  infra_release_handler.go validates desired_hash format. If you see convergence
+  checking an infrastructure component against an artifact CAS hash, the desired_hash
+  was written without the "infra:" prefix. Fix the writer, not the validator —
+  the validator is the last line of defence. Never strip the prefix to "normalize".
+
+bad_smells:
+  - desired_hash written as raw artifact_digest for infrastructure releases
+  - convergence comparing infra desired_hash directly against CAS blob digest
+  - infra_release_handler.go stripped of prefix validation to "simplify" comparison logic
+
+activation_triggers:
+  - editing workflow_server/infra_release_handler.go
+  - editing infrastructure release desired-state writing code
+  - debugging convergence silently ignoring infrastructure version drift
+
+zooms_out_to:
+  - workflow.step_receipts_are_evidence
+
+zooms_in_to: []
+
+related_invariants:
+  - workflow.step_receipts_are_evidence
+
+related_to:
+  - workflow.cluster_invariants_gate_mutations
+
+required_tests:
+  - workflow/engine:TestReleaseInfra_DesiredHashPrefixRequired
+  - workflow/engine:TestReleaseInfra_BareDigestRejected

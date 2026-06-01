@@ -1,0 +1,45 @@
+id: workflow.compiler_rejects_cyclic_dependencies
+level: mechanism
+title: Workflow compiler rejects cyclic step dependencies and produces a deterministic digest
+status: active
+
+intent: >
+  The compiler (compiler.Compile) must reject any workflow definition whose step
+  dependency graph contains a cycle before the workflow is stored or dispatched.
+  A cyclic dependency causes the engine to deadlock — waiting forever for a step
+  whose predecessor is waiting for it. Rejection must happen at compile time with a
+  clear Diagnostic, not at runtime. The compiler must also produce a deterministic
+  CompiledWorkflow.Digest (SHA-256 of the canonical JSON encoding) so that
+  definition identity is stable across serialization/deserialization round-trips.
+
+agent_guidance: >
+  The cycle check in compiler.go uses a DFS with a "grey" (in-progress) / "black"
+  (done) colouring. If you add step types or conditional dependency edges, ensure the
+  cycle check walks those edges too. The digest must not include timestamp fields or
+  run-specific data — only the static definition fields.
+
+bad_smells:
+  - step dependency cycle not detected until engine deadlock
+  - Digest computed from non-deterministic fields (timestamps, UUIDs)
+  - Compile returning a non-nil CompiledWorkflow alongside a cycle Diagnostic
+
+activation_triggers:
+  - editing compiler/compiler.go
+  - adding new step kinds or dependency edge types
+  - debugging "workflow stuck" or "no progress" at runtime
+
+zooms_out_to:
+  - workflow.source_of_operational_truth
+
+zooms_in_to: []
+
+related_invariants:
+  - workflow.source_of_operational_truth
+
+related_to:
+  - workflow.definition_loading_is_etcd_first
+  - workflow.preflight_validates_all_actor_action_pairs
+
+required_tests:
+  - workflow/compiler:TestCompile_CyclicDependencyRejected
+  - workflow/compiler:TestCompile_DigestIsDeterministic

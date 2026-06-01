@@ -47,6 +47,10 @@ zooms_in_to:
   - workflow.remediation_truth_consistency
   - workflow.step_receipts_are_evidence
   - workflow.backend_health_gate_before_dispatch
+  - workflow.definition_loading_is_etcd_first
+  - workflow.compiler_rejects_cyclic_dependencies
+  - workflow.preflight_validates_all_actor_action_pairs
+  - workflow.cluster_invariants_gate_mutations
 
 required_tests:
 - workflow_engine:TestDoctorFindingWorkflow_HappyPath

@@ -1,0 +1,45 @@
+id: workflow.preflight_validates_all_actor_action_pairs
+level: mechanism
+title: Preflight validates every actor/action pair before any step executes
+status: active
+
+intent: >
+  Before a workflow run begins execution (or resumes after crash), preflight validation
+  must verify that every (actor, action) pair referenced in the compiled definition has
+  a registered handler. If any pair is missing, preflight returns a PreflightError and
+  the run is not started. Partial execution — where some steps run and others fail at
+  dispatch because of a missing handler — is not allowed. The invariant: a workflow
+  that passes preflight will not encounter an "unknown action" error at runtime.
+
+agent_guidance: >
+  Preflight runs in engine/preflight.go via ValidatePreflight. When adding a new
+  actor or action type, the handler MUST be registered before any workflow definition
+  using it can be successfully preflighted. If preflight fails in production, the
+  likely cause is a workflow definition referencing an action that was added to YAML
+  but whose handler was not deployed yet — fix by deploying the handler first.
+
+bad_smells:
+  - workflow definition deployed before its handler binary is deployed
+  - preflight skipped for "resume" or "retry" code paths
+  - missing handler discovered at step dispatch (PreflightError surfaced after partial execution)
+
+activation_triggers:
+  - editing engine/preflight.go
+  - adding a new actor or action to any workflow YAML
+  - debugging "unknown action" or "no handler registered" errors
+
+zooms_out_to:
+  - workflow.source_of_operational_truth
+
+zooms_in_to: []
+
+related_invariants:
+  - workflow.source_of_operational_truth
+
+related_to:
+  - workflow.compiler_rejects_cyclic_dependencies
+  - workflow.resume_policy_verifies_before_reexecute
+
+required_tests:
+  - workflow/engine:TestValidatePreflight_MissingHandlerRejected
+  - workflow/engine:TestValidatePreflight_AllHandlersPresent

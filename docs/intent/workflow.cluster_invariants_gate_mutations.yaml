@@ -1,0 +1,49 @@
+id: workflow.cluster_invariants_gate_mutations
+level: mechanism
+title: Cluster invariant enforcement gates mutations — quorum, PKI, disk reachability checked before EmitCompleted
+status: active
+
+intent: >
+  The cluster.invariant.enforcement workflow (actors_invariant.go) must run its full
+  invariant suite — etcd quorum check, PKI validity, disk reachability for storage nodes,
+  workflow definition completeness — before calling EmitCompleted. If any invariant
+  check returns a violation, the workflow must record the violation and return a FAILED
+  terminal state rather than completing. This ensures that cluster mutations gated on
+  invariant satisfaction (e.g., quorum-required operations) do not proceed into a
+  degraded cluster. The invariant enforcement workflow is NOT a diagnostic reporter —
+  it is a hard gate.
+
+agent_guidance: >
+  actors_invariant.go orchestrates the gate. When adding a new invariant check, wire it
+  into the InvariantConfig struct as a dependency-injected function so it is testable.
+  Do not add inline etcd or PKI calls — keep actor logic testable. Invariant violation
+  must translate to a FAILED workflow run record with a machine-readable violation code
+  in the result, not just a log line.
+
+bad_smells:
+  - invariant violation logged but workflow calls EmitCompleted anyway
+  - invariant check skipped when "only one node is offline"
+  - quorum check using cached stale membership rather than live etcd endpoint health
+
+activation_triggers:
+  - editing engine/actors_invariant.go
+  - adding a new cluster invariant
+  - debugging "operation proceeded despite degraded quorum"
+
+zooms_out_to:
+  - workflow.source_of_operational_truth
+
+zooms_in_to: []
+
+related_invariants:
+  - workflow.source_of_operational_truth
+  - etcd.is_source_of_truth
+
+related_to:
+  - workflow.preflight_validates_all_actor_action_pairs
+  - workflow.infra_desired_hash_must_carry_schema_prefix
+
+required_tests:
+  - workflow/engine:TestInvariantEnforcement_QuorumViolationFails
+  - workflow/engine:TestInvariantEnforcement_PKIExpiredFails
+  - workflow/engine:TestInvariantEnforcement_AllClearEmitsCompleted

@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.engine_conditions
+// @awareness file_role=condition_evaluator_null_safe_fallback_to_true_on_missing_field
+// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
+// @awareness risk=medium
 package engine
 
 import (

@@ -1,0 +1,45 @@
+id: workflow.orphan_recovery_skips_terminal_steps
+level: mechanism
+title: Orphan recovery skips already-terminal steps and re-executes only in-flight steps
+status: active
+
+intent: >
+  When the orphan scanner claims a run that was abandoned by a crashed executor,
+  ResumeRun (in workflow_server/executor_resume.go) must treat steps whose stored
+  status is SUCCEEDED, FAILED, or SKIPPED as already terminal and must NOT re-execute
+  them. Only steps whose stored status is RUNNING (in-flight at crash time) are
+  eligible for the resume policy (see workflow.resume_policy_verifies_before_reexecute).
+  Steps that had not yet started (status PENDING or absent) are executed normally.
+  Replaying a SUCCEEDED step is incorrect and may cause double-installs or double-grants.
+
+agent_guidance: >
+  The skip logic is in executor_resume.go:ResumeRun. When debugging orphan recovery,
+  check the stored step statuses in the run record before the resume path executes.
+  If a step is re-executed despite being SUCCEEDED in storage, the orphan scanner may
+  be reading stale data — verify that the receipt write completed before the crash.
+
+bad_smells:
+  - SUCCEEDED step re-executed on orphan recovery
+  - FAILED step silently skipped (should be surfaced, not ignored)
+  - orphan recovery not checking step status before dispatching
+
+activation_triggers:
+  - editing workflow_server/executor_resume.go
+  - debugging "duplicate install" or "package installed twice" after executor crash
+  - debugging orphan scan logic
+
+zooms_out_to:
+  - workflow.terminal_runs_must_be_bounded
+
+zooms_in_to: []
+
+related_invariants:
+  - workflow.terminal_runs_must_be_bounded
+  - workflow.step_receipts_are_evidence
+
+related_to:
+  - workflow.resume_policy_verifies_before_reexecute
+
+required_tests:
+  - workflow/workflow_server:TestResumeRun_TerminalStepsSkipped
+  - workflow/workflow_server:TestResumeRun_RunningStepResumed

@@ -1,0 +1,49 @@
+id: workflow.resume_policy_verifies_before_reexecute
+level: mechanism
+title: Resume policy verifies step side-effects before re-executing after crash
+status: active
+
+intent: >
+  When the engine resumes a run after a crash (IsResume=true), it must NOT blindly
+  re-execute steps that were in-flight. For each resumable step the engine applies the
+  step's ResumePolicy: Retry (re-execute), VerifyEffect (call the actor's Verify handler
+  and only re-execute if the effect is absent), or RerunIfNoReceipt (re-execute only if
+  no durable receipt exists). Defaulting to re-execute without verification risks
+  duplicate installs, double-grants, or double-deploys. If verification is inconclusive
+  (the actor cannot confirm or deny), the policy must treat this as "effect absent" and
+  allow re-execution — failing safe rather than failing stuck.
+
+agent_guidance: >
+  The resume policy dispatch is in engine/resume.go. When adding a new actor that
+  has idempotent effects, prefer RerunIfNoReceipt (cheapest). For non-idempotent
+  actors (e.g., key generation, grant), use VerifyEffect and ensure the actor implements
+  a Verify method. Never use Retry for non-idempotent steps. Inconclusive verification
+  must map to "re-execute" — do not leave the run permanently stuck.
+
+bad_smells:
+  - actor with non-idempotent side effects using Retry policy
+  - inconclusive Verify treated as "skip re-execution" (stuck run)
+  - resume path skipping preflight (allows missing handlers to surface mid-run)
+
+activation_triggers:
+  - editing engine/resume.go
+  - adding a new actor with side effects
+  - debugging "duplicate action" or "step executed twice" incidents
+  - debugging stuck runs after executor crash
+
+zooms_out_to:
+  - workflow.terminal_runs_must_be_bounded
+
+zooms_in_to: []
+
+related_invariants:
+  - workflow.terminal_runs_must_be_bounded
+
+related_to:
+  - workflow.orphan_recovery_skips_terminal_steps
+  - workflow.preflight_validates_all_actor_action_pairs
+  - workflow.step_receipts_are_evidence
+
+required_tests:
+  - workflow/engine:TestResumePolicyVerifyEffect_InconclusiveTreatedAsAbsent
+  - workflow/engine:TestResumePolicyRerunIfNoReceipt_SkipsWhenReceiptExists

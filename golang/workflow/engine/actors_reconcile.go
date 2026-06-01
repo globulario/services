@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.actors_reconcile
+// @awareness file_role=cluster_reconciliation_orchestration_drift_scan_classify_dispatch
+// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
+// @awareness implements=globular.platform:intent.workflow.cluster_invariants_gate_mutations
+// @awareness risk=critical
 package engine
 
 import (

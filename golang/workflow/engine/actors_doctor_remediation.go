@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.actors_doctor_remediation
+// @awareness file_role=correlated_doctor_remediation_with_workflow_run_audit_trail
+// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
+// @awareness implements=globular.platform:intent.workflow.step_receipts_are_evidence
+// @awareness risk=high
 package engine
 
 import (

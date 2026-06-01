@@ -1,4 +1,54 @@
 code_symbols:
+  - id: globular.platform:code.go.platform_workflow.actors_doctor_remediation
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/engine/actors_doctor_remediation.go
+    component: platform_workflow.actors_doctor_remediation
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.source_of_operational_truth
+        - globular.platform:intent.workflow.step_receipts_are_evidence
+  - id: globular.platform:code.go.platform_workflow.actors_invariant
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/engine/actors_invariant.go
+    component: platform_workflow.actors_invariant
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.cluster_invariants_gate_mutations
+        - globular.platform:intent.workflow.source_of_operational_truth
+  - id: globular.platform:code.go.platform_workflow.actors_node_repair
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/engine/actors_node_repair.go
+    component: platform_workflow.actors_node_repair
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.source_of_operational_truth
+        - globular.platform:intent.workflow.cluster_invariants_gate_mutations
+  - id: globular.platform:code.go.platform_workflow.actors_reconcile
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/engine/actors_reconcile.go
+    component: platform_workflow.actors_reconcile
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.source_of_operational_truth
+        - globular.platform:intent.workflow.cluster_invariants_gate_mutations
+  - id: globular.platform:code.go.platform_workflow.compiler
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/compiler/compiler.go
+    component: platform_workflow.compiler
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.compiler_rejects_cyclic_dependencies
+        - globular.platform:intent.workflow.source_of_operational_truth
   - id: globular.platform:code.go.platform_workflow.engine
     namespace: globular.platform
     language: go
@@ -9,6 +59,35 @@ code_symbols:
       implements:
         - globular.platform:intent.workflow.source_of_operational_truth
         - globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+  - id: globular.platform:code.go.platform_workflow.engine_conditions
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/engine/conditions.go
+    component: platform_workflow.engine_conditions
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.source_of_operational_truth
+  - id: globular.platform:code.go.platform_workflow.engine_preflight
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/engine/preflight.go
+    component: platform_workflow.engine_preflight
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.preflight_validates_all_actor_action_pairs
+        - globular.platform:intent.workflow.source_of_operational_truth
+  - id: globular.platform:code.go.platform_workflow.engine_resume
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/engine/resume.go
+    component: platform_workflow.engine_resume
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.resume_policy_verifies_before_reexecute
+        - globular.platform:intent.workflow.terminal_runs_must_be_bounded
   - id: globular.platform:code.go.platform_workflow.executor
     namespace: globular.platform
     language: go
@@ -19,6 +98,26 @@ code_symbols:
       implements:
         - globular.platform:intent.workflow.source_of_operational_truth
         - globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+  - id: globular.platform:code.go.platform_workflow.executor_resume
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/workflow_server/executor_resume.go
+    component: platform_workflow.executor_resume
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.orphan_recovery_skips_terminal_steps
+        - globular.platform:intent.workflow.resume_policy_verifies_before_reexecute
+  - id: globular.platform:code.go.platform_workflow.infra_release_handler
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/workflow_server/infra_release_handler.go
+    component: platform_workflow.infra_release_handler
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.infra_desired_hash_must_carry_schema_prefix
+        - globular.platform:intent.workflow.step_receipts_are_evidence
   - id: globular.platform:code.go.platform_workflow.server
     namespace: globular.platform
     language: go
@@ -39,3 +138,13 @@ code_symbols:
         - globular.platform:intent.workflow.step_receipts_are_evidence
         - globular.platform:intent.install.result_requires_durable_commit
         - globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+  - id: globular.platform:code.go.platform_workflow.v1alpha1_loader
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/v1alpha1/loader.go
+    component: platform_workflow.v1alpha1_loader
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.definition_loading_is_etcd_first
+        - globular.platform:intent.workflow.source_of_operational_truth

@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.infra_release_handler
+// @awareness file_role=infra_desired_hash_schema_prefix_validation_prevents_artifact_digest_confusion
+// @awareness implements=globular.platform:intent.workflow.infra_desired_hash_must_carry_schema_prefix
+// @awareness implements=globular.platform:intent.workflow.step_receipts_are_evidence
+// @awareness risk=high
 package main
 
 // infra_release_handler.go — infrastructure desired-hash schema validation for

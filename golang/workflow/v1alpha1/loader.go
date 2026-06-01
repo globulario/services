@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.v1alpha1_loader
+// @awareness file_role=workflow_definition_loading_etcd_first_disk_bootstrap_fallback_only
+// @awareness implements=globular.platform:intent.workflow.definition_loading_is_etcd_first
+// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
+// @awareness risk=high
 package v1alpha1
 
 import (

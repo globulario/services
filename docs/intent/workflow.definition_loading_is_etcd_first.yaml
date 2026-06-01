@@ -1,0 +1,46 @@
+id: workflow.definition_loading_is_etcd_first
+level: mechanism
+title: Workflow definition loading is etcd-first with disk-only bootstrap fallback
+status: active
+
+intent: >
+  Workflow definitions (v1alpha1.WorkflowDefinition) must be loaded from etcd as the
+  primary source. Disk-based YAML files are a bootstrap-time fallback used ONLY before
+  etcd is fully reachable. Once etcd is reachable, disk definitions must NOT shadow
+  etcd definitions. The loader must not silently fall back to disk when etcd returns a
+  genuine not-found — a missing definition in etcd is an error, not an invitation to
+  consult disk.
+
+agent_guidance: >
+  When debugging "workflow not found" errors: check etcd first (key space
+  /globular/workflow/definitions/). Disk fallback lives in the v1alpha1.EtcdFetcher path.
+  If a definition exists on disk but not in etcd post-bootstrap, the workflow will fail —
+  the correct fix is to seed the definition into etcd, not to change loader fallback logic.
+  Never add "try disk if etcd returns not-found" logic — that would violate etcd.is_source_of_truth.
+
+bad_smells:
+  - loader falling back to disk when etcd client returns NOT_FOUND
+  - workflow definition files in golang/workflow/v1alpha1/definitions/ being authoritative at runtime
+  - os.ReadFile called in the non-bootstrap loader path
+
+activation_triggers:
+  - editing v1alpha1/loader.go
+  - editing workflow definition seeding logic
+  - debugging "workflow not found" or "unknown workflow" errors
+
+zooms_out_to:
+  - workflow.source_of_operational_truth
+  - etcd.is_source_of_truth
+
+zooms_in_to: []
+
+related_invariants:
+  - etcd.is_source_of_truth
+  - workflow.source_of_operational_truth
+
+related_to:
+  - workflow.compiler_rejects_cyclic_dependencies
+
+required_tests:
+  - workflow/v1alpha1:TestLoader_EtcdTakesPriorityOverDisk
+  - workflow/v1alpha1:TestLoader_DiskFallbackOnlyAtBootstrap

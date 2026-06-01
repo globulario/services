@@ -23,6 +23,7 @@ zooms_out_to:
 - workflow.source_of_operational_truth
 zooms_in_to:
 - audit.every_authority_change_is_explainable
+- workflow.infra_desired_hash_must_carry_schema_prefix
 related_to:
 - doctor.findings_are_operator_language
 change_risk:

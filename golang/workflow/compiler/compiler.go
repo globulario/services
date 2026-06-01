@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.compiler
+// @awareness file_role=yaml_to_compiled_workflow_dag_cycle_detection_deterministic_digest
+// @awareness implements=globular.platform:intent.workflow.compiler_rejects_cyclic_dependencies
+// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
+// @awareness risk=high
 package compiler
 
 import (

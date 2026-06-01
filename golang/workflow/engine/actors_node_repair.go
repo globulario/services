@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.actors_node_repair
+// @awareness file_role=node_isolation_rejoin_classify_reseed_orchestration
+// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
+// @awareness implements=globular.platform:intent.workflow.cluster_invariants_gate_mutations
+// @awareness risk=critical
 package engine
 
 import (
