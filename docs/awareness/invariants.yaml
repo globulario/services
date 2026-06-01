@@ -4691,3 +4691,217 @@ invariants:
         - skip_ddl_preflight_when_group0_table_missing
         - treat_ddl_preflight_unknown_as_ok
         - remove_ghost_voter_without_verifying_quorum_remains
+
+    # ── Invariants discovered from unit-test roundtrip (2026-05) ─────────────
+
+    - id: node.scope.agent_has_minimal_read_write_boundary
+      title: Node agents are confined to their own node — no cross-node reads or writes
+      severity: critical
+      status: active
+      summary: |
+        A node-scoped principal (node agent service account) may only report or
+        read state for its own node. Cross-node reads of other nodes' plans or
+        status must be rejected. Node executors must never write desired state,
+        publish artifacts, perform RBAC admin, or access controller-admin paths
+        regardless of context. The enforcement is at the interceptor scope gate,
+        not by convention.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/node_scope.go
+      forbidden_fixes:
+        - allow_node_agent_to_read_other_nodes_plans
+        - grant_node_executor_desired_state_write
+        - grant_node_executor_rbac_admin
+        - bypass_scope_gate_for_bootstrap_convenience
+      required_tests:
+        - TestEnforceNodeScope_CrossNode_ReportNodeStatus
+        - TestEnforceNodeScope_CrossNode_ReportPlanRejection
+        - TestNodeExecutorCannotAccessOtherNodesPlans
+        - TestNodeExecutorCannotMutateDesiredState
+        - TestNodeExecutorCannotPublish
+        - TestNodeExecutorCannotPerformRBACAdmin
+
+    - id: node.admission.proof_must_match_issued_join_id
+      title: Node admission proof must match the join ID issued at request time
+      severity: critical
+      status: active
+      summary: |
+        A node presenting an admission proof must provide a join_id that exactly
+        matches the join_id recorded in the join request in etcd. If they differ,
+        admission is rejected regardless of all other proof components. Etcd
+        failure during proof lookup must block admission — it must never default
+        to granted.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/node_admission_proof.go
+          - golang/cluster_controller/cluster_controller_server/node_admission_status.go
+      forbidden_fixes:
+        - admit_node_when_join_id_mismatches
+        - grant_admission_on_etcd_lookup_failure
+        - skip_join_id_check_for_legacy_nodes
+      required_tests:
+        - TestAdmissionProof_WrongJoinIDBlocks
+        - TestAdmissionProof_WrongNodeIdentityBlocks
+        - TestAdmissionProof_EtcdFailedBlocksAdmission
+
+    - id: repository.artifact.content_immutable_after_publish
+      title: Published artifact content is immutable — same version must mean same digest
+      severity: critical
+      status: active
+      summary: |
+        Once an artifact version reaches PUBLISHED state, its binary content
+        (SHA256 digest) must never change. A re-publish of the same
+        (publisher, name, version, platform) tuple with a different digest must
+        be rejected. A re-publish with the same digest must be idempotent and
+        return the original build_id. Content substitution is indistinguishable
+        from the 4-layer model — the build_id appears unchanged while every node
+        installs a different binary.
+      protects:
+        files:
+          - golang/repository/repository_server/artifact_handlers.go
+          - golang/repository/repository_server/trusted_publisher.go
+      forbidden_fixes:
+        - overwrite_artifact_blob_after_publish
+        - allow_digest_change_on_republish
+        - treat_republish_as_update_rather_than_idempotent
+      required_tests:
+        - TestINV1_ReleasedArtifactImmutable_DifferentDigest
+        - TestINV1_ReleasedArtifactImmutable_SameDigest
+
+    - id: repository.artifact.state_transitions_are_forward_only
+      title: Artifact state machine transitions are forward-only — no reverse or side-step
+      severity: critical
+      status: active
+      summary: |
+        The artifact lifecycle state machine (PENDING → BLOB_VERIFIED →
+        MANIFEST_WRITTEN → PUBLISHED, or → REVOKED / QUARANTINED) enforces
+        forward-only transitions at the schema level. Reverse transitions
+        (e.g., PUBLISHED → PENDING) and side-step transitions (e.g.,
+        BLOB_VERIFIED → MANIFEST_WRITTEN skipping state) must be rejected,
+        not silently ignored. Idempotent self-transitions (same state → same
+        state) must be allowed.
+      protects:
+        files:
+          - golang/repository/repository_server/artifact_state.go
+          - golang/repository/repository_server/artifact_state_backfill.go
+      forbidden_fixes:
+        - allow_reverse_artifact_state_transition
+        - silently_ignore_illegal_transition_instead_of_reject
+        - skip_intermediate_states_in_pipeline
+      required_tests:
+        - TestTransitionArtifactState_RejectsIllegalTransition
+        - TestTransitionArtifactState_IdempotentSelfTransition
+
+    - id: repository.artifact.deletion_never_triggers_uninstall
+      title: Repository artifact deletion must never trigger uninstallation on nodes
+      severity: critical
+      status: active
+      summary: |
+        Deleting or purging an artifact from the repository (revoke, quarantine,
+        admin purge) must not trigger any uninstall action on nodes that have
+        already installed it. Uninstallation is exclusively driven by
+        desired-state mutation or explicit node-agent action. The repository is
+        a catalog; it has no authority to initiate node-level lifecycle changes.
+        Violating this creates a remote-delete → silent-uninstall vector.
+      protects:
+        files:
+          - golang/repository/repository_server/artifact_admin.go
+          - golang/repository/repository_server/gc.go
+      forbidden_fixes:
+        - cascade_artifact_delete_to_node_install_state
+        - trigger_node_uninstall_from_repository_purge_hook
+        - treat_revocation_as_desired_state_mutation
+      required_tests:
+        - TestDeleteArtifact_NeverUninstalls
+
+    - id: leader.write_must_be_fenced_on_lease_expiry
+      title: Controller leader must fence all writes immediately on lease expiry
+      severity: critical
+      status: active
+      summary: |
+        When the cluster controller loses its election lease, it must immediately
+        reject all write operations to etcd — even if the process still holds
+        leadership context in memory. Writes after lease expiry constitute a
+        split-brain risk: two controllers may write conflicting desired state
+        simultaneously. The fence must be enforced at the interceptor level,
+        not at individual write sites.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/leader_election.go
+          - golang/cluster_controller/cluster_controller_server/leader_proxy.go
+          - golang/cluster_controller/cluster_controller_server/leader_liveness.go
+      forbidden_fixes:
+        - continue_writing_after_lease_expiry
+        - fence_only_at_individual_write_sites_not_interceptor
+        - retry_lease_before_fencing_in_flight_writes
+      required_tests:
+        - TestLeaderFence_RejectsWriteAfterLeaseExpiry
+
+    - id: workflow.circuit_breaker_must_be_scoped_per_service
+      title: Workflow circuit breakers are per-service — failure of one must not block others
+      severity: high
+      status: active
+      summary: |
+        Circuit breakers for workflow action dispatch must be scoped per target
+        service, not global. When dispatch for service A fails and its circuit
+        opens, the circuit breakers for service B and C must remain closed,
+        allowing unrelated reconciliation to proceed. A global circuit breaker
+        causes a single failing dependency to stall the entire convergence loop.
+      protects:
+        files:
+          - golang/workflow/workflow_server/executor.go
+          - golang/interceptors/acc.go
+      forbidden_fixes:
+        - use_global_circuit_breaker_for_all_services
+        - open_all_circuits_when_one_service_fails
+        - skip_circuit_isolation_for_infrastructure_services
+      required_tests:
+        - TestCircuitBreakerScopedNotGlobal
+        - TestCircuitBreakerScopedToAffectedService
+
+    - id: migration.state_path_upgrade_must_be_idempotent
+      title: State path migrations must be idempotent — safe to run twice
+      severity: high
+      status: active
+      summary: |
+        Any state path migration (etcd key rename, schema upgrade, build_id
+        backfill) must be idempotent: running it twice on the same state must
+        produce the same final state with no corruption, double-application, or
+        spurious writes. This applies to node_agent startup migrations and
+        controller startup migrations. Non-idempotent migrations cause silent
+        data corruption on restart after a crash mid-migration.
+      protects:
+        files:
+          - golang/repository/repository_server/migration.go
+          - golang/cluster_controller/cluster_controller_server/state.go
+          - golang/node_agent/node_agent_server/state.go
+      forbidden_fixes:
+        - apply_migration_without_idempotency_guard
+        - skip_migration_check_if_key_partially_written
+        - assume_migration_already_ran_without_verification
+      required_tests:
+        - TestMigrateBuildIDs_Idempotent
+        - TestMigrateLegacyStatePath_Idempotent
+        - TestMigrateLegacyStatePath_NodeAgent_Idempotent
+
+    - id: objectstore.minio_contract_write_must_be_atomic
+      title: MinIO desired contract writes must be atomic and overwrite corruption
+      severity: high
+      status: active
+      summary: |
+        Writing the MinIO desired contract to etcd must be atomic: the full
+        contract is written in a single transaction, never partially. If the
+        prior contract in etcd is unreadable or corrupt, the write must
+        overwrite it — not fail or leave the corrupt state in place. A corrupt
+        contract left in etcd causes all subsequent reads to fail, stalling
+        MinIO topology reconciliation on every node.
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/minio_contract_reconcile.go
+      forbidden_fixes:
+        - write_minio_contract_fields_in_separate_transactions
+        - fail_on_corrupt_prior_contract_instead_of_overwriting
+        - leave_partial_contract_on_write_error
+      required_tests:
+        - TestWriteMinioContractAtomic_OverwritesCorrupt
+        - TestWriteMinioContractAtomic_RoundTrip
