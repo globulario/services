@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_event
+// @awareness file_role=scylladb_backed_durable_pubsub_with_bounded_replay
+// @awareness implements=globular.platform:intent.event.pub_sub_connects_observability_to_action
+// @awareness implements=globular.platform:intent.event.delivery_is_not_guaranteed
+// @awareness risk=medium
 package main
 
 import (

@@ -1,0 +1,38 @@
+id: event.pub_sub_connects_observability_to_action
+level: principle
+title: The event bus is the loose-coupling layer between observation and autonomous action
+intent: |
+  The event service (ScyllaDB-backed pub/sub with 1-hour TTL) is the primary channel through
+  which observability signals reach consumers: ai_watcher subscribes to cluster/service/node/
+  alert topics; ai_router ingests anomaly signals; cluster_doctor receives health events.
+  The event bus decouples producers (services emitting state changes) from consumers (AI
+  agents and monitoring). Neither side needs to know the other exists.
+agent_guidance: |
+  Services should emit events for significant state transitions (service crash, workflow
+  failure, health degradation, cert renewal). Consumers must not assume real-time delivery.
+  The bus provides durable replay within the 1-hour TTL window; consumers are responsible
+  for idempotency.
+bad_smells:
+  - service calling ai_watcher directly instead of emitting an event
+  - consumer assuming events are delivered in real time
+  - consumer treating event absence as proof of absence
+  - producer using the event bus for synchronous RPC-style calls
+activation_triggers:
+  - event service
+  - pub/sub
+  - event bus
+  - subscribe
+  - publish event
+expressed_by:
+  - golang/event/event_server/server.go
+related_invariants: []
+zooms_out_to:
+  - globular.vision.ai_operable_cluster
+zooms_in_to:
+  - event.delivery_is_not_guaranteed
+related_to:
+  - observability.must_explain_cause_not_only_metric
+  - ai.watcher_to_executor_causal_chain
+required_tests:
+  - event:TestPublishDoesNotGuaranteeDelivery
+status: extracted_candidate

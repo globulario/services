@@ -1,3 +1,11 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_executor
+// @awareness file_role=incident_diagnosis_and_tiered_action_dispatch
+// @awareness implements=globular.platform:intent.ai.supplementary_not_required
+// @awareness implements=globular.platform:intent.ai.decision_tier.gates_execution
+// @awareness implements=globular.platform:intent.ai.watcher_to_executor_causal_chain
+// @awareness risk=high
+//
 // Package main implements the AI Executor service — the action layer
 // that diagnoses incidents and executes remediation. The watcher sees,
 // the executor acts.

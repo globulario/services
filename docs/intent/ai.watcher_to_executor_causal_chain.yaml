@@ -1,0 +1,44 @@
+id: ai.watcher_to_executor_causal_chain
+level: mechanism
+title: Incidents flow from watcher event matching through executor diagnosis to memory recording
+intent: |
+  The AI observability pipeline has a strict causal order:
+  1. ai_watcher subscribes to event topics, applies rules (cooldown + batch window + repeat threshold),
+     and creates an Incident when a rule fires.
+  2. Incident is handed to ai_executor with the watcher's tier classification.
+  3. ai_executor queries ai_memory for historical root causes, runs diagnosis (Claude API or
+     deterministic fallback), and dispatches the appropriate action.
+  4. Action outcome (success, failure, deferred) is recorded back to ai_memory with the incident ID.
+  This chain is one-directional: watcher creates, executor acts, memory records. There is no
+  feedback loop back into watcher state.
+agent_guidance: |
+  Watcher is not an actor — it only creates incidents. Executor is not an observer — it only
+  acts on incidents. Memory is not a decision-maker — it only stores outcomes for future context.
+  Keep these responsibilities separate.
+bad_smells:
+  - ai_watcher calling executor RPCs synchronously in event handler
+  - ai_executor modifying watcher rule state
+  - ai_memory triggering new incidents based on stored outcomes
+  - incident created without cooldown check (alert storm)
+activation_triggers:
+  - ai_watcher
+  - ai_executor
+  - incident
+  - causal chain
+  - event → incident → action
+expressed_by:
+  - golang/ai_watcher/ai_watcher_server/watcher.go
+  - golang/ai_executor/ai_executor_server/executor.go
+related_invariants: []
+zooms_out_to:
+  - ai.supplementary_not_required
+zooms_in_to:
+  - ai.decision_tier.gates_execution
+related_to:
+  - event.pub_sub_connects_observability_to_action
+  - audit.every_authority_change_is_explainable
+required_tests:
+  - ai_watcher:TestCooldownPreventsAlertStorm
+  - ai_watcher:TestBatchWindowCollatesRelatedEvents
+  - ai_executor:TestOutcomeRecordedToMemory
+status: extracted_candidate

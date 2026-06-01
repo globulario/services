@@ -1,0 +1,45 @@
+id: ai.decision_tier.gates_execution
+level: mechanism
+title: Incident tier classifies the execution authority of AI-driven actions
+intent: |
+  Every AI-triggered incident is classified into one of three tiers before any action is taken:
+  Tier 0 (OBSERVE): diagnose and record only — no action dispatched.
+  Tier 1 (AUTO_REMEDIATE): action dispatched automatically if evidence meets trust threshold.
+  Tier 2 (REQUIRE_APPROVAL): action placed in AWAITING_APPROVAL state — operator must approve
+  within the TTL window before it can execute.
+  The tier is set on the watcher rule, not at dispatch time, so the decision authority is
+  determined at rule authoring time, not per-incident.
+agent_guidance: |
+  When adding or modifying remediation rules, classify tier conservatively. Prefer Tier 2
+  for any action with irreversible effects. Tier 1 is appropriate only for idempotent,
+  well-tested actions (restart, cache clear, log rotation). Tier 0 is safe for all
+  diagnosis-only rules.
+bad_smells:
+  - remediation action dispatched without tier check
+  - tier set per-incident rather than per-rule
+  - approval TTL silently extended without operator action
+  - tier 2 actions auto-approved after TTL expires (must expire, not auto-approve)
+activation_triggers:
+  - incident tier
+  - auto-remediate
+  - require approval
+  - tier 0
+  - tier 1
+  - tier 2
+  - AWAITING_APPROVAL
+expressed_by:
+  - golang/ai_executor/ai_executor_server/executor.go
+  - golang/ai_watcher/ai_watcher_server/watcher.go
+related_invariants:
+  - doctor.hard_blocked_actions_never_execute
+  - doctor.escalation_threshold_gates_repeated_attempts
+zooms_out_to:
+  - ai.supplementary_not_required
+zooms_in_to: []
+related_to:
+  - autonomy.remediation_is_bounded_and_escalates
+  - remediation.must_go_through_workflow
+required_tests:
+  - ai_executor:TestTierZeroDoesNotDispatchAction
+  - ai_executor:TestTierTwoExpiresNotAutoApproves
+status: extracted_candidate

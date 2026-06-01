@@ -1,0 +1,40 @@
+id: domain.leader_only_acme_reconciliation
+level: mechanism
+title: Only the cluster leader runs ACME reconciliation to prevent DNS and certificate races
+intent: |
+  Let's Encrypt rate limits are per-domain and per-hour. Running ACME reconciliation on
+  multiple nodes simultaneously risks exhausting rate limits and creating conflicting DNS
+  TXT records during DNS-01 challenges. The domain service uses the cluster-controller
+  leader lock to ensure exactly one node reconciles ACME state at a time.
+  Non-leader nodes sync certificates from etcd (via WatchACMECerts) rather than issuing
+  their own requests.
+agent_guidance: |
+  Never add a path that issues ACME certificate requests outside of the leader-gated
+  reconciliation loop. Certificate distribution to non-leader nodes must happen via etcd
+  sync, not via direct Let's Encrypt calls.
+bad_smells:
+  - ACME request issued without checking leader status
+  - multiple nodes racing to respond to DNS-01 challenge
+  - certificate distributed by copying files instead of etcd sync
+  - non-leader node performing ACME renewal
+activation_triggers:
+  - ACME
+  - Let's Encrypt
+  - certificate renewal
+  - DNS-01
+  - domain reconciliation
+  - leader election
+expressed_by:
+  - golang/domain/domain_server/server.go
+related_invariants: []
+zooms_out_to:
+  - controller.decides_but_does_not_execute_leaf_work
+zooms_in_to:
+  - domain.certs_distributed_via_etcd_not_files
+related_to:
+  - etcd.is_source_of_truth
+  - security.tokens_certificates_keys.cluster_trust_contract
+required_tests:
+  - domain:TestFollowerDoesNotIssueACMERequest
+  - domain:TestLeaderGatePreventsConcurrentRenewal
+status: extracted_candidate

@@ -1,1 +1,11 @@
 code_symbols:
+  - id: globular.platform:code.go.platform_event
+    namespace: globular.platform
+    language: go
+    file: golang/event/event_server/server.go
+    component: platform_event
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.event.pub_sub_connects_observability_to_action
+        - globular.platform:intent.event.delivery_is_not_guaranteed

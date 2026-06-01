@@ -1,1 +1,11 @@
 code_symbols:
+  - id: globular.platform:code.go.platform_domain
+    namespace: globular.platform
+    language: go
+    file: golang/domain/reconciler.go
+    component: platform_domain
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.domain.leader_only_acme_reconciliation
+        - globular.platform:intent.domain.certs_distributed_via_etcd_not_files

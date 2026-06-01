@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_torrent
+// @awareness file_role=optional_p2p_package_distribution_with_minio_fallback
+// @awareness implements=globular.platform:intent.torrent.is_optional_optimization_not_critical_path
+// @awareness risk=low
 package main
 
 import (

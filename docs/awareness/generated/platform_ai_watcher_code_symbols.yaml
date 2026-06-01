@@ -1,1 +1,11 @@
 code_symbols:
+  - id: globular.platform:code.go.platform_ai_watcher
+    namespace: globular.platform
+    language: go
+    file: golang/ai_watcher/ai_watcher_server/server.go
+    component: platform_ai_watcher
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.ai.watcher_to_executor_causal_chain
+        - globular.platform:intent.event.pub_sub_connects_observability_to_action

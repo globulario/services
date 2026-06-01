@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_router
+// @awareness file_role=dynamic_endpoint_weight_computation_from_metrics_and_anomaly_signals
+// @awareness implements=globular.platform:intent.ai.supplementary_not_required
+// @awareness implements=globular.platform:intent.circuit_breakers_protect_convergence
+// @awareness risk=medium
+//
 // Package main implements the AI Router service — a control-plane routing
 // policy engine that computes dynamic endpoint weights, circuit breaker
 // overrides, and drain strategies based on real-time signals.

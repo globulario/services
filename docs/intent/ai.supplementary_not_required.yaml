@@ -1,0 +1,39 @@
+id: ai.supplementary_not_required
+level: principle
+title: AI services are supplementary — the cluster must converge without them
+intent: |
+  AI diagnosis, routing, and memory are enhancements that improve operator experience and
+  reduce MTTR. They are not in the critical path of cluster convergence. If ai_executor,
+  ai_watcher, ai_router, or ai_memory are down, the deterministic convergence loop
+  (controller → workflow → node_agent) must continue operating normally.
+agent_guidance: |
+  Never make a workflow, install action, or convergence decision depend on an AI service
+  being reachable. AI tools are for diagnosis and recommendation, not for authority.
+bad_smells:
+  - workflow blocks waiting for AI diagnosis
+  - convergence gate requires ai_memory response
+  - install action dispatched only after AI approval
+  - AI service failure propagates to cluster posture
+activation_triggers:
+  - ai_executor
+  - ai_watcher
+  - ai_router
+  - ai_memory
+  - supplementary
+  - AI service failure
+expressed_by:
+  - golang/ai_executor/ai_executor_server/server.go
+  - golang/ai_watcher/ai_watcher_server/server.go
+related_invariants: []
+zooms_out_to:
+  - globular.vision.ai_operable_cluster
+zooms_in_to:
+  - ai.decision_tier.gates_execution
+  - ai.memory.outcome_history_not_cluster_authority
+  - ai.watcher_to_executor_causal_chain
+related_to:
+  - globular.vision.explicit_convergence
+  - health.requires_fresh_evidence
+required_tests:
+  - ai_executor:TestClusterConvergesWithoutAIServices
+status: extracted_candidate

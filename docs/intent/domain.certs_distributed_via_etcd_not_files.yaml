@@ -1,0 +1,39 @@
+id: domain.certs_distributed_via_etcd_not_files
+level: mechanism
+title: ACME certificates are published to etcd and synced to all nodes — not pushed as files
+intent: |
+  After the leader issues an ACME certificate, it publishes the cert+chain+key to etcd
+  at /globular/acme/certs/<fqdn>. All other cluster nodes watch this key and sync
+  the certificate to their local filesystem (for Envoy xDS consumption).
+  The xDS path requires a symlink: /var/lib/globular/config/tls/acme/<fqdn>/ pointing
+  to the cert written by the domain watcher. This indirection exists because xDS reads
+  from config/tls/acme/ and certs are issued to domains/.
+agent_guidance: |
+  When debugging "wrong certificate served by Envoy", check:
+  1. Is the cert in etcd at /globular/acme/certs/<fqdn>?
+  2. Did the watcher sync it to /var/lib/globular/domains/<fqdn>/fullchain.pem?
+  3. Does the xDS symlink exist at /var/lib/globular/config/tls/acme/<fqdn>/?
+  The symlink is the most frequently missing piece.
+bad_smells:
+  - certificate distributed via scp or rsync between nodes
+  - Envoy reading cert directly from /var/lib/globular/domains/ (missing symlink)
+  - cert sync depending on node-agent file transfer instead of etcd watch
+  - non-leader writing cert to etcd
+activation_triggers:
+  - ACME cert
+  - certificate sync
+  - xDS TLS
+  - symlink
+  - WatchACMECerts
+expressed_by:
+  - golang/domain/domain_server/server.go
+related_invariants: []
+zooms_out_to:
+  - domain.leader_only_acme_reconciliation
+zooms_in_to: []
+related_to:
+  - infrastructure.ingress.external_domain_tls_termination_and_control_plane_boundaries
+required_tests:
+  - domain:TestCertSyncedFromEtcdToFilesystem
+  - domain:TestXDSSymlinkCreatedAfterCertSync
+status: extracted_candidate

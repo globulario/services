@@ -1,0 +1,39 @@
+id: event.delivery_is_not_guaranteed
+level: mechanism
+title: Event publish success is not delivery success — subscribers must be idempotent
+intent: |
+  Publishing to the event service means the event is durable in ScyllaDB. It does NOT mean
+  any subscriber received it. Delivery to live subscribers is best-effort (fire-and-forget
+  gRPC stream). Subscribers that were offline during publish will receive the event on their
+  next poll cycle (replay), up to the 1-hour TTL boundary.
+  Consequence: all event consumers MUST be idempotent. The same event may arrive twice
+  (once via live stream, once via replay after a gap).
+agent_guidance: |
+  Never assume an event was received because publish returned success. Design consumers to
+  handle duplicate delivery. Use the event ID as an idempotency key. If a consumer misses
+  more than 1 hour of events, it will have a gap — design for bounded replay, not complete
+  history.
+bad_smells:
+  - consumer treating publish success as delivery confirmation
+  - consumer not deduplicating events by ID
+  - consumer assuming event order is strictly preserved
+  - using the event bus for at-most-once critical operations
+activation_triggers:
+  - event delivery
+  - subscriber
+  - replay
+  - idempotent consumer
+  - publish success
+expressed_by:
+  - golang/event/event_server/server.go
+related_invariants: []
+zooms_out_to:
+  - event.pub_sub_connects_observability_to_action
+zooms_in_to: []
+related_to:
+  - reconciliation.must_be_idempotent_and_bounded
+  - degraded_is_explicit_not_hidden
+required_tests:
+  - event:TestSubscriberReceivesDuplicateOnReplay
+  - event:TestConsumerHandlesGapBeyondTTL
+status: extracted_candidate

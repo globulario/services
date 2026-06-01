@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.aggregator
+// @awareness file_role=etcd_discovery_and_tls_verified_remote_tool_routing
+// @awareness implements=globular.platform:intent.mcp.aggregator_routes_via_etcd_discovery
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=medium
 package main
 
 import (

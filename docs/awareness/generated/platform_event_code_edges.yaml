@@ -1,1 +1,7 @@
 code_edges:
+  - from: globular.platform:code.go.platform_event
+    relation: implements
+    to: globular.platform:intent.event.delivery_is_not_guaranteed
+  - from: globular.platform:code.go.platform_event
+    relation: implements
+    to: globular.platform:intent.event.pub_sub_connects_observability_to_action

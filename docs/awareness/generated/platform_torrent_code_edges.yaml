@@ -1,1 +1,4 @@
 code_edges:
+  - from: globular.platform:code.go.platform_torrent
+    relation: implements
+    to: globular.platform:intent.torrent.is_optional_optimization_not_critical_path

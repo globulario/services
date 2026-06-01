@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_watcher
+// @awareness file_role=event_rule_matching_and_incident_creation
+// @awareness implements=globular.platform:intent.ai.watcher_to_executor_causal_chain
+// @awareness implements=globular.platform:intent.event.pub_sub_connects_observability_to_action
+// @awareness risk=medium
+//
 // Package main implements the AI Watcher service — a lightweight event-driven
 // daemon that subscribes to cluster events, filters them through configurable
 // rules, and triggers AI-assisted diagnosis and remediation.

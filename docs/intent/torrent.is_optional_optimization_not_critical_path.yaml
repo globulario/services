@@ -1,0 +1,34 @@
+id: torrent.is_optional_optimization_not_critical_path
+level: principle
+title: BitTorrent distribution is an optimization — repository always falls back to direct MinIO
+intent: |
+  The torrent service provides P2P package distribution to reduce bandwidth load on the
+  central MinIO store during cluster upgrades. It is explicitly non-critical: if the torrent
+  service is unavailable, the repository service falls back transparently to direct MinIO
+  downloads. Package availability is never gated on torrent availability.
+  Torrent is used for large package artifacts where parallel swarm downloading provides
+  meaningful speedup. It does NOT replace the repository or MinIO as the source of truth.
+agent_guidance: |
+  Never make package availability or install preconditions depend on the torrent service.
+  All error paths from torrent calls must fall back to direct repository download.
+bad_smells:
+  - package install blocked because torrent service is unreachable
+  - torrent treated as authoritative source for package bytes (MinIO/CAS is authoritative)
+  - torrent seeding used to replace MinIO storage
+  - no fallback when torrent download fails
+activation_triggers:
+  - torrent
+  - P2P distribution
+  - package download
+  - bandwidth optimization
+expressed_by:
+  - golang/torrent/torrent_server/server.go
+related_invariants: []
+zooms_out_to:
+  - repository.metadata_is_authority
+zooms_in_to: []
+related_to:
+  - degraded_is_explicit_not_hidden
+required_tests:
+  - repository:TestPackageInstallFallsBackToMinIOWhenTorrentUnavailable
+status: extracted_candidate

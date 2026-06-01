@@ -1,1 +1,11 @@
 code_symbols:
+  - id: globular.platform:code.go.platform_ai_memory
+    namespace: globular.platform
+    language: go
+    file: golang/ai_memory/ai_memory_server/server.go
+    component: platform_ai_memory
+    risk: low
+    annotations:
+      implements:
+        - globular.platform:intent.ai.memory.outcome_history_not_cluster_authority
+        - globular.platform:intent.ai.supplementary_not_required

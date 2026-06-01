@@ -1,1 +1,10 @@
 code_symbols:
+  - id: globular.platform:code.go.platform_torrent
+    namespace: globular.platform
+    language: go
+    file: golang/torrent/torrent_server/server.go
+    component: platform_torrent
+    risk: low
+    annotations:
+      implements:
+        - globular.platform:intent.torrent.is_optional_optimization_not_critical_path

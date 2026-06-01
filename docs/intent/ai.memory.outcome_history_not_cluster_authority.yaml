@@ -1,0 +1,36 @@
+id: ai.memory.outcome_history_not_cluster_authority
+level: principle
+title: ai_memory stores diagnosis outcomes — it is not a source of truth for cluster state
+intent: |
+  ai_memory is a queryable knowledge base for AI agents: it stores past diagnoses, root cause
+  patterns, operator feedback, and session context. It is NOT authoritative for any cluster state.
+  Cluster state lives in etcd (desired/installed/runtime) and Scylla (package index).
+  ai_memory records what AI agents inferred and what happened as a result. It is evidence for
+  future reasoning, not a command authority.
+agent_guidance: |
+  ai_memory queries inform but do not gate convergence. ai_executor may query ai_memory for
+  historical root causes to improve diagnosis quality, but must not block or skip actions
+  because ai_memory is unreachable.
+bad_smells:
+  - convergence blocked waiting for ai_memory query result
+  - cluster state derived from ai_memory rather than etcd
+  - ai_memory used to determine if a service is installed
+  - remediation skipped because no matching ai_memory record found
+activation_triggers:
+  - ai_memory
+  - knowledge base
+  - outcome history
+  - memory query
+  - historical root cause
+expressed_by:
+  - golang/ai_memory/ai_memory_server/server.go
+related_invariants: []
+zooms_out_to:
+  - ai.supplementary_not_required
+zooms_in_to: []
+related_to:
+  - etcd.is_source_of_truth
+  - awareness.graph_is_compiled_context_not_authority
+required_tests:
+  - ai_executor:TestExecutorProceedsWhenMemoryUnreachable
+status: extracted_candidate

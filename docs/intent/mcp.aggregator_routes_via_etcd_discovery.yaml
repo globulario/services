@@ -1,0 +1,39 @@
+id: mcp.aggregator_routes_via_etcd_discovery
+level: mechanism
+title: MCP aggregator discovers remote node endpoints from etcd and routes tools transparently
+intent: |
+  The MCP server runs on every node but the Claude Code client connects to a single entry
+  point. The aggregator resolves which tools live on which node by querying etcd at
+  /globular/mcp/nodes/. When a tool is invoked that targets a remote node, the aggregator
+  routes the call via TLS-verified HTTPS to that node's MCP endpoint. The caller receives
+  a RemoteNodeResult wrapper indicating which node answered.
+  Trust levels: VERIFIED (cert chained to cluster CA + SAN matched), UNVERIFIED (self-signed),
+  NONE (no TLS). Only VERIFIED remote calls are treated as authoritative.
+agent_guidance: |
+  When adding new MCP tools that must aggregate across nodes, register them through the
+  aggregator client pool. Do not hard-code node addresses — discover from etcd.
+  Tools marked read_only=false must not be executed if the read_only gate is active.
+bad_smells:
+  - MCP tool hard-coding a node address instead of using etcd discovery
+  - remote MCP call made over unverified TLS treated as authoritative
+  - aggregator result used for state changes (MCP is read-only surface)
+  - tool bypassing the concurrency limiter
+activation_triggers:
+  - MCP aggregator
+  - remote tool
+  - node discovery
+  - etcd MCP nodes
+  - RemoteNodeResult
+expressed_by:
+  - golang/mcp/aggregator_client.go
+related_invariants: []
+zooms_out_to:
+  - awareness.mcp_bridge_exposes_safe_tools_only
+zooms_in_to: []
+related_to:
+  - etcd.is_source_of_truth
+  - security.tokens_certificates_keys.cluster_trust_contract
+required_tests:
+  - mcp:TestAggregatorDiscoveryFromEtcd
+  - mcp:TestUnverifiedTLSNotTreatedAsAuthoritative
+status: extracted_candidate

@@ -8,3 +8,14 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.platform_ai_executor
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/server.go
+    component: platform_ai_executor
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.ai.supplementary_not_required
+        - globular.platform:intent.ai.decision_tier.gates_execution
+        - globular.platform:intent.ai.watcher_to_executor_causal_chain

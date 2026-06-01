@@ -17,6 +17,16 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - id: globular.platform:code.go.platform_mcp.aggregator
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/aggregator_client.go
+    component: platform_mcp.aggregator
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.mcp.aggregator_routes_via_etcd_discovery
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
   - id: globular.platform:code.go.platform_mcp.awareness_bridge
     namespace: globular.platform
     language: go

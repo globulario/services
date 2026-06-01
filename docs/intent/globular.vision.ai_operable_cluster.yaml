@@ -25,6 +25,9 @@ zooms_in_to:
 - awareness.graph_is_compiled_context_not_authority
 - doctor.findings_are_operator_language
 - workflow.source_of_operational_truth
+- ai.supplementary_not_required
+- event.pub_sub_connects_observability_to_action
+- mcp.aggregator_routes_via_etcd_discovery
 related_to:
 - globular.vision.explicit_convergence
 status: extracted_candidate

@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_domain
+// @awareness file_role=leader_only_acme_reconciliation_and_cert_distribution_via_etcd
+// @awareness implements=globular.platform:intent.domain.leader_only_acme_reconciliation
+// @awareness implements=globular.platform:intent.domain.certs_distributed_via_etcd_not_files
+// @awareness risk=high
 package domain
 
 import (
