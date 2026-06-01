@@ -3,6 +3,11 @@
 // @awareness file_role=node_heartbeat_local_and_etcd_phases
 // @awareness implements=globular.platform:intent.runtime_health.requires_live_observation
 // @awareness enforces=globular.platform:invariant.state.runtime_not_desired
+// @awareness enforces=globular.platform:invariant.infra.heartbeat_observer_only_not_authority
+// @awareness failure_mode=heartbeat.stale_kind_manifest_poisons_installed_state
+// @awareness incident_pattern=pat.heartbeat_stale_kind_manifest_old_pid_loop
+// @awareness forbidden_fix=iterate_all_artifact_versions_for_kind_resolution
+// @awareness forbidden_fix=delete_old_published_artifact_versions_to_stop_heartbeat_poisoning
 // @awareness risk=critical
 package main
 

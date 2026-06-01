@@ -3232,6 +3232,44 @@ failure_modes:
       required_tests:
         - test.doctor_approval_token_binding_prevents_replay
 
+    - id: heartbeat.stale_kind_manifest_poisons_installed_state
+      title: Old artifact versions with a reclassified kind delete the correctly-classified installed-state record every heartbeat
+      severity: critical
+      symptoms:
+        - INFRASTRUCTURE/<svc> record is recreated in etcd on every heartbeat cycle even though the install pipeline wrote SERVICE/<svc>
+        - verifier emits service.old_pid_after_upgrade for <svc> on every cycle — updatedUnix keeps advancing past the process start time
+        - cluster.services.drift fires permanently for <svc> despite a successful install
+        - install-package dispatches for <svc> succeed but the record is overwritten before the next reconcile
+        - `apply-package: removed stale INFRASTRUCTURE record for SERVICE <svc>` appears in logs on re-install but then returns
+      root_cause: |
+        syncRepoArtifactsToEtcd in heartbeat.go calls ListArtifacts(), which returns ALL
+        published versions. When an artifact's kind changes between releases (e.g., mcp was
+        published as INFRASTRUCTURE in 1.2.131/1.2.132 and reclassified to SERVICE in 1.2.133),
+        the old INFRASTRUCTURE manifests are still returned. The heartbeat's staleService
+        deletion logic sees the INFRASTRUCTURE manifest for <svc>, finds an existing SERVICE/<svc>
+        record (correctly written by the install pipeline), treats it as misclassified, and
+        deletes it — replacing it with INFRASTRUCTURE/<svc>@1.2.132 with a fresh updatedUnix.
+
+        This bumps ApplyTime ahead of the process start time on every cycle, so
+        service.old_pid_after_upgrade fires perpetually. The install pipeline re-installs
+        SERVICE/<svc>, the heartbeat immediately overwrites it, and the cycle repeats.
+      architecture_fix: |
+        After ListArtifacts(), deduplicate to keep only the highest-version manifest per
+        (name, platform) before iterating. Only the latest published version is authoritative
+        for kind resolution. Old versions are ignored.
+
+        Implemented in commit 72cc72b2: syncRepoArtifactsToEtcd builds a latestArts map
+        keyed by (name, platform) and retains the winner by versionutil.Compare, breaking
+        ties by build_number. The arts slice is replaced with the deduplicated contents
+        before the classification and staleService logic runs.
+      known_bad_fixes:
+        - iterate_all_artifact_versions_for_kind_resolution
+        - delete_old_published_artifact_versions_to_stop_heartbeat_poisoning
+      related_invariants:
+        - infra.heartbeat_observer_only_not_authority
+      required_tests:
+        - TestSyncRepoArtifacts_DeduplicatesOldVersionsBeforeKindResolution
+
     - id: doctor.escalation_state_lost_on_restart
       title: Escalation counter resets on doctor restart, allowing a hard-rate-limited action to bypass approval gate
       severity: high

@@ -218,3 +218,39 @@ incident_patterns:
       - checkRuntimeDeps
       - hasUnservedNodes
       - clearRuntimeDepBlock
+
+  - id: pat.heartbeat_stale_kind_manifest_old_pid_loop
+    title: Heartbeat processes old artifact versions with stale kind, permanently deleting correct installed-state records and producing old_pid_after_upgrade
+    severity: critical
+    failure_mode: heartbeat.stale_kind_manifest_poisons_installed_state
+    root_cause: |
+      syncRepoArtifactsToEtcd called ListArtifacts() and iterated every returned version.
+      When an artifact's kind changed between releases (e.g., mcp: INFRASTRUCTURE in
+      1.2.131/1.2.132, SERVICE in 1.2.133), the old INFRASTRUCTURE manifests were still
+      present in the repo. The heartbeat's staleService deletion logic saw the INFRASTRUCTURE
+      manifest, found the correctly-installed SERVICE/mcp@1.2.133 record, treated it as
+      misclassified, deleted it, and replaced it with INFRASTRUCTURE/mcp@1.2.132 with a
+      fresh updatedUnix. On the next heartbeat cycle the same thing happened again.
+      The fresh updatedUnix kept ApplyTime permanently ahead of the process start time,
+      firing service.old_pid_after_upgrade on every doctor cycle. Install dispatches
+      succeeded and were immediately undone.
+      INC-2026-0019, commit 72cc72b2.
+    lesson: |
+      ListArtifacts() is NOT a "latest version" API — it returns every published version.
+      Iterating all versions for kind resolution is wrong. Only the latest version per
+      (name, platform) is authoritative for kind. Any deduplication bypass reintroduces
+      the poison loop.
+    edit_shapes:
+      - removing the latestArts deduplication map from syncRepoArtifactsToEtcd
+      - replacing the per-(name,platform) winner logic with any form of "process all returned manifests"
+      - adding a special-case exemption for specific artifact names instead of deduplicating generically
+    wrong_fixes:
+      - deleting old artifact versions from the repository to stop heartbeat poisoning (destroys audit trail; correct fix is deduplication in heartbeat)
+      - adding a name-based allowlist of artifacts to skip in syncRepoArtifactsToEtcd (fragile; misses future reclassifications)
+      - suppressing service.old_pid_after_upgrade globally (loses the upgrade-bug signal)
+    files:
+      - golang/node_agent/node_agent_server/heartbeat.go
+    related_invariants:
+      - infra.heartbeat_observer_only_not_authority
+    related_symbols:
+      - syncRepoArtifactsToEtcd

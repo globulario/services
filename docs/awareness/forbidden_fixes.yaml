@@ -2519,6 +2519,41 @@ forbidden_fixes:
     files:
       - golang/cluster_doctor/cluster_doctor_server/remediation_gate.go
 
+- id: iterate_all_artifact_versions_for_kind_resolution
+  summary: >
+    Iterate every version returned by ListArtifacts() when resolving artifact kind in
+    syncRepoArtifactsToEtcd, without deduplicating to the latest version per (name, platform).
+  reason: >
+    ListArtifacts() returns all published versions, including old ones. A version published
+    before an artifact's kind was changed (e.g., INFRASTRUCTURE → SERVICE) carries the old
+    kind. If the heartbeat processes that old manifest, it deletes the correctly-classified
+    record written by the install pipeline and recreates it with the wrong kind and a fresh
+    updatedUnix timestamp. This produces a permanent service.old_pid_after_upgrade finding
+    and blocks install convergence. INC-2026-0019 (mcp 1.2.131/1.2.132 INFRA deleted
+    SERVICE/mcp@1.2.133 on every heartbeat cycle). Fixed in 72cc72b2.
+  safe_alternative: >
+    After ListArtifacts(), build a map keyed by (name, platform) and retain only the
+    highest-version manifest (versionutil.Compare; tie-break by build_number). Only the
+    winner per key participates in kind resolution and staleService deletion logic.
+  protects:
+    files:
+      - golang/node_agent/node_agent_server/heartbeat.go
+
+- id: delete_old_published_artifact_versions_to_stop_heartbeat_poisoning
+  summary: >
+    Delete or retract old artifact versions from the repository as a workaround for the
+    heartbeat processing them with stale kinds.
+  reason: >
+    The repository is the authoritative artifact history. Deleting published versions to
+    paper over a heartbeat bug destroys the audit trail and breaks rollback candidates.
+    The correct fix is deduplication in the heartbeat.
+  safe_alternative: >
+    Deduplicate in syncRepoArtifactsToEtcd — see iterate_all_artifact_versions_for_kind_resolution.
+  protects:
+    files:
+      - golang/node_agent/node_agent_server/heartbeat.go
+      - golang/repository/repository_server/artifact_handlers.go
+
 - id: execute_remediation_on_follower_instance
   summary: >
     Allow a cluster-doctor follower instance to execute or authorize remediation actions
