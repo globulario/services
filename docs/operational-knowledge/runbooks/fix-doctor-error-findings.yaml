@@ -1,0 +1,377 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Fixing cluster-doctor ERROR and WARN findings — root causes and remediation"
+  description: |
+    Root-cause analysis and durable fixes for the most common cluster-doctor findings.
+    Each entry covers: what the finding means, why it recurs, the root cause (not just
+    the symptom), the durable fix (in code/config), and the immediate runtime fix for
+    the running cluster. Where a runtime fix resets on reinstall, the spec-level fix
+    is noted so operators know BOTH steps are required.
+  source_documents:
+    - golang/cluster_doctor/cluster_doctor_server/rules/
+    - packages/metadata/etcd/specs/etcd_service.yaml
+    - packages/metadata/scylla-manager/specs/scylla_manager_service.yaml
+    - golang/node_agent/node_agent_server/state.go
+
+entries:
+
+  - id: ops.runbook.doctor.etcd-dir-permissions
+    type: SKILL
+    title: "ERROR: etcd data dir must be mode 0700"
+    tags: [day-1, day-2, etcd, permissions, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-doctor, etcd]
+    content: |
+      **Finding:** `artifact.filesystem_safety_local — etcd data dir must be mode 0700 (actual=0750)`
+
+      **Why it matters:** The etcd data directory contains the Raft WAL, snapshots, and
+      cluster keys. Group or world access exposes this material. Mode 0700 means only the
+      `globular` user (etcd's owner) can read or traverse it.
+
+      **Root cause:** `packages/metadata/etcd/specs/etcd_service.yaml` sets the etcd data
+      dir to `mode: 0750` in BOTH the `ensure-dirs` install step AND the systemd unit's
+      `ExecStartPre`. This means every service restart and every reinstall resets the
+      directory to 0750 — a manual `chmod` is undone the next time etcd restarts.
+
+      **Durable fix (already applied in packages repo):**
+      - `ensure-dirs` step: `mode: 0700`
+      - `ExecStartPre`: `chmod 0700 {{.StateDir}}/etcd`
+      Both must be 0700. Changing only one is insufficient.
+
+      **Immediate runtime fix (takes effect NOW, survives until next install):**
+      ```bash
+      sudo chmod 0700 /var/lib/globular/etcd
+      # Also fix the live unit file (survives until next etcd package install):
+      sudo sed -i 's/chmod 0750 \/var\/lib\/globular\/etcd/chmod 0700 \/var\/lib\/globular\/etcd/' \
+          /etc/systemd/system/globular-etcd.service
+      sudo systemctl daemon-reload
+      ```
+
+      **Verify:**
+      ```bash
+      ls -la /var/lib/globular/ | grep " etcd$"
+      # Expect: drwx------ (0700)
+      systemctl cat globular-etcd.service | grep chmod
+      # Expect: chmod 0700 /var/lib/globular/etcd
+      ```
+    procedure:
+      - phase: observe
+        description: "Confirm finding and current mode"
+        commands:
+          - cmd: "ls -la /var/lib/globular/ | grep etcd"
+            expect: "drwxr-x--- (0750) or similar — not 0700"
+      - phase: execute
+        description: "Apply runtime fix"
+        commands:
+          - cmd: "sudo chmod 0700 /var/lib/globular/etcd"
+          - cmd: "sudo sed -i 's/chmod 0750 \\/var\\/lib\\/globular\\/etcd/chmod 0700 \\/var\\/lib\\/globular\\/etcd/' /etc/systemd/system/globular-etcd.service"
+          - cmd: "sudo systemctl daemon-reload"
+      - phase: verify
+        description: "Confirm fix and doctor clears"
+        commands:
+          - cmd: "ls -la /var/lib/globular/ | grep etcd"
+            expect: "drwx------ (0700)"
+          - cmd: "globular cluster doctor --freshness fresh"
+            expect: "etcd permissions finding is absent"
+    links:
+      awareness_invariants:
+        - artifact.filesystem_safety_local
+
+  - id: ops.runbook.doctor.scylla-manager-unregistered
+    type: SKILL
+    title: "ERROR: scylla-manager running but no cluster registered"
+    tags: [day-1, day-2, scylla-manager, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-doctor, scylla-manager, scylla-manager-agent]
+    content: |
+      **Finding:** `scylla_manager.cluster_registered — scylla-manager is running but no Scylla cluster is registered`
+
+      **Why it matters:** Without cluster registration, scylla-manager cannot schedule
+      backups, repairs, or health checks for ScyllaDB. All backup posture RPCs return
+      "no cluster" errors.
+
+      **Root cause:** The scylla-manager package installs a registration script
+      (`/usr/lib/globular/bin/scylla-manager-register-cluster`) that runs as
+      `ExecStartPost=-+` on the scylla-manager service. The script was redirecting
+      sctool output to `/tmp/scylla-manager-register-cluster.log`. In systemd's
+      execution context (even with the `+` privilege prefix), creating files in `/tmp`
+      can fail with "Permission denied" — causing the `if sctool ... ; then` block to
+      never execute. The `-` prefix makes the ExecStartPost failure non-fatal, so
+      the unit stays up and the failure is silent.
+
+      **Durable fix (already applied in packages repo):**
+      The registration script now captures sctool output in a shell variable instead
+      of redirecting to `/tmp`. Journald captures all output via stderr anyway.
+
+      **Immediate runtime fix:**
+      If the cluster is not registered, register it manually. The script's Phase 4 reads
+      the agent auth_token from the agent config file:
+
+      ```bash
+      # Read the agent token
+      TOKEN=$(sudo grep -E '^auth_token:' \
+          /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml | awk '{print $2}')
+
+      # Read the Scylla IP (prefer rpc_address over listen_address)
+      SCYLLA_IP=$(grep -E '^rpc_address:' /etc/scylla/scylla.yaml 2>/dev/null \
+          | awk '{print $2}' | tr -d "[:space:]'\"")
+      [ -z "$SCYLLA_IP" ] && SCYLLA_IP=$(grep -E '^listen_address:' /etc/scylla/scylla.yaml \
+          | awk '{print $2}' | tr -d "[:space:]'\"")
+
+      # Get agent HTTPS port (default 10001)
+      AGENT_PORT=$(grep -E '^https:' \
+          /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml 2>/dev/null \
+          | awk '{print $2}' | awk -F: '{print $NF}')
+      [ -z "$AGENT_PORT" ] && AGENT_PORT="10001"
+
+      # Register (write path uses HTTP — sctool 3.10.1 has no --ca-file support)
+      sctool --api-url "http://${SCYLLA_IP}:5080/api/v1" cluster add \
+          --host "$SCYLLA_IP" \
+          --port "$AGENT_PORT" \
+          --name "globular-internal" \
+          --auth-token "$TOKEN"
+      ```
+
+      **Verify:**
+      ```bash
+      sctool --api-url "http://<scylla-ip>:5080/api/v1" status
+      # Expect: cluster 'globular-internal' with UN/UP nodes
+      ```
+
+      **IMPORTANT — scylla-manager HTTP vs HTTPS:** scylla-manager binds on the node's
+      routable IP (e.g., 10.0.0.63:5080), NOT on 127.0.0.1. If sctool times out, confirm
+      the listen address:
+      ```bash
+      ss -tlnp | grep 5080
+      ```
+    procedure:
+      - phase: observe
+        description: "Confirm no cluster registered and find scylla-manager listen IP"
+        commands:
+          - cmd: "ss -tlnp | grep 5080"
+            expect: "scylla_manager listening on <node-ip>:5080 (not 127.0.0.1)"
+          - cmd: "sudo grep auth_token /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml"
+            expect: "auth_token: <non-empty token>"
+      - phase: execute
+        description: "Register the cluster"
+        commands:
+          - cmd: |
+              sctool --api-url "http://$(grep -E '^rpc_address:' /etc/scylla/scylla.yaml | awk '{print $2}' | tr -d \"[:space:]'\\\"\"):5080/api/v1" \
+                cluster add --host <scylla-ip> --port 10001 --name globular-internal \
+                --auth-token $(sudo grep auth_token /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml | awk '{print $2}')
+      - phase: verify
+        description: "Confirm cluster registered and doctor clears"
+        commands:
+          - cmd: "sctool --api-url http://<scylla-ip>:5080/api/v1 status"
+            expect: "UN/UP for all Scylla nodes"
+    links:
+      awareness_invariants:
+        - scylla_manager.cluster_registered
+
+  - id: ops.runbook.doctor.services-state-drift
+    type: SKILL
+    title: "WARN/ERROR: services state hash mismatch (desired ≠ applied)"
+    tags: [day-1, day-2, convergence, drift, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-doctor, cluster-controller, node-agent]
+    content: |
+      **Finding:** `cluster.services.drift — Node <id> services state hash mismatch (desired ≠ applied)`
+
+      **What it means:** The cluster-controller has a desired state that differs from what
+      the node-agent reports as installed. The hash is computed over the full set of
+      installed package versions and build numbers.
+
+      **Common causes:**
+      1. A locally-built package was deployed (different build number → hash mismatch).
+      2. A package upgrade is in progress and hasn't converged yet (transient; wait a few minutes).
+      3. The node-agent reported an installed version that doesn't match the release pipeline
+         (e.g., a manual binary replacement outside the package system).
+      4. An older sha256-sidecar file is missing for an installed service, causing the
+         verifier to mark it as drifted.
+
+      **Immediate fix — trigger reconciliation:**
+      ```bash
+      globular services repair
+      # This identifies drifted packages and triggers the controller to reconcile.
+      # Monitor convergence:
+      globular cluster node <node-id>
+      # Wait for all version:* checks to show ok.
+      ```
+
+      **If repair doesn't clear it:**
+      ```bash
+      # Check what the node-agent says is installed vs what the controller expects:
+      globular cluster node <node-id> --installed
+      # Look for packages with build_number mismatch or hash_drift: true
+
+      # Force specific package to reconcile:
+      globular services apply-desired --node <node-id> --service <service-name>
+      ```
+
+      **Note on locally-built binaries:** If you manually built and deployed a binary
+      (e.g., for a hotfix), the build_number will be 1 (no CI build number injection).
+      This will always show as drifted against the release pipeline's build number.
+      The durable fix is to go through `package_build` + `package_publish` so the
+      repository has the correct manifest. Manual binaries cause permanent drift.
+
+      **Note on sha256 sidecar:** The install pipeline writes a `.sha256` sidecar file
+      alongside each service binary. If this sidecar is missing (e.g., from a `services
+      apply-desired` that used the CLI path, which has a known gap), the verifier will
+      report `hash_drift`. Fix: redeploy via the workflow path (not CLI apply-desired).
+    links:
+      awareness_invariants:
+        - convergence.services_state_hash
+
+  - id: ops.runbook.doctor.unknown-state-dir
+    type: SKILL
+    title: "WARN: unknown top-level entries under /var/lib/globular"
+    tags: [day-1, day-2, filesystem, convergence, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-doctor]
+    content: |
+      **Finding:** `artifact.layout_drift_local — unknown top-level entries under /var/lib/globular: <name>`
+
+      **What it means:** The cluster-doctor found a directory under `/var/lib/globular` that
+      is not in its known-dirs allowlist and is not a recognized service runtime dir.
+
+      **How to diagnose:**
+      ```bash
+      sudo ls -la /var/lib/globular/<name>/
+      # If it contains files: examine them to determine their origin.
+      # If it is empty: it is a cleanup candidate (INFO, not WARN).
+      ```
+
+      **Known legitimate directories NOT in the allowlist at time of finding:**
+      - `state/` — Platform state tracking directory written by package post-install scripts.
+        Contains `state/scylladb/ownership.json` (cluster fingerprint + node IP recorded at
+        ScyllaDB install time). Referenced by `install-day0.sh` to detect prior installations.
+        This is a legitimate platform directory — NOT safe to delete. The fix is to add `state`
+        to the `platformBaseAllowlist` in the cluster-doctor source
+        (`golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local.go`).
+
+      **How to evaluate unknown directories:**
+      1. Read the files inside — are they owned by a known platform service?
+      2. Check if they are written by any package post-install script (`grep -r <dirname> packages/`)
+      3. Check if `install-day0.sh` references them
+      4. If the directory is genuinely unknown and empty: safe to remove after inspection
+      5. If non-empty and unknown: treat as an incident — investigate before deleting
+
+      **FORBIDDEN FIX:** Do NOT add arbitrary directories to the allowlist just to suppress
+      the WARN. The allowlist is for platform infrastructure directories that belong on every
+      node regardless of installed services. Adding to it to hide legitimate findings degrades
+      the alerting value. Per awareness invariant `forbidden.fix.layout_drift_by_expanding_allowlist_only`:
+      any allowlist addition must be accompanied by documentation of why the directory is
+      a genuine platform artifact.
+    links:
+      awareness_invariants:
+        - artifact.layout_drift_local
+        - doctor.layout_drift_must_reflect_real_risk
+      awareness_failure_modes:
+        - forbidden.fix.layout_drift_by_expanding_allowlist_only
+
+  - id: ops.runbook.doctor.legacy-alias-dirs
+    type: SKILL
+    title: "WARN: non-empty legacy-alias runtime dirs alongside canonical names"
+    tags: [day-1, day-2, filesystem, migration, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-doctor]
+    content: |
+      **Finding:** `service.runtime_dir_name_must_be_canonical — non-empty legacy-alias runtime dirs found alongside canonical names: <name>`
+
+      **What it means:** A legacy directory alias (e.g., `nodeagent`, `cluster_doctor`)
+      exists alongside the canonical hyphenated form (`node-agent`, `cluster-doctor`) AND
+      it contains files.
+
+      **Canonical name mapping** (legacy alias → canonical):
+      - `nodeagent` → `node-agent`
+      - `node_agent` → `node-agent`
+      - `clusterdoctor` → `cluster-doctor`
+      - `cluster_doctor` → `cluster-doctor`
+      - `clustercontroller` → `cluster-controller`
+      - `cluster_controller` → `cluster-controller`
+      - `ai_executor` → `ai-executor` (etc. for all ai-* services)
+
+      **Specific case: `nodeagent/state.json` (most common)**
+      The node-agent uses `MigrateLegacyStatePathOnce()` on startup to move state from
+      `nodeagent/state.json` to the canonical `node-agent/state.json`. When BOTH exist
+      (canonical already present), the migration logs a warning and leaves the legacy file
+      in place for "operator review".
+
+      The legacy file can be safely removed if:
+      1. The canonical `node-agent/state.json` exists and is valid (check `node_id` field)
+      2. The legacy file only contains a stale `join_token` (from a previous join attempt)
+
+      ```bash
+      sudo cat /var/lib/globular/node-agent/state.json
+      # Verify: node_id is set, controller_endpoint is the real controller
+      sudo cat /var/lib/globular/nodeagent/state.json
+      # If it only has join_token (no node_id), it is safe to remove
+
+      sudo rm /var/lib/globular/nodeagent/state.json
+      sudo rmdir /var/lib/globular/nodeagent/   # only if now empty
+      ```
+
+      **ALSO fix the scylladb post-install script** if it still reads from the legacy path:
+      The scylladb post-install (`packages/metadata/scylladb/scripts/post-install.sh`) reads
+      the join_id from `nodeagent/state.json` to detect Day-1 join context. If it hasn't
+      been updated to check `node-agent/state.json` first, future ScyllaDB reinstalls on
+      migrated nodes will miss join detection. Check and update to:
+      ```bash
+      if [[ -f "${STATE_DIR}/node-agent/state.json" ]]; then
+          STATE_JSON="${STATE_DIR}/node-agent/state.json"
+      else
+          STATE_JSON="${STATE_DIR}/nodeagent/state.json"
+      fi
+      ```
+
+      **Never delete non-empty legacy dirs without first inspecting content.** The doctor
+      warns, not errors, precisely because the data may still be valid.
+    links:
+      awareness_invariants:
+        - service.runtime_dir_name_must_be_canonical
+
+  - id: ops.runbook.doctor.mcp-old-pid
+    type: SKILL
+    title: "WARN: service.old_pid_after_upgrade on mcp (or any service)"
+    tags: [day-1, day-2, mcp, convergence, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-doctor, node-agent]
+    content: |
+      **Finding:** `version:mcp FAIL mismatch: service.old_pid_after_upgrade`
+
+      **What it means:** The node-agent's proof writer anchors `InstalledUnix` to the
+      PID start time (from `/proc/<pid>/exe mtime`). If a binary is updated while the
+      service is running, the new binary on disk has a newer mtime than the running PID's
+      start time. This triggers `old_pid_after_upgrade` — the PID is running an older
+      binary than what is installed.
+
+      **Fix:** Restart the service to get a fresh PID:
+      ```bash
+      sudo systemctl restart globular-mcp.service
+      # Wait ~10s for the proof writer to refresh, then check:
+      globular cluster node <node-id>
+      # version:mcp should now show ok
+      ```
+
+      **If the finding persists after restart:**
+      - Check the staging artifact cache — a stale cache may cause the node-agent to
+        see the old sha256:
+        ```bash
+        sudo rm -f /var/lib/globular/staging/core@globular.io/mcp/latest.artifact
+        ```
+      - Then trigger a fresh reconcile: `globular services repair`
+
+      **Root cause in the proof writer:** `golang/node_agent/node_agent_server/runtime_proof.go`
+      must anchor `InstalledUnix` to the PID start time (from `/proc/<pid>` mtime), NOT the
+      wall clock. If you see this finding on a service that was just deployed, check that the
+      proof writer is using PID start time and not `time.Now()`.
+    links:
+      awareness_invariants:
+        - proof.writer.timestamps_anchor_to_pid_start

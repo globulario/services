@@ -65,14 +65,23 @@ entries:
       - `etcd/` — etcd data directory.
       - `config/` — rendered runtime config fragments (etcd.yaml, endpoints, install-policy, tls symlink/materialized views).
       - `services/` — service config JSON files.
-      - `nodeagent/state.json` — node-agent local state cache.
+      - `node-agent/state.json` — node-agent local state (canonical hyphenated form).
+        Contains controller_endpoint, node_id, advertise_ip, cluster_domain.
+        Legacy aliases `nodeagent/` and `node_agent/` may exist after a migration; they are
+        cleanup candidates once the canonical file is confirmed valid.
       - `cluster_controller/state.json` — controller local backup copy of authoritative etcd state.
+      - `state/` — platform installation-state tracking. Written by package post-install scripts.
+        Example: `state/scylladb/ownership.json` records the cluster fingerprint at ScyllaDB
+        install time; used by `install-day0.sh` to detect prior installations and avoid
+        wiping valid Raft state. Do NOT delete this directory without operator review.
       - `repository/`, `staging/`, `packages/` — artifacts/install receipts/staging.
       - `domains/`, `objectstore/`, `minio/`, `prometheus/`, `awareness/`, `operational-knowledge/`.
 
       Notes:
       - `config/` is operational render/cache, not authority.
       - local backup files are restore aids and diagnostics, not writer authority sources.
+      - The directory `state/` is a legitimate platform path even though it is not a named service.
+        cluster-doctor's platformBaseAllowlist includes it explicitly.
 
   - id: ops.artifacts.permission-baseline
     type: DECISION
@@ -83,8 +92,11 @@ entries:
       services_present: []
     content: |
       Baseline permission posture:
-      - etcd data dir: `0700` (owner-only).
-      - state directories (non-secret): usually `0755` unless tighter isolation required.
+      - etcd data dir: `0700` (owner-only). Contains Raft WAL + cluster keys.
+        CRITICAL: the etcd package spec MUST set mode 0700 in BOTH the `ensure-dirs` step
+        AND the systemd unit's `ExecStartPre`. If either is 0750, the etcd service restart
+        resets permissions and the doctor will report the error on every restart cycle.
+      - state directories (non-secret): usually `0750` (globular:globular).
       - private keys, token files, secret credentials: owner-restricted (`0600` or stricter).
       - public cert/chain material: readable (`0644`) when needed by dependent processes.
 
@@ -93,7 +105,8 @@ entries:
       - TLS private material restricted (`0640` root:scylla or `0600` fallback),
       - public cert material readable (`0644`).
 
-      Any new artifact type must declare owner/group/mode explicitly in code and docs.
+      Any new artifact type must declare owner/group/mode explicitly in BOTH the package
+      spec ensure-dirs step AND any ExecStartPre that touches the directory.
 
   - id: ops.artifacts.anti-patterns
     type: ANTI_PATTERN

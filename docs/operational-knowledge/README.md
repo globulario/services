@@ -22,35 +22,41 @@ docs/operational-knowledge/
 ├── packages.md              # canonical reference: what a package is, files, install, validation
 ├── dns-records.md           # canonical reference: managing DNS records (A, AAAA, MX, TXT, SRV, CAA, etc.)
 ├── stages/                  # lifecycle-stage seed entries (what's true at this stage)
-│   ├── day-0-bootstrap.yaml          ✓ shipped
-│   ├── day-1-join.yaml               ✓ shipped
-│   ├── day-1-keepalived.yaml         ✓ shipped
-│   ├── day-1-objectstore.yaml        ✓ shipped
-│   ├── day-1-deploy-pipeline.yaml    ✓ shipped
-│   ├── package-system.yaml           ✓ shipped (anatomy, identity, install, validation, anti-patterns)
-│   ├── profile-system.yaml           ✓ shipped (intent, invariants, normalization, enforcement)
-│   ├── security-system.yaml          ✓ shipped (token/cert/key policy and lifecycle boundaries)
-│   ├── grpc-service-backbone.yaml    ✓ shipped (service/client/interceptor architecture blueprint)
+│   ├── day-0-bootstrap.yaml           ✓ shipped
+│   ├── day-1-join.yaml                ✓ shipped
+│   ├── day-1-keepalived.yaml          ✓ shipped
+│   ├── day-1-objectstore.yaml         ✓ shipped
+│   ├── day-1-deploy-pipeline.yaml     ✓ shipped
+│   ├── package-system.yaml            ✓ shipped (anatomy, identity, install, validation, anti-patterns)
+│   ├── profile-system.yaml            ✓ shipped (intent, invariants, normalization, enforcement)
+│   ├── security-system.yaml           ✓ shipped (token/cert/key policy and lifecycle boundaries)
+│   ├── grpc-service-backbone.yaml     ✓ shipped (service/client/interceptor architecture blueprint)
 │   ├── service-version-management.yaml ✓ shipped (zz_version_generated + ldflags contract)
 │   ├── installed-artifact-system.yaml ✓ shipped (filesystem layout, authority boundary, permission model)
-│   └── day-2-maintenance.yaml        ✓ shipped
-├── runbooks/                # codified procedures (mirrors objectstore-nfs-remediation.yaml shape)
-│   ├── add-node-to-minio-pool.yaml             ✓ shipped
-│   ├── recover-stuck-topology-apply.yaml       ✓ shipped
-│   ├── repartition-shared-disk.yaml            ✓ shipped
+│   ├── awareness-graph-operations.yaml ✓ shipped (build pipeline, cluster refresh, annotation authoring)
+│   └── day-2-maintenance.yaml         ✓ shipped
+├── runbooks/                # codified procedures
+│   ├── add-node-to-minio-pool.yaml              ✓ shipped
+│   ├── recover-stuck-topology-apply.yaml        ✓ shipped
+│   ├── repartition-shared-disk.yaml             ✓ shipped
 │   ├── deploy-controller-fix-via-repository.yaml ✓ shipped
-│   ├── recover-day-0-bootstrap-failure.yaml    ✓ shipped
-│   ├── recover-keepalived-vip-loss.yaml        ✓ shipped
-│   ├── recover-etcd-member-eviction.yaml       ✓ shipped
-│   ├── rotate-pki-certificates.yaml            ✓ shipped
-│   ├── configure-google-workspace-mail.yaml    ✓ shipped (MX + SPF + DKIM + DMARC end-to-end)
-│   ├── recover-failed-platform-upgrade.yaml    (TODO)
-│   └── restore-from-backup.yaml                (TODO)
+│   ├── recover-day-0-bootstrap-failure.yaml     ✓ shipped
+│   ├── recover-keepalived-vip-loss.yaml         ✓ shipped
+│   ├── recover-etcd-member-eviction.yaml        ✓ shipped
+│   ├── rotate-pki-certificates.yaml             ✓ shipped
+│   ├── configure-google-workspace-mail.yaml     ✓ shipped (MX + SPF + DKIM + DMARC end-to-end)
+│   ├── fix-doctor-error-findings.yaml           ✓ shipped (etcd 0700, scylla-manager registration,
+│   │                                              services drift, unknown dirs, legacy alias dirs,
+│   │                                              service.old_pid_after_upgrade)
+│   ├── recover-failed-platform-upgrade.yaml     (TODO)
+│   └── restore-from-backup.yaml                 (TODO)
 └── service-roles/           # canonical "what is this service for" entries
+    ├── awareness-graph.yaml         ✓ shipped (routing trap, direct-dial, 4 RPCs, activation rules)
     ├── cluster-controller.yaml      ✓ shipped
+    ├── cluster-doctor.yaml          ✓ shipped
     ├── node-agent.yaml              ✓ shipped
     ├── repository.yaml              ✓ shipped
-    ├── cluster-doctor.yaml          ✓ shipped
+    ├── mcp.yaml                     ✓ shipped (untracked service, 148+ tools, auth, failure modes)
     ├── ai-memory.yaml               ✓ shipped
     ├── workflow.yaml                ✓ shipped
     ├── ai-watcher.yaml              ✓ shipped

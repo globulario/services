@@ -1,0 +1,261 @@
+schema_version: 1
+file_kind: service-role
+metadata:
+  title: "Service role — awareness-graph"
+  description: |
+    What awareness-graph IS, what it owns, its critical routing rule (direct dial only —
+    never through Envoy), how to call its four RPCs, and how to interpret degraded or empty
+    status responses. This is the primary seed reference for AI agents that need to call
+    awareness tools before editing Globular code.
+  source_documents:
+    - docs/awareness/activation_rules.yaml
+    - docs/awareness/mcp_tools.md
+    - golang/mcp/clients.go
+    - awareness-graph/docs/initialize.md
+    - awareness-graph/docs/globular-packaging.md
+
+entries:
+
+  - id: ops.role.awareness-graph
+    type: ARCHITECTURE
+    title: "awareness-graph — RDF/SPARQL knowledge graph of codebase intent"
+    tags: [always, awareness-graph, role]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      **What it is**: A gRPC service that answers questions about the Globular codebase —
+      what invariants a file must uphold, which failure modes it is involved in, which fixes
+      are forbidden, and which tests are required. It is the AI agent's primary preflight
+      tool before non-trivial edits.
+
+      **Port**: 10120 (gRPC over mTLS). Default configured in
+      `awareness-graph/golang/server/config.go` as `defaultServicePort = 10120`.
+      DNS: `<node>.globular.internal:10120`.
+
+      **Backend**: Oxigraph SPARQL triplestore. Current seed size: ~17,200 triples / 3.4 MB.
+      The binary embeds a compiled `awareness.nt` at build time; on startup Oxigraph is
+      populated from this embedded file if the store is empty.
+
+      **Package kind**: SERVICE (not INFRASTRUCTURE). The cluster reconciler manages its
+      version. Spec: `packages/metadata/awareness-graph/specs/awareness_graph_service.yaml`.
+      Service unit: `globular-awareness-graph.service`.
+
+      **What it OWNS**:
+      - The RDF graph of codebase invariants, failure modes, forbidden fixes, required tests,
+        intents, and code symbol annotations
+      - Briefing, Impact, Resolve, and Query RPCs for AI agents
+      - Oxigraph query endpoint (internal, localhost:7878) — not exposed directly to agents
+
+      **What feeds the graph** (build pipeline, not runtime):
+      1. `@awareness` annotations in Go source files (scanned by annotation-scanner)
+      2. `docs/awareness/*.yaml` — invariants, failure_modes, forbidden_fixes, required_tests,
+         incident_patterns, intents
+      3. `docs/intent/*.yaml` — 200+ intent files expressing design context per feature
+      Build sequence: annotation-scanner → yaml2nt → loadnt → Oxigraph seed file.
+
+      **etcd registration**: awareness-graph registers its Address in etcd on startup via
+      `GetServiceConfigurationById("awareness-graph")`. The Address field is the host:port
+      that MCP tools use for direct-dial.
+    links:
+      awareness_invariants:
+        - awareness.no_false_silence_for_sensitive_tasks
+        - awareness.graph_edges_need_provenance
+        - awareness.preflight.required_before_edit
+
+  - id: ops.role.awareness-graph.routing
+    type: ARCHITECTURE
+    title: "awareness-graph ROUTING TRAP — direct dial only, never through Envoy"
+    tags: [always, awareness-graph, routing, critical]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [awareness-graph]
+    content: |
+      **CRITICAL**: awareness-graph does NOT route through the Envoy gateway. It binds on
+      its own port (10120) and is NOT registered as a path-routed backend in Envoy.
+
+      **The trap**: If an MCP tool or CLI dials the Envoy gateway address (e.g.,
+      `<vip>:443` or the gateway host:port) for awareness-graph, Go's TLS stack suppresses
+      the IP address as the SNI value. Envoy receives an empty SNI field, matches the wrong
+      filter chain, and returns HTTP 200 with an HTML page — not a gRPC response.
+
+      **Symptom**: awareness tools return `"text/html"` content or a `200 OK` where a gRPC
+      status is expected. The Briefing, Impact, Resolve, and Query calls all fail silently
+      with what looks like a successful HTTP response.
+
+      **Correct behavior** (implemented in `golang/mcp/clients.go:awarenessEndpoint()`):
+      1. Call `config.GetServiceConfigurationById("awareness-graph")` to read the service
+         config from etcd.
+      2. Extract the `Address` field — this is the node IP:port where awareness-graph is
+         listening (e.g., `10.0.0.63:10120`).
+      3. Dial that address directly with mTLS. The service cert SANs include the node IP,
+         so direct TLS to IP works fine.
+
+      **Why this works**: awareness-graph registers its own IP:port in etcd at startup. The
+      MCP server reads that registration and bypasses the Envoy client pool specifically for
+      awareness calls. Every other MCP tool uses the shared gateway client pool via
+      `gatewayEndpoint()` — awareness-graph is the one documented exception.
+
+      **Operator check**: if awareness tools are returning HTML or empty responses, verify:
+      ```
+      globular etcd get /globular/services/awareness-graph/config
+      # Should show Address = <node-ip>:10120
+      # If empty: awareness-graph has not registered yet — wait for it to start
+      ```
+    links:
+      awareness_invariants:
+        - mcp.tools.use_gateway_client_pool
+    related_ids:
+      - ops.role.awareness-graph
+      - ops.role.awareness-graph.rpcs
+
+  - id: ops.role.awareness-graph.rpcs
+    type: REFERENCE
+    title: "awareness-graph — four RPCs and when to use each"
+    tags: [always, awareness-graph, rpcs, agent-usage]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [awareness-graph]
+    content: |
+      Four RPCs are exposed. Use them in the order below for any non-trivial edit task.
+
+      **1. Briefing** — call FIRST, before editing any high-risk file or starting a
+      non-trivial task.
+      - Input: `file=<relative-path>` OR `task=<description>`
+      - Returns: invariants, failure modes, forbidden fixes, required tests, and intent
+        context relevant to that file or task. ~500 tokens by default.
+      - MCP tool: `mcp__globular__awareness_briefing`
+      - CLI: `globular awareness briefing --file golang/mcp/tools_awareness.go`
+      - CLI: `globular awareness briefing --task "fix etcd key permissions"`
+      - When to use `file=`: you know which file you're editing.
+      - When to use `task=`: you have a description but haven't identified the exact files
+        yet. The graph uses alias matching and semantic scoring to find relevant nodes.
+
+      **2. Impact** — call when briefing coverage is thin (few invariants returned) or
+      when you need file-specific anchors.
+      - Input: `file=<relative-path>`
+      - Returns: all invariants and failure modes that directly reference this file as a
+        protected or implementing file. Direct anchors only — inferred fields are reserved
+        in v0 (see `docs/awareness/decisions/inference-v0-direct-anchors-only.md`).
+      - MCP tool: `mcp__globular__awareness_impact`
+      - CLI: `globular awareness impact --file golang/cluster_controller/reconciler.go`
+
+      **3. Resolve** — call when a briefing returns a `referenced_id` you need to expand.
+      - Input: `id=<referenced_id>`
+      - Returns: full text of the invariant, failure mode, forbidden fix, or required test.
+      - MCP tool: `mcp__globular__awareness_resolve`
+      - CLI: `globular awareness resolve --id install.result.atomic_commit`
+      - When: always resolve any referenced_id marked `severity: high` or `critical` before
+        writing code that touches the referenced file or behavior.
+
+      **4. Query** — raw SPARQL against the Oxigraph store. Advanced use only.
+      - Input: `sparql=<SPARQL SELECT or CONSTRUCT query>`
+      - Returns: SPARQL result set (JSON format).
+      - MCP tool: `mcp__globular__awareness_query`
+      - When: custom graph traversals not covered by the three typed RPCs above — e.g.,
+        "find all invariants that reference both etcd and the repository service".
+      - Caution: Oxigraph is the live store; queries are read-only but expensive queries
+        can slow Briefing/Impact for concurrent callers.
+
+      **Mandatory activation rules** (from `docs/awareness/activation_rules.yaml`):
+      - R1: File has `@awareness` annotations → call `briefing(file=)`
+      - R2: Editing high-risk directory → call `briefing(file=)` then `impact(file=)`
+        High-risk directories: `golang/mcp/`, `golang/cluster_controller/`,
+        `golang/node_agent/`, `golang/cluster_controller/`, `golang/repository/`,
+        `golang/rbac/`, `golang/security/`, `golang/ai_executor/`, `golang/cluster_doctor/`
+      - R3: State authority task (desired state, installed state, convergence, package
+        install/publish, repository identity, etcd truth) → `briefing(task=)` then
+        `impact(file=)` when files are known
+      - R4: Editing awareness internals (yaml2nt, annotation-scanner, CodeSymbol importer,
+        Oxigraph load/seed, MCP awareness tools) → `briefing(file=)` then `resolve()` for
+        any high/critical referenced_id
+      - R5: Proposed fix changes authority boundary, weakens validation, bypasses gateway,
+        or removes strict mode → `impact(file=)` and check forbidden fixes
+    links:
+      awareness_invariants:
+        - awareness.preflight.required_before_edit
+        - awareness.no_false_silence_for_sensitive_tasks
+    related_ids:
+      - ops.role.awareness-graph
+      - ops.role.awareness-graph.routing
+
+  - id: ops.role.awareness-graph.status-handling
+    type: DEBUG
+    title: "awareness-graph — interpreting ok / empty / degraded status"
+    tags: [always, awareness-graph, debug, agent-usage]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      Every Briefing and Impact response carries a status. Handle each case differently.
+
+      **status: ok**
+      The graph returned direct anchors. Treat the returned invariants, failure modes,
+      forbidden fixes, and required tests as active context. Follow all invariants; run all
+      required tests listed; resolve any referenced_id marked `severity: high` or `critical`
+      before writing code.
+
+      **status: empty**
+      No direct awareness anchors were found for this file or task. This is NOT proof that
+      the edit is safe. Proceed cautiously. Say explicitly: "no direct awareness anchors
+      found for <file/task>". Check `docs/awareness/high_risk_files.yaml` for files that
+      are implicitly sensitive even without annotations. Proceed by reading the code,
+      checking nearby tests, and consulting docs — but do not skip the check.
+
+      **status: degraded** (or transport error / HTML response)
+      The awareness-graph service is unavailable or returned a non-gRPC response. Do NOT
+      make high-risk architectural changes without explicit user approval. High-risk changes
+      include: state authority boundaries, security boundaries, package install paths,
+      repository identity logic, convergence logic, etcd key semantics. Use code, tests,
+      docs, and runtime state as fallback evidence and say so in your response.
+
+      Common degraded causes:
+      1. awareness-graph service not running (`systemctl status globular-awareness-graph`
+         on any control-plane node)
+      2. MCP dialing the wrong endpoint — Envoy returning HTML (see ops.role.awareness-graph.routing)
+      3. Oxigraph query endpoint unreachable (local port 7878 — check `AW_OXIGRAPH_QUERY_URL`
+         env in the systemd unit)
+      4. `awareness.degraded_source_sentinel_collapsed_to_critical` — MCP is running outside
+         a git checkout; internal coverage checks emit false critical alerts. These are
+         telemetry false positives and do NOT affect Briefing/Impact/Resolve quality.
+
+      **Operator recovery**:
+      ```
+      # Check service
+      systemctl status globular-awareness-graph.service
+
+      # Check etcd registration
+      globular etcd get /globular/services/awareness-graph/config
+
+      # Restart if stuck
+      sudo systemctl restart globular-awareness-graph.service
+
+      # Verify triple count after restart
+      curl -s http://localhost:7878/query \
+        -H 'Accept: application/sparql-results+json' \
+        --data-urlencode 'query=SELECT (COUNT(*) AS ?n) WHERE { ?s ?p ?o }' \
+        | python3 -m json.tool
+      # Expect: ~17,200 triples
+      ```
+
+      **Required end-of-response template** (append to every non-trivial task response):
+      ```
+      Awareness used:
+      - briefing: <file/task called>
+      - impact: <files called, or "not called">
+      - resolved IDs: <list or "none">
+      - invariants touched: <list or "none">
+      - failure modes considered: <list or "none">
+      - forbidden fixes avoided: <list or "none">
+      - required tests: <list or "none">
+      - tests run: <list or "not run">
+      - remaining uncertainty: <what you could not verify>
+      ```
+    links:
+      awareness_failure_modes:
+        - awareness.degraded_source_sentinel_collapsed_to_critical
+      awareness_invariants:
+        - awareness.no_false_silence_for_sensitive_tasks
+    related_ids:
+      - ops.role.awareness-graph
+      - ops.role.awareness-graph.rpcs

@@ -1,0 +1,240 @@
+schema_version: 1
+file_kind: service-role
+metadata:
+  title: "Service role — mcp"
+  description: |
+    What the MCP server IS, its untracked-service status and operational implications,
+    how authentication and session management work, and the key failure modes an AI
+    agent will encounter when operating through or deploying the MCP server.
+  source_documents:
+    - docs/awareness/mcp_tools.md
+    - golang/mcp/clients.go
+    - packages/metadata/mcp/specs/mcp_service.yaml
+    - docs/awareness/failure_modes.yaml
+
+entries:
+
+  - id: ops.role.mcp
+    type: ARCHITECTURE
+    title: "mcp — Model Context Protocol server, 148+ operator tools over HTTP"
+    tags: [always, mcp, role]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      **What it is**: The primary interface between AI assistants (Claude Code, LLM agents)
+      and the Globular cluster. Exposes 148+ typed, audited operator tools over HTTP with
+      JSON-RPC, using the Model Context Protocol (MCP) standard.
+
+      **Port**: 10260 (HTTP/MCP over TLS). Config: `/var/lib/globular/mcp/config.json`.
+      Service unit: `globular-mcp.service`. Binary: `/usr/lib/globular/bin/mcp`.
+
+      **Package kind**: INFRASTRUCTURE. Spec:
+      `packages/metadata/mcp/specs/mcp_service.yaml`. The controller reconciler manages
+      its version.
+
+      **What it OWNS**:
+      - The HTTP listener and MCP session lifecycle
+      - Tool dispatch and routing to gRPC backends
+      - Audit log of every tool call (configurable via `audit_log_path` in config)
+      - The shared gateway client pool (`clientPool` in `golang/mcp/clients.go`) — a
+        per-endpoint pool of mTLS gRPC connections, reused across all tool calls
+
+      **Tool routing**: most tools route through the shared Envoy gateway client pool
+      (`gatewayEndpoint()`) — Envoy's path-based routing forwards each gRPC call to the
+      correct service regardless of which node it runs on. One exception: awareness tools
+      (`awareness_briefing`, `awareness_impact`, `awareness_resolve`, `awareness_query`)
+      use a direct-dial path via `awarenessEndpoint()` that reads the Address directly
+      from etcd. See `ops.role.awareness-graph.routing` for why.
+
+      **Tool categories** (from config `tool_groups`):
+      - `cluster` — node membership, profiles, convergence, reconciliation
+      - `doctor` — health reports, findings, drift, explanations
+      - `nodeagent` — installed packages, service logs, service control, inventory
+      - `repository` — artifact versions, manifests, publish, repair, rollback candidates
+      - `backup` — backup/restore plans, schedules, MinIO buckets
+      - `rbac` — role bindings, access validation, permission queries
+      - `resource` — account/group/org identity context
+      - `memory` — AI Memory store (query, get, store, update, delete)
+      - `workflow` — run history, service status, diagnosis
+      - `etcd` — direct get/put/delete on etcd keys (privileged — requires approval tier)
+      - `monitoring` — Prometheus query, range query, alerts, targets
+      - `browser` — remote Chrome automation (screenshot, evaluate, network, profiler)
+      - `ai_executor` — AI job dispatch, peer listing, observation sharing
+      - `cli` — full `globular` CLI execution via MCP (plan → validate → execute)
+      - `proto` — gRPC service map and descriptor lookup
+      - `composed` — multi-node MCP aggregator (remote cluster calls)
+    links:
+      awareness_invariants:
+        - mcp.tools.use_gateway_client_pool
+
+  - id: ops.role.mcp.untracked-service
+    type: DECISION
+    title: "mcp is untracked — no DesiredService record, outside the release pipeline"
+    tags: [always, mcp, deploy, untracked]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      **Untracked status**: The MCP server has NO `DesiredService` record in etcd. The
+      cluster controller reconciler does not manage its desired version. It is NOT part of
+      the automatic upgrade pipeline triggered by `platform-upgrade` or `repo sync --tag`.
+
+      **Implication for operators**: MCP version changes require an explicit deploy action.
+      The correct deploy sequence is:
+      1. Build the package: use `mcp__globular__package_build` MCP tool
+      2. Publish the artifact: use `mcp__globular__package_publish` MCP tool
+      These tools go through the 4-layer model (Repository → Desired → Installed → Runtime).
+      NEVER deploy MCP by copying the binary directly with `cp` or `scp` — manual copy
+      bypasses the 4-layer model, skips the `.sha256` sidecar write, and causes the
+      node-agent verifier to emit `hash_drift` findings permanently.
+
+      **Why untracked**: MCP bootstraps before the full reconciler pipeline is available.
+      Along with monitoring, repository, and torrent, it is one of 4 services that are
+      installed outside the tracked release pipeline. This is a known architectural gap
+      (see `project_next_priorities` in AI Memory).
+
+      **Deploy via MCP tools** (the paradox: you use MCP to deploy MCP):
+      ```
+      # Build a new mcp package
+      mcp__globular__package_build(package="mcp", bump="patch")
+
+      # Publish to the repository
+      mcp__globular__package_publish(package="mcp")
+
+      # Node-agent then installs via convergence — no manual step required
+      ```
+
+      **Version reporting gap**: `globular deploy` does NOT inject ldflags. MCP binaries
+      built via that path report `version=0.0.0-dev`. The correct path is `package_build`
+      (CI/package pipeline) which injects the version via ldflags. Deployed binaries
+      from CI will report the correct version.
+    related_ids:
+      - ops.role.mcp
+
+  - id: ops.role.mcp.authentication
+    type: REFERENCE
+    title: "mcp — authentication, tokens, and session management"
+    tags: [always, mcp, authentication, session]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [mcp]
+    content: |
+      **Authentication flow**: MCP tools call gRPC backends that enforce the interceptor
+      chain (auth → RBAC → audit). The MCP server passes the caller's JWT token as gRPC
+      metadata (`"token"` key) on every backend call.
+
+      **Getting a token**:
+      ```bash
+      globular auth login --user sa --password adminadmin
+      # Token is cached at ~/.config/globular/token (60s expiry margin in memory)
+      # Valid for cluster-admin-level operations
+      ```
+
+      **Token lifecycle**: Tokens are ephemeral and generated on demand. They are NEVER
+      stored in etcd values, config files, or source code. The MCP server holds a cached
+      token in memory and refreshes it before expiry. The cached token path is
+      `~/.config/globular/token` for the `globular` user running the MCP process.
+
+      **Session expired error**: If an MCP tool call returns `"invalid or expired session"`
+      or `Unauthenticated`:
+      1. The token expired and the cache miss happened before the MCP server could refresh.
+      2. Recovery: call `globular auth login --user sa --password adminadmin` on the node
+         running the MCP server, or restart the MCP service to force a fresh token fetch.
+      3. In Claude Code: reconnect the MCP session by running `/mcp` in the terminal.
+
+      **RBAC enforcement**: Every gRPC RPC has a `(globular.auth.authz)` annotation. The
+      RBAC interceptor enforces permissions based on the token's role binding. Service
+      account `sa` has cluster-admin role and can call all RPCs. Individual operator
+      accounts may have narrower bindings — check with:
+      ```
+      mcp__globular__rbac_get_permissions_by_subject(subject="<username>")
+      ```
+
+      **Tool approval tiers** (from AI operating rules):
+      - Tier 0 (OBSERVE): read-only — always safe, no token escalation needed
+      - Tier 1 (AUTO_REMEDIATE): pre-approved actions (restart service, clear cache)
+      - Tier 2 (REQUIRE_APPROVAL): human must approve before execution (etcd writes,
+        node removal, topology changes, force-publish)
+
+      **Audit log**: every MCP tool call is recorded in the audit log when `audit_log: true`
+      in config. Default path: syslog/journal. A custom path can be set in
+      `/var/lib/globular/mcp/config.json` under `audit_log_path`.
+    links:
+      awareness_invariants:
+        - mcp.tools.use_gateway_client_pool
+    related_ids:
+      - ops.role.mcp
+
+  - id: ops.role.mcp.failure-modes
+    type: DEBUG
+    title: "mcp — common failure modes and first-look diagnostics"
+    tags: [always, mcp, debug]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      **Symptom: `globular-mcp.service` fails to start — 'address already in use' on :10260**
+      → Orphaned `mcp_server` process (PPid=1, escaped systemd cgroup) is holding port 10260.
+        Manual recovery: `sudo killall -9 mcp_server` on the affected node.
+        The systemd unit has `ExecStartPre=+/bin/sh -c 'pkill -9 -x mcp_server || true'` to
+        prevent this — if still failing, check unit file is up to date. MUST use `-x` (exact
+        process name), never `-f` (`-f` matches parent shell argv and self-SIGKILLs).
+        See failure_mode: `mcp.orphan_port_hold` (INC-2026-0002, INC-2026-0003).
+
+      **Symptom: doctor reports `service.old_pid_after_upgrade` for mcp**
+      → Root cause: node-agent anchors `InstalledUnix` to the PID start time (from
+        `/proc/<pid>/exe` mtime). When the binary is updated while the service is running,
+        the new binary's PID start time is newer than `InstalledUnix`, which triggers the
+        `service.old_pid_after_upgrade` finding (severity: critical).
+        Fix: `sudo systemctl restart globular-mcp.service` to get a fresh PID.
+        This is expected after any MCP deploy — the restart clears the finding.
+
+      **Symptom: deploy fails with sha256 mismatch**
+      → The staging artifact cache is stale. Check for a stale artifact at:
+        `/var/lib/globular/staging/core@globular.io/mcp/latest.artifact`
+        Remove it to force re-download, then retry the install.
+
+      **Symptom: awareness tools return HTML or 'text/html' content**
+      → MCP is dialing the Envoy gateway for awareness-graph instead of the direct endpoint.
+        Go's TLS suppresses the IP as SNI → Envoy gets empty SNI → returns wrong filter chain
+        response (HTTP 200, HTML). Check `awarenessEndpoint()` in `golang/mcp/clients.go`
+        reads `Address` from etcd, not the gateway address. Verify:
+        ```
+        globular etcd get /globular/services/awareness-graph/config
+        # Should show a valid Address field like 10.0.0.63:10120
+        ```
+
+      **Symptom: mcp binary installed on Day-1 but `globular-mcp.service` is not running**
+      → The mcp spec is missing a `start_services` step. This was fixed in
+        `mcp_service.yaml` (INC-2026-0003). If observed on an older package version,
+        manually start: `sudo systemctl start globular-mcp.service` and file a package
+        update. See failure_mode: `mcp.day1_install_no_start`.
+
+      **Symptom: MCP tools return `Unauthenticated` for all calls**
+      → Token expired or MCP process lost its cached token. Restart the service:
+        `sudo systemctl restart globular-mcp.service`
+        If the issue recurs, check that etcd is reachable (token refresh requires etcd).
+
+      **Symptom: MCP tool call times out for a specific service (e.g., repository)**
+      → That service is down or Envoy can't route to it. Diagnose with:
+        ```
+        mcp__globular__cluster_get_health
+        mcp__globular__nodeagent_get_service_logs(service="globular-repository.service")
+        ```
+        The MCP server itself is healthy; the issue is with the backend service.
+
+      **Symptom: MCP reports `version=0.0.0-dev` for itself**
+      → The binary was built without ldflags (e.g., via `globular deploy` or plain
+        `go build`). This is a known CI gap — the binary functions correctly but version
+        tracking is unreliable. The correct path is `package_build` + `package_publish`
+        via the CI pipeline, which injects the version via ldflags.
+    links:
+      awareness_failure_modes:
+        - mcp.orphan_port_hold
+        - mcp.day1_install_no_start
+        - service.old_pid_after_upgrade
+    related_ids:
+      - ops.role.mcp
+      - ops.role.mcp.untracked-service
+      - ops.role.awareness-graph.routing

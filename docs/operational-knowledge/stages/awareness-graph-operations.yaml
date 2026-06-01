@@ -1,0 +1,348 @@
+schema_version: 1
+file_kind: stage
+metadata:
+  title: "Awareness-graph — initialization, population, and cluster refresh"
+  description: |
+    How to build, load, and refresh the awareness graph. Covers the full build pipeline
+    (annotation-scanner → yaml2nt → loadnt), the three initialization scenarios (dev,
+    cluster refresh, Day-0 auto-seed), how @awareness annotations work in Go source, how
+    to register a new service for scanning, and how to diagnose common population failures.
+    This is the reference for any operator or AI agent that needs to populate or repopulate
+    the knowledge graph — including after a fresh install where Oxigraph has been wiped.
+  source_documents:
+    - awareness-graph/docs/initialize.md
+    - awareness-graph/scripts/build-awareness-graph.sh
+    - docs/awareness/activation_rules.yaml
+    - golang/mcp/tools_awareness.go
+    - golang/mcp/clients.go
+
+entries:
+
+  - id: ops.awareness.arch.build-pipeline
+    type: ARCHITECTURE
+    title: "Awareness graph build pipeline — four stages"
+    tags: [always, awareness-graph, build-pipeline]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      The awareness graph is populated from two source types: code annotations and YAML files.
+      The pipeline has four stages:
+
+      ```
+      @awareness annotations in Go source
+          +
+      docs/awareness/*.yaml  (invariants, failure_modes, incident_patterns, etc.)
+      docs/intent/*.yaml     (200+ service intent files)
+      awareness-graph/docs/awareness/*.yaml   (self-awareness)
+          |
+          v
+      [1] annotation-scanner   → docs/awareness/generated/<pkg>_code_symbols.yaml
+                                  docs/awareness/generated/<pkg>_code_edges.yaml
+          |
+          v
+      [2] yaml2nt              → awareness.nt  (N-Triples RDF serialization)
+          |
+          v
+      [3] loadnt               → POST to Oxigraph graph store (http://localhost:7878)
+          |
+          v
+      [4] awareness-graph gRPC → Briefing / Impact / Resolve / Query RPCs
+                                  → MCP tools / CLI / AI agents
+      ```
+
+      **Stage 1 — annotation-scanner**: Walks Go source files in `services/golang/`,
+      finds `// @awareness` comment blocks, emits YAML stubs into
+      `docs/awareness/generated/`. Also scans `docs/awareness/*.yaml` and
+      `docs/intent/*.yaml` for cross-referencing.
+
+      **Stage 2 — yaml2nt**: Reads ALL YAML sources (invariants, failure_modes,
+      incident_patterns, intent files, generated code symbols/edges) and serializes
+      them as N-Triples RDF. Output is a single `.nt` file.
+
+      **Stage 3 — loadnt**: POSTs the `.nt` file to Oxigraph's graph-store endpoint
+      (`/store?default`). IMPORTANT: POST *appends* to the existing graph. For a
+      full refresh, you MUST DELETE the store first, then POST.
+      ```bash
+      # Full refresh (wipe + reload):
+      curl -X DELETE http://localhost:7878/store?default
+      curl -X POST -H "Content-Type: application/n-triples" \
+           --data-binary @awareness.nt http://localhost:7878/store?default
+      ```
+
+      **Stage 4 — gRPC service**: awareness-graph reads from Oxigraph at startup and
+      on each RPC. The binary also has an *embedded seed* (`awareness.nt` baked in at
+      compile time) that it loads if Oxigraph is empty. This means a fresh install
+      always has baseline knowledge, even before a cluster refresh runs.
+    links:
+      cli_commands:
+        - "bash awareness-graph/scripts/build-awareness-graph.sh"
+        - "curl -X DELETE http://localhost:7878/store?default"
+
+  - id: ops.awareness.init.cluster-refresh
+    type: SKILL
+    title: "Refreshing the awareness graph on a running cluster"
+    tags: [day-1, day-2, awareness-graph, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [awareness-graph]
+    content: |
+      Run this when source code or YAML intent/invariant files have changed and you want
+      the running cluster to reflect the latest knowledge.
+
+      **Prerequisites:**
+      - Both repos cloned as siblings:
+        ```
+        ~/Documents/github.com/globulario/
+          services/
+          awareness-graph/
+        ```
+      - Go toolchain installed, `globular auth login` authenticated
+      - Oxigraph running (`systemctl status globular-oxigraph.service` → active)
+
+      **Full rebuild + deploy procedure:**
+
+      ```bash
+      # 1. Run the full build pipeline (annotation-scan + yaml2nt + loadnt)
+      cd ~/Documents/github.com/globulario/awareness-graph
+      bash scripts/build-awareness-graph.sh
+      # This: scans annotations, builds awareness.nt, clears Oxigraph, loads .nt,
+      # then rebuilds the awareness-graph binary embedding the fresh .nt as seed.
+
+      # 2. Deploy the new binary to the cluster
+      globular pkg build --spec packages/metadata/awareness-graph/specs/awareness_graph_service.yaml
+      globular auth login --user sa --password <sa-password>
+      globular pkg publish --name awareness-graph
+
+      # 3. The reconciler will deploy the new binary. Wait for convergence:
+      globular cluster node <node-id>  # version:awareness-graph should show ok
+      ```
+
+      **Quick reload only (no binary rebuild — just refresh the graph store):**
+      If you only want to reload the graph without changing the binary (e.g., after
+      editing a YAML intent file), you can skip the build and just reload:
+
+      ```bash
+      cd ~/Documents/github.com/globulario/awareness-graph
+      # Regenerate .nt from current sources
+      go run ./cmd/yaml2nt \
+          -input ../services/docs/awareness \
+          -input ../services/docs/intent \
+          -input ./docs/awareness \
+          -output /tmp/awareness.nt
+      # Wipe and reload Oxigraph
+      curl -X DELETE http://localhost:7878/store?default
+      curl -X POST -H "Content-Type: application/n-triples" \
+           --data-binary @/tmp/awareness.nt http://localhost:7878/store?default
+      ```
+
+      **Verify the graph loaded:**
+      ```bash
+      curl -s "http://localhost:7878/query" \
+           --data-urlencode "query=SELECT (COUNT(*) as ?c) WHERE { ?s ?p ?o }" \
+           -H "Accept: application/sparql-results+json"
+      # Expect: c > 15000 (a healthy graph has ~17,000+ triples)
+      ```
+    links:
+      cli_commands:
+        - "bash awareness-graph/scripts/build-awareness-graph.sh"
+        - "globular pkg build --spec packages/metadata/awareness-graph/..."
+        - "globular pkg publish --name awareness-graph"
+
+  - id: ops.awareness.init.day0-seed
+    type: REFERENCE
+    title: "Day-0 awareness seed — what's available before the cluster runs"
+    tags: [day-0, awareness-graph, bootstrap]
+    applies_when:
+      cluster_phases: [day-0]
+      services_present: []
+    content: |
+      On Day-0, Oxigraph is installed by the Day-0 install script
+      (`scripts/release/install-day0.sh`). The `awareness-graph` binary ships with an
+      embedded seed (`awareness.nt`) baked in at compile time. When Oxigraph starts empty,
+      the awareness-graph server loads this seed automatically.
+
+      This means:
+      - Awareness tools (briefing/impact/resolve) work immediately after `globular-oxigraph`
+        and `globular-awareness-graph` services are active — no operator action required.
+      - The embedded seed reflects the knowledge at build time. It may be slightly behind
+        the latest `services/docs/awareness/` YAML if code was changed since the last
+        awareness-graph binary build.
+
+      To check whether the embedded seed is loaded or a fresh graph was populated:
+      ```bash
+      # Count triples in the running store
+      curl -s "http://localhost:7878/query" \
+           --data-urlencode "query=SELECT (COUNT(*) as ?c) WHERE { ?s ?p ?o }" \
+           -H "Accept: application/sparql-results+json"
+      ```
+      - < 1000 triples: the store is nearly empty; either Oxigraph is freshly started
+        and the seed hasn't loaded yet, or seed loading failed.
+      - 15,000–18,000 triples: healthy graph with full seed.
+
+      If the graph is empty and the service is running, check service logs:
+      ```bash
+      journalctl -u globular-awareness-graph.service -n 50 --no-pager | grep -i "load\|seed\|error"
+      ```
+
+  - id: ops.awareness.annotations.how-to-write
+    type: REFERENCE
+    title: "How to write @awareness annotations in Go source"
+    tags: [always, awareness-graph, annotations, development]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      @awareness annotations are structured YAML comment blocks in Go source files.
+      The annotation-scanner extracts them and emits code symbol/edge YAML that yaml2nt
+      then merges with the rest of the graph.
+
+      **Basic annotation format:**
+      ```go
+      // @awareness
+      // invariants:
+      //   - id: myservice.my_invariant
+      //     title: "Short description"
+      //     severity: high
+      //     description: |
+      //       What must always be true here and why.
+      // failure_modes:
+      //   - id: myservice.my_failure_mode
+      //     title: "What goes wrong"
+      //     severity: medium
+      //     description: |
+      //       When this breaks and how to recognize it.
+      // forbidden_fixes:
+      //   - id: forbidden.fix.my_bad_fix
+      //     title: "Don't do this"
+      //     description: |
+      //       Why this fix makes things worse.
+      // required_tests:
+      //   - id: test.myservice.coverage
+      //     title: "What must be tested"
+      //     description: |
+      //       The test scenario this invariant requires.
+      func criticalFunction(...)  {
+      ```
+
+      **Minimal viable annotation (invariant only):**
+      ```go
+      // @awareness
+      // invariants:
+      //   - id: etcd.dir.permissions_0700
+      //     title: "etcd data dir must be mode 0700"
+      //     severity: high
+      //     description: |
+      //       The etcd data directory must be owner-only (0700). Group or world
+      //       access to the WAL exposes cluster keys and Raft state.
+      func ensureEtcdPermissions() {
+      ```
+
+      **Naming conventions:**
+      - Invariant IDs: `<service>.<area>.<rule>` (e.g. `etcd.dir.permissions_0700`)
+      - Failure mode IDs: `<service>.<area>.<what_breaks>` (e.g. `scylla.registration.tmp_not_writable`)
+      - Forbidden fix IDs: `forbidden.fix.<what_not_to_do>` (e.g. `forbidden.fix.layout_drift_by_expanding_allowlist_only`)
+      - Required test IDs: `test.<service>.<scenario>` (e.g. `test.etcd.dir_permission_after_restart`)
+
+      **Where to place annotations:**
+      - In the file closest to the invariant being enforced (not on wrappers or callers)
+      - In spec YAML files (packages/metadata/**/*.yaml) for package-level invariants — the scanner handles YAML annotations too
+      - In docs/awareness/invariants.yaml for cross-cutting platform invariants not tied to one file
+
+      After adding/editing annotations, run the full build pipeline to propagate:
+      ```bash
+      cd awareness-graph && bash scripts/build-awareness-graph.sh
+      ```
+
+  - id: ops.awareness.register.new-service
+    type: SKILL
+    title: "Registering a new service for awareness scanning"
+    tags: [always, awareness-graph, annotations, development]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      To add a new Go package to the annotation scan:
+
+      1. **Add Go annotations** in the source files (see `ops.awareness.annotations.how-to-write`).
+
+      2. **Register the package in the scanner config** (if the scanner has a package registry;
+         if it walks all of `services/golang/` automatically, this step is skipped — check
+         `awareness-graph/cmd/annotation-scanner/` for the current discovery logic).
+
+      3. **Add a service-role YAML** in
+         `services/docs/operational-knowledge/service-roles/<service-name>.yaml` —
+         this is the human-curated source-of-truth about what the service IS and how it
+         integrates. The yaml2nt tool ingests this.
+
+      4. **Add intent files** in `services/docs/intent/` if the service introduces new
+         cross-cutting invariants (e.g., the service owns an etcd key namespace, has a
+         specific permission model, or participates in a convergence contract).
+
+      5. **Run the build pipeline** to validate and load:
+         ```bash
+         cd awareness-graph && bash scripts/build-awareness-graph.sh
+         ```
+         Check the final triple count; it should increase compared to the previous run.
+
+      6. **Verify with a briefing call:**
+         ```bash
+         globular awareness briefing --file golang/<new-service>/<new-service>_server/server.go
+         ```
+         Expect `status: ok` and at least one invariant or failure_mode returned.
+    links:
+      cli_commands:
+        - "globular awareness briefing --file golang/<service>/<service>_server/server.go"
+        - "bash awareness-graph/scripts/build-awareness-graph.sh"
+
+  - id: ops.awareness.diagnose.failures
+    type: DEBUG
+    title: "Diagnosing awareness graph failures"
+    tags: [day-1, day-2, awareness-graph, debug]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [awareness-graph]
+    content: |
+      **Symptom: awareness tools return HTML (`text/html`) instead of gRPC response**
+      Root cause: the MCP server (or the caller) is dialing the Envoy gateway address for
+      awareness-graph. Envoy does not route awareness-graph — it has its own port (10120).
+      When Go TLS dials an IP address, it suppresses the IP as SNI (Go spec: IP addresses
+      are not valid SNI hostnames). Envoy gets an empty SNI and falls to its default filter
+      chain, which returns the Globular web UI (HTML 200).
+
+      Fix: ensure callers use `awarenessEndpoint()` which reads `Address` directly from
+      etcd: `config.GetServiceConfigurationById("awareness-graph")["Address"]`.
+      Never use `gatewayEndpoint()` for awareness tools.
+
+      **Symptom: `task` parameter not supported, only `file` works**
+      Root cause: old binary deployed. `task=` briefing support was added in awareness-graph
+      v0.0.7. Check `journalctl -u globular-awareness-graph.service | grep version`.
+      Fix: rebuild and redeploy the awareness-graph package.
+
+      **Symptom: briefing returns `status: empty` for everything**
+      Causes (in order of likelihood):
+      1. Oxigraph store is empty — triple count is 0. Run the rebuild pipeline.
+      2. yaml2nt produced an empty .nt file (parse error in source YAML). Check
+         `bash scripts/build-awareness-graph.sh` output for YAML errors.
+      3. The queried file/task has no annotations and no intent file coverage.
+         This is not always a problem — `empty` means "no direct anchors found",
+         not "this code is safe to change without thinking".
+
+      **Symptom: awareness-graph service keeps restarting**
+      Check: `journalctl -u globular-awareness-graph.service -n 30 --no-pager`
+      Common causes:
+      - Oxigraph is not running (`systemctl status globular-oxigraph.service`)
+      - Port 10120 already in use from a previous crashed instance
+      - Missing service cert at `/var/lib/globular/pki/issued/services/service.crt`
+
+      **Symptom: after `build-awareness-graph.sh`, triple count did not increase**
+      The loadnt tool POSTs to Oxigraph which APPENDS by default. If the previous
+      graph was already loaded, running loadnt again without a DELETE first will
+      produce duplicates, not new knowledge. Always DELETE before a full refresh.
+      The `build-awareness-graph.sh` script handles this; if running loadnt manually,
+      always `curl -X DELETE http://localhost:7878/store?default` first.
+    links:
+      cli_commands:
+        - "systemctl status globular-oxigraph.service globular-awareness-graph.service"
+        - "journalctl -u globular-awareness-graph.service -n 50 --no-pager"
+        - "curl -s http://localhost:7878/query --data-urlencode 'query=SELECT (COUNT(*) as ?c) WHERE { ?s ?p ?o }' -H 'Accept: application/sparql-results+json'"
