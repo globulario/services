@@ -272,6 +272,44 @@ func TestPromRuntime_XdsNoApplies_AdvisoryNotFailure(t *testing.T) {
 	}
 }
 
+// TestPromRuntime_KindMismatch_RateZeroNoFinding verifies that a non-zero raw
+// counter (drift_kind_mismatch) does NOT fire a finding when the 15m rate is
+// zero. Regression: the rule previously read the raw counter which never
+// decrements, causing a permanent finding after a single historical mismatch.
+func TestPromRuntime_KindMismatch_RateZeroNoFinding(t *testing.T) {
+	snap := &collector.Snapshot{
+		PromMetrics: map[string]float64{
+			"drift_kind_mismatch":          1, // raw counter — must be ignored
+			"drift_kind_mismatch_rate_15m": 0, // no recent mismatches
+		},
+		PromTS: time.Now(),
+	}
+	for _, f := range (promRuntime{}).Evaluate(snap, Config{}) {
+		if f.InvariantID == "desired.kind_mismatch" {
+			t.Fatalf("unexpected kind_mismatch finding when rate is 0: %+v", f)
+		}
+	}
+}
+
+func TestPromRuntime_KindMismatch_ActiveRateFiresFinding(t *testing.T) {
+	snap := &collector.Snapshot{
+		PromMetrics: map[string]float64{
+			"drift_kind_mismatch_rate_15m": 1,
+		},
+		PromTS: time.Now(),
+	}
+	var got *Finding
+	for _, f := range (promRuntime{}).Evaluate(snap, Config{}) {
+		if f.InvariantID == "desired.kind_mismatch" {
+			f := f
+			got = &f
+		}
+	}
+	if got == nil {
+		t.Fatal("expected desired.kind_mismatch finding when rate > 0")
+	}
+}
+
 func TestPromRuntime_ReleaseBlocked_HighValueElevates(t *testing.T) {
 	snap := &collector.Snapshot{
 		PromMetrics: map[string]float64{

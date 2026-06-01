@@ -58,6 +58,11 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		// Storm protection signals (Phase A-D).
 		"apply_loop_detected":        "globular_controller_apply_loop_detected_total",
 		"drift_kind_mismatch":        "globular_controller_drift_kind_mismatch_total",
+		// Rate over a 15-minute window — used by the kind_mismatch rule.
+		// Auto-clears when no new mismatches have been detected in the window.
+		// The raw counter above is kept for audit but must NOT be consumed by
+		// rules directly (a counter only ever grows → finding fires forever).
+		"drift_kind_mismatch_rate_15m": "sum(increase(globular_controller_drift_kind_mismatch_total[15m]))",
 		"reconcile_circuit_open":     "globular_controller_reconcile_circuit_open_total",
 		// Raw counter — kept for backwards compatibility / audit. The rule
 		// itself should NOT consume this directly: a counter only ever

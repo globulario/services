@@ -135,7 +135,7 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 		})
 	}
 
-	if mismatches, ok := snap.PromMetrics["drift_kind_mismatch"]; ok && mismatches > 0 {
+	if mismatches, ok := snap.PromMetrics["drift_kind_mismatch_rate_15m"]; ok && mismatches > 0 {
 		findings = append(findings, Finding{
 			FindingID:   FindingID("desired.kind_mismatch", "cluster", "controller"),
 			InvariantID: "desired.kind_mismatch",
