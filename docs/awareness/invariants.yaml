@@ -4905,3 +4905,303 @@ invariants:
       required_tests:
         - TestWriteMinioContractAtomic_OverwritesCorrupt
         - TestWriteMinioContractAtomic_RoundTrip
+
+    - id: cluster.founding_profiles_quorum_immutable
+      title: First 3 nodes must have core + control-plane + storage profiles for quorum
+      severity: critical
+      status: active
+      description: >
+        The founding 3 nodes must always carry core, control-plane, and storage
+        profiles. This ensures etcd, ScyllaDB, and MinIO each have their minimum
+        quorum. The cluster will not converge without it.
+      rationale: >
+        Discovered via // INVARIANT comment in profiles_normalize.go and enforced
+        in handlers_node.go enforceFoundingProfiles(). If the founding constraint
+        is relaxed, MinIO erasure coding collapses, ScyllaDB loses Raft quorum,
+        and workflows cannot persist state — a full cluster failure.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/profiles_normalize.go
+          - golang/cluster_controller/cluster_controller_server/handlers_node.go
+      forbidden_fixes:
+        - weakening enforceFoundingProfiles to allow fewer than 3 storage nodes
+        - allowing the first 3 nodes to skip any of core/control-plane/storage
+        - making the quorum threshold configurable below 3
+      required_tests:
+        - TestEnforceFoundingProfiles_RequiresAllThreeProfiles
+        - TestSetNodeProfiles_CannotDropStorageBelow3
+
+    - id: cluster.profile_removal_guards_storage_quorum
+      title: Removing foundational profiles is blocked if it drops storage below MinQuorumNodes
+      severity: critical
+      status: active
+      description: >
+        SetNodeProfiles must refuse to remove core, control-plane, or storage from
+        a node when doing so would drop the cluster below MinQuorumNodes storage
+        members.
+      rationale: >
+        Discovered via // INVARIANT comment in handlers_node.go:116. Removing
+        storage from a node below quorum silently degrades MinIO and ScyllaDB
+        before any alert fires — the cluster appears healthy until a second node
+        fails.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/handlers_node.go
+      forbidden_fixes:
+        - bypassing MinQuorumNodes check for "administrative convenience"
+        - deferring the quorum check to after the profile is written
+      required_tests:
+        - TestSetNodeProfiles_CannotDropStorageBelow3
+
+    - id: cluster.desired_state_authority_over_installed_state
+      title: Desired state must never be deleted based on installed-state observations
+      severity: critical
+      status: active
+      description: >
+        Layer 2 (Desired) is authoritative and changes only via explicit operator
+        action. The controller must never garbage-collect desired entries because
+        a service is not currently installed on a node.
+      rationale: >
+        Discovered via // INVARIANT comment in desired_state_handlers.go:630.
+        Violating this collapses the 4-layer model — installed-state absence would
+        then drive desired-state, making convergence loops non-deterministic.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+      forbidden_fixes:
+        - auto-deleting desired entries when installed state reports nothing installed
+        - using installed_state absence as the trigger for desired_state cleanup
+        - inferring desired state from runtime observations
+
+    - id: infra.heartbeat_observer_only_not_authority
+      title: Node-agent heartbeat must never write desired-state fields
+      severity: critical
+      status: active
+      description: >
+        The heartbeat phase 2 etcd write is observer-only: it records runtime
+        observations (installed packages, health). It must never overwrite
+        desired_hash, desired_version, or any field owned by the controller's
+        desired-state layer.
+      rationale: >
+        Discovered via // INVARIANT comment in heartbeat.go:240. If the heartbeat
+        writes desired fields, two authority sources compete in etcd, producing
+        oscillation and preventing convergence.
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/heartbeat.go
+      forbidden_fixes:
+        - writing desired_hash or desired_version from the heartbeat path
+        - merging desired-state fields into the heartbeat write struct
+        - using heartbeat as a reconciliation shortcut for desired state
+      required_tests:
+        - TestHeartbeat_DoesNotWriteDesiredHash
+        - TestHeartbeat_DoesNotWriteDesiredVersion
+
+    - id: objectstore.membership_requires_explicit_desired_state
+      title: MinIO pool membership requires explicit DesiredObjectStoreMembers entry
+      severity: critical
+      status: active
+      description: >
+        ObjectStoreIntent.Member=true is necessary but not sufficient. A node
+        must also appear in DesiredObjectStoreMembers in etcd before the
+        controller treats it as a pool member.
+      rationale: >
+        Discovered via // INVARIANT comment in objectstore_members.go:17. Intent
+        alone cannot drive membership — the controller must write a deliberate
+        desired-state entry. Otherwise nodes join or leave the pool silently
+        based on intent changes, causing MinIO erasure group instability.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/objectstore_members.go
+      forbidden_fixes:
+        - using ObjectStoreIntent.Member alone to determine pool membership
+        - auto-enrolling nodes without a DesiredObjectStoreMembers write
+
+    - id: objectstore.runtime_scope_must_match_desired_members
+      title: MinIO active on nodes outside the desired pool must block topology operations
+      severity: critical
+      status: active
+      description: >
+        Before executing a topology change (expand, shrink, rebalance), the
+        workflow must verify that MinIO is not running on nodes outside the
+        DesiredObjectStoreMembers set. Non-member active state indicates
+        split-brain risk.
+      rationale: >
+        Discovered via TestVerifyRuntimeScope_NonMemberActive in
+        actors_objectstore_test.go:323. Proceeding with topology changes when
+        a non-member has active MinIO can corrupt the erasure group or strand data.
+      protects:
+        files:
+          - golang/workflow/engine/actors_objectstore.go
+      forbidden_fixes:
+        - skipping non-member runtime scope check before topology operations
+        - treating non-member MinIO presence as a harmless informational condition
+      required_tests:
+        - TestVerifyRuntimeScope_NonMemberActive
+
+    - id: objectstore.lock_release_is_idempotent
+      title: MinIO topology lock release must succeed even if lock does not exist
+      severity: high
+      status: active
+      description: >
+        ReleaseTopologyLock must be idempotent: releasing a lock that is already
+        absent must return success. Callers must not need to check lock existence
+        before releasing.
+      rationale: >
+        Discovered via TestReleaseTopologyLock_Idempotent in
+        actors_objectstore_test.go:366. Workflow cleanup steps are retried on
+        failure — a non-idempotent release causes cleanup to fail after a prior
+        successful release, leaving the workflow in a stuck CLEANUP state.
+      protects:
+        files:
+          - golang/workflow/engine/actors_objectstore.go
+      required_tests:
+        - TestReleaseTopologyLock_Idempotent
+
+    - id: repository.build_id_server_generated_not_client_driven
+      title: build_id is allocated server-side and must never be supplied by the client
+      severity: critical
+      status: active
+      description: >
+        build_id is a server-generated UUID (V7) allocated at upload time in
+        AllocateUpload. The client must not supply or predict it. Same
+        publisher+name+version+platform+digest always returns the existing
+        build_id (idempotent import).
+      rationale: >
+        Discovered via TestPublishRejectsSameBuildNumberDifferentBuildID in
+        package_identity_required_tests_test.go:13 and server-side UUID generation
+        in allocate_upload.go:151. Client-supplied build_ids would allow identity
+        spoofing across the 4-layer model.
+      protects:
+        files:
+          - golang/repository/repository_server/allocate_upload.go
+          - golang/repository/repository_server/artifact_handlers.go
+      forbidden_fixes:
+        - accepting a client-supplied build_id in any publish or upload RPC
+        - allowing build_id to be predicted or pre-allocated outside the server
+      required_tests:
+        - TestPublishRejectsSameBuildNumberDifferentBuildID
+        - TestUploadIdempotentSameDigestReturnsExistingBuildID
+
+    - id: repository.official_publisher_channel_isolation
+      title: Official publisher cannot publish to DEV channel; DEV is for local/dev publishers only
+      severity: critical
+      status: active
+      description: >
+        The official stable publisher (core@globular.io + STABLE channel) must not
+        publish to the DEV channel, and cannot use local version suffixes. DEV
+        channel is reserved for local/dev publishers to prevent official artifacts
+        from being shadowed by local builds.
+      rationale: >
+        Discovered via TestLocalPublish2_OfficialPublisherCannotUseDEVChannel and
+        TestLocalPublish2_OfficialPublisherCannotUseLocalVersionSuffix in
+        local_publish_test.go. Mixing channels destroys the official/local
+        isolation model and allows local artifacts to masquerade as official.
+      protects:
+        files:
+          - golang/repository/repository_server/local_publish_guard.go
+      forbidden_fixes:
+        - allowing official publishers to target DEV channel
+        - removing the local suffix check for STABLE channel
+        - relaxing channel enforcement for "internal" builds
+      required_tests:
+        - TestLocalPublish2_OfficialPublisherCannotUseDEVChannel
+        - TestLocalPublish2_OfficialPublisherCannotUseLocalVersionSuffix
+
+    - id: repository.desired_build_id_is_hard_reachability_root
+      title: Desired build_id is a hard reachability root — deletion and revocation are blocked
+      severity: critical
+      status: active
+      description: >
+        Once a build_id is pinned in desired state, the repository must not allow
+        deletion, GC, or revocation of that artifact. The desired build_id is a
+        hard root for the reachability guard.
+      rationale: >
+        Discovered via TestDesiredBuildIDImmutableAfterWrite (alias for
+        TestReachability_DesiredBuildID_IsHardRoot) in
+        zz_awareness_required_test_aliases_test.go:11. Deleting an artifact that
+        is pinned in desired state causes node-agents to enter a permanent BROKEN
+        install loop with no recovery path.
+      protects:
+        files:
+          - golang/repository/repository_server/reachability_guard.go
+          - golang/repository/repository_server/gc.go
+      forbidden_fixes:
+        - bypassing reachability_guard for administrative deletes
+        - treating desired-state pin as advisory rather than blocking
+        - allowing GC to sweep build_ids present in any desired-state record
+      required_tests:
+        - TestDesiredBuildIDImmutableAfterWrite
+
+    - id: repository.artifact_presence_requires_metadata_and_blob
+      title: Artifact presence requires both metadata row and binary blob
+      severity: critical
+      status: active
+      description: >
+        An artifact is present if and only if both its Scylla metadata row AND
+        its local POSIX CAS blob exist. Either alone is not sufficient —
+        metadata without blob causes install failure; blob without metadata is
+        invisible to the catalog.
+      rationale: >
+        Discovered via // INVARIANT comment in blob_integrity.go:5. The two-part
+        conjunction is the boundary between the Scylla index and the POSIX CAS.
+        Treating either alone as "present" causes silent install failures or GC
+        that orphans blobs.
+      protects:
+        files:
+          - golang/repository/repository_server/blob_integrity.go
+          - golang/repository/repository_server/artifact_handlers.go
+      forbidden_fixes:
+        - treating metadata presence alone as "artifact present"
+        - treating blob existence alone as proof the artifact is installable
+        - skipping blob existence check when metadata row is found
+      required_tests:
+        - TestArtifactPresence_RequiresMetadataAndBlob
+
+    - id: node.package_downgrade_requires_force_flag
+      title: Automatic package downgrade is forbidden — Force=true required for manual rollback
+      severity: critical
+      status: active
+      description: >
+        Node-agent must refuse to downgrade any installed package to a lower
+        version unless Force=true is explicitly set in the apply request.
+        Automatic rollback is forbidden at the node layer.
+      rationale: >
+        Discovered via production guard in apply_package_release.go:262 ("refuse
+        to downgrade ... automatic rollback is forbidden"). Automatic rollback
+        hides the root cause, can cascade to other nodes, and bypasses the
+        4-layer model — the controller must always initiate downgrade via desired
+        state, not the node.
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/apply_package_release.go
+      forbidden_fixes:
+        - adding auto-downgrade logic for "health recovery"
+        - making Force=true the default to avoid operator friction
+        - allowing version rollback without an explicit desired-state change
+      required_tests:
+        - TestApplyPackageRelease_RefusesDowngradeWithoutForce
+
+    - id: repository.authority_endpoint_must_be_specific_fqdn
+      title: standalone_authority mode forbids round-robin DNS endpoints
+      severity: critical
+      status: active
+      description: >
+        When a repository is in standalone_authority mode, its authority_minio_endpoint
+        must be a specific node FQDN, not a round-robin DNS name. Round-robin
+        endpoints in authority mode cause split-brain reads across multiple
+        MinIO instances.
+      rationale: >
+        Discovered via production guard in storage_topology.go:92 ("endpoint is
+        a round-robin DNS name forbidden in standalone_authority mode"). Authority
+        mode requires deterministic single-endpoint routing — round-robin delivers
+        reads to random nodes, breaking consistency.
+      protects:
+        files:
+          - golang/repository/repository_server/storage_topology.go
+      forbidden_fixes:
+        - relaxing FQDN validation for convenience in standalone_authority mode
+        - allowing VIP or round-robin names as authority endpoints
+        - making standalone_authority endpoint validation optional
+      required_tests:
+        - TestStorageTopology_StandaloneAuthorityRejectsRoundRobinEndpoint
