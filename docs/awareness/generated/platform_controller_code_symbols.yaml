@@ -179,6 +179,15 @@ code_symbols:
         - globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
       implements:
         - globular.platform:intent.quorum_safety_before_storage_mutation
+  - id: globular.platform:code.go.platform_controller.bootstrap
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/bootstrap.go
+    component: platform_controller.bootstrap
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.day0_day1_are_repeatable_ceremonies
   - id: globular.platform:code.go.platform_controller.desired_state
     namespace: globular.platform
     language: go
@@ -188,6 +197,71 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.desired_state.is_authority
+  - id: globular.platform:code.go.platform_controller.invariant_enforcement
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/invariant_enforcement.go
+    component: platform_controller.invariant_enforcement
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.unknown_must_not_default_to_healthy
+  - id: globular.platform:code.go.platform_controller.join_lifecycle
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/node_admission_proof.go
+    component: platform_controller.join_lifecycle
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.cluster.membership.earned_trust
+  - id: globular.platform:code.go.platform_controller.join_lifecycle
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/joinplan_validate.go
+    component: platform_controller.join_lifecycle
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.cluster.membership.earned_trust
+  - id: globular.platform:code.go.platform_controller.join_lifecycle
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/join_lifecycle.go
+    component: platform_controller.join_lifecycle
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.cluster.membership.earned_trust
+  - id: globular.platform:code.go.platform_controller.join_lifecycle
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/handlers_join.go
+    component: platform_controller.join_lifecycle
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.cluster.membership.earned_trust
+  - id: globular.platform:code.go.platform_controller.leader_election
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/leader_election.go
+    component: platform_controller.leader_election
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_controller.objectstore
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/objectstore_admission.go
+    component: platform_controller.objectstore
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.partial_snapshot_unknown_not_down
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
   - id: globular.platform:code.go.platform_controller.objectstore.pool_manager
     namespace: globular.platform
     language: go
@@ -227,6 +301,44 @@ code_symbols:
         - globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
       implements:
         - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_controller.reconciler
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
+    component: platform_controller.reconciler
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.workflow.dispatch_is_not_completion
+      implements:
+        - globular.platform:intent.desired_state.is_authority
+  - id: globular.platform:code.go.platform_controller.reconciler
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+    component: platform_controller.reconciler
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+  - id: globular.platform:code.go.platform_controller.reconciler
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/infrastructure_reconciler.go
+    component: platform_controller.reconciler
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+  - id: globular.platform:code.go.platform_controller.recovery
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/recovery_planner.go
+    component: platform_controller.recovery
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.day0_day1_are_repeatable_ceremonies
   - id: globular.platform:code.go.platform_controller.scylla.ddl_preflight
     namespace: globular.platform
     language: go
@@ -379,3 +491,32 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.health.requires_fresh_evidence
+  - id: globular.platform:code.go.platform_controller.topology
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/topology_safety.go
+    component: platform_controller.topology
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.quorum_safety_before_storage_mutation
+  - id: globular.platform:code.go.platform_controller.workflow
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/workflow_health_gate.go
+    component: platform_controller.workflow
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.backend_health_gate_before_dispatch
+  - id: globular.platform:code.go.platform_controller.workflow
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/workflow_release.go
+    component: platform_controller.workflow
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.workflow.dispatch_is_not_completion
+      implements:
+        - globular.platform:intent.release.bom_is_precise_release_authority

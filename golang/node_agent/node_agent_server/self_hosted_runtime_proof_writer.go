@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.proof_writer
+// @awareness file_role=self_hosted_runtime_proof_chain
+// @awareness implements=globular.platform:intent.runtime.identity.requires_proof
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness risk=critical
 package main
 
 // self_hosted_runtime_proof_writer.go — Project B implementation.

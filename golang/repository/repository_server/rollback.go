@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.rollback
+// @awareness file_role=rollback_candidate_selection_and_install_history
+// @awareness implements=globular.platform:intent.rollback.must_be_operator_chosen
+// @awareness risk=high
 package main
 
 // rollback.go — Phase CLI-C installed-revision history + rollback candidates.

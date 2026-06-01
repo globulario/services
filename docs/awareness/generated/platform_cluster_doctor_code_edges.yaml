@@ -140,6 +140,9 @@ code_edges:
   - from: globular.platform:code.go.cluster_doctor.rules.Registry_EvaluateAll
     relation: implements
     to: globular.platform:intent.doctor.findings_are_operator_language
+  - from: globular.platform:code.go.platform_cluster_doctor.heal_policy
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
   - from: globular.platform:code.go.platform_cluster_doctor.objectstore.contract_rules
     relation: enforces
     to: globular.platform:invariant.destructive_actions.require_explicit_guard
@@ -206,3 +209,24 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.objectstore_admission.objectstoreMinioStandaloneSplitbrain
     relation: implements
     to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.unknown_must_not_default_to_healthy
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.runtime.identity_requires_verification
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.workflow.terminal_runs_must_be_bounded

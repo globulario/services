@@ -47,6 +47,27 @@ code_edges:
   - from: globular.platform:code.go.node_agent.runtime_proof.collectServiceRuntimeProof
     relation: tested_by
     to: golang/node_agent/node_agent_server/runtime_proof_test.go:TestCollectServiceRuntimeProof_HappyPath
+  - from: globular.platform:code.go.platform_node_agent.fingerprint
+    relation: implements
+    to: globular.platform:intent.runtime.identity_attestation
+  - from: globular.platform:code.go.platform_node_agent.heartbeat
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.platform_node_agent.heartbeat
+    relation: implements
+    to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.platform_node_agent.integrity
+    relation: implements
+    to: globular.platform:intent.runtime.identity_requires_verification
+  - from: globular.platform:code.go.platform_node_agent.join
+    relation: implements
+    to: globular.platform:intent.cluster.membership.earned_trust
+  - from: globular.platform:code.go.platform_node_agent.join
+    relation: implements
+    to: globular.platform:intent.cluster.membership.earned_trust
+  - from: globular.platform:code.go.platform_node_agent.objectstore
+    relation: enforces
+    to: globular.platform:invariant.objectstore.partial_snapshot_unknown_not_down
   - from: globular.platform:code.go.platform_node_agent.objectstore.config_enforcer
     relation: enforces
     to: globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
@@ -113,6 +134,15 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.objectstore.topology_gate.nodeIsTopologyMember
     relation: implements
     to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_node_agent.package_apply
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent.proof_writer
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent.proof_writer
+    relation: implements
+    to: globular.platform:intent.runtime.identity.requires_proof
   - from: globular.platform:code.go.platform_node_agent.scylla.wipe
     relation: enforces
     to: globular.platform:invariant.destructive_actions.require_explicit_guard

@@ -118,6 +118,62 @@ code_symbols:
         - globular.platform:intent.runtime_health.requires_live_observation
       tested_by:
         - golang/node_agent/node_agent_server/runtime_proof_test.go:TestCollectServiceRuntimeProof_HappyPath
+  - id: globular.platform:code.go.platform_node_agent.fingerprint
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/process_fingerprint.go
+    component: platform_node_agent.fingerprint
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.runtime.identity_attestation
+  - id: globular.platform:code.go.platform_node_agent.heartbeat
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/heartbeat.go
+    component: platform_node_agent.heartbeat
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.runtime_not_desired
+      implements:
+        - globular.platform:intent.runtime_health.requires_live_observation
+  - id: globular.platform:code.go.platform_node_agent.integrity
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/verify_package_integrity.go
+    component: platform_node_agent.integrity
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.runtime.identity_requires_verification
+  - id: globular.platform:code.go.platform_node_agent.join
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/join_auto.go
+    component: platform_node_agent.join
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.cluster.membership.earned_trust
+  - id: globular.platform:code.go.platform_node_agent.join
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/join_plan_gate.go
+    component: platform_node_agent.join
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.cluster.membership.earned_trust
+  - id: globular.platform:code.go.platform_node_agent.objectstore
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/minio_format_backup.go
+    component: platform_node_agent.objectstore
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.partial_snapshot_unknown_not_down
   - id: globular.platform:code.go.platform_node_agent.objectstore.config_enforcer
     namespace: globular.platform
     language: go
@@ -232,6 +288,26 @@ code_symbols:
         - globular.platform:invariant.objectstore.topology_contract
       implements:
         - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_node_agent.package_apply
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/apply_package_verify.go
+    component: platform_node_agent.package_apply
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+  - id: globular.platform:code.go.platform_node_agent.proof_writer
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/self_hosted_runtime_proof_writer.go
+    component: platform_node_agent.proof_writer
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+      implements:
+        - globular.platform:intent.runtime.identity.requires_proof
   - id: globular.platform:code.go.platform_node_agent.scylla.wipe
     namespace: globular.platform
     language: go

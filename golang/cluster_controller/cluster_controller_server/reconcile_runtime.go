@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=leader_only_release_resolution_and_dispatch
+// @awareness implements=globular.platform:intent.desired_state.is_authority
+// @awareness enforces=globular.platform:invariant.workflow.dispatch_is_not_completion
+// @awareness risk=critical
 package main
 
 import (

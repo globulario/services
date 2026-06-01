@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.workflow
+// @awareness file_role=workflow_backend_circuit_breaker
+// @awareness implements=globular.platform:intent.workflow.backend_health_gate_before_dispatch
+// @awareness risk=high
 package main
 
 import (

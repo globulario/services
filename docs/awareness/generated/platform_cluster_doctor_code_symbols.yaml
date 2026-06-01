@@ -176,6 +176,15 @@ code_symbols:
         - globular.platform:invariant.doctor.must_compare_claims_to_proofs
       implements:
         - globular.platform:intent.doctor.findings_are_operator_language
+  - id: globular.platform:code.go.platform_cluster_doctor.heal_policy
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/heal_policy.go
+    component: platform_cluster_doctor.heal_policy
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
   - id: globular.platform:code.go.platform_cluster_doctor.objectstore.contract_rules
     namespace: globular.platform
     language: go
@@ -288,3 +297,52 @@ code_symbols:
       implements:
         - globular.platform:invariant.objectstore.topology_contract
         - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/installed_state_runtime_mismatch.go
+    component: platform_cluster_doctor.rules
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+  - id: globular.platform:code.go.platform_cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/etcd_health.go
+    component: platform_cluster_doctor.rules
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.unknown_must_not_default_to_healthy
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/artifact_integrity.go
+    component: platform_cluster_doctor.rules
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+  - id: globular.platform:code.go.platform_cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/runtime_verification.go
+    component: platform_cluster_doctor.rules
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.runtime_not_desired
+      implements:
+        - globular.platform:intent.runtime.identity_requires_verification
+  - id: globular.platform:code.go.platform_cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/workflow_blocked.go
+    component: platform_cluster_doctor.rules
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.terminal_runs_must_be_bounded

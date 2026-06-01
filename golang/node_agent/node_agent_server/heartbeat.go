@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.heartbeat
+// @awareness file_role=node_heartbeat_local_and_etcd_phases
+// @awareness implements=globular.platform:intent.runtime_health.requires_live_observation
+// @awareness enforces=globular.platform:invariant.state.runtime_not_desired
+// @awareness risk=critical
 package main
 
 import (

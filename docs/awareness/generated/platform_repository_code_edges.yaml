@@ -1,4 +1,28 @@
 code_edges:
+  - from: globular.platform:code.go.platform_repository.artifact_validator
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.platform_repository.blob_integrity
+    relation: enforces
+    to: globular.platform:invariant.repository.publish_idempotent_same_digest
+  - from: globular.platform:code.go.platform_repository.blob_integrity
+    relation: implements
+    to: globular.platform:intent.repository.metadata_is_authority
+  - from: globular.platform:code.go.platform_repository.policy
+    relation: implements
+    to: globular.platform:intent.repository.signature_policy_gates_trust
+  - from: globular.platform:code.go.platform_repository.rollback
+    relation: implements
+    to: globular.platform:intent.rollback.must_be_operator_chosen
+  - from: globular.platform:code.go.platform_repository.safety
+    relation: implements
+    to: globular.platform:intent.delete_requires_explicit_intent_marker
+  - from: globular.platform:code.go.platform_repository.signing
+    relation: implements
+    to: globular.platform:intent.repository.signature_policy_gates_trust
+  - from: globular.platform:code.go.platform_repository.signing
+    relation: implements
+    to: globular.platform:intent.repository.signature_policy_gates_trust
   - from: globular.platform:code.go.repository.artifact_state.ArtifactPipelineState
     relation: implements
     to: globular.platform:intent.repository.lifecycle_state_machine

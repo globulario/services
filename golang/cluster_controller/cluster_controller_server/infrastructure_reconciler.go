@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=infrastructure_convergence_hash_enforcement
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness risk=high
 package main
 
 // infrastructure_reconciler.go — convergence hash contract enforcement for

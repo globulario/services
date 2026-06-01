@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.topology
+// @awareness file_role=topology_preflight_safety_checks
+// @awareness implements=globular.platform:intent.quorum_safety_before_storage_mutation
+// @awareness risk=high
 package main
 
 // topology_safety.go — Case 12: TOPOLOGY_SAFETY_DRIFT

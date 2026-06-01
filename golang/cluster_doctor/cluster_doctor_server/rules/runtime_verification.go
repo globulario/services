@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules
+// @awareness file_role=verifier_findings_to_doctor_findings_bridge
+// @awareness implements=globular.platform:intent.runtime.identity_requires_verification
+// @awareness enforces=globular.platform:invariant.state.runtime_not_desired
+// @awareness risk=high
 package rules
 
 // runtime_verification.go — Phase 9 wire-up of the Diagnostic Honesty

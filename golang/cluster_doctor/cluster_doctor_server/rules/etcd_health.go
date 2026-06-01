@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules
+// @awareness file_role=etcd_quorum_and_configuration_health_rule
+// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
+// @awareness enforces=globular.platform:invariant.state.unknown_must_not_default_to_healthy
+// @awareness risk=critical
 package rules
 
 import (

@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.artifact_validator
+// @awareness file_role=artifact_law_enforcement_before_publish
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness risk=high
 package main
 
 // artifact_law_validator.go — Artifact law enforcement (PR 3).

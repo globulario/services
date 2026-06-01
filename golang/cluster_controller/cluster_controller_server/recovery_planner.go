@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.recovery
+// @awareness file_role=deterministic_reseed_ordering_planner
+// @awareness implements=globular.platform:intent.day0_day1_are_repeatable_ceremonies
+// @awareness risk=high
 package main
 
 // recovery_planner.go — deterministic reseed ordering for node.recover.full_reseed.
