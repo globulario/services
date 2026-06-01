@@ -31,6 +31,8 @@ zooms_out_to:
   - controller.decides_but_does_not_execute_leaf_work
 zooms_in_to:
   - domain.certs_distributed_via_etcd_not_files
+  - domain.acme_account_is_persisted_to_prevent_registration_loops
+  - domain.dns01_challenge_waits_for_public_resolver_propagation
 related_to:
   - etcd.is_source_of_truth
   - security.tokens_certificates_keys.cluster_trust_contract

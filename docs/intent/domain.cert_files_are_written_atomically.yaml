@@ -1,0 +1,40 @@
+id: domain.cert_files_are_written_atomically
+level: mechanism
+title: Certificate files are written via atomic temp-rename to prevent partial reads by Envoy SDS
+intent: |
+  Envoy SDS and cert-watcher goroutines read certificate files continuously. A non-atomic
+  write (open + write + close) produces a window where the file exists but contains partial
+  PEM data. If Envoy reads during this window it loads an invalid cert, terminates TLS
+  handshakes, and may panic its SDS provider. writeFileAtomic(path, data, perm) writes
+  to a temp file in the same directory (to ensure same filesystem for rename), then calls
+  os.Rename which is atomic on POSIX. The temp file must be in the same directory as the
+  target so the rename is a same-filesystem move, not a cross-device copy.
+agent_guidance: |
+  Never replace writeFileAtomic with os.WriteFile or ioutil.WriteFile for certificate,
+  key, or chain files read by Envoy. If you see cert-related Envoy crashes after a renewal
+  cycle, check whether the write path uses the atomic helper. If the temp file and target
+  are on different filesystems (e.g., /tmp vs /var/lib), os.Rename will fail — both must
+  live under /var/lib/globular.
+bad_smells:
+  - os.WriteFile used for .crt, .key, .pem, or fullchain files
+  - temp file written to /tmp then renamed to /var/lib/globular (cross-device rename fails)
+  - cert file written in multiple steps without atomic close
+  - writeFileAtomic bypassed for "small" files
+activation_triggers:
+  - writeFileAtomic
+  - cert write
+  - Envoy SDS
+  - fullchain.pem
+  - certificate renewal write
+expressed_by:
+  - golang/domain/domain_server/file_atomic.go
+related_invariants: []
+zooms_out_to:
+  - domain.certs_distributed_via_etcd_not_files
+zooms_in_to: []
+related_to:
+  - pki.leaf_cert_rotation_is_proactive_not_reactive
+required_tests:
+  - domain:TestWriteFileAtomicPreventPartialRead
+  - domain:TestCertFileAtomicOnRenewal
+status: extracted_candidate

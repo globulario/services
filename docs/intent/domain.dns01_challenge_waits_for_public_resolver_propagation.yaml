@@ -1,0 +1,43 @@
+id: domain.dns01_challenge_waits_for_public_resolver_propagation
+level: mechanism
+title: DNS-01 challenge solver waits for public resolver propagation before notifying ACME
+intent: |
+  Let's Encrypt validates DNS-01 challenges by querying public resolvers (Cloudflare 1.1.1.1,
+  Google 8.8.8.8), not the zone's authoritative nameserver. A TXT record written to the
+  DNS provider API may be authoritative within seconds but not visible at public resolvers
+  for 30–120 seconds depending on TTL and caching. Notifying ACME before public resolvers
+  see the TXT record causes challenge failure and triggers Let's Encrypt backoff timers.
+  The DNSPropagator interface must poll Cloudflare and Google directly until both return
+  the expected _acme-challenge.<domain> TXT value before the solver signals ready.
+agent_guidance: |
+  Never replace public-resolver polling with a DNS provider API confirmation check. The
+  provider API confirms the record was written; it does not confirm public resolvers see it.
+  When DNS-01 challenges fail intermittently, check propagation timeout settings (typically
+  2–5 minutes) before investigating DNS write failures. Increasing zone TTL to reduce
+  propagation time is a known mitigation.
+bad_smells:
+  - ACME notified immediately after DNS write without propagation wait
+  - propagation check queries authoritative NS instead of Cloudflare/Google
+  - DNSPropagator implementation polls only the provider API
+  - propagation timeout set to zero or skipped
+activation_triggers:
+  - DNS-01 challenge
+  - TXT record propagation
+  - _acme-challenge
+  - DNSPropagator
+  - 1.1.1.1
+  - 8.8.8.8
+  - PublicResolverPropagator
+expressed_by:
+  - golang/domain/domain_server/acme_solver.go
+  - golang/domain/domain_server/dns_propagation.go
+related_invariants: []
+zooms_out_to:
+  - domain.leader_only_acme_reconciliation
+zooms_in_to: []
+related_to:
+  - domain.acme_account_is_persisted_to_prevent_registration_loops
+required_tests:
+  - domain:TestDNS01SolverWaitsForPublicPropagation
+  - domain:TestPropagatorPollingCloudflareAndGoogle
+status: extracted_candidate

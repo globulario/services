@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_domain.acme_account
+// @awareness file_role=acme_account_persistence_prevents_let_encrypt_rate_limit_exhaustion
+// @awareness implements=globular.platform:intent.domain.acme_account_is_persisted_to_prevent_registration_loops
+// @awareness implements=globular.platform:intent.domain.leader_only_acme_reconciliation
+// @awareness risk=high
 package domain
 
 import (

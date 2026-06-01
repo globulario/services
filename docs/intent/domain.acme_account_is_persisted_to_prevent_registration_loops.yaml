@@ -1,0 +1,40 @@
+id: domain.acme_account_is_persisted_to_prevent_registration_loops
+level: mechanism
+title: ACME account registration is persisted to disk to prevent re-registration on restart
+intent: |
+  Let's Encrypt enforces rate limits on account registrations per email address. If the
+  domain service registers a new ACME account on every restart, it will exhaust those
+  limits within hours. The persistedAccount struct (email, ECDSA private key, registration
+  object) is written to disk on first registration and read back on every subsequent start.
+  The file must survive service restarts; if it is absent, the service registers once and
+  persists immediately. If it is present but unreadable, the service must fail loudly rather
+  than silently re-register.
+agent_guidance: |
+  Never delete or truncate the ACME account file (/var/lib/globular/domains/<email>/account.json
+  or equivalent). Never re-register if the file already exists and parses cleanly. If a new
+  email address is configured, treat that as a new account path, not a re-registration of the
+  old one. Rate-limit errors from Let's Encrypt almost always indicate the account file was
+  lost or ignored.
+bad_smells:
+  - ACME registration called unconditionally on every service start
+  - account file absence treated as non-fatal (silent re-registration)
+  - account private key generated fresh on every start
+  - account file stored in a tmpfs or ephemeral directory
+activation_triggers:
+  - ACME account
+  - persistedAccount
+  - registration
+  - Let's Encrypt rate limit
+  - account.json
+expressed_by:
+  - golang/domain/domain_server/acme_account.go
+related_invariants: []
+zooms_out_to:
+  - domain.leader_only_acme_reconciliation
+zooms_in_to: []
+related_to:
+  - domain.dns01_challenge_waits_for_public_resolver_propagation
+required_tests:
+  - domain:TestACMEAccountPersistedAfterFirstRegistration
+  - domain:TestACMEAccountRestoredFromDiskOnRestart
+status: extracted_candidate

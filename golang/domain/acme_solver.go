@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_domain.acme_solver
+// @awareness file_role=dns01_challenge_txt_record_creation_propagation_wait_and_cleanup
+// @awareness implements=globular.platform:intent.domain.dns01_challenge_waits_for_public_resolver_propagation
+// @awareness implements=globular.platform:intent.domain.leader_only_acme_reconciliation
+// @awareness risk=high
 package domain
 
 import (

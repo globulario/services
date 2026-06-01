@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_domain.dns_propagation
+// @awareness file_role=public_resolver_polling_cloudflare_google_for_txt_propagation_gate
+// @awareness implements=globular.platform:intent.domain.dns01_challenge_waits_for_public_resolver_propagation
+// @awareness risk=high
 package domain
 
 import (

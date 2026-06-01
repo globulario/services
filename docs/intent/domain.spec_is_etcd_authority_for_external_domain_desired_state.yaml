@@ -1,0 +1,45 @@
+id: domain.spec_is_etcd_authority_for_external_domain_desired_state
+level: mechanism
+title: ExternalDomainSpec in etcd is the sole desired-state authority for external domain management
+intent: |
+  External domain reconciliation (ACME issuance, DNS record creation, cert distribution)
+  is driven entirely by ExternalDomainSpec records stored in etcd at
+  /globular/domains/v1/<fqdn>. The reconciler reads these specs — never local files,
+  environment variables, or in-memory state not backed by etcd — to determine which
+  domains need certs and which DNS providers serve them. Adding a domain means writing
+  a spec to etcd; removing a domain means deleting the spec. The domain store also
+  manages provider configurations at /globular/providers/v1/<name>, which hold DNS
+  API credentials and provider-type metadata. Both prefixes are the canonical etcd source
+  of truth for the domain subsystem.
+agent_guidance: |
+  If a domain appears in logs but has no cert, check /globular/domains/v1/<fqdn> first.
+  If the spec is absent, no reconciliation will run. Never add a domain to a local config
+  file or environment variable — write it to etcd via the domain store. Provider configs
+  at /globular/providers/v1/<name> must exist before a spec can reference a provider;
+  creating the spec first results in a "provider not found" reconciliation error.
+bad_smells:
+  - domain FQDN read from environment variable or local config file
+  - reconciler iterating a hardcoded list of domains
+  - ExternalDomainSpec created in memory without etcd write
+  - provider config stored in etcd value as plaintext credentials
+activation_triggers:
+  - ExternalDomainSpec
+  - /globular/domains/v1/
+  - /globular/providers/v1/
+  - domain store
+  - DomainSpecPrefix
+  - ProviderConfigPrefix
+expressed_by:
+  - golang/domain/domain_server/spec.go
+  - golang/domain/domain_server/store.go
+related_invariants: []
+zooms_out_to:
+  - domain.certs_distributed_via_etcd_not_files
+zooms_in_to: []
+related_to:
+  - etcd.is_source_of_truth
+  - domain.leader_only_acme_reconciliation
+required_tests:
+  - domain:TestDomainSpecWriteAndReadFromEtcd
+  - domain:TestReconcilerDrivenByEtcdSpecs
+status: extracted_candidate

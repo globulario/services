@@ -30,7 +30,9 @@ expressed_by:
 related_invariants: []
 zooms_out_to:
   - domain.leader_only_acme_reconciliation
-zooms_in_to: []
+zooms_in_to:
+  - domain.cert_files_are_written_atomically
+  - domain.spec_is_etcd_authority_for_external_domain_desired_state
 related_to:
   - infrastructure.ingress.external_domain_tls_termination_and_control_plane_boundaries
 required_tests:

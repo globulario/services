@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_domain.file_atomic
+// @awareness file_role=atomic_cert_write_prevents_envoy_sds_partial_read
+// @awareness implements=globular.platform:intent.domain.cert_files_are_written_atomically
+// @awareness risk=high
 package domain
 
 import (

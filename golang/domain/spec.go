@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_domain.spec
+// @awareness file_role=external_domain_spec_etcd_desired_state_model
+// @awareness implements=globular.platform:intent.domain.spec_is_etcd_authority_for_external_domain_desired_state
+// @awareness implements=globular.platform:intent.domain.certs_distributed_via_etcd_not_files
+// @awareness risk=high
 package domain
 
 import (
