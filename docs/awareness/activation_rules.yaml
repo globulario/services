@@ -1,0 +1,231 @@
+# docs/awareness/activation_rules.yaml
+#
+# Machine-readable awareness activation rules.
+# Governs when AI agents MUST call awareness tools before editing Globular code.
+#
+# Intended to be imported into the awareness graph (Phase B importer).
+# Until then, this file is authoritative documentation consumed by CLAUDE.md.
+#
+# Namespaces covered:
+#   globular.platform            — core platform services
+#   globular.awareness_graph     — awareness-graph internals
+#   globular.examples.echo_service — echo pilot service
+#
+# Rule format:
+#   id:          unique snake_case identifier
+#   name:        short human label
+#   trigger:     what condition activates this rule
+#   mandatory:   true = MUST call; false = optional/recommended
+#   tools:       which awareness tools to call, in order
+#   applies_to:  list of path prefixes, concept keywords, or file patterns
+#   rationale:   why this rule exists
+#   status:      active | draft | deferred
+
+activation_rules:
+  version: v0
+  namespace: globular.platform
+
+  rules:
+
+    - id: rule_1_annotated_file
+      name: Before editing annotated files
+      trigger: file
+      mandatory: true
+      tools:
+        - awareness.briefing(file=<path>)
+      applies_to:
+        kind: file_annotation
+        condition: file contains @awareness annotations OR has CodeSymbol entries in RDF graph
+      rationale: >
+        Annotated files have explicit invariants, failure modes, and forbidden fixes
+        declared. Editing without briefing risks unknowingly violating a declared
+        constraint or repeating a previously-learned scar.
+      status: active
+
+    - id: rule_2_high_risk_directories
+      name: Before editing high-risk directories
+      trigger: file_path
+      mandatory: true
+      tools:
+        - awareness.briefing(file=<path>)
+        - awareness.impact(file=<path>)
+      applies_to:
+        kind: path_prefix
+        paths:
+          - golang/node_agent/
+          - golang/cluster_controller/
+          - golang/services_manager/
+          - golang/repository/
+          - golang/rbac/
+          - golang/security/
+          - golang/mcp/
+          - golang/cluster_doctor/
+          - golang/ai_executor/
+          - docs/awareness/
+          - docs/intent/
+      rationale: >
+        These directories contain state authority logic, security boundaries,
+        package identity, or awareness system internals. Errors in these paths
+        cascade across layers. Briefing before edit surfaces which invariants and
+        failure modes apply even when the file is not yet annotated.
+      status: active
+
+    - id: rule_3_state_authority_concepts
+      name: Before touching state authority logic
+      trigger: task_concept
+      mandatory: true
+      tools:
+        - awareness.briefing(task=<task description>)
+        - awareness.impact(file=<path>)   # when target files are known
+      applies_to:
+        kind: concept_keywords
+        concepts:
+          - desired state
+          - installed state
+          - runtime state
+          - convergence
+          - reconciliation
+          - service health
+          - package install
+          - package publish
+          - repository identity
+          - etcd truth
+          - node-agent authority
+          - cluster controller
+          - state machine
+          - 4-layer model
+      rationale: >
+        State authority logic is the core architectural contract of the platform.
+        The 4-layer model (Repository → Desired → Installed → Runtime) must never
+        be collapsed. Any task touching these concepts must start with awareness
+        context so invariants like state.runtime_not_desired and
+        state.installed_not_catalog are front-of-mind before the first edit.
+      status: active
+
+    - id: rule_4_awareness_graph_internals
+      name: Before changing awareness graph behavior
+      trigger: file_path_or_concept
+      mandatory: true
+      tools:
+        - awareness.briefing(file=<path>)
+        - awareness.resolve(<id>)   # for any referenced_id marked high or critical
+      applies_to:
+        kind: path_prefix_or_concept
+        paths:
+          - awareness-graph/golang/
+          - cmd/yaml2nt/
+          - cmd/loadnt/
+          - cmd/annotation-scanner/
+          - golang/extractor/
+          - golang/server/briefing.go
+          - golang/server/impact.go
+          - golang/server/query.go
+          - golang/server/resolve.go
+          - golang/rdf/
+          - golang/store/
+        concepts:
+          - awareness graph
+          - yaml2nt
+          - annotation scanner
+          - CodeSymbol importer
+          - RDF vocabulary
+          - Oxigraph load
+          - awareness seed
+          - MCP awareness tools
+      rationale: >
+        The awareness graph is itself annotated and has declared invariants
+        (ntriples_validated_before_write, store_unavailable_explicit,
+        yaml_importer_does_not_silently_skip_in_strict_mode). Breaking the graph
+        degrades AI-agent safety for the entire platform. High/critical IDs must
+        be resolved and followed before any edit.
+      status: active
+
+    - id: rule_5_shortcut_fix_guard
+      name: Before applying a shortcut fix
+      trigger: proposed_fix_pattern
+      mandatory: true
+      tools:
+        - awareness.impact(file=<path>)
+      applies_to:
+        kind: fix_pattern
+        patterns:
+          - changes authority boundary
+          - weakens validation
+          - ignores stale data
+          - treats missing data as healthy
+          - bypasses gateway or client pool
+          - removes strict mode
+          - removes a guard condition
+          - adds a fallback that silences errors
+          - disables a check for a caller's convenience
+      rationale: >
+        Shortcut fixes are the most common source of forbidden-fix violations.
+        Checking forbidden fixes before committing a shortcut is cheap; the cost
+        of deploying a forbidden fix to a 5-node cluster is high.
+      status: active
+
+    - id: rule_6_final_report_template
+      name: Final report must include awareness summary
+      trigger: end_of_response
+      mandatory: true
+      tools: []
+      applies_to:
+        kind: always
+        condition: any non-trivial code task
+      rationale: >
+        The final report template creates a durable audit trail of which invariants
+        were considered and which were not. It also surfaces remaining uncertainty
+        so the next agent or human reviewer knows what was NOT checked.
+      template: |
+        Awareness used:
+        - briefing:
+        - impact:
+        - resolved IDs:
+        - invariants touched:
+        - failure modes considered:
+        - forbidden fixes avoided:
+        - required tests:
+        - tests run:
+        - remaining uncertainty:
+      status: active
+
+  optional_cases:
+    description: >
+      Awareness is NOT mandatory for the following. Calling it is always allowed
+      but must not block trivial low-risk work.
+    examples:
+      - typo-only README or doc edit (no code, no annotation blocks)
+      - formatting-only change (gofmt, import reorder)
+      - comment-only change outside @awareness annotation blocks
+      - low-risk pure-helper with no state, security, or runtime behavior
+      - test data fixture with no production code path
+      - dependency version bump with no API change
+
+  status_handling:
+    ok:
+      description: >
+        Use the returned context. Follow invariants and forbidden fixes. Run all
+        required tests from awareness output plus nearby regressions. For any
+        referenced_id marked high or critical, call awareness.resolve.
+      action: proceed_with_context
+
+    empty:
+      description: >
+        EMPTY does NOT mean safe. It means no direct awareness anchor exists for
+        this file. The file may still be high-risk — read the code, check
+        high_risk_files.yaml, and apply normal engineering judgment. Say
+        explicitly: "no direct awareness anchors were found."
+      action: proceed_cautiously
+      forbidden: treat_empty_as_safe
+
+    degraded:
+      description: >
+        Awareness is unavailable. Do NOT continue as if awareness is absent.
+        Report degraded awareness to the user. Avoid high-risk architectural
+        changes (state authority, security, package install, repository identity,
+        convergence) unless the user explicitly approves. Use code, tests, docs,
+        and runtime state as fallback evidence and say so.
+      action: pause_and_report
+      forbidden:
+        - silently_proceed_with_high_risk_edit
+        - treat_degraded_as_empty

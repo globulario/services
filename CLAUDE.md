@@ -284,9 +284,9 @@ Awareness is the compact gRPC map of project intent, invariants, failure modes, 
 5. End the response with the awareness template (below).
 
 **Status handling:**
-- `ok` — treat returned rules as active context. Follow invariants and forbidden fixes; run required tests.
-- `empty` — NOT proof of safety. Say "no direct awareness anchors were found" and continue cautiously.
-- `degraded` or transport error — say awareness was unavailable; use code/tests/docs/runtime as fallback evidence.
+- `ok` — treat returned rules as active context. Follow invariants and forbidden fixes; run required tests. Resolve any referenced_id marked high or critical.
+- `empty` — NOT proof of safety. Say "no direct awareness anchors were found" and continue cautiously. Check `high_risk_files.yaml`.
+- `degraded` or transport error — report degraded awareness. Do NOT proceed with high-risk architectural changes (state authority, security, package install, repository identity, convergence) unless the user explicitly approves. Use code/tests/docs/runtime as fallback evidence and say so.
 
 **Final response template** (append to every non-trivial code task):
 
@@ -307,6 +307,30 @@ If awareness was unavailable: `Awareness status: DEGRADED — fallback evidence:
 If awareness was empty: `Awareness status: EMPTY for the target — code/docs checked manually: …`
 
 Awareness explains *why* code exists, *what* it protects, *which fixes are forbidden*. Awareness cannot prove current etcd state, cluster membership, runtime health, or installed-package state — verify those with live tools.
+
+---
+
+## AWARENESS ACTIVATION RULES
+
+Full machine-readable rules: [`docs/awareness/activation_rules.yaml`](docs/awareness/activation_rules.yaml)
+
+Awareness is **mandatory** for the following. No exceptions.
+
+| Rule | Trigger | Tools required |
+|---|---|---|
+| **R1 Annotated file** | File has `@awareness` annotations or CodeSymbol entries in graph | `briefing(file=)` |
+| **R2 High-risk directory** | Edit targets `golang/node_agent/`, `golang/cluster_controller/`, `golang/services_manager/`, `golang/repository/`, `golang/rbac/`, `golang/security/`, `golang/mcp/`, `golang/cluster_doctor/`, `golang/ai_executor/`, `docs/awareness/`, `docs/intent/` | `briefing(file=)` then `impact(file=)` |
+| **R3 State authority** | Task involves desired state, installed state, runtime state, convergence, reconciliation, service health, package install/publish, repository identity, etcd truth, node-agent authority, cluster controller | `briefing(task=)` then `impact(file=)` when files are known |
+| **R4 Awareness internals** | Modifying yaml2nt, annotation-scanner, CodeSymbol importer, RDF vocabulary, Oxigraph load/seed, or MCP awareness tools | `briefing(file=)` then `resolve()` for any high/critical referenced_id |
+| **R5 Shortcut fix** | Proposed fix changes authority boundary, weakens validation, ignores stale data, treats missing data as healthy, bypasses gateway/pool, or removes strict mode | `impact(file=)` and check forbidden fixes |
+| **R6 Final report** | Every non-trivial code task | Append awareness template to response |
+
+Awareness is **optional** (but always allowed) for:
+- Typo-only README or doc edits (no code, no annotation blocks)
+- Formatting-only changes (gofmt, import reorder)
+- Comment-only changes outside `@awareness` annotation blocks
+- Low-risk pure-helpers with no state, security, or runtime behavior
+- Test data fixtures with no production code path
 
 ---
 
