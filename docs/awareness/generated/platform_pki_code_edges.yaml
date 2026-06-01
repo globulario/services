@@ -1,0 +1,40 @@
+code_edges:
+  - from: globular.platform:code.go.platform_pki.ca
+    relation: implements
+    to: globular.platform:intent.pki.ca_files_live_at_canonical_path
+  - from: globular.platform:code.go.platform_pki.ca
+    relation: implements
+    to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - from: globular.platform:code.go.platform_pki.etcd_sync
+    relation: implements
+    to: globular.platform:intent.pki.ca_metadata_mirrored_to_etcd_for_node_discovery
+  - from: globular.platform:code.go.platform_pki.etcd_sync
+    relation: implements
+    to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - from: globular.platform:code.go.platform_pki.leaf_issue
+    relation: implements
+    to: globular.platform:intent.pki.leaf_cert_rotation_is_proactive_not_reactive
+  - from: globular.platform:code.go.platform_pki.leaf_issue
+    relation: implements
+    to: globular.platform:intent.pki.peer_and_server_certs_use_separate_issuance_paths
+  - from: globular.platform:code.go.platform_pki.manager
+    relation: implements
+    to: globular.platform:intent.pki.peer_and_server_certs_use_separate_issuance_paths
+  - from: globular.platform:code.go.platform_pki.manager
+    relation: implements
+    to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - from: globular.platform:code.go.platform_pki.san
+    relation: implements
+    to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - from: globular.platform:code.go.platform_pki.san
+    relation: implements
+    to: globular.platform:intent.pki.san_must_include_all_service_identities
+  - from: globular.platform:code.go.platform_pki.validate
+    relation: implements
+    to: globular.platform:intent.pki.leaf_cert_rotation_is_proactive_not_reactive
+  - from: globular.platform:code.go.platform_pki.validate
+    relation: implements
+    to: globular.platform:intent.pki.san_must_include_all_service_identities
+  - from: globular.platform:code.go.platform_pki.validate_rotate
+    relation: implements
+    to: globular.platform:intent.pki.leaf_cert_rotation_is_proactive_not_reactive

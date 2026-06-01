@@ -1,0 +1,50 @@
+id: pki.peer_and_server_certs_use_separate_issuance_paths
+level: mechanism
+title: Peer certs always use local CA; server certs may use ACME; public ACME never touches mTLS certs
+status: active
+
+intent: >
+  The PKI manager separates three distinct certificate roles:
+  - EnsurePeerCert: always issued by the local cluster CA. Used for mTLS between
+    cluster members. Must include IP SANs. Must NOT use ACME.
+  - EnsureServerCert: uses ACME if ACMEConfig.Enabled; otherwise falls back to local CA.
+    Used for public-facing gRPC/HTTPS endpoints.
+  - EnsurePublicACMECert: issues a public Let's Encrypt cert for a domain. Writes
+    <base>.key, <base>.crt, <base>.issuer.crt, <base>.fullchain.pem. Does NOT
+    modify server.key or server.crt — those remain local-CA-issued for mTLS.
+  Mixing these paths (e.g., using an ACME cert for mTLS peer authentication) breaks
+  trust anchor isolation: ACME certs are trusted by public CAs, not by the cluster CA,
+  and cannot be used for cluster-internal mutual authentication.
+
+agent_guidance: >
+  Never substitute EnsurePublicACMECert output for server.crt/server.key in mTLS.
+  If a service needs both a public TLS cert (for external clients) and an mTLS cert
+  (for peer communication), they must be different files from different issuance paths.
+  ACME config being disabled is a valid steady-state — EnsureServerCert handles the
+  fallback transparently.
+
+bad_smells:
+  - using the fullchain.pem from EnsurePublicACMECert as server.crt for mTLS
+  - EnsurePeerCert using ACME when local CA is unavailable
+  - single cert file serving both external TLS and internal mTLS roles
+
+activation_triggers:
+  - editing pki/manager.go or pki/manager_impl.go
+  - adding a new service that needs both public TLS and internal mTLS
+  - debugging mTLS "certificate signed by unknown authority" after ACME renewal
+
+zooms_out_to:
+  - security.tokens_certificates_keys.cluster_trust_contract
+
+zooms_in_to: []
+
+related_invariants:
+  - authentication.mtls_and_jwt_serve_different_trust_layers
+
+related_to:
+  - pki.san_must_include_all_service_identities
+  - pki.leaf_cert_rotation_is_proactive_not_reactive
+
+required_tests:
+  - pki:TestEnsurePublicACMECert_DoesNotOverwriteServerCert
+  - pki:TestEnsurePeerCert_UsesLocalCAWhenACMEEnabled

@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_pki.etcd_sync
+// @awareness file_role=ca_cert_mirrored_to_etcd_with_sha256_metadata_for_node_rotation_detection
+// @awareness implements=globular.platform:intent.pki.ca_metadata_mirrored_to_etcd_for_node_discovery
+// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+// @awareness risk=critical
 package pki
 
 import (

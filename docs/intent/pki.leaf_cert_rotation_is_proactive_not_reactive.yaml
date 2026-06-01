@@ -1,0 +1,47 @@
+id: pki.leaf_cert_rotation_is_proactive_not_reactive
+level: mechanism
+title: Leaf cert rotation is proactive — certs are renewed before expiry, never after
+status: active
+
+intent: >
+  RotateIfExpiring() renews a leaf certificate when its remaining validity falls
+  below renewBefore (typically 30 days), not when it has already expired. Reactive
+  rotation — triggered only after expiry — causes mTLS failures across all connections
+  using that cert before the rotation completes. The proactive window must be long
+  enough that a rotation failure followed by a retry cycle still completes before
+  the cert expires. A cert that expires before rotation is not a graceful failure —
+  it is a cluster-wide mTLS outage.
+
+agent_guidance: >
+  RotateIfExpiring is in pki/validate_rotate.go. The renewBefore parameter is set
+  by the caller — do not reduce it below 7 days without understanding the retry budget.
+  If you add a new cert type, wire it into the rotation loop with the same proactive
+  window. Do not add "check if expired then rotate" logic — that is the reactive
+  anti-pattern this intent forbids.
+
+bad_smells:
+  - rotation check using time.Now().After(cert.NotAfter) instead of time.Until(cert.NotAfter) < renewBefore
+  - renewBefore set to 0 or negative (disabling proactive rotation)
+  - cert type added without a rotation hook
+
+activation_triggers:
+  - editing pki/validate_rotate.go
+  - editing pki/leaf_issue.go
+  - editing any cert renewal loop in node_agent or domain package
+  - debugging mTLS failures caused by expired certs
+
+zooms_out_to:
+  - dns_pki.explicit_identity_over_convenient_routing
+
+zooms_in_to: []
+
+related_invariants:
+  - health.requires_fresh_evidence
+
+related_to:
+  - pki.san_must_include_all_service_identities
+
+required_tests:
+  - pki:TestRotateIfExpiring_RotatesWhenWithinWindow
+  - pki:TestRotateIfExpiring_NoopWhenFarFromExpiry
+  - pki:TestRotateIfExpiring_RotatesWhenAlreadyExpired

@@ -1,0 +1,48 @@
+id: pki.ca_deletion_requires_audited_approval
+level: mechanism
+title: PKI CA deletion from etcd requires an explicit delete-approval tombstone — absence triggers restore
+status: active
+
+intent: >
+  The controller's PKI reconciler (pki_reconciler.go) treats a missing
+  /globular/pki/ca.meta.json etcd key as a consistency gap, not a valid "no CA"
+  state. When the key is absent: if a valid delete-approval tombstone exists at
+  pkiCADeleteApprovalPrefix, the reconciler accepts the deletion as intentional.
+  If no tombstone exists, it restores the CA metadata from the on-disk CA cert.
+  This prevents accidental etcd key deletion (network partition, operator mistake)
+  from silently breaking all node-agent certificate health checks. The delete-approval
+  pattern is the same as ingress_spec_guard.go — the shared helpers are in
+  delete_approval.go.
+
+agent_guidance: >
+  If you need to intentionally delete the PKI CA from etcd (e.g., during a CA
+  rotation ceremony), you must first write a delete-approval tombstone at the correct
+  key. The reconciler runs on a short loop — without a tombstone, it will restore
+  the key within one reconcile cycle. Do not work around this by disabling the
+  reconciler; create the tombstone and let the reconciler observe it.
+
+bad_smells:
+  - deleting /globular/pki/ca.meta.json from etcd without writing a tombstone first
+  - reconciler disabled or bypassed to allow CA deletion
+  - treating restore-from-disk as a CA issuance (it is a metadata heal, not a new CA)
+
+activation_triggers:
+  - editing cluster_controller/cluster_controller_server/pki_reconciler.go
+  - editing delete_approval.go
+  - debugging CA metadata disappearing from etcd
+  - performing a CA rotation ceremony
+
+zooms_out_to:
+  - security.tokens_certificates_keys.cluster_trust_contract
+
+zooms_in_to: []
+
+related_invariants:
+  - critical_state.deletion_requires_audited_intent
+
+related_to:
+  - pki.ca_metadata_mirrored_to_etcd_for_node_discovery
+
+required_tests:
+  - cluster_controller:TestPKIReconciler_RestoresCAMetadataWhenAbsent
+  - cluster_controller:TestPKIReconciler_SkipsRestoreWhenTombstonePresent

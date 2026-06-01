@@ -86,6 +86,16 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - id: globular.platform:code.go.platform_security.keys
+    namespace: globular.platform
+    language: go
+    file: golang/security/keys.go
+    component: platform_security.keys
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.pki.ca_files_live_at_canonical_path
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
   - id: globular.platform:code.go.platform_security.node_identity
     namespace: globular.platform
     language: go

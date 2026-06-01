@@ -103,6 +103,16 @@ code_symbols:
       implements:
         - globular.platform:intent.controller.leader_proxy_makes_writes_transparent
         - globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+  - id: globular.platform:code.go.platform_controller.pki_reconciler
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/pki_reconciler.go
+    component: platform_controller.pki_reconciler
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.pki.ca_deletion_requires_audited_approval
+        - globular.platform:intent.pki.ca_metadata_mirrored_to_etcd_for_node_discovery
   - id: globular.platform:code.go.platform_controller.posture
     namespace: globular.platform
     language: go

@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_pki.validate_rotate
+// @awareness file_role=proactive_cert_rotation_before_expiry_reactive_is_forbidden
+// @awareness implements=globular.platform:intent.pki.leaf_cert_rotation_is_proactive_not_reactive
+// @awareness risk=critical
 package pki
 
 import (

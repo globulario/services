@@ -1,0 +1,49 @@
+id: pki.ca_metadata_mirrored_to_etcd_for_node_discovery
+level: mechanism
+title: CA cert is mirrored to etcd with SHA-256 metadata so node agents detect CA rotation
+status: active
+
+intent: >
+  After every CA issuance or rotation, the cluster CA certificate is published to
+  etcd at /globular/pki/ca.crt, accompanied by a metadata record at
+  /globular/pki/ca.meta.json containing the SHA-256 of the cert and the update
+  timestamp. Node agents compare the SHA-256 against their local copy to detect CA
+  rotation without polling the full cert payload. If the etcd CA metadata key is
+  absent at controller startup (and no delete-approval tombstone exists), it must
+  be restored from the on-disk CA — absence is treated as a consistency gap, not
+  a valid "no CA" state.
+
+agent_guidance: >
+  The etcd keys are /globular/pki/ca.crt (raw PEM) and /globular/pki/ca.meta.json
+  (caMetadata struct with SHA256, UpdatedUnix, Source). When updating CA rotation
+  logic, update both keys atomically. Node agents must not accept a CA cert without
+  verifying its SHA-256 against the metadata record. The restore path in
+  pki_reconciler.go is a safety net — if it fires in steady state, something deleted
+  the etcd key incorrectly.
+
+bad_smells:
+  - CA rotation updating /globular/pki/ca.crt without updating /globular/pki/ca.meta.json
+  - node agent accepting a CA cert without SHA-256 verification
+  - treating missing CA metadata as "no CA configured" rather than a gap to heal
+
+activation_triggers:
+  - editing pki/etcd_sync.go
+  - editing pki_reconciler.go
+  - editing node agent CA distribution logic
+  - debugging node agents not picking up CA rotation
+
+zooms_out_to:
+  - security.tokens_certificates_keys.cluster_trust_contract
+
+zooms_in_to: []
+
+related_invariants:
+  - etcd.is_source_of_truth
+
+related_to:
+  - pki.ca_files_live_at_canonical_path
+  - pki.ca_deletion_requires_audited_approval
+
+required_tests:
+  - pki:TestPublishCAMetadata_WritesHashAndTimestamp
+  - cluster_controller:TestPKIReconciler_RestoresCAMetadataWhenAbsent

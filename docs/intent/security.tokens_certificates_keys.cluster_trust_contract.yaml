@@ -53,6 +53,9 @@ zooms_in_to:
   - authentication.mtls_and_jwt_serve_different_trust_layers
   - security.cluster_id_validates_request_origin
   - security.auth_context_is_canonical_identity
+  - pki.ca_metadata_mirrored_to_etcd_for_node_discovery
+  - pki.peer_and_server_certs_use_separate_issuance_paths
+  - pki.ca_deletion_requires_audited_approval
 
 related_to:
   - etcd.is_source_of_truth

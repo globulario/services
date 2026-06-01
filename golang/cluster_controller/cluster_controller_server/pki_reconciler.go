@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.pki_reconciler
+// @awareness file_role=ca_metadata_restore_guard_missing_key_triggers_heal_not_deletion_tombstone_required
+// @awareness implements=globular.platform:intent.pki.ca_deletion_requires_audited_approval
+// @awareness implements=globular.platform:intent.pki.ca_metadata_mirrored_to_etcd_for_node_discovery
+// @awareness risk=critical
 package main
 
 // pki_reconciler.go — delete-approval guard for /globular/pki/ca.

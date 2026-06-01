@@ -71,6 +71,12 @@ code_edges:
   - from: globular.platform:code.go.platform_controller.leader_proxy
     relation: implements
     to: globular.platform:intent.controller.leader_proxy_makes_writes_transparent
+  - from: globular.platform:code.go.platform_controller.pki_reconciler
+    relation: implements
+    to: globular.platform:intent.pki.ca_deletion_requires_audited_approval
+  - from: globular.platform:code.go.platform_controller.pki_reconciler
+    relation: implements
+    to: globular.platform:intent.pki.ca_metadata_mirrored_to_etcd_for_node_discovery
   - from: globular.platform:code.go.platform_controller.posture
     relation: implements
     to: globular.platform:intent.circuit_breakers_protect_convergence

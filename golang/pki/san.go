@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_pki.san
+// @awareness file_role=subject_alternative_name_construction_all_identities_required_vip_included
+// @awareness implements=globular.platform:intent.pki.san_must_include_all_service_identities
+// @awareness implements=globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+// @awareness risk=critical
 package pki
 
 import (

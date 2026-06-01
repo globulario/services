@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_pki.manager
+// @awareness file_role=pki_manager_interface_peer_server_acme_issuance_path_separation
+// @awareness implements=globular.platform:intent.pki.peer_and_server_certs_use_separate_issuance_paths
+// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+// @awareness risk=critical
 package pki
 
 import (

@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_pki.leaf_issue
+// @awareness file_role=leaf_cert_issuance_local_ca_signing_from_csr
+// @awareness implements=globular.platform:intent.pki.peer_and_server_certs_use_separate_issuance_paths
+// @awareness implements=globular.platform:intent.pki.leaf_cert_rotation_is_proactive_not_reactive
+// @awareness risk=critical
 package pki
 
 import (

@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_pki.validate
+// @awareness file_role=cert_pair_validation_san_eku_and_key_match_verification
+// @awareness implements=globular.platform:intent.pki.san_must_include_all_service_identities
+// @awareness implements=globular.platform:intent.pki.leaf_cert_rotation_is_proactive_not_reactive
+// @awareness risk=high
 package pki
 
 import (

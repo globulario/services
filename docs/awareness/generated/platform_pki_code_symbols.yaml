@@ -1,0 +1,70 @@
+code_symbols:
+  - id: globular.platform:code.go.platform_pki.ca
+    namespace: globular.platform
+    language: go
+    file: golang/pki/ca.go
+    component: platform_pki.ca
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.pki.ca_files_live_at_canonical_path
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - id: globular.platform:code.go.platform_pki.etcd_sync
+    namespace: globular.platform
+    language: go
+    file: golang/pki/etcd_sync.go
+    component: platform_pki.etcd_sync
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.pki.ca_metadata_mirrored_to_etcd_for_node_discovery
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - id: globular.platform:code.go.platform_pki.leaf_issue
+    namespace: globular.platform
+    language: go
+    file: golang/pki/leaf_issue.go
+    component: platform_pki.leaf_issue
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.pki.peer_and_server_certs_use_separate_issuance_paths
+        - globular.platform:intent.pki.leaf_cert_rotation_is_proactive_not_reactive
+  - id: globular.platform:code.go.platform_pki.manager
+    namespace: globular.platform
+    language: go
+    file: golang/pki/manager.go
+    component: platform_pki.manager
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.pki.peer_and_server_certs_use_separate_issuance_paths
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - id: globular.platform:code.go.platform_pki.san
+    namespace: globular.platform
+    language: go
+    file: golang/pki/san.go
+    component: platform_pki.san
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.pki.san_must_include_all_service_identities
+        - globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - id: globular.platform:code.go.platform_pki.validate
+    namespace: globular.platform
+    language: go
+    file: golang/pki/validate.go
+    component: platform_pki.validate
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.pki.san_must_include_all_service_identities
+        - globular.platform:intent.pki.leaf_cert_rotation_is_proactive_not_reactive
+  - id: globular.platform:code.go.platform_pki.validate_rotate
+    namespace: globular.platform
+    language: go
+    file: golang/pki/validate_rotate.go
+    component: platform_pki.validate_rotate
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.pki.leaf_cert_rotation_is_proactive_not_reactive

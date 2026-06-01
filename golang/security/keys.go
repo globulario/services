@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_security.keys
+// @awareness file_role=ed25519_signing_key_lifecycle_normalized_filename_keysdir_canonical_path
+// @awareness implements=globular.platform:intent.pki.ca_files_live_at_canonical_path
+// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+// @awareness risk=high
 package security
 
 import (

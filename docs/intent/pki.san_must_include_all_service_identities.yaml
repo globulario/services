@@ -1,0 +1,50 @@
+id: pki.san_must_include_all_service_identities
+level: mechanism
+title: SANs must include every IP and DNS name the service is reached by — missing SAN causes mTLS failure
+status: active
+
+intent: >
+  When issuing a leaf certificate, the Subject Alternative Name (SAN) extension must
+  list every DNS name and IP address through which the service will be reached:
+  the node's primary IP, the VIP (if the service floats), the internal FQDN
+  (node.globular.internal), and any external DNS names. A TLS client that connects
+  via an address not listed in the SANs will receive a certificate validation error
+  regardless of whether the CA is trusted. The 2026 VIP-SAN incident (INC-2026-VIP)
+  demonstrated that omitting the VIP from service SANs caused a 16-hour silent outage
+  on the NUC node after VIP failover.
+
+agent_guidance: >
+  When calling EnsurePeerCert, EnsureServerCert, or EnsureClientCert, pass ALL
+  IPs and DNS names in the dns[] and ips[] slices — including the VIP if this service
+  can be reached through it. Use StableIP() not PrimaryIP() for VIP-holder detection
+  to avoid contaminating the SAN list with the VIP on non-holders. Verify the issued
+  cert SANs match expectations with ValidateCertPair(requireDNS, requireIPs).
+
+bad_smells:
+  - certificate issued with only the node's primary IP, omitting the VIP
+  - EnsurePeerCert called with empty dns and ips slices
+  - SAN list constructed without consulting the ingress VIP config from etcd
+  - ValidateCertPair called without requireDNS/requireIPs (skipping SAN verification)
+
+activation_triggers:
+  - editing pki/san.go
+  - editing pki/validate.go
+  - any call to EnsurePeerCert or EnsureServerCert
+  - debugging TLS x509 SAN mismatch errors
+  - VIP failover causing cert validation failures
+
+zooms_out_to:
+  - dns_pki.explicit_identity_over_convenient_routing
+
+zooms_in_to: []
+
+related_invariants: []
+
+related_to:
+  - pki.leaf_cert_rotation_is_proactive_not_reactive
+  - pki.ca_metadata_mirrored_to_etcd_for_node_discovery
+
+required_tests:
+  - pki:TestValidateCertPair_RejectsWhenSANMissingRequiredIP
+  - pki:TestValidateCertPair_RejectsWhenSANMissingRequiredDNS
+  - pki:TestEnsurePeerCert_VIPIncludedInSAN

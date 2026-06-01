@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_pki.ca
+// @awareness file_role=cluster_ca_issuance_migration_from_legacy_to_canonical_path
+// @awareness implements=globular.platform:intent.pki.ca_files_live_at_canonical_path
+// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+// @awareness risk=critical
 package pki
 
 import (

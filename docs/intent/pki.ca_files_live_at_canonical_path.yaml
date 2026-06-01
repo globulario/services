@@ -1,0 +1,46 @@
+id: pki.ca_files_live_at_canonical_path
+level: mechanism
+title: CA files must live at the canonical PKI path — legacy locations are migrated, never dual-written
+status: active
+
+intent: >
+  The cluster CA private key and certificate must be stored exclusively at
+  /var/lib/globular/pki/ca.key and /var/lib/globular/pki/ca.crt.
+  MigrateCAIfNeeded() handles the one-time migration from legacy work/ directories
+  to the canonical path. Once migration completes, the legacy path must not be
+  re-created or read from. Services that need the CA cert read it from the canonical
+  path; they must not probe multiple locations or fall back to legacy paths in steady
+  state. Dual-location CA means rotation in one place leaves the other stale.
+
+agent_guidance: >
+  The canonical CA dir is /var/lib/globular/pki/ (see config.GetPKIDir()).
+  If you add a new service that needs the CA cert, point it at the canonical path
+  directly. Do not replicate CA files into service work/ directories — use the
+  canonical path as the shared source of truth. MigrateCAIfNeeded() is a one-time
+  startup migration, not a general-purpose copy mechanism.
+
+bad_smells:
+  - service reading ca.crt from a work/ or service-specific directory in steady state
+  - CA files written to multiple locations during issuance
+  - migration code called on every request instead of once at startup
+
+activation_triggers:
+  - editing pki/ca.go
+  - editing security/keys.go
+  - adding a new service that needs the cluster CA cert
+  - debugging cert mismatch after CA rotation
+
+zooms_out_to:
+  - dns_pki.explicit_identity_over_convenient_routing
+
+zooms_in_to: []
+
+related_invariants:
+  - etcd.is_source_of_truth
+
+related_to:
+  - pki.ca_metadata_mirrored_to_etcd_for_node_discovery
+
+required_tests:
+  - pki:TestMigrateCAIfNeeded_MovesFromLegacyToCanonical
+  - pki:TestMigrateCAIfNeeded_NoopWhenCanonicalExists
