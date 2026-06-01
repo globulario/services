@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller
+// @awareness file_role=service_config_etcd_management
+// @awareness risk=medium
 package main
 
 import (

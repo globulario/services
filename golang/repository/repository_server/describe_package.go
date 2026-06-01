@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository
+// @awareness file_role=package_description_grpc_handler
+// @awareness risk=medium
 package main
 
 import (

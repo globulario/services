@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository
+// @awareness file_role=artifact_namespace_management
+// @awareness risk=medium
 package main
 
 // namespace.go — namespace and package ownership model using existing RBAC infrastructure.

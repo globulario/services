@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository
+// @awareness file_role=artifact_upload_allocation_handler
+// @awareness implements=globular.platform:intent.repository.publish_is_idempotent_by_digest
+// @awareness risk=high
 package main
 
 // allocate_upload.go — Phase 4: Upload allocation protocol.

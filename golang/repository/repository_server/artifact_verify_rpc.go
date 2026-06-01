@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository
+// @awareness file_role=artifact_verification_grpc_handler
+// @awareness implements=globular.platform:intent.runtime.identity_requires_verification
+// @awareness risk=high
 package main
 
 // artifact_verify_rpc.go — public RPC handlers for VerifyArtifact /

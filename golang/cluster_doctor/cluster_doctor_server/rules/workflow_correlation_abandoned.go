@@ -16,6 +16,11 @@
 // `convergence.no_infinite_retry`, `services.drift_must_age_and_escalate`,
 // and the code-smell "circuit state not visible in doctor" are why the
 // finding exists.
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules
+// @awareness file_role=workflow_correlation_abandoned_detection_rule
+// @awareness implements=globular.platform:intent.workflow.terminal_runs_must_be_bounded
+// @awareness risk=high
 package rules
 
 import (

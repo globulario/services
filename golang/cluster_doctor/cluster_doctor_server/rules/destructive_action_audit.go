@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules
+// @awareness file_role=destructive_action_audit_trail_rule
+// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
+// @awareness risk=high
 package rules
 
 // globular:tested_by destructive_action_guards

@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.recovery
+// @awareness file_role=node_repair_grpc_handler
+// @awareness risk=high
 package main
 
 import (

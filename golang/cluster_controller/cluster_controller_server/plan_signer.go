@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.join_lifecycle
+// @awareness file_role=join_plan_signing_authority
+// @awareness implements=globular.platform:intent.cluster.membership.earned_trust
+// @awareness risk=high
 package main
 
 import (

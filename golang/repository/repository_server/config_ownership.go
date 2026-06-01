@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository
+// @awareness file_role=operator_config_ownership_enforcement
+// @awareness implements=globular.platform:intent.config.operator_ownership_is_preserved
+// @awareness risk=medium
 package main
 
 // config_ownership.go — Phase CLI-D package config ownership classification.

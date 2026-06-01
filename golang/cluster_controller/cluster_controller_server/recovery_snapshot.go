@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.recovery
+// @awareness file_role=cluster_state_snapshot_for_recovery
+// @awareness risk=high
 package main
 
 // recovery_snapshot.go — NodeRecoverySnapshot capture and validation.

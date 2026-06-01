@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor
+// @awareness file_role=incident_audit_correlation
+// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
+// @awareness risk=high
 package main
 
 import (

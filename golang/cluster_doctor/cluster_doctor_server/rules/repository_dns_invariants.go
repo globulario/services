@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules
+// @awareness file_role=repository_dns_invariants_rule
+// @awareness implements=globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+// @awareness risk=high
 package rules
 
 // repository_dns_invariants.go — Doctor rules that enforce the two structural

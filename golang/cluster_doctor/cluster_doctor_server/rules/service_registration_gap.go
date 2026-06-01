@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules
+// @awareness file_role=service_registration_gap_detection_rule
+// @awareness implements=globular.platform:intent.service_registration.must_match_runtime_and_repository
+// @awareness risk=high
 package rules
 
 import (

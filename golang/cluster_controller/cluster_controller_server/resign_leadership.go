@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.leader_election
+// @awareness file_role=graceful_leader_resignation
+// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
+// @awareness risk=high
 package main
 
 import (

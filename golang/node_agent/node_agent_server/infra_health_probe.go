@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent
+// @awareness file_role=infrastructure_service_health_probe
+// @awareness enforces=globular.platform:invariant.state.runtime_not_desired
+// @awareness risk=high
 package main
 
 import (

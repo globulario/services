@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=infrastructure_service_readiness_probes
+// @awareness risk=high
 package main
 
 import (

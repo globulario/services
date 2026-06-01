@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.objectstore
+// @awareness file_role=objectstore_topology_status_management
+// @awareness risk=high
 package main
 
 import (

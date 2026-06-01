@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository
+// @awareness file_role=dependency_health_check
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness risk=high
 package main
 
 // dep_health.go — capability-aware dependency health watchdog for the repository service.

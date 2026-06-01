@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller
+// @awareness file_role=bounded_etcd_query_helpers
+// @awareness risk=medium
 package main
 
 // bounded_query.go — Case 08: UNBOUNDED_CRITICAL_PATH_QUERY

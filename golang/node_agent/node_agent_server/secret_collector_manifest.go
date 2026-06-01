@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.pki
+// @awareness file_role=secret_collector_manifest_types
+// @awareness risk=medium
 package main
 
 import (

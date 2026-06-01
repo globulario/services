@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller
+// @awareness file_role=health_check_grpc_handlers
+// @awareness risk=medium
 package main
 
 import (

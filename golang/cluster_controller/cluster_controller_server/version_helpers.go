@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller
+// @awareness file_role=version_comparison_and_parsing_helpers
+// @awareness risk=low
 package main
 
 import "strings"

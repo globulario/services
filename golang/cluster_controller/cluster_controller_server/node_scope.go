@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=node_scope_filter_for_reconcile
+// @awareness risk=medium
 package main
 
 import (

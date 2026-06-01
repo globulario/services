@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.recovery
+// @awareness file_role=node_recovery_grpc_handlers
+// @awareness risk=high
 package main
 
 // recovery_rpc.go — server implementation of NodeRecoveryServiceServer.

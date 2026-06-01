@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=package_kind_mismatch_detection_in_etcd
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness risk=high
 package main
 
 import (

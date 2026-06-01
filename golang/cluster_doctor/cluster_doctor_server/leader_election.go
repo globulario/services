@@ -4,6 +4,11 @@
 //
 // Uses the same concurrency.Election pattern as the cluster-controller.
 // See docs/architecture/HA-control-plane-design.md §Class B.
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor
+// @awareness file_role=cluster_doctor_leader_election
+// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
+// @awareness risk=high
 package main
 
 import (

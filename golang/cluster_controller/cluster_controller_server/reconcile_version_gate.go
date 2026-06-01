@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=version_gate_before_reconcile_apply
+// @awareness implements=globular.platform:intent.release.bom_is_precise_release_authority
+// @awareness risk=high
 package main
 
 import (

@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller
+// @awareness file_role=controller_config_loading
+// @awareness risk=medium
 package main
 
 import (

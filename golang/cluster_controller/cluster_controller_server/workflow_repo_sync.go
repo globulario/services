@@ -1,6 +1,10 @@
 // workflow_repo_sync.go wires the repository actor actions for the controller
 // and provides runSyncUpstreamWorkflow — the entry point for executing
 // repository.sync.upstream via the centralized workflow service.
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.workflow
+// @awareness file_role=repository_sync_workflow_dispatch
+// @awareness risk=high
 package main
 
 import (

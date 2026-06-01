@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.profiles
+// @awareness file_role=node_profile_deduction_logic
+// @awareness risk=high
 package main
 
 import (

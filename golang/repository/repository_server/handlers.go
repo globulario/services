@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository
+// @awareness file_role=repository_primary_grpc_handlers
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness risk=high
 package main
 
 import (

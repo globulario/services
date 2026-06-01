@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent
+// @awareness file_role=webroot_static_content_sync
+// @awareness risk=low
 package main
 
 import (

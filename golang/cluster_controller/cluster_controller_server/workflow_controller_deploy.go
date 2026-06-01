@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.workflow
+// @awareness file_role=controller_self_deploy_workflow
+// @awareness risk=high
 package main
 
 import (

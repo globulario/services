@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules
+// @awareness file_role=day0_bootstrap_completion_rule
+// @awareness implements=globular.platform:intent.day0_day1_are_repeatable_ceremonies
+// @awareness risk=high
 package rules
 
 import "github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"

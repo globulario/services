@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=native_dependency_block_registry
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness risk=high
 package main
 
 import "strings"

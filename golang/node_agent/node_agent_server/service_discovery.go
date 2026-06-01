@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent
+// @awareness file_role=local_service_discovery_from_etcd
+// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
+// @awareness risk=high
 package main
 
 import (

@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=critical_state_registry_for_convergence_gate
+// @awareness enforces=globular.platform:invariant.state.unknown_must_not_default_to_healthy
+// @awareness risk=high
 package main
 
 import "fmt"

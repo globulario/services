@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent
+// @awareness file_role=service_control_grpc_handler
+// @awareness implements=globular.platform:intent.runtime_health.requires_live_observation
+// @awareness risk=high
 package main
 
 import (

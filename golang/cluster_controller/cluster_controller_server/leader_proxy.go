@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.leader_election
+// @awareness file_role=follower_to_leader_rpc_forward_proxy
+// @awareness risk=high
 package main
 
 // leader_proxy.go — Transparent leader forwarding for write RPCs.

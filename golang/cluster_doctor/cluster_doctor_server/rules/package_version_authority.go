@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules
+// @awareness file_role=package_version_authority_rule
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness risk=high
 package rules
 
 // package_version_authority.go — Doctor rule that catches version-authority

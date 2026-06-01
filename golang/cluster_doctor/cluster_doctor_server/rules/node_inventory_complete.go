@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules
+// @awareness file_role=node_inventory_completeness_rule
+// @awareness enforces=globular.platform:invariant.state.unknown_must_not_default_to_healthy
+// @awareness risk=high
 package rules
 
 import (

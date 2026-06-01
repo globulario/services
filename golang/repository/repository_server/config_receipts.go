@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository
+// @awareness file_role=config_application_receipt_tracking
+// @awareness risk=medium
 package main
 
 // config_receipts.go — Phase F Part 2 (repo-side scaffold) for

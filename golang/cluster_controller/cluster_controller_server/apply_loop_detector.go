@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=reconcile_apply_loop_detection
+// @awareness enforces=globular.platform:invariant.workflow.dispatch_is_not_completion
+// @awareness risk=high
 package main
 
 import (

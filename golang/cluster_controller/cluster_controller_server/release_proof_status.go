@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=release_runtime_proof_status_tracking
+// @awareness implements=globular.platform:intent.runtime.identity_requires_verification
+// @awareness risk=high
 package main
 
 // release_proof_status.go — Phase 4 (Diagnostic Honesty Refactor).

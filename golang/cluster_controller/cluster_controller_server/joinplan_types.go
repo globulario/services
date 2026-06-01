@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.join_lifecycle
+// @awareness file_role=join_plan_type_definitions
+// @awareness risk=medium
 package main
 
 import "time"

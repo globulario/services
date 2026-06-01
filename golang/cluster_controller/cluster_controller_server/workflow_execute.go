@@ -4,6 +4,11 @@
 //   - Building the ExecuteWorkflow request
 //   - Calling the workflow service
 //   - Cleanup after execution
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.workflow
+// @awareness file_role=workflow_execution_dispatch
+// @awareness implements=globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+// @awareness risk=high
 package main
 
 import (

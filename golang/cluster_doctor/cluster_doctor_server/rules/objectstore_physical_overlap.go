@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules
+// @awareness file_role=objectstore_physical_drive_overlap_rule
+// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
+// @awareness risk=high
 package rules
 
 // objectstore_physical_overlap.go — invariants that detect physical storage

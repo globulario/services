@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor
+// @awareness file_role=workflow_runner_for_remediation
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness risk=high
 package main
 
 import (

@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository
+// @awareness file_role=provisional_artifact_import
+// @awareness implements=globular.platform:intent.repository.publish_is_idempotent_by_digest
+// @awareness risk=high
 package main
 
 // import_provisional.go — Phase 6: Day-0 provisional artifact import.

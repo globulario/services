@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=desired_state_etcd_publisher
+// @awareness implements=globular.platform:intent.desired_state.is_authority
+// @awareness risk=critical
 package main
 
 // desired_state_publisher.go — bootstrap label management for InfrastructureRelease records.

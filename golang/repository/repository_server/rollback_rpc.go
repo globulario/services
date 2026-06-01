@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository
+// @awareness file_role=rollback_candidate_grpc_handler
+// @awareness implements=globular.platform:intent.rollback.must_be_operator_chosen
+// @awareness risk=high
 package main
 
 // rollback_rpc.go — Phase CLI-C public RPCs for installed-revision history

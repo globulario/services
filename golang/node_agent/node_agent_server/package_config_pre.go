@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.package_apply
+// @awareness file_role=pre_apply_package_config_substitution
+// @awareness risk=high
 package main
 
 // package_config_pre.go — Phase F-final pre-install config policy gate.

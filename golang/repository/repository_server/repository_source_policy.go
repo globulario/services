@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.upstream
+// @awareness file_role=upstream_source_fetch_policy
+// @awareness implements=globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+// @awareness risk=high
 package main
 
 // repository_source_policy.go — etcd-backed source resolution policy.

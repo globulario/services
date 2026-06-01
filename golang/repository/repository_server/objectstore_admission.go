@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository
+// @awareness file_role=repository_objectstore_admission_check
+// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
+// @awareness risk=high
 package main
 
 // objectstore_admission.go — topology-aware MinIO mirror admission gate.

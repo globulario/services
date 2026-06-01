@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules
+// @awareness file_role=repository_status_health_rule
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness risk=high
 package rules
 
 // repository_status.go — doctor invariants driven by GetRepositoryStatus.

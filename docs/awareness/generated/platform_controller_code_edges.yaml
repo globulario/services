@@ -107,12 +107,48 @@ code_edges:
   - from: globular.platform:code.go.platform.controller.objectstore.minioTopologyReconciler
     relation: implements
     to: globular.platform:intent.quorum_safety_before_storage_mutation
+  - from: globular.platform:code.go.platform_controller
+    relation: enforces
+    to: globular.platform:invariant.state.unknown_must_not_default_to_healthy
+  - from: globular.platform:code.go.platform_controller
+    relation: implements
+    to: globular.platform:intent.delete_requires_explicit_intent_marker
+  - from: globular.platform:code.go.platform_controller
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_controller
+    relation: implements
+    to: globular.platform:intent.identity.stable_node_identity_not_floating_vip
+  - from: globular.platform:code.go.platform_controller
+    relation: implements
+    to: globular.platform:intent.quorum_safety_before_storage_mutation
+  - from: globular.platform:code.go.platform_controller.agent
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_controller.bootstrap
+    relation: implements
+    to: globular.platform:intent.day0_day1_are_repeatable_ceremonies
+  - from: globular.platform:code.go.platform_controller.bootstrap
+    relation: implements
+    to: globular.platform:intent.day0_day1_are_repeatable_ceremonies
   - from: globular.platform:code.go.platform_controller.bootstrap
     relation: implements
     to: globular.platform:intent.day0_day1_are_repeatable_ceremonies
   - from: globular.platform:code.go.platform_controller.desired_state
     relation: implements
     to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_controller.etcd
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_controller.etcd
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_controller.etcd
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_controller.ingress
+    relation: implements
+    to: globular.platform:intent.quorum_safety_before_storage_mutation
   - from: globular.platform:code.go.platform_controller.invariant_enforcement
     relation: enforces
     to: globular.platform:invariant.state.unknown_must_not_default_to_healthy
@@ -128,6 +164,30 @@ code_edges:
   - from: globular.platform:code.go.platform_controller.join_lifecycle
     relation: implements
     to: globular.platform:intent.cluster.membership.earned_trust
+  - from: globular.platform:code.go.platform_controller.join_lifecycle
+    relation: implements
+    to: globular.platform:intent.cluster.membership.earned_trust
+  - from: globular.platform:code.go.platform_controller.join_lifecycle
+    relation: implements
+    to: globular.platform:intent.cluster.membership.earned_trust
+  - from: globular.platform:code.go.platform_controller.join_lifecycle
+    relation: implements
+    to: globular.platform:intent.cluster.membership.earned_trust
+  - from: globular.platform:code.go.platform_controller.join_lifecycle
+    relation: implements
+    to: globular.platform:intent.cluster.membership.earned_trust
+  - from: globular.platform:code.go.platform_controller.join_lifecycle
+    relation: implements
+    to: globular.platform:intent.delete_requires_explicit_intent_marker
+  - from: globular.platform:code.go.platform_controller.leader_election
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_controller.leader_election
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_controller.leader_election
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
   - from: globular.platform:code.go.platform_controller.leader_election
     relation: implements
     to: globular.platform:intent.etcd.is_source_of_truth
@@ -136,6 +196,18 @@ code_edges:
     to: globular.platform:invariant.objectstore.partial_snapshot_unknown_not_down
   - from: globular.platform:code.go.platform_controller.objectstore
     relation: implements
+    to: globular.platform:intent.objectstore.destructive_changes_require_approval
+  - from: globular.platform:code.go.platform_controller.objectstore
+    relation: implements
+    to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_controller.objectstore
+    relation: implements
+    to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_controller.objectstore
+    relation: implements
+    to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_controller.objectstore
+    relation: implements
     to: globular.platform:intent.objectstore.topology_requires_contract
   - from: globular.platform:code.go.platform_controller.objectstore.pool_manager
     relation: enforces
@@ -161,9 +233,30 @@ code_edges:
   - from: globular.platform:code.go.platform_controller.objectstore.pool_manager.nodeIsPreparedForMinioJoin
     relation: implements
     to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_controller.pki
+    relation: implements
+    to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
   - from: globular.platform:code.go.platform_controller.reconciler
     relation: enforces
     to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: enforces
+    to: globular.platform:invariant.state.unknown_must_not_default_to_healthy
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: enforces
+    to: globular.platform:invariant.state.unknown_must_not_default_to_healthy
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: enforces
+    to: globular.platform:invariant.workflow.dispatch_is_not_completion
   - from: globular.platform:code.go.platform_controller.reconciler
     relation: enforces
     to: globular.platform:invariant.workflow.dispatch_is_not_completion
@@ -172,10 +265,61 @@ code_edges:
     to: globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
   - from: globular.platform:code.go.platform_controller.reconciler
     relation: implements
+    to: globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: implements
     to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: implements
+    to: globular.platform:intent.release.bom_is_precise_release_authority
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: implements
+    to: globular.platform:intent.runtime.identity_requires_verification
+  - from: globular.platform:code.go.platform_controller.reconciler
+    relation: implements
+    to: globular.platform:intent.runtime.identity_requires_verification
+  - from: globular.platform:code.go.platform_controller.recovery
+    relation: implements
+    to: globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
   - from: globular.platform:code.go.platform_controller.recovery
     relation: implements
     to: globular.platform:intent.day0_day1_are_repeatable_ceremonies
+  - from: globular.platform:code.go.platform_controller.recovery
+    relation: implements
+    to: globular.platform:intent.day0_day1_are_repeatable_ceremonies
+  - from: globular.platform:code.go.platform_controller.recovery
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_controller.remediation
+    relation: implements
+    to: globular.platform:intent.remediation.must_go_through_workflow
   - from: globular.platform:code.go.platform_controller.scylla.ddl_preflight
     relation: enforces
     to: globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
@@ -267,8 +411,23 @@ code_edges:
     relation: enforces
     to: globular.platform:invariant.workflow.dispatch_is_not_completion
   - from: globular.platform:code.go.platform_controller.workflow
+    relation: enforces
+    to: globular.platform:invariant.workflow.dispatch_is_not_completion
+  - from: globular.platform:code.go.platform_controller.workflow
+    relation: implements
+    to: globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+  - from: globular.platform:code.go.platform_controller.workflow
+    relation: implements
+    to: globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+  - from: globular.platform:code.go.platform_controller.workflow
+    relation: implements
+    to: globular.platform:intent.release.bom_is_precise_release_authority
+  - from: globular.platform:code.go.platform_controller.workflow
     relation: implements
     to: globular.platform:intent.release.bom_is_precise_release_authority
   - from: globular.platform:code.go.platform_controller.workflow
     relation: implements
     to: globular.platform:intent.workflow.backend_health_gate_before_dispatch
+  - from: globular.platform:code.go.platform_controller.workflow
+    relation: implements
+    to: globular.platform:intent.workflow.source_of_operational_truth

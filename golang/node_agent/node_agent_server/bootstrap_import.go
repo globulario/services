@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.bootstrap
+// @awareness file_role=day0_bootstrap_import_workflow
+// @awareness implements=globular.platform:intent.day0_day1_are_repeatable_ceremonies
+// @awareness risk=high
 package main
 
 // bootstrap_import.go — provisional artifact import (removed).

@@ -7,6 +7,11 @@
 // The reconcile-loop enforcement is the "last line of defense" (no MinIO,
 // no workflow service needed). This workflow path provides the auditable,
 // structured version when the workflow service is healthy.
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.workflow
+// @awareness file_role=workflow_invariant_enforcement
+// @awareness enforces=globular.platform:invariant.workflow.dispatch_is_not_completion
+// @awareness risk=high
 package main
 
 import (

@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.recovery
+// @awareness file_role=recovery_state_persistence_in_etcd
+// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
+// @awareness risk=high
 package main
 
 // recovery_state_store.go — etcd persistence for NodeRecoveryState and

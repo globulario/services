@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=reconcile_lane_status_tracking_and_transitions
+// @awareness risk=high
 package main
 
 import (

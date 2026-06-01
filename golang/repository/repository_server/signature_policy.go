@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository
+// @awareness file_role=signature_requirement_policy_enforcement
+// @awareness implements=globular.platform:intent.repository.signature_policy_gates_trust
+// @awareness risk=high
 package main
 
 // signature_policy.go — Phase F Part 3 signature-installability policy.

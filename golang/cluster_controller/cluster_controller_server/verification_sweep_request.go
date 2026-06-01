@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=verification_sweep_request_dispatch
+// @awareness implements=globular.platform:intent.runtime.identity_requires_verification
+// @awareness risk=high
 package main
 
 // verification_sweep_request.go — targeted sweep request writer.

@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.upstream
+// @awareness file_role=upstream_repository_source_definition
+// @awareness risk=medium
 package main
 
 // repository_source.go — RepositorySource abstraction for extensible artifact resolution.

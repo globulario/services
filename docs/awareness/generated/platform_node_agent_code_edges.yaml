@@ -47,6 +47,30 @@ code_edges:
   - from: globular.platform:code.go.node_agent.runtime_proof.collectServiceRuntimeProof
     relation: tested_by
     to: golang/node_agent/node_agent_server/runtime_proof_test.go:TestCollectServiceRuntimeProof_HappyPath
+  - from: globular.platform:code.go.platform_node_agent
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.platform_node_agent
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_node_agent
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_node_agent
+    relation: implements
+    to: globular.platform:intent.quorum_safety_before_storage_mutation
+  - from: globular.platform:code.go.platform_node_agent
+    relation: implements
+    to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.platform_node_agent.bootstrap
+    relation: implements
+    to: globular.platform:intent.day0_day1_are_repeatable_ceremonies
+  - from: globular.platform:code.go.platform_node_agent.etcd
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
   - from: globular.platform:code.go.platform_node_agent.fingerprint
     relation: implements
     to: globular.platform:intent.runtime.identity_attestation
@@ -137,12 +161,24 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.package_apply
     relation: enforces
     to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent.package_apply
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent.pki
+    relation: implements
+    to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - from: globular.platform:code.go.platform_node_agent.pki
+    relation: implements
+    to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
   - from: globular.platform:code.go.platform_node_agent.proof_writer
     relation: enforces
     to: globular.platform:invariant.state.installed_not_catalog
   - from: globular.platform:code.go.platform_node_agent.proof_writer
     relation: implements
     to: globular.platform:intent.runtime.identity.requires_proof
+  - from: globular.platform:code.go.platform_node_agent.recovery
+    relation: implements
+    to: globular.platform:intent.day0_day1_are_repeatable_ceremonies
   - from: globular.platform:code.go.platform_node_agent.scylla.wipe
     relation: enforces
     to: globular.platform:invariant.destructive_actions.require_explicit_guard
@@ -161,3 +197,12 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.supervisor
     relation: implements
     to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.platform_node_agent.workflow
+    relation: implements
+    to: globular.platform:intent.day0_day1_are_repeatable_ceremonies
+  - from: globular.platform:code.go.platform_node_agent.workflow
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.workflow
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain

@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules
+// @awareness file_role=cluster_services_desired_vs_running_drift_rule
+// @awareness enforces=globular.platform:invariant.state.runtime_not_desired
+// @awareness risk=high
 package rules
 
 import (

@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository
+// @awareness file_role=artifact_reachability_engine
+// @awareness enforces=globular.platform:invariant.repository.repair_selects_existing_build
+// @awareness risk=high
 package main
 
 // reachability.go — Shared reachability engine (PR 4).

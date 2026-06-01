@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=release_phase_lifecycle_state_machine
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness risk=high
 package main
 
 import (

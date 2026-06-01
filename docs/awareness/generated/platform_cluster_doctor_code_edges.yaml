@@ -140,6 +140,30 @@ code_edges:
   - from: globular.platform:code.go.cluster_doctor.rules.Registry_EvaluateAll
     relation: implements
     to: globular.platform:intent.doctor.findings_are_operator_language
+  - from: globular.platform:code.go.platform_cluster_doctor
+    relation: implements
+    to: globular.platform:intent.audit.every_authority_change_is_explainable
+  - from: globular.platform:code.go.platform_cluster_doctor
+    relation: implements
+    to: globular.platform:intent.audit.every_authority_change_is_explainable
+  - from: globular.platform:code.go.platform_cluster_doctor
+    relation: implements
+    to: globular.platform:intent.audit.every_authority_change_is_explainable
+  - from: globular.platform:code.go.platform_cluster_doctor
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.platform_cluster_doctor
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.platform_cluster_doctor
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_cluster_doctor
+    relation: implements
+    to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.platform_cluster_doctor
+    relation: implements
+    to: globular.platform:intent.remediation.must_go_through_workflow
   - from: globular.platform:code.go.platform_cluster_doctor.heal_policy
     relation: implements
     to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
@@ -217,16 +241,115 @@ code_edges:
     to: globular.platform:invariant.state.installed_not_catalog
   - from: globular.platform:code.go.platform_cluster_doctor.rules
     relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
     to: globular.platform:invariant.state.runtime_not_desired
   - from: globular.platform:code.go.platform_cluster_doctor.rules
     relation: enforces
     to: globular.platform:invariant.state.unknown_must_not_default_to_healthy
   - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.unknown_must_not_default_to_healthy
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.unknown_must_not_default_to_healthy
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: enforces
+    to: globular.platform:invariant.state.unknown_must_not_default_to_healthy
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.audit.every_authority_change_is_explainable
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.audit.every_authority_change_is_explainable
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.day0_day1_are_repeatable_ceremonies
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
     relation: implements
     to: globular.platform:intent.etcd.is_source_of_truth
   - from: globular.platform:code.go.platform_cluster_doctor.rules
     relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.identity.stable_node_identity_not_floating_vip
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.identity.stable_node_identity_not_floating_vip
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.repository.identity_doctor_reports_collisions
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.repository.metadata_is_authority
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
     to: globular.platform:intent.runtime.identity_requires_verification
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.runtime.identity_requires_verification
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.service_registration.must_match_runtime_and_repository
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.workflow.backend_health_gate_before_dispatch
+  - from: globular.platform:code.go.platform_cluster_doctor.rules
+    relation: implements
+    to: globular.platform:intent.workflow.terminal_runs_must_be_bounded
   - from: globular.platform:code.go.platform_cluster_doctor.rules
     relation: implements
     to: globular.platform:intent.workflow.terminal_runs_must_be_bounded

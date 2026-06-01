@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller
+// @awareness file_role=cluster_posture_assessment
+// @awareness enforces=globular.platform:invariant.state.unknown_must_not_default_to_healthy
+// @awareness risk=high
 package main
 
 // posture.go: Cluster Posture / Storm-Control Layer.

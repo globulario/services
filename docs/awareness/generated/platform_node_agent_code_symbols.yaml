@@ -118,6 +118,204 @@ code_symbols:
         - globular.platform:intent.runtime_health.requires_live_observation
       tested_by:
         - golang/node_agent/node_agent_server/runtime_proof_test.go:TestCollectServiceRuntimeProof_HappyPath
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/delete_cache_artifact.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/installed_packages_handlers.go
+    component: platform_node_agent
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/event_handler.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/event_publisher.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/network_reconcile.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/grpc_handlers.go
+    component: platform_node_agent
+    risk: high
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/grpc_scylla_remove_node.go
+    component: platform_node_agent
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.quorum_safety_before_storage_mutation
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/state.go
+    component: platform_node_agent
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/service_discovery.go
+    component: platform_node_agent
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/server.go
+    component: platform_node_agent
+    risk: high
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/search_logs_handler.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/hardware.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/scylla_manager_agent_config.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/infra_health_probe.go
+    component: platform_node_agent
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.runtime_not_desired
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/disk_inventory.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/operation_tracker.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/native_dep_check.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/control_service_handler.go
+    component: platform_node_agent
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.runtime_health.requires_live_observation
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/cleanup_disk_journal.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/webroot_sync.go
+    component: platform_node_agent
+    risk: low
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/metrics.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/main.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/actor_service.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent.backup
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/restore_provider.go
+    component: platform_node_agent.backup
+    risk: high
+  - id: globular.platform:code.go.platform_node_agent.backup
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/backup_provider.go
+    component: platform_node_agent.backup
+    risk: high
+  - id: globular.platform:code.go.platform_node_agent.bootstrap
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/bootstrap_import.go
+    component: platform_node_agent.bootstrap
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.day0_day1_are_repeatable_ceremonies
+  - id: globular.platform:code.go.platform_node_agent.dns
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/dns_sync.go
+    component: platform_node_agent.dns
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent.envoy
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/xds_config_reconcile.go
+    component: platform_node_agent.envoy
+    risk: high
+  - id: globular.platform:code.go.platform_node_agent.etcd
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/grpc_etcd_rejoin.go
+    component: platform_node_agent.etcd
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
   - id: globular.platform:code.go.platform_node_agent.fingerprint
     namespace: globular.platform
     language: go
@@ -138,6 +336,12 @@ code_symbols:
         - globular.platform:invariant.state.runtime_not_desired
       implements:
         - globular.platform:intent.runtime_health.requires_live_observation
+  - id: globular.platform:code.go.platform_node_agent.ingress
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/ingress_reconcile.go
+    component: platform_node_agent.ingress
+    risk: high
   - id: globular.platform:code.go.platform_node_agent.integrity
     namespace: globular.platform
     language: go
@@ -291,12 +495,51 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent.package_apply
     namespace: globular.platform
     language: go
+    file: golang/node_agent/node_agent_server/installer_api.go
+    component: platform_node_agent.package_apply
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+  - id: globular.platform:code.go.platform_node_agent.package_apply
+    namespace: globular.platform
+    language: go
     file: golang/node_agent/node_agent_server/apply_package_verify.go
     component: platform_node_agent.package_apply
     risk: high
     annotations:
       enforces:
         - globular.platform:invariant.state.installed_not_catalog
+  - id: globular.platform:code.go.platform_node_agent.package_apply
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/package_config_pre.go
+    component: platform_node_agent.package_apply
+    risk: high
+  - id: globular.platform:code.go.platform_node_agent.pki
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/certificate.go
+    component: platform_node_agent.pki
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - id: globular.platform:code.go.platform_node_agent.pki
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/secret_collector.go
+    component: platform_node_agent.pki
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - id: globular.platform:code.go.platform_node_agent.pki
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/secret_collector_manifest.go
+    component: platform_node_agent.pki
+    risk: medium
   - id: globular.platform:code.go.platform_node_agent.proof_writer
     namespace: globular.platform
     language: go
@@ -308,6 +551,15 @@ code_symbols:
         - globular.platform:invariant.state.installed_not_catalog
       implements:
         - globular.platform:intent.runtime.identity.requires_proof
+  - id: globular.platform:code.go.platform_node_agent.recovery
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/repair_actions.go
+    component: platform_node_agent.recovery
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.day0_day1_are_repeatable_ceremonies
   - id: globular.platform:code.go.platform_node_agent.scylla.wipe
     namespace: globular.platform
     language: go
@@ -342,3 +594,36 @@ code_symbols:
         - globular.platform:invariant.destructive_actions.require_explicit_guard
       implements:
         - globular.platform:intent.runtime_health.requires_live_observation
+  - id: globular.platform:code.go.platform_node_agent.workflow
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/grpc_workflow.go
+    component: platform_node_agent.workflow
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - id: globular.platform:code.go.platform_node_agent.workflow
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/grpc_workflow_skip.go
+    component: platform_node_agent.workflow
+    risk: high
+  - id: globular.platform:code.go.platform_node_agent.workflow
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/workflow_day0.go
+    component: platform_node_agent.workflow
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.day0_day1_are_repeatable_ceremonies
+  - id: globular.platform:code.go.platform_node_agent.workflow
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/workflow_runner.go
+    component: platform_node_agent.workflow
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.node_agent.is_executor_not_cluster_brain

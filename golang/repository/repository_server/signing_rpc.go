@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository
+// @awareness file_role=artifact_signing_grpc_handlers
+// @awareness implements=globular.platform:intent.repository.signature_policy_gates_trust
+// @awareness risk=high
 package main
 
 // signing_rpc.go — Phase CLI-B public RPCs for trust + signature.

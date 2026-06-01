@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.upstream
+// @awareness file_role=upstream_source_resolver
+// @awareness risk=medium
 package main
 
 // repository_source_resolver.go — Source chain resolution and local materialization.

@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent
+// @awareness file_role=node_log_search_grpc_handler
+// @awareness risk=medium
 package main
 
 import (

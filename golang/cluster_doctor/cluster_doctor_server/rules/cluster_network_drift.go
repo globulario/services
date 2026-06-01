@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules
+// @awareness file_role=cluster_network_configuration_drift_rule
+// @awareness risk=high
 package rules
 
 import (
