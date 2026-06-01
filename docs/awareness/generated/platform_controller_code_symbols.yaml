@@ -179,6 +179,15 @@ code_symbols:
         - globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
       implements:
         - globular.platform:intent.quorum_safety_before_storage_mutation
+  - id: globular.platform:code.go.platform_controller.desired_state
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+    component: platform_controller.desired_state
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.desired_state.is_authority
   - id: globular.platform:code.go.platform_controller.objectstore.pool_manager
     namespace: globular.platform
     language: go

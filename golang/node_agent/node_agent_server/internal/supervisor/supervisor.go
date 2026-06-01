@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.supervisor
+// @awareness file_role=systemd_exec_confinement_boundary
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness implements=globular.platform:intent.runtime_health.requires_live_observation
+// @awareness risk=high
 package supervisor
 
 import (

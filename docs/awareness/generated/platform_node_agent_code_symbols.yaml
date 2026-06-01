@@ -255,3 +255,14 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified
+  - id: globular.platform:code.go.platform_node_agent.supervisor
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/internal/supervisor/supervisor.go
+    component: platform_node_agent.supervisor
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.destructive_actions.require_explicit_guard
+      implements:
+        - globular.platform:intent.runtime_health.requires_live_observation

@@ -125,3 +125,9 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.scylla.wipe.NodeAgentServer_runWipeScyllaData
     relation: enforces
     to: globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified
+  - from: globular.platform:code.go.platform_node_agent.supervisor
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_node_agent.supervisor
+    relation: implements
+    to: globular.platform:intent.runtime_health.requires_live_observation

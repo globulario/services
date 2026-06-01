@@ -107,6 +107,9 @@ code_edges:
   - from: globular.platform:code.go.platform.controller.objectstore.minioTopologyReconciler
     relation: implements
     to: globular.platform:intent.quorum_safety_before_storage_mutation
+  - from: globular.platform:code.go.platform_controller.desired_state
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
   - from: globular.platform:code.go.platform_controller.objectstore.pool_manager
     relation: enforces
     to: globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
