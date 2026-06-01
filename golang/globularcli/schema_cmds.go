@@ -7,10 +7,6 @@
 // reads it, what invariants does it carry?" The data is embedded into
 // the CLI binary via go:embed — no server round-trip, works offline.
 
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=schema_inspection_commands
-// @awareness risk=medium
 package main
 
 import (

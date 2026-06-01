@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=reconcile_retry_commands
-// @awareness implements=globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
-// @awareness risk=high
 package main
 
 import (
@@ -146,4 +141,3 @@ func fetchReleaseByPackageOrName(ctx context.Context, packageOrRelease string, c
 	}
 	return matches[0], nil
 }
-

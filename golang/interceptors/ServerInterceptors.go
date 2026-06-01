@@ -1,14 +1,6 @@
 // Package interceptors centralizes server-side validation, authorization,
 // routing (round-robin / broadcasting), and logging for gRPC services.
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform.interceptors
-// @awareness file_role=grpc_auth_enforcement_chain
-// @awareness implements=globular.platform:intent.security.deny_overrides_allow
-// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
-// @awareness implements=globular.platform:intent.bootstrap.window_is_not_steady_state_auth
-// @awareness enforces=globular.platform:invariant.security.unauthenticated_allowlist_must_be_minimal
-// @awareness risk=high
 package interceptors
 
 // NOTE: We intentionally keep the exported API intact. Internal helpers were
@@ -834,12 +826,6 @@ func callHandlerWithLogging(ctx context.Context, rqst interface{}, handler grpc.
 // role binding → resource RBAC → DenyUnmapped.
 // Any reordering of these stages is a security regression.
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform.interceptors
-// @awareness implements=globular.platform:intent.security.deny_overrides_allow
-// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
-// @awareness implements=globular.platform:intent.bootstrap.window_is_not_steady_state_auth
-// @awareness risk=high
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	reqStart := time.Now()
 

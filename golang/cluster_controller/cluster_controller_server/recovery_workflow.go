@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.recovery
-// @awareness file_role=node_recovery_workflow_orchestration
-// @awareness implements=globular.platform:intent.day0_day1_are_repeatable_ceremonies
-// @awareness risk=high
 package main
 
 // recovery_workflow.go — controller-side implementation of NodeRecoveryControllerConfig.

@@ -5,10 +5,6 @@
 //
 // Walks the 5 layers of the auth chain and reports pass/fail per layer.
 
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=doctor_auth_commands
-// @awareness risk=medium
 package main
 
 import (

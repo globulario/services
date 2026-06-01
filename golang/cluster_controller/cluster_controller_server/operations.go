@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller
-// @awareness file_role=cluster_operations_grpc_handlers
-// @awareness risk=medium
 package main
 
 import (

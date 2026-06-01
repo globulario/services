@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.resourcestore
-// @awareness file_role=etcd_backed_resource_store
-// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
-// @awareness risk=critical
 package resourcestore
 
 import (

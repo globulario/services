@@ -23,11 +23,6 @@
 //     StartRun, and ExecuteWorkflow flow is preserved.
 //   - Normal pending-run dispatch ordering is unchanged: the guard
 //     only short-circuits if a deferred run is found.
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow.server
-// @awareness file_role=workflow_deferred_execution_handler
-// @awareness implements=globular.platform:intent.workflow.terminal_runs_must_be_bounded
-// @awareness risk=high
 package main
 
 import (

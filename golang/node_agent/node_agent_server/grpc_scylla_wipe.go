@@ -1,10 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.scylla.wipe
-// @awareness file_role=scylla_destructive_data_wipe_for_raft_rebootstrap
-// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
-// @awareness enforces=globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified
-// @awareness implements=globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
-// @awareness risk=critical
 package main
 
 import (
@@ -33,10 +26,6 @@ const scyllaUnit = "scylla-server.service"
 // The controller calls this after a restart alone failed to unstick the join.
 // The wipe removes /var/lib/scylla/data (including system/raft_*), allowing
 // ScyllaDB to re-bootstrap into the existing cluster's Raft group.
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.scylla.wipe
-// @awareness enforces=globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified
-// @awareness risk=critical
 func (srv *NodeAgentServer) runWipeScyllaData(ctx context.Context, req *node_agentpb.RunWorkflowRequest) (*node_agentpb.RunWorkflowResponse, error) {
 	start := time.Now()
 	log.Printf("wipe-scylla-data: starting ScyllaDB data wipe for Raft re-bootstrap")

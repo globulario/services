@@ -1,9 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.objectstore_admission
-// @awareness file_role=objectstore_admission_and_splitbrain_rules
-// @awareness implements=globular.platform:invariant.objectstore.topology_contract
-// @awareness implements=globular.platform:invariant.objectstore.minio.existing_data_guard
-// @awareness risk=critical
 package rules
 
 // objectstore_admission.go — doctor invariants for disk admission and topology safety.
@@ -38,11 +32,6 @@ import (
 // in standalone mode — a condition where each node has an isolated data store
 // and writes to one node are not visible on others (silent write loss).
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.objectstore_admission
-// @awareness implements=globular.platform:invariant.objectstore.topology_contract
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness risk=critical
 type objectstoreMinioStandaloneSplitbrain struct{}
 
 func (objectstoreMinioStandaloneSplitbrain) ID() string {

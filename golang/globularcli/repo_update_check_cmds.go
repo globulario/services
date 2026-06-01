@@ -2,10 +2,6 @@
 //
 // Uses server-side dry-run sync to get policy-checked results.
 // The CLI only formats the response — all policy logic lives on the server.
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=repository_update_check_commands
-// @awareness risk=medium
 package main
 
 import (

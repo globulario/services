@@ -1,9 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.objectstore.pool_manager
-// @awareness file_role=minio_pool_join_state_machine_and_admission_gate
-// @awareness enforces=globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
-// @awareness implements=globular.platform:intent.quorum_safety_before_storage_mutation
-// @awareness risk=high
 package main
 
 import (
@@ -56,12 +50,6 @@ func nodeHasMinioRunning(node *nodeState) bool {
 // authoritative membership gate (DesiredObjectStoreMembers) is checked
 // in reconcileMinioJoinPhases before this function is called.
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.objectstore.pool_manager
-// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
-// @awareness enforces=globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness risk=high
 func nodeIsPreparedForMinioJoin(node *nodeState) bool {
 	if node == nil {
 		return false
@@ -117,12 +105,6 @@ func newMinioPoolManager() *minioPoolManager {
 //  3. started: globular-minio.service active
 //  4. verified: service healthy (active for >30s)
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.objectstore.pool_manager
-// @awareness enforces=globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
-// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
-// @awareness implements=globular.platform:intent.quorum_safety_before_storage_mutation
-// @awareness risk=high
 func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *controllerState) (dirty bool) {
 	now := time.Now()
 

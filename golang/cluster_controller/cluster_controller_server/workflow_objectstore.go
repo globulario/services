@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.objectstore
-// @awareness file_role=objectstore_topology_workflow_dispatch
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness risk=high
 package main
 
 import (

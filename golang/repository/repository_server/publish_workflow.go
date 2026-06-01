@@ -193,12 +193,6 @@ func (srv *server) registerDescriptor(ctx context.Context, manifest *repopb.Arti
 
 // promoteToPublished marks an artifact PUBLISHED.
 //
-// @awareness namespace=globular.platform
-// @awareness component=repository.publish_pipeline
-// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
-// @awareness enforces=globular.platform:invariant.repository.published_requires_verified_manifest
-// @awareness enforces=globular.platform:invariant.repository.publish_idempotent_same_digest
-// @awareness risk=high
 //
 // Write order (Scylla-first):
 //  1. Verify binary present in local store (CAS) or mirror.

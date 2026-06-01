@@ -1,7 +1,3 @@
-// @awareness namespace=globular.examples.echo_service
-// @awareness component=echo_service
-// @awareness file_role=echo_grpc_client
-// @awareness risk=low
 package echo_client
 
 import (

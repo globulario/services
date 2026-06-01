@@ -1,11 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.scylla.rf_eligibility
-// @awareness file_role=scylla_rf_and_quorum_node_eligibility_gate
-// @awareness enforces=globular.platform:invariant.scylla.critical_keyspace_replication_policy
-// @awareness enforces=globular.platform:invariant.day1.scylla_dependency_gate
-// @awareness implements=globular.platform:intent.quorum_safety_before_storage_mutation
-// @awareness implements=globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
-// @awareness risk=critical
 package main
 
 import "time"
@@ -17,10 +9,6 @@ import "time"
 // Design rule: fail closed. Any signal that explicitly indicates the node is
 // not ready, is offline, or has failed disqualifies it. Signals not yet
 // available in nodeState are called out as TODOs; they do not silently pass.
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.scylla.rf_eligibility
-// @awareness enforces=globular.platform:invariant.scylla.critical_keyspace_replication_policy
-// @awareness risk=critical
 func IsNodeVerifiedStorageEligible(n *nodeState) bool {
 	return nodeStorageEligibilityReason(n) == ""
 }

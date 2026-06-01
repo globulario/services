@@ -1,6 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=node_agent.runtime_proof
-// @awareness file_role=runtime_evidence_producer
 package main
 
 // runtime_proof.go — Phase 2 of the Diagnostic Honesty Refactor.
@@ -96,12 +93,6 @@ var runtimeProofSystemdProperties = []string{
 //
 // This function does no I/O directly; everything goes through deps.
 //
-// @awareness namespace=globular.platform
-// @awareness component=node_agent.runtime_proof
-// @awareness enforces=globular.platform:invariant.state.runtime_not_desired
-// @awareness implements=globular.platform:intent.runtime_health.requires_live_observation
-// @awareness tested_by=golang/node_agent/node_agent_server/runtime_proof_test.go:TestCollectServiceRuntimeProof_HappyPath
-// @awareness risk=high
 func collectServiceRuntimeProof(
 	ctx context.Context,
 	nodeID string,
@@ -346,11 +337,6 @@ func parseSystemdTimestamp(s string) (time.Time, error) {
 // this node and returns one proof per package (optionally filtered to a
 // single service).
 //
-// @awareness namespace=globular.platform
-// @awareness component=node_agent.runtime_proof
-// @awareness enforces=globular.platform:invariant.state.runtime_not_desired
-// @awareness implements=globular.platform:intent.runtime_health.requires_live_observation
-// @awareness risk=high
 func (srv *NodeAgentServer) GetServiceRuntimeProof(
 	ctx context.Context,
 	req *node_agentpb.GetServiceRuntimeProofRequest,

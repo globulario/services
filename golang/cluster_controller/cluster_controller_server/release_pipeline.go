@@ -1,11 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=controller.release_pipeline
-// @awareness file_role=release_reconciler
-// @awareness implements=globular.platform:intent.reconciler.resolution_must_match_spec
-// @awareness enforces=globular.platform:invariant.desired.build_id_immutable
-// @awareness enforces=globular.platform:invariant.release_pipeline.set_fields_routing_must_match_release_kind
-// @awareness protects=globular.platform:failure_mode.release_pipeline.set_fields_silent_noop_on_wrong_kind
-// @awareness risk=high
 package main
 
 import (
@@ -436,13 +428,6 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 // reconcileResolved is the shared RESOLVED phase: execute the release
 // workflow to install the package across all eligible nodes.
 //
-// @awareness namespace=globular.platform
-// @awareness component=controller.release_pipeline
-// @awareness implements=globular.platform:intent.controller.apply_package_release_must_carry_expected_sha256
-// @awareness enforces=globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
-// @awareness protects=globular.platform:failure_mode.controller.apply_package_missing_expected_sha256_blocks_verified_install
-// @awareness protects=globular.platform:failure_mode.node_agent.install_package_aliases_convergence_hash_into_expected_sha256
-// @awareness risk=high
 //
 // This replaces the old plan compilation/dispatch pipeline with direct
 // workflow execution. The workflow handles per-node install/verify/restart/

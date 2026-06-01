@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow.server
-// @awareness file_role=workflow_scylla_schema
-// @awareness implements=globular.platform:intent.schema.migrations_are_versioned_and_reversible
-// @awareness risk=medium
 package main
 
 // ScyllaDB schema for the Workflow service.

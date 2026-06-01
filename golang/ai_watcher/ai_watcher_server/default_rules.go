@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_ai_watcher
-// @awareness file_role=ai_watcher_default_trigger_rules
-// @awareness risk=medium
 package main
 
 import ai_watcherpb "github.com/globulario/services/golang/ai_watcher/ai_watcherpb"

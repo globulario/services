@@ -1,12 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=cluster_doctor.executor
-// @awareness file_role=remediation_executor
-// @awareness enforces=globular.platform:invariant.force_action_must_not_hide_policy_gate
-// @awareness enforces=globular.platform:invariant.audit.records_must_be_correlated_and_retained
-// @awareness enforces=globular.platform:invariant.audit.must_redact_secret_material
-// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
-// @awareness implements=globular.platform:intent.remediation.token_contract
-// @awareness risk=high
 package main
 
 import (
@@ -66,10 +57,6 @@ const managedUnitPrefix = "globular-"
 // auto-executed regardless of risk tag. These are the hand grenades from
 // projection-clauses.md Clause 8.
 //
-// @awareness namespace=globular.platform
-// @awareness component=cluster_doctor.executor
-// @awareness enforces=globular.platform:invariant.force_action_must_not_hide_policy_gate
-// @awareness risk=high
 func hardBlocked(action *cluster_doctorpb.RemediationAction) (bool, string) {
 	switch action.GetActionType() {
 	case cluster_doctorpb.ActionType_ETCD_PUT:
@@ -229,13 +216,6 @@ const RemediationAuditRetention = 30 * 24 * time.Hour
 // of any approval-token material that may have leaked into params, and
 // leased for RemediationAuditRetention.
 //
-// @awareness namespace=globular.platform
-// @awareness component=cluster_doctor.executor
-// @awareness enforces=globular.platform:invariant.audit.records_must_be_correlated_and_retained
-// @awareness enforces=globular.platform:invariant.audit.must_redact_secret_material
-// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
-// @awareness implements=globular.platform:intent.audit.retention_and_correlation_policy
-// @awareness risk=medium
 func auditRemediation(ctx context.Context, audit RemediationAudit) string {
 	ts := time.Now().Unix()
 	audit.Timestamp = ts

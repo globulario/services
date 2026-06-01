@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent
-// @awareness file_role=actor_service_lifecycle_bridge
-// @awareness risk=medium
 package main
 
 // actor_service.go — node-agent implementation of WorkflowActorService.

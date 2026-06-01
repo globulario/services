@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=doctor_heal_history_command
-// @awareness risk=medium
 package main
 
 import (

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow
-// @awareness file_role=workflow_definition_type_system
-// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
-// @awareness risk=high
 package v1alpha1
 
 import (

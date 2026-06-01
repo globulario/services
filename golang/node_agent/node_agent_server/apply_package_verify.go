@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.package_apply
-// @awareness file_role=post_install_binary_hash_gate
-// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
-// @awareness risk=high
 package main
 
 import (

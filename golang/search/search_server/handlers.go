@@ -2,10 +2,6 @@
 // This refactor standardizes structure (like the Echo template),
 // adds --describe / --health, switches to slog, clarifies errors,
 // and preserves all public method prototypes.
-// @awareness namespace=globular.platform
-// @awareness component=platform_search
-// @awareness file_role=search_grpc_handlers
-// @awareness risk=low
 package main
 
 import (

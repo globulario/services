@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_mcp.tools
-// @awareness file_role=mcp_composed_multi_step_tools
-// @awareness risk=high
 package main
 
 import (

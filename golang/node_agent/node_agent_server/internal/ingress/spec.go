@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.ingress
-// @awareness file_role=ingress_spec_type_definitions
-// @awareness risk=medium
 package ingress
 
 // Mode represents the ingress entrypoint mode

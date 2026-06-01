@@ -1,10 +1,5 @@
 // rbac_sharing.go: share/unshare resources and listing.
 
-// @awareness namespace=globular.platform
-// @awareness component=platform_rbac
-// @awareness file_role=rbac_resource_sharing_management
-// @awareness implements=globular.platform:intent.security.deny_overrides_allow
-// @awareness risk=high
 package main
 
 import (

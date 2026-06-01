@@ -5,10 +5,6 @@
 //	globular mcp tools                     List all tools exposed by the MCP service
 //	globular mcp tools --group awareness   List only awareness.* tools
 //	globular mcp tools --url <url>         Override MCP service URL
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=mcp_management_commands
-// @awareness risk=medium
 package main
 
 import (

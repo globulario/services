@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.rules
-// @awareness file_role=systemd_unit_state_evaluation_rule
-// @awareness enforces=globular.platform:invariant.state.runtime_not_desired
-// @awareness risk=high
 package rules
 
 import "strings"

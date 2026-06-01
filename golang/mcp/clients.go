@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_mcp
-// @awareness file_role=mcp_backend_grpc_client_pool
-// @awareness implements=globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
-// @awareness risk=high
 package main
 
 import (

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.join_lifecycle
-// @awareness file_role=join_lifecycle_phase_state_machine
-// @awareness implements=globular.platform:intent.cluster.membership.earned_trust
-// @awareness risk=high
 package main
 
 // JoinLifecyclePhase is the typed lifecycle state of a join request or node.

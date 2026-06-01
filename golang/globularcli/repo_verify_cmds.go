@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=repository_verification_commands
-// @awareness implements=globular.platform:intent.runtime.identity_requires_verification
-// @awareness risk=high
 package main
 
 // repo_verify_cmds.go — `globular repository verify | repair | explain`.

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository
-// @awareness file_role=publish_pipeline_state_reconciler
-// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
-// @awareness risk=high
 package main
 
 // publish_reconciler.go — Background goroutine that retries stuck VERIFIED artifacts.

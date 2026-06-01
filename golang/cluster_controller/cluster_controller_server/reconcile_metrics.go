@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.reconciler
-// @awareness file_role=reconcile_metrics_emission
-// @awareness risk=medium
 package main
 
 import (

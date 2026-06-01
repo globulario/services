@@ -45,10 +45,6 @@ import (
 // recordRevisionAndReceipts is the post-success hook.
 // All errors are logged + swallowed — the apply response must not change.
 //
-// @awareness namespace=globular.platform
-// @awareness component=node_agent.installer
-// @awareness relates_to=globular.platform:intent.workflow.step_receipts_are_evidence
-// @awareness risk=low
 //
 // snapshot is the per-config state captured BEFORE InstallPackage mutated
 // the filesystem (see applyConfigPolicyPreInstall). When non-nil it lets us

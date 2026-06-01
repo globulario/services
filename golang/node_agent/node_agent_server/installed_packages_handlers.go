@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent
-// @awareness file_role=installed_package_state_grpc_handlers
-// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
-// @awareness risk=high
 package main
 
 import (

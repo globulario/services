@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository
-// @awareness file_role=release_ledger_and_bom_management
-// @awareness implements=globular.platform:intent.release.bom_is_precise_release_authority
-// @awareness risk=high
 package main
 
 // release_ledger.go — Per-package release ledger.

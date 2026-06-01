@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository.signing
-// @awareness file_role=trusted_publisher_relationship_registry
-// @awareness implements=globular.platform:intent.repository.signature_policy_gates_trust
-// @awareness risk=high
 package main
 
 // trusted_publisher.go — data model for trusted CI publishing relationships.

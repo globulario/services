@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_monitoring
-// @awareness file_role=prometheus_metrics_store
-// @awareness risk=medium
 package monitoring_store
 
 import (

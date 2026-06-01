@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.desired_state
-// @awareness file_role=desired_state_grpc_authority_handlers
-// @awareness implements=globular.platform:intent.desired_state.is_authority
-// @awareness risk=high
 package main
 
 // desired_state_handlers.go — typed gRPC handlers for GetDesiredState,

@@ -2,10 +2,6 @@
 // SearchEngine interface. This refactor improves error messages, removes
 // printlns, adds structured logging via slog, and keeps public prototypes
 // unchanged. It targets bleve/v2.
-// @awareness namespace=globular.platform
-// @awareness component=platform_search
-// @awareness file_role=bleve_search_engine_implementation
-// @awareness risk=low
 package search_engine
 
 import (
@@ -311,4 +307,3 @@ func (engine *BleveSearchEngine) Count(path string) int32 {
 	}
 	return int32(n)
 }
-

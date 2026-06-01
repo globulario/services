@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_search
-// @awareness file_role=search_server_config_loading
-// @awareness risk=low
 package main
 
 import globular "github.com/globulario/services/golang/globular_service"

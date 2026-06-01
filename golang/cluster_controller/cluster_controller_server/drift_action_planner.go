@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.reconciler
-// @awareness file_role=convergence_drift_action_planner
-// @awareness implements=globular.platform:intent.desired_state.is_authority
-// @awareness risk=high
 package main
 
 // drift_action_planner.go — per-action safety gate for drift reconciliation.

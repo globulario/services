@@ -1,9 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform.authentication
-// @awareness file_role=session_jwt_issuance_boundary
-// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
-// @awareness implements=globular.platform:intent.globular.security.ceremony_over_configuration
-// @awareness risk=high
 package main
 
 import (
@@ -341,11 +335,6 @@ func (srv *server) validateGoogleToken(accessToken string) (bool, error) {
 // This is the sole session-JWT issuance point. bcrypt validation → GenerateToken.
 // Any path that mints session tokens outside this function violates the trust contract.
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform.authentication
-// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
-// @awareness implements=globular.platform:intent.globular.security.ceremony_over_configuration
-// @awareness risk=high
 func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	// Root path — credentials stored in etcd so any cluster instance can authenticate sa.
 	if accountId == "sa" || strings.HasPrefix(accountId, "sa@") {

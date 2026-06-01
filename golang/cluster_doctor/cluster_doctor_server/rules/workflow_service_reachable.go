@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.rules
-// @awareness file_role=workflow_service_reachability_rule
-// @awareness implements=globular.platform:intent.workflow.backend_health_gate_before_dispatch
-// @awareness risk=high
 package rules
 
 import (

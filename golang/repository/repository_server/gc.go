@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository
-// @awareness file_role=artifact_garbage_collection
-// @awareness implements=globular.platform:intent.delete_requires_explicit_intent_marker
-// @awareness risk=high
 package main
 
 // gc.go — Repository garbage collection (soft-delete via ARCHIVED state).

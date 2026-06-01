@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent
-// @awareness file_role=hardware_inventory_collection
-// @awareness risk=medium
 package main
 
 import (

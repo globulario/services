@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow.engine
-// @awareness file_role=workflow_actor_registry
-// @awareness implements=globular.platform:intent.workflow.step_receipts_are_evidence
-// @awareness risk=high
 package engine
 
 import (
@@ -291,7 +286,6 @@ func controllerSetPhase(cfg ControllerConfig) ActionHandler {
 		return &ActionResult{OK: true, Output: map[string]any{"phase": phase}}, nil
 	}
 }
-
 
 func controllerMarkFailed(cfg ControllerConfig) ActionHandler {
 	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {

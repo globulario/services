@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.rules
-// @awareness file_role=grpc_backbone_contract_health_rule
-// @awareness risk=high
 package rules
 
 import (
@@ -129,4 +125,3 @@ func isPublicProbeRPC(rpc string) bool {
 		strings.Contains(r, "/grpc.reflection") ||
 		strings.Contains(r, "/authentication.authenticationservice/authenticate")
 }
-

@@ -1,10 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=ai_executor.diagnoser
-// @awareness file_role=evidence_gathering_and_ai_diagnosis
-// @awareness implements=globular.platform:intent.health.requires_fresh_evidence
-// @awareness implements=globular.platform:intent.awareness.runtime_evidence_must_be_fresh
-// @awareness implements=globular.platform:intent.knowledge.promote_incidents_into_graph
-// @awareness risk=medium
 package main
 
 import (
@@ -58,12 +51,6 @@ func (d *diagnoser) sendPrompt(ctx context.Context, prompt string) (string, erro
 // diagnose gathers context and builds a diagnosis for an incident.
 // Uses Claude API when available, deterministic fallback otherwise.
 //
-// @awareness namespace=globular.platform
-// @awareness component=ai_executor.diagnoser
-// @awareness implements=globular.platform:intent.health.requires_fresh_evidence
-// @awareness implements=globular.platform:intent.awareness.runtime_evidence_must_be_fresh
-// @awareness implements=globular.platform:intent.knowledge.promote_incidents_into_graph
-// @awareness risk=medium
 func (d *diagnoser) diagnose(ctx context.Context, req *ai_executorpb.ProcessIncidentRequest) (*ai_executorpb.Diagnosis, error) {
 	callCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()

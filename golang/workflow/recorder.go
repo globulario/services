@@ -9,10 +9,6 @@
 //	run, _ := rec.StartRun(ctx, &workflow.RunParams{...})
 //	rec.RecordStep(ctx, run.Id, 1, &workflow.StepParams{...})
 //	rec.FinishRun(ctx, run.Id, workflow.Succeeded, "all good", "", workflow.NoFailure)
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow
-// @awareness file_role=workflow_event_recorder
-// @awareness risk=medium
 package workflow
 
 import (

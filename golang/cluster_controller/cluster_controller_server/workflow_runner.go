@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.workflow
-// @awareness file_role=workflow_runner_and_poller
-// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
-// @awareness risk=high
 package main
 
 import (
@@ -202,4 +197,3 @@ func (srv *server) waitBootstrapCondition(ctx context.Context, nodeID, condition
 //   /var/lib/globular/workflows/node.bootstrap.yaml
 //   /usr/lib/globular/workflows/node.bootstrap.yaml
 //   /tmp/node.bootstrap.yaml
-

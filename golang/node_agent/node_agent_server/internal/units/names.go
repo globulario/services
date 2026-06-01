@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent
-// @awareness file_role=systemd_unit_name_conventions
-// @awareness risk=low
 package units
 
 import "github.com/globulario/services/golang/identity"

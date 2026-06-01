@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.fingerprint
-// @awareness file_role=running_binary_fingerprint_via_proc
-// @awareness implements=globular.platform:intent.runtime.identity_attestation
-// @awareness risk=high
 package main
 
 import (

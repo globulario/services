@@ -1,9 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.objectstore.contract_rules
-// @awareness file_role=minio_contract_presence_and_destructive_guard_rules
-// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
-// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
-// @awareness risk=critical
 package rules
 
 import (
@@ -28,12 +22,6 @@ import (
 //   - The key was accidentally deleted.
 //   - A controller upgrade cleared the desired state without reapplying.
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.objectstore.contract_rules
-// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
-// @awareness enforces=globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness risk=critical
 type objectstoreContractMissing struct{}
 
 func (objectstoreContractMissing) ID() string       { return "objectstore.minio.contract_missing" }
@@ -275,12 +263,6 @@ func (objectstoreEndpointUnresolved) Evaluate(snap *collector.Snapshot, _ Config
 // which means the controller rejected the ForceDestructive flag but the record
 // was left in etcd (should not happen in normal operation, but worth surfacing).
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.objectstore.contract_rules
-// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
-// @awareness enforces=globular.platform:invariant.objectstore.minio.existing_data_guard
-// @awareness implements=globular.platform:intent.objectstore.destructive_changes_require_approval
-// @awareness risk=critical
 type objectstoreDestructiveGuard struct{}
 
 func (objectstoreDestructiveGuard) ID() string       { return "objectstore.minio.destructive_guard" }

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.reconciler
-// @awareness file_role=per_node_reconcile_orchestration
-// @awareness implements=globular.platform:intent.desired_state.is_authority
-// @awareness risk=high
 package main
 
 import (

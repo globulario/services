@@ -18,11 +18,6 @@
 //
 // Anything else (random AI agents, application service accounts, mTLS
 // peers other than sa) gets a permission-denied error.
-// @awareness namespace=globular.platform
-// @awareness component=platform_ai_memory
-// @awareness file_role=ai_memory_immutability_enforcement
-// @awareness implements=globular.platform:intent.missing_state_is_not_delete_intent
-// @awareness risk=high
 package main
 
 import (

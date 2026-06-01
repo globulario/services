@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository.upstream
-// @awareness file_role=upstream_artifact_sync_executor
-// @awareness implements=globular.platform:intent.upstream_release_streams.must_be_provider_neutral
-// @awareness risk=high
 package main
 
 // sync_from_upstream.go — Phase 3: Upstream source registry and sync.

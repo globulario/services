@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository
-// @awareness file_role=repository_schema_migration
-// @awareness implements=globular.platform:intent.schema.migrations_are_versioned_and_reversible
-// @awareness risk=high
 package main
 
 // migration.go — migrates existing artifacts into the trust model.

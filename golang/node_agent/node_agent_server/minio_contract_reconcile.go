@@ -1,9 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.objectstore.contract_reconcile
-// @awareness file_role=minio_contract_etcd_to_disk_reconciler
-// @awareness enforces=globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness risk=high
 package main
 
 import (
@@ -50,12 +44,6 @@ const (
 // config is a transient condition, not a failure — we leave whatever is
 // on disk alone and try again on the next tick.
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.objectstore.contract_reconcile
-// @awareness enforces=globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness implements=globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
-// @awareness risk=high
 func (srv *NodeAgentServer) reconcileMinioContract(ctx context.Context) {
 	// Source of truth: etcd — both the consumer config and the topology.
 	etcdCfg, err := config.BuildMinioProxyConfig()
@@ -144,10 +132,6 @@ func loadMinioContractFromDisk(path string) (*config.MinioProxyConfig, error) {
 // crash mid-write cannot leave the canonical path half-written.
 // meta embeds provenance proving the file was rendered from etcd.
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.objectstore.contract_reconcile
-// @awareness enforces=globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
-// @awareness risk=high
 func writeMinioContractAtomic(path string, cfg *config.MinioProxyConfig, meta *config.RenderedArtifactMetadata) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o750); err != nil {

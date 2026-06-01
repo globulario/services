@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository
-// @awareness file_role=repository_internal_state_reconciler
-// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
-// @awareness risk=high
 package main
 
 // repository_reconciler.go — Local CAS ↔ Scylla consistency reconciler.

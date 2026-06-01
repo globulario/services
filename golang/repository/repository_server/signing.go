@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository.signing
-// @awareness file_role=artifact_signing_and_signature_verification
-// @awareness implements=globular.platform:intent.repository.signature_policy_gates_trust
-// @awareness risk=high
 package main
 
 // signing.go — Phase CLI-B signing / trusted publisher / signature verification.

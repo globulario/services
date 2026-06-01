@@ -1,11 +1,6 @@
 // Package main implements the AI Executor service — the action layer
 // that diagnoses incidents and executes remediation. The watcher sees,
 // the executor acts.
-// @awareness namespace=globular.platform
-// @awareness component=platform_ai_executor
-// @awareness file_role=ai_executor_grpc_server
-// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
-// @awareness risk=high
 package main
 
 import (

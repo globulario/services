@@ -1,10 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.scylla.group0_view
-// @awareness file_role=scylla_raft_group0_stale_voter_cross_reference
-// @awareness enforces=globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
-// @awareness implements=globular.platform:intent.health.requires_fresh_evidence
-// @awareness implements=globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
-// @awareness risk=high
 package main
 
 import (
@@ -54,10 +47,6 @@ type Group0View struct {
 // localHostID is from system.local.host_id.
 // peers is from system.peers with Peer (IP) and HostID populated.
 // members is from system.raft_group0_members (already queried).
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.scylla.group0_view
-// @awareness enforces=globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
-// @awareness risk=high
 func collectGroup0View(members []group0Member, localHostID string, peers []peerSchemaRow) Group0View {
 	// Build host_id → IP map from gossip. Local node maps to "local".
 	hostToAddr := map[string]string{}

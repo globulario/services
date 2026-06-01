@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_domain
-// @awareness file_role=dns_propagation_verification
-// @awareness risk=medium
 package domain
 
 import (

@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.reconciler
-// @awareness file_role=infrastructure_service_readiness_probes
-// @awareness risk=high
 package main
 
 import (
@@ -12,7 +8,6 @@ import (
 
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 )
-
 
 // probeInfraHealth calls a named probe workflow on the node agent at the given
 // endpoint via gRPC. The controller CANNOT use os/exec (security constraint),

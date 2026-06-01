@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_config
-// @awareness file_role=critical_etcd_key_definitions
-// @awareness enforces=globular.platform:invariant.state.unknown_must_not_default_to_healthy
-// @awareness risk=high
 package config
 
 import (

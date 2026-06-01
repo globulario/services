@@ -9,10 +9,6 @@
 // status and mode so the operator can reason about staleness without
 // having to understand the doctor service's TTL config.
 
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=doctor_report_command
-// @awareness risk=high
 package main
 
 import (

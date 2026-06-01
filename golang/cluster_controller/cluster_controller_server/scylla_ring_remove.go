@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller
-// @awareness file_role=scylladb_ring_removal_orchestration
-// @awareness implements=globular.platform:intent.quorum_safety_before_storage_mutation
-// @awareness risk=high
 package main
 
 import (

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository.policy
-// @awareness file_role=install_policy_read_write
-// @awareness implements=globular.platform:intent.repository.signature_policy_gates_trust
-// @awareness risk=medium
 package main
 
 import (

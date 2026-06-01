@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.backup
-// @awareness file_role=backup_provider_grpc_handler
-// @awareness risk=high
 package main
 
 import (

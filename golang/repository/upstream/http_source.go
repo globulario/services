@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository.upstream
-// @awareness file_role=http_artifact_upstream_implementation
-// @awareness implements=globular.platform:intent.upstream_release_streams.must_be_provider_neutral
-// @awareness risk=medium
 package upstream
 
 import (

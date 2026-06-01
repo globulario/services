@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_security
-// @awareness file_role=ed25519_signing_key_management
-// @awareness implements=globular.platform:intent.globular.security.ceremony_over_configuration
-// @awareness risk=critical
 package security
 
 import (

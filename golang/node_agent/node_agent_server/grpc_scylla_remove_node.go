@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent
-// @awareness file_role=scylladb_ring_removal_grpc_handler
-// @awareness implements=globular.platform:intent.quorum_safety_before_storage_mutation
-// @awareness risk=high
 package main
 
 import (

@@ -1,10 +1,6 @@
 // Package main implements the AI Router service — a control-plane routing
 // policy engine that computes dynamic endpoint weights, circuit breaker
 // overrides, and drain strategies based on real-time signals.
-// @awareness namespace=globular.platform
-// @awareness component=platform_ai_router
-// @awareness file_role=ai_router_grpc_server
-// @awareness risk=medium
 package main
 
 import (

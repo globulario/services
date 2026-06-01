@@ -1,9 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.objectstore.topology_gate
-// @awareness file_role=minio_topology_admission_gate
-// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness risk=high
 package main
 
 import (
@@ -52,11 +46,6 @@ func nodeIPInPool(nodeIP string, state *config.ObjectStoreDesiredState) bool {
 //
 // Pure function — no I/O. Safe to call from unit tests without a live cluster.
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.objectstore.topology_gate
-// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness risk=high
 func nodeIsTopologyMember(nodeID, nodeIP string, state *config.ObjectStoreDesiredState) (bool, string) {
 	if state == nil {
 		return false, "objectstore desired state not available"
@@ -110,11 +99,6 @@ func nodeIsTopologyMember(nodeID, nodeIP string, state *config.ObjectStoreDesire
 //   - Stopping is idempotent — if the service is already stopped, this is a no-op.
 //   - If systemctl fails, the error is logged but the reconcile loop continues.
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.objectstore.topology_gate
-// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness risk=high
 func (srv *NodeAgentServer) enforceMinioHeld(ctx context.Context, nodeIP string, desiredGen int64) {
 	checkCtx, checkCancel := context.WithTimeout(ctx, 3*time.Second)
 	defer checkCancel()

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_auth
-// @awareness file_role=authentication_grpc_server
-// @awareness implements=globular.platform:intent.globular.security.ceremony_over_configuration
-// @awareness risk=critical
 package main
 
 import (

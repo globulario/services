@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.ingress
-// @awareness file_role=keepalived_ingress_reconciler
-// @awareness risk=high
 package main
 
 import (

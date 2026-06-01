@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.rules
-// @awareness file_role=local_operator_override_detection_rule
-// @awareness risk=medium
 package rules
 
 // local_override_rule.go — Doctor invariants for local/dev package identity lanes.

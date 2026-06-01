@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.reconciler
-// @awareness file_role=systemd_unit_action_dispatch
-// @awareness implements=globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
-// @awareness risk=high
 package main
 
 import (
@@ -220,4 +215,3 @@ func missingInstalledUnits(desired []string, units []unitStatusRecord) []string 
 	}
 	return missing
 }
-

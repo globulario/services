@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_auth
-// @awareness file_role=authentication_grpc_client
-// @awareness risk=medium
 package authentication_client
 
 import (
@@ -347,7 +343,6 @@ func (client *Authentication_Client) SetRootPassword(old_password, new_password 
 	rqst.OldPassword = old_password
 	rqst.NewPassword = new_password
 
-	
 	rsp, err := client.c.SetRootPassword(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err

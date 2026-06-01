@@ -1,9 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform.security.auth_context
-// @awareness file_role=canonical_identity_resolution
-// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
-// @awareness implements=globular.platform:intent.globular.security.ceremony_over_configuration
-// @awareness risk=high
 package security
 
 import (
@@ -63,11 +57,6 @@ var authContextKey = contextKey{}
 // - IsBootstrap: Check GLOBULAR_BOOTSTRAP env var
 // - IsLoopback: Extract peer address and check if 127.0.0.1 or ::1
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform.security.auth_context
-// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
-// @awareness implements=globular.platform:intent.globular.security.ceremony_over_configuration
-// @awareness risk=high
 func NewAuthContext(ctx context.Context, grpcMethod string) (*AuthContext, error) {
 	authCtx := &AuthContext{
 		GRPCMethod:    grpcMethod,

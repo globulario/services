@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.recovery
-// @awareness file_role=node_repair_action_executor
-// @awareness implements=globular.platform:intent.day0_day1_are_repeatable_ceremonies
-// @awareness risk=high
 package main
 
 import (

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=artifact_management_commands
-// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
-// @awareness risk=high
 package main
 
 import (

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.package_apply
-// @awareness file_role=package_install_api_and_workflow_executor
-// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
-// @awareness risk=critical
 package main
 
 import (

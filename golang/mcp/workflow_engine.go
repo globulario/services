@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_mcp
-// @awareness file_role=mcp_workflow_engine_bridge
-// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
-// @awareness risk=high
 package main
 
 import (

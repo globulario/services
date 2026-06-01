@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=artifact_alias_commands
-// @awareness risk=medium
 package main
 
 // repo_artifact_aliases.go — Phase CLI-E aliases.

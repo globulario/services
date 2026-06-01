@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository
-// @awareness file_role=storage_backend_topology_management
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness risk=high
 package main
 
 // storage_topology.go — MinIO storage topology validation, authority sentinel,

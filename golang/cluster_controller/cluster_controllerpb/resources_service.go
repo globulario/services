@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.api
-// @awareness file_role=resources_grpc_service_companion
-// @awareness implements=globular.platform:intent.api.grpc_contracts_are_operational_surface
-// @awareness risk=medium
 package cluster_controllerpb
 
 import (

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=release_mutation_helpers
-// @awareness implements=globular.platform:intent.release.bom_is_precise_release_authority
-// @awareness risk=high
 package main
 
 import (

@@ -1,10 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=controller.release_resolver
-// @awareness file_role=artifact_identity_resolver
-// @awareness implements=globular.platform:intent.controller.apply_package_release_must_carry_expected_sha256
-// @awareness implements=globular.platform:intent.package.identity_tuple_must_be_unique
-// @awareness protects=globular.platform:failure_mode.node_agent.install_package_aliases_convergence_hash_into_expected_sha256
-// @awareness risk=high
 package main
 
 import (

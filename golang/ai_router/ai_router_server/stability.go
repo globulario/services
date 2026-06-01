@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_ai_router
-// @awareness file_role=ai_router_stability_tracking
-// @awareness implements=globular.platform:intent.circuit_breakers_protect_convergence
-// @awareness risk=high
 package main
 
 import (

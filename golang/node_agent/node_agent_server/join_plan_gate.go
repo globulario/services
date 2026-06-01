@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.join
-// @awareness file_role=join_plan_signature_gate_node_side
-// @awareness implements=globular.platform:intent.cluster.membership.earned_trust
-// @awareness risk=high
 package main
 
 import (

@@ -1,10 +1,5 @@
 // rbac_cleanup.go: consistency cleanup for permissions.
 
-// @awareness namespace=globular.platform
-// @awareness component=platform_rbac
-// @awareness file_role=rbac_stale_permission_cleanup
-// @awareness implements=globular.platform:intent.rbac.permission_changes_require_audit_and_owner
-// @awareness risk=high
 package main
 
 import (

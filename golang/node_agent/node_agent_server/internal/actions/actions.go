@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.actions
-// @awareness file_role=action_registry_and_dispatch
-// @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
-// @awareness risk=high
 package actions
 
 import (

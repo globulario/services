@@ -1,9 +1,5 @@
 // logutil.go: helper to route legacy prints to slog.
 
-// @awareness namespace=globular.platform
-// @awareness component=platform_rbac
-// @awareness file_role=rbac_log_utilities
-// @awareness risk=low
 package main
 
 import (

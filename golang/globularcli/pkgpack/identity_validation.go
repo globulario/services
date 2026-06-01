@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=package_identity_validation
-// @awareness enforces=globular.platform:invariant.repository.build_id_global_unique
-// @awareness risk=high
 package pkgpack
 
 import (
@@ -34,4 +29,3 @@ func ValidateVersionBuildSemantics(version string, buildNumber int64) error {
 	}
 	return nil
 }
-

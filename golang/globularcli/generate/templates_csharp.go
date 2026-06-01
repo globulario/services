@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=csharp_code_generation_templates
-// @awareness risk=low
 package generate
 
 import "fmt"

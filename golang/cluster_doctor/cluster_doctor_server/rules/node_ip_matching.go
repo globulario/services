@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.rules
-// @awareness file_role=node_ip_identity_matching_rule
-// @awareness implements=globular.platform:intent.identity.stable_node_identity_not_floating_vip
-// @awareness risk=high
 package rules
 
 // node_ip_matching.go — VIP-contamination-safe node lookup helpers.

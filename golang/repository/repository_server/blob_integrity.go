@@ -1,9 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository.blob_integrity
-// @awareness file_role=canonical_artifact_presence_verification
-// @awareness implements=globular.platform:intent.repository.metadata_is_authority
-// @awareness enforces=globular.platform:invariant.repository.publish_idempotent_same_digest
-// @awareness risk=high
 package main
 
 // blob_integrity.go — Canonical artifact presence verification.

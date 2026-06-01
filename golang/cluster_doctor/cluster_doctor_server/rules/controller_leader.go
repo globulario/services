@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.rules
-// @awareness file_role=controller_leader_health_rule
-// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
-// @awareness risk=critical
 package rules
 
 import (

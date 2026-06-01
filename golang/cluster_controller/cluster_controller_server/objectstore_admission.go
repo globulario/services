@@ -1,9 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.objectstore
-// @awareness file_role=minio_topology_admission_authority
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness enforces=globular.platform:invariant.objectstore.partial_snapshot_unknown_not_down
-// @awareness risk=critical
 package main
 
 // objectstore_admission.go — MinIO disk admission and topology contract enforcement.

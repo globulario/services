@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.objectstore
-// @awareness file_role=objectstore_desired_state_reconciler
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness risk=high
 package main
 
 // objectstore_reconciler.go — delete-approval guard for /globular/objectstore/config.

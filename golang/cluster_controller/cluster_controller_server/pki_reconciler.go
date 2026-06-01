@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.pki
-// @awareness file_role=pki_certificate_and_ca_reconciler
-// @awareness implements=globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
-// @awareness risk=high
 package main
 
 // pki_reconciler.go — delete-approval guard for /globular/pki/ca.

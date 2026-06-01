@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.workflow
-// @awareness file_role=workflow_execution_grpc_handlers
-// @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
-// @awareness risk=high
 package main
 
 import (

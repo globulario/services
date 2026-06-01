@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_mcp.tools
-// @awareness file_role=mcp_cli_bridge_tool
-// @awareness implements=globular.platform:intent.operator_action_requires_explain_plan_verify
-// @awareness risk=high
 package main
 
 import (

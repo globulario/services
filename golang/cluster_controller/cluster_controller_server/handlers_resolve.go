@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller
-// @awareness file_role=artifact_resolution_grpc_handlers
-// @awareness risk=high
 package main
 
 import (

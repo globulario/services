@@ -1,9 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.workflow
-// @awareness file_role=package_release_wave_orchestrator
-// @awareness implements=globular.platform:intent.release.bom_is_precise_release_authority
-// @awareness enforces=globular.platform:invariant.workflow.dispatch_is_not_completion
-// @awareness risk=high
 package main
 
 import (

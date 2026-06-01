@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_backup
-// @awareness file_role=cluster_secret_collection_for_backup
-// @awareness implements=globular.platform:intent.backup.recovery_capsule_is_independent
-// @awareness risk=critical
 package main
 
 import (

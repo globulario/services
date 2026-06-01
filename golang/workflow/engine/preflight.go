@@ -11,11 +11,6 @@
 // the "reconcile clean despite 23 drift items" bug).
 //
 // Call ValidatePreflight from Engine.ExecuteCompiled before creating the Run.
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow.engine
-// @awareness file_role=workflow_backend_preflight_gate
-// @awareness implements=globular.platform:intent.workflow.backend_health_gate_before_dispatch
-// @awareness risk=high
 package engine
 
 import (

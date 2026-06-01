@@ -1,9 +1,5 @@
 // rbac_paths.go: path and file service utilities.
 
-// @awareness namespace=globular.platform
-// @awareness component=platform_rbac
-// @awareness file_role=rbac_resource_path_utilities
-// @awareness risk=medium
 package main
 
 import (

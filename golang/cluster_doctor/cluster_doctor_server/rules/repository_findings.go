@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.rules
-// @awareness file_role=repository_findings_surfacing_rule
-// @awareness implements=globular.platform:intent.repository.identity_doctor_reports_collisions
-// @awareness risk=high
 package rules
 
 // repository_findings.go — doctor invariants that pull from the repository

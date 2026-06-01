@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow.engine
-// @awareness file_role=workflow_step_condition_evaluation
-// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
-// @awareness risk=high
 package engine
 
 import (

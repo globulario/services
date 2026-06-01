@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_mcp.tools
-// @awareness file_role=mcp_rbac_inspection_tools
-// @awareness implements=globular.platform:intent.security.deny_overrides_allow
-// @awareness risk=high
 package main
 
 import (

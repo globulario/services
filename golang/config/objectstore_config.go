@@ -1,10 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform.objectstore.schema
-// @awareness file_role=objectstore_etcd_schema_and_fingerprint
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness enforces=globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
-// @awareness enforces=globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
-// @awareness risk=high
 package config
 
 import (
@@ -49,12 +42,6 @@ const (
 // +globular:schema:description="Authoritative MinIO topology: mode, pool, endpoint, credentials, generation."
 // +globular:schema:invariants="Single-writer (controller); node-agents render locally from this; never authored locally."
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform.objectstore.schema
-// @awareness enforces=globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
-// @awareness enforces=globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness risk=high
 type ObjectStoreDesiredState struct {
 	// Mode is the deployment topology.
 	Mode ObjectStoreMode `json:"mode"`
@@ -180,11 +167,6 @@ func EtcdKeyNodeRenderedStateFingerprint(nodeID string) string {
 // volumes_hash. Endpoint/credentials are intentionally excluded — they don't
 // affect the distributed topology geometry.
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform.objectstore.schema
-// @awareness implements=globular.platform:invariant.objectstore.topology_contract
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness risk=high
 func RenderStateFingerprint(state *ObjectStoreDesiredState) string {
 	if state == nil {
 		return ""

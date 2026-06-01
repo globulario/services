@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.remediation
-// @awareness file_role=ai_remediation_action_consumer
-// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
-// @awareness risk=high
 package main
 
 import (

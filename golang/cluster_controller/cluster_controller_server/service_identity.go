@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller
-// @awareness file_role=service_identity_resolution
-// @awareness implements=globular.platform:intent.identity.stable_node_identity_not_floating_vip
-// @awareness risk=high
 package main
 
 import (

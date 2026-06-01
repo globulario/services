@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_mcp.tools
-// @awareness file_role=mcp_browser_diagnostic_tool
-// @awareness risk=low
 package main
 
 // tools_browser.go — Chrome DevTools Protocol (CDP) bridge.

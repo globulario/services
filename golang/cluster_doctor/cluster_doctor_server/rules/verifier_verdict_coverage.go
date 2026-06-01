@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.rules
-// @awareness file_role=verifier_verdict_coverage_rule
-// @awareness implements=globular.platform:intent.runtime.identity_requires_verification
-// @awareness risk=high
 package rules
 
 // verifier_verdict_coverage.go — invariant that detects installed services

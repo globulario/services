@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.collector
-// @awareness file_role=verification_sweep_request_collector
-// @awareness implements=globular.platform:intent.runtime.identity_requires_verification
-// @awareness risk=high
 package collector
 
 // sweep_requests.go — targeted sweep request consumer.

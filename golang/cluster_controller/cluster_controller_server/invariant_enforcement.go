@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.invariant_enforcement
-// @awareness file_role=cluster_invariant_enforcement_loop
-// @awareness enforces=globular.platform:invariant.state.unknown_must_not_default_to_healthy
-// @awareness risk=critical
 package main
 
 // invariant_enforcement.go — Cluster-wide invariant enforcement.

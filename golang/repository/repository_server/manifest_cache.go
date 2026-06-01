@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository
-// @awareness file_role=artifact_manifest_cache
-// @awareness risk=medium
 package main
 
 // manifest_cache.go — in-memory TTL cache for artifact manifests and directory listings.

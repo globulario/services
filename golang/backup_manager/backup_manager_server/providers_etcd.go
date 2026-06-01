@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_backup
-// @awareness file_role=etcd_backup_provider
-// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
-// @awareness risk=critical
 package main
 
 import (

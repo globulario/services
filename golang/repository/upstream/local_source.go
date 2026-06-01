@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository.upstream
-// @awareness file_role=local_filesystem_upstream_implementation
-// @awareness risk=low
 package upstream
 
 import (

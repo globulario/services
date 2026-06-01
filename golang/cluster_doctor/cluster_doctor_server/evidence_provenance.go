@@ -1,12 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=cluster_doctor.evidence_trust
-// @awareness file_role=evidence_trust_classifier
-// @awareness enforces=globular.platform:invariant.evidence.must_carry_provenance_and_trust_level
-// @awareness enforces=globular.platform:invariant.evidence.missing_is_not_known_bad
-// @awareness enforces=globular.platform:invariant.stale_evidence_must_not_authorize_remediation
-// @awareness implements=globular.platform:intent.evidence.provenance_trust_levels
-// @awareness implements=globular.platform:intent.health.requires_fresh_evidence
-// @awareness risk=high
 package main
 
 import (
@@ -71,13 +62,6 @@ func inferEvidenceSource(service, rpc string) evidence.Source {
 // returns the worst trust level across all entries. A finding with no
 // evidence is Untrusted (silence is not freshness).
 //
-// @awareness namespace=globular.platform
-// @awareness component=cluster_doctor.evidence_trust
-// @awareness enforces=globular.platform:invariant.evidence.missing_is_not_known_bad
-// @awareness enforces=globular.platform:invariant.evidence.must_carry_provenance_and_trust_level
-// @awareness enforces=globular.platform:invariant.stale_evidence_must_not_authorize_remediation
-// @awareness implements=globular.platform:intent.evidence.provenance_trust_levels
-// @awareness risk=high
 func findingEvidenceTrust(f rules.Finding, now time.Time) evidence.TrustLevel {
 	if len(f.Evidence) == 0 {
 		return evidence.TrustUntrusted

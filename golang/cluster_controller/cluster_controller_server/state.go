@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller
-// @awareness file_role=controller_in_memory_state_store
-// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
-// @awareness risk=critical
 package main
 
 import (

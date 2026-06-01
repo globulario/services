@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.reconciler
-// @awareness file_role=artifact_promotion_state_reconciler
-// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
-// @awareness risk=high
 package main
 
 // promotion_reconciler.go — bootstrap-to-authoritative promotion for

@@ -9,10 +9,6 @@
 //     logged and swallowed, never propagated to the request path.
 //   - Deterministic Projection (Clause 10): projectors are pure functions
 //     of their input state.
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.reconciler
-// @awareness file_role=reconcile_projection_schema
-// @awareness risk=medium
 package projections
 
 // Keyspace used by all cluster-controller projections. Shared across the

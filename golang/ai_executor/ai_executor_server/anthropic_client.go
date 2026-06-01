@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_ai_executor
-// @awareness file_role=anthropic_api_client
-// @awareness risk=high
 package main
 
 import (

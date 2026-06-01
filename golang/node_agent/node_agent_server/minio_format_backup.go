@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.objectstore
-// @awareness file_role=minio_format_json_etcd_backup_restore
-// @awareness enforces=globular.platform:invariant.objectstore.partial_snapshot_unknown_not_down
-// @awareness risk=high
 package main
 
 // MinIO per-drive format.json backup + restore via etcd.

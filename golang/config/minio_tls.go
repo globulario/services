@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_config
-// @awareness file_role=minio_tls_config
-// @awareness implements=globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
-// @awareness risk=high
 package config
 
 import (

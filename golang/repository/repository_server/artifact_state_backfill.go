@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository
-// @awareness file_role=artifact_state_backfill_migration
-// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
-// @awareness risk=high
 package main
 
 // artifact_state_backfill.go — bounded migration of legacy rows into the

@@ -2,10 +2,6 @@
 // It provides structured logging with slog, safe --describe/--health
 // handling before touching config/etcd, and preserves all public
 // getters/setters and service lifecycle methods.
-// @awareness namespace=globular.platform
-// @awareness component=platform_monitoring
-// @awareness file_role=monitoring_grpc_server
-// @awareness risk=medium
 package main
 
 import (

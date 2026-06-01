@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_ai_router
-// @awareness file_role=ai_anomaly_detection
-// @awareness risk=high
 package main
 
 import (

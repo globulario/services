@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.rules
-// @awareness file_role=stuck_subsystem_detection_rule
-// @awareness enforces=globular.platform:invariant.state.unknown_must_not_default_to_healthy
-// @awareness risk=high
 package rules
 
 import (

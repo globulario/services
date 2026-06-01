@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller
-// @awareness file_role=node_or_artifact_delete_approval_gate
-// @awareness implements=globular.platform:intent.delete_requires_explicit_intent_marker
-// @awareness risk=high
 package main
 
 // delete_approval.go — shared delete-approval tombstone helpers.

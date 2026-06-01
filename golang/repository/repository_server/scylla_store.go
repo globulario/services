@@ -1,9 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=repository.metadata_store
-// @awareness file_role=scylla_backed_artifact_manifest_authority
-// @awareness implements=globular.platform:intent.repository.metadata_is_authority
-// @awareness enforces=globular.platform:invariant.repository.published_requires_verified_manifest
-// @awareness risk=high
 package main
 
 // scylla_store.go — ScyllaDB-backed manifest metadata store.

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository
-// @awareness file_role=artifact_grpc_handlers
-// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
-// @awareness risk=high
 package main
 
 // artifact_handlers.go — repository RPC handlers for artifact management.
@@ -531,7 +526,6 @@ func (srv *server) readManifestWithFallback(ctx context.Context, ref *repopb.Art
 	m, err := srv.readManifestByKey(ctx, key)
 	return m, err
 }
-
 
 // ── sorting helpers ──────────────────────────────────────────────────────
 

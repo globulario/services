@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.ingress
-// @awareness file_role=ingress_spec_validation_and_vip_guard
-// @awareness implements=globular.platform:intent.quorum_safety_before_storage_mutation
-// @awareness risk=high
 package main
 
 import (

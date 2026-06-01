@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.reconciler
-// @awareness file_role=node_infrastructure_intent_declarations
-// @awareness risk=high
 package main
 
 // EtcdMemberIntent is the controller-authorized etcd membership state for a node.

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.rules
-// @awareness file_role=node_multi_ip_detection_rule
-// @awareness implements=globular.platform:intent.identity.stable_node_identity_not_floating_vip
-// @awareness risk=high
 package rules
 
 import (

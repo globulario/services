@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository
-// @awareness file_role=artifact_resolution_by_identity
-// @awareness enforces=globular.platform:invariant.repository.build_id_global_unique
-// @awareness risk=high
 package main
 
 // resolver.go — Deterministic artifact resolver (PR 1).

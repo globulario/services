@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent
-// @awareness file_role=disk_journal_cleanup_on_package_remove
-// @awareness risk=medium
 package main
 
 // cleanup_disk_journal.go — Journal vacuum for disk pressure recovery.

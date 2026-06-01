@@ -1,11 +1,6 @@
 // persist.go wires the workflow engine to the existing Workflow gRPC service
 // for ScyllaDB-backed persistence. Each engine run/step maps to the
 // workflow service's StartRun/RecordStep/FinishRun RPCs.
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow.engine
-// @awareness file_role=workflow_state_persistence
-// @awareness implements=globular.platform:intent.workflow.step_receipts_are_evidence
-// @awareness risk=critical
 package engine
 
 import (

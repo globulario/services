@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor
-// @awareness file_role=operator_approval_replay_from_etcd
-// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
-// @awareness risk=high
 package main
 
 import (

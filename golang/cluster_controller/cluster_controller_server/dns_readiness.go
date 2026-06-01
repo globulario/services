@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.dns
-// @awareness file_role=dns_readiness_probe
-// @awareness risk=medium
 package main
 
 // dns_readiness.go — Translate per-node heartbeat data (installed packages,

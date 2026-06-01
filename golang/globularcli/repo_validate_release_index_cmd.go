@@ -6,11 +6,6 @@
 // Usage:
 //   globular repository validate-release-index release-index.json
 //   cat release-index.json | globular repository validate-release-index -
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=release_index_validation_command
-// @awareness implements=globular.platform:intent.release.bom_is_precise_release_authority
-// @awareness risk=high
 package main
 
 import (

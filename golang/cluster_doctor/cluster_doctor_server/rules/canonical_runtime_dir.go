@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.rules
-// @awareness file_role=canonical_runtime_directory_check_rule
-// @awareness risk=medium
 package rules
 
 import "strings"

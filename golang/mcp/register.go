@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_mcp
-// @awareness file_role=mcp_tool_registration
-// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
-// @awareness risk=high
 package main
 
 func registerAllTools(s *server) {

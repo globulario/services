@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=service_management_commands
-// @awareness risk=high
 package main
 
 import (
@@ -1160,7 +1156,6 @@ func ensureAlertmanagerConfig(isRoot bool, stateDir string) error {
 func defaultAlertmanagerConfig() string {
 	return "global:\n  resolve_timeout: 5m\nroute:\n  receiver: default\nreceivers:\n  - name: default\n"
 }
-
 
 // ─── Version marker ──────────────────────────────────────────────────────────
 

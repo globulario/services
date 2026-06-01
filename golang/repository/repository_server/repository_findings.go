@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository
-// @awareness file_role=repository_findings_collection
-// @awareness implements=globular.platform:intent.repository.identity_doctor_reports_collisions
-// @awareness risk=high
 package main
 
 // repository_findings.go — Phase F Part 4 ListRepositoryFindings RPC and the

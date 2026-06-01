@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.workflow
-// @awareness file_role=workflow_step_skip_grpc_handler
-// @awareness risk=high
 package main
 
 import (

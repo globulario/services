@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.reconciler
-// @awareness file_role=release_convergence_hash_computation
-// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
-// @awareness risk=high
 package main
 
 import (

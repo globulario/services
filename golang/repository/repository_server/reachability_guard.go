@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository.safety
-// @awareness file_role=destructive_operation_reachability_guard
-// @awareness implements=globular.platform:intent.delete_requires_explicit_intent_marker
-// @awareness risk=high
 package main
 
 // reachability_guard.go — Safety enforcement for destructive repository operations.

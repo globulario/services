@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.workflow
-// @awareness file_role=rolling_update_wave_sequencer
-// @awareness implements=globular.platform:intent.release.bom_is_precise_release_authority
-// @awareness risk=high
 package rolling
 
 type RollingPolicy struct {

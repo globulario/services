@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.rules
-// @awareness file_role=per_node_artifact_integrity_doctor_rule
-// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
-// @awareness risk=high
 package rules
 
 import (

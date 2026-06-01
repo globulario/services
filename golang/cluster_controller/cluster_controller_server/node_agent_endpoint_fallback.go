@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.agent
-// @awareness file_role=node_agent_endpoint_fallback_resolution
-// @awareness risk=medium
 package main
 
 import (

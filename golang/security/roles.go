@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_security
-// @awareness file_role=cluster_role_definitions
-// @awareness implements=globular.platform:intent.security.deny_overrides_allow
-// @awareness risk=high
 package security
 
 import (

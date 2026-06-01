@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.reconciler
-// @awareness file_role=reconcile_work_queue
-// @awareness risk=high
 package main
 
 import (

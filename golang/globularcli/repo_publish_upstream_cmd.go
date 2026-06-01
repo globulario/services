@@ -1,10 +1,6 @@
 // repo_publish_upstream_cmd.go — Publish packages to an upstream registry.
 //
 // Phase 2: dry-run only. Real GitHub upload is not implemented.
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=upstream_publish_command
-// @awareness risk=medium
 package main
 
 import (

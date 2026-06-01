@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository
-// @awareness file_role=artifact_bundle_catalog
-// @awareness risk=medium
 package main
 
 // bundle_catalog.go — ListBundles handler for the Repository PackageRepository service.

@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_auth
-// @awareness file_role=authentication_config_loading
-// @awareness risk=medium
 package main
 
 import (

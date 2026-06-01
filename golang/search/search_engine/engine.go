@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_search
-// @awareness file_role=search_engine_interface
-// @awareness risk=low
 package search_engine
 
 import (

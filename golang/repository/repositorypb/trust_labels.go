@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository.api
-// @awareness file_role=artifact_trust_label_definitions
-// @awareness implements=globular.platform:intent.repository.signature_policy_gates_trust
-// @awareness risk=medium
 package repositorypb
 
 // trust_labels.go — machine-readable trust signal computation for artifacts.

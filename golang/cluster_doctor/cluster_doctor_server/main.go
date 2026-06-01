@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor
-// @awareness file_role=service_entrypoint
-// @awareness risk=medium
 package main
 
 import (

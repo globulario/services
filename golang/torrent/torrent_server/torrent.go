@@ -1,10 +1,6 @@
 // Package main contains torrent management helpers for the Globular service.
 // It exposes RPC handlers and utility functions to download torrents, stream
 // live progress to clients, and persist "recent links" on disk.
-// @awareness namespace=globular.platform
-// @awareness component=platform_torrent
-// @awareness file_role=torrent_engine_integration
-// @awareness risk=low
 package main
 
 import (

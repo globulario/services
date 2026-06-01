@@ -8,10 +8,6 @@
 // They inform doctor findings but never bypass verification or approval.
 //
 // See docs/architecture/learn-by-error-implementation.md.
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow.server
-// @awareness file_role=incident_projection_from_workflow_runs
-// @awareness risk=medium
 package main
 
 import (

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.join_lifecycle
-// @awareness file_role=node_removal_request_processing
-// @awareness implements=globular.platform:intent.delete_requires_explicit_intent_marker
-// @awareness risk=high
 package main
 
 import (

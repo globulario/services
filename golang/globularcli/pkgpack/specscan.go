@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=package_spec_directory_scanner
-// @awareness risk=medium
 package pkgpack
 
 import (

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_audit
-// @awareness file_role=desired_state_write_audit_trail
-// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
-// @awareness risk=high
 package audittrail
 
 import (

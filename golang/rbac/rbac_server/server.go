@@ -1,11 +1,6 @@
 // Package main provides the RBAC gRPC service wired for Globular.
 // It mirrors the clean structure and CLI ergonomics of the Echo example,
 // adds --describe and --health, uses slog for logging, and clarifies errors.
-// @awareness namespace=globular.platform
-// @awareness component=platform_rbac
-// @awareness file_role=rbac_grpc_server_struct_and_state
-// @awareness implements=globular.platform:intent.security.deny_overrides_allow
-// @awareness risk=high
 package main
 
 import (

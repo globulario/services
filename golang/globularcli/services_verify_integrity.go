@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=service_integrity_verification_command
-// @awareness implements=globular.platform:intent.runtime.identity_requires_verification
-// @awareness risk=high
 package main
 
 import (

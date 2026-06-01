@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.operator
-// @awareness file_role=infrastructure_operator_interface
-// @awareness risk=high
 package operator
 
 import (

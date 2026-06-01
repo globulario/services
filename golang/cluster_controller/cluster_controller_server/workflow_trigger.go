@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.workflow
-// @awareness file_role=workflow_trigger_condition_evaluation
-// @awareness risk=high
 package main
 
 import (

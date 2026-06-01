@@ -3,10 +3,6 @@
 // This package must not depend on: repository_server, etcd, MinIO, ScyllaDB,
 // gRPC server internals, or global repository server state.
 // Allowed imports: stdlib only.
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository.upstream
-// @awareness file_role=upstream_source_url_parser
-// @awareness risk=medium
 package upstream
 
 import (

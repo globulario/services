@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_config
-// @awareness file_role=minio_proxy_config
-// @awareness risk=medium
 package config
 
 const (

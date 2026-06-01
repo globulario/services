@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=tls_client_helper
-// @awareness risk=medium
 package main
 
 import (

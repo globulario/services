@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow.engine
-// @awareness file_role=invariant_enforcement_workflow_actors
-// @awareness enforces=globular.platform:invariant.workflow.dispatch_is_not_completion
-// @awareness risk=high
 package engine
 
 import (

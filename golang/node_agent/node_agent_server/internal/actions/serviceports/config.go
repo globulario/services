@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.actions
-// @awareness file_role=service_port_config_helpers
-// @awareness risk=low
 package serviceports
 
 import (

@@ -5,11 +5,6 @@
 //   globular rbac list-bindings [--subject <id>]
 //   globular rbac seed   (seeds built-in SA bindings during Day-0)
 
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=rbac_management_commands
-// @awareness implements=globular.platform:intent.security.deny_overrides_allow
-// @awareness risk=high
 package main
 
 import (

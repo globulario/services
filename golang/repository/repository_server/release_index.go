@@ -1,10 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=repository.release_index
-// @awareness file_role=bom_schema_and_digest_authority
-// @awareness implements=globular.platform:intent.release.bom_is_precise_release_authority
-// @awareness implements=globular.platform:intent.package.identity_tuple_must_be_unique
-// @awareness enforces=globular.platform:invariant.repository.package_build_lane_unique
-// @awareness risk=medium
 package main
 
 // release_index.go — Canonical schema definition and validation for
@@ -331,11 +324,6 @@ func ValidateReleaseIndex(idx *releaseIndex) error {
 
 // ValidateReleaseIndexForInstall applies stricter requirements for official
 // Day-0/Day-1 install flows where release-index mistakes must fail closed.
-// @awareness namespace=globular.platform
-// @awareness component=repository.release_index
-// @awareness enforces=globular.platform:invariant.repository.package_build_lane_unique
-// @awareness implements=globular.platform:intent.release.bom_is_precise_release_authority
-// @awareness risk=critical
 func ValidateReleaseIndexForInstall(idx *releaseIndex) error {
 	if idx != nil {
 		v, _ := parseSchemaVersion(idx.SchemaVersion)
@@ -489,11 +477,6 @@ func isNumericOnly(v string) bool {
 // same build_id must never map to different digests within a release index.
 // Duplicate digests across different build_ids/build_numbers are allowed and
 // are deduped/aliased later in import resolution.
-// @awareness namespace=globular.platform
-// @awareness component=repository.release_index
-// @awareness enforces=globular.platform:invariant.repository.package_build_lane_unique
-// @awareness implements=globular.platform:intent.package.identity_tuple_must_be_unique
-// @awareness risk=high
 func validateNoConflictingBuildIDDigest(idx *releaseIndex) error {
 	seen := make(map[string]string) // build_id -> digest
 	for _, e := range idx.Packages {

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent
-// @awareness file_role=grpc_health_check_handlers
-// @awareness enforces=globular.platform:invariant.state.runtime_not_desired
-// @awareness risk=medium
 package healthchecks
 
 import (

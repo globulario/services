@@ -9,11 +9,6 @@
 // all bind to the same expected target — and that the attestation itself
 // was observed after the process started. See
 // docs/intent/runtime.identity_attestation.yaml.
-// @awareness namespace=globular.platform
-// @awareness component=platform_attestation
-// @awareness file_role=runtime_attestation_type_definitions
-// @awareness implements=globular.platform:intent.runtime.identity.requires_proof
-// @awareness risk=critical
 package attestation
 
 import (

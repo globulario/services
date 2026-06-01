@@ -1,10 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.scylla.ddl_preflight
-// @awareness file_role=scylla_ddl_preflight_and_group0_stale_voter_detection
-// @awareness enforces=globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
-// @awareness implements=globular.platform:intent.workflow.backend_health_gate_before_dispatch
-// @awareness implements=globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
-// @awareness risk=critical
 package main
 
 import (
@@ -117,10 +110,6 @@ var ErrGroup0TableMissing = fmt.Errorf("system.raft_group0_members table not fou
 //     detect stale voters (not in gossip or can_vote=false).
 //     Table missing → try system.raft_state (ScyllaDB 2025.x+ fallback).
 //     Both missing → DDLPreflightUnknown (BLOCKS DDL, fail closed).
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.scylla.ddl_preflight
-// @awareness enforces=globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
-// @awareness risk=critical
 func CanScyllaDDLProceed(ctx context.Context, session *gocql.Session) DDLPreflightResult {
 	if session == nil {
 		return preflightFail(DDLPreflightScyllaUnavailable).withDetail("reason", "nil session")

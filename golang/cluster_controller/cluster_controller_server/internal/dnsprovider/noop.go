@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.dns
-// @awareness file_role=noop_dns_provider_for_testing
-// @awareness risk=low
 package dnsprovider
 
 import (

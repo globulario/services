@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.pki
-// @awareness file_role=node_certificate_management
-// @awareness implements=globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
-// @awareness risk=high
 package main
 
 import (

@@ -1,9 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform.objectstore.admission
-// @awareness file_role=disk_admission_etcd_schema
-// @awareness implements=globular.platform:intent.objectstore.destructive_changes_require_approval
-// @awareness implements=globular.platform:invariant.objectstore.minio.existing_data_guard
-// @awareness risk=critical
 package config
 
 // objectstore_admission.go defines the etcd schema and Go types for MinIO disk
@@ -155,11 +149,6 @@ func PathHash(path string) string {
 // +globular:schema:key="/globular/objectstore/disk/admitted/{node_id}/{path_hash}"
 // +globular:schema:writer="globular-cli (operator)"
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform.objectstore.admission
-// @awareness implements=globular.platform:invariant.objectstore.minio.existing_data_guard
-// @awareness implements=globular.platform:intent.objectstore.destructive_changes_require_approval
-// @awareness risk=critical
 type AdmittedDisk struct {
 	NodeID            string    `json:"node_id"`
 	NodeIP            string    `json:"node_ip"`

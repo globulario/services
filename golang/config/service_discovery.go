@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_config
-// @awareness file_role=service_discovery_from_etcd
-// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
-// @awareness risk=high
 package config
 
 import (
@@ -228,7 +223,6 @@ func splitHostPort(s string) (host, port string, err error) {
 	return s[:i], s[i+1:], nil
 }
 
-
 // RunDescribe executes the specified binary with the "--describe" flag, passing the provided environment variables,
 // and waits for its output up to the given timeout. It expects the command's standard output to be a JSON-encoded
 // ServiceDesc object, which it unmarshals and returns. If the command fails or the output is not valid JSON,
@@ -260,7 +254,6 @@ func RunDescribe(bin string, timeout time.Duration, env map[string]string) (Serv
 		return ServiceDesc{}, fmt.Errorf("describe error: %w; stderr: %s", err, strings.TrimSpace(stderr.String()))
 	}
 
-	
 	var d ServiceDesc
 	if err := json.Unmarshal(stdout.Bytes(), &d); err != nil {
 		return ServiceDesc{}, fmt.Errorf("invalid describe json from %s: %w", bin, err)

@@ -10,11 +10,6 @@
 //   - PENDING steps: execute normally
 //   - Terminal hooks: check run status before replaying
 //   - Child workflows: synchronous, complete before StartChild returns — no duplication risk
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow.server
-// @awareness file_role=workflow_execution_resumption_handler
-// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
-// @awareness risk=high
 package main
 
 import (

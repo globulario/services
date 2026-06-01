@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=health_check_commands
-// @awareness risk=medium
 package main
 
 import (
@@ -528,4 +524,3 @@ func checkTLS(ctx context.Context, domain string) HealthCheckResult {
 
 	return result
 }
-

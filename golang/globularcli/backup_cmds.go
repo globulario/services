@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=backup_management_commands
-// @awareness implements=globular.platform:intent.backup.must_be_restorable_not_just_taken
-// @awareness risk=high
 package main
 
 import (
@@ -475,4 +470,3 @@ func parseLabels(pairs []string) map[string]string {
 	}
 	return m
 }
-

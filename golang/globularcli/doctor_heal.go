@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=doctor_heal_command
-// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
-// @awareness risk=high
 package main
 
 import (
@@ -186,7 +181,6 @@ func searchString(s, sub string) bool {
 	}
 	return false
 }
-
 
 func init() {
 	doctorHealCmd.Flags().BoolVar(&healEnforce, "enforce", false, "Execute auto-heal actions (default: dry-run)")

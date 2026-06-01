@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_installed_state
-// @awareness file_role=installed_state_schema_definitions
-// @awareness risk=medium
 package installed_state
 
 import (

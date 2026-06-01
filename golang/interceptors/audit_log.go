@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_interceptors
-// @awareness file_role=rpc_audit_log_interceptor
-// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
-// @awareness risk=high
 package interceptors
 
 import (

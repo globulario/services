@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_event
-// @awareness file_role=event_bus_grpc_client
-// @awareness risk=low
 package event_client
 
 import (
@@ -639,7 +635,6 @@ func (client *Event_Client) UnSubscribe(name string, uuid string) error {
 
 // In event_client.Event_Client
 
-
 // SubscribeCtx subscribes to events with the specified name and uuid, using the provided context and handler function.
 // If the context is nil, it uses the client's default context. The subscription is registered both locally and on the server.
 // The handler function fct will be called for each received event. The subscription is automatically unsubscribed when the context is done.
@@ -675,7 +670,6 @@ func (client *Event_Client) SubscribeCtx(ctx context.Context, name, uuid string,
     }()
     return nil
 }
-
 
 // UnSubscribeCtx unsubscribes the client from an event stream identified by name and uuid.
 // If the provided context is nil, it uses the client's default context.

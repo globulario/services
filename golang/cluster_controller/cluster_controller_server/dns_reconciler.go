@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.dns
-// @awareness file_role=dns_zone_state_reconciler
-// @awareness risk=medium
 package main
 
 import (
@@ -676,7 +672,6 @@ func (r *DNSReconciler) applyToDNSInstance(ctx context.Context, endpoint string,
 	return nil
 }
 
-
 // fetchServiceInstances retrieves service instances from etcd for SRV records (PR4.1).
 // ctx bounds the operation: if it expires before GetServicesConfigurations returns, the
 // function returns nil immediately so the reconcile cycle is not hung by a slow etcd.
@@ -778,7 +773,6 @@ func (r *DNSReconciler) extractNodeFQDN(addr, clusterDomain string, nodeByFQDN m
 
 	return ""
 }
-
 
 // healthCheckLoop periodically checks DNS endpoint health (PR7)
 func (r *DNSReconciler) healthCheckLoop() {

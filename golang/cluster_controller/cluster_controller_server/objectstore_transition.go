@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.objectstore
-// @awareness file_role=objectstore_destructive_transition_authorization
-// @awareness implements=globular.platform:intent.objectstore.destructive_changes_require_approval
-// @awareness risk=critical
 package main
 
 import (

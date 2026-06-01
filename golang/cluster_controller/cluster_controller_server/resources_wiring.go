@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller
-// @awareness file_role=resource_type_wiring_and_registration
-// @awareness risk=medium
 package main
 
 import (

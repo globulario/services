@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.recovery
-// @awareness file_role=grpc_panic_recovery_middleware
-// @awareness risk=medium
 package recovery
 
 import (

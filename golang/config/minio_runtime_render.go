@@ -1,10 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform.objectstore.config_render
-// @awareness file_role=minio_env_and_systemd_renderer
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness implements=globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
-// @awareness enforces=globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
-// @awareness risk=high
 package config
 
 import (
@@ -26,12 +19,6 @@ import (
 // This function is byte-identical to renderMinioConfig in the cluster controller.
 // Both must be kept in sync — regression tests in minio_runtime_render_test.go enforce this.
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform.objectstore.config_render
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness enforces=globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
-// @awareness enforces=globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
-// @awareness risk=high
 func RenderMinioEnv(state *ObjectStoreDesiredState) string {
 	if state == nil || len(state.Nodes) == 0 {
 		return ""
@@ -116,11 +103,6 @@ func RenderMinioEnv(state *ObjectStoreDesiredState) string {
 // This function is byte-identical to renderMinioSystemdOverride in the controller.
 // Regression tests in minio_runtime_render_test.go enforce this invariant.
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform.objectstore.config_render
-// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
-// @awareness enforces=globular.platform:invariant.objectstore.minio.config_render_source_must_be_etcd
-// @awareness risk=high
 func RenderMinioSystemdOverride(state *ObjectStoreDesiredState, nodeIP string) (string, bool) {
 	if state == nil || len(state.Nodes) == 0 || nodeIP == "" {
 		return "", false

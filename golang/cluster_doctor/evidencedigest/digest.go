@@ -6,11 +6,6 @@
 // Extracted from cluster_doctor_server/handler_remediation.go so both the
 // server binary and the globularcli mint-approval command import the
 // same implementation. See docs/intent/remediation.token_contract.yaml.
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor
-// @awareness file_role=evidence_digest_fingerprinting
-// @awareness implements=globular.platform:intent.evidence.provenance_trust_levels
-// @awareness risk=high
 package evidencedigest
 
 import (

@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.collector
-// @awareness file_role=cluster_state_collector_orchestrator
-// @awareness enforces=globular.platform:invariant.state.unknown_must_not_default_to_healthy
-// @awareness risk=high
 package collector
 
 import (

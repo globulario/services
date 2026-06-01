@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.dns
-// @awareness file_role=local_dns_sync_from_etcd
-// @awareness risk=medium
 package main
 
 import (

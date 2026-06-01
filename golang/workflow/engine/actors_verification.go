@@ -8,11 +8,6 @@
 // AND authoritative state per the hardening design.
 //
 // See docs/architecture/workflow-hardening-implementation.md §WH-4.
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow.engine
-// @awareness file_role=verification_sweep_workflow_actors
-// @awareness implements=globular.platform:intent.runtime.identity_requires_verification
-// @awareness risk=high
 package engine
 
 import (

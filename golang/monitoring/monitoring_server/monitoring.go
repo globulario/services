@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_monitoring
-// @awareness file_role=monitoring_collection_handlers
-// @awareness risk=medium
 package main
 
 import (

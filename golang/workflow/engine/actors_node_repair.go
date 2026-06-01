@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow.engine
-// @awareness file_role=node_repair_workflow_actors
-// @awareness implements=globular.platform:intent.day0_day1_are_repeatable_ceremonies
-// @awareness risk=high
 package engine
 
 import (

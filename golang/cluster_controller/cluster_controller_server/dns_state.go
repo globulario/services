@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.dns
-// @awareness file_role=dns_zone_state_management
-// @awareness risk=medium
 package main
 
 import (

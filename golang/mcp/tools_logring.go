@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_mcp.tools
-// @awareness file_role=mcp_log_ring_query_tool
-// @awareness risk=medium
 package main
 
 import (

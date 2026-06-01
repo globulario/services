@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=cli_audit_log_commands
-// @awareness risk=medium
 package main
 
 // audit_log.go — Durable audit log for all repair and state mutations.

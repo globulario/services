@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.pki
-// @awareness file_role=certificate_etcd_kv_store
-// @awareness implements=globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
-// @awareness risk=high
 package certs
 
 import (

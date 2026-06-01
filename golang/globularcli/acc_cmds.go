@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=admission_control_commands
-// @awareness implements=globular.platform:intent.circuit_breakers_protect_convergence
-// @awareness risk=high
 package main
 
 // acc_cmds.go: CLI commands for tuning Adaptive Concurrency Control (ACC).

@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_node_agent.envoy
-// @awareness file_role=envoy_xds_config_reconciler
-// @awareness risk=high
 package main
 
 // xds_config_reconcile.go — LKG guard for /var/lib/globular/xds/config.json.

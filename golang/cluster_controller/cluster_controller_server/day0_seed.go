@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.bootstrap
-// @awareness file_role=day0_seed_data_injection_into_etcd
-// @awareness implements=globular.platform:intent.day0_day1_are_repeatable_ceremonies
-// @awareness risk=high
 package main
 
 import (

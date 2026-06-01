@@ -2,10 +2,6 @@
 //
 //	globular dev setup   — detect and configure Claude Code settings for this project
 
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=developer_utility_commands
-// @awareness risk=low
 package main
 
 import (

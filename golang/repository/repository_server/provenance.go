@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository
-// @awareness file_role=artifact_provenance_tracking
-// @awareness implements=globular.platform:intent.evidence.provenance_trust_levels
-// @awareness risk=high
 package main
 
 // provenance.go — immutable provenance records for artifact uploads.

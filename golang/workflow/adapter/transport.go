@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow.adapter
-// @awareness file_role=workflow_transport_interface
-// @awareness risk=medium
 package adapter
 
 import "context"

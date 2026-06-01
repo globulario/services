@@ -8,11 +8,6 @@
 //  4. Auto-records runs/steps to ScyllaDB as execution proceeds
 //  5. Dispatches actions to actor services via gRPC callbacks
 //  6. Uses config.ResolveDialTarget for all actor dials
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow.server
-// @awareness file_role=workflow_execution_orchestrator
-// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
-// @awareness risk=critical
 package main
 
 import (

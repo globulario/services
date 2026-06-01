@@ -1,9 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform.security.bootstrap
-// @awareness file_role=bootstrap_gate_day0_security_boundary
-// @awareness implements=globular.platform:intent.bootstrap.window_is_not_steady_state_auth
-// @awareness implements=globular.platform:intent.globular.security.ceremony_over_configuration
-// @awareness risk=high
 package security
 
 import (
@@ -198,11 +192,6 @@ func (g *BootstrapGate) SetSkipOwnershipCheck(skip bool) {
 // 3. Loopback check (prevent remote bootstrap exploitation)
 // 4. Method allowlist (prevent unauthorized method access)
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform.security.bootstrap
-// @awareness implements=globular.platform:intent.bootstrap.window_is_not_steady_state_auth
-// @awareness implements=globular.platform:intent.globular.security.ceremony_over_configuration
-// @awareness risk=high
 func (g *BootstrapGate) ShouldAllow(authCtx *AuthContext) (bool, string) {
 	// Gate 1: Explicit enablement
 	// Bootstrap mode MUST be explicitly enabled via flag file or env var.

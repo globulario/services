@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_controller.reconciler
-// @awareness file_role=critical_etcd_key_prerequisite_checks
-// @awareness enforces=globular.platform:invariant.state.unknown_must_not_default_to_healthy
-// @awareness risk=high
 package main
 
 import (

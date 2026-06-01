@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_backup
-// @awareness file_role=per_node_backup_task_dispatch
-// @awareness implements=globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
-// @awareness risk=high
 package main
 
 import (

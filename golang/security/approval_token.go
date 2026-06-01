@@ -1,10 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform.security.approval_token
-// @awareness file_role=remediation_approval_token_mint_and_validate
-// @awareness enforces=globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
-// @awareness enforces=globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
-// @awareness implements=globular.platform:intent.remediation.token_contract
-// @awareness risk=high
 package security
 
 import (
@@ -147,12 +140,6 @@ func (s *InMemoryReplayStore) Reap() {
 // Ed25519 key. The audience is "remediation:<cluster_id>" so the token
 // cannot be replayed against the user-session validator.
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform.security.approval_token
-// @awareness enforces=globular.platform:invariant.remediation.approval_must_bind_action_target_and_generation
-// @awareness enforces=globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
-// @awareness implements=globular.platform:intent.remediation.token_contract
-// @awareness risk=high
 func MintApprovalToken(req MintApprovalRequest) (string, error) {
 	if err := validateMintRequest(req); err != nil {
 		return "", err
@@ -221,11 +208,6 @@ func MintApprovalToken(req MintApprovalRequest) (string, error) {
 // replay.MarkUsed is called LAST so a malformed or expired token is never
 // recorded as used — only well-formed tokens count against the jti nonce.
 //
-// @awareness namespace=globular.platform
-// @awareness component=platform.security.approval_token
-// @awareness enforces=globular.platform:invariant.remediation.token_must_be_scoped_and_non_replayable
-// @awareness implements=globular.platform:intent.remediation.token_contract
-// @awareness risk=high
 func ValidateApprovalToken(tokenStr string, expect ApprovalExpectation, replay ReplayStore) (*ApprovalClaims, error) {
 	if strings.TrimSpace(tokenStr) == "" {
 		return nil, errors.New("approval token: token is empty")

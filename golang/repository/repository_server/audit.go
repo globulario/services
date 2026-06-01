@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_repository
-// @awareness file_role=repository_audit_trail
-// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
-// @awareness risk=medium
 package main
 
 // audit.go — publish structured audit events to the Event service for trust-sensitive operations.

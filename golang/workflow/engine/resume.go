@@ -5,11 +5,6 @@
 // execution. This replaces blind re-execution with fact-based decisions.
 //
 // See docs/architecture/workflow-hardening-implementation.md.
-// @awareness namespace=globular.platform
-// @awareness component=platform_workflow.engine
-// @awareness file_role=workflow_run_resumption
-// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
-// @awareness risk=high
 package engine
 
 import (

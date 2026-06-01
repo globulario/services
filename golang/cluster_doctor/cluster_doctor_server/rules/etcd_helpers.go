@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor.rules
-// @awareness file_role=etcd_query_helper_utilities
-// @awareness risk=medium
 package rules
 
 import (

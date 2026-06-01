@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=local_artifact_promotion_command
-// @awareness risk=high
 package main
 
 // release_promote_local_cmd.go — Dry-run planner for promoting a local package

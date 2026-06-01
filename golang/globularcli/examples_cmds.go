@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=examples_reference_commands
-// @awareness risk=low
 package main
 
 import (
@@ -896,7 +892,6 @@ func stopService(ctx context.Context, unitName string) error {
 	// For now, we'll use a simplified approach - just trigger reconciliation
 	// which should handle service state
 	
-
 	err = fmt.Errorf("ReconcileNodeV1 removed")
 	return err
 }

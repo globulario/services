@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_remediation
-// @awareness file_role=remediation_outcome_recording
-// @awareness implements=globular.platform:intent.remediation.failure_rate_policy
-// @awareness risk=high
 package remediation
 
 import (

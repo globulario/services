@@ -6,10 +6,6 @@
 //
 // Unknown actions are rejected with an error — never silently accepted.
 // See docs/centralized-workflow-execution.md §4.
-// @awareness namespace=globular.platform
-// @awareness component=platform_cluster_doctor
-// @awareness file_role=actor_service_lifecycle_bridge
-// @awareness risk=medium
 package main
 
 import (

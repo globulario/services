@@ -1,8 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_backup
-// @awareness file_role=backup_retention_policy
-// @awareness implements=globular.platform:intent.backup.must_be_restorable_not_just_taken
-// @awareness risk=high
 package main
 
 import (
@@ -17,7 +12,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
 
 // RunRetention executes the retention policy, deleting old backups.
 // Retention runs are tracked as jobs for auditability.

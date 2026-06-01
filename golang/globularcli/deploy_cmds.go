@@ -1,7 +1,3 @@
-// @awareness namespace=globular.platform
-// @awareness component=platform_cli
-// @awareness file_role=service_deploy_commands
-// @awareness risk=high
 package main
 
 import (
