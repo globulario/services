@@ -2058,27 +2058,9 @@ EOF
   _OPS_CA="/var/lib/globular/pki/ca.crt"
 
   # ai-memory is a workload service — NOT running at day-0 time.
+  # Check for its port first; only attempt auth if it is reachable.
   # All seeding steps are best-effort: skip gracefully when unreachable.
   _OPS_SKIP_SEED=0
-
-  log_substep "Authenticating as bootstrap SA user for ops-knowledge seed..."
-  _OPS_TOKEN=""
-  for _ops_auth_try in $(seq 1 5); do
-    _LOGIN_OUT="$("$GLOBULAR_CLI" --ca "$_OPS_CA" auth login --user sa --password "$BOOTSTRAP_PASSWORD" 2>&1 || true)"
-    _OPS_TOKEN="$(echo "$_LOGIN_OUT" | sed -n 's/^Token: //p' | head -n1 || true)"
-    if [[ -z "$_OPS_TOKEN" && -f /root/.config/globular/token ]]; then
-      _OPS_TOKEN="$(cat /root/.config/globular/token 2>/dev/null || true)"
-    fi
-    if [[ -n "$_OPS_TOKEN" ]]; then
-      break
-    fi
-    log_substep "Auth not ready for ops seed (attempt ${_ops_auth_try}/5), retrying..."
-    sleep 2
-  done
-  if [[ -z "$_OPS_TOKEN" ]]; then
-    log_warn "Failed to get auth token for ops-knowledge seed — authentication may not be ready at day-0. Seed deferred to day-1."
-    _OPS_SKIP_SEED=1
-  fi
 
   # Day-0 DNS may not be ready yet. Resolve AI-memory endpoint directly
   # (etcd first, then unit file, then local IP fallback) and pass --memory.
@@ -2096,8 +2078,30 @@ EOF
     _OPS_MEM_PORT="$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-ai-memory.service 2>/dev/null | head -1 || true)"
   fi
   if [[ -z "$_OPS_MEM_PORT" ]]; then
-    log_warn "Could not determine ai-memory port — ai-memory is a workload service (not running at day-0). Ops-knowledge seed deferred to day-1."
+    log_substep "ai-memory is a workload service and is not running at day-0 — ops-knowledge seed deferred to day-1"
     _OPS_SKIP_SEED=1
+  fi
+
+  # Auth is only needed when ai-memory is reachable.
+  _OPS_TOKEN=""
+  if [[ "$_OPS_SKIP_SEED" -eq 0 ]]; then
+    log_substep "Authenticating as bootstrap SA user for ops-knowledge seed..."
+    for _ops_auth_try in $(seq 1 5); do
+      _LOGIN_OUT="$("$GLOBULAR_CLI" --ca "$_OPS_CA" auth login --user sa --password "$BOOTSTRAP_PASSWORD" 2>&1 || true)"
+      _OPS_TOKEN="$(echo "$_LOGIN_OUT" | sed -n 's/^Token: //p' | head -n1 || true)"
+      if [[ -z "$_OPS_TOKEN" && -f /root/.config/globular/token ]]; then
+        _OPS_TOKEN="$(cat /root/.config/globular/token 2>/dev/null || true)"
+      fi
+      if [[ -n "$_OPS_TOKEN" ]]; then
+        break
+      fi
+      log_substep "Auth not ready for ops seed (attempt ${_ops_auth_try}/5), retrying..."
+      sleep 2
+    done
+    if [[ -z "$_OPS_TOKEN" ]]; then
+      log_warn "Failed to get auth token for ops-knowledge seed — authentication not ready. Seed deferred to day-1."
+      _OPS_SKIP_SEED=1
+    fi
   fi
 
   if [[ "$_OPS_SKIP_SEED" -eq 0 ]]; then
@@ -2151,7 +2155,7 @@ EOF
     fi
     log_success "AI operational-awareness available (${_OPS_COUNT} entries loaded)"
   else
-    log_warn "Ops-knowledge seed skipped at day-0 — ai-memory will be seeded automatically after day-1 workloads start"
+    log_substep "Ops-knowledge seed skipped at day-0 — run 'globular ops-knowledge seed' after day-1 workloads start"
   fi
   fi # end: OPS_KNOWLEDGE_DIR non-empty
 else

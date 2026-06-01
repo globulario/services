@@ -1,8 +1,8 @@
 // Package awareness_graph_client provides a thin gRPC client for the
-// awareness-graph service. Address is resolved from the Envoy mesh gateway
-// (config.GetMeshAddress) when no override is supplied. TLS uses the
-// cluster's internal mTLS credentials by default; pass WithInsecure() for
-// local plaintext dev instances.
+// awareness-graph service. Address is resolved via direct etcd service
+// discovery (GetServicesConfigurationsByName) when no override is supplied.
+// TLS uses the cluster's internal mTLS credentials by default; pass
+// WithInsecure() for local plaintext dev instances.
 package awareness_graph_client
 
 import (
@@ -15,6 +15,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
+
+const serviceName = "awareness.AwarenessGraphService"
 
 // Client wraps the awareness-graph gRPC stub.
 type Client struct {
@@ -35,10 +37,25 @@ func WithInsecure() Option {
 	return func(o *options) { o.insecure = true }
 }
 
+// resolveAddr discovers the awareness-graph endpoint directly from etcd.
+// Bypasses the Envoy mesh IP so Go TLS doesn't suppress SNI (RFC 6066
+// prohibits IP addresses in the SNI extension, which causes Envoy to
+// select the wrong filter chain and return text/html instead of gRPC).
+func resolveAddr() string {
+	svcs, err := config.GetServicesConfigurationsByName(serviceName)
+	if err != nil || len(svcs) == 0 {
+		return ""
+	}
+	if addr, ok := svcs[0]["Address"].(string); ok {
+		return addr
+	}
+	return ""
+}
+
 // New dials the awareness-graph service and returns a Client.
-// If addr is empty the gateway mesh address is resolved from etcd via
-// config.GetMeshAddress; if that also fails the dial is attempted against
-// localhost:7877 (the awareness-graph default port) as a last resort.
+// If addr is empty, the endpoint is resolved directly from etcd service
+// discovery. This uses a hostname-routable address so Go TLS sends the
+// correct SNI through Envoy.
 func New(addr string, opts ...Option) (*Client, error) {
 	o := &options{}
 	for _, opt := range opts {
@@ -46,11 +63,7 @@ func New(addr string, opts ...Option) (*Client, error) {
 	}
 
 	if addr == "" {
-		if mesh, err := config.GetMeshAddress(); err == nil {
-			addr = mesh
-		} else {
-			addr = "localhost:7877"
-		}
+		addr = resolveAddr()
 	}
 
 	var dialOpts []grpc.DialOption
