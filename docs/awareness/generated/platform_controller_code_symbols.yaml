@@ -10,6 +10,49 @@ code_symbols:
         - globular.platform:intent.local_success_not_global_convergence
         - globular.platform:intent.service.installation_is_not_runtime_truth
         - globular.platform:intent.state.repository_desired_installed_runtime
+  - id: globular.platform:code.go.cluster_controller.convergence_committer
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/convergence_committer.go
+    component: cluster_controller.convergence_committer
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.installed_state.owned_by_node_agent
+        - globular.platform:intent.install.result_requires_durable_commit
+        - globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+  - id: globular.platform:code.go.cluster_controller.desired_state
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/desired_state.go
+    component: cluster_controller.desired_state
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.desired_state.is_authority
+        - globular.platform:intent.etcd.is_source_of_truth
+        - globular.platform:intent.delete_requires_explicit_intent_marker
+  - id: globular.platform:code.go.cluster_controller.health
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/handlers_health.go
+    component: cluster_controller.health
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.health.requires_fresh_evidence
+        - globular.platform:intent.platform_status.is_contract_not_vibe
+  - id: globular.platform:code.go.cluster_controller.node_admission
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/node_admission_proof.go
+    component: cluster_controller.node_admission
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.join.token.validation
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+        - globular.platform:intent.cluster.membership.earned_trust
   - id: globular.platform:code.go.cluster_controller.release_pipeline
     namespace: globular.platform
     language: go

@@ -8,6 +8,39 @@ code_edges:
   - from: globular.platform:code.go.cluster_controller.convergence_classifier
     relation: implements
     to: globular.platform:intent.state.repository_desired_installed_runtime
+  - from: globular.platform:code.go.cluster_controller.convergence_committer
+    relation: implements
+    to: globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+  - from: globular.platform:code.go.cluster_controller.convergence_committer
+    relation: implements
+    to: globular.platform:intent.install.result_requires_durable_commit
+  - from: globular.platform:code.go.cluster_controller.convergence_committer
+    relation: implements
+    to: globular.platform:intent.installed_state.owned_by_node_agent
+  - from: globular.platform:code.go.cluster_controller.desired_state
+    relation: implements
+    to: globular.platform:intent.delete_requires_explicit_intent_marker
+  - from: globular.platform:code.go.cluster_controller.desired_state
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.cluster_controller.desired_state
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.cluster_controller.health
+    relation: implements
+    to: globular.platform:intent.health.requires_fresh_evidence
+  - from: globular.platform:code.go.cluster_controller.health
+    relation: implements
+    to: globular.platform:intent.platform_status.is_contract_not_vibe
+  - from: globular.platform:code.go.cluster_controller.node_admission
+    relation: implements
+    to: globular.platform:intent.cluster.membership.earned_trust
+  - from: globular.platform:code.go.cluster_controller.node_admission
+    relation: implements
+    to: globular.platform:intent.join.token.validation
+  - from: globular.platform:code.go.cluster_controller.node_admission
+    relation: implements
+    to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
   - from: globular.platform:code.go.cluster_controller.release_pipeline
     relation: implements
     to: globular.platform:intent.controller.decides_but_does_not_execute_leaf_work

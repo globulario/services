@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=cluster_controller.desired_state
+// @awareness file_role=desired_state_write_authority_over_etcd
+// @awareness implements=globular.platform:intent.desired_state.is_authority
+// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
+// @awareness implements=globular.platform:intent.delete_requires_explicit_intent_marker
+// @awareness risk=critical
 package main
 
 import (

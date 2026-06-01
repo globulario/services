@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.awareness_bridge
+// @awareness file_role=mcp_tool_bridge_to_awareness_graph_grpc_service
+// @awareness implements=globular.platform:intent.awareness.graph_is_compiled_context_not_authority
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=low
 package main
 
 // tools_awareness.go — thin MCP forwarders to the awareness-graph gRPC service.

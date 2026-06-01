@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.healer
+// @awareness file_role=auto_heal_loop_for_bounded_self_correction
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness implements=globular.platform:intent.circuit_breakers_protect_convergence
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness risk=high
 package main
 
 import (

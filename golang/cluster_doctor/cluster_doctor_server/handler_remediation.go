@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.remediation_handler
+// @awareness file_role=remediation_rpc_handler_surfacing_operator_language_findings
+// @awareness implements=globular.platform:intent.doctor.findings_are_operator_language
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness implements=globular.platform:intent.operator_action_requires_explain_plan_verify
+// @awareness risk=high
 package main
 
 import (

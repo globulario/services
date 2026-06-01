@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.runtime_proof
+// @awareness file_role=independent_runtime_evidence_for_installed_services
+// @awareness implements=globular.platform:intent.runtime.identity.requires_proof
+// @awareness implements=globular.platform:intent.health.requires_fresh_evidence
+// @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
+// @awareness risk=critical
 package main
 
 // runtime_proof.go — Phase 2 of the Diagnostic Honesty Refactor.

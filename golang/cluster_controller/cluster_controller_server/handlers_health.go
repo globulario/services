@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=cluster_controller.health
+// @awareness file_role=runtime_health_rpc_handlers_for_controller
+// @awareness implements=globular.platform:intent.health.requires_fresh_evidence
+// @awareness implements=globular.platform:intent.platform_status.is_contract_not_vibe
+// @awareness risk=medium
 package main
 
 import (

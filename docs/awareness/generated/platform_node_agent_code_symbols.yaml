@@ -30,6 +30,39 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.state.installed_not_catalog
+  - id: globular.platform:code.go.platform_node_agent.repair
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/repair_actions.go
+    component: platform_node_agent.repair
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.node_agent.is_executor_not_cluster_brain
+        - globular.platform:intent.remediation.must_go_through_workflow
+        - globular.platform:intent.node_recovery.fence_before_destructive_reseed
+  - id: globular.platform:code.go.platform_node_agent.runtime_proof
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/runtime_proof.go
+    component: platform_node_agent.runtime_proof
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.runtime.identity.requires_proof
+        - globular.platform:intent.health.requires_fresh_evidence
+        - globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - id: globular.platform:code.go.platform_node_agent.self_hosted_proof
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/self_hosted_runtime_proof_writer.go
+    component: platform_node_agent.self_hosted_proof
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.runtime.identity.requires_proof
+        - globular.platform:intent.installed_state.owned_by_node_agent
+        - globular.platform:intent.health.requires_fresh_evidence
   - id: globular.platform:code.go.platform_node_agent.server
     namespace: globular.platform
     language: go
@@ -50,3 +83,13 @@ code_symbols:
         - globular.platform:invariant.destructive_actions.require_explicit_guard
       implements:
         - globular.platform:intent.runtime_health.requires_live_observation
+  - id: globular.platform:code.go.platform_node_agent.workflow_runner
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/workflow_runner.go
+    component: platform_node_agent.workflow_runner
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.node_agent.is_executor_not_cluster_brain
+        - globular.platform:intent.workflow.source_of_operational_truth

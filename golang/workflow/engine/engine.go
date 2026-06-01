@@ -8,6 +8,7 @@
 // @awareness component=platform_workflow.engine
 // @awareness file_role=workflow_engine_core
 // @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
+// @awareness implements=globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
 // @awareness risk=critical
 package engine
 

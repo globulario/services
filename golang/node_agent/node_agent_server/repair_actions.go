@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.repair
+// @awareness file_role=bounded_node_local_repair_actions_dispatched_by_workflow
+// @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness implements=globular.platform:intent.node_recovery.fence_before_destructive_reseed
+// @awareness risk=high
 package main
 
 import (

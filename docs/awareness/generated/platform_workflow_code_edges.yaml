@@ -1,7 +1,25 @@
 code_edges:
   - from: globular.platform:code.go.platform_workflow.engine
     relation: implements
+    to: globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+  - from: globular.platform:code.go.platform_workflow.engine
+    relation: implements
+    to: globular.platform:intent.workflow.source_of_operational_truth
+  - from: globular.platform:code.go.platform_workflow.executor
+    relation: implements
+    to: globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+  - from: globular.platform:code.go.platform_workflow.executor
+    relation: implements
     to: globular.platform:intent.workflow.source_of_operational_truth
   - from: globular.platform:code.go.platform_workflow.server
     relation: implements
     to: globular.platform:intent.workflow.source_of_operational_truth
+  - from: globular.platform:code.go.platform_workflow.step_receipts
+    relation: implements
+    to: globular.platform:intent.install.result_requires_durable_commit
+  - from: globular.platform:code.go.platform_workflow.step_receipts
+    relation: implements
+    to: globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+  - from: globular.platform:code.go.platform_workflow.step_receipts
+    relation: implements
+    to: globular.platform:intent.workflow.step_receipts_are_evidence

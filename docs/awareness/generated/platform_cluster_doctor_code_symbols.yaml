@@ -1,1 +1,34 @@
 code_symbols:
+  - id: globular.platform:code.go.platform_cluster_doctor.executor
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/executor.go
+    component: platform_cluster_doctor.executor
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.remediation.must_go_through_workflow
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+        - globular.platform:intent.audit.every_authority_change_is_explainable
+  - id: globular.platform:code.go.platform_cluster_doctor.healer
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/healer_loop.go
+    component: platform_cluster_doctor.healer
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+        - globular.platform:intent.circuit_breakers_protect_convergence
+        - globular.platform:intent.remediation.must_go_through_workflow
+  - id: globular.platform:code.go.platform_cluster_doctor.remediation_handler
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+    component: platform_cluster_doctor.remediation_handler
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.doctor.findings_are_operator_language
+        - globular.platform:intent.remediation.must_go_through_workflow
+        - globular.platform:intent.operator_action_requires_explain_plan_verify

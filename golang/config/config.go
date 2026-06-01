@@ -1,6 +1,13 @@
 // ==============================================
 // config.go (system config + helpers; service config lives in etcd_backend.go)
 // ==============================================
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform_config
+// @awareness file_role=etcd_backed_system_and_service_configuration
+// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
+// @awareness implements=globular.platform:intent.config.operator_ownership_is_preserved
+// @awareness risk=high
 package config
 
 import (

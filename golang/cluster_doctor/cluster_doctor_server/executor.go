@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.executor
+// @awareness file_role=bounded_auto_remediation_dispatcher_with_audit_trail
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
+// @awareness risk=high
 package main
 
 import (

@@ -17,6 +17,33 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.package_apply
     relation: enforces
     to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent.repair
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.repair
+    relation: implements
+    to: globular.platform:intent.node_recovery.fence_before_destructive_reseed
+  - from: globular.platform:code.go.platform_node_agent.repair
+    relation: implements
+    to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.platform_node_agent.runtime_proof
+    relation: implements
+    to: globular.platform:intent.health.requires_fresh_evidence
+  - from: globular.platform:code.go.platform_node_agent.runtime_proof
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.runtime_proof
+    relation: implements
+    to: globular.platform:intent.runtime.identity.requires_proof
+  - from: globular.platform:code.go.platform_node_agent.self_hosted_proof
+    relation: implements
+    to: globular.platform:intent.health.requires_fresh_evidence
+  - from: globular.platform:code.go.platform_node_agent.self_hosted_proof
+    relation: implements
+    to: globular.platform:intent.installed_state.owned_by_node_agent
+  - from: globular.platform:code.go.platform_node_agent.self_hosted_proof
+    relation: implements
+    to: globular.platform:intent.runtime.identity.requires_proof
   - from: globular.platform:code.go.platform_node_agent.server
     relation: implements
     to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
@@ -26,3 +53,9 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.supervisor
     relation: implements
     to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.platform_node_agent.workflow_runner
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.workflow_runner
+    relation: implements
+    to: globular.platform:intent.workflow.source_of_operational_truth

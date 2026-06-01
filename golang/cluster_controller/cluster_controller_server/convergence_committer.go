@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=cluster_controller.convergence_committer
+// @awareness file_role=installed_state_commitment_after_node_agent_evidence
+// @awareness implements=globular.platform:intent.installed_state.owned_by_node_agent
+// @awareness implements=globular.platform:intent.install.result_requires_durable_commit
+// @awareness implements=globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+// @awareness risk=critical
 package main
 
 import (

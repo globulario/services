@@ -8,6 +8,17 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.workflow.source_of_operational_truth
+        - globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+  - id: globular.platform:code.go.platform_workflow.executor
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/workflow_server/executor.go
+    component: platform_workflow.executor
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.source_of_operational_truth
+        - globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
   - id: globular.platform:code.go.platform_workflow.server
     namespace: globular.platform
     language: go
@@ -17,3 +28,14 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.workflow.source_of_operational_truth
+  - id: globular.platform:code.go.platform_workflow.step_receipts
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/workflow_server/step_receipts.go
+    component: platform_workflow.step_receipts
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.step_receipts_are_evidence
+        - globular.platform:intent.install.result_requires_durable_commit
+        - globular.platform:intent.reconciliation.must_be_idempotent_and_bounded

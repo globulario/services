@@ -17,3 +17,24 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - id: globular.platform:code.go.platform_security.bootstrap
+    namespace: globular.platform
+    language: go
+    file: golang/security/bootstrap.go
+    component: platform_security.bootstrap
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+        - globular.platform:intent.globular.security.ceremony_over_configuration
+  - id: globular.platform:code.go.platform_security.jwt
+    namespace: globular.platform
+    language: go
+    file: golang/security/jwt.go
+    component: platform_security.jwt
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+        - globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+        - globular.platform:intent.security.deny_overrides_allow

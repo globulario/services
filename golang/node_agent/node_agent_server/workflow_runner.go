@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.workflow_runner
+// @awareness file_role=node_side_workflow_step_execution_and_actor_dispatch
+// @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
+// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
+// @awareness risk=high
 package main
 
 import (

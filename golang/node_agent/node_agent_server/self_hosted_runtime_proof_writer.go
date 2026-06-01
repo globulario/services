@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.self_hosted_proof
+// @awareness file_role=post_restart_runtime_proof_writer_for_control_plane_binaries
+// @awareness implements=globular.platform:intent.runtime.identity.requires_proof
+// @awareness implements=globular.platform:intent.installed_state.owned_by_node_agent
+// @awareness implements=globular.platform:intent.health.requires_fresh_evidence
+// @awareness risk=critical
 package main
 
 // self_hosted_runtime_proof_writer.go — Project B implementation.

@@ -9,6 +9,14 @@
 //   - Steps where verification is expensive (health probes, etcd scans)
 //   - Steps where the world is noisy (partial installs, flapping services)
 //   - Steps where the side effect happened but state sync didn't complete
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.step_receipts
+// @awareness file_role=durable_step_completion_evidence_for_idempotent_resume
+// @awareness implements=globular.platform:intent.workflow.step_receipts_are_evidence
+// @awareness implements=globular.platform:intent.install.result_requires_durable_commit
+// @awareness implements=globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+// @awareness risk=high
 package main
 
 import (

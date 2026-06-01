@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_security.jwt
+// @awareness file_role=cluster_token_issuance_and_verification_via_ed25519
+// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+// @awareness implements=globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+// @awareness implements=globular.platform:intent.security.deny_overrides_allow
+// @awareness risk=critical
 package security
 
 import (

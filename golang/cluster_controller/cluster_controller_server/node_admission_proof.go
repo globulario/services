@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=cluster_controller.node_admission
+// @awareness file_role=join_proof_validation_before_cluster_admission
+// @awareness implements=globular.platform:intent.join.token.validation
+// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+// @awareness implements=globular.platform:intent.cluster.membership.earned_trust
+// @awareness risk=critical
 package main
 
 import (
