@@ -2214,3 +2214,227 @@ forbidden_fixes:
     Call gatewayEndpoint() (defined in golang/mcp/clients.go) and obtain the connection through
     s.clients.get(ctx, endpoint). The gatewayEndpoint function already performs the correct mesh
     address resolution once; the pool reuses connections across all tool calls.
+
+- id: silently_install_orphaned_artifact_from_local_fallback
+  summary: >
+    Allow an install to proceed using a locally cached artifact when the repository
+    reports the build is orphaned (ARCHIVED/YANKED/REVOKED/QUARANTINED/CORRUPTED).
+  reason: >
+    Orphaned artifacts were explicitly demoted. The desired build_id still pins them
+    but they are not installable. Installing from a local cache bypasses the repository's
+    demotion decision, propagates revoked or corrupted code, and hides the fact that
+    desired state needs to be rolled forward.
+  safe_alternative: >
+    Return FailedPrecondition with "DesiredBuildIdOrphaned" prefix. Surface as a structured
+    release blocker. Operator must roll desired state forward or run repair-index.
+  related_invariants:
+    - repository.desired_build_id_is_hard_reachability_root
+  protects:
+    files:
+      - golang/repository/repository_server/resolver.go
+
+- id: use_loopback_for_minio_endpoint
+  summary: >
+    Configure MinIO endpoint as 127.0.0.1 or localhost for any cluster-visible connection.
+  reason: >
+    Loopback is not routable across the cluster. Remote MinIO clients cannot reach the
+    endpoint, config becomes machine-local instead of cluster-coordinated, and etcd-stored
+    configuration becomes node-specific. minio_config.go explicitly refuses loopback
+    ("rule: no 127.0.0.1/localhost, ever").
+  safe_alternative: >
+    Use cluster FQDN or stable cluster IP that resolves correctly from all nodes.
+  related_invariants:
+    - etcd.is_source_of_truth
+  protects:
+    files:
+      - golang/config/minio_config.go
+
+- id: mutate_desired_build_id_after_resolver_pins_it
+  summary: >
+    Re-resolve the desired-state version during reconciliation when both version and
+    build_number are already set (pinned), silently switching convergence targets.
+  reason: >
+    Resolution during reconciliation is non-deterministic when multiple builds exist
+    for a version. Re-resolving can silently switch the convergence target without
+    operator approval, breaking the immutability contract and causing nodes to converge
+    to a different artifact than what was approved.
+  safe_alternative: >
+    Once desired state is fully resolved (version + build_number both set), use persisted
+    values directly. Only re-resolve on explicit desired-state update RPCs.
+  related_invariants:
+    - desired_state.is_authority
+    - repository.build_id_server_generated_not_client_driven
+  protects:
+    files:
+      - golang/cluster_controller/cluster_controller_server/reconciler.go
+
+- id: add_mutating_tool_to_remote_aggregator_allowlist
+  summary: >
+    Add a state-mutating tool (etcd_put, etcd_delete, nodeagent_control_service,
+    nodeagent_installed_set) to the MCP remote-callable allowlist.
+  reason: >
+    Mutating tools require local privilege checks, approval gates, and audit trails.
+    Remote callers via the aggregator bypass all of these. Corrupted distributed state
+    produced by remote mutation has no trace and no recovery path.
+    aggregator_policy.go explicitly documents: "All entries are read-only local tools
+    that do not mutate state."
+  safe_alternative: >
+    Only allowlist read-only tools. Mutating operations must be invoked locally or
+    through typed controller RPCs with RBAC enforcement and audit logging.
+  related_invariants:
+    - autonomy.remediation_is_bounded_and_escalates
+  protects:
+    files:
+      - golang/mcp/aggregator_policy.go
+
+- id: wipe_scylla_data_on_verified_healthy_node
+  summary: >
+    Wipe /var/lib/scylla/data on a node that has ScyllaWasEverVerified=true.
+  reason: >
+    Verified nodes have replicated cluster data. Wiping destroys that data and causes
+    unavailability. The scylla_members.go wipe gate is explicit: wipe only when
+    ScyllaJoinRestarts >= 1 AND ScyllaWasEverVerified=false. "This node was previously
+    verified — ScyllaWasEverVerified will gate the wipe and prevent data loss."
+  safe_alternative: >
+    Only wipe nodes that have never successfully joined (ScyllaWasEverVerified=false).
+    For verified nodes, use scylla-manager decommission workflow instead.
+  protects:
+    files:
+      - golang/cluster_controller/cluster_controller_server/scylla_members.go
+
+- id: dispatch_package_before_critical_key_prereqs_present
+  summary: >
+    Dispatch a SERVICE or WORKLOAD package install before its required critical etcd
+    keys exist (e.g. /globular/system/config for SERVICE packages).
+  reason: >
+    Missing critical keys cause installation to fail or stall on first use.
+    Blind dispatch wastes reconcile cycles and delays actual convergence. The prereq
+    system emits OutcomeBlockedCriticalKeyMissing as a structured finding so the
+    operator can unblock deliberately.
+  safe_alternative: >
+    Check critical key prereqs before dispatch. Block with OutcomeBlockedCriticalKeyMissing
+    and emit a finding. Only dispatch after all prereqs are satisfied.
+  protects:
+    files:
+      - golang/cluster_controller/cluster_controller_server/critical_key_prereqs.go
+
+- id: approve_objectstore_transition_without_operator_consent_record
+  summary: >
+    Proceed with a destructive objectstore topology transition (pool wipe, node removal,
+    standalone→distributed) without a matching operator-signed admission record in etcd.
+  reason: >
+    Destructive transitions can destroy production data. The admission system in
+    objectstore_admission.go requires explicit operator consent (admitted disk records)
+    before any destructive action. Implicit approval from state observation bypasses
+    this gate and can trigger irreversible data loss.
+  safe_alternative: >
+    Always require a fresh admission record. Reject stale or absent approvals.
+    Gate destructive transitions only on unexpired, operator-signed admission records.
+  related_invariants:
+    - objectstore.membership_requires_explicit_desired_state
+  protects:
+    files:
+      - golang/cluster_controller/cluster_controller_server/objectstore_admission.go
+
+- id: skip_manifest_validation_because_artifact_state_is_published
+  summary: >
+    Skip re-validating manifest_json presence because artifact_state already shows PUBLISHED.
+  reason: >
+    Interrupted syncs can create skeleton rows: artifact_state=PUBLISHED but
+    manifest_json=NULL. Skipping validation preserves broken rows silently.
+    Every downstream consumer (resolver, repair, explain_artifact) then fails with
+    cryptic nil-dereference or JSON parse errors rather than a clear "manifest missing"
+    diagnosis.
+  safe_alternative: >
+    Always verify manifest_json is non-empty and parseable before treating artifact
+    as installable. PUBLISHED artifact_state is necessary but not sufficient.
+  related_invariants:
+    - repository.published_requires_verified_manifest
+    - repository.artifact_presence_requires_metadata_and_blob
+  protects:
+    files:
+      - golang/repository/repository_server/artifact_handlers.go
+
+- id: infer_scylla_cluster_membership_from_local_process_state
+  summary: >
+    Determine which nodes are ScyllaDB members by checking if scylla-server is
+    running or installed locally, rather than querying cluster topology from etcd.
+  reason: >
+    Local process state is observer-only and can be stale. A node may still have
+    scylla-server running from a previous join attempt after being removed from
+    the desired topology. Inference creates split-brain membership views and can
+    allow a decommissioned node to participate in the cluster.
+  safe_alternative: >
+    Read ScyllaDB cluster membership from etcd (/globular/objectstore/scylla/members
+    or equivalent cluster-controller-owned key). Never infer from local systemd state.
+  related_invariants:
+    - etcd.is_source_of_truth
+    - objectstore.membership_requires_explicit_desired_state
+  protects:
+    files:
+      - golang/cluster_controller/cluster_controller_server/scylla_members.go
+
+- id: use_wall_clock_for_installed_unix_timestamp
+  summary: >
+    Anchor InstalledUnix or UpdatedUnix in the installed package proof to wall-clock
+    time (time.Now()) instead of the process start time from /proc/<pid>/exe mtime.
+  reason: >
+    Wall-clock anchoring causes permanent service.old_pid_after_upgrade findings.
+    The verifier compares the installed timestamp against the running PID's mtime.
+    If InstalledUnix > process start time, the verifier concludes the running binary
+    is older than the installed record — which looks like an upgrade that didn't restart.
+    This was INC-2026-0016.
+  safe_alternative: >
+    Use /proc/<pid>/exe mtime (os.Stat) as the InstalledUnix anchor. This ties
+    the proof to when the process actually started, not when we wrote the record.
+  related_invariants:
+    - runtime.identity_requires_verification
+  protects:
+    files:
+      - golang/node_agent/node_agent_server/heartbeat.go
+
+- id: dispatch_workflow_without_checking_wave_blocked_result
+  summary: >
+    Discard the result of workflow.Run when status=RUN_STATUS_FAILED and err=nil,
+    treating a WAVE_BLOCKED outcome as a successful no-op.
+  reason: >
+    workflow.Run returns RUN_STATUS_FAILED with err=nil for WAVE_BLOCKED — the run
+    did not succeed, it was blocked by a dependency. Discarding this result means the
+    caller never schedules a retry. The block persists forever. This was INC-2026-0017.
+  safe_alternative: >
+    Check both err AND status. On RUN_STATUS_FAILED, inspect the reason. If
+    WAVE_BLOCKED, enqueue a retry with appropriate backoff.
+  related_invariants:
+    - workflow.dispatch_is_not_completion
+  protects:
+    files:
+      - golang/workflow/engine/engine.go
+
+- id: write_service_version_empty_string_to_struct
+  summary: >
+    Write an empty string to srv.Version in service main() instead of assigning
+    the package-level Version variable (from zz_version_generated.go).
+  reason: >
+    The Version variable is set by ldflags at build time. Writing "" clobbers it.
+    The running service then reports version=0.0.0-dev regardless of what was actually
+    built, making version drift undetectable. This causes permanent
+    service.running_version_mismatch findings.
+  safe_alternative: >
+    Always: srv.Version = Version (the package-level var). Never srv.Version = "".
+  protects:
+    files:
+      - golang/globular_service/lifecycle.go
+
+- id: pkill_with_f_flag_to_stop_service
+  summary: >
+    Use pkill -f <binary-name> to stop a service in ExecStartPre or install scripts.
+  reason: >
+    pkill -f matches the full argv string including the parent shell's command line.
+    In systemd ExecStartPre, the parent shell running the script matches the pattern
+    and kills itself, aborting the install mid-flight. This was observed across 9
+    service spec files. Use pkill -x <binary-name> instead.
+  safe_alternative: >
+    pkill -x <exact-binary-name> — matches only process name, not argv. Never pkill -f.
+  protects:
+    files:
+      - golang/node_agent/node_agent_server/internal/supervisor/supervisor.go
