@@ -2972,3 +2972,185 @@ failure_modes:
         - TestSweepRuntimeDepBlocks_ClearsWhenDepsSatisfied
         - TestSweepRuntimeDepBlocks_DoesNotClearWhenDepsMissing
         - TestSweepRuntimeDepBlocks_ListErrorIsNonFatal
+
+    - id: infra.desired_hash_convergence_mismatch_loop
+      title: Using raw artifact digest as infrastructure desired hash causes permanent convergence mismatch loop
+      severity: critical
+      status: active
+      description: >
+        Infrastructure desired hashes MUST be computed with ComputeInfrastructureDesiredHash.
+        Using ResolvedArtifactDigest (raw artifact blob SHA256) produces a permanent mismatch:
+        the controller always sees convergence mismatch and perpetually re-dispatches the
+        install workflow, causing an Envoy restart storm (observed 2026-05-06).
+      trigger: >
+        Any code path that stores desiredHash = resolvedArtifactDigest instead of
+        ComputeInfrastructureDesiredHash(...) output.
+      symptoms:
+        - Controller perpetually re-dispatches infrastructure install workflow
+        - Envoy/DNS/keepalived services restart in a tight loop
+        - Convergence metrics never reach 100%
+        - lookupServiceReleaseBuildID returns DesiredHash that never equals computed hash
+      blast_radius:
+        - Infrastructure services (Envoy, DNS) oscillate — control plane unstable
+        - All services lose routing stability during the loop
+      detection: mustNotUseResolvedArtifactDigest guard in infrastructure_reconciler.go
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/infrastructure_reconciler.go
+      forbidden_fixes:
+        - using resolvedArtifactDigest directly as the convergence desired hash
+        - computing the hash outside of ComputeInfrastructureDesiredHash
+
+    - id: scylla.workflow_reconnect_concurrent_storm
+      title: Multiple concurrent Scylla reconnect goroutines breach the single-reconnect guarantee
+      severity: high
+      status: active
+      description: >
+        The workflow Scylla session manager uses an atomic reconnecting flag to prevent
+        concurrent reconnect attempts. If the guard is bypassed or multiple callers race
+        past it, parallel reconnect goroutines each close the session and attempt a new
+        connection simultaneously, causing pool thrashing and inconsistent generation state.
+      trigger: >
+        High request volume during Scylla downtime; multiple onPingFailure() calls
+        arrive concurrently before the reconnecting flag is set.
+      symptoms:
+        - Multiple "reconnecting to Scylla" log entries with overlapping timestamps
+        - Session generation counter increments more than once per reconnect cycle
+        - Workflow query failures that resolve then immediately recur
+      blast_radius:
+        - All in-flight workflow runs stall for the reconnect duration
+        - Orphan scanner may claim runs that are still active
+      protects:
+        files:
+          - golang/workflow/workflow_server/scylla_reconnect.go
+      required_tests:
+        - TestNoConcurrentReconnectStorm
+
+    - id: interceptors.loopback_amplification_host_crash
+      title: High-volume inter-service loopback traffic amplifies into an event storm that crashes the node
+      severity: critical
+      status: active
+      description: >
+        Local service-to-service calls (A→B→C→A) over loopback have a higher rate limit
+        (5000/30s) than external calls (500/30s). A tight call chain under load can generate
+        1000-3000 req/s over loopback before the limiter fires. This was observed to crash
+        the host. The loopback threshold is defense-in-depth, not a safety guarantee.
+      trigger: >
+        Circular or deep call chains between services on the same node during a high-load
+        event (e.g. reconcile storm, mass workflow dispatch). No backpressure at the call site.
+      symptoms:
+        - Node CPU pegged at 100% from interceptor hot path
+        - All services on the node become unresponsive
+        - Rate limiter logs showing loopback threshold breaches
+        - Host-level OOM or process crash
+      blast_radius:
+        - All services on the affected node unavailable
+        - etcd member on node may become unreachable → potential leader election
+        - Cascades to cluster-wide request timeouts
+      protects:
+        files:
+          - golang/interceptors/rate_tracker.go
+
+    - id: workflow.orphan_lease_slow_step_double_claim
+      title: Slow workflow step causes orphan scanner to claim active run — double execution
+      severity: high
+      status: active
+      description: >
+        The executor heartbeat must be renewed every 30 seconds. If a workflow step takes
+        longer than orphanHeartbeatTimeout (30s) without refreshing the lease, the orphan
+        scanner (runs every 15s) may claim the run and start a new executor. Two executors
+        then compete to complete the same run, producing conflicting state writes.
+      trigger: >
+        Slow etcd write, Scylla query timeout, or CPU starvation causes a step to take >30s
+        without the lease heartbeat being renewed.
+      symptoms:
+        - Two "executor lease: claimed orphan, resuming" log entries for the same run_id
+        - Run state shows SUCCEEDED then FAILED (or vice versa)
+        - Duplicate workflow effects (service installed twice, etcd key written twice)
+      blast_radius:
+        - Run state unreliable for affected workflow
+        - Side effects may be applied twice (installs, etcd writes, notifications)
+      protects:
+        files:
+          - golang/workflow/workflow_server/executor_lease.go
+      forbidden_fixes:
+        - increasing orphanHeartbeatTimeout as a substitute for fixing slow steps
+        - disabling the orphan scanner to prevent double-claim
+
+    - id: workflow.stale_release_callback_overwrites_generation
+      title: Stale workflow completion callback overwrites a newer release phase via generation race
+      severity: high
+      status: active
+      description: >
+        When a workflow completes after the release generation has advanced (e.g. a retry
+        started a new run), the stale callback must be discarded. The generation guard in
+        handleWorkflowCompletion checks expectedGeneration but the check and write are not
+        atomic — a concurrent advance between the check and the write can let a stale
+        callback overwrite the current phase.
+      trigger: >
+        Slow network delay on workflow completion RPC; release generation advances
+        (retry or manual re-trigger) between the guard check and the etcd write.
+      symptoms:
+        - Release phase regresses to an earlier state (e.g. INSTALLING after SUCCEEDED)
+        - Reconciler re-dispatches an already-completed release
+        - Convergence loops without ever reaching SUCCEEDED
+      blast_radius:
+        - Service release blocked indefinitely
+        - Reconciliation diverges from intent until operator manually resets
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/workflow_release.go
+      required_tests:
+        - TestDeleteCriticalReleaseRejectsGenerationMismatch
+
+    - id: event.scylla_bus_nil_session_silent_drop
+      title: Event publish silently returns nil when Scylla session is nil — event is lost
+      severity: high
+      status: active
+      description: >
+        The ScyllaDB event bus publish() function returns nil (success) when the session
+        is nil or instanceID is empty. The caller receives no error but the event is never
+        written. This happens during reconnect windows and on bus shutdown.
+      trigger: >
+        Scylla reconnect in progress (session set to nil at line 227); event publish
+        races with the nil window. Also on clean shutdown before session is established.
+      symptoms:
+        - No publish error in logs
+        - Event count metrics show no failures
+        - Downstream subscribers never receive the event
+        - Audit trail has gaps that are impossible to detect without cross-referencing
+      blast_radius:
+        - Events permanently lost — no replay possible after nil-window drop
+        - Compliance audit gaps if dropped events are security-relevant
+        - Workflow run status notifications silently dropped
+      protects:
+        files:
+          - golang/event/event_server/scylla_bus.go
+
+    - id: ai_router.cascade_disables_retry_prevents_recovery
+      title: AI router disables all retries at >30% error rate — recovery becomes impossible without external intervention
+      severity: high
+      status: active
+      description: >
+        applyStabilityControls sets MaxRetries=0 when avgErrorRate exceeds 30%. This
+        stops amplification but also stops the self-healing path — once disabled, every
+        request fails immediately, keeping the error rate at 100%. The router cannot
+        recover on its own; it requires external intervention to reset.
+      trigger: >
+        Transient spike drives avg error rate above 30% threshold. Circuit breaker
+        fires. All retries disabled. Error rate locks at 100%.
+      symptoms:
+        - All AI router requests fail immediately with no retry
+        - Error rate metric stuck at 100% — never recovers
+        - No "circuit breakers critical" log after initial trigger (rate stays pegged)
+        - Downstream services (ai_executor, ai_watcher) appear completely offline
+      blast_radius:
+        - All AI-assisted diagnosis and remediation unavailable
+        - MCP tools that depend on ai_router return errors permanently
+        - Recovery requires operator to restart the ai_router service
+      protects:
+        files:
+          - golang/ai_router/ai_router_server/stability.go
+      forbidden_fixes:
+        - removing the >30% circuit breaker without adding an auto-recovery path
+        - treating MaxRetries=0 as a permanent steady state rather than a transient gate
