@@ -1,4 +1,22 @@
 code_edges:
+  - from: globular.platform:code.go.cluster_controller.convergence_classifier
+    relation: implements
+    to: globular.platform:intent.local_success_not_global_convergence
+  - from: globular.platform:code.go.cluster_controller.convergence_classifier
+    relation: implements
+    to: globular.platform:intent.service.installation_is_not_runtime_truth
+  - from: globular.platform:code.go.cluster_controller.convergence_classifier
+    relation: implements
+    to: globular.platform:intent.state.repository_desired_installed_runtime
+  - from: globular.platform:code.go.cluster_controller.release_pipeline
+    relation: implements
+    to: globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+  - from: globular.platform:code.go.cluster_controller.release_pipeline
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.cluster_controller.release_pipeline
+    relation: implements
+    to: globular.platform:intent.workflow.source_of_operational_truth
   - from: globular.platform:code.go.platform_controller.reconciler
     relation: implements
     to: globular.platform:intent.desired_state.is_authority

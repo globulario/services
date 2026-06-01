@@ -23,7 +23,13 @@ zooms_out_to:
 - globular.vision.ai_operable_cluster
 zooms_in_to:
 - state.repository_desired_installed_runtime
+- desired_state.is_authority
+- controller.decides_but_does_not_execute_leaf_work
+- node_agent.is_executor_not_cluster_brain
 - workflow.source_of_operational_truth
+- repository.metadata_is_authority
+- health.requires_fresh_evidence
+- reconciliation.must_be_idempotent_and_bounded
 - degraded_is_explicit_not_hidden
 related_to:
 - audit.every_authority_change_is_explainable

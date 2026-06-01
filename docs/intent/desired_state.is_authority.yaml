@@ -1,19 +1,39 @@
 id: desired_state.is_authority
-level: invariant
+level: principle
 title: Desired state is authority for what should run
 intent: >
   Desired state is the authoritative declaration of intended package/service
   versions; installed/runtime observations must converge to it, not redefine it.
+  The reconciler reads desired state as its ground truth and drives all nodes
+  toward it. No runtime observation, local success, or operator shortcut can
+  rewrite the desired record without going through the controller's authority path.
 agent_guidance: >
   Do not mutate desired state to match transient installed/runtime drift. Repair
-  convergence paths instead.
+  convergence paths instead. If desired state is wrong, fix it via the controller
+  API — never by having the node-agent or reconciler guess from runtime data.
+bad_smells:
+  - node-agent writes desired state
+  - runtime health updates desired target
+  - reconciler infers desired from installed
+  - desired state modified during reconcile based on observations
 activation_triggers:
   - desired state
   - reconcile
   - drift
+  - convergence authority
+zooms_out_to:
+  - state.repository_desired_installed_runtime
+zooms_in_to:
+  - reconciliation.must_be_idempotent_and_bounded
+  - local_success_not_global_convergence
+  - runtime_observation_must_not_mutate_desired
 related_to:
   - etcd.is_source_of_truth
   - state.repository_desired_installed_runtime
+expressed_by:
+  - golang/cluster_controller/cluster_controller_server/reconciler.go
+  - golang/cluster_controller/cluster_controller_server/release_pipeline.go
 required_tests:
   - cluster_controller:TestDesiredStateDrivesReconcile
+  - cluster_controller:TestComputeDesiredState_PlannedNotInstalled_NoRecord
 status: seed

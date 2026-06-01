@@ -1,6 +1,13 @@
 // Package main implements the Repository gRPC service wired for Globular.
 // It provides structured logging via slog, clean getters/setters that satisfy
 // Globular's service contract, and CLI utilities: --describe and --health.
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.server
+// @awareness file_role=grpc_entry_point_for_artifact_lifecycle_and_metadata
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness risk=critical
 package main
 
 import (

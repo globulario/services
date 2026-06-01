@@ -1,5 +1,11 @@
 // Package main implements the Workflow gRPC service backed by ScyllaDB.
 // It provides cluster-scoped, persistent reconciliation workflow tracing.
+//
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.server
+// @awareness file_role=grpc_entry_point_for_all_cluster_mutations
+// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
+// @awareness risk=high
 package main
 
 import (

@@ -24,8 +24,8 @@ bad_smells:
   - inline convergence logic that bypasses the semaphore and circuit breaker
 
 expressed_by:
-  - services/golang/workflow/
-  - services/golang/cluster_controller/
+  - golang/workflow/workflow_server/server.go
+  - golang/cluster_controller/cluster_controller_server/release_pipeline.go
 
 related_invariants:
   - repair.etcd.explicit.flag.only
@@ -44,7 +44,9 @@ related_to:
   - etcd.is_source_of_truth
 
 zooms_in_to:
-  - state.repository_desired_installed_runtime
+  - workflow.remediation_truth_consistency
+  - workflow.step_receipts_are_evidence
+  - workflow.backend_health_gate_before_dispatch
 
 required_tests:
 - workflow_engine:TestDoctorFindingWorkflow_HappyPath

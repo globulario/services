@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.install
+// @awareness file_role=package_install_and_convergence_evidence_emission
+// @awareness implements=globular.platform:intent.installed_state.owned_by_node_agent
+// @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
+// @awareness implements=globular.platform:intent.install.result_requires_durable_commit
+// @awareness risk=critical
 package main
 
 import (

@@ -24,10 +24,11 @@ bad_smells:
   - assuming a missing layer means "not applicable" rather than "unknown"
 
 expressed_by:
-  - services/golang/cluster_controller/
-  - services/golang/node_agent/
-  - services/golang/repository/
-  - services/golang/cluster_doctor/
+  - golang/cluster_controller/cluster_controller_server/reconciler.go
+  - golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+  - golang/node_agent/node_agent_server/apply_package_release.go
+  - golang/repository/repository_server/server.go
+  - golang/cluster_doctor/cluster_doctor_server/report.go
 
 related_invariants:
   - cluster.layer3.not.layer4
@@ -44,8 +45,11 @@ zooms_out_to:
 
 zooms_in_to:
   - desired_state.is_authority
+  - installed_state.owned_by_node_agent
+  - repository.metadata_is_authority
   - service.installation_is_not_runtime_truth
   - runtime.identity.requires_proof
+  - runtime_observation_must_not_mutate_desired
 
 change_risk:
   - state_model_sensitive

@@ -8,3 +8,12 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.workflow.source_of_operational_truth
+  - id: globular.platform:code.go.platform_workflow.server
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/workflow_server/server.go
+    component: platform_workflow.server
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.source_of_operational_truth

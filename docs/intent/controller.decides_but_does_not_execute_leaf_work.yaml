@@ -20,6 +20,7 @@ expressed_by:
 - awareness/subsystem_boundaries.yaml
 related_invariants: []
 zooms_out_to:
+- globular.vision.explicit_convergence
 - subsystem.boundaries_define_authority
 zooms_in_to:
 - workflow.source_of_operational_truth

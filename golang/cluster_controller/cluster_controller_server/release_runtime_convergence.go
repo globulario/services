@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=cluster_controller.convergence_classifier
+// @awareness file_role=per_node_per_package_convergence_classification
+// @awareness implements=globular.platform:intent.local_success_not_global_convergence
+// @awareness implements=globular.platform:intent.service.installation_is_not_runtime_truth
+// @awareness implements=globular.platform:intent.state.repository_desired_installed_runtime
+// @awareness risk=critical
 package main
 
 import (

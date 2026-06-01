@@ -5,9 +5,21 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.heartbeat
     relation: implements
     to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.platform_node_agent.install
+    relation: implements
+    to: globular.platform:intent.install.result_requires_durable_commit
+  - from: globular.platform:code.go.platform_node_agent.install
+    relation: implements
+    to: globular.platform:intent.installed_state.owned_by_node_agent
+  - from: globular.platform:code.go.platform_node_agent.install
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
   - from: globular.platform:code.go.platform_node_agent.package_apply
     relation: enforces
     to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent.server
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
   - from: globular.platform:code.go.platform_node_agent.supervisor
     relation: enforces
     to: globular.platform:invariant.destructive_actions.require_explicit_guard

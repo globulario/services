@@ -21,10 +21,11 @@ expressed_by:
 - awareness/graph_integrity.md
 related_invariants: []
 zooms_out_to:
-- degraded_is_explicit_not_hidden
-zooms_in_to: []
-related_to:
+- globular.vision.explicit_convergence
+zooms_in_to:
 - runtime_health.requires_live_observation
+related_to:
+- degraded_is_explicit_not_hidden
 required_tests:
 - mcp:TestFreshnessStatusReady
 - mcp:TestFreshnessStatusStaleOnBuildIDDrift

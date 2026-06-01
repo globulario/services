@@ -16,11 +16,16 @@ activation_triggers:
 - install
 - desired state
 expressed_by:
+- golang/node_agent/node_agent_server/server.go
+- golang/node_agent/node_agent_server/apply_package_release.go
+- golang/node_agent/node_agent_server/heartbeat.go
 - awareness/subsystem_boundaries.yaml
 - operators/architecture-overview.md
 related_invariants:
 - infra.heartbeat_not_desired_authority
 zooms_out_to:
+- globular.vision.explicit_convergence
+- controller.decides_but_does_not_execute_leaf_work
 - subsystem.boundaries_define_authority
 zooms_in_to:
 - installed_state.owned_by_node_agent

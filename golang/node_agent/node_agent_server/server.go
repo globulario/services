@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.server
+// @awareness file_role=grpc_rpc_dispatcher_for_node_local_operations
+// @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
+// @awareness risk=high
 package main
 
 import (

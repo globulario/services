@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=cluster_controller.release_pipeline
+// @awareness file_role=workflow_dispatch_for_package_releases
+// @awareness implements=globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+// @awareness implements=globular.platform:intent.desired_state.is_authority
+// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
+// @awareness risk=critical
 package main
 
 import (

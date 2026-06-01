@@ -10,6 +10,17 @@ code_symbols:
         - globular.platform:invariant.state.runtime_not_desired
       implements:
         - globular.platform:intent.runtime_health.requires_live_observation
+  - id: globular.platform:code.go.platform_node_agent.install
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/apply_package_release.go
+    component: platform_node_agent.install
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.installed_state.owned_by_node_agent
+        - globular.platform:intent.node_agent.is_executor_not_cluster_brain
+        - globular.platform:intent.install.result_requires_durable_commit
   - id: globular.platform:code.go.platform_node_agent.package_apply
     namespace: globular.platform
     language: go
@@ -19,6 +30,15 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.state.installed_not_catalog
+  - id: globular.platform:code.go.platform_node_agent.server
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/server.go
+    component: platform_node_agent.server
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.node_agent.is_executor_not_cluster_brain
   - id: globular.platform:code.go.platform_node_agent.supervisor
     namespace: globular.platform
     language: go
