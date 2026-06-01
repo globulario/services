@@ -1,0 +1,36 @@
+id: backup.retention_preserves_restore_tested_floor
+level: mechanism
+title: Retention must keep at least MinRestoreTestedToKeep restore-tested backups
+intent: |
+  The retention policy deletes old backups based on count, age, and size. But it must
+  never delete a RESTORE_TESTED or PROMOTED capsule if doing so would drop the count
+  of restore-tested backups below MinRestoreTestedToKeep. This floor ensures that at
+  least N verified recovery paths always exist, even after aggressive retention.
+  PROMOTED capsules are absolutely immune from retention deletion.
+agent_guidance: |
+  When implementing or changing retention logic, always compute the restore-tested floor
+  BEFORE applying count/age/size limits. If applying a deletion would break the floor,
+  skip it and log the decision.
+bad_smells:
+  - retention deleting RESTORE_TESTED capsule when floor would be violated
+  - retention deleting PROMOTED capsule
+  - retention running without first computing current restore-tested count
+  - MinRestoreTestedToKeep=0 silently disabling the protection
+activation_triggers:
+  - retention
+  - MinRestoreTestedToKeep
+  - RESTORE_TESTED
+  - PROMOTED
+  - delete backup
+expressed_by:
+  - golang/backup_manager/backup_manager_server/retention.go
+related_invariants: []
+zooms_out_to:
+  - backup.must_be_restorable_not_just_taken
+zooms_in_to: []
+related_to:
+  - backup.capsule_quality_is_monotonic
+required_tests:
+  - backup_manager:TestRetention_MinRestoreTestedToKeep
+  - backup_manager:TestRetention_PromotedCapsuleImmune
+status: extracted_candidate

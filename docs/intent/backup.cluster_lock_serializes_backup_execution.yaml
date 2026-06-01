@@ -1,0 +1,38 @@
+id: backup.cluster_lock_serializes_backup_execution
+level: mechanism
+title: An etcd distributed lock serializes cluster-scoped backup execution
+intent: |
+  Cluster-scoped backup providers (etcd snapshot, ScyllaDB) require exclusive execution —
+  running two concurrently would produce inconsistent snapshots and race on the shared
+  capsule directory. An etcd mutex at /globular/backup/locks/cluster with a 600-second
+  TTL ensures only one cluster-scoped backup can run at a time across all cluster nodes.
+  The lock is acquired with a 5-second timeout; if already held, the new request fails
+  immediately. Orphaned lock TTL ensures the lock auto-releases after 10 minutes even if
+  the holding server crashes.
+agent_guidance: |
+  Never attempt cluster-scoped backup operations outside the etcd lock. If you add a new
+  cluster-scoped provider, register it as ProviderScopeCluster so it is subject to the
+  mutex. Node-scoped providers (restic per-node) are not subject to the cluster lock.
+bad_smells:
+  - cluster-scoped provider run without acquiring the mutex
+  - lock TTL reduced below backup duration estimate
+  - lock not released on backup failure
+  - new cluster-scoped provider incorrectly classified as node-scoped
+activation_triggers:
+  - backup lock
+  - cluster backup
+  - concurrent backup
+  - etcd mutex
+  - ProviderScopeCluster
+expressed_by:
+  - golang/backup_manager/backup_manager_server/lock.go
+related_invariants: []
+zooms_out_to:
+  - backup.must_be_restorable_not_just_taken
+zooms_in_to: []
+related_to:
+  - etcd.is_source_of_truth
+required_tests:
+  - backup_manager:TestClusterLockPreventsConurrentBackup
+  - backup_manager:TestLockReleasedOnFailure
+status: extracted_candidate

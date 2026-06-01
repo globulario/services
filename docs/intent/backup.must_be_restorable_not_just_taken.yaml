@@ -24,6 +24,10 @@ zooms_out_to:
 zooms_in_to:
 - backup.recovery_capsule_is_independent
 - backup.provider_results_are_explicit
+- backup.job_fsm_orphan_recovery
+- backup.capsule_quality_is_monotonic
+- backup.retention_preserves_restore_tested_floor
+- backup.cluster_lock_serializes_backup_execution
 related_to:
 - degraded_is_explicit_not_hidden
 required_tests:

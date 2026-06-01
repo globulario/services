@@ -1,0 +1,38 @@
+id: rbac.service_excludes_self_from_interceptor
+level: mechanism
+title: RBAC service methods are excluded from the RBAC interceptor to prevent circular calls
+intent: |
+  The gRPC interceptor chain calls the RBAC service to check permissions before routing
+  any RPC. If this check were applied to RPCs on the RBAC service itself, it would
+  create an infinite call loop: RBAC interceptor calls RBAC service → interceptor fires
+  again → loop. To prevent this, methods under /rbac.RbacService/* are excluded from
+  the RBAC interceptor. The RBAC service enforces its own authorization internally
+  (callerIsAdmin reads directly from storage, not via RPC).
+agent_guidance: |
+  When adding new RBAC RPCs, do NOT add RBAC permission annotations that would route
+  through the interceptor. Enforce access internally by calling callerIsAdmin() or
+  equivalent direct-storage checks.
+bad_smells:
+  - RBAC RPC routing through the RBAC interceptor
+  - callerIsAdmin() calling a gRPC RPC instead of reading storage directly
+  - RBAC self-check via interceptor assumed to work silently
+  - new RBAC method added without excluding from interceptor allowlist
+activation_triggers:
+  - RBAC interceptor
+  - circular call
+  - self-exclusion
+  - callerIsAdmin
+  - rbac.RbacService
+expressed_by:
+  - golang/rbac/rbac_server/rbac_role_bindings.go
+  - golang/interceptors/role_binding_check.go
+related_invariants: []
+zooms_out_to:
+  - security.deny_overrides_allow
+zooms_in_to: []
+related_to:
+  - rbac.permission_changes_require_audit_and_owner
+required_tests:
+  - rbac:TestRbacServiceMethodsExcludedFromInterceptor
+  - rbac:TestCallerIsAdminUsesDirectStorage
+status: extracted_candidate

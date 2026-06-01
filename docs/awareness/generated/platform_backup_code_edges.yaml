@@ -5,3 +5,21 @@ code_edges:
   - from: globular.platform:code.go.platform_backup
     relation: implements
     to: globular.platform:intent.backup.recovery_capsule_is_independent
+  - from: globular.platform:code.go.platform_backup.cluster
+    relation: implements
+    to: globular.platform:intent.backup.capsule_quality_is_monotonic
+  - from: globular.platform:code.go.platform_backup.jobstore
+    relation: implements
+    to: globular.platform:intent.backup.job_fsm_orphan_recovery
+  - from: globular.platform:code.go.platform_backup.lock
+    relation: implements
+    to: globular.platform:intent.backup.cluster_lock_serializes_backup_execution
+  - from: globular.platform:code.go.platform_backup.node_tasks
+    relation: implements
+    to: globular.platform:intent.backup.node_fanout_isolates_per_node_data
+  - from: globular.platform:code.go.platform_backup.retention
+    relation: implements
+    to: globular.platform:intent.backup.capsule_quality_is_monotonic
+  - from: globular.platform:code.go.platform_backup.retention
+    relation: implements
+    to: globular.platform:intent.backup.retention_preserves_restore_tested_floor

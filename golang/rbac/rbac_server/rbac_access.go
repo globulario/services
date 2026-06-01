@@ -1,3 +1,11 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_rbac.access
+// @awareness file_role=core_authorization_engine_deny_first_path_hierarchy_walk
+// @awareness implements=globular.platform:intent.security.deny_overrides_allow
+// @awareness implements=globular.platform:intent.rbac.permission_resolution_walks_path_hierarchy
+// @awareness implements=globular.platform:intent.rbac.subject_id_normalization_prevents_bypass
+// @awareness risk=critical
+//
 // rbac_access.go: access checks (allowed/denied/owner).
 //
 

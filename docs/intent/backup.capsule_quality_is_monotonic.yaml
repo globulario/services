@@ -1,0 +1,36 @@
+id: backup.capsule_quality_is_monotonic
+level: mechanism
+title: Capsule quality state only advances — UNVERIFIED → VALIDATED → RESTORE_TESTED → PROMOTED
+intent: |
+  A backup capsule moves through quality states in one direction only:
+  UNVERIFIED (just created) → VALIDATED (manifest check passed) → RESTORE_TESTED
+  (light or heavy restore test passed) → PROMOTED (manually protected from retention).
+  Quality states never regress. A RESTORE_TESTED capsule cannot be demoted to VALIDATED.
+  This ensures retention policies can safely rely on the quality label as authoritative.
+agent_guidance: |
+  When modifying quality state transitions, ensure the new state is always >= the current
+  state. PROMOTED is the only state that can be set on any RESTORE_TESTED capsule; it
+  cannot be set on UNVERIFIED or VALIDATED capsules directly.
+bad_smells:
+  - demoting a RESTORE_TESTED capsule to VALIDATED
+  - skipping VALIDATED to go directly from UNVERIFIED to RESTORE_TESTED
+  - retention policy ignoring quality state labels
+  - PROMOTED capsule deleted by retention
+activation_triggers:
+  - capsule quality
+  - quality state
+  - RESTORE_TESTED
+  - PROMOTED
+  - backup validation
+expressed_by:
+  - golang/backup_manager/backup_manager_server/cluster.go
+related_invariants: []
+zooms_out_to:
+  - backup.must_be_restorable_not_just_taken
+zooms_in_to: []
+related_to:
+  - backup.retention_preserves_restore_tested_floor
+required_tests:
+  - backup_manager:TestQualityStateOnlyAdvances
+  - backup_manager:TestPromotedCapsuleNotDeleted
+status: extracted_candidate

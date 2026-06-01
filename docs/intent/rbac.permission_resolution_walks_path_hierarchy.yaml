@@ -1,0 +1,40 @@
+id: rbac.permission_resolution_walks_path_hierarchy
+level: mechanism
+title: RBAC permission resolution walks up the path hierarchy to find owner or allowed permission
+intent: |
+  Resources in Globular are organized as paths (like a filesystem). When checking
+  whether a subject has permission on a path, the RBAC engine walks up the path
+  hierarchy — from the specific resource path toward the root — until it finds either:
+  (a) an explicit permission entry for the subject, or (b) an owner declaration.
+  This allows permissions granted at a directory level to be inherited by all resources
+  below it, without requiring explicit entries on every leaf.
+  Deny is checked first, flat — it does not walk the hierarchy.
+agent_guidance: |
+  When debugging "unexpected access", walk the path hierarchy manually: check the resource
+  path, then its parent, then grandparent. If an owner entry exists at any level, the
+  subject has full access (unless explicitly denied at a lower level).
+  Never change hierarchy traversal without verifying the deny-first invariant is preserved.
+bad_smells:
+  - permission check stops at first level without walking up
+  - deny check also walks hierarchy (deny is flat — no inheritance)
+  - owner inheritance disabled for performance
+  - permission resolved from cache without hierarchy walk
+activation_triggers:
+  - RBAC permission
+  - path hierarchy
+  - owner inheritance
+  - permission resolution
+  - parent path
+expressed_by:
+  - golang/rbac/rbac_server/rbac_access.go
+  - golang/rbac/rbac_server/rbac_permissions.go
+related_invariants: []
+zooms_out_to:
+  - security.deny_overrides_allow
+zooms_in_to: []
+related_to:
+  - rbac.permission_changes_require_audit_and_owner
+required_tests:
+  - rbac:TestPermissionInheritedFromParentPath
+  - rbac:TestDenyFlatNotInherited
+status: extracted_candidate

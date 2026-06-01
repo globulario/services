@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_backup.cluster
+// @awareness file_role=capsule_quality_state_transitions_and_restore_test_execution
+// @awareness implements=globular.platform:intent.backup.capsule_quality_is_monotonic
+// @awareness risk=high
 package main
 
 import (

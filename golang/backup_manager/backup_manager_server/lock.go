@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_backup.lock
+// @awareness file_role=etcd_distributed_mutex_serializing_cluster_scoped_backup
+// @awareness implements=globular.platform:intent.backup.cluster_lock_serializes_backup_execution
+// @awareness risk=high
 package main
 
 import (

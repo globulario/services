@@ -1,0 +1,39 @@
+id: backup.node_fanout_isolates_per_node_data
+level: mechanism
+title: Per-node backup providers run in parallel with per-node capsule isolation
+intent: |
+  Node-scoped providers (e.g., restic for filesystem data) run simultaneously on all
+  cluster nodes via goroutine fan-out. Each node writes its data to its own capsule
+  subdirectory: payload/nodes/<node_id>/<provider>/. Local nodes execute directly;
+  remote nodes execute via node-agent RPC (RunBackupProvider) with 3-second polling
+  for results. Failures on individual nodes are recorded in coverage.json but do NOT
+  cause the entire backup job to fail — the backup succeeds with partial node coverage
+  and the operator is informed which nodes failed.
+agent_guidance: |
+  Per-node isolation means you can restore data for individual nodes without touching
+  others. Do not aggregate per-node data into a shared capsule path — this breaks
+  individual node restore. Node failures must be recorded in coverage.json, not silently
+  swallowed.
+bad_smells:
+  - per-node data written to shared capsule path (not per-node subdir)
+  - single node failure causes whole backup job to fail
+  - remote execution timeout not configurable per-provider
+  - coverage.json not written when some nodes fail
+activation_triggers:
+  - node fanout
+  - per-node backup
+  - restic
+  - node-agent RPC
+  - coverage.json
+expressed_by:
+  - golang/backup_manager/backup_manager_server/node_tasks.go
+related_invariants: []
+zooms_out_to:
+  - backup.provider_results_are_explicit
+zooms_in_to: []
+related_to:
+  - node_agent.is_executor_not_cluster_brain
+required_tests:
+  - backup_manager:TestNodeFanoutRunsInParallel
+  - backup_manager:TestCoverageJsonWrittenOnPartialFailure
+status: extracted_candidate

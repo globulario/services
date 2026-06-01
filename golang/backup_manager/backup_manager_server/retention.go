@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_backup.retention
+// @awareness file_role=retention_policy_enforcing_restore_tested_floor
+// @awareness implements=globular.platform:intent.backup.retention_preserves_restore_tested_floor
+// @awareness implements=globular.platform:intent.backup.capsule_quality_is_monotonic
+// @awareness risk=high
 package main
 
 import (

@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_backup.jobstore
+// @awareness file_role=etcd_persisted_job_and_artifact_records_with_orphan_recovery
+// @awareness implements=globular.platform:intent.backup.job_fsm_orphan_recovery
+// @awareness risk=high
 package main
 
 import (

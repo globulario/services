@@ -1,0 +1,38 @@
+id: backup.job_fsm_orphan_recovery
+level: mechanism
+title: Orphaned backup jobs must be detected and marked FAILED on server restart
+intent: |
+  Jobs in QUEUED or RUNNING state at server startup are orphaned — the server crashed
+  or restarted before they completed. These jobs must be transitioned to FAILED with a
+  clear message ("server restarted while job was in progress") so the operator knows
+  they did not complete. Jobs must never be left in a terminal-like limbo that blocks
+  future backups from running.
+agent_guidance: |
+  On startup, scan etcd for any jobs in QUEUED or RUNNING state and mark them FAILED
+  before accepting new requests. Do not attempt to resume orphaned jobs — the partial
+  state is untrustworthy.
+bad_smells:
+  - server starts without clearing orphaned jobs
+  - orphaned RUNNING job blocks the concurrency semaphore
+  - operator has no visibility into why a job appears stuck
+  - orphaned jobs treated as SUCCEEDED
+activation_triggers:
+  - backup job
+  - orphaned job
+  - server restart
+  - RUNNING state on startup
+  - job FSM
+expressed_by:
+  - golang/backup_manager/backup_manager_server/server.go
+  - golang/backup_manager/backup_manager_server/jobstore.go
+related_invariants: []
+zooms_out_to:
+  - backup.must_be_restorable_not_just_taken
+zooms_in_to: []
+related_to:
+  - degraded_is_explicit_not_hidden
+  - reconciliation.must_be_idempotent_and_bounded
+required_tests:
+  - backup_manager:TestOrphanedJobsMarkedFailedOnStartup
+  - backup_manager:TestOrphanedJobDoesNotBlockSemaphore
+status: extracted_candidate

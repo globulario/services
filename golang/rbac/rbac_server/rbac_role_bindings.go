@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_rbac.role_bindings
+// @awareness file_role=role_binding_crud_with_self_exclusion_from_interceptor
+// @awareness implements=globular.platform:intent.rbac.service_excludes_self_from_interceptor
+// @awareness implements=globular.platform:intent.rbac.permission_changes_require_audit_and_owner
+// @awareness risk=critical
+//
 // rbac_role_bindings.go: SetRoleBinding / GetRoleBinding / ListRoleBindings handlers.
 //
 // Storage layout:

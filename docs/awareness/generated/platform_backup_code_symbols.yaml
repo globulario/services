@@ -17,3 +17,49 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.backup.must_be_restorable_not_just_taken
+  - id: globular.platform:code.go.platform_backup.cluster
+    namespace: globular.platform
+    language: go
+    file: golang/backup_manager/backup_manager_server/cluster.go
+    component: platform_backup.cluster
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.backup.capsule_quality_is_monotonic
+  - id: globular.platform:code.go.platform_backup.jobstore
+    namespace: globular.platform
+    language: go
+    file: golang/backup_manager/backup_manager_server/jobstore.go
+    component: platform_backup.jobstore
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.backup.job_fsm_orphan_recovery
+  - id: globular.platform:code.go.platform_backup.lock
+    namespace: globular.platform
+    language: go
+    file: golang/backup_manager/backup_manager_server/lock.go
+    component: platform_backup.lock
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.backup.cluster_lock_serializes_backup_execution
+  - id: globular.platform:code.go.platform_backup.node_tasks
+    namespace: globular.platform
+    language: go
+    file: golang/backup_manager/backup_manager_server/node_tasks.go
+    component: platform_backup.node_tasks
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.backup.node_fanout_isolates_per_node_data
+  - id: globular.platform:code.go.platform_backup.retention
+    namespace: globular.platform
+    language: go
+    file: golang/backup_manager/backup_manager_server/retention.go
+    component: platform_backup.retention
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.backup.retention_preserves_restore_tested_floor
+        - globular.platform:intent.backup.capsule_quality_is_monotonic

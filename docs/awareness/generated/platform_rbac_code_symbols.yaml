@@ -17,3 +17,12 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.security.deny_overrides_allow
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/server.go
+    component: platform_rbac
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.security.deny_overrides_allow

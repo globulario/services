@@ -1,0 +1,39 @@
+id: rbac.subject_id_normalization_prevents_bypass
+level: mechanism
+title: Subject ID matching normalizes FQDN formats to prevent permission bypass
+intent: |
+  Subjects can be expressed in multiple formats: bare ID ("alice"), domain-qualified
+  ("alice@globular.io"), or legacy-quoted format. The RBAC engine normalizes all formats
+  via matchID() before comparing against stored permissions. Without this normalization,
+  a subject stored as "alice" would not match a request for "alice@globular.io", creating
+  a bypass: the deny/allow check finds no match and falls through to a default.
+  matchID() also handles the SA (service account) subject, which must match across all
+  formats regardless of domain suffix.
+agent_guidance: |
+  Always use matchID() when comparing subjects in RBAC checks. Never do raw string
+  equality on subject identifiers. If you add a new subject format, update matchID()
+  and add a test case covering the new format against all existing formats.
+bad_smells:
+  - raw string comparison of subject IDs
+  - new subject format added without updating matchID()
+  - SA subject not matched by domain-qualified format
+  - deny stored for "alice" not matching request for "alice@domain"
+activation_triggers:
+  - subject ID
+  - FQDN format
+  - matchID
+  - domain suffix
+  - permission bypass
+expressed_by:
+  - golang/rbac/rbac_server/rbac_access.go
+related_invariants: []
+zooms_out_to:
+  - security.deny_overrides_allow
+zooms_in_to: []
+related_to:
+  - security.tokens_certificates_keys.cluster_trust_contract
+required_tests:
+  - rbac:TestSALegacyDomainFormat
+  - rbac:TestDenyMatchesFQDNSubject
+  - rbac:TestAllowMatchesBareSubject
+status: extracted_candidate

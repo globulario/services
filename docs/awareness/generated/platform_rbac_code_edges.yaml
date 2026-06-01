@@ -5,3 +5,6 @@ code_edges:
   - from: globular.platform:code.go.platform_rbac
     relation: implements
     to: globular.platform:intent.security.deny_overrides_allow
+  - from: globular.platform:code.go.platform_rbac
+    relation: implements
+    to: globular.platform:intent.security.deny_overrides_allow

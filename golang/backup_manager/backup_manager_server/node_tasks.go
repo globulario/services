@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_backup.node_tasks
+// @awareness file_role=parallel_per_node_provider_fanout_with_node_agent_rpc
+// @awareness implements=globular.platform:intent.backup.node_fanout_isolates_per_node_data
+// @awareness risk=medium
 package main
 
 import (
