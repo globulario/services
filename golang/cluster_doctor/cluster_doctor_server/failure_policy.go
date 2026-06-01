@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.failure_policy
+// @awareness file_role=action_type_classification_and_hard_blocked_action_list
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness risk=critical
 package main
 
 import (

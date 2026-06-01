@@ -252,3 +252,115 @@ required_tests:
     run:
       commands:
         - go test ./golang/config/... -run "TestServiceErrorsWhenEtcdUnreachable"
+
+  - id: test.doctor_leader_blocks_follower_remediation
+    title: Cluster-doctor follower must return UNAVAILABLE for all remediation RPCs
+    protects:
+      invariants:
+        - doctor.remediation_requires_leader
+      failure_modes:
+        - doctor.approval_token_replay_across_failover
+    required_for_changes:
+      paths:
+        - golang/cluster_doctor/**
+      task_terms:
+        - leader election
+        - remediation
+        - healer
+        - follower
+    run:
+      commands:
+        - go test ./golang/cluster_doctor/... -run "TestFollowerRemediationBlocked"
+
+  - id: test.doctor_hard_blocked_actions_rejected
+    title: ETCD_PUT, ETCD_DELETE, NODE_REMOVE must return BLOCKED from the remediation gate
+    protects:
+      invariants:
+        - doctor.hard_blocked_actions_never_execute
+    required_for_changes:
+      paths:
+        - golang/cluster_doctor/**
+      task_terms:
+        - hard block
+        - remediation gate
+        - failure policy
+        - ETCD_PUT
+        - NODE_REMOVE
+    run:
+      commands:
+        - go test ./golang/cluster_doctor/... -run "TestHardBlockedActionsRejected"
+
+  - id: test.doctor_escalation_after_three_cooldown_rejections
+    title: Three cooldown rejections must flip requires_approval and block further auto-dispatch
+    protects:
+      invariants:
+        - doctor.escalation_threshold_gates_repeated_attempts
+      failure_modes:
+        - doctor.escalation_state_lost_on_restart
+    required_for_changes:
+      paths:
+        - golang/cluster_doctor/**
+      task_terms:
+        - escalation
+        - cooldown
+        - remediation gate
+    run:
+      commands:
+        - go test ./golang/cluster_doctor/... -run "TestEscalationAfterThreeCooldowns"
+
+  - id: test.doctor_evidence_stale_blocks_execution
+    title: Remediation execution must be blocked when evidence age exceeds MaxEvidenceAge
+    protects:
+      invariants:
+        - doctor.evidence_trust_must_be_authoritative_for_execution
+      failure_modes:
+        - doctor.stale_evidence_authorizes_remediation
+    required_for_changes:
+      paths:
+        - golang/cluster_doctor/**
+      task_terms:
+        - evidence trust
+        - evidence age
+        - stale evidence
+        - provenance
+    run:
+      commands:
+        - go test ./golang/cluster_doctor/... -run "TestStaleEvidenceBlocksExecution"
+
+  - id: test.doctor_approval_token_binding_prevents_replay
+    title: Replayed approval token (same JTI) must be rejected even after leader failover
+    protects:
+      invariants:
+        - doctor.approval_token_binding_prevents_replay
+      failure_modes:
+        - doctor.approval_token_replay_across_failover
+    required_for_changes:
+      paths:
+        - golang/cluster_doctor/**
+      task_terms:
+        - approval token
+        - JTI
+        - replay
+        - leader failover
+    run:
+      commands:
+        - go test ./golang/cluster_doctor/... -run "TestApprovalTokenJTIReplay"
+
+  - id: test.doctor_cache_not_poisoned_by_node_scope
+    title: Node-scoped findings must not appear in cluster-delta lastEmittedFindings
+    protects:
+      invariants:
+        - doctor.cache_separation_prevents_delta_poisoning
+      failure_modes:
+        - doctor.cache_poisoning_from_node_scoped_findings
+    required_for_changes:
+      paths:
+        - golang/cluster_doctor/**
+      task_terms:
+        - cache findings
+        - delta
+        - finding scope
+        - node scope
+    run:
+      commands:
+        - go test ./golang/cluster_doctor/... -run "TestCacheScopeNotPoisonedByNodeFindings"

@@ -5205,3 +5205,166 @@ invariants:
         - making standalone_authority endpoint validation optional
       required_tests:
         - TestStorageTopology_StandaloneAuthorityRejectsRoundRobinEndpoint
+
+    - id: doctor.remediation_requires_leader
+      title: Only the elected cluster-doctor leader may authorize or execute remediation actions
+      severity: critical
+      status: active
+      summary: |
+        The cluster-doctor runs in HA mode. Only the elected leader produces fresh findings and
+        may dispatch remediation workflows. Followers serve cached/stale data with explicit source
+        disclosure but must never execute or authorize remediations. This prevents split-brain
+        remediation where two instances attempt to heal the same component simultaneously.
+      protects:
+        files:
+          - golang/cluster_doctor/cluster_doctor_server/leader_election.go
+          - golang/cluster_doctor/cluster_doctor_server/healer_loop.go
+          - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+        symbols:
+          - ExecuteRemediation
+          - HealerLoop
+      enforcement: |
+        ExecuteRemediation and HealerLoop MUST check leader status before any action dispatch.
+        Followers must return gRPC UNAVAILABLE with an explicit "not leader" message.
+        The election state must be re-checked on every call, not cached.
+      forbidden_fixes:
+        - execute_remediation_on_follower_instance
+        - caching_leader_status_across_calls
+      required_tests:
+        - test.doctor_leader_blocks_follower_remediation
+
+    - id: doctor.hard_blocked_actions_never_execute
+      title: ETCD_PUT, ETCD_DELETE, and NODE_REMOVE must never auto-execute
+      severity: critical
+      status: active
+      summary: |
+        Three action types are permanently hard-blocked from autonomous execution regardless of
+        approval status, evidence trust, or operator configuration: ETCD_PUT, ETCD_DELETE, and
+        NODE_REMOVE. These actions affect global cluster state irreversibly and may only be
+        surfaced as operator recommendations, never dispatched autonomously.
+      protects:
+        files:
+          - golang/cluster_doctor/cluster_doctor_server/failure_policy.go
+          - golang/cluster_doctor/cluster_doctor_server/remediation_gate.go
+        symbols:
+          - hardBlockedActions
+          - CheckRemediationGate
+      enforcement: |
+        The hard-blocked action list in failure_policy.go must be checked by the gate BEFORE
+        any cooldown, escalation, or approval logic. A hard-blocked action type returns BLOCKED
+        immediately with no further gate evaluation.
+      forbidden_fixes:
+        - bypass_hard_blocked_action_blocklist
+        - adding_etcd_write_actions_to_auto_remediation
+      required_tests:
+        - test.doctor_hard_blocked_actions_rejected
+
+    - id: doctor.escalation_threshold_gates_repeated_attempts
+      title: Three cooldown rejections must escalate to require explicit operator approval
+      severity: high
+      status: active
+      summary: |
+        When the remediation gate rejects an action three times due to cooldown, the action is
+        escalated to require explicit operator approval before it can be dispatched. This prevents
+        a runaway auto-healer from hammering a broken component indefinitely. Escalation state
+        must be persisted in etcd so it survives doctor restarts and leader failovers.
+      protects:
+        files:
+          - golang/cluster_doctor/cluster_doctor_server/remediation_gate.go
+        symbols:
+          - CheckRemediationGate
+          - EscalationCounter
+      enforcement: |
+        Count per-(action, target) cooldown rejections. After 3 rejections, flip
+        requires_approval=true and surface REQUIRES_APPROVAL. Approval must not auto-expire —
+        an operator must explicitly clear the escalation via API. Persist in etcd.
+      forbidden_fixes:
+        - auto_clear_escalation_without_operator_approval
+        - storing_escalation_state_only_in_memory
+      required_tests:
+        - test.doctor_escalation_after_three_cooldown_rejections
+
+    - id: doctor.evidence_trust_must_be_authoritative_for_execution
+      title: Stale or unverifiable evidence must block autonomous remediation execution
+      severity: critical
+      status: active
+      summary: |
+        Before dispatching any remediation action, the evidence supporting the finding must pass
+        trust validation: it must be fresh (not older than MaxEvidenceAge), sourced from an
+        authoritative collector, and have a verified provenance chain. Actions supported only
+        by stale or unverifiable evidence must be blocked and surfaced as AWAITING_EVIDENCE.
+      protects:
+        files:
+          - golang/cluster_doctor/cluster_doctor_server/evidence_provenance.go
+          - golang/cluster_doctor/cluster_doctor_server/remediation_gate.go
+        symbols:
+          - CheckEvidenceTrust
+          - EvidenceProvenance
+      enforcement: |
+        The gate must call CheckEvidenceTrust before any APPROVE or EXECUTE result. A stale
+        evidence timestamp (> MaxEvidenceAge) or non-authoritative source returns BLOCKED with
+        evidence_stale=true. Threshold is configurable per action type severity.
+      forbidden_fixes:
+        - disable_evidence_trust_gate_before_remediation
+        - treating_peer_estimates_as_authoritative_evidence
+      required_tests:
+        - test.doctor_evidence_stale_blocks_execution
+
+    - id: doctor.approval_token_binding_prevents_replay
+      title: Approval tokens must be bound to action, target, evidence digest, and finding ID
+      severity: critical
+      status: active
+      summary: |
+        An approval token authorizes exactly one execution: a specific action type against a
+        specific target, supported by a specific evidence snapshot (digest), for a specific
+        finding ID. Tokens must be single-use (JTI replay guard in etcd) and must expire.
+        After a leader failover, the new leader must re-check the etcd JTI blacklist before
+        honoring any approval.
+      protects:
+        files:
+          - golang/cluster_doctor/cluster_doctor_server/approval_replay_etcd.go
+          - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+        symbols:
+          - CheckJTIReplay
+          - ApprovalToken
+      enforcement: |
+        Tokens must include: action_type, target_id, evidence_digest (SHA-256), finding_id,
+        jti (UUID), and exp. Before execution: verify token not expired, jti not in etcd
+        replay guard, all bound fields match current action context. Store jti in etcd
+        with TTL = token.exp + 5m.
+      forbidden_fixes:
+        - skip_approval_token_jti_replay_check
+        - accepting_approval_without_evidence_digest_binding
+        - storing_jti_blacklist_only_in_memory
+      required_tests:
+        - test.doctor_approval_token_binding_prevents_replay
+
+    - id: doctor.cache_separation_prevents_delta_poisoning
+      title: lastFindings and lastEmittedFindings must be separate caches with separate scopes
+      severity: high
+      status: active
+      summary: |
+        The cluster-doctor maintains two separate caches: lastFindings (any scope, for lookup)
+        and lastEmittedFindings (cluster-scoped only, for delta event computation). Merging them
+        or using node-scoped findings for cluster deltas causes phantom events at 100+/min.
+        This was the root cause of INC-2026-0004. Commit a821e0fa fixed production; this
+        invariant ensures the fix is regression-tested.
+      protects:
+        files:
+          - golang/cluster_doctor/cluster_doctor_server/server.go
+          - golang/cluster_doctor/cluster_doctor_server/executor.go
+        symbols:
+          - cacheFindings
+          - lastFindings
+          - lastEmittedFindings
+      enforcement: |
+        cacheFindings writes to lastFindings (any scope). Delta computation reads from
+        lastEmittedFindings (cluster-wide only). After emitting deltas, update lastEmittedFindings
+        to the new cluster-wide set only. Never use node-scoped findings for delta computation.
+      forbidden_fixes:
+        - use_node_scope_findings_for_cluster_delta
+        - merging_lookup_and_delta_caches
+      related_failure_modes:
+        - doctor.cache_poisoning_from_node_scoped_findings
+      required_tests:
+        - test.doctor_cache_not_poisoned_by_node_scope

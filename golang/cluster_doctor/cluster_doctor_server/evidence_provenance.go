@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.evidence_provenance
+// @awareness file_role=evidence_freshness_and_trust_gate_before_remediation_dispatch
+// @awareness implements=globular.platform:intent.health.requires_fresh_evidence
+// @awareness risk=high
 package main
 
 import (

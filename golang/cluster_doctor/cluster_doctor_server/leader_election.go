@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.leader_election
+// @awareness file_role=etcd_leader_election_gates_fresh_finding_production_and_remediation
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness implements=globular.platform:intent.doctor.findings_are_operator_language
+// @awareness risk=high
+//
 // leader_election.go implements etcd-based leader election for the
 // cluster-doctor. Only the elected leader produces fresh findings;
 // followers serve cached/stale data with explicit source disclosure.

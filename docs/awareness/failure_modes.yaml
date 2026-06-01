@@ -3154,3 +3154,100 @@ failure_modes:
       forbidden_fixes:
         - removing the >30% circuit breaker without adding an auto-recovery path
         - treating MaxRetries=0 as a permanent steady state rather than a transient gate
+
+    - id: doctor.stale_evidence_authorizes_remediation
+      title: Stale findings authorize a remediation action, executing against already-recovered state
+      severity: critical
+      symptoms:
+        - remediation executes against a service that was already recovered by another mechanism
+        - double-remediation — the action was performed twice, causing instability
+        - evidence timestamp in audit trail predates the last successful healthcheck
+        - PostAction audit shows "finding_id was resolved before dispatch"
+      root_cause: |
+        The evidence trust gate was bypassed or MaxEvidenceAge was too large. The doctor
+        approved a remediation using evidence from a prior scan cycle. By dispatch time,
+        the target had already recovered, causing a spurious disruption.
+      architecture_fix: |
+        Enforce MaxEvidenceAge per action severity in CheckEvidenceTrust. Re-verify evidence
+        freshness immediately before dispatch (not at approval time). Return AWAITING_EVIDENCE
+        if re-verify fails.
+      forbidden_fixes:
+        - disable_evidence_trust_gate_before_remediation
+        - using_approval_time_evidence_for_dispatch_time_verification
+      related_invariants:
+        - doctor.evidence_trust_must_be_authoritative_for_execution
+      required_tests:
+        - test.doctor_evidence_stale_blocks_execution
+
+    - id: doctor.cache_poisoning_from_node_scoped_findings
+      title: Node-scoped findings fed into cluster delta cache produce phantom events at 100+/min
+      severity: high
+      symptoms:
+        - finding event rate spikes to 100+ events/minute in cluster_doctor metrics
+        - same finding appears and disappears rapidly in doctor dashboards
+        - '"new finding" events fired for findings already emitted in the prior cycle'
+        - cluster_id missing from finding metadata (indicates node-scoped source)
+      root_cause: |
+        cacheFindings wrote node-scoped findings into the same cache used for cluster-delta
+        computation. On each sweep, node-scoped findings appeared "new" vs the cluster-only
+        lastEmittedFindings, generating phantom delta events. Root cause of INC-2026-0004.
+        Commit a821e0fa fixed production; test.doctor_cache_not_poisoned_by_node_scope
+        prevents regression.
+      architecture_fix: |
+        Split the two caches: lastFindings (all scopes, for lookup) and lastEmittedFindings
+        (cluster-wide only, for delta). Only cluster-wide findings feed delta comparison.
+      forbidden_fixes:
+        - use_node_scope_findings_for_cluster_delta
+      related_invariants:
+        - doctor.cache_separation_prevents_delta_poisoning
+      required_tests:
+        - test.doctor_cache_not_poisoned_by_node_scope
+
+    - id: doctor.approval_token_replay_across_failover
+      title: Approval token replayed on new leader after failover re-authorizes same action
+      severity: critical
+      symptoms:
+        - remediation action executes twice for the same finding and evidence snapshot
+        - audit trail shows same jti used twice with different leader IDs
+        - approval token timestamp predates the leader failover event
+        - second execution target was already in a recovered state
+      root_cause: |
+        When a doctor leader fails over, the new leader does not check the JTI replay guard
+        in etcd. An operator (or attacker) replays an approval token issued to the previous
+        leader. The new leader finds the token valid (not expired, signature ok) and executes
+        the action a second time.
+      architecture_fix: |
+        Store all consumed JTIs in etcd with TTL = token.exp + 5m. On every approval
+        consumption, CheckJTIReplay reads from etcd (not in-memory). New leaders inherit
+        the full JTI blacklist automatically via etcd reads.
+      forbidden_fixes:
+        - skip_approval_token_jti_replay_check
+        - storing_jti_blacklist_only_in_memory
+      related_invariants:
+        - doctor.approval_token_binding_prevents_replay
+      required_tests:
+        - test.doctor_approval_token_binding_prevents_replay
+
+    - id: doctor.escalation_state_lost_on_restart
+      title: Escalation counter resets on doctor restart, allowing a hard-rate-limited action to bypass approval gate
+      severity: high
+      symptoms:
+        - action that was previously escalated (requires approval) is auto-dispatched after restart
+        - escalation counter in metrics drops to 0 at restart time
+        - healer_loop dispatches previously-blocked action without operator intervention
+      root_cause: |
+        The escalation counter was stored only in memory. After a doctor restart or leader
+        failover, the counter resets to 0, clearing the requires_approval flag. The next
+        cooldown-rejected attempt starts from zero and can complete up to 3 new rejections
+        before re-escalating, giving the healer a window to auto-dispatch.
+      architecture_fix: |
+        Persist escalation state (per action+target) in etcd with key pattern
+        /globular/doctor/escalation/{action}/{target}. Reload on leader acquisition.
+        Only clear escalation via explicit operator API call.
+      forbidden_fixes:
+        - auto_clear_escalation_without_operator_approval
+        - storing_escalation_state_only_in_memory
+      related_invariants:
+        - doctor.escalation_threshold_gates_repeated_attempts
+      required_tests:
+        - test.doctor_escalation_after_three_cooldown_rejections

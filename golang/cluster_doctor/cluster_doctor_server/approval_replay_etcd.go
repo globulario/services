@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.approval_replay
+// @awareness file_role=etcd_backed_jti_replay_guard_prevents_approval_token_replay_across_failover
+// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
+// @awareness risk=critical
 package main
 
 import (

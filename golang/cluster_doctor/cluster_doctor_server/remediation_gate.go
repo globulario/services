@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.remediation_gate
+// @awareness file_role=multi_layer_circuit_breaker_for_autonomous_remediation
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness implements=globular.platform:intent.circuit_breakers_protect_convergence
+// @awareness risk=critical
 package main
 
 import (

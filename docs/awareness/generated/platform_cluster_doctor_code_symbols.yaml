@@ -1,4 +1,23 @@
 code_symbols:
+  - id: globular.platform:code.go.platform_cluster_doctor.approval_replay
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/approval_replay_etcd.go
+    component: platform_cluster_doctor.approval_replay
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+        - globular.platform:intent.audit.every_authority_change_is_explainable
+  - id: globular.platform:code.go.platform_cluster_doctor.evidence_provenance
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/evidence_provenance.go
+    component: platform_cluster_doctor.evidence_provenance
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.health.requires_fresh_evidence
   - id: globular.platform:code.go.platform_cluster_doctor.executor
     namespace: globular.platform
     language: go
@@ -10,6 +29,15 @@ code_symbols:
         - globular.platform:intent.remediation.must_go_through_workflow
         - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
         - globular.platform:intent.audit.every_authority_change_is_explainable
+  - id: globular.platform:code.go.platform_cluster_doctor.failure_policy
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/failure_policy.go
+    component: platform_cluster_doctor.failure_policy
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
   - id: globular.platform:code.go.platform_cluster_doctor.healer
     namespace: globular.platform
     language: go
@@ -21,6 +49,26 @@ code_symbols:
         - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
         - globular.platform:intent.circuit_breakers_protect_convergence
         - globular.platform:intent.remediation.must_go_through_workflow
+  - id: globular.platform:code.go.platform_cluster_doctor.leader_election
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/leader_election.go
+    component: platform_cluster_doctor.leader_election
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.remediation.must_go_through_workflow
+        - globular.platform:intent.doctor.findings_are_operator_language
+  - id: globular.platform:code.go.platform_cluster_doctor.remediation_gate
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/remediation_gate.go
+    component: platform_cluster_doctor.remediation_gate
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+        - globular.platform:intent.circuit_breakers_protect_convergence
   - id: globular.platform:code.go.platform_cluster_doctor.remediation_handler
     namespace: globular.platform
     language: go

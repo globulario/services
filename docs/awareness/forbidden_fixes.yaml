@@ -2438,3 +2438,99 @@ forbidden_fixes:
   protects:
     files:
       - golang/node_agent/node_agent_server/internal/supervisor/supervisor.go
+
+- id: bypass_hard_blocked_action_blocklist
+  summary: >
+    Remove or bypass the hard-blocked action type list (ETCD_PUT, ETCD_DELETE, NODE_REMOVE)
+    to allow autonomous remediation of these action types.
+  reason: >
+    These three action types affect global cluster state irreversibly. No amount of evidence
+    trust, operator approval, or cooldown logic makes autonomous execution of etcd writes
+    or node removal safe — the blast radius is too large and the actions cannot be undone
+    by the doctor itself. They must remain permanently blocked from auto-execution.
+  safe_alternative: >
+    Surface these as operator recommendations only. The operator executes them via CLI
+    after reviewing the rationale. Never add them to the auto-dispatch list.
+  protects:
+    files:
+      - golang/cluster_doctor/cluster_doctor_server/failure_policy.go
+      - golang/cluster_doctor/cluster_doctor_server/remediation_gate.go
+
+- id: skip_approval_token_jti_replay_check
+  summary: >
+    Skip the JTI replay guard when validating an approval token, relying only on the
+    token signature and expiry check.
+  reason: >
+    Without JTI replay checking, an approval token can be replayed after a doctor leader
+    failover. The new leader has no memory of previously consumed tokens and will re-authorize
+    the same action, enabling double-execution or deliberate replay attacks.
+  safe_alternative: >
+    Store consumed JTIs in etcd with TTL = token.exp + 5m. CheckJTIReplay must read
+    from etcd (not in-memory only) so the blacklist survives leader failover.
+  protects:
+    files:
+      - golang/cluster_doctor/cluster_doctor_server/approval_replay_etcd.go
+
+- id: use_node_scope_findings_for_cluster_delta
+  summary: >
+    Include node-scoped findings in the lastEmittedFindings cache used for cluster-level
+    delta event computation.
+  reason: >
+    Node-scoped findings vary per-node per-call. Feeding them into the cluster-delta cache
+    causes them to appear "new" on every sweep, generating phantom events at 100+/min.
+    Root cause of INC-2026-0004 (100+ false doctor incidents). Commit a821e0fa fixed
+    production; cache separation is the architectural invariant.
+  safe_alternative: >
+    Only cluster-scoped findings (with cluster_id set) contribute to lastEmittedFindings
+    and delta computation. Node-scoped findings are stored in lastFindings for lookup only.
+  protects:
+    files:
+      - golang/cluster_doctor/cluster_doctor_server/server.go
+      - golang/cluster_doctor/cluster_doctor_server/executor.go
+
+- id: disable_evidence_trust_gate_before_remediation
+  summary: >
+    Remove or skip the CheckEvidenceTrust call before dispatching a remediation action,
+    treating any finding as sufficient authorization regardless of evidence age.
+  reason: >
+    Evidence freshness is the only barrier between the doctor's last scan and current
+    cluster state. Stale evidence authorizing remediation causes disruption against already-
+    recovered targets — a silent correctness failure with high blast radius.
+  safe_alternative: >
+    Always call CheckEvidenceTrust before APPROVE or EXECUTE. If evidence is stale
+    (> MaxEvidenceAge), return AWAITING_EVIDENCE and re-scan before retrying.
+  protects:
+    files:
+      - golang/cluster_doctor/cluster_doctor_server/evidence_provenance.go
+      - golang/cluster_doctor/cluster_doctor_server/remediation_gate.go
+
+- id: auto_clear_escalation_without_operator_approval
+  summary: >
+    Automatically clear the requires_approval escalation flag on a timer or on doctor
+    restart without requiring explicit operator intervention.
+  reason: >
+    Escalation is a safety gate. Auto-clearing on restart resets the cooldown counter and
+    allows the healer loop to auto-dispatch an action that was previously hard-stopped.
+    The escalation must only be cleared by an explicit operator API call.
+  safe_alternative: >
+    Persist escalation state in etcd. Only clear via an operator-authenticated API call.
+    On leader acquisition, reload escalation state from etcd.
+  protects:
+    files:
+      - golang/cluster_doctor/cluster_doctor_server/remediation_gate.go
+
+- id: execute_remediation_on_follower_instance
+  summary: >
+    Allow a cluster-doctor follower instance to execute or authorize remediation actions
+    when the leader is unavailable or slow to respond.
+  reason: >
+    Followers serve stale/cached data and cannot safely authorize remediations. Allowing
+    followers to execute creates split-brain remediation races where two instances attempt
+    to heal the same component, amplifying the failure.
+  safe_alternative: >
+    Followers return gRPC UNAVAILABLE ("not leader") for all remediation RPCs. Callers
+    must redirect to the current leader. Leadership is re-checked on every call, never cached.
+  protects:
+    files:
+      - golang/cluster_doctor/cluster_doctor_server/leader_election.go
+      - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
