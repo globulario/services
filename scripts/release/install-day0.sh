@@ -624,17 +624,35 @@ if systemctl list-unit-files 2>/dev/null | grep -q "^scylla-server.service"; the
     log_success "ScyllaDB ready (took ${i}s)"
     wait_scylla_write_ready "$SCYLLA_CQL_HOST"
   else
-    log_substep "Warning: ScyllaDB not accepting connections after 90s"
+    echo "" >&2
+    echo "━━━ scylla-server journal (last 20 lines) ━━━" >&2
+    journalctl -xeu scylla-server.service --no-pager -n 20 >&2 || true
+    die "ScyllaDB not accepting CQL on ${SCYLLA_CQL_HOST}:9042 after 90s"
   fi
 else
   log_substep "ScyllaDB not found — installing..."
+
+  # Pre-install: wipe stale ScyllaDB state from a previous failed Day-0 attempt.
+  # The ownership file is only written after a SUCCESSFUL post-install. If it
+  # doesn't exist but scylla data does, the last install failed — safe to wipe.
+  # This runs unconditionally in install-day0.sh so post-install always starts
+  # clean, regardless of which package version's post-install is bundled.
+  _SCYLLA_OWNERSHIP="/var/lib/globular/state/scylladb/ownership.json"
+  if ! systemctl is-active --quiet scylla-server.service 2>/dev/null; then
+    if [[ -d /var/lib/scylla/data ]] && [[ ! -f "$_SCYLLA_OWNERSHIP" ]]; then
+      log_substep "Wiping stale ScyllaDB data from previous failed bootstrap..."
+      systemctl stop scylla-server.service 2>/dev/null || true
+      rm -rf /var/lib/scylla/data /var/lib/scylla/commitlog \
+             /var/lib/scylla/hints /var/lib/scylla/view_hints \
+             /etc/scylla/scylla.yaml
+      log_success "Stale state cleared"
+    fi
+  fi
 
   # Install the ScyllaDB Globular package via bundled .deb files (no internet needed).
   # Falls back to direct apt install only when no scylladb_*.tgz is found anywhere.
   if [[ -n "${SCYLLADB_PKG_PATH:-}" ]] && [[ -f "$SCYLLADB_PKG_PATH" ]]; then
     log_substep "Using bundled package: $(basename "$SCYLLADB_PKG_PATH")"
-    # Day-0 initial-node: allow post-install to wipe stale data from a previous
-    # failed bootstrap attempt. There is no live cluster to protect at this stage.
     export SCYLLA_INSTALL_INTENT="initial-node"
     export SCYLLA_BOOTSTRAP_INTENT="first-node"
     run_install "$SCYLLADB_PKG_PATH"
@@ -678,17 +696,21 @@ else
   # Enable service for boot
   systemctl enable scylla-server.service 2>/dev/null || true
 
-  # Ensure ScyllaDB is actually running. The TLS check above may pass from a
-  # previous install's config files, but the service may not be started yet
-  # (apt reinstall can stop it, or the post-install script may not have run).
+  # ScyllaDB MUST be running before continuing. Downstream services (persistence,
+  # scylla-manager) all require CQL — a non-running scylla is a hard failure.
   if ! systemctl is-active --quiet scylla-server.service; then
     log_substep "Starting ScyllaDB service..."
-    systemctl start scylla-server.service || log_substep "Warning: failed to start scylla-server"
+    if ! systemctl start scylla-server.service 2>/dev/null; then
+      echo "" >&2
+      echo "━━━ scylla-server journal (last 40 lines) ━━━" >&2
+      journalctl -xeu scylla-server.service --no-pager -n 40 >&2 || true
+      echo "━━━ /etc/scylla/scylla.yaml ━━━" >&2
+      cat /etc/scylla/scylla.yaml 2>/dev/null >&2 || echo "(not found)" >&2
+      die "ScyllaDB service failed to start — see diagnostics above"
+    fi
   fi
 
-  # Wait for ScyllaDB to be ready (CQL port 9042). ScyllaDB can take 30-90s
-  # to initialize on first start. Without this wait, downstream services
-  # (persistence, scylla-manager) fail to connect on the first install attempt.
+  # Wait for ScyllaDB to accept CQL (can take 30-90s on first start).
   SCYLLA_CQL_HOST=$(scylla_cql_host)
   log_substep "Waiting for ScyllaDB to accept CQL connections (${SCYLLA_CQL_HOST}:9042)..."
   SCYLLA_READY=0
@@ -703,8 +725,10 @@ else
     log_success "ScyllaDB installed and ready (took ${i}s)"
     wait_scylla_write_ready "$SCYLLA_CQL_HOST"
   else
-    log_substep "Warning: ScyllaDB started but not yet accepting connections after 90s"
-    log_substep "Downstream services may fail on first attempt — re-run installer to retry"
+    echo "" >&2
+    echo "━━━ scylla-server journal (last 20 lines) ━━━" >&2
+    journalctl -xeu scylla-server.service --no-pager -n 20 >&2 || true
+    die "ScyllaDB not accepting CQL on ${SCYLLA_CQL_HOST}:9042 after 90s"
   fi
 fi
 
