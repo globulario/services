@@ -404,7 +404,6 @@ invariants:
       required_tests:
         - TestValidateAnnotationsSkipsTestFiles
       implemented_by:
-        - file: golang/awareness/extractors/goast/extract.go
           functions:
             - parseAnnotations
             - isTestFile
@@ -830,7 +829,6 @@ invariants:
         aliases, or invariant nodes.
       protects:
         files:
-            - golang/awareness/preflight/preflight.go
             - docs/awareness/context_aliases.yaml
       forbidden_fixes:
         - suppress_no_awareness_match_warning_without_fixing_root_cause
@@ -839,7 +837,6 @@ invariants:
       related_failure_modes:
         - awareness.false_silence_on_sensitive_task
       implemented_by:
-        - file: golang/awareness/preflight/preflight.go
           functions:
             - Run
             - buildWarnings
@@ -866,18 +863,14 @@ invariants:
         degrades the signal-to-noise ratio over time.
       protects:
         files:
-            - golang/awareness/enforce/audit.go
-            - golang/awareness/enforce/suppressions.go
       forbidden_fixes:
         - suppress_all_audit_warnings_without_reviewing_each
       required_tests:
         - TestSelfCheckReportsNoisySections
       implemented_by:
-        - file: golang/awareness/enforce/audit.go
           functions:
             - Audit
           trust: strict_verified
-        - file: golang/awareness/enforce/suppressions.go
           functions:
             - ApplySuppressions
           trust: verified
@@ -899,25 +892,20 @@ invariants:
         failures are the observable symptom.
       protects:
         files:
-            - golang/awareness/graph/edges.go
-            - golang/awareness/extractors/
       forbidden_fixes:
         - add_graph_edge_without_extractor_or_yaml_source
       required_tests:
         - TestGraphDriftNoStaleRefs
       implemented_by:
-        - file: golang/awareness/graph/edges.go
           functions:
             - EdgeClass
             - EdgeWeight
           trust: strict_verified
-        - file: golang/awareness/extractors/manual/invariants.go
           functions:
             - LoadInvariants
             - loadInvariant
           trust: verified
       authority:
-        - file: golang/awareness/graph/edges.go
       verified_by:
         - TestGraphDriftNoStaleRefs
         - TestEdgePredicates_DecisionClassification
@@ -937,7 +925,6 @@ invariants:
         review. MCP tool exposure bypasses this gate.
       protects:
         files:
-            - golang/awareness/mcp/learning_tool.go
             - golang/mcp/safety.go
             - golang/mcp/governor.go
       forbidden_fixes:
@@ -951,7 +938,6 @@ invariants:
           functions:
             - registerAwarenessLearningTools
           trust: strict_verified
-        - file: golang/awareness/selfcheck/selfcheck_test.go
           functions:
             - TestMCPCheckFailsWhenPromoteProposalExposed
           trust: strict_verified
@@ -1014,13 +1000,11 @@ invariants:
         and increases agent token usage without improving diagnostic quality.
       protects:
         files:
-            - golang/awareness/analysis/agent_context.go
       forbidden_fixes:
         - return_all_invariants_for_every_task_without_filtering
       required_tests:
         - TestNodeContextSmokePasses
       implemented_by:
-        - file: golang/awareness/analysis/agent_context.go
           functions:
             - GenerateAgentContext
           trust: verified
@@ -1042,18 +1026,14 @@ invariants:
         diagnose issues need the explanation to avoid following spurious connections.
       protects:
         files:
-            - golang/awareness/semantic/path.go
-            - golang/awareness/semantic/why.go
       forbidden_fixes:
         - return_semantic_path_without_explanation
       required_tests:
         - TestSemanticPathIncludesExplanation
       implemented_by:
-        - file: golang/awareness/semantic/path.go
           functions:
             - ShortestPath
           trust: strict_verified
-        - file: golang/awareness/semantic/why.go
           functions:
             - BuildExplanation
           trust: strict_verified
@@ -1142,7 +1122,6 @@ invariants:
         - TestCausalRulesFileExists
         - TestCausalRulesHaveRequiredFields
       implemented_by:
-        - file: golang/awareness/learning/validate.go
           trust: declared
         - file: docs/awareness/knowledge/causal_rules.yaml
           trust: declared
@@ -1213,9 +1192,6 @@ invariants:
         to graph/edges.go must be classified in graph/domain.go before merging.
       protects:
         files:
-            - golang/awareness/graph/domain.go
-            - golang/awareness/semantic/score.go
-            - golang/awareness/semantic/weights.go
         symbols:
             - DomainForEdgeKind
             - ScoreImpactPath
@@ -1230,18 +1206,15 @@ invariants:
         - TestPathScoring_VerifiedDecisionPathBeatsDeclaredInformationPath
         - TestPathScoring_ExplainsWeights
       implemented_by:
-        - file: golang/awareness/graph/domain.go
           functions:
             - DomainForEdgeKind
             - edgeDomains
           trust: strict_verified
-        - file: golang/awareness/semantic/score.go
           functions:
             - ScoreImpactPath
             - RankPaths
           trust: strict_verified
       authority:
-        - file: golang/awareness/graph/edges.go
       verified_by:
         - TestGraphDomains_ForbiddenFixForbidsAction_IsDecision
         - TestGraphDomains_UnknownEdge_DefaultsToInformation
@@ -1283,9 +1256,7 @@ invariants:
           functions:
             - learnFromFix
           trust: verified
-        - file: golang/awareness/learning/promote.go
           trust: declared
-        - file: golang/awareness/learning/validate.go
           trust: declared
       authority:
         - file: docs/awareness/knowledge/path_weights.yaml
@@ -1313,12 +1284,7 @@ invariants:
         the safety system itself without reading them first.
       protects:
         files:
-            - golang/awareness/graph/domain.go
-            - golang/awareness/semantic/score.go
-            - golang/awareness/semantic/weights.go
-            - golang/awareness/integrity/impact_path.go
             - golang/mcp/tools_awareness_decision.go
-            - golang/awareness/extractors/manual/invariants.go
         symbols:
             - TraverseImpactPaths
             - ScoreImpactPath
@@ -1333,7 +1299,6 @@ invariants:
         - TestDecisionPathType_PreEdit
         - TestDecisionIntegrity_InvalidPathCannotRankHigh
       implemented_by:
-        - file: golang/awareness/preflight/preflight.go
           functions:
             - Run
           trust: strict_verified
@@ -1369,7 +1334,6 @@ invariants:
         violation from a weak informational hit.
       protects:
         files:
-            - golang/awareness/analysis/impact.go
         symbols:
             - ExplainImpactByFile
             - detectMissingLinks
@@ -1384,7 +1348,6 @@ invariants:
         - TestExplainImpactByFile_MandatoryForbiddenFix
         - TestRejectInvariantWithMissingRequiredTest
       implemented_by:
-        - file: golang/awareness/analysis/impact.go
           functions:
             - ExplainImpactByFile
             - detectMissingLinks
@@ -1645,9 +1608,6 @@ invariants:
           - /var/lib/globular/awareness/runtime/latest_snapshot.json
           - /var/lib/globular/awareness/runtime/facts.jsonl
         files:
-          - golang/awareness/evidence/classifier.go
-          - golang/awareness/evidence/normalizer.go
-          - golang/awareness/evidence/day1.go
           - golang/mcp/tools_awareness_evidence.go
         symbols:
           - Classifier.Classify
@@ -1700,15 +1660,6 @@ invariants:
             - /var/lib/globular/awareness/installed/<version>/<build_id>/
             - /globular/mcp/nodes/<node-id>           # peer registry — used for source discovery
         files:
-            - golang/awareness/bundlesync/verify.go
-            - golang/awareness/bundlesync/tarsafe.go
-            - golang/awareness/bundlesync/install.go
-            - golang/awareness/bundlesync/pull.go
-            - golang/awareness/bundlesync/discovery.go
-            - golang/awareness/bundlesync/ensure.go
-            - golang/awareness/bundlesync/freshness.go
-            - golang/awareness/evidence/classifier.go
-            - golang/awareness/evidence/normalizer.go
             - golang/mcp/tools_awareness_evidence.go
             - golang/mcp/tools_awareness_bundle_serve.go
             - golang/mcp/tools_awareness_bundle_freshness.go
@@ -1840,7 +1791,6 @@ invariants:
         files:
             - docs/operational-knowledge/                              # source of truth
             - golang/ai_memory/ai_memory_server/server.go              # immutability enforcement
-            - golang/awareness/bundlesync/install.go                   # bundle install includes seed dir
             - golang/cluster_doctor/cluster_doctor_server/             # invariant runtime check
         symbols:
             - SeedEntry                          # struct (planned)

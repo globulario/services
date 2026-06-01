@@ -6,7 +6,6 @@
 # like a violation of "etcd is the source of truth."
 #
 # These are intentionally short and sharp. The full machinery that enforces
-# them lives in golang/awareness/assurance/.
 
 invariants:
   - id: awareness.no_match_is_not_safe
@@ -24,8 +23,6 @@ invariants:
         - assurance.Compose
         - preflight.Run
       files:
-        - golang/awareness/assurance/envelope.go
-        - golang/awareness/preflight/preflight.go
     enforcement: |
       assurance.Compose returns TrustUnknown for any input where
       MatchFound=false. The TestCompose_NoMatchIsNeverSafe regression test
@@ -47,11 +44,8 @@ invariants:
       one this tree expects?".
     protects:
       symbols:
-        - bundlesync.Manifest
         - assurance.CheckStaleness
       files:
-        - golang/awareness/bundlesync/bundlesync.go
-        - golang/awareness/assurance/freshness.go
     enforcement: |
       Bundle build pipeline writes manifest.source_commit. Manifests with
       empty source_commit must produce a freshness alarm at runtime.
@@ -73,8 +67,6 @@ invariants:
         - assurance.Compose
         - assurance.CheckStaleness
       files:
-        - golang/awareness/assurance/envelope.go
-        - golang/awareness/assurance/freshness.go
     enforcement: |
       Compose returns TrustStale whenever Freshness != FreshnessFresh,
       even with strong coverage. Pinned by
@@ -94,7 +86,6 @@ invariants:
     protects:
       files:
         - docs/awareness/failure_modes.yaml
-        - golang/awareness/assurance/coverage.go
     enforcement: |
       assurance.ComputeCoverage classifies a failure_mode without tests
       as CoveragePartial at best (never CoverageWellCovered). Trust
@@ -116,9 +107,6 @@ invariants:
         - failurelearning.CheckClosure
         - failuregraph.MatchError
       files:
-        - golang/awareness/failurelearning/proposal.go
-        - golang/awareness/failurelearning/apply.go
-        - golang/awareness/failuregraph/matcher.go
     enforcement: |
       TestLearningLoopClosesOnReoccurrence proves that
       propose→apply→re-incident→match closes for a novel error.
@@ -137,7 +125,6 @@ invariants:
       held to a stricter awareness coverage bar than ordinary changes.
     protects:
       files:
-        - golang/awareness/integrity/trust.go
     enforcement: |
       semanticdiff already detects forbidden layer-authority transitions.
       The trust envelope must report TrustLimited or worse for any patch
@@ -173,13 +160,10 @@ invariants:
         - GoFileCoverage
         - integrity.CheckTestReferences
       files:
-        - golang/awareness/sourceroot/
         - golang/mcp/tools_awareness.go
         - golang/mcp/self_review_tool.go
         - golang/mcp/coverage_report_tool.go
         - golang/mcp/health_pulse_tool.go
-        - golang/awareness/integrity/testref.go
-        - golang/awareness/enforce/graph_coverage.go
     enforcement: |
       sourceroot.Resolve is the single source of truth. Each consumer
       switches on the typed state. Tests pin three known historical

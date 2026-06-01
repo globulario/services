@@ -16,7 +16,7 @@ If you have ever asked "is it safe to change this file?" — awareness answers.
 
 ## TL;DR for developers
 
-Before editing anything in `golang/awareness/`, `cluster_controller`,
+Before editing anything in `golang/awareness_graph_client/`, `cluster_controller`,
 `workflow`, `node_agent`, `repository`, `xds`, `runtime`, or `mcp`:
 
 ```bash

@@ -67,8 +67,7 @@ type ClusterSnapshotSummary struct {
 //
 // IMPORTANT — port number authority:
 //   - 10260 is the canonical MCP port across the codebase (config.go HTTPListenAddr,
-//     awareness/runtime/collector.go, awareness/evidence/normalizer.go,
-//     awareness/cli/mcp_cmds.go, etc.).
+//     mcp_service.yaml, etc.).
 //   - The aggregator design doc had examples showing 10060 — that was a typo;
 //     do NOT use 10060 anywhere.
 //   - Per-node overrides come from etcd at /globular/mcp/nodes/<node-id> and are

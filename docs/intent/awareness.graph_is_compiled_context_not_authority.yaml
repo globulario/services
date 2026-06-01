@@ -28,4 +28,3 @@ related_to:
 status: extracted_candidate
 
 required_tests:
-  - awareness/graph:TestGraphBuildMetadata_RecordsDurationAndCounts

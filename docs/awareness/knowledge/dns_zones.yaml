@@ -4,7 +4,7 @@
 # service endpoints, and external domain specs. Live DNS state is tracked
 # separately via the live-snapshot collector.
 #
-# The DNS extractor (awareness/extractors/dns) reads this file and emits:
+# The awareness-graph scanner reads this file and emits:
 #   - dns_zone nodes
 #   - service_endpoint nodes
 #   - domain_spec nodes
