@@ -1,0 +1,44 @@
+id: security.auth_context_is_canonical_identity
+level: mechanism
+title: AuthContext is the canonical identity extracted from JWT — Subject is domain-independent via PrincipalID precedence chain
+intent: |
+  auth_context.go constructs the canonical AuthContext from the validated JWT.
+  Subject follows a strict precedence chain: claims.PrincipalID (preferred,
+  domain-independent) → claims.Subject (standard JWT subject) → claims.ID
+  (legacy fallback for old tokens). The @domain suffix is stripped in all paths.
+  ClusterID is extracted from claims.ClusterID (explicit field), never from the
+  Issuer field (which carries the signing MAC address — a different identity axis).
+  AuthContext is the single point where raw JWT claims become the typed identity
+  used by the RBAC engine and audit log. mTLS identity extraction is a stub
+  (not yet implemented) — do not rely on it for production identity decisions.
+agent_guidance: |
+  Never bypass AuthContext construction to read JWT claims directly in RBAC or
+  audit code. Always use authCtx.Subject for RBAC lookups, not the raw token.
+  When adding new claims, wire them through AuthContext fields, not as ad-hoc
+  context values. The PrincipalID precedence order must not be changed without
+  a migration plan for old tokens that only carry claims.ID.
+bad_smells:
+  - RBAC lookup using claims.Email or claims.ID directly instead of authCtx.Subject
+  - ClusterID extracted from claims.Issuer (carries MAC, not cluster domain)
+  - mTLS stub treated as implemented identity source
+  - domain suffix (@domain) surviving into authCtx.Subject for RBAC comparison
+activation_triggers:
+  - AuthContext
+  - PrincipalID
+  - Subject
+  - auth context extraction
+  - claims.ClusterID
+expressed_by:
+  - golang/security/auth_context.go
+zooms_out_to:
+  - security.tokens_certificates_keys.cluster_trust_contract
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - authentication.identity_strips_domain_suffix
+  - security.cluster_id_validates_request_origin
+required_tests:
+  - security:TestAuthContextSubjectUsesPrincipalIDFirst
+  - security:TestAuthContextStripsAtDomainSuffix
+  - security:TestAuthContextClusterIDFromClaimsNotIssuer
+status: extracted_candidate

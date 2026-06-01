@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_security.cluster_init
+// @awareness file_role=cluster_initialized_gate_and_fail_closed_mutating_rpc_classifier
+// @awareness implements=globular.platform:intent.security.cluster_init_transition_is_fail_closed
+// @awareness implements=globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+// @awareness risk=high
 package security
 
 import (

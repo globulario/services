@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_security.node_identity
+// @awareness file_role=node_principal_own_node_only_scope_with_sa_deprecation_path
+// @awareness implements=globular.platform:intent.security.node_principal_is_scoped_to_own_node
+// @awareness risk=high
 package security
 
 import (

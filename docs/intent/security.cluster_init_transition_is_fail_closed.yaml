@@ -1,0 +1,45 @@
+id: security.cluster_init_transition_is_fail_closed
+level: mechanism
+title: IsMutatingRPC defaults to mutating and IsClusterInitialized requires both domain and inactive bootstrap
+intent: |
+  cluster_init.go provides two security gates:
+  (1) IsClusterInitialized() = domain is configured AND bootstrap is not active.
+      Both conditions must be true. A cluster with a domain but active bootstrap
+      is NOT considered initialized (bootstrap window must close first).
+      Results are cached for 30 seconds — short enough that the bootstrap→secured
+      transition happens within one TTL without requiring a restart.
+  (2) IsMutatingRPC() classifies gRPC methods as mutating or read-only using
+      method-name heuristics. It fails CLOSED: unknown or ambiguous methods are
+      treated as mutating. This prevents new RPCs from accidentally bypassing
+      mutation guards before they are explicitly classified.
+agent_guidance: |
+  When adding new gRPC methods, explicitly register them in IsMutatingRPC()
+  if they are read-only — do not rely on the default heuristic being correct.
+  Never increase clusterInitCacheTTL above 60s without understanding that it
+  delays the bootstrap→secured security transition. Call
+  InvalidateClusterInitCache() immediately after disabling bootstrap mode so
+  the next request sees the new state without waiting for TTL expiry.
+bad_smells:
+  - treating a cluster as initialized when bootstrap is still active
+  - new read-only RPC left as default (treated as mutating unnecessarily)
+  - clusterInitCacheTTL increased to "reduce etcd load" without TTL analysis
+  - not calling InvalidateClusterInitCache() after bootstrap disable
+activation_triggers:
+  - IsClusterInitialized
+  - IsMutatingRPC
+  - cluster init
+  - fail closed
+  - bootstrap transition
+expressed_by:
+  - golang/security/cluster_init.go
+zooms_out_to:
+  - bootstrap.window_is_not_steady_state_auth
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - interceptors.bootstrap_gate_is_four_level
+required_tests:
+  - security:TestIsClusterInitialized_FalseWhenBootstrapActive
+  - security:TestIsClusterInitialized_FalseWhenNoDomain
+  - security:TestIsMutatingRPC_UnknownDefaultsMutating
+status: extracted_candidate

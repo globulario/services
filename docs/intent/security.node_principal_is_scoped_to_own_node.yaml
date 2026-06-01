@@ -1,0 +1,41 @@
+id: security.node_principal_is_scoped_to_own_node
+level: mechanism
+title: Node principals (node_<uuid>) may only operate on their own node — cross-node impersonation is denied
+intent: |
+  node_identity.go enforces that a principal of the form node_<uuid> may only
+  perform operations scoped to the node identified by that UUID. Cross-node
+  impersonation (node_A calling an RPC that requires node_B's identity) is denied.
+  The "sa" principal is deprecated on node-scoped paths: RequireNodeIdentity()
+  controls a soft-deprecation flag that transitions to hard rejection.
+  During the soft phase, "sa" on node-scoped paths emits a SADeprecationWarning
+  but succeeds. Once the flag is enabled for hard rejection, "sa" is denied.
+agent_guidance: |
+  When adding new node-scoped operations, enforce the node_<uuid> identity check
+  via RequireNodeIdentity(). Do not add "sa" as a bypass for convenience — it is
+  being deprecated for exactly this reason. The transition from soft to hard
+  deprecation is one-way; do not revert it once enabled in production.
+bad_smells:
+  - new node-scoped RPC that accepts "sa" as a permanent bypass
+  - node_A token accepted for an operation on node_B
+  - SADeprecationWarning silenced instead of fixing the caller
+  - RequireNodeIdentity() flag disabled to unblock a short-term issue
+activation_triggers:
+  - node_identity
+  - RequireNodeIdentity
+  - node_<uuid>
+  - sa deprecation
+  - node principal
+expressed_by:
+  - golang/security/node_identity.go
+zooms_out_to:
+  - security.deny_overrides_allow
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - security.auth_context_is_canonical_identity
+  - rbac.subject_id_normalization_prevents_bypass
+required_tests:
+  - security:TestNodePrincipalOwnNodeAllowed
+  - security:TestNodePrincipalCrossNodeDenied
+  - security:TestSADeprecationWarningOnNodeScopedPath
+status: extracted_candidate

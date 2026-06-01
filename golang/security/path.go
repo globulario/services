@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_security.path
+// @awareness file_role=path_canonicalization_rejects_null_bytes_absolute_paths_and_traversal_sequences
+// @awareness implements=globular.platform:intent.security.path_canonicalization_prevents_traversal
+// @awareness risk=high
 package security
 
 import (

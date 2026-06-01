@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_security.cluster_validator
+// @awareness file_role=cluster_id_validation_prevents_cross_cluster_impersonation_empty_or_mismatch_denied
+// @awareness implements=globular.platform:intent.security.cluster_id_validates_request_origin
+// @awareness risk=critical
 package security
 
 import (

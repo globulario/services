@@ -1,0 +1,41 @@
+id: security.path_canonicalization_prevents_traversal
+level: mechanism
+title: Path canonicalization rejects null bytes, absolute paths, and directory traversal sequences before any file operation
+intent: |
+  path.go provides the single entry point for validating user-supplied or
+  externally-derived file paths before any file system operation. It explicitly
+  rejects: null bytes (path injection), absolute paths starting with /,
+  sequences containing ../ (directory traversal), double slashes (//), and
+  symlink-based escape attempts via redundant checks with both path and filepath
+  packages. All validation is applied before the path reaches any open/read/write
+  call. Callers must not implement their own path cleaning as a substitute.
+agent_guidance: |
+  Always run user-supplied paths through the security.CanonicalPath() function
+  before passing them to os.Open, os.Create, ioutil.ReadFile, or similar.
+  Do not sanitize paths inline at the call site — the central function catches
+  edge cases that inline checks miss. If a new path edge case is found, fix it
+  in path.go, not in the caller.
+bad_smells:
+  - file operation on a user-supplied path without calling CanonicalPath first
+  - inline path.Clean() at call site as substitute for CanonicalPath()
+  - null byte check missing from custom path validation
+  - absolute path accepted from external input
+activation_triggers:
+  - CanonicalPath
+  - path traversal
+  - directory traversal
+  - null byte
+  - path validation
+expressed_by:
+  - golang/security/path.go
+zooms_out_to:
+  - security.deny_overrides_allow
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - security.tokens_certificates_keys.cluster_trust_contract
+required_tests:
+  - security:TestCanonicalPathRejectsNullByte
+  - security:TestCanonicalPathRejectsAbsolute
+  - security:TestCanonicalPathRejectsTraversal
+status: extracted_candidate

@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_security.approval_token
+// @awareness file_role=single_use_audience_bound_remediation_approval_token_with_jti_replay_guard
+// @awareness implements=globular.platform:intent.remediation.token_contract
+// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+// @awareness risk=critical
 package security
 
 import (

@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_security.auth_context
+// @awareness file_role=canonical_identity_extraction_principalid_precedence_and_domain_strip
+// @awareness implements=globular.platform:intent.security.auth_context_is_canonical_identity
+// @awareness implements=globular.platform:intent.authentication.identity_strips_domain_suffix
+// @awareness risk=critical
 package security
 
 import (

@@ -17,6 +17,26 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - id: globular.platform:code.go.platform_security.approval_token
+    namespace: globular.platform
+    language: go
+    file: golang/security/approval_token.go
+    component: platform_security.approval_token
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.remediation.token_contract
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - id: globular.platform:code.go.platform_security.auth_context
+    namespace: globular.platform
+    language: go
+    file: golang/security/auth_context.go
+    component: platform_security.auth_context
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.security.auth_context_is_canonical_identity
+        - globular.platform:intent.authentication.identity_strips_domain_suffix
   - id: globular.platform:code.go.platform_security.bootstrap
     namespace: globular.platform
     language: go
@@ -27,6 +47,25 @@ code_symbols:
       implements:
         - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
         - globular.platform:intent.globular.security.ceremony_over_configuration
+  - id: globular.platform:code.go.platform_security.cluster_init
+    namespace: globular.platform
+    language: go
+    file: golang/security/cluster_init.go
+    component: platform_security.cluster_init
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.security.cluster_init_transition_is_fail_closed
+        - globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+  - id: globular.platform:code.go.platform_security.cluster_validator
+    namespace: globular.platform
+    language: go
+    file: golang/security/cluster.go
+    component: platform_security.cluster_validator
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.security.cluster_id_validates_request_origin
   - id: globular.platform:code.go.platform_security.jwt
     namespace: globular.platform
     language: go
@@ -38,3 +77,30 @@ code_symbols:
         - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
         - globular.platform:intent.bootstrap.window_is_not_steady_state_auth
         - globular.platform:intent.security.deny_overrides_allow
+  - id: globular.platform:code.go.platform_security.keyring_sync
+    namespace: globular.platform
+    language: go
+    file: golang/security/keyring_sync.go
+    component: platform_security.keyring_sync
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - id: globular.platform:code.go.platform_security.node_identity
+    namespace: globular.platform
+    language: go
+    file: golang/security/node_identity.go
+    component: platform_security.node_identity
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.security.node_principal_is_scoped_to_own_node
+  - id: globular.platform:code.go.platform_security.path
+    namespace: globular.platform
+    language: go
+    file: golang/security/path.go
+    component: platform_security.path
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.security.path_canonicalization_prevents_traversal

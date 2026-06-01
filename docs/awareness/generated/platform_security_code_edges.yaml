@@ -5,12 +5,33 @@ code_edges:
   - from: globular.platform:code.go.platform_security
     relation: implements
     to: globular.platform:intent.globular.security.ceremony_over_configuration
+  - from: globular.platform:code.go.platform_security.approval_token
+    relation: implements
+    to: globular.platform:intent.remediation.token_contract
+  - from: globular.platform:code.go.platform_security.approval_token
+    relation: implements
+    to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - from: globular.platform:code.go.platform_security.auth_context
+    relation: implements
+    to: globular.platform:intent.authentication.identity_strips_domain_suffix
+  - from: globular.platform:code.go.platform_security.auth_context
+    relation: implements
+    to: globular.platform:intent.security.auth_context_is_canonical_identity
   - from: globular.platform:code.go.platform_security.bootstrap
     relation: implements
     to: globular.platform:intent.globular.security.ceremony_over_configuration
   - from: globular.platform:code.go.platform_security.bootstrap
     relation: implements
     to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - from: globular.platform:code.go.platform_security.cluster_init
+    relation: implements
+    to: globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+  - from: globular.platform:code.go.platform_security.cluster_init
+    relation: implements
+    to: globular.platform:intent.security.cluster_init_transition_is_fail_closed
+  - from: globular.platform:code.go.platform_security.cluster_validator
+    relation: implements
+    to: globular.platform:intent.security.cluster_id_validates_request_origin
   - from: globular.platform:code.go.platform_security.jwt
     relation: implements
     to: globular.platform:intent.bootstrap.window_is_not_steady_state_auth
@@ -20,3 +41,12 @@ code_edges:
   - from: globular.platform:code.go.platform_security.jwt
     relation: implements
     to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - from: globular.platform:code.go.platform_security.keyring_sync
+    relation: implements
+    to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - from: globular.platform:code.go.platform_security.node_identity
+    relation: implements
+    to: globular.platform:intent.security.node_principal_is_scoped_to_own_node
+  - from: globular.platform:code.go.platform_security.path
+    relation: implements
+    to: globular.platform:intent.security.path_canonicalization_prevents_traversal

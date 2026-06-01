@@ -1,0 +1,43 @@
+id: security.cluster_id_validates_request_origin
+level: mechanism
+title: ClusterID in JWT claims prevents cross-cluster impersonation — empty or mismatched IDs are unconditional denials
+intent: |
+  ClusterValidator.ValidateClusterID() enforces that the cluster_id claimed
+  in a JWT matches the local cluster's domain. The decision is binary:
+  DENY if empty (no cluster ID provided), DENY if mismatch (cross-cluster),
+  ALLOW only if equal. This prevents a node from cluster A from replaying
+  its tokens against cluster B's controller or services.
+  ClusterID is the domain string, not the node MAC address — these are distinct
+  identity axes. The validator is constructed from config at startup and cached;
+  it does not re-read config per request.
+agent_guidance: |
+  Always extract ClusterID from JWT claims (claims.ClusterID), never from the
+  Issuer field (which carries the signing MAC, not the cluster domain).
+  When constructing a ClusterValidator, use the cluster domain from etcd config,
+  not the local MAC address. Empty cluster_id in an inbound request must be
+  treated as an attack, not as "local-only" access.
+bad_smells:
+  - using Issuer field as ClusterID (Issuer = signing MAC, not cluster domain)
+  - treating empty cluster_id as loopback-only exemption
+  - constructing ClusterValidator from MAC address instead of domain
+  - skipping ValidateClusterID() for service-to-service calls on the same node
+activation_triggers:
+  - ClusterValidator
+  - ValidateClusterID
+  - cluster_id
+  - cross-cluster
+  - impersonation
+expressed_by:
+  - golang/security/cluster.go
+zooms_out_to:
+  - security.tokens_certificates_keys.cluster_trust_contract
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - authentication.identity_strips_domain_suffix
+  - controller.leader_election_gates_all_writes
+required_tests:
+  - security:TestValidateClusterID_EmptyDenied
+  - security:TestValidateClusterID_MismatchDenied
+  - security:TestValidateClusterID_MatchAllowed
+status: extracted_candidate

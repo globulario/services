@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_security.keyring_sync
+// @awareness file_role=peer_ed25519_public_key_sync_via_etcd_with_cooldown_backoff
+// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+// @awareness risk=high
 package security
 
 import (
