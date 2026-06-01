@@ -1,4 +1,16 @@
 code_symbols:
+  - id: globular.examples.echo_service:code.go.echo_service
+    namespace: globular.examples.echo_service
+    language: go
+    file: golang/echo/echo_client/echo_client.go
+    component: echo_service
+    risk: low
+  - id: globular.examples.echo_service:code.go.echo_service
+    namespace: globular.examples.echo_service
+    language: go
+    file: golang/echo/echo_server/main.go
+    component: echo_service
+    risk: low
   - id: globular.examples.echo_service:code.go.server
     namespace: globular.examples.echo_service
     language: go

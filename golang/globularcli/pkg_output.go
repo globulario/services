@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=package_output_formatters
+// @awareness risk=low
 package main
 
 // pkg_output.go — deterministic output types for `globular pkg publish`.

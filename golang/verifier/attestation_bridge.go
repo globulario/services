@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_verifier
+// @awareness file_role=runtime_attestation_bridge
+// @awareness implements=globular.platform:intent.runtime.identity.requires_proof
+// @awareness risk=critical
 package verifier
 
 import (

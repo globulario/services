@@ -65,3 +65,12 @@ code_edges:
   - from: globular.platform:code.go.ai_executor.remediator.remediator_execute
     relation: implements
     to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.platform_ai_executor
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.platform_ai_executor
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.platform_ai_executor
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates

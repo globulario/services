@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_event
+// @awareness file_role=event_bus_grpc_client
+// @awareness risk=low
 package event_client
 
 import (

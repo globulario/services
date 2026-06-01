@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_search
+// @awareness file_role=search_grpc_server
+// @awareness risk=low
 package main
 
 import (

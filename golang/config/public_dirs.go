@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_config
+// @awareness file_role=public_directory_config
+// @awareness risk=low
 package config
 
 import (

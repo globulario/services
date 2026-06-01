@@ -9,6 +9,11 @@
 //   - Steps where verification is expensive (health probes, etcd scans)
 //   - Steps where the world is noisy (partial installs, flapping services)
 //   - Steps where the side effect happened but state sync didn't complete
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.server
+// @awareness file_role=workflow_step_receipt_recording
+// @awareness implements=globular.platform:intent.workflow.step_receipts_are_evidence
+// @awareness risk=critical
 package main
 
 import (

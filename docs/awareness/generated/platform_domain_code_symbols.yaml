@@ -1,0 +1,55 @@
+code_symbols:
+  - id: globular.platform:code.go.platform_domain
+    namespace: globular.platform
+    language: go
+    file: golang/domain/acme_account.go
+    component: platform_domain
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - id: globular.platform:code.go.platform_domain
+    namespace: globular.platform
+    language: go
+    file: golang/domain/acme_solver.go
+    component: platform_domain
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - id: globular.platform:code.go.platform_domain
+    namespace: globular.platform
+    language: go
+    file: golang/domain/dns_propagation.go
+    component: platform_domain
+    risk: medium
+  - id: globular.platform:code.go.platform_domain
+    namespace: globular.platform
+    language: go
+    file: golang/domain/file_atomic.go
+    component: platform_domain
+    risk: medium
+  - id: globular.platform:code.go.platform_domain
+    namespace: globular.platform
+    language: go
+    file: golang/domain/reconciler.go
+    component: platform_domain
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - id: globular.platform:code.go.platform_domain
+    namespace: globular.platform
+    language: go
+    file: golang/domain/spec.go
+    component: platform_domain
+    risk: medium
+  - id: globular.platform:code.go.platform_domain
+    namespace: globular.platform
+    language: go
+    file: golang/domain/store.go
+    component: platform_domain
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth

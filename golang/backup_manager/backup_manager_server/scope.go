@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_backup
+// @awareness file_role=backup_scope_definition
+// @awareness risk=medium
 package main
 
 import (

@@ -179,13 +179,25 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/internal/recovery/grpc_recovery.go
+    file: golang/cluster_doctor/cluster_doctor_server/remediation_history.go
     component: platform_cluster_doctor
-    risk: medium
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.audit.every_authority_change_is_explainable
   - id: globular.platform:code.go.platform_cluster_doctor
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/main.go
+    file: golang/cluster_doctor/cluster_doctor_server/approval_replay_etcd.go
+    component: platform_cluster_doctor
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.audit.every_authority_change_is_explainable
+  - id: globular.platform:code.go.platform_cluster_doctor
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/config.go
     component: platform_cluster_doctor
     risk: medium
   - id: globular.platform:code.go.platform_cluster_doctor
@@ -200,18 +212,18 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/actor_service.go
+    file: golang/cluster_doctor/cluster_doctor_server/server.go
     component: platform_cluster_doctor
-    risk: medium
+    risk: high
   - id: globular.platform:code.go.platform_cluster_doctor
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/approval_replay_etcd.go
+    file: golang/cluster_doctor/cluster_doctor_server/workflow_runner.go
     component: platform_cluster_doctor
     risk: high
     annotations:
       implements:
-        - globular.platform:intent.audit.every_authority_change_is_explainable
+        - globular.platform:intent.remediation.must_go_through_workflow
   - id: globular.platform:code.go.platform_cluster_doctor
     namespace: globular.platform
     language: go
@@ -233,7 +245,7 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/config.go
+    file: golang/cluster_doctor/cluster_doctor_server/internal/recovery/grpc_recovery.go
     component: platform_cluster_doctor
     risk: medium
   - id: globular.platform:code.go.platform_cluster_doctor
@@ -248,12 +260,9 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/audit_correlation.go
+    file: golang/cluster_doctor/cluster_doctor_server/main.go
     component: platform_cluster_doctor
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.audit.every_authority_change_is_explainable
+    risk: medium
   - id: globular.platform:code.go.platform_cluster_doctor
     namespace: globular.platform
     language: go
@@ -263,27 +272,33 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/server.go
-    component: platform_cluster_doctor
-    risk: high
-  - id: globular.platform:code.go.platform_cluster_doctor
-    namespace: globular.platform
-    language: go
-    file: golang/cluster_doctor/cluster_doctor_server/workflow_runner.go
-    component: platform_cluster_doctor
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.remediation.must_go_through_workflow
-  - id: globular.platform:code.go.platform_cluster_doctor
-    namespace: globular.platform
-    language: go
-    file: golang/cluster_doctor/cluster_doctor_server/remediation_history.go
+    file: golang/cluster_doctor/cluster_doctor_server/audit_correlation.go
     component: platform_cluster_doctor
     risk: high
     annotations:
       implements:
         - globular.platform:intent.audit.every_authority_change_is_explainable
+  - id: globular.platform:code.go.platform_cluster_doctor
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_client/clusterdoctor_client.go
+    component: platform_cluster_doctor
+    risk: medium
+  - id: globular.platform:code.go.platform_cluster_doctor
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/evidencedigest/digest.go
+    component: platform_cluster_doctor
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.evidence.provenance_trust_levels
+  - id: globular.platform:code.go.platform_cluster_doctor
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/actor_service.go
+    component: platform_cluster_doctor
+    risk: medium
   - id: globular.platform:code.go.platform_cluster_doctor.collector
     namespace: globular.platform
     language: go
@@ -296,27 +311,21 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor.collector
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/collector/prometheus.go
-    component: platform_cluster_doctor.collector
-    risk: medium
-  - id: globular.platform:code.go.platform_cluster_doctor.collector
-    namespace: globular.platform
-    language: go
-    file: golang/cluster_doctor/cluster_doctor_server/collector/sweep_requests.go
-    component: platform_cluster_doctor.collector
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.runtime.identity_requires_verification
-  - id: globular.platform:code.go.platform_cluster_doctor.collector
-    namespace: globular.platform
-    language: go
     file: golang/cluster_doctor/cluster_doctor_server/collector/verification.go
     component: platform_cluster_doctor.collector
     risk: high
     annotations:
       implements:
         - globular.platform:intent.runtime.identity_requires_verification
+  - id: globular.platform:code.go.platform_cluster_doctor.collector
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/collector/snapshot.go
+    component: platform_cluster_doctor.collector
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.unknown_must_not_default_to_healthy
   - id: globular.platform:code.go.platform_cluster_doctor.collector
     namespace: globular.platform
     language: go
@@ -329,12 +338,18 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor.collector
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/collector/snapshot.go
+    file: golang/cluster_doctor/cluster_doctor_server/collector/sweep_requests.go
     component: platform_cluster_doctor.collector
     risk: high
     annotations:
-      enforces:
-        - globular.platform:invariant.state.unknown_must_not_default_to_healthy
+      implements:
+        - globular.platform:intent.runtime.identity_requires_verification
+  - id: globular.platform:code.go.platform_cluster_doctor.collector
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/collector/prometheus.go
+    component: platform_cluster_doctor.collector
+    risk: medium
   - id: globular.platform:code.go.platform_cluster_doctor.heal_policy
     namespace: globular.platform
     language: go
@@ -459,7 +474,7 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor.render
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/render/cluster_report.go
+    file: golang/cluster_doctor/cluster_doctor_server/render/node_report.go
     component: platform_cluster_doctor.render
     risk: medium
     annotations:
@@ -477,7 +492,7 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor.render
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/render/node_report.go
+    file: golang/cluster_doctor/cluster_doctor_server/render/cluster_report.go
     component: platform_cluster_doctor.render
     risk: medium
     annotations:
@@ -486,45 +501,9 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/artifact_integrity.go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/cluster_network_drift.go
     component: platform_cluster_doctor.rules
     risk: high
-    annotations:
-      enforces:
-        - globular.platform:invariant.state.installed_not_catalog
-  - id: globular.platform:code.go.platform_cluster_doctor.rules
-    namespace: globular.platform
-    language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/critical_state_guardians.go
-    component: platform_cluster_doctor.rules
-    risk: critical
-    annotations:
-      enforces:
-        - globular.platform:invariant.state.unknown_must_not_default_to_healthy
-  - id: globular.platform:code.go.platform_cluster_doctor.rules
-    namespace: globular.platform
-    language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/canonical_runtime_dir.go
-    component: platform_cluster_doctor.rules
-    risk: medium
-  - id: globular.platform:code.go.platform_cluster_doctor.rules
-    namespace: globular.platform
-    language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local.go
-    component: platform_cluster_doctor.rules
-    risk: high
-    annotations:
-      enforces:
-        - globular.platform:invariant.state.installed_not_catalog
-  - id: globular.platform:code.go.platform_cluster_doctor.rules
-    namespace: globular.platform
-    language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/certificate_health.go
-    component: platform_cluster_doctor.rules
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
@@ -537,7 +516,22 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/invariant.go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/grpc_backbone_contract.go
+    component: platform_cluster_doctor.rules
+    risk: high
+  - id: globular.platform:code.go.platform_cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/etcd_stale_member.go
+    component: platform_cluster_doctor.rules
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/etcd_helpers.go
     component: platform_cluster_doctor.rules
     risk: medium
   - id: globular.platform:code.go.platform_cluster_doctor.rules
@@ -549,6 +543,17 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.state.installed_not_catalog
+  - id: globular.platform:code.go.platform_cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/etcd_health.go
+    component: platform_cluster_doctor.rules
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.unknown_must_not_default_to_healthy
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
@@ -618,59 +623,15 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/grpc_backbone_contract.go
-    component: platform_cluster_doctor.rules
-    risk: high
-  - id: globular.platform:code.go.platform_cluster_doctor.rules
-    namespace: globular.platform
-    language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/etcd_stale_member.go
-    component: platform_cluster_doctor.rules
-    risk: critical
-    annotations:
-      implements:
-        - globular.platform:intent.etcd.is_source_of_truth
-  - id: globular.platform:code.go.platform_cluster_doctor.rules
-    namespace: globular.platform
-    language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/etcd_helpers.go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/invariant.go
     component: platform_cluster_doctor.rules
     risk: medium
-  - id: globular.platform:code.go.platform_cluster_doctor.rules
-    namespace: globular.platform
-    language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/etcd_health.go
-    component: platform_cluster_doctor.rules
-    risk: critical
-    annotations:
-      enforces:
-        - globular.platform:invariant.state.unknown_must_not_default_to_healthy
-      implements:
-        - globular.platform:intent.etcd.is_source_of_truth
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
     file: golang/cluster_doctor/cluster_doctor_server/rules/dns_reload_health.go
     component: platform_cluster_doctor.rules
     risk: medium
-  - id: globular.platform:code.go.platform_cluster_doctor.rules
-    namespace: globular.platform
-    language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_health.go
-    component: platform_cluster_doctor.rules
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.objectstore.topology_requires_contract
-  - id: globular.platform:code.go.platform_cluster_doctor.rules
-    namespace: globular.platform
-    language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_physical_overlap.go
-    component: platform_cluster_doctor.rules
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.objectstore.topology_requires_contract
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
@@ -692,12 +653,30 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/heal_audit.go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/critical_state_guardians.go
+    component: platform_cluster_doctor.rules
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.unknown_must_not_default_to_healthy
+  - id: globular.platform:code.go.platform_cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_health.go
     component: platform_cluster_doctor.rules
     risk: high
     annotations:
       implements:
-        - globular.platform:intent.audit.every_authority_change_is_explainable
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_physical_overlap.go
+    component: platform_cluster_doctor.rules
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
@@ -707,6 +686,33 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/controller_leader.go
+    component: platform_cluster_doctor.rules
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/cluster_services_drift.go
+    component: platform_cluster_doctor.rules
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.runtime_not_desired
+  - id: globular.platform:code.go.platform_cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/heal_audit.go
+    component: platform_cluster_doctor.rules
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.audit.every_authority_change_is_explainable
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
@@ -755,21 +761,18 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/artifact_filesystem_safety.go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/certificate_health.go
     component: platform_cluster_doctor.rules
     risk: high
     annotations:
-      enforces:
-        - globular.platform:invariant.state.installed_not_catalog
+      implements:
+        - globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/controller_leader.go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/canonical_runtime_dir.go
     component: platform_cluster_doctor.rules
-    risk: critical
-    annotations:
-      implements:
-        - globular.platform:intent.etcd.is_source_of_truth
+    risk: medium
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
@@ -901,15 +904,27 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/cluster_services_drift.go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local.go
     component: platform_cluster_doctor.rules
     risk: high
     annotations:
       enforces:
-        - globular.platform:invariant.state.runtime_not_desired
+        - globular.platform:invariant.state.installed_not_catalog
   - id: globular.platform:code.go.platform_cluster_doctor.rules
     namespace: globular.platform
     language: go
-    file: golang/cluster_doctor/cluster_doctor_server/rules/cluster_network_drift.go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/artifact_integrity.go
     component: platform_cluster_doctor.rules
     risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+  - id: globular.platform:code.go.platform_cluster_doctor.rules
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/artifact_filesystem_safety.go
+    component: platform_cluster_doctor.rules
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog

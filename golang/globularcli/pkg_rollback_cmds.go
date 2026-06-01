@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=package_rollback_commands
+// @awareness implements=globular.platform:intent.rollback.must_be_operator_chosen
+// @awareness risk=high
 package main
 
 // pkg_rollback_cmds.go — Phase CLI-C rollback commands.

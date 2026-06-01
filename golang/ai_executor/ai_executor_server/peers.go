@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_executor
+// @awareness file_role=ai_peer_coordination
+// @awareness risk=medium
 package main
 
 import (

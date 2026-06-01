@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.tools
+// @awareness file_role=mcp_convergence_diagnostic_tools
+// @awareness implements=globular.platform:intent.desired_state.is_authority
+// @awareness risk=high
 package main
 
 import (

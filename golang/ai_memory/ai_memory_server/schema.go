@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_memory
+// @awareness file_role=ai_memory_scylla_schema
+// @awareness implements=globular.platform:intent.schema.migrations_are_versioned_and_reversible
+// @awareness risk=medium
 package main
 
 import "fmt"

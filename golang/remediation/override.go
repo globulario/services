@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_remediation
+// @awareness file_role=operator_remediation_override
+// @awareness implements=globular.platform:intent.operator.override_intent
+// @awareness risk=high
 package remediation
 
 import (

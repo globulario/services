@@ -34,6 +34,11 @@
 // owned by the caller via EtcdKeyForVerification):
 //
 //	/globular/verification/runtime/<node_id>/<service_name>
+// @awareness namespace=globular.platform
+// @awareness component=platform_verifier
+// @awareness file_role=binary_runtime_verifier
+// @awareness implements=globular.platform:intent.runtime.identity_requires_verification
+// @awareness risk=critical
 package verifier
 
 import (

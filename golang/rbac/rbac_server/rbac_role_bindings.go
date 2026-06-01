@@ -8,6 +8,11 @@
 //   GetRoleBinding   — globular-admin OR self-read (bootstrap exempt)
 //   ListRoleBindings — globular-admin role required (bootstrap exempt)
 
+// @awareness namespace=globular.platform
+// @awareness component=platform_rbac
+// @awareness file_role=rbac_role_binding_management
+// @awareness implements=globular.platform:intent.rbac.permission_changes_require_audit_and_owner
+// @awareness risk=critical
 package main
 
 import (

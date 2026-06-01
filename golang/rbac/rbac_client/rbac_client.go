@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_rbac
+// @awareness file_role=rbac_grpc_client
+// @awareness risk=medium
 package rbac_client
 
 import (

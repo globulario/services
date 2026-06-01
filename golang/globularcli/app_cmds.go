@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=application_management_commands
+// @awareness risk=medium
 package main
 
 // app_cmds.go — CLI commands for application lifecycle management.

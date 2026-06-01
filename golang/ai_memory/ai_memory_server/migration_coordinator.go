@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_memory
+// @awareness file_role=ai_memory_schema_migration_coordinator
+// @awareness implements=globular.platform:intent.schema.migrations_are_versioned_and_reversible
+// @awareness risk=medium
 package main
 
 // migration_coordinator.go — distributed ScyllaDB schema migration coordinator.

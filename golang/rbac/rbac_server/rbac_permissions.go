@@ -1,5 +1,10 @@
 // rbac_permissions.go: get/set/delete resource permissions.
 
+// @awareness namespace=globular.platform
+// @awareness component=platform_rbac
+// @awareness file_role=rbac_permission_enforcement
+// @awareness implements=globular.platform:intent.security.deny_overrides_allow
+// @awareness risk=critical
 package main
 
 import (

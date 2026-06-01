@@ -1,0 +1,4 @@
+code_edges:
+  - from: globular.platform:code.go.platform_evidence
+    relation: implements
+    to: globular.platform:intent.evidence.provenance_trust_levels

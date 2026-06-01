@@ -1,0 +1,31 @@
+code_symbols:
+  - id: globular.platform:code.go.platform_monitoring
+    namespace: globular.platform
+    language: go
+    file: golang/monitoring/monitoring_client/monitoring_client.go
+    component: platform_monitoring
+    risk: low
+  - id: globular.platform:code.go.platform_monitoring
+    namespace: globular.platform
+    language: go
+    file: golang/monitoring/monitoring_server/monitoring.go
+    component: platform_monitoring
+    risk: medium
+  - id: globular.platform:code.go.platform_monitoring
+    namespace: globular.platform
+    language: go
+    file: golang/monitoring/monitoring_server/server.go
+    component: platform_monitoring
+    risk: medium
+  - id: globular.platform:code.go.platform_monitoring
+    namespace: globular.platform
+    language: go
+    file: golang/monitoring/monitoring_store/prometheus.go
+    component: platform_monitoring
+    risk: medium
+  - id: globular.platform:code.go.platform_monitoring
+    namespace: globular.platform
+    language: go
+    file: golang/monitoring/monitoring_store/store.go
+    component: platform_monitoring
+    risk: medium

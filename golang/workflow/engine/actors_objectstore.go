@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.engine
+// @awareness file_role=objectstore_topology_workflow_actors
+// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
+// @awareness risk=high
 package engine
 
 import (

@@ -121,16 +121,22 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/state.go
+    file: golang/node_agent/node_agent_server/grpc_scylla_remove_node.go
     component: platform_node_agent
-    risk: critical
+    risk: high
     annotations:
       implements:
-        - globular.platform:intent.etcd.is_source_of_truth
+        - globular.platform:intent.quorum_safety_before_storage_mutation
   - id: globular.platform:code.go.platform_node_agent
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/operation_tracker.go
+    file: golang/node_agent/node_agent_server/disk_inventory.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/metrics.go
     component: platform_node_agent
     risk: medium
   - id: globular.platform:code.go.platform_node_agent
@@ -148,9 +154,9 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/internal/ports/allocator.go
+    file: golang/node_agent/node_agent_server/internal/units/names.go
     component: platform_node_agent
-    risk: medium
+    risk: low
   - id: globular.platform:code.go.platform_node_agent
     namespace: globular.platform
     language: go
@@ -160,18 +166,18 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/grpc_scylla_remove_node.go
+    file: golang/node_agent/node_agent_server/main.go
     component: platform_node_agent
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.quorum_safety_before_storage_mutation
+    risk: medium
   - id: globular.platform:code.go.platform_node_agent
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/disk_inventory.go
+    file: golang/node_agent/node_agent_server/state.go
     component: platform_node_agent
-    risk: medium
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
   - id: globular.platform:code.go.platform_node_agent
     namespace: globular.platform
     language: go
@@ -211,7 +217,7 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/network_reconcile.go
+    file: golang/node_agent/node_agent_client/nodeagent_client.go
     component: platform_node_agent
     risk: medium
   - id: globular.platform:code.go.platform_node_agent
@@ -232,7 +238,7 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/actor_service.go
+    file: golang/node_agent/node_agent_server/delete_cache_artifact.go
     component: platform_node_agent
     risk: medium
   - id: globular.platform:code.go.platform_node_agent
@@ -244,12 +250,6 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.state.installed_not_catalog
-  - id: globular.platform:code.go.platform_node_agent
-    namespace: globular.platform
-    language: go
-    file: golang/node_agent/node_agent_server/delete_cache_artifact.go
-    component: platform_node_agent
-    risk: medium
   - id: globular.platform:code.go.platform_node_agent
     namespace: globular.platform
     language: go
@@ -274,41 +274,32 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/internal/units/names.go
-    component: platform_node_agent
-    risk: low
-  - id: globular.platform:code.go.platform_node_agent
-    namespace: globular.platform
-    language: go
-    file: golang/node_agent/node_agent_server/main.go
-    component: platform_node_agent
-    risk: medium
-  - id: globular.platform:code.go.platform_node_agent
-    namespace: globular.platform
-    language: go
     file: golang/node_agent/node_agent_server/native_dep_check.go
     component: platform_node_agent
     risk: medium
   - id: globular.platform:code.go.platform_node_agent
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/metrics.go
+    file: golang/node_agent/node_agent_server/internal/ports/allocator.go
     component: platform_node_agent
     risk: medium
-  - id: globular.platform:code.go.platform_node_agent.actions
+  - id: globular.platform:code.go.platform_node_agent
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/internal/actions/actions.go
-    component: platform_node_agent.actions
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.node_agent.is_executor_not_cluster_brain
-  - id: globular.platform:code.go.platform_node_agent.actions
+    file: golang/node_agent/node_agent_server/network_reconcile.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/internal/actions/service_config_tcp.go
-    component: platform_node_agent.actions
+    file: golang/node_agent/node_agent_server/operation_tracker.go
+    component: platform_node_agent
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/actor_service.go
+    component: platform_node_agent
     risk: medium
   - id: globular.platform:code.go.platform_node_agent.actions
     namespace: globular.platform
@@ -319,6 +310,18 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.state.runtime_not_desired
+  - id: globular.platform:code.go.platform_node_agent.actions
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/internal/actions/service_config_tcp.go
+    component: platform_node_agent.actions
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent.actions
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/internal/actions/backup.go
+    component: platform_node_agent.actions
+    risk: medium
   - id: globular.platform:code.go.platform_node_agent.actions
     namespace: globular.platform
     language: go
@@ -454,13 +457,16 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent.actions
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/internal/actions/backup.go
+    file: golang/node_agent/node_agent_server/internal/actions/actions.go
     component: platform_node_agent.actions
-    risk: medium
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.node_agent.is_executor_not_cluster_brain
   - id: globular.platform:code.go.platform_node_agent.actions
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/internal/actions/artifact.go
+    file: golang/node_agent/node_agent_server/internal/actions/application_actions.go
     component: platform_node_agent.actions
     risk: high
     annotations:
@@ -469,7 +475,7 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent.actions
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/internal/actions/application_actions.go
+    file: golang/node_agent/node_agent_server/internal/actions/artifact.go
     component: platform_node_agent.actions
     risk: high
     annotations:
@@ -540,18 +546,6 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent.ingress
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/ingress_reconcile.go
-    component: platform_node_agent.ingress
-    risk: high
-  - id: globular.platform:code.go.platform_node_agent.ingress
-    namespace: globular.platform
-    language: go
-    file: golang/node_agent/node_agent_server/internal/ingress/status.go
-    component: platform_node_agent.ingress
-    risk: medium
-  - id: globular.platform:code.go.platform_node_agent.ingress
-    namespace: globular.platform
-    language: go
     file: golang/node_agent/node_agent_server/internal/ingress/keepalived/render.go
     component: platform_node_agent.ingress
     risk: medium
@@ -559,6 +553,18 @@ code_symbols:
     namespace: globular.platform
     language: go
     file: golang/node_agent/node_agent_server/internal/ingress/spec.go
+    component: platform_node_agent.ingress
+    risk: medium
+  - id: globular.platform:code.go.platform_node_agent.ingress
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/ingress_reconcile.go
+    component: platform_node_agent.ingress
+    risk: high
+  - id: globular.platform:code.go.platform_node_agent.ingress
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/internal/ingress/status.go
     component: platform_node_agent.ingress
     risk: medium
   - id: globular.platform:code.go.platform_node_agent.integrity
@@ -573,7 +579,7 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent.join
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/identity/validation.go
+    file: golang/node_agent/node_agent_server/join_plan_gate.go
     component: platform_node_agent.join
     risk: high
     annotations:
@@ -591,7 +597,7 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent.join
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/join_plan_gate.go
+    file: golang/node_agent/node_agent_server/identity/validation.go
     component: platform_node_agent.join
     risk: high
     annotations:
@@ -723,18 +729,21 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent.package_apply
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/internal/apply/apply.go
+    file: golang/node_agent/node_agent_server/apply_package_verify.go
     component: platform_node_agent.package_apply
-    risk: critical
+    risk: high
     annotations:
       enforces:
         - globular.platform:invariant.state.installed_not_catalog
   - id: globular.platform:code.go.platform_node_agent.package_apply
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/package_config_pre.go
+    file: golang/node_agent/node_agent_server/internal/apply/apply.go
     component: platform_node_agent.package_apply
-    risk: high
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
   - id: globular.platform:code.go.platform_node_agent.package_apply
     namespace: globular.platform
     language: go
@@ -747,16 +756,13 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent.package_apply
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/apply_package_verify.go
+    file: golang/node_agent/node_agent_server/package_config_pre.go
     component: platform_node_agent.package_apply
     risk: high
-    annotations:
-      enforces:
-        - globular.platform:invariant.state.installed_not_catalog
   - id: globular.platform:code.go.platform_node_agent.pki
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/certificate.go
+    file: golang/node_agent/node_agent_server/internal/certs/etcd_kv.go
     component: platform_node_agent.pki
     risk: high
     annotations:
@@ -765,7 +771,7 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent.pki
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/internal/certs/etcd_kv.go
+    file: golang/node_agent/node_agent_server/certificate.go
     component: platform_node_agent.pki
     risk: high
     annotations:
@@ -858,6 +864,12 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent.workflow
     namespace: globular.platform
     language: go
+    file: golang/node_agent/node_agent_server/grpc_workflow_skip.go
+    component: platform_node_agent.workflow
+    risk: high
+  - id: globular.platform:code.go.platform_node_agent.workflow
+    namespace: globular.platform
+    language: go
     file: golang/node_agent/node_agent_server/workflow_day0.go
     component: platform_node_agent.workflow
     risk: high
@@ -873,9 +885,3 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.node_agent.is_executor_not_cluster_brain
-  - id: globular.platform:code.go.platform_node_agent.workflow
-    namespace: globular.platform
-    language: go
-    file: golang/node_agent/node_agent_server/grpc_workflow_skip.go
-    component: platform_node_agent.workflow
-    risk: high

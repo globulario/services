@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_event
+// @awareness file_role=event_test_utility_entrypoint
+// @awareness risk=low
 package main
 
 import (

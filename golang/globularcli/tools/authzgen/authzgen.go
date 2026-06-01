@@ -10,6 +10,10 @@
 // Or generate for all annotated services:
 //
 //	go run ./globularcli/tools/authzgen -descriptor descriptor.pb -out generated/policy
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=authorization_annotation_generator
+// @awareness risk=medium
 package main
 
 import (

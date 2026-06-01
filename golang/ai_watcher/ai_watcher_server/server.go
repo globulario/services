@@ -1,6 +1,10 @@
 // Package main implements the AI Watcher service — a lightweight event-driven
 // daemon that subscribes to cluster events, filters them through configurable
 // rules, and triggers AI-assisted diagnosis and remediation.
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_watcher
+// @awareness file_role=ai_watcher_grpc_server
+// @awareness risk=medium
 package main
 
 import (

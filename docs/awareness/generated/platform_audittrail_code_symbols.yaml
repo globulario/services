@@ -1,0 +1,10 @@
+code_symbols:
+  - id: globular.platform:code.go.platform_audit
+    namespace: globular.platform
+    language: go
+    file: golang/audittrail/desired_writes.go
+    component: platform_audit
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.audit.every_authority_change_is_explainable

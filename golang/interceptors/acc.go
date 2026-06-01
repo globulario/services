@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_interceptors
+// @awareness file_role=admission_control_circuit_breaker
+// @awareness implements=globular.platform:intent.circuit_breakers_protect_convergence
+// @awareness risk=critical
 package interceptors
 
 // Adaptive Concurrency Control (ACC) for the gRPC interceptor chain.

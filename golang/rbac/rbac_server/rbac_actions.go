@@ -1,5 +1,10 @@
 // rbac_actions.go: action-level permissioning and resource validation.
 
+// @awareness namespace=globular.platform
+// @awareness component=platform_rbac
+// @awareness file_role=rbac_action_authorization
+// @awareness implements=globular.platform:intent.security.deny_overrides_allow
+// @awareness risk=critical
 package main
 
 import (

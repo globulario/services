@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_config
+// @awareness file_role=tls_endpoint_probe
+// @awareness risk=medium
 package config
 
 import (

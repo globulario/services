@@ -1,0 +1,13 @@
+code_symbols:
+  - id: globular.platform:code.go.platform_ai_watcher
+    namespace: globular.platform
+    language: go
+    file: golang/ai_watcher/ai_watcher_server/default_rules.go
+    component: platform_ai_watcher
+    risk: medium
+  - id: globular.platform:code.go.platform_ai_watcher
+    namespace: globular.platform
+    language: go
+    file: golang/ai_watcher/ai_watcher_server/server.go
+    component: platform_ai_watcher
+    risk: medium

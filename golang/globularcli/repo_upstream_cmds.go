@@ -13,6 +13,10 @@
 //     1. validate_source  — confirm source exists and is enabled
 //     2. sync             — fetch index, verify digests, import artifacts
 //     3. report           — emit structured audit outcome
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=upstream_repository_commands
+// @awareness risk=medium
 package main
 
 import (

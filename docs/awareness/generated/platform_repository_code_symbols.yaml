@@ -2,18 +2,27 @@ code_symbols:
   - id: globular.platform:code.go.platform_repository
     namespace: globular.platform
     language: go
-    file: golang/repository/repository_server/namespace.go
+    file: golang/repository/repository_server/publish_reconciler.go
+    component: platform_repository
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.repository.lifecycle_state_machine
+  - id: globular.platform:code.go.platform_repository
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/config_receipts.go
     component: platform_repository
     risk: medium
   - id: globular.platform:code.go.platform_repository
     namespace: globular.platform
     language: go
-    file: golang/repository/repository_server/signature_policy.go
+    file: golang/repository/repository_server/allocate_upload.go
     component: platform_repository
     risk: high
     annotations:
       implements:
-        - globular.platform:intent.repository.signature_policy_gates_trust
+        - globular.platform:intent.repository.publish_is_idempotent_by_digest
   - id: globular.platform:code.go.platform_repository
     namespace: globular.platform
     language: go
@@ -32,6 +41,33 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.repository.lifecycle_state_machine
+  - id: globular.platform:code.go.platform_repository
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/storage_topology.go
+    component: platform_repository
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_repository
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/signing_rpc.go
+    component: platform_repository
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.repository.signature_policy_gates_trust
+  - id: globular.platform:code.go.platform_repository
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/signature_policy.go
+    component: platform_repository
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.repository.signature_policy_gates_trust
   - id: globular.platform:code.go.platform_repository
     namespace: globular.platform
     language: go
@@ -62,6 +98,12 @@ code_symbols:
   - id: globular.platform:code.go.platform_repository
     namespace: globular.platform
     language: go
+    file: golang/repository/repository_server/server.go
+    component: platform_repository
+    risk: high
+  - id: globular.platform:code.go.platform_repository
+    namespace: globular.platform
+    language: go
     file: golang/repository/repository_server/bundle_catalog.go
     component: platform_repository
     risk: medium
@@ -74,18 +116,21 @@ code_symbols:
   - id: globular.platform:code.go.platform_repository
     namespace: globular.platform
     language: go
-    file: golang/repository/repository_server/provenance.go
+    file: golang/repository/repository_server/config_ownership.go
     component: platform_repository
-    risk: high
+    risk: medium
     annotations:
       implements:
-        - globular.platform:intent.evidence.provenance_trust_levels
+        - globular.platform:intent.config.operator_ownership_is_preserved
   - id: globular.platform:code.go.platform_repository
     namespace: globular.platform
     language: go
-    file: golang/repository/repository_server/config_receipts.go
+    file: golang/repository/repository_server/reachability.go
     component: platform_repository
-    risk: medium
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.repair_selects_existing_build
   - id: globular.platform:code.go.platform_repository
     namespace: globular.platform
     language: go
@@ -140,39 +185,6 @@ code_symbols:
   - id: globular.platform:code.go.platform_repository
     namespace: globular.platform
     language: go
-    file: golang/repository/repository_server/storage_topology.go
-    component: platform_repository
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.objectstore.topology_requires_contract
-  - id: globular.platform:code.go.platform_repository
-    namespace: globular.platform
-    language: go
-    file: golang/repository/repository_server/signing_rpc.go
-    component: platform_repository
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.repository.signature_policy_gates_trust
-  - id: globular.platform:code.go.platform_repository
-    namespace: globular.platform
-    language: go
-    file: golang/repository/repository_server/objectstore_admission.go
-    component: platform_repository
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.objectstore.topology_requires_contract
-  - id: globular.platform:code.go.platform_repository
-    namespace: globular.platform
-    language: go
-    file: golang/repository/repository_server/server.go
-    component: platform_repository
-    risk: high
-  - id: globular.platform:code.go.platform_repository
-    namespace: globular.platform
-    language: go
     file: golang/repository/repository_server/rollback_rpc.go
     component: platform_repository
     risk: high
@@ -215,36 +227,33 @@ code_symbols:
   - id: globular.platform:code.go.platform_repository
     namespace: globular.platform
     language: go
-    file: golang/repository/repository_server/allocate_upload.go
+    file: golang/repository/repository_server/namespace.go
+    component: platform_repository
+    risk: medium
+  - id: globular.platform:code.go.platform_repository
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/objectstore_admission.go
     component: platform_repository
     risk: high
     annotations:
       implements:
-        - globular.platform:intent.repository.publish_is_idempotent_by_digest
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_repository
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/provenance.go
+    component: platform_repository
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.evidence.provenance_trust_levels
   - id: globular.platform:code.go.platform_repository
     namespace: globular.platform
     language: go
     file: golang/repository/repository_server/alias_store.go
     component: platform_repository
     risk: medium
-  - id: globular.platform:code.go.platform_repository
-    namespace: globular.platform
-    language: go
-    file: golang/repository/repository_server/config_ownership.go
-    component: platform_repository
-    risk: medium
-    annotations:
-      implements:
-        - globular.platform:intent.config.operator_ownership_is_preserved
-  - id: globular.platform:code.go.platform_repository
-    namespace: globular.platform
-    language: go
-    file: golang/repository/repository_server/publish_reconciler.go
-    component: platform_repository
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.repository.lifecycle_state_machine
   - id: globular.platform:code.go.platform_repository
     namespace: globular.platform
     language: go
@@ -257,12 +266,9 @@ code_symbols:
   - id: globular.platform:code.go.platform_repository
     namespace: globular.platform
     language: go
-    file: golang/repository/repository_server/reachability.go
+    file: golang/repository/repository_client/repository_client.go
     component: platform_repository
-    risk: high
-    annotations:
-      enforces:
-        - globular.platform:invariant.repository.repair_selects_existing_build
+    risk: medium
   - id: globular.platform:code.go.platform_repository
     namespace: globular.platform
     language: go
@@ -272,6 +278,24 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.release.bom_is_precise_release_authority
+  - id: globular.platform:code.go.platform_repository.api
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repositorypb/trust_labels.go
+    component: platform_repository.api
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.repository.signature_policy_gates_trust
+  - id: globular.platform:code.go.platform_repository.api
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repositorypb/publish_state.go
+    component: platform_repository.api
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.repository.lifecycle_state_machine
   - id: globular.platform:code.go.platform_repository.artifact_validator
     namespace: globular.platform
     language: go
@@ -322,7 +346,7 @@ code_symbols:
   - id: globular.platform:code.go.platform_repository.signing
     namespace: globular.platform
     language: go
-    file: golang/repository/repository_server/signing.go
+    file: golang/repository/repository_server/trusted_publisher.go
     component: platform_repository.signing
     risk: high
     annotations:
@@ -331,27 +355,12 @@ code_symbols:
   - id: globular.platform:code.go.platform_repository.signing
     namespace: globular.platform
     language: go
-    file: golang/repository/repository_server/trusted_publisher.go
+    file: golang/repository/repository_server/signing.go
     component: platform_repository.signing
     risk: high
     annotations:
       implements:
         - globular.platform:intent.repository.signature_policy_gates_trust
-  - id: globular.platform:code.go.platform_repository.upstream
-    namespace: globular.platform
-    language: go
-    file: golang/repository/repository_server/repository_source.go
-    component: platform_repository.upstream
-    risk: medium
-  - id: globular.platform:code.go.platform_repository.upstream
-    namespace: globular.platform
-    language: go
-    file: golang/repository/repository_server/repository_source_policy.go
-    component: platform_repository.upstream
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.upstream_release_streams.must_be_provider_neutral
   - id: globular.platform:code.go.platform_repository.upstream
     namespace: globular.platform
     language: go
@@ -361,6 +370,12 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - id: globular.platform:code.go.platform_repository.upstream
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/repository_source.go
+    component: platform_repository.upstream
+    risk: medium
   - id: globular.platform:code.go.platform_repository.upstream
     namespace: globular.platform
     language: go
@@ -374,6 +389,63 @@ code_symbols:
     namespace: globular.platform
     language: go
     file: golang/repository/repository_server/repository_source_resolver.go
+    component: platform_repository.upstream
+    risk: medium
+  - id: globular.platform:code.go.platform_repository.upstream
+    namespace: globular.platform
+    language: go
+    file: golang/repository/upstream/source.go
+    component: platform_repository.upstream
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - id: globular.platform:code.go.platform_repository.upstream
+    namespace: globular.platform
+    language: go
+    file: golang/repository/upstream/git_source.go
+    component: platform_repository.upstream
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - id: globular.platform:code.go.platform_repository.upstream
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/repository_source_policy.go
+    component: platform_repository.upstream
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - id: globular.platform:code.go.platform_repository.upstream
+    namespace: globular.platform
+    language: go
+    file: golang/repository/upstream/github.go
+    component: platform_repository.upstream
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - id: globular.platform:code.go.platform_repository.upstream
+    namespace: globular.platform
+    language: go
+    file: golang/repository/upstream/http_source.go
+    component: platform_repository.upstream
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - id: globular.platform:code.go.platform_repository.upstream
+    namespace: globular.platform
+    language: go
+    file: golang/repository/upstream/local_source.go
+    component: platform_repository.upstream
+    risk: low
+  - id: globular.platform:code.go.platform_repository.upstream
+    namespace: globular.platform
+    language: go
+    file: golang/repository/upstream/parse.go
     component: platform_repository.upstream
     risk: medium
   - id: globular.platform:code.go.repository.artifact_state.ArtifactPipelineState

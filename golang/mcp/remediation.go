@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp
+// @awareness file_role=mcp_remediation_orchestration
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness risk=high
 package main
 
 import "sort"

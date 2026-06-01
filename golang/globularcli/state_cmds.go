@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=cluster_state_inspection_commands
+// @awareness risk=high
 package main
 
 // state_cmds.go — cluster state canonicalization tool.

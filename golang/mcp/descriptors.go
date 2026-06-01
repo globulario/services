@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp
+// @awareness file_role=mcp_tool_descriptor_definitions
+// @awareness risk=medium
 package main
 
 import (

@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_config
+// @awareness file_role=service_config_mode_validation
+// @awareness risk=medium
 package config
 
 import (

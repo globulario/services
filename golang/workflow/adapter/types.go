@@ -9,6 +9,10 @@
 //
 // Design rule: workflow-service decides, node-agent executes,
 // callbacks report facts — never policy.
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.adapter
+// @awareness file_role=workflow_adapter_type_definitions
+// @awareness risk=medium
 package adapter
 
 import "time"

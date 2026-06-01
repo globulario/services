@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=json_codec_helper
+// @awareness risk=low
 package main
 
 import (

@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=proto_inspection_for_generation
+// @awareness risk=low
 package generate
 
 import (

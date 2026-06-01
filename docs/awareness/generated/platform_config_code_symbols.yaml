@@ -98,3 +98,186 @@ code_symbols:
       implements:
         - globular.platform:invariant.objectstore.topology_contract
         - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/minio_tls.go
+    component: platform_config
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/critical_keys.go
+    component: platform_config
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.unknown_must_not_default_to_healthy
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/minio_config.go
+    component: platform_config
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/minio_proxy_config.go
+    component: platform_config
+    risk: medium
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/minio_proxy_io.go
+    component: platform_config
+    risk: medium
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/etcd_runtime.go
+    component: platform_config
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/etcd_client.go
+    component: platform_config
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/etcd_backup.go
+    component: platform_config
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/cluster_dns.go
+    component: platform_config
+    risk: medium
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/mode_validation.go
+    component: platform_config
+    risk: medium
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/endpoint_resolver.go
+    component: platform_config
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/etcd_service_config.go
+    component: platform_config
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/config.go
+    component: platform_config
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/cluster_hosts_cache.go
+    component: platform_config
+    risk: medium
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/cluster_hosts.go
+    component: platform_config
+    risk: medium
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/pki_config.go
+    component: platform_config
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/public_dirs.go
+    component: platform_config
+    risk: low
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/repository_authority.go
+    component: platform_config
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.repository.metadata_is_authority
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/repository_storage_config.go
+    component: platform_config
+    risk: high
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/schema_annotations.go
+    component: platform_config
+    risk: medium
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/service_config_cache.go
+    component: platform_config
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/service_discovery.go
+    component: platform_config
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/tls_probe.go
+    component: platform_config
+    risk: medium
+  - id: globular.platform:code.go.platform_config
+    namespace: globular.platform
+    language: go
+    file: golang/config/write_class.go
+    component: platform_config
+    risk: medium

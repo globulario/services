@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=minio_initial_setup_tool
+// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
+// @awareness risk=medium
 package main
 
 import (

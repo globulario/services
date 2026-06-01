@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.server
+// @awareness file_role=day0_workflow_definition_import
+// @awareness implements=globular.platform:intent.day0_day1_are_repeatable_ceremonies
+// @awareness risk=high
 package main
 
 import (

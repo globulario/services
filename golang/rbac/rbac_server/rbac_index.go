@@ -1,5 +1,10 @@
 // rbac_index.go: resource type/path indexation utilities.
 
+// @awareness namespace=globular.platform
+// @awareness component=platform_rbac
+// @awareness file_role=rbac_permission_index
+// @awareness implements=globular.platform:intent.security.deny_overrides_allow
+// @awareness risk=high
 package main
 
 import (

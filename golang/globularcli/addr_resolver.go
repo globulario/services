@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=cli_address_resolver
+// @awareness risk=medium
 package main
 
 import (

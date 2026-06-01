@@ -160,6 +160,9 @@ code_edges:
     to: globular.platform:intent.etcd.is_source_of_truth
   - from: globular.platform:code.go.platform_cluster_doctor
     relation: implements
+    to: globular.platform:intent.evidence.provenance_trust_levels
+  - from: globular.platform:code.go.platform_cluster_doctor
+    relation: implements
     to: globular.platform:intent.remediation.must_go_through_workflow
   - from: globular.platform:code.go.platform_cluster_doctor
     relation: implements

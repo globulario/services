@@ -31,6 +31,11 @@
 // do NOT refactor B2. B3 is additive: a separate table, a separate
 // check, a separate test surface. The dispatch order in
 // ExecuteWorkflow is: B3 abandonment → B2 cooldown → engine.
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.server
+// @awareness file_role=workflow_correlation_deferred_state
+// @awareness implements=globular.platform:intent.workflow.terminal_runs_must_be_bounded
+// @awareness risk=high
 package main
 
 import (

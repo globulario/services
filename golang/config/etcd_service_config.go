@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_config
+// @awareness file_role=etcd_service_config_management
+// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
+// @awareness risk=high
 package config
 
 import (

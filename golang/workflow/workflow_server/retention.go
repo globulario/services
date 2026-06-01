@@ -6,6 +6,11 @@
 //
 // This prevents unbounded partition growth in workflow_runs which causes
 // tombstone pressure and high CPU on ScyllaDB reads.
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.server
+// @awareness file_role=workflow_run_retention_policy
+// @awareness implements=globular.platform:intent.workflow.terminal_runs_must_be_bounded
+// @awareness risk=high
 package main
 
 import (

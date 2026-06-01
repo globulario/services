@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp
+// @awareness file_role=mcp_remediation_execution_bridge
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness risk=critical
 package main
 
 import (

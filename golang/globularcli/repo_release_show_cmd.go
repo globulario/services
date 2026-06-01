@@ -2,6 +2,10 @@
 //
 // Fetches release-index.json for the given tag and displays a bill of materials
 // showing per-package versions, change status, and origin releases.
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=release_show_command
+// @awareness risk=medium
 package main
 
 import (

@@ -6,6 +6,11 @@
 // The package is provider-neutral: it knows nothing about doctor findings,
 // workflow runs, or awareness graphs. Consumers wrap their own observations
 // in Provenance and call Classify to get a TrustLevel.
+// @awareness namespace=globular.platform
+// @awareness component=platform_evidence
+// @awareness file_role=evidence_trust_level_definitions
+// @awareness implements=globular.platform:intent.evidence.provenance_trust_levels
+// @awareness risk=high
 package evidence
 
 import (

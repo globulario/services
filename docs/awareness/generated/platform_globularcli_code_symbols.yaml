@@ -1,0 +1,619 @@
+code_symbols:
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/acc_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.circuit_breakers_protect_convergence
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/addr_resolver.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/ai_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/app_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/artifact_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.repository.lifecycle_state_machine
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/audit_log.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/auth_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.globular.security.ceremony_over_configuration
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/awareness_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/backup_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.backup.must_be_restorable_not_just_taken
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/backup_cmds_ext.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/cluster_cmds.go
+    component: platform_cli
+    risk: high
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/deploy_cmds.go
+    component: platform_cli
+    risk: high
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/dev_cmds.go
+    component: platform_cli
+    risk: low
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/dns_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/doctor_auth_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/doctor_endpoint.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/doctor_heal.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/doctor_heal_history.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/doctor_mint_approval_cmd.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.operator_action_requires_explain_plan_verify
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/doctor_remediate_cmd.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.remediation.must_go_through_workflow
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/doctor_report_cmd.go
+    component: platform_cli
+    risk: high
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/domain_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/examples_cmds.go
+    component: platform_cli
+    risk: low
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/generate/generator.go
+    component: platform_cli
+    risk: low
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/generate/proto_inspect.go
+    component: platform_cli
+    risk: low
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/generate/templates_csharp.go
+    component: platform_cli
+    risk: low
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/generate/templates_go.go
+    component: platform_cli
+    risk: low
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/generate/templates_spec.go
+    component: platform_cli
+    risk: low
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/generate_cmds.go
+    component: platform_cli
+    risk: low
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/health_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/json_codec.go
+    component: platform_cli
+    risk: low
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/logs_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/main.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/mcp_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/monitor_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/namespace_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/node_cmds.go
+    component: platform_cli
+    risk: high
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/node_ops_cmds.go
+    component: platform_cli
+    risk: high
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/node_recover_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.day0_day1_are_repeatable_ceremonies
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/objectstore_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/objectstore_disk_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.objectstore.destructive_changes_require_approval
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/ops_knowledge_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/override_flags.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/pkg_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.repository.lifecycle_state_machine
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/pkg_config_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/pkg_info_cmd.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/pkg_output.go
+    component: platform_cli
+    risk: low
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/pkg_override_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/pkg_rollback_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.rollback.must_be_operator_chosen
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/pkgpack/builder.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.repository.lifecycle_state_machine
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/pkgpack/debdownload.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/pkgpack/identity_validation.go
+    component: platform_cli
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.build_id_global_unique
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/pkgpack/manifest.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.repository.metadata_is_authority
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/pkgpack/packagespec.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.repository.metadata_is_authority
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/pkgpack/specscan.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/pkgpack/tgz.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/pkgpack/verify.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.runtime.identity_requires_verification
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/policy_cmds.go
+    component: platform_cli
+    risk: high
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/posture_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.unknown_must_not_default_to_healthy
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/rbac_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.security.deny_overrides_allow
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/reconcile_retry_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/release_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.release.bom_is_precise_release_authority
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/release_mutations.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.release.bom_is_precise_release_authority
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/release_promote_local_cmd.go
+    component: platform_cli
+    risk: high
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/repo_artifact_aliases.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/repo_explain_package_cmd.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/repo_inspect_upstream_cmd.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/repo_publish_upstream_cmd.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/repo_release_show_cmd.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/repo_scan_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/repo_signing_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.repository.signature_policy_gates_trust
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/repo_update_check_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/repo_upstream_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/repo_validate_release_index_cmd.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.release.bom_is_precise_release_authority
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/repo_verify_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.runtime.identity_requires_verification
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/resilience_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/root.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/schema_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/services_cmds.go
+    component: platform_cli
+    risk: high
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/services_verify_integrity.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.runtime.identity_requires_verification
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/state_cmds.go
+    component: platform_cli
+    risk: high
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/support_bundle_cmds.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/tls_helper.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/tools/authzgen/authzgen.go
+    component: platform_cli
+    risk: medium
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/tools/setup-minio/setup.go
+    component: platform_cli
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/trust_migrate_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.repository.signature_policy_gates_trust
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/upgrade_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.release.bom_is_precise_release_authority
+  - id: globular.platform:code.go.platform_cli
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/workflow_cmds.go
+    component: platform_cli
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.source_of_operational_truth

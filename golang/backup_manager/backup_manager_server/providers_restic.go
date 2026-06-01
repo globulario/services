@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_backup
+// @awareness file_role=restic_backup_provider_implementation
+// @awareness implements=globular.platform:intent.backup.provider_results_are_explicit
+// @awareness risk=high
 package main
 
 import (

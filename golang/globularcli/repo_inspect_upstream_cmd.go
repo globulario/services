@@ -1,4 +1,8 @@
 // repo_inspect_upstream_cmd.go — Inspect a registered upstream source.
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=upstream_inspect_command
+// @awareness risk=medium
 package main
 
 import (

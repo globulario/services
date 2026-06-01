@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=repository_scan_commands
+// @awareness risk=medium
 package main
 
 // repo_scan_cmds.go — Repository artifact scan and classification.

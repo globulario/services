@@ -3,6 +3,11 @@
 // actors. The policy lives in this neutral package so both surfaces apply
 // identical thresholds and a future operator-tunable layer can override
 // them in one place. See docs/intent/remediation.failure_rate_policy.yaml.
+// @awareness namespace=globular.platform
+// @awareness component=platform_remediation
+// @awareness file_role=remediation_policy_definitions
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness risk=high
 package remediation
 
 import (

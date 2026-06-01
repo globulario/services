@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_security
+// @awareness file_role=tls_certificate_loading_and_rotation
+// @awareness implements=globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+// @awareness risk=critical
 package security
 
 import (

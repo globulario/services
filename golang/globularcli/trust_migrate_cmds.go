@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=trust_migration_commands
+// @awareness implements=globular.platform:intent.repository.signature_policy_gates_trust
+// @awareness risk=high
 package main
 
 import (

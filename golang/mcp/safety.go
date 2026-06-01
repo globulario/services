@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp
+// @awareness file_role=mcp_tool_safety_gate
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=critical
 package main
 
 import (

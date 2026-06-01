@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_backup
+// @awareness file_role=backup_cross_node_replication
+// @awareness risk=high
 package main
 
 import (

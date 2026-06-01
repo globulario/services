@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_remediation
+// @awareness file_role=incident_correlation_tracking
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness risk=high
 package remediation
 
 import (

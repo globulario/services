@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_config
+// @awareness file_role=cluster_hosts_etcd_cache
+// @awareness risk=medium
 package config
 
 import (

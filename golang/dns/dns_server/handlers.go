@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_dns
+// @awareness file_role=dns_zone_grpc_handlers
+// @awareness implements=globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+// @awareness risk=medium
 package main
 
 import (

@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=operational_knowledge_commands
+// @awareness risk=medium
 package main
 
 // ops_knowledge_cmds.go — operator interface to docs/operational-knowledge/.

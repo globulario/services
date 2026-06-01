@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.server
+// @awareness file_role=workflow_incident_management
+// @awareness risk=medium
 package main
 
 // Incident model — operator surface for a self-correcting control plane.

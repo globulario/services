@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_installed_state
+// @awareness file_role=convergence_state_tracking
+// @awareness enforces=globular.platform:invariant.state.runtime_not_desired
+// @awareness risk=critical
 package installed_state
 
 import (

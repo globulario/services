@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_config
+// @awareness file_role=pki_configuration_from_etcd
+// @awareness implements=globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+// @awareness risk=high
 package config
 
 import (

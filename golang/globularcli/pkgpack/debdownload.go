@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=debian_package_download_helper
+// @awareness risk=medium
 package pkgpack
 
 import (

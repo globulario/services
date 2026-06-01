@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_config
+// @awareness file_role=repository_authority_config
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness risk=high
 package config
 
 import (

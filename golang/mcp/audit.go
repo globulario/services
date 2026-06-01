@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp
+// @awareness file_role=mcp_action_audit_trail
+// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
+// @awareness risk=high
 package main
 
 import (

@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_torrent
+// @awareness file_role=torrent_grpc_client
+// @awareness risk=low
 package torrent_client
 
 import (

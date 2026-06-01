@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_executor
+// @awareness file_role=ai_executor_primary_grpc_handlers
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness risk=high
 package main
 
 import (

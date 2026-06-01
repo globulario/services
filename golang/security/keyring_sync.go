@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_security
+// @awareness file_role=signing_keyring_etcd_sync
+// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
+// @awareness risk=critical
 package security
 
 import (

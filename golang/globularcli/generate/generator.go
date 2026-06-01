@@ -1,6 +1,10 @@
 // Package generate provides the core code generation engine for Globular services.
 // It parses .proto files using protoc and executes Go text/templates to produce
 // service scaffolding that follows Globular conventions.
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=code_generator
+// @awareness risk=low
 package generate
 
 import (

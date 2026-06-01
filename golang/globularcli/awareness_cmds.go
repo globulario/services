@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=awareness_query_commands
+// @awareness risk=medium
 package main
 
 // awareness_cmds.go — CLI front-end for the awareness-graph gRPC service.

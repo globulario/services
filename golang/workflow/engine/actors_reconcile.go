@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.engine
+// @awareness file_role=reconcile_workflow_actors
+// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
+// @awareness risk=critical
 package engine
 
 import (

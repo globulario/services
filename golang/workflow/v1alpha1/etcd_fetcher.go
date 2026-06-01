@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow
+// @awareness file_role=workflow_definition_etcd_fetcher
+// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
+// @awareness risk=critical
 package v1alpha1
 
 import (

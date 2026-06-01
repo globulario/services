@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_security
+// @awareness file_role=pki_filesystem_path_constants
+// @awareness risk=medium
 package security
 
 import (

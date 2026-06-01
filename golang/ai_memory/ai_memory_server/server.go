@@ -1,5 +1,9 @@
 // Package main implements the AI Memory gRPC service backed by ScyllaDB.
 // It provides cluster-scoped, persistent memory for AI agents.
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_memory
+// @awareness file_role=ai_memory_grpc_server
+// @awareness risk=medium
 package main
 
 import (

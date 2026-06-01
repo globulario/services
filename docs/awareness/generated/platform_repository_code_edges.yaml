@@ -74,6 +74,12 @@ code_edges:
   - from: globular.platform:code.go.platform_repository
     relation: implements
     to: globular.platform:intent.schema.migrations_are_versioned_and_reversible
+  - from: globular.platform:code.go.platform_repository.api
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.platform_repository.api
+    relation: implements
+    to: globular.platform:intent.repository.signature_policy_gates_trust
   - from: globular.platform:code.go.platform_repository.artifact_validator
     relation: implements
     to: globular.platform:intent.repository.lifecycle_state_machine
@@ -98,6 +104,18 @@ code_edges:
   - from: globular.platform:code.go.platform_repository.signing
     relation: implements
     to: globular.platform:intent.repository.signature_policy_gates_trust
+  - from: globular.platform:code.go.platform_repository.upstream
+    relation: implements
+    to: globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - from: globular.platform:code.go.platform_repository.upstream
+    relation: implements
+    to: globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - from: globular.platform:code.go.platform_repository.upstream
+    relation: implements
+    to: globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - from: globular.platform:code.go.platform_repository.upstream
+    relation: implements
+    to: globular.platform:intent.upstream_release_streams.must_be_provider_neutral
   - from: globular.platform:code.go.platform_repository.upstream
     relation: implements
     to: globular.platform:intent.upstream_release_streams.must_be_provider_neutral

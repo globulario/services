@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_domain
+// @awareness file_role=acme_challenge_solver
+// @awareness implements=globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+// @awareness risk=high
 package domain
 
 import (

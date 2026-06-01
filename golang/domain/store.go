@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_domain
+// @awareness file_role=domain_spec_store
+// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
+// @awareness risk=medium
 package domain
 
 import (

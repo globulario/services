@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_router
+// @awareness file_role=ai_router_signal_collector
+// @awareness risk=medium
 package main
 
 import (

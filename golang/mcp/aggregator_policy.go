@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.aggregator
+// @awareness file_role=mcp_aggregator_routing_policy
+// @awareness risk=high
 package main
 
 // allowedRemoteTools is the phase-1 allowlist for tools callable via mcp.remote_call.

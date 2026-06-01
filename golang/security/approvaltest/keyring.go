@@ -2,6 +2,10 @@
 // in other packages can mint and validate approval tokens without touching
 // /etc/globular/config or the file keystore. Import it only from _test.go
 // files.
+// @awareness namespace=globular.platform
+// @awareness component=platform_security
+// @awareness file_role=test_keyring_helper
+// @awareness risk=low
 package approvaltest
 
 import (

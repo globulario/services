@@ -107,3 +107,87 @@ code_symbols:
         - globular.platform:invariant.security.jwt_signing_key_must_be_cluster_scoped
       implements:
         - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - id: globular.platform:code.go.platform_security
+    namespace: globular.platform
+    language: go
+    file: golang/security/cluster.go
+    component: platform_security
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - id: globular.platform:code.go.platform_security
+    namespace: globular.platform
+    language: go
+    file: golang/security/cluster_init.go
+    component: platform_security
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.globular.security.ceremony_over_configuration
+  - id: globular.platform:code.go.platform_security
+    namespace: globular.platform
+    language: go
+    file: golang/security/approvaltest/keyring.go
+    component: platform_security
+    risk: low
+  - id: globular.platform:code.go.platform_security
+    namespace: globular.platform
+    language: go
+    file: golang/security/keyring_sync.go
+    component: platform_security
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_security
+    namespace: globular.platform
+    language: go
+    file: golang/security/keys.go
+    component: platform_security
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.globular.security.ceremony_over_configuration
+  - id: globular.platform:code.go.platform_security
+    namespace: globular.platform
+    language: go
+    file: golang/security/keystore.go
+    component: platform_security
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.globular.security.ceremony_over_configuration
+  - id: globular.platform:code.go.platform_security
+    namespace: globular.platform
+    language: go
+    file: golang/security/node_identity.go
+    component: platform_security
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.identity.stable_node_identity_not_floating_vip
+  - id: globular.platform:code.go.platform_security
+    namespace: globular.platform
+    language: go
+    file: golang/security/path.go
+    component: platform_security
+    risk: medium
+  - id: globular.platform:code.go.platform_security
+    namespace: globular.platform
+    language: go
+    file: golang/security/roles.go
+    component: platform_security
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.security.deny_overrides_allow
+  - id: globular.platform:code.go.platform_security
+    namespace: globular.platform
+    language: go
+    file: golang/security/tls.go
+    component: platform_security
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing

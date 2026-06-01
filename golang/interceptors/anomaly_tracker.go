@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_interceptors
+// @awareness file_role=rpc_anomaly_detection_tracker
+// @awareness risk=high
 package interceptors
 
 import (

@@ -1,0 +1,37 @@
+code_symbols:
+  - id: globular.platform:code.go.platform_remediation
+    namespace: globular.platform
+    language: go
+    file: golang/remediation/correlation.go
+    component: platform_remediation
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.remediation.must_go_through_workflow
+  - id: globular.platform:code.go.platform_remediation
+    namespace: globular.platform
+    language: go
+    file: golang/remediation/outcome.go
+    component: platform_remediation
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.remediation.failure_rate_policy
+  - id: globular.platform:code.go.platform_remediation
+    namespace: globular.platform
+    language: go
+    file: golang/remediation/override.go
+    component: platform_remediation
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.operator.override_intent
+  - id: globular.platform:code.go.platform_remediation
+    namespace: globular.platform
+    language: go
+    file: golang/remediation/policy.go
+    component: platform_remediation
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates

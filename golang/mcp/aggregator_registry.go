@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.aggregator
+// @awareness file_role=mcp_aggregator_tool_registry
+// @awareness risk=medium
 package main
 
 import (

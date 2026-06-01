@@ -7,6 +7,10 @@
 //
 // The server communicates via JSON-RPC 2.0 over stdin/stdout.
 // All tools are strictly read-only / diagnostic / preview.
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp
+// @awareness file_role=mcp_service_entrypoint
+// @awareness risk=medium
 package main
 
 import (

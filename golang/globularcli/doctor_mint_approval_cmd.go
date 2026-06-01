@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=doctor_approval_minting_command
+// @awareness implements=globular.platform:intent.operator_action_requires_explain_plan_verify
+// @awareness risk=high
 package main
 
 import (

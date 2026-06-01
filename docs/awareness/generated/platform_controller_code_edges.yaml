@@ -125,6 +125,12 @@ code_edges:
   - from: globular.platform:code.go.platform_controller.agent
     relation: implements
     to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_controller.api
+    relation: implements
+    to: globular.platform:intent.api.grpc_contracts_are_operational_surface
+  - from: globular.platform:code.go.platform_controller.api
+    relation: implements
+    to: globular.platform:intent.api.grpc_contracts_are_operational_surface
   - from: globular.platform:code.go.platform_controller.bootstrap
     relation: implements
     to: globular.platform:intent.day0_day1_are_repeatable_ceremonies
@@ -341,6 +347,9 @@ code_edges:
   - from: globular.platform:code.go.platform_controller.remediation
     relation: implements
     to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.platform_controller.resourcestore
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
   - from: globular.platform:code.go.platform_controller.scylla.ddl_preflight
     relation: enforces
     to: globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations

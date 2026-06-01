@@ -13,3 +13,114 @@ code_symbols:
       implements:
         - globular.platform:intent.security.deny_overrides_allow
         - globular.platform:intent.rbac.permission_changes_require_audit_and_owner
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/rbac_ownership.go
+    component: platform_rbac
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.rbac.permission_changes_require_audit_and_owner
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/rbac_permissions.go
+    component: platform_rbac
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.security.deny_overrides_allow
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/rbac_actions.go
+    component: platform_rbac
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.security.deny_overrides_allow
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/rbac_cleanup.go
+    component: platform_rbac
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.rbac.permission_changes_require_audit_and_owner
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/rbac_index.go
+    component: platform_rbac
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.security.deny_overrides_allow
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_client/rbac_client.go
+    component: platform_rbac
+    risk: medium
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/rbac_paths.go
+    component: platform_rbac
+    risk: medium
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/logutil.go
+    component: platform_rbac
+    risk: low
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/rbac_role_bindings.go
+    component: platform_rbac
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.rbac.permission_changes_require_audit_and_owner
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/rbac_sharing.go
+    component: platform_rbac
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.security.deny_overrides_allow
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/rbac_space.go
+    component: platform_rbac
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.security.deny_overrides_allow
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/rbac_streams.go
+    component: platform_rbac
+    risk: medium
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/server.go
+    component: platform_rbac
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.security.deny_overrides_allow
+  - id: globular.platform:code.go.platform_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/rbac/rbac_server/storage_helpers.go
+    component: platform_rbac
+    risk: medium

@@ -1,0 +1,25 @@
+code_symbols:
+  - id: globular.platform:code.go.platform_installed_state
+    namespace: globular.platform
+    language: go
+    file: golang/installed_state/convergence.go
+    component: platform_installed_state
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.runtime_not_desired
+  - id: globular.platform:code.go.platform_installed_state
+    namespace: globular.platform
+    language: go
+    file: golang/installed_state/installed_state.go
+    component: platform_installed_state
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+  - id: globular.platform:code.go.platform_installed_state
+    namespace: globular.platform
+    language: go
+    file: golang/installed_state/schema.go
+    component: platform_installed_state
+    risk: medium

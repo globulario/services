@@ -1,0 +1,10 @@
+code_symbols:
+  - id: globular.platform:code.go.platform_identity
+    namespace: globular.platform
+    language: go
+    file: golang/identity/identity.go
+    component: platform_identity
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.identity.stable_node_identity_not_floating_vip

@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_dns
+// @awareness file_role=dns_grpc_client
+// @awareness risk=medium
 package dns_client
 
 import (

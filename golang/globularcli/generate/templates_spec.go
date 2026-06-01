@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=spec_generation_templates
+// @awareness risk=low
 package generate
 
 import "fmt"

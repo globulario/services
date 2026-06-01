@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.engine
+// @awareness file_role=controller_deploy_workflow_actors
+// @awareness implements=globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+// @awareness risk=high
 package engine
 
 import (

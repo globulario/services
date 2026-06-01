@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=cluster_posture_commands
+// @awareness enforces=globular.platform:invariant.state.unknown_must_not_default_to_healthy
+// @awareness risk=high
 package main
 
 // posture_cmds.go: CLI commands for observing cluster posture.

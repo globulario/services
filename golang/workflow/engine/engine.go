@@ -4,6 +4,11 @@
 // and timeouts, and tracks run/step state. Definitions are compiled via
 // the compiler package before execution — all parsing, validation, and
 // graph construction happens once at compile time.
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.engine
+// @awareness file_role=workflow_engine_core
+// @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
+// @awareness risk=critical
 package engine
 
 import (

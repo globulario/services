@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.server
+// @awareness file_role=step_receipt_failure_classifier
+// @awareness implements=globular.platform:intent.workflow.step_receipts_are_evidence
+// @awareness risk=high
 package main
 
 import (

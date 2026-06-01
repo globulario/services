@@ -50,3 +50,51 @@ code_symbols:
       implements:
         - globular.platform:intent.security.deny_overrides_allow
         - globular.platform:intent.rbac.permission_changes_require_audit_and_owner
+  - id: globular.platform:code.go.platform_interceptors
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/acc.go
+    component: platform_interceptors
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.circuit_breakers_protect_convergence
+  - id: globular.platform:code.go.platform_interceptors
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/anomaly_tracker.go
+    component: platform_interceptors
+    risk: high
+  - id: globular.platform:code.go.platform_interceptors
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/audit_log.go
+    component: platform_interceptors
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.audit.every_authority_change_is_explainable
+  - id: globular.platform:code.go.platform_interceptors
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/log_level.go
+    component: platform_interceptors
+    risk: medium
+  - id: globular.platform:code.go.platform_interceptors
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/logring.go
+    component: platform_interceptors
+    risk: medium
+  - id: globular.platform:code.go.platform_interceptors
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/rate_tracker.go
+    component: platform_interceptors
+    risk: medium
+  - id: globular.platform:code.go.platform_interceptors
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/rpc_health_tracker.go
+    component: platform_interceptors
+    risk: medium

@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=repository_explain_package_command
+// @awareness risk=medium
 package main
 
 import (

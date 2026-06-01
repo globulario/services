@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_config
+// @awareness file_role=etcd_schema_annotation_helpers
+// @awareness risk=medium
 package config
 
 // This file contains schema annotations for etcd keys owned by the config

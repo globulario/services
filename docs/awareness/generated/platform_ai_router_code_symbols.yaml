@@ -1,0 +1,88 @@
+code_symbols:
+  - id: globular.platform:code.go.platform_ai_router
+    namespace: globular.platform
+    language: go
+    file: golang/ai_router/ai_router_server/anomaly.go
+    component: platform_ai_router
+    risk: high
+  - id: globular.platform:code.go.platform_ai_router
+    namespace: globular.platform
+    language: go
+    file: golang/ai_router/ai_router_server/collector.go
+    component: platform_ai_router
+    risk: medium
+  - id: globular.platform:code.go.platform_ai_router
+    namespace: globular.platform
+    language: go
+    file: golang/ai_router/ai_router_server/context.go
+    component: platform_ai_router
+    risk: medium
+  - id: globular.platform:code.go.platform_ai_router
+    namespace: globular.platform
+    language: go
+    file: golang/ai_router/ai_router_server/default_config.go
+    component: platform_ai_router
+    risk: low
+  - id: globular.platform:code.go.platform_ai_router
+    namespace: globular.platform
+    language: go
+    file: golang/ai_router/ai_router_server/drain.go
+    component: platform_ai_router
+    risk: medium
+  - id: globular.platform:code.go.platform_ai_router
+    namespace: globular.platform
+    language: go
+    file: golang/ai_router/ai_router_server/engine.go
+    component: platform_ai_router
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.platform_ai_router
+    namespace: globular.platform
+    language: go
+    file: golang/ai_router/ai_router_server/handlers.go
+    component: platform_ai_router
+    risk: medium
+  - id: globular.platform:code.go.platform_ai_router
+    namespace: globular.platform
+    language: go
+    file: golang/ai_router/ai_router_server/learning.go
+    component: platform_ai_router
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.platform_ai_router
+    namespace: globular.platform
+    language: go
+    file: golang/ai_router/ai_router_server/safety.go
+    component: platform_ai_router
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.platform_ai_router
+    namespace: globular.platform
+    language: go
+    file: golang/ai_router/ai_router_server/scorer.go
+    component: platform_ai_router
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.platform_ai_router
+    namespace: globular.platform
+    language: go
+    file: golang/ai_router/ai_router_server/server.go
+    component: platform_ai_router
+    risk: medium
+  - id: globular.platform:code.go.platform_ai_router
+    namespace: globular.platform
+    language: go
+    file: golang/ai_router/ai_router_server/stability.go
+    component: platform_ai_router
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.circuit_breakers_protect_convergence

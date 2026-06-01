@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_dns
+// @awareness file_role=dns_backup_lifecycle_hooks
+// @awareness risk=medium
 package main
 
 import (

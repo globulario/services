@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=package_config_commands
+// @awareness risk=medium
 package main
 
 // pkg_config_cmds.go — Phase CLI-D config ownership commands (read-only).

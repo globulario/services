@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_security
+// @awareness file_role=cluster_trust_and_token_validation
+// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+// @awareness risk=critical
 package security
 
 import (

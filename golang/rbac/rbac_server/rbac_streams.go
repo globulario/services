@@ -1,5 +1,9 @@
 // rbac_streams.go: streaming RPCs for permission listings.
 
+// @awareness namespace=globular.platform
+// @awareness component=platform_rbac
+// @awareness file_role=rbac_permission_stream_handlers
+// @awareness risk=medium
 package main
 
 import (

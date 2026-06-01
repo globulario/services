@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp
+// @awareness file_role=mcp_http_transport_handler
+// @awareness risk=high
 package main
 
 import (

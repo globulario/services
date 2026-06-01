@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_torrent
+// @awareness file_role=torrent_storage_helpers
+// @awareness risk=low
 package main
 
 import (

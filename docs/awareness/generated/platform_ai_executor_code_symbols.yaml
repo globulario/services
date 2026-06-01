@@ -99,3 +99,66 @@ code_symbols:
       implements:
         - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
         - globular.platform:intent.remediation.must_go_through_workflow
+  - id: globular.platform:code.go.platform_ai_executor
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/handlers_conversation.go
+    component: platform_ai_executor
+    risk: medium
+  - id: globular.platform:code.go.platform_ai_executor
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/handlers_peer.go
+    component: platform_ai_executor
+    risk: medium
+  - id: globular.platform:code.go.platform_ai_executor
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/handlers.go
+    component: platform_ai_executor
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.platform_ai_executor
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/conversation_store.go
+    component: platform_ai_executor
+    risk: medium
+  - id: globular.platform:code.go.platform_ai_executor
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/notifier.go
+    component: platform_ai_executor
+    risk: medium
+  - id: globular.platform:code.go.platform_ai_executor
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/peers.go
+    component: platform_ai_executor
+    risk: medium
+  - id: globular.platform:code.go.platform_ai_executor
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/claude.go
+    component: platform_ai_executor
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.platform_ai_executor
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/anthropic_client.go
+    component: platform_ai_executor
+    risk: high
+  - id: globular.platform:code.go.platform_ai_executor
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/server.go
+    component: platform_ai_executor
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates

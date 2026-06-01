@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_dns
+// @awareness file_role=dns_grpc_server
+// @awareness risk=medium
 package main
 
 // DNS gRPC service with storage-backed records and a UDP responder.

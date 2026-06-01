@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=repository_signing_commands
+// @awareness implements=globular.platform:intent.repository.signature_policy_gates_trust
+// @awareness risk=high
 package main
 
 // repo_signing_cmds.go — Phase CLI-B: signature + trusted-publisher commands.

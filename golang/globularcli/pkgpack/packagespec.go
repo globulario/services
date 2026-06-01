@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=package_spec_type_definitions
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness risk=high
 package pkgpack
 
 import (

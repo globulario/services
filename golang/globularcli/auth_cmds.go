@@ -10,6 +10,11 @@
 // valid token from 'auth login') and saves the resulting cluster CA, client
 // certificate and client key to ~/.config/globular/pki/.
 
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=authentication_commands
+// @awareness implements=globular.platform:intent.globular.security.ceremony_over_configuration
+// @awareness risk=high
 package main
 
 import (

@@ -62,3 +62,27 @@ code_edges:
   - from: globular.platform:code.go.platform.security.jwt.validateTokenInternal
     relation: implements
     to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - from: globular.platform:code.go.platform_security
+    relation: implements
+    to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - from: globular.platform:code.go.platform_security
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_security
+    relation: implements
+    to: globular.platform:intent.globular.security.ceremony_over_configuration
+  - from: globular.platform:code.go.platform_security
+    relation: implements
+    to: globular.platform:intent.globular.security.ceremony_over_configuration
+  - from: globular.platform:code.go.platform_security
+    relation: implements
+    to: globular.platform:intent.globular.security.ceremony_over_configuration
+  - from: globular.platform:code.go.platform_security
+    relation: implements
+    to: globular.platform:intent.identity.stable_node_identity_not_floating_vip
+  - from: globular.platform:code.go.platform_security
+    relation: implements
+    to: globular.platform:intent.security.deny_overrides_allow
+  - from: globular.platform:code.go.platform_security
+    relation: implements
+    to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract

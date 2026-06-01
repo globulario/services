@@ -10,6 +10,11 @@
 // Cooldown remains the floor (B2). Wake just collapses backoff_until_ms
 // to "now" so the next dispatch attempt proceeds without waiting out
 // the rest of the window. defer_count is preserved.
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.server
+// @awareness file_role=workflow_correlation_defer_rpc_handler
+// @awareness implements=globular.platform:intent.workflow.terminal_runs_must_be_bounded
+// @awareness risk=high
 package main
 
 import (

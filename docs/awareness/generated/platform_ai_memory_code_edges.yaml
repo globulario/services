@@ -1,0 +1,10 @@
+code_edges:
+  - from: globular.platform:code.go.platform_ai_memory
+    relation: implements
+    to: globular.platform:intent.missing_state_is_not_delete_intent
+  - from: globular.platform:code.go.platform_ai_memory
+    relation: implements
+    to: globular.platform:intent.schema.migrations_are_versioned_and_reversible
+  - from: globular.platform:code.go.platform_ai_memory
+    relation: implements
+    to: globular.platform:intent.schema.migrations_are_versioned_and_reversible

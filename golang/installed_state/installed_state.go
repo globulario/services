@@ -11,6 +11,11 @@
 //   - Cluster Controller: authoritative writer via CommitInstalledPackage
 //   - Node Agent: reads state and emits convergence evidence (no direct authoritative writes)
 //   - Gateway: reads records for admin UI queries
+// @awareness namespace=globular.platform
+// @awareness component=platform_installed_state
+// @awareness file_role=installed_state_authority
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness risk=critical
 package installed_state
 
 import (

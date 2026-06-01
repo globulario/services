@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_router
+// @awareness file_role=ai_router_safety_gate
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness risk=critical
 package main
 
 import (

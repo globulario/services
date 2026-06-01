@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=objectstore_disk_admission_commands
+// @awareness implements=globular.platform:intent.objectstore.destructive_changes_require_approval
+// @awareness risk=high
 package main
 
 // objectstore_disk_cmds.go — MinIO disk admission and topology planning CLI.

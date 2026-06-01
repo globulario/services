@@ -1,5 +1,10 @@
 // rbac_space.go: disk space accounting and quotas.
 
+// @awareness namespace=globular.platform
+// @awareness component=platform_rbac
+// @awareness file_role=rbac_namespace_space_management
+// @awareness implements=globular.platform:intent.security.deny_overrides_allow
+// @awareness risk=high
 package main
 
 import (

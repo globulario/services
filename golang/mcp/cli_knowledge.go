@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp
+// @awareness file_role=mcp_cli_knowledge_base
+// @awareness risk=medium
 package main
 
 // ── CLI Knowledge Base ───────────────────────────────────────────────────────

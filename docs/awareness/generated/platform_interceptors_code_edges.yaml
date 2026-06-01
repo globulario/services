@@ -32,3 +32,9 @@ code_edges:
   - from: globular.platform:code.go.platform.interceptors.role_binding.checkRoleBinding
     relation: implements
     to: globular.platform:intent.security.deny_overrides_allow
+  - from: globular.platform:code.go.platform_interceptors
+    relation: implements
+    to: globular.platform:intent.audit.every_authority_change_is_explainable
+  - from: globular.platform:code.go.platform_interceptors
+    relation: implements
+    to: globular.platform:intent.circuit_breakers_protect_convergence

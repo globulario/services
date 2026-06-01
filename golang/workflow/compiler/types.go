@@ -1,6 +1,10 @@
 // Package compiler transforms v1alpha1 workflow definitions into
 // runtime-ready compiled workflows with precomputed DAG indexes,
 // resolved static values, and validated structure.
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.compiler
+// @awareness file_role=workflow_compiler_type_definitions
+// @awareness risk=medium
 package compiler
 
 import "time"

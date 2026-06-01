@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cli
+// @awareness file_role=package_override_commands
+// @awareness risk=medium
 package main
 
 // pkg_override_cmds.go — Local package override lifecycle commands.

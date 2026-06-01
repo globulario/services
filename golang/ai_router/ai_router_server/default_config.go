@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_router
+// @awareness file_role=ai_router_default_config
+// @awareness risk=low
 package main
 
 import "github.com/globulario/services/golang/ai_router/ai_routerpb"

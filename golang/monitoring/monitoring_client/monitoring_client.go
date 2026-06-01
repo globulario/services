@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_monitoring
+// @awareness file_role=monitoring_grpc_client
+// @awareness risk=low
 package monitoring_client
 
 import (

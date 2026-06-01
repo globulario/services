@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_backup
+// @awareness file_role=backup_grpc_handlers
+// @awareness implements=globular.platform:intent.backup.must_be_restorable_not_just_taken
+// @awareness risk=high
 package main
 
 import (

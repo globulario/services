@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.tools
+// @awareness file_role=mcp_cluster_management_tools
+// @awareness risk=high
 package main
 
 import (

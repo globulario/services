@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_workflow.server
+// @awareness file_role=workflow_metrics_emission
+// @awareness risk=medium
 package main
 
 import (

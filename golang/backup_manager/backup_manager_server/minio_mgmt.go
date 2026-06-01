@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_backup
+// @awareness file_role=minio_backup_management
+// @awareness risk=high
 package main
 
 import (

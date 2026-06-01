@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_interceptors
+// @awareness file_role=dynamic_log_level_interceptor
+// @awareness risk=medium
 package interceptors
 
 import (

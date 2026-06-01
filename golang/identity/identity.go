@@ -8,6 +8,11 @@
 //	key, ok := NormalizeServiceKey("node_agent.NodeAgentService") // "node-agent", true
 //	id, ok  := IdentityByKey("node-agent")
 //	unit    := id.UnitName  // "globular-node-agent.service"
+// @awareness namespace=globular.platform
+// @awareness component=platform_identity
+// @awareness file_role=node_identity_type_definitions
+// @awareness implements=globular.platform:intent.identity.stable_node_identity_not_floating_vip
+// @awareness risk=high
 package identity
 
 import "strings"
