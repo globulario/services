@@ -29,13 +29,13 @@ import (
 )
 
 func awarenessStub(ctx context.Context, s *server) (awarenesspb.AwarenessGraphClient, string, error) {
-	ep := gatewayEndpoint()
-	if ep == "" {
-		return nil, "", fmt.Errorf("awareness-graph: gateway endpoint unavailable")
+	ep, err := awarenessEndpoint()
+	if err != nil {
+		return nil, "", fmt.Errorf("awareness-graph: %w", err)
 	}
 	conn, err := s.clients.get(ctx, ep)
 	if err != nil {
-		return nil, ep, fmt.Errorf("awareness-graph: dial gateway: %w", err)
+		return nil, ep, fmt.Errorf("awareness-graph: dial %s: %w", ep, err)
 	}
 	return awarenesspb.NewAwarenessGraphClient(conn), ep, nil
 }

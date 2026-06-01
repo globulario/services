@@ -159,6 +159,22 @@ func doctorEndpoint() string {
 	return gatewayEndpoint()
 }
 
+// awarenessEndpoint returns the direct gRPC address of awareness-graph from
+// etcd. awareness-graph is NOT routed through Envoy — it binds on its own
+// port (10120) — so the gateway address would hit the wrong Envoy filter
+// chain and return HTML. We look up Address directly from the service config.
+func awarenessEndpoint() (string, error) {
+	cfg, err := config.GetServiceConfigurationById("awareness-graph")
+	if err != nil {
+		return "", fmt.Errorf("awareness-graph not found in etcd: %w", err)
+	}
+	addr, _ := cfg["Address"].(string)
+	if addr == "" {
+		return "", fmt.Errorf("awareness-graph: Address missing from etcd service config")
+	}
+	return addr, nil
+}
+
 // isConnError returns true when an error indicates a TLS or transport-level
 // failure that warrants invalidating cached gRPC connections.
 func isConnError(err error) bool {
