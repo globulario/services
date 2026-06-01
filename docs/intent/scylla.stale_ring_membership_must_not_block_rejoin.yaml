@@ -1,0 +1,45 @@
+id: scylla.stale_ring_membership_must_not_block_rejoin
+level: operational
+title: A node rejoining after wipe must not remain blocked by its own stale gossip ring entry
+intent: >
+  When a ScyllaDB node is wiped without a prior decommission (e.g. after a failed join,
+  a node replacement, or a partial clean), its previous IP may still appear as DN (down)
+  in the gossip ring. A naive rejoin attempt will fail because ScyllaDB refuses to bootstrap
+  a new node at an IP that is still claimed by the ring. The replace_address_first_boot
+  mechanism exists to safely recover this case: it lets the rejoining node claim the DN
+  slot, removing the stale ring entry and allowing a clean bootstrap. After successful
+  bootstrap, replace_address must be cleared so that it does not persist into subsequent
+  restarts — re-triggering a replace on an already-healthy node would corrupt the ring.
+agent_guidance: >
+  When a ScyllaDB join times out at the ScyllaJoinConfigured phase (service never starts),
+  the first recovery attempt should set replace_address_first_boot to the node's current IP
+  before retrying. This is safe because the node has not yet joined the ring (ScyllaWasEverVerified=false).
+  After a successful bootstrap, clear replace_address immediately. Do not carry replace_address
+  across multiple restarts or across nodes — it is a per-node, per-join recovery mechanism.
+bad_smells:
+  - replace_address_first_boot set on a node where ScyllaWasEverVerified=true
+  - replace_address persists after bootstrap succeeds
+  - join retry after first timeout immediately fails the node without attempting replace_address
+  - stale DN gossip entry left unremediated on a node that was cleaned but not decommissioned
+activation_triggers:
+  - scylla join timeout
+  - replace_address_first_boot
+  - gossip ring DN entry
+  - node rejoin after wipe
+  - ScyllaJoinConfigured timeout
+expressed_by:
+  - services/golang/cluster_controller/cluster_controller_server/scylla_members.go
+related_invariants:
+  - scylla.join_wipe_safe_only_if_never_verified
+zooms_out_to:
+  - infrastructure.scylladb.quorum_localdb_for_control_plane_state
+zooms_in_to: []
+related_to:
+  - quorum_safety_before_storage_mutation
+change_risk:
+  - data_safety_sensitive
+  - quorum_sensitive
+status: active
+
+required_tests:
+  - TestReconcileScyllaJoinPhases_ReplaceAddressFirstBoot

@@ -1,3 +1,11 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.scylla.schema_guard
+// @awareness file_role=scylla_rf_enforcement_and_ghost_voter_removal
+// @awareness enforces=globular.platform:invariant.scylla.critical_keyspace_replication_policy
+// @awareness enforces=globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
+// @awareness implements=globular.platform:intent.workflow.backend_health_gate_before_dispatch
+// @awareness implements=globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+// @awareness risk=high
 package main
 
 import (
@@ -379,6 +387,10 @@ func (srv *server) markSchemaGuardStatus(ctx context.Context, keyspace string, s
 // can_vote=false voters (temporarily suspended, may recover) are left alone.
 //
 // Calls: POST http://<scylla_host>:10000/storage_service/remove_node?host_id=<UUID>
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.scylla.schema_guard
+// @awareness enforces=globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
+// @awareness risk=high
 func tryRemoveScyllaGhostVoters(ctx context.Context, preflight DDLPreflightResult, scyllaHost string) {
 	if preflight.Group0 == nil || preflight.Group0.StaleVoters == 0 {
 		return

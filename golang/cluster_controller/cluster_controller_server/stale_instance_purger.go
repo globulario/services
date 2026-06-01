@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.scylla.stale_purger
+// @awareness file_role=stale_closed_service_instance_etcd_purger
+// @awareness implements=globular.platform:intent.health.requires_fresh_evidence
+// @awareness implements=globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+// @awareness risk=high
 package main
 
 import (
@@ -66,6 +72,10 @@ func (srv *server) runStaleInstancePurger(ctx context.Context) {
 
 // purgeStaleInstances scans /globular/services/*/instances/* for closed entries
 // whose node has a stale heartbeat, and deletes them.
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.scylla.stale_purger
+// @awareness implements=globular.platform:intent.health.requires_fresh_evidence
+// @awareness risk=high
 func (srv *server) purgeStaleInstances(ctx context.Context) {
 	if srv.etcdClient == nil {
 		return

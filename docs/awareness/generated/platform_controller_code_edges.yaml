@@ -131,3 +131,87 @@ code_edges:
   - from: globular.platform:code.go.platform_controller.objectstore.pool_manager.nodeIsPreparedForMinioJoin
     relation: implements
     to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_controller.scylla.ddl_preflight
+    relation: enforces
+    to: globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
+  - from: globular.platform:code.go.platform_controller.scylla.ddl_preflight
+    relation: implements
+    to: globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+  - from: globular.platform:code.go.platform_controller.scylla.ddl_preflight
+    relation: implements
+    to: globular.platform:intent.workflow.backend_health_gate_before_dispatch
+  - from: globular.platform:code.go.platform_controller.scylla.ddl_preflight.CanScyllaDDLProceed
+    relation: enforces
+    to: globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
+  - from: globular.platform:code.go.platform_controller.scylla.group0_view
+    relation: enforces
+    to: globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
+  - from: globular.platform:code.go.platform_controller.scylla.group0_view
+    relation: implements
+    to: globular.platform:intent.health.requires_fresh_evidence
+  - from: globular.platform:code.go.platform_controller.scylla.group0_view
+    relation: implements
+    to: globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+  - from: globular.platform:code.go.platform_controller.scylla.group0_view.collectGroup0View
+    relation: enforces
+    to: globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
+  - from: globular.platform:code.go.platform_controller.scylla.join_state_machine
+    relation: enforces
+    to: globular.platform:invariant.day1.scylla_dependency_gate
+  - from: globular.platform:code.go.platform_controller.scylla.join_state_machine
+    relation: enforces
+    to: globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified
+  - from: globular.platform:code.go.platform_controller.scylla.join_state_machine
+    relation: implements
+    to: globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+  - from: globular.platform:code.go.platform_controller.scylla.join_state_machine
+    relation: implements
+    to: globular.platform:intent.scylla.stale_ring_membership_must_not_block_rejoin
+  - from: globular.platform:code.go.platform_controller.scylla.join_state_machine.nodeIsPreparedForScyllaJoin
+    relation: enforces
+    to: globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified
+  - from: globular.platform:code.go.platform_controller.scylla.join_state_machine.scyllaClusterManager_reconcileScyllaJoinPhases
+    relation: enforces
+    to: globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified
+  - from: globular.platform:code.go.platform_controller.scylla.join_state_machine.scyllaClusterManager_reconcileScyllaJoinPhases
+    relation: implements
+    to: globular.platform:intent.scylla.stale_ring_membership_must_not_block_rejoin
+  - from: globular.platform:code.go.platform_controller.scylla.rf_eligibility
+    relation: enforces
+    to: globular.platform:invariant.day1.scylla_dependency_gate
+  - from: globular.platform:code.go.platform_controller.scylla.rf_eligibility
+    relation: enforces
+    to: globular.platform:invariant.scylla.critical_keyspace_replication_policy
+  - from: globular.platform:code.go.platform_controller.scylla.rf_eligibility
+    relation: implements
+    to: globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+  - from: globular.platform:code.go.platform_controller.scylla.rf_eligibility
+    relation: implements
+    to: globular.platform:intent.quorum_safety_before_storage_mutation
+  - from: globular.platform:code.go.platform_controller.scylla.rf_eligibility.IsNodeVerifiedStorageEligible
+    relation: enforces
+    to: globular.platform:invariant.scylla.critical_keyspace_replication_policy
+  - from: globular.platform:code.go.platform_controller.scylla.schema_guard
+    relation: enforces
+    to: globular.platform:invariant.scylla.critical_keyspace_replication_policy
+  - from: globular.platform:code.go.platform_controller.scylla.schema_guard
+    relation: enforces
+    to: globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
+  - from: globular.platform:code.go.platform_controller.scylla.schema_guard
+    relation: implements
+    to: globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+  - from: globular.platform:code.go.platform_controller.scylla.schema_guard
+    relation: implements
+    to: globular.platform:intent.workflow.backend_health_gate_before_dispatch
+  - from: globular.platform:code.go.platform_controller.scylla.schema_guard.tryRemoveScyllaGhostVoters
+    relation: enforces
+    to: globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
+  - from: globular.platform:code.go.platform_controller.scylla.stale_purger
+    relation: implements
+    to: globular.platform:intent.health.requires_fresh_evidence
+  - from: globular.platform:code.go.platform_controller.scylla.stale_purger
+    relation: implements
+    to: globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+  - from: globular.platform:code.go.platform_controller.scylla.stale_purger.server_purgeStaleInstances
+    relation: implements
+    to: globular.platform:intent.health.requires_fresh_evidence

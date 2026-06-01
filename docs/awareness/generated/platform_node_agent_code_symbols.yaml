@@ -232,3 +232,26 @@ code_symbols:
         - globular.platform:invariant.objectstore.topology_contract
       implements:
         - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_node_agent.scylla.wipe
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/grpc_scylla_wipe.go
+    component: platform_node_agent.scylla.wipe
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.destructive_actions.require_explicit_guard
+        - globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified
+      implements:
+        - globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+  - id: globular.platform:code.go.platform_node_agent.scylla.wipe.NodeAgentServer_runWipeScyllaData
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/grpc_scylla_wipe.go
+    symbol: NodeAgentServer.runWipeScyllaData
+    kind: method
+    component: platform_node_agent.scylla.wipe
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified

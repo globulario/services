@@ -218,3 +218,155 @@ code_symbols:
         - globular.platform:invariant.objectstore.desired_state_must_be_registry_governed
       implements:
         - globular.platform:intent.objectstore.topology_requires_contract
+  - id: globular.platform:code.go.platform_controller.scylla.ddl_preflight
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/scylla_schema_preflight.go
+    component: platform_controller.scylla.ddl_preflight
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
+      implements:
+        - globular.platform:intent.workflow.backend_health_gate_before_dispatch
+        - globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+  - id: globular.platform:code.go.platform_controller.scylla.ddl_preflight.CanScyllaDDLProceed
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/scylla_schema_preflight.go
+    symbol: CanScyllaDDLProceed
+    kind: function
+    component: platform_controller.scylla.ddl_preflight
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
+  - id: globular.platform:code.go.platform_controller.scylla.group0_view
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/scylla_group0_view.go
+    component: platform_controller.scylla.group0_view
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
+      implements:
+        - globular.platform:intent.health.requires_fresh_evidence
+        - globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+  - id: globular.platform:code.go.platform_controller.scylla.group0_view.collectGroup0View
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/scylla_group0_view.go
+    symbol: collectGroup0View
+    kind: function
+    component: platform_controller.scylla.group0_view
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
+  - id: globular.platform:code.go.platform_controller.scylla.join_state_machine
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/scylla_members.go
+    component: platform_controller.scylla.join_state_machine
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified
+        - globular.platform:invariant.day1.scylla_dependency_gate
+      implements:
+        - globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+        - globular.platform:intent.scylla.stale_ring_membership_must_not_block_rejoin
+  - id: globular.platform:code.go.platform_controller.scylla.join_state_machine.nodeIsPreparedForScyllaJoin
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/scylla_members.go
+    symbol: nodeIsPreparedForScyllaJoin
+    kind: function
+    component: platform_controller.scylla.join_state_machine
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified
+  - id: globular.platform:code.go.platform_controller.scylla.join_state_machine.scyllaClusterManager_reconcileScyllaJoinPhases
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/scylla_members.go
+    symbol: scyllaClusterManager.reconcileScyllaJoinPhases
+    kind: method
+    component: platform_controller.scylla.join_state_machine
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified
+      implements:
+        - globular.platform:intent.scylla.stale_ring_membership_must_not_block_rejoin
+  - id: globular.platform:code.go.platform_controller.scylla.rf_eligibility
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/scylla_rf_eligibility.go
+    component: platform_controller.scylla.rf_eligibility
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.scylla.critical_keyspace_replication_policy
+        - globular.platform:invariant.day1.scylla_dependency_gate
+      implements:
+        - globular.platform:intent.quorum_safety_before_storage_mutation
+        - globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+  - id: globular.platform:code.go.platform_controller.scylla.rf_eligibility.IsNodeVerifiedStorageEligible
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/scylla_rf_eligibility.go
+    symbol: IsNodeVerifiedStorageEligible
+    kind: function
+    component: platform_controller.scylla.rf_eligibility
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.scylla.critical_keyspace_replication_policy
+  - id: globular.platform:code.go.platform_controller.scylla.schema_guard
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/scylla_schema_guard.go
+    component: platform_controller.scylla.schema_guard
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.scylla.critical_keyspace_replication_policy
+        - globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
+      implements:
+        - globular.platform:intent.workflow.backend_health_gate_before_dispatch
+        - globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+  - id: globular.platform:code.go.platform_controller.scylla.schema_guard.tryRemoveScyllaGhostVoters
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/scylla_schema_guard.go
+    symbol: tryRemoveScyllaGhostVoters
+    kind: function
+    component: platform_controller.scylla.schema_guard
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.scylla.group0_stale_voter_blocks_schema_mutations
+  - id: globular.platform:code.go.platform_controller.scylla.stale_purger
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/stale_instance_purger.go
+    component: platform_controller.scylla.stale_purger
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.health.requires_fresh_evidence
+        - globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+  - id: globular.platform:code.go.platform_controller.scylla.stale_purger.server_purgeStaleInstances
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/stale_instance_purger.go
+    symbol: server.purgeStaleInstances
+    kind: method
+    component: platform_controller.scylla.stale_purger
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.health.requires_fresh_evidence

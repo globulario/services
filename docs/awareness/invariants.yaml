@@ -4559,3 +4559,60 @@ invariants:
         - write_minio_config_from_local_state_without_etcd_source
         - omit_rendered_artifact_metadata_from_minio_contract_file
         - treat_minio_env_file_as_authoritative_topology_source
+
+    - id: scylla.join_wipe_safe_only_if_never_verified
+      title: ScyllaDB data wipe during join is safe only for nodes that have never been verified as part of the ring
+      severity: critical
+      status: active
+      summary: |
+        When a ScyllaDB node gets stuck in Raft join state during bootstrap, the recovery
+        path may wipe /var/lib/scylla/data to allow a clean Raft re-bootstrap. This wipe
+        is ONLY safe on nodes where ScyllaWasEverVerified=false — nodes that have never
+        successfully joined the gossip ring and hold no live user data.
+        A node that was previously verified as a ring member MUST NOT be wiped by the join
+        recovery path. Wiping a verified node destroys ring data that cannot be recovered
+        without a full cluster restore. The ScyllaWasEverVerified guard in the join state
+        machine is the enforcement point for this invariant.
+      protects:
+        state:
+          - /var/lib/scylla/data
+        files:
+          - golang/cluster_controller/cluster_controller_server/scylla_members.go
+          - golang/node_agent/node_agent_server/grpc_scylla_wipe.go
+      required_tests:
+        - TestReconcileScyllaJoinPhases_WipeOnlyIfNeverVerified
+      forbidden_fixes:
+        - wipe_scylla_data_without_checking_ScyllaWasEverVerified
+        - reset_ScyllaWasEverVerified_to_false_on_a_live_node
+        - dispatch_wipe_from_node_agent_without_controller_side_guard
+
+    - id: scylla.group0_stale_voter_blocks_schema_mutations
+      title: A stale or unknown ScyllaDB Raft Group 0 voter state must block all schema mutations
+      severity: critical
+      status: active
+      summary: |
+        ScyllaDB Raft Group 0 membership must be verified healthy before any DDL (CREATE
+        KEYSPACE, ALTER KEYSPACE) is issued. If any voter's host_id is absent from gossip
+        (not_in_gossip) or if Group 0 state cannot be determined (table missing in both
+        system.raft_group0_members and system.raft_state), DDL must be blocked — fail closed.
+        A stale Group 0 voter (a node that was wiped without decommissioning and rejoined
+        under a new UUID) permanently blocks all DDL until the ghost voter is removed.
+        DDLPreflightUnknown is the fail-closed state: when Group 0 membership cannot be
+        proven healthy, schema mutations must not proceed. A silent Raft deadlock caused
+        by issuing DDL with a stale voter is worse than a skipped keyspace creation.
+      protects:
+        state:
+          - system.raft_group0_members
+          - system.peers
+          - system.local
+        files:
+          - golang/cluster_controller/cluster_controller_server/scylla_schema_preflight.go
+          - golang/cluster_controller/cluster_controller_server/scylla_group0_view.go
+          - golang/cluster_controller/cluster_controller_server/scylla_schema_guard.go
+      required_tests:
+        - TestCanScyllaDDLProceed_Group0Unknown_BlocksDDL
+        - TestTryRemoveScyllaGhostVoters_RequiresMinQuorum
+      forbidden_fixes:
+        - skip_ddl_preflight_when_group0_table_missing
+        - treat_ddl_preflight_unknown_as_ok
+        - remove_ghost_voter_without_verifying_quorum_remains

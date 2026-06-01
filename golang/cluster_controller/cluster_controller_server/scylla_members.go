@@ -1,3 +1,11 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.scylla.join_state_machine
+// @awareness file_role=scylla_join_admission_and_recovery_state_machine
+// @awareness enforces=globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified
+// @awareness enforces=globular.platform:invariant.day1.scylla_dependency_gate
+// @awareness implements=globular.platform:intent.infrastructure.scylladb.quorum_localdb_for_control_plane_state
+// @awareness implements=globular.platform:intent.scylla.stale_ring_membership_must_not_block_rejoin
+// @awareness risk=critical
 package main
 
 import (
@@ -59,6 +67,10 @@ func nodeHasScyllaRunning(node *nodeState) bool {
 // bundle is still being fetched (or its 5-minute timeout is running). By the
 // time the node advances to storage_joining, ScyllaDB will already be in
 // progress or verified — eliminating the 5-minute delay on Day-1.
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.scylla.join_state_machine
+// @awareness enforces=globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified
+// @awareness risk=critical
 func nodeIsPreparedForScyllaJoin(node *nodeState) bool {
 	if node == nil {
 		return false
@@ -146,6 +158,11 @@ func defaultScyllaSeedChecker(seedIP, checkIP string) bool {
 // ScyllaDB uses gossip, so there's no explicit "add to cluster" API call.
 // The config rendering (via renderScyllaConfig in service_config.go) provides
 // the seed list. The node starts, contacts seeds, and auto-joins.
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.scylla.join_state_machine
+// @awareness enforces=globular.platform:invariant.scylla.join_wipe_safe_only_if_never_verified
+// @awareness implements=globular.platform:intent.scylla.stale_ring_membership_must_not_block_rejoin
+// @awareness risk=critical
 func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, nodes []*nodeState) (dirty bool) {
 	now := time.Now()
 
