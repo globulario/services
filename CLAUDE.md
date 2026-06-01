@@ -278,7 +278,7 @@ Awareness is the compact gRPC map of project intent, invariants, failure modes, 
 
 **Workflow:**
 1. `awareness.briefing` with `file` or `task` — start every non-trivial task here. Reads ~500 tokens by default.
-2. `awareness.impact` on each target file when briefing's coverage is thin — direct + inferred anchors.
+2. `awareness.impact` on each target file when briefing's coverage is thin — direct anchors only (inferred fields are reserved in v0; see `docs/awareness/decisions/inference-v0-direct-anchors-only.md`).
 3. `awareness.resolve` on any `referenced_id` you need expanded.
 4. Read the actual code. Patch. Run the required tests from awareness output + nearby regressions.
 5. End the response with the awareness template (below).
