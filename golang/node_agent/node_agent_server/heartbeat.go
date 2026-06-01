@@ -728,6 +728,41 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 		return
 	}
 
+	// Deduplicate: keep only the highest-version (highest build_number on tie)
+	// manifest per (name, platform). ListArtifacts returns ALL published versions;
+	// old versions may carry a stale kind (e.g. INFRASTRUCTURE when the correct
+	// kind is SERVICE as of a later release). Processing an old manifest can delete
+	// a correctly-classified installed-state record written by the install pipeline.
+	// Only the latest version per artifact name is authoritative for kind resolution.
+	type artKey struct{ name, platform string }
+	latestArts := make(map[artKey]*repositorypb.ArtifactManifest, len(arts))
+	for _, am := range arts {
+		ref := am.GetRef()
+		if ref == nil || ref.GetName() == "" {
+			continue
+		}
+		key := artKey{name: ref.GetName(), platform: ref.GetPlatform()}
+		cur, ok := latestArts[key]
+		if !ok {
+			latestArts[key] = am
+			continue
+		}
+		cmp, cmpErr := versionutil.Compare(ref.GetVersion(), cur.GetRef().GetVersion())
+		if cmpErr != nil {
+			if ref.GetVersion() > cur.GetRef().GetVersion() {
+				latestArts[key] = am
+			}
+			continue
+		}
+		if cmp > 0 || (cmp == 0 && am.GetBuildNumber() > cur.GetBuildNumber()) {
+			latestArts[key] = am
+		}
+	}
+	arts = arts[:0]
+	for _, am := range latestArts {
+		arts = append(arts, am)
+	}
+
 	for _, m := range arts {
 		ref := m.GetRef()
 		if ref == nil || ref.GetName() == "" || ref.GetVersion() == "" {

@@ -324,3 +324,33 @@ func TestInstalledStateRuntimeMismatch_ActivatingFiresWhenDriftPersists(t *testi
 		t.Fatal("activating beyond grace window must fire mismatch finding")
 	}
 }
+
+func TestInstalledStateRuntimeMismatch_ActivatingEtcdUsesExtendedGrace(t *testing.T) {
+	snap := &collector.Snapshot{
+		Nodes:       []*cluster_controllerpb.NodeRecord{freshNodeRecord("n1")},
+		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{"n1": freshNodeHealth("n1", map[string]string{"etcd": "3.5.14"})},
+		Inventories: map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits(unit("globular-etcd.service", "activating"))},
+		NodeDriftAge: map[string]time.Duration{
+			"n1": 4 * time.Minute,
+		},
+	}
+	findings := (installedStateRuntimeMismatch{}).Evaluate(snap, testConfig())
+	if len(findings) != 0 {
+		t.Fatalf("etcd activating within extended grace should be suppressed, got %d findings: %+v", len(findings), findings)
+	}
+}
+
+func TestInstalledStateRuntimeMismatch_ActivatingEtcdFiresAfterExtendedGrace(t *testing.T) {
+	snap := &collector.Snapshot{
+		Nodes:       []*cluster_controllerpb.NodeRecord{freshNodeRecord("n1")},
+		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{"n1": freshNodeHealth("n1", map[string]string{"etcd": "3.5.14"})},
+		Inventories: map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits(unit("globular-etcd.service", "activating"))},
+		NodeDriftAge: map[string]time.Duration{
+			"n1": 6 * time.Minute,
+		},
+	}
+	findings := (installedStateRuntimeMismatch{}).Evaluate(snap, testConfig())
+	if len(findings) == 0 {
+		t.Fatal("etcd activating past extended grace must fire mismatch finding")
+	}
+}

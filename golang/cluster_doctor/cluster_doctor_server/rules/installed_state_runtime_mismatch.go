@@ -18,6 +18,18 @@ func (installedStateRuntimeMismatch) Scope() string    { return "node" }
 
 const activatingDriftGrace = 2 * time.Minute
 
+var activatingDriftGraceByPackage = map[string]time.Duration{
+	// etcd may take longer to become active during member checks/replays.
+	"etcd": 5 * time.Minute,
+}
+
+func activatingGraceForPackage(pkg string) time.Duration {
+	if d, ok := activatingDriftGraceByPackage[pkg]; ok && d > 0 {
+		return d
+	}
+	return activatingDriftGrace
+}
+
 func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
 	var findings []Finding
 	now := time.Now()
@@ -92,7 +104,7 @@ func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Conf
 			case !ok:
 				mismatch = true
 				reason = fmt.Sprintf("runtime unit missing (%s)", unit)
-			case state == "activating" && inHashDrift && driftAge <= activatingDriftGrace:
+			case state == "activating" && inHashDrift && driftAge <= activatingGraceForPackage(canon):
 				// During a fresh desired->applied convergence wave, units may
 				// legitimately report "activating" for a short window.
 				// Keep the mismatch signal for stuck activations, but suppress
