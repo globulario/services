@@ -26,6 +26,7 @@ zooms_in_to:
 - rbac.permission_resolution_walks_path_hierarchy
 - rbac.service_excludes_self_from_interceptor
 - rbac.subject_id_normalization_prevents_bypass
+- interceptors.unauthenticated_allowlist_must_be_minimal
 related_to:
 - bootstrap.window_is_not_steady_state_auth
 required_tests:

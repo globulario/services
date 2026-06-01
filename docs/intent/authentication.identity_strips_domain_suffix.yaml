@@ -1,0 +1,37 @@
+id: authentication.identity_strips_domain_suffix
+level: mechanism
+title: principal_id and Subject are domain-independent — @domain is a routing label, not identity
+intent: |
+  Globular supports multi-domain deployments. A user "alice@globular.io" and "alice@staging.io"
+  could be the same person across deployments. To prevent identity fragmentation, the
+  authentication service strips the @domain suffix when constructing the canonical principal_id
+  and Subject used for RBAC evaluation. The domain portion is treated as a routing label only.
+  This also prevents bypass: storing a deny as "alice" must match a request for "alice@domain".
+agent_guidance: |
+  Always use the domain-stripped principal_id for RBAC lookups, audit entries, and
+  permission storage. Never store or compare permissions using the @domain-qualified form
+  as the primary key. matchID() in the RBAC engine handles this normalization.
+bad_smells:
+  - permission stored under "alice@globular.io" instead of "alice"
+  - RBAC deny for "alice" does not match request from "alice@globular.io"
+  - cluster_id included in the principal identity string
+  - auth context subject includes domain suffix
+activation_triggers:
+  - principal_id
+  - domain suffix
+  - identity normalization
+  - '"@domain"'
+  - subject stripping
+expressed_by:
+  - golang/authentication/authentication_server/handlers.go
+  - golang/security/jwt.go
+related_invariants: []
+zooms_out_to:
+  - authentication.single_issuance_point_for_session_tokens
+zooms_in_to: []
+related_to:
+  - rbac.subject_id_normalization_prevents_bypass
+required_tests:
+  - authentication:TestSubjectDomainStripped
+  - rbac:TestSALegacyDomainFormat
+status: extracted_candidate

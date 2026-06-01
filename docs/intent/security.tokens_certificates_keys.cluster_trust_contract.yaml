@@ -49,6 +49,8 @@ zooms_out_to:
 zooms_in_to:
   - dns_pki.explicit_identity_over_convenient_routing
   - security.deny_overrides_allow
+  - authentication.single_issuance_point_for_session_tokens
+  - authentication.mtls_and_jwt_serve_different_trust_layers
 
 related_to:
   - etcd.is_source_of_truth

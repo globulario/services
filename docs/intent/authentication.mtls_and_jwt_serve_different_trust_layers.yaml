@@ -1,0 +1,44 @@
+id: authentication.mtls_and_jwt_serve_different_trust_layers
+level: principle
+title: mTLS certificates establish transport identity; JWTs establish session identity — neither replaces the other
+intent: |
+  Globular uses both mTLS and JWTs, but for different trust layers:
+  - mTLS (cluster CA-signed certificates): transport-layer identity. Proves the TLS peer
+    is a legitimate cluster node or service. Used for inter-service gRPC connections.
+  - JWT (Ed25519-signed tokens): session-layer identity. Proves the caller authenticated
+    with credentials. Embedded in gRPC metadata for RPC-level authorization.
+  A valid mTLS certificate does NOT grant RPC-level permissions — the JWT is still
+  required for RBAC. A valid JWT without mTLS can still be accepted from authenticated
+  external clients (operator CLI, admin UI).
+  Client certificates are issued on-demand via IssueClientCertificate (30-day validity,
+  RSA 2048, EKU=ClientAuth) and require a valid JWT to obtain.
+agent_guidance: |
+  Never skip the JWT check because mTLS was verified. Never skip mTLS because a JWT
+  is present. They guard different layers. IssueClientCertificate requires an
+  authenticated JWT — it is not a bootstrap path for getting credentials.
+bad_smells:
+  - gRPC service accepting a valid mTLS cert as proof of full RBAC authorization
+  - client certificate used to skip JWT authentication
+  - IssueClientCertificate callable without a valid session token
+  - inter-service calls using only JWT without mTLS on the transport
+activation_triggers:
+  - mTLS
+  - client certificate
+  - IssueClientCertificate
+  - transport identity
+  - session identity
+  - JWT and mTLS
+expressed_by:
+  - golang/authentication/authentication_server/handlers.go
+  - golang/security/tls.go
+related_invariants: []
+zooms_out_to:
+  - security.tokens_certificates_keys.cluster_trust_contract
+zooms_in_to: []
+related_to:
+  - authentication.single_issuance_point_for_session_tokens
+  - cluster.membership.earned_trust
+required_tests:
+  - authentication:TestIssueClientCertificateRequiresValidJWT
+  - authentication:TestMTLSDoesNotBypassRBACCheck
+status: extracted_candidate

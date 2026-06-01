@@ -1,0 +1,39 @@
+id: interceptors.call_depth_prevents_circular_cascade
+level: mechanism
+title: Call depth ≥10 is rejected immediately to prevent A→B→C→A infinite cascade
+intent: |
+  Globular services call each other over gRPC. If service A calls B which calls C which
+  calls A, the call chain loops forever, exhausting goroutines and connections. The
+  interceptor propagates a call depth counter in gRPC metadata and rejects any request
+  that arrives with depth ≥10. This is a hard circuit breaker, not a retry — the
+  rejection propagates back up the chain, unwinding all callers.
+  Depth 10 is chosen to be generous enough for legitimate deep call chains (e.g.,
+  RBAC → auth → security → config = 4 levels) while catching runaway cycles well before
+  resource exhaustion.
+agent_guidance: |
+  If you see a depth-10 rejection in logs, it indicates a circular service dependency
+  in the call path, not a load problem. Trace the call chain: which service is calling
+  which, and where does the cycle close? Fix the cycle, not the depth threshold.
+bad_smells:
+  - increasing the depth limit to silence errors (hides the real cycle)
+  - depth counter not propagated through all outgoing calls
+  - depth check removed for "internal" service calls
+  - new service added that calls back into its own callers
+activation_triggers:
+  - call depth
+  - circular call
+  - cascade
+  - depth limit
+  - A calls B calls A
+expressed_by:
+  - golang/interceptors/ServerInterceptors.go
+related_invariants: []
+zooms_out_to:
+  - interceptors.chain_order_is_load_shed_first
+zooms_in_to: []
+related_to:
+  - rbac.service_excludes_self_from_interceptor
+required_tests:
+  - interceptors:TestCallDepthCircuitBreakerFires
+  - interceptors:TestCallDepthPropagatedInMetadata
+status: extracted_candidate

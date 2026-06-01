@@ -36,6 +36,7 @@ zooms_out_to:
 - reconciliation.must_be_idempotent_and_bounded
 zooms_in_to:
 - workflow.backend_health_gate_before_dispatch
+- interceptors.chain_order_is_load_shed_first
 related_to:
 - degraded_is_explicit_not_hidden
 status: seed

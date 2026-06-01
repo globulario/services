@@ -23,6 +23,8 @@ zooms_out_to:
 - globular.security.ceremony_over_configuration
 zooms_in_to:
 - day0_day1_are_repeatable_ceremonies
+- interceptors.bootstrap_gate_is_four_level
+- authentication.token_refresh_is_bounded_to_seven_days
 related_to:
 - cluster.membership.earned_trust
 required_tests:

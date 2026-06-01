@@ -1,0 +1,39 @@
+id: interceptors.role_binding_fallback_uses_local_cluster_roles
+level: mechanism
+title: When RBAC service is unreachable, the interceptor falls back to locally-loaded cluster-roles.json
+intent: |
+  The role binding check caches per-subject results for 30 seconds to avoid flooding the
+  RBAC service. When the RBAC service is genuinely unreachable, the interceptor falls back
+  to cluster-roles.json loaded at startup. This fallback is more permissive than the live
+  RBAC state — it grants access if ANY locally-known role covers the method — but it
+  prevents a bootstrap deadlock where the cluster cannot start because RBAC is down.
+  The fallback is explicitly more permissive and is expected to be a temporary state.
+agent_guidance: |
+  The local fallback must never be the primary path. It is a safety valve for RBAC
+  service restarts. If the RBAC service is persistently unreachable, the cluster is in
+  a degraded state and this must be surfaced. Do not widen the fallback to include
+  user-granted permissions — only cluster-roles.json (static, operator-controlled).
+bad_smells:
+  - fallback used as the primary role check path
+  - user-specific role bindings added to cluster-roles.json
+  - fallback silently allows calls without logging the degraded state
+  - cache TTL set to 0 causing constant RBAC service traffic
+activation_triggers:
+  - role binding
+  - RBAC unreachable
+  - cluster-roles.json
+  - fallback
+  - role binding cache
+expressed_by:
+  - golang/interceptors/role_binding_check.go
+related_invariants: []
+zooms_out_to:
+  - interceptors.chain_order_is_load_shed_first
+zooms_in_to: []
+related_to:
+  - rbac.service_excludes_self_from_interceptor
+  - degraded_is_explicit_not_hidden
+required_tests:
+  - interceptors:TestRoleBindingFallbackToLocalOnRBACDown
+  - interceptors:TestRoleBindingCacheExpires
+status: extracted_candidate

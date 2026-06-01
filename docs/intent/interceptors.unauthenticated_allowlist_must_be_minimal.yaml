@@ -1,0 +1,41 @@
+id: interceptors.unauthenticated_allowlist_must_be_minimal
+level: principle
+title: The unauthenticated allowlist must contain only Day-0 essentials — over-population leaks endpoints publicly
+intent: |
+  Methods registered via AllowUnauthenticated() or AllowUnauthenticatedPrefix() bypass
+  all RBAC checks. This is necessary for a small set of Day-0 bootstrap methods: health
+  checks, ServerReflection, Authenticate, and RefreshToken. Every additional entry is a
+  potential public exposure vector. The allowlist is checked before role binding; anything
+  on it is fully exposed to unauthenticated callers from any network.
+  The canonical safe list: /grpc.health.v1.Health/*, /grpc.reflection.v1alpha.*, Authenticate,
+  RefreshToken. Any method beyond this requires explicit security review.
+agent_guidance: |
+  When adding a new gRPC method, do NOT add it to the allowlist unless it is genuinely
+  required before a user can authenticate. When in doubt, require authentication and add
+  an RBAC mapping. Use the unauthenticated allowlist for the minimum viable bootstrap
+  surface only.
+bad_smells:
+  - service-wide prefix added to allowlist (exposes all methods in the service)
+  - admin or data-access method added to allowlist for convenience
+  - allowlist growing without a corresponding security review comment
+  - test helper calling AllowUnauthenticated() on production methods
+activation_triggers:
+  - unauthenticated allowlist
+  - AllowUnauthenticated
+  - AllowUnauthenticatedPrefix
+  - bypass auth
+  - public endpoint
+expressed_by:
+  - golang/interceptors/ServerInterceptors.go
+related_invariants:
+  - security.unauthenticated_allowlist_must_be_minimal
+zooms_out_to:
+  - security.deny_overrides_allow
+zooms_in_to: []
+related_to:
+  - interceptors.chain_order_is_load_shed_first
+  - bootstrap.window_is_not_steady_state_auth
+required_tests:
+  - interceptors:TestAllowlistContainsOnlyBootstrapMethods
+  - interceptors:TestNonAllowlistedMethodRequiresAuth
+status: extracted_candidate

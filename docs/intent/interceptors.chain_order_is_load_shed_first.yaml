@@ -1,0 +1,45 @@
+id: interceptors.chain_order_is_load_shed_first
+level: mechanism
+title: The interceptor chain sheds load before auth, authenticates before RBAC, and authorizes before routing
+intent: |
+  The gRPC interceptor chain executes in a strict order that is both a security contract
+  and a performance contract:
+  1. ACC (load shedding) — rejects overloaded requests before any auth work
+  2. Call depth check — circuit breaker against A→B→C→A cascades (depth ≥10)
+  3. Bootstrap gate — 4-level check (flag+time+loopback+allowlist) for Day-0 only
+  4. Cluster-ID enforcement — validates request comes from the correct cluster
+  5. Unauthenticated allowlist — health, auth endpoints bypass RBAC
+  6. Role binding check — cached; falls back to local cluster-roles.json if RBAC unreachable
+  7. Resource RBAC validation — only if method has RBAC resource mappings
+  8. DenyUnmappedMethods — final gate for methods with no RBAC mapping
+  Changing this order can create security holes (auth after allowlist) or performance
+  regressions (RBAC before load shedding).
+agent_guidance: |
+  When adding a new interceptor stage, identify where in this chain it belongs. Stages
+  that are cheap and can shed load early belong near the top. Stages that require network
+  calls (RBAC service) belong after cheap local checks.
+bad_smells:
+  - RBAC check before ACC load shedding
+  - authentication before call-depth circuit breaker
+  - new interceptor stage inserted without considering order implications
+  - bootstrap gate moved after cluster-ID check
+activation_triggers:
+  - interceptor chain
+  - interceptor order
+  - ServerInterceptors
+  - chain stages
+expressed_by:
+  - golang/interceptors/ServerInterceptors.go
+related_invariants: []
+zooms_out_to:
+  - circuit_breakers_protect_convergence
+zooms_in_to:
+  - interceptors.role_binding_fallback_uses_local_cluster_roles
+  - interceptors.call_depth_prevents_circular_cascade
+related_to:
+  - interceptors.bootstrap_gate_is_four_level
+  - interceptors.unauthenticated_allowlist_must_be_minimal
+required_tests:
+  - interceptors:TestChainOrderACCBeforeRBAC
+  - interceptors:TestCallDepthCircuitBreakerFires
+status: extracted_candidate

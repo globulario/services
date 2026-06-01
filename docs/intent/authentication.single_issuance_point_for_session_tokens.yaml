@@ -1,0 +1,38 @@
+id: authentication.single_issuance_point_for_session_tokens
+level: mechanism
+title: All session JWTs must originate from the authenticate() function via security.GenerateToken
+intent: |
+  There is exactly one legitimate path for issuing a cluster session JWT: the Authenticate
+  RPC handler calls bcrypt-validates the credential, then calls security.GenerateToken().
+  Any code path that mints a JWT outside this flow — directly constructing claims, calling
+  GenerateToken from a non-authentication context, or bypassing bcrypt validation —
+  violates the cluster trust contract. The iss+kid header in every token must identify
+  a registered Ed25519 signing key owned by an authorized issuer.
+agent_guidance: |
+  Never add a shortcut that generates a JWT without going through Authenticate().
+  Peer tokens (GeneratePeerToken) follow the same path but with a different audience
+  claim. Even "temporary" or "internal" tokens must use GenerateToken.
+bad_smells:
+  - JWT minted directly without bcrypt credential validation
+  - Token claims constructed by hand outside security.GenerateToken()
+  - Test helper that issues tokens skipping the authentication flow
+  - Token issued with a signing key not registered in the keystore
+activation_triggers:
+  - token issuance
+  - JWT
+  - GenerateToken
+  - authenticate
+  - session token
+expressed_by:
+  - golang/authentication/authentication_server/handlers.go
+related_invariants: []
+zooms_out_to:
+  - security.tokens_certificates_keys.cluster_trust_contract
+zooms_in_to:
+  - authentication.identity_strips_domain_suffix
+related_to:
+  - bootstrap.window_is_not_steady_state_auth
+required_tests:
+  - authentication:TestAuthenticateRequiresBcryptValidation
+  - authentication:TestTokenIssuedOnlyViaAuthenticateRPC
+status: extracted_candidate

@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_authentication
+// @awareness file_role=authentication_service_entry_point_and_session_janitor
+// @awareness implements=globular.platform:intent.authentication.single_issuance_point_for_session_tokens
+// @awareness implements=globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+// @awareness risk=critical
 package main
 
 import (

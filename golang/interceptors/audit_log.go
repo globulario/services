@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform.interceptors.audit
+// @awareness file_role=authz_decision_audit_log_never_logs_tokens
+// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
+// @awareness risk=high
 package interceptors
 
 import (

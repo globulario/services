@@ -1,3 +1,11 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_authentication
+// @awareness file_role=single_issuance_point_for_session_jwts_and_client_certificates
+// @awareness implements=globular.platform:intent.authentication.single_issuance_point_for_session_tokens
+// @awareness implements=globular.platform:intent.authentication.token_refresh_is_bounded_to_seven_days
+// @awareness implements=globular.platform:intent.authentication.mtls_and_jwt_serve_different_trust_layers
+// @awareness implements=globular.platform:intent.authentication.identity_strips_domain_suffix
+// @awareness risk=critical
 package main
 
 import (

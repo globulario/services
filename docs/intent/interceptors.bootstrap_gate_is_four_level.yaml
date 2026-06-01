@@ -1,0 +1,45 @@
+id: interceptors.bootstrap_gate_is_four_level
+level: mechanism
+title: The bootstrap gate requires all four conditions — flag file, time-bounded, loopback-only, method allowlist
+intent: |
+  During Day-0 cluster initialization, the interceptor opens a narrow bootstrap window
+  that permits a small set of pre-authentication RPCs. All four conditions must be true:
+  1. Flag file exists: /var/lib/globular/bootstrap.enabled (JSON with EnabledAt, ExpiresAt)
+  2. Time-bounded: current time < ExpiresAt (max 30 minutes from enablement)
+  3. Loopback-only: caller IP must be 127.0.0.1 or ::1 (local node only)
+  4. Method allowlist: only /rbac.RbacService/*, /authentication.*, /grpc.health.v1.Health/*
+  If any condition fails, the request is denied. A forgotten flag file does not grant
+  indefinite access — the hard ExpiresAt deadline ensures time-bounded exposure.
+agent_guidance: |
+  Never relax the four-level check to two or three conditions. The combination of all four
+  prevents: remote bootstrap attacks (loopback), stale flag files (time bound), accidental
+  exposure of admin methods (allowlist). If you need to extend the bootstrap window,
+  re-create the flag file with a new ExpiresAt.
+bad_smells:
+  - bootstrap gate checking only flag file existence (missing time/loopback/allowlist checks)
+  - loopback check skipped for IPv6 (::1 must be included)
+  - bootstrap window extended by modifying ExpiresAt in place
+  - method allowlist includes data-access RPCs
+activation_triggers:
+  - bootstrap gate
+  - bootstrap.enabled
+  - Day-0
+  - loopback
+  - bootstrap window
+  - ExpiresAt
+expressed_by:
+  - golang/interceptors/ServerInterceptors.go
+  - golang/security/bootstrap.go
+related_invariants: []
+zooms_out_to:
+  - bootstrap.window_is_not_steady_state_auth
+zooms_in_to: []
+related_to:
+  - interceptors.unauthenticated_allowlist_must_be_minimal
+  - day0_day1_are_repeatable_ceremonies
+required_tests:
+  - interceptors:TestIntegration_BootstrapExpires
+  - interceptors:TestIntegration_RemoteBootstrapDenied
+  - interceptors:TestBootstrapGateRequiresLoopback
+  - interceptors:TestBootstrapGateRequiresAllowlistedMethod
+status: extracted_candidate

@@ -1,0 +1,35 @@
+id: authentication.token_refresh_is_bounded_to_seven_days
+level: mechanism
+title: Token refresh is allowed up to 7 days post-expiry — beyond that, re-authentication is required
+intent: |
+  The RefreshToken RPC accepts expired tokens and issues a replacement, but only within a
+  7-day window after expiry. A token expired more than 7 days ago cannot be refreshed —
+  the caller must re-authenticate with credentials. This bounds the risk of a stolen token
+  that was never explicitly revoked: after 7 days post-expiry it becomes permanently useless.
+  The 7-day window starts at the token's exp claim, not at the time of the refresh call.
+agent_guidance: |
+  Do not extend the 7-day bound without security review. If you need longer-lived sessions
+  consider increasing the primary TTL instead of widening the refresh window.
+bad_smells:
+  - RefreshToken accepting tokens expired >7 days
+  - refresh window calculated from current time instead of exp claim
+  - no check on exp in RefreshToken handler
+  - refresh accepted for tokens with no exp claim
+activation_triggers:
+  - token refresh
+  - RefreshToken
+  - expired token
+  - re-authentication
+  - session expiry
+expressed_by:
+  - golang/authentication/authentication_server/handlers.go
+related_invariants: []
+zooms_out_to:
+  - bootstrap.window_is_not_steady_state_auth
+zooms_in_to: []
+related_to:
+  - authentication.single_issuance_point_for_session_tokens
+required_tests:
+  - authentication:TestRefreshTokenRefusedAfterSevenDays
+  - authentication:TestRefreshTokenAcceptedBeforeSevenDays
+status: extracted_candidate

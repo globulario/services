@@ -1,1 +1,19 @@
 code_edges:
+  - from: globular.platform:code.go.platform_authentication
+    relation: implements
+    to: globular.platform:intent.authentication.identity_strips_domain_suffix
+  - from: globular.platform:code.go.platform_authentication
+    relation: implements
+    to: globular.platform:intent.authentication.mtls_and_jwt_serve_different_trust_layers
+  - from: globular.platform:code.go.platform_authentication
+    relation: implements
+    to: globular.platform:intent.authentication.single_issuance_point_for_session_tokens
+  - from: globular.platform:code.go.platform_authentication
+    relation: implements
+    to: globular.platform:intent.authentication.single_issuance_point_for_session_tokens
+  - from: globular.platform:code.go.platform_authentication
+    relation: implements
+    to: globular.platform:intent.authentication.token_refresh_is_bounded_to_seven_days
+  - from: globular.platform:code.go.platform_authentication
+    relation: implements
+    to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract

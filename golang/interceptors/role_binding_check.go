@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform.interceptors.role_binding
+// @awareness file_role=cached_role_binding_check_with_local_cluster_roles_fallback
+// @awareness implements=globular.platform:intent.interceptors.role_binding_fallback_uses_local_cluster_roles
+// @awareness implements=globular.platform:intent.rbac.service_excludes_self_from_interceptor
+// @awareness risk=high
+//
 // role_binding_check.go: helper that calls the RBAC service to determine
 // whether a subject's stored role binding grants access to a gRPC method.
 //

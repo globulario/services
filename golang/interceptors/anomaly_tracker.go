@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform.interceptors.anomaly
+// @awareness file_role=per_ip_slowloris_and_error_spike_detection_with_cooldown
+// @awareness implements=globular.platform:intent.interceptors.chain_order_is_load_shed_first
+// @awareness implements=globular.platform:intent.interceptors.unauthenticated_allowlist_must_be_minimal
+// @awareness risk=medium
 package interceptors
 
 import (

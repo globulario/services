@@ -12,6 +12,25 @@ code_symbols:
         - globular.platform:invariant.security.unauthenticated_allowlist_must_be_minimal
       implements:
         - globular.platform:intent.security.deny_overrides_allow
+  - id: globular.platform:code.go.platform.interceptors.anomaly
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/anomaly_tracker.go
+    component: platform.interceptors.anomaly
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.interceptors.chain_order_is_load_shed_first
+        - globular.platform:intent.interceptors.unauthenticated_allowlist_must_be_minimal
+  - id: globular.platform:code.go.platform.interceptors.audit
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/audit_log.go
+    component: platform.interceptors.audit
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.audit.every_authority_change_is_explainable
   - id: globular.platform:code.go.platform_interceptors
     namespace: globular.platform
     language: go

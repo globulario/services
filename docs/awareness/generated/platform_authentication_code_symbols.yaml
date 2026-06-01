@@ -1,1 +1,23 @@
 code_symbols:
+  - id: globular.platform:code.go.platform_authentication
+    namespace: globular.platform
+    language: go
+    file: golang/authentication/authentication_server/handlers.go
+    component: platform_authentication
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.authentication.single_issuance_point_for_session_tokens
+        - globular.platform:intent.authentication.token_refresh_is_bounded_to_seven_days
+        - globular.platform:intent.authentication.mtls_and_jwt_serve_different_trust_layers
+        - globular.platform:intent.authentication.identity_strips_domain_suffix
+  - id: globular.platform:code.go.platform_authentication
+    namespace: globular.platform
+    language: go
+    file: golang/authentication/authentication_server/server.go
+    component: platform_authentication
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.authentication.single_issuance_point_for_session_tokens
+        - globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract

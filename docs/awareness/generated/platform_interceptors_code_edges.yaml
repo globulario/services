@@ -5,6 +5,15 @@ code_edges:
   - from: globular.platform:code.go.platform.interceptors.DenyUnmappedMethods
     relation: implements
     to: globular.platform:intent.security.deny_overrides_allow
+  - from: globular.platform:code.go.platform.interceptors.anomaly
+    relation: implements
+    to: globular.platform:intent.interceptors.chain_order_is_load_shed_first
+  - from: globular.platform:code.go.platform.interceptors.anomaly
+    relation: implements
+    to: globular.platform:intent.interceptors.unauthenticated_allowlist_must_be_minimal
+  - from: globular.platform:code.go.platform.interceptors.audit
+    relation: implements
+    to: globular.platform:intent.audit.every_authority_change_is_explainable
   - from: globular.platform:code.go.platform_interceptors
     relation: implements
     to: globular.platform:intent.circuit_breakers_protect_convergence
