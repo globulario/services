@@ -3073,6 +3073,8 @@ failure_modes:
       protects:
         files:
           - golang/workflow/workflow_server/executor_lease.go
+          - golang/workflow/workflow_server/executor_resume.go
+          - golang/workflow/workflow_server/executor.go
       forbidden_fixes:
         - increasing orphanHeartbeatTimeout as a substitute for fixing slow steps
         - disabling the orphan scanner to prevent double-claim
@@ -3100,6 +3102,8 @@ failure_modes:
       protects:
         files:
           - golang/cluster_controller/cluster_controller_server/workflow_release.go
+          - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+          - golang/workflow/workflow_server/executor.go
       required_tests:
         - TestDeleteCriticalReleaseRejectsGenerationMismatch
 
