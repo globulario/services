@@ -26,6 +26,14 @@ var platformBaseAllowlist = map[string]bool{
 	// Platform infrastructure — present on every node regardless of installed services.
 	"awareness":             true,
 	"backups":               true,
+	// state/ is the platform-managed installation-state directory. It holds
+	// post-install ownership records (e.g. state/scylladb/ownership.json) that
+	// the package post-install scripts and install-day0.sh use to detect whether
+	// infrastructure components were successfully installed on this node. It is
+	// written by platform packages, not by Globular services, so it does not
+	// appear in any service inventory. See packages/metadata/scylladb/scripts/
+	// post-install.sh and scripts/release/install-day0.sh.
+	"state":                 true,
 	"bootstrap.enabled":     true,
 	"config":                true,
 	"config.json":           true,
