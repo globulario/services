@@ -16,6 +16,8 @@ func (installedStateRuntimeMismatch) ID() string       { return "installed_state
 func (installedStateRuntimeMismatch) Category() string { return "convergence" }
 func (installedStateRuntimeMismatch) Scope() string    { return "node" }
 
+const activatingDriftGrace = 2 * time.Minute
+
 func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
 	var findings []Finding
 	now := time.Now()
@@ -45,6 +47,8 @@ func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Conf
 		if inv == nil {
 			continue
 		}
+		driftAge := snap.NodeDriftAge[nodeID]
+		inHashDrift := driftAge > 0
 
 		lastSeen := node.GetLastSeen().AsTime()
 		age := now.Sub(lastSeen)
@@ -88,6 +92,12 @@ func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Conf
 			case !ok:
 				mismatch = true
 				reason = fmt.Sprintf("runtime unit missing (%s)", unit)
+			case state == "activating" && inHashDrift && driftAge <= activatingDriftGrace:
+				// During a fresh desired->applied convergence wave, units may
+				// legitimately report "activating" for a short window.
+				// Keep the mismatch signal for stuck activations, but suppress
+				// immediate rollout noise.
+				continue
 			case state != "active":
 				mismatch = true
 				reason = fmt.Sprintf("runtime unit state=%s (%s)", state, unit)

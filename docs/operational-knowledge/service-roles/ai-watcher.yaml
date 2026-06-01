@@ -39,10 +39,15 @@ entries:
       - Write to ai-memory directly (ai-executor records the incident outcome)
 
       **Failure modes**:
-      - If ai-watcher is down: ai-executor sees no events; incident pipeline goes dark
-      - If subscriptions are dropped: events accumulate in upstream services until they GC;
-        on reconnect, ai-watcher does NOT replay history — events between are lost. The
-        doctor finding catalog is the authoritative state for "what's wrong now".
+      - If ai-watcher is down: ai-executor sees no events; incident pipeline goes dark.
+        Cluster still heals through deterministic convergence — AI observability is supplementary.
+      - If subscriptions are dropped: events accumulate in upstream services until GC;
+        on reconnect, ai-watcher does NOT replay history — events in the gap are lost.
+        The doctor finding catalog is the authoritative state for "what's wrong now";
+        use `mcp__globular__cluster_get_doctor_report(freshness="fresh")` to recover context.
+      - If ai-watcher is overwhelmed by event flooding (common when doctor has the event
+        amplification bug): check for 100+ identical events/min; see
+        `ops.role.cluster-doctor.event-amplification`.
 
   - id: ops.role.ai-watcher.aggregation-discipline
     type: DECISION

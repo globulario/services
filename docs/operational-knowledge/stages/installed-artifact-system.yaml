@@ -125,6 +125,41 @@ entries:
       Convergence consequence:
       - verifier/doctor will surface binary hash mismatch, runtime drift, or identity conflicts.
 
+  - id: ops.artifacts.stable-ip-in-templates
+    type: DECISION
+    title: "Template variable {{.NodeIP}} MUST be the stable interface IP — never the VIP"
+    tags: [always, artifacts, keepalived, vip-contamination, templates]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      Package spec template variables are resolved at install time by the node-agent.
+      The `{{.NodeIP}}` variable is resolved via `StableIP(clusterVIP)`, which explicitly
+      excludes the keepalived VIP. This is CRITICAL.
+
+      Why: on a node that holds the keepalived VIP, `node.Identity.Ips` includes the
+      floating VIP (e.g. 10.0.0.100) BEFORE the stable interface IP. If the template
+      used `PrimaryIP()` or `node.Identity.Ips[0]`, the installed config would contain
+      the VIP, making it non-functional when the VIP moves to a different node.
+
+      Examples of where `{{.NodeIP}}` or `StableIP` is used:
+      - MinIO env file: MINIO_VOLUMES, peer URL
+      - ScyllaDB scylla.yaml: `listen_address`, `rpc_address`
+      - etcd config: `advertise-peer-urls`, `advertise-client-urls`
+
+      Rule for spec authors:
+      - ALWAYS use `{{.NodeIP}}` for node-local addresses in config files.
+      - NEVER use `{{.VIP}}` or derive node IP from environment at startup time.
+      - If a config file needs to list ALL cluster node IPs, read from etcd — the
+        node-agent provides stable IPs there.
+
+      Awareness invariant: `identity.stable_node_identity_not_floating_vip`
+    links:
+      awareness_invariants:
+        - identity.stable_node_identity_not_floating_vip
+      awareness_failure_modes:
+        - vip_contamination.node_routable_ip_returns_vip
+
   - id: ops.artifacts.current-audit-notes
     type: WARNING
     title: "Current audit note: naming consistency hotspots"

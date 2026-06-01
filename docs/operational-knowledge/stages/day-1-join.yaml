@@ -240,6 +240,69 @@ entries:
         - ops.day-1.join.curl-script-not-tarball
         - ops.day-1.join.completion-checklist
 
+  - id: ops.day-1.join.stale-dep-blocks
+    type: DEBUG
+    title: "Stale dep-blocks permanently block node convergence — how to diagnose and clear"
+    tags: [day-1, day-2, join, convergence, debug]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, node-agent]
+    content: |
+      **What are dep-blocks?**
+      Dependency-block records are written to etcd by the node-agent when a package cannot
+      be installed because a prerequisite hasn't been met yet. Key:
+      `/globular/convergence/nodes/<node-id>/packages/<kind>/<name>/latest`
+
+      **The bug**: `writeRuntimeDepBlock` records are NEVER auto-cleared once written. If
+      a dependency becomes active AFTER the block was written, the block key persists
+      forever in etcd. On every subsequent convergence cycle, the node-agent reads the
+      stale BLOCKED record and skips installation — node never converges, and doctor never
+      surfaces the root cause clearly.
+
+      **When it manifests**: most commonly after a join that was interrupted mid-way (dep
+      satisfied later, but the BLOCKED key was already written). Can also appear when a
+      node-agent is restarted with a new package set that has deps that were already active.
+
+      **How to diagnose**:
+      ```bash
+      # List all convergence keys for a node
+      etcdctl get /globular/convergence/nodes/<node-id>/ --prefix --keys-only
+
+      # Look for any key with BLOCKED status
+      etcdctl get /globular/convergence/nodes/<node-id>/packages/ --prefix | grep BLOCKED
+
+      # Check the action key too (separate from the status key)
+      etcdctl get /globular/convergence/nodes/<node-id>/ --prefix | jq -r 'select(.status == "BLOCKED")'
+      ```
+
+      **How to clear (recovery procedure)**:
+      1. Identify the stale BLOCKED keys
+      2. Delete each BLOCKED status key AND its corresponding action key:
+         ```bash
+         etcdctl del /globular/convergence/nodes/<node-id>/packages/<kind>/<name>/latest
+         etcdctl del /globular/convergence/nodes/<node-id>/packages/<kind>/<name>/action
+         ```
+      3. Force a convergence re-evaluation:
+         ```bash
+         globular cluster services repair --node <node-id>
+         ```
+      4. Observe that the node-agent picks up the package and installs it on the next heartbeat.
+
+      **Long-term fix**: This is a known architectural gap (INC-2026-0005). The fix is to
+      invalidate dep-block records when their blocking dependency becomes active. Until the
+      fix ships, this manual procedure is the remediation path.
+
+      **AI agent instructions**: When a node is stuck at a convergence phase and not advancing
+      for >5 minutes with no other obvious errors, check for stale dep-blocks FIRST — it's
+      the most silent and most common cause of permanent convergence stall.
+    links:
+      awareness_failure_modes:
+        - reconcile.stale_dep_block_persists_after_dep_active
+      cli_commands:
+        - "etcdctl get /globular/convergence/nodes/<node-id>/ --prefix --keys-only"
+        - "etcdctl del /globular/convergence/nodes/<node-id>/packages/<kind>/<name>/latest"
+        - "globular cluster services repair --node <node-id>"
+
   - id: ops.day-1.join.completion-checklist
     type: REFERENCE
     title: "How to know day-1 is actually done"

@@ -294,3 +294,33 @@ func TestInstalledStateRuntimeMismatch_KeepalivedFiresWhenIngressSpecMissing(t *
 		t.Error("missing ingress spec must NOT suppress the finding; fail-open is the contract")
 	}
 }
+
+func TestInstalledStateRuntimeMismatch_ActivatingSuppressedDuringFreshDrift(t *testing.T) {
+	snap := &collector.Snapshot{
+		Nodes:       []*cluster_controllerpb.NodeRecord{freshNodeRecord("n1")},
+		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{"n1": freshNodeHealth("n1", map[string]string{"search": "1.2.131"})},
+		Inventories: map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits(unit("globular-search.service", "activating"))},
+		NodeDriftAge: map[string]time.Duration{
+			"n1": 30 * time.Second,
+		},
+	}
+	findings := (installedStateRuntimeMismatch{}).Evaluate(snap, testConfig())
+	if len(findings) != 0 {
+		t.Fatalf("activating during fresh drift should be suppressed, got %d findings: %+v", len(findings), findings)
+	}
+}
+
+func TestInstalledStateRuntimeMismatch_ActivatingFiresWhenDriftPersists(t *testing.T) {
+	snap := &collector.Snapshot{
+		Nodes:       []*cluster_controllerpb.NodeRecord{freshNodeRecord("n1")},
+		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{"n1": freshNodeHealth("n1", map[string]string{"search": "1.2.131"})},
+		Inventories: map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits(unit("globular-search.service", "activating"))},
+		NodeDriftAge: map[string]time.Duration{
+			"n1": 3 * time.Minute,
+		},
+	}
+	findings := (installedStateRuntimeMismatch{}).Evaluate(snap, testConfig())
+	if len(findings) == 0 {
+		t.Fatal("activating beyond grace window must fire mismatch finding")
+	}
+}

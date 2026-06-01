@@ -23,7 +23,7 @@ docs/operational-knowledge/
 ├── dns-records.md           # canonical reference: managing DNS records (A, AAAA, MX, TXT, SRV, CAA, etc.)
 ├── stages/                  # lifecycle-stage seed entries (what's true at this stage)
 │   ├── day-0-bootstrap.yaml           ✓ shipped
-│   ├── day-1-join.yaml                ✓ shipped
+│   ├── day-1-join.yaml                ✓ shipped (join procedure, stale dep-block recovery)
 │   ├── day-1-keepalived.yaml          ✓ shipped
 │   ├── day-1-objectstore.yaml         ✓ shipped
 │   ├── day-1-deploy-pipeline.yaml     ✓ shipped
@@ -32,9 +32,10 @@ docs/operational-knowledge/
 │   ├── security-system.yaml           ✓ shipped (token/cert/key policy and lifecycle boundaries)
 │   ├── grpc-service-backbone.yaml     ✓ shipped (service/client/interceptor architecture blueprint)
 │   ├── service-version-management.yaml ✓ shipped (zz_version_generated + ldflags contract)
-│   ├── installed-artifact-system.yaml ✓ shipped (filesystem layout, authority boundary, permission model)
+│   ├── installed-artifact-system.yaml ✓ shipped (filesystem layout, authority boundary, permission model,
+│   │                                              StableIP/VIP template rule)
 │   ├── awareness-graph-operations.yaml ✓ shipped (build pipeline, cluster refresh, annotation authoring)
-│   └── day-2-maintenance.yaml         ✓ shipped
+│   └── day-2-maintenance.yaml         ✓ shipped (incl. etcd NOSPACE alarm recovery)
 ├── runbooks/                # codified procedures
 │   ├── add-node-to-minio-pool.yaml              ✓ shipped
 │   ├── recover-stuck-topology-apply.yaml        ✓ shipped
@@ -53,7 +54,7 @@ docs/operational-knowledge/
 └── service-roles/           # canonical "what is this service for" entries
     ├── awareness-graph.yaml         ✓ shipped (routing trap, direct-dial, 4 RPCs, activation rules)
     ├── cluster-controller.yaml      ✓ shipped
-    ├── cluster-doctor.yaml          ✓ shipped
+    ├── cluster-doctor.yaml          ✓ shipped (role, invariants catalog, event-amplification bug)
     ├── node-agent.yaml              ✓ shipped
     ├── repository.yaml              ✓ shipped
     ├── mcp.yaml                     ✓ shipped (untracked service, 148+ tools, auth, failure modes)

@@ -42,6 +42,9 @@ entries:
       - Doctor freshness > 60s (snapshot stale)
       - ai-memory empty for >24h (the watcher → executor → memory pipeline is dark)
       - `bootstrap.enabled` flag present on any node post-day-1
+      - A node stuck at a convergence phase for >5min with no obvious errors (check for stale
+        dep-blocks at `/globular/convergence/nodes/<id>/packages/*/latest` — see
+        `ops.day-1.join.stale-dep-blocks` for the recovery procedure)
 
   - id: ops.day-2.cert-lifecycle
     type: REFERENCE
@@ -98,6 +101,73 @@ entries:
       - scylla — same
       - minio — same; topology changes are destructive (see add-node-to-minio-pool runbook)
       - keepalived — VIP movement during restart; clients in mid-call may break
+
+  - id: ops.day-2.etcd-nospace-alarm
+    type: DEBUG
+    title: "etcd NOSPACE alarm — cluster write operations freeze until compacted"
+    tags: [day-2, etcd, storage, alarm, debug]
+    applies_when:
+      cluster_phases: [day-2]
+      services_present: [cluster-controller]
+    content: |
+      etcd has a built-in storage quota (default 2GiB). When the backend DB exceeds the
+      quota, etcd raises a NOSPACE alarm and REJECTS ALL WRITE OPERATIONS. Reads still
+      work. The cluster appears partially healthy (nodes visible, queries answer) but NO
+      state mutation works: no workflow dispatches, no heartbeat writes, no package installs.
+
+      **Symptoms**:
+      - Controller logs: `etcdserver: mvcc: database space exceeded`
+      - Any write RPC to etcd returns: `rpc error: code = ResourceExhausted desc = etcdserver: mvcc: database space exceeded`
+      - Workflows stay PENDING forever; node states don't update
+      - `globular cluster nodes list` shows stale data but the call succeeds
+
+      **Diagnosis**:
+      ```bash
+      # Check for active alarms on any etcd node
+      etcdctl --endpoints=https://localhost:2379 alarm list
+
+      # Check current DB size vs quota
+      etcdctl --endpoints=https://localhost:2379 endpoint status --write-out=table
+      # Look at DB SIZE and DB SIZE IN USE columns
+      ```
+
+      **Recovery (must be done on ALL etcd members)**:
+      ```bash
+      # 1. Compact: remove old revisions (keeps latest revision only)
+      REV=$(etcdctl --endpoints=https://localhost:2379 endpoint status --write-out=json \
+            | jq '.[0].Status.header.revision')
+      etcdctl --endpoints=https://localhost:2379 compact $REV
+
+      # 2. Defragment: reclaim the freed space
+      etcdctl --endpoints=https://localhost:2379 defrag
+
+      # 3. Disarm the alarm ONLY after defrag succeeds and DB size is below quota
+      etcdctl --endpoints=https://localhost:2379 alarm disarm
+
+      # 4. Verify writes work again
+      etcdctl --endpoints=https://localhost:2379 put /globular/test/nospace-recovery-probe ok
+      etcdctl --endpoints=https://localhost:2379 del /globular/test/nospace-recovery-probe
+      ```
+
+      **Prevention**:
+      - etcd auto-compaction is configured in `/var/lib/globular/config/etcd.yaml` via
+        `auto-compaction-mode: revision` and `auto-compaction-retention: 1000`.
+        Verify these are present on every node.
+      - Watch the etcd DB size via Prometheus: `etcd_mvcc_db_total_size_in_bytes`
+      - Alert threshold: > 1.5GiB (75% of default 2GiB quota)
+
+      **Important**: Do NOT disarm the alarm before defragmenting. Defrag may temporarily
+      need MORE space before reclaiming — disarming first risks immediate re-alarm.
+      Always compact → defrag → disarm in order.
+    links:
+      awareness_failure_modes:
+        - etcd.nospace_alarm
+      cli_commands:
+        - "etcdctl alarm list"
+        - "etcdctl endpoint status --write-out=table"
+        - "etcdctl compact <revision>"
+        - "etcdctl defrag"
+        - "etcdctl alarm disarm"
 
   - id: ops.day-2.audit-and-event-stream
     type: REFERENCE

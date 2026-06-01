@@ -79,6 +79,113 @@ entries:
       had only 1 entry. The pipeline EXISTS but isn't running consistently. See
       `failure_modes.yaml: ops_knowledge.seeder_workflow_skipped` for one part of the gap.
 
+  - id: ops.role.cluster-doctor.key-invariants
+    type: REFERENCE
+    title: "cluster-doctor — invariants it enforces and finding categories"
+    tags: [day-1, day-2, cluster-doctor, invariants, reference]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-doctor]
+    content: |
+      cluster-doctor checks these categories of invariants every cycle. AI agents should
+      know which finding IDs map to which category:
+
+      **Identity / claims vs proofs** (`doctor.must_compare_claims_to_proofs`):
+      - Services claim versions/states via heartbeat. Doctor verifies claims against
+        proofs (SHA256 of running binary, systemd active status, actual mTLS cert SANs).
+      - Finding IDs: `runtime_identity_unproven`, `service.old_pid_after_upgrade`,
+        `unit_hash_drift`, `entrypoint_checksum_mismatch`
+
+      **Convergence / desired vs installed** (`convergence.no_infinite_retry`):
+      - Desired state diverges from installed for > threshold. Retries are never infinite.
+      - Finding IDs: `release_workflow_retry_storm`, `service_version_drift`,
+        `desired_not_converging`
+
+      **Artifact layout** (`artifact.layout_contract`):
+      - Unexpected directories under `/var/lib/globular/` that aren't in the canonical
+        allowlist. Finding IDs: `unknown_state_dir`, `legacy_alias_dir`
+
+      **Platform base allowlist** (current canonical list — NOT expandable without documenting why):
+      `pki/`, `etcd/`, `config/`, `services/`, `node-agent/`, `cluster_controller/`,
+      `state/`, `repository/`, `staging/`, `packages/`, `domains/`, `objectstore/`,
+      `minio/`, `prometheus/`, `awareness/`, `operational-knowledge/`,
+      `scylla-manager/`, `scylla-manager-agent/`, `mcp/`, `keys/`, `bootstrap.enabled`
+
+      **Forbidden fix** (`forbidden.fix.layout_drift_by_expanding_allowlist_only`):
+      Do NOT add a new directory to the allowlist just to silence the finding. Document
+      WHY the directory belongs there AND add it to the canonical layout contract
+      (`ops.artifacts.subdir-contract`). The allowlist is documentation, not a bypass.
+
+      **etcd health** (`etcd.endpoint_reachability`):
+      - Each cluster member's etcd peer connection is verified.
+      - Finding IDs: `etcd_member_unreachable`, `etcd_member_split_brain`, `etcd_nospace`
+
+      **PKI / certificates**:
+      - TLS cert SAN set verified against cluster VIP, node hostnames, domain.
+      - Finding IDs: `cert_sans_missing_vip`, `cert_expiring`, `ca_not_published`
+
+      **ScyllaDB**:
+      - ScyllaDB cluster registration with scylla-manager verified.
+      - Finding ID: `scylla_manager.cluster_registered`
+        (IDs: `scylla_manager_cluster_unregistered`)
+
+      **Ops knowledge seed integrity** (`ops_knowledge.seed_integrity`):
+      - Re-computes SHA256 of each seed entry and compares against bundle manifest.
+      - Finding ID: `ops_knowledge.seed_drift_post_install` (severity=warning, advisory).
+
+      **Hard-blocked actions never execute** (`doctor.hard_blocked_actions_never_execute`):
+      - Doctor marks certain action categories as hard-blocked (never attempt auto-remediation).
+        These include: topology apply, CA rotation, cluster membership changes.
+        Hard-blocked findings are surfaced with severity=critical and escalated to Tier 2.
+    links:
+      awareness_invariants:
+        - doctor.must_compare_claims_to_proofs
+        - doctor.hard_blocked_actions_never_execute
+        - convergence.no_infinite_retry
+        - etcd.endpoint_reachability
+        - ops_knowledge.seed_integrity
+      awareness_failure_modes:
+        - service.old_pid_after_upgrade
+        - etcd.nospace_alarm
+        - pki.ca_not_published
+        - ops_knowledge.seed_drift_post_install
+
+  - id: ops.role.cluster-doctor.event-amplification
+    type: DEBUG
+    title: "Doctor event amplification — the lookup cache vs delta authority split"
+    tags: [day-1, day-2, cluster-doctor, debug, incident]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-doctor]
+    content: |
+      **Incident INC-2026-0004**: Doctor was emitting 100+ phantom finding events per minute
+      because `cacheFindings` was using a SINGLE cache for two different purposes:
+      1. Lookup deduplication (any scope: per-node, per-cluster, per-service)
+      2. Delta authority (cluster-wide only: "emit this finding to the event stream")
+
+      When the lookup cache was shared with cluster-wide delta authority, a per-node
+      finding (e.g., "node ryzen has unknown_state_dir") would be treated as "not yet
+      seen cluster-wide" on every cycle, even though it was already emitted. Result:
+      100+ events/min for the same stable finding, flooding ai-watcher and overwhelming
+      the event pipeline.
+
+      **Fix**: Split the two caches:
+      - Lookup cache: keyed by `(finding_id, scope, evidence_hash)` — any scope
+      - Delta authority: keyed by `(finding_id, cluster-wide-scope, evidence_hash)` — cluster-wide ONLY
+
+      **Impact on operations**: If doctor appears to be flooding ai-watcher with repeated
+      identical events, suspect this pattern. Check the doctor version; if pre-a821e0fa,
+      the fix has not been deployed. Force-deploy the latest cluster-doctor package.
+
+      **Diagnosis**:
+      ```bash
+      journalctl -u globular-cluster-doctor.service | grep 'emit.*finding' | wc -l
+      # If > 20 per minute for stable cluster, suspect event amplification
+      ```
+    links:
+      awareness_failure_modes:
+        - doctor.finding_event_amplification
+
   - id: ops.role.cluster-doctor.failure-modes
     type: DEBUG
     title: "cluster-doctor — common failure modes"

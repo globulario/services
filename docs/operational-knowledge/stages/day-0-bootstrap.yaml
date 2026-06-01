@@ -3,9 +3,14 @@ file_kind: stage
 metadata:
   title: "Day-0 — Initial cluster bootstrap"
   description: |
-    What is true about a cluster immediately after `globular cluster bootstrap` on the first node.
-    These entries describe the baseline state, the services that exist, and what does NOT yet work
-    (so future AI sessions don't assume capabilities the cluster hasn't reached yet).
+    What is true about a cluster immediately after the Day-0 install script (`install-day0.sh`)
+    completes on the founding node. These entries describe the baseline state, the services that
+    exist, and what does NOT yet work (so future AI sessions don't assume capabilities the cluster
+    hasn't reached yet).
+
+    Entry point: `sudo bash scripts/release/install-day0.sh` (served from the release bundle or
+    the controller gateway at `/install/day0`). The script calls `globular cluster bootstrap`
+    internally — operators do NOT run `globular cluster bootstrap` directly.
   source_documents:
     - docs/operators/day-0-1-2-operations.md
     - docs/operators/installation.md
@@ -21,7 +26,7 @@ entries:
       cluster_phases: [day-0]
       services_present: []
     content: |
-      After `globular cluster bootstrap` on the founding node, the cluster has:
+      After the Day-0 install script (`install-day0.sh`) completes on the founding node, the cluster has:
 
       - **One node** (the founding node), with profiles `core`, `control-plane`, `storage`.
       - **etcd**: single-node, listening on this node only (no quorum yet).
@@ -44,7 +49,7 @@ entries:
       awareness_invariants:
         - founding.quorum.three_nodes_required
       cli_commands:
-        - "globular cluster bootstrap"
+        - "sudo bash scripts/release/install-day0.sh"
         - "globular cluster nodes list"
 
   - id: ops.day-0.bootstrap.flag-and-ttl
@@ -93,8 +98,8 @@ entries:
 
       The legacy `/etc` credentials path does NOT exist. If you see a doc reference to it, it is wrong.
     links:
-      awareness_invariants:
-        - pki.ca_metadata_must_be_published
+      awareness_failure_modes:
+        - pki.ca_not_published
 
   - id: ops.day-0.etcd.single-node-warning
     type: DECISION
@@ -139,9 +144,9 @@ entries:
       stop. That is a forbidden fix. Resolve from etcd or error.
     links:
       awareness_invariants:
-        - service.endpoint.etcd_address_reachability
+        - etcd.endpoint_reachability
       awareness_failure_modes:
-        - service.endpoint.os_getenv_for_addresses
+        - service.os_getenv_for_config_addresses
 
   - id: ops.day-0.observability.dark
     type: REFERENCE
