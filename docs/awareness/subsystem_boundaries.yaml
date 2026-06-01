@@ -99,7 +99,7 @@ subsystem_boundaries:
       - convergence decisions (owned by controller)
       - package state (owned by repository/node-agent)
     authoritative_sources:
-      compiled_context: awareness graph (YAML → SQLite, stale possible)
+      compiled_context: awareness graph (YAML → Oxigraph RDF, stale possible)
       live_context: etcd + node-agent + runtime collector snapshot
     dangerous_confusions:
       - awareness graph output is compiled context, not live cluster state

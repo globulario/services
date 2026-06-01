@@ -15,7 +15,7 @@ forbidden_fixes:
 ## Awareness Graph Is Compiled Context, Not Authority
 
 The awareness graph connects source code, invariants, failure modes, design
-decisions, runtime evidence, and learned scars into a queryable SQLite graph.
+decisions, runtime evidence, and learned scars into a queryable Oxigraph RDF graph.
 It is a *compiled semantic context map* — not an operational source of truth.
 
 Cluster decisions (what to install, what to start, what version to run) come from
