@@ -423,7 +423,25 @@ install_list() {
   done
 }
 
-SCYLLADB_PKG="scylladb_2025.3.8_linux_amd64.tgz"
+SCYLLADB_PKG="scylladb_2025.3.8_linux_amd64.tgz"  # canonical fallback name for logging
+
+# Resolve scylladb package by prefix — version-agnostic, same approach as install_list().
+# Also searches /var/lib/globular/packages/ (where join-script stages packages) as a
+# secondary location so Day-0 re-runs on an already-joined node find the artifact.
+_resolve_scylladb_pkg() {
+  local dirs=("$PKG_DIR" "/var/lib/globular/packages")
+  for dir in "${dirs[@]}"; do
+    [[ -d "$dir" ]] || continue
+    local match
+    match=$(ls "$dir/scylladb_"*"_linux_amd64.tgz" 2>/dev/null | head -1) || match=""
+    if [[ -n "$match" ]] && [[ -f "$match" ]]; then
+      echo "$match"
+      return 0
+    fi
+  done
+  return 1
+}
+SCYLLADB_PKG_PATH=$(_resolve_scylladb_pkg || true)
 
 BOOTSTRAP_MINIO_PKGS=(
   # sha256sum is installed first so the /usr/local/bin/sha256sum wrapper is
@@ -597,11 +615,13 @@ if systemctl list-unit-files 2>/dev/null | grep -q "^scylla-server.service"; the
 else
   log_substep "ScyllaDB not found — installing..."
 
-  # Install the ScyllaDB Globular package (sets up apt repo + installs OS packages)
-  if [[ -f "$PKG_DIR/$SCYLLADB_PKG" ]]; then
-    run_install "$PKG_DIR/$SCYLLADB_PKG"
+  # Install the ScyllaDB Globular package via bundled .deb files (no internet needed).
+  # Falls back to direct apt install only when no scylladb_*.tgz is found anywhere.
+  if [[ -n "${SCYLLADB_PKG_PATH:-}" ]] && [[ -f "$SCYLLADB_PKG_PATH" ]]; then
+    log_substep "Using bundled package: $(basename "$SCYLLADB_PKG_PATH")"
+    run_install "$SCYLLADB_PKG_PATH"
   else
-    log_substep "Warning: $SCYLLADB_PKG not found, attempting direct apt install..."
+    log_substep "Warning: no scylladb package found in $PKG_DIR or /var/lib/globular/packages, attempting direct apt install..."
     # Only import GPG key and configure apt repo when falling back to direct apt install
     mkdir -p /etc/apt/keyrings
     if [[ ! -f /etc/apt/keyrings/scylladb.gpg ]]; then
