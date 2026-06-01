@@ -1,10 +1,1 @@
 code_symbols:
-  - id: globular.platform:code.go.platform_evidence
-    namespace: globular.platform
-    language: go
-    file: golang/evidence/trust.go
-    component: platform_evidence
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.evidence.provenance_trust_levels

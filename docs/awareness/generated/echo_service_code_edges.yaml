@@ -1,25 +1,4 @@
 code_edges:
-  - from: globular.examples.echo_service:code.go.server
-    relation: implements
-    to: globular.examples.echo_service:intent.echo_service_is_minimal_grpc_reference
-  - from: globular.examples.echo_service:code.go.server.config.Config
-    relation: implements
-    to: globular.examples.echo_service:intent.echo_service_is_minimal_grpc_reference
-  - from: globular.examples.echo_service:code.go.server.handler.server_Echo
-    relation: enforces
-    to: globular.examples.echo_service:invariant.echo_rpc_is_stateless
-  - from: globular.examples.echo_service:code.go.server.handler.server_Echo
-    relation: enforces
-    to: globular.examples.echo_service:invariant.echo_rpc_preserves_message_bytes
-  - from: globular.examples.echo_service:code.go.server.handler.server_Echo
-    relation: implements
-    to: globular.examples.echo_service:intent.echo_rpc_returns_input_unchanged
-  - from: globular.examples.echo_service:code.go.server.handler.server_Echo
-    relation: tested_by
-    to: golang/echo/echo_server/server_test.go:TestBehaviorInvariant
-  - from: globular.examples.echo_service:code.go.server.handler.server_Echo
-    relation: tested_by
-    to: golang/echo/echo_server/server_test.go:TestEchoHandler
   - from: globular.examples.echo_service:code.go.server.test.TestBehaviorInvariant
     relation: enforces
     to: globular.examples.echo_service:intent.echo_rpc_returns_input_unchanged

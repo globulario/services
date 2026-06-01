@@ -1,13 +1,1 @@
 code_edges:
-  - from: globular.platform:code.go.platform_domain
-    relation: implements
-    to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
-  - from: globular.platform:code.go.platform_domain
-    relation: implements
-    to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
-  - from: globular.platform:code.go.platform_domain
-    relation: implements
-    to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
-  - from: globular.platform:code.go.platform_domain
-    relation: implements
-    to: globular.platform:intent.etcd.is_source_of_truth

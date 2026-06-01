@@ -1,34 +1,4 @@
 code_edges:
-  - from: globular.platform:code.go.platform.rbac.access.server_validateAccess
-    relation: enforces
-    to: globular.platform:invariant.audit.records_must_be_correlated_and_retained
-  - from: globular.platform:code.go.platform.rbac.access.server_validateAccess
-    relation: implements
-    to: globular.platform:intent.rbac.permission_changes_require_audit_and_owner
-  - from: globular.platform:code.go.platform.rbac.access.server_validateAccess
-    relation: implements
-    to: globular.platform:intent.security.deny_overrides_allow
-  - from: globular.platform:code.go.platform_rbac
-    relation: implements
-    to: globular.platform:intent.rbac.permission_changes_require_audit_and_owner
-  - from: globular.platform:code.go.platform_rbac
-    relation: implements
-    to: globular.platform:intent.rbac.permission_changes_require_audit_and_owner
-  - from: globular.platform:code.go.platform_rbac
-    relation: implements
-    to: globular.platform:intent.rbac.permission_changes_require_audit_and_owner
-  - from: globular.platform:code.go.platform_rbac
-    relation: implements
-    to: globular.platform:intent.security.deny_overrides_allow
-  - from: globular.platform:code.go.platform_rbac
-    relation: implements
-    to: globular.platform:intent.security.deny_overrides_allow
-  - from: globular.platform:code.go.platform_rbac
-    relation: implements
-    to: globular.platform:intent.security.deny_overrides_allow
-  - from: globular.platform:code.go.platform_rbac
-    relation: implements
-    to: globular.platform:intent.security.deny_overrides_allow
   - from: globular.platform:code.go.platform_rbac
     relation: implements
     to: globular.platform:intent.security.deny_overrides_allow

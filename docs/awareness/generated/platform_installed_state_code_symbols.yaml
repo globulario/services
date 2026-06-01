@@ -17,9 +17,3 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.state.installed_not_catalog
-  - id: globular.platform:code.go.platform_installed_state
-    namespace: globular.platform
-    language: go
-    file: golang/installed_state/schema.go
-    component: platform_installed_state
-    risk: medium

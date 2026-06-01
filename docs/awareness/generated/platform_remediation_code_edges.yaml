@@ -1,13 +1,1 @@
 code_edges:
-  - from: globular.platform:code.go.platform_remediation
-    relation: implements
-    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
-  - from: globular.platform:code.go.platform_remediation
-    relation: implements
-    to: globular.platform:intent.operator.override_intent
-  - from: globular.platform:code.go.platform_remediation
-    relation: implements
-    to: globular.platform:intent.remediation.failure_rate_policy
-  - from: globular.platform:code.go.platform_remediation
-    relation: implements
-    to: globular.platform:intent.remediation.must_go_through_workflow

@@ -2,24 +2,6 @@ code_symbols:
   - id: globular.platform:code.go.platform_verifier
     namespace: globular.platform
     language: go
-    file: golang/verifier/attestation_bridge.go
-    component: platform_verifier
-    risk: critical
-    annotations:
-      implements:
-        - globular.platform:intent.runtime.identity.requires_proof
-  - id: globular.platform:code.go.platform_verifier
-    namespace: globular.platform
-    language: go
-    file: golang/verifier/gap_classifier.go
-    component: platform_verifier
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.runtime.identity_requires_verification
-  - id: globular.platform:code.go.platform_verifier
-    namespace: globular.platform
-    language: go
     file: golang/verifier/verifier.go
     component: platform_verifier
     risk: critical

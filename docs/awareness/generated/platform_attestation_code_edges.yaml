@@ -1,4 +1,1 @@
 code_edges:
-  - from: globular.platform:code.go.platform_attestation
-    relation: implements
-    to: globular.platform:intent.runtime.identity.requires_proof
