@@ -1,0 +1,40 @@
+id: repository.resolver_is_deterministic_or_errors
+level: mechanism
+title: ResolveArtifact returns exactly one build_id or a typed error — ambiguity and absence are both hard errors
+intent: |
+  The resolver contract is: filters must narrow candidates to exactly one build_id, or fail loudly.
+  Multiple candidates after applying version/channel/platform filters → FAILED_PRECONDITION (ambiguous).
+  Zero candidates → NOT_FOUND with a reason string.
+  Success = exactly one manifest with coherent pipeline state (publish_state=PUBLISHED AND
+  artifact_state ∈ {PUBLISHED, ""}).
+  Node-agent distinguishes these three outcomes to decide whether to wait, retry, or escalate.
+  Silently returning the first candidate when multiple match would install the wrong artifact.
+agent_guidance: |
+  Never return a manifest without asserting exactly one candidate. The three error semantics
+  (success/FAILED_PRECONDITION/NOT_FOUND) are consumed differently by the node-agent:
+  NOT_FOUND = wait/retry, FAILED_PRECONDITION = escalate to operator.
+  isRowInstallable must check BOTH publish_state AND artifact_state.
+bad_smells:
+  - returning nil manifest without error
+  - returning first candidate when multiple match
+  - treating publish_state=PUBLISHED as sufficient without checking artifact_state
+  - suppressing FAILED_PRECONDITION and falling through to NOT_FOUND
+activation_triggers:
+  - ResolveArtifact
+  - resolver
+  - ambiguous
+  - isRowInstallable
+  - build_id resolution
+expressed_by:
+  - golang/repository/repository_server/resolver.go
+zooms_out_to:
+  - repository.lifecycle_state_machine
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - package.identity_requires_build_id
+required_tests:
+  - repository:TestResolverAmbiguousReturnsFailedPrecondition
+  - repository:TestResolverMissingReturnsNotFound
+  - repository:TestResolverBrokenStateExcluded
+status: extracted_candidate

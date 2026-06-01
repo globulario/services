@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.gc
+// @awareness file_role=soft_delete_gc_that_never_touches_security_demoted_states
+// @awareness implements=globular.platform:intent.repository.gc_preserves_safety_states
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness risk=high
 package main
 
 // gc.go — Repository garbage collection (soft-delete via ARCHIVED state).

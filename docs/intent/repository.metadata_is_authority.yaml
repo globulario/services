@@ -28,6 +28,8 @@ zooms_in_to:
 - repository.lifecycle_state_machine
 - repository.signature_policy_gates_trust
 - package.identity_requires_build_id
+- repository.local_cas_is_installability_authority
+- repository.namespace_ownership_protects_reserved_prefixes
 related_to:
 - objectstore.topology_requires_contract
 required_tests:

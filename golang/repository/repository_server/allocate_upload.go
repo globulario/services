@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.allocate_upload
+// @awareness file_role=exclusive_version_reservation_with_immutability_and_monotonicity_enforcement
+// @awareness implements=globular.platform:intent.repository.version_allocation_is_exclusive
+// @awareness implements=globular.platform:intent.repository.publish_is_idempotent_by_digest
+// @awareness risk=high
 package main
 
 // allocate_upload.go — Phase 4: Upload allocation protocol.

@@ -1,7 +1,52 @@
 code_edges:
+  - from: globular.platform:code.go.platform_repository.allocate_upload
+    relation: implements
+    to: globular.platform:intent.repository.publish_is_idempotent_by_digest
+  - from: globular.platform:code.go.platform_repository.allocate_upload
+    relation: implements
+    to: globular.platform:intent.repository.version_allocation_is_exclusive
+  - from: globular.platform:code.go.platform_repository.artifact_state
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.platform_repository.artifact_state
+    relation: implements
+    to: globular.platform:intent.repository.publish_pipeline_is_ordered
+  - from: globular.platform:code.go.platform_repository.blob_integrity
+    relation: implements
+    to: globular.platform:intent.repository.local_cas_is_installability_authority
+  - from: globular.platform:code.go.platform_repository.blob_integrity
+    relation: implements
+    to: globular.platform:intent.repository.metadata_is_authority
+  - from: globular.platform:code.go.platform_repository.gc
+    relation: implements
+    to: globular.platform:intent.repository.gc_preserves_safety_states
+  - from: globular.platform:code.go.platform_repository.gc
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.platform_repository.namespace
+    relation: implements
+    to: globular.platform:intent.repository.namespace_ownership_protects_reserved_prefixes
+  - from: globular.platform:code.go.platform_repository.publish_workflow
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.platform_repository.publish_workflow
+    relation: implements
+    to: globular.platform:intent.repository.publish_pipeline_is_ordered
+  - from: globular.platform:code.go.platform_repository.resolver
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.platform_repository.resolver
+    relation: implements
+    to: globular.platform:intent.repository.resolver_is_deterministic_or_errors
   - from: globular.platform:code.go.platform_repository.server
     relation: implements
     to: globular.platform:intent.repository.lifecycle_state_machine
   - from: globular.platform:code.go.platform_repository.server
     relation: implements
     to: globular.platform:intent.repository.metadata_is_authority
+  - from: globular.platform:code.go.platform_repository.signature_policy
+    relation: implements
+    to: globular.platform:intent.repository.revoked_key_is_unconditional_veto
+  - from: globular.platform:code.go.platform_repository.signature_policy
+    relation: implements
+    to: globular.platform:intent.repository.signature_policy_gates_trust

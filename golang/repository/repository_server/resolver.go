@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.resolver
+// @awareness file_role=deterministic_artifact_resolution_exactly_one_build_id_or_typed_error
+// @awareness implements=globular.platform:intent.repository.resolver_is_deterministic_or_errors
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness risk=critical
 package main
 
 // resolver.go — Deterministic artifact resolver (PR 1).

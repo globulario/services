@@ -1,0 +1,40 @@
+id: repository.gc_preserves_safety_states
+level: mechanism
+title: GC never touches security-demoted states — YANKED/QUARANTINED/REVOKED/CORRUPTED are GC-immune
+intent: |
+  ArchiveUnreachableArtifacts only considers artifacts in PUBLISHED, DEPRECATED, VERIFIED,
+  FAILED, or ORPHANED states as eligible for GC. Security-demoted states (YANKED, QUARANTINED,
+  REVOKED, CORRUPTED) are never touched — they represent operator security decisions that must
+  survive GC cycles and remain visible for audit.
+  Reachability is computed from two root sources: explicit roots from etcd desired/installed
+  state, plus retention roots (last N PUBLISHED builds per series). Only artifacts outside
+  both root sets AND in an eligible state are archived.
+agent_guidance: |
+  When adding new lifecycle states, explicitly classify them as GC-eligible or GC-immune.
+  GC-immune states are those where an operator made a trust decision. When computing
+  reachability roots, always include both etcd desired/installed state AND retention window
+  — missing either source can archive artifacts still needed by nodes.
+bad_smells:
+  - including REVOKED or QUARANTINED in the GC eligibility set
+  - running GC without computing reachability from current etcd installed/desired state
+  - treating ARCHIVED as permanent deletion (ARCHIVED is still downloadable by admins)
+  - using retention window only without etcd roots (misses artifacts installed on nodes)
+activation_triggers:
+  - ArchiveUnreachableArtifacts
+  - gc
+  - reachability
+  - GC eligibility
+  - retention window
+expressed_by:
+  - golang/repository/repository_server/gc.go
+  - golang/repository/repository_server/reachability.go
+zooms_out_to:
+  - repository.lifecycle_state_machine
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - repository.repair_is_explicit
+required_tests:
+  - repository:TestGCNeverArchivesRevokedOrQuarantined
+  - repository:TestGCReachabilityIncludesInstalledState
+status: extracted_candidate

@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.publish_workflow
+// @awareness file_role=ordered_post_upload_pipeline_law_validation_gates_promotion_to_published
+// @awareness implements=globular.platform:intent.repository.publish_pipeline_is_ordered
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness risk=high
 package main
 
 // publish_workflow.go — Unified publish pipeline.

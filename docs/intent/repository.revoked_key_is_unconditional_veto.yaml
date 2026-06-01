@@ -1,0 +1,38 @@
+id: repository.revoked_key_is_unconditional_veto
+level: mechanism
+title: REVOKED signing key is an unconditional veto — policy permissiveness cannot override it
+intent: |
+  signature_policy.go distinguishes two absence-of-trust states:
+  MISSING: no signature found — outcome depends on policy mode (permissive allows, strict blocks).
+  REVOKED_KEY: signed by a key explicitly marked revoked — unconditional veto regardless of policy.
+  An artifact signed by a revoked key cannot be installed, published, or resolved, even if the
+  operator has set require_signatures=false or is in permissive/development mode.
+  REVOKED represents explicit operator distrust, not absence of information.
+agent_guidance: |
+  When evaluating signature verdicts, always handle REVOKED_KEY before checking policy mode.
+  Never merge REVOKED_KEY with MISSING in a boolean "has signature" check. The order matters:
+  REVOKED → reject; then MISSING → check policy; then VALID → accept.
+bad_smells:
+  - treating REVOKED_KEY the same as MISSING in policy evaluation
+  - allowing policy permissive mode to override REVOKED_KEY verdict
+  - checking policy.RequireSignatures before checking for REVOKED state
+  - combining REVOKED and MISSING into a single "unsigned" bucket
+activation_triggers:
+  - REVOKED_KEY
+  - signature verdict
+  - revoked key
+  - signature policy
+  - SignatureStatus
+expressed_by:
+  - golang/repository/repository_server/signature_policy.go
+  - golang/repository/repository_server/signing.go
+zooms_out_to:
+  - repository.signature_policy_gates_trust
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - security.deny_overrides_allow
+required_tests:
+  - repository:TestRevokedKeyIsVetoRegardlessOfPolicy
+  - repository:TestMissingSignatureRespectsPolicy
+status: extracted_candidate

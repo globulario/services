@@ -1,0 +1,40 @@
+id: repository.publish_pipeline_is_ordered
+level: mechanism
+title: Post-upload publish pipeline is ordered — artifact law validation gates promotion to PUBLISHED
+intent: |
+  publish_workflow.go runs three ordered steps after a successful upload:
+  (1) Artifact law validation (hard gate) — catalog-wide rules (dependency cycles, kind
+      classification) must pass before promotion. Violation blocks promotion.
+  (2) Descriptor registration (best-effort) — publishes to Resource service for search index.
+      Failure is non-fatal; promotion proceeds regardless.
+  (3) Promote to PUBLISHED — only reached if step 1 passes.
+  This ordering ensures no artifact that violates catalog invariants becomes installable.
+  Descriptor registration failure does not hold back a valid artifact.
+agent_guidance: |
+  When adding new pre-promotion checks, add them to step 1 (law validation) to get the
+  hard-gate semantics. Do not add blocking checks in step 2. Never skip law validation
+  by jumping directly to the promote call.
+bad_smells:
+  - promoting to PUBLISHED before artifact law validation completes
+  - treating descriptor registration failure as a hard error that blocks promotion
+  - adding hard blocking checks after promotion (too late — artifact is already live)
+  - skipping the publish_workflow orchestrator and calling promote directly
+activation_triggers:
+  - publish_workflow
+  - artifact law
+  - promotion
+  - PUBLISHED state
+  - law validation
+expressed_by:
+  - golang/repository/repository_server/publish_workflow.go
+  - golang/repository/repository_server/artifact_state.go
+zooms_out_to:
+  - repository.lifecycle_state_machine
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - repository.publish_is_idempotent_by_digest
+required_tests:
+  - repository:TestPublishPipelineLawValidationBlocksPromotion
+  - repository:TestPublishPipelineDescriptorFailureIsNonFatal
+status: extracted_candidate

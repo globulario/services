@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.signature_policy
+// @awareness file_role=central_signature_policy_decision_revoked_key_is_unconditional_veto
+// @awareness implements=globular.platform:intent.repository.revoked_key_is_unconditional_veto
+// @awareness implements=globular.platform:intent.repository.signature_policy_gates_trust
+// @awareness risk=critical
 package main
 
 // signature_policy.go — Phase F Part 3 signature-installability policy.

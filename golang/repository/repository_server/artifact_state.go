@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.artifact_state
+// @awareness file_role=durable_publish_pipeline_state_machine_with_legal_transition_enforcement
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness implements=globular.platform:intent.repository.publish_pipeline_is_ordered
+// @awareness risk=critical
 package main
 
 // artifact_state.go — durable repository pipeline state machine.

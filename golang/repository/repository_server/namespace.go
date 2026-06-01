@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.namespace
+// @awareness file_role=namespace_ownership_model_with_reserved_prefix_enforcement
+// @awareness implements=globular.platform:intent.repository.namespace_ownership_protects_reserved_prefixes
+// @awareness risk=high
 package main
 
 // namespace.go — namespace and package ownership model using existing RBAC infrastructure.

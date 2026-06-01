@@ -22,6 +22,7 @@ zooms_out_to:
 - repository.metadata_is_authority
 zooms_in_to:
 - repository.build_number_collision_is_corruption
+- repository.version_allocation_is_exclusive
 related_to:
 - package.identity_tuple_must_be_unique
 change_risk:

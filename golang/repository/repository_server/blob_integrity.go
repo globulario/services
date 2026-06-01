@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.blob_integrity
+// @awareness file_role=local_posix_cas_installability_check_minio_mirror_is_not_authority
+// @awareness implements=globular.platform:intent.repository.local_cas_is_installability_authority
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness risk=high
 package main
 
 // blob_integrity.go — Canonical artifact presence verification.

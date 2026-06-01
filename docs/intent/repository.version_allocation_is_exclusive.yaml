@@ -1,0 +1,38 @@
+id: repository.version_allocation_is_exclusive
+level: mechanism
+title: Version allocation is exclusive and version lanes are immutable once PUBLISHED
+intent: |
+  AllocateUpload enforces two invariants before issuing a reservation:
+  (1) Immutability: if (publisher, name, version, platform) already has a PUBLISHED artifact,
+  re-publishing is rejected — same version + different bytes = permanent cluster drift.
+  (2) Monotonicity: for SemVer packages, new version must be > latest PUBLISHED; non-SemVer
+  (exact upstream tags) skip this check.
+  Reservations are exclusive: one per (publisher, name, version, platform) key at a time,
+  5-minute TTL, second caller gets ResourceExhausted. Upload without a prior allocation is
+  rejected — the reservation protocol serializes concurrent publishers.
+agent_guidance: |
+  Always go through AllocateUpload before uploading. Never bypass the reservation protocol.
+  Immutability check happens at allocation time, not at upload time — if allocation succeeds,
+  upload proceeds; the version lane is held exclusively.
+bad_smells:
+  - allowing upload without a prior allocation reservation
+  - skipping version monotonicity check for SemVer packages
+  - accepting re-upload of same (publisher, name, version, platform) without checking publish_state
+  - treating expired reservation as still valid
+activation_triggers:
+  - AllocateUpload
+  - reservation
+  - version immutability
+  - version monotonicity
+expressed_by:
+  - golang/repository/repository_server/allocate_upload.go
+zooms_out_to:
+  - repository.publish_is_idempotent_by_digest
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - repository.build_number_collision_is_corruption
+required_tests:
+  - repository:TestAllocateUploadRejectsRepublishSameVersion
+  - repository:TestAllocateUploadExclusiveReservation
+status: extracted_candidate

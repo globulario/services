@@ -25,6 +25,9 @@ zooms_out_to:
 zooms_in_to:
 - repository.signature_policy_gates_trust
 - repository.repair_is_explicit
+- repository.resolver_is_deterministic_or_errors
+- repository.gc_preserves_safety_states
+- repository.publish_pipeline_is_ordered
 related_to:
 - degraded_is_explicit_not_hidden
 required_tests:

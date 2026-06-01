@@ -1,0 +1,37 @@
+id: repository.local_cas_is_installability_authority
+level: mechanism
+title: Binary blob must be locally present on POSIX CAS — MinIO mirror presence is not sufficient for installability
+intent: |
+  Installability requires two conditions to both be true: (1) metadata in Scylla with
+  publish_state=PUBLISHED, AND (2) binary blob present and non-zero in the local POSIX CAS
+  at /var/lib/globular/packages/. MinIO is a best-effort mirror only — its presence does not
+  make an artifact installable. blob_integrity.go checks LOCAL store only.
+  This prevents a class of failure where MinIO is reachable but the local store is empty or
+  corrupt, leading a node to report an artifact as installable when it cannot be served.
+agent_guidance: |
+  When diagnosing "artifact not found" or install failures, always check the local POSIX store
+  first. Do not assume MinIO presence implies local presence. artifactBlobStatus() is the
+  canonical check — it returns PRESENT/MISSING/CORRUPT based on local stat + size only.
+bad_smells:
+  - checking MinIO blob presence as authority for installability
+  - treating Scylla manifest presence as proof the blob is locally available
+  - skipping blob stat check before marking artifact as installable
+  - using MinIO as fallback for local CAS reads during installation
+activation_triggers:
+  - blob_integrity
+  - artifactBlobStatus
+  - POSIX CAS
+  - local store
+  - installability
+expressed_by:
+  - golang/repository/repository_server/blob_integrity.go
+zooms_out_to:
+  - repository.metadata_is_authority
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - repository.lifecycle_state_machine
+required_tests:
+  - repository:TestBlobIntegrityLocalOnly
+  - repository:TestInstallabilityRequiresBothMetadataAndBlob
+status: extracted_candidate

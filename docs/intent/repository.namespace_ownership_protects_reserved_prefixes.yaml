@@ -1,0 +1,37 @@
+id: repository.namespace_ownership_protects_reserved_prefixes
+level: mechanism
+title: Reserved namespace prefixes are superuser-only — regular publishers cannot claim system namespaces
+intent: |
+  namespace.go hard-blocks writes to namespace prefixes globular, system, core, internal, admin
+  for any subject other than the superuser "sa". Regular publishers cannot claim these prefixes
+  regardless of their RBAC role. This prevents namespace squatting that could redirect
+  system artifact resolution to attacker-controlled packages.
+  RBAC paths derived from publisher ID (/namespaces/{publisherID}, /packages/{publisherID}/{name})
+  are immutable — there is no namespace rename operation.
+agent_guidance: |
+  When adding new reserved prefixes, add them to the hard blocklist in namespace.go AND
+  document them here. Never route a publish under a reserved prefix through a trusted-publisher
+  bypass — the check is identity-based (subject == "sa"), not role-based.
+bad_smells:
+  - allowing regular users to publish under "globular.*" or "core.*" namespaces
+  - adding reserved prefix enforcement only in RBAC roles (role check can be bypassed by superuser delegation)
+  - implementing namespace rename without updating RBAC path derivation
+  - checking reserved prefix after the manifest write rather than before AllocateUpload
+activation_triggers:
+  - namespace
+  - reserved prefix
+  - publisher ownership
+  - namespace validation
+expressed_by:
+  - golang/repository/repository_server/namespace.go
+zooms_out_to:
+  - repository.metadata_is_authority
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - security.deny_overrides_allow
+  - rbac.subject_id_normalization_prevents_bypass
+required_tests:
+  - repository:TestReservedNamespaceBlockedForRegularUser
+  - repository:TestSuperuserCanWriteReservedNamespace
+status: extracted_candidate
