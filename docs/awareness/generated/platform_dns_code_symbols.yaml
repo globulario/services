@@ -1,1 +1,33 @@
 code_symbols:
+  - id: globular.platform:code.go.platform_dns.backup_hooks
+    namespace: globular.platform
+    language: go
+    file: golang/dns/dns_server/backup_hooks.go
+    component: platform_dns.backup_hooks
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.dns.zone_list_never_regresses_to_empty
+  - id: globular.platform:code.go.platform_dns.handlers
+    namespace: globular.platform
+    language: go
+    file: golang/dns/dns_server/handlers.go
+    component: platform_dns.handlers
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.dns.record_operations_are_health_gated
+        - globular.platform:intent.dns.domain_names_normalize_before_storage
+        - globular.platform:intent.dns.record_deletion_cascades_to_rbac
+  - id: globular.platform:code.go.platform_dns.server
+    namespace: globular.platform
+    language: go
+    file: golang/dns/dns_server/server.go
+    component: platform_dns.server
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.dns.zone_list_never_regresses_to_empty
+        - globular.platform:intent.dns.zone_state_mirrors_to_etcd_for_recovery
+        - globular.platform:intent.dns.record_operations_are_health_gated
+        - globular.platform:intent.infrastructure.dns.authoritative_discovery_with_bootstrap_boundaries

@@ -1,0 +1,43 @@
+id: dns.domain_names_normalize_before_storage
+level: mechanism
+title: Domain names are lowercased and trailing-dotted before any storage operation
+status: active
+
+intent: >
+  Before any DNS record (A, AAAA, CNAME, MX, TXT, etc.) is stored or queried, the
+  domain name must be normalized: lowercased and ensured to end with a trailing dot.
+  This prevents split-key records where "Example.COM", "example.com", and "example.com."
+  are treated as three distinct keys pointing to different record sets. The DNS protocol
+  treats all of these as the same name; the storage layer must too. Normalization must
+  happen before every storage read AND write, not only on writes.
+
+agent_guidance: >
+  The normalization pattern is: strings.ToLower(strings.TrimSpace(d)) + trailing dot.
+  Apply it in both SetA and GetA paths (and all other record types). If you add a new
+  record type handler, apply normalization as the first step before any storage key
+  construction. Do not rely on callers to pre-normalize.
+
+bad_smells:
+  - new record type handler that constructs storage keys without lowercasing
+  - GetA or lookup handler that does not apply trailing-dot normalization
+  - normalization applied to writes but not reads (leading to cache misses for valid queries)
+
+activation_triggers:
+  - adding a new DNS record type handler in dns_server/handlers.go
+  - debugging "record not found" for a domain that was definitely stored
+  - editing domain key construction in storage helpers
+
+zooms_out_to:
+  - dns_pki.explicit_identity_over_convenient_routing
+
+zooms_in_to: []
+
+related_invariants: []
+
+related_to:
+  - dns.record_operations_are_health_gated
+
+required_tests:
+  - dns/dns_server:TestSetA_DomainNormalizationCaseInsensitive
+  - dns/dns_server:TestSetA_TrailingDotAddedIfMissing
+  - dns/dns_server:TestGetA_NormalizationMatchesStoredKey

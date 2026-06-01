@@ -1,0 +1,43 @@
+id: dns.zone_list_never_regresses_to_empty
+level: mechanism
+title: DNS zone list never regresses to empty on reload failure — last-known-good preserved
+status: active
+
+intent: >
+  The DNS server maintains a lastKnownGoodDomains buffer. When a zone reload fails
+  (ScyllaDB unreachable, parse error, empty response), the server must fall back to
+  the last known good zone list rather than serving with an empty managed-zone set.
+  An empty zone list means all internal DNS queries fail, which cascades into service
+  discovery loss across the cluster. The last-known-good must be populated on the
+  first successful load and updated only on subsequent successful reloads.
+
+agent_guidance: >
+  lastKnownGoodDomains is the safety net. Do not clear it on error paths. Do not
+  replace it with an empty slice when zone count drops to zero — treat zero-length
+  as a suspect reload result, not a valid zone purge. If a deliberate zone purge is
+  needed, it must be an explicit operator action, not a side-effect of a failed reload.
+
+bad_smells:
+  - zone reload error path that clears srv.Domains without falling back to lastKnownGoodDomains
+  - lastKnownGoodDomains not updated after a successful reload
+  - treating an empty ScyllaDB zone list as a valid "no zones configured" state
+
+activation_triggers:
+  - editing dns_server/server.go zone reload logic
+  - debugging all internal DNS queries failing simultaneously
+  - debugging zone list going empty after a transient ScyllaDB blip
+
+zooms_out_to:
+  - infrastructure.dns.authoritative_discovery_with_bootstrap_boundaries
+
+zooms_in_to: []
+
+related_invariants:
+  - health.requires_fresh_evidence
+
+related_to:
+  - dns.zone_state_mirrors_to_etcd_for_recovery
+
+required_tests:
+  - dns/dns_server:TestZoneReload_FailureFallsBackToLastKnownGood
+  - dns/dns_server:TestZoneReload_EmptyScyllaRestoresFromEtcd

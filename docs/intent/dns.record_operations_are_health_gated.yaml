@@ -1,0 +1,43 @@
+id: dns.record_operations_are_health_gated
+level: mechanism
+title: All DNS record operations are gated by requireHealthy — degraded storage rejects mutations
+status: active
+
+intent: >
+  Every gRPC handler that reads or writes a DNS record calls requireHealthy() before
+  proceeding. If the storage backend (Badger/ScyllaDB) is not healthy, the handler
+  returns an error rather than accepting a write against degraded storage or returning
+  stale data without indicating the degradation. This prevents partial writes and
+  inconsistent state during storage backend restarts or network partitions. The health
+  gate is non-negotiable and must not be bypassed for "convenience" or performance.
+
+agent_guidance: >
+  requireHealthy() is the first line of every handler. When adding new handlers, wire
+  requireHealthy() before any storage access. Do not add "best effort" paths that skip
+  the gate for reads — returning stale data silently is worse than returning an error
+  the caller can handle.
+
+bad_smells:
+  - new handler that touches storage without calling requireHealthy() first
+  - requireHealthy() check removed to "speed up" read-only handlers
+  - health gate bypassed during startup grace period for "efficiency"
+
+activation_triggers:
+  - adding a new gRPC handler to dns_server/handlers.go
+  - editing requireHealthy() in dns_server/server.go
+  - debugging silent DNS record staleness
+
+zooms_out_to:
+  - infrastructure.dns.authoritative_discovery_with_bootstrap_boundaries
+
+zooms_in_to: []
+
+related_invariants:
+  - health.requires_fresh_evidence
+
+related_to:
+  - dns.zone_list_never_regresses_to_empty
+
+required_tests:
+  - dns/dns_server:TestSetA_RejectsWhenStorageUnhealthy
+  - dns/dns_server:TestGetA_RejectsWhenStorageUnhealthy

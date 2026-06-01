@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_dns.handlers
+// @awareness file_role=dns_record_grpc_handlers_health_gated_domain_normalization_rbac_cascade_delete
+// @awareness implements=globular.platform:intent.dns.record_operations_are_health_gated
+// @awareness implements=globular.platform:intent.dns.domain_names_normalize_before_storage
+// @awareness implements=globular.platform:intent.dns.record_deletion_cascades_to_rbac
+// @awareness risk=critical
 package main
 
 import (

@@ -1,0 +1,45 @@
+id: dns.zone_state_mirrors_to_etcd_for_recovery
+level: mechanism
+title: DNS zone list is mirrored to etcd so ScyllaDB restart cannot lose managed zones
+status: active
+
+intent: >
+  After every successful zone reload, the DNS server mirrors the zone list to etcd
+  at /globular/dns/v1/zones. On startup, if ScyllaDB returns an empty zone list, the
+  server restores from the etcd mirror before serving any DNS responses. This breaks
+  the single-point-of-failure dependency on ScyllaDB for zone configuration: a
+  ScyllaDB restart or temporary unavailability cannot cause the DNS server to boot
+  with no managed zones. etcd is the authoritative fallback for zone recovery, not
+  the ScyllaDB row count.
+
+agent_guidance: >
+  The mirror write is best-effort — a failed mirror write must be logged but must not
+  block the zone reload from completing. The restore from etcd is attempted only when
+  ScyllaDB returns an empty list at startup; it is not a general "prefer etcd" rule.
+  Once the zone list is loaded (from either source), ScyllaDB is re-persisted so the
+  two stores converge.
+
+bad_smells:
+  - zone mirror write failure propagating as a zone reload failure
+  - startup skipping etcd restore when ScyllaDB is empty (treating empty as valid)
+  - etcd zone key read used for ongoing zone authority instead of ScyllaDB
+
+activation_triggers:
+  - editing dns_server/server.go zone mirror or restore logic
+  - debugging DNS zone loss after ScyllaDB restart
+  - editing /globular/dns/v1/zones etcd key handling
+
+zooms_out_to:
+  - infrastructure.dns.authoritative_discovery_with_bootstrap_boundaries
+
+zooms_in_to: []
+
+related_invariants:
+  - etcd.is_source_of_truth
+
+related_to:
+  - dns.zone_list_never_regresses_to_empty
+
+required_tests:
+  - dns/dns_server:TestZoneStartup_EtcdMirrorRestoredWhenScyllaEmpty
+  - dns/dns_server:TestZoneMirror_FailureDoesNotBlockReload

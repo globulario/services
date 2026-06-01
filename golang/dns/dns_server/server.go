@@ -1,3 +1,11 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_dns.server
+// @awareness file_role=dns_grpc_service_with_udp_responder_zone_fallback_and_etcd_mirror
+// @awareness implements=globular.platform:intent.dns.zone_list_never_regresses_to_empty
+// @awareness implements=globular.platform:intent.dns.zone_state_mirrors_to_etcd_for_recovery
+// @awareness implements=globular.platform:intent.dns.record_operations_are_health_gated
+// @awareness implements=globular.platform:intent.infrastructure.dns.authoritative_discovery_with_bootstrap_boundaries
+// @awareness risk=critical
 package main
 
 // DNS gRPC service with storage-backed records and a UDP responder.

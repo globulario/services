@@ -1,1 +1,25 @@
 code_edges:
+  - from: globular.platform:code.go.platform_dns.backup_hooks
+    relation: implements
+    to: globular.platform:intent.dns.zone_list_never_regresses_to_empty
+  - from: globular.platform:code.go.platform_dns.handlers
+    relation: implements
+    to: globular.platform:intent.dns.domain_names_normalize_before_storage
+  - from: globular.platform:code.go.platform_dns.handlers
+    relation: implements
+    to: globular.platform:intent.dns.record_deletion_cascades_to_rbac
+  - from: globular.platform:code.go.platform_dns.handlers
+    relation: implements
+    to: globular.platform:intent.dns.record_operations_are_health_gated
+  - from: globular.platform:code.go.platform_dns.server
+    relation: implements
+    to: globular.platform:intent.dns.record_operations_are_health_gated
+  - from: globular.platform:code.go.platform_dns.server
+    relation: implements
+    to: globular.platform:intent.dns.zone_list_never_regresses_to_empty
+  - from: globular.platform:code.go.platform_dns.server
+    relation: implements
+    to: globular.platform:intent.dns.zone_state_mirrors_to_etcd_for_recovery
+  - from: globular.platform:code.go.platform_dns.server
+    relation: implements
+    to: globular.platform:intent.infrastructure.dns.authoritative_discovery_with_bootstrap_boundaries

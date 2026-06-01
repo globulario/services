@@ -1,0 +1,45 @@
+id: dns.record_deletion_cascades_to_rbac
+level: mechanism
+title: DNS record deletion cascades to RBAC permission cleanup — no ghost permissions for deleted records
+status: active
+
+intent: >
+  When a DNS record (A, AAAA, CNAME, or any other type) is deleted, the handler must
+  also call rbac_client.DeleteResourcePermissions for the deleted domain. If this
+  cleanup is skipped, RBAC permission entries accumulate for non-existent DNS resources
+  ("ghost permissions"). Ghost permissions waste space and can create subtle security
+  issues if the same domain name is later re-registered by a different owner — the
+  stale permissions would survive the re-registration and grant the old owner access to
+  the new record. The cascade delete is required, not best-effort.
+
+agent_guidance: >
+  The cascade pattern in RemoveA: delete the storage record, then call
+  rbac_client_.DeleteResourcePermissions(token, domain). When adding a new record-type
+  deletion handler, wire the RBAC cascade the same way. The cascade is a required
+  cleanup step, not optional. If the RBAC client is unavailable, log the error but
+  still complete the storage deletion — the RBAC failure should trigger a reconciliation,
+  not rollback the record deletion.
+
+bad_smells:
+  - new deletion handler that removes storage record but skips RBAC cascade
+  - RBAC cascade failure causing deletion to be rolled back (wrong direction)
+  - RBAC permissions not cleaned up when domain is re-used after deletion
+
+activation_triggers:
+  - adding a new DNS record type deletion handler
+  - editing RemoveA, RemoveAAAA, RemoveCname, or similar in dns_server/handlers.go
+  - debugging stale RBAC entries for deleted DNS resources
+
+zooms_out_to:
+  - dns_pki.explicit_identity_over_convenient_routing
+
+zooms_in_to: []
+
+related_invariants: []
+
+related_to:
+  - dns.record_operations_are_health_gated
+
+required_tests:
+  - dns/dns_server:TestRemoveA_CascadesRbacPermissionDelete
+  - dns/dns_server:TestRemoveA_RbacFailureDoesNotRollbackStorageDelete

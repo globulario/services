@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_dns.backup_hooks
+// @awareness file_role=dns_zone_state_durable_backup_via_badger_syncwrites
+// @awareness implements=globular.platform:intent.dns.zone_list_never_regresses_to_empty
+// @awareness risk=medium
 package main
 
 import (
