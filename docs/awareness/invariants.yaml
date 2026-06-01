@@ -644,6 +644,7 @@ invariants:
       protects:
         files:
             - golang/cluster_controller/cluster_controller_server/repair_node_workflow.go
+            - golang/cluster_controller/cluster_controller_server/rolling/rolling_release.go
       forbidden_fixes:
         - infer_topology_from_local_disk
         - reconcile_topology_without_contract
@@ -691,6 +692,30 @@ invariants:
         - TestPKIRegistryEntryComplete
       related_failure_modes:
         - pki.ca_not_published
+
+    - id: security.cluster_trust.establishment_requires_ca_proof
+      title: Cluster trust requires verified CA chain — never IP or hostname alone
+      severity: critical
+      status: active
+      summary: |
+        Accepting another node or service as a cluster peer requires complete CA
+        chain verification against the cluster CA. Trust must never be granted
+        on IP match, hostname match, or self-signed certificate alone. A node
+        presenting a cert not signed by the cluster CA must be rejected, and the
+        attempt must surface a doctor finding. No fast-path bypass for internal
+        addresses or bootstrap phase.
+      protects:
+        files:
+          - golang/security/cluster_trust.go
+      forbidden_fixes:
+        - skip_ca_verification_for_internal_addresses
+        - accept_self_signed_cert_from_joining_node
+        - trust_node_by_ip_without_certificate_check
+        - bypass_ca_chain_during_bootstrap
+      required_tests:
+        - TestJoiningNodeWithWrongCAIsRejected
+        - TestClusterTrustRequiresValidChain
+
     - id: runtime.installed_state_must_match_package_kind
       title: Doctor runtime proof must match package kind
       severity: high
@@ -2193,6 +2218,54 @@ invariants:
         - TestInstallerRefusesLocalFallbackOnOrphaned
         - TestInstallerRefusesLocalFallbackOnNotFound
         - TestInstallerAllowsLocalFallbackOnUnreachableWithCachedSHA
+
+    - id: repository.signing.verification_must_precede_install
+      title: Artifact signature must be verified before install begins
+      severity: critical
+      status: active
+      summary: |
+        Every artifact install path must complete signature verification before
+        any install action begins. No path may skip verification for performance,
+        convenience, or because the source is "local". A verification failure
+        must block the install entirely — log-and-continue is forbidden. The
+        verification result must be bound to the specific content being installed:
+        caching a result across a content change is a bypass.
+      protects:
+        files:
+          - golang/repository/repository_server/signing.go
+          - golang/repository/repository_server/artifact_verify_rpc.go
+          - golang/repository/repository_server/signature_policy.go
+      forbidden_fixes:
+        - skip_signature_check_for_local_artifacts
+        - log_and_continue_on_verification_failure
+        - cache_verification_result_across_content_change
+        - bypass_signing_for_dev_builds
+      required_tests:
+        - TestSignatureVerificationBlocksInstall
+        - TestVerificationFailureSurfacesDocFinding
+
+    - id: release_index.entries_immutable_after_publish
+      title: Release index entries are immutable once published
+      severity: critical
+      status: active
+      summary: |
+        Once a release index entry is committed (version, build_id, platform,
+        publisher, checksum), no field may be mutated in place. Corrections
+        require a new entry with a new version. In-place mutation of a published
+        BOM entry causes node-agents holding a desired pin to install a different
+        binary than the one approved — a silent content substitution that the
+        4-layer model cannot detect because the build_id appears unchanged.
+      protects:
+        files:
+          - golang/repository/repository_server/release_index.go
+          - golang/repository/repository_server/release_ledger.go
+      forbidden_fixes:
+        - overwrite_published_release_index_entry
+        - mutate_checksum_of_active_bom_entry
+        - backfill_release_index_field_after_publish
+      required_tests:
+        - TestPublishedReleaseEntryIsImmutable
+        - TestBOMCorrectionRequiresNewEntry
 
     - id: dns.records_must_be_installed_and_runtime_healthy
       title: A DNS record MUST point only at nodes where the promised service is installed AND runtime-healthy
