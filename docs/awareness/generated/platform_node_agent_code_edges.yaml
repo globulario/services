@@ -13,10 +13,25 @@ code_edges:
     to: globular.platform:intent.node_recovery.fence_before_destructive_reseed
   - from: globular.platform:code.go.platform_node_agent.heartbeat
     relation: enforces
+    to: globular.platform:invariant.infra.heartbeat_observer_only_not_authority
+  - from: globular.platform:code.go.platform_node_agent.heartbeat
+    relation: enforces
     to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.platform_node_agent.heartbeat
+    relation: forbidden_fix
+    to: globular.platform:forbidden_fix.delete_old_published_artifact_versions_to_stop_heartbeat_poisoning
+  - from: globular.platform:code.go.platform_node_agent.heartbeat
+    relation: forbidden_fix
+    to: globular.platform:forbidden_fix.iterate_all_artifact_versions_for_kind_resolution
   - from: globular.platform:code.go.platform_node_agent.heartbeat
     relation: implements
     to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.platform_node_agent.heartbeat
+    relation: relates_to
+    to: globular.platform:failure_mode.heartbeat_stale_kind_manifest_poisons_installed_state
+  - from: globular.platform:code.go.platform_node_agent.heartbeat
+    relation: relates_to
+    to: globular.platform:incident_pattern.heartbeat_stale_kind_manifest_old_pid_loop
   - from: globular.platform:code.go.platform_node_agent.infra_health_probe
     relation: implements
     to: globular.platform:intent.health.requires_fresh_evidence

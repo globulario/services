@@ -404,7 +404,7 @@ invariants:
       required_tests:
         - TestValidateAnnotationsSkipsTestFiles
       implemented_by:
-          functions:
+        - functions:
             - parseAnnotations
             - isTestFile
           trust: strict_verified
@@ -837,7 +837,7 @@ invariants:
       related_failure_modes:
         - awareness.false_silence_on_sensitive_task
       implemented_by:
-          functions:
+        - functions:
             - Run
             - buildWarnings
           trust: verified
@@ -868,10 +868,10 @@ invariants:
       required_tests:
         - TestSelfCheckReportsNoisySections
       implemented_by:
-          functions:
+        - functions:
             - Audit
           trust: strict_verified
-          functions:
+        - functions:
             - ApplySuppressions
           trust: verified
       verified_by:
@@ -897,11 +897,11 @@ invariants:
       required_tests:
         - TestGraphDriftNoStaleRefs
       implemented_by:
-          functions:
+        - functions:
             - EdgeClass
             - EdgeWeight
           trust: strict_verified
-          functions:
+        - functions:
             - LoadInvariants
             - loadInvariant
           trust: verified
@@ -938,7 +938,7 @@ invariants:
           functions:
             - registerAwarenessLearningTools
           trust: strict_verified
-          functions:
+        - functions:
             - TestMCPCheckFailsWhenPromoteProposalExposed
           trust: strict_verified
       verified_by:
@@ -1005,7 +1005,7 @@ invariants:
       required_tests:
         - TestNodeContextSmokePasses
       implemented_by:
-          functions:
+        - functions:
             - GenerateAgentContext
           trust: verified
       verified_by:
@@ -1031,10 +1031,10 @@ invariants:
       required_tests:
         - TestSemanticPathIncludesExplanation
       implemented_by:
-          functions:
+        - functions:
             - ShortestPath
           trust: strict_verified
-          functions:
+        - functions:
             - BuildExplanation
           trust: strict_verified
       verified_by:
@@ -1122,7 +1122,7 @@ invariants:
         - TestCausalRulesFileExists
         - TestCausalRulesHaveRequiredFields
       implemented_by:
-          trust: declared
+        - trust: declared
         - file: docs/awareness/knowledge/causal_rules.yaml
           trust: declared
       authority:
@@ -1206,11 +1206,11 @@ invariants:
         - TestPathScoring_VerifiedDecisionPathBeatsDeclaredInformationPath
         - TestPathScoring_ExplainsWeights
       implemented_by:
-          functions:
+        - functions:
             - DomainForEdgeKind
             - edgeDomains
           trust: strict_verified
-          functions:
+        - functions:
             - ScoreImpactPath
             - RankPaths
           trust: strict_verified
@@ -1256,8 +1256,6 @@ invariants:
           functions:
             - learnFromFix
           trust: verified
-          trust: declared
-          trust: declared
       authority:
         - file: docs/awareness/knowledge/path_weights.yaml
       verified_by:
@@ -1299,11 +1297,11 @@ invariants:
         - TestDecisionPathType_PreEdit
         - TestDecisionIntegrity_InvalidPathCannotRankHigh
       implemented_by:
-          functions:
+        - functions:
             - Run
           trust: strict_verified
         - file: golang/mcp/tools_awareness_preflight.go
-          functions:
+        - functions:
             - registerAwarenessPreflightTools
           trust: strict_verified
       authority:
@@ -1348,7 +1346,7 @@ invariants:
         - TestExplainImpactByFile_MandatoryForbiddenFix
         - TestRejectInvariantWithMissingRequiredTest
       implemented_by:
-          functions:
+        - functions:
             - ExplainImpactByFile
             - detectMissingLinks
           trust: strict_verified

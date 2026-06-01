@@ -28,8 +28,15 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.state.runtime_not_desired
+        - globular.platform:invariant.infra.heartbeat_observer_only_not_authority
+      forbidden_fix:
+        - globular.platform:forbidden_fix.iterate_all_artifact_versions_for_kind_resolution
+        - globular.platform:forbidden_fix.delete_old_published_artifact_versions_to_stop_heartbeat_poisoning
       implements:
         - globular.platform:intent.runtime_health.requires_live_observation
+      relates_to:
+        - globular.platform:failure_mode.heartbeat_stale_kind_manifest_poisons_installed_state
+        - globular.platform:incident_pattern.heartbeat_stale_kind_manifest_old_pid_loop
   - id: globular.platform:code.go.platform_node_agent.infra_health_probe
     namespace: globular.platform
     language: go

@@ -3240,7 +3240,7 @@ failure_modes:
         - verifier emits service.old_pid_after_upgrade for <svc> on every cycle — updatedUnix keeps advancing past the process start time
         - cluster.services.drift fires permanently for <svc> despite a successful install
         - install-package dispatches for <svc> succeed but the record is overwritten before the next reconcile
-        - `apply-package: removed stale INFRASTRUCTURE record for SERVICE <svc>` appears in logs on re-install but then returns
+        - "'apply-package: removed stale INFRASTRUCTURE record for SERVICE <svc>' appears in logs on re-install but then returns"
       root_cause: |
         syncRepoArtifactsToEtcd in heartbeat.go calls ListArtifacts(), which returns ALL
         published versions. When an artifact's kind changes between releases (e.g., mcp was
