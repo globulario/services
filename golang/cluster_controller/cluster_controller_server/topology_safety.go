@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.topology_safety
+// @awareness file_role=topology_preflight_blocks_infrastructure_drift_actions_safe_actions_continue
+// @awareness implements=globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions
+// @awareness implements=globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+// @awareness risk=critical
 package main
 
 // topology_safety.go — Case 12: TOPOLOGY_SAFETY_DRIFT

@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.drift_action_planner
+// @awareness file_role=per_action_safe_vs_topology_classification_replaces_all_or_nothing_halt
+// @awareness implements=globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions
+// @awareness implements=globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+// @awareness risk=high
 package main
 
 // drift_action_planner.go — per-action safety gate for drift reconciliation.

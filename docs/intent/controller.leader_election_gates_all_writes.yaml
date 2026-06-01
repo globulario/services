@@ -1,0 +1,43 @@
+id: controller.leader_election_gates_all_writes
+level: mechanism
+title: Only the elected leader writes desired state, runs the reconciler, and seeds workflows
+intent: |
+  The cluster controller uses an etcd-backed leader election with a 15-second lease
+  TTL. Only the node holding the lease may: write desired state, run the reconcile
+  loop, run the convergence committer, or seed bootstrap workflows. On gaining the
+  lease, the controller reloads cluster state from etcd and increments the epoch
+  counter so followers can detect stale responses. Workflows are seeded before the
+  reconcile loop starts, ensuring convergence begins from a consistent baseline.
+  On losing the lease, all in-progress reconcile actions are abandoned.
+agent_guidance: |
+  Never add a write path to desired state, the reconciler, or workflow dispatch
+  that does not first check IsLeader(). Epoch increment is critical — followers
+  that see a stale epoch reject the response, preventing split-brain writes.
+  The 15s TTL is deliberately short to fail over quickly; do not increase it
+  without understanding the write-pause window it creates.
+bad_smells:
+  - desired state write in code path that does not check IsLeader()
+  - reconciler loop that starts before lease is confirmed
+  - workflow dispatch on a follower without forwarding to leader
+  - epoch not incremented on leader gain
+  - state not reloaded from etcd after leader gain
+activation_triggers:
+  - leader election
+  - IsLeader
+  - lease TTL
+  - epoch
+  - leader gain
+  - leader lose
+expressed_by:
+  - golang/cluster_controller/cluster_controller_server/leader_election.go
+zooms_out_to:
+  - desired_state.is_authority
+  - controller.decides_but_does_not_execute_leaf_work
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - domain.leader_only_acme_reconciliation
+required_tests:
+  - cluster_controller:TestFollowerDoesNotWriteDesiredState
+  - cluster_controller:TestLeaderGainReloadsStateAndIncrementsEpoch
+status: extracted_candidate

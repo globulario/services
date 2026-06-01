@@ -1,0 +1,40 @@
+id: controller.posture_suppresses_rollouts_during_recovery
+level: mechanism
+title: RECOVERY_ONLY cluster posture suppresses all ROLLOUT-class workflows to prevent cascading failures
+intent: |
+  posture.go evaluates cluster health signals every 30 seconds and maintains
+  a ClusterPosture value written to etcd and Prometheus. When posture is
+  RECOVERY_ONLY, ROLLOUT-class workflows (release.apply.package,
+  release.remove.package) are suppressed: they return a transient error so
+  the release stays in RESOLVED state and retries on the next cycle. This
+  prevents new package installs from racing with an in-progress cluster recovery
+  and amplifying the failure. Non-rollout workflows (repairs, rejoins, certificate
+  rotations) are not suppressed and continue normally.
+agent_guidance: |
+  When adding a new workflow class, explicitly declare whether it should be
+  suppressed during RECOVERY_ONLY posture. When adding new posture signals,
+  ensure they gate ROLLOUT workflows and not just emit metrics. The transient
+  error return is intentional — do not convert it to a permanent failure.
+bad_smells:
+  - new workflow class that skips the posture gate check
+  - posture signals that only emit metrics without actually blocking rollouts
+  - RECOVERY_ONLY posture suppressing non-rollout workflows (repairs, joins)
+  - converting the transient posture error to a permanent workflow failure
+activation_triggers:
+  - ClusterPosture
+  - RECOVERY_ONLY
+  - posture loop
+  - rollout suppression
+  - posture gate
+expressed_by:
+  - golang/cluster_controller/cluster_controller_server/posture.go
+zooms_out_to:
+  - circuit_breakers_protect_convergence
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - reconciliation.must_be_idempotent_and_bounded
+required_tests:
+  - cluster_controller:TestPostureRecoveryOnlySuppressesRollouts
+  - cluster_controller:TestPostureRecoveryOnlyAllowsRepairWorkflows
+status: extracted_candidate

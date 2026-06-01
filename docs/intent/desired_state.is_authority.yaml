@@ -27,6 +27,8 @@ zooms_in_to:
   - reconciliation.must_be_idempotent_and_bounded
   - local_success_not_global_convergence
   - runtime_observation_must_not_mutate_desired
+  - controller.leader_election_gates_all_writes
+  - controller.join_lifecycle_fsm_gates_cluster_decisions
 related_to:
   - etcd.is_source_of_truth
   - state.repository_desired_installed_runtime

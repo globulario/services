@@ -50,6 +50,39 @@ code_edges:
   - from: globular.platform:code.go.cluster_controller.release_pipeline
     relation: implements
     to: globular.platform:intent.workflow.source_of_operational_truth
+  - from: globular.platform:code.go.platform_controller.drift_action_planner
+    relation: implements
+    to: globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions
+  - from: globular.platform:code.go.platform_controller.drift_action_planner
+    relation: implements
+    to: globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+  - from: globular.platform:code.go.platform_controller.join_lifecycle
+    relation: implements
+    to: globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+  - from: globular.platform:code.go.platform_controller.leader_election
+    relation: implements
+    to: globular.platform:intent.controller.leader_election_gates_all_writes
+  - from: globular.platform:code.go.platform_controller.leader_election
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_controller.leader_proxy
+    relation: implements
+    to: globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+  - from: globular.platform:code.go.platform_controller.leader_proxy
+    relation: implements
+    to: globular.platform:intent.controller.leader_proxy_makes_writes_transparent
+  - from: globular.platform:code.go.platform_controller.posture
+    relation: implements
+    to: globular.platform:intent.circuit_breakers_protect_convergence
+  - from: globular.platform:code.go.platform_controller.posture
+    relation: implements
+    to: globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
   - from: globular.platform:code.go.platform_controller.reconciler
     relation: implements
     to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_controller.topology_safety
+    relation: implements
+    to: globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions
+  - from: globular.platform:code.go.platform_controller.topology_safety
+    relation: implements
+    to: globular.platform:intent.reconciliation.must_be_idempotent_and_bounded

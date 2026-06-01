@@ -1,0 +1,37 @@
+id: controller.leader_proxy_makes_writes_transparent
+level: mechanism
+title: Non-leader controllers transparently proxy write RPCs to the leader via globular.internal
+intent: |
+  When a non-leader controller receives a write RPC, requireLeaderOrForward returns
+  a gRPC connection to the current leader so the handler can transparently forward
+  the call. Clients connecting to any controller node via globular.internal get
+  correct write semantics without needing to know which node is the leader.
+  Read-only RPCs do not require forwarding and may be served by any follower.
+  Forwarding uses mTLS with the cluster CA to authenticate to the leader.
+agent_guidance: |
+  Every write RPC handler must call requireLeaderOrForward at the start.
+  Do not add a fast path that processes writes locally on a follower "for
+  performance" — it breaks the single-writer guarantee. If the leader address
+  is not known (election in progress), return Unavailable, not a stale result.
+bad_smells:
+  - write RPC handler that skips requireLeaderOrForward on follower
+  - forwarding via plain TCP instead of mTLS
+  - read RPC incorrectly requiring leadership (adds unnecessary unavailability)
+  - follower returns stale desired state as authoritative to clients
+activation_triggers:
+  - requireLeaderOrForward
+  - leader proxy
+  - follower forwarding
+  - non-leader write
+expressed_by:
+  - golang/cluster_controller/cluster_controller_server/leader_proxy.go
+zooms_out_to:
+  - controller.decides_but_does_not_execute_leaf_work
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - controller.leader_election_gates_all_writes
+required_tests:
+  - cluster_controller:TestFollowerForwardsWriteToLeader
+  - cluster_controller:TestLeaderServesWriteDirectly
+status: extracted_candidate

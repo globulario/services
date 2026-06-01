@@ -1,0 +1,44 @@
+id: controller.topology_safety_blocks_unsafe_drift_actions
+level: mechanism
+title: Topology preflight blocks INFRASTRUCTURE drift actions when safety constraints are violated — safe actions continue
+intent: |
+  topology_safety.go runs preflight checks before any reconcile action that could
+  change cluster membership, storage configuration, or ingress participant sets.
+  If preflight returns violations, INFRASTRUCTURE-class actions are blocked with
+  an explicit DEGRADED lane status. SERVICE and COMMAND class actions (simple
+  version bumps) bypass the topology preflight and proceed even when topology is
+  degraded — they do not change cluster shape.
+  drift_action_planner.go classifies each action before dispatching it.
+  The previous all-or-nothing early return has been replaced with per-action
+  classification, so safe actions no longer stall behind an unsafe infra action.
+agent_guidance: |
+  When adding a new reconcile action type, explicitly classify it as
+  SERVICE/COMMAND (safe) or INFRASTRUCTURE (topology-affecting) in
+  drift_action_planner.go. Do not default new actions to INFRASTRUCTURE.
+  Never remove the topology preflight call — degraded topology must block
+  topology-affecting changes to prevent cascading failures.
+bad_smells:
+  - new action type defaults to INFRASTRUCTURE classification without review
+  - topology preflight removed "because it was blocking safe actions"
+  - all actions halted when only one INFRASTRUCTURE action has violations
+  - SERVICE version bump blocked by topology preflight
+activation_triggers:
+  - topology preflight
+  - TOPOLOGY_SAFETY_DRIFT
+  - drift_action_planner
+  - INFRASTRUCTURE action
+  - topology-affecting
+expressed_by:
+  - golang/cluster_controller/cluster_controller_server/topology_safety.go
+  - golang/cluster_controller/cluster_controller_server/drift_action_planner.go
+zooms_out_to:
+  - reconciliation.must_be_idempotent_and_bounded
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - circuit_breakers_protect_convergence
+required_tests:
+  - cluster_controller:TestTopologySafetyBlocksInfraOnViolation
+  - cluster_controller:TestTopologySafetyContinuesServiceActionsOnViolation
+  - cluster_controller:TestDriftPlannerClassifiesActionTypes
+status: extracted_candidate

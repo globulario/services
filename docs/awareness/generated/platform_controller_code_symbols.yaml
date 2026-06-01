@@ -64,6 +64,55 @@ code_symbols:
         - globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
         - globular.platform:intent.desired_state.is_authority
         - globular.platform:intent.workflow.source_of_operational_truth
+  - id: globular.platform:code.go.platform_controller.drift_action_planner
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/drift_action_planner.go
+    component: platform_controller.drift_action_planner
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions
+        - globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+  - id: globular.platform:code.go.platform_controller.join_lifecycle
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/join_lifecycle.go
+    component: platform_controller.join_lifecycle
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+  - id: globular.platform:code.go.platform_controller.leader_election
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/leader_election.go
+    component: platform_controller.leader_election
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.controller.leader_election_gates_all_writes
+        - globular.platform:intent.desired_state.is_authority
+  - id: globular.platform:code.go.platform_controller.leader_proxy
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/leader_proxy.go
+    component: platform_controller.leader_proxy
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.controller.leader_proxy_makes_writes_transparent
+        - globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+  - id: globular.platform:code.go.platform_controller.posture
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/posture.go
+    component: platform_controller.posture
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+        - globular.platform:intent.circuit_breakers_protect_convergence
   - id: globular.platform:code.go.platform_controller.reconciler
     namespace: globular.platform
     language: go
@@ -73,3 +122,13 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.desired_state.is_authority
+  - id: globular.platform:code.go.platform_controller.topology_safety
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/topology_safety.go
+    component: platform_controller.topology_safety
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions
+        - globular.platform:intent.reconciliation.must_be_idempotent_and_bounded

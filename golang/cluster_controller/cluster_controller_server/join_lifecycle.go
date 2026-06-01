@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.join_lifecycle
+// @awareness file_role=join_fsm_eight_phases_eligible_for_cluster_decisions_gates_active_only
+// @awareness implements=globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+// @awareness risk=critical
 package main
 
 // JoinLifecyclePhase is the typed lifecycle state of a join request or node.

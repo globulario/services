@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.leader_election
+// @awareness file_role=etcd_lease_leader_election_gates_all_writes_and_reconciliation
+// @awareness implements=globular.platform:intent.controller.leader_election_gates_all_writes
+// @awareness implements=globular.platform:intent.desired_state.is_authority
+// @awareness risk=critical
 package main
 
 import (

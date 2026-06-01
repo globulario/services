@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.posture
+// @awareness file_role=cluster_posture_storm_control_suppresses_rollout_workflows_during_recovery
+// @awareness implements=globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+// @awareness implements=globular.platform:intent.circuit_breakers_protect_convergence
+// @awareness risk=high
 package main
 
 // posture.go: Cluster Posture / Storm-Control Layer.

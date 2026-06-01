@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.leader_proxy
+// @awareness file_role=transparent_write_rpc_forwarding_from_follower_to_leader
+// @awareness implements=globular.platform:intent.controller.leader_proxy_makes_writes_transparent
+// @awareness implements=globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+// @awareness risk=high
 package main
 
 // leader_proxy.go — Transparent leader forwarding for write RPCs.

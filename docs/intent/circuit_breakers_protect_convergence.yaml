@@ -37,6 +37,7 @@ zooms_out_to:
 zooms_in_to:
 - workflow.backend_health_gate_before_dispatch
 - interceptors.chain_order_is_load_shed_first
+- controller.posture_suppresses_rollouts_during_recovery
 related_to:
 - degraded_is_explicit_not_hidden
 status: seed

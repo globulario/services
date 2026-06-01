@@ -25,6 +25,8 @@ zooms_out_to:
 zooms_in_to:
 - workflow.source_of_operational_truth
 - node_agent.is_executor_not_cluster_brain
+- controller.leader_election_gates_all_writes
+- controller.leader_proxy_makes_writes_transparent
 related_to:
 - remediation.must_go_through_workflow
 required_tests:

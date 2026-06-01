@@ -28,6 +28,7 @@ zooms_out_to:
 zooms_in_to:
 - circuit_breakers_protect_convergence
 - workflow.backend_health_gate_before_dispatch
+- controller.topology_safety_blocks_unsafe_drift_actions
 related_to:
 - degraded_is_explicit_not_hidden
 change_risk:
