@@ -107,3 +107,148 @@ required_tests:
     evidence:
       - etcd write succeeds before install RPC returns
       - partial commit is detected and retried
+
+  - id: test.released_artifact_immutable_different_digest
+    title: Published artifact content is immutable — same version must mean same digest
+    protects:
+      invariants:
+        - repository.artifact.content_immutable_after_publish
+      files:
+        - golang/repository/repository_server/allocate_upload.go
+        - golang/repository/repository_server/import_provisional.go
+    run:
+      commands:
+        - go test ./golang/repository/... -run TestINV1_ReleasedArtifactImmutable
+
+  - id: test.installer_refuses_local_fallback_on_orphaned
+    title: Installer must reject local fallback when repository marks artifact orphaned
+    protects:
+      invariants:
+        - repository.desired_build_id_is_hard_reachability_root
+      files:
+        - golang/repository/repository_server/resolver.go
+    run:
+      commands:
+        - go test ./golang/repository/... -run TestInstallerRefusesLocalFallbackOnOrphaned
+
+  - id: test.desired_build_id_deletion_blocked
+    title: Deletion and revocation of a desired build_id must be blocked by reachability guard
+    protects:
+      invariants:
+        - repository.desired_build_id_is_hard_reachability_root
+      files:
+        - golang/repository/repository_server/reachability_guard.go
+    run:
+      commands:
+        - go test ./golang/repository/... -run "TestDeletionSafety_DesiredBuildID|TestRevokeSafety_DesiredBuildID|TestDesiredBuildIDImmutableAfterWrite"
+
+  - id: test.workflow_dispatch_refused_when_scylla_down
+    title: Workflow dispatch must return Unavailable while Scylla session is reconnecting
+    protects:
+      failure_modes:
+        - scylla.workflow_reconnect_concurrent_storm
+        - workflow.scylla_session_nil_drops_to_unavailable
+      files:
+        - golang/workflow/workflow_server/scylla_reconnect.go
+    run:
+      commands:
+        - go test ./golang/workflow/... -run "TestWorkflowDispatchRefusedWhenScyllaDown|TestNoConcurrentReconnectStorm"
+
+  - id: test.profile_catalog_bijection_invariant
+    title: All profiles must have at least one component; all referenced profiles must be defined
+    protects:
+      invariants:
+        - cluster.founding_profiles_quorum_immutable
+      files:
+        - golang/cluster_controller/cluster_controller_server/profiles_normalize.go
+    run:
+      commands:
+        - go test ./golang/cluster_controller/... -run "TestValidateCatalog"
+
+  - id: test.grpc_backbone_contract
+    title: All RPCs must include cluster_id and respect call-depth limits after cluster init
+    protects:
+      files:
+        - golang/mcp/aggregator_policy.go
+        - golang/interceptors/acc.go
+    run:
+      commands:
+        - go test ./golang/cluster_doctor/... -run "TestGrpcBackboneContract"
+
+  - id: test.upload_bundle_artifact_key_format
+    title: UploadBundle dual-write must use 5-field artifact key with build_number=0
+    protects:
+      invariants:
+        - repository.build_id_server_generated_not_client_driven
+      files:
+        - golang/repository/repository_server/allocate_upload.go
+    run:
+      commands:
+        - go test ./golang/repository/... -run "TestUploadBundleDualWrite"
+
+  - id: test.config_listener_uses_0000_not_loopback
+    title: Service listeners must bind to 0.0.0.0, never 127.0.0.1
+    protects:
+      invariants:
+        - etcd.is_source_of_truth
+      files:
+        - golang/config/minio_config.go
+    run:
+      commands:
+        - go test ./golang/config/... -run "TestListenerBind_Uses0000_NotLoopback"
+
+  - id: test.vip_holder_from_runtime_not_profile
+    title: VIP holder must be derived from runtime VRRP status, not node profile
+    protects:
+      failure_modes:
+        - vip_contamination.node_routable_ip_returns_vip
+      files:
+        - golang/config/minio_config.go
+    run:
+      commands:
+        - go test ./golang/config/... -run "TestVIPHolder_DerivedFromRuntimeStatus_NotProfile|TestVIPHolder_ReflectsActualMaster"
+
+  - id: test.workflow_drain_catches_queued_requests
+    title: Workflow drain on startup must process queued requests before accepting new ones
+    protects:
+      invariants:
+        - workflow.dispatch_is_not_completion
+      files:
+        - golang/workflow/workflow_server/scylla_reconnect.go
+    run:
+      commands:
+        - go test ./golang/workflow/... -run "TestDrainOnStartupCatchesQueuedRequest"
+
+  - id: test.resolver_filter_excludes_blob_verified
+    title: Resolver must exclude BLOB_VERIFIED artifacts — only PUBLISHED is installable
+    protects:
+      invariants:
+        - repository.artifact.installable_compound_predicate
+        - repository.published_requires_verified_manifest
+      files:
+        - golang/repository/repository_server/resolver.go
+    run:
+      commands:
+        - go test ./golang/repository/... -run "TestResolverFilter_ExcludesNonInstallableStates"
+
+  - id: test.reconciler_no_downgrade_without_force
+    title: Reconciler must not downgrade a package version without Force=true
+    protects:
+      invariants:
+        - node.package_downgrade_requires_force_flag
+      files:
+        - golang/node_agent/node_agent_server/apply_package_release.go
+    run:
+      commands:
+        - go test ./golang/repository/... -run "TestReconcilerNoDowngradeWithoutForce"
+
+  - id: test.service_errors_when_etcd_unreachable
+    title: Services must return errors (not stale defaults) when etcd is unreachable
+    protects:
+      invariants:
+        - etcd.is_source_of_truth
+      files:
+        - golang/config/etcd_client.go
+    run:
+      commands:
+        - go test ./golang/config/... -run "TestServiceErrorsWhenEtcdUnreachable"
