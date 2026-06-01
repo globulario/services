@@ -10,6 +10,8 @@ activation_triggers:
   - runtime proof
   - service identity
   - verifier
+zooms_in_to:
+  - node_agent.install_claim_requires_binary_proof
 related_to:
   - state.repository_desired_installed_runtime
   - service.installation_is_not_runtime_truth

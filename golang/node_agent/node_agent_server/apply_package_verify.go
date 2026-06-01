@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.install_verify
+// @awareness file_role=prime_directive_binary_hash_proof_gate_no_install_claim_without_proof
+// @awareness implements=globular.platform:intent.node_agent.install_claim_requires_binary_proof
+// @awareness implements=globular.platform:intent.runtime.identity.requires_proof
+// @awareness risk=critical
 package main
 
 import (

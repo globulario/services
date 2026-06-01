@@ -1,0 +1,40 @@
+id: node_agent.systemd_unit_control_is_allowlisted
+level: mechanism
+title: Node agent can only control explicitly allowlisted systemd unit prefixes — all others are PermissionDenied
+intent: |
+  control_service_handler.go enforces a strict allowlist: only unit names matching
+  globular-* or scylla-* prefixes may be started, stopped, restarted, or queried.
+  Any other unit returns PermissionDenied immediately without touching systemctl.
+  Additionally, start/restart of globular-minio.service is only permitted on nodes
+  that are MinIO topology members — non-members may stop it but cannot start it.
+  An idempotency guard skips the systemctl call when the unit is already in the
+  target state (avoids spurious restarts).
+  This prevents the node-agent from being used as a general-purpose systemd proxy
+  that could start arbitrary system services.
+agent_guidance: |
+  When adding a new service managed by globular, its unit name must begin with
+  globular- or scylla-. Never widen the allowlist to a wildcard. Never add a
+  bypass for a "one-off" unit — if you need to control a new service, rename it
+  to match the prefix or add an explicit entry to allowedUnitPrefixes.
+bad_smells:
+  - passing arbitrary unit names to ControlService expecting them to work
+  - widening allowedUnitPrefixes to a glob that matches non-Globular units
+  - bypassing ControlService to call systemctl directly from node-agent code
+  - starting globular-minio.service on a non-topology member
+activation_triggers:
+  - ControlService
+  - allowedUnitPrefixes
+  - systemd unit allowlist
+  - globular-minio non-member
+expressed_by:
+  - golang/node_agent/node_agent_server/control_service_handler.go
+zooms_out_to:
+  - node_agent.is_executor_not_cluster_brain
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - remediation.must_go_through_workflow
+required_tests:
+  - node_agent:TestControlServiceRejectsNonAllowlistedUnit
+  - node_agent:TestControlServiceMinioBlockedOnNonMember
+status: extracted_candidate

@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.etcd_rejoin
+// @awareness file_role=last_resort_etcd_member_wipe_requires_controller_to_have_rendered_new_config
+// @awareness implements=globular.platform:intent.node_agent.destructive_member_wipes_require_controller_prep
+// @awareness implements=globular.platform:intent.node_recovery.fence_before_destructive_reseed
+// @awareness risk=critical
 package main
 
 import (

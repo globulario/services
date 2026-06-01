@@ -1,0 +1,45 @@
+id: node_agent.install_claim_requires_binary_proof
+level: mechanism
+title: No component may report "installed" from a claim alone — binary hash must match entrypoint_checksum
+intent: |
+  The Prime Directive of apply_package_verify.go: a successful payload extraction +
+  systemctl restart is a CLAIM. The proof is that /proc/<pid>/exe or the deployed binary
+  at the installed_path hashes to the same sha256 as the published entrypoint_checksum.
+  Hash mismatch → status=failed_binary_hash_mismatch, not an error return. The package is
+  treated as installed_unverified so doctor can detect and escalate. Empty expected hash
+  → graceful degradation (installed_unverified) rather than hard failure, to support
+  bootstrap/legacy callers that don't yet carry entrypoint_checksum.
+  This prevents a class of installation drift where a node reports convergence but
+  runs a different binary than the one the controller dispatched.
+agent_guidance: |
+  Always call verifyInstalledBinaryHash after install, with expected=entrypoint_checksum
+  from the manifest. Never treat empty expected as verified. Hash mismatch must produce
+  a structured finding (package.installed_binary_hash_mismatch) not a generic error.
+  The verifyInstalledBinaryHashStrict variant treats empty expected as an error — only
+  use it when entrypoint_checksum is guaranteed to be populated.
+bad_smells:
+  - reporting installed=true after systemctl restart without reading /proc binary hash
+  - treating empty entrypoint_checksum as equivalent to "hash verified"
+  - returning error instead of StatusBinaryHashMismatch on hash drift
+  - doctor cannot detect hash mismatch because the install path suppressed the finding
+activation_triggers:
+  - Prime Directive
+  - binary hash
+  - entrypoint_checksum
+  - installed_binary_hash_mismatch
+  - apply_package_verify
+  - verifyInstalledBinaryHash
+expressed_by:
+  - golang/node_agent/node_agent_server/apply_package_verify.go
+zooms_out_to:
+  - runtime.identity.requires_proof
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - service.installation_is_not_runtime_truth
+  - desired_hash.is_convergence_identity
+required_tests:
+  - node_agent:TestInstallClaimRequiresBinaryProof
+  - node_agent:TestHashMismatchProducesFindingNotError
+  - node_agent:TestEmptyExpectedHashProducesInstalledUnverified
+status: extracted_candidate

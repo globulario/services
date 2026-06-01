@@ -1,0 +1,44 @@
+id: node_agent.destructive_member_wipes_require_controller_prep
+level: mechanism
+title: Scylla data wipe and etcd member wipe require the controller to have written new config first
+intent: |
+  Both grpc_scylla_wipe.go and grpc_etcd_rejoin.go follow the same pattern:
+  the controller must perform the membership changes (MemberAdd for etcd,
+  new peer config for Scylla) and render the new config files BEFORE the node
+  executes the destructive wipe. The RPCs are only dispatched by the controller
+  after it has reached EtcdJoinRejoinInProgress / equivalent Scylla state.
+  The wipes are non-recoverable: etcd removes /var/lib/globular/etcd/member
+  (old member identity), Scylla removes /var/lib/scylla/data (Raft group state).
+  Neither operation may be auto-retried or initiated from the node side.
+agent_guidance: |
+  These RPCs are last-resort operations dispatched exclusively by the controller
+  workflow. Never call them from reconciler loops or health checks. If the wipe
+  completes but the service fails to rejoin (WaitActive timeout), the node must
+  report failure back to the workflow — the controller decides whether to retry
+  or escalate. Retry from the node side would wipe a potentially recovering member.
+bad_smells:
+  - calling WipeScyllaData or WipeEtcdAndRejoin from a reconciler or health loop
+  - auto-retrying the wipe after a rejoin timeout
+  - executing the wipe before the controller has rendered new config files
+  - triggering both wipes simultaneously (Scylla wipe racing etcd rejoin)
+activation_triggers:
+  - WipeScyllaData
+  - WipeEtcdAndRejoin
+  - etcd rejoin
+  - Scylla wipe
+  - runWipeScyllaData
+  - runWipeEtcdAndRejoin
+expressed_by:
+  - golang/node_agent/node_agent_server/grpc_scylla_wipe.go
+  - golang/node_agent/node_agent_server/grpc_etcd_rejoin.go
+zooms_out_to:
+  - node_recovery.fence_before_destructive_reseed
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - remediation.must_go_through_workflow
+  - workflow.source_of_operational_truth
+required_tests:
+  - node_agent:TestScyllaWipeOnlyDispatchedByWorkflow
+  - node_agent:TestEtcdRejoinOnlyDispatchedByWorkflow
+status: extracted_candidate

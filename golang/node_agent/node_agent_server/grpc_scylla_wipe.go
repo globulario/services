@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.scylla_wipe
+// @awareness file_role=last_resort_scylla_raft_data_wipe_dispatched_only_by_controller_workflow
+// @awareness implements=globular.platform:intent.node_agent.destructive_member_wipes_require_controller_prep
+// @awareness implements=globular.platform:intent.node_recovery.fence_before_destructive_reseed
+// @awareness risk=critical
 package main
 
 import (

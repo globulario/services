@@ -20,7 +20,8 @@ expressed_by:
 related_invariants: []
 zooms_out_to:
 - quorum_safety_before_storage_mutation
-zooms_in_to: []
+zooms_in_to:
+- node_agent.destructive_member_wipes_require_controller_prep
 related_to:
 - workflow.source_of_operational_truth
 required_tests:

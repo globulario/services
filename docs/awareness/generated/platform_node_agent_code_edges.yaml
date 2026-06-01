@@ -1,10 +1,28 @@
 code_edges:
+  - from: globular.platform:code.go.platform_node_agent.control_service
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.control_service
+    relation: implements
+    to: globular.platform:intent.node_agent.systemd_unit_control_is_allowlisted
+  - from: globular.platform:code.go.platform_node_agent.etcd_rejoin
+    relation: implements
+    to: globular.platform:intent.node_agent.destructive_member_wipes_require_controller_prep
+  - from: globular.platform:code.go.platform_node_agent.etcd_rejoin
+    relation: implements
+    to: globular.platform:intent.node_recovery.fence_before_destructive_reseed
   - from: globular.platform:code.go.platform_node_agent.heartbeat
     relation: enforces
     to: globular.platform:invariant.state.runtime_not_desired
   - from: globular.platform:code.go.platform_node_agent.heartbeat
     relation: implements
     to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.platform_node_agent.infra_health_probe
+    relation: implements
+    to: globular.platform:intent.health.requires_fresh_evidence
+  - from: globular.platform:code.go.platform_node_agent.infra_health_probe
+    relation: implements
+    to: globular.platform:intent.workflow.backend_health_gate_before_dispatch
   - from: globular.platform:code.go.platform_node_agent.install
     relation: implements
     to: globular.platform:intent.install.result_requires_durable_commit
@@ -14,6 +32,12 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.install
     relation: implements
     to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.install_verify
+    relation: implements
+    to: globular.platform:intent.node_agent.install_claim_requires_binary_proof
+  - from: globular.platform:code.go.platform_node_agent.install_verify
+    relation: implements
+    to: globular.platform:intent.runtime.identity.requires_proof
   - from: globular.platform:code.go.platform_node_agent.package_apply
     relation: enforces
     to: globular.platform:invariant.state.installed_not_catalog
@@ -35,6 +59,12 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.runtime_proof
     relation: implements
     to: globular.platform:intent.runtime.identity.requires_proof
+  - from: globular.platform:code.go.platform_node_agent.scylla_wipe
+    relation: implements
+    to: globular.platform:intent.node_agent.destructive_member_wipes_require_controller_prep
+  - from: globular.platform:code.go.platform_node_agent.scylla_wipe
+    relation: implements
+    to: globular.platform:intent.node_recovery.fence_before_destructive_reseed
   - from: globular.platform:code.go.platform_node_agent.self_hosted_proof
     relation: implements
     to: globular.platform:intent.health.requires_fresh_evidence

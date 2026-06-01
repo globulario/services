@@ -30,6 +30,7 @@ zooms_out_to:
 zooms_in_to:
 - installed_state.owned_by_node_agent
 - runtime_health.requires_live_observation
+- node_agent.systemd_unit_control_is_allowlisted
 related_to:
 - workflow.source_of_operational_truth
 required_tests:

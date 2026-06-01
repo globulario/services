@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.control_service
+// @awareness file_role=allowlisted_systemd_unit_control_globular_and_scylla_prefixes_only
+// @awareness implements=globular.platform:intent.node_agent.systemd_unit_control_is_allowlisted
+// @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
+// @awareness risk=high
 package main
 
 import (

@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.infra_health_probe
+// @awareness file_role=infrastructure_health_probes_gate_workflow_dispatch_and_convergence
+// @awareness implements=globular.platform:intent.health.requires_fresh_evidence
+// @awareness implements=globular.platform:intent.workflow.backend_health_gate_before_dispatch
+// @awareness risk=high
 package main
 
 import (
