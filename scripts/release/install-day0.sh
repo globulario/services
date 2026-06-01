@@ -258,6 +258,17 @@ log_info "Cluster domain: $DOMAIN"
 log_info "Conformance mode: warn"
 echo ""
 
+# Stop any cluster agents that might be running from a previous Day-0.
+# The node-agent's reconciliation loop will stop services (like MinIO) while
+# the installer is configuring them, causing bucket-provisioning to fail.
+# On a fresh node these services don't exist yet, so this is always safe.
+for _svc in globular-node-agent.service globular-cluster-controller.service; do
+  if systemctl is-active --quiet "$_svc" 2>/dev/null; then
+    log_substep "Stopping $_svc (will be restarted at end of Day-0)..."
+    systemctl stop "$_svc" 2>/dev/null || true
+  fi
+done
+
 # TLS MUST be set up BEFORE any packages are installed
 log_step "TLS Certificate Bootstrap"
 trace_step "running" "phase.tls" "TLS Certificate Bootstrap" 6
@@ -606,6 +617,31 @@ if systemctl list-unit-files 2>/dev/null | grep -q "^scylla-server.service"; the
     log_success "ScyllaDB configured with TLS"
   fi
 
+  # Validate scylla.yaml: if missing or has loopback listen_address, the running
+  # config is unusable. Re-run the bundled post-install to regenerate it.
+  _SCYLLA_YAML_OK=false
+  if [[ -f /etc/scylla/scylla.yaml ]]; then
+    _yaml_ip=$(grep "^listen_address:" /etc/scylla/scylla.yaml | awk '{print $2}' | tr -d "'\""  )
+    if [[ -n "$_yaml_ip" ]] && [[ "$_yaml_ip" != "localhost" ]] && ! is_loopback_ip "$_yaml_ip"; then
+      _SCYLLA_YAML_OK=true
+    fi
+  fi
+  if [[ "${_SCYLLA_YAML_OK}" == "false" ]]; then
+    log_substep "scylla.yaml missing or has loopback address — reinstalling scylladb package to regenerate..."
+    systemctl stop scylla-server.service 2>/dev/null || true
+    _scylla_pkg=$(_resolve_scylladb_pkg || true)
+    if [[ -n "${_scylla_pkg}" ]] && [[ -f "${_scylla_pkg}" ]]; then
+      rm -f /etc/scylla/scylla.yaml
+      export SCYLLA_INSTALL_INTENT="initial-node"
+      export SCYLLA_BOOTSTRAP_INTENT="first-node"
+      run_install "${_scylla_pkg}"
+      unset SCYLLA_INSTALL_INTENT SCYLLA_BOOTSTRAP_INTENT
+      log_success "scylla.yaml regenerated"
+    else
+      die "scylla.yaml invalid and no bundled scylladb package found to fix it"
+    fi
+  fi
+
   # Wait for ScyllaDB to be ready
   if ! systemctl is-active --quiet scylla-server.service; then
     systemctl start scylla-server.service || log_substep "Warning: failed to start scylla-server"
@@ -653,6 +689,10 @@ else
   # Falls back to direct apt install only when no scylladb_*.tgz is found anywhere.
   if [[ -n "${SCYLLADB_PKG_PATH:-}" ]] && [[ -f "$SCYLLADB_PKG_PATH" ]]; then
     log_substep "Using bundled package: $(basename "$SCYLLADB_PKG_PATH")"
+    # Always wipe scylla.yaml so post-install writes a fresh one with the correct
+    # node IP. A stale yaml from a previous failed attempt may have listen_address
+    # and rpc_address set to 'localhost', causing CQL to bind on 127.0.0.1 only.
+    rm -f /etc/scylla/scylla.yaml
     export SCYLLA_INSTALL_INTENT="initial-node"
     export SCYLLA_BOOTSTRAP_INTENT="first-node"
     run_install "$SCYLLADB_PKG_PATH"
@@ -1383,6 +1423,16 @@ else
 fi
 
 log_step "DNS Bootstrap (Day-0)"
+
+# Ensure globular CLI is callable as "globular" in PATH for bootstrap-dns.sh.
+# install.sh normally does this; when install-day0.sh is run directly it may be missing.
+_GLOBULAR_CLI_PATH="/usr/local/bin/globular"
+if [[ ! -x "$_GLOBULAR_CLI_PATH" ]]; then
+  _GLOBULAR_CLI_PATH="/usr/lib/globular/bin/globular"
+fi
+if [[ -x "$_GLOBULAR_CLI_PATH" ]] && [[ ! -x "/usr/local/bin/globular" ]]; then
+  ln -sf "$_GLOBULAR_CLI_PATH" /usr/local/bin/globular
+fi
 
 # Ensure etcd is running — DNS depends on it and etcd may have been rate-limited
 # by systemd if TLS certs were briefly unreadable during regeneration.
