@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.api
+// @awareness file_role=artifact_publish_state_helpers
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness risk=high
 package repositorypb
 
 // ── Lifecycle State Behavior Semantics ──────────────────────────────────────

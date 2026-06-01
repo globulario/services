@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.collector
+// @awareness file_role=verifier_result_collector
+// @awareness implements=globular.platform:intent.runtime.identity_requires_verification
+// @awareness risk=high
 package collector
 
 // verification.go — Phase 9 wire-up of the Diagnostic Honesty Refactor.

@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.actions
+// @awareness file_role=infrastructure_package_apply_actions
+// @awareness enforces=globular.platform:invariant.state.installed_not_catalog
+// @awareness risk=high
 package actions
 
 import (

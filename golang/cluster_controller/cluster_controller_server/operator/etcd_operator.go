@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.operator
+// @awareness file_role=etcd_cluster_operator_implementation
+// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
+// @awareness risk=critical
 package operator
 
 import "context"

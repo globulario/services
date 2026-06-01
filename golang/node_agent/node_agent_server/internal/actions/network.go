@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.actions
+// @awareness file_role=network_configuration_actions
+// @awareness risk=medium
 package actions
 
 import (

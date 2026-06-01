@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.ingress
+// @awareness file_role=keepalived_config_renderer
+// @awareness risk=medium
 package keepalived
 
 import (

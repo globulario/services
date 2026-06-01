@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.actions
+// @awareness file_role=acme_certificate_provisioning_actions
+// @awareness implements=globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+// @awareness risk=high
 package actions
 
 import (

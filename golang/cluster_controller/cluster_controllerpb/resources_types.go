@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.api
+// @awareness file_role=resources_grpc_type_definitions
+// @awareness risk=medium
 package cluster_controllerpb
 
 // NOTE: This file provides minimal resource types to enable the new resource

@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent
+// @awareness file_role=dynamic_port_allocator
+// @awareness risk=medium
 package ports
 
 import (

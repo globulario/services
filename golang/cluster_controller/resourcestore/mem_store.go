@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.resourcestore
+// @awareness file_role=in_memory_resource_store
+// @awareness risk=medium
 package resourcestore
 
 import (

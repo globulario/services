@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.collector
+// @awareness file_role=repository_findings_collector
+// @awareness implements=globular.platform:intent.repository.identity_doctor_reports_collisions
+// @awareness risk=high
 package collector
 
 // repository_finding.go — doctor-internal mirrors of repository service types.

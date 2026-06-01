@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.ingress
+// @awareness file_role=ingress_vip_status_tracking
+// @awareness risk=medium
 package ingress
 
 import (

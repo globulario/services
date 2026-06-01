@@ -164,6 +164,21 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor
     relation: implements
     to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.platform_cluster_doctor.collector
+    relation: enforces
+    to: globular.platform:invariant.state.unknown_must_not_default_to_healthy
+  - from: globular.platform:code.go.platform_cluster_doctor.collector
+    relation: enforces
+    to: globular.platform:invariant.state.unknown_must_not_default_to_healthy
+  - from: globular.platform:code.go.platform_cluster_doctor.collector
+    relation: implements
+    to: globular.platform:intent.repository.identity_doctor_reports_collisions
+  - from: globular.platform:code.go.platform_cluster_doctor.collector
+    relation: implements
+    to: globular.platform:intent.runtime.identity_requires_verification
+  - from: globular.platform:code.go.platform_cluster_doctor.collector
+    relation: implements
+    to: globular.platform:intent.runtime.identity_requires_verification
   - from: globular.platform:code.go.platform_cluster_doctor.heal_policy
     relation: implements
     to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
@@ -233,6 +248,15 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.objectstore_admission.objectstoreMinioStandaloneSplitbrain
     relation: implements
     to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.render
+    relation: implements
+    to: globular.platform:intent.doctor.findings_are_operator_language
+  - from: globular.platform:code.go.platform_cluster_doctor.render
+    relation: implements
+    to: globular.platform:intent.doctor.findings_are_operator_language
+  - from: globular.platform:code.go.platform_cluster_doctor.render
+    relation: implements
+    to: globular.platform:intent.doctor.findings_are_operator_language
   - from: globular.platform:code.go.platform_cluster_doctor.rules
     relation: enforces
     to: globular.platform:invariant.state.installed_not_catalog

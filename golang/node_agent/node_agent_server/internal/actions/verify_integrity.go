@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.actions
+// @awareness file_role=package_integrity_verification_action
+// @awareness implements=globular.platform:intent.runtime.identity_requires_verification
+// @awareness risk=high
 package actions
 
 import (

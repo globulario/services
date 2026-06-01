@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.actions
+// @awareness file_role=service_readiness_probe_actions
+// @awareness enforces=globular.platform:invariant.state.runtime_not_desired
+// @awareness risk=medium
 package actions
 
 import (

@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.collector
+// @awareness file_role=prometheus_metrics_collector
+// @awareness risk=medium
 package collector
 
 import (

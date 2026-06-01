@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.actions
+// @awareness file_role=keepalived_vip_management_actions
+// @awareness risk=high
 package actions
 
 import (

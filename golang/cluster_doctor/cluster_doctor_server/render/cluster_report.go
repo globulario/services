@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.render
+// @awareness file_role=cluster_health_report_renderer
+// @awareness implements=globular.platform:intent.doctor.findings_are_operator_language
+// @awareness risk=medium
 package render
 
 import (

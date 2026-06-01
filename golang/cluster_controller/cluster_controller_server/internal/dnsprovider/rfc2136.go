@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.dns
+// @awareness file_role=rfc2136_dns_provider_implementation
+// @awareness implements=globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+// @awareness risk=medium
 package dnsprovider
 
 import (

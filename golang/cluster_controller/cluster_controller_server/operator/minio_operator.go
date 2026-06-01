@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.operator
+// @awareness file_role=minio_objectstore_operator_implementation
+// @awareness implements=globular.platform:intent.objectstore.topology_requires_contract
+// @awareness risk=high
 package operator
 
 import "context"

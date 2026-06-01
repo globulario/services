@@ -54,6 +54,9 @@ code_edges:
     relation: enforces
     to: globular.platform:invariant.state.runtime_not_desired
   - from: globular.platform:code.go.platform_node_agent
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.platform_node_agent
     relation: implements
     to: globular.platform:intent.etcd.is_source_of_truth
   - from: globular.platform:code.go.platform_node_agent
@@ -65,6 +68,48 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent
     relation: implements
     to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.platform_node_agent.actions
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent.actions
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent.actions
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent.actions
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent.actions
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent.actions
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.platform_node_agent.actions
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.platform_node_agent.actions
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.platform_node_agent.actions
+    relation: enforces
+    to: globular.platform:invariant.state.runtime_not_desired
+  - from: globular.platform:code.go.platform_node_agent.actions
+    relation: implements
+    to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - from: globular.platform:code.go.platform_node_agent.actions
+    relation: implements
+    to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
+  - from: globular.platform:code.go.platform_node_agent.actions
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.actions
+    relation: implements
+    to: globular.platform:intent.objectstore.topology_requires_contract
+  - from: globular.platform:code.go.platform_node_agent.actions
+    relation: implements
+    to: globular.platform:intent.runtime.identity_requires_verification
   - from: globular.platform:code.go.platform_node_agent.bootstrap
     relation: implements
     to: globular.platform:intent.day0_day1_are_repeatable_ceremonies
@@ -83,6 +128,9 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.integrity
     relation: implements
     to: globular.platform:intent.runtime.identity_requires_verification
+  - from: globular.platform:code.go.platform_node_agent.join
+    relation: implements
+    to: globular.platform:intent.cluster.membership.earned_trust
   - from: globular.platform:code.go.platform_node_agent.join
     relation: implements
     to: globular.platform:intent.cluster.membership.earned_trust
@@ -164,6 +212,12 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.package_apply
     relation: enforces
     to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent.package_apply
+    relation: enforces
+    to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent.pki
+    relation: implements
+    to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing
   - from: globular.platform:code.go.platform_node_agent.pki
     relation: implements
     to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing

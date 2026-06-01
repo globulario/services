@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.api
+// @awareness file_role=recovery_grpc_type_definitions
+// @awareness risk=medium
 package cluster_controllerpb
 
 import "time"

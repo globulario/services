@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_controller.reconciler
+// @awareness file_role=node_identity_projection
+// @awareness implements=globular.platform:intent.identity.stable_node_identity_not_floating_vip
+// @awareness risk=high
 package projections
 
 import (

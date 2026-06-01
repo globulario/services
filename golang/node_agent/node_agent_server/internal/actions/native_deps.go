@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.actions
+// @awareness file_role=native_dependency_install_actions
+// @awareness risk=medium
 package actions
 
 import (

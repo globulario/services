@@ -1,3 +1,7 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.pki
+// @awareness file_role=certificate_in_memory_kv_store
+// @awareness risk=medium
 package certs
 
 import (
