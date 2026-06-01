@@ -46,6 +46,22 @@ is_loopback_ip() {
   [[ "$1" =~ ^127\. ]] || [[ "$1" == "::1" ]]
 }
 
+# Returns the routable IP ScyllaDB is listening on, read from scylla.yaml.
+# Never returns localhost/127.x — ScyllaDB must bind to a routable IP for
+# cluster connectivity. Falls back to the first non-loopback interface IP.
+scylla_cql_host() {
+  local h
+  h=$(grep "^listen_address:" /etc/scylla/scylla.yaml 2>/dev/null \
+        | awk '{print $2}' | tr -d "'\"" || true)
+  if [[ -z "$h" ]] || [[ "$h" == "localhost" ]] || is_loopback_ip "$h"; then
+    h=$(hostname -I | tr ' ' '\n' | grep -v '^\s*$' | grep -v '^::' \
+          | while IFS= read -r ip; do
+              is_loopback_ip "$ip" || { echo "$ip"; break; }
+            done)
+  fi
+  echo "${h:-}"
+}
+
 # Normalize metadata values read from JSON/CLI so sentinel text does not get
 # treated as real identity values.
 normalize_meta_value() {
@@ -594,9 +610,7 @@ if systemctl list-unit-files 2>/dev/null | grep -q "^scylla-server.service"; the
   if ! systemctl is-active --quiet scylla-server.service; then
     systemctl start scylla-server.service || log_substep "Warning: failed to start scylla-server"
   fi
-  # ScyllaDB binds to the routable IP — extract from scylla.yaml
-  SCYLLA_CQL_HOST=$(grep "^listen_address:" /etc/scylla/scylla.yaml 2>/dev/null | awk '{print $2}' | tr -d "'\"" || true)
-  SCYLLA_CQL_HOST="${SCYLLA_CQL_HOST:-$(hostname -I | awk '{print $1}')}"
+  SCYLLA_CQL_HOST=$(scylla_cql_host)
   log_substep "Waiting for ScyllaDB CQL port (${SCYLLA_CQL_HOST}:9042)..."
   SCYLLA_READY=0
   for i in $(seq 1 90); do
@@ -619,7 +633,12 @@ else
   # Falls back to direct apt install only when no scylladb_*.tgz is found anywhere.
   if [[ -n "${SCYLLADB_PKG_PATH:-}" ]] && [[ -f "$SCYLLADB_PKG_PATH" ]]; then
     log_substep "Using bundled package: $(basename "$SCYLLADB_PKG_PATH")"
+    # Day-0 initial-node: allow post-install to wipe stale data from a previous
+    # failed bootstrap attempt. There is no live cluster to protect at this stage.
+    export SCYLLA_INSTALL_INTENT="initial-node"
+    export SCYLLA_BOOTSTRAP_INTENT="first-node"
     run_install "$SCYLLADB_PKG_PATH"
+    unset SCYLLA_INSTALL_INTENT SCYLLA_BOOTSTRAP_INTENT
   else
     log_substep "Warning: no scylladb package found in $PKG_DIR or /var/lib/globular/packages, attempting direct apt install..."
     # Only import GPG key and configure apt repo when falling back to direct apt install
@@ -670,9 +689,7 @@ else
   # Wait for ScyllaDB to be ready (CQL port 9042). ScyllaDB can take 30-90s
   # to initialize on first start. Without this wait, downstream services
   # (persistence, scylla-manager) fail to connect on the first install attempt.
-  # ScyllaDB binds to the routable IP — extract from scylla.yaml
-  SCYLLA_CQL_HOST=$(grep "^listen_address:" /etc/scylla/scylla.yaml 2>/dev/null | awk '{print $2}' | tr -d "'\"" || true)
-  SCYLLA_CQL_HOST="${SCYLLA_CQL_HOST:-$(hostname -I | awk '{print $1}')}"
+  SCYLLA_CQL_HOST=$(scylla_cql_host)
   log_substep "Waiting for ScyllaDB to accept CQL connections (${SCYLLA_CQL_HOST}:9042)..."
   SCYLLA_READY=0
   for i in $(seq 1 90); do

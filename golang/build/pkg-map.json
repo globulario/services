@@ -177,111 +177,133 @@
   "scylladb": {
     "binary": "noop",
     "go_target": "",
-    "kind": "infrastructure"
+    "kind": "infrastructure",
+    "platform_version": false
   },
   "keepalived": {
     "binary": "noop",
     "go_target": "",
-    "kind": "infrastructure"
+    "kind": "infrastructure",
+    "platform_version": false
   },
   "etcd": {
     "binary": "etcd",
     "go_target": "",
-    "kind": "infrastructure"
+    "kind": "infrastructure",
+    "platform_version": false
   },
   "etcdctl": {
     "binary": "etcdctl",
     "go_target": "",
-    "kind": "command"
+    "kind": "command",
+    "platform_version": false
   },
   "envoy": {
     "binary": "envoy",
     "go_target": "",
-    "kind": "infrastructure"
+    "kind": "infrastructure",
+    "platform_version": false
   },
   "minio": {
     "binary": "minio",
     "go_target": "",
-    "kind": "infrastructure"
+    "kind": "infrastructure",
+    "platform_version": false
   },
   "mc": {
     "binary": "mc",
     "go_target": "",
-    "kind": "command"
+    "kind": "command",
+    "platform_version": false
   },
   "prometheus": {
     "binary": "prometheus",
     "go_target": "",
-    "kind": "infrastructure"
+    "kind": "infrastructure",
+    "platform_version": false
   },
   "alertmanager": {
     "binary": "alertmanager",
     "go_target": "",
-    "kind": "infrastructure"
+    "kind": "infrastructure",
+    "platform_version": false
   },
   "node-exporter": {
     "binary": "node_exporter",
     "go_target": "",
-    "kind": "infrastructure"
+    "kind": "infrastructure",
+    "platform_version": false
   },
   "sidekick": {
     "binary": "sidekick",
     "go_target": "",
-    "kind": "infrastructure"
+    "kind": "infrastructure",
+    "platform_version": false
   },
   "restic": {
     "binary": "restic",
     "go_target": "",
-    "kind": "command"
+    "kind": "command",
+    "platform_version": false
   },
   "rclone": {
     "binary": "rclone",
     "go_target": "",
-    "kind": "command"
+    "kind": "command",
+    "platform_version": false
   },
   "sha256sum": {
     "binary": "sha256sum",
     "go_target": "",
-    "kind": "command"
+    "kind": "command",
+    "platform_version": false
   },
   "yt-dlp": {
     "binary": "yt-dlp",
     "go_target": "",
-    "kind": "command"
+    "kind": "command",
+    "platform_version": false
   },
   "ffmpeg": {
     "binary": "ffmpeg",
     "go_target": "",
-    "kind": "command"
+    "kind": "command",
+    "platform_version": false
   },
   "scylla-manager": {
     "binary": "scylla_manager",
     "go_target": "",
-    "kind": "infrastructure"
+    "kind": "infrastructure",
+    "platform_version": false
   },
   "scylla-manager-agent": {
     "binary": "scylla_manager_agent",
     "go_target": "",
-    "kind": "infrastructure"
+    "kind": "infrastructure",
+    "platform_version": false
   },
   "sctool": {
     "binary": "sctool",
     "go_target": "",
-    "kind": "command"
+    "kind": "command",
+    "platform_version": false
   },
   "claude": {
     "binary": "claude",
     "go_target": "",
-    "kind": "command"
+    "kind": "command",
+    "platform_version": false
   },
   "awareness-graph": {
     "binary": "awareness-graph",
     "go_target": "",
-    "kind": "service"
+    "kind": "service",
+    "platform_version": false
   },
   "oxigraph": {
     "binary": "oxigraph",
     "go_target": "",
-    "kind": "infrastructure"
+    "kind": "infrastructure",
+    "platform_version": false
   }
 }
