@@ -1,0 +1,46 @@
+id: ai.router_safety_validator_overrides_scoring_engine
+level: mechanism
+title: The router safety validator has unconditional final authority over any policy the scoring engine proposes
+intent: |
+  The ai_router scoring engine proposes a RoutingPolicy (weights per endpoint per service).
+  Before that policy is applied, the safetyValidator enforces four unconditional invariants:
+  (1) Never remove all endpoints for a service (always keep at least one with MinWeight),
+  (2) Never drop an endpoint below its class-specific MinWeight,
+  (3) Never change a weight by more than MaxWeightDelta per scoring cycle,
+  (4) Never change a weight during the cooldown window after a recent change.
+  CONTROL_PLANE class endpoints have MinWeight=20: they can never be drained fully from
+  rotation. This protects cluster convergence — if all controller replicas are drained,
+  the convergence loop breaks. The safety validator's clamps are applied after every
+  scoring cycle and cannot be disabled per-service or per-cycle.
+agent_guidance: |
+  When adding a new service class or adjusting safety parameters, the CONTROL_PLANE
+  MinWeight=20 must not be reduced. If you see a control plane endpoint stuck at weight 20
+  and want to drain it, that is intentional — use the cluster's standard drain workflow
+  rather than adjusting router weights. Never add a bypass flag or per-service override
+  that skips safety validation.
+bad_smells:
+  - safety validator bypassed for a specific service or action type
+  - CONTROL_PLANE MinWeight reduced below 20
+  - scoring engine output applied directly without safety validation pass
+  - new service class added without reviewing MinWeight for convergence safety
+  - safetyConfig.MinActiveEndpoints set to 0 (removes all-endpoints guard)
+activation_triggers:
+  - safetyValidator
+  - MinWeight
+  - MaxWeightDelta
+  - CONTROL_PLANE
+  - routing policy clamp
+  - safety clamped
+expressed_by:
+  - golang/ai_router/ai_router_server/safety.go
+related_invariants: []
+zooms_out_to:
+  - ai.supplementary_not_required
+zooms_in_to: []
+related_to:
+  - ai.decision_tier.gates_execution
+required_tests:
+  - ai_router:TestSafetyValidatorNeverRemovesAllEndpoints
+  - ai_router:TestControlPlaneNeverDrainsBelowMinWeight
+  - ai_router:TestMaxWeightDeltaEnforced
+status: extracted_candidate

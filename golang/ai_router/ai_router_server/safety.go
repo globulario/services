@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_router.safety
+// @awareness file_role=unconditional_safety_clamps_after_scoring_engine_control_plane_min_weight_guard
+// @awareness implements=globular.platform:intent.ai.router_safety_validator_overrides_scoring_engine
+// @awareness risk=high
 package main
 
 import (

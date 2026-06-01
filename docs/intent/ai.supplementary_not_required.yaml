@@ -31,6 +31,7 @@ zooms_in_to:
   - ai.decision_tier.gates_execution
   - ai.memory.outcome_history_not_cluster_authority
   - ai.watcher_to_executor_causal_chain
+  - ai.router_safety_validator_overrides_scoring_engine
 related_to:
   - globular.vision.explicit_convergence
   - health.requires_fresh_evidence

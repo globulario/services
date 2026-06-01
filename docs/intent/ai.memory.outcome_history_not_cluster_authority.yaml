@@ -27,7 +27,9 @@ expressed_by:
 related_invariants: []
 zooms_out_to:
   - ai.supplementary_not_required
-zooms_in_to: []
+zooms_in_to:
+  - ai.memory_seed_entries_immutable_except_sa_subject
+  - ai.memory_queried_before_claude_to_boost_confidence
 related_to:
   - etcd.is_source_of_truth
   - awareness.graph_is_compiled_context_not_authority

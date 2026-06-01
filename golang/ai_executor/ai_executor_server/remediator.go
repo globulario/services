@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_executor.remediator
+// @awareness file_role=tier_gated_action_execution_with_memory_outcome_recording
+// @awareness implements=globular.platform:intent.ai.decision_tier.gates_execution
+// @awareness implements=globular.platform:intent.ai.high_risk_diagnosis_always_escalates_to_notify_admin
+// @awareness risk=high
 package main
 
 import (

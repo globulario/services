@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_executor.diagnoser
+// @awareness file_role=ai_diagnosis_with_memory_first_fallback_and_high_risk_safety_gate
+// @awareness implements=globular.platform:intent.ai.high_risk_diagnosis_always_escalates_to_notify_admin
+// @awareness implements=globular.platform:intent.ai.memory_queried_before_claude_to_boost_confidence
+// @awareness implements=globular.platform:intent.ai.supplementary_not_required
+// @awareness risk=high
 package main
 
 import (

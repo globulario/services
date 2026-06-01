@@ -18,6 +18,11 @@
 //
 // Anything else (random AI agents, application service accounts, mTLS
 // peers other than sa) gets a permission-denied error.
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_memory.immutability
+// @awareness file_role=seed_entry_mutation_guard_sa_only_escape_hatch
+// @awareness implements=globular.platform:intent.ai.memory_seed_entries_immutable_except_sa_subject
+// @awareness risk=critical
 package main
 
 import (

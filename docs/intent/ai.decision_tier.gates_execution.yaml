@@ -35,7 +35,9 @@ related_invariants:
   - doctor.escalation_threshold_gates_repeated_attempts
 zooms_out_to:
   - ai.supplementary_not_required
-zooms_in_to: []
+zooms_in_to:
+  - ai.high_risk_diagnosis_always_escalates_to_notify_admin
+  - ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
 related_to:
   - autonomy.remediation_is_bounded_and_escalates
   - remediation.must_go_through_workflow

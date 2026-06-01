@@ -1,0 +1,43 @@
+id: ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
+level: mechanism
+title: AI remediation actions are dispatched via the event bus so the cluster controller preserves workflow tracking
+intent: |
+  When the AI executor decides to restart a service or drain an endpoint, it publishes
+  an event (operation.restart_requested, operation.drain_requested) rather than calling
+  a cluster controller RPC directly. The cluster controller subscribes to these events
+  and dispatches the action through the workflow engine and node agent — the same path
+  used for all other cluster mutations. This ensures every AI-initiated action:
+  (1) has a workflow record and can be audited,
+  (2) respects the controller's own convergence loop,
+  (3) can be replayed if the executor crashes between publish and acknowledgement.
+  A direct gRPC call would bypass workflow tracking and produce an unauditable state change.
+agent_guidance: |
+  Never replace the PublishEvent call in action backends with a direct gRPC call to
+  the cluster controller, even if a matching RPC exists. The event bus path is the
+  workflow-tracking contract. If a new action type is added, its Execute() must publish
+  an event and its Verify() must check observable cluster state — not the gRPC response.
+bad_smells:
+  - action backend calling ClusterControllerService RPC directly
+  - Execute() interpreting a gRPC success response as "action completed"
+  - Verify() trusting the Execute() return value instead of reading cluster state
+  - event published but workflow record never created (listener not wired)
+activation_triggers:
+  - PublishEvent
+  - operation.restart_requested
+  - operation.drain_requested
+  - action backend
+  - restartServiceBackend
+  - drainEndpointBackend
+expressed_by:
+  - golang/ai_executor/ai_executor_server/action_backend.go
+related_invariants: []
+zooms_out_to:
+  - ai.decision_tier.gates_execution
+zooms_in_to: []
+related_to:
+  - workflow.source_of_operational_truth
+  - ai.high_risk_diagnosis_always_escalates_to_notify_admin
+required_tests:
+  - ai_executor:TestRestartActionPublishesEventNotDirectRPC
+  - ai_executor:TestActionVerifyReadsClusterStateNotRPCResponse
+status: extracted_candidate

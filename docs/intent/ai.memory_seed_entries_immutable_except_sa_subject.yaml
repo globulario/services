@@ -1,0 +1,46 @@
+id: ai.memory_seed_entries_immutable_except_sa_subject
+level: mechanism
+title: Operational-knowledge seed entries are immutable to all callers except the "sa" super-admin subject
+intent: |
+  Memory entries stamped with metadata.source=seed + metadata.immutable=true (loaded by
+  the operational-knowledge seed CLI at Day-0/Day-1) are protected against mutation by
+  any caller whose auth context subject is not "sa". This prevents AI agents, service
+  accounts, or mTLS peers from silently overwriting the baseline knowledge the cluster
+  ships with. The "sa" escape hatch is intentional: it is the only way an operator can
+  surgically correct a wrong seed entry in production without redeploying the awareness
+  bundle. The guard is enforced in guardSeedMutation(), called by Update and Delete
+  before any write.
+agent_guidance: |
+  If a seed entry contains incorrect information and you need to correct it in production:
+  (1) run "globular auth login --user sa" to obtain an sa token,
+  (2) use the memory_update MCP tool (which will carry the sa token via the interceptor),
+  (3) verify the correction, then fix the source YAML for the next deployment.
+  Never broaden authorizedSeedMutator() to allow additional subjects — every subject
+  added there can rewrite Day-0 baseline knowledge for the entire cluster.
+bad_smells:
+  - authorizedSeedMutator modified to allow additional subjects
+  - seed guard removed "temporarily" to allow a bulk memory cleanup script
+  - Update or Delete called before guardSeedMutation check (guard order reversed)
+  - sa-subject token stored in config or env var for automation (tokens are ephemeral)
+activation_triggers:
+  - seed entry
+  - immutable memory
+  - guardSeedMutation
+  - authorizedSeedMutator
+  - metadata.source=seed
+  - metadata.immutable=true
+  - sa subject
+expressed_by:
+  - golang/ai_memory/ai_memory_server/immutability.go
+related_invariants: []
+zooms_out_to:
+  - ai.memory.outcome_history_not_cluster_authority
+zooms_in_to: []
+related_to:
+  - security.tokens_certificates_keys.cluster_trust_contract
+  - ai.memory_queried_before_claude_to_boost_confidence
+required_tests:
+  - ai_memory:TestSeedEntryRejectedByNonSaSubject
+  - ai_memory:TestSeedEntryMutableBySaSubject
+  - ai_memory:TestNonSeedEntryMutableByAnySubject
+status: extracted_candidate

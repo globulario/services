@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_ai_executor.action_backend
+// @awareness file_role=event_bus_action_dispatch_with_verification_loop
+// @awareness implements=globular.platform:intent.ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
+// @awareness risk=high
 package main
 
 import (

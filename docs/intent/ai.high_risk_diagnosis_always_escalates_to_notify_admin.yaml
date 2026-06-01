@@ -1,0 +1,41 @@
+id: ai.high_risk_diagnosis_always_escalates_to_notify_admin
+level: mechanism
+title: AI diagnoses with risk_level=high are unconditionally downgraded to notify_admin regardless of Claude's proposal
+intent: |
+  When Claude's structured analysis output carries risk_level="high", the executor discards
+  whatever action Claude proposed and replaces it with "notify_admin" before dispatch.
+  This safety gate exists so that a confident but aggressive AI recommendation — e.g.
+  "drain_endpoint + block_ip" in response to a suspected DoS — cannot execute automatically
+  at Tier 1. The operator always gets the high-risk diagnosis as a notification first.
+  The gate fires inside diagnoser.go after AI analysis is parsed, before the tier check
+  in remediator.go.
+agent_guidance: |
+  Never remove or narrow this gate to allow high-risk actions to auto-execute.
+  If a new action type is added that is both high-risk and Tier 1, the action classification
+  must ensure it produces risk_level="high" so the gate fires. The downgrade to notify_admin
+  is not a failure — it is the intended outcome for high-risk confident diagnoses.
+bad_smells:
+  - high-risk action type added to Tier 1 without confirming risk_level annotation
+  - risk_level check removed to allow "faster response" to known incident patterns
+  - notify_admin replaced with the original high-risk action after the downgrade
+  - risk_level="high" treated as a label rather than a gate trigger
+activation_triggers:
+  - risk_level
+  - high risk
+  - notify_admin downgrade
+  - AI analysis safety gate
+  - diagnoser
+expressed_by:
+  - golang/ai_executor/ai_executor_server/diagnoser.go
+  - golang/ai_executor/ai_executor_server/remediator.go
+related_invariants:
+  - doctor.hard_blocked_actions_never_execute
+zooms_out_to:
+  - ai.decision_tier.gates_execution
+zooms_in_to: []
+related_to:
+  - ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
+required_tests:
+  - ai_executor:TestHighRiskAIDiagnosisDowngradedToNotify
+  - ai_executor:TestTierOneHighRiskNeverAutoExecutes
+status: extracted_candidate

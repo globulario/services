@@ -1,0 +1,41 @@
+id: ai.memory_queried_before_claude_to_boost_confidence
+level: mechanism
+title: ai_memory is queried before calling Claude — a known root cause skips the API call entirely
+intent: |
+  The diagnoser queries ai_memory for past incidents with the same rule_id and event_name
+  BEFORE invoking Claude. If a matching record exists with a non-empty root_cause,
+  that root cause is used directly with a confidence of 0.7, and the Claude API call
+  is skipped. This has two effects: (1) it reduces API latency and cost for recurring
+  incidents, and (2) it means memory quality directly affects diagnosis quality.
+  A stale or incorrect root_cause in ai_memory will silently override Claude's analysis
+  for all future incidents matching that rule+event pair.
+agent_guidance: |
+  When debugging a diagnosis that seems wrong, check ai_memory first. If a past incident
+  record carries an incorrect root_cause, it will poison future diagnoses for that pattern.
+  The fix is to delete or correct the offending memory record (requires "sa" credentials
+  if it is a seed entry). Do not disable the memory-first pattern to "fix" a single wrong
+  diagnosis — correct the memory record instead.
+bad_smells:
+  - Claude called without querying memory first (API cost, slower for known patterns)
+  - stale root_cause in memory overriding correct AI analysis
+  - memory query result ignored when confidence >= 0.7
+  - past incident memory deleted wholesale instead of targeted record correction
+activation_triggers:
+  - queryPastIncidents
+  - memory before Claude
+  - historical root cause
+  - confidence 0.7
+  - ai_memory query in diagnoser
+expressed_by:
+  - golang/ai_executor/ai_executor_server/diagnoser.go
+related_invariants: []
+zooms_out_to:
+  - ai.memory.outcome_history_not_cluster_authority
+zooms_in_to: []
+related_to:
+  - ai.supplementary_not_required
+  - ai.memory_seed_entries_immutable_except_sa_subject
+required_tests:
+  - ai_executor:TestKnownRootCauseSkipsClaudeCall
+  - ai_executor:TestStalMemoryDoesNotBlockFallback
+status: extracted_candidate
