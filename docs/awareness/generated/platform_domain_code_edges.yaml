@@ -5,3 +5,33 @@ code_edges:
   - from: globular.platform:code.go.platform_domain
     relation: implements
     to: globular.platform:intent.domain.leader_only_acme_reconciliation
+  - from: globular.platform:code.go.platform_domain.acme_account
+    relation: implements
+    to: globular.platform:intent.domain.acme_account_is_persisted_to_prevent_registration_loops
+  - from: globular.platform:code.go.platform_domain.acme_account
+    relation: implements
+    to: globular.platform:intent.domain.leader_only_acme_reconciliation
+  - from: globular.platform:code.go.platform_domain.acme_solver
+    relation: implements
+    to: globular.platform:intent.domain.dns01_challenge_waits_for_public_resolver_propagation
+  - from: globular.platform:code.go.platform_domain.acme_solver
+    relation: implements
+    to: globular.platform:intent.domain.leader_only_acme_reconciliation
+  - from: globular.platform:code.go.platform_domain.dns_propagation
+    relation: implements
+    to: globular.platform:intent.domain.dns01_challenge_waits_for_public_resolver_propagation
+  - from: globular.platform:code.go.platform_domain.file_atomic
+    relation: implements
+    to: globular.platform:intent.domain.cert_files_are_written_atomically
+  - from: globular.platform:code.go.platform_domain.spec
+    relation: implements
+    to: globular.platform:intent.domain.certs_distributed_via_etcd_not_files
+  - from: globular.platform:code.go.platform_domain.spec
+    relation: implements
+    to: globular.platform:intent.domain.spec_is_etcd_authority_for_external_domain_desired_state
+  - from: globular.platform:code.go.platform_domain.store
+    relation: implements
+    to: globular.platform:intent.domain.certs_distributed_via_etcd_not_files
+  - from: globular.platform:code.go.platform_domain.store
+    relation: implements
+    to: globular.platform:intent.domain.spec_is_etcd_authority_for_external_domain_desired_state

@@ -5,3 +5,6 @@ code_edges:
   - from: globular.platform:code.go.platform_ai_router
     relation: implements
     to: globular.platform:intent.circuit_breakers_protect_convergence
+  - from: globular.platform:code.go.platform_ai_router.safety
+    relation: implements
+    to: globular.platform:intent.ai.router_safety_validator_overrides_scoring_engine

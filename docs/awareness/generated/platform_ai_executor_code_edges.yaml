@@ -11,3 +11,21 @@ code_edges:
   - from: globular.platform:code.go.platform_ai_executor
     relation: implements
     to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.platform_ai_executor.action_backend
+    relation: implements
+    to: globular.platform:intent.ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
+  - from: globular.platform:code.go.platform_ai_executor.diagnoser
+    relation: implements
+    to: globular.platform:intent.ai.high_risk_diagnosis_always_escalates_to_notify_admin
+  - from: globular.platform:code.go.platform_ai_executor.diagnoser
+    relation: implements
+    to: globular.platform:intent.ai.memory_queried_before_claude_to_boost_confidence
+  - from: globular.platform:code.go.platform_ai_executor.diagnoser
+    relation: implements
+    to: globular.platform:intent.ai.supplementary_not_required
+  - from: globular.platform:code.go.platform_ai_executor.remediator
+    relation: implements
+    to: globular.platform:intent.ai.decision_tier.gates_execution
+  - from: globular.platform:code.go.platform_ai_executor.remediator
+    relation: implements
+    to: globular.platform:intent.ai.high_risk_diagnosis_always_escalates_to_notify_admin

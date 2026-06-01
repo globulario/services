@@ -9,3 +9,12 @@ code_symbols:
       implements:
         - globular.platform:intent.ai.memory.outcome_history_not_cluster_authority
         - globular.platform:intent.ai.supplementary_not_required
+  - id: globular.platform:code.go.platform_ai_memory.immutability
+    namespace: globular.platform
+    language: go
+    file: golang/ai_memory/ai_memory_server/immutability.go
+    component: platform_ai_memory.immutability
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.ai.memory_seed_entries_immutable_except_sa_subject

@@ -9,3 +9,61 @@ code_symbols:
       implements:
         - globular.platform:intent.domain.leader_only_acme_reconciliation
         - globular.platform:intent.domain.certs_distributed_via_etcd_not_files
+  - id: globular.platform:code.go.platform_domain.acme_account
+    namespace: globular.platform
+    language: go
+    file: golang/domain/acme_account.go
+    component: platform_domain.acme_account
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.domain.acme_account_is_persisted_to_prevent_registration_loops
+        - globular.platform:intent.domain.leader_only_acme_reconciliation
+  - id: globular.platform:code.go.platform_domain.acme_solver
+    namespace: globular.platform
+    language: go
+    file: golang/domain/acme_solver.go
+    component: platform_domain.acme_solver
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.domain.dns01_challenge_waits_for_public_resolver_propagation
+        - globular.platform:intent.domain.leader_only_acme_reconciliation
+  - id: globular.platform:code.go.platform_domain.dns_propagation
+    namespace: globular.platform
+    language: go
+    file: golang/domain/dns_propagation.go
+    component: platform_domain.dns_propagation
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.domain.dns01_challenge_waits_for_public_resolver_propagation
+  - id: globular.platform:code.go.platform_domain.file_atomic
+    namespace: globular.platform
+    language: go
+    file: golang/domain/file_atomic.go
+    component: platform_domain.file_atomic
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.domain.cert_files_are_written_atomically
+  - id: globular.platform:code.go.platform_domain.spec
+    namespace: globular.platform
+    language: go
+    file: golang/domain/spec.go
+    component: platform_domain.spec
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.domain.spec_is_etcd_authority_for_external_domain_desired_state
+        - globular.platform:intent.domain.certs_distributed_via_etcd_not_files
+  - id: globular.platform:code.go.platform_domain.store
+    namespace: globular.platform
+    language: go
+    file: golang/domain/store.go
+    component: platform_domain.store
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.domain.spec_is_etcd_authority_for_external_domain_desired_state
+        - globular.platform:intent.domain.certs_distributed_via_etcd_not_files

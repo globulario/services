@@ -9,3 +9,12 @@ code_symbols:
       implements:
         - globular.platform:intent.ai.supplementary_not_required
         - globular.platform:intent.circuit_breakers_protect_convergence
+  - id: globular.platform:code.go.platform_ai_router.safety
+    namespace: globular.platform
+    language: go
+    file: golang/ai_router/ai_router_server/safety.go
+    component: platform_ai_router.safety
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.ai.router_safety_validator_overrides_scoring_engine

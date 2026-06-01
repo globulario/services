@@ -19,3 +19,33 @@ code_symbols:
         - globular.platform:intent.ai.supplementary_not_required
         - globular.platform:intent.ai.decision_tier.gates_execution
         - globular.platform:intent.ai.watcher_to_executor_causal_chain
+  - id: globular.platform:code.go.platform_ai_executor.action_backend
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/action_backend.go
+    component: platform_ai_executor.action_backend
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
+  - id: globular.platform:code.go.platform_ai_executor.diagnoser
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/diagnoser.go
+    component: platform_ai_executor.diagnoser
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.ai.high_risk_diagnosis_always_escalates_to_notify_admin
+        - globular.platform:intent.ai.memory_queried_before_claude_to_boost_confidence
+        - globular.platform:intent.ai.supplementary_not_required
+  - id: globular.platform:code.go.platform_ai_executor.remediator
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/remediator.go
+    component: platform_ai_executor.remediator
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.ai.decision_tier.gates_execution
+        - globular.platform:intent.ai.high_risk_diagnosis_always_escalates_to_notify_admin
