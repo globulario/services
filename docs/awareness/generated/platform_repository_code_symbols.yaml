@@ -1,0 +1,114 @@
+code_symbols:
+  - id: globular.platform:code.go.repository.artifact_state.ArtifactPipelineState
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/artifact_state.go
+    symbol: ArtifactPipelineState
+    kind: type
+    component: repository.artifact_state
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.repository.lifecycle_state_machine
+        - globular.platform:intent.repository.metadata_is_authority
+      protects:
+        - globular.platform:failure_mode.package.installed_binary_hash_mismatch
+  - id: globular.platform:code.go.repository.artifact_state.isRowInstallable
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/artifact_state.go
+    symbol: isRowInstallable
+    kind: function
+    component: repository.artifact_state
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.published_requires_verified_manifest
+      implements:
+        - globular.platform:intent.repository.metadata_is_authority
+  - id: globular.platform:code.go.repository.local_publish_guard
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/local_publish_guard.go
+    component: repository.local_publish_guard
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.package.official_identity_immutable
+        - globular.platform:invariant.package.local_publish_requires_local_identity
+        - globular.platform:invariant.package.promotion_must_use_official_release_pipeline
+  - id: globular.platform:code.go.repository.local_publish_guard.server_enforceOfficialNamespaceSeal
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/local_publish_guard.go
+    symbol: server.enforceOfficialNamespaceSeal
+    kind: method
+    component: repository.local_publish_guard
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.package.official_identity_immutable
+        - globular.platform:invariant.package.local_publish_requires_local_identity
+  - id: globular.platform:code.go.repository.metadata_store
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/scylla_store.go
+    component: repository.metadata_store
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.published_requires_verified_manifest
+      implements:
+        - globular.platform:intent.repository.metadata_is_authority
+  - id: globular.platform:code.go.repository.publish_pipeline.server_promoteToPublished
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/publish_workflow.go
+    symbol: server.promoteToPublished
+    kind: method
+    component: repository.publish_pipeline
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.published_requires_verified_manifest
+        - globular.platform:invariant.repository.publish_idempotent_same_digest
+      implements:
+        - globular.platform:intent.repository.lifecycle_state_machine
+  - id: globular.platform:code.go.repository.release_index
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/release_index.go
+    component: repository.release_index
+    risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.package_build_lane_unique
+      implements:
+        - globular.platform:intent.release.bom_is_precise_release_authority
+        - globular.platform:intent.package.identity_tuple_must_be_unique
+  - id: globular.platform:code.go.repository.release_index.ValidateReleaseIndexForInstall
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/release_index.go
+    symbol: ValidateReleaseIndexForInstall
+    kind: function
+    component: repository.release_index
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.package_build_lane_unique
+      implements:
+        - globular.platform:intent.release.bom_is_precise_release_authority
+  - id: globular.platform:code.go.repository.release_index.validateNoConflictingBuildIDDigest
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/release_index.go
+    symbol: validateNoConflictingBuildIDDigest
+    kind: function
+    component: repository.release_index
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.package_build_lane_unique
+      implements:
+        - globular.platform:intent.package.identity_tuple_must_be_unique

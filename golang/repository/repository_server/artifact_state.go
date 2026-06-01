@@ -401,6 +401,11 @@ func (srv *server) markBrokenForReason(ctx context.Context, artifactKey, reason,
 // once cluster-wide backfill has run, every PUBLISHED row will also have
 // artifact_state == PUBLISHED and this clause becomes a no-op. Removing it
 // later is a breaking-change one-liner.
+// @awareness namespace=globular.platform
+// @awareness component=repository.artifact_state
+// @awareness enforces=globular.platform:invariant.repository.published_requires_verified_manifest
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness risk=critical
 func isRowInstallable(row *manifestRow) bool {
 	if row == nil {
 		return false

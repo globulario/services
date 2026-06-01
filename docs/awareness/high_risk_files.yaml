@@ -7,7 +7,7 @@ files:
   - golang/node_agent/node_agent_server/heartbeat.go
   - golang/node_agent/node_agent_server/apply_package_release.go
   - golang/node_agent/node_agent_server/internal/supervisor/
-  - golang/repository/repository_server/metadata_store.go
+  - golang/repository/repository_server/scylla_store.go
   - golang/node_agent/node_agent_server/server_objectstore.go
   - golang/xds/xds_server/applied_generation.go
   - golang/envoy/envoy_server/applied_generation.go

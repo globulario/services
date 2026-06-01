@@ -274,6 +274,8 @@ Awareness is the compact gRPC map of project intent, invariants, failure modes, 
 
 **Call awareness before non-trivial edits to:** service lifecycle, package publish/install, repository/discovery, cluster state, etcd state, RBAC/security/token logic, filesystem/upload paths, remediation/recovery code, install scripts, or tests that encode operational contracts.
 
+**Also call awareness before edits to:** ScyllaDB join/topology/DDL preflight paths, objectstore/MinIO topology, awareness-graph itself (yaml2nt, scanner, briefing/impact/query handlers), or repository publish/artifact-state/release-index paths.
+
 **Workflow:**
 1. `awareness.briefing` with `file` or `task` — start every non-trivial task here. Reads ~500 tokens by default.
 2. `awareness.impact` on each target file when briefing's coverage is thin — direct + inferred anchors.

@@ -1,0 +1,67 @@
+code_edges:
+  - from: globular.platform:code.go.repository.artifact_state.ArtifactPipelineState
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.repository.artifact_state.ArtifactPipelineState
+    relation: implements
+    to: globular.platform:intent.repository.metadata_is_authority
+  - from: globular.platform:code.go.repository.artifact_state.ArtifactPipelineState
+    relation: protects
+    to: globular.platform:failure_mode.package.installed_binary_hash_mismatch
+  - from: globular.platform:code.go.repository.artifact_state.isRowInstallable
+    relation: enforces
+    to: globular.platform:invariant.repository.published_requires_verified_manifest
+  - from: globular.platform:code.go.repository.artifact_state.isRowInstallable
+    relation: implements
+    to: globular.platform:intent.repository.metadata_is_authority
+  - from: globular.platform:code.go.repository.local_publish_guard
+    relation: enforces
+    to: globular.platform:invariant.package.local_publish_requires_local_identity
+  - from: globular.platform:code.go.repository.local_publish_guard
+    relation: enforces
+    to: globular.platform:invariant.package.official_identity_immutable
+  - from: globular.platform:code.go.repository.local_publish_guard
+    relation: enforces
+    to: globular.platform:invariant.package.promotion_must_use_official_release_pipeline
+  - from: globular.platform:code.go.repository.local_publish_guard.server_enforceOfficialNamespaceSeal
+    relation: enforces
+    to: globular.platform:invariant.package.local_publish_requires_local_identity
+  - from: globular.platform:code.go.repository.local_publish_guard.server_enforceOfficialNamespaceSeal
+    relation: enforces
+    to: globular.platform:invariant.package.official_identity_immutable
+  - from: globular.platform:code.go.repository.metadata_store
+    relation: enforces
+    to: globular.platform:invariant.repository.published_requires_verified_manifest
+  - from: globular.platform:code.go.repository.metadata_store
+    relation: implements
+    to: globular.platform:intent.repository.metadata_is_authority
+  - from: globular.platform:code.go.repository.publish_pipeline.server_promoteToPublished
+    relation: enforces
+    to: globular.platform:invariant.repository.publish_idempotent_same_digest
+  - from: globular.platform:code.go.repository.publish_pipeline.server_promoteToPublished
+    relation: enforces
+    to: globular.platform:invariant.repository.published_requires_verified_manifest
+  - from: globular.platform:code.go.repository.publish_pipeline.server_promoteToPublished
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.repository.release_index
+    relation: enforces
+    to: globular.platform:invariant.repository.package_build_lane_unique
+  - from: globular.platform:code.go.repository.release_index
+    relation: implements
+    to: globular.platform:intent.package.identity_tuple_must_be_unique
+  - from: globular.platform:code.go.repository.release_index
+    relation: implements
+    to: globular.platform:intent.release.bom_is_precise_release_authority
+  - from: globular.platform:code.go.repository.release_index.ValidateReleaseIndexForInstall
+    relation: enforces
+    to: globular.platform:invariant.repository.package_build_lane_unique
+  - from: globular.platform:code.go.repository.release_index.ValidateReleaseIndexForInstall
+    relation: implements
+    to: globular.platform:intent.release.bom_is_precise_release_authority
+  - from: globular.platform:code.go.repository.release_index.validateNoConflictingBuildIDDigest
+    relation: enforces
+    to: globular.platform:invariant.repository.package_build_lane_unique
+  - from: globular.platform:code.go.repository.release_index.validateNoConflictingBuildIDDigest
+    relation: implements
+    to: globular.platform:intent.package.identity_tuple_must_be_unique
