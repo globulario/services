@@ -605,9 +605,14 @@ else
     # Only import GPG key and configure apt repo when falling back to direct apt install
     mkdir -p /etc/apt/keyrings
     if [[ ! -f /etc/apt/keyrings/scylladb.gpg ]]; then
-      log_substep "Importing ScyllaDB GPG key..."
-      curl -fsSL https://downloads.scylladb.com/deb/ubuntu/scylladb-2025.3.gpg | \
-        gpg --dearmor -o /etc/apt/keyrings/scylladb.gpg
+      log_substep "Importing ScyllaDB GPG key (A43E06657BAC99E3)..."
+      # Import via keyserver — the old URL-based .gpg download is no longer published
+      # by ScyllaDB. Using the Ubuntu keyserver with the known key ID is stable.
+      gpg --homedir /tmp --no-default-keyring \
+          --keyring /etc/apt/keyrings/scylladb.gpg \
+          --keyserver hkp://keyserver.ubuntu.com \
+          --recv-keys A43E06657BAC99E3
+      chmod 644 /etc/apt/keyrings/scylladb.gpg
       log_success "ScyllaDB GPG key imported"
     fi
     if [[ ! -f /etc/apt/sources.list.d/scylla.list ]]; then
