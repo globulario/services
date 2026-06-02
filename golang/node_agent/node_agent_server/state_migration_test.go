@@ -38,21 +38,56 @@ func TestMigrateLegacyStatePath_NodeAgent_BothExist_CanonicalWins(t *testing.T) 
 	canonical := filepath.Join(root, "node-agent", "state.json")
 	_ = os.MkdirAll(filepath.Dir(legacy), 0o755)
 	_ = os.MkdirAll(filepath.Dir(canonical), 0o755)
-	_ = os.WriteFile(canonical, []byte(`{"node_id":"new"}`), 0o600)
-	_ = os.WriteFile(legacy, []byte(`{"node_id":"old"}`), 0o600)
+	// canonical has all fields populated — nothing to merge from legacy
+	_ = os.WriteFile(canonical, []byte(`{"node_id":"new","join_token":"tok"}`), 0o600)
+	_ = os.WriteFile(legacy, []byte(`{"node_id":"old","join_token":"old-tok"}`), 0o600)
 
 	MigrateLegacyStatePathOnce(canonical, legacy)
 
-	got, _ := os.ReadFile(canonical)
-	if string(got) != `{"node_id":"new"}` {
-		t.Errorf("canonical should win; got=%s", got)
-	}
-	leg, err := os.ReadFile(legacy)
+	// canonical content must be preserved (canonical wins)
+	s, err := loadNodeAgentState(canonical)
 	if err != nil {
-		t.Fatalf("legacy must be left for operator review: %v", err)
+		t.Fatalf("canonical unreadable: %v", err)
 	}
-	if string(leg) != `{"node_id":"old"}` {
-		t.Errorf("legacy must not be overwritten; got=%s", leg)
+	if s.NodeID != "new" {
+		t.Errorf("canonical node_id should win; got=%s", s.NodeID)
+	}
+	if s.JoinToken != "tok" {
+		t.Errorf("canonical join_token should win; got=%s", s.JoinToken)
+	}
+	// legacy dir must be removed — no lingering layout_drift finding
+	if _, err := os.Stat(filepath.Dir(legacy)); !os.IsNotExist(err) {
+		t.Errorf("legacy dir must be removed after merge; err=%v", err)
+	}
+}
+
+func TestMigrateLegacyStatePath_NodeAgent_BothExist_MergesEmptyFields(t *testing.T) {
+	root := t.TempDir()
+	legacy := filepath.Join(root, "nodeagent", "state.json")
+	canonical := filepath.Join(root, "node-agent", "state.json")
+	_ = os.MkdirAll(filepath.Dir(legacy), 0o755)
+	_ = os.MkdirAll(filepath.Dir(canonical), 0o755)
+	// canonical is missing join_token and controller_endpoint
+	_ = os.WriteFile(canonical, []byte(`{"node_id":"new"}`), 0o600)
+	_ = os.WriteFile(legacy, []byte(`{"node_id":"old","join_token":"tok","controller_endpoint":"ep"}`), 0o600)
+
+	MigrateLegacyStatePathOnce(canonical, legacy)
+
+	s, err := loadNodeAgentState(canonical)
+	if err != nil {
+		t.Fatalf("canonical unreadable: %v", err)
+	}
+	if s.NodeID != "new" {
+		t.Errorf("canonical node_id should win; got=%s", s.NodeID)
+	}
+	if s.JoinToken != "tok" {
+		t.Errorf("empty join_token should be filled from legacy; got=%s", s.JoinToken)
+	}
+	if s.ControllerEndpoint != "ep" {
+		t.Errorf("empty controller_endpoint should be filled from legacy; got=%s", s.ControllerEndpoint)
+	}
+	if _, err := os.Stat(filepath.Dir(legacy)); !os.IsNotExist(err) {
+		t.Errorf("legacy dir must be removed after merge; err=%v", err)
 	}
 }
 
