@@ -89,6 +89,15 @@ code_edges:
   - from: globular.awareness_graph:code.go.server.metadata
     relation: implements
     to: globular.awareness_graph:intent.awareness.graph_is_compiled_context_not_authority
+  - from: globular.awareness_graph:code.go.server.preflight
+    relation: implements
+    to: globular.awareness_graph:intent.awareness.briefing_returns_explicit_status
+  - from: globular.awareness_graph:code.go.server.preflight
+    relation: implements
+    to: globular.platform:intent.awareness.graph_is_compiled_context_not_authority
+  - from: globular.awareness_graph:code.go.server.preflight.server_Preflight
+    relation: implements
+    to: globular.awareness_graph:intent.awareness.briefing_returns_explicit_status
   - from: globular.awareness_graph:code.go.server.query
     relation: implements
     to: globular.awareness_graph:intent.awareness.query_does_not_expose_arbitrary_sparql

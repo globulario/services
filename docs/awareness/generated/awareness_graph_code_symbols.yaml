@@ -157,6 +157,27 @@ code_symbols:
     annotations:
       implements:
         - globular.awareness_graph:intent.awareness.graph_is_compiled_context_not_authority
+  - id: globular.awareness_graph:code.go.server.preflight
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/preflight.go
+    component: server.preflight
+    risk: high
+    annotations:
+      implements:
+        - globular.awareness_graph:intent.awareness.briefing_returns_explicit_status
+        - globular.platform:intent.awareness.graph_is_compiled_context_not_authority
+  - id: globular.awareness_graph:code.go.server.preflight.server_Preflight
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/preflight.go
+    symbol: server.Preflight
+    kind: method
+    component: server.preflight
+    risk: high
+    annotations:
+      implements:
+        - globular.awareness_graph:intent.awareness.briefing_returns_explicit_status
   - id: globular.awareness_graph:code.go.server.query
     namespace: globular.awareness_graph
     language: go
@@ -219,3 +240,9 @@ code_symbols:
         - globular.awareness_graph:intent.awareness.resolve_returns_precise_node_by_class_and_id
       tested_by:
         - golang/server/resolve_test.go:TestResolveNotFound
+  - id: globular.awareness_graph:code.go.server.risk_classify
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/risk_classify.go
+    component: server.risk_classify
+    risk: medium
