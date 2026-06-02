@@ -56,6 +56,7 @@ func registerAwarenessTools(s *server) {
 	registerAwarenessImpactTool(s)
 	registerAwarenessResolveTool(s)
 	registerAwarenessQueryTool(s)
+	registerAwarenessPreflightTool(s)
 	registerAwarenessDiagnoseTool(s)
 }
 
@@ -410,6 +411,187 @@ func queryClassFromString(s string) (awarenesspb.QueryClass, bool) {
 		return awarenesspb.QueryClass_QUERY_CLASS_SOURCE_FILE, true
 	}
 	return 0, false
+}
+
+// ─── awareness.preflight ─────────────────────────────────────────────────
+
+func registerAwarenessPreflightTool(s *server) {
+	s.register(toolDef{
+		Name: "awareness.preflight",
+		Description: "Pre-edit decision support: returns a single risk_class (LOW_RISK | " +
+			"ARCHITECTURE_SENSITIVE | CONVERGENCE_RISK | SECURITY_RISK | DATA_LOSS_RISK | " +
+			"UNKNOWN_IMPACT), a confidence tier (HIGH | MEDIUM | LOW), bounded " +
+			"required_actions / files_to_read / tests_to_run / forbidden_fixes, and a " +
+			"coverage summary. Combines Briefing's anchor matcher with a pure risk " +
+			"classifier so an agent can branch on risk before writing code. At least one " +
+			"of `task` or `files` must be set. Store unavailable returns " +
+			"status=degraded with risk_class=UNKNOWN_IMPACT, never a hard error.",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"task": {
+					Type:        "string",
+					Description: "Free-form task description. Matched against pattern activation_triggers.",
+				},
+				"files": {
+					Type:        "array",
+					Description: "Repo-relative paths the agent intends to edit. Each is run through Impact + high-risk-directory check.",
+					Items:       &propSchema{Type: "string"},
+				},
+				"mode": {
+					Type:        "string",
+					Description: "compact (default, top-3 entries) | standard (top-7 entries, ≤10 action items)",
+					Enum:        []string{"compact", "standard"},
+					Default:     "compact",
+				},
+			},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		task, _ := args["task"].(string)
+		files := stringSliceArg(args["files"])
+		if task == "" && len(files) == 0 {
+			return nil, errors.New("awareness.preflight: at least one of 'task' or 'files' must be set")
+		}
+		modeStr, _ := args["mode"].(string)
+		mode := preflightModeFromString(modeStr)
+
+		stub, ep, err := awarenessStub(ctx, s)
+		if err != nil {
+			return degradedResult(err), nil
+		}
+		resp, err := stub.Preflight(ctx, &awarenesspb.PreflightRequest{
+			Task:  task,
+			Files: files,
+			Mode:  mode,
+		})
+		if err != nil {
+			if isConnError(err) {
+				s.clients.invalidate(ep)
+			}
+			return degradedResult(err), nil
+		}
+		return preflightToMap(resp), nil
+	})
+}
+
+func preflightToMap(r *awarenesspb.PreflightResponse) map[string]interface{} {
+	if r == nil {
+		return map[string]interface{}{"status": "empty"}
+	}
+	out := map[string]interface{}{
+		"status":                  preflightStatusStr(r.GetStatus()),
+		"risk_class":              riskClassStr(r.GetRiskClass()),
+		"confidence":              confidenceStr(r.GetConfidence()),
+		"direct_invariants":       nodesToMaps(r.GetDirectInvariants()),
+		"direct_failure_modes":    nodesToMaps(r.GetDirectFailureModes()),
+		"direct_intents":          nodesToMaps(r.GetDirectIntents()),
+		"direct_forbidden_fixes":  nodesToMaps(r.GetDirectForbiddenFixes()),
+		"direct_required_tests":   nodesToMaps(r.GetDirectRequiredTests()),
+		"implementation_patterns": patternsToMaps(r.GetImplementationPatterns()),
+		"required_actions":        r.GetRequiredActions(),
+		"files_to_read":           r.GetFilesToRead(),
+		"tests_to_run":            r.GetTestsToRun(),
+		"forbidden_fixes":         r.GetForbiddenFixes(),
+		"blind_spots":             r.GetBlindSpots(),
+		"generated_in_ms":         r.GetGeneratedInMs(),
+	}
+	if cov := r.GetCoverage(); cov != nil {
+		out["coverage"] = map[string]interface{}{
+			"sufficient":          cov.GetSufficient(),
+			"direct_anchor_count": cov.GetDirectAnchorCount(),
+			"file_count":          cov.GetFileCount(),
+			"indexed_file_count":  cov.GetIndexedFileCount(),
+			"note":                cov.GetNote(),
+		}
+	}
+	return out
+}
+
+func preflightStatusStr(s awarenesspb.PreflightStatus) string {
+	switch s {
+	case awarenesspb.PreflightStatus_PREFLIGHT_STATUS_OK:
+		return "ok"
+	case awarenesspb.PreflightStatus_PREFLIGHT_STATUS_EMPTY:
+		return "empty"
+	case awarenesspb.PreflightStatus_PREFLIGHT_STATUS_DEGRADED:
+		return "degraded"
+	default:
+		return "unknown"
+	}
+}
+
+func riskClassStr(r awarenesspb.RiskClass) string {
+	switch r {
+	case awarenesspb.RiskClass_LOW_RISK:
+		return "LOW_RISK"
+	case awarenesspb.RiskClass_ARCHITECTURE_SENSITIVE:
+		return "ARCHITECTURE_SENSITIVE"
+	case awarenesspb.RiskClass_CONVERGENCE_RISK:
+		return "CONVERGENCE_RISK"
+	case awarenesspb.RiskClass_SECURITY_RISK:
+		return "SECURITY_RISK"
+	case awarenesspb.RiskClass_DATA_LOSS_RISK:
+		return "DATA_LOSS_RISK"
+	case awarenesspb.RiskClass_UNKNOWN_IMPACT:
+		return "UNKNOWN_IMPACT"
+	default:
+		return "UNSPECIFIED"
+	}
+}
+
+func confidenceStr(c awarenesspb.Confidence) string {
+	switch c {
+	case awarenesspb.Confidence_CONFIDENCE_HIGH:
+		return "HIGH"
+	case awarenesspb.Confidence_CONFIDENCE_MEDIUM:
+		return "MEDIUM"
+	case awarenesspb.Confidence_CONFIDENCE_LOW:
+		return "LOW"
+	default:
+		return "UNSPECIFIED"
+	}
+}
+
+func preflightModeFromString(s string) awarenesspb.PreflightMode {
+	switch s {
+	case "standard":
+		return awarenesspb.PreflightMode_PREFLIGHT_STANDARD
+	default:
+		return awarenesspb.PreflightMode_PREFLIGHT_COMPACT
+	}
+}
+
+func patternsToMaps(patterns []*awarenesspb.MatchedImplementationPattern) []map[string]interface{} {
+	out := make([]map[string]interface{}, 0, len(patterns))
+	for _, p := range patterns {
+		if p == nil {
+			continue
+		}
+		out = append(out, map[string]interface{}{
+			"id":              p.GetId(),
+			"label":           p.GetLabel(),
+			"match_strength":  p.GetMatchStrength(),
+			"match_reason":    p.GetMatchReason(),
+			"reference_files": p.GetReferenceFiles(),
+			"required_calls":  p.GetRequiredCalls(),
+			"forbidden_calls": p.GetForbiddenCalls(),
+		})
+	}
+	return out
+}
+
+func stringSliceArg(v interface{}) []string {
+	raw, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, x := range raw {
+		if s, ok := x.(string); ok && s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // ─── Shared node/anchor serialisation ────────────────────────────────────

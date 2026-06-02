@@ -19,7 +19,7 @@ require (
 	github.com/emersion/go-imap v1.2.1
 	github.com/emersion/go-message v0.18.1
 	github.com/emicklei/proto v1.13.2
-	github.com/globulario/awareness-graph v0.0.7-0.20260602182410-0782f98f6927
+	github.com/globulario/awareness-graph v0.0.10
 	github.com/globulario/globular-installer v0.0.0-20260520194113-156f49163ef8
 	github.com/globulario/utility v0.1.9
 	github.com/go-ldap/ldap/v3 v3.4.8

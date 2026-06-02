@@ -176,3 +176,17 @@ func (client *AwarenessGraph_Client) Metadata(ctx context.Context) (*awarenesspb
 	}
 	return client.c.Metadata(ctx, &awarenesspb.MetadataRequest{})
 }
+
+// Preflight returns an agent-facing pre-edit decision-support response:
+// risk class, coverage summary, required actions, and forbidden fixes for
+// the given task + optional files. Bounded by mode (compact = top-3,
+// standard = top-7). When the awareness-graph store is unavailable the
+// response carries PREFLIGHT_STATUS_DEGRADED + RiskClass=UNKNOWN_IMPACT
+// instead of failing — callers should treat that as "no graph evidence,
+// proceed cautiously" rather than as an error.
+func (client *AwarenessGraph_Client) Preflight(ctx context.Context, req *awarenesspb.PreflightRequest) (*awarenesspb.PreflightResponse, error) {
+	if ctx == nil {
+		ctx = client.GetCtx()
+	}
+	return client.c.Preflight(ctx, req)
+}
