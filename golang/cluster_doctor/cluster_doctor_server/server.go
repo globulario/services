@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	awarenesspb "github.com/globulario/awareness-graph/golang/pb"
 	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
@@ -20,6 +21,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/opsknowledge"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/grpc"
@@ -77,6 +79,11 @@ type ClusterDoctorServer struct {
 
 	// ccClient for convergence checks in the healer.
 	ccClient cluster_controllerpb.ClusterControllerServiceClient
+
+	// aiMemoryClient is kept on the server so the healer's seed_ops_knowledge
+	// action can reach ai-memory directly without going through the collector.
+	// Nil when ai-memory is not registered in etcd (pre-Day-1).
+	aiMemoryClient ai_memorypb.AiMemoryServiceClient
 
 	// auditRing stores recent periodic heal reports for inspection.
 	auditRing *healerAuditRing
@@ -209,17 +216,35 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	// between what the active awareness bundle declares and what's actually
 	// loaded into ai-memory. Optional — if unreachable, the rule falls
 	// back to bundle-only verification.
+	var aiMemClient ai_memorypb.AiMemoryServiceClient
 	memEndpoint := config.ResolveServiceAddr("ai_memory.AiMemoryService", "")
 	if memEndpoint != "" {
 		memTarget := config.ResolveDialTarget(memEndpoint)
 		if memConn, memErr := grpc.NewClient(memTarget.Address,
 			grpc.WithTransportCredentials(buildClientTLSCreds(memTarget.ServerName))); memErr == nil {
-			col.WithAiMemoryClient(ai_memorypb.NewAiMemoryServiceClient(memConn))
+			aiMemClient = ai_memorypb.NewAiMemoryServiceClient(memConn)
+			col.WithAiMemoryClient(aiMemClient)
 		} else {
 			logger.Warn("ai-memory client init failed — seed drift detection disabled", "err", memErr)
 		}
 	} else {
 		logger.Info("ai-memory endpoint not in etcd — seed drift detection disabled (pre-Day-1)")
+	}
+
+	// Attach awareness-graph client so the collector can probe the RDF store
+	// and detect an empty graph (embedded seed failed or Oxigraph was wiped
+	// after startup). Optional — if unreachable, no findings are emitted.
+	awEndpoint := config.ResolveServiceAddr("awareness.AwarenessGraphService", "")
+	if awEndpoint != "" {
+		awTarget := config.ResolveDialTarget(awEndpoint)
+		if awConn, awErr := grpc.NewClient(awTarget.Address,
+			grpc.WithTransportCredentials(buildClientTLSCreds(awTarget.ServerName))); awErr == nil {
+			col.WithAwarenessGraphClient(awarenesspb.NewAwarenessGraphClient(awConn))
+		} else {
+			logger.Warn("awareness-graph client init failed — seed_empty detection disabled", "err", awErr)
+		}
+	} else {
+		logger.Info("awareness-graph endpoint not in etcd — seed_empty detection disabled (pre-Day-1)")
 	}
 
 	reg := rules.NewRegistry(rules.Config{
@@ -238,6 +263,7 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 		clusterID:      clusterID,
 		naDialer:       naDialer,
 		ccClient:       ccClient,
+		aiMemoryClient: aiMemClient,
 		auditStore:     rules.NewHealAuditStore(""),
 	}
 
@@ -527,6 +553,7 @@ func (s *ClusterDoctorServer) healerRemoteOps() rules.RemoteOps {
 		ccClient:       s.ccClient,
 		workflowClient: s.workflowClient,
 		clusterID:      s.clusterID,
+		aiMemoryClient: s.aiMemoryClient,
 	}
 }
 
@@ -536,6 +563,7 @@ type healerRemote struct {
 	ccClient       cluster_controllerpb.ClusterControllerServiceClient
 	workflowClient workflowpb.WorkflowServiceClient
 	clusterID      string
+	aiMemoryClient ai_memorypb.AiMemoryServiceClient // optional; nil pre-Day-1
 }
 
 func (r *healerRemote) DeleteCacheArtifact(ctx context.Context, nodeID, packageName, publisherID string) error {
@@ -670,6 +698,121 @@ func (r *healerRemote) IsServiceConverged(ctx context.Context, serviceName strin
 		}
 	}
 	return true, nil
+}
+
+// SeedOpsKnowledge reads the ops-knowledge YAML bundle from dir and upserts
+// every entry into ai-memory. Entries whose seed_sha256 already matches are
+// skipped (idempotent). Returns the first Store/Update error encountered, or
+// nil when all entries were processed.
+func (r *healerRemote) SeedOpsKnowledge(ctx context.Context, dir string) error {
+	if r.aiMemoryClient == nil {
+		return fmt.Errorf("seed_ops_knowledge: ai-memory client not available")
+	}
+	return seedOpsKnowledgeEntries(ctx, dir, r.aiMemoryClient)
+}
+
+// seedOpsKnowledgeEntries is the implementation shared by SeedOpsKnowledge and
+// any future callers. It walks dir, hashes every entry, and upserts into mem.
+func seedOpsKnowledgeEntries(ctx context.Context, dir string, mem ai_memorypb.AiMemoryServiceClient) error {
+	files, err := opsknowledge.LoadDir(dir)
+	if err != nil {
+		return fmt.Errorf("load ops-knowledge from %s: %w", dir, err)
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("no ops-knowledge entries found under %s", dir)
+	}
+
+	const project = "globular-services"
+	const seedTag = "seed"
+
+	var firstErr error
+	stored, updated, skipped := 0, 0, 0
+
+	for _, f := range files {
+		for _, e := range f.Entries {
+			hash, herr := opsknowledge.HashEntry(e)
+			if herr != nil {
+				if firstErr == nil {
+					firstErr = fmt.Errorf("hash %s: %w", e.ID, herr)
+				}
+				continue
+			}
+
+			// Check existing entry.
+			getCtx, getCancel := context.WithTimeout(ctx, 10*time.Second)
+			existing, getErr := mem.Get(getCtx, &ai_memorypb.GetRqst{Id: e.ID, Project: project})
+			getCancel()
+
+			if getErr == nil && existing != nil && existing.GetMemory() != nil {
+				existingHash := existing.GetMemory().GetMetadata()["seed_sha256"]
+				if existingHash == hash {
+					skipped++
+					continue
+				}
+				// Hash drifted — update.
+				mem_entry := buildOpsKnowledgeMemoryEntry(e, hash, project, seedTag)
+				updCtx, updCancel := context.WithTimeout(ctx, 10*time.Second)
+				_, updErr := mem.Update(updCtx, &ai_memorypb.UpdateRqst{Memory: mem_entry})
+				updCancel()
+				if updErr != nil && firstErr == nil {
+					firstErr = fmt.Errorf("update %s: %w", e.ID, updErr)
+				} else {
+					updated++
+				}
+				continue
+			}
+
+			// New entry — store.
+			mem_entry := buildOpsKnowledgeMemoryEntry(e, hash, project, seedTag)
+			storeCtx, storeCancel := context.WithTimeout(ctx, 10*time.Second)
+			_, storeErr := mem.Store(storeCtx, &ai_memorypb.StoreRqst{Memory: mem_entry})
+			storeCancel()
+			if storeErr != nil && firstErr == nil {
+				firstErr = fmt.Errorf("store %s: %w", e.ID, storeErr)
+			} else {
+				stored++
+			}
+		}
+	}
+
+	logger.Info("ops-knowledge seed complete", "stored", stored, "updated", updated, "skipped", skipped, "dir", dir)
+	return firstErr
+}
+
+// buildOpsKnowledgeMemoryEntry converts an opsknowledge.Entry to the ai-memory
+// protobuf row used for seeding. Mirrors the CLI's entryToMemory function.
+func buildOpsKnowledgeMemoryEntry(e opsknowledge.Entry, hash, project, seedTag string) *ai_memorypb.Memory {
+	memType := ai_memorypb.MemoryType_REFERENCE
+	if v, ok := ai_memorypb.MemoryType_value[e.Type]; ok {
+		memType = ai_memorypb.MemoryType(v)
+	}
+	tags := make([]string, len(e.Tags))
+	copy(tags, e.Tags)
+	hasTag := false
+	for _, t := range tags {
+		if t == seedTag {
+			hasTag = true
+			break
+		}
+	}
+	if !hasTag {
+		tags = append(tags, seedTag)
+	}
+	return &ai_memorypb.Memory{
+		Id:         e.ID,
+		Project:    project,
+		Type:       memType,
+		Tags:       tags,
+		Title:      e.Title,
+		Content:    e.Content,
+		AgentId:    "ops-knowledge-seeder",
+		RelatedIds: append([]string{}, e.RelatedIDs...),
+		Metadata: map[string]string{
+			"source":      "seed",
+			"seed_sha256": hash,
+			"immutable":   "true",
+		},
+	}
 }
 
 // GetHealHistory returns recent heal action records from the persistent audit trail.

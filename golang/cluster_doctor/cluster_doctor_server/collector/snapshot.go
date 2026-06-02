@@ -104,6 +104,17 @@ type Snapshot struct {
 	// returned zero seed entries (Day-1 fresh, autoseed has not run).
 	OpsKnowledgeMemoryEntries map[string]string
 
+	// AwarenessGraphReachable is true when the collector successfully connected
+	// to the awareness-graph service and executed a probe query. False means
+	// the service is not registered in etcd, or the dial/query failed.
+	AwarenessGraphReachable bool
+
+	// AwarenessGraphQueryEmpty is true when AwarenessGraphReachable=true but
+	// the probe query returned zero results. Indicates the RDF store was
+	// cleared after service startup (the embedded seed only fires on a fresh
+	// store). Consumed by the "awareness_graph.seed_empty" invariant.
+	AwarenessGraphQueryEmpty bool
+
 	// Repository-level findings, populated from the repository service's
 	// ListRepositoryFindings RPC. Cluster-scoped (not per-node). Consumed
 	// by the "repository.*" invariant family in rules/ to surface broken

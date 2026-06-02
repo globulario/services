@@ -74,6 +74,12 @@ type RemoteOps interface {
 	// desired build on ALL nodes that should have it. Returns true only when
 	// every eligible node has installed == desired.
 	IsServiceConverged(ctx context.Context, serviceName string) (bool, error)
+
+	// SeedOpsKnowledge reads the ops-knowledge YAML bundle from dir and
+	// upserts every entry into ai-memory. Idempotent — entries whose
+	// seed_sha256 already matches are skipped. Used by the
+	// "ops_knowledge.seed_deferred" auto-action.
+	SeedOpsKnowledge(ctx context.Context, dir string) error
 }
 
 // Healer evaluates findings against the policy and executes safe auto-repairs.
@@ -176,6 +182,8 @@ func (h *Healer) executeAutoAction(ctx context.Context, action string, f Finding
 		return h.actionClearResolvedDrift(ctx, f)
 	case "patch_release_available":
 		return h.actionPatchReleaseAvailable(ctx, f)
+	case "seed_ops_knowledge":
+		return h.actionSeedOpsKnowledge(ctx, f)
 	default:
 		return fmt.Errorf("unknown auto-action %q", action)
 	}
@@ -325,6 +333,24 @@ func (h *Healer) actionClearResolvedDrift(ctx context.Context, f Finding) error 
 	}
 	log.Printf("healer: cleared drift observation %s/%s (convergence verified)", driftType, entityRef)
 	return nil
+}
+
+// actionSeedOpsKnowledge triggers the ops-knowledge seed against ai-memory.
+// The ops-knowledge directory is read from the finding's evidence
+// (ops_knowledge_dir key) or defaults to defaultOpsKnowledgeDir.
+func (h *Healer) actionSeedOpsKnowledge(ctx context.Context, f Finding) error {
+	if h.Remote == nil {
+		return fmt.Errorf("seed_ops_knowledge: no Remote ops available")
+	}
+	dir := defaultOpsKnowledgeDir
+	for _, ev := range f.Evidence {
+		if kv := ev.GetKeyValues(); kv != nil {
+			if v, ok := kv["ops_knowledge_dir"]; ok && v != "" {
+				dir = v
+			}
+		}
+	}
+	return h.Remote.SeedOpsKnowledge(ctx, dir)
 }
 
 // resolveLocalNodeID returns this node's ID from the node_agent state file.

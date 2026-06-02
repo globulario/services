@@ -85,8 +85,32 @@ func PolicyV1() []HealRule {
 			AutoAction:  "clear_resolved_drift",
 		},
 
+		// ── A-cont. AI knowledge seed actions ────────────────────────
+
+		{
+			// ai-memory is running but has zero seed entries — the day-0
+			// installer deferred the seed because ai-memory was not yet
+			// available. Now that it is, the doctor seeds automatically.
+			// Idempotent: same entry + same sha256 = no-op in ai-memory.
+			InvariantID: "ops_knowledge.seed_deferred",
+			Disposition: HealAuto,
+			Action:      "Seed operational-knowledge entries into ai-memory from the installed awareness bundle.",
+			Rationale:   "The awareness bundle ships ops-knowledge YAML that must be loaded into ai-memory for AI agents to use. The day-0 installer deferred this because ai-memory was not yet running. The seed is idempotent — re-running it is safe and does not overwrite entries with matching content.",
+			AutoAction:  "seed_ops_knowledge",
+		},
+
 		// ── B. Propose-only (requires human approval) ────────────────
 
+		{
+			// awareness-graph is running but the RDF store is empty.
+			// The embedded NT seed only fires on a fresh store at startup;
+			// a runtime wipe requires a service restart to re-trigger it.
+			// Propose only — a service restart is operator-initiated.
+			InvariantID: "awareness_graph.seed_empty",
+			Disposition: HealPropose,
+			Action:      "Restart the awareness-graph service to re-trigger the embedded NT seed.",
+			Rationale:   "The awareness-graph embeds its knowledge graph at build time and seeds Oxigraph on startup only when the store is empty. If Oxigraph was cleared post-startup a restart is required. The doctor cannot restart services automatically — this is a propose-only action.",
+		},
 		{
 			InvariantID: "artifact.installed_digest_mismatch",
 			Disposition: HealPropose,

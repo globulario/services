@@ -213,6 +213,16 @@ func NewRegistry(cfg Config) *Registry {
 		// running but no Scylla cluster is registered with it — the
 		// "running but unconfigured" state Project R recovered from.
 		scyllaManagerClusterRegistered{},
+		// AI knowledge-base integrity: fires when ai-memory is running but
+		// the operational-knowledge seed entries are absent (day-0 deferred
+		// seed not yet applied). Auto-heals by seeding from the installed
+		// awareness bundle at defaultOpsKnowledgeDir.
+		opsKnowledgeSeedDeferred{},
+		// awareness-graph RDF store empty: fires when the awareness-graph
+		// service is reachable but returns zero triples. The embedded NT seed
+		// only fires on a fresh store at startup — a runtime wipe requires
+		// a service restart. HealPropose only.
+		awarenessGraphSeedEmpty{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)
