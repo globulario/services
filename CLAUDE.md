@@ -84,6 +84,29 @@ Layer 4: Runtime Health (systemd)  — "Is it running and healthy?"
 - **No tokens stored in the codebase** — never commit JWTs, API keys, or credentials to source. Tokens are ephemeral (generated at runtime or cached in `~/.config/globular/token` per user)
 - All gRPC RPCs must have `(globular.auth.authz)` annotations
 
+### 7. Call awareness.briefing BEFORE writing any code in high-risk directories
+
+**No exceptions. No judgment calls. "Simple fix" is not an exemption.**
+
+Call `awareness.briefing(file=<target>)` before touching any file under:
+
+- `golang/node_agent/`
+- `golang/cluster_controller/`
+- `golang/repository/`
+- `golang/rbac/`
+- `golang/security/`
+- `golang/cluster_doctor/`
+- `golang/mcp/`
+- `golang/ai_executor/`
+- `golang/services_manager/`
+- `docs/awareness/`
+- `docs/intent/`
+
+**Why this is a hard rule, not a guideline:**
+The cases where you are most confident a fix is "too simple to need awareness" are exactly the cases where you are most likely to miss a critical invariant. In 2026-06, a one-function wrapper (`DownloadArtifactToDir`) looked mechanical — the briefing would have caught `repository.fallback_requires_manifest_and_checksum` (critical) before the code was written. Instead, v1.2.141 shipped with an unverified download path; v1.2.142 was required to fix it.
+
+The fix: call `awareness.briefing` first, then write code. If the briefing returns `empty`, say so explicitly and continue cautiously. If it returns `degraded`, do not proceed with architectural changes without explicit user approval.
+
 ---
 
 ## ARCHITECTURE NOTES
