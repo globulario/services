@@ -103,9 +103,16 @@ Call `awareness.briefing(file=<target>)` before touching any file under:
 - `docs/intent/`
 
 **Why this is a hard rule, not a guideline:**
-The cases where you are most confident a fix is "too simple to need awareness" are exactly the cases where you are most likely to miss a critical invariant. In 2026-06, a one-function wrapper (`DownloadArtifactToDir`) looked mechanical — the briefing would have caught `repository.fallback_requires_manifest_and_checksum` (critical) before the code was written. Instead, v1.2.141 shipped with an unverified download path; v1.2.142 was required to fix it.
 
-The fix: call `awareness.briefing` first, then write code. If the briefing returns `empty`, say so explicitly and continue cautiously. If it returns `degraded`, do not proceed with architectural changes without explicit user approval.
+Two reasons, both non-negotiable:
+
+1. **Bug prevention.** The cases where you are most confident a fix is "too simple to need awareness" are exactly the cases where you are most likely to miss a critical invariant. In 2026-06, a one-function wrapper (`DownloadArtifactToDir`) looked mechanical — the briefing would have caught `repository.fallback_requires_manifest_and_checksum` (critical) before the code was written. Instead, v1.2.141 shipped with an unverified download path; v1.2.142 was required to fix it. Individual bugs are recoverable.
+
+2. **Architecture drift prevention.** This is the more important reason. Invariants erode one "simple fix" at a time. Intent gets forgotten. Boundaries blur. Each small deviation from the architecture is invisible in isolation — the damage is cumulative and only becomes visible when the system starts failing in ways that are expensive to trace and hard to reverse. The briefing is the only mechanism that connects a local code change to the global architectural intent. Skipping it for "obvious" changes is how infrastructure dies slowly.
+
+The briefing is lightweight (13ms, ~500 tokens). There is no cost to justify skipping it.
+
+Call `awareness.briefing` first, then write code. If the briefing returns `empty`, say so explicitly and continue cautiously. If it returns `degraded`, do not proceed with architectural changes without explicit user approval.
 
 ---
 
