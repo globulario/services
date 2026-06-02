@@ -2162,6 +2162,96 @@ else
   log_warn "globular CLI not found at $GLOBULAR_CLI — cannot initialize AI operational memory. Ops-knowledge seed skipped."
 fi
 
+# ── Scylla Manager: ensure HTTPS and register Scylla cluster ─────────────────
+# HTTPS: patch the running scylla-manager.yaml to add https:/tls lines if the
+# service started without them (config was created before this step existed).
+# Registration: register the local Scylla node with scylla-manager so backup,
+# repair, and restore are available. Idempotent — skipped if already registered.
+SM_CFG="${STATE_DIR}/scylla-manager/scylla-manager.yaml"
+SM_CERT="${STATE_DIR}/pki/issued/services/service.crt"
+SM_KEY="${STATE_DIR}/pki/issued/services/service.key"
+SCTOOL_BIN="/usr/lib/globular/bin/sctool"
+AGENT_CONFIG="${STATE_DIR}/scylla-manager-agent/scylla-manager-agent.yaml"
+
+log_step "Scylla Manager"
+
+# 1. Patch existing config to add HTTPS if missing
+if [[ -f "$SM_CFG" ]] && ! grep -q "^https:" "$SM_CFG"; then
+  SM_HOST=$(grep -E '^http:' "$SM_CFG" | awk '{print $2}' | cut -d: -f1 | tr -d ' ')
+  if [[ -n "$SM_HOST" && -f "$SM_CERT" && -f "$SM_KEY" ]]; then
+    log_substep "Adding HTTPS to scylla-manager config (${SM_HOST}:5443)..."
+    sed -i \
+      -e "/^http:/a https: ${SM_HOST}:5443" \
+      -e "/^https:/a tls_cert_file: $SM_CERT" \
+      -e "/^tls_cert_file:/a tls_key_file: $SM_KEY" \
+      "$SM_CFG"
+    chown globular:globular "$SM_CFG"
+    log_success "scylla-manager HTTPS configured (port 5443)"
+    # Restart to open the HTTPS listener
+    if systemctl is-active --quiet globular-scylla-manager.service 2>/dev/null; then
+      log_substep "Restarting scylla-manager to apply HTTPS config..."
+      systemctl restart globular-scylla-manager.service
+      for _i in $(seq 1 15); do
+        ss -lnt | grep -q ":5443 " && break
+        sleep 1
+      done
+      ss -lnt | grep -q ":5443 " && log_success "scylla-manager HTTPS listener up" \
+        || log_warn "scylla-manager :5443 not yet visible — may still be starting"
+    fi
+  else
+    log_substep "Skipping HTTPS patch: host='${SM_HOST}' cert=$(test -f "$SM_CERT" && echo ok || echo missing)"
+  fi
+elif [[ -f "$SM_CFG" ]]; then
+  log_substep "scylla-manager HTTPS already configured"
+else
+  log_substep "scylla-manager config not yet created — configure script will add HTTPS on first start"
+fi
+
+# 2. Register local Scylla cluster with scylla-manager (idempotent)
+if [[ ! -x "$SCTOOL_BIN" ]]; then
+  log_substep "sctool not found at $SCTOOL_BIN — cluster registration skipped"
+elif ! systemctl is-active --quiet globular-scylla-manager.service 2>/dev/null; then
+  log_substep "scylla-manager not running — cluster registration skipped"
+else
+  # Probe via HTTP (always available; HTTPS may still be starting)
+  SM_HTTP_ADDR=$(grep -E '^http:' "$SM_CFG" 2>/dev/null | awk '{print $2}' | tr -d ' ')
+  SM_API_URL="http://${SM_HTTP_ADDR:-${SCYLLA_IP}:5080}"
+
+  # Count registered clusters via REST API
+  _REG_COUNT=$(curl -sf "${SM_API_URL}/api/v1/clusters" 2>/dev/null \
+    | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "-1")
+
+  if [[ "$_REG_COUNT" -gt "0" ]] 2>/dev/null; then
+    log_substep "Scylla cluster already registered (count=${_REG_COUNT})"
+  else
+    log_substep "Registering Scylla cluster with scylla-manager (host=${SCYLLA_IP})..."
+
+    # Read auth_token and agent HTTPS port from agent config if available
+    _TOKEN=""
+    _AGENT_PORT="5612"
+    if [[ -f "$AGENT_CONFIG" ]]; then
+      _TOKEN=$(grep "^auth_token:" "$AGENT_CONFIG" | awk '{print $2}' | tr -d ' ' || true)
+      _AP=$(grep "^https:" "$AGENT_CONFIG" | awk '{print $2}' | awk -F: '{print $NF}' | tr -d ' ' || true)
+      [[ -n "$_AP" ]] && _AGENT_PORT="$_AP"
+    fi
+
+    SCTOOL_ARGS=(cluster add
+      --host "${SCYLLA_IP}"
+      --port "${_AGENT_PORT}"
+      --name "globular-internal"
+      --api-url "${SM_API_URL}/api/v1"
+    )
+    [[ -n "$_TOKEN" ]] && SCTOOL_ARGS+=(--auth-token "$_TOKEN")
+
+    if "$SCTOOL_BIN" "${SCTOOL_ARGS[@]}" 2>&1 | while IFS= read -r line; do log_substep "  $line"; done; then
+      log_success "Scylla cluster registered with scylla-manager"
+    else
+      log_warn "sctool cluster add failed — backup_manager will retry on startup"
+      log_warn "Manual: sctool cluster add --host ${SCYLLA_IP} --port ${_AGENT_PORT} --name globular-internal --api-url ${SM_API_URL}/api/v1"
+    fi
+  fi
+fi
+
 # ── Final permission hardening ───────────────────────────────────────────────
 # Package installation can chown/chmod state dirs. Re-enforce the permissions
 # that matter for non-root tooling (Claude Code MCP, CLI as regular user):
