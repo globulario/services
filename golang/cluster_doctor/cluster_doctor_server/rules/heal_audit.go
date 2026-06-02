@@ -14,12 +14,12 @@ import (
 // ──────────────────────────────────────────────────────────────────────────────
 // Persistent heal audit trail
 //
-// Append-only JSONL file at /var/lib/globular/clusterdoctor/heal-audit.jsonl.
+// Append-only JSONL file at /var/lib/globular/cluster-doctor/heal-audit.jsonl.
 // One line per action (executed, skipped, or failed). Written by the leader
 // only. Survives process restarts. Read via GetHealHistory RPC or CLI.
 // ──────────────────────────────────────────────────────────────────────────────
 
-const defaultAuditPath = "/var/lib/globular/clusterdoctor/heal-audit.jsonl"
+const defaultAuditPath = "/var/lib/globular/cluster-doctor/heal-audit.jsonl"
 
 // HealAuditRecord is one line in the JSONL audit file.
 type HealAuditRecord struct {

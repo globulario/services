@@ -41,7 +41,7 @@ var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 }))
 
 const (
-	defaultConfigPath = "/var/lib/globular/clusterdoctor/config.json"
+	defaultConfigPath = "/var/lib/globular/cluster-doctor/config.json"
 	pprofPort         = 6070
 )
 
