@@ -2252,6 +2252,21 @@ else
   fi
 fi
 
+# ── Clean up legacy underscore-named dirs and transient install files ─────────
+# Package specs now use hyphenated canonical names (ai-executor, node-agent, …).
+# Old installs or prior runs may have left empty underscore-named dirs behind.
+# Remove them only if they are empty — non-empty dirs are left for operator review.
+for _legacy_dir in \
+  ai_executor ai_memory ai_router ai_watcher \
+  backup_manager cluster_controller cluster_doctor clusterdoctor node_agent nodeagent; do
+  _p="${STATE_DIR}/${_legacy_dir}"
+  if [[ -d "$_p" ]] && [[ -z "$(ls -A "$_p" 2>/dev/null)" ]]; then
+    rmdir "$_p" && log_info "Removed empty legacy dir: ${_p}"
+  fi
+done
+# Remove stale config.json backup files left from format migrations.
+find "${STATE_DIR}" -maxdepth 1 -name 'config.json.bak.*' -delete 2>/dev/null || true
+
 # ── Final permission hardening ───────────────────────────────────────────────
 # Package installation can chown/chmod state dirs. Re-enforce the permissions
 # that matter for non-root tooling (Claude Code MCP, CLI as regular user):

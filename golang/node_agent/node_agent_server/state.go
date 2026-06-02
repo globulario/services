@@ -31,7 +31,43 @@ func MigrateLegacyStatePathOnce(canonical, legacy string) {
 		return
 	}
 	if canonicalExists {
-		log.Printf("state-migration: both %s and %s exist — canonical wins, legacy left in place for operator review", canonical, legacy)
+		// Canonical wins. Merge any non-empty fields from legacy that canonical
+		// lacks, then remove the legacy dir so layout-drift findings stay silent.
+		can, err := loadNodeAgentState(canonical)
+		if err != nil {
+			log.Printf("state-migration: WARN read canonical %s: %v — legacy left in place", canonical, err)
+			return
+		}
+		leg, err := loadNodeAgentState(legacy)
+		if err != nil {
+			log.Printf("state-migration: WARN read legacy %s: %v — removing legacy dir anyway", legacy, err)
+		} else {
+			merged := false
+			if can.JoinToken == "" && leg.JoinToken != "" {
+				can.JoinToken = leg.JoinToken
+				merged = true
+			}
+			if can.NodeID == "" && leg.NodeID != "" {
+				can.NodeID = leg.NodeID
+				merged = true
+			}
+			if can.ControllerEndpoint == "" && leg.ControllerEndpoint != "" {
+				can.ControllerEndpoint = leg.ControllerEndpoint
+				merged = true
+			}
+			if merged {
+				if saveErr := can.save(canonical); saveErr != nil {
+					log.Printf("state-migration: WARN save merged canonical %s: %v — legacy left in place", canonical, saveErr)
+					return
+				}
+				log.Printf("state-migration: merged fields from legacy %s into canonical %s", legacy, canonical)
+			}
+		}
+		if rmErr := os.RemoveAll(filepath.Dir(legacy)); rmErr != nil {
+			log.Printf("state-migration: WARN remove legacy dir %s: %v", filepath.Dir(legacy), rmErr)
+			return
+		}
+		log.Printf("state-migration: removed legacy dir %s (canonical %s is authoritative)", filepath.Dir(legacy), canonical)
 		return
 	}
 	parent := filepath.Dir(canonical)
