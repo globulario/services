@@ -241,8 +241,14 @@ jobs:
           bash build/gen-version.sh 0.0.0-ci
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          # Pin to an explicit golangci-lint version known to support
+          # Go 1.25. The previous `latest` was resolving to v1.64.8
+          # (built with go1.24) which failed: "the Go language version
+          # (go1.24) used to build golangci-lint is lower than the
+          # targeted Go version (1.25.0)". v2.12.2 is the latest stable
+          # at time of bump and supports Go 1.25.
+          version: v2.12.2
           working-directory: services/golang
           args: --timeout=10m
