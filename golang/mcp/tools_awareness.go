@@ -24,11 +24,103 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"strings"
+	"time"
 
 	awarenesspb "github.com/globulario/awareness-graph/golang/pb"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-func awarenessStub(ctx context.Context, s *server) (awarenesspb.AwarenessGraphClient, string, error) {
+// awarenessCallTimeout bounds every MCP→awareness-graph gRPC call.
+// Matches the pattern used in tools_composed.go for other gateway calls.
+// Without this, a gRPC call would inherit the MCP request context (which
+// in HTTP transport mode has no per-request deadline) and could hang
+// indefinitely on a slow store or partially-failed connection.
+const awarenessCallTimeout = 10 * time.Second
+
+// FailureClass is the explicit taxonomy a degraded awareness response
+// carries so operators can distinguish transport failure from semantic
+// emptiness. Phase 6 — see docs/awareness/mcp_transport_reliability.md.
+//
+// The contract:
+//
+//	OK                  — request succeeded; treat fields as authoritative
+//	EMPTY               — request succeeded; no direct anchors apply
+//	DEGRADED            — request succeeded; server returned status=degraded
+//	                       (e.g. preflight high-risk-no-anchor branch)
+//	UNAVAILABLE         — gRPC Unavailable / endpoint resolution failure
+//	TIMEOUT             — gRPC DeadlineExceeded or local timeout
+//	STORE_ERROR         — gRPC Internal / Oxigraph backend error
+//	TRANSPORT_ERROR     — TLS handshake / connection reset / mid-call drop
+//	INVALID_ARGUMENT    — gRPC InvalidArgument (caller bug)
+//	ENDPOINT_RESOLUTION — etcd lookup for awareness-graph Address failed
+//
+// EMPTY MUST NEVER be returned for transport failures. Transport
+// failures must always carry an explicit FailureClass != "" so the
+// caller can branch precisely.
+type FailureClass string
+
+const (
+	FailureNone               FailureClass = ""
+	FailureUnavailable        FailureClass = "UNAVAILABLE"
+	FailureTimeout            FailureClass = "TIMEOUT"
+	FailureStoreError         FailureClass = "STORE_ERROR"
+	FailureTransportError     FailureClass = "TRANSPORT_ERROR"
+	FailureInvalidArgument    FailureClass = "INVALID_ARGUMENT"
+	FailureEndpointResolution FailureClass = "ENDPOINT_RESOLUTION"
+)
+
+// classifyFailure maps a Go error to a FailureClass. Order matters:
+// gRPC status codes are checked first (most precise), then string
+// matches for transport-layer errors that wrap into generic errors.
+func classifyFailure(err error) FailureClass {
+	if err == nil {
+		return FailureNone
+	}
+	if st, ok := status.FromError(err); ok {
+		switch st.Code() {
+		case codes.Unavailable:
+			return FailureUnavailable
+		case codes.DeadlineExceeded:
+			return FailureTimeout
+		case codes.InvalidArgument:
+			return FailureInvalidArgument
+		case codes.Internal, codes.DataLoss:
+			return FailureStoreError
+		}
+	}
+	msg := err.Error()
+	if errors.Is(err, context.DeadlineExceeded) || strings.Contains(msg, "context deadline exceeded") {
+		return FailureTimeout
+	}
+	if errors.Is(err, context.Canceled) || strings.Contains(msg, "context canceled") {
+		// Cancellation pre-call is treated as transport-level — caller
+		// abandoned the request before semantics ran.
+		return FailureTransportError
+	}
+	if strings.Contains(msg, "awareness-graph not found in etcd") ||
+		strings.Contains(msg, "Address missing from etcd") {
+		return FailureEndpointResolution
+	}
+	// "connection refused" and "Unavailable" are the canonical signals
+	// for a service that isn't listening — check these before falling
+	// back to generic transport-error classification so a dial-time
+	// refusal is not lumped in with mid-call TLS/connection-reset faults.
+	if strings.Contains(msg, "connection refused") || strings.Contains(msg, "Unavailable") {
+		return FailureUnavailable
+	}
+	if isConnError(err) {
+		return FailureTransportError
+	}
+	return FailureTransportError
+}
+
+// realAwarenessStub is the production factory: resolve endpoint from
+// etcd, get a pooled gRPC connection, wrap with the AwarenessGraph
+// client. Tests swap awarenessStub to a fake.
+func realAwarenessStub(ctx context.Context, s *server) (awarenesspb.AwarenessGraphClient, string, error) {
 	ep, err := awarenessEndpoint()
 	if err != nil {
 		return nil, "", fmt.Errorf("awareness-graph: %w", err)
@@ -40,14 +132,44 @@ func awarenessStub(ctx context.Context, s *server) (awarenesspb.AwarenessGraphCl
 	return awarenesspb.NewAwarenessGraphClient(conn), ep, nil
 }
 
-// degradedResult is the canonical shape every awareness.* tool returns when
-// the awareness-graph service is unreachable. Mirrors the BRIEFING_STATUS_DEGRADED
-// contract so callers can branch on a single field regardless of which tool
-// they invoked.
-func degradedResult(err error) map[string]interface{} {
+// awarenessStub is a package-level seam so tests can inject a fake
+// AwarenessGraphClient without standing up a real server. Production
+// callers see the real factory.
+var awarenessStub = realAwarenessStub
+
+// degradedResult is the canonical shape every awareness.* tool returns
+// when the awareness-graph call fails. It carries:
+//
+//   - status:        always "degraded" (so a single field lets callers
+//                    branch the same way regardless of which tool was
+//                    invoked)
+//   - failure_class: one of the FailureClass taxonomy values — never
+//                    empty for a real failure; "" only when degraded is
+//                    constructed by the server itself (and even then
+//                    callers should see the server's failure_class)
+//   - tool:          the tool name (awareness.briefing, etc.) for ops
+//                    diagnostics
+//   - target:        the file / id / class / task the call was for —
+//                    helps an operator correlate a degraded response
+//                    with a doctor finding or a session log
+//   - error:         the underlying error string (already translated
+//                    by clients.translateError where it helps)
+//
+// Every degraded result emits a single structured log line at INFO so
+// operators can see "tool X for target Y failed with class Z" without
+// having to grep the cluster logs for the gRPC error string.
+func degradedResult(toolName, target string, err error) map[string]interface{} {
+	cls := classifyFailure(err)
+	log.Printf(
+		"mcp: awareness degraded tool=%s target=%q class=%s err=%v",
+		toolName, target, cls, err,
+	)
 	return map[string]interface{}{
-		"status": "degraded",
-		"error":  err.Error(),
+		"status":        "degraded",
+		"failure_class": string(cls),
+		"tool":          toolName,
+		"target":        target,
+		"error":         err.Error(),
 	}
 }
 
@@ -100,16 +222,22 @@ func registerAwarenessBriefingTool(s *server) {
 		if file != "" && task != "" {
 			return nil, errors.New("awareness.briefing: 'file' and 'task' are mutually exclusive — pass exactly one")
 		}
+		target := file
+		if target == "" {
+			target = "task:" + task
+		}
 		stub, ep, err := awarenessStub(ctx, s)
 		if err != nil {
-			return degradedResult(err), nil
+			return degradedResult("awareness.briefing", target, err), nil
 		}
-		resp, err := stub.Briefing(ctx, &awarenesspb.BriefingRequest{File: file, Task: task, Depth: depth})
+		callCtx, cancel := context.WithTimeout(ctx, awarenessCallTimeout)
+		defer cancel()
+		resp, err := stub.Briefing(callCtx, &awarenesspb.BriefingRequest{File: file, Task: task, Depth: depth})
 		if err != nil {
 			if isConnError(err) {
 				s.clients.invalidate(ep)
 			}
-			return degradedResult(err), nil
+			return degradedResult("awareness.briefing", target, err), nil
 		}
 		return briefingToMap(resp), nil
 	})
@@ -167,14 +295,16 @@ func registerAwarenessImpactTool(s *server) {
 		}
 		stub, ep, err := awarenessStub(ctx, s)
 		if err != nil {
-			return degradedResult(err), nil
+			return degradedResult("awareness.impact", file, err), nil
 		}
-		resp, err := stub.Impact(ctx, &awarenesspb.ImpactRequest{File: file})
+		callCtx, cancel := context.WithTimeout(ctx, awarenessCallTimeout)
+		defer cancel()
+		resp, err := stub.Impact(callCtx, &awarenesspb.ImpactRequest{File: file})
 		if err != nil {
 			if isConnError(err) {
 				s.clients.invalidate(ep)
 			}
-			return degradedResult(err), nil
+			return degradedResult("awareness.impact", file, err), nil
 		}
 		return impactToMap(resp), nil
 	})
@@ -229,16 +359,19 @@ func registerAwarenessResolveTool(s *server) {
 		if class == "" || id == "" {
 			return nil, errors.New("awareness.resolve: both 'class' and 'id' are required")
 		}
+		target := class + ":" + id
 		stub, ep, err := awarenessStub(ctx, s)
 		if err != nil {
-			return degradedResult(err), nil
+			return degradedResult("awareness.resolve", target, err), nil
 		}
-		resp, err := stub.Resolve(ctx, &awarenesspb.ResolveRequest{Class: class, Id: id})
+		callCtx, cancel := context.WithTimeout(ctx, awarenessCallTimeout)
+		defer cancel()
+		resp, err := stub.Resolve(callCtx, &awarenesspb.ResolveRequest{Class: class, Id: id})
 		if err != nil {
 			if isConnError(err) {
 				s.clients.invalidate(ep)
 			}
-			return degradedResult(err), nil
+			return degradedResult("awareness.resolve", target, err), nil
 		}
 		return resolveToMap(resp), nil
 	})
@@ -333,16 +466,29 @@ func registerAwarenessQueryTool(s *server) {
 			}
 		}
 
+		// Compose a human-readable target for ops diagnostics — covers all 4 modes.
+		target := "mode=" + modeStr
+		if req.File != "" {
+			target += " file=" + req.File
+		}
+		if req.Id != "" {
+			target += " id=" + req.Id
+		}
+		if req.Class != awarenesspb.QueryClass_QUERY_CLASS_UNSPECIFIED {
+			target += " class=" + req.Class.String()
+		}
 		stub, ep, err := awarenessStub(ctx, s)
 		if err != nil {
-			return degradedResult(err), nil
+			return degradedResult("awareness.query", target, err), nil
 		}
-		resp, err := stub.Query(ctx, req)
+		callCtx, cancel := context.WithTimeout(ctx, awarenessCallTimeout)
+		defer cancel()
+		resp, err := stub.Query(callCtx, req)
 		if err != nil {
 			if isConnError(err) {
 				s.clients.invalidate(ep)
 			}
-			return degradedResult(err), nil
+			return degradedResult("awareness.query", target, err), nil
 		}
 		return queryToMap(resp), nil
 	})
@@ -455,11 +601,14 @@ func registerAwarenessPreflightTool(s *server) {
 		modeStr, _ := args["mode"].(string)
 		mode := preflightModeFromString(modeStr)
 
+		target := preflightTargetForLog(task, files)
 		stub, ep, err := awarenessStub(ctx, s)
 		if err != nil {
-			return degradedResult(err), nil
+			return degradedResult("awareness.preflight", target, err), nil
 		}
-		resp, err := stub.Preflight(ctx, &awarenesspb.PreflightRequest{
+		callCtx, cancel := context.WithTimeout(ctx, awarenessCallTimeout)
+		defer cancel()
+		resp, err := stub.Preflight(callCtx, &awarenesspb.PreflightRequest{
 			Task:  task,
 			Files: files,
 			Mode:  mode,
@@ -468,7 +617,7 @@ func registerAwarenessPreflightTool(s *server) {
 			if isConnError(err) {
 				s.clients.invalidate(ep)
 			}
-			return degradedResult(err), nil
+			return degradedResult("awareness.preflight", target, err), nil
 		}
 		return preflightToMap(resp), nil
 	})
@@ -550,6 +699,33 @@ func confidenceStr(c awarenesspb.Confidence) string {
 	default:
 		return "UNSPECIFIED"
 	}
+}
+
+// preflightTargetForLog builds a short, single-line summary of what the
+// preflight call was for, used only in degradedResult's structured log.
+// Truncates file lists at 3 entries to keep the log line bounded.
+func preflightTargetForLog(task string, files []string) string {
+	parts := []string{}
+	if task != "" {
+		t := task
+		if len(t) > 60 {
+			t = t[:57] + "..."
+		}
+		parts = append(parts, "task="+t)
+	}
+	if len(files) > 0 {
+		shown := files
+		suffix := ""
+		if len(files) > 3 {
+			shown = files[:3]
+			suffix = fmt.Sprintf("+%d", len(files)-3)
+		}
+		parts = append(parts, "files=["+strings.Join(shown, ",")+suffix+"]")
+	}
+	if len(parts) == 0 {
+		return "(empty request)"
+	}
+	return strings.Join(parts, " ")
 }
 
 func preflightModeFromString(s string) awarenesspb.PreflightMode {
