@@ -171,12 +171,12 @@ func checkOneFile(ctx context.Context, briefing briefingFn, file string) pattern
 			Status:         "pass",
 		}
 		for _, req := range p.GetRequiredCalls() {
-			if req != "" && !strings.Contains(contentStr, req) {
+			if req != "" && !callPresent(contentStr, req) {
 				one.MissingRequired = append(one.MissingRequired, req)
 			}
 		}
 		for _, forb := range p.GetForbiddenCalls() {
-			if forb != "" && strings.Contains(contentStr, forb) {
+			if forb != "" && callPresent(contentStr, forb) {
 				one.ForbiddenFound = append(one.ForbiddenFound, forb)
 			}
 		}
@@ -186,6 +186,46 @@ func checkOneFile(ctx context.Context, briefing briefingFn, file string) pattern
 		out.PatternResults = append(out.PatternResults, one)
 	}
 	return out
+}
+
+// callPresent reports whether a call symbol (e.g. "globular.InitClient")
+// appears in the file content, tolerating conventional import-alias
+// variations seen in real Globular code.
+//
+// Concrete example: globular.pattern.grpc_client_standard lists
+// required_calls in the canonical form "globular.X" (the alias used in
+// echo_client / monitoring_client / most other clients). But
+// repository_client.go keeps the default package name and writes
+// "globular_client.X" instead. Both forms compile identically — the
+// validator must accept both or it emits false positives on 1/25 files.
+//
+// We don't parse Go imports for v1; a small alias-equivalence table
+// covers the conventional cases. Add new entries when a future pattern
+// surfaces another alias style. Forbidden-call matching uses the same
+// tolerance so a future agent who imports `grpc` under a non-default
+// alias still gets flagged.
+func callPresent(content, call string) bool {
+	for _, v := range equivalentCallVariants(call) {
+		if strings.Contains(content, v) {
+			return true
+		}
+	}
+	return false
+}
+
+// equivalentCallVariants returns the symbol plus equivalent alias forms.
+// One entry per known alias pair. Order doesn't matter — callPresent
+// returns on the first hit.
+func equivalentCallVariants(call string) []string {
+	variants := []string{call}
+	switch {
+	case strings.HasPrefix(call, "globular."):
+		// globular_client package: canonical alias "globular", default "globular_client".
+		variants = append(variants, "globular_client."+call[len("globular."):])
+	case strings.HasPrefix(call, "globular_client."):
+		variants = append(variants, "globular."+call[len("globular_client."):])
+	}
+	return variants
 }
 
 // derivePatternCheckTask turns a file path into a task string with high

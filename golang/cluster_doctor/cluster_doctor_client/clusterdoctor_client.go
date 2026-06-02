@@ -93,8 +93,17 @@ func (c *ClusterDoctorClient) Close() {
 	}
 }
 
+// Invoke implements globular_client.Client by delegating to the shared
+// dispatcher. Matches the recipe in globular.pattern.grpc_client_standard
+// and the reference implementations (echo_client / monitoring_client /
+// repository_client). The previous body returned a context and nil — a
+// silent stub that lied about implementing the interface. Caught by
+// `globular awareness pattern-check` 2026-06-02.
 func (c *ClusterDoctorClient) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
-	return globular.GetClientContext(c), nil
+	if ctx == nil {
+		ctx = c.GetCtx()
+	}
+	return globular.InvokeClientRequest(c.c, ctx, method, rqst)
 }
 
 // ─── RPC wrappers ─────────────────────────────────────────────────────────────

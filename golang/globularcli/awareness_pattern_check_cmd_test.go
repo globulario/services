@@ -228,7 +228,76 @@ func F() { globular.InitClient(); globular.GetClientConnection(); globular.GetCl
 	}
 }
 
-// 8. derivePatternCheckTask normalizes filenames into useful task strings.
+// 8a. Alias tolerance — `globular_client.X` matches required_call
+//     `globular.X` (real false-positive caught on repository_client.go
+//     when we ran pattern-check on the live codebase 2026-06-02).
+func TestPatternCheck_AliasToleranceForGlobularClient(t *testing.T) {
+	// File uses the un-aliased import name `globular_client.X` everywhere
+	// — same shape as repository_client.go in the live codebase.
+	body := `package foo_client
+
+import "github.com/globulario/services/golang/globular_client"
+
+func NewFooService_Client(addr, id string) (*Foo_Client, error) {
+	c := new(Foo_Client)
+	if err := globular_client.InitClient(c, addr, id); err != nil { return nil, err }
+	return c, c.Reconnect()
+}
+func (c *Foo_Client) Reconnect() error {
+	cc, err := globular_client.GetClientConnection(c)
+	if err != nil { return err }
+	c.cc = cc
+	return nil
+}
+func (c *Foo_Client) Invoke(m string, r interface{}, ctx context.Context) (interface{}, error) {
+	return globular_client.InvokeClientRequest(c.c, ctx, m, r)
+}
+func (c *Foo_Client) GetCtx() context.Context { return globular_client.GetClientContext(c) }
+`
+	path := writeTempGo(t, "foo_client.go", body)
+	result := checkOneFile(context.Background(),
+		fakeBriefing([]*awarenesspb.MatchedImplementationPattern{grpcClientStandardMatched()}, nil),
+		path)
+	if len(result.PatternResults) != 1 {
+		t.Fatalf("want 1 pattern result, got %d", len(result.PatternResults))
+	}
+	p := result.PatternResults[0]
+	if p.Status != "pass" {
+		t.Errorf("alias-tolerance: want pass, got %q (missing=%v forbidden=%v)\n"+
+			"this means the validator regressed to strict-equality matching — "+
+			"globular_client.X should be treated as equivalent to globular.X",
+			p.Status, p.MissingRequired, p.ForbiddenFound)
+	}
+}
+
+// 8b. equivalentCallVariants returns the expected pair for known prefixes
+//     and a singleton list otherwise.
+func TestEquivalentCallVariants(t *testing.T) {
+	cases := []struct {
+		in   string
+		want []string
+	}{
+		{"globular.InitClient", []string{"globular.InitClient", "globular_client.InitClient"}},
+		{"globular_client.GetClientContext", []string{"globular_client.GetClientContext", "globular.GetClientContext"}},
+		{"grpc.Dial", []string{"grpc.Dial"}},                   // unchanged — no alias variant
+		{"credentials.NewTLS", []string{"credentials.NewTLS"}}, // unchanged
+		{"globular", []string{"globular"}},                     // missing dot — leave alone
+	}
+	for _, tc := range cases {
+		got := equivalentCallVariants(tc.in)
+		if len(got) != len(tc.want) {
+			t.Errorf("equivalentCallVariants(%q): got %v, want %v", tc.in, got, tc.want)
+			continue
+		}
+		for i, w := range tc.want {
+			if got[i] != w {
+				t.Errorf("equivalentCallVariants(%q)[%d]: got %q, want %q", tc.in, i, got[i], w)
+			}
+		}
+	}
+}
+
+// 9. derivePatternCheckTask normalizes filenames into useful task strings.
 func TestDerivePatternCheckTask(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"golang/foo/foo_client/foo_client.go", "service foo client"},
