@@ -56,6 +56,7 @@ func registerAwarenessTools(s *server) {
 	registerAwarenessImpactTool(s)
 	registerAwarenessResolveTool(s)
 	registerAwarenessQueryTool(s)
+	registerAwarenessDiagnoseTool(s)
 }
 
 // ─── awareness.briefing ──────────────────────────────────────────────────
