@@ -1453,9 +1453,10 @@ func init() {
 // destDir/<name>_<version>_<platform>.tgz atomically. Returns the full
 // path on success.
 //
-// Used by installer_api.go when a package is not found in any local dir:
-// the node-agent downloads from the repository directly rather than
-// requiring the operator to manually stage the file.
+// Invariant: repository.fallback_requires_manifest_and_checksum — fallback
+// sources must never fetch without manifest+checksum proof. When expectedSHA256
+// is empty, this function resolves it from the repository manifest before
+// downloading. Download is rejected if the manifest returns no checksum.
 func DownloadArtifactToDir(ctx context.Context, repoAddr, publisherID, name, version, platform, kindStr, expectedSHA256, destDir string) (string, error) {
 	artifactKind := repositorypb.ArtifactKind_SERVICE
 	switch strings.ToUpper(kindStr) {
@@ -1473,11 +1474,24 @@ func DownloadArtifactToDir(ctx context.Context, repoAddr, publisherID, name, ver
 		Platform:    platform,
 		Kind:        artifactKind,
 	}
+
+	// Resolve checksum from the manifest when the caller hasn't provided one.
+	// Invariant: fallback_requires_manifest_and_checksum — we must not download
+	// without proof of what we expect to receive.
+	sha256 := strings.TrimSpace(expectedSHA256)
+	if sha256 == "" {
+		digest, err := resolveArtifactDigest(ctx, repoAddr, publisherID, name, version, platform, kindStr, 0)
+		if err != nil {
+			return "", fmt.Errorf("download %s@%s: cannot resolve manifest checksum (required before download): %w", name, version, err)
+		}
+		sha256 = digest
+	}
+
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return "", fmt.Errorf("create download dir %s: %w", destDir, err)
 	}
 	dest := filepath.Join(destDir, fmt.Sprintf("%s_%s_%s.tgz", name, version, platform))
-	if err := downloadArtifactFromRepository(ctx, repoAddr, ref, dest, expectedSHA256, false, "", 0); err != nil {
+	if err := downloadArtifactFromRepository(ctx, repoAddr, ref, dest, sha256, false, "", 0); err != nil {
 		return "", fmt.Errorf("download %s@%s from %s: %w", name, version, repoAddr, err)
 	}
 	return dest, nil
