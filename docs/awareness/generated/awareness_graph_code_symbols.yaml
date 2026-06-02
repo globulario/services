@@ -139,6 +139,15 @@ code_symbols:
         - globular.awareness_graph:failure_mode.awareness.empty_graph_silently_treated_as_no_awareness
       tested_by:
         - golang/server/impact_test.go:TestImpactStoreNil
+  - id: globular.awareness_graph:code.go.server.metadata
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/metadata.go
+    component: server.metadata
+    risk: medium
+    annotations:
+      implements:
+        - globular.awareness_graph:intent.awareness.graph_is_compiled_context_not_authority
   - id: globular.awareness_graph:code.go.server.query
     namespace: globular.awareness_graph
     language: go
