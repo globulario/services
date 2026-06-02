@@ -1,0 +1,119 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Runbook — Initialize or rebuild the awareness graph"
+  description: |
+    The awareness-graph server connects to Oxigraph (localhost:7878) on startup but does NOT
+    seed the triple store automatically. After a fresh install, an Oxigraph restart, or when the
+    YAML sources change, the store must be populated manually. The canonical command is
+    `scripts/build-awareness-graph.sh` in the awareness-graph repo — it runs the annotation
+    scanner across all 33 Go services, converts all YAML sources to N-Triples, updates
+    embeddata/awareness.nt, then a single curl PUT loads Oxigraph.
+  source_documents:
+    - docs/awareness/
+    - docs/intent/
+    - awareness-graph/scripts/build-awareness-graph.sh
+
+entries:
+
+  - id: ops.runbook.initialize-awareness-graph
+    type: SKILL
+    title: "Initialize or rebuild the awareness graph from YAML sources"
+    tags: [always, awareness, runbook, ai]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      The awareness-graph server (`globular-awareness-graph.service`) connects to an external
+      Oxigraph SPARQL store (http://localhost:7878) but does NOT seed it on startup. The store
+      is empty after any fresh Oxigraph start. The embedded file
+      `awareness-graph/golang/server/embeddata/awareness.nt` is the canonical fallback but it
+      also must be PUT into Oxigraph explicitly.
+
+      **Trigger this runbook when:**
+      - `awareness briefing` returns `status: degraded` or `error: file is required` for
+        valid files
+      - SPARQL triple count is 0: `curl -s "http://localhost:7878/query" -H "Accept:
+        application/sparql-results+json" --data-urlencode "query=SELECT (COUNT(*) as ?n)
+        WHERE { ?s ?p ?o }"` returns `"value":"0"`
+      - `docs/awareness/*.yaml` or `docs/intent/**/*.yaml` source files were updated and the
+        graph needs to reflect the changes
+
+      **Key invariant:** `briefing(task=...)` is NOT supported — the server requires
+      `briefing(file=<repo-relative-path>)`. Passing a task string returns
+      `InvalidArgument: file is required`. Always use a file path.
+
+      **Repos involved:**
+      - `services/` — YAML sources: `docs/awareness/`, `docs/intent/`
+      - `awareness-graph/` — yaml2nt converter, embeddata, server
+
+    procedure:
+      - phase: observe
+        description: "Verify the store is actually empty"
+        commands:
+          - cmd: |
+              curl -s "http://localhost:7878/query" \
+                -H "Accept: application/sparql-results+json" \
+                --data-urlencode "query=SELECT (COUNT(*) as ?n) WHERE { ?s ?p ?o }"
+            expect: "\"value\":\"0\" means empty — proceed. Non-zero means already loaded."
+          - cmd: "systemctl is-active globular-awareness-graph"
+            expect: "active — if inactive, start it first"
+
+      - phase: build-and-convert
+        description: "Run the canonical pipeline — annotation scanner + yaml2nt + embeddata update (all-in-one)"
+        note: |
+          `build-awareness-graph.sh` handles everything: builds both tools from source,
+          runs the annotation scanner against all 33 Go services (extracts @awareness
+          annotations → code_symbols + code_edges YAML), converts all YAML sources +
+          generated files to N-Triples, and writes awareness.nt to embeddata/.
+          Set SERVICES_REPO if services/ is not a sibling of awareness-graph/.
+        commands:
+          - cmd: |
+              cd /home/dave/Documents/github.com/globulario/awareness-graph && \
+              SERVICES_REPO=/home/dave/Documents/github.com/globulario/services \
+              bash scripts/build-awareness-graph.sh
+            expect: |
+              Each service prints "OK". Final lines:
+                "N triples emitted"
+                "triples: 17000+"
+              [known_unsupported] skips are expected (Phase B/C importers not yet wired).
+              Any [error] lines indicate broken YAML — fix before continuing.
+
+      - phase: load
+        description: "PUT the N-Triples into Oxigraph (idempotent — replaces default graph)"
+        commands:
+          - cmd: |
+              curl -s -X PUT "http://localhost:7878/store?default" \
+                -H "Content-Type: application/n-triples" \
+                --data-binary @/home/dave/Documents/github.com/globulario/awareness-graph/golang/server/embeddata/awareness.nt
+            expect: "empty response body, exit 0"
+          - cmd: |
+              curl -s "http://localhost:7878/query" \
+                -H "Accept: application/sparql-results+json" \
+                --data-urlencode "query=SELECT (COUNT(*) as ?n) WHERE { ?s ?p ?o }"
+            expect: "\"value\":\"13000+\" — Oxigraph deduplicates; unique triple count is less than emitted line count"
+
+      - phase: verify
+        description: "Confirm briefing works against a known high-risk file"
+        commands:
+          - cmd: |
+              globular awareness briefing \
+                --file golang/node_agent/node_agent_server/server.go
+            expect: "status: ok, prose contains at least one intent or invariant"
+
+    success_criteria:
+      - "Triple count > 13 000 (unique after Oxigraph dedup)"
+      - "`globular awareness briefing --file golang/node_agent/node_agent_server/server.go` returns status: ok"
+      - "embeddata/awareness.nt updated (build-awareness-graph.sh writes it automatically)"
+
+    important:
+      - "briefing(task=...) is NOT supported — use briefing(file=<path>) only"
+      - "The Oxigraph PUT replaces the entire default graph — no partial merges needed"
+      - "build-awareness-graph.sh also accepts --check to diff committed vs fresh without writing"
+      - "Commit the updated embeddata/awareness.nt and docs/awareness/generated/*.yaml to the awareness-graph and services repos so the next install ships fresh data"
+
+    provenance:
+      source: seed
+      seed_version: ""
+      seed_sha256: ""
+      immutable: true
