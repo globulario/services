@@ -31,9 +31,11 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	Utility "github.com/globulario/utility"
 
 	awarenesspb "github.com/globulario/awareness-graph/golang/pb"
 	"github.com/globulario/services/golang/awareness_graph_client"
+	"github.com/globulario/services/golang/globular_client"
 )
 
 // awarenessAddrOverride lets an operator point the CLI at a specific
@@ -367,11 +369,20 @@ func awarenessTruncate(s string, n int) string { //nolint:unused // used in quer
 // ─── shared helpers ─────────────────────────────────────────────────────
 
 func awarenessDialClient() (*awareness_graph_client.AwarenessGraph_Client, error) {
-	cli, err := awareness_graph_client.NewAwarenessGraphService_Client(awarenessAddrOverride, "awareness-graph")
+	addr := awarenessAddrOverride
+	if addr == "" {
+		// Cluster mesh entrypoint — matches the convention used by --controller/--dns/--node.
+		addr = "globular.internal"
+	}
+	// Canonical Globular CLI pattern: register the constructor, then resolve
+	// the typed client via globular_client.GetClient. The pool handles TLS
+	// credential discovery and config lookup so the user doesn't need root.
+	Utility.RegisterFunction("NewAwarenessGraphService_Client", awareness_graph_client.NewAwarenessGraphService_Client)
+	c, err := globular_client.GetClient(addr, "globular.awareness_graph.AwarenessGraph", "NewAwarenessGraphService_Client")
 	if err != nil {
 		return nil, fmt.Errorf("awareness-graph unreachable: %w (set --awareness-addr or deploy the service)", err)
 	}
-	return cli, nil
+	return c.(*awareness_graph_client.AwarenessGraph_Client), nil
 }
 
 func awarenessBriefingStatusStr(s awarenesspb.BriefingStatus) string {
