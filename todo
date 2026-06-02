@@ -97,6 +97,36 @@ managed domain list in etcd and load on DNS service startup.
 The reconciler marks nodes RejoinRequired on transient etcd unavailability.
 Needs cooldown/retry (N consecutive failures before triggering).
 
+### P1 — AI knowledge plane (new)
+
+#### 13. Awareness bundle not fetched or installed at day-0/day-1
+The `BootstrapAwarenessReady` phase in the controller is wired but the node-agent
+side is unimplemented: no code to fetch, extract, or report an `AWARENESS_BUNDLE`
+artifact. No `AWARENESS_BUNDLE` artifact is published in the repository.
+
+Consequences:
+  - `/var/lib/globular/awareness/current/` never exists after day-0
+  - ops-knowledge auto-seed (`seed_ops_knowledge` HealAuto) cannot fire
+    because the bundle dir is missing → cluster-doctor emits
+    `ops_knowledge.seed_deferred / bundle_dir_missing` → "manual seed required"
+  - awareness-graph Oxigraph store starts empty; cluster-doctor only proposes
+    (HealPropose) a restart — never auto-heals
+
+Fix:
+  a. Package the awareness bundle (ops-knowledge YAML + awareness.nt) as an
+     AWARENESS_BUNDLE artifact in the release pipeline and publish it.
+  b. Implement node-agent fetch + extract for AWARENESS_BUNDLE kind:
+     download from repository, extract to /var/lib/globular/awareness/<build_id>/,
+     write /var/lib/globular/awareness/current symlink, report build_id in
+     InstalledBuildIDs["awareness_bundle"] so the controller advances the
+     BootstrapAwarenessReady phase.
+  c. After the bundle is in place, the cluster-doctor HealAuto for
+     ops_knowledge.seed_deferred will fire automatically (no further changes).
+  d. For awareness-graph: either change Disposition to HealAuto so the service
+     is restarted automatically when the graph is empty after bundle install,
+     or load the .nt directly via the loadnt path post-extract (avoids
+     requiring a restart).
+
 ### P1 — Operational improvements
 
 #### 6. MinIO topology workflow auto-retry

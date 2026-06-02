@@ -3293,3 +3293,46 @@ failure_modes:
         - doctor.escalation_threshold_gates_repeated_attempts
       required_tests:
         - test.doctor_escalation_after_three_cooldown_rejections
+
+    - id: node_agent.apply_package_release_buildid_skip_ignores_checksum
+      title: ApplyPackageRelease idempotency guard skips reinstall when build_id matches even if installed binary checksum differs from manifest expected_sha256
+      severity: high
+      symptoms:
+        - node-agent log shows "build_id matches — already applied" followed immediately by "checksum mismatch" from the verifier
+        - installed_state.Checksum differs from manifest.entrypoint_checksum but installed phase stays AVAILABLE
+        - cluster-doctor reports hash_drift on a service that was just installed at the correct version
+        - heartbeat emits runtime_identity_unproven finding for a service whose systemd unit is active
+        - canSkipInstallPackage denies skip (correct), but ApplyPackageRelease re-grants skip via the build_id guard
+        - binary was replaced out-of-band (globular deploy or local build) without a corresponding installed_state.Checksum update
+      root_cause: |
+        ApplyPackageRelease has two distinct idempotency guards:
+        1. canSkipInstallPackage (grpc_workflow_skip.go) — correctly compares installed checksum against
+           req.GetExpectedSha256() and denies skip on mismatch.
+        2. A second guard inside apply_package_release.go — only checked build_id (UUID), ignoring
+           req.GetExpectedSha256(). This allowed the second guard to short-circuit reinstall even when
+           the first guard correctly identified a checksum mismatch.
+
+        The result: a service binary replaced out-of-band (e.g. via `globular deploy`, a local
+        go build, or a direct cp) retains the same build_id as the manifest build, so the second
+        guard skips reinstall and the installed_state.Checksum is never updated. The verifier then
+        detects the discrepancy and emits hash_drift indefinitely.
+
+        This is INC-2026-0019, filed 2026-05-31.
+      architecture_fix: |
+        The second guard inside ApplyPackageRelease must call buildIDSkipChecksumOK(installed, expected)
+        before allowing skip. buildIDSkipChecksumOK returns false (must reinstall) when both hashes
+        are present and disagree, and true (skip allowed) when either hash is absent or they agree.
+
+        Fixed in commit covering INC-2026-0019: added buildIDSkipChecksumOK helper to
+        grpc_workflow_skip.go and wired it into the build_id guard block in apply_package_release.go.
+
+        The helper normalizes hashes (strips sha256: prefix, lowercases) before comparison.
+      forbidden_fixes:
+        - skipping_reinstall_based_on_build_id_alone_without_checksum_validation
+        - treating_build_id_match_as_proof_of_binary_identity
+        - clearing_hash_drift_without_reinstalling_the_package
+        - updating_installed_state_checksum_without_reinstalling_the_binary
+      related_invariants:
+        - runtime.success_requires_expected_binary_checksum
+      required_tests:
+        - TestBuildIDSkipChecksumOK
