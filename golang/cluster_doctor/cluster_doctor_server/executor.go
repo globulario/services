@@ -325,22 +325,41 @@ func auditRemediation(ctx context.Context, audit RemediationAudit) string {
 		audit.CorrelationID = audit.AuditID
 	}
 	audit = audit.Redacted()
+	auditEtcdPersistFn(ctx, audit)
+	return audit.AuditID
+}
+
+// auditEtcdPersistFn is the package-level seam through which audit records
+// reach durable storage. Production code uses persistAuditToEtcd, which
+// writes a TTL-leased row to /globular/cluster_doctor/audit/rem-* in the
+// cluster etcd. Tests install a no-op or in-memory capture via
+// TestMain (see audit_isolation_test.go) so test runs never write to
+// production etcd. Live-etcd integration tests opt back in via
+// GLOBULAR_LIVE_ETCD_TESTS=1.
+var auditEtcdPersistFn = persistAuditToEtcd
+
+// persistAuditToEtcd writes the audit record as a TTL-leased entry under
+// /globular/cluster_doctor/audit/. Failures are swallowed — audit writes
+// must never block remediation execution (the security boundary stays
+// upstream of this function). See projection-clauses.md Clause 8.
+func persistAuditToEtcd(ctx context.Context, audit RemediationAudit) {
 	cli, err := config.GetEtcdClient()
 	if err != nil {
-		return audit.AuditID
+		return
 	}
 	key := "/globular/cluster_doctor/audit/" + audit.AuditID
 	putCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	if body := audit.JSON(); body != "" {
-		lease, err := cli.Grant(putCtx, int64(RemediationAuditRetention/time.Second))
-		if err == nil {
-			cli.Put(putCtx, key, body, clientv3.WithLease(lease.ID))
-		} else {
-			cli.Put(putCtx, key, body)
-		}
+	body := audit.JSON()
+	if body == "" {
+		return
 	}
-	return audit.AuditID
+	lease, err := cli.Grant(putCtx, int64(RemediationAuditRetention/time.Second))
+	if err == nil {
+		cli.Put(putCtx, key, body, clientv3.WithLease(lease.ID))
+	} else {
+		cli.Put(putCtx, key, body)
+	}
 }
 
 // +globular:schema:key="/globular/cluster_doctor/audit/{audit_id}"

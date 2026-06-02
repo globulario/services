@@ -141,12 +141,13 @@ func TestDeleteCacheArtifact_RejectsUnsafePublisherOrPackage(t *testing.T) {
 // ExecuteRemediation — there must be no parallel audit ring for the
 // healer cycle.
 //
-// We can't easily hit real etcd in unit tests, but we can assert that
-// the response's AuditId is non-empty AND non-default for an executed
-// dispatch, and that the executor + dialer were both invoked exactly
-// once (i.e., no double-dispatch).
+// The capture stub from withStubbedAuditEtcd intercepts the persist
+// call so we can count records WITHOUT touching production etcd. The
+// TestMain default already prevents leaks; this stub upgrades the test
+// from "no leak" to "exactly-one-record" assertion.
 func TestCacheCleanup_WritesSingleEtcdAudit(t *testing.T) {
 	withStubbedGatePersistence(t)
+	captured := withStubbedAuditEtcd(t)
 
 	dialer := &recordingNodeAgentDialer{}
 	srv := &ClusterDoctorServer{
@@ -176,6 +177,23 @@ func TestCacheCleanup_WritesSingleEtcdAudit(t *testing.T) {
 	if !strings.HasPrefix(resp.GetAuditId(), "rem-") {
 		t.Fatalf("AuditId %q must use the canonical rem-* shape", resp.GetAuditId())
 	}
+	// Capture proof: exactly one audit persist call.
+	if got := len(*captured); got != 1 {
+		t.Fatalf("expected exactly 1 audit record persisted, got %d: %+v", got, *captured)
+	}
+	rec := (*captured)[0]
+	if rec.FindingID != f.FindingID {
+		t.Fatalf("audit FindingID = %q, want %q", rec.FindingID, f.FindingID)
+	}
+	if rec.ActionType != "DELETE_CACHE_ARTIFACT" {
+		t.Fatalf("audit ActionType = %q, want DELETE_CACHE_ARTIFACT", rec.ActionType)
+	}
+	if !rec.Executed {
+		t.Fatalf("audit Executed = false, want true")
+	}
+	if rec.DryRun {
+		t.Fatalf("audit DryRun = true, want false")
+	}
 	// Exactly one node-agent dispatch.
 	if got := len(dialer.deleteCacheArtifactCalls); got != 1 {
 		t.Fatalf("expected exactly 1 DeleteCacheArtifact dial, got %d: %+v",
@@ -196,6 +214,7 @@ func TestCacheCleanup_WritesSingleEtcdAudit(t *testing.T) {
 // audit record reflects dry_run=true.
 func TestCacheCleanup_DryRun_NoMutation(t *testing.T) {
 	withStubbedGatePersistence(t)
+	captured := withStubbedAuditEtcd(t)
 
 	dialer := &recordingNodeAgentDialer{}
 	srv := &ClusterDoctorServer{
@@ -228,6 +247,18 @@ func TestCacheCleanup_DryRun_NoMutation(t *testing.T) {
 	if got := len(dialer.deleteCacheArtifactCalls); got != 0 {
 		t.Fatalf("DryRun=true must NOT invoke DeleteCacheArtifact dialer; got %d calls: %+v",
 			got, dialer.deleteCacheArtifactCalls)
+	}
+	// Audit record exists (gate observability) but reflects dry_run=true /
+	// executed=false. No state mutation; full audit trail.
+	if got := len(*captured); got != 1 {
+		t.Fatalf("expected 1 audit record (dry-run is still audited), got %d", got)
+	}
+	rec := (*captured)[0]
+	if !rec.DryRun {
+		t.Fatalf("audit DryRun = false, want true")
+	}
+	if rec.Executed {
+		t.Fatalf("audit Executed = true, want false (dry-run)")
 	}
 }
 
