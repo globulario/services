@@ -3340,3 +3340,55 @@ failure_modes:
         - runtime.success_requires_expected_binary_checksum
       required_tests:
         - TestBuildIDSkipChecksumOK
+
+    - id: node_agent.installer_download_fallback_skips_checksum
+      title: Installer download fallback fetches archive unverified when expectedSHA256 is empty
+      severity: critical
+      symptoms:
+        - node-agent log shows "WARN artifact downloaded without SHA256 verification" during an install triggered by services desired set
+        - package installs successfully but verifier immediately reports hash_drift or runtime_identity_unproven
+        - an attacker or corrupted repository can deliver a different binary than the one published; installer accepts it
+        - join-path installs (where controller does not pass expectedSHA256) silently bypass the fallback checksum guard
+      root_cause: |
+        DownloadArtifactToDir — the new repository download fallback in installer_api.go —
+        accepted expectedSHA256="" from its caller and forwarded it directly to
+        downloadArtifactFromRepository. When expectedSHA256 is empty,
+        downloadArtifactFromRepository logs a WARN and proceeds without hash verification:
+        the archive checksum is computed post-download but never compared against anything.
+
+        On the join path and in most services-desired-set flows, the controller does not
+        supply expectedSHA256 to InstallPackage, so the field arrives as "". The original
+        implementation therefore downloaded every repository-fallback package without
+        any integrity check.
+
+        Caught by awareness briefing on installer_api.go surfacing invariant
+        repository.fallback_requires_manifest_and_checksum. Fixed in commit cb317e5a.
+      architecture_fix: |
+        DownloadArtifactToDir must resolve the archive checksum from the repository
+        manifest (GetArtifactManifest) before calling downloadArtifactFromRepository
+        whenever expectedSHA256 == "". If GetArtifactManifest fails, the download
+        must be aborted — fetching without a checksum to verify against is forbidden.
+
+        Fixed: DownloadArtifactToDir now calls resolveArtifactDigest(ctx, repoAddr, ...)
+        when expectedSHA256 is empty, and passes the resolved digest to
+        downloadArtifactFromRepository. A manifest-lookup failure causes a hard error
+        before any bytes are fetched.
+      forbidden_fixes:
+        - pass_empty_expected_sha256_to_downloadArtifactFromRepository
+        - log_warn_and_continue_when_no_checksum_available
+        - skip_manifest_prefetch_for_performance_on_join_path
+        - trust_repository_is_safe_without_verifying_downloaded_bytes
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/internal/actions/artifact.go
+          - golang/node_agent/node_agent_server/installer_api.go
+        symbols:
+          - DownloadArtifactToDir
+          - downloadArtifactFromRepository
+          - resolveArtifactDigest
+      related_invariants:
+        - repository.fallback_requires_manifest_and_checksum
+        - desired_installed_runtime_identity_must_match
+      required_tests:
+        - TestDownloadArtifactToDir_ResolvesChecksumWhenEmpty
+        - TestDownloadArtifactToDir_RejectsDownloadWhenManifestUnavailable

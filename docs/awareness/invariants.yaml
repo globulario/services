@@ -2143,6 +2143,7 @@ invariants:
             - resolveArtifactByBuildID
             - artifactFetchAction.Apply
             - InstallPackage
+            - DownloadArtifactToDir
             - ErrBuildIDOrphaned
             - ErrBuildIDNotFound
             - ErrRepositoryUnreachable
@@ -2160,12 +2161,16 @@ invariants:
         - disable_require_checksum_to_allow_unverifiable_fallback
         - blind_local_install_after_repository_returns_NotFound
         - silently_install_pinned_tarball_when_manifest_missing
+        - pass_empty_expected_sha256_to_download_without_prefetch
       related_failure_modes:
         - repository.desired_build_id_orphaned
+        - node_agent.installer_download_fallback_skips_checksum
       required_tests:
         - TestInstallerRefusesLocalFallbackOnOrphaned
         - TestInstallerRefusesLocalFallbackOnNotFound
         - TestInstallerAllowsLocalFallbackOnUnreachableWithCachedSHA
+        - TestDownloadArtifactToDir_ResolvesChecksumWhenEmpty
+        - TestDownloadArtifactToDir_RejectsDownloadWhenManifestUnavailable
 
     - id: repository.signing.verification_must_precede_install
       title: Artifact signature must be verified before install begins
