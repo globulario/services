@@ -63,3 +63,4 @@ site/
 !golang/build/
 !golang/build/**
 golang/build/__pycache__/
+scripts/__pycache__/
