@@ -253,6 +253,8 @@ github.com/globulario/awareness-graph v0.0.7-0.20260602170119-8f9d1353b916 h1:N9
 github.com/globulario/awareness-graph v0.0.7-0.20260602170119-8f9d1353b916/go.mod h1:rNNl2wxqYD1xgoFiLlGbsgUjAB/qargU1lzEv+7L2ZE=
 github.com/globulario/awareness-graph v0.0.7-0.20260602180304-e79e8b80cf25 h1:16SZlPLDSe15cv/IleMIr9IHnDcXMPjH1WPxowWsDQc=
 github.com/globulario/awareness-graph v0.0.7-0.20260602180304-e79e8b80cf25/go.mod h1:rNNl2wxqYD1xgoFiLlGbsgUjAB/qargU1lzEv+7L2ZE=
+github.com/globulario/awareness-graph v0.0.7-0.20260602182410-0782f98f6927 h1:rjzrsErOagdfuVXyzneRyHrFLSD6prl91NVg4uAOyLc=
+github.com/globulario/awareness-graph v0.0.7-0.20260602182410-0782f98f6927/go.mod h1:rNNl2wxqYD1xgoFiLlGbsgUjAB/qargU1lzEv+7L2ZE=
 github.com/globulario/globular-installer v0.0.0-20260520194113-156f49163ef8 h1:vpiNkv6Wx5JJOTovyUhrxQKBSzWGzba1jZ9t3SP84Ng=
 github.com/globulario/globular-installer v0.0.0-20260520194113-156f49163ef8/go.mod h1:n8tkQBstO03f6ZHc6Q3poBy0KWEI0tq89dQRWYC3mTY=
 github.com/globulario/utility v0.1.9 h1:gGaBd7HXMKpqj3uH7a2Kqv3Ikm5rtOMiVdhT6+riTl4=
