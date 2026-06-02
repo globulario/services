@@ -28,7 +28,6 @@ expressed_by:
   - golang/cluster_controller/cluster_controller_server/release_pipeline.go
 
 related_invariants:
-  - repair.etcd.explicit.flag.only
 
 activation_triggers:
   - direct state mutation

@@ -27,7 +27,6 @@ activation_triggers:
   - Let's Encrypt rate limit
   - account.json
 expressed_by:
-  - golang/domain/domain_server/acme_account.go
 related_invariants: []
 zooms_out_to:
   - domain.leader_only_acme_reconciliation

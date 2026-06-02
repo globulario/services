@@ -728,7 +728,6 @@ failure_modes:
         - etcd.disarm_before_compact
         - etcd.restart_nodes_without_nospace_fix
       related_invariants:
-        - etcd.must_not_exceed_quota
       related_services:
         - etcd
         - cluster_controller
@@ -761,7 +760,6 @@ failure_modes:
         - etcd.restart_nodes_without_nospace_fix
         - controller.restart_before_etcd_stable
       related_invariants:
-        - etcd.quorum_must_be_stable_before_controller_action
       related_services:
         - etcd
         - cluster_controller
@@ -792,8 +790,6 @@ failure_modes:
         - controller.restart_before_etcd_stable
         - controller.kill_to_clear_lease_contention
       related_invariants:
-        - etcd.quorum_must_be_stable_before_controller_action
-        - controller.single_leader_invariant
       related_services:
         - cluster_controller
         - etcd
@@ -828,7 +824,6 @@ failure_modes:
         - workflow.restart_before_control_plane_stable
         - workflow.treat_as_root_cause
       related_invariants:
-        - workflow.dispatch_requires_stable_control_plane
       related_services:
         - workflow
         - cluster_controller
@@ -899,7 +894,6 @@ failure_modes:
         (entrypoint_checksum field). On mismatch, node transitions to NEEDS_REPAIR and triggers
         a re-download rather than silently reporting the wrong version.
       related_invariants:
-        - node.heartbeat.phase2_version_from_running_binary
       related_services:
         - minio
         - node_agent
@@ -929,8 +923,6 @@ failure_modes:
         skip the install regardless of source. Only Force=true (explicit operator command) permits
         downgrade. No automatic rollback ever.
       related_invariants:
-        - controller.reconciler.no_downgrade_without_force
-        - controller.reconciler.desired_state_from_etcd_only
       forbidden_fixes:
         - auto_rollback_on_crash
         - reconcile_from_in_memory_snapshot_after_failover
@@ -962,7 +954,6 @@ failure_modes:
         build time that asserts spec.kind == package.json.kind. Any disagreement is a build error,
         not a runtime silent mismatch.
       related_invariants:
-        - package.kind.single_canonical_source
       forbidden_fixes:
         - hardcode_kind_list_in_reconciler
         - infer_kind_from_service_name
@@ -1607,7 +1598,6 @@ failure_modes:
         - Treating heartbeat_unix=stale as controller down without checking etcd lane timestamps
       related_invariants:
         - prometheus.controller_stalled.non_leader_guard
-        - controller.lease_expired_due_to_etcd_instability
       required_tests:
         - TestControllerStall_NonLeaderHeartbeatIsNotCritical
         - TestControllerStall_LeaderHeartbeatStaleIsCritical
@@ -2144,7 +2134,6 @@ failure_modes:
         - Storing the same content in multiple authoritative places (e.g. both etcd AND objectstore) so neither is authoritative — fragments the truth and reintroduces the same class of bug
         - Raising drift on a single error observation — collection errors are unknown, not drift, per the diagnostic-honesty rule
       related_invariants:
-        - cluster.cross_node_consistency
         - diagnostics.must_measure_reality
         - fallback.must_emit_degraded_finding
       required_tests:
@@ -2570,7 +2559,6 @@ failure_modes:
         - retrying sync with a different targetPlatform to "catch" noarch entries (timing-dependent, races with the controller)
       related_invariants:
         - repository.sync_must_not_silently_drop_noarch_artifacts
-        - release.noarch_artifacts_are_first_class_in_sync
         - repository.imported_package_must_be_local_install_resolvable
       required_tests:
         - TestPlatformMatchesTarget
@@ -2620,7 +2608,6 @@ failure_modes:
       related_invariants:
         - controller.apply_package_release_requires_manifest_checksum
         - runtime.success_requires_expected_binary_checksum
-        - repository.metadata_is_authority
         - desired_installed_runtime_identity_must_match
       required_tests:
         - TestDispatch_PopulatesExpectedSha256FromManifest
@@ -2730,7 +2717,6 @@ failure_modes:
         - running `rm -rf` against etcd data directory
       related_invariants:
         - etcd.must_have_free_backend_space_for_reconciliation
-        - etcd.is_source_of_truth
       required_tests: []
     - id: node_agent.install_package_aliases_convergence_hash_into_expected_sha256
       title: install-package fallback aliased desired_hash (convergence identity) into ExpectedSha256 (binary verify), failing every dispatched install

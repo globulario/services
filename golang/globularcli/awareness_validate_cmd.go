@@ -408,20 +408,7 @@ func validateEntity(report *validateReport, idx *idIndex, repoRoot, file string,
 		if !strings.HasSuffix(path, ".go") {
 			continue
 		}
-		// Some legacy entries use "services/golang/..." while others use
-		// the canonical "golang/...". Accept either.
-		candidates := []string{
-			filepath.Join(repoRoot, path),
-			filepath.Join(repoRoot, strings.TrimPrefix(path, "services/")),
-		}
-		exists := false
-		for _, c := range candidates {
-			if _, err := os.Stat(c); err == nil {
-				exists = true
-				break
-			}
-		}
-		if !exists {
+		if !pathExists(repoRoot, path) {
 			report.Findings = append(report.Findings, validateFinding{
 				Severity: "error",
 				Check:    "missing_source_file",
@@ -432,6 +419,34 @@ func validateEntity(report *validateReport, idx *idIndex, repoRoot, file string,
 			})
 		}
 	}
+}
+
+// pathExists returns true when `path` resolves to ≥1 file under repoRoot.
+// Handles three real shapes seen in the live YAMLs:
+//
+//   - canonical:               "golang/foo/bar.go"
+//   - legacy services-prefix:  "services/golang/foo/bar.go"
+//   - glob pattern:            "golang/*/_server/zz_version_generated.go"
+//     (a documentation reference pointing at a family of files; passes
+//     when at least one match exists)
+func pathExists(repoRoot, path string) bool {
+	candidates := []string{
+		filepath.Join(repoRoot, path),
+		filepath.Join(repoRoot, strings.TrimPrefix(path, "services/")),
+	}
+	for _, c := range candidates {
+		if strings.ContainsAny(c, "*?[") {
+			matches, _ := filepath.Glob(c)
+			if len(matches) > 0 {
+				return true
+			}
+			continue
+		}
+		if _, err := os.Stat(c); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────

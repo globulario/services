@@ -19,7 +19,6 @@ expressed_by:
 - operators/services-and-packages.md
 - developers/workflow-integration.md
 related_invariants:
-- service.registration_gap
 zooms_out_to:
 - state.repository_desired_installed_runtime
 zooms_in_to: []

@@ -35,7 +35,6 @@ expressed_by:
   - services/golang/workflow/workflow_server/schema.go
 
 related_invariants:
-  - reconciliation.must_be_idempotent_and_bounded
 
 activation_triggers:
   - ScyllaDB high CPU

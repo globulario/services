@@ -181,7 +181,6 @@ patterns:
     safe_fix_rule: "Cluster re-creation requires explicit volume wipe. Treat etcd state as fully owned by a cluster lifetime: on wipe, destroy ALL etcd volumes. Never re-use volumes across cluster lifetimes."
     related_invariants:
       - critical_state.registry_ownership_required
-      - founding_quorum.three_storage_nodes
 
   - id: pattern.unit_type_shadowing
     title: Unit Type Shadowing
@@ -198,7 +197,6 @@ patterns:
       - cluster bootstrap deadlock if controller is the blocked service
     safe_fix_rule: "A unit file MUST have exactly one Type= declaration. WatchdogSec= is only valid with Type=notify. If the process does not call sd_notify, use Type=simple. Validate all units with 'systemd-analyze verify'."
     related_invariants:
-      - bootstrap.infra_before_workload
 
   # ── Distributed-System Patterns ──────────────────────────────────────────────
   # These 20 patterns cover control-plane / data-plane, reconciliation, leadership,

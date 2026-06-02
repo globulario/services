@@ -20,8 +20,6 @@ activation_triggers:
 - repository doctor identity
 related_invariants:
 - repository.package_build_lane_unique
-- package.identity_requires_build_id
-- repository.desired_build_ids_resolve
 zooms_out_to:
 - repository.metadata_is_authority
 zooms_in_to:

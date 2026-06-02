@@ -40,7 +40,6 @@ expressed_by:
   - services/golang/netutil/node_identity.go
 
 related_invariants:
-  - join.token.validated.before.phase
   - founding.quorum.three_nodes_required
 
 zooms_out_to:

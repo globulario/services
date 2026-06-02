@@ -33,7 +33,6 @@ zooms_out_to:
 zooms_in_to: []
 
 related_invariants:
-  - health.requires_fresh_evidence
 
 related_to:
   - dns.zone_state_mirrors_to_etcd_for_recovery

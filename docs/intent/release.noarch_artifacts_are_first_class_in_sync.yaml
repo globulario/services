@@ -62,7 +62,6 @@ expressed_by:
 related_invariants:
   - repository.sync_must_not_silently_drop_noarch_artifacts
   - repository.imported_package_must_be_local_install_resolvable
-  - release.bom_is_precise_release_authority
 
 zooms_out_to:
   - release.bom_is_precise_release_authority

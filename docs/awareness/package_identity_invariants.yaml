@@ -13,8 +13,6 @@ invariants:
         - /globular/repository/artifacts/*
       files:
         - golang/repository/repository_server/server.go
-        - golang/repository/repository_server/server_publish.go
-        - golang/repository/repository_server/version_ambiguity.go
       symbols:
         - chooseBuildNumberForPublish
         - appendToLedger
@@ -43,7 +41,6 @@ invariants:
         - /globular/repository/artifacts/*
       files:
         - golang/repository/repository_server/server.go
-        - golang/repository/repository_server/repo_findings.go
       symbols:
         - appendToLedger
         - listRepositoryFindings
@@ -93,7 +90,6 @@ invariants:
       state:
         - /globular/repository/artifacts/*
       files:
-        - golang/repository/repository_server/repair.go
         - golang/repository/repository_server/server.go
       symbols:
         - repairArtifact
@@ -120,7 +116,6 @@ invariants:
         - /globular/resources/ServiceDesiredVersion/*
       files:
         - golang/repository/repository_server/gc.go
-        - golang/repository/repository_server/desired_orphan.go
       symbols:
         - checkDeletionSafety
         - checkRevokeSafety

@@ -26,9 +26,6 @@ expressed_by:
   - services/golang/cluster_controller/
 
 related_invariants:
-  - join.token.validated.before.phase
-  - etcd.ghost.cleared.before.member.add
-  - join.phase.order.enforced
 
 activation_triggers:
   - node join retry

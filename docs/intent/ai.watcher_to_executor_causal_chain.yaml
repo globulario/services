@@ -27,8 +27,6 @@ activation_triggers:
   - causal chain
   - event → incident → action
 expressed_by:
-  - golang/ai_watcher/ai_watcher_server/watcher.go
-  - golang/ai_executor/ai_executor_server/executor.go
 related_invariants: []
 zooms_out_to:
   - ai.supplementary_not_required

@@ -28,8 +28,6 @@ expressed_by:
   - services/golang/globular_service/
 
 related_invariants:
-  - gateway.no.etcd.writes
-  - pki.ca.canonical.path
 
 activation_triggers:
   - hardcoded address or port

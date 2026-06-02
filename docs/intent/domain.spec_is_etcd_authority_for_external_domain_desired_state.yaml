@@ -30,8 +30,6 @@ activation_triggers:
   - DomainSpecPrefix
   - ProviderConfigPrefix
 expressed_by:
-  - golang/domain/domain_server/spec.go
-  - golang/domain/domain_server/store.go
 related_invariants: []
 zooms_out_to:
   - domain.certs_distributed_via_etcd_not_files

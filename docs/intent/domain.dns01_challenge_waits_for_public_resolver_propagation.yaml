@@ -29,8 +29,6 @@ activation_triggers:
   - 8.8.8.8
   - PublicResolverPropagator
 expressed_by:
-  - golang/domain/domain_server/acme_solver.go
-  - golang/domain/domain_server/dns_propagation.go
 related_invariants: []
 zooms_out_to:
   - domain.leader_only_acme_reconciliation

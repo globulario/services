@@ -37,7 +37,6 @@ zooms_out_to:
 zooms_in_to: []
 
 related_invariants:
-  - workflow.terminal_runs_must_be_bounded
 
 related_to:
   - workflow.orphan_recovery_skips_terminal_steps

@@ -24,7 +24,6 @@ activation_triggers:
 - kind mismatch
 - repository index
 related_invariants:
-- package.identity_requires_build_id
 - repository.metadata_first
 - repository.package_build_lane_unique
 zooms_out_to:

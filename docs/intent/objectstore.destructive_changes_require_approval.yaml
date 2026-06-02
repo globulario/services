@@ -19,7 +19,6 @@ expressed_by:
 - operators/minio-topology-validation.md
 - awareness/guardrails.yaml
 related_invariants:
-- objectstoreDestructiveGuard
 zooms_out_to:
 - objectstore.topology_requires_contract
 zooms_in_to: []

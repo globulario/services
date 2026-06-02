@@ -161,9 +161,6 @@ invariants:
         - integrity.CheckTestReferences
       files:
         - golang/mcp/tools_awareness.go
-        - golang/mcp/self_review_tool.go
-        - golang/mcp/coverage_report_tool.go
-        - golang/mcp/health_pulse_tool.go
     enforcement: |
       sourceroot.Resolve is the single source of truth. Each consumer
       switches on the typed state. Tests pin three known historical
@@ -214,11 +211,7 @@ invariants:
         - registerLearnFromFixTool
         - registerAwarenessFailureTools
       files:
-        - golang/mcp/awareness_readiness.go
         - golang/mcp/tools_awareness.go
-        - golang/mcp/tools_awareness_incident_patterns.go
-        - golang/mcp/learn_from_fix_tool.go
-        - golang/mcp/tools_awareness_failure.go
     enforcement: |
       computeAwarenessReadiness runs once during registerAwarenessTools
       and produces an awarenessReadinessReport with per-feature path /

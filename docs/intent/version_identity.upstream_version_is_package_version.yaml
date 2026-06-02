@@ -32,7 +32,6 @@ expressed_by:
   - services/build-all-packages.sh
 
 related_invariants:
-  - package.identity_requires_build_id
 
 activation_triggers:
   - etcd version

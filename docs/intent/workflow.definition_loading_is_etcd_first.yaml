@@ -35,8 +35,6 @@ zooms_out_to:
 zooms_in_to: []
 
 related_invariants:
-  - etcd.is_source_of_truth
-  - workflow.source_of_operational_truth
 
 related_to:
   - workflow.compiler_rejects_cyclic_dependencies

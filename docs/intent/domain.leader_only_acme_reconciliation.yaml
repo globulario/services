@@ -25,7 +25,6 @@ activation_triggers:
   - domain reconciliation
   - leader election
 expressed_by:
-  - golang/domain/domain_server/server.go
 related_invariants: []
 zooms_out_to:
   - controller.decides_but_does_not_execute_leaf_work

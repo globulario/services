@@ -19,7 +19,6 @@ expressed_by:
 - operators/cluster-doctor.md
 - developers/build-identity.md
 related_invariants:
-- service.runtime_identity_unproven
 zooms_out_to:
 - runtime_health.requires_live_observation
 zooms_in_to: []

@@ -41,7 +41,6 @@ invariants:
       - TestRuntimeStatus_NotDerivedFromDesiredState
       - TestDesiredEnabled_DoesNotImplyHealthy
     related_failure_modes:
-      - runtime.desired_enabled_not_alive
       - fm.industry.partial_failure_hidden_by_global_green
 
   - id: state.installed_not_catalog
@@ -279,8 +278,6 @@ invariants:
       and defer to the operator.
     protects:
       files:
-        - golang/awareness/analysis/contextnav/evidence.go
-        - golang/awareness/preflight/report.go
     forbidden_fixes:
       - forbidden.missing_inventory_as_down
       - forbidden.partial_snapshot_false_quorum_loss

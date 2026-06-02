@@ -15,8 +15,6 @@ activation_triggers:
 - package collision
 - duplicate build
 related_invariants:
-- doctor.findings_are_operator_language
-- repository.package_identity_findings_are_actionable
 zooms_out_to:
 - repository.metadata_is_authority
 zooms_in_to:

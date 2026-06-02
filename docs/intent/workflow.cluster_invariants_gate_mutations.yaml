@@ -36,8 +36,6 @@ zooms_out_to:
 zooms_in_to: []
 
 related_invariants:
-  - workflow.source_of_operational_truth
-  - etcd.is_source_of_truth
 
 related_to:
   - workflow.preflight_validates_all_actor_action_pairs

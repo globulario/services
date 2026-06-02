@@ -17,7 +17,6 @@ activation_triggers:
 - duplicate version
 related_invariants:
 - repository.publish_idempotent_same_digest
-- repository.version_immutable_after_publish
 zooms_out_to:
 - repository.metadata_is_authority
 zooms_in_to:

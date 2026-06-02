@@ -35,7 +35,6 @@ zooms_out_to:
 zooms_in_to: []
 
 related_invariants:
-  - etcd.is_source_of_truth
 
 related_to:
   - dns.zone_list_never_regresses_to_empty

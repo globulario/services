@@ -28,8 +28,6 @@ activation_triggers:
   - tier 2
   - AWAITING_APPROVAL
 expressed_by:
-  - golang/ai_executor/ai_executor_server/executor.go
-  - golang/ai_watcher/ai_watcher_server/watcher.go
 related_invariants:
   - doctor.hard_blocked_actions_never_execute
   - doctor.escalation_threshold_gates_repeated_attempts

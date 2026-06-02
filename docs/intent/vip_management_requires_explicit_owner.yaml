@@ -18,7 +18,6 @@ expressed_by:
 - operators/keepalived-and-ingress.md
 - awareness/forbidden_assumptions.yaml
 related_invariants:
-- layer0.vip_management_requires_explicit_owner
 zooms_out_to:
 - dns_pki.explicit_identity_over_convenient_routing
 zooms_in_to: []

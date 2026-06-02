@@ -670,7 +670,6 @@ forbidden_fixes:
 
     '
   related_invariants:
-  - etcd.must_not_exceed_quota
   safe_alternative: 'Resolve disk pressure first (compact + defrag + verify quota below threshold); only restart etcd nodes
     after disk usage is confirmed below quota.
 
@@ -686,7 +685,6 @@ forbidden_fixes:
 
     '
   related_invariants:
-  - etcd.quorum_must_be_stable_before_controller_action
   safe_alternative: 'Wait for all etcd members to return to quorum and a leader to be elected before restarting controller
     processes; premature restart amplifies write pressure.
 
@@ -702,7 +700,6 @@ forbidden_fixes:
 
     '
   related_invariants:
-  - etcd.quorum_must_be_stable_before_controller_action
   safe_alternative: 'Wait for etcd to stabilize; the lease expires after its TTL without requiring process kills; only restart
     controllers after etcd is fully healthy.
 
@@ -716,7 +713,6 @@ forbidden_fixes:
 
     '
   related_invariants:
-  - workflow.dispatch_requires_stable_control_plane
   safe_alternative: 'Stabilize in order: etcd, then controller, then workflow. Restarting workflow before the control plane
     is ready will immediately re-fail.
 
@@ -732,7 +728,6 @@ forbidden_fixes:
 
     '
   related_invariants:
-  - workflow.dispatch_requires_stable_control_plane
   safe_alternative: 'Treat workflow timeouts as a symptom, not the root cause; diagnose etcd and controller first; workflow
     recovers automatically once the control plane is healthy.
 
@@ -756,7 +751,6 @@ forbidden_fixes:
     \ etcdctl defrag --endpoints=<all> — defragment all members\n  3. Verify disk usage dropped below quota (df -h or du)\n\
     \  4. etcdctl alarm disarm           — only after disk is confirmed below quota\n"
   related_invariants:
-  - etcd.quorum_must_be_stable_before_controller_action
 - id: ignoring_orphan_processes_assuming_systemd_handles_them
   summary: 'Assume systemd''s Restart= directive cleanly terminates all child processes from a prior cgroup escape when the
     service restarts, without adding an ExecStartPre kill step.
@@ -1185,7 +1179,6 @@ forbidden_fixes:
     Automatically install an older package version when the current version crashes
     or fails its health check, without explicit operator approval.
   related_invariants:
-    - controller.reconciler.no_downgrade_without_force
   safe_alternative: |
     When a service crashes, create an incident and halt convergence for that package.
     Never install a lower version unless the operator explicitly runs a rollback command
@@ -1196,7 +1189,6 @@ forbidden_fixes:
     After acquiring cluster leadership, load desired state from an in-memory snapshot
     carried over from a prior leader session rather than reading fresh from etcd.
   related_invariants:
-    - controller.reconciler.desired_state_from_etcd_only
   safe_alternative: |
     After every leader election, the reconciler must reload desired state exclusively
     from etcd before running any convergence tick. In-memory state from a prior
@@ -1208,7 +1200,6 @@ forbidden_fixes:
     classify packages as infrastructure vs service kind, duplicating the canonical
     registry.
   related_invariants:
-    - package.kind.single_canonical_source
   safe_alternative: |
     The reconciler must read kind from the package metadata (package.json or catalog).
     No list of names or prefixes inside reconciler logic. If the metadata is missing,
@@ -1220,7 +1211,6 @@ forbidden_fixes:
     "xds" implies infrastructure) rather than reading from the canonical package
     metadata registry.
   related_invariants:
-    - package.kind.single_canonical_source
   safe_alternative: |
     Kind must always be read from package.json metadata. Service name is not a
     reliable proxy for kind — names change, packages are renamed, and inference
@@ -1340,7 +1330,6 @@ forbidden_fixes:
     skipped. Replaces a structural fix with a per-cluster table the operator
     must keep in sync.
   related_invariants:
-    - node.identity.stable_ip
   safe_alternative: |
     Use node.StableIP(clusterVIP) when picking a single representative IP,
     or the nodeAny<X> helpers when matching against ANY of node.Identity.Ips.
@@ -1354,7 +1343,6 @@ forbidden_fixes:
     Destroys the multi-IP truth (NodeIdentity.Ips is supposed to be the full
     list) to paper over consumers that picked the wrong helper.
   related_invariants:
-    - node.identity.stable_ip
   safe_alternative: |
     NodeIdentity.Ips is the canonical full IP list and must not be filtered.
     Fix the consumers: replace Ips[0] / PrimaryIP() with StableIP(clusterVIP)
@@ -1367,7 +1355,6 @@ forbidden_fixes:
     master?" and use different selection logic for the master. Doubles the
     surface area and leaks keepalived state into every consumer.
   related_invariants:
-    - node.identity.stable_ip
   safe_alternative: |
     One unified helper — StableIP(clusterVIP) — removes the VIP regardless
     of which node holds it. No consumer needs to know about keepalived state;
@@ -1381,7 +1368,6 @@ forbidden_fixes:
     false-positives (node not in pool → write_quorum_lost) or false-negatives
     (skip check → real violations missed).
   related_invariants:
-    - node.identity.stable_ip
   safe_alternative: |
     Prefer AdvertiseIp when non-empty, otherwise fall through to the
     nodeAny<X> helpers that match against any of node.Identity.Ips with the
@@ -1723,21 +1709,6 @@ forbidden_fixes:
     Gate publication on Installed + Runtime-healthy. Records for
     unhealthy nodes never appear in the first place, so TTL becomes
     a normal performance knob instead of a band-aid.
-
-- id: assume_installed_means_running
-  summary: |
-    A reconciler reads installed_state (Layer 3) and treats "installed"
-    as proof that the service is currently serving traffic. The
-    unit may be inactive (oom-killed, crashloop, never started). DNS
-    records computed from installed_state alone produce ghost records
-    for every unit that ever installed but isn't running right now.
-  related_invariants:
-    - dns.records_must_be_installed_and_runtime_healthy
-  safe_alternative: |
-    Always join Layer 3 with Layer 4 (systemd unit state) before
-    publishing anything that promises a live endpoint. Map each
-    package name to its systemd unit explicitly (dnsServiceUnitName);
-    `state == "active"` is the only proof of runtime health.
 
 - id: ignore_status_resolved_build_id_when_collecting_desired_roots
   summary: |
@@ -2244,7 +2215,6 @@ forbidden_fixes:
   safe_alternative: >
     Use cluster FQDN or stable cluster IP that resolves correctly from all nodes.
   related_invariants:
-    - etcd.is_source_of_truth
   protects:
     files:
       - golang/config/minio_config.go
@@ -2262,7 +2232,6 @@ forbidden_fixes:
     Once desired state is fully resolved (version + build_number both set), use persisted
     values directly. Only re-resolve on explicit desired-state update RPCs.
   related_invariants:
-    - desired_state.is_authority
     - repository.build_id_server_generated_not_client_driven
   protects:
     files:
@@ -2282,7 +2251,6 @@ forbidden_fixes:
     Only allowlist read-only tools. Mutating operations must be invoked locally or
     through typed controller RPCs with RBAC enforcement and audit logging.
   related_invariants:
-    - autonomy.remediation_is_bounded_and_escalates
   protects:
     files:
       - golang/mcp/aggregator_policy.go
@@ -2368,7 +2336,6 @@ forbidden_fixes:
     Read ScyllaDB cluster membership from etcd (/globular/objectstore/scylla/members
     or equivalent cluster-controller-owned key). Never infer from local systemd state.
   related_invariants:
-    - etcd.is_source_of_truth
     - objectstore.membership_requires_explicit_desired_state
   protects:
     files:
@@ -2388,7 +2355,6 @@ forbidden_fixes:
     Use /proc/<pid>/exe mtime (os.Stat) as the InstalledUnix anchor. This ties
     the proof to when the process actually started, not when we wrote the record.
   related_invariants:
-    - runtime.identity_requires_verification
   protects:
     files:
       - golang/node_agent/node_agent_server/heartbeat.go

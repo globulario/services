@@ -34,7 +34,6 @@ zooms_out_to:
 zooms_in_to: []
 
 related_invariants:
-  - workflow.source_of_operational_truth
 
 related_to:
   - workflow.definition_loading_is_etcd_first

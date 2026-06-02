@@ -27,7 +27,6 @@ activation_triggers:
   - fullchain.pem
   - certificate renewal write
 expressed_by:
-  - golang/domain/domain_server/file_atomic.go
 related_invariants: []
 zooms_out_to:
   - domain.certs_distributed_via_etcd_not_files

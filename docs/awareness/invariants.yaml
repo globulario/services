@@ -300,7 +300,6 @@ invariants:
         - TestInfraDesiredHashConsistency
         - TestLookupServiceReleaseBuildIDUsesDesiredHash
       related_failure_modes:
-        - convergence.hash_mismatch_loop
       implemented_by:
         - file: golang/cluster_controller/cluster_controller_server/release_hash.go
           functions:
@@ -346,7 +345,6 @@ invariants:
         - TestHeartbeatDoesNotSetDesiredState
         - TestSyncInstalledStateOnlyWritesObserved
       related_failure_modes:
-        - infra.desired_hash_mismatch_loop
       implemented_by:
         - file: golang/node_agent/node_agent_server/heartbeat.go
           functions:
@@ -391,7 +389,6 @@ invariants:
         - TestRestartSingleflightGate
         - TestNoDoubleRestartOnConvergenceTick
       related_failure_modes:
-        - service.restart_storm
     - id: awareness.annotation_scanner.production_source_only
       title: Annotation scanner validates production Go source only
       severity: ERROR
@@ -643,7 +640,6 @@ invariants:
       protects:
         files:
             - golang/cluster_controller/cluster_controller_server/repair_node_workflow.go
-            - golang/cluster_controller/cluster_controller_server/rolling/rolling_release.go
       forbidden_fixes:
         - infer_topology_from_local_disk
         - reconcile_topology_without_contract
@@ -705,7 +701,6 @@ invariants:
         addresses or bootstrap phase.
       protects:
         files:
-          - golang/security/cluster_trust.go
       forbidden_fixes:
         - skip_ca_verification_for_internal_addresses
         - accept_self_signed_cert_from_joining_node
@@ -835,7 +830,6 @@ invariants:
       required_tests:
         - TestSmokePassesOnKnownInvariants
       related_failure_modes:
-        - awareness.false_silence_on_sensitive_task
       implemented_by:
         - functions:
             - Run
@@ -1076,7 +1070,6 @@ invariants:
         - TestPromotedWeightChangeRequiresGraphRebuild
         - TestWeightProposalIncludesReasonAndEvidence
       related_failure_modes:
-        - awareness.graph.stale_context_drives_decision
       implemented_by:
         - file: golang/globularcli/awareness_cmds.go
           functions:
@@ -1148,7 +1141,6 @@ invariants:
         degraded (no-graph) mode, the response must be structurally complete.
       protects:
         files:
-            - golang/mcp/tools_awareness_decision.go
         symbols:
             - decisionContextNoGraph
             - buildDecisionContext
@@ -1282,7 +1274,6 @@ invariants:
         the safety system itself without reading them first.
       protects:
         files:
-            - golang/mcp/tools_awareness_decision.go
         symbols:
             - TraverseImpactPaths
             - ScoreImpactPath
@@ -1373,7 +1364,6 @@ invariants:
         automated enforcement.
       protects:
         files:
-            - golang/globularcli/awareness_impact_ci_cmd.go
         symbols:
             - awarenessImpactCICmd
             - verifyGapTestsDirs
@@ -1606,7 +1596,6 @@ invariants:
           - /var/lib/globular/awareness/runtime/latest_snapshot.json
           - /var/lib/globular/awareness/runtime/facts.jsonl
         files:
-          - golang/mcp/tools_awareness_evidence.go
         symbols:
           - Classifier.Classify
           - Normalizer.Normalize
@@ -1658,10 +1647,6 @@ invariants:
             - /var/lib/globular/awareness/installed/<version>/<build_id>/
             - /globular/mcp/nodes/<node-id>           # peer registry — used for source discovery
         files:
-            - golang/mcp/tools_awareness_evidence.go
-            - golang/mcp/tools_awareness_bundle_serve.go
-            - golang/mcp/tools_awareness_bundle_freshness.go
-            - golang/globularcli/awareness_sync_cmds.go
         symbols:
             - VerifyBundle
             - VerifyManifest
@@ -1857,7 +1842,6 @@ invariants:
             - "/globular/nodes/<id> with profiles list"
             - "/globular/cluster_controller/state.Nodes profiles per node"
         files:
-            - golang/cluster_controller/cluster_controller_server/founding_profiles.go
             - golang/cluster_controller/cluster_controller_server/server.go
         symbols:
             - enforceFoundingProfiles
@@ -2109,7 +2093,6 @@ invariants:
         - special_case_late_joining_nodes_without_fixing_state_split
       related_failure_modes:
         - repository.desired_build_id_orphaned
-        - repository.compound_predicate_split
       required_tests:
         - TestPromoteToPublished_SetsArtifactStatePublished
         - TestPromoteToPublished_ReturnsErrorWhenArtifactStateTransitionFails
@@ -2335,7 +2318,6 @@ invariants:
         - TestLocalPublish1_OfficialStableAllowsSameDigest
         - TestLocalPublish6_CrossClusterLocalCannotOverrideStable
       related_failure_modes:
-        - package.identity_fraud_silent_override
 
     - id: package.local_publish_requires_local_identity
       title: Local/dev/hotfix builds must use a non-official publisher and a version with a local suffix
@@ -2371,7 +2353,6 @@ invariants:
         - TestLocalPublish2_OfficialPublisherCannotUseLocalVersionSuffix
         - TestLocalPublish2_FormatLocalVersion
       related_failure_modes:
-        - package.identity_fraud_silent_override
 
     - id: package.local_override_must_be_explicit
       title: A local package override in desired state must carry explicit override metadata
@@ -2405,7 +2386,6 @@ invariants:
         - TestLocalPublish3_OfficialBOMUnaffectedByLocalPublish
         - TestLocalPublish4_OfficialSealDoesNotBlockLocalPublisher
       related_failure_modes:
-        - package.silent_local_override_upgrade
 
     - id: package.official_bom_read_only_under_local_override
       title: The official BOM must not be mutated when a local package override is active
@@ -2442,7 +2422,6 @@ invariants:
       required_tests:
         - TestLocalPublish3_OfficialBOMUnaffectedByLocalPublish
       related_failure_modes:
-        - package.bom_corruption_under_local_override
 
     - id: package.promotion_must_use_official_release_pipeline
       title: Promoting a local fix to official must go through the official build/release pipeline
@@ -2481,7 +2460,6 @@ invariants:
       required_tests:
         - TestLocalPublish5_PromotedVersionMustBeDistinct
       related_failure_modes:
-        - package.promotion_bypasses_release_forge
 
     - id: package.remote_local_artifact_must_not_override_stable
       title: A local artifact imported from another cluster must not override this cluster's official desired state
@@ -2516,7 +2494,6 @@ invariants:
       required_tests:
         - TestLocalPublish6_CrossClusterLocalCannotOverrideStable
       related_failure_modes:
-        - package.identity_fraud_silent_override
 
     # ── Kubernetes substrate invariants ──────────────────────────────────────────
     # These govern Globular's relationship to a hosted Kubernetes cluster.
@@ -2533,7 +2510,6 @@ invariants:
         If the API server is unreachable, check substrate (node health, cert expiry,
         network) first before classifying as kubernetes_control_plane_owned.
       related_failure_modes:
-        - fm.k8s.api_server_unreachable
 
     - id: k8s.nodes.ready_count_matches_expected
       title: The number of Ready Kubernetes nodes must match the number of healthy Globular nodes
@@ -2933,7 +2909,6 @@ invariants:
         - TestValidateSystemdUnit_AllowsRepeatedExecStartPre
         - TestGenerateSpec_TemplateProducesValidUnit
       related_failure_modes:
-        - systemd.unit_duplicate_directive
         - systemd.effective_config_drift
 
     - id: doctor.must_compare_claims_to_proofs
@@ -3045,8 +3020,6 @@ invariants:
         - TestPackageReportState_PreservesExistingMetadata
       related_failure_modes:
         - service.runtime_identity_unproven
-        - installed_state_runtime_mismatch
-        - service.unit_inactive_after_join
 
     - id: remediation.auto_execution_is_rate_limited
       title: Auto-remediation execution is rate-limited per finding/action
@@ -3631,7 +3604,6 @@ invariants:
         - TestCanSkipDueToExistingState_NullManifestJSONRefusesSkip
         - TestManifestJSONPresent_DirectChecks
       related_failure_modes:
-        - manifest_skeleton_row_published_with_null_json
         - services.drift_never_escalates
     - id: installer.explicit_version_requires_exact_artifact
       title: When the caller passes an explicit package version, the install path must match it exactly — no wildcard fallback
@@ -3930,7 +3902,6 @@ invariants:
         separation is the contract; future refactors must preserve it.
       protects:
         files:
-            - golang/cluster_doctor/cluster_doctor_server/rules/artifact_filesystem_safety_local.go
             - golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local.go
         symbols:
             - artifactFilesystemSafetyLocal
@@ -4307,9 +4278,6 @@ invariants:
             - /globular/nodes/{node_id}/packages/{kind}/{name}
         files:
             - golang/globular_service/services.go
-            - golang/repository/repository_server/main.go
-            - golang/monitoring/monitoring_server/main.go
-            - golang/torrent/torrent_server/main.go
         symbols:
             - Version
             - LifecycleManager

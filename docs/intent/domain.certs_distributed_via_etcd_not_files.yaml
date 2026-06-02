@@ -26,7 +26,6 @@ activation_triggers:
   - symlink
   - WatchACMECerts
 expressed_by:
-  - golang/domain/domain_server/server.go
 related_invariants: []
 zooms_out_to:
   - domain.leader_only_acme_reconciliation

@@ -27,7 +27,6 @@ expressed_by:
   - services/golang/cluster_controller/cluster_controller_server/release_pipeline.go
 
 related_invariants:
-  - desired.build_id_immutable_after_resolution
 
 activation_triggers:
   - already_resolved

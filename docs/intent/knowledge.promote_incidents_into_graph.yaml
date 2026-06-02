@@ -29,7 +29,6 @@ expressed_by:
 - awareness/proposal_queue.md
 - awareness/container_training_loop.md
 - awareness/daily_workflow.md
-- services/golang/mcp/tools_awareness_failurelearning.go
 related_invariants: []
 zooms_out_to:
 - awareness.graph_is_compiled_context_not_authority

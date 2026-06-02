@@ -30,7 +30,6 @@ expressed_by:
   - services/golang/ai_executor/
 
 related_invariants:
-  - unknown.state.not.healthy
 
 activation_triggers:
   - health

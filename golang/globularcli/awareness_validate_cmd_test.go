@@ -161,6 +161,44 @@ expressed_by:
 	}
 }
 
+// 3c. Glob patterns in expressed_by paths must validate as "at least one
+//     match" — covers documentation refs like
+//     "golang/*/_server/zz_version_generated.go" that point at a family
+//     of files.
+func TestValidate_MissingSourceFile_AcceptsGlobsWithMatches(t *testing.T) {
+	root := writeYAML(t, map[string]string{
+		"docs/intent/x.yaml": `
+id: foo.intent
+level: principle
+title: x
+expressed_by:
+  - golang/*/_server/zz_version_generated.go
+`,
+		"golang/echo/_server/zz_version_generated.go":     "package echo_server\n",
+		"golang/monitoring/_server/zz_version_generated.go": "package monitoring_server\n",
+	})
+	r := runValidateOn(t, root)
+	if hasFinding(r, "missing_source_file") {
+		t.Errorf("glob with matches should pass; findings=%v", r.Findings)
+	}
+}
+
+func TestValidate_MissingSourceFile_GlobsWithNoMatchesFail(t *testing.T) {
+	root := writeYAML(t, map[string]string{
+		"docs/intent/x.yaml": `
+id: foo.intent
+level: principle
+title: x
+expressed_by:
+  - golang/does_not_exist/*/never.go
+`,
+	})
+	r := runValidateOn(t, root)
+	if !hasFinding(r, "missing_source_file") {
+		t.Errorf("glob with NO matches must flag; findings=%v", r.Findings)
+	}
+}
+
 // 4. Missing reference file in an ImplementationPattern.
 func TestValidate_MissingReferenceFile_InImplementationPattern(t *testing.T) {
 	root := writeYAML(t, map[string]string{

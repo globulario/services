@@ -16,7 +16,6 @@ activation_triggers:
 - missing blob
 related_invariants:
 - repository.repair_selects_existing_build
-- repository.desired_build_ids_resolve
 zooms_out_to:
 - repository.metadata_is_authority
 related_to:

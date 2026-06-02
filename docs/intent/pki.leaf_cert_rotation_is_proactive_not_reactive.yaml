@@ -40,7 +40,6 @@ zooms_out_to:
 zooms_in_to: []
 
 related_invariants:
-  - health.requires_fresh_evidence
 
 related_to:
   - pki.san_must_include_all_service_identities

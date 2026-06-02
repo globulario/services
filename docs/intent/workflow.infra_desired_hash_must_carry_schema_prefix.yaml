@@ -35,7 +35,6 @@ zooms_out_to:
 zooms_in_to: []
 
 related_invariants:
-  - workflow.step_receipts_are_evidence
 
 related_to:
   - workflow.cluster_invariants_gate_mutations
