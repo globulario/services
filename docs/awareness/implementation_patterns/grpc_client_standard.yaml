@@ -1,0 +1,59 @@
+id: globular.pattern.grpc_client_standard
+class: ImplementationPattern
+label: Standard Globular gRPC service client
+status: active
+
+when_to_use:
+  - "creating a new Go client for a Globular gRPC service"
+  - "adding client package for a new service"
+  - "refactoring service client connection logic"
+  - "implementing service client for awareness-graph or similar"
+  - "new gRPC client wrapper for a Globular service"
+  - "wrapping a protobuf client with Globular helpers"
+
+reference_files:
+  - path: golang/echo/echo_client/echo_client.go
+    role: canonical_minimal
+  - path: golang/monitoring/monitoring_client/monitoring_client.go
+    role: richer_reference
+
+must_follow:
+  - "Client struct exposes Get/Set Address, Domain, Port, Mac, State, Name, Id, and TLS Get/Set methods so it satisfies the globular_client.Client interface."
+  - "Constructor is named NewXxxService_Client(address string, id string) and returns (*Xxx_Client, error)."
+  - "Constructor calls globular.InitClient(client, address, id) — never duplicate its address normalization, cluster id propagation, or TLS bootstrap."
+  - "Constructor calls client.Reconnect() before returning so the client is ready."
+  - "Reconnect() calls globular.GetClientConnection(client) and stores the *grpc.ClientConn on the client struct."
+  - "Reconnect() assigns the typed protobuf client: client.c = pb.NewXxxServiceClient(client.cc)."
+  - "Invoke(method, rqst, ctx) delegates to globular.InvokeClientRequest(client.c, ctx, method, rqst)."
+  - "GetCtx() returns globular.GetClientContext(client) so the auth token + call-depth metadata propagate."
+  - "Close() closes the stored client.cc connection."
+  - "Typed RPC wrappers build the protobuf request struct and call client.c.<Rpc>(ctx, req) — never reach past the typed client."
+
+required_calls:
+  - globular.InitClient
+  - globular.GetClientConnection
+  - globular.InvokeClientRequest
+  - globular.GetClientContext
+
+forbidden_calls:
+  - grpc.Dial
+  - grpc.NewClient
+  - credentials.NewClientTLSFromFile
+  - credentials.NewTLS
+
+rationale: |
+  Globular service clients must share the central bootstrap so TLS,
+  mesh routing, reconnect behavior, call-depth, cluster id propagation,
+  and cached connection reuse stay consistent across every service. Any
+  client that dials gRPC directly or builds its own TLS config drifts
+  from the cluster's mTLS contract silently — the call may succeed in
+  one environment and fail in another with no clear cause.
+
+  Real incident captured 2026-06: a fresh awareness_graph_client was
+  written with a custom Option / WithInsecure / direct grpc.Dial
+  pattern. It built and tests passed, but the CLI could not reach the
+  cluster service because the client cert install hook never ran. The
+  fix was to refactor to mirror echo_client / rbac_client — the same
+  recipe documented in this pattern. Anchoring this recipe in awareness
+  means the next agent reading a briefing for a new client task gets
+  the recipe surfaced, not just an "it compiles" green light.
