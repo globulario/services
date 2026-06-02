@@ -31,6 +31,7 @@ expressed_by:
 - operators/convergence-model.md
 - services/golang/installed_state/installed_state.go
 - services/golang/cluster_controller/cluster_controller_server/convergence_committer.go
+- golang/node_agent/node_agent_server/installed_packages_handlers.go
 related_invariants:
 - infra.heartbeat_not_desired_authority
 zooms_out_to:

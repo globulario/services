@@ -30,6 +30,10 @@ activation_triggers:
   - editing any cert renewal loop in node_agent or domain package
   - debugging mTLS failures caused by expired certs
 
+expressed_by:
+  - golang/pki/validate_rotate.go
+  - golang/node_agent/node_agent_server/certificate.go
+
 zooms_out_to:
   - dns_pki.explicit_identity_over_convenient_routing
 
