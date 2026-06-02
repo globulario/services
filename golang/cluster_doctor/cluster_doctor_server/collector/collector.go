@@ -1,4 +1,16 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.collector
+// @awareness file_role=read_only_collector_fans_out_to_cluster_for_snapshot_construction
+// @awareness implements=globular.platform:intent.doctor.findings_are_operator_language
+// @awareness risk=medium
 package collector
+
+// The collector is read-only. It fans out to cluster-controller,
+// node-agents, prometheus, scylla-manager, etc., assembles a Snapshot,
+// and returns it to invariant Registry for evaluation. The collector
+// MUST NOT mutate etcd, MinIO, ScyllaDB, or any node state — observed
+// drift is reported as a Finding; remediation flows through the
+// gated ExecuteRemediation handler, not from here.
 
 import (
 	"context"

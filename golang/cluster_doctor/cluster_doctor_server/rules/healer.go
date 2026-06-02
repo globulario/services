@@ -1,3 +1,10 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.healer_dispatcher_classifier
+// @awareness file_role=classify_only_healer_dispatcher_routes_to_execute_remediation
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness implements=globular.platform:intent.circuit_breakers_protect_convergence
+// @awareness risk=high
 package rules
 
 import (

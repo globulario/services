@@ -1,4 +1,16 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.remediation_history
+// @awareness file_role=read_only_etcd_audit_history_for_failure_rate_gate
+// @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
+// @awareness implements=globular.platform:intent.remediation.failure_rate_policy
+// @awareness risk=medium
 package main
+
+// This file reads /globular/cluster_doctor/audit/rem-* records to power
+// the failure-rate gate inside ExecuteRemediation. It must NEVER mutate
+// audit records — the audit is append-only and TTL-leased. Read failures
+// must NOT silently weaken the gate (returning 0 recent failures from a
+// read error would let a flapping action loop indefinitely).
 
 import (
 	"context"

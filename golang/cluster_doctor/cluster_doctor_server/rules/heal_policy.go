@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.heal_policy
+// @awareness file_role=auto_heal_policy_table_v1_disposition_authority
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness risk=high
 package rules
 
 // ──────────────────────────────────────────────────────────────────────────────

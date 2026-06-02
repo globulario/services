@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.node_agent_dialer
+// @awareness file_role=typed_node_agent_transport_for_remediation_actions
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness risk=high
 package main
+
+// The FileDelete method on controllerNodeAgentDialer is intentionally a
+// stub returning an error. There is no NodeAgentService.DeleteFile RPC
+// in the proto and Patch C Milestone 3 deliberately did NOT add one — a
+// generic file-delete RPC would broaden the auto-mutation surface
+// beyond cache cleanup. The only typed delete the healer can dispatch
+// is DELETE_CACHE_ARTIFACT, whose path is constructed inside the
+// node-agent (not passed by the caller).
+//
+// If a future agent considers implementing FileDelete: read
+// docs/design/auto-healing-path-unification-patch-c.md first.
 
 import (
 	"context"

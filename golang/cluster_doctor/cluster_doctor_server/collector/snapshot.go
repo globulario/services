@@ -1,4 +1,17 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.snapshot
+// @awareness file_role=immutable_cluster_state_snapshot_for_invariant_evaluation
+// @awareness implements=globular.platform:intent.doctor.findings_are_operator_language
+// @awareness risk=medium
 package collector
+
+// A Snapshot is the only data source rules.Registry uses to produce
+// Findings. Snapshot freshness directly drives remediation decisions —
+// stale snapshots can produce findings whose underlying state has
+// already healed, which would dispatch unnecessary actions.
+// The snapshot's freshness signal must always be present in finding
+// evidence so the gate's evidence-trust check (AUTHORITATIVE | DEGRADED
+// | STALE | UNTRUSTED) can reject decisions based on outdated data.
 
 import (
 	"sync"

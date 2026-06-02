@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.artifact_integrity_rule
+// @awareness file_role=invariant_emitter_for_artifact_cache_and_install_state
+// @awareness implements=globular.platform:intent.doctor.findings_are_operator_language
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness risk=high
 package rules
 
 import (

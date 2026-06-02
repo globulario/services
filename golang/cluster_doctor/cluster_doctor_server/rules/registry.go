@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.invariant_registry
+// @awareness file_role=single_source_for_invariant_evaluation_dispatch
+// @awareness implements=globular.platform:intent.doctor.findings_are_operator_language
+// @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
+// @awareness risk=medium
 package rules
+
+// Registry is the only path through which Snapshot data becomes Findings.
+// New HealAuto invariants must:
+//   1) register here via Register(...)
+//   2) have a corresponding policy entry in heal_policy.go's PolicyV1
+//      with a non-empty AutoAction
+//   3) emit at least one RemediationStep carrying a structured
+//      RemediationAction proto (so the gatedDispatcher can route it
+//      through ExecuteRemediation)
+// Skipping (2) or (3) leaves the healer with a HealAuto disposition that
+// never dispatches — the rule appears to work but is silently a no-op.
 
 import (
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"

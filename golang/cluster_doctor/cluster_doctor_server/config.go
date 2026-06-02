@@ -1,4 +1,16 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.config
+// @awareness file_role=cluster_doctor_runtime_configuration_and_healer_default_mode
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness risk=high
 package main
+
+// defaultConfig().HealerMode = "observe" is the load-bearing safety
+// default. Changing it to "enforce" or "dry_run" silently changes the
+// posture of every cluster-doctor instance. Operators must opt in
+// explicitly via the cluster-doctor config file. See Patch C Milestone 1
+// (commit d390e2b4) and the TestConfig_DefaultHealerMode_IsObserve
+// regression test.
 
 import (
 	"encoding/json"
