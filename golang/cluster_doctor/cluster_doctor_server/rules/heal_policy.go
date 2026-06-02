@@ -53,11 +53,16 @@ func PolicyV1() []HealRule {
 		// ── A. Auto-heal (safe to execute automatically) ─────────────
 
 		{
+			// Milestone 2: demoted from HealAuto to HealPropose pending the
+			// re-enable in Milestone 3 through the gated remediation path.
+			// The action is intrinsically safe (cache deletion is reversible
+			// — the next install re-fetches with digest verification) but
+			// dispatch must traverse ExecuteRemediation, not RemoteOps. See
+			// docs/design/auto-healing-path-unification-patch-c.md.
 			InvariantID: "artifact.cache_digest_mismatch",
-			Disposition: HealAuto,
-			Action:      "Delete the stale cached artifact; the next install will re-fetch with digest verification.",
-			Rationale:   "The cache is not a source of truth. Removing it forces a validated re-download on next install. No service disruption, no restart, fully idempotent.",
-			AutoAction:  "delete_stale_cache",
+			Disposition: HealPropose,
+			Action:      "Delete the stale cached artifact; the next install will re-fetch with digest verification. Operator-driven until Milestone 3 re-enables auto-dispatch through ExecuteRemediation.",
+			Rationale:   "The cache is not a source of truth. Removing it forces a validated re-download on next install. Demoted to propose-only in Milestone 2 — the dispatch must go through ExecuteRemediation, not the legacy RemoteOps path.",
 		},
 		{
 			InvariantID: "artifact.cache_missing",
@@ -83,25 +88,30 @@ func PolicyV1() []HealRule {
 			Rationale:   "The patch is a direct etcd write to a ServiceRelease object — ETCD_PUT is hard-blocked from auto-execution by the action executor (executor.go hardBlocked()), and the background healer must not bypass that boundary. Propose only until release.stuck_resolved routes through ExecuteRemediation with the full gate set.",
 		},
 		{
+			// Milestone 2: demoted from HealAuto to HealPropose. Clearing a
+			// drift observation crosses to the workflow service and has no
+			// clean RemediationAction form today — the existing
+			// workflow.ClearDriftObservation RPC is not representable as an
+			// existing ActionType. Stays propose-only until a workflow-safe
+			// path lands (post-Milestone 3).
 			InvariantID: "workflow.drift_stuck",
-			Disposition: HealAuto,
-			Action:      "Clear the DriftUnresolved observation if the underlying drift has been resolved (installed == desired).",
-			Rationale:   "DriftUnresolved is a telemetry counter, not a source of truth. If the actual drift is resolved (verified by installed_state vs desired_state comparison), the counter is stale and should be cleared to prevent false CRITICALs.",
-			AutoAction:  "clear_resolved_drift",
+			Disposition: HealPropose,
+			Action:      "Clear the DriftUnresolved observation via workflow.ClearDriftObservation after operator confirms installed == desired.",
+			Rationale:   "DriftUnresolved is a telemetry counter, not a source of truth. The clearing RPC is cross-service (workflow) and has no existing ActionType representation; until that exists, the operator drives this from the CLI.",
 		},
 
 		// ── A-cont. AI knowledge seed actions ────────────────────────
 
 		{
-			// ai-memory is running but has zero seed entries — the day-0
-			// installer deferred the seed because ai-memory was not yet
-			// available. Now that it is, the doctor seeds automatically.
-			// Idempotent: same entry + same sha256 = no-op in ai-memory.
+			// Milestone 2: demoted from HealAuto to HealPropose. ai-memory
+			// upsert has no clean RemediationAction representation today —
+			// the existing ai_memory upsert API is not an ActionType. The
+			// seed is idempotent and safe, but Path B is being closed, so
+			// dispatch waits for a workflow-or-action representation.
 			InvariantID: "ops_knowledge.seed_deferred",
-			Disposition: HealAuto,
-			Action:      "Seed operational-knowledge entries into ai-memory from the installed awareness bundle.",
-			Rationale:   "The awareness bundle ships ops-knowledge YAML that must be loaded into ai-memory for AI agents to use. The day-0 installer deferred this because ai-memory was not yet running. The seed is idempotent — re-running it is safe and does not overwrite entries with matching content.",
-			AutoAction:  "seed_ops_knowledge",
+			Disposition: HealPropose,
+			Action:      "Seed operational-knowledge entries into ai-memory from the installed awareness bundle (operator-driven CLI: globular awareness seed).",
+			Rationale:   "ai-memory upsert is cross-service and has no existing ActionType representation; until the seed call can flow through ExecuteRemediation, it remains propose-only.",
 		},
 
 		// ── B. Propose-only (requires human approval) ────────────────

@@ -118,11 +118,19 @@ func (s *ClusterDoctorServer) runHealerCycle(ctx context.Context, mode string, m
 	// Evaluate invariants.
 	findings := s.registry.EvaluateAll(snap)
 
-	// Determine healer mode.
+	// Publish cluster-wide findings to the last-snapshot cache so the
+	// gated Dispatcher can resolve finding_ids back to Finding objects
+	// when ExecuteRemediation looks them up. Cluster-wide=true is correct
+	// because EvaluateAll evaluates every registered invariant.
+	s.cacheFindings(findings, true)
+
+	// Determine healer mode. dryRun is true unless the operator has
+	// explicitly opted into "enforce" (Patch A default is "observe", which
+	// also satisfies mode != "enforce").
 	dryRun := mode != "enforce"
 	healer := &rules.Healer{
 		DryRun:      dryRun,
-		Remote:      s.healerRemoteOps(),
+		Dispatcher:  s.gatedDispatcher(),
 		MaxActions:  maxActions,
 		MaxFailures: 3,
 	}

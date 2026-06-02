@@ -5,13 +5,17 @@ import (
 	"testing"
 )
 
+// TestLookupPolicy_KnownInvariant — post Patch C Milestone 2, every former
+// HealAuto rule with a non-empty AutoAction has been demoted to HealPropose.
+// artifact.cache_digest_mismatch is now propose-only; Milestone 3 will
+// re-enable it via the gated ExecuteRemediation path.
 func TestLookupPolicy_KnownInvariant(t *testing.T) {
 	r := LookupPolicy("artifact.cache_digest_mismatch")
-	if r.Disposition != HealAuto {
-		t.Fatalf("expected HealAuto, got %s", r.Disposition)
+	if r.Disposition != HealPropose {
+		t.Fatalf("expected HealPropose (M2 demotion), got %s", r.Disposition)
 	}
-	if r.AutoAction != "delete_stale_cache" {
-		t.Fatalf("expected delete_stale_cache, got %s", r.AutoAction)
+	if r.AutoAction != "" {
+		t.Fatalf("expected empty AutoAction (no direct dispatch from healer), got %q", r.AutoAction)
 	}
 }
 
@@ -53,36 +57,50 @@ func TestPolicyV1_NoDuplicateInvariants(t *testing.T) {
 	}
 }
 
+// TestHealer_DryRun_NoMutations verifies the fundamental safety contract:
+// regardless of DryRun, regardless of disposition, the Healer never
+// mutates cluster state directly. After Milestones 1+2, every HealAuto
+// rule with a non-empty AutoAction has been demoted to HealPropose, so
+// cache_digest_mismatch (formerly HealAuto) now counts as Proposed and
+// the Dispatcher receives zero calls.
+//
+// The dispatcher-recording fake confirms the Path B mutation surface is
+// closed: no Dispatch invocations even in non-dry-run mode (when there
+// are no HealAuto-with-AutoAction findings).
 func TestHealer_DryRun_NoMutations(t *testing.T) {
-	healer := &Healer{DryRun: true}
+	dispatcher := &recordingDispatcher{}
+	healer := &Healer{DryRun: true, Dispatcher: dispatcher}
 	findings := []Finding{
 		{
-			InvariantID: "artifact.cache_digest_mismatch",
+			InvariantID: "artifact.cache_digest_mismatch", // HealPropose post-M2
 			EntityRef:   "node1/event",
 		},
 		{
-			InvariantID: "artifact.installed_digest_mismatch",
+			InvariantID: "artifact.installed_digest_mismatch", // HealPropose
 			EntityRef:   "node1/prometheus",
 		},
 		{
-			InvariantID: "workflow.step_failures",
+			InvariantID: "workflow.step_failures", // HealObserve
 			EntityRef:   "cluster.reconcile/dispatch",
 		},
 	}
 	report := healer.Evaluate(context.Background(), findings)
-	if report.AutoFixed != 1 {
-		t.Fatalf("expected 1 auto-fixed (dry-run), got %d", report.AutoFixed)
+
+	if got := len(dispatcher.calls); got != 0 {
+		t.Fatalf("dry-run with all-demoted policy must produce zero Dispatch calls, got %d: %+v", got, dispatcher.calls)
 	}
-	if report.Proposed != 1 {
-		t.Fatalf("expected 1 proposed, got %d", report.Proposed)
+	if report.AutoFixed != 0 {
+		t.Fatalf("expected 0 auto-fixed (no HealAuto-with-AutoAction in policy), got %d", report.AutoFixed)
+	}
+	if report.Proposed != 2 {
+		t.Fatalf("expected 2 proposed (cache_digest_mismatch + installed_digest_mismatch), got %d", report.Proposed)
 	}
 	if report.Observed != 1 {
-		t.Fatalf("expected 1 observed, got %d", report.Observed)
+		t.Fatalf("expected 1 observed (workflow.step_failures), got %d", report.Observed)
 	}
-	// In dry-run, nothing should actually execute.
 	for _, r := range report.Results {
 		if r.Executed {
-			t.Fatalf("dry-run should not execute actions, but %s was executed", r.InvariantID)
+			t.Fatalf("dry-run must produce no Executed=true results, but %s was executed", r.InvariantID)
 		}
 	}
 }
@@ -124,83 +142,75 @@ func TestPolicy_ReleaseStuckResolved_IsPropose(t *testing.T) {
 	}
 }
 
-// recordingRemoteOps captures every RemoteOps invocation so a test can
-// assert which actions the healer attempted to dispatch. All methods
-// return nil so the healer treats them as successful when DryRun=false.
-type recordingRemoteOps struct {
-	deleteCacheCalls   []string
-	patchReleaseCalls  []string
-	clearDriftCalls    []string
-	seedOpsKnowledgeOK int
-	convergedReply     bool
+// recordingDispatcher captures every Dispatch invocation so a test can
+// assert which auto-actions the healer attempted to route through the
+// gated path. Returning (false, "", nil) mirrors the production
+// gatedDispatcher's "no RemediationAction representation" branch.
+type recordingDispatcher struct {
+	calls []dispatchCall
 }
 
-func (r *recordingRemoteOps) DeleteCacheArtifact(_ context.Context, nodeID, packageName, publisherID string) error {
-	r.deleteCacheCalls = append(r.deleteCacheCalls, nodeID+"/"+packageName+"@"+publisherID)
-	return nil
+type dispatchCall struct {
+	InvariantID string
+	EntityRef   string
+	AutoAction  string
+	DryRun      bool
 }
 
-func (r *recordingRemoteOps) PatchReleasePhase(_ context.Context, releaseName, newPhase, reason string) error {
-	r.patchReleaseCalls = append(r.patchReleaseCalls, releaseName+"->"+newPhase+":"+reason)
-	return nil
+func (r *recordingDispatcher) Dispatch(_ context.Context, f Finding, autoAction string, dryRun bool) (bool, string, error) {
+	r.calls = append(r.calls, dispatchCall{
+		InvariantID: f.InvariantID,
+		EntityRef:   f.EntityRef,
+		AutoAction:  autoAction,
+		DryRun:      dryRun,
+	})
+	return false, "", nil
 }
 
-func (r *recordingRemoteOps) ClearDriftObservation(_ context.Context, clusterID, driftType, entityRef string) error {
-	r.clearDriftCalls = append(r.clearDriftCalls, clusterID+":"+driftType+":"+entityRef)
-	return nil
-}
-
-func (r *recordingRemoteOps) IsServiceConverged(_ context.Context, _ string) (bool, error) {
-	return r.convergedReply, nil
-}
-
-func (r *recordingRemoteOps) SeedOpsKnowledge(_ context.Context, _ string) error {
-	r.seedOpsKnowledgeOK++
-	return nil
-}
-
-// TestHealer_PatchReleaseAvailable_IsNotInvoked enforces the behavioural
-// half of Patch B: even in enforce mode (DryRun=false), even when the
-// guard condition (IsServiceConverged=true) would have allowed it, the
-// healer must never dispatch patch_release_available for a
-// release.stuck_resolved finding — because the rule no longer carries an
-// AutoAction. The control case (artifact.cache_digest_mismatch) keeps the
-// HealAuto path firing so the test fails on an over-zealous patch that
-// disables auto-healing globally.
+// TestHealer_PatchReleaseAvailable_IsNotInvoked enforces Patch B's
+// invariant: release.stuck_resolved is HealPropose with no AutoAction, so
+// the healer never asks the Dispatcher to handle it. Combined with Patch
+// C Milestone 2 (delete_stale_cache, seed_ops_knowledge, and
+// workflow.drift_stuck also demoted to HealPropose), the Dispatcher
+// receives zero calls — the legacy direct-mutation path is closed and
+// no replacement auto-route is wired yet.
 func TestHealer_PatchReleaseAvailable_IsNotInvoked(t *testing.T) {
-	remote := &recordingRemoteOps{convergedReply: true}
+	dispatcher := &recordingDispatcher{}
 	healer := &Healer{
-		DryRun: false,
-		Remote: remote,
+		DryRun:     false,
+		Dispatcher: dispatcher,
 	}
 	findings := []Finding{
 		{
+			FindingID:   "f-release-stuck",
 			InvariantID: "release.stuck_resolved",
 			EntityRef:   "core@globular.io/event",
 		},
-		// Control: cache_digest_mismatch is still HealAuto so the healer
-		// machinery is exercised. If this fires, the test infrastructure
-		// works; the patch_release_available absence is therefore
-		// meaningful (not a false negative from a broken Evaluate).
-		// NodeID must be ≥8 chars — actionDeleteStaleCache logs nodeID[:8]
-		// for trace context, see healer.go:210.
 		{
+			FindingID:   "f-cache-digest",
 			InvariantID: "artifact.cache_digest_mismatch",
 			EntityRef:   "eb9a2dac-05b0-52ac-9002-99d8ffd35902/event",
 		},
 	}
 	report := healer.Evaluate(context.Background(), findings)
 
-	if got := len(remote.patchReleaseCalls); got != 0 {
-		t.Fatalf("PatchReleasePhase must NOT be invoked for release.stuck_resolved (Patch B); got %d call(s): %v",
-			got, remote.patchReleaseCalls)
+	// Filter for any patch_release_available dispatch (defence in depth —
+	// even if the auto-action surface grew, this specific action class
+	// must never reach the Dispatcher through release.stuck_resolved).
+	for _, c := range dispatcher.calls {
+		if c.AutoAction == "patch_release_available" {
+			t.Fatalf("patch_release_available must NOT be dispatched (Patch B); got %+v", c)
+		}
+		if c.InvariantID == "release.stuck_resolved" {
+			t.Fatalf("release.stuck_resolved must NOT reach the Dispatcher (HealPropose only); got %+v", c)
+		}
 	}
-	if got := len(remote.deleteCacheCalls); got != 1 {
-		t.Fatalf("control: expected exactly 1 DeleteCacheArtifact call for cache_digest_mismatch, got %d (%v)",
-			got, remote.deleteCacheCalls)
+	// Both findings are demoted to HealPropose in Milestones 1+2, so
+	// Proposed=2 and AutoFixed=0.
+	if report.Proposed != 2 {
+		t.Fatalf("expected 2 proposed (release.stuck_resolved + cache_digest_mismatch), got Proposed=%d", report.Proposed)
 	}
-	// release.stuck_resolved is now HealPropose → counted under Proposed.
-	if report.Proposed != 1 {
-		t.Fatalf("release.stuck_resolved must classify as Proposed (HealPropose), got Proposed=%d", report.Proposed)
+	if report.AutoFixed != 0 {
+		t.Fatalf("expected 0 auto-fixed (no HealAuto with AutoAction remains), got AutoFixed=%d", report.AutoFixed)
 	}
 }

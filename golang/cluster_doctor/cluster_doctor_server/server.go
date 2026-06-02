@@ -20,14 +20,11 @@ import (
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
-	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
-	"github.com/globulario/services/golang/opsknowledge"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -73,17 +70,9 @@ type ClusterDoctorServer struct {
 	clusterID      string
 
 	// naDialer resolves node_agent endpoints via the cluster controller
-	// and dials them with TLS. Used by the healer for remote auto-heal
-	// actions like DeleteCacheArtifact.
+	// and dials them with TLS. Used by the ActionExecutor for typed
+	// remediation actions (SYSTEMCTL_*, FILE_DELETE on node agents).
 	naDialer *controllerNodeAgentDialer
-
-	// ccClient for convergence checks in the healer.
-	ccClient cluster_controllerpb.ClusterControllerServiceClient
-
-	// aiMemoryClient is kept on the server so the healer's seed_ops_knowledge
-	// action can reach ai-memory directly without going through the collector.
-	// Nil when ai-memory is not registered in etcd (pre-Day-1).
-	aiMemoryClient ai_memorypb.AiMemoryServiceClient
 
 	// auditRing stores recent periodic heal reports for inspection.
 	auditRing *healerAuditRing
@@ -262,8 +251,6 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 		workflowClient: wfClient,
 		clusterID:      clusterID,
 		naDialer:       naDialer,
-		ccClient:       ccClient,
-		aiMemoryClient: aiMemClient,
 		auditStore:     rules.NewHealAuditStore(""),
 	}
 
@@ -332,8 +319,8 @@ func (s *ClusterDoctorServer) GetClusterReport(ctx context.Context, req *cluster
 	// Default (0 / OBSERVE) = classify only, no mutations.
 	healMode := req.GetHealMode()
 	healer := &rules.Healer{
-		DryRun: healMode != cluster_doctorpb.HealMode_HEAL_MODE_ENFORCE,
-		Remote: s.healerRemoteOps(),
+		DryRun:     healMode != cluster_doctorpb.HealMode_HEAL_MODE_ENFORCE,
+		Dispatcher: s.gatedDispatcher(),
 	}
 	if healMode != cluster_doctorpb.HealMode_HEAL_MODE_OBSERVE {
 		healReport := healer.Evaluate(ctx, findings)
@@ -541,278 +528,61 @@ func (s *ClusterDoctorServer) publishFindingEvent(topic string, f rules.Finding)
 	}
 }
 
-// healerRemoteOps returns a RemoteOps implementation that delegates to
-// node_agent gRPC calls via the existing controllerNodeAgentDialer.
-// Returns nil if the dialer is not available (healer falls back to local).
-func (s *ClusterDoctorServer) healerRemoteOps() rules.RemoteOps {
-	if s.naDialer == nil {
-		return nil
-	}
-	return &healerRemote{
-		dialer:         s.naDialer,
-		ccClient:       s.ccClient,
-		workflowClient: s.workflowClient,
-		clusterID:      s.clusterID,
-		aiMemoryClient: s.aiMemoryClient,
-	}
+// gatedDispatcher implements rules.Dispatcher by routing HealAuto findings
+// through ExecuteRemediation — the single execution gate that enforces
+// leader, evidence-trust, hard-blocklist, approval, cooldown, failure-rate,
+// and etcd audit policies. The healer NEVER mutates cluster state directly;
+// every Path B dispatch reaches this struct and traverses Path A's gates.
+//
+// Today's PolicyV1 has zero HealAuto rules with a non-empty AutoAction (all
+// were demoted to HealPropose in Milestone 2). The dispatcher is wired
+// regardless so Milestone 3 can re-promote one rule by editing the policy
+// alone — the gated path is already in place. See
+// docs/design/auto-healing-path-unification-patch-c.md.
+type gatedDispatcher struct {
+	server *ClusterDoctorServer
 }
 
-// healerRemote implements rules.RemoteOps using the doctor's dialers.
-type healerRemote struct {
-	dialer         *controllerNodeAgentDialer
-	ccClient       cluster_controllerpb.ClusterControllerServiceClient
-	workflowClient workflowpb.WorkflowServiceClient
-	clusterID      string
-	aiMemoryClient ai_memorypb.AiMemoryServiceClient // optional; nil pre-Day-1
+// gatedDispatcher returns the rules.Dispatcher the healer uses. Tests can
+// replace the field on the Healer directly with a fake; production wiring
+// always uses this gated path.
+func (s *ClusterDoctorServer) gatedDispatcher() rules.Dispatcher {
+	return &gatedDispatcher{server: s}
 }
 
-func (r *healerRemote) DeleteCacheArtifact(ctx context.Context, nodeID, packageName, publisherID string) error {
-	conn, err := r.dialer.dialAgent(ctx, nodeID)
-	if err != nil {
-		return fmt.Errorf("dial node %s: %w", nodeID[:8], err)
+// Dispatch routes a single HealAuto finding through ExecuteRemediation.
+// Returns (executed, auditID, err). A finding with no structured
+// RemediationAction is recorded as a proposal (false, "", nil) — the gate
+// cannot verify what it cannot type-check.
+func (g *gatedDispatcher) Dispatch(ctx context.Context, f rules.Finding, autoAction string, dryRun bool) (bool, string, error) {
+	if g.server == nil {
+		return false, "", fmt.Errorf("gatedDispatcher: server is nil")
 	}
-	defer conn.Close()
+	// The finding must carry a structured RemediationAction at step 0 for
+	// ExecuteRemediation to dispatch. Today no PolicyV1 HealAuto rule does;
+	// Milestone 3 re-promotes one rule whose corresponding invariant emits
+	// a typed action via actionStep(...).
+	if len(f.Remediation) == 0 || f.Remediation[0].GetAction() == nil {
+		logger.Info("gated-dispatcher: skipping — no structured RemediationAction on finding",
+			"invariant_id", f.InvariantID,
+			"entity_ref", f.EntityRef,
+			"auto_action", autoAction)
+		return false, "", nil
+	}
+	// Populate the last-findings cache so ExecuteRemediation can resolve
+	// finding_id back to the Finding object. The healer cycle's scope is
+	// authoritative (cluster-wide=true) when invoked by the leader loop.
+	g.server.cacheFindings([]rules.Finding{f}, false)
 
-	client := node_agentpb.NewNodeAgentServiceClient(conn)
-	resp, err := client.DeleteCacheArtifact(ctx, &node_agentpb.DeleteCacheArtifactRequest{
-		PackageName: packageName,
-		PublisherId: publisherID,
+	resp, err := g.server.ExecuteRemediation(ctx, &cluster_doctorpb.ExecuteRemediationRequest{
+		FindingId: f.FindingID,
+		StepIndex: 0,
+		DryRun:    dryRun,
 	})
 	if err != nil {
-		return fmt.Errorf("DeleteCacheArtifact RPC: %w", err)
+		return false, "", err
 	}
-	if !resp.GetOk() {
-		return fmt.Errorf("DeleteCacheArtifact: %s", resp.GetMessage())
-	}
-	return nil
-}
-
-func (r *healerRemote) PatchReleasePhase(ctx context.Context, releaseName, newPhase, reason string) error {
-	// Read current ServiceRelease from etcd via the controller's resource store.
-	// The controller provides no direct "PatchRelease" RPC, so we do a bounded
-	// etcd read+write. The key is deterministic: /globular/resources/ServiceRelease/<name>.
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		return fmt.Errorf("etcd client: %w", err)
-	}
-	key := "/globular/resources/ServiceRelease/" + releaseName
-	resp, err := cli.Get(ctx, key)
-	if err != nil || len(resp.Kvs) == 0 {
-		return fmt.Errorf("get release %s: not found or error: %v", releaseName, err)
-	}
-
-	var rec map[string]interface{}
-	if err := json.Unmarshal(resp.Kvs[0].Value, &rec); err != nil {
-		return fmt.Errorf("parse release: %w", err)
-	}
-	st, _ := rec["status"].(map[string]interface{})
-	if st == nil {
-		return fmt.Errorf("release %s has no status", releaseName)
-	}
-	st["phase"] = newPhase
-	st["transition_reason"] = reason
-	updated, err := json.Marshal(rec)
-	if err != nil {
-		return fmt.Errorf("marshal release: %w", err)
-	}
-	if _, err := cli.Put(ctx, key, string(updated)); err != nil {
-		return fmt.Errorf("put release: %w", err)
-	}
-	return nil
-}
-
-func (r *healerRemote) ClearDriftObservation(ctx context.Context, clusterID, driftType, entityRef string) error {
-	if r.workflowClient == nil {
-		return fmt.Errorf("workflow client not available")
-	}
-	// Inject cluster_id metadata (required by workflow interceptor).
-	md := metadata.Pairs("cluster_id", clusterID)
-	wfCtx := metadata.NewOutgoingContext(ctx, md)
-
-	_, err := r.workflowClient.ClearDriftObservation(wfCtx, &workflowpb.ClearDriftObservationRequest{
-		ClusterId: clusterID,
-		DriftType: driftType,
-		EntityRef: entityRef,
-	})
-	return err
-}
-
-func (r *healerRemote) IsServiceConverged(ctx context.Context, serviceName string) (bool, error) {
-	if r.ccClient == nil {
-		return false, fmt.Errorf("controller client not available")
-	}
-	// Read desired state from etcd.
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		return false, fmt.Errorf("etcd: %w", err)
-	}
-	key := "/globular/resources/ServiceDesiredVersion/" + serviceName
-	resp, err := cli.Get(ctx, key)
-	if err != nil || len(resp.Kvs) == 0 {
-		return false, fmt.Errorf("desired %s not found", serviceName)
-	}
-	var desired struct {
-		Spec struct {
-			Version     string `json:"version"`
-			BuildNumber int64  `json:"build_number"`
-		} `json:"spec"`
-	}
-	if err := json.Unmarshal(resp.Kvs[0].Value, &desired); err != nil {
-		return false, err
-	}
-
-	// Check installed state on all nodes via ListNodes + per-node installed_state.
-	nodesResp, err := r.ccClient.ListNodes(ctx, &cluster_controllerpb.ListNodesRequest{})
-	if err != nil {
-		return false, fmt.Errorf("ListNodes: %w", err)
-	}
-	for _, node := range nodesResp.GetNodes() {
-		nodeID := node.GetNodeId()
-		if nodeID == "" {
-			continue
-		}
-		instKey := fmt.Sprintf("/globular/nodes/%s/packages/SERVICE/%s", nodeID, serviceName)
-		instResp, err := cli.Get(ctx, instKey)
-		if err != nil || len(instResp.Kvs) == 0 {
-			// Service may not be installed on this node (different profile).
-			// Not a convergence failure — just skip.
-			continue
-		}
-		var inst struct {
-			Version     string `json:"version"`
-			BuildNumber string `json:"buildNumber"`
-			Status      string `json:"status"`
-		}
-		if err := json.Unmarshal(instResp.Kvs[0].Value, &inst); err != nil {
-			continue
-		}
-		if inst.Status != "installed" {
-			return false, nil // not converged
-		}
-		if inst.Version != desired.Spec.Version {
-			return false, nil
-		}
-		// Build number in installed_state is a string, desired is int64.
-		if inst.BuildNumber != "" && inst.BuildNumber != fmt.Sprintf("%d", desired.Spec.BuildNumber) {
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
-// SeedOpsKnowledge reads the ops-knowledge YAML bundle from dir and upserts
-// every entry into ai-memory. Entries whose seed_sha256 already matches are
-// skipped (idempotent). Returns the first Store/Update error encountered, or
-// nil when all entries were processed.
-func (r *healerRemote) SeedOpsKnowledge(ctx context.Context, dir string) error {
-	if r.aiMemoryClient == nil {
-		return fmt.Errorf("seed_ops_knowledge: ai-memory client not available")
-	}
-	return seedOpsKnowledgeEntries(ctx, dir, r.aiMemoryClient)
-}
-
-// seedOpsKnowledgeEntries is the implementation shared by SeedOpsKnowledge and
-// any future callers. It walks dir, hashes every entry, and upserts into mem.
-func seedOpsKnowledgeEntries(ctx context.Context, dir string, mem ai_memorypb.AiMemoryServiceClient) error {
-	files, err := opsknowledge.LoadDir(dir)
-	if err != nil {
-		return fmt.Errorf("load ops-knowledge from %s: %w", dir, err)
-	}
-	if len(files) == 0 {
-		return fmt.Errorf("no ops-knowledge entries found under %s", dir)
-	}
-
-	const project = "globular-services"
-	const seedTag = "seed"
-
-	var firstErr error
-	stored, updated, skipped := 0, 0, 0
-
-	for _, f := range files {
-		for _, e := range f.Entries {
-			hash, herr := opsknowledge.HashEntry(e)
-			if herr != nil {
-				if firstErr == nil {
-					firstErr = fmt.Errorf("hash %s: %w", e.ID, herr)
-				}
-				continue
-			}
-
-			// Check existing entry.
-			getCtx, getCancel := context.WithTimeout(ctx, 10*time.Second)
-			existing, getErr := mem.Get(getCtx, &ai_memorypb.GetRqst{Id: e.ID, Project: project})
-			getCancel()
-
-			if getErr == nil && existing != nil && existing.GetMemory() != nil {
-				existingHash := existing.GetMemory().GetMetadata()["seed_sha256"]
-				if existingHash == hash {
-					skipped++
-					continue
-				}
-				// Hash drifted — update.
-				mem_entry := buildOpsKnowledgeMemoryEntry(e, hash, project, seedTag)
-				updCtx, updCancel := context.WithTimeout(ctx, 10*time.Second)
-				_, updErr := mem.Update(updCtx, &ai_memorypb.UpdateRqst{Memory: mem_entry})
-				updCancel()
-				if updErr != nil && firstErr == nil {
-					firstErr = fmt.Errorf("update %s: %w", e.ID, updErr)
-				} else {
-					updated++
-				}
-				continue
-			}
-
-			// New entry — store.
-			mem_entry := buildOpsKnowledgeMemoryEntry(e, hash, project, seedTag)
-			storeCtx, storeCancel := context.WithTimeout(ctx, 10*time.Second)
-			_, storeErr := mem.Store(storeCtx, &ai_memorypb.StoreRqst{Memory: mem_entry})
-			storeCancel()
-			if storeErr != nil && firstErr == nil {
-				firstErr = fmt.Errorf("store %s: %w", e.ID, storeErr)
-			} else {
-				stored++
-			}
-		}
-	}
-
-	logger.Info("ops-knowledge seed complete", "stored", stored, "updated", updated, "skipped", skipped, "dir", dir)
-	return firstErr
-}
-
-// buildOpsKnowledgeMemoryEntry converts an opsknowledge.Entry to the ai-memory
-// protobuf row used for seeding. Mirrors the CLI's entryToMemory function.
-func buildOpsKnowledgeMemoryEntry(e opsknowledge.Entry, hash, project, seedTag string) *ai_memorypb.Memory {
-	memType := ai_memorypb.MemoryType_REFERENCE
-	if v, ok := ai_memorypb.MemoryType_value[e.Type]; ok {
-		memType = ai_memorypb.MemoryType(v)
-	}
-	tags := make([]string, len(e.Tags))
-	copy(tags, e.Tags)
-	hasTag := false
-	for _, t := range tags {
-		if t == seedTag {
-			hasTag = true
-			break
-		}
-	}
-	if !hasTag {
-		tags = append(tags, seedTag)
-	}
-	return &ai_memorypb.Memory{
-		Id:         e.ID,
-		Project:    project,
-		Type:       memType,
-		Tags:       tags,
-		Title:      e.Title,
-		Content:    e.Content,
-		AgentId:    "ops-knowledge-seeder",
-		RelatedIds: append([]string{}, e.RelatedIDs...),
-		Metadata: map[string]string{
-			"source":      "seed",
-			"seed_sha256": hash,
-			"immutable":   "true",
-		},
-	}
+	return resp.GetExecuted(), resp.GetAuditId(), nil
 }
 
 // GetHealHistory returns recent heal action records from the persistent audit trail.

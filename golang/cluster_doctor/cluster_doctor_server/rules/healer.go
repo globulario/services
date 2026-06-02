@@ -2,44 +2,43 @@ package rules
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"log"
-	"os"
-	"strings"
 	"time"
-
-	"github.com/globulario/services/golang/config"
 )
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Healer — minimal auto-heal enforcement for PolicyV1
+// Healer — classifier-only for PolicyV1 (Milestone 2 of the path-unification
+// patch set; see docs/design/auto-healing-path-unification-patch-c.md).
 //
-// Reads invariant findings, evaluates each against the policy, and for
-// HealAuto-classified findings executes the bounded repair action. After
-// each action, re-runs the invariant to verify resolution. If verification
-// fails, the healer stops and logs — never retries blindly.
+// The healer reads invariant findings, classifies each against PolicyV1, and
+// for HealAuto findings asks the injected Dispatcher to route the action
+// through the gated ExecuteRemediation handler. The healer does NOT call any
+// node-agent / workflow / ai-memory / etcd RPC directly — that surface was
+// removed when Path B (background-healer mutation) was merged into Path A
+// (operator-driven mutation) under one execution gate.
 //
-// The healer is intentionally small. It implements exactly 2 auto-actions:
+// Rate limits and the circuit breaker stay in the healer (they're properties
+// of a healer cycle, not of a single dispatch). MaxActions caps how many
+// dispatches fire per Evaluate call; MaxFailures stops execution after that
+// many Dispatcher errors.
 //
-//   delete_stale_cache    — removes /var/lib/globular/staging/<pub>/<name>/latest.artifact
-//   clear_resolved_drift  — calls workflow.ClearDriftObservation for converged drift
-//
-// "patch_release_available" is NOT implemented automatically in v1 because
-// it requires an etcd write to a ServiceRelease object, which crosses the
-// "narrow scoped objects" boundary for auto-heal. It remains HealAuto in
-// the policy (the logic is proven safe), but the v1 healer does not execute
-// it — it logs a recommendation instead. A future version can opt in.
+// Today's PolicyV1 demotes every HealAuto rule with a non-empty AutoAction
+// (delete_stale_cache, seed_ops_knowledge, clear_resolved_drift,
+// patch_release_available) to HealPropose. The Dispatcher hook is still
+// wired so Milestone 3 can re-promote one rule by changing the policy file
+// alone — no infrastructure work needed.
 // ──────────────────────────────────────────────────────────────────────────────
 
-// HealResult records the outcome of one auto-heal attempt.
+// HealResult records the outcome of one classification (and, for HealAuto
+// proposals, the outcome of the gated dispatch).
 type HealResult struct {
 	InvariantID string          `json:"invariant_id"`
 	EntityRef   string          `json:"entity_ref"`
 	Disposition HealDisposition `json:"disposition"`
 	Action      string          `json:"action"`
 	Executed    bool            `json:"executed"`
-	Verified    bool            `json:"verified"` // true if post-action check confirms resolution
+	Verified    bool            `json:"verified"` // true if Dispatcher reports the gate executed the action
+	AuditID     string          `json:"audit_id,omitempty"`
 	Error       string          `json:"error,omitempty"`
 	Timestamp   time.Time       `json:"timestamp"`
 }
@@ -48,113 +47,132 @@ type HealResult struct {
 type HealReport struct {
 	Timestamp time.Time    `json:"timestamp"`
 	Results   []HealResult `json:"results"`
-	AutoFixed int          `json:"auto_fixed"`
+	AutoFixed int          `json:"auto_fixed"` // dispatches the Dispatcher reported as executed
 	Proposed  int          `json:"proposed"`
 	Observed  int          `json:"observed"`
 	Errors    int          `json:"errors"`
 }
 
-// RemoteOps provides the healer with bounded access to cluster RPCs.
-// The server wires this to the real dialers; tests can mock it.
-type RemoteOps interface {
-	// DeleteCacheArtifact calls node_agent.DeleteCacheArtifact on the given node.
-	DeleteCacheArtifact(ctx context.Context, nodeID, packageName, publisherID string) error
-
-	// PatchReleasePhase updates a ServiceRelease's status.phase in etcd.
-	// Only used by patch_release_available. Guard: caller must verify
-	// convergence BEFORE calling.
-	PatchReleasePhase(ctx context.Context, releaseName, newPhase, reason string) error
-
-	// ClearDriftObservation clears a DriftUnresolved entry via the
-	// workflow service. Guard: caller must verify the underlying drift
-	// is actually resolved before calling.
-	ClearDriftObservation(ctx context.Context, clusterID, driftType, entityRef string) error
-
-	// IsServiceConverged checks whether a service's installed build matches
-	// desired build on ALL nodes that should have it. Returns true only when
-	// every eligible node has installed == desired.
-	IsServiceConverged(ctx context.Context, serviceName string) (bool, error)
-
-	// SeedOpsKnowledge reads the ops-knowledge YAML bundle from dir and
-	// upserts every entry into ai-memory. Idempotent — entries whose
-	// seed_sha256 already matches are skipped. Used by the
-	// "ops_knowledge.seed_deferred" auto-action.
-	SeedOpsKnowledge(ctx context.Context, dir string) error
+// Dispatcher routes a HealAuto finding's auto-action through the gated
+// remediation path. The cluster-doctor server provides the implementation;
+// rules.Healer never touches cluster state, RemoteOps, or etcd directly.
+//
+// Contract:
+//   - Dispatch MUST flow through ExecuteRemediation (or an equivalent path
+//     that applies the same gates: leader, evidence trust, hard-blocklist,
+//     approval/cooldown/failure-rate, etcd audit).
+//   - Returning (false, "", nil) is a valid "no-op" outcome — e.g. the auto-
+//     action has no RemediationAction representation today, so the gate
+//     rejected nothing because nothing was attempted. The healer records
+//     this as a proposal, not a failure.
+//   - Returning a non-nil error counts toward the MaxFailures circuit
+//     breaker; auditID may be empty.
+//   - Dry-run dispatches are still expected to call ExecuteRemediation
+//     with DryRun=true so the gate's audit trail includes the rehearsal.
+type Dispatcher interface {
+	Dispatch(ctx context.Context, f Finding, autoAction string, dryRun bool) (executed bool, auditID string, err error)
 }
 
-// Healer evaluates findings against the policy and executes safe auto-repairs.
+// Healer evaluates findings against the policy and dispatches HealAuto
+// proposals through the Dispatcher. Without a Dispatcher (nil), the healer
+// is fail-closed: HealAuto findings are recorded as proposals but never
+// dispatched. This is the safe default for Milestone 2.
 type Healer struct {
-	// DryRun prevents any mutations. Actions are logged but not executed.
+	// DryRun is forwarded to the Dispatcher; no mutation should occur but
+	// the gated path is exercised so the audit trail records the rehearsal.
 	DryRun bool
-	// Remote provides bounded access to node-agent RPCs for remote actions.
-	// Nil means remote actions are skipped (local-only fallback).
-	Remote RemoteOps
-	// MaxActions caps how many auto-heal actions execute in one Evaluate call.
-	// 0 = unlimited. Enforced as a hard stop: once reached, remaining AUTO
-	// findings are classified but not executed.
+
+	// Dispatcher is the gated dispatch hook the cluster-doctor server wires
+	// to ExecuteRemediation. nil means HealAuto findings are recorded but
+	// never dispatched — fail-closed behaviour required by Milestone 2's
+	// "no direct mutation from rules.Healer" invariant.
+	Dispatcher Dispatcher
+
+	// MaxActions caps the number of dispatches per Evaluate call.
+	// 0 = unlimited.
 	MaxActions int
-	// MaxFailures stops further execution when this many actions have failed
-	// in the current cycle. 0 = unlimited. Default recommendation: 3.
+
+	// MaxFailures stops further dispatches in a cycle after this many
+	// Dispatcher errors. 0 = unlimited.
 	MaxFailures int
+
+	// PolicyLookup overrides the default LookupPolicy. Production wiring
+	// leaves this nil (LookupPolicy is the source of truth). Tests inject
+	// synthetic HealAuto rules here without mutating PolicyV1.
+	PolicyLookup func(invariantID string) HealRule
 }
 
-// Evaluate runs one pass of the healer against a set of findings.
-// Returns a report describing what was done (or what would be done in dry-run).
+// Evaluate classifies findings against PolicyV1 and routes HealAuto
+// proposals through the Dispatcher.
 //
-//
-// Rate limiting: if MaxActions > 0, execution stops after that many auto-heal
-// actions (remaining findings are classified but not executed). If MaxFailures
-// > 0, execution stops after that many failures (circuit breaker).
+// Rate limiting: if MaxActions > 0, execution stops after that many
+// dispatches (remaining findings are classified but not dispatched). If
+// MaxFailures > 0, execution stops after that many failures.
 func (h *Healer) Evaluate(ctx context.Context, findings []Finding) HealReport {
 	report := HealReport{Timestamp: time.Now()}
-	actionsExecuted := 0
+	dispatchCount := 0
 	failureCount := 0
 	rateLimited := false
 
+	lookup := h.PolicyLookup
+	if lookup == nil {
+		lookup = LookupPolicy
+	}
+
 	for _, f := range findings {
-		rule := LookupPolicy(f.InvariantID)
+		rule := lookup(f.InvariantID)
 		result := HealResult{
 			InvariantID: f.InvariantID,
 			EntityRef:   f.EntityRef,
 			Disposition: rule.Disposition,
-			Action:      rule.Action,
+			Action:      rule.AutoAction,
 			Timestamp:   time.Now(),
 		}
 
 		switch rule.Disposition {
 		case HealAuto:
 			if rule.AutoAction == "" {
-				// Auto-classified but no programmatic action (e.g. cache_missing = no-op).
-				result.Executed = false
+				// HealAuto with no programmatic action — informational
+				// no-op (e.g. cache_missing). Classify as observed and
+				// auto-verified.
 				result.Verified = true
 				report.Observed++
-			} else if h.DryRun {
-				log.Printf("healer: [dry-run] would execute %s for %s (%s)",
-					rule.AutoAction, f.EntityRef, f.InvariantID)
-				result.Executed = false
-				report.AutoFixed++
+			} else if h.Dispatcher == nil {
+				// Fail-closed: no dispatcher means the gated path isn't
+				// wired. The healer never mutates directly.
+				log.Printf("healer: [no-dispatch] HealAuto finding %s on %s — no Dispatcher wired (Milestone 2 fail-closed)",
+					f.InvariantID, f.EntityRef)
+				report.Proposed++
 			} else if rateLimited {
-				result.Executed = false
 				result.Error = "rate-limited (max actions or max failures reached)"
 				report.Observed++
 			} else {
-				err := h.executeAutoAction(ctx, rule.AutoAction, f)
+				executed, auditID, err := h.Dispatcher.Dispatch(ctx, f, rule.AutoAction, h.DryRun)
+				result.AuditID = auditID
 				if err != nil {
 					result.Error = err.Error()
 					report.Errors++
 					failureCount++
-					log.Printf("healer: %s FAILED for %s: %v", rule.AutoAction, f.EntityRef, err)
-				} else {
+					log.Printf("healer: dispatch %s FAILED for %s: %v",
+						rule.AutoAction, f.EntityRef, err)
+				} else if executed {
 					result.Executed = true
 					result.Verified = true
 					report.AutoFixed++
-					log.Printf("healer: %s DONE for %s", rule.AutoAction, f.EntityRef)
+					log.Printf("healer: dispatch %s EXECUTED for %s (audit=%s)",
+						rule.AutoAction, f.EntityRef, auditID)
+				} else {
+					// Gate accepted but did not execute (dry-run, no
+					// RemediationAction representation, cooldown, etc.).
+					// Recorded as a proposal — the gate did its job.
+					report.Proposed++
+					log.Printf("healer: dispatch %s PROPOSED for %s (audit=%s, no execution)",
+						rule.AutoAction, f.EntityRef, auditID)
 				}
-				actionsExecuted++
-				// Check rate limits.
-				if h.MaxActions > 0 && actionsExecuted >= h.MaxActions {
+				dispatchCount++
+				if h.MaxActions > 0 && dispatchCount >= h.MaxActions {
 					rateLimited = true
-					log.Printf("healer: rate limit reached (%d actions), skipping remaining", h.MaxActions)
+					log.Printf("healer: rate limit reached (%d dispatches), skipping remaining", h.MaxActions)
 				}
 				if h.MaxFailures > 0 && failureCount >= h.MaxFailures {
 					rateLimited = true
@@ -172,201 +190,3 @@ func (h *Healer) Evaluate(ctx context.Context, findings []Finding) HealReport {
 
 	return report
 }
-
-// executeAutoAction dispatches the named action for a finding.
-func (h *Healer) executeAutoAction(ctx context.Context, action string, f Finding) error {
-	switch action {
-	case "delete_stale_cache":
-		return h.actionDeleteStaleCache(ctx, f)
-	case "clear_resolved_drift":
-		return h.actionClearResolvedDrift(ctx, f)
-	case "patch_release_available":
-		return h.actionPatchReleaseAvailable(ctx, f)
-	case "seed_ops_knowledge":
-		return h.actionSeedOpsKnowledge(ctx, f)
-	default:
-		return fmt.Errorf("unknown auto-action %q", action)
-	}
-}
-
-// actionDeleteStaleCache removes the cached latest.artifact for a package
-// on a specific node via the DeleteCacheArtifact RPC. If the Remote
-// interface is nil, falls back to local filesystem deletion (only works
-// when the healer runs on the same node as the target).
-func (h *Healer) actionDeleteStaleCache(ctx context.Context, f Finding) error {
-	// Extract node + package from EntityRef (format: "nodeID/packageName").
-	parts := strings.SplitN(f.EntityRef, "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return fmt.Errorf("cannot parse entityRef %q as node/package", f.EntityRef)
-	}
-	nodeID, pkg := parts[0], parts[1]
-	publisher := "core@globular.io"
-
-	// Prefer the remote RPC path (works on any node).
-	if h.Remote != nil {
-		if err := h.Remote.DeleteCacheArtifact(ctx, nodeID, pkg, publisher); err != nil {
-			return fmt.Errorf("DeleteCacheArtifact(%s, %s): %w", nodeID[:8], pkg, err)
-		}
-		log.Printf("healer: deleted stale cache via RPC (node=%s pkg=%s)", nodeID[:8], pkg)
-		return nil
-	}
-
-	// Fallback: local filesystem (only if this is the local node).
-	localNodeID := resolveLocalNodeID()
-	if localNodeID != "" && nodeID != localNodeID {
-		log.Printf("healer: skip delete_stale_cache for remote node %s (no Remote ops, local=%s)", nodeID[:8], localNodeID[:8])
-		return nil
-	}
-	cachePath := fmt.Sprintf("/var/lib/globular/staging/%s/%s/latest.artifact", publisher, pkg)
-	if err := os.Remove(cachePath); err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return fmt.Errorf("remove %s: %w", cachePath, err)
-	}
-	log.Printf("healer: deleted stale cache locally (node=%s pkg=%s path=%s)", nodeID[:8], pkg, cachePath)
-	return nil
-}
-
-// actionPatchReleaseAvailable patches a stuck ServiceRelease from RESOLVED
-// to AVAILABLE after verifying convergence.
-//
-// Guard conditions (ALL must be true):
-//   - ServiceRelease phase is RESOLVED
-//   - installed_state matches desired build/version on all eligible nodes
-//   - Remote.IsServiceConverged confirms alignment
-//
-// If any guard fails, the action is skipped (not an error — just not eligible).
-func (h *Healer) actionPatchReleaseAvailable(ctx context.Context, f Finding) error {
-	if h.Remote == nil {
-		log.Printf("healer: [skip] patch_release_available for %s — no Remote ops", f.EntityRef)
-		return nil
-	}
-
-	// Extract service name from EntityRef (format: "nodeID/serviceName" or just "releaseName").
-	serviceName := f.EntityRef
-	if parts := strings.SplitN(f.EntityRef, "/", 2); len(parts) == 2 {
-		serviceName = parts[1]
-	}
-
-	// Guard: verify convergence before patching.
-	converged, err := h.Remote.IsServiceConverged(ctx, serviceName)
-	if err != nil {
-		log.Printf("healer: [skip] patch_release_available for %s — convergence check failed: %v", serviceName, err)
-		return nil // skip, not error
-	}
-	if !converged {
-		log.Printf("healer: [skip] patch_release_available for %s — not converged, leaving as RESOLVED", serviceName)
-		return nil // not eligible
-	}
-
-	// Extract release name from evidence or derive from EntityRef.
-	releaseName := ""
-	for _, ev := range f.Evidence {
-		kv := ev.GetKeyValues()
-		if v, ok := kv["release_name"]; ok {
-			releaseName = v
-		}
-	}
-	if releaseName == "" {
-		releaseName = "core@globular.io/" + serviceName
-	}
-
-	if err := h.Remote.PatchReleasePhase(ctx, releaseName, "AVAILABLE", "converged"); err != nil {
-		return fmt.Errorf("PatchReleasePhase(%s): %w", releaseName, err)
-	}
-	log.Printf("healer: patched release %s → AVAILABLE (convergence verified)", releaseName)
-	return nil
-}
-
-// actionClearResolvedDrift clears a DriftUnresolved counter after verifying
-// the underlying drift has been resolved.
-//
-// Guard conditions (ALL must be true):
-//   - drift observation exists (from the finding)
-//   - installed_state matches desired for the drifted service
-//   - Remote.IsServiceConverged confirms alignment
-//
-// If any guard fails, the action is skipped.
-func (h *Healer) actionClearResolvedDrift(ctx context.Context, f Finding) error {
-	if h.Remote == nil {
-		log.Printf("healer: [skip] clear_resolved_drift for %s — no Remote ops", f.EntityRef)
-		return nil
-	}
-
-	// Extract drift_type and entity_ref from evidence.
-	driftType := ""
-	entityRef := ""
-	for _, ev := range f.Evidence {
-		kv := ev.GetKeyValues()
-		if v, ok := kv["drift_type"]; ok {
-			driftType = v
-		}
-		if v, ok := kv["entity_ref"]; ok {
-			entityRef = v
-		}
-	}
-	if driftType == "" || entityRef == "" {
-		return fmt.Errorf("missing drift_type or entity_ref in finding evidence")
-	}
-
-	// Extract service name from entityRef (format: "serviceName@nodeID").
-	serviceName := entityRef
-	if atIdx := strings.Index(entityRef, "@"); atIdx > 0 {
-		serviceName = entityRef[:atIdx]
-	}
-
-	// Guard: verify convergence before clearing.
-	converged, err := h.Remote.IsServiceConverged(ctx, serviceName)
-	if err != nil {
-		log.Printf("healer: [skip] clear_resolved_drift for %s — convergence check failed: %v", entityRef, err)
-		return nil
-	}
-	if !converged {
-		log.Printf("healer: [skip] clear_resolved_drift for %s — not converged, keeping drift observation", entityRef)
-		return nil
-	}
-
-	clusterID := "globular.internal" // TODO: pass from config
-	if err := h.Remote.ClearDriftObservation(ctx, clusterID, driftType, entityRef); err != nil {
-		return fmt.Errorf("ClearDriftObservation(%s, %s): %w", driftType, entityRef, err)
-	}
-	log.Printf("healer: cleared drift observation %s/%s (convergence verified)", driftType, entityRef)
-	return nil
-}
-
-// actionSeedOpsKnowledge triggers the ops-knowledge seed against ai-memory.
-// The ops-knowledge directory is read from the finding's evidence
-// (ops_knowledge_dir key) or defaults to defaultOpsKnowledgeDir.
-func (h *Healer) actionSeedOpsKnowledge(ctx context.Context, f Finding) error {
-	if h.Remote == nil {
-		return fmt.Errorf("seed_ops_knowledge: no Remote ops available")
-	}
-	dir := defaultOpsKnowledgeDir
-	for _, ev := range f.Evidence {
-		if kv := ev.GetKeyValues(); kv != nil {
-			if v, ok := kv["ops_knowledge_dir"]; ok && v != "" {
-				dir = v
-			}
-		}
-	}
-	return h.Remote.SeedOpsKnowledge(ctx, dir)
-}
-
-// resolveLocalNodeID returns this node's ID from the node_agent state file.
-func resolveLocalNodeID() string {
-	data, err := os.ReadFile("/var/lib/globular/nodeagent/state.json")
-	if err != nil {
-		return ""
-	}
-	var state struct {
-		NodeID string `json:"node_id"`
-	}
-	if json.Unmarshal(data, &state) != nil {
-		return ""
-	}
-	return state.NodeID
-}
-
-// suppress unused import warnings
-var _ = config.GetEtcdClient

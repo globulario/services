@@ -86,14 +86,18 @@ func TestAwarenessGraphSeedEmpty_PolicyIsPropose(t *testing.T) {
 	}
 }
 
-// TestOpsKnowledgeSeedDeferred_PolicyIsAuto verifies that the heal policy
-// for ops_knowledge.seed_deferred is HealAuto with seed_ops_knowledge action.
-func TestOpsKnowledgeSeedDeferred_PolicyIsAuto(t *testing.T) {
+// TestOpsKnowledgeSeedDeferred_PolicyIsPropose — Patch C Milestone 2
+// demoted ops_knowledge.seed_deferred from HealAuto to HealPropose.
+// The ai-memory upsert is cross-service and has no existing ActionType
+// representation; until a workflow-or-action representation exists, the
+// operator drives this from the CLI. Re-promotion happens (if at all)
+// in Milestone 3 along with the necessary infrastructure.
+func TestOpsKnowledgeSeedDeferred_PolicyIsPropose(t *testing.T) {
 	rule := LookupPolicy("ops_knowledge.seed_deferred")
-	if rule.Disposition != HealAuto {
-		t.Errorf("disposition = %v, want HealAuto", rule.Disposition)
+	if rule.Disposition != HealPropose {
+		t.Errorf("disposition = %v, want HealPropose (M2 demotion)", rule.Disposition)
 	}
-	if rule.AutoAction != "seed_ops_knowledge" {
-		t.Errorf("AutoAction = %q, want seed_ops_knowledge", rule.AutoAction)
+	if rule.AutoAction != "" {
+		t.Errorf("AutoAction = %q, want empty (no direct dispatch from healer)", rule.AutoAction)
 	}
 }
