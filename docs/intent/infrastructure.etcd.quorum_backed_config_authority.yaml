@@ -24,6 +24,7 @@ expressed_by:
   - operational-knowledge/stages/day-1-join.yaml
   - operational-knowledge/stages/day-0-bootstrap.yaml
   - services/golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints.go
+  - golang/cluster_controller/cluster_controller_server/etcd_members.go
 related_invariants: []
 zooms_out_to:
   - etcd.is_source_of_truth

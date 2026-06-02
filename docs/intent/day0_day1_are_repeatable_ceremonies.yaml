@@ -19,6 +19,7 @@ expressed_by:
 - operators/day-0-1-2-operations.md
 - operators/installation.md
 - operators/adding-nodes.md
+- golang/cluster_controller/cluster_controller_server/day0_seed.go
 related_invariants: []
 zooms_out_to:
 - globular.vision.explicit_convergence

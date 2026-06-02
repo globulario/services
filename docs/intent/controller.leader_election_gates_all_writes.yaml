@@ -30,6 +30,7 @@ activation_triggers:
   - leader lose
 expressed_by:
   - golang/cluster_controller/cluster_controller_server/leader_election.go
+  - golang/cluster_controller/cluster_controller_server/bootstrap.go
 zooms_out_to:
   - desired_state.is_authority
   - controller.decides_but_does_not_execute_leaf_work

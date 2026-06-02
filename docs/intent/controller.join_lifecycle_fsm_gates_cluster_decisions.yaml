@@ -28,6 +28,7 @@ activation_triggers:
   - join phase
 expressed_by:
   - golang/cluster_controller/cluster_controller_server/join_lifecycle.go
+  - golang/cluster_controller/cluster_controller_server/handlers_join.go
 zooms_out_to:
   - desired_state.is_authority
 zooms_in_to: []
