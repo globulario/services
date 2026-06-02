@@ -57,10 +57,9 @@ func defaultConfig() *clusterdoctorConfig {
 		UpstreamNodeTimeoutSeconds: 5,
 		UpstreamNodeConcurrency:    20,
 		EmitAuditEvents:            true,
-		// Auto-heal defaults: disabled, dry_run mode, 60s interval, 10 max actions.
-		// Enforce mode requires explicit opt-in via config file.
-		HealerEnabled:            false,
-		HealerMode:               "dry_run",
+		// Auto-heal defaults: enabled in enforce mode, 60s interval, 10 max actions.
+		HealerEnabled:            true,
+		HealerMode:               "enforce",
 		HealerIntervalSeconds:    60,
 		HealerMaxActionsPerCycle: 10,
 	}
