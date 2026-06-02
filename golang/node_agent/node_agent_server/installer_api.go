@@ -78,6 +78,12 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 			return fmt.Errorf("install %s: package not found in local dirs %v (version=%s) and repository address unavailable", name, localPackageDirs, version)
 		}
 		log.Printf("installer-api: %s@%s not found locally, downloading from repository %s", name, version, repoAddr)
+		// expectedSHA256 here is the manifest's entrypoint_checksum (the
+		// binary digest), per INC-2026-0014's dispatch contract. It is
+		// passed through but NOT used for bundle verification —
+		// DownloadArtifactToDir resolves the bundle digest from the
+		// manifest itself. See invariant
+		// install_package.hash_schemas_must_not_alias.
 		dlPath, dlErr := actions.DownloadArtifactToDir(ctx, repoAddr, defaultPublisherID, name, version, platform, kind, expectedSHA256, "/var/lib/globular/packages")
 		if dlErr != nil {
 			return fmt.Errorf("install %s: not in local dirs and repository download failed: %w", name, dlErr)

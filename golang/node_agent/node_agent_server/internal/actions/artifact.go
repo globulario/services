@@ -1453,11 +1453,29 @@ func init() {
 // destDir/<name>_<version>_<platform>.tgz atomically. Returns the full
 // path on success.
 //
-// Invariant: repository.fallback_requires_manifest_and_checksum — fallback
-// sources must never fetch without manifest+checksum proof. When expectedSHA256
-// is empty, this function resolves it from the repository manifest before
-// downloading. Download is rejected if the manifest returns no checksum.
-func DownloadArtifactToDir(ctx context.Context, repoAddr, publisherID, name, version, platform, kindStr, expectedSHA256, destDir string) (string, error) {
+// Hash-schema discipline (invariant: install_package.hash_schemas_must_not_alias):
+//
+//	The repository manifest carries TWO distinct checksums per artifact:
+//	  - `checksum`            sha256 of the .tgz BUNDLE  (verified here)
+//	  - `entrypoint_checksum` sha256 of the BINARY inside the bundle
+//	                          (verified by the install/apply step after extraction)
+//	These two schemas must NEVER be aliased. This function ALWAYS resolves
+//	the bundle digest from the repository manifest and verifies the
+//	downloaded bytes against THAT — never against any caller-supplied hash.
+//
+//	The expectedEntrypointSHA256 parameter is what the workflow dispatch
+//	carries from the controller (manifest.entrypoint_checksum) so the later
+//	install step can verify the unpacked binary. It is NOT used for bundle
+//	verification here. Passing it to downloadArtifactFromRepository as if
+//	it were the bundle hash is the alias bug that produced INC-2026-XXXX
+//	("artifact digest mismatch: want <entrypoint> got <bundle>" on every
+//	fresh package download).
+//
+// Invariant: repository.fallback_requires_manifest_and_checksum — the
+// manifest must be reachable and carry a valid bundle checksum. If the
+// manifest is missing or malformed the download is rejected (we never
+// fetch without proof of what we expect to receive).
+func DownloadArtifactToDir(ctx context.Context, repoAddr, publisherID, name, version, platform, kindStr, expectedEntrypointSHA256, destDir string) (string, error) {
 	artifactKind := repositorypb.ArtifactKind_SERVICE
 	switch strings.ToUpper(kindStr) {
 	case "INFRASTRUCTURE":
@@ -1475,23 +1493,23 @@ func DownloadArtifactToDir(ctx context.Context, repoAddr, publisherID, name, ver
 		Kind:        artifactKind,
 	}
 
-	// Resolve checksum from the manifest when the caller hasn't provided one.
-	// Invariant: fallback_requires_manifest_and_checksum — we must not download
-	// without proof of what we expect to receive.
-	sha256 := strings.TrimSpace(expectedSHA256)
-	if sha256 == "" {
-		digest, err := resolveArtifactDigest(ctx, repoAddr, publisherID, name, version, platform, kindStr, 0)
-		if err != nil {
-			return "", fmt.Errorf("download %s@%s: cannot resolve manifest checksum (required before download): %w", name, version, err)
-		}
-		sha256 = digest
+	// ALWAYS fetch the bundle digest from the manifest. The caller's
+	// expectedEntrypointSHA256 is a different hash schema (binary, not
+	// bundle) and must not be used for bundle verification — see the
+	// invariant note in the function doc.
+	bundleDigest, err := resolveArtifactDigest(ctx, repoAddr, publisherID, name, version, platform, kindStr, 0)
+	if err != nil {
+		return "", fmt.Errorf("download %s@%s: cannot resolve manifest bundle checksum (required before download): %w", name, version, err)
 	}
+	// expectedEntrypointSHA256 flows through the workflow for the post-
+	// extraction binary verification — we don't touch it here.
+	_ = expectedEntrypointSHA256
 
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return "", fmt.Errorf("create download dir %s: %w", destDir, err)
 	}
 	dest := filepath.Join(destDir, fmt.Sprintf("%s_%s_%s.tgz", name, version, platform))
-	if err := downloadArtifactFromRepository(ctx, repoAddr, ref, dest, sha256, false, "", 0); err != nil {
+	if err := downloadArtifactFromRepository(ctx, repoAddr, ref, dest, bundleDigest, false, "", 0); err != nil {
 		return "", fmt.Errorf("download %s@%s from %s: %w", name, version, repoAddr, err)
 	}
 	return dest, nil

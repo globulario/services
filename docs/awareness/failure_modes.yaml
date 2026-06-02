@@ -2805,6 +2805,54 @@ failure_modes:
         - TestExtractRunInstallPackageHashes_Whitespace
         - TestRunInstallPackageHashSchema_PhantomHashIsConvergenceIdentity
 
+    - id: node_agent.installer_download_aliases_entrypoint_as_bundle_hash
+      title: DownloadArtifactToDir verifies the .tgz bundle against the entrypoint_checksum (binary hash), failing every fresh download with a false-positive "artifact digest mismatch"
+      severity: critical
+      status: fixed
+      symptoms:
+        - "node-agent log: `installer-api: <pkg>@<ver> not found locally, downloading from repository <addr>`"
+        - "followed by: `apply-package: install failed for SERVICE/<pkg>@<ver>: install <pkg>: not in local dirs and repository download failed: download <pkg>@<ver> from <addr>: artifact digest mismatch: want <X> got <Y>`"
+        - "X (the 'want' digest) equals the manifest's entrypoint_checksum field — the BINARY hash"
+        - "Y (the 'got' digest) equals the manifest's checksum field — the .tgz BUNDLE hash, which is what was actually downloaded"
+        - "every fresh package version (i.e. not already cached under /var/lib/globular/packages/) fails on first install"
+        - "workaround: pre-staging the .tgz at /var/lib/globular/packages/<name>_<ver>_<plat>.tgz lets the local-cache path skip the download verifier"
+      root_cause: |
+        InstallPackage receives the manifest's entrypoint_checksum as
+        expectedSHA256 (per INC-2026-0014's dispatch contract — the
+        controller passes entrypoint_checksum so the post-extraction
+        binary verifier in apply_package_verify has it on hand).
+
+        installer_api.go passed that same expectedSHA256 to
+        DownloadArtifactToDir as the bundle verification target.
+        DownloadArtifactToDir's old behaviour was: if expectedSHA256 was
+        non-empty, skip manifest resolution and use the caller's value as
+        the bundle hash. The downloaded .tgz bytes were then compared
+        against the entrypoint_checksum — two distinct hash schemas
+        aliased into one verification call.
+
+        First observed when publishing awareness-graph@0.0.7: the package
+        was correctly published to the repository (bundle CAS + manifest
+        intact), the controller's dispatch carried the correct
+        entrypoint_checksum, but no node could install because the
+        downloader rejected every fresh download.
+      affected_files:
+        - golang/node_agent/node_agent_server/internal/actions/artifact.go
+        - golang/node_agent/node_agent_server/installer_api.go
+      fix_summary: |
+        DownloadArtifactToDir now ALWAYS calls resolveArtifactDigest to
+        fetch the BUNDLE digest from the manifest, and verifies the
+        downloaded bytes against THAT. The expectedEntrypointSHA256
+        parameter (renamed for clarity) is no longer used for bundle
+        verification; it flows through for the post-extraction binary
+        verifier as before. Comments at both the function definition and
+        the call site spell out the invariant so future edits don't
+        re-introduce the alias.
+      related_invariants:
+        - install_package.hash_schemas_must_not_alias
+        - repository.fallback_requires_manifest_and_checksum
+      required_tests:
+        - TestDownloadArtifactToDir_AlwaysResolvesManifestEvenIfEntrypointHashProvided
+
     - id: release_pipeline.set_fields_silent_noop_on_wrong_kind
       title: SetFields case added to wrong apply function (or dispatch result discarded) leaves release stuck while controller logs intent every cycle
       severity: critical
