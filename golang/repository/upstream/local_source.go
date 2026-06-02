@@ -1,4 +1,30 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.upstream.local_source
+// @awareness file_role=local_filesystem_release_source_with_strict_path_traversal_protection
+// @awareness implements=globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+// @awareness enforces=globular.platform:invariant.repository.upstream_local_paths_must_reject_traversal
+// @awareness risk=critical
 package upstream
+
+// local_source.go — LOCAL_DIR provider for air-gapped / USB / offline
+// release streams.
+//
+// Security-critical: this provider reads files from operator-supplied
+// paths. The two guards that MUST stay in place:
+//
+//  1. validateLocalRoot insists on an absolute path that resolves to
+//     an existing directory. A relative or empty root would let
+//     subsequent joins escape the intended sandbox.
+//
+//  2. safeJoin refuses absolute paths, refuses any `..` segment, and
+//     evaluates symlinks before checking containment. A naïve
+//     filepath.Join + HasPrefix check would let a symlink inside the
+//     root point outside it, silently letting an operator-uploaded
+//     archive read arbitrary host files.
+//
+// HTTPS asset_url is rejected — LOCAL_DIR serves local files only.
+// The HTTP family of sources is reachable through HTTPIndexSource;
+// LOCAL_DIR must never become a back-door HTTP client.
 
 import (
 	"context"

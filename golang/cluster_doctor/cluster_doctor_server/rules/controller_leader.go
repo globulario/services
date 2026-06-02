@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.controller_leader
+// @awareness file_role=doctor_rule_detecting_leader_self_update_stuck_because_no_follower_reached_target_build
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness risk=high
 package rules
+
+// controller_leader.go — DIAGNOSTIC ONLY. Detects controller
+// self-update deadlock: the leader cannot stop itself until at
+// least one follower has reached the target build, otherwise
+// the cluster loses its only living controller. The rule
+// escalates WARNING → ERROR at pendingUpdateEscalateAfter
+// (20 min) so operators see a clear signal before the situation
+// becomes silent damage.
+//
+// MUST NOT initiate a leadership change. Auto-resigning the
+// leader here would short-circuit the very safety property the
+// pending-update mechanism exists to enforce.
 
 import (
 	"fmt"

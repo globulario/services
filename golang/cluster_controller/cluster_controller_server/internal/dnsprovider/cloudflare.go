@@ -1,4 +1,29 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.dnsprovider.cloudflare
+// @awareness file_role=cloudflare_api_implementation_of_external_dns_provider
+// @awareness enforces=globular.platform:invariant.dnsprovider.private_ips_must_not_publish_to_public_dns
+// @awareness risk=high
 package dnsprovider
+
+// cloudflare.go — Cloudflare API implementation of Provider. Two
+// safety properties to keep intact:
+//
+//  1. api_token comes from Config.ProviderConfig (which the
+//     controller sources from etcd), NEVER from an environment
+//     variable. The etcd-only rule is the platform-wide source of
+//     truth invariant; a getenv shortcut here would silently break
+//     it.
+//
+//  2. UpsertA / UpsertAAAA route through FilterPublicIPs before any
+//     HTTP request leaves the process. A regression that bypassed
+//     the filter would publish RFC1918 addresses on a public
+//     Cloudflare zone — the warning log at line ~62 is the
+//     last-resort operator signal when every IP was private, but
+//     defense-in-depth begins with FilterPublicIPs.
+//
+// The 15 s http.Client timeout bounds every Cloudflare call. The
+// deleteByType-then-create sequence preserves upsert idempotency
+// (Cloudflare has no native upsert for the record types we touch).
 
 import (
 	"bytes"

@@ -1,4 +1,25 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.critical_state_guardians
+// @awareness file_role=doctor_rules_for_ingress_critical_state_presence_and_post_apply_ambiguous_disable_rejection
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=high
 package rules
+
+// critical_state_guardians.go — DIAGNOSTIC ONLY. Two related
+// ingress rules:
+//
+//   - ingress.spec_missing: the cluster has nodes but no ingress
+//     desired spec. Suppressed during Day-0 bootstrap (the
+//     critical-key registry surfaces it there with downgraded
+//     diagnostics).
+//   - ingressAmbiguousDisableRejected: a node already saw a
+//     malformed disable intent and reported
+//     phase=DEGRADED_SPEC_INVALID. Complementary to the
+//     pre-execution rule in destructive_action_audit.go.
+//
+// MUST NOT mutate the ingress spec. The Day-0 suppression is
+// a correctness gate — firing on every fresh cluster would
+// drown signal in noise.
 
 import (
 	"fmt"

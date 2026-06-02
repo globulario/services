@@ -1,5 +1,25 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.destructive_action_audit
+// @awareness file_role=doctor_rule_blocking_unguarded_destructive_disable_intent_before_any_node_processes_it
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=critical
 package rules
 
+// destructive_action_audit.go — DIAGNOSTIC ONLY but with a
+// pre-execution role: fires CRITICAL when the desired spec
+// carries a disable intent that lacks the full guard
+// (explicit_disabled=true + non-empty reason + generation>0).
+// Node agents will refuse to act on the incomplete intent,
+// so the worst case is a no-op — but the operator window to
+// correct the spec opens BEFORE any node processes it.
+//
+// MUST NOT mutate desired state. The whole point of the
+// guard is that destructive intent requires an explicit,
+// auditable record; the doctor surfacing the gap is not the
+// same as the doctor approving it. Auto-completing the
+// guard fields from doctor-side would defeat the audit
+// trail the invariant exists to create.
+//
 // globular:tested_by destructive_action_guards
 
 // destructive_action_audit.go — doctor invariant for unguarded runtime-stop intent.

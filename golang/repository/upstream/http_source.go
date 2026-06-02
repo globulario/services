@@ -1,4 +1,25 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.upstream.http_source
+// @awareness file_role=generic_http_index_release_source
+// @awareness implements=globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+// @awareness risk=medium
 package upstream
+
+// http_source.go — HTTP_INDEX provider. Used when the upstream is a
+// plain HTTP server exposing a `release-index.json` at a
+// templated URL. Two notes:
+//
+//  1. ListReleases is intentionally unsupported (returns
+//     ErrListUnsupported). HTTP indexes have no enumerate API; the
+//     operator must supply an explicit tag. A "try common tags"
+//     fallback would silently produce a different release than the
+//     operator intended.
+//
+//  2. resolveHTTPAssetURL has a strict precedence: absolute
+//     asset_url first, then artifact_base_url+asset_path, then
+//     artifact_base_url+filename. Anything else returns an empty
+//     URL and the caller surfaces a clear error — never a default
+//     guess that could fetch the wrong artifact.
 
 import (
 	"context"

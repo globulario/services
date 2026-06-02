@@ -1,9 +1,28 @@
-// Package upstream provides pure helpers for GitHub Releases integration.
-//
-// This package must not depend on: repository_server, etcd, MinIO, ScyllaDB,
-// gRPC server internals, or global repository server state.
-// Allowed imports: stdlib only.
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.upstream.parse_and_redact
+// @awareness file_role=stdlib_only_helpers_for_repo_url_parsing_and_audit_log_token_redaction
+// @awareness enforces=globular.platform:invariant.repository.upstream_credentials_must_be_redacted_in_audit_logs
+// @awareness risk=high
 package upstream
+
+// parse.go — pure helpers shared by every upstream provider. Two
+// load-bearing properties:
+//
+//  1. RedactAssetURL strips query parameters and userinfo from a URL
+//     BEFORE it appears in any log or audit record. GitHub presigned
+//     asset URLs carry tokens in the query string; logging the raw
+//     URL leaks credentials to operators and (worse) into shipped
+//     log archives. Every code path that logs an asset URL MUST go
+//     through this helper.
+//
+//  2. ValidateIndexURLTemplate rejects index URL templates that lack
+//     `{tag}`, contain unbalanced braces, or carry stray braces
+//     outside the placeholder. A bad template can produce
+//     ambiguous fetch URLs that select the wrong artifact.
+//
+// Package contract: stdlib-only. No repository_server / etcd / MinIO /
+// ScyllaDB imports here — keeping the helper-set portable and
+// individually testable is the whole reason this package exists.
 
 import (
 	"fmt"

@@ -1,4 +1,23 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.kind_mismatch
+// @awareness file_role=doctor_rule_per_node_per_package_kind_mismatch_blocking_dispatch
+// @awareness enforces=globular.platform:invariant.repository.metadata_is_authority
+// @awareness risk=high
 package rules
+
+// kind_mismatch.go — DIAGNOSTIC ONLY. Fires one finding per
+// {node, package} pair where the controller's desired kind does
+// not match the artifact kind published in the repository. The
+// drift reconciler blocks dispatch for these packages, so
+// without operator action they NEVER converge — the per-node
+// scope makes the operator-facing fix obvious: correct desired
+// for one node, or re-publish the artifact with the right kind.
+//
+// MUST NOT auto-correct kind on either side. Package kind is
+// authoritative truth from the canonical kind registry; an
+// auto-rewrite would mean the registry is no longer the
+// authority, breaking
+// repository.metadata_is_authority.
 
 import (
 	"fmt"

@@ -1,4 +1,22 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.package_version_authority
+// @awareness file_role=doctor_rule_detecting_desired_version_that_repository_never_built
+// @awareness enforces=globular.platform:invariant.repository.metadata_is_authority
+// @awareness risk=high
 package rules
+
+// package_version_authority.go — DIAGNOSTIC ONLY. Detects the
+// version-authority violation where desired state pins a
+// package version the repository has no build for (the
+// gen-version.sh / CI version-stamp regression class). Without
+// this rule the reconciler install-storms forever against a
+// non-existent version because the build_id-orphan rule stays
+// silent (no build, no orphan to detect).
+//
+// MUST NOT rewrite desired state to "fix" the version. The fix
+// is upstream: re-publish the package at the right version, or
+// roll desired back via the typed controller RPC. Doctor
+// auto-correction would mask the CI bug.
 
 // package_version_authority.go — Doctor rule that catches version-authority
 // violations: desired state requests a package version that the repository

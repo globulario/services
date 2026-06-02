@@ -5,16 +5,16 @@ Deterministic per-run output. To diff cleanly between runs, skip the first 3 lin
 ## Summary
 
 - **Source files scanned (Go, non-test, non-generated):** 963
-- **Files with at least one direct anchor:** 272 (28%)
-- **Files with zero direct anchors:** 691 (72%)
+- **Files with at least one direct anchor:** 281 (29%)
+- **Files with zero direct anchors:** 682 (71%)
 - **Candidate entries (NOT counted in canonical coverage):** 2
 
 ## Canonical anchors by class
 
 | Class | Entries in canonical YAML |
 |---|---|
-| invariant | 201 |
-| failure_mode | 94 |
+| invariant | 204 |
+| failure_mode | 97 |
 | intent | 207 |
 | incident_pattern | 4 |
 | code_symbol | 138 |
@@ -35,8 +35,6 @@ Files under these paths are listed in CLAUDE.md R2 as high-risk. Uncovered files
 | `golang/node_agent/node_agent_server/internal/actions` | 3/22 | 19 |
 | `golang/rbac/rbac_server` | 5/14 | 9 |
 | `golang/ai_executor/ai_executor_server` | 5/13 | 8 |
-| `golang/repository/upstream` | 0/6 | 6 |
-| `golang/cluster_controller/cluster_controller_server/internal/dnsprovider` | 0/4 | 4 |
 | `golang/cluster_controller/cluster_controller_server/operator` | 0/4 | 4 |
 | `golang/cluster_controller/cluster_controllerpb` | 0/4 | 4 |
 | `golang/cluster_doctor/cluster_doctor_server` | 14/17 | 3 |
@@ -46,13 +44,16 @@ Files under these paths are listed in CLAUDE.md R2 as high-risk. Uncovered files
 | `golang/cluster_controller/resourcestore` | 0/2 | 2 |
 | `golang/node_agent/node_agent_server/internal/certs` | 0/2 | 2 |
 | `golang/repository/repositorypb` | 0/2 | 2 |
+| `golang/cluster_controller/cluster_controller_server/internal/dnsprovider` | 3/4 | 1 |
 | `golang/cluster_controller/cluster_controller_server/internal/recovery` | 0/1 | 1 |
+| `golang/cluster_controller/cluster_controller_server/rolling` | 0/1 | 1 |
 
 ## Best-covered directories (top 20 by coverage ratio)
 
 | Directory | Anchored / Total | % |
 |---|---|---|
 | `golang/domain` | 7/7 | 100% |
+| `golang/repository/upstream` | 6/6 | 100% |
 | `golang/attestation` | 1/1 | 100% |
 | `golang/dependency` | 1/1 | 100% |
 | `golang/evidence` | 1/1 | 100% |
@@ -64,14 +65,13 @@ Files under these paths are listed in CLAUDE.md R2 as high-risk. Uncovered files
 | `golang/security` | 12/13 | 92% |
 | `golang/cluster_doctor/cluster_doctor_server` | 14/17 | 82% |
 | `golang/workflow/engine` | 11/14 | 78% |
+| `golang/cluster_controller/cluster_controller_server/internal/dnsprovider` | 3/4 | 75% |
 | `golang/dns/dns_server` | 3/4 | 75% |
 | `golang/remediation` | 3/4 | 75% |
 | `golang/interceptors` | 6/9 | 66% |
 | `golang/authentication/authentication_server` | 2/3 | 66% |
 | `golang/installed_state` | 2/3 | 66% |
 | `golang/workflow/v1alpha1` | 2/3 | 66% |
-| `golang/pki` | 7/11 | 63% |
-| `golang/repository/repository_server` | 30/50 | 60% |
 
 ## Recommended next annotation targets (high-risk + unanchored)
 
@@ -102,10 +102,7 @@ These are uncovered Go files under CLAUDE.md R2 high-risk dirs. Sorted by path. 
 - `golang/cluster_controller/cluster_controller_server/handlers_status.go`
 - `golang/cluster_controller/cluster_controller_server/handlers_upgrade.go`
 - `golang/cluster_controller/cluster_controller_server/infra_probes.go`
-- `golang/cluster_controller/cluster_controller_server/internal/dnsprovider/cloudflare.go`
 - `golang/cluster_controller/cluster_controller_server/internal/dnsprovider/noop.go`
-- `golang/cluster_controller/cluster_controller_server/internal/dnsprovider/provider.go`
-- `golang/cluster_controller/cluster_controller_server/internal/dnsprovider/rfc2136.go`
 - `golang/cluster_controller/cluster_controller_server/internal/recovery/grpc_recovery.go`
 - `golang/cluster_controller/cluster_controller_server/joinplan_sign.go`
 - `golang/cluster_controller/cluster_controller_server/joinplan_types.go`
@@ -127,7 +124,10 @@ These are uncovered Go files under CLAUDE.md R2 high-risk dirs. Sorted by path. 
 - `golang/cluster_controller/cluster_controller_server/operator/minio_operator.go`
 - `golang/cluster_controller/cluster_controller_server/operator/operator.go`
 - `golang/cluster_controller/cluster_controller_server/operator/scylla_operator.go`
-- _… and 252 more (truncated to top 50 for readability)_
+- `golang/cluster_controller/cluster_controller_server/plan_signer.go`
+- `golang/cluster_controller/cluster_controller_server/posture_metrics.go`
+- `golang/cluster_controller/cluster_controller_server/profiles_deduce.go`
+- _… and 243 more (truncated to top 50 for readability)_
 
 ## Candidates pending review
 

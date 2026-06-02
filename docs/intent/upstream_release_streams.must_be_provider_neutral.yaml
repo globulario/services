@@ -18,6 +18,12 @@ activation_triggers:
 expressed_by:
 - operators/repository-upstreams.md
 - operators/upstream-release-streams.md
+- golang/repository/upstream/source.go
+- golang/repository/upstream/github.go
+- golang/repository/upstream/git_source.go
+- golang/repository/upstream/http_source.go
+- golang/repository/upstream/local_source.go
+- golang/repository/upstream/parse.go
 related_invariants: []
 zooms_out_to:
 - repository.metadata_is_authority

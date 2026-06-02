@@ -1,4 +1,35 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.upstream.git_source
+// @awareness file_role=generic_git_release_source_with_per_source_locks_and_bounded_command_timeout
+// @awareness implements=globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+// @awareness enforces=globular.platform:invariant.repository.upstream_local_paths_must_reject_traversal
+// @awareness enforces=globular.platform:invariant.repository.upstream_credentials_must_be_redacted_in_audit_logs
+// @awareness risk=high
 package upstream
+
+// git_source.go — GIT_INDEX provider. Works with any git server
+// (GitHub, GitLab, Gitea, Forgejo, bare repos). Three load-bearing
+// properties:
+//
+//  1. Every `git` command runs under gitCmdTimeout (60s) to bound
+//     hangs on a slow remote or stuck clone. There is no
+//     ungoverned exec path.
+//
+//  2. getGitLock returns a per-cache-dir mutex so concurrent
+//     ListReleases / GetReleaseIndex / OpenArtifact calls do not
+//     race on the same on-disk clone. Removing the lock would
+//     produce corrupted worktrees under load.
+//
+//  3. Worktree extraction goes through safeJoin (shared with
+//     local_source.go) so a malicious tag or path inside the repo
+//     cannot escape the cache directory. Tests:
+//     TestGitIndex_RejectsPathTraversal,
+//     TestGitIndex_RejectsAbsoluteAssetPath.
+//
+// HTTPS auth is forwarded via GIT_ASKPASS so credentials never
+// appear in process argv (which is world-readable via /proc).
+// redactGitError scrubs token-shaped substrings from any git
+// stderr before it surfaces in an audit log.
 
 import (
 	"bytes"

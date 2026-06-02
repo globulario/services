@@ -1,8 +1,28 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.objectstore_physical_overlap
+// @awareness file_role=doctor_rules_detecting_minio_pool_physical_storage_overlap_and_write_quorum_loss
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness risk=critical
 package rules
 
-// objectstore_physical_overlap.go — invariants that detect physical storage
-// overlap and write-quorum risks in the MinIO pool.
+// objectstore_physical_overlap.go — DIAGNOSTIC ONLY. Detects two
+// failure-class topologies that produce silent MinIO corruption:
 //
+//   1. Two pool nodes whose drives resolve to the same physical
+//      storage (NFS-mounted from one node, local on another).
+//      Both write format.json to the same bytes → silent
+//      corruption → heal deadlock on next restart.
+//   2. Insufficient erasure-coding redundancy (EC:1, single-node
+//      pool, fewer drives than write quorum).
+//
+// MUST NOT delete drives, rewrite format.json, or attempt to
+// "fix" overlap. The blast radius of an incorrect auto-repair is
+// data loss for everything stored in the pool. The rule emits
+// findings; the operator runs `mc mirror` to a safe pool BEFORE
+// any drive-count change. See
+// docs/operators/minio-topology-validation.md and
+// session_minio_topology_apply_inc2026_0010.md.
+
 // Root cause this file guards against: two MinIO pool nodes configured with
 // paths that resolve to the same physical storage (e.g., node A mounts
 // 10.0.0.20:/mnt/data via NFS and node B is 10.0.0.20 with /mnt/data locally).

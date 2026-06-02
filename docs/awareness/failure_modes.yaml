@@ -3426,3 +3426,124 @@ failure_modes:
       required_tests:
         - TestDownloadArtifactToDir_ResolvesChecksumWhenEmpty
         - TestDownloadArtifactToDir_RejectsDownloadWhenManifestUnavailable
+    - id: repository.upstream_path_traversal_via_symlinks
+      title: Symlink inside LOCAL_DIR root escapes to host filesystem when symlink evaluation is skipped
+      severity: critical
+      status: active
+      summary: |
+        If safeJoin (in golang/repository/upstream/local_source.go)
+        ever drops its filepath.EvalSymlinks step, a symlink placed
+        inside the configured local_root that targets a path outside
+        the root would let an operator-uploaded archive (or a
+        malicious git tag in the sibling GIT_INDEX provider) read
+        arbitrary files on the host — including /etc/shadow,
+        /var/lib/globular/pki/ca.key, other tenants' MinIO data, or
+        sibling cluster credentials.
+
+        A common shortcut is `strings.HasPrefix(joined, root+"/")`
+        WITHOUT EvalSymlinks. This looks correct because the joined
+        path is textually under the root — but the symlink only
+        reveals itself when followed. Tests must use an actual
+        symlinked layout, not just `..` paths.
+
+        Mitigated today by safeJoin's three-step guard (reject
+        absolute, reject "..", then EvalSymlinks-then-prefix-check),
+        protected by invariant
+        repository.upstream_local_paths_must_reject_traversal.
+      affects:
+        files:
+          - golang/repository/upstream/local_source.go
+          - golang/repository/upstream/git_source.go
+        symbols:
+          - safeJoin
+      detection: |
+        Direct: grep for `HasPrefix` near `filepath.Join` that does
+        NOT call `EvalSymlinks` first in the upstream/ package.
+        Runtime: a malicious package archive containing a symlink
+        whose target escapes the package root would surface as the
+        OpenArtifact call returning a host-file's contents instead of
+        the artifact bytes — and the manifest sha256 verification
+        downstream would mismatch, surfacing as a doctor finding for
+        artifact_corruption rather than as a security event.
+      related_invariants:
+        - repository.upstream_local_paths_must_reject_traversal
+      required_tests:
+        - TestSafeJoin_RejectsDotDot
+        - TestSafeJoin_RejectsAbsolute
+        - TestGitIndex_RejectsPathTraversal
+    - id: repository.upstream_token_leak_via_unredacted_log
+      title: GitHub asset token or HTTP bearer token surfaces in operator log because a code path bypassed RedactAssetURL
+      severity: high
+      status: active
+      summary: |
+        GitHub Releases asset URLs contain a presigned token in the
+        query string. A new caller in the repository sync pipeline
+        that logs the raw URL — typically for "debug" or "trace"
+        purposes — leaks the token into the operator log archive,
+        and from there into shipped diagnostic bundles that may be
+        forwarded to support channels.
+
+        The mitigation is structural: every URL that touches a log
+        emitter MUST go through RedactAssetURL first. A test that
+        only checks "logger called" is insufficient — the test must
+        assert the log content contains no `?token=` or
+        `?X-Amz-Signature=` substring.
+      affects:
+        files:
+          - golang/repository/upstream/parse.go
+          - golang/repository/upstream/github.go
+          - golang/repository/upstream/git_source.go
+        symbols:
+          - RedactAssetURL
+          - redactGitError
+      detection: |
+        Direct: grep for `log.Printf` / `logger.Info` / `slog.*` near
+        an asset URL variable in the upstream/ package — any such
+        site that does not call RedactAssetURL first is a leak.
+        Runtime: a shipped support bundle whose log contains a
+        substring matching `\?[A-Za-z0-9_-]+=` near a *.amazonaws.com
+        or api.github.com URL has leaked.
+      related_invariants:
+        - repository.upstream_credentials_must_be_redacted_in_audit_logs
+      required_tests:
+        - TestRedactAssetURL_StripsQueryParams
+        - TestRedactGitError
+    - id: dnsprovider.internal_topology_leak_via_public_dns_publish
+      title: Internal subnet topology leaked to public internet because a DNS provider published RFC1918 addresses
+      severity: high
+      status: active
+      summary: |
+        When an external DNS Provider implementation publishes a
+        record without first calling FilterPublicIPs, any RFC1918
+        / loopback / link-local IP in the input slice ends up in
+        the public zone. Anyone running `dig` against the zone
+        learns:
+
+          - the cluster's internal subnet structure
+          - approximate host counts per subnet
+          - NAT / split-horizon presence
+
+        The leak is silent — Cloudflare or the RFC2136 server
+        accept the update happily — and it survives until a
+        security review notices. External reachability for the
+        published name is also broken because clients outside the
+        LAN cannot route to a private address.
+
+        Mitigated by FilterPublicIPs in provider.go (the single
+        chokepoint), protected by invariant
+        dnsprovider.private_ips_must_not_publish_to_public_dns.
+      affects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/internal/dnsprovider/provider.go
+          - golang/cluster_controller/cluster_controller_server/internal/dnsprovider/cloudflare.go
+          - golang/cluster_controller/cluster_controller_server/internal/dnsprovider/rfc2136.go
+        symbols:
+          - FilterPublicIPs
+      detection: |
+        Direct: grep for `UpsertA` / `UpsertAAAA` implementations in
+        internal/dnsprovider/ that do NOT call FilterPublicIPs
+        before transmitting.
+        Runtime: `dig +short A <fqdn> @8.8.8.8` returning an IP
+        in 10/8, 172.16/12, 192.168/16, fc00::/7, or fe80::/10.
+      related_invariants:
+        - dnsprovider.private_ips_must_not_publish_to_public_dns

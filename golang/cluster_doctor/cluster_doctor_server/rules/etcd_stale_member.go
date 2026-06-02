@@ -1,4 +1,22 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.etcd_stale_member
+// @awareness file_role=doctor_rule_detecting_quorum_loss_risk_from_unreachable_or_even_count_etcd_members
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness risk=high
 package rules
+
+// etcd_stale_member.go — DIAGNOSTIC ONLY. Read-only doctor rule.
+// Detects two etcd topologies that caused real Day-1 quorum loss:
+//
+//   1. Even-numbered cluster (2 members → no fault tolerance).
+//   2. Members joined to etcd whose heartbeat is stale (node wiped
+//      without `etcdctl member remove` first).
+//
+// MUST NOT mutate any etcd state. The rule emits findings; the
+// operator decides whether to evict, and runs the typed eviction
+// RPC explicitly. An auto-eviction shortcut here would re-create
+// the keepalived-VIP-eviction cascade (StableIP vs PrimaryIP
+// confusion) that took down ryzen for hours.
 
 import (
 	"fmt"

@@ -5289,3 +5289,143 @@ invariants:
         - doctor.cache_poisoning_from_node_scoped_findings
       required_tests:
         - test.doctor_cache_not_poisoned_by_node_scope
+    - id: repository.upstream_local_paths_must_reject_traversal
+      title: LOCAL_DIR and GIT_INDEX provider paths MUST reject absolute paths, parent-directory segments, and symlink-based traversal
+      severity: critical
+      status: active
+      summary: |
+        The LOCAL_DIR upstream provider serves files from an
+        operator-supplied root directory. Every file open MUST flow
+        through safeJoin (local_source.go), which:
+
+          1. rejects absolute paths in the relative segment,
+          2. rejects any ".." segment,
+          3. evaluates symlinks via filepath.EvalSymlinks and confirms
+             the resolved path is still under the resolved root.
+
+        The GIT_INDEX provider reuses the same safeJoin for resolving
+        artifact paths inside a cloned worktree, so the same property
+        protects checked-out repository content.
+
+        Without these guards, an operator-uploaded archive or a
+        malicious git tag could read arbitrary files on the host
+        (including /etc/shadow, MinIO credentials, or other tenants'
+        package blobs). A naive filepath.Join + HasPrefix check is
+        NOT sufficient: a symlink inside the root that points outside
+        the root would defeat it.
+
+        LOCAL_DIR rejects HTTPS asset_url entirely — the local
+        provider must never become a back-door HTTP client.
+      protects:
+        files:
+          - golang/repository/upstream/local_source.go
+          - golang/repository/upstream/git_source.go
+        symbols:
+          - safeJoin
+          - validateLocalRoot
+          - resolveLocalPath
+      forbidden_fixes:
+        - replace_safejoin_with_filepath_join_plus_hasprefix
+        - allow_absolute_paths_when_under_local_root_string_prefix
+        - skip_symlink_evaluation_for_performance
+        - add_http_fetch_fallback_to_local_dir_provider
+        - accept_dotdot_when_resolved_path_happens_to_remain_inside_root
+      required_tests:
+        - TestSafeJoin_RejectsDotDot
+        - TestSafeJoin_RejectsAbsolute
+        - TestLocalDir_RejectsPathTraversal_DotDot
+        - TestLocalDir_RejectsAbsoluteAssetPath
+        - TestLocalDir_RejectsHTTPAssetURL
+        - TestGitIndex_RejectsPathTraversal
+        - TestGitIndex_RejectsAbsoluteAssetPath
+      related_failure_modes:
+        - repository.upstream_path_traversal_via_symlinks
+    - id: repository.upstream_credentials_must_be_redacted_in_audit_logs
+      title: Upstream provider credentials (GitHub asset tokens, git remote auth, HTTP bearer tokens) MUST be redacted before any URL is logged or audited
+      severity: high
+      status: active
+      summary: |
+        GitHub Releases asset URLs include a presigned query parameter
+        that grants direct download access for private repos. HTTP_INDEX
+        provider URLs may carry similar query-string credentials.
+        Logging the raw URL leaks the token into operator log archives
+        and shipped diagnostic bundles.
+
+        Every code path that logs an asset URL MUST route through
+        RedactAssetURL (parse.go), which strips query parameters and
+        userinfo. The function is the single point of redaction so a
+        future refactor cannot accidentally introduce a logger that
+        emits the raw URL.
+
+        Git stderr flows through redactGitError (git_source.go) to
+        strip token-shaped substrings from git's error output before
+        it surfaces in an audit record. GIT_ASKPASS handles HTTPS git
+        auth so credentials never appear in process argv (which is
+        world-readable via /proc/<pid>/cmdline).
+      protects:
+        files:
+          - golang/repository/upstream/parse.go
+          - golang/repository/upstream/github.go
+          - golang/repository/upstream/git_source.go
+        symbols:
+          - RedactAssetURL
+          - redactGitError
+      forbidden_fixes:
+        - log_full_asset_url_for_debugging
+        - emit_git_remote_url_with_embedded_credentials_to_audit
+        - pass_auth_token_as_git_command_argument_to_avoid_askpass_complexity
+      required_tests:
+        - TestRedactAssetURL_StripsQueryParams
+        - TestRedactAssetURL_PlainURL
+        - TestRedactGitError
+      related_failure_modes:
+        - repository.upstream_token_leak_via_unredacted_log
+    - id: dnsprovider.private_ips_must_not_publish_to_public_dns
+      title: External DNS providers MUST filter RFC1918 / loopback / link-local addresses out of every record before transmission unless AllowPrivateIPs is explicitly set
+      severity: high
+      status: active
+      summary: |
+        Publishing an internal address (10/8, 172.16/12, 192.168/16,
+        loopback, IPv6 ULA, link-local) to a public DNS zone leaks
+        internal cluster topology to the public internet — anyone
+        running `dig` against the zone can enumerate private
+        subnets, NAT layouts, and host counts. It also breaks
+        external reachability for the published name because clients
+        outside the LAN cannot route to the address.
+
+        The mitigation is a single chokepoint: every Provider
+        implementation (cloudflare, rfc2136, future route53) MUST
+        call FilterPublicIPs (in provider.go) BEFORE invoking the
+        upstream API. The filter drops every IP IsPrivateIP would
+        recognize, unless the operator explicitly set
+        Config.AllowPrivateIPs=true (a deliberate split-horizon
+        configuration).
+
+        Provider credentials (cloudflare api_token, rfc2136
+        tsig_secret) come from Config.ProviderConfig which the
+        controller sources from etcd. Reading them from environment
+        variables is forbidden by the etcd-is-the-sole-source-of-truth
+        platform rule.
+
+        NOTE: the `internal/dnsprovider/` package has no unit tests
+        today. Adding `TestFilterPublicIPs_DropsRFC1918`,
+        `TestFilterPublicIPs_KeepsPublic`, and
+        `TestFilterPublicIPs_HonoursAllowPrivateIPs` is the right
+        next step — but Phase 8 is annotation-only.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/internal/dnsprovider/provider.go
+          - golang/cluster_controller/cluster_controller_server/internal/dnsprovider/cloudflare.go
+          - golang/cluster_controller/cluster_controller_server/internal/dnsprovider/rfc2136.go
+        symbols:
+          - FilterPublicIPs
+          - IsPrivateIP
+          - ValidateName
+      forbidden_fixes:
+        - bypass_filter_public_ips_in_a_specific_provider_for_testing
+        - read_cloudflare_api_token_from_environment_variable
+        - read_tsig_secret_from_environment_variable
+        - default_allow_private_ips_to_true_to_match_what_some_operator_wants
+        - move_private_ip_filtering_into_the_caller_instead_of_the_provider
+      related_failure_modes:
+        - dnsprovider.internal_topology_leak_via_public_dns_publish

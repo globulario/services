@@ -1,4 +1,28 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.dnsprovider.rfc2136
+// @awareness file_role=rfc2136_dynamic_update_implementation_of_external_dns_provider
+// @awareness enforces=globular.platform:invariant.dnsprovider.private_ips_must_not_publish_to_public_dns
+// @awareness risk=high
 package dnsprovider
+
+// rfc2136.go — RFC2136 (DNS UPDATE) implementation of Provider.
+// Same FilterPublicIPs guard as cloudflare.go applies. Two
+// rfc2136-specific notes:
+//
+//  1. tsig_key + tsig_secret come from ProviderConfig (etcd-backed).
+//     A request without TSIG against an authenticated zone will be
+//     REFUSED by the nameserver — log surface should make this
+//     obvious to operators.
+//
+//  2. Zone names are normalized to end with `.` before transmission.
+//     A non-FQDN sent to miekg/dns SetUpdate would produce a
+//     malformed update message that authoritative servers reject
+//     silently — the test surface must include a non-trailing-dot
+//     domain to catch a regression here.
+//
+// The deleteRRset-then-insert pattern preserves upsert idempotency
+// just like the Cloudflare implementation. The two providers MUST
+// behave identically from the controller's perspective.
 
 import (
 	"context"

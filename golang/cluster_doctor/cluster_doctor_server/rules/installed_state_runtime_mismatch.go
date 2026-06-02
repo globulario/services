@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.installed_state_runtime_mismatch
+// @awareness file_role=doctor_rule_correlating_layer3_installed_with_layer4_runtime_in_4_layer_truth_model
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness risk=high
 package rules
+
+// installed_state_runtime_mismatch.go — DIAGNOSTIC ONLY. Correlates
+// Layer 3 (installed observed) with Layer 4 (runtime health) from
+// the 4-layer truth model. A package marked installed but whose
+// systemd unit is not active for longer than activatingDriftGrace
+// (2 min default, 5 min for etcd) surfaces as a finding so an
+// operator can dig in.
+//
+// MUST NOT mutate desired state. Conflating "running" with "should
+// be running" would collapse Layer 1↔Layer 2 — exactly the failure
+// mode the 4-layer model exists to prevent. The opt-in gates
+// (e.g. keepalived requires ingress spec mode != disabled) prevent
+// the rule from firing on packages that are intentionally
+// "installed but inactive"; they are a correctness requirement,
+// not a cosmetic suppression.
 
 import (
 	"encoding/json"

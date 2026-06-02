@@ -1,4 +1,28 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.upstream.github_source
+// @awareness file_role=github_releases_api_implementation_of_release_source
+// @awareness implements=globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+// @awareness enforces=globular.platform:invariant.repository.upstream_credentials_must_be_redacted_in_audit_logs
+// @awareness risk=high
 package upstream
+
+// github.go — GitHub Releases API implementation of ReleaseSource.
+// GitHub-specific knowledge MUST stay confined here: every other
+// upstream consumer talks to the ReleaseSource interface, not the
+// GitHub API.
+//
+// Token discipline: AuthToken is sent as a Bearer header to
+// api.github.com endpoints (REST API) and also forwarded to the
+// asset BrowserDownloadURL for private-repo asset fetches. Both
+// paths share the same token; do NOT log the URL or header. Asset
+// URLs returned to callers must be redacted via parse.go's
+// RedactAssetURL before they appear in any operator log.
+//
+// All HTTP requests are bounded by githubTimeout (15s for API,
+// httpTimeout 30s for asset download). Response bodies are capped
+// at githubMaxResponse (1 MiB) for API responses and maxIndexBytes
+// (10 MiB) for release-index.json — a malformed/oversized response
+// must not exhaust process memory.
 
 import (
 	"context"

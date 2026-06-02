@@ -1,4 +1,18 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.upstream.source_registry
+// @awareness file_role=provider_neutral_release_source_interface_and_registry
+// @awareness implements=globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+// @awareness risk=high
 package upstream
+
+// source.go — the ONLY abstraction the repository sync pipeline uses to
+// reach an upstream release stream. No sync/import code path may import
+// a concrete provider — they all flow through ReleaseSource. The
+// constants TypeGitHubRelease/HTTPIndex/GitIndex/LocalDir are the
+// closed enum of supported providers; NewSource MUST refuse anything
+// outside the enum (no string-based fallback). Adding a 5th provider
+// means adding a case here AND a new implementation file — never an
+// inline conditional in the sync pipeline.
 
 import (
 	"context"

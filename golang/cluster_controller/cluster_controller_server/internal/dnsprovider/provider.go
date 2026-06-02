@@ -1,4 +1,32 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.dnsprovider.interface
+// @awareness file_role=external_dns_provider_interface_and_shared_safety_helpers
+// @awareness enforces=globular.platform:invariant.dnsprovider.private_ips_must_not_publish_to_public_dns
+// @awareness risk=high
 package dnsprovider
+
+// provider.go — the abstraction every external DNS publisher
+// (cloudflare, rfc2136, noop, future route53) implements. Three
+// shared helpers carry the safety contract:
+//
+//  1. IsPrivateIP recognizes the RFC1918 / RFC4193 / loopback ranges.
+//     Used by FilterPublicIPs to drop addresses that must not appear
+//     in public DNS.
+//
+//  2. FilterPublicIPs is the single chokepoint: every provider
+//     implementation calls it before any DNS write. Publishing a
+//     10.0.0.0/8 address to api.cloudflare.com would leak internal
+//     topology to the public internet and expose the cluster to
+//     reconnaissance. The AllowPrivateIPs escape hatch exists for
+//     operators with deliberately split-horizon setups; default is
+//     filter-out.
+//
+//  3. ValidateName rejects malformed DNS names before they reach
+//     the provider API — protects against injection-shaped inputs
+//     and catches operator typos before they become broken records.
+//
+// Adding a new provider means adding a constructor here AND
+// re-using these helpers; do not reinvent them inside the provider.
 
 import (
 	"context"
