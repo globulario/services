@@ -366,12 +366,8 @@ func awarenessTruncate(s string, n int) string { //nolint:unused // used in quer
 
 // ─── shared helpers ─────────────────────────────────────────────────────
 
-func awarenessDialClient() (*awareness_graph_client.Client, error) {
-	var opts []awareness_graph_client.Option
-	if awarenessInsecure {
-		opts = append(opts, awareness_graph_client.WithInsecure())
-	}
-	cli, err := awareness_graph_client.New(awarenessAddrOverride, opts...)
+func awarenessDialClient() (*awareness_graph_client.AwarenessGraph_Client, error) {
+	cli, err := awareness_graph_client.NewAwarenessGraphService_Client(awarenessAddrOverride, "awareness-graph")
 	if err != nil {
 		return nil, fmt.Errorf("awareness-graph unreachable: %w (set --awareness-addr or deploy the service)", err)
 	}
@@ -446,6 +442,74 @@ func init() {
 	awarenessCmd.AddCommand(awarenessImpactCmd)
 	awarenessCmd.AddCommand(awarenessResolveCmd)
 	awarenessCmd.AddCommand(awarenessQueryCmd)
+	awarenessCmd.AddCommand(awarenessMetadataCmd)
 
 	rootCmd.AddCommand(awarenessCmd)
+}
+
+// ─── metadata ───────────────────────────────────────────────────────────
+
+var awarenessMetadataCmd = &cobra.Command{
+	Use:   "metadata",
+	Short: "Show graph-level coverage, freshness, and build provenance",
+	Long: `Returns counts of knowledge classes, the build commit the running
+graph was generated from, and the services repo commit at build time.
+Use this to disambiguate "true empty" briefings (graph healthy, no rules
+apply) from "low coverage" briefings (this domain is unannotated).`,
+	RunE: runAwarenessMetadata,
+}
+
+func runAwarenessMetadata(cmd *cobra.Command, args []string) error {
+	cli, err := awarenessDialClient()
+	if err != nil {
+		return err
+	}
+	defer cli.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	resp, err := cli.Metadata(ctx)
+	if err != nil {
+		return fmt.Errorf("metadata rpc: %w", err)
+	}
+	printMetadata(resp)
+	return nil
+}
+
+func printMetadata(r *awarenesspb.MetadataResponse) {
+	fmt.Printf("Server version:        %s\n", strOrDash(r.GetServerVersion()))
+	fmt.Printf("Server started:        %s\n", unixOrDash(r.GetServerStartedUnix()))
+	fmt.Println()
+	fmt.Println("Build provenance:")
+	fmt.Printf("  Graph build commit:  %s\n", strOrDash(r.GetGraphBuildCommit()))
+	fmt.Printf("  Graph build time:    %s\n", unixOrDash(r.GetGraphBuildTimeUnix()))
+	fmt.Printf("  Source repo commit:  %s\n", strOrDash(r.GetSourceRepoCommit()))
+	fmt.Println()
+	fmt.Println("Live counts:")
+	fmt.Printf("  Triples:             %d\n", r.GetTripleCount())
+	fmt.Printf("  Invariants:          %d\n", r.GetInvariantCount())
+	fmt.Printf("  Failure modes:       %d\n", r.GetFailureModeCount())
+	fmt.Printf("  Incident patterns:   %d\n", r.GetIncidentPatternCount())
+	fmt.Printf("  Intents:             %d\n", r.GetIntentCount())
+	fmt.Printf("  Forbidden fixes:     %d\n", r.GetForbiddenFixCount())
+	fmt.Printf("  Required tests:      %d\n", r.GetRequiredTestCount())
+	fmt.Printf("  Source files:        %d\n", r.GetSourceFileCount())
+	fmt.Printf("  Code symbols:        %d\n", r.GetCodeSymbolCount())
+	fmt.Println()
+	fmt.Printf("Generated in: %d ms\n", r.GetGeneratedInMs())
+}
+
+func strOrDash(s string) string {
+	if s == "" {
+		return "(unstamped)"
+	}
+	return s
+}
+
+func unixOrDash(t int64) string {
+	if t == 0 {
+		return "(unstamped)"
+	}
+	return time.Unix(t, 0).UTC().Format(time.RFC3339)
 }
