@@ -19,6 +19,8 @@ expressed_by:
 - operators/cluster-doctor.md
 - awareness/mcp_tools.md
 - awareness/semantic_navigation.md
+- golang/cluster_doctor/cluster_doctor_server/server.go
+- golang/cluster_doctor/cluster_doctor_server/rules/registry.go
 related_invariants: []
 zooms_out_to:
 - globular.vision.ai_operable_cluster

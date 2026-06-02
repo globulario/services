@@ -27,6 +27,11 @@ expressed_by:
   - services/golang/dependency/modes.go
   - services/golang/repository/repository_server/dep_health.go
   - services/golang/repository/repository_server/dependency_contract_test.go
+  - golang/rbac/rbac_server/server.go
+  - golang/dns/dns_server/server.go
+  - golang/event/event_server/server.go
+  - golang/workflow/workflow_server/server.go
+  - golang/resource/resource_server/server.go
 related_invariants:
   - service.dependencies_must_define_degradation_mode
   - dependency_failure_must_not_create_hidden_authority
