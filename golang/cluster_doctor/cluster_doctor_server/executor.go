@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -34,9 +35,9 @@ type ActionExecutor struct {
 }
 
 // NodeAgentDialer is the narrow interface cluster-doctor uses to reach
-// node-agents for node-local actions (systemctl, file_delete, etc.).
-// The real implementation lives in cluster_doctor_server/internal/agent.go
-// (or wherever the existing node-agent client lives).
+// node-agents for node-local actions (systemctl, file_delete,
+// delete_cache_artifact). The real implementation lives in
+// cluster_doctor_server/node_agent_dialer.go.
 type NodeAgentDialer interface {
 	// SystemctlAction runs a systemctl verb (restart/start/stop) against a
 	// unit on a target node.
@@ -44,6 +45,13 @@ type NodeAgentDialer interface {
 	// FileDelete deletes a path on a target node. Callers MUST validate the
 	// path against the safe-trash allowlist before calling this.
 	FileDelete(ctx context.Context, nodeID, path string) error
+	// DeleteCacheArtifact calls the typed node_agent.DeleteCacheArtifact
+	// RPC on the given node, which removes
+	// /var/lib/globular/staging/<publisher>/<package>/latest.artifact. The
+	// node-agent owns path construction and re-validates publisher/package
+	// against its own staging-root containment check. Callers MUST validate
+	// publisher_id and package_name against isValidPackageIdentifier first.
+	DeleteCacheArtifact(ctx context.Context, nodeID, publisherID, packageName string) (string, error)
 }
 
 // Safe-trash allowlist for FILE_DELETE auto-execution. Matches stale install
@@ -97,6 +105,35 @@ func isSafeTrashPath(path string) bool {
 	return false
 }
 
+// validPackageIdentRegex matches the publisher_id / package_name shape
+// allowed for DELETE_CACHE_ARTIFACT (Patch C Milestone 3). The intent is to
+// reject anything that could escape /var/lib/globular/staging/ or otherwise
+// be path-meaningful: '/', '\', '..', shell metacharacters, whitespace.
+// Allowed: ASCII letters, digits, dot, underscore, '@' (publisher IDs are
+// email-shaped), and '-'.
+var validPackageIdentRegex = regexp.MustCompile(`^[a-zA-Z0-9._@-]+$`)
+
+const maxPackageIdentLen = 128
+
+// isValidPackageIdentifier returns true if s is a non-empty string whose
+// every character is in the [a-zA-Z0-9._@-] allowlist and whose length
+// does not exceed maxPackageIdentLen. Empty strings, '/' / '\' / '..',
+// shell metacharacters, and overlong values all fail.
+//
+// Used by DELETE_CACHE_ARTIFACT's approval gate to reject inputs that
+// would let a malicious or buggy rule construct a path outside the
+// staging cache root. The node-agent re-validates server-side — this
+// check is defense in depth.
+func isValidPackageIdentifier(s string) bool {
+	if s == "" || len(s) > maxPackageIdentLen {
+		return false
+	}
+	if strings.Contains(s, "..") {
+		return false
+	}
+	return validPackageIdentRegex.MatchString(s)
+}
+
 // requiresApproval determines whether an action needs an approval token.
 // Returns (needs_token, reason). The reason is surfaced on rejection.
 func requiresApproval(action *cluster_doctorpb.RemediationAction) (bool, string) {
@@ -125,6 +162,21 @@ func requiresApproval(action *cluster_doctorpb.RemediationAction) (bool, string)
 		path := action.GetParams()["path"]
 		if !isSafeTrashPath(path) {
 			return true, fmt.Sprintf("FILE_DELETE outside safe-trash allowlist requires approval (path=%q)", path)
+		}
+		return false, ""
+	case cluster_doctorpb.ActionType_DELETE_CACHE_ARTIFACT:
+		// Auto-executable iff publisher_id and package_name both pass the
+		// strict identifier check (no '/', no '\', no '..', charset
+		// [a-zA-Z0-9._@-], length ≤128). The node-agent re-validates
+		// server-side — this check is defense in depth so a malformed rule
+		// or stale evidence cannot drift a path outside the cache root.
+		pub := action.GetParams()["publisher_id"]
+		pkg := action.GetParams()["package_name"]
+		if !isValidPackageIdentifier(pub) {
+			return true, fmt.Sprintf("DELETE_CACHE_ARTIFACT publisher_id %q fails identifier validation; approval required", pub)
+		}
+		if !isValidPackageIdentifier(pkg) {
+			return true, fmt.Sprintf("DELETE_CACHE_ARTIFACT package_name %q fails identifier validation; approval required", pkg)
 		}
 		return false, ""
 	case cluster_doctorpb.ActionType_PACKAGE_REINSTALL:
@@ -159,6 +211,8 @@ func (e *ActionExecutor) Execute(ctx context.Context, action *cluster_doctorpb.R
 		return e.systemctl(ctx, params, "stop", dryRun)
 	case cluster_doctorpb.ActionType_FILE_DELETE:
 		return e.fileDelete(ctx, params, dryRun)
+	case cluster_doctorpb.ActionType_DELETE_CACHE_ARTIFACT:
+		return e.deleteCacheArtifact(ctx, params, dryRun)
 	}
 	return "", fmt.Errorf("action_type %s not supported by executor", action.GetActionType())
 }
@@ -206,6 +260,44 @@ func (e *ActionExecutor) fileDelete(ctx context.Context, params map[string]strin
 		return "", err
 	}
 	return fmt.Sprintf("deleted %s on %s", path, nodeID), nil
+}
+
+// deleteCacheArtifact runs DELETE_CACHE_ARTIFACT against a node-agent. The
+// healer uses this for artifact.cache_digest_mismatch auto-remediation
+// (Patch C Milestone 3). Path construction lives entirely in the
+// node-agent; the executor passes typed (publisher_id, package_name) and
+// re-validates them defensively before dialing — node-agent re-validates
+// server-side as a third layer.
+func (e *ActionExecutor) deleteCacheArtifact(ctx context.Context, params map[string]string, dryRun bool) (string, error) {
+	nodeID := params["node_id"]
+	publisherID := params["publisher_id"]
+	packageName := params["package_name"]
+	if nodeID == "" {
+		return "", fmt.Errorf("delete_cache_artifact: missing 'node_id' param")
+	}
+	if publisherID == "" {
+		return "", fmt.Errorf("delete_cache_artifact: missing 'publisher_id' param")
+	}
+	if packageName == "" {
+		return "", fmt.Errorf("delete_cache_artifact: missing 'package_name' param")
+	}
+	// Defensive re-validation. requiresApproval already enforced this for
+	// the auto-execute path; an operator-approved token path skips that
+	// check, so we re-assert at the executor boundary.
+	if !isValidPackageIdentifier(publisherID) {
+		return "", fmt.Errorf("delete_cache_artifact refuses publisher_id %q: fails identifier validation", publisherID)
+	}
+	if !isValidPackageIdentifier(packageName) {
+		return "", fmt.Errorf("delete_cache_artifact refuses package_name %q: fails identifier validation", packageName)
+	}
+	if dryRun {
+		return fmt.Sprintf("would delete cache artifact: publisher=%s package=%s on node %s",
+			publisherID, packageName, nodeID), nil
+	}
+	if e.nodeAgentDialer == nil {
+		return "", fmt.Errorf("no node-agent dialer configured")
+	}
+	return e.nodeAgentDialer.DeleteCacheArtifact(ctx, nodeID, publisherID, packageName)
 }
 
 // ── Audit logging ────────────────────────────────────────────────────────────

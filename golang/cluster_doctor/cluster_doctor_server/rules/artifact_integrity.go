@@ -133,14 +133,29 @@ func remediationFor(invariantID, nodeID, pkg, kind string) []*cluster_doctorpb.R
 				"journalctl -u globular-cluster-controller.service -n 200"),
 		}
 	case "artifact.cache_digest_mismatch":
+		// Patch C Milestone 3 — emit a typed DELETE_CACHE_ARTIFACT action
+		// so the gated healer can auto-dispatch the cleanup through
+		// ExecuteRemediation. Publisher defaults to core@globular.io; the
+		// rule does not currently surface a per-finding publisher — when
+		// it does, propagate the actual value here.
 		return []*cluster_doctorpb.RemediationStep{
-			step(1,
-				fmt.Sprintf("Cached artifact for %s on node %s does not match the published manifest. The fix is automatic on the next install — the new artifact.fetch validates digests before reuse.",
+			actionStep(1,
+				fmt.Sprintf("Cached artifact for %s on node %s does not match the published manifest. Delete the stale cache; the next install re-fetches with digest verification.",
 					pkg, nodeID),
-				"globular services verify-integrity --package "+pkg),
+				"globular services verify-integrity --package "+pkg,
+				&cluster_doctorpb.RemediationAction{
+					ActionType: cluster_doctorpb.ActionType_DELETE_CACHE_ARTIFACT,
+					Risk:       cluster_doctorpb.ActionRisk_RISK_LOW,
+					Idempotent: true,
+					Params: map[string]string{
+						"node_id":      nodeID,
+						"publisher_id": "core@globular.io",
+						"package_name": pkg,
+					},
+				}),
 			step(2,
-				"If the mismatch persists, force a re-download by bumping the desired build or removing the cache",
-				"sudo rm /var/lib/globular/staging/core@globular.io/"+pkg+"/latest.artifact"),
+				"If the mismatch persists after auto-cleanup, bump the desired build to force a re-resolve",
+				"globular services desired set "+pkg+" <version> --build-number <n>"),
 		}
 	case "artifact.cache_missing":
 		return []*cluster_doctorpb.RemediationStep{

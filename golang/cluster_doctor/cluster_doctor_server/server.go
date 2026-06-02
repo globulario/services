@@ -558,12 +558,20 @@ func (g *gatedDispatcher) Dispatch(ctx context.Context, f rules.Finding, autoAct
 	if g.server == nil {
 		return false, "", fmt.Errorf("gatedDispatcher: server is nil")
 	}
-	// The finding must carry a structured RemediationAction at step 0 for
-	// ExecuteRemediation to dispatch. Today no PolicyV1 HealAuto rule does;
-	// Milestone 3 re-promotes one rule whose corresponding invariant emits
-	// a typed action via actionStep(...).
-	if len(f.Remediation) == 0 || f.Remediation[0].GetAction() == nil {
-		logger.Info("gated-dispatcher: skipping — no structured RemediationAction on finding",
+	// The finding must carry at least one RemediationStep with a structured
+	// RemediationAction; the dispatcher picks the first such step. Rules
+	// that mix text-only and actionable steps put the actionable one first
+	// by convention (see artifact_integrity.go: actionStep(1, …) followed
+	// by step(2, …) text fallback).
+	stepIndex := -1
+	for i, st := range f.Remediation {
+		if st.GetAction() != nil {
+			stepIndex = i
+			break
+		}
+	}
+	if stepIndex < 0 {
+		logger.Info("gated-dispatcher: skipping — no structured RemediationAction on any step",
 			"invariant_id", f.InvariantID,
 			"entity_ref", f.EntityRef,
 			"auto_action", autoAction)
@@ -576,7 +584,7 @@ func (g *gatedDispatcher) Dispatch(ctx context.Context, f rules.Finding, autoAct
 
 	resp, err := g.server.ExecuteRemediation(ctx, &cluster_doctorpb.ExecuteRemediationRequest{
 		FindingId: f.FindingID,
-		StepIndex: 0,
+		StepIndex: uint32(stepIndex),
 		DryRun:    dryRun,
 	})
 	if err != nil {

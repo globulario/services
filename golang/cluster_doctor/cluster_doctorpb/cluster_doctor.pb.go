@@ -370,6 +370,15 @@ const (
 	ActionType_ETCD_PUT           ActionType = 6 // params: {key, value}  — hand grenade
 	ActionType_PACKAGE_REINSTALL  ActionType = 7 // params: {package, node_id, version}
 	ActionType_NODE_REMOVE        ActionType = 8 // params: {node_id}  — hand grenade
+	// DELETE_CACHE_ARTIFACT — params: {node_id, publisher_id, package_name}.
+	// Routes through node_agent.DeleteCacheArtifact (typed RPC) which owns
+	// path construction inside /var/lib/globular/staging/. The healer
+	// dispatches this for artifact.cache_digest_mismatch findings (Patch C
+	// Milestone 3). publisher_id and package_name are validated by the
+	// executor (no /, no \, no .., charset [a-zA-Z0-9._@-], length ≤128) AND
+	// re-validated by the node-agent — defense in depth. Auto-executable
+	// (LOW risk) only when both names pass validation; otherwise approval-gated.
+	ActionType_DELETE_CACHE_ARTIFACT ActionType = 9
 )
 
 // Enum value maps for ActionType.
@@ -384,17 +393,19 @@ var (
 		6: "ETCD_PUT",
 		7: "PACKAGE_REINSTALL",
 		8: "NODE_REMOVE",
+		9: "DELETE_CACHE_ARTIFACT",
 	}
 	ActionType_value = map[string]int32{
-		"ACTION_UNSPECIFIED": 0,
-		"SYSTEMCTL_RESTART":  1,
-		"SYSTEMCTL_STOP":     2,
-		"SYSTEMCTL_START":    3,
-		"FILE_DELETE":        4,
-		"ETCD_DELETE":        5,
-		"ETCD_PUT":           6,
-		"PACKAGE_REINSTALL":  7,
-		"NODE_REMOVE":        8,
+		"ACTION_UNSPECIFIED":    0,
+		"SYSTEMCTL_RESTART":     1,
+		"SYSTEMCTL_STOP":        2,
+		"SYSTEMCTL_START":       3,
+		"FILE_DELETE":           4,
+		"ETCD_DELETE":           5,
+		"ETCD_PUT":              6,
+		"PACKAGE_REINSTALL":     7,
+		"NODE_REMOVE":           8,
+		"DELETE_CACHE_ARTIFACT": 9,
 	}
 )
 
@@ -2597,7 +2608,7 @@ const file_cluster_doctor_proto_rawDesc = "" +
 	"\rFreshnessMode\x12\x19\n" +
 	"\x15FRESHNESS_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10FRESHNESS_CACHED\x10\x01\x12\x13\n" +
-	"\x0fFRESHNESS_FRESH\x10\x02*\xbc\x01\n" +
+	"\x0fFRESHNESS_FRESH\x10\x02*\xd7\x01\n" +
 	"\n" +
 	"ActionType\x12\x16\n" +
 	"\x12ACTION_UNSPECIFIED\x10\x00\x12\x15\n" +
@@ -2608,7 +2619,8 @@ const file_cluster_doctor_proto_rawDesc = "" +
 	"\vETCD_DELETE\x10\x05\x12\f\n" +
 	"\bETCD_PUT\x10\x06\x12\x15\n" +
 	"\x11PACKAGE_REINSTALL\x10\a\x12\x0f\n" +
-	"\vNODE_REMOVE\x10\b*P\n" +
+	"\vNODE_REMOVE\x10\b\x12\x19\n" +
+	"\x15DELETE_CACHE_ARTIFACT\x10\t*P\n" +
 	"\n" +
 	"ActionRisk\x12\x14\n" +
 	"\x10RISK_UNSPECIFIED\x10\x00\x12\f\n" +

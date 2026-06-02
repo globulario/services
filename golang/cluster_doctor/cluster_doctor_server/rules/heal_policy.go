@@ -53,16 +53,22 @@ func PolicyV1() []HealRule {
 		// ── A. Auto-heal (safe to execute automatically) ─────────────
 
 		{
-			// Milestone 2: demoted from HealAuto to HealPropose pending the
-			// re-enable in Milestone 3 through the gated remediation path.
-			// The action is intrinsically safe (cache deletion is reversible
-			// — the next install re-fetches with digest verification) but
-			// dispatch must traverse ExecuteRemediation, not RemoteOps. See
-			// docs/design/auto-healing-path-unification-patch-c.md.
+			// Patch C Milestone 3: re-enabled as the single guarded auto-heal
+			// action. Dispatches DELETE_CACHE_ARTIFACT through ExecuteRemediation
+			// — the node-agent's typed RPC owns path construction inside
+			// /var/lib/globular/staging/. publisher_id and package_name are
+			// validated against isValidPackageIdentifier at the executor
+			// boundary AND re-validated by the node-agent (defense in depth).
+			//
+			// No other auto-heal rules are promoted: release.stuck_resolved
+			// (etcd write), workflow.drift_stuck (workflow RPC), and
+			// ops_knowledge.seed_deferred (ai-memory upsert) all stay
+			// HealPropose until they can be safely typed.
 			InvariantID: "artifact.cache_digest_mismatch",
-			Disposition: HealPropose,
-			Action:      "Delete the stale cached artifact; the next install will re-fetch with digest verification. Operator-driven until Milestone 3 re-enables auto-dispatch through ExecuteRemediation.",
-			Rationale:   "The cache is not a source of truth. Removing it forces a validated re-download on next install. Demoted to propose-only in Milestone 2 — the dispatch must go through ExecuteRemediation, not the legacy RemoteOps path.",
+			Disposition: HealAuto,
+			Action:      "Delete the stale cached artifact via node_agent.DeleteCacheArtifact; the next install will re-fetch with digest verification.",
+			Rationale:   "The cache is reproducible and not a source of truth. Cleanup is idempotent, reversible (re-fetch on next install), and routed through the gated DELETE_CACHE_ARTIFACT action — the node-agent owns path construction and rejects arbitrary paths.",
+			AutoAction:  "delete_stale_cache",
 		},
 		{
 			InvariantID: "artifact.cache_missing",

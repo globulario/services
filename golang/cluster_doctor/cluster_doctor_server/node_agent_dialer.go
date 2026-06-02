@@ -137,7 +137,41 @@ func (d *controllerNodeAgentDialer) SystemctlAction(ctx context.Context, nodeID,
 // FileDelete is not yet supported by node-agent — no generic file-delete
 // RPC exists. For now, returns an explanatory error so the executor can
 // report it cleanly. A future PR can add NodeAgentService.DeleteFile with
-// its own allowlist check.
+// its own allowlist check, but Patch C Milestone 3 deliberately avoided
+// that path: a generic delete RPC broadens the mutation surface beyond
+// cache cleanup. Use DELETE_CACHE_ARTIFACT (typed RPC) instead.
 func (d *controllerNodeAgentDialer) FileDelete(ctx context.Context, nodeID, path string) error {
 	return fmt.Errorf("file_delete not yet supported: node-agent lacks DeleteFile RPC (path=%s on %s)", path, nodeID)
+}
+
+// DeleteCacheArtifact dials the target node-agent and invokes the typed
+// node_agent.DeleteCacheArtifact RPC. The node-agent owns path
+// construction inside /var/lib/globular/staging/ and re-validates the
+// publisher/package inputs server-side. The caller (executor) has already
+// validated against isValidPackageIdentifier; this method is the
+// transport.
+func (d *controllerNodeAgentDialer) DeleteCacheArtifact(ctx context.Context, nodeID, publisherID, packageName string) (string, error) {
+	conn, err := d.dialAgent(ctx, nodeID)
+	if err != nil {
+		return "", fmt.Errorf("dial node %s: %w", nodeID, err)
+	}
+	defer conn.Close()
+
+	client := node_agentpb.NewNodeAgentServiceClient(conn)
+	resp, err := client.DeleteCacheArtifact(ctx, &node_agentpb.DeleteCacheArtifactRequest{
+		PackageName: packageName,
+		PublisherId: publisherID,
+	})
+	if err != nil {
+		return "", fmt.Errorf("DeleteCacheArtifact RPC on %s: %w", nodeID, err)
+	}
+	if !resp.GetOk() {
+		// Surface the node-agent's rejection (e.g., path-escape detection)
+		// as an error so the gate's audit captures it and the failure-rate
+		// policy can escalate after repeated rejections.
+		return "", fmt.Errorf("node-agent rejected DeleteCacheArtifact (publisher=%s package=%s): %s",
+			publisherID, packageName, resp.GetMessage())
+	}
+	return fmt.Sprintf("deleted cache: publisher=%s package=%s path=%s on %s",
+		publisherID, packageName, resp.GetPath(), nodeID), nil
 }

@@ -158,6 +158,15 @@ enum ActionType {
   ETCD_PUT               = 6;  // params: {key, value}  — hand grenade
   PACKAGE_REINSTALL      = 7;  // params: {package, node_id, version}
   NODE_REMOVE            = 8;  // params: {node_id}  — hand grenade
+  // DELETE_CACHE_ARTIFACT — params: {node_id, publisher_id, package_name}.
+  // Routes through node_agent.DeleteCacheArtifact (typed RPC) which owns
+  // path construction inside /var/lib/globular/staging/. The healer
+  // dispatches this for artifact.cache_digest_mismatch findings (Patch C
+  // Milestone 3). publisher_id and package_name are validated by the
+  // executor (no /, no \, no .., charset [a-zA-Z0-9._@-], length ≤128) AND
+  // re-validated by the node-agent — defense in depth. Auto-executable
+  // (LOW risk) only when both names pass validation; otherwise approval-gated.
+  DELETE_CACHE_ARTIFACT  = 9;
 }
 
 enum ActionRisk {

@@ -5,17 +5,17 @@ import (
 	"testing"
 )
 
-// TestLookupPolicy_KnownInvariant — post Patch C Milestone 2, every former
-// HealAuto rule with a non-empty AutoAction has been demoted to HealPropose.
-// artifact.cache_digest_mismatch is now propose-only; Milestone 3 will
-// re-enable it via the gated ExecuteRemediation path.
+// TestLookupPolicy_KnownInvariant — post Patch C Milestone 3,
+// artifact.cache_digest_mismatch is re-enabled as the single guarded
+// auto-heal action and dispatches DELETE_CACHE_ARTIFACT through the
+// ExecuteRemediation gate.
 func TestLookupPolicy_KnownInvariant(t *testing.T) {
 	r := LookupPolicy("artifact.cache_digest_mismatch")
-	if r.Disposition != HealPropose {
-		t.Fatalf("expected HealPropose (M2 demotion), got %s", r.Disposition)
+	if r.Disposition != HealAuto {
+		t.Fatalf("expected HealAuto (M3 re-enable), got %s", r.Disposition)
 	}
-	if r.AutoAction != "" {
-		t.Fatalf("expected empty AutoAction (no direct dispatch from healer), got %q", r.AutoAction)
+	if r.AutoAction != "delete_stale_cache" {
+		t.Fatalf("expected AutoAction=delete_stale_cache, got %q", r.AutoAction)
 	}
 }
 
@@ -58,21 +58,21 @@ func TestPolicyV1_NoDuplicateInvariants(t *testing.T) {
 }
 
 // TestHealer_DryRun_NoMutations verifies the fundamental safety contract:
-// regardless of DryRun, regardless of disposition, the Healer never
-// mutates cluster state directly. After Milestones 1+2, every HealAuto
-// rule with a non-empty AutoAction has been demoted to HealPropose, so
-// cache_digest_mismatch (formerly HealAuto) now counts as Proposed and
-// the Dispatcher receives zero calls.
+// in dry-run mode, the Healer forwards DryRun=true to every Dispatch call
+// AND no Executed=true result lands in the report — regardless of how the
+// Dispatcher reports back. Post-M3 the Dispatcher does see one call (for
+// the re-enabled cache_digest_mismatch HealAuto rule), but with dryRun=true.
 //
-// The dispatcher-recording fake confirms the Path B mutation surface is
-// closed: no Dispatch invocations even in non-dry-run mode (when there
-// are no HealAuto-with-AutoAction findings).
+// The recording fake here returns (false, "", nil) for every Dispatch,
+// which mirrors the production gatedDispatcher behaviour when DryRun=true
+// flows through to ExecuteRemediation: no node-agent mutation, no
+// executed=true verdict.
 func TestHealer_DryRun_NoMutations(t *testing.T) {
 	dispatcher := &recordingDispatcher{}
 	healer := &Healer{DryRun: true, Dispatcher: dispatcher}
 	findings := []Finding{
 		{
-			InvariantID: "artifact.cache_digest_mismatch", // HealPropose post-M2
+			InvariantID: "artifact.cache_digest_mismatch", // HealAuto (M3 re-enable)
 			EntityRef:   "node1/event",
 		},
 		{
@@ -86,17 +86,15 @@ func TestHealer_DryRun_NoMutations(t *testing.T) {
 	}
 	report := healer.Evaluate(context.Background(), findings)
 
-	if got := len(dispatcher.calls); got != 0 {
-		t.Fatalf("dry-run with all-demoted policy must produce zero Dispatch calls, got %d: %+v", got, dispatcher.calls)
+	if got := len(dispatcher.calls); got != 1 {
+		t.Fatalf("expected exactly 1 Dispatch call (cache_digest_mismatch in M3), got %d: %+v",
+			got, dispatcher.calls)
+	}
+	if !dispatcher.calls[0].DryRun {
+		t.Fatalf("Dispatcher must receive DryRun=true when Healer.DryRun=true; got call=%+v", dispatcher.calls[0])
 	}
 	if report.AutoFixed != 0 {
-		t.Fatalf("expected 0 auto-fixed (no HealAuto-with-AutoAction in policy), got %d", report.AutoFixed)
-	}
-	if report.Proposed != 2 {
-		t.Fatalf("expected 2 proposed (cache_digest_mismatch + installed_digest_mismatch), got %d", report.Proposed)
-	}
-	if report.Observed != 1 {
-		t.Fatalf("expected 1 observed (workflow.step_failures), got %d", report.Observed)
+		t.Fatalf("expected 0 auto-fixed (dispatcher returned executed=false), got %d", report.AutoFixed)
 	}
 	for _, r := range report.Results {
 		if r.Executed {

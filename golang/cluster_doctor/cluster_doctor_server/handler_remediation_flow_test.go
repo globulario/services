@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -53,6 +54,10 @@ func (f *fakeNodeAgentDialer) FileDelete(_ context.Context, nodeID, path string)
 	_ = nodeID
 	_ = path
 	return nil
+}
+
+func (f *fakeNodeAgentDialer) DeleteCacheArtifact(_ context.Context, nodeID, publisherID, packageName string) (string, error) {
+	return fmt.Sprintf("fake-deleted: publisher=%s package=%s on %s", publisherID, packageName, nodeID), nil
 }
 
 func TestExecuteRemediation_EscalationClearsOnApprovalThenReturnsToCooldown(t *testing.T) {
