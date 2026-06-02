@@ -3332,6 +3332,10 @@ failure_modes:
         - treating_build_id_match_as_proof_of_binary_identity
         - clearing_hash_drift_without_reinstalling_the_package
         - updating_installed_state_checksum_without_reinstalling_the_binary
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/apply_package_release.go
+          - golang/node_agent/node_agent_server/grpc_workflow_skip.go
       related_invariants:
         - runtime.success_requires_expected_binary_checksum
       required_tests:
