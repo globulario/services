@@ -6,7 +6,10 @@ import (
 	"testing"
 
 	awarenesspb "github.com/globulario/awareness-graph/golang/pb"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
 // helpers ───────────────────────────────────────────────────────────────
@@ -376,6 +379,183 @@ func TestSplitClassID(t *testing.T) {
 		if bare != tc.wantBare || class != tc.wantClass {
 			t.Errorf("splitClassID(%q): got (%q, %q), want (%q, %q)",
 				tc.in, bare, class, tc.wantBare, tc.wantClass)
+		}
+	}
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// 9. parsePackageID — only accepts publisher/name@version
+// ────────────────────────────────────────────────────────────────────────
+
+func TestParsePackageID(t *testing.T) {
+	cases := []struct {
+		in            string
+		wantPub       string
+		wantName      string
+		wantVer       string
+		wantOK        bool
+	}{
+		{"core@globular.io/repository@1.2.142", "core@globular.io", "repository", "1.2.142", true},
+		{"pub/name@1.0.0", "pub", "name", "1.0.0", true},
+		{"freeform garbage", "", "", "", false},
+		{"no-slash@version", "", "", "", false},
+		{"pub/name-no-version", "", "", "", false},
+		{"/name@version", "", "", "", false},
+		{"pub/@version", "", "", "", false},
+		{"pub/name@", "", "", "", false},
+		{"", "", "", "", false},
+	}
+	for _, tc := range cases {
+		pub, name, ver, ok := parsePackageID(tc.in)
+		if ok != tc.wantOK || pub != tc.wantPub || name != tc.wantName || ver != tc.wantVer {
+			t.Errorf("parsePackageID(%q): got (%q,%q,%q,%v), want (%q,%q,%q,%v)",
+				tc.in, pub, name, ver, ok, tc.wantPub, tc.wantName, tc.wantVer, tc.wantOK)
+		}
+	}
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// 10. Node section — included when node_id given AND data returned
+// ────────────────────────────────────────────────────────────────────────
+
+func TestDiagnose_NodeSectionsIncludedWhenAvailable(t *testing.T) {
+	h := requestHints{
+		symptom:  "node looks unhealthy",
+		nodeID:   "globule-ryzen",
+		mode:     "compact",
+		keywords: extractKeywords("node looks unhealthy"),
+	}
+	c := &collectedSources{
+		nodeHealth: &cluster_controllerpb.GetNodeHealthDetailV1Response{
+			NodeId:        "globule-ryzen",
+			OverallStatus: "degraded",
+			Healthy:       false,
+			Checks: []*cluster_controllerpb.NodeHealthCheck{
+				{Subsystem: "node-agent", Ok: true},
+				{Subsystem: "minio", Ok: false, Reason: "out of disk"},
+			},
+		},
+		inventory: &node_agentpb.GetInventoryResponse{
+			Inventory: &node_agentpb.Inventory{
+				Identity: &cluster_controllerpb.NodeIdentity{Hostname: "globule-ryzen", AgentVersion: "1.2.142"},
+			},
+		},
+	}
+	resp := buildDiagnoseResponse(h, c)
+	runtime := resp["runtime_evidence"].(map[string]interface{})
+	nh, ok := runtime["node_health"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("node_health missing when nodeHealth set: keys=%v", mapKeys(runtime))
+	}
+	if nh["overall_status"] != "degraded" {
+		t.Errorf("overall_status: want degraded, got %v", nh["overall_status"])
+	}
+	if nh["healthy"] != false {
+		t.Errorf("healthy: want false, got %v", nh["healthy"])
+	}
+	inv, ok := runtime["node_inventory"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("node_inventory missing when inventory set")
+	}
+	identity := inv["identity"].(map[string]interface{})
+	if identity["hostname"] != "globule-ryzen" {
+		t.Errorf("identity.hostname: got %v", identity["hostname"])
+	}
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// 11. Node sections OMITTED entirely when node_id was not given
+// ────────────────────────────────────────────────────────────────────────
+
+func TestDiagnose_NodeSectionsOmittedWhenNoNodeID(t *testing.T) {
+	h := mkHints("generic symptom")
+	c := &collectedSources{
+		// Both skipped because no node_id hint
+		nodeHealthSkipped: true,
+		inventorySkipped:  true,
+		artifactSkipped:   true,
+	}
+	resp := buildDiagnoseResponse(h, c)
+	runtime := resp["runtime_evidence"].(map[string]interface{})
+	if _, ok := runtime["node_health"]; ok {
+		t.Errorf("node_health should NOT be present when nodeID absent: %v", runtime)
+	}
+	if _, ok := runtime["node_inventory"]; ok {
+		t.Errorf("node_inventory should NOT be present when nodeID absent: %v", runtime)
+	}
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// 12. Repository section — included when package_id parses + data returned
+// ────────────────────────────────────────────────────────────────────────
+
+func TestDiagnose_RepositorySectionIncluded(t *testing.T) {
+	h := requestHints{
+		symptom:   "install fails for repository package",
+		packageID: "core@globular.io/repository@1.2.142",
+		mode:      "compact",
+		keywords:  extractKeywords("install fails for repository package"),
+	}
+	c := &collectedSources{
+		artifact: &repositorypb.ExplainArtifactResponse{
+			Installable:       false,
+			ArtifactState:     "BLOB_VERIFIED",
+			BlobPresent:       true,
+			ManifestPresent:   true,
+			LedgerPresent:     false,
+			RecommendedAction: "run repository.repair_artifact",
+			Detail:            "ledger row missing after publish; promote to PUBLISHED was skipped",
+		},
+	}
+	resp := buildDiagnoseResponse(h, c)
+	runtime := resp["runtime_evidence"].(map[string]interface{})
+	art, ok := runtime["repository_artifact"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("repository_artifact missing: keys=%v", mapKeys(runtime))
+	}
+	if art["installable"] != false {
+		t.Errorf("installable: want false, got %v", art["installable"])
+	}
+	if art["recommended_action"] != "run repository.repair_artifact" {
+		t.Errorf("recommended_action wrong: %v", art["recommended_action"])
+	}
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// 13. Malformed package_id — branch is skipped and blind_spot recorded,
+//     no tool failure, no fabrication
+// ────────────────────────────────────────────────────────────────────────
+
+func TestDiagnose_MalformedPackageIDSkippedWithBlindSpot(t *testing.T) {
+	h := requestHints{
+		symptom:   "something",
+		packageID: "just some text not a package id",
+		keywords:  []string{},
+	}
+	c := &collectedSources{
+		artifactSkipped:  true,
+		artifactSkipNote: "package_id must be of form 'publisher/name@version' to call repository.ExplainArtifact",
+	}
+	resp := buildDiagnoseResponse(h, c)
+	runtime := resp["runtime_evidence"].(map[string]interface{})
+	if _, ok := runtime["repository_artifact"]; ok {
+		t.Errorf("repository_artifact should NOT appear for malformed package_id")
+	}
+	bs := resp["blind_spots"].([]string)
+	found := false
+	for _, b := range bs {
+		if strings.Contains(b, "publisher/name@version") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("blind_spots should explain the malformed package_id: %v", bs)
+	}
+	tf := resp["tool_failures"].([]map[string]interface{})
+	for _, f := range tf {
+		if src, _ := f["source"].(string); strings.Contains(src, "repository") {
+			t.Errorf("malformed package_id must NOT produce a tool_failure: %v", f)
 		}
 	}
 }

@@ -42,7 +42,10 @@ import (
 	"time"
 
 	awarenesspb "github.com/globulario/awareness-graph/golang/pb"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
 // Bounds — keep the response compact regardless of upstream volume.
@@ -161,13 +164,32 @@ type requestHints struct {
 
 // collectedSources holds per-source results plus per-source error/freshness
 // metadata so the response builder can label degradation precisely.
+//
+// Conditional branches (nodeHealth/inventory/artifact) are only populated
+// when the corresponding hint (node_id/package_id) is present and resolves.
 type collectedSources struct {
 	briefing     *awarenesspb.BriefingResponse
 	briefingErr  error
+
 	doctorReport *cluster_doctorpb.ClusterReport
 	doctorErr    error
-	driftReport  *cluster_doctorpb.DriftReport
-	driftErr     error
+
+	driftReport *cluster_doctorpb.DriftReport
+	driftErr    error
+
+	// Conditional on node_id hint.
+	nodeHealth        *cluster_controllerpb.GetNodeHealthDetailV1Response
+	nodeHealthErr     error
+	nodeHealthSkipped bool // true when node_id was not provided
+	inventory         *node_agentpb.GetInventoryResponse
+	inventoryErr      error
+	inventorySkipped  bool
+
+	// Conditional on package_id hint (must parse to publisher/name@version).
+	artifact         *repositorypb.ExplainArtifactResponse
+	artifactErr      error
+	artifactSkipped  bool
+	artifactSkipNote string // why it was skipped, when applicable
 }
 
 func collectSources(ctx context.Context, s *server, h requestHints) *collectedSources {
@@ -251,8 +273,135 @@ func collectSources(ctx context.Context, s *server, h requestHints) *collectedSo
 		mu.Unlock()
 	}()
 
+	// 4. Node health detail (controller-side rollup) — only if node_id given.
+	if h.nodeID != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			callCtx, cancel := context.WithTimeout(ctx, diagnoseSourceTimeout)
+			defer cancel()
+
+			conn, err := s.clients.get(callCtx, controllerEndpoint())
+			if err != nil {
+				mu.Lock()
+				out.nodeHealthErr = fmt.Errorf("dial controller: %w", err)
+				mu.Unlock()
+				return
+			}
+			client := cluster_controllerpb.NewClusterControllerServiceClient(conn)
+			resp, err := client.GetNodeHealthDetailV1(callCtx, &cluster_controllerpb.GetNodeHealthDetailV1Request{
+				NodeId: h.nodeID,
+			})
+			mu.Lock()
+			out.nodeHealth = resp
+			out.nodeHealthErr = err
+			mu.Unlock()
+		}()
+	} else {
+		out.nodeHealthSkipped = true
+	}
+
+	// 5. Per-node agent inventory — only if node_id given. The endpoint is
+	// resolved through the controller's node registry; falls back to the
+	// local node-agent if resolution fails.
+	if h.nodeID != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			callCtx, cancel := context.WithTimeout(ctx, diagnoseSourceTimeout)
+			defer cancel()
+
+			ep, err := s.resolveNodeAgentEndpoint(callCtx, h.nodeID)
+			if err != nil {
+				mu.Lock()
+				out.inventoryErr = fmt.Errorf("resolve node-agent endpoint: %w", err)
+				mu.Unlock()
+				return
+			}
+			conn, err := s.clients.get(callCtx, ep)
+			if err != nil {
+				mu.Lock()
+				out.inventoryErr = fmt.Errorf("dial node-agent at %s: %w", ep, err)
+				mu.Unlock()
+				return
+			}
+			client := node_agentpb.NewNodeAgentServiceClient(conn)
+			resp, err := client.GetInventory(callCtx, &node_agentpb.GetInventoryRequest{})
+			mu.Lock()
+			out.inventory = resp
+			out.inventoryErr = err
+			mu.Unlock()
+		}()
+	} else {
+		out.inventorySkipped = true
+	}
+
+	// 6. Repository explain artifact — only if package_id parses cleanly
+	// to publisher/name@version. We don't guess: if the hint is free-form,
+	// skip this branch and record a blind_spot note so the agent can supply
+	// a structured form.
+	if h.packageID != "" {
+		pub, name, ver, ok := parsePackageID(h.packageID)
+		if !ok {
+			out.artifactSkipped = true
+			out.artifactSkipNote = "package_id must be of form 'publisher/name@version' to call repository.ExplainArtifact"
+		} else {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				callCtx, cancel := context.WithTimeout(ctx, diagnoseSourceTimeout)
+				defer cancel()
+
+				conn, err := s.clients.get(callCtx, repositoryEndpoint())
+				if err != nil {
+					mu.Lock()
+					out.artifactErr = fmt.Errorf("dial repository: %w", err)
+					mu.Unlock()
+					return
+				}
+				client := repositorypb.NewPackageRepositoryClient(conn)
+				resp, err := client.ExplainArtifact(callCtx, &repositorypb.ExplainArtifactRequest{
+					Ref: &repositorypb.ArtifactRef{
+						PublisherId: pub,
+						Name:        name,
+						Version:     ver,
+						Platform:    "linux_amd64",
+					},
+				})
+				mu.Lock()
+				out.artifact = resp
+				out.artifactErr = err
+				mu.Unlock()
+			}()
+		}
+	} else {
+		out.artifactSkipped = true
+	}
+
 	wg.Wait()
 	return out
+}
+
+// parsePackageID accepts "publisher/name@version" and returns the three
+// fields. Returns ok=false for any other shape — the caller must record a
+// blind_spot and skip the artifact branch rather than guess.
+//
+// Note: publisher IDs are usually email-shaped (e.g. "core@globular.io"),
+// so the '@' before the version is the LAST '@' in the string, not the
+// first. The '/' separating publisher from package name comes first.
+func parsePackageID(s string) (publisher, name, version string, ok bool) {
+	slash := strings.IndexByte(s, '/')
+	at := strings.LastIndexByte(s, '@')
+	if slash <= 0 || at <= slash+1 || at >= len(s)-1 {
+		return "", "", "", false
+	}
+	publisher = strings.TrimSpace(s[:slash])
+	name = strings.TrimSpace(s[slash+1 : at])
+	version = strings.TrimSpace(s[at+1:])
+	if publisher == "" || name == "" || version == "" {
+		return "", "", "", false
+	}
+	return publisher, name, version, true
 }
 
 // buildDiagnoseResponse takes the collected per-source data and produces the
@@ -351,10 +500,97 @@ func buildDiagnoseResponse(h requestHints, c *collectedSources) map[string]inter
 		}
 	}
 
+	// ── Optional per-node sections ───────────────────────────────────────
+	var nodeHealth, inventory map[string]interface{}
+	if !c.nodeHealthSkipped {
+		if c.nodeHealthErr != nil {
+			blindSpots = append(blindSpots, "node health detail unavailable for node_id")
+			toolFailures = append(toolFailures, map[string]interface{}{
+				"source": "cluster_controller.node_health",
+				"error":  c.nodeHealthErr.Error(),
+			})
+		} else if c.nodeHealth != nil {
+			checks := make([]map[string]interface{}, 0, len(c.nodeHealth.GetChecks()))
+			for _, ch := range c.nodeHealth.GetChecks() {
+				checks = append(checks, map[string]interface{}{
+					"subsystem": ch.GetSubsystem(),
+					"ok":        ch.GetOk(),
+					"reason":    ch.GetReason(),
+				})
+			}
+			nodeHealth = map[string]interface{}{
+				"overall_status":     c.nodeHealth.GetOverallStatus(),
+				"healthy":            c.nodeHealth.GetHealthy(),
+				"last_error":         c.nodeHealth.GetLastError(),
+				"inventory_complete": c.nodeHealth.GetInventoryComplete(),
+				"checks":             checks,
+			}
+		}
+	}
+	if !c.inventorySkipped {
+		if c.inventoryErr != nil {
+			blindSpots = append(blindSpots, "node-agent inventory unavailable for node_id")
+			toolFailures = append(toolFailures, map[string]interface{}{
+				"source": "node_agent.inventory",
+				"error":  c.inventoryErr.Error(),
+			})
+		} else if c.inventory != nil && c.inventory.GetInventory() != nil {
+			inv := c.inventory.GetInventory()
+			identity := map[string]interface{}{}
+			if id := inv.GetIdentity(); id != nil {
+				identity = map[string]interface{}{
+					"hostname":      id.GetHostname(),
+					"agent_version": id.GetAgentVersion(),
+				}
+			}
+			inventory = map[string]interface{}{
+				"identity":   identity,
+				"unit_count": len(inv.GetUnits()),
+			}
+		}
+	}
+
+	// ── Optional repository artifact section ─────────────────────────────
+	var artifact map[string]interface{}
+	if !c.artifactSkipped {
+		if c.artifactErr != nil {
+			blindSpots = append(blindSpots, "repository.ExplainArtifact unavailable for package_id")
+			toolFailures = append(toolFailures, map[string]interface{}{
+				"source": "repository.explain_artifact",
+				"error":  c.artifactErr.Error(),
+			})
+		} else if c.artifact != nil {
+			artifact = map[string]interface{}{
+				"installable":         c.artifact.GetInstallable(),
+				"recommended_action":  c.artifact.GetRecommendedAction(),
+				"artifact_state":      c.artifact.GetArtifactState(),
+				"blob_present":        c.artifact.GetBlobPresent(),
+				"ledger_present":      c.artifact.GetLedgerPresent(),
+				"manifest_present":    c.artifact.GetManifestPresent(),
+				"signature_status":    c.artifact.GetSignatureStatus(),
+				"detail":              c.artifact.GetDetail(),
+				"repairable":          c.artifact.GetRepairable(),
+			}
+		}
+	} else if c.artifactSkipNote != "" {
+		// Skip note (e.g. malformed package_id) — visible to the agent so
+		// it can rerun with structured input. Not a tool failure.
+		blindSpots = append(blindSpots, c.artifactSkipNote)
+	}
+
 	runtime := map[string]interface{}{
 		"doctor_findings": doctorFindings,
 		"drift_items":     driftItems,
 		"freshness":       freshness,
+	}
+	if nodeHealth != nil {
+		runtime["node_health"] = nodeHealth
+	}
+	if inventory != nil {
+		runtime["node_inventory"] = inventory
+	}
+	if artifact != nil {
+		runtime["repository_artifact"] = artifact
 	}
 
 	// ── Correlation ──────────────────────────────────────────────────────
