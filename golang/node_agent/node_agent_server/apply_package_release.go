@@ -233,17 +233,25 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 				// without going through the official apply path — it MUST be
 				// re-applied to restore consistency (binary + state + marker).
 				if buildID != "" && existing.GetBuildId() == buildID && !isPartialApply {
-					log.Printf("apply-package: %s/%s@%s (build %d, build_id=%s) already installed, skipping",
-						kind, name, version, req.GetBuildNumber(), buildID)
-					return &node_agentpb.ApplyPackageReleaseResponse{
-						Ok:          true,
-						Message:     "already installed at requested version",
-						PackageName: name,
-						Version:     version,
-						Status:      "skipped",
-						OperationId: operationID,
-						BuildId:     existing.GetBuildId(),
-					}, nil
+					if !buildIDSkipChecksumOK(existing.GetChecksum(), req.GetExpectedSha256()) {
+						log.Printf("apply-package: %s/%s@%s build_id matches but binary checksum %s != expected %s — binary replaced out-of-band, reapplying",
+							kind, name, version,
+							normalizedHash(existing.GetChecksum()),
+							normalizedHash(req.GetExpectedSha256()))
+						// fall through to reinstall
+					} else {
+						log.Printf("apply-package: %s/%s@%s (build %d, build_id=%s) already installed, skipping",
+							kind, name, version, req.GetBuildNumber(), buildID)
+						return &node_agentpb.ApplyPackageReleaseResponse{
+							Ok:          true,
+							Message:     "already installed at requested version",
+							PackageName: name,
+							Version:     version,
+							Status:      "skipped",
+							OperationId: operationID,
+							BuildId:     existing.GetBuildId(),
+						}, nil
+					}
 				}
 
 				if isPartialApply {

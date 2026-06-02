@@ -279,6 +279,37 @@ func TestCommandPackageDoesNotSkipWhenChecksumReadFails(t *testing.T) {
 	}
 }
 
+// TestBuildIDSkipChecksumOK — regression for INC-2026-0019: ApplyPackageRelease
+// was skipping reinstall when build_id matched even if the installed binary
+// checksum differed from the manifest's expected_sha256 (binary replaced
+// out-of-band via globular deploy or local build). The guard must deny skip
+// when both hashes are present and disagree.
+func TestBuildIDSkipChecksumOK(t *testing.T) {
+	cases := []struct {
+		name      string
+		installed string
+		expected  string
+		wantOK    bool
+	}{
+		{"match", "sha256:aaaa", "sha256:aaaa", true},
+		{"match_no_prefix", "aaaa", "aaaa", true},
+		{"mismatch", "sha256:aaaa", "sha256:bbbb", false},
+		{"mismatch_mixed_prefix", "aaaa", "sha256:bbbb", false},
+		{"no_expected", "sha256:aaaa", "", true},
+		{"no_installed", "", "sha256:bbbb", true},
+		{"both_empty", "", "", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := buildIDSkipChecksumOK(tc.installed, tc.expected)
+			if got != tc.wantOK {
+				t.Errorf("buildIDSkipChecksumOK(%q, %q) = %v, want %v",
+					tc.installed, tc.expected, got, tc.wantOK)
+			}
+		})
+	}
+}
+
 // TestNewCommandPackagesAreRecognized verifies that all packages added to
 // commandPackages in v1.2.64+ are treated as binary-only (no systemd unit).
 // Missing entries cause the skip check to try a unit lookup, which always

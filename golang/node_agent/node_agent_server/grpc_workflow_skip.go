@@ -192,6 +192,23 @@ func normalizedHash(hash string) string {
 	return h
 }
 
+// buildIDSkipChecksumOK reports whether the build_id idempotency guard may
+// skip reinstall given the installed binary checksum and the expected binary
+// checksum from the manifest. Returns false (must reinstall) when both hashes
+// are present and they differ — this indicates the binary was replaced
+// out-of-band (e.g. globular deploy or a local build) with a different binary
+// that happens to carry the same version/build_id.
+// Returns true (skip allowed) when either hash is absent (no opinion) or when
+// the hashes agree.
+func buildIDSkipChecksumOK(installedChecksum, expectedSha256 string) bool {
+	exp := normalizedHash(expectedSha256)
+	got := normalizedHash(installedChecksum)
+	if exp == "" || got == "" {
+		return true // no opinion from one side — allow skip
+	}
+	return exp == got
+}
+
 func commandBinaryPath(name string) string {
 	bin := strings.TrimSuffix(name, "-cmd")
 	for _, dir := range []string{"/usr/local/bin", "/usr/lib/globular/bin"} {
