@@ -1447,3 +1447,38 @@ func init() {
 	Register(serviceInstallPayloadAction{})
 	Register(serviceWriteVersionMarkerAction{})
 }
+
+// DownloadArtifactToDir fetches a single artifact from the repository by
+// (name, version, platform, kind) and writes it to
+// destDir/<name>_<version>_<platform>.tgz atomically. Returns the full
+// path on success.
+//
+// Used by installer_api.go when a package is not found in any local dir:
+// the node-agent downloads from the repository directly rather than
+// requiring the operator to manually stage the file.
+func DownloadArtifactToDir(ctx context.Context, repoAddr, publisherID, name, version, platform, kindStr, expectedSHA256, destDir string) (string, error) {
+	artifactKind := repositorypb.ArtifactKind_SERVICE
+	switch strings.ToUpper(kindStr) {
+	case "INFRASTRUCTURE":
+		artifactKind = repositorypb.ArtifactKind_INFRASTRUCTURE
+	case "APPLICATION":
+		artifactKind = repositorypb.ArtifactKind_APPLICATION
+	case "COMMAND":
+		artifactKind = repositorypb.ArtifactKind_COMMAND
+	}
+	ref := &repositorypb.ArtifactRef{
+		PublisherId: publisherID,
+		Name:        name,
+		Version:     version,
+		Platform:    platform,
+		Kind:        artifactKind,
+	}
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return "", fmt.Errorf("create download dir %s: %w", destDir, err)
+	}
+	dest := filepath.Join(destDir, fmt.Sprintf("%s_%s_%s.tgz", name, version, platform))
+	if err := downloadArtifactFromRepository(ctx, repoAddr, ref, dest, expectedSHA256, false, "", 0); err != nil {
+		return "", fmt.Errorf("download %s@%s from %s: %w", name, version, repoAddr, err)
+	}
+	return dest, nil
+}

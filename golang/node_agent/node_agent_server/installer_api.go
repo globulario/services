@@ -68,10 +68,22 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	artifactPath := fmt.Sprintf("/var/lib/globular/staging/%s/%s/latest.artifact",
 		defaultPublisherID, name)
 
-	// Local-only: find the .tgz package on disk.
+	// Find the .tgz package on disk. If not present, fetch it from the repository
+	// so that `pkg publish` + `services desired set` converges without requiring
+	// the operator to manually stage every package on every node.
 	localPath := srv.findLocalPackage(name, version, platform)
 	if localPath == "" {
-		return fmt.Errorf("install %s: package not found in local dirs %v (version=%s) — ensure packages were downloaded during join", name, localPackageDirs, version)
+		repoAddr := srv.discoverRepositoryAddr()
+		if repoAddr == "" {
+			return fmt.Errorf("install %s: package not found in local dirs %v (version=%s) and repository address unavailable", name, localPackageDirs, version)
+		}
+		log.Printf("installer-api: %s@%s not found locally, downloading from repository %s", name, version, repoAddr)
+		dlPath, dlErr := actions.DownloadArtifactToDir(ctx, repoAddr, defaultPublisherID, name, version, platform, kind, expectedSHA256, "/var/lib/globular/packages")
+		if dlErr != nil {
+			return fmt.Errorf("install %s: not in local dirs and repository download failed: %w", name, dlErr)
+		}
+		localPath = dlPath
+		log.Printf("installer-api: downloaded %s@%s to %s", name, version, dlPath)
 	}
 	log.Printf("installer-api: installing %s from local package %s", name, localPath)
 

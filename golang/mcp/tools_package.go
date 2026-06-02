@@ -31,7 +31,7 @@ Common spec locations:
 			Properties: map[string]propSchema{
 				"spec":         {Type: "string", Description: "Path to the spec YAML file"},
 				"root":         {Type: "string", Description: "Payload root directory containing bin/"},
-				"out":          {Type: "string", Description: "Output directory for the .tgz (default: /var/lib/globular/packages/out/)"},
+				"out":          {Type: "string", Description: "Output directory for the .tgz (default: /var/lib/globular/build-output/)"},
 				"version":      {Type: "string", Description: "Package version (default: 0.0.1)"},
 				"build_number": {Type: "number", Description: "Build iteration within version (default: 0). Bump when republishing same version."},
 				"publisher":    {Type: "string", Description: "Publisher identifier (default: core@globular.io)"},
@@ -48,7 +48,7 @@ Common spec locations:
 
 		out := getStr(args, "out")
 		if out == "" {
-			out = "/var/lib/globular/packages/out/"
+			out = "/var/lib/globular/build-output/"
 		}
 		version := getStr(args, "version")
 		if version == "" {
