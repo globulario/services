@@ -29,6 +29,7 @@ expressed_by:
   - golang/node_agent/node_agent_server/apply_package_release.go
   - golang/repository/repository_server/server.go
   - golang/cluster_doctor/cluster_doctor_server/report.go
+  - golang/repository/repository_server/describe_package.go
 
 related_invariants:
   - cluster.layer3.not.layer4

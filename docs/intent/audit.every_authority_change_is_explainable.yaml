@@ -19,6 +19,7 @@ expressed_by:
 - operators/security.md
 - operators/workflows.md
 - operators/repository-overview.md
+- golang/repository/repository_server/audit.go
 related_invariants: []
 zooms_out_to:
 - globular.vision.explicit_convergence
