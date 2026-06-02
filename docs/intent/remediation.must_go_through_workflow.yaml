@@ -37,6 +37,8 @@ expressed_by:
 - awareness/remediation_contracts.yaml
 - services/golang/cluster_doctor/cluster_doctor_server/rules/healer.go
 - services/golang/cluster_controller/cluster_controller_server/remediation_consumer.go
+- golang/cluster_doctor/cluster_doctor_server/workflow_runner.go
+- golang/mcp/remediation.go
 related_invariants: []
 zooms_out_to:
 - workflow.source_of_operational_truth

@@ -20,6 +20,7 @@ expressed_by:
 - operators/workflows.md
 - operators/repository-overview.md
 - golang/repository/repository_server/audit.go
+- golang/mcp/audit.go
 related_invariants: []
 zooms_out_to:
 - globular.vision.explicit_convergence
