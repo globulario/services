@@ -69,13 +69,18 @@ func PolicyV1() []HealRule {
 		{
 			// ServiceRelease stuck at RESOLVED when installed == desired.
 			// The pipeline resolved the artifact but never transitioned to
-			// AVAILABLE because the installed_state already matches. Safe to
-			// patch the phase to AVAILABLE to stop the dispatch loop.
+			// AVAILABLE because the installed_state already matches. The
+			// concrete repair would patch the phase to AVAILABLE, but that
+			// requires a direct etcd.Put against
+			// /globular/resources/ServiceRelease/<name>. Until the healer
+			// loop is unified into ExecuteRemediation (Path A) — where
+			// ETCD_PUT is hard-blocked by the action executor and only
+			// reachable through evidence-trust + approval + cooldown +
+			// failure-rate gates — this rule is propose-only.
 			InvariantID: "release.stuck_resolved",
-			Disposition: HealAuto,
-			Action:      "Patch ServiceRelease phase from RESOLVED to AVAILABLE and clear the DriftUnresolved counter.",
-			Rationale:   "The binary is already installed at the desired version. The release pipeline verified the artifact digest. Transitioning to AVAILABLE is the correct terminal state.",
-			AutoAction:  "patch_release_available",
+			Disposition: HealPropose,
+			Action:      "Patch ServiceRelease phase from RESOLVED to AVAILABLE and clear the DriftUnresolved counter (operator-driven; routed through ExecuteRemediation once Path B is unified into the gated path).",
+			Rationale:   "The patch is a direct etcd write to a ServiceRelease object — ETCD_PUT is hard-blocked from auto-execution by the action executor (executor.go hardBlocked()), and the background healer must not bypass that boundary. Propose only until release.stuck_resolved routes through ExecuteRemediation with the full gate set.",
 		},
 		{
 			InvariantID: "workflow.drift_stuck",

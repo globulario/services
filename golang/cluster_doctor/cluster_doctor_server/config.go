@@ -57,9 +57,16 @@ func defaultConfig() *clusterdoctorConfig {
 		UpstreamNodeTimeoutSeconds: 5,
 		UpstreamNodeConcurrency:    20,
 		EmitAuditEvents:            true,
-		// Auto-heal defaults: enabled in enforce mode, 60s interval, 10 max actions.
+		// Auto-heal defaults: classify only ("observe"), 60s interval, 10 max
+		// actions. Background mutation requires an explicit operator opt-in by
+		// setting `healer_mode: "dry_run"` or `"enforce"` in config — the
+		// default never mutates. Matches the field comment on HealerMode above
+		// and the safety posture documented in
+		// docs/intent/remediation.must_go_through_workflow.yaml: until Path B
+		// (healer loop) is unified into the gated remediation path, the
+		// default disposition is "observe".
 		HealerEnabled:            true,
-		HealerMode:               "enforce",
+		HealerMode:               "observe",
 		HealerIntervalSeconds:    60,
 		HealerMaxActionsPerCycle: 10,
 	}

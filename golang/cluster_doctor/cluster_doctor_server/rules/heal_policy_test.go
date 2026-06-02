@@ -104,3 +104,103 @@ func TestHealer_CacheMissing_NoOp(t *testing.T) {
 		t.Fatalf("cache_missing should be auto-verified (no-op)")
 	}
 }
+
+// TestPolicy_ReleaseStuckResolved_IsPropose locks Patch B: the
+// release.stuck_resolved invariant must NOT be auto-executed. Its concrete
+// repair (patch_release_available) is a direct etcd write against the
+// ServiceRelease object, which the action executor hard-blocks for Path A
+// (executor.go hardBlocked()) — until Path B routes through the same gate,
+// the policy disposition is propose-only and the AutoAction field is empty.
+//
+// Regression guard: a future change that flips this rule back to HealAuto
+// without unifying the remediation path must fail this test.
+func TestPolicy_ReleaseStuckResolved_IsPropose(t *testing.T) {
+	r := LookupPolicy("release.stuck_resolved")
+	if r.Disposition != HealPropose {
+		t.Fatalf("release.stuck_resolved must be HealPropose (audit Patch B), got %s", r.Disposition)
+	}
+	if r.AutoAction != "" {
+		t.Fatalf("release.stuck_resolved must have an empty AutoAction (no direct etcd writes from the background healer), got %q", r.AutoAction)
+	}
+}
+
+// recordingRemoteOps captures every RemoteOps invocation so a test can
+// assert which actions the healer attempted to dispatch. All methods
+// return nil so the healer treats them as successful when DryRun=false.
+type recordingRemoteOps struct {
+	deleteCacheCalls   []string
+	patchReleaseCalls  []string
+	clearDriftCalls    []string
+	seedOpsKnowledgeOK int
+	convergedReply     bool
+}
+
+func (r *recordingRemoteOps) DeleteCacheArtifact(_ context.Context, nodeID, packageName, publisherID string) error {
+	r.deleteCacheCalls = append(r.deleteCacheCalls, nodeID+"/"+packageName+"@"+publisherID)
+	return nil
+}
+
+func (r *recordingRemoteOps) PatchReleasePhase(_ context.Context, releaseName, newPhase, reason string) error {
+	r.patchReleaseCalls = append(r.patchReleaseCalls, releaseName+"->"+newPhase+":"+reason)
+	return nil
+}
+
+func (r *recordingRemoteOps) ClearDriftObservation(_ context.Context, clusterID, driftType, entityRef string) error {
+	r.clearDriftCalls = append(r.clearDriftCalls, clusterID+":"+driftType+":"+entityRef)
+	return nil
+}
+
+func (r *recordingRemoteOps) IsServiceConverged(_ context.Context, _ string) (bool, error) {
+	return r.convergedReply, nil
+}
+
+func (r *recordingRemoteOps) SeedOpsKnowledge(_ context.Context, _ string) error {
+	r.seedOpsKnowledgeOK++
+	return nil
+}
+
+// TestHealer_PatchReleaseAvailable_IsNotInvoked enforces the behavioural
+// half of Patch B: even in enforce mode (DryRun=false), even when the
+// guard condition (IsServiceConverged=true) would have allowed it, the
+// healer must never dispatch patch_release_available for a
+// release.stuck_resolved finding — because the rule no longer carries an
+// AutoAction. The control case (artifact.cache_digest_mismatch) keeps the
+// HealAuto path firing so the test fails on an over-zealous patch that
+// disables auto-healing globally.
+func TestHealer_PatchReleaseAvailable_IsNotInvoked(t *testing.T) {
+	remote := &recordingRemoteOps{convergedReply: true}
+	healer := &Healer{
+		DryRun: false,
+		Remote: remote,
+	}
+	findings := []Finding{
+		{
+			InvariantID: "release.stuck_resolved",
+			EntityRef:   "core@globular.io/event",
+		},
+		// Control: cache_digest_mismatch is still HealAuto so the healer
+		// machinery is exercised. If this fires, the test infrastructure
+		// works; the patch_release_available absence is therefore
+		// meaningful (not a false negative from a broken Evaluate).
+		// NodeID must be ≥8 chars — actionDeleteStaleCache logs nodeID[:8]
+		// for trace context, see healer.go:210.
+		{
+			InvariantID: "artifact.cache_digest_mismatch",
+			EntityRef:   "eb9a2dac-05b0-52ac-9002-99d8ffd35902/event",
+		},
+	}
+	report := healer.Evaluate(context.Background(), findings)
+
+	if got := len(remote.patchReleaseCalls); got != 0 {
+		t.Fatalf("PatchReleasePhase must NOT be invoked for release.stuck_resolved (Patch B); got %d call(s): %v",
+			got, remote.patchReleaseCalls)
+	}
+	if got := len(remote.deleteCacheCalls); got != 1 {
+		t.Fatalf("control: expected exactly 1 DeleteCacheArtifact call for cache_digest_mismatch, got %d (%v)",
+			got, remote.deleteCacheCalls)
+	}
+	// release.stuck_resolved is now HealPropose → counted under Proposed.
+	if report.Proposed != 1 {
+		t.Fatalf("release.stuck_resolved must classify as Proposed (HealPropose), got Proposed=%d", report.Proposed)
+	}
+}

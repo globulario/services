@@ -6,6 +6,25 @@ import (
 	"testing"
 )
 
+// TestConfig_DefaultHealerMode_IsObserve locks the safe default for the
+// background auto-healer. "observe" classifies findings without mutating
+// any state — the only mode that does NOT require Path B (healer loop) to
+// be unified with Path A (ExecuteRemediation gates). Any change that
+// would silently re-enable enforce-by-default must update this test and
+// pass code review with an explicit justification.
+//
+// See the audit at docs/intent/remediation.must_go_through_workflow.yaml
+// and the Patch A rationale in commit history.
+func TestConfig_DefaultHealerMode_IsObserve(t *testing.T) {
+	cfg := defaultConfig()
+	if cfg.HealerMode != "observe" {
+		t.Fatalf("default HealerMode must be %q (safe-by-default), got %q", "observe", cfg.HealerMode)
+	}
+	if !cfg.HealerEnabled {
+		t.Fatalf("HealerEnabled should remain true (observe still classifies); got false")
+	}
+}
+
 // TestLoadConfigNormalizesLoopback locks in the contract exposed by
 // docs/endpoint_resolution_policy.md: controller_endpoint/workflow_endpoint
 // loaded from disk with a loopback IP literal must be rewritten to
