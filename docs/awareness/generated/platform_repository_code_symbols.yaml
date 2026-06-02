@@ -88,3 +88,64 @@ code_symbols:
       implements:
         - globular.platform:intent.repository.revoked_key_is_unconditional_veto
         - globular.platform:intent.repository.signature_policy_gates_trust
+  - id: globular.platform:code.go.platform_repository.upstream.git_source
+    namespace: globular.platform
+    language: go
+    file: golang/repository/upstream/git_source.go
+    component: platform_repository.upstream.git_source
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.upstream_local_paths_must_reject_traversal
+        - globular.platform:invariant.repository.upstream_credentials_must_be_redacted_in_audit_logs
+      implements:
+        - globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - id: globular.platform:code.go.platform_repository.upstream.github_source
+    namespace: globular.platform
+    language: go
+    file: golang/repository/upstream/github.go
+    component: platform_repository.upstream.github_source
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.upstream_credentials_must_be_redacted_in_audit_logs
+      implements:
+        - globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - id: globular.platform:code.go.platform_repository.upstream.http_source
+    namespace: globular.platform
+    language: go
+    file: golang/repository/upstream/http_source.go
+    component: platform_repository.upstream.http_source
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - id: globular.platform:code.go.platform_repository.upstream.local_source
+    namespace: globular.platform
+    language: go
+    file: golang/repository/upstream/local_source.go
+    component: platform_repository.upstream.local_source
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.upstream_local_paths_must_reject_traversal
+      implements:
+        - globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - id: globular.platform:code.go.platform_repository.upstream.parse_and_redact
+    namespace: globular.platform
+    language: go
+    file: golang/repository/upstream/parse.go
+    component: platform_repository.upstream.parse_and_redact
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.upstream_credentials_must_be_redacted_in_audit_logs
+  - id: globular.platform:code.go.platform_repository.upstream.source_registry
+    namespace: globular.platform
+    language: go
+    file: golang/repository/upstream/source.go
+    component: platform_repository.upstream.source_registry
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.upstream_release_streams.must_be_provider_neutral

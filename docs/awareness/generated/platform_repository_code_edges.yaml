@@ -50,3 +50,33 @@ code_edges:
   - from: globular.platform:code.go.platform_repository.signature_policy
     relation: implements
     to: globular.platform:intent.repository.signature_policy_gates_trust
+  - from: globular.platform:code.go.platform_repository.upstream.git_source
+    relation: enforces
+    to: globular.platform:invariant.repository.upstream_credentials_must_be_redacted_in_audit_logs
+  - from: globular.platform:code.go.platform_repository.upstream.git_source
+    relation: enforces
+    to: globular.platform:invariant.repository.upstream_local_paths_must_reject_traversal
+  - from: globular.platform:code.go.platform_repository.upstream.git_source
+    relation: implements
+    to: globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - from: globular.platform:code.go.platform_repository.upstream.github_source
+    relation: enforces
+    to: globular.platform:invariant.repository.upstream_credentials_must_be_redacted_in_audit_logs
+  - from: globular.platform:code.go.platform_repository.upstream.github_source
+    relation: implements
+    to: globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - from: globular.platform:code.go.platform_repository.upstream.http_source
+    relation: implements
+    to: globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - from: globular.platform:code.go.platform_repository.upstream.local_source
+    relation: enforces
+    to: globular.platform:invariant.repository.upstream_local_paths_must_reject_traversal
+  - from: globular.platform:code.go.platform_repository.upstream.local_source
+    relation: implements
+    to: globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - from: globular.platform:code.go.platform_repository.upstream.parse_and_redact
+    relation: enforces
+    to: globular.platform:invariant.repository.upstream_credentials_must_be_redacted_in_audit_logs
+  - from: globular.platform:code.go.platform_repository.upstream.source_registry
+    relation: implements
+    to: globular.platform:intent.upstream_release_streams.must_be_provider_neutral

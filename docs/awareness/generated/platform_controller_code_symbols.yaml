@@ -64,6 +64,39 @@ code_symbols:
         - globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
         - globular.platform:intent.desired_state.is_authority
         - globular.platform:intent.workflow.source_of_operational_truth
+  - id: globular.platform:code.go.platform_cluster_controller.dnsprovider.cloudflare
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/internal/dnsprovider/cloudflare.go
+    component: platform_cluster_controller.dnsprovider.cloudflare
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.dnsprovider.private_ips_must_not_publish_to_public_dns
+  - id: globular.platform:code.go.platform_cluster_controller.dnsprovider.interface
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/internal/dnsprovider/provider.go
+    component: platform_cluster_controller.dnsprovider.interface
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.dnsprovider.private_ips_must_not_publish_to_public_dns
+  - id: globular.platform:code.go.platform_cluster_controller.dnsprovider.noop
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/internal/dnsprovider/noop.go
+    component: platform_cluster_controller.dnsprovider.noop
+    risk: low
+  - id: globular.platform:code.go.platform_cluster_controller.dnsprovider.rfc2136
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/internal/dnsprovider/rfc2136.go
+    component: platform_cluster_controller.dnsprovider.rfc2136
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.dnsprovider.private_ips_must_not_publish_to_public_dns
   - id: globular.platform:code.go.platform_controller.drift_action_planner
     namespace: globular.platform
     language: go

@@ -5,8 +5,8 @@ Deterministic per-run output. To diff cleanly between runs, skip the first 3 lin
 ## Summary
 
 - **Source files scanned (Go, non-test, non-generated):** 963
-- **Files with at least one direct anchor:** 281 (29%)
-- **Files with zero direct anchors:** 682 (71%)
+- **Files with at least one direct anchor:** 288 (29%)
+- **Files with zero direct anchors:** 675 (71%)
 - **Candidate entries (NOT counted in canonical coverage):** 2
 
 ## Canonical anchors by class
@@ -17,7 +17,7 @@ Deterministic per-run output. To diff cleanly between runs, skip the first 3 lin
 | failure_mode | 97 |
 | intent | 207 |
 | incident_pattern | 4 |
-| code_symbol | 138 |
+| code_symbol | 156 |
 
 _`code_symbol` entries come from `docs/awareness/generated/*_code_symbols.yaml` (the source-side `@awareness` annotation scan)._
 
@@ -29,7 +29,7 @@ Files under these paths are listed in CLAUDE.md R2 as high-risk. Uncovered files
 |---|---|---|
 | `golang/cluster_controller/cluster_controller_server` | 53/123 | 70 |
 | `golang/mcp` | 10/58 | 48 |
-| `golang/cluster_doctor/cluster_doctor_server/rules` | 13/60 | 47 |
+| `golang/cluster_doctor/cluster_doctor_server/rules` | 19/60 | 41 |
 | `golang/node_agent/node_agent_server` | 26/56 | 30 |
 | `golang/repository/repository_server` | 30/50 | 20 |
 | `golang/node_agent/node_agent_server/internal/actions` | 3/22 | 19 |
@@ -44,9 +44,9 @@ Files under these paths are listed in CLAUDE.md R2 as high-risk. Uncovered files
 | `golang/cluster_controller/resourcestore` | 0/2 | 2 |
 | `golang/node_agent/node_agent_server/internal/certs` | 0/2 | 2 |
 | `golang/repository/repositorypb` | 0/2 | 2 |
-| `golang/cluster_controller/cluster_controller_server/internal/dnsprovider` | 3/4 | 1 |
 | `golang/cluster_controller/cluster_controller_server/internal/recovery` | 0/1 | 1 |
 | `golang/cluster_controller/cluster_controller_server/rolling` | 0/1 | 1 |
+| `golang/cluster_doctor/cluster_doctor_client` | 0/1 | 1 |
 
 ## Best-covered directories (top 20 by coverage ratio)
 
@@ -54,6 +54,7 @@ Files under these paths are listed in CLAUDE.md R2 as high-risk. Uncovered files
 |---|---|---|
 | `golang/domain` | 7/7 | 100% |
 | `golang/repository/upstream` | 6/6 | 100% |
+| `golang/cluster_controller/cluster_controller_server/internal/dnsprovider` | 4/4 | 100% |
 | `golang/attestation` | 1/1 | 100% |
 | `golang/dependency` | 1/1 | 100% |
 | `golang/evidence` | 1/1 | 100% |
@@ -65,7 +66,6 @@ Files under these paths are listed in CLAUDE.md R2 as high-risk. Uncovered files
 | `golang/security` | 12/13 | 92% |
 | `golang/cluster_doctor/cluster_doctor_server` | 14/17 | 82% |
 | `golang/workflow/engine` | 11/14 | 78% |
-| `golang/cluster_controller/cluster_controller_server/internal/dnsprovider` | 3/4 | 75% |
 | `golang/dns/dns_server` | 3/4 | 75% |
 | `golang/remediation` | 3/4 | 75% |
 | `golang/interceptors` | 6/9 | 66% |
@@ -102,7 +102,6 @@ These are uncovered Go files under CLAUDE.md R2 high-risk dirs. Sorted by path. 
 - `golang/cluster_controller/cluster_controller_server/handlers_status.go`
 - `golang/cluster_controller/cluster_controller_server/handlers_upgrade.go`
 - `golang/cluster_controller/cluster_controller_server/infra_probes.go`
-- `golang/cluster_controller/cluster_controller_server/internal/dnsprovider/noop.go`
 - `golang/cluster_controller/cluster_controller_server/internal/recovery/grpc_recovery.go`
 - `golang/cluster_controller/cluster_controller_server/joinplan_sign.go`
 - `golang/cluster_controller/cluster_controller_server/joinplan_types.go`
@@ -127,7 +126,8 @@ These are uncovered Go files under CLAUDE.md R2 high-risk dirs. Sorted by path. 
 - `golang/cluster_controller/cluster_controller_server/plan_signer.go`
 - `golang/cluster_controller/cluster_controller_server/posture_metrics.go`
 - `golang/cluster_controller/cluster_controller_server/profiles_deduce.go`
-- _… and 243 more (truncated to top 50 for readability)_
+- `golang/cluster_controller/cluster_controller_server/projections/node_identity.go`
+- _… and 236 more (truncated to top 50 for readability)_
 
 ## Candidates pending review
 

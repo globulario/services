@@ -50,6 +50,15 @@ code_edges:
   - from: globular.platform:code.go.cluster_controller.release_pipeline
     relation: implements
     to: globular.platform:intent.workflow.source_of_operational_truth
+  - from: globular.platform:code.go.platform_cluster_controller.dnsprovider.cloudflare
+    relation: enforces
+    to: globular.platform:invariant.dnsprovider.private_ips_must_not_publish_to_public_dns
+  - from: globular.platform:code.go.platform_cluster_controller.dnsprovider.interface
+    relation: enforces
+    to: globular.platform:invariant.dnsprovider.private_ips_must_not_publish_to_public_dns
+  - from: globular.platform:code.go.platform_cluster_controller.dnsprovider.rfc2136
+    relation: enforces
+    to: globular.platform:invariant.dnsprovider.private_ips_must_not_publish_to_public_dns
   - from: globular.platform:code.go.platform_controller.drift_action_planner
     relation: implements
     to: globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions

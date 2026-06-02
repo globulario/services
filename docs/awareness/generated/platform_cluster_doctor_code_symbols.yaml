@@ -159,6 +159,78 @@ code_symbols:
       implements:
         - globular.platform:intent.audit.every_authority_change_is_explainable
         - globular.platform:intent.remediation.failure_rate_policy
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.controller_leader
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/controller_leader.go
+    component: platform_cluster_doctor.rules.controller_leader
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.critical_state_guardians
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/critical_state_guardians.go
+    component: platform_cluster_doctor.rules.critical_state_guardians
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.destructive_actions.require_explicit_guard
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.destructive_action_audit
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/destructive_action_audit.go
+    component: platform_cluster_doctor.rules.destructive_action_audit
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.destructive_actions.require_explicit_guard
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.etcd_stale_member
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/etcd_stale_member.go
+    component: platform_cluster_doctor.rules.etcd_stale_member
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.installed_state_runtime_mismatch
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/installed_state_runtime_mismatch.go
+    component: platform_cluster_doctor.rules.installed_state_runtime_mismatch
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.kind_mismatch
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/kind_mismatch.go
+    component: platform_cluster_doctor.rules.kind_mismatch
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.metadata_is_authority
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_physical_overlap
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_physical_overlap.go
+    component: platform_cluster_doctor.rules.objectstore_physical_overlap
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.package_version_authority
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/package_version_authority.go
+    component: platform_cluster_doctor.rules.package_version_authority
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.metadata_is_authority
   - id: globular.platform:code.go.platform_cluster_doctor.snapshot
     namespace: globular.platform
     language: go
