@@ -5,6 +5,18 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.approval_replay
     relation: implements
     to: globular.platform:intent.security.tokens_certificates_keys.cluster_trust_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.artifact_integrity_rule
+    relation: implements
+    to: globular.platform:intent.doctor.findings_are_operator_language
+  - from: globular.platform:code.go.platform_cluster_doctor.artifact_integrity_rule
+    relation: implements
+    to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.platform_cluster_doctor.collector
+    relation: implements
+    to: globular.platform:intent.doctor.findings_are_operator_language
+  - from: globular.platform:code.go.platform_cluster_doctor.config
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
   - from: globular.platform:code.go.platform_cluster_doctor.evidence_provenance
     relation: implements
     to: globular.platform:intent.health.requires_fresh_evidence
@@ -20,6 +32,12 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.failure_policy
     relation: implements
     to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.platform_cluster_doctor.heal_policy
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.platform_cluster_doctor.heal_policy
+    relation: implements
+    to: globular.platform:intent.remediation.must_go_through_workflow
   - from: globular.platform:code.go.platform_cluster_doctor.healer
     relation: implements
     to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
@@ -29,10 +47,31 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.healer
     relation: implements
     to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.platform_cluster_doctor.healer_dispatcher_classifier
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.platform_cluster_doctor.healer_dispatcher_classifier
+    relation: implements
+    to: globular.platform:intent.circuit_breakers_protect_convergence
+  - from: globular.platform:code.go.platform_cluster_doctor.healer_dispatcher_classifier
+    relation: implements
+    to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry
+    relation: implements
+    to: globular.platform:intent.doctor.findings_are_operator_language
+  - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry
+    relation: implements
+    to: globular.platform:intent.remediation.must_go_through_workflow
   - from: globular.platform:code.go.platform_cluster_doctor.leader_election
     relation: implements
     to: globular.platform:intent.doctor.findings_are_operator_language
   - from: globular.platform:code.go.platform_cluster_doctor.leader_election
+    relation: implements
+    to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.platform_cluster_doctor.node_agent_dialer
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.platform_cluster_doctor.node_agent_dialer
     relation: implements
     to: globular.platform:intent.remediation.must_go_through_workflow
   - from: globular.platform:code.go.platform_cluster_doctor.remediation_gate
@@ -50,3 +89,12 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.remediation_handler
     relation: implements
     to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.platform_cluster_doctor.remediation_history
+    relation: implements
+    to: globular.platform:intent.audit.every_authority_change_is_explainable
+  - from: globular.platform:code.go.platform_cluster_doctor.remediation_history
+    relation: implements
+    to: globular.platform:intent.remediation.failure_rate_policy
+  - from: globular.platform:code.go.platform_cluster_doctor.snapshot
+    relation: implements
+    to: globular.platform:intent.doctor.findings_are_operator_language
