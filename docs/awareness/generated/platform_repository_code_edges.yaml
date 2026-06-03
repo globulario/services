@@ -5,12 +5,54 @@ code_edges:
   - from: globular.platform:code.go.platform_repository.allocate_upload
     relation: implements
     to: globular.platform:intent.repository.version_allocation_is_exclusive
+  - from: globular.platform:code.go.platform_repository.artifact_admin
+    relation: enforces
+    to: globular.platform:invariant.repository.artifact.state_transitions_are_forward_only
+  - from: globular.platform:code.go.platform_repository.artifact_admin
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.platform_repository.artifact_admin
+    relation: implements
+    to: globular.platform:intent.repository.repair_is_explicit
+  - from: globular.platform:code.go.platform_repository.artifact_handlers
+    relation: enforces
+    to: globular.platform:invariant.repository.artifact.content_immutable_after_publish
+  - from: globular.platform:code.go.platform_repository.artifact_handlers
+    relation: enforces
+    to: globular.platform:invariant.repository.artifact_presence_requires_metadata_and_blob
+  - from: globular.platform:code.go.platform_repository.artifact_handlers
+    relation: implements
+    to: globular.platform:intent.repository.metadata_is_authority
+  - from: globular.platform:code.go.platform_repository.artifact_handlers
+    relation: implements
+    to: globular.platform:intent.repository.publish_pipeline_is_ordered
+  - from: globular.platform:code.go.platform_repository.artifact_law_validator
+    relation: enforces
+    to: globular.platform:invariant.repository.published_requires_verified_manifest
+  - from: globular.platform:code.go.platform_repository.artifact_law_validator
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
   - from: globular.platform:code.go.platform_repository.artifact_state
     relation: implements
     to: globular.platform:intent.repository.lifecycle_state_machine
   - from: globular.platform:code.go.platform_repository.artifact_state
     relation: implements
     to: globular.platform:intent.repository.publish_pipeline_is_ordered
+  - from: globular.platform:code.go.platform_repository.artifact_state_backfill
+    relation: enforces
+    to: globular.platform:invariant.repository.artifact.state_transitions_are_forward_only
+  - from: globular.platform:code.go.platform_repository.artifact_state_backfill
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.platform_repository.artifact_verify_rpc
+    relation: enforces
+    to: globular.platform:invariant.repository.artifact.installable_compound_predicate
+  - from: globular.platform:code.go.platform_repository.artifact_verify_rpc
+    relation: implements
+    to: globular.platform:intent.repository.metadata_is_authority
+  - from: globular.platform:code.go.platform_repository.artifact_verify_rpc
+    relation: implements
+    to: globular.platform:intent.repository.repair_is_explicit
   - from: globular.platform:code.go.platform_repository.blob_integrity
     relation: implements
     to: globular.platform:intent.repository.local_cas_is_installability_authority
@@ -23,21 +65,66 @@ code_edges:
   - from: globular.platform:code.go.platform_repository.gc
     relation: implements
     to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.platform_repository.install_policy
+    relation: implements
+    to: globular.platform:intent.repository.metadata_is_authority
+  - from: globular.platform:code.go.platform_repository.manifest_cache
+    relation: enforces
+    to: globular.platform:invariant.repository.artifact.content_immutable_after_publish
+  - from: globular.platform:code.go.platform_repository.manifest_cache
+    relation: implements
+    to: globular.platform:intent.repository.metadata_is_authority
   - from: globular.platform:code.go.platform_repository.namespace
     relation: implements
     to: globular.platform:intent.repository.namespace_ownership_protects_reserved_prefixes
+  - from: globular.platform:code.go.platform_repository.publish_reconciler
+    relation: enforces
+    to: globular.platform:invariant.repository.artifact.state_transitions_are_forward_only
+  - from: globular.platform:code.go.platform_repository.publish_reconciler
+    relation: implements
+    to: globular.platform:intent.repository.lifecycle_state_machine
+  - from: globular.platform:code.go.platform_repository.publish_reconciler
+    relation: implements
+    to: globular.platform:intent.repository.publish_pipeline_is_ordered
   - from: globular.platform:code.go.platform_repository.publish_workflow
     relation: implements
     to: globular.platform:intent.repository.lifecycle_state_machine
   - from: globular.platform:code.go.platform_repository.publish_workflow
     relation: implements
     to: globular.platform:intent.repository.publish_pipeline_is_ordered
+  - from: globular.platform:code.go.platform_repository.release_index
+    relation: implements
+    to: globular.platform:intent.repository.metadata_is_authority
+  - from: globular.platform:code.go.platform_repository.release_index
+    relation: implements
+    to: globular.platform:intent.repository.publish_is_idempotent_by_digest
+  - from: globular.platform:code.go.platform_repository.release_ledger
+    relation: enforces
+    to: globular.platform:invariant.repository.desired_build_id_must_resolve
+  - from: globular.platform:code.go.platform_repository.release_ledger
+    relation: implements
+    to: globular.platform:intent.repository.metadata_is_authority
+  - from: globular.platform:code.go.platform_repository.release_ledger
+    relation: implements
+    to: globular.platform:intent.repository.resolver_is_deterministic_or_errors
+  - from: globular.platform:code.go.platform_repository.release_ledger
+    relation: implements
+    to: globular.platform:intent.repository.version_allocation_is_exclusive
   - from: globular.platform:code.go.platform_repository.resolver
     relation: implements
     to: globular.platform:intent.repository.lifecycle_state_machine
   - from: globular.platform:code.go.platform_repository.resolver
     relation: implements
     to: globular.platform:intent.repository.resolver_is_deterministic_or_errors
+  - from: globular.platform:code.go.platform_repository.rollback
+    relation: enforces
+    to: globular.platform:invariant.repository.artifact.deletion_never_triggers_uninstall
+  - from: globular.platform:code.go.platform_repository.rollback
+    relation: enforces
+    to: globular.platform:invariant.repository.artifact.installable_compound_predicate
+  - from: globular.platform:code.go.platform_repository.rollback
+    relation: implements
+    to: globular.platform:intent.repository.metadata_is_authority
   - from: globular.platform:code.go.platform_repository.server
     relation: implements
     to: globular.platform:intent.repository.lifecycle_state_machine
@@ -48,6 +135,39 @@ code_edges:
     relation: implements
     to: globular.platform:intent.repository.revoked_key_is_unconditional_veto
   - from: globular.platform:code.go.platform_repository.signature_policy
+    relation: implements
+    to: globular.platform:intent.repository.signature_policy_gates_trust
+  - from: globular.platform:code.go.platform_repository.signing
+    relation: enforces
+    to: globular.platform:invariant.repository.signing.verification_must_precede_install
+  - from: globular.platform:code.go.platform_repository.signing
+    relation: implements
+    to: globular.platform:intent.repository.revoked_key_is_unconditional_veto
+  - from: globular.platform:code.go.platform_repository.signing
+    relation: implements
+    to: globular.platform:intent.repository.signature_policy_gates_trust
+  - from: globular.platform:code.go.platform_repository.signing_rpc
+    relation: implements
+    to: globular.platform:intent.repository.revoked_key_is_unconditional_veto
+  - from: globular.platform:code.go.platform_repository.signing_rpc
+    relation: implements
+    to: globular.platform:intent.repository.signature_policy_gates_trust
+  - from: globular.platform:code.go.platform_repository.sync_from_upstream
+    relation: enforces
+    to: globular.platform:invariant.repository.build_id_server_generated_not_client_driven
+  - from: globular.platform:code.go.platform_repository.sync_from_upstream
+    relation: enforces
+    to: globular.platform:invariant.repository.sync_must_not_silently_drop_noarch_artifacts
+  - from: globular.platform:code.go.platform_repository.sync_from_upstream
+    relation: implements
+    to: globular.platform:intent.repository.publish_is_idempotent_by_digest
+  - from: globular.platform:code.go.platform_repository.sync_from_upstream
+    relation: implements
+    to: globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - from: globular.platform:code.go.platform_repository.trusted_publisher
+    relation: implements
+    to: globular.platform:intent.repository.namespace_ownership_protects_reserved_prefixes
+  - from: globular.platform:code.go.platform_repository.trusted_publisher
     relation: implements
     to: globular.platform:intent.repository.signature_policy_gates_trust
   - from: globular.platform:code.go.platform_repository.upstream.git_source
