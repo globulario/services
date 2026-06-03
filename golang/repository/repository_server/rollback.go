@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.rollback
+// @awareness file_role=installed_revision_history_and_rollback_candidate_filter_with_compound_installable_predicate
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness enforces=globular.platform:invariant.repository.artifact.installable_compound_predicate
+// @awareness enforces=globular.platform:invariant.repository.artifact.deletion_never_triggers_uninstall
+// @awareness risk=critical
 package main
+
+// rollback.go — repository owns the install-history table.
+// Node-agents call RecordInstalledRevision after every
+// successful install/upgrade/rollback. ListRollbackCandidates
+// applies the compound installable predicate (PUBLISHED state,
+// blob present + size match, signature passes policy, not
+// REVOKED).
+//
+// Auto-downgrade gating is deferred to the caller — this file
+// surfaces the set of viable rollback targets but does not
+// initiate one. The controller's typed rollback RPC is the
+// only path that mutates desired state; this file is read-
+// authoritative.
 
 // rollback.go — Phase CLI-C installed-revision history + rollback candidates.
 //

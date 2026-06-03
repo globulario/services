@@ -1,4 +1,31 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.sync_from_upstream
+// @awareness file_role=upstream_registry_and_artifact_sync_pipeline_with_noarch_handling_and_buildid_derivation
+// @awareness implements=globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+// @awareness implements=globular.platform:intent.repository.publish_is_idempotent_by_digest
+// @awareness enforces=globular.platform:invariant.repository.sync_must_not_silently_drop_noarch_artifacts
+// @awareness enforces=globular.platform:invariant.repository.build_id_server_generated_not_client_driven
+// @awareness risk=critical
 package main
+
+// sync_from_upstream.go — the import-pipeline center. Three
+// load-bearing properties — every one of them has its own
+// past incident:
+//
+//  1. platformMatchesTarget treats `noarch` as a wildcard.
+//     Silently dropping noarch entries (the awareness bundle
+//     class) was the root cause of v1.2.117's
+//     DesiredBuildIdOrphaned finding; the fix unified the
+//     matcher behind a single function.
+//
+//  2. build_id is server-derived, never client-asserted.
+//     UpstreamImport metadata is recorded for audit but does
+//     NOT allow a publisher to dictate identity — that's
+//     repository.build_id_server_generated_not_client_driven.
+//
+//  3. importUpstreamArtifact stores blob + manifest atomically
+//     (the INC-2026-0012 fix). Reordering writes here re-opens
+//     the manifest-skeleton-null-JSON class.
 
 // sync_from_upstream.go — Phase 3: Upstream source registry and sync.
 //

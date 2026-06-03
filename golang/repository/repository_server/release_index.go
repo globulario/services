@@ -1,4 +1,22 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.release_index
+// @awareness file_role=canonical_release_index_schema_and_validator_v1_and_v2_bom_model_with_package_contract_digest
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness implements=globular.platform:intent.repository.publish_is_idempotent_by_digest
+// @awareness risk=critical
 package main
+
+// release_index.go — DAY-0 + Day-1 truth. release-index.json is
+// the contract between CI/publish tooling and SyncFromUpstream.
+// V2 (BOM model) adds package_contract_digest as the single
+// authoritative identity for "this artifact's content" — change
+// detection, version monotonicity, and the entire upstream sync
+// pipeline use it.
+//
+// MUST stay backwards-compatible. The structs here are the
+// single source of truth for both deserialization (sync) and
+// generation (CI tooling). Adding a field without a default
+// breaks every release older than the change.
 
 // release_index.go — Canonical schema definition and validation for
 // release-index.json, the contract between CI/publish tooling and the

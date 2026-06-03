@@ -1,4 +1,17 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.install_policy
+// @awareness file_role=cluster_install_policy_storage_in_minio_with_single_json_key
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness risk=high
 package main
+
+// install_policy.go — persists InstallPolicySpec at a single,
+// well-known MinIO key. The policy governs which artifacts are
+// installable cluster-wide (channels, kinds, signature
+// requirements). The single-key model means there is one
+// authoritative policy; no per-node overrides, no MinIO bucket
+// wildcards. Reading from anywhere else would let a stale or
+// local-fork policy override the cluster's true rule.
 
 import (
 	"context"

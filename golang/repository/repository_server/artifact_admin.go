@@ -1,4 +1,27 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.artifact_admin
+// @awareness file_role=repair_quarantine_revoke_helpers_wrapping_artifact_state_machine_with_per_action_preconditions
+// @awareness implements=globular.platform:intent.repository.repair_is_explicit
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness enforces=globular.platform:invariant.repository.artifact.state_transitions_are_forward_only
+// @awareness risk=critical
 package main
+
+// artifact_admin.go — operator-initiated repair, quarantine,
+// and revoke. Wraps the pipeline state machine in
+// artifact_state.go with action-specific preconditions:
+//
+//   RepairArtifactFromUpstream — requires BROKEN_MISSING_BLOB
+//     or BROKEN_CHECKSUM_MISMATCH, a usable UpstreamImport, and
+//     a still-reachable source with a compatible policy
+//   QuarantineArtifact / Unquarantine — reversible only after
+//     a clean VerifyArtifact
+//   RevokeArtifact — TERMINAL; sync cannot auto-repair afterward
+//
+// MUST NOT loosen the preconditions. Every repair path is
+// explicit by design (intent: repair_is_explicit); auto-repair
+// of revoked or quarantined artifacts re-opens supply-chain
+// poisoning vectors that the state machine exists to prevent.
 
 // artifact_admin.go — internal helpers for repair, quarantine, revoke.
 //

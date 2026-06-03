@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.trusted_publisher
+// @awareness file_role=trusted_ci_publisher_relationship_storage_with_constraint_audit_metadata
+// @awareness implements=globular.platform:intent.repository.signature_policy_gates_trust
+// @awareness implements=globular.platform:intent.repository.namespace_ownership_protects_reserved_prefixes
+// @awareness risk=high
 package main
+
+// trusted_publisher.go — JSON-on-MinIO record of CI ↔
+// namespace publishing relationships. Adding a relationship is
+// the explicit operator decision to let a CI identity publish
+// under a namespace beyond simple RBAC.
+//
+// Constraint fields (branch, tag pattern, environment) are
+// hints: the actual identity check happens at upload time in
+// the artifact handler. Loosening the constraint validator
+// here cascades into "any CI run can publish anywhere" — keep
+// the validator strict.
 
 // trusted_publisher.go — data model for trusted CI publishing relationships.
 //

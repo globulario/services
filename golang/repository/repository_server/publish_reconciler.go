@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.publish_reconciler
+// @awareness file_role=background_retry_loop_promoting_stuck_verified_artifacts_to_published_with_bounded_attempts
+// @awareness implements=globular.platform:intent.repository.publish_pipeline_is_ordered
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness enforces=globular.platform:invariant.repository.artifact.state_transitions_are_forward_only
+// @awareness risk=high
 package main
+
+// publish_reconciler.go — closes the BLOB_VERIFIED stuck class.
+// completePublish in UploadArtifact can fail (e.g. MinIO blip,
+// network glitch) leaving an artifact in VERIFIED while the
+// caller-side error path looks clean. This reconciler scans
+// VERIFIED rows periodically and retries promotion, bounded by
+// a per-artifact retry limit so a permanently-broken row does
+// not loop forever.
+//
+// MUST keep the retry bound. Unbounded retries would hide a
+// genuine completePublish failure behind "the reconciler keeps
+// trying"; the bound forces escalation as a doctor finding so
+// operators see what's stuck.
 
 // publish_reconciler.go — Background goroutine that retries stuck VERIFIED artifacts.
 //

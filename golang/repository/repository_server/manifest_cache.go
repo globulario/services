@@ -1,4 +1,22 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.manifest_cache
+// @awareness file_role=in_memory_ttl_cache_invalidated_on_publish_promote_delete_state_change
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness enforces=globular.platform:invariant.repository.artifact.content_immutable_after_publish
+// @awareness risk=high
 package main
+
+// manifest_cache.go — caches manifests safely because they
+// are content-immutable post-publish. Every mutation path
+// (upload, promote, delete, state change) MUST invalidate the
+// affected entry; missing an invalidation surfaces as
+// "operator sees pre-mutation manifest after a write" — a
+// confusing class of bug that hides real problems.
+//
+// MUST NOT cache anything that isn't immutable. Adding the
+// install-policy or release-ledger to this cache would re-
+// introduce stale-read bugs the immutability assumption was
+// designed to avoid.
 
 // manifest_cache.go — in-memory TTL cache for artifact manifests and directory listings.
 //

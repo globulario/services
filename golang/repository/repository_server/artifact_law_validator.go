@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.artifact_law_validator
+// @awareness file_role=named_testable_rules_blocking_promotion_to_published_when_manifest_violates_formal_invariants
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness enforces=globular.platform:invariant.repository.published_requires_verified_manifest
+// @awareness risk=critical
 package main
+
+// artifact_law_validator.go — runs every rule against an
+// incoming manifest BEFORE it can be promoted to PUBLISHED.
+// Each rule corresponds to one of the formal repository
+// lifecycle invariants — e.g. INV_C_NO_DEP_ON_APPLICATION
+// (graph inversion guard), version-monotonicity, no-duplicate-
+// build_id.
+//
+// Adding a new rule means adding a named, testable function
+// here AND a matching invariant in
+// docs/awareness/invariants.yaml. Silently relaxing a rule
+// "because legacy artifacts violate it" is exactly how the
+// publish state machine accumulates inconsistency — surface
+// the violation as a finding, do not auto-quiet it.
 
 // artifact_law_validator.go — Artifact law enforcement (PR 3).
 //

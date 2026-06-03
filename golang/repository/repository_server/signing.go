@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.signing
+// @awareness file_role=ed25519_artifact_digest_signing_with_trusted_publisher_lookup_and_verification
+// @awareness implements=globular.platform:intent.repository.signature_policy_gates_trust
+// @awareness implements=globular.platform:intent.repository.revoked_key_is_unconditional_veto
+// @awareness enforces=globular.platform:invariant.repository.signing.verification_must_precede_install
+// @awareness risk=critical
 package main
+
+// signing.go — Ed25519 artifact digest signing. The repository
+// NEVER stores private keys (they live under
+// /var/lib/globular/keys/); public keys are TrustedPublisher
+// rows in ScyllaDB. Verification gates install via the
+// signature policy.
+//
+// Revoked-key veto is UNCONDITIONAL: a signature signed by a
+// key whose TrustedPublisher row is in REVOKED state MUST
+// fail verification regardless of validity window or signature
+// freshness. Adding an "override for emergency repair" branch
+// here would undo the entire supply-chain trust model — use
+// the explicit ArtifactAdmin repair path instead.
 
 // signing.go — Phase CLI-B signing / trusted publisher / signature verification.
 //

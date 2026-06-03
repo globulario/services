@@ -1,4 +1,16 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.signing_rpc
+// @awareness file_role=public_rpc_register_revoke_list_trusted_publisher_and_sign_verify_artifact_signature
+// @awareness implements=globular.platform:intent.repository.signature_policy_gates_trust
+// @awareness implements=globular.platform:intent.repository.revoked_key_is_unconditional_veto
+// @awareness risk=critical
 package main
+
+// signing_rpc.go — operator-facing trust + signature surface.
+// RegisterTrustedPublisher / RevokeTrustedPublisher are RBAC-
+// gated; revocation is irreversible (a new registration is
+// the only path back, intentionally). Verification RPCs
+// surface the signing.go result verbatim.
 
 // signing_rpc.go — Phase CLI-B public RPCs for trust + signature.
 

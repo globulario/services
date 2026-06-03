@@ -1,4 +1,23 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.artifact_verify_rpc
+// @awareness file_role=public_rpc_verify_repair_explain_artifact_no_logic_duplication
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness implements=globular.platform:intent.repository.repair_is_explicit
+// @awareness enforces=globular.platform:invariant.repository.artifact.installable_compound_predicate
+// @awareness risk=critical
 package main
+
+// artifact_verify_rpc.go — operator-facing wrappers around
+// verifyArtifactIntegrity, RepairArtifactFromUpstream,
+// readManifestAndStateByKey, and artifactBlobStatus. NO
+// verification logic is reimplemented here — the repository
+// service is the single source of truth for installable
+// status.
+//
+// Adding "lite verification" or "quick check" branches that
+// bypass verifyArtifactIntegrity would let an unverified
+// artifact slip past the explain UI as installable. Surface
+// the truth verbatim; the operator decides what to do.
 
 // artifact_verify_rpc.go — public RPC handlers for VerifyArtifact /
 // RepairArtifact / ExplainArtifact.

@@ -1,4 +1,30 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.artifact_handlers
+// @awareness file_role=repository_rpc_handlers_for_list_get_upload_download_search_versions_delete_artifact
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness implements=globular.platform:intent.repository.publish_pipeline_is_ordered
+// @awareness enforces=globular.platform:invariant.repository.artifact_presence_requires_metadata_and_blob
+// @awareness enforces=globular.platform:invariant.repository.artifact.content_immutable_after_publish
+// @awareness risk=critical
 package main
+
+// artifact_handlers.go — the public-facing artifact RPC surface.
+// Storage layout uses
+// `{publisher}%{name}%{version}%{platform}%{buildNumber}` keys
+// with legacy (build_number=0) fallback. Two safety properties
+// that MUST stay intact:
+//
+//  1. Manifest + blob must be written together (atomic from the
+//     caller's point of view). Skeleton manifests with null JSON
+//     was INC-2026-0012; the fix made UpdateArtifactState and
+//     PutManifest atomic. Re-introducing a code path that writes
+//     manifest before blob (or vice versa) re-opens the same
+//     class.
+//
+//  2. Published artifacts are CONTENT-IMMUTABLE. DeleteArtifact
+//     is the only way bytes go away; UploadArtifact rejects
+//     overwrites on PUBLISHED. Loosening that gate breaks
+//     repository.artifact.content_immutable_after_publish.
 
 // artifact_handlers.go — repository RPC handlers for artifact management.
 //

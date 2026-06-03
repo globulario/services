@@ -1,4 +1,28 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.release_ledger
+// @awareness file_role=per_package_release_ledger_in_scylla_with_minio_json_fallback_for_monotonic_version_authority
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness implements=globular.platform:intent.repository.version_allocation_is_exclusive
+// @awareness implements=globular.platform:intent.repository.resolver_is_deterministic_or_errors
+// @awareness enforces=globular.platform:invariant.repository.desired_build_id_must_resolve
+// @awareness risk=critical
 package main
+
+// release_ledger.go — durable record of every PUBLISHED release
+// for a package. Enforces version MONOTONICITY (new RELEASED >
+// latest) and provides deterministic version → build_id
+// resolution.
+//
+// Two-tier storage: ScyllaDB (consistent, distributed) primary,
+// MinIO JSON fallback when Scylla is unavailable. Reads MUST
+// prefer Scylla — using MinIO as authority would let a stale
+// snapshot win when Scylla recovers.
+//
+// Written on every promote-to-PUBLISHED transition; read by the
+// release resolver for latest-version queries. Any code path
+// that writes PUBLISHED state but skips the ledger write
+// silently breaks rollback (rollback.go consults the ledger to
+// validate candidate versions).
 
 // release_ledger.go — Per-package release ledger.
 //

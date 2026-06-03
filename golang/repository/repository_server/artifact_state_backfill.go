@@ -1,4 +1,25 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_repository.artifact_state_backfill
+// @awareness file_role=stat_only_classification_of_legacy_artifact_rows_into_pipeline_state_machine
+// @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
+// @awareness enforces=globular.platform:invariant.repository.artifact.state_transitions_are_forward_only
+// @awareness risk=high
 package main
+
+// artifact_state_backfill.go — DIAGNOSTIC + IDEMPOTENT
+// migration. Classifies pre-pipeline manifest rows into
+// PUBLISHED / BROKEN_MISSING_BLOB / BROKEN_CHECKSUM_MISMATCH
+// using only os.Stat (size comparison). Full sha256
+// verification belongs to VerifyArtifact; this file MUST NOT
+// do hashing — heavy I/O during startup would block the
+// repository service.
+//
+// Writes ONLY to rows where artifact_state is empty
+// (PipelineUnspecified). Concrete states are never
+// overwritten, so a backfill running against an
+// already-migrated repository is a safe no-op. Removing the
+// empty-state guard would let backfill silently downgrade a
+// verified PUBLISHED to a stat-only classification.
 
 // artifact_state_backfill.go — bounded migration of legacy rows into the
 // ArtifactPipelineState model.
