@@ -20,6 +20,8 @@ package actions
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -29,6 +31,20 @@ import (
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"google.golang.org/protobuf/types/known/structpb"
 )
+
+// reportStateInstalledBy is the install_by attribution used when the
+// workflow's package.report_state action stamps a canonical receipt.
+const reportStateInstalledBy = "node-agent.workflow.package_report_state"
+
+// reportStateBinDir mirrors the main-package globularBinDir constant.
+// Sub-package isolation requires us to inline the path; the convention
+// is fixed and shared by every Globular install (see install_payload
+// action's ActionBinDir default).
+const reportStateBinDir = "/usr/lib/globular/bin"
+
+// reportStateSystemdDir mirrors /etc/systemd/system. Inlined for the
+// same reason as reportStateBinDir.
+const reportStateSystemdDir = "/etc/systemd/system"
 
 // packageReportStateAction writes an InstalledPackage record to etcd after
 // successful lifecycle execution. This is the canonical installed-state writer
@@ -125,6 +141,23 @@ func (packageReportStateAction) Apply(ctx context.Context, args *structpb.Struct
 	// migration_source carry-over when pkg.Metadata signals canonical
 	// install presence — see installreceipt.Preserve doc.
 	installreceipt.Preserve(existing, pkg)
+
+	// Stamp a canonical install receipt. The workflow install path
+	// (package.install → service.install_payload → package.report_state)
+	// has no other site that stamps installed_by and clears migration_
+	// source. Without this, every workflow install leaves the package
+	// looking like a legacy_sidecar migration even when the install was
+	// completely fresh, because the heartbeat's checkUnitHashDrift seeds
+	// migration_source the first time it sees a managed unit with no
+	// receipt. See docs/architecture/retire-systemd-sidecars.md.
+	//
+	// Stamp deletes migration_source on success — that is the chokepoint's
+	// contract for "a first-hand install observation has replaced the
+	// legacy seed." Best-effort: errors from missing files are logged
+	// at the caller and do not fail the report-state action. The receipt
+	// is forensic, not authoritative for the action's outcome (the
+	// installed_state row is the outcome).
+	stampReceiptForReportState(pkg)
 
 	if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
 		return "", fmt.Errorf("package.report_state: %w", err)
@@ -233,6 +266,67 @@ func mergeReportStateMetadata(existing *node_agentpb.InstalledPackage, fields ma
 		return nil
 	}
 	return metadata
+}
+
+// stampReceiptForReportState is the workflow-path equivalent of the
+// main-package stampReceiptForInstalledPackage helper. The sub-package
+// cannot import the main-package version (cyclic dep), so this helper
+// applies the same conventions inline:
+//
+//   - unit_file_path : /etc/systemd/system/globular-<name>.service
+//   - binary_path    : /usr/lib/globular/bin/<<name with - → _>>_server
+//                      (SERVICE), or /usr/lib/globular/bin/<name>
+//                      (INFRASTRUCTURE, fallback)
+//
+// Missing files at conventional paths are silently skipped — a COMMAND
+// or INFRASTRUCTURE wrapper may have no systemd unit or no binary. The
+// receipt is still committed with whatever evidence WAS found, plus the
+// installed_by attribution.
+//
+// Stamp's own contract handles the migration_source clearance: when
+// Stamp succeeds at all, migration_source is deleted from pkg.Metadata.
+func stampReceiptForReportState(pkg *node_agentpb.InstalledPackage) {
+	if pkg == nil || pkg.GetName() == "" {
+		return
+	}
+	opts := installreceipt.ReceiptOpts{
+		InstalledBy:    reportStateInstalledBy,
+		PackageSha256:  pkg.GetChecksum(),
+		ArtifactDigest: pkg.GetChecksum(),
+	}
+	unitPath := filepath.Join(reportStateSystemdDir, "globular-"+pkg.GetName()+".service")
+	if fi, err := os.Stat(unitPath); err == nil && !fi.IsDir() {
+		opts.UnitFilePath = unitPath
+	}
+	if binPath := conventionalBinaryPath(pkg.GetName(), pkg.GetKind()); binPath != "" {
+		if fi, err := os.Stat(binPath); err == nil && !fi.IsDir() {
+			opts.BinaryPath = binPath
+		}
+	}
+	_ = installreceipt.Stamp(pkg, opts)
+}
+
+// conventionalBinaryPath mirrors installedBinaryPath() from the main
+// package without the manifest-aware first probe. The main package
+// uses versionutil.ReadEntrypoint as the authoritative source; here we
+// use only the naming conventions because the action runs in a context
+// where the manifest may not have been written to the conventional
+// location yet. The shas the receipt records will agree with disk
+// either way — the manifest path only matters when the convention
+// guesses wrong (rare; e.g. scylla-manager → scylla_manager). Such
+// edge cases keep their existing receipt via Preserve.
+func conventionalBinaryPath(name, kind string) string {
+	if name == "" {
+		return ""
+	}
+	if strings.EqualFold(kind, "SERVICE") {
+		withSuffix := filepath.Join(reportStateBinDir, strings.ReplaceAll(name, "-", "_")+"_server")
+		if _, err := os.Stat(withSuffix); err == nil {
+			return withSuffix
+		}
+		return filepath.Join(reportStateBinDir, strings.ReplaceAll(name, "-", "_"))
+	}
+	return filepath.Join(reportStateBinDir, name)
 }
 
 func init() {

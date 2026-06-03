@@ -5,6 +5,7 @@
 package actions
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/installreceipt"
@@ -257,5 +258,98 @@ func TestPackageReportState_NoExistingPkg(t *testing.T) {
 	installreceipt.Preserve(nil, next)
 	if next.Metadata != nil {
 		t.Errorf("expected nil metadata on first-time write, got %v", next.Metadata)
+	}
+}
+
+// TestStampReceiptForReportState_NilSafeAndShortCircuits proves the
+// helper tolerates nil pkg and empty Name without panic.
+func TestStampReceiptForReportState_NilSafeAndShortCircuits(t *testing.T) {
+	stampReceiptForReportState(nil)
+	stampReceiptForReportState(&node_agentpb.InstalledPackage{})
+}
+
+// TestStampReceiptForReportState_StampsInstalledByEvenWithoutFiles
+// proves the helper writes installed_by even when conventional file
+// paths do not exist. The receipt is forensic — partial receipts are
+// allowed when binaries/units are not at conventional paths; what is
+// NOT allowed is a missing installed_by, because that is the canonical
+// signal that report_state is the install commit.
+func TestStampReceiptForReportState_StampsInstalledByEvenWithoutFiles(t *testing.T) {
+	pkg := &node_agentpb.InstalledPackage{
+		Name:    "test-no-files-on-disk-12345",
+		Kind:    "SERVICE",
+		Version: "1.0.0",
+	}
+	stampReceiptForReportState(pkg)
+	if pkg.Metadata[installreceipt.KeyInstalledBy] != reportStateInstalledBy {
+		t.Errorf("installed_by not stamped; got %q want %q",
+			pkg.Metadata[installreceipt.KeyInstalledBy], reportStateInstalledBy)
+	}
+	if pkg.Metadata[installreceipt.KeyInstalledAt] == "" {
+		t.Errorf("installed_at not stamped")
+	}
+}
+
+// TestStampReceiptForReportState_ClearsMigrationSource proves the
+// helper's Stamp call clears any prior legacy_sidecar marker, which
+// is the contract for "a first-hand install observation has replaced
+// the legacy seed." This is the regression for the missing canonical-
+// stamp bug observed on the live cluster after node-agent install
+// 1.2.146 → 1.2.148: migration_source persisted because no stamp site
+// existed in the workflow install path.
+func TestStampReceiptForReportState_ClearsMigrationSource(t *testing.T) {
+	pkg := &node_agentpb.InstalledPackage{
+		Name: "x",
+		Kind: "SERVICE",
+		Metadata: map[string]string{
+			installreceipt.KeyMigrationSource: installreceipt.MigrationSourceLegacySidecar,
+			installreceipt.KeyUnitFileSha256:  "deadbeef",
+		},
+	}
+	stampReceiptForReportState(pkg)
+	if _, present := pkg.Metadata[installreceipt.KeyMigrationSource]; present {
+		t.Errorf("migration_source not cleared; got %q",
+			pkg.Metadata[installreceipt.KeyMigrationSource])
+	}
+	if pkg.Metadata[installreceipt.KeyInstalledBy] != reportStateInstalledBy {
+		t.Errorf("installed_by not stamped; got %q", pkg.Metadata[installreceipt.KeyInstalledBy])
+	}
+}
+
+// TestConventionalBinaryPath proves the binary-path convention used
+// when the manifest is unavailable: SERVICE kind probes <name>_server
+// first then plain <name>; INFRASTRUCTURE returns <name>.
+func TestConventionalBinaryPath(t *testing.T) {
+	tests := []struct {
+		name string
+		kind string
+		want string
+	}{
+		{"foo", "SERVICE", "/usr/lib/globular/bin/foo_server"},
+		{"scylla-manager", "SERVICE", "/usr/lib/globular/bin/scylla_manager_server"},
+		{"etcd", "INFRASTRUCTURE", "/usr/lib/globular/bin/etcd"},
+		{"my-app", "APPLICATION", "/usr/lib/globular/bin/my-app"},
+		{"", "SERVICE", ""},
+	}
+	for _, tt := range tests {
+		got := conventionalBinaryPath(tt.name, tt.kind)
+		// SERVICE kind probes filesystem first — if the file doesn't
+		// exist, falls through to the underscore-converted name.
+		// We can't easily mock the file existence here, so just
+		// assert the path starts with the expected prefix.
+		if tt.want == "" {
+			if got != "" {
+				t.Errorf("conventionalBinaryPath(%q,%q) = %q, want empty",
+					tt.name, tt.kind, got)
+			}
+			continue
+		}
+		// For SERVICE kind, either the _server or plain variant is
+		// acceptable depending on filesystem.
+		altWant := strings.TrimSuffix(tt.want, "_server")
+		if got != tt.want && got != altWant {
+			t.Errorf("conventionalBinaryPath(%q,%q) = %q, want %q or %q",
+				tt.name, tt.kind, got, tt.want, altWant)
+		}
 	}
 }
