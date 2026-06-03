@@ -166,7 +166,17 @@ type installedRow struct {
 
 // walkCatalogFor scans the repository's artifact manifests for any file
 // whose name matches one of the candidate names. Returns the full version
-// set (as semver strings), the highest version, the kind, and the publisher.
+// set (as semver strings — comprehensive forensic inventory), the highest
+// INSTALLABLE-BY-PIN version as `latest`, the kind, and the publisher.
+//
+// `latest` is filtered through repopb.IsInstallableByPin so a YANKED /
+// QUARANTINED / REVOKED / ARCHIVED / CORRUPTED / FAILED / ORPHANED build
+// can never appear as the package's latest version in operator output —
+// matching the semantics already enforced by the resolver and by the
+// cluster-doctor's RepositoryVersionIndex (collector.go:1034-1038).
+// `versions` keeps every observed version (installable or not) since it
+// serves as a forensic inventory in `globular repository explain-package`.
+//
 // If multiple publishers publish the same name, the first one observed wins
 // (catalog conflicts are a separate problem).
 func (srv *server) walkCatalogFor(ctx context.Context, candidates []string, publisherFilter string) (r struct {
@@ -181,13 +191,18 @@ func (srv *server) walkCatalogFor(ctx context.Context, candidates []string, publ
 		return r
 	}
 	seen := make(map[string]struct{})
+	// versionInstallable tracks whether ANY build at a given version is
+	// installable-by-pin. A single version can have multiple builds
+	// (different build_numbers / platforms / publishers); the version is
+	// considered installable as long as at least one of those builds is.
+	versionInstallable := make(map[string]bool)
 	for _, e := range entries {
 		fname := e.Name()
 		if !strings.HasSuffix(fname, ".manifest.json") {
 			continue
 		}
 		key := strings.TrimSuffix(fname, ".manifest.json")
-		m, err := srv.readManifestByKey(ctx, key)
+		_, state, m, err := srv.readManifestAndStateByKey(ctx, key)
 		if err != nil {
 			continue
 		}
@@ -202,9 +217,14 @@ func (srv *server) walkCatalogFor(ctx context.Context, candidates []string, publ
 			continue
 		}
 		v := ref.GetVersion()
-		if _, ok := seen[v]; !ok && v != "" {
-			seen[v] = struct{}{}
-			r.versions = append(r.versions, v)
+		if v != "" {
+			if _, ok := seen[v]; !ok {
+				seen[v] = struct{}{}
+				r.versions = append(r.versions, v)
+			}
+			if repopb.IsInstallableByPin(state) {
+				versionInstallable[v] = true
+			}
 		}
 		if r.kind == repopb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
 			// Apply kind inference to correct artifacts published before the kind
@@ -213,7 +233,7 @@ func (srv *server) walkCatalogFor(ctx context.Context, candidates []string, publ
 			// and command packages; it returns the current value unchanged for
 			// packages whose kind is unambiguous from the manifest alone.
 			//
-			// readManifestByKey already applies inferCorrectKind in-place on the
+			// readManifestAndStateByKey already applies inferCorrectKind in-place on the
 			// proto (so ref.GetKind() is already the corrected value). To capture
 			// the pre-normalization stored kind we re-read the raw bytes here —
 			// this is a diagnostic-only path, not a hot path.
@@ -226,9 +246,25 @@ func (srv *server) walkCatalogFor(ctx context.Context, candidates []string, publ
 	}
 	if len(r.versions) > 0 {
 		sortSemverDesc(r.versions)
-		r.latest = r.versions[0]
+		r.latest = pickLatestInstallable(r.versions, versionInstallable)
 	}
 	return r
+}
+
+// pickLatestInstallable returns the first (highest) entry in versionsDesc
+// that is marked installable in versionInstallable. Returns "" when no
+// installable version exists — callers should display "no installable
+// version" rather than fall back to a non-installable one.
+//
+// Pure helper — exported within the package for unit testing without
+// requiring a storage backend.
+func pickLatestInstallable(versionsDesc []string, versionInstallable map[string]bool) string {
+	for _, v := range versionsDesc {
+		if versionInstallable[v] {
+			return v
+		}
+	}
+	return ""
 }
 
 func nameMatchesAny(have string, candidates []string) bool {

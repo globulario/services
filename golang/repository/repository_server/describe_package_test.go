@@ -235,3 +235,140 @@ func TestBuildSourceCleanWhenKindMatches(t *testing.T) {
 		t.Errorf("expected clean source for unspecified stored, got %q", src2)
 	}
 }
+
+// ── pickLatestInstallable ───────────────────────────────────────────────────
+//
+// Regression suite for the bug where `globular repository explain-package`
+// printed a YANKED local-override version as `latest` while the resolver
+// and doctor correctly excluded it. The fix routes `walkCatalogFor`'s
+// latest-version selection through repopb.IsInstallableByPin via the pure
+// helper pickLatestInstallable. These tests pin the contract of that
+// helper. Caught live on globule-ryzen 2026-06-03 — Phase 38 cleanup.
+
+// TestPickLatestInstallable_PublishedWins — happy path: a single PUBLISHED
+// version is picked.
+func TestPickLatestInstallable_PublishedWins(t *testing.T) {
+	versionsDesc := []string{"1.2.149", "1.2.148", "1.2.147"}
+	installable := map[string]bool{
+		"1.2.149": true,
+		"1.2.148": true,
+		"1.2.147": true,
+	}
+	if got := pickLatestInstallable(versionsDesc, installable); got != "1.2.149" {
+		t.Errorf("expected 1.2.149, got %q", got)
+	}
+}
+
+// TestPickLatestInstallable_DeprecatedAllowed — DEPRECATED is installable
+// per repopb.IsInstallableByPin, so a DEPRECATED version is a valid
+// `latest`. This test asserts the helper preserves IsInstallableByPin
+// semantics rather than independently re-judging deprecated.
+func TestPickLatestInstallable_DeprecatedAllowed(t *testing.T) {
+	versionsDesc := []string{"1.2.149", "1.2.148"}
+	installableForDeprecated := repopb.IsInstallableByPin(repopb.PublishState_DEPRECATED)
+	installable := map[string]bool{
+		"1.2.149": installableForDeprecated, // simulate DEPRECATED
+		"1.2.148": true,                     // PUBLISHED
+	}
+	got := pickLatestInstallable(versionsDesc, installable)
+	if installableForDeprecated {
+		if got != "1.2.149" {
+			t.Errorf("DEPRECATED is installable-by-pin; expected 1.2.149, got %q", got)
+		}
+	} else {
+		if got != "1.2.148" {
+			t.Errorf("DEPRECATED not installable-by-pin; expected 1.2.148, got %q", got)
+		}
+	}
+}
+
+// TestPickLatestInstallable_YankedLocalSkipped — the original bug:
+// a YANKED local-override version is highest by semver, but must not
+// be picked as latest. The highest INSTALLABLE official version wins.
+func TestPickLatestInstallable_YankedLocalSkipped(t *testing.T) {
+	versionsDesc := []string{
+		"1.2.149+local.phase38.1780502467", // YANKED — must skip
+		"1.2.149",                          // PUBLISHED — winner
+		"1.2.148",                          // PUBLISHED
+		"1.2.131",                          // PUBLISHED
+	}
+	installable := map[string]bool{
+		"1.2.149+local.phase38.1780502467": false,
+		"1.2.149":                          true,
+		"1.2.148":                          true,
+		"1.2.131":                          true,
+	}
+	if got := pickLatestInstallable(versionsDesc, installable); got != "1.2.149" {
+		t.Errorf("YANKED local must be skipped; expected 1.2.149, got %q", got)
+	}
+}
+
+// TestPickLatestInstallable_OfficialOverHigherYanked — explicit version of
+// the Phase 38 scenario: highest semver is YANKED, lower official PUBLISHED
+// wins.
+func TestPickLatestInstallable_OfficialOverHigherYanked(t *testing.T) {
+	versionsDesc := []string{"2.0.0", "1.9.0"}
+	installable := map[string]bool{
+		"2.0.0": false, // YANKED — disqualified despite being highest
+		"1.9.0": true,  // PUBLISHED
+	}
+	if got := pickLatestInstallable(versionsDesc, installable); got != "1.9.0" {
+		t.Errorf("higher-versioned YANKED must lose to lower PUBLISHED; expected 1.9.0, got %q", got)
+	}
+}
+
+// TestPickLatestInstallable_AllNonInstallable — defensive: when no version
+// is installable, helper returns "". Callers should treat that as "no
+// installable version" rather than fall back to a non-installable one.
+func TestPickLatestInstallable_AllNonInstallable(t *testing.T) {
+	versionsDesc := []string{"1.2.149", "1.2.148"}
+	installable := map[string]bool{}
+	if got := pickLatestInstallable(versionsDesc, installable); got != "" {
+		t.Errorf("no installable version → expected empty, got %q", got)
+	}
+}
+
+// TestPickLatestInstallable_EmptyInputs — guard against nil / empty edge
+// cases (defensive — should never panic).
+func TestPickLatestInstallable_EmptyInputs(t *testing.T) {
+	if got := pickLatestInstallable(nil, nil); got != "" {
+		t.Errorf("nil inputs → expected empty, got %q", got)
+	}
+	if got := pickLatestInstallable([]string{}, map[string]bool{}); got != "" {
+		t.Errorf("empty inputs → expected empty, got %q", got)
+	}
+	if got := pickLatestInstallable([]string{"1.0.0"}, nil); got != "" {
+		t.Errorf("nil map → expected empty, got %q", got)
+	}
+}
+
+// TestPickLatestInstallable_IsInstallableByPinContract pins the
+// IsInstallableByPin contract so that if it is ever broadened or narrowed,
+// this test surfaces the change and forces a deliberate decision on how
+// walkCatalogFor's latest selection should respond.
+func TestPickLatestInstallable_IsInstallableByPinContract(t *testing.T) {
+	cases := []struct {
+		name       string
+		state      repopb.PublishState
+		expectPass bool
+	}{
+		{"PUBLISHED", repopb.PublishState_PUBLISHED, true},
+		{"DEPRECATED", repopb.PublishState_DEPRECATED, true},
+		{"YANKED", repopb.PublishState_YANKED, false},
+		{"QUARANTINED", repopb.PublishState_QUARANTINED, false},
+		{"REVOKED", repopb.PublishState_REVOKED, false},
+		{"FAILED", repopb.PublishState_FAILED, false},
+		{"ORPHANED", repopb.PublishState_ORPHANED, false},
+		{"CORRUPTED", repopb.PublishState_CORRUPTED, false},
+		{"ARCHIVED", repopb.PublishState_ARCHIVED, false},
+		{"STAGING", repopb.PublishState_STAGING, false},
+		{"VERIFIED", repopb.PublishState_VERIFIED, false},
+		{"UNSPECIFIED", repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, false},
+	}
+	for _, c := range cases {
+		got := repopb.IsInstallableByPin(c.state)
+		if got != c.expectPass {
+			t.Errorf("%s: IsInstallableByPin = %v, want %v", c.name, got, c.expectPass)
+		}
+	}
+}
