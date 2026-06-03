@@ -178,19 +178,40 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 		for _, pkg := range pkgs {
 			key := strings.ToUpper(pkg.GetKind()) + "/" + canonicalServiceName(pkg.GetName())
 			installedMap[key] = installedInfo{
-				version:     pkg.GetVersion(),
-				buildNumber: pkg.GetBuildNumber(),
-				status:      pkg.GetStatus(),
-				checksum:    pkg.GetChecksum(),
+				version:            pkg.GetVersion(),
+				buildNumber:        pkg.GetBuildNumber(),
+				status:             pkg.GetStatus(),
+				checksum:           pkg.GetChecksum(),
+				entrypointChecksum: pkg.GetMetadata()["entrypoint_checksum"],
+				buildID:            pkg.GetBuildId(),
 			}
 		}
 
 		for desiredKey, dv := range desired {
 			pkg, found := installedMap[desiredKey]
 
-			// Already aligned.
+			// Already aligned by (version, build_number) — and binary
+			// proof on disk matches the artifact's resolved entrypoint
+			// checksum. Phase 37: (version, build_number) match alone is
+			// NOT sufficient proof of convergence — the installed_state
+			// can claim a buildId/buildNumber via the convergence
+			// committer while the binary on disk is still old. The
+			// entrypoint checksum is the hard binary identity proof: if
+			// desired carries it and installed carries it, both must
+			// match. Mismatch = drift reason
+			// "installed_state_buildid_matches_but_binary_checksum_differs".
 			if found && versionutil.EqualFull(dv.version, dv.buildNumber, pkg.version, pkg.buildNumber) {
-				continue
+				if !entrypointChecksumDriftPresent(dv.entrypointChecksum, pkg.entrypointChecksum) {
+					continue
+				}
+				log.Printf(
+					"drift-reconciler: node=%s pkg=%s installed_state_buildid_matches_but_binary_checksum_differs "+
+						"desired_entry_chk=%s installed_entry_chk=%s — dispatching reinstall",
+					nodeID, desiredKey,
+					shortChecksum(dv.entrypointChecksum), shortChecksum(pkg.entrypointChecksum),
+				)
+				// Fall through to dispatch — the existing dispatch
+				// machinery below treats any non-continue as drift.
 			}
 			// Transition-era installs: if the installed record has no build_id (0 = not tracked),
 			// version equality is sufficient. We cannot determine which specific build was
@@ -391,10 +412,12 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 }
 
 type installedInfo struct {
-	version     string
-	buildNumber int64
-	status      string
-	checksum    string
+	version            string
+	buildNumber        int64
+	status             string
+	checksum           string // PACKAGE tarball SHA256 (legacy field)
+	entrypointChecksum string // BINARY sha256 from installed_state.Metadata["entrypoint_checksum"]
+	buildID            string
 }
 
 func (r *driftReconciler) isInflight(key string) bool {
@@ -534,4 +557,44 @@ func convergenceBackoff(attempts int32) time.Duration {
 		d = 30 * time.Minute
 	}
 	return d
+}
+
+// normalizeChecksum strips an optional "sha256:" prefix and trims+lowercases
+// the hex so equality checks succeed regardless of input form.
+func normalizeChecksum(c string) string {
+	s := strings.ToLower(strings.TrimSpace(c))
+	return strings.TrimPrefix(s, "sha256:")
+}
+
+// shortChecksum returns the first 16 hex chars (after normalization) — used
+// in log messages so operators can see at a glance which checksums diverged.
+func shortChecksum(c string) string {
+	n := normalizeChecksum(c)
+	if len(n) > 16 {
+		return n[:16]
+	}
+	return n
+}
+
+// entrypointChecksumDriftPresent decides whether a (desired, installed)
+// pair of entrypoint checksums constitutes drift. The Phase 37 contract:
+//
+//   - Both sides empty → no drift (legacy artifact with no proof; the
+//     verifier owns this case via runtime_identity_unproven).
+//   - One side empty → no drift; cannot confidently compare. The
+//     verifier's runtime-proof lane is responsible for surfacing
+//     missing proof as a doctor finding rather than the drift
+//     reconciler dispatching speculatively.
+//   - Both present + equal (after normalization) → no drift.
+//   - Both present + differ → DRIFT. The installed_state lies about
+//     which binary is on disk — the convergence committer wrote the
+//     new buildId before the binary was actually swapped. The drift
+//     reconciler dispatches a reinstall to swap the bytes.
+func entrypointChecksumDriftPresent(desired, installed string) bool {
+	d := normalizeChecksum(desired)
+	i := normalizeChecksum(installed)
+	if d == "" || i == "" {
+		return false
+	}
+	return d != i
 }

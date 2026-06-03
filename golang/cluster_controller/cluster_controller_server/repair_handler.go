@@ -233,6 +233,14 @@ type desiredVersionInfo struct {
 	version     string
 	buildNumber int64
 	buildID     string // Phase 2: authoritative convergence identity
+
+	// entrypointChecksum is the BINARY sha256 from the artifact manifest
+	// (status.resolved_entrypoint_checksum on ServiceRelease /
+	// InfrastructureRelease / ApplicationRelease). The drift-reconciler
+	// compares this to installed_state.Metadata["entrypoint_checksum"]
+	// to detect the "buildId claimed but binary not swapped" pattern
+	// — Phase 37 root-cause fix.
+	entrypointChecksum string
 }
 
 // collectDesiredVersions reads all desired release versions from the resource
@@ -259,8 +267,26 @@ func (srv *server) collectDesiredVersions(ctx context.Context) map[string]desire
 			if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok && rel.Spec != nil {
 				canon := canonicalServiceName(rel.Spec.ServiceName)
 				key := "SERVICE/" + canon
-				if _, exists := desired[key]; !exists {
-					desired[key] = desiredVersionInfo{version: rel.Spec.Version, buildNumber: rel.Spec.BuildNumber}
+				// ServiceRelease carries the resolved binary identity in
+				// status.resolved_entrypoint_checksum — Phase 37 drift
+				// comparison needs this. If a ServiceDesiredVersion record
+				// already populated the bare fields, enrich with the
+				// resolved binary identity from ServiceRelease.
+				entry := ""
+				if rel.Status != nil {
+					entry = rel.Status.ResolvedEntrypointChecksum
+				}
+				if existing, exists := desired[key]; exists {
+					if entry != "" && existing.entrypointChecksum == "" {
+						existing.entrypointChecksum = entry
+						desired[key] = existing
+					}
+				} else {
+					desired[key] = desiredVersionInfo{
+						version:            rel.Spec.Version,
+						buildNumber:        rel.Spec.BuildNumber,
+						entrypointChecksum: entry,
+					}
 				}
 			}
 		}
@@ -269,7 +295,15 @@ func (srv *server) collectDesiredVersions(ctx context.Context) map[string]desire
 	if items, _, err := srv.resources.List(ctx, "ApplicationRelease", ""); err == nil {
 		for _, obj := range items {
 			if rel, ok := obj.(*cluster_controllerpb.ApplicationRelease); ok && rel.Spec != nil {
-				desired["APPLICATION/"+rel.Spec.AppName] = desiredVersionInfo{version: rel.Spec.Version, buildNumber: rel.Spec.BuildNumber}
+				entry := ""
+				if rel.Status != nil {
+					entry = rel.Status.ResolvedEntrypointChecksum
+				}
+				desired["APPLICATION/"+rel.Spec.AppName] = desiredVersionInfo{
+					version:            rel.Spec.Version,
+					buildNumber:        rel.Spec.BuildNumber,
+					entrypointChecksum: entry,
+				}
 			}
 		}
 	}
@@ -277,7 +311,15 @@ func (srv *server) collectDesiredVersions(ctx context.Context) map[string]desire
 	if items, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
 		for _, obj := range items {
 			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Spec != nil {
-				desired["INFRASTRUCTURE/"+rel.Spec.Component] = desiredVersionInfo{version: rel.Spec.Version, buildNumber: rel.Spec.BuildNumber}
+				entry := ""
+				if rel.Status != nil {
+					entry = rel.Status.ResolvedEntrypointChecksum
+				}
+				desired["INFRASTRUCTURE/"+rel.Spec.Component] = desiredVersionInfo{
+					version:            rel.Spec.Version,
+					buildNumber:        rel.Spec.BuildNumber,
+					entrypointChecksum: entry,
+				}
 			}
 		}
 	}
