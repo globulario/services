@@ -29,6 +29,7 @@ import (
 	"github.com/globulario/services/golang/node_agent/node_agent_server/healthchecks"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/certs"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/installreceipt"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/units"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/pki"
@@ -1049,10 +1050,29 @@ func checkUnitHashDrift(ctx context.Context, unitName string, pkg *node_agentpb.
 		return ""
 	}
 
-	// Authority 2: legacy sidecar migration. installed_state record
-	// exists for this unit but has no receipt — pre-refactor install.
-	// Seed the receipt from the sidecar (one-time write), then treat
-	// installed_state as authoritative from this point on.
+	// Authority 2: legacy sidecar migration.
+	//
+	// The pkg parameter is a snapshot pre-fetched by buildUnitToPackageMap
+	// at the start of GetUnitStatus. If a canonical install commits a
+	// fresh receipt between that snapshot and this code path, the snapshot
+	// lacks the receipt and a blind migration write here would clobber a
+	// freshly-stamped canonical receipt with the 4-key legacy_sidecar
+	// shape — losing installed_by, binary_sha256, and the proof fields
+	// every cycle. Live regression observed 2026-06-03 across installs
+	// 1.2.147 → 1.2.150; see project_receipt_wipe_in_heartbeat.md.
+	//
+	// Re-read installed_state from etcd to validate the snapshot before
+	// any write. If the fresh row carries any receipt provenance, the
+	// snapshot is stale and migration MUST NOT proceed. Sidecar migration
+	// is vestigial — sidecar files retired by docs/architecture/retire-
+	// systemd-sidecars.md still linger on disk after pre-refactor installs,
+	// but they cannot override a canonical receipt.
+	fresh, _ := installed_state.GetInstalledPackage(ctx, pkg.GetNodeId(), pkg.GetKind(), pkg.GetName())
+	if proceed, fallback := shouldMigrateFromSidecar(fresh, currentSha); !proceed {
+		logMigrationDecision(unitName, "skip", fresh, currentSha, "")
+		return fallback
+	}
+
 	sidecarPath := unitPath + ".sha256"
 	sidecarData, err := os.ReadFile(sidecarPath)
 	if err != nil {
@@ -1065,10 +1085,12 @@ func checkUnitHashDrift(ctx context.Context, unitName string, pkg *node_agentpb.
 	if sidecarSha == "" {
 		return "installed_state_missing_or_unproven"
 	}
-	// One-time migration write. After this, the heartbeat finds the
-	// value in installed_state and never re-reads the sidecar.
-	stampMigrationFromLegacySidecar(pkg, unitPath, sidecarSha)
-	if werr := installed_state.WriteInstalledPackage(ctx, pkg); werr != nil {
+	// One-time migration write. Mutate the FRESH pkg (not the stale
+	// snapshot) so any non-receipt fields that landed between snapshot
+	// and now (entrypoint_checksum, proof_*, etc.) are preserved.
+	stampMigrationFromLegacySidecar(fresh, unitPath, sidecarSha)
+	logMigrationDecision(unitName, "apply", fresh, currentSha, sidecarSha)
+	if werr := installed_state.WriteInstalledPackage(ctx, fresh); werr != nil {
 		log.Printf("install_receipt: legacy-sidecar migration write failed for %s: %v (will retry next heartbeat)", unitName, werr)
 		// Fall through and still classify drift this cycle so the
 		// operator sees something rather than silence.
@@ -1077,6 +1099,88 @@ func checkUnitHashDrift(ctx context.Context, unitName string, pkg *node_agentpb.
 		return ""
 	}
 	return "unit_file_drift"
+}
+
+// shouldMigrateFromSidecar is the pure decision half of the migration
+// branch in checkUnitHashDrift. Given the FRESH etcd installed_state
+// row and the on-disk unit sha, it returns:
+//
+//	proceed=true,  fallback=""               — migration may run
+//	proceed=false, fallback=<verdict>        — skip migration; caller
+//	                                            returns the verdict as
+//	                                            the drift classification
+//
+// Migration is allowed ONLY when fresh etcd has no receipt provenance:
+// no unit_file_sha256, no installed_by, no migration_source. Any of
+// those signals a canonical or prior-migrated receipt that must not be
+// overwritten by a 4-key legacy shape.
+//
+// fresh==nil (record disappeared between snapshot and now) is treated
+// as "no opinion" — backing off avoids re-creating a stale record from
+// stale snapshot evidence.
+func shouldMigrateFromSidecar(fresh *node_agentpb.InstalledPackage, currentSha string) (proceed bool, fallback string) {
+	if fresh == nil {
+		return false, ""
+	}
+	md := fresh.GetMetadata()
+	if expected := strings.TrimSpace(md[installreceipt.KeyUnitFileSha256]); expected != "" {
+		// Fresh etcd already has the authoritative unit_file_sha256.
+		// Classify drift against it instead of touching anything.
+		if currentSha == strings.ToLower(expected) {
+			return false, ""
+		}
+		return false, "unit_file_drift"
+	}
+	if strings.TrimSpace(md[installreceipt.KeyInstalledBy]) != "" {
+		// Canonical install just landed but the unit_file_sha256 has
+		// not been populated yet (rare transient — installer stamped
+		// binary_sha256 but unit file was missing at stamp time).
+		// Fail closed so the next cycle re-reads and converges.
+		return false, "installed_state_missing_or_unproven"
+	}
+	if strings.TrimSpace(md[installreceipt.KeyMigrationSource]) != "" {
+		// A previous migration cycle already stamped migration_source
+		// for this unit. The migration write is idempotent only in the
+		// "no canonical receipt arrived" world; once we are here, the
+		// safe default is to NOT re-stamp and let the next heartbeat
+		// surface drift via authority 1 once the canonical install
+		// completes.
+		return false, ""
+	}
+	return true, ""
+}
+
+// logMigrationDecision emits a single line per decision so an operator
+// can trace whether a heartbeat tick wrote a migration receipt and why.
+// Decision is "skip" (snapshot was stale, fresh had receipt) or "apply"
+// (fresh had no receipt; sidecar consumed as last-resort seed).
+func logMigrationDecision(unitName, decision string, fresh *node_agentpb.InstalledPackage, currentSha, sidecarSha string) {
+	installedBy, migrationSource, expectedSha, name, version, buildID := "", "", "", "", "", ""
+	if fresh != nil {
+		md := fresh.GetMetadata()
+		installedBy = md[installreceipt.KeyInstalledBy]
+		migrationSource = md[installreceipt.KeyMigrationSource]
+		expectedSha = md[installreceipt.KeyUnitFileSha256]
+		name = fresh.GetName()
+		version = fresh.GetVersion()
+		buildID = fresh.GetBuildId()
+	}
+	log.Printf("install_receipt: migration %s for %s — name=%s version=%s build_id=%s fresh{installed_by=%q migration_source=%q unit_file_sha256=%s} disk=%s sidecar=%s",
+		decision, unitName, name, version, buildID,
+		installedBy, migrationSource, shortSha(expectedSha), shortSha(currentSha), shortSha(sidecarSha))
+}
+
+// shortSha truncates a sha256 hex string to the first 16 characters
+// for log compactness. Empty input returns "" (not "????…").
+func shortSha(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	if len(s) > 16 {
+		return s[:16] + "…"
+	}
+	return s
 }
 
 // queryUnitState returns the ActiveState, SubState, and LoadState of a systemd unit.

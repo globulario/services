@@ -373,6 +373,16 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 				UpdatedUnix:   now,
 				Status:        "installed",
 			}
+			// Stale-snapshot defence: the existing-check at line 318
+			// can race with installer-api committing a canonical receipt.
+			// Re-read just before write; if the record now exists, copy
+			// receipt fields forward so this Phase 1 sync cannot clobber
+			// installed_by / unit_file_sha256 / binary_sha256 with a
+			// fresh-pkg metadata=nil. Same class of stale-snapshot bug
+			// as the migration wipe in server.go:checkUnitHashDrift.
+			if recheck, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name); recheck != nil {
+				PreserveInstallReceiptMetadata(recheck, pkg)
+			}
 			if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
 				log.Printf("nodeagent: sync installed-state %s/%s: %v", kind, name, err)
 				continue
