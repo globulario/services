@@ -19,12 +19,23 @@ package main
 // (silently installing an older local archive when the
 // requested version isn't present). The resolver returns one
 // build_id or a typed error — that's the contract.
+//
+// Phase 26: ErrNoPublishedArtifact is the sentinel callers
+// (release_pipeline.go's reconcilePending) check via errors.Is
+// to distinguish "publish-race / not-yet-indexed" from generic
+// resolve failure. The string match it replaces missed the
+// "no published artifact found for X" variant and routed
+// publish-race releases to FAILED (5-min backoff) instead of
+// WAITING (2-min auto-retry), producing the
+// release.publish_race_stuck_failed_with_succeeded_children
+// failure mode observed in Phase 23.
 
 import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -40,6 +51,13 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 )
+
+// ErrNoPublishedArtifact is the typed sentinel returned when the
+// resolver finds the package descriptor but zero PUBLISHED
+// artifacts for the requested version/build_id. Callers
+// (release_pipeline.go) check via errors.Is to classify this as
+// a transient publish-race rather than a permanent failure.
+var ErrNoPublishedArtifact = errors.New("no published artifact found")
 
 // ReleaseResolver resolves a ServiceReleaseSpec version policy (exact pin or channel)
 // to an exact version string, its SHA256 artifact digest, and the build number.
@@ -305,7 +323,10 @@ func (r *ReleaseResolver) getLatestPublished(ctx context.Context, client reposit
 		})
 	}
 	if len(candidates) == 0 {
-		return nil, fmt.Errorf("no published artifact found for %s/%s", spec.PublisherID, spec.ServiceName)
+		// Wrap the typed sentinel so reconcilePending can detect this via
+		// errors.Is and route to WAITING (publish-race) instead of FAILED.
+		// See Phase 26: release.publish_race_stuck_failed_with_succeeded_children.
+		return nil, fmt.Errorf("%w for %s/%s", ErrNoPublishedArtifact, spec.PublisherID, spec.ServiceName)
 	}
 
 	// Find highest semver, then highest build_number.

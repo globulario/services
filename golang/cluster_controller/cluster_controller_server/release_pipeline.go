@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"runtime"
@@ -346,7 +347,18 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 		// before installing, reconcileAvailable will detect unserved nodes and
 		// re-enter PENDING immediately, creating a tight PENDING→AVAILABLE→PENDING
 		// storm at ~10 etcd writes/second.
-		if strings.Contains(errMsg, "NotFound") || strings.Contains(errMsg, "not found") {
+		//
+		// Phase 26: the typed sentinel ErrNoPublishedArtifact is the authoritative
+		// way to detect the publish-race class. The string-match fallbacks are
+		// preserved for upstream errors that don't carry the sentinel (e.g.
+		// gRPC NotFound from the repository service before we owned the
+		// resolver path). Without the sentinel, the resolver's
+		// "no published artifact found for X" message slipped past both string
+		// matches and routed the release to FAILED, producing
+		// release.publish_race_stuck_failed_with_succeeded_children.
+		if errors.Is(err, ErrNoPublishedArtifact) ||
+			strings.Contains(errMsg, "NotFound") ||
+			strings.Contains(errMsg, "not found") {
 			log.Printf("%s %s: artifact not in repository, entering WAITING (retry in %s): %v",
 				h.ResourceType, h.Name, releaseWaitingBackoff, err)
 			h.PatchStatus(ctx, statusPatch{
