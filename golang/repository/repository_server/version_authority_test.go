@@ -434,7 +434,7 @@ func TestVA4_SameVersionDifferentBuildID_Rejected(t *testing.T) {
 	// Second publish with same (version, platform) but different build_id must fail.
 	err := srv.appendToLedger(ctx, ref.GetPublisherId(), ref.GetName(),
 		ref.GetVersion(), "stor-build-B-uuid", "sha256:bbbb",
-		ref.GetPlatform(), 100)
+		ref.GetPlatform(), 100, nil)
 	if err == nil {
 		t.Fatal("expected appendToLedger to reject second build_id for same (version, platform)")
 	}
@@ -611,12 +611,12 @@ func TestVA6_AppendToLedger_SameVersionPlatform_Rejected(t *testing.T) {
 	ctx := context.Background()
 
 	// First publish: workflow@1.2.43 linux_amd64 with build_id "build-aaa"
-	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-aaa", "sha256:aaa", "linux_amd64", 1000); err != nil {
+	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-aaa", "sha256:aaa", "linux_amd64", 1000, nil); err != nil {
 		t.Fatalf("first appendToLedger: %v", err)
 	}
 
 	// Second publish: same version+platform, different build_id — must be rejected.
-	err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-bbb", "sha256:bbb", "linux_amd64", 1000)
+	err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-bbb", "sha256:bbb", "linux_amd64", 1000, nil)
 	if err == nil {
 		t.Fatal("expected error re-publishing same (version, platform) with different build_id, got nil")
 	}
@@ -631,12 +631,12 @@ func TestVA6_AppendToLedger_SameVersionSameBuildID_Idempotent(t *testing.T) {
 	srv := newTestServer(t)
 	ctx := context.Background()
 
-	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-aaa", "sha256:aaa", "linux_amd64", 1000); err != nil {
+	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-aaa", "sha256:aaa", "linux_amd64", 1000, nil); err != nil {
 		t.Fatalf("first appendToLedger: %v", err)
 	}
 
 	// Re-promote same build_id — must succeed silently.
-	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-aaa", "sha256:aaa", "linux_amd64", 1000); err != nil {
+	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-aaa", "sha256:aaa", "linux_amd64", 1000, nil); err != nil {
 		t.Errorf("idempotent re-promote must not return an error, got: %v", err)
 	}
 }
@@ -648,10 +648,10 @@ func TestVA6_AppendToLedger_SameVersionDifferentPlatform_Allowed(t *testing.T) {
 	srv := newTestServer(t)
 	ctx := context.Background()
 
-	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-aaa", "sha256:aaa", "linux_amd64", 1000); err != nil {
+	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-aaa", "sha256:aaa", "linux_amd64", 1000, nil); err != nil {
 		t.Fatalf("linux_amd64 appendToLedger: %v", err)
 	}
-	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-bbb", "sha256:bbb", "linux_arm64", 1000); err != nil {
+	if err := srv.appendToLedger(ctx, "core@globular.io", "workflow", "1.2.43", "build-bbb", "sha256:bbb", "linux_arm64", 1000, nil); err != nil {
 		t.Errorf("linux_arm64 appendToLedger must be allowed for same version, got: %v", err)
 	}
 }
@@ -663,7 +663,7 @@ func TestVA6_GetExactRelease_ReturnsCanonicalBuildID(t *testing.T) {
 	srv := newTestServer(t)
 	ctx := context.Background()
 
-	if err := srv.appendToLedger(ctx, "core@globular.io", "dns", "1.2.44", "build-dns-01", "sha256:dns01", "linux_amd64", 500); err != nil {
+	if err := srv.appendToLedger(ctx, "core@globular.io", "dns", "1.2.44", "build-dns-01", "sha256:dns01", "linux_amd64", 500, nil); err != nil {
 		t.Fatalf("appendToLedger: %v", err)
 	}
 
@@ -690,12 +690,12 @@ func TestVA6_LatestBuildID_NotOverwrittenBySameVersion(t *testing.T) {
 	srv := newTestServer(t)
 	ctx := context.Background()
 
-	if err := srv.appendToLedger(ctx, "core@globular.io", "storage", "1.2.43", "build-orig", "sha256:orig", "linux_amd64", 2000); err != nil {
+	if err := srv.appendToLedger(ctx, "core@globular.io", "storage", "1.2.43", "build-orig", "sha256:orig", "linux_amd64", 2000, nil); err != nil {
 		t.Fatalf("first appendToLedger: %v", err)
 	}
 
 	// Attempt re-publish — must fail.
-	_ = srv.appendToLedger(ctx, "core@globular.io", "storage", "1.2.43", "build-new", "sha256:new", "linux_amd64", 2000)
+	_ = srv.appendToLedger(ctx, "core@globular.io", "storage", "1.2.43", "build-new", "sha256:new", "linux_amd64", 2000, nil)
 
 	// LatestBuildID must still be the original.
 	_, latestBID := srv.getLatestRelease(ctx, "core@globular.io", "storage", "linux_amd64")

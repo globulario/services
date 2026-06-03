@@ -46,7 +46,7 @@ func seedPublishedArtifact(t *testing.T, srv *server, m *repopb.ArtifactManifest
 	ref := m.GetRef()
 	if err := srv.appendToLedger(ctx, ref.GetPublisherId(), ref.GetName(),
 		ref.GetVersion(), m.GetBuildId(), m.GetChecksum(),
-		ref.GetPlatform(), m.GetSizeBytes()); err != nil {
+		ref.GetPlatform(), m.GetSizeBytes(), nil); err != nil {
 		t.Fatalf("append to ledger: %v", err)
 	}
 }
@@ -203,7 +203,7 @@ func TestINV2_MonotonicVersions_RejectLowerVersion(t *testing.T) {
 	err := srv.appendToLedger(context.Background(),
 		"core@globular.io", "echo", "0.9.0",
 		"019d0002-0000-7000-8000-000000000002", "sha256:bbbb",
-		"linux_amd64", 100)
+		"linux_amd64", 100, nil)
 	if err == nil {
 		t.Error("expected monotonicity error for version 0.9.0 < 1.0.0, got nil")
 	}
@@ -231,7 +231,7 @@ func TestINV2_MonotonicVersions_AcceptHigherVersion(t *testing.T) {
 	err := srv.appendToLedger(context.Background(),
 		"core@globular.io", "echo", "1.0.1",
 		"019d0003-0000-7000-8000-000000000003", "sha256:cccc",
-		"linux_amd64", 100)
+		"linux_amd64", 100, nil)
 	if err != nil {
 		t.Errorf("expected higher version 1.0.1 to be accepted, got: %v", err)
 	}
@@ -259,7 +259,7 @@ func TestINV2_MonotonicVersions_AcceptSameVersion(t *testing.T) {
 	err := srv.appendToLedger(context.Background(),
 		"core@globular.io", "echo", "1.0.0",
 		"019d0004-0000-7000-8000-000000000004", "sha256:dddd",
-		"linux_arm64", 100)
+		"linux_arm64", 100, nil)
 	if err != nil {
 		t.Errorf("expected same version to be accepted (different platform), got: %v", err)
 	}
@@ -659,11 +659,11 @@ func TestINV10_ReleaseLedgerPersistence(t *testing.T) {
 
 	// Append entries and verify they persist.
 	if err := srv.appendToLedger(ctx, "core@globular.io", "test-svc",
-		"1.0.0", "bid-1", "sha256:aaaa", "linux_amd64", 100); err != nil {
+		"1.0.0", "bid-1", "sha256:aaaa", "linux_amd64", 100, nil); err != nil {
 		t.Fatalf("first append: %v", err)
 	}
 	if err := srv.appendToLedger(ctx, "core@globular.io", "test-svc",
-		"1.0.1", "bid-2", "sha256:bbbb", "linux_amd64", 200); err != nil {
+		"1.0.1", "bid-2", "sha256:bbbb", "linux_amd64", 200, nil); err != nil {
 		t.Fatalf("second append: %v", err)
 	}
 

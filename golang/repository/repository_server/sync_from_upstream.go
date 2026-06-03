@@ -889,7 +889,7 @@ func (srv *server) importUpstreamArtifact(
 						// Ledger append was interrupted on a prior sync; retry to complete
 						// the pipeline. appendToLedger is idempotent for the same build_id.
 						if ledgerErr := srv.appendToLedger(ctx, n.Publisher, n.Name, n.Version,
-							n.BuildID, existingByID.GetChecksum(), n.Platform, existingByID.GetSizeBytes()); ledgerErr != nil {
+							n.BuildID, existingByID.GetChecksum(), n.Platform, existingByID.GetSizeBytes(), nil); ledgerErr != nil {
 							slog.Error("upstream: idempotent ledger retry failed — artifact stays at MANIFEST_WRITTEN",
 								"key", existingBuildKey, "err", ledgerErr)
 							return fmt.Errorf("append to ledger (retry): %w", ledgerErr)
@@ -953,7 +953,7 @@ func (srv *server) importUpstreamArtifact(
 					switch curr {
 					case PipelineManifestWritten:
 						if ledgerErr := srv.appendToLedger(ctx, n.Publisher, n.Name, n.Version,
-							existing.GetBuildId(), digest, n.Platform, existing.GetSizeBytes()); ledgerErr != nil {
+							existing.GetBuildId(), digest, n.Platform, existing.GetSizeBytes(), nil); ledgerErr != nil {
 							slog.Error("upstream: idempotent ledger retry (digest path) failed — artifact stays at MANIFEST_WRITTEN",
 								"key", existingKey, "err", ledgerErr)
 							return fmt.Errorf("append to ledger (retry): %w", ledgerErr)
@@ -1101,7 +1101,7 @@ func (srv *server) importUpstreamArtifact(
 	// Phase A: ledger write is REQUIRED before PUBLISHED. If it fails, the
 	// artifact stays at MANIFEST_WRITTEN — resolver will not return it.
 	if ledgerErr := srv.appendToLedger(ctx, n.Publisher, n.Name, n.Version,
-		n.BuildID, digest, n.Platform, int64(len(data))); ledgerErr != nil {
+		n.BuildID, digest, n.Platform, int64(len(data)), nil); ledgerErr != nil {
 		slog.Error("upstream: ledger append failed — leaving artifact at MANIFEST_WRITTEN",
 			"name", n.Name, "err", ledgerErr)
 		return fmt.Errorf("append to ledger: %w", ledgerErr)

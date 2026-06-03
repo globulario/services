@@ -199,7 +199,7 @@ func (srv *server) RepairArtifactFromUpstream(ctx context.Context, ref *repopb.A
 	// inside appendToLedger.
 	if ledgerErr := srv.appendToLedger(ctx, ref.GetPublisherId(), ref.GetName(),
 		ref.GetVersion(), manifest.GetBuildId(), manifest.GetChecksum(),
-		ref.GetPlatform(), manifest.GetSizeBytes()); ledgerErr != nil {
+		ref.GetPlatform(), manifest.GetSizeBytes(), nil); ledgerErr != nil {
 		return fmt.Errorf("repair: append to ledger: %w", ledgerErr)
 	}
 	_ = srv.transitionArtifactState(ctx, key, PipelineLedgerWritten,

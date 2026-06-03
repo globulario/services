@@ -192,7 +192,7 @@ func (srv *server) ImportProvisionalArtifact(ctx context.Context, req *repopb.Im
 	}
 
 	// Add to release ledger.
-	if err := srv.appendToLedger(ctx, publisher, name, version, confirmedBuildID, digest, platform, int64(len(req.GetData()))); err != nil {
+	if err := srv.appendToLedger(ctx, publisher, name, version, confirmedBuildID, digest, platform, int64(len(req.GetData())), nil); err != nil {
 		slog.Warn("import-provisional: ledger append failed", "name", name, "err", err)
 		// Non-fatal: import still succeeds, ledger can be rebuilt.
 	}

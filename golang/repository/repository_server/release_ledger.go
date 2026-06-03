@@ -51,6 +51,8 @@ import (
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/versionutil"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Ensure repopb is used (for migration).
@@ -171,7 +173,16 @@ var ledgerMu sync.Mutex
 // appendToLedger adds a new release entry to the package's ledger.
 // Called after successful promote-to-PUBLISHED.
 // Returns an error if the version is not monotonically increasing.
-func (srv *server) appendToLedger(ctx context.Context, publisher, name, version, buildID, digest, platform string, sizeBytes int64) error {
+//
+// `repair` is the Phase 33 repair authorization. A nil value means no repair
+// was requested — version+platform immutability is enforced absolutely (the
+// default and correct behaviour for normal publishes). A non-nil + valid
+// repair authorization is the ONLY way to legitimately REPLACE an existing
+// ledger entry's build_id/digest/sizeBytes under the same (version, platform);
+// this is the THIRD immutability gate after the seal (Phase 31) and the
+// version resolver (Phase 32) that must be repair-aware for the repair lane
+// to be resolver-visible end-to-end. See repair_authorization.go.
+func (srv *server) appendToLedger(ctx context.Context, publisher, name, version, buildID, digest, platform string, sizeBytes int64, repair *RepairAuthorization) error {
 	ledgerMu.Lock()
 	defer ledgerMu.Unlock()
 
@@ -198,16 +209,69 @@ func (srv *server) appendToLedger(ctx context.Context, publisher, name, version,
 	// cause build-id drift across the 4 layers — desired state updates to the
 	// new build_id while nodes still carry the old one.
 	//
-	// The only exception is a true idempotent re-promote: the exact same build_id
-	// is already in the ledger (upload completed, promote retried). All other
-	// same-version same-platform writes are rejected.
-	for _, r := range ledger.Releases {
+	// Exceptions:
+	//   1. True idempotent re-promote: same build_id already in ledger.
+	//   2. Repair-unseal (Phase 33): same (version, platform) with a DIFFERENT
+	//      build_id, but the caller presents a valid RepairAuthorization with
+	//      a prior-digest that matches the existing ledger row's digest. In
+	//      this case the ledger entry is REPLACED in place — version+platform
+	//      binding preserved, build_id/digest/size point at the new bytes.
+	//      The old build_number's manifest+blob remain in storage for
+	//      forensics; only the ledger pointer flips.
+	for i, r := range ledger.Releases {
 		if r.BuildID == buildID {
 			return nil // idempotent re-promote: exact same build already in ledger
 		}
 		if r.Version == version && r.Platform == platform {
-			return fmt.Errorf("version %s is already published for %s/%s on %s (build_id=%s) — published versions are immutable; bump the version to release a new build",
-				version, publisher, name, platform, r.BuildID)
+			// Repair-unseal escape hatch.
+			if repair != nil && repair.Requested {
+				if strings.TrimSpace(repair.Reason) == "" {
+					return status.Errorf(codes.InvalidArgument,
+						"repair-unseal rejected at ledger gate: empty reason — provide --reason \"<why>\" describing why the published %s/%s@%s on %s is being repaired",
+						publisher, name, version, platform)
+				}
+				if !digestsMatch(repair.PriorDigest, r.Digest) {
+					return status.Errorf(codes.FailedPrecondition,
+						"repair-unseal rejected at ledger gate: prior-digest mismatch — caller asserted prior=%s but the ledger row has %s. "+
+							"Inspect via repository_explain_artifact and re-issue with the correct --prior-digest.",
+						shortDigest(repair.PriorDigest), shortDigest(r.Digest))
+				}
+				// All gates passed. REPLACE the entry in place — preserving
+				// version+platform binding while flipping build_id/digest/size
+				// to the new bytes. This is the resolver-visible step: from
+				// this moment on, getExactRelease and getPublishedDigest
+				// return the new identity rather than the phantom.
+				priorBuildID := r.BuildID
+				priorDigest := r.Digest
+				slog.Warn("release ledger repair authorized — replacing entry",
+					"publisher", publisher, "name", name, "version", version, "platform", platform,
+					"prior_build_id", priorBuildID, "new_build_id", buildID,
+					"prior_digest", priorDigest, "new_digest", digest,
+					"reason", repair.Reason,
+				)
+				repair.Used = true
+				if repair.PriorBuildID == "" {
+					repair.PriorBuildID = priorBuildID
+				}
+				ledger.Releases[i] = &releaseLedgerEntry{
+					Version:    version,
+					BuildID:    buildID,
+					Digest:     digest,
+					Platform:   platform,
+					SizeBytes:  sizeBytes,
+					ReleasedAt: time.Now().UTC().Format(time.RFC3339),
+				}
+				// If this entry was the LatestBuildID anchor, point it at
+				// the new build_id so callers reading the ledger summary
+				// see the new identity.
+				if ledger.LatestBuildID == priorBuildID {
+					ledger.LatestBuildID = buildID
+				}
+				return srv.writeLedger(ctx, ledger)
+			}
+			return fmt.Errorf("version %s is already published for %s/%s on %s (build_id=%s) — published versions are immutable; bump the version to release a new build, "+
+				"or pass --unseal-official --reason \"<why>\" --prior-digest %s to repair a proven phantom",
+				version, publisher, name, platform, r.BuildID, shortDigest(r.Digest))
 		}
 	}
 
@@ -317,7 +381,7 @@ func (srv *server) MigrateReleaseLedger(ctx context.Context) {
 
 		err := srv.appendToLedger(ctx, ref.GetPublisherId(), ref.GetName(),
 			ref.GetVersion(), buildID, m.GetChecksum(),
-			ref.GetPlatform(), m.GetSizeBytes())
+			ref.GetPlatform(), m.GetSizeBytes(), nil)
 		if err != nil {
 			slog.Warn("ledger migration: skip", "key", key, "err", err)
 			continue

@@ -153,7 +153,7 @@ func (pr *publishReconciler) reconcileOnce(ctx context.Context) {
 			"attempt", count+1,
 		)
 
-		if err := pr.srv.completePublish(ctx, manifest, c.key, nil); err != nil {
+		if err := pr.srv.completePublish(ctx, manifest, c.key, nil, nil); err != nil {
 			slog.Error("publish-reconciler: retry failed",
 				"key", c.key,
 				"publisher", ref.GetPublisherId(),

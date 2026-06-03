@@ -1669,7 +1669,7 @@ func TestImportIdempotentResumesFromLedgerWritten(t *testing.T) {
 	}
 	// Write ledger entry so the retry doesn't need to do it.
 	if err := srv.appendToLedger(ctx, "core@globular.io", "authentication", "1.2.0",
-		buildID, checksum, "linux_amd64", 50); err != nil {
+		buildID, checksum, "linux_amd64", 50, nil); err != nil {
 		t.Fatalf("seed ledger: %v", err)
 	}
 	// Advance to LEDGER_WRITTEN via legal edges.

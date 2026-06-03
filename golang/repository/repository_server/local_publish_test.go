@@ -279,7 +279,7 @@ func TestLocalPublish5_PromotedVersionMustBeDistinct(t *testing.T) {
 	// This must be rejected by the version immutability gate.
 	err := srv.appendToLedger(ctx,
 		"core@globular.io", "storage", "1.2.43",
-		"promoted-build-C", "sha256:cccc", "linux_amd64", 50)
+		"promoted-build-C", "sha256:cccc", "linux_amd64", 50, nil)
 	if err == nil {
 		t.Fatal("expected appendToLedger to reject same-version promotion with different build_id")
 	}
@@ -290,7 +290,7 @@ func TestLocalPublish5_PromotedVersionMustBeDistinct(t *testing.T) {
 	// Correct promotion: publish at a NEW version (1.2.53).
 	err = srv.appendToLedger(ctx,
 		"core@globular.io", "storage", "1.2.53",
-		"promoted-build-C", "sha256:cccc", "linux_amd64", 50)
+		"promoted-build-C", "sha256:cccc", "linux_amd64", 50, nil)
 	if err != nil {
 		t.Errorf("expected promotion at new version 1.2.53 to succeed, got: %v", err)
 	}

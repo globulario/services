@@ -35,7 +35,16 @@ import (
 
 // completePublish runs the post-upload publish pipeline:
 // validate laws → register descriptor → promote to PUBLISHED, all recorded as a workflow run.
-func (srv *server) completePublish(ctx context.Context, manifest *repopb.ArtifactManifest, key string, prov *repopb.ProvenanceRecord) error {
+//
+// `repair` is the optional Phase 31/32/33 repair authorization. nil means no
+// repair was requested — the ledger append enforces version+platform
+// immutability absolutely. Non-nil + valid repair authorization allows
+// the ledger append to REPLACE an existing entry's build_id/digest/size
+// (the resolver-visible step in the repair lane). When repair was requested
+// the ledger append is treated as FATAL: failure returns an error rather
+// than slog.Warn so the upload is reported as failed and the post-success
+// audit in UploadArtifact does NOT fire on a partial repair.
+func (srv *server) completePublish(ctx context.Context, manifest *repopb.ArtifactManifest, key string, prov *repopb.ProvenanceRecord, repair *RepairAuthorization) error {
 	ref := manifest.GetRef()
 	publisherID := ref.GetPublisherId()
 	name := ref.GetName()
@@ -137,10 +146,24 @@ func (srv *server) completePublish(ctx context.Context, manifest *repopb.Artifac
 	srv.workflowRec.CompleteStep(ctx, runID, promStep, "promoted to PUBLISHED", durationMs)
 
 	// ── Step 3: Append to release ledger ────────────────────────────────
+	// For normal publishes a ledger append failure has historically been
+	// downgraded to a warning (e.g. a duplicate-build_id retry should be
+	// idempotent). For REPAIR publishes the ledger append IS the resolver-
+	// visible step — failure means the new bytes are orphaned and the
+	// phantom remains canonical. Treat ledger failure as fatal in that case
+	// so UploadArtifact returns Result=false and the post-success audit
+	// does NOT fire on a partial repair (Phase 33).
 	if err := srv.appendToLedger(ctx,
 		publisherID, name, version,
 		manifest.GetBuildId(), manifest.GetChecksum(),
-		ref.GetPlatform(), manifest.GetSizeBytes()); err != nil {
+		ref.GetPlatform(), manifest.GetSizeBytes(), repair); err != nil {
+		if repair != nil && repair.Requested {
+			slog.Error("publish workflow: ledger append FAILED for repair upload — repair is NOT resolver-visible",
+				"key", key, "publisher", publisherID, "name", name, "version", version,
+				"build_id", manifest.GetBuildId(), "err", err,
+			)
+			return fmt.Errorf("repair publish: ledger append failed (orphans the new bytes): %w", err)
+		}
 		slog.Warn("publish workflow: ledger append failed (non-fatal)",
 			"key", key, "err", err)
 	}

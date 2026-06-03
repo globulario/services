@@ -1278,6 +1278,32 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 			"build", existing.GetBuildNumber(),
 			"publish_state", state.String(),
 		)
+		// Phase 33: if this upload carries a repair authorization and the
+		// release ledger still points at a phantom (different digest than
+		// the existing bytes), update the ledger to point at the existing
+		// bytes. This is the recovery path for a previously-partial repair
+		// (bytes uploaded but ledger never replaced). The ledger gate
+		// re-validates all four repair gates; failure returns error.
+		if repair != nil && repair.Requested {
+			if err := srv.appendToLedger(ctx,
+				ref.GetPublisherId(), ref.GetName(), ref.GetVersion(),
+				existing.GetBuildId(), newChecksum,
+				ref.GetPlatform(), existing.GetSizeBytes(), repair,
+			); err != nil {
+				slog.Error("idempotent-bytes repair: ledger update FAILED — ledger still points at phantom",
+					"key", key, "build_id", existing.GetBuildId(), "err", err,
+				)
+				return err
+			}
+			// Idempotent path with repair: still emit the post-success audit
+			// because the resolver-visible step (ledger replace) succeeded.
+			srv.logRepairAuthorized(ctx,
+				ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform(),
+				repair.PriorDigest, newChecksum,
+				repair.PriorBuildID, existing.GetBuildId(),
+				repair,
+			)
+		}
 		return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true, BuildId: existing.GetBuildId()})
 	}
 
@@ -1455,7 +1481,7 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	// artifact_state=BLOB_VERIFIED is treated as DesiredBuildIdOrphaned by
 	// node-agents, causing an infinite install-retry storm that blocks all
 	// convergence cluster-wide. Return Result=false so the operator knows.
-	if err := srv.completePublish(ctx, manifest, key, prov); err != nil {
+	if err := srv.completePublish(ctx, manifest, key, prov, repair); err != nil {
 		slog.Error("publish failed — artifact stored but not promoted; retry with 'globular pkg publish --force'",
 			"key", key, "build_id", buildID, "err", err)
 		return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: false, BuildId: buildID})
@@ -2544,7 +2570,7 @@ func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateAr
 	)
 
 	// ── Complete publish pipeline ───────────────────────────────────────
-	if err := srv.completePublish(ctx, newManifest, newKey, prov); err != nil {
+	if err := srv.completePublish(ctx, newManifest, newKey, prov, nil); err != nil {
 		slog.Warn("delta-deploy: auto-publish failed — artifact stored as VERIFIED",
 			"key", newKey, "err", err)
 	}
