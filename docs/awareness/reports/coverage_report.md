@@ -5,8 +5,8 @@ Deterministic per-run output. To diff cleanly between runs, skip the first 3 lin
 ## Summary
 
 - **Source files scanned (Go, non-test, non-generated):** 963
-- **Files with at least one direct anchor:** 340 (35%)
-- **Files with zero direct anchors:** 623 (65%)
+- **Files with at least one direct anchor:** 351 (36%)
+- **Files with zero direct anchors:** 612 (64%)
 - **Candidate entries (NOT counted in canonical coverage):** 2
 
 ## Canonical anchors by class
@@ -17,7 +17,7 @@ Deterministic per-run output. To diff cleanly between runs, skip the first 3 lin
 | failure_mode | 100 |
 | intent | 208 |
 | incident_pattern | 4 |
-| code_symbol | 246 |
+| code_symbol | 261 |
 
 _`code_symbol` entries come from `docs/awareness/generated/*_code_symbols.yaml` (the source-side `@awareness` annotation scan)._
 
@@ -27,7 +27,7 @@ Files under these paths are listed in CLAUDE.md R2 as high-risk. Uncovered files
 
 | Directory | Anchored / Total | Uncovered |
 |---|---|---|
-| `golang/cluster_controller/cluster_controller_server` | 61/123 | 62 |
+| `golang/cluster_controller/cluster_controller_server` | 72/123 | 51 |
 | `golang/mcp` | 26/58 | 32 |
 | `golang/cluster_doctor/cluster_doctor_server/rules` | 31/60 | 29 |
 | `golang/node_agent/node_agent_server` | 30/56 | 26 |
@@ -88,7 +88,6 @@ These are uncovered Go files under CLAUDE.md R2 high-risk dirs. Sorted by path. 
 - `golang/cluster_controller/cluster_controller_server/actor_service.go`
 - `golang/cluster_controller/cluster_controller_server/agentclient.go`
 - `golang/cluster_controller/cluster_controller_server/apply_loop_detector.go`
-- `golang/cluster_controller/cluster_controller_server/bootstrap_phases.go`
 - `golang/cluster_controller/cluster_controller_server/bounded_query.go`
 - `golang/cluster_controller/cluster_controller_server/component_catalog.go`
 - `golang/cluster_controller/cluster_controller_server/component_resolve.go`
@@ -101,7 +100,6 @@ These are uncovered Go files under CLAUDE.md R2 high-risk dirs. Sorted by path. 
 - `golang/cluster_controller/cluster_controller_server/internal/recovery/grpc_recovery.go`
 - `golang/cluster_controller/cluster_controller_server/joinplan_sign.go`
 - `golang/cluster_controller/cluster_controller_server/joinplan_types.go`
-- `golang/cluster_controller/cluster_controller_server/joinplan_validate.go`
 - `golang/cluster_controller/cluster_controller_server/kind_mismatch_etcd.go`
 - `golang/cluster_controller/cluster_controller_server/leader_pending_update_etcd.go`
 - `golang/cluster_controller/cluster_controller_server/main.go`
@@ -109,9 +107,6 @@ These are uncovered Go files under CLAUDE.md R2 high-risk dirs. Sorted by path. 
 - `golang/cluster_controller/cluster_controller_server/native_dependency_block.go`
 - `golang/cluster_controller/cluster_controller_server/node_agent_endpoint_fallback.go`
 - `golang/cluster_controller/cluster_controller_server/node_infra_intents.go`
-- `golang/cluster_controller/cluster_controller_server/objectstore_reconciler.go`
-- `golang/cluster_controller/cluster_controller_server/objectstore_topology_status.go`
-- `golang/cluster_controller/cluster_controller_server/objectstore_transition.go`
 - `golang/cluster_controller/cluster_controller_server/operations.go`
 - `golang/cluster_controller/cluster_controller_server/operator/etcd_operator.go`
 - `golang/cluster_controller/cluster_controller_server/operator/minio_operator.go`
@@ -123,11 +118,16 @@ These are uncovered Go files under CLAUDE.md R2 high-risk dirs. Sorted by path. 
 - `golang/cluster_controller/cluster_controller_server/projections/node_identity.go`
 - `golang/cluster_controller/cluster_controller_server/projections/schema.go`
 - `golang/cluster_controller/cluster_controller_server/projections_init.go`
-- `golang/cluster_controller/cluster_controller_server/promotion_reconciler.go`
-- `golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints.go`
 - `golang/cluster_controller/cluster_controller_server/reconcile_lane_status.go`
 - `golang/cluster_controller/cluster_controller_server/reconcile_metrics.go`
-- _… and 184 more (truncated to top 50 for readability)_
+- `golang/cluster_controller/cluster_controller_server/reconcile_minio.go`
+- `golang/cluster_controller/cluster_controller_server/recovery_rpc.go`
+- `golang/cluster_controller/cluster_controller_server/release_phase.go`
+- `golang/cluster_controller/cluster_controller_server/release_proof_status.go`
+- `golang/cluster_controller/cluster_controller_server/resign_leadership.go`
+- `golang/cluster_controller/cluster_controller_server/resources_wiring.go`
+- `golang/cluster_controller/cluster_controller_server/rolling/rolling.go`
+- _… and 173 more (truncated to top 50 for readability)_
 
 ## Candidates pending review
 

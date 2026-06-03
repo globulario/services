@@ -50,6 +50,12 @@ code_edges:
   - from: globular.platform:code.go.cluster_controller.release_pipeline
     relation: implements
     to: globular.platform:intent.workflow.source_of_operational_truth
+  - from: globular.platform:code.go.platform_cluster_controller.bootstrap_phases
+    relation: implements
+    to: globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+  - from: globular.platform:code.go.platform_cluster_controller.bootstrap_phases
+    relation: implements
+    to: globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
   - from: globular.platform:code.go.platform_cluster_controller.critical_state_registry
     relation: enforces
     to: globular.platform:invariant.critical_state.deletion_requires_audited_intent
@@ -74,6 +80,21 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.desired_state_publisher
     relation: implements
     to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_cluster_controller.dns_reconciler
+    relation: enforces
+    to: globular.platform:invariant.dns.records_must_be_installed_and_runtime_healthy
+  - from: globular.platform:code.go.platform_cluster_controller.dns_reconciler
+    relation: enforces
+    to: globular.platform:invariant.dns.wildcard_must_not_include_unhealthy_nodes
+  - from: globular.platform:code.go.platform_cluster_controller.dns_reconciler
+    relation: implements
+    to: globular.platform:intent.controller.leader_election_gates_all_writes
+  - from: globular.platform:code.go.platform_cluster_controller.dns_reconciler
+    relation: implements
+    to: globular.platform:intent.dns.record_operations_are_health_gated
+  - from: globular.platform:code.go.platform_cluster_controller.dns_reconciler
+    relation: implements
+    to: globular.platform:intent.domain.leader_only_acme_reconciliation
   - from: globular.platform:code.go.platform_cluster_controller.dnsprovider.cloudflare
     relation: enforces
     to: globular.platform:invariant.dnsprovider.private_ips_must_not_publish_to_public_dns
@@ -128,6 +149,15 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.invariant_enforcement
     relation: enforces
     to: globular.platform:invariant.founding.quorum.three_nodes_required
+  - from: globular.platform:code.go.platform_cluster_controller.joinplan_validate
+    relation: enforces
+    to: globular.platform:invariant.node.admission.proof_must_match_issued_join_id
+  - from: globular.platform:code.go.platform_cluster_controller.joinplan_validate
+    relation: implements
+    to: globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+  - from: globular.platform:code.go.platform_cluster_controller.joinplan_validate
+    relation: implements
+    to: globular.platform:intent.join.token.validation
   - from: globular.platform:code.go.platform_cluster_controller.node_admission_status
     relation: enforces
     to: globular.platform:invariant.node.admission.proof_must_match_issued_join_id
@@ -146,6 +176,51 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.objectstore_admission
     relation: implements
     to: globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_members
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_members
+    relation: implements
+    to: globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_reconciler
+    relation: enforces
+    to: globular.platform:invariant.critical_state.deletion_requires_audited_intent
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_reconciler
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_reconciler
+    relation: implements
+    to: globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_topology_status
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_topology_status
+    relation: implements
+    to: globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_transition
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_transition
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_transition
+    relation: implements
+    to: globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+  - from: globular.platform:code.go.platform_cluster_controller.promotion_reconciler
+    relation: enforces
+    to: globular.platform:invariant.desired.bootstrap_state_requires_promotion
+  - from: globular.platform:code.go.platform_cluster_controller.promotion_reconciler
+    relation: implements
+    to: globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+  - from: globular.platform:code.go.platform_cluster_controller.reconcile_etcd_endpoints
+    relation: enforces
+    to: globular.platform:invariant.etcd.endpoint_reachability
+  - from: globular.platform:code.go.platform_cluster_controller.reconcile_etcd_endpoints
+    relation: implements
+    to: globular.platform:intent.controller.leader_election_gates_all_writes
+  - from: globular.platform:code.go.platform_cluster_controller.reconcile_etcd_endpoints
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
   - from: globular.platform:code.go.platform_cluster_controller.reconcile_runtime
     relation: implements
     to: globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
@@ -158,12 +233,63 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.recovery_planner
     relation: implements
     to: globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+  - from: globular.platform:code.go.platform_cluster_controller.recovery_snapshot
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_controller.recovery_snapshot
+    relation: implements
+    to: globular.platform:intent.node_recovery.fence_before_destructive_reseed
+  - from: globular.platform:code.go.platform_cluster_controller.recovery_state_store
+    relation: enforces
+    to: globular.platform:invariant.critical_state.deletion_requires_audited_intent
+  - from: globular.platform:code.go.platform_cluster_controller.recovery_state_store
+    relation: implements
+    to: globular.platform:intent.node_recovery.fence_before_destructive_reseed
+  - from: globular.platform:code.go.platform_cluster_controller.recovery_workflow
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_controller.recovery_workflow
+    relation: implements
+    to: globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+  - from: globular.platform:code.go.platform_cluster_controller.recovery_workflow
+    relation: implements
+    to: globular.platform:intent.node_recovery.fence_before_destructive_reseed
   - from: globular.platform:code.go.platform_cluster_controller.release_reconciler
     relation: implements
     to: globular.platform:intent.desired_hash.is_convergence_identity
   - from: globular.platform:code.go.platform_cluster_controller.release_reconciler
     relation: implements
     to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_cluster_controller.release_resolver
+    relation: enforces
+    to: globular.platform:invariant.repository.desired_build_id_must_resolve
+  - from: globular.platform:code.go.platform_cluster_controller.release_resolver
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_cluster_controller.release_resolver
+    relation: implements
+    to: globular.platform:intent.repository.metadata_is_authority
+  - from: globular.platform:code.go.platform_cluster_controller.release_resolver
+    relation: implements
+    to: globular.platform:intent.repository.resolver_is_deterministic_or_errors
+  - from: globular.platform:code.go.platform_cluster_controller.remediation_consumer
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_controller.remediation_consumer
+    relation: implements
+    to: globular.platform:intent.ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
+  - from: globular.platform:code.go.platform_cluster_controller.remediation_consumer
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.platform_cluster_controller.repair_handler
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_controller.repair_handler
+    relation: implements
+    to: globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+  - from: globular.platform:code.go.platform_cluster_controller.repair_handler
+    relation: implements
+    to: globular.platform:intent.repository.repair_is_explicit
   - from: globular.platform:code.go.platform_cluster_controller.repair_node_workflow
     relation: enforces
     to: globular.platform:invariant.destructive_actions.require_explicit_guard

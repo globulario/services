@@ -64,6 +64,16 @@ code_symbols:
         - globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
         - globular.platform:intent.desired_state.is_authority
         - globular.platform:intent.workflow.source_of_operational_truth
+  - id: globular.platform:code.go.platform_cluster_controller.bootstrap_phases
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/bootstrap_phases.go
+    component: platform_cluster_controller.bootstrap_phases
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+        - globular.platform:intent.bootstrap.window_is_not_steady_state_auth
   - id: globular.platform:code.go.platform_cluster_controller.critical_state_registry
     namespace: globular.platform
     language: go
@@ -113,6 +123,20 @@ code_symbols:
         - globular.platform:invariant.desired.bootstrap_state_requires_promotion
       implements:
         - globular.platform:intent.desired_state.is_authority
+  - id: globular.platform:code.go.platform_cluster_controller.dns_reconciler
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/dns_reconciler.go
+    component: platform_cluster_controller.dns_reconciler
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.dns.records_must_be_installed_and_runtime_healthy
+        - globular.platform:invariant.dns.wildcard_must_not_include_unhealthy_nodes
+      implements:
+        - globular.platform:intent.domain.leader_only_acme_reconciliation
+        - globular.platform:intent.dns.record_operations_are_health_gated
+        - globular.platform:intent.controller.leader_election_gates_all_writes
   - id: globular.platform:code.go.platform_cluster_controller.dnsprovider.cloudflare
     namespace: globular.platform
     language: go
@@ -229,6 +253,18 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.founding.quorum.three_nodes_required
+  - id: globular.platform:code.go.platform_cluster_controller.joinplan_validate
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/joinplan_validate.go
+    component: platform_cluster_controller.joinplan_validate
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.node.admission.proof_must_match_issued_join_id
+      implements:
+        - globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+        - globular.platform:intent.join.token.validation
   - id: globular.platform:code.go.platform_cluster_controller.node_admission_status
     namespace: globular.platform
     language: go
@@ -261,6 +297,75 @@ code_symbols:
         - globular.platform:invariant.destructive_actions.require_explicit_guard
       implements:
         - globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions
+  - id: globular.platform:code.go.platform_cluster_controller.objectstore_members
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/objectstore_members.go
+    component: platform_cluster_controller.objectstore_members
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.topology_contract
+      implements:
+        - globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+  - id: globular.platform:code.go.platform_cluster_controller.objectstore_reconciler
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/objectstore_reconciler.go
+    component: platform_cluster_controller.objectstore_reconciler
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.critical_state.deletion_requires_audited_intent
+        - globular.platform:invariant.objectstore.topology_contract
+      implements:
+        - globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+  - id: globular.platform:code.go.platform_cluster_controller.objectstore_topology_status
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/objectstore_topology_status.go
+    component: platform_cluster_controller.objectstore_topology_status
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.topology_contract
+      implements:
+        - globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+  - id: globular.platform:code.go.platform_cluster_controller.objectstore_transition
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/objectstore_transition.go
+    component: platform_cluster_controller.objectstore_transition
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.topology_contract
+        - globular.platform:invariant.destructive_actions.require_explicit_guard
+      implements:
+        - globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+  - id: globular.platform:code.go.platform_cluster_controller.promotion_reconciler
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/promotion_reconciler.go
+    component: platform_cluster_controller.promotion_reconciler
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.desired.bootstrap_state_requires_promotion
+      implements:
+        - globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+  - id: globular.platform:code.go.platform_cluster_controller.reconcile_etcd_endpoints
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints.go
+    component: platform_cluster_controller.reconcile_etcd_endpoints
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.etcd.endpoint_reachability
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+        - globular.platform:intent.controller.leader_election_gates_all_writes
   - id: globular.platform:code.go.platform_cluster_controller.reconcile_runtime
     namespace: globular.platform
     language: go
@@ -289,6 +394,40 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+  - id: globular.platform:code.go.platform_cluster_controller.recovery_snapshot
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/recovery_snapshot.go
+    component: platform_cluster_controller.recovery_snapshot
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.destructive_actions.require_explicit_guard
+      implements:
+        - globular.platform:intent.node_recovery.fence_before_destructive_reseed
+  - id: globular.platform:code.go.platform_cluster_controller.recovery_state_store
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/recovery_state_store.go
+    component: platform_cluster_controller.recovery_state_store
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.critical_state.deletion_requires_audited_intent
+      implements:
+        - globular.platform:intent.node_recovery.fence_before_destructive_reseed
+  - id: globular.platform:code.go.platform_cluster_controller.recovery_workflow
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/recovery_workflow.go
+    component: platform_cluster_controller.recovery_workflow
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.destructive_actions.require_explicit_guard
+      implements:
+        - globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+        - globular.platform:intent.node_recovery.fence_before_destructive_reseed
   - id: globular.platform:code.go.platform_cluster_controller.release_reconciler
     namespace: globular.platform
     language: go
@@ -299,6 +438,43 @@ code_symbols:
       implements:
         - globular.platform:intent.desired_state.is_authority
         - globular.platform:intent.desired_hash.is_convergence_identity
+  - id: globular.platform:code.go.platform_cluster_controller.release_resolver
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/release_resolver.go
+    component: platform_cluster_controller.release_resolver
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.desired_build_id_must_resolve
+      implements:
+        - globular.platform:intent.repository.metadata_is_authority
+        - globular.platform:intent.repository.resolver_is_deterministic_or_errors
+        - globular.platform:intent.desired_state.is_authority
+  - id: globular.platform:code.go.platform_cluster_controller.remediation_consumer
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/remediation_consumer.go
+    component: platform_cluster_controller.remediation_consumer
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.destructive_actions.require_explicit_guard
+      implements:
+        - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+        - globular.platform:intent.ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
+  - id: globular.platform:code.go.platform_cluster_controller.repair_handler
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/repair_handler.go
+    component: platform_cluster_controller.repair_handler
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.destructive_actions.require_explicit_guard
+      implements:
+        - globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+        - globular.platform:intent.repository.repair_is_explicit
   - id: globular.platform:code.go.platform_cluster_controller.repair_node_workflow
     namespace: globular.platform
     language: go
