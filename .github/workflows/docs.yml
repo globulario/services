@@ -132,8 +132,12 @@ jobs:
             ERRORS=$((ERRORS + 1))
           fi
 
-          # Check for broken directory names
-          if grep -r "clustercontroller/" docs/; then
+          # Check for broken directory names — `clustercontroller/` is the
+          # old filesystem path that was renamed to `cluster_controller/`.
+          # The etcd key `/globular/clustercontroller/state` is a separate,
+          # legitimate runtime key (etcd keys are flat strings, not paths)
+          # and is excluded from this check.
+          if grep -r "clustercontroller/" docs/ | grep -v "/globular/clustercontroller/state"; then
             echo "ERROR: Found clustercontroller/ (should be cluster_controller/)"
             ERRORS=$((ERRORS + 1))
           fi
