@@ -1,4 +1,20 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.reconcile_etcd_endpoints
+// @awareness file_role=etcd_endpoint_list_reconciler_observes_membership_publishes_endpoints_never_evicts
+// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
+// @awareness implements=globular.platform:intent.controller.leader_election_gates_all_writes
+// @awareness enforces=globular.platform:invariant.etcd.endpoint_reachability
+// @awareness risk=critical
 package main
+
+// reconcile_etcd_endpoints.go — keeps the cluster's
+// authoritative etcd endpoint list in sync with healthy
+// members. Observes membership, publishes endpoints; MUST NOT
+// auto-evict or call MemberRemove from this loop. Removal goes
+// through node_removal_requests.go with an explicit, audited
+// operator request — the keepalived/VIP eviction cascade is
+// exactly the cost of letting endpoint reconciliation grow a
+// removal branch.
 
 import (
 	"context"

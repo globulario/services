@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.joinplan_validate
+// @awareness file_role=controller_side_joinplan_signature_and_freshness_validation_for_node_authorization
+// @awareness implements=globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+// @awareness implements=globular.platform:intent.join.token.validation
+// @awareness enforces=globular.platform:invariant.node.admission.proof_must_match_issued_join_id
+// @awareness risk=critical
 package main
+
+// joinplan_validate.go — controller-side counterpart to
+// node_agent/.../join_plan_gate.go (Phase 12). Validates the
+// JoinPlan signature against the controller's join key,
+// checks the expiry window, and ensures the join_id matches
+// the issued token. Any failure is a HARD STOP.
+//
+// MUST NOT loosen validation. The four sentinel error
+// classes (missing plan, missing signature, bad signature,
+// expired plan) are the operator-readable vocabulary;
+// collapsing them into a generic "join failed" forces
+// operators to guess what went wrong and may mask a security
+// event as a transient bug.
 
 import (
 	"crypto/ed25519"

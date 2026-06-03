@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.release_resolver
+// @awareness file_role=bridges_repository_metadata_authority_into_controller_desired_state_resolution
+// @awareness implements=globular.platform:intent.repository.metadata_is_authority
+// @awareness implements=globular.platform:intent.repository.resolver_is_deterministic_or_errors
+// @awareness implements=globular.platform:intent.desired_state.is_authority
+// @awareness enforces=globular.platform:invariant.repository.desired_build_id_must_resolve
+// @awareness risk=critical
 package main
+
+// release_resolver.go — translates "desired version X" into a
+// concrete build_id + manifest checksum the controller can
+// dispatch. Repository metadata is authority; this resolver
+// MUST surface "version not found" / "build_id orphaned" as
+// a hard error, never as a "latest reasonable fallback."
+//
+// Wildcard / fuzzy resolution here re-introduces
+// release.explicit_version_wildcard_installs_wrong_version
+// (silently installing an older local archive when the
+// requested version isn't present). The resolver returns one
+// build_id or a typed error — that's the contract.
 
 import (
 	"context"

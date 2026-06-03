@@ -1,4 +1,23 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.bootstrap_phases
+// @awareness file_role=controller_side_orchestration_of_node_join_lifecycle_phases_via_workflow
+// @awareness implements=globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+// @awareness implements=globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+// @awareness risk=critical
 package main
+
+// bootstrap_phases.go — orchestrates the join-lifecycle phase
+// machine from the controller side. Phases (e.g.
+// BootstrapEtcdJoining, BootstrapWorkloadReady, ACTIVE) gate
+// every cluster decision — only ACTIVE nodes participate in
+// RF, topology, workflow scheduling, and dependency
+// calculations.
+//
+// MUST NOT mark a node ACTIVE before its proofs land. Skipping
+// a phase to "speed up join" re-introduces the bootstrap-window
+// gap where the node is treated as steady-state but has not yet
+// proven the install contract. Bootstrap is its own authority
+// class; do not collapse it into ACTIVE.
 
 import (
 	"context"

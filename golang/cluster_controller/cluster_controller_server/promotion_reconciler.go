@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.promotion_reconciler
+// @awareness file_role=bootstrap_to_authoritative_promoter_for_infrastructurerelease_records_only_after_phase_available
+// @awareness implements=globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+// @awareness enforces=globular.platform:invariant.desired.bootstrap_state_requires_promotion
+// @awareness risk=critical
 package main
+
+// promotion_reconciler.go — the gate that turns observed
+// installed state into authoritative desired state. Records
+// stamped with bootstrap labels by
+// materializeMissingInfraDesired (see
+// desired_state_publisher.go) MUST NOT be treated as final
+// intent until this reconciler promotes them, and ONLY once
+// Phase reaches AVAILABLE on every target node.
+//
+// MUST NOT short-circuit the AVAILABLE check. Premature
+// promotion is exactly the
+// desired.bootstrap_premature_convergence failure mode —
+// observed state becomes desired before convergence proves
+// the install contract held.
 
 // promotion_reconciler.go — bootstrap-to-authoritative promotion for
 // InfrastructureRelease records created from observed installed state.

@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.objectstore_topology_status
+// @awareness file_role=read_authoritative_topology_mode_classifier_legacy_vs_authoritative
+// @awareness implements=globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness risk=high
 package main
+
+// objectstore_topology_status.go — classifies the controller's
+// current topology mode (Legacy when DesiredObjectStoreMembers
+// is nil vs Authoritative once explicitly populated). Read-only
+// classification used by reconcilers + the doctor to decide
+// what level of contract enforcement is in scope.
+//
+// MUST NOT auto-populate DesiredObjectStoreMembers. Legacy mode
+// is the safe default for pre-topology-contract clusters; the
+// transition to Authoritative is an explicit operator decision
+// (apply-topology RPC) that goes through admission audit.
 
 import (
 	"fmt"

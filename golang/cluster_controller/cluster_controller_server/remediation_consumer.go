@@ -1,4 +1,22 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.remediation_consumer
+// @awareness file_role=controller_consumer_of_remediation_queue_dispatching_to_workflow_with_bounded_concurrency
+// @awareness implements=globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+// @awareness implements=globular.platform:intent.ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=critical
 package main
+
+// remediation_consumer.go — drains the remediation queue and
+// dispatches each request via the workflow service. Bounded
+// concurrency + bounded retry are non-negotiable: an
+// unbounded loop here would let a stuck remediation
+// monopolize the controller and starve real reconcile work.
+//
+// MUST NOT execute remediation directly. The queue → workflow
+// → node-agent path is the only sanctioned route; calling
+// node-agent RPCs from this consumer bypasses the workflow
+// audit trail and the autonomy escalation gates.
 
 import (
 	"context"

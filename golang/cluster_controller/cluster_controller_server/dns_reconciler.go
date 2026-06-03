@@ -1,4 +1,28 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.dns_reconciler
+// @awareness file_role=controller_dns_and_acme_reconciler_leader_only_with_split_horizon_safety
+// @awareness implements=globular.platform:intent.domain.leader_only_acme_reconciliation
+// @awareness implements=globular.platform:intent.dns.record_operations_are_health_gated
+// @awareness implements=globular.platform:intent.controller.leader_election_gates_all_writes
+// @awareness enforces=globular.platform:invariant.dns.records_must_be_installed_and_runtime_healthy
+// @awareness enforces=globular.platform:invariant.dns.wildcard_must_not_include_unhealthy_nodes
+// @awareness risk=critical
 package main
+
+// dns_reconciler.go — LEADER-ONLY. Reconciles DNS records
+// and ACME certificate issuance for external domains. Three
+// load-bearing properties:
+//
+//  1. Health-gated record operations — wildcards MUST NOT
+//     include unhealthy nodes (silent 1/N misroute class).
+//
+//  2. ACME reconciliation runs only on the leader to avoid
+//     parallel registrations against Let's Encrypt rate
+//     limits + duplicate-account loops.
+//
+//  3. Split-horizon: internal mesh names vs external public
+//     records are separate state — internal nodes should not
+//     leak through external publishing.
 
 import (
 	"context"

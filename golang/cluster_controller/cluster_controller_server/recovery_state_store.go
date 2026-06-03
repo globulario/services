@@ -1,4 +1,23 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.recovery_state_store
+// @awareness file_role=etcd_persistence_for_node_recovery_state_and_snapshot_with_reconcile_fence_query
+// @awareness implements=globular.platform:intent.node_recovery.fence_before_destructive_reseed
+// @awareness enforces=globular.platform:invariant.critical_state.deletion_requires_audited_intent
+// @awareness risk=critical
 package main
+
+// recovery_state_store.go — keeps NodeRecoveryState +
+// NodeRecoverySnapshot in etcd at well-known paths
+// (/globular/recovery/nodes/<node_id>/...). The reconcile
+// fencing query reads these to decide whether
+// reconcileNodes() should touch a node currently in
+// recovery.
+//
+// MUST NOT auto-delete snapshots. The snapshot is the
+// authoritative reseed source; losing it mid-recovery
+// converts a recoverable situation into a manual rebuild.
+// Snapshot lifecycle is operator-driven: create, use, then
+// explicit deletion through the typed RPC.
 
 // recovery_state_store.go — etcd persistence for NodeRecoveryState and
 // NodeRecoverySnapshot. Also provides the reconcile fencing query used by

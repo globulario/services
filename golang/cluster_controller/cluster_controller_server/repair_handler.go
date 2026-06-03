@@ -1,4 +1,23 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.repair_handler
+// @awareness file_role=repair_rpc_dispatcher_routing_operator_requests_to_repair_modes_with_identity_preservation
+// @awareness implements=globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+// @awareness implements=globular.platform:intent.repository.repair_is_explicit
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=critical
 package main
+
+// repair_handler.go — gRPC handler that bridges operator
+// repair requests to repair_node_workflow.go's three modes
+// (from_repository / from_reference / full_reseed). Every
+// dispatch is operator-initiated; there is NO background
+// auto-repair path by design.
+//
+// MUST NOT relax IdentityIntegrityStatus gating. A node with
+// Corrupt identity REQUIRES full_reseed; auto-downgrading to
+// from_repository would propagate the corrupted identity
+// material into the rebuilt node — that's the "we
+// re-installed and nothing changed" pattern.
 
 import (
 	"context"

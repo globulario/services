@@ -1,4 +1,26 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.objectstore_reconciler
+// @awareness file_role=delete_approval_guard_for_objectstore_config_key_restores_from_inmemory_unless_audited_tombstone
+// @awareness implements=globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+// @awareness enforces=globular.platform:invariant.critical_state.deletion_requires_audited_intent
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness risk=critical
 package main
+
+// objectstore_reconciler.go — guards the
+// /globular/objectstore/config etcd key. When the key is
+// absent, the controller restores it from in-memory state
+// UNLESS a valid delete-approval tombstone exists at
+// objectstoreDeleteApprovalPrefix. Without that, an accidental
+// key deletion would silently reset the MinIO topology
+// contract and let the next reconcile cycle re-derive an
+// unsafe layout.
+//
+// Pattern mirrors ingress_spec_guard.go (Phase 10). The
+// shared approval helpers live in delete_approval.go. MUST
+// NOT auto-regenerate or remove the approval tombstone — it
+// is the operator's audit record that the delete was
+// intentional.
 
 // objectstore_reconciler.go — delete-approval guard for /globular/objectstore/config.
 //

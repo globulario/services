@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.recovery_workflow
+// @awareness file_role=controller_side_recovery_actor_actions_wiring_node_recover_full_reseed_through_workflow
+// @awareness implements=globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+// @awareness implements=globular.platform:intent.node_recovery.fence_before_destructive_reseed
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=critical
 package main
+
+// recovery_workflow.go — the behavioral heart of
+// node.recover.full_reseed. Registers every
+// controller.recovery.* actor action and wires it to live
+// cluster state. The recovery posture (RECOVERY_ONLY)
+// SUPPRESSES rollout-class workflows during recovery so a
+// reseed isn't competing with normal release dispatch.
+//
+// MUST NOT skip the snapshot fence. Per the snapshot rule:
+// no destructive reseed step may execute unless a persisted
+// NodeRecoverySnapshot exists for the target node. The fence
+// is the only thing standing between "operator initiated
+// recovery" and "wiped a node we cannot rebuild from."
 
 // recovery_workflow.go — controller-side implementation of NodeRecoveryControllerConfig.
 //

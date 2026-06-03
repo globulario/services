@@ -1,4 +1,26 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.objectstore_transition
+// @awareness file_role=topology_transition_record_with_pending_acknowledged_states_for_destructive_apply_audit
+// @awareness implements=globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=critical
 package main
+
+// objectstore_transition.go — TopologyTransition records are
+// the controller's audit trail for destructive topology apply
+// (clearMinioSysForModeChange). A transition starts PENDING,
+// the node-agent confirms it has applied the destructive
+// wipe, the controller marks it ACKNOWLEDGED. The PENDING
+// window is the operator's safety net — destructive wipes
+// propagate only after the controller has written the
+// explicit transition record AND the node-agent has consumed
+// it.
+//
+// MUST NOT skip the transition record. A node-agent that
+// wipes .minio.sys without a matching transition is the
+// objectstore.minio.transition_wipe_loop failure mode; the
+// transition is what gates that loop.
 
 import (
 	"crypto/rand"

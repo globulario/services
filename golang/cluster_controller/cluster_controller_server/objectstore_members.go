@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.objectstore_members
+// @awareness file_role=controller_authorized_record_of_node_desired_membership_in_minio_pool_distinct_from_storage_profile
+// @awareness implements=globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness risk=critical
 package main
+
+// objectstore_members.go — the "storage" capability profile
+// does NOT imply MinIO pool membership. The controller MUST
+// explicitly add a node to DesiredObjectStoreMembers (via
+// apply-topology or Day-0 bootstrap) before
+// reconcileMinioJoinPhases will advance the node beyond
+// MinioJoinNonMember.
+//
+// Inferring membership from the storage profile alone was
+// the failure mode behind several non_member cycling
+// incidents (commit 9598b8f7). Keep the authority explicit.
 
 import "time"
 

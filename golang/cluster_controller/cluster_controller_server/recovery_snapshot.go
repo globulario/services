@@ -1,4 +1,22 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.recovery_snapshot
+// @awareness file_role=node_recovery_snapshot_capture_and_validation_implementing_rule_a_no_reseed_without_snapshot
+// @awareness implements=globular.platform:intent.node_recovery.fence_before_destructive_reseed
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=critical
 package main
+
+// recovery_snapshot.go — captures a structured,
+// machine-usable inventory of every installed artifact on a
+// node at a point in time. The snapshot IS the authoritative
+// reseed source for node.recover.full_reseed.
+//
+// Rule A is non-negotiable: NO destructive reseed step may
+// execute unless a persisted snapshot exists. The validation
+// here is what gives Rule A its teeth — a malformed or stale
+// snapshot must be rejected at capture time, not at reseed
+// time. Loosening the validator turns a recoverable mistake
+// into an unrecoverable one.
 
 // recovery_snapshot.go — NodeRecoverySnapshot capture and validation.
 //
