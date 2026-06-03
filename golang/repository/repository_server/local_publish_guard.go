@@ -120,10 +120,22 @@ func validateLocalIdentityRules(publisherID string, ch repopb.ArtifactChannel, v
 // (publisher, name, version, platform) with a DIFFERENT digest, the upload
 // must be rejected immediately (before any writes). The caller is expected to:
 //   - bump the version (to create a new official release), OR
-//   - use a local identity lane (different publisher + local version suffix)
+//   - use a local identity lane (different publisher + local version suffix), OR
+//   - (the proven-phantom escape hatch) present a RepairAuthorization via gRPC
+//     metadata `x-repair-unseal-official: true` + `x-repair-reason: <text>` +
+//     `x-repair-prior-digest: <expected sealed digest>`. The repair path is
+//     audited verbatim and rejects malformed authorizations. See
+//     repair_authorization.go for the contract.
 //
 // This check is a no-op for non-official publishers and non-STABLE channels.
-func (srv *server) enforceOfficialNamespaceSeal(ctx context.Context, publisherID, name, version, platform, incomingDigest string, ch repopb.ArtifactChannel) error {
+//
+// `repair` is the parsed repair authorization from the request context. A nil
+// value means no repair was requested — the seal is enforced absolutely.
+// A non-nil value triggers the repair-path checks: prior digest match,
+// non-empty reason. Authorization-flag-set-but-mismatch returns
+// PermissionDenied / InvalidArgument / FailedPrecondition with a precise
+// reason so the operator can fix exactly what's wrong rather than guessing.
+func (srv *server) enforceOfficialNamespaceSeal(ctx context.Context, publisherID, name, version, platform, incomingDigest string, ch repopb.ArtifactChannel, repair *RepairAuthorization) error {
 	effective := ch
 	if effective == repopb.ArtifactChannel_CHANNEL_UNSET {
 		effective = repopb.ArtifactChannel_STABLE
@@ -149,31 +161,79 @@ func (srv *server) enforceOfficialNamespaceSeal(ctx context.Context, publisherID
 	// The version is already in the ledger. Check if the digest matches.
 	// If it does, UploadArtifact's idempotency check (findExistingArtifactByDigest)
 	// will catch it earlier and return the existing build_id as success.
-	// If digests differ: this is identity fraud — reject with PERMISSION_DENIED.
+	// If digests differ: this is identity fraud — reject with PERMISSION_DENIED
+	// UNLESS the caller has presented a valid RepairAuthorization (proven-phantom
+	// escape hatch).
 	existingDigest := srv.getPublishedDigest(ctx, publisherID, name, version, platform)
 	if existingDigest == "" {
 		// Ledger has the version but we can't verify the digest — treat as
 		// "already published, immutable" rather than silently accepting.
+		// Repair path also requires a known prior digest to confirm intent,
+		// so this branch is unreachable via repair anyway.
 		return status.Errorf(codes.AlreadyExists,
 			"official namespace sealed: %s@%s is already published for %s on %s — "+
 				"use 'globular pkg publish --bump' to create a new version",
 			name, version, publisherID, platform)
 	}
 
-	if !digestsMatch(existingDigest, incomingDigest) {
-		return status.Errorf(codes.PermissionDenied,
-			"official identity conflict: %s/%s@%s on %s is SEALED (digest=%s) — "+
-				"incoming artifact has a different digest (%s). "+
-				"Official stable artifacts are immutable. "+
-				"To test a local fix: use a local publisher (e.g. local@<cluster-id>) "+
-				"and a local version suffix (e.g. %s+local.<cluster>.1) with --channel dev",
-			publisherID, name, version, platform,
-			existingDigest[:min(16, len(existingDigest))],
-			incomingDigest[:min(16, len(incomingDigest))],
-			version)
+	if digestsMatch(existingDigest, incomingDigest) {
+		return nil
 	}
 
-	return nil
+	// Digests differ. Default policy: reject. Repair path: validate the
+	// authorization and let the caller proceed if and only if every gate
+	// passes. Each rejection branch returns a precise reason so the operator
+	// can fix exactly what's wrong rather than guessing at the contract.
+	if repair != nil && repair.Requested {
+		if strings.TrimSpace(repair.Reason) == "" {
+			return status.Errorf(codes.InvalidArgument,
+				"repair-unseal rejected: empty reason — provide --reason \"<why>\" describing why the sealed %s/%s@%s is being repaired",
+				publisherID, name, version)
+		}
+		if !digestsMatch(repair.PriorDigest, existingDigest) {
+			return status.Errorf(codes.FailedPrecondition,
+				"repair-unseal rejected: prior-digest mismatch — caller asserted prior=%s but actual sealed digest is %s. "+
+					"Inspect via 'globular pkg describe' or repository_explain_artifact and re-issue the repair with the correct --prior-digest.",
+				shortDigest(repair.PriorDigest), shortDigest(existingDigest))
+		}
+		// Authorization passed all gates. Log + audit the unseal and allow
+		// the upload to overwrite the sealed bytes. The audit record is
+		// independent of the artifact ledger so the repair history is
+		// queryable even after future overwrites.
+		srv.logRepairAuthorized(ctx,
+			publisherID, name, version, platform,
+			existingDigest, incomingDigest,
+			existingBuildID, "", // new build_id is allocated later in UploadArtifact
+			repair,
+		)
+		return nil
+	}
+
+	return status.Errorf(codes.PermissionDenied,
+		"official identity conflict: %s/%s@%s on %s is SEALED (digest=%s) — "+
+			"incoming artifact has a different digest (%s). "+
+			"Official stable artifacts are immutable. "+
+			"To test a local fix: use a local publisher (e.g. local@<cluster-id>) "+
+			"and a local version suffix (e.g. %s+local.<cluster>.1) with --channel dev. "+
+			"To repair a proven-phantom sealed artifact, re-issue with "+
+			"--unseal-official --reason \"<why>\" --prior-digest %s",
+		publisherID, name, version, platform,
+		shortDigest(existingDigest),
+		shortDigest(incomingDigest),
+		version, shortDigest(existingDigest))
+}
+
+// shortDigest returns a log-friendly truncated form of a sha256 digest
+// (sha256: prefix stripped, first 16 hex chars). Sha256 prefixes are
+// effectively unique at 8+ chars, so 16 is a comfortable display length.
+// Use this in error messages and audit logs; do NOT use for equality
+// (use digestsMatch which normalizes both inputs).
+func shortDigest(d string) string {
+	s := strings.TrimPrefix(strings.TrimSpace(d), "sha256:")
+	if len(s) > 16 {
+		return s[:16]
+	}
+	return s
 }
 
 // digestsMatch returns true if two digest strings represent the same content.

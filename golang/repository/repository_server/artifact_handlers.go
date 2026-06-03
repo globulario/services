@@ -1252,9 +1252,16 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	// not yet known (it comes from package.json inside the tgz), so we conservatively
 	// check for STABLE (CHANNEL_UNSET). Post-enrichment enforcement (below) handles
 	// any channel overrides from package.json or reservation.
+	//
+	// The optional repair authorization is parsed from gRPC metadata
+	// (`x-repair-unseal-official` + `x-repair-reason` + `x-repair-prior-digest`)
+	// and gives the seal-check the chance to allow a proven-phantom replacement.
+	// A nil value means no repair was requested — the seal is enforced absolutely.
+	// See repair_authorization.go for the contract and audit trail.
+	repair := getRepairAuthorization(ctx)
 	if sealErr := srv.enforceOfficialNamespaceSeal(ctx,
 		publisherID, ref.GetName(), ref.GetVersion(), ref.GetPlatform(),
-		newChecksum, repopb.ArtifactChannel_CHANNEL_UNSET,
+		newChecksum, repopb.ArtifactChannel_CHANNEL_UNSET, repair,
 	); sealErr != nil {
 		return sealErr
 	}

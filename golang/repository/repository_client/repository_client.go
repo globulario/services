@@ -437,10 +437,36 @@ func (client *Repository_Service_Client) PromoteArtifact(ref *repositorypb.Artif
 // Build number 0 means legacy (no build iteration tracking).
 // Data is streamed in chunks to avoid exceeding gRPC message size limits.
 func (client *Repository_Service_Client) UploadArtifactWithBuild(ref *repositorypb.ArtifactRef, data []byte, buildNumber int64) error {
+	return client.uploadArtifactCtx(client.GetCtx(), ref, data, buildNumber)
+}
+
+// UploadArtifactWithRepair uploads an artifact carrying the repair
+// authorization metadata documented in
+// repository_server/repair_authorization.go. The server's
+// enforceOfficialNamespaceSeal reads the metadata to allow a proven-phantom
+// replacement of a sealed official artifact. If reason or priorDigest is
+// empty the server will reject with InvalidArgument / FailedPrecondition;
+// the CLI is responsible for surfacing those gates to the operator.
+func (client *Repository_Service_Client) UploadArtifactWithRepair(ref *repositorypb.ArtifactRef, data []byte, buildNumber int64, reason, priorDigest string) error {
 	if ref == nil {
 		return errors.New("artifact ref required")
 	}
-	stream, err := client.c.UploadArtifact(client.GetCtx())
+	ctx := metadata.AppendToOutgoingContext(client.GetCtx(),
+		"x-repair-unseal-official", "true",
+		"x-repair-reason", reason,
+		"x-repair-prior-digest", priorDigest,
+	)
+	return client.uploadArtifactCtx(ctx, ref, data, buildNumber)
+}
+
+// uploadArtifactCtx is the lower-level upload that takes an explicit context.
+// Both UploadArtifactWithBuild (no repair) and UploadArtifactWithRepair
+// (repair metadata attached) share this implementation.
+func (client *Repository_Service_Client) uploadArtifactCtx(ctx context.Context, ref *repositorypb.ArtifactRef, data []byte, buildNumber int64) error {
+	if ref == nil {
+		return errors.New("artifact ref required")
+	}
+	stream, err := client.c.UploadArtifact(ctx)
 	if err != nil {
 		return err
 	}

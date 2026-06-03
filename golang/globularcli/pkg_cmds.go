@@ -147,6 +147,13 @@ var (
 	pkgPublishBasedOn     string // "name@version" — official source artifact (for local builds)
 	pkgPublishPatchReason string // human-readable reason for a local/hotfix build
 
+	// Official-seal repair path (Phase 31). Three flags must all be set
+	// together; the server rejects partial authorization with InvalidArgument.
+	// See repository_server/repair_authorization.go for the contract.
+	pkgPublishUnsealOfficial bool   // --unseal-official: opt in to seal-bypass
+	pkgPublishReason         string // --reason: required when --unseal-official
+	pkgPublishPriorDigest    string // --prior-digest: required when --unseal-official
+
 	// Register command flags (subset)
 	pkgRegisterFile      string
 	pkgRegisterName      string
@@ -200,7 +207,10 @@ func init() {
 	pkgPublishCmd.Flags().StringVar(&pkgPublishRepository, "repository", "", "repository service address (required)")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishPublisher, "publisher", "", "override publisher from package manifest")
 	pkgPublishCmd.Flags().BoolVar(&pkgPublishDryRun, "dry-run", false, "validate packages without uploading")
-	pkgPublishCmd.Flags().BoolVar(&pkgPublishForce, "force", false, "overwrite existing artifact even if checksum differs")
+	pkgPublishCmd.Flags().BoolVar(&pkgPublishForce, "force", false, "overwrite an existing artifact whose checksum differs.\nNOTE: --force does NOT bypass the official-publisher seal (core@globular.io stable artifacts are immutable). To repair a proven-phantom sealed artifact, additionally pass --unseal-official with --reason and --prior-digest.")
+	pkgPublishCmd.Flags().BoolVar(&pkgPublishUnsealOfficial, "unseal-official", false, "explicit opt-in to repair a SEALED official artifact (must also pass --reason and --prior-digest).\nIntended for proven-phantom recovery — see docs/awareness/reports/envoy_lds_cds_wedge.md and repair_authorization.go.")
+	pkgPublishCmd.Flags().StringVar(&pkgPublishReason, "reason", "", "operator-supplied explanation for an --unseal-official repair (required when --unseal-official is set; written verbatim to the audit event)")
+	pkgPublishCmd.Flags().StringVar(&pkgPublishPriorDigest, "prior-digest", "", "expected sealed digest the caller intends to replace (required when --unseal-official is set; server rejects mismatch as FailedPrecondition)")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishOutput, "output", "table", "output format: table|json|yaml")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishBump, "bump", "", "version bump intent: patch|minor|major (calls AllocateUpload)")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishChannel, "channel", "", "release channel: stable|candidate|canary|dev|local|hotfix|bootstrap\n  local → DEV channel + auto local version suffix\n  hotfix → CANDIDATE channel + -hotfix. suffix\n  (default: stable)")
@@ -707,9 +717,38 @@ func publishOne(file, token string) pkgPublishOne {
 		Kind:        artifactKind,
 	}
 
+	// Validate --unseal-official triplet at the CLI level so the operator
+	// gets an early, local error rather than a server round-trip. The server
+	// re-validates and rejects with InvalidArgument / FailedPrecondition if
+	// the values are missing or wrong; this check just avoids the wire trip
+	// when the triplet is obviously incomplete.
+	if pkgPublishUnsealOfficial {
+		if strings.TrimSpace(pkgPublishReason) == "" {
+			r.err = fmt.Errorf("--unseal-official requires --reason \"<why>\" (server will reject without it)")
+			r.duration = time.Since(start)
+			return r
+		}
+		if strings.TrimSpace(pkgPublishPriorDigest) == "" {
+			r.err = fmt.Errorf("--unseal-official requires --prior-digest <sha256...> (the digest of the sealed artifact being replaced)")
+			r.duration = time.Since(start)
+			return r
+		}
+		// Reservation flow doesn't yet thread the repair metadata; the
+		// repair lane is only meaningful for direct UploadArtifact anyway
+		// (the reservation lane is for new versions, not phantom repair).
+		if reservationID != "" {
+			r.err = fmt.Errorf("--unseal-official is incompatible with --bump (reservation flow allocates a NEW version; repair targets an existing sealed identity)")
+			r.duration = time.Since(start)
+			return r
+		}
+	}
+
 	uploadErr := func() error {
 		if reservationID != "" {
 			return client.UploadWithReservation(ref, archiveData, summary.BuildNumber, reservationID)
+		}
+		if pkgPublishUnsealOfficial {
+			return client.UploadArtifactWithRepair(ref, archiveData, summary.BuildNumber, pkgPublishReason, pkgPublishPriorDigest)
 		}
 		return client.UploadArtifactWithBuild(ref, archiveData, summary.BuildNumber)
 	}()

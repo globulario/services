@@ -50,7 +50,7 @@ func TestLocalPublish1_OfficialStableSealedAgainstDifferentDigest(t *testing.T) 
 	err := srv.enforceOfficialNamespaceSeal(ctx,
 		"core@globular.io", "storage", "1.2.43", "linux_amd64",
 		"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-		repopb.ArtifactChannel_STABLE,
+		repopb.ArtifactChannel_STABLE, nil,
 	)
 	if err == nil {
 		t.Fatal("expected official namespace seal to reject different digest, got nil error")
@@ -84,7 +84,7 @@ func TestLocalPublish1_OfficialStableAllowsSameDigest(t *testing.T) {
 	// Same digest — must succeed (idempotent retry).
 	err := srv.enforceOfficialNamespaceSeal(ctx,
 		"core@globular.io", "storage", "1.2.43", "linux_amd64",
-		digest, repopb.ArtifactChannel_STABLE,
+		digest, repopb.ArtifactChannel_STABLE, nil,
 	)
 	if err != nil {
 		t.Errorf("expected seal to pass for identical digest, got: %v", err)
@@ -248,7 +248,7 @@ func TestLocalPublish4_OfficialSealDoesNotBlockLocalPublisher(t *testing.T) {
 	// Local publisher can publish its own artifact — seal is N/A.
 	err := srv.enforceOfficialNamespaceSeal(ctx,
 		"local@ryzen", "storage", "1.2.43+local.ryzen.1", "linux_amd64",
-		"sha256:bbbb", repopb.ArtifactChannel_DEV,
+		"sha256:bbbb", repopb.ArtifactChannel_DEV, nil,
 	)
 	if err != nil {
 		t.Errorf("expected seal to be N/A for local publisher, got: %v", err)
@@ -320,7 +320,7 @@ func TestLocalPublish6_CrossClusterLocalCannotOverrideStable(t *testing.T) {
 	err := srv.enforceOfficialNamespaceSeal(ctx,
 		"core@globular.io", "storage", "1.2.43", "linux_amd64",
 		"sha256:cluster-b-local-digest-bbbb",
-		repopb.ArtifactChannel_STABLE,
+		repopb.ArtifactChannel_STABLE, nil,
 	)
 	if err == nil {
 		t.Fatal("expected seal to reject cross-cluster local artifact claiming official stable identity")
@@ -333,7 +333,7 @@ func TestLocalPublish6_CrossClusterLocalCannotOverrideStable(t *testing.T) {
 	err = srv.enforceOfficialNamespaceSeal(ctx,
 		"local@cluster-b", "storage", "1.2.43+local.cluster-b.1", "linux_amd64",
 		"sha256:cluster-b-local-digest-bbbb",
-		repopb.ArtifactChannel_DEV,
+		repopb.ArtifactChannel_DEV, nil,
 	)
 	if err != nil {
 		t.Errorf("expected non-official local import to pass seal, got: %v", err)
