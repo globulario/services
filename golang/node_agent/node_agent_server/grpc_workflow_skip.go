@@ -245,3 +245,104 @@ func commandBinaryPath(name string) string {
 	}
 	return ""
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// Phase 27 — runtime-proof refresh for the skip path.
+//
+// canSkipInstallPackage decides "the on-disk binary matches the desired
+// version AND the unit is active." That is necessary but NOT sufficient
+// proof of convergence: the running PID may still be the OLD binary (e.g.
+// the binary was swapped on disk by `globular pkg build` or by a partial
+// install, but the systemd unit was never restarted to load the new
+// bytes). Without that runtime-proof check, the skip path returns
+// SUCCEEDED while the running service is still old, AND because the
+// service self-registers its /globular/services/<id>/config record only
+// on startup, the etcd config record stays at the old version too.
+//
+// Phase 23 surfaced this as failure_mode
+// node_agent.install_skip_without_service_config_update. The invariant
+// pair is node_agent.install_skip_must_refresh_runtime_proof.
+//
+// runtimeBinaryProvider abstracts /proc reading so tests can inject a
+// fake without touching the host filesystem. Production code uses
+// DiscoverRunningBinaries (process_fingerprint.go); the var-of-func
+// pattern matches the existing isActive/isLoaded injection style in
+// canSkipInstallPackage above.
+type runtimeBinaryProvider func() map[string]RunningBinary
+
+var runtimeBinariesFunc runtimeBinaryProvider = DiscoverRunningBinaries
+
+// runtimeProofVerdict classifies what the runtime check learned about a
+// service whose canSkipInstallPackage said "skip allowed."
+type runtimeProofVerdict int
+
+const (
+	// runtimeProofMatches — the running PID's exe checksum matches the
+	// expected sha256 (or no expected sha256 was supplied / no PID was
+	// found to match against). Skip is safe; return SUCCEEDED.
+	runtimeProofMatches runtimeProofVerdict = iota
+
+	// runtimeProofStale — the running PID's exe checksum does NOT match
+	// the expected sha256. The binary on disk is correct but the running
+	// service is still the OLD binary. Skip is NOT safe — caller must
+	// restart the unit (so the new binary loads + self-registers + etcd
+	// config record updates) before returning success.
+	runtimeProofStale
+
+	// runtimeProofNoRunningPID — no globular-bin process was found for
+	// this service name. Could mean the unit is mid-restart or the
+	// service crashed. Skip is NOT safe; caller should not claim success.
+	runtimeProofNoRunningPID
+)
+
+// verifyRunningBinaryMatchesExpected reads the running PID's binary
+// checksum for pkgName and compares against expectedSha256. Returns
+// runtimeProofMatches if expectedSha256 is empty (no opinion to enforce),
+// or if the running checksum matches. Returns runtimeProofStale on
+// mismatch (the actual checksum is included in the reason string for
+// log diagnostics). Returns runtimeProofNoRunningPID if no globular-bin
+// process was discovered for pkgName.
+//
+// MUST be called from the skip-allowed branch after canSkipInstallPackage
+// returns installSkipAllowed, for any package that has a systemd unit
+// (command packages are stateless — the on-disk binary check in
+// canSkipInstallPackage already covers them).
+//
+// This is the runtime-proof refresh contract from
+// invariant.node_agent.install_skip_must_refresh_runtime_proof. The fix
+// is bounded: it does NOT force a reinstall (the on-disk binary is
+// already correct); it only catches the case where the running PID is
+// behind the on-disk binary.
+func verifyRunningBinaryMatchesExpected(pkgName, expectedSha256 string) (runtimeProofVerdict, string) {
+	exp := normalizedHash(expectedSha256)
+	if exp == "" {
+		// No opinion from the manifest side — nothing to verify against.
+		// canSkipInstallPackage's on-disk + active-unit checks are the
+		// strongest evidence available. Skip is allowed.
+		return runtimeProofMatches, fmt.Sprintf(
+			"runtime-proof: %s no expected_sha256 — installed-state proof is sufficient",
+			pkgName)
+	}
+
+	running := runtimeBinariesFunc()
+	rb, ok := running[pkgName]
+	if !ok {
+		return runtimeProofNoRunningPID, fmt.Sprintf(
+			"runtime-proof: %s no running globular-bin PID found — cannot verify; skip not safe",
+			pkgName)
+	}
+	got := normalizedHash(rb.Checksum)
+	if got == "" {
+		// Process was found but we couldn't read its checksum.
+		return runtimeProofNoRunningPID, fmt.Sprintf(
+			"runtime-proof: %s running PID=%d but no checksum available — cannot verify; skip not safe",
+			pkgName, rb.PID)
+	}
+	if got != exp {
+		return runtimeProofStale, fmt.Sprintf(
+			"runtime-proof: %s on-disk binary matches expected but running PID=%d checksum %s != expected %s — unit restart required",
+			pkgName, rb.PID, got, exp)
+	}
+	return runtimeProofMatches, fmt.Sprintf(
+		"runtime-proof: %s running PID=%d binary checksum matches expected", pkgName, rb.PID)
+}

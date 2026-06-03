@@ -230,6 +230,68 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		switch skipResult {
 		case installSkipAllowed:
 			log.Printf("grpc-workflow: %s", reason)
+			// Phase 27: runtime-proof refresh before claiming SUCCEEDED.
+			// canSkipInstallPackage proved on-disk binary + active unit,
+			// but the running PID may still be the OLD binary (the binary
+			// was swapped without a unit restart). If the running PID's
+			// checksum doesn't match expectedSha256, the skip is unsafe:
+			// the service is still old AND its /globular/services/<id>/config
+			// record (which only refreshes when the service self-registers
+			// on startup) is stale too. See invariant
+			// node_agent.install_skip_must_refresh_runtime_proof and the
+			// matching failure_mode in docs/awareness/failure_modes.yaml.
+			//
+			// Command packages (unit == "") have no runtime to check — the
+			// binary-on-disk proof in canSkipInstallPackage is sufficient.
+			// Services without expectedSha256 in the dispatch return
+			// runtimeProofMatches (no opinion to enforce) — equivalent to
+			// today's behaviour.
+			if packageUnit(pkgName) != "" {
+				verdict, rtReason := verifyRunningBinaryMatchesExpected(pkgName, expectedSha256)
+				switch verdict {
+				case runtimeProofStale:
+					// Running PID is old — restart the unit so the new
+					// binary loads and the service self-registers its
+					// updated etcd config. Use the existing Restart +
+					// WaitActive helpers (same path used by the
+					// installSkipDeniedInactive recovery below).
+					log.Printf("grpc-workflow: %s", rtReason)
+					unit := packageUnit(pkgName)
+					if restartErr := supervisor.Restart(ctx, unit); restartErr != nil {
+						log.Printf("grpc-workflow: install-package %s: runtime-proof restart failed: %v", pkgName, restartErr)
+						return &node_agentpb.RunWorkflowResponse{
+							Status:         "FAILED",
+							StepsTotal:     1,
+							StepsSucceeded: 0,
+							Error:          fmt.Sprintf("runtime-proof restart failed: %v", restartErr),
+						}, nil
+					}
+					if waitErr := supervisor.WaitActive(ctx, unit, 30*time.Second); waitErr != nil {
+						log.Printf("grpc-workflow: install-package %s: runtime-proof unit did not become active: %v", pkgName, waitErr)
+						return &node_agentpb.RunWorkflowResponse{
+							Status:         "FAILED",
+							StepsTotal:     1,
+							StepsSucceeded: 0,
+							Error:          fmt.Sprintf("runtime-proof unit did not become active: %v", waitErr),
+						}, nil
+					}
+					log.Printf("grpc-workflow: install-package %s: runtime-proof restart succeeded (unit=%s)", pkgName, unit)
+				case runtimeProofNoRunningPID:
+					// No running PID found to verify against. Could be a
+					// mid-restart window or a crashed service. Refuse to
+					// claim success on weak evidence.
+					log.Printf("grpc-workflow: %s", rtReason)
+					return &node_agentpb.RunWorkflowResponse{
+						Status:         "FAILED",
+						StepsTotal:     1,
+						StepsSucceeded: 0,
+						Error:          rtReason,
+					}, nil
+				case runtimeProofMatches:
+					// Running PID matches expected (or no opinion to enforce).
+					log.Printf("grpc-workflow: %s", rtReason)
+				}
+			}
 			srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
 				ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
 				WorkflowID:      wfID,
