@@ -209,6 +209,26 @@ func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, nam
 	}
 	pkg.Metadata["entrypoint_checksum"] = hash
 
+	// Stamp the canonical install receipt. installed_state.metadata is the
+	// sole authority for expected unit-file/binary/config content (see
+	// docs/architecture/retire-systemd-sidecars.md). Best-effort: if the
+	// receipt cannot be computed (binary missing, unit file missing) we
+	// still write the entrypoint_checksum so the rest of the install
+	// proof chain holds — the missing receipt fields will surface as
+	// installed_state_missing_or_unproven at heartbeat time, which is
+	// the correct fail-closed behaviour.
+	unitPath := filepath.Join("/etc/systemd/system", "globular-"+name+".service")
+	receiptOpts := ReceiptOpts{
+		BinaryPath:  path,
+		InstalledBy: "node-agent.installer-api",
+	}
+	if _, statErr := os.Stat(unitPath); statErr == nil {
+		receiptOpts.UnitFilePath = unitPath
+	}
+	if rerr := StampInstallReceipt(pkg, receiptOpts); rerr != nil {
+		log.Printf("installer-api: install receipt skipped for %s: %v (entrypoint_checksum still committed)", name, rerr)
+	}
+
 	if werr := installed_state.WriteInstalledPackage(ctx, pkg); werr != nil {
 		log.Printf("installer-api: write installed-state for %s: %v (non-fatal)", name, werr)
 		return

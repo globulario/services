@@ -243,7 +243,7 @@ func TestDetectUnits_SkipMinioForNonMember(t *testing.T) {
 	// list (no unit files discovered, baseline commands fail silently).
 	// The important invariant is the negative: with skipMinioService=true,
 	// the minio unit must NOT appear.
-	units := detectUnits(t.Context(), true)
+	units := detectUnits(t.Context(), "", true)
 	for _, u := range units {
 		if u.Name == "globular-minio.service" {
 			t.Errorf("detectUnits(skipMinio=true) must not include globular-minio.service; got %v", u)
@@ -259,5 +259,5 @@ func TestDetectUnits_SkipMinioForNonMember(t *testing.T) {
 func TestDetectUnits_IncludeMinioForMember(t *testing.T) {
 	// This is a no-panic/smoke test in the test environment; the important
 	// behaviour (minio present in baseline) is covered by the constructor.
-	_ = detectUnits(t.Context(), false)
+	_ = detectUnits(t.Context(), "", false)
 }

@@ -25,6 +25,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/healthchecks"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/certs"
@@ -869,7 +870,7 @@ func (srv *NodeAgentServer) buildNodeIdentity() *cluster_controllerpb.NodeIdenti
 // MinIO pool — the topology gate already stopped globular-minio.service on
 // non-members, so reporting it as inactive would produce a false-positive drift
 // finding in the cluster doctor.
-func detectUnits(ctx context.Context, skipMinioService bool) []*node_agentpb.UnitStatus {
+func detectUnits(ctx context.Context, nodeID string, skipMinioService bool) []*node_agentpb.UnitStatus {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -923,6 +924,14 @@ func detectUnits(ctx context.Context, skipMinioService bool) []*node_agentpb.Uni
 	}
 	sort.Strings(unitList)
 
+	// Pre-fetch installed_state once and build unit-name → pkg lookup.
+	// Authority order for unit drift detection (see docs/architecture/
+	// retire-systemd-sidecars.md): installed_state.metadata.unit_file_sha256
+	// is the SOLE authority. Legacy .sha256 sidecars are consumed only as
+	// a one-time migration seed when metadata is absent but a sidecar exists.
+	// Both absent → fail closed (installed_state_missing_or_unproven).
+	unitToPkg := buildUnitToPackageMap(ctx, nodeID)
+
 	// Query rich state for each unit.
 	statuses := make([]*node_agentpb.UnitStatus, 0, len(unitList))
 	for _, unit := range unitList {
@@ -931,15 +940,13 @@ func detectUnits(ctx context.Context, skipMinioService bool) []*node_agentpb.Uni
 		if loadState != "" {
 			details += " (load=" + loadState + ")"
 		}
-		// Unit definition drift detection: compare the installed unit file against
-		// the SHA-256 sidecar written by the installer. If they differ, the unit
-		// definition has changed outside the package pipeline (manual edit, partial
-		// upgrade, OS overlay). Report as "hash_drift" so detectInfraDrift
-		// downgrades the per-node status to DEGRADED and triggers a re-install.
+		// Unit definition drift detection. installed_state is authoritative.
+		// Sidecar is consulted only as a one-time legacy migration input;
+		// after migration, sidecar is never read again for this unit.
 		state := activeState
-		if d := checkUnitHashDrift(unit); d != "" {
+		if d := checkUnitHashDrift(ctx, unit, unitToPkg[unit]); d != "" {
 			details += " [" + d + "]"
-			state = "hash_drift"
+			state = d
 		}
 		statuses = append(statuses, &node_agentpb.UnitStatus{
 			Name:    unit,
@@ -950,29 +957,126 @@ func detectUnits(ctx context.Context, skipMinioService bool) []*node_agentpb.Uni
 	return statuses
 }
 
-// checkUnitHashDrift returns a non-empty reason string if the systemd unit file
-// on disk no longer matches the SHA-256 sidecar written at install time. Returns
-// "" when the sidecar is absent (unmanaged unit) or when hashes match.
-func checkUnitHashDrift(unitName string) string {
-	unitPath := filepath.Join("/etc/systemd/system", unitName)
-	sidecarPath := unitPath + ".sha256"
-
-	expected, err := os.ReadFile(sidecarPath)
-	if err != nil {
-		return "" // no sidecar → unmanaged unit, no drift check
+// buildUnitToPackageMap returns a unit-name → installed-package lookup for
+// every package on this node that records a unit_file_path in its receipt
+// metadata, falling back to the `globular-<name>.service` convention for
+// packages installed before receipts existed. The map's value is the
+// authoritative installed_state record for that unit's expected sha and
+// receipt provenance.
+//
+// Returns an empty (non-nil) map if installed_state is unreachable; the
+// heartbeat must still produce UnitStatus entries even when etcd is
+// temporarily unavailable, falling back to fail-closed semantics in
+// checkUnitHashDrift.
+func buildUnitToPackageMap(ctx context.Context, nodeID string) map[string]*node_agentpb.InstalledPackage {
+	out := make(map[string]*node_agentpb.InstalledPackage)
+	if nodeID == "" {
+		return out
 	}
+	pkgs, err := installed_state.ListInstalledPackages(ctx, nodeID, "")
+	if err != nil {
+		return out
+	}
+	for _, pkg := range pkgs {
+		if pkg.GetName() == "" {
+			continue
+		}
+		// Prefer explicit unit_file_path from the receipt.
+		if path := receiptUnitFilePath(pkg); path != "" {
+			out[filepath.Base(path)] = pkg
+			continue
+		}
+		// Fall back to the canonical naming convention for packages that
+		// do not yet have a receipt-stamped unit_file_path. This handles
+		// pre-refactor installs whose installed_state predates this code.
+		unit := "globular-" + pkg.GetName() + ".service"
+		out[unit] = pkg
+	}
+	return out
+}
 
+// checkUnitHashDrift inspects unitName's on-disk content against the
+// authoritative expected sha. Returns one of:
+//
+//	""                                    no drift OR unmanaged unit
+//	"unit_file_drift"                     authority disagrees with disk
+//	"installed_state_missing_or_unproven" no authority anywhere — fail closed
+//
+// Authority resolution order:
+//
+//  1. installed_state.metadata.unit_file_sha256 wins always. After this
+//     refactor, every install action stamps the receipt; absence after
+//     fresh installs is itself a signal that the install path failed to
+//     produce a receipt.
+//  2. Legacy /etc/systemd/system/<unit>.sha256 sidecar — read ONCE as
+//     a migration seed when installed_state metadata is absent. The
+//     value is stamped into installed_state with migration_source=
+//     legacy_sidecar; subsequent calls find the value in metadata and
+//     never re-read the sidecar.
+//  3. Neither installed_state nor sidecar present → fail closed.
+//     Returning "installed_state_missing_or_unproven" makes the gap
+//     observable to the doctor rather than silently downgrading to
+//     "no opinion."
+//
+// pkg may be nil when no installed_state record exists for this unit
+// (truly unmanaged unit such as keepalived/scylla-server). In that case
+// the function returns "" — drift detection requires a managed
+// receipt-bearing package to compare against.
+func checkUnitHashDrift(ctx context.Context, unitName string, pkg *node_agentpb.InstalledPackage) string {
+	unitPath := filepath.Join("/etc/systemd/system", unitName)
 	current, err := os.ReadFile(unitPath)
 	if err != nil {
-		return "" // unit file missing; runtime state handles this
+		// Unit file missing on disk — runtime state handles this; no
+		// drift signal needed.
+		return ""
+	}
+	sum := sha256.Sum256(current)
+	currentSha := hex.EncodeToString(sum[:])
+
+	// Authority 1: installed_state receipt.
+	if expected := receiptUnitFileSha256(pkg); expected != "" {
+		if currentSha == strings.ToLower(strings.TrimSpace(expected)) {
+			return ""
+		}
+		return "unit_file_drift"
 	}
 
-	sum := sha256.Sum256(current)
-	got := hex.EncodeToString(sum[:])
-	if got != strings.TrimSpace(string(expected)) {
-		return "unit_hash_drift"
+	// pkg is nil ⇒ no installed_state record for this unit. Truly
+	// unmanaged (third-party unit, baseline unit without receipt yet).
+	// Returning "" preserves the pre-refactor "no opinion" semantics for
+	// units we cannot classify.
+	if pkg == nil {
+		return ""
 	}
-	return ""
+
+	// Authority 2: legacy sidecar migration. installed_state record
+	// exists for this unit but has no receipt — pre-refactor install.
+	// Seed the receipt from the sidecar (one-time write), then treat
+	// installed_state as authoritative from this point on.
+	sidecarPath := unitPath + ".sha256"
+	sidecarData, err := os.ReadFile(sidecarPath)
+	if err != nil {
+		// Authority 3: fail closed. The doctor surfaces this so an
+		// operator can run the deliberate repair action rather than
+		// silently trusting filesystem evidence.
+		return "installed_state_missing_or_unproven"
+	}
+	sidecarSha := strings.TrimSpace(string(sidecarData))
+	if sidecarSha == "" {
+		return "installed_state_missing_or_unproven"
+	}
+	// One-time migration write. After this, the heartbeat finds the
+	// value in installed_state and never re-reads the sidecar.
+	stampMigrationFromLegacySidecar(pkg, unitPath, sidecarSha)
+	if werr := installed_state.WriteInstalledPackage(ctx, pkg); werr != nil {
+		log.Printf("install_receipt: legacy-sidecar migration write failed for %s: %v (will retry next heartbeat)", unitName, werr)
+		// Fall through and still classify drift this cycle so the
+		// operator sees something rather than silence.
+	}
+	if currentSha == strings.ToLower(sidecarSha) {
+		return ""
+	}
+	return "unit_file_drift"
 }
 
 // queryUnitState returns the ActiveState, SubState, and LoadState of a systemd unit.

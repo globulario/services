@@ -1038,7 +1038,7 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 		isMember, _ := nodeIsTopologyMember(srv.nodeID, nodeRoutableIP(), osState)
 		skipMinio = !isMember
 	}
-	units := convertNodeAgentUnits(detectUnits(ctx, skipMinio))
+	units := convertNodeAgentUnits(detectUnits(ctx, srv.nodeID, skipMinio))
 	statusReq := &cluster_controllerpb.NodeStatus{
 		NodeId:            srv.nodeID,
 		Identity:          identity,
