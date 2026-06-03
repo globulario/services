@@ -21,6 +21,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
@@ -196,15 +197,20 @@ func (srv *server) enforceOfficialNamespaceSeal(ctx context.Context, publisherID
 					"Inspect via 'globular pkg describe' or repository_explain_artifact and re-issue the repair with the correct --prior-digest.",
 				shortDigest(repair.PriorDigest), shortDigest(existingDigest))
 		}
-		// Authorization passed all gates. Log + audit the unseal and allow
-		// the upload to overwrite the sealed bytes. The audit record is
-		// independent of the artifact ledger so the repair history is
-		// queryable even after future overwrites.
-		srv.logRepairAuthorized(ctx,
-			publisherID, name, version, platform,
-			existingDigest, incomingDigest,
-			existingBuildID, "", // new build_id is allocated later in UploadArtifact
-			repair,
+		// Authorization passed all gates. Mark the repair as consumed so the
+		// post-success audit in UploadArtifact can record the full prior-vs-
+		// new identity. Log at decision time for live debugging; the
+		// authoritative audit event fires only AFTER completePublish
+		// succeeds — that way a rejected upload doesn't leave a misleading
+		// "unseal authorized" trail.
+		repair.Used = true
+		if repair.PriorBuildID == "" {
+			repair.PriorBuildID = existingBuildID
+		}
+		slog.Warn("seal repair authorized — bypassing official-namespace seal",
+			"publisher", publisherID, "name", name, "version", version, "platform", platform,
+			"prior_digest", existingDigest, "new_digest", incomingDigest,
+			"prior_build_id", existingBuildID, "reason", repair.Reason,
 		)
 		return nil
 	}

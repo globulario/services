@@ -451,6 +451,7 @@ func TestResolveVersionIntentExactAcceptsUpstreamNativeVersion(t *testing.T) {
 		"linux_amd64",
 		repopb.VersionIntent_EXACT,
 		"RELEASE.2025-09-07T16-13-09Z",
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("resolveVersionIntent returned error: %v", err)

@@ -78,6 +78,19 @@ type RepairAuthorization struct {
 	// sealed digest; mismatch is an immediate rejection (the caller has the
 	// wrong picture of repository state). Required when Requested=true.
 	PriorDigest string
+
+	// Used is set to true by the FIRST gate that consults repair to allow a
+	// rejection bypass. Phase 32: post-success audit emission keys off Used,
+	// so repair metadata that was sent but never actually consumed (e.g.
+	// because no immutability gate fired) does not generate a misleading
+	// pkg.repair_unseal event.
+	Used bool
+
+	// PriorBuildID is the build_id of the existing PUBLISHED row whose
+	// identity is being repaired. Populated by the gate that authorizes
+	// the bypass (read from the release ledger at decision time) so the
+	// post-success audit can record full prior-vs-new identity.
+	PriorBuildID string
 }
 
 // getRepairAuthorization parses repair-intent metadata from the incoming

@@ -147,8 +147,11 @@ func (srv *server) AllocateUpload(ctx context.Context, req *repopb.AllocateUploa
 		platform = "linux_amd64"
 	}
 
-	// Resolve version from intent.
-	version, err := srv.resolveVersionIntent(ctx, publisher, name, platform, req.GetIntent(), req.GetExactVersion())
+	// Resolve version from intent. AllocateUpload is the reservation flow
+	// used for new-version allocation (bump intents) — repair is not
+	// meaningful here. Direct UploadArtifact threads the repair
+	// authorization through artifact_handlers.go.
+	version, err := srv.resolveVersionIntent(ctx, publisher, name, platform, req.GetIntent(), req.GetExactVersion(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +189,16 @@ func (srv *server) AllocateUpload(ctx context.Context, req *repopb.AllocateUploa
 }
 
 // resolveVersionIntent computes the actual version from the client's intent.
-func (srv *server) resolveVersionIntent(ctx context.Context, publisher, name, platform string, intent repopb.VersionIntent, exactVersion string) (string, error) {
+//
+// `repair` is the Phase 31/32 repair authorization parsed from gRPC metadata.
+// A nil value means no repair was requested — version immutability is
+// enforced absolutely (default and correct behaviour for normal publishes).
+// A non-nil + valid repair authorization (prior-digest match + non-empty
+// reason) is the ONLY way to legitimately re-publish a version already in
+// the PUBLISHED ledger; this is the second immutability gate Phase 32
+// extends after Phase 31 covered the first (enforceOfficialNamespaceSeal).
+// See repair_authorization.go for the contract.
+func (srv *server) resolveVersionIntent(ctx context.Context, publisher, name, platform string, intent repopb.VersionIntent, exactVersion string, repair *RepairAuthorization) (string, error) {
 	switch intent {
 	case repopb.VersionIntent_EXACT:
 		if exactVersion == "" {
@@ -201,10 +213,54 @@ func (srv *server) resolveVersionIntent(ctx context.Context, publisher, name, pl
 		// generates a new build_id for an identical artifact — the old build_id
 		// stays installed on nodes, the new one enters desired state, and every
 		// node in the cluster shows "build drift" forever.
+		//
+		// Repair escape hatch (Phase 32): if the caller presented a valid
+		// RepairAuthorization, the version-immutability gate accepts the
+		// re-publish iff prior-digest matches the actually-published digest
+		// AND reason is non-empty. Same four gates as the seal check; same
+		// audit event timing (post-success in UploadArtifact).
 		if existingBuildID := srv.getExactRelease(ctx, publisher, name, cv, platform); existingBuildID != "" {
-			return "", status.Errorf(codes.AlreadyExists,
-				"version %s is already published for %s/%s on %s (build_id=%.8s) — published versions are immutable; bump the version to release a new build",
-				cv, publisher, name, platform, existingBuildID)
+			if repair == nil || !repair.Requested {
+				return "", status.Errorf(codes.AlreadyExists,
+					"version %s is already published for %s/%s on %s (build_id=%.8s) — published versions are immutable; bump the version to release a new build, "+
+						"or pass --unseal-official --reason \"<why>\" --prior-digest <sha256...> to repair a proven phantom",
+					cv, publisher, name, platform, existingBuildID)
+			}
+			if strings.TrimSpace(repair.Reason) == "" {
+				return "", status.Errorf(codes.InvalidArgument,
+					"repair-unseal rejected at version-immutability gate: empty reason — provide --reason \"<why>\" describing why the published %s/%s@%s is being repaired",
+					publisher, name, cv)
+			}
+			existingDigest := srv.getPublishedDigest(ctx, publisher, name, cv, platform)
+			if existingDigest == "" {
+				// Ledger has the version but we can't look up the digest. Treat
+				// as "already published, immutable" — repair requires a known
+				// prior-digest to confirm intent.
+				return "", status.Errorf(codes.AlreadyExists,
+					"version %s is already published for %s/%s on %s but its digest is not resolvable — refusing repair on weak evidence",
+					cv, publisher, name, platform)
+			}
+			if !digestsMatch(repair.PriorDigest, existingDigest) {
+				return "", status.Errorf(codes.FailedPrecondition,
+					"repair-unseal rejected at version-immutability gate: prior-digest mismatch — caller asserted prior=%s but actual published digest is %s. "+
+						"Inspect via 'globular pkg describe' or repository_explain_artifact and re-issue with the correct --prior-digest.",
+					shortDigest(repair.PriorDigest), shortDigest(existingDigest))
+			}
+			// All gates passed. Mark the repair as consumed and capture prior
+			// build_id (if not already set by an upstream gate, e.g. the seal
+			// check). Allow the version to be re-used; the upload caller
+			// will allocate a NEW build_number so the phantom row stays
+			// queryable for forensics.
+			repair.Used = true
+			if repair.PriorBuildID == "" {
+				repair.PriorBuildID = existingBuildID
+			}
+			slog.Warn("version-immutability gate repair authorized",
+				"publisher", publisher, "name", name, "version", cv, "platform", platform,
+				"prior_build_id", existingBuildID, "prior_digest", existingDigest,
+				"reason", repair.Reason,
+			)
+			return cv, nil
 		}
 		// Validate monotonicity only when both versions are SemVer. Exact
 		// upstream-native tags are identities, not ordered release streams.

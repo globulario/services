@@ -1292,16 +1292,21 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	// ledger — this is the upload-path enforcement of version immutability.
 	// The idempotency check above ensures that re-uploading the same bytes
 	// (retry) succeeds even after this gate is in place.
+	// Phase 32: thread the parsed repair authorization through
+	// resolveVersionIntent. nil = enforce version immutability absolutely.
+	// Non-nil with valid prior-digest + reason = allow re-publish under the
+	// existing official identity (a new build_number is still allocated
+	// downstream so the phantom row stays queryable for forensics).
 	var resolvedVer string
 	var verErr error
 	if clientVer := ref.GetVersion(); clientVer != "" {
 		resolvedVer, verErr = srv.resolveVersionIntent(ctx,
 			ref.GetPublisherId(), ref.GetName(), ref.GetPlatform(),
-			repopb.VersionIntent_EXACT, clientVer)
+			repopb.VersionIntent_EXACT, clientVer, repair)
 	} else {
 		resolvedVer, verErr = srv.resolveVersionIntent(ctx,
 			ref.GetPublisherId(), ref.GetName(), ref.GetPlatform(),
-			repopb.VersionIntent_BUMP_PATCH, "")
+			repopb.VersionIntent_BUMP_PATCH, "", nil)
 	}
 	if verErr != nil {
 		// Propagate AlreadyExists from version immutability check with the
@@ -1454,6 +1459,23 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		slog.Error("publish failed — artifact stored but not promoted; retry with 'globular pkg publish --force'",
 			"key", key, "build_id", buildID, "err", err)
 		return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: false, BuildId: buildID})
+	}
+
+	// ── Repair-unseal audit (post-success) ───────────────────────────────
+	// If any immutability gate authorized a bypass via the repair
+	// authorization (Phase 31 seal gate or Phase 32 version-immutability
+	// gate set repair.Used=true), emit the canonical pkg.repair_unseal
+	// audit event now that the upload has fully completed. Emitting after
+	// completePublish guarantees the audit reflects a real on-disk repair,
+	// not an aborted upload — gates that authorized but later failed leave
+	// only the slog.Warn breadcrumb, not the structured audit record.
+	if repair != nil && repair.Used {
+		srv.logRepairAuthorized(ctx,
+			publisherID, ref.GetName(), ref.GetVersion(), ref.GetPlatform(),
+			repair.PriorDigest, newChecksum,
+			repair.PriorBuildID, buildID,
+			repair,
+		)
 	}
 
 	return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true, BuildId: buildID})
