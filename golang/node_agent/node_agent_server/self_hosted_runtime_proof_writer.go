@@ -429,6 +429,15 @@ func (srv *NodeAgentServer) refreshSelfHostedInstalledState(ctx context.Context)
 			continue
 		}
 		pkg := applySelfHostedInstalledStateRefresh(existing, proof, srv.nodeID)
+		// Non-install writer: preserve install-receipt metadata across
+		// the proof refresh. applySelfHostedInstalledStateRefresh already
+		// deep-copies existing.Metadata when existing != nil, so this is
+		// belt-and-suspenders defence — pkg may now carry refreshed proof_*
+		// keys + the entrypoint_checksum, but receipt-namespace keys
+		// (unit_file_sha256, binary_sha256, installed_by, etc) must survive
+		// any future restructuring of applySelfHostedInstalledStateRefresh.
+		// See docs/architecture/retire-systemd-sidecars.md.
+		PreserveInstallReceiptMetadata(existing, pkg)
 		if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
 			log.Printf("nodeagent: self-hosted runtime proof write %s/%s: %v", "SERVICE", canonicalName, err)
 			continue

@@ -251,6 +251,101 @@ func stampReceiptForInstalledPackage(pkg *node_agentpb.InstalledPackage, install
 	}
 }
 
+// receiptMetadataKeys is the canonical list of metadata keys that
+// belong to the install receipt namespace. Non-install writers must
+// preserve every value in this list across writes. The list is the
+// authoritative SOURCE of "what is a receipt field" — all preservation
+// logic iterates it rather than hardcoding key names.
+var receiptMetadataKeys = []string{
+	receiptKeyUnitFilePath,
+	receiptKeyUnitFileSha256,
+	receiptKeyBinaryPath,
+	receiptKeyBinarySha256,
+	receiptKeyConfigPath,
+	receiptKeyConfigSha256,
+	receiptKeyEnvFilePath,
+	receiptKeyEnvFileSha256,
+	receiptKeyPackageSha256,
+	receiptKeyArtifactDigest,
+	receiptKeyUnitRendererVersion,
+	receiptKeyInstalledAt,
+	receiptKeyInstalledBy,
+	receiptKeyMigrationSource,
+}
+
+// PreserveInstallReceiptMetadata copies install-receipt fields from
+// `existing` into `next.Metadata`. NON-INSTALL writers (heartbeat
+// refresh, runtime proof writer, reconciliation paths) MUST call this
+// before installed_state.WriteInstalledPackage so receipt fields stamped
+// by the canonical install path are not erased.
+//
+// Conflict resolution: NEXT wins. If a key is set in both `existing`
+// and `next`, the value in `next` is kept. Canonical install writers
+// invoke StampInstallReceipt which populates next.Metadata with fresh
+// values; calling this helper afterwards is a no-op for those keys.
+// Non-install writers MUST NOT populate receipt keys in `next` — the
+// keys belong to the install authority, not the refresh authority.
+//
+// migration_source handling: this helper preserves migration_source
+// verbatim. The canonical install writer (StampInstallReceipt) is
+// responsible for removing migration_source when it stamps a fresh
+// first-hand receipt. Non-install writers MUST NOT touch
+// migration_source either way — they neither stamp it nor erase it.
+//
+// nil-safety: if `existing` or `next` is nil, the function returns
+// without effect. If `existing.Metadata` is nil there is nothing to
+// preserve. If `next.Metadata` is nil but `existing` has receipt
+// fields, a new map is allocated on next.
+func PreserveInstallReceiptMetadata(existing, next *node_agentpb.InstalledPackage) {
+	if existing == nil || next == nil {
+		return
+	}
+	if existing.Metadata == nil {
+		return
+	}
+	// Canonical install detection: if `next` carries a non-empty
+	// installed_by, a canonical install writer (StampInstallReceipt) has
+	// already produced a fresh first-hand receipt. In that case the
+	// legacy_sidecar migration marker becomes misleading — the helper
+	// MUST NOT re-add it from `existing`. All other receipt fields still
+	// follow NEXT-wins semantics.
+	canonicalInstallInNext := false
+	if next.Metadata != nil {
+		if v := strings.TrimSpace(next.Metadata[receiptKeyInstalledBy]); v != "" {
+			canonicalInstallInNext = true
+		}
+	}
+
+	// Compute the keys we will copy (those present in existing but not
+	// already set in next).
+	type kv struct{ k, v string }
+	var carry []kv
+	for _, k := range receiptMetadataKeys {
+		// migration_source is suppressed once a canonical install
+		// receipt is present in `next`.
+		if k == receiptKeyMigrationSource && canonicalInstallInNext {
+			continue
+		}
+		if next.Metadata != nil {
+			if _, present := next.Metadata[k]; present {
+				continue
+			}
+		}
+		if v, ok := existing.Metadata[k]; ok && v != "" {
+			carry = append(carry, kv{k, v})
+		}
+	}
+	if len(carry) == 0 {
+		return
+	}
+	if next.Metadata == nil {
+		next.Metadata = make(map[string]string, len(carry))
+	}
+	for _, c := range carry {
+		next.Metadata[c.k] = c.v
+	}
+}
+
 // stampMigrationFromLegacySidecar records that the unit_file_sha256 was
 // seeded from a pre-refactor sidecar rather than from a first-hand install
 // observation. Used exclusively by the heartbeat's one-time migration

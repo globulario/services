@@ -912,6 +912,14 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 			}
 			pkg.Metadata["entrypoint_checksum"] = ep
 		}
+		// Non-install writer: preserve canonical install-receipt fields
+		// from the existing record. This refresh path rebuilds pkg from
+		// the repository manifest; without preservation, the install-time
+		// receipt is erased on every repo-sync cycle and the heartbeat's
+		// installed_state-first drift authority falls back to
+		// legacy_sidecar migration. See docs/architecture/
+		// retire-systemd-sidecars.md.
+		PreserveInstallReceiptMetadata(existing, pkg)
 		if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
 			log.Printf("nodeagent: sync installed-state %s/%s: %v", kind, name, err)
 			continue
