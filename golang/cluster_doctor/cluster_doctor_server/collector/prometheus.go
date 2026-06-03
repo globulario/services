@@ -96,6 +96,21 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		"reconcile_lane_blocked_projections":    `max(globular_controller_reconcile_blocked_phase{phase="projections"})`,
 		"reconcile_lane_blocked_release_bridge": `max(globular_controller_reconcile_blocked_phase{phase="release_bridge"})`,
 		"reconcile_lane_blocked_drift":          `max(globular_controller_reconcile_blocked_phase{phase="drift_reconcile"})`,
+		// Envoy data-plane handshake signals. Consumed by envoyLDSWedge
+		// (rules/envoy_lds_wedge.go) which pins the invariant
+		// envoy.lds_progress_required_for_http_mesh_readiness and detects
+		// the failure_mode envoy.lds_update_attempt_zero_despite_cds_progress.
+		//
+		// Envoy publishes one counter per xDS type. CDS updates are received
+		// FIRST during init (before LDS), so if CDS counts > 0 but LDS attempt
+		// stays at 0, the mesh handshake is wedged before it can produce
+		// listeners — port 443 stays unbound and the HTTP mesh is down even
+		// though `systemctl is-active globular-envoy.service` reports active.
+		// max() collapses any per-pod label dimensions to a single scalar.
+		"envoy_cds_update_success":   "max(envoy_cluster_manager_cds_update_success)",
+		"envoy_lds_update_attempt":   "max(envoy_listener_manager_lds_update_attempt)",
+		"envoy_lds_update_success":   "max(envoy_listener_manager_lds_update_success)",
+		"envoy_lds_update_rejected":  "max(envoy_listener_manager_lds_update_rejected)",
 	}
 
 	results := make(map[string]float64)

@@ -240,6 +240,14 @@ func NewRegistry(cfg Config) *Registry {
 		// only fires on a fresh store at startup — a runtime wipe requires
 		// a service restart. HealPropose only.
 		awarenessGraphSeedEmpty{},
+		// Envoy data-plane LDS-wedge detection (Phase 28). Diagnostic only:
+		// classifies the (cds.update_success > 0, lds.update_attempt == 0)
+		// state as CRITICAL. Pins the invariant
+		// envoy.lds_progress_required_for_http_mesh_readiness and detects
+		// the failure_mode envoy.lds_update_attempt_zero_despite_cds_progress.
+		// Does NOT restart envoy — auto-remediation would deepen the wedge
+		// when the root cause is an upstream restart storm.
+		envoyLDSWedge{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)
