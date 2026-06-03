@@ -37,15 +37,19 @@ func TestStaleMajorityTopologyRejectedWhileSafeActionsRun(t *testing.T) {
 		t.Error("COMMAND drift action should be safe even when topology is degraded")
 	}
 
-	// INFRASTRUCTURE drift action — must be blocked when violations exist.
+	// INFRASTRUCTURE drift action — must be blocked when storage_quorum
+	// violates AND the package's subsystem is storage. MinIO is the
+	// canonical storage-affecting package (Phase 35 narrowed the gate;
+	// the prior version of this test used etcd, which has its own Raft
+	// quorum independent of MinIO and is no longer storage_quorum-gated).
 	infraAction := driftAction{
 		NodeID:     "node-1",
-		PackageKey: "INFRASTRUCTURE/etcd",
+		PackageKey: "INFRASTRUCTURE/minio",
 		Kind:       "INFRASTRUCTURE",
 		ActionKind: classifyDriftAction("INFRASTRUCTURE"),
 	}
 	if driftActionSafe(infraAction, violations) {
-		t.Error("INFRASTRUCTURE drift action should be blocked when topology violations are present")
+		t.Error("INFRASTRUCTURE/minio drift action should be blocked when storage_quorum violation is present")
 	}
 
 	// INFRASTRUCTURE drift action — safe when no violations.
