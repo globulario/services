@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -122,6 +124,16 @@ type controllerState struct {
 	// Monotonically increasing. Published in CAMetadata so doctor rules can track
 	// per-node CA drift (node still on generation N-1 after controller moved to N).
 	CAGeneration int64 `json:"ca_generation,omitempty"`
+
+	// lastPersistedHash is the SHA-256 of the JSON-serialized state at the
+	// last SUCCESSFUL saveToEtcd write. saveToEtcd uses this to skip the
+	// etcd Put when the serialized state is byte-identical to the previous
+	// one — Phase 36 mitigation for /globular/clustercontroller/state
+	// dominating etcd MVCC bloat (96% of cumulative write load on a
+	// single-node cluster). Zero value = "never persisted" → first write
+	// always proceeds. Tagged json:"-" so it never round-trips to etcd or
+	// disk; it's a runtime-only deduplication cache.
+	lastPersistedHash [sha256.Size]byte `json:"-"`
 }
 
 // minioCredentials holds the MinIO root credentials for the cluster.
@@ -705,7 +717,41 @@ func (s *controllerState) save(path string) error {
 // This is the authoritative copy — local disk is a backup.
 const etcdStateKey = "/globular/clustercontroller/state"
 
-// saveToEtcd persists the controller state to etcd.
+// saveToEtcdPutFunc is the indirection used by saveToEtcd to actually
+// perform the etcd Put. Production code does a real cli.Put; tests swap
+// this for a counter/capture so they can assert exactly which writes
+// reached etcd without standing up a real etcd. The signature returns
+// only error so the production path remains simple.
+var saveToEtcdPutFunc = func(ctx context.Context, cli *clientv3.Client, key, value string) error {
+	_, err := cli.Put(ctx, key, value)
+	return err
+}
+
+// saveToEtcd persists the controller state to etcd, skipping the Put when
+// the serialized state is byte-identical to the last successfully persisted
+// version (Phase 36 — content-hash dedup).
+//
+// Pre-Phase-36 behaviour was: marshal + Put on every call, even when
+// nothing changed. Result: /globular/clustercontroller/state at 334 KB
+// rewritten ~2.5×/min produced ~95% of all etcd MVCC bloat between
+// compaction cycles. See docs/awareness/reports/etcd_bloat_investigation_2026-06-03.md.
+//
+// Post-Phase-36 behaviour:
+//   - First call after process startup always writes (lastPersistedHash is
+//     zero, the sentinel for "never persisted").
+//   - Subsequent calls serialize + hash; if the hash matches
+//     lastPersistedHash AND it's non-zero, the Put is skipped and the
+//     in-memory hash stays the same.
+//   - On a successful Put, lastPersistedHash is updated to the new value.
+//   - On a Put error, lastPersistedHash is NOT updated — so a later
+//     retry will see the previous hash and either skip (if state is
+//     still the same and was already-persisted previously) or write
+//     (if state changed since the last successful persist).
+//
+// Caller contract: callers must hold the server lock that protects the
+// state struct (the only production caller is persistStateLocked under
+// srv.lock); concurrent saveToEtcd on the same *controllerState would
+// race on the lastPersistedHash field.
 func (s *controllerState) saveToEtcd(cli *clientv3.Client) error {
 	if cli == nil {
 		return nil
@@ -714,10 +760,36 @@ func (s *controllerState) saveToEtcd(cli *clientv3.Client) error {
 	if err != nil {
 		return err
 	}
+	hash := sha256.Sum256(data)
+
+	// Skip when content is byte-identical to the last successful persist.
+	// The zero-value check ensures the FIRST call after startup always
+	// writes — even if some prior process wrote the same bytes, the
+	// current process has no record of that and must take ownership.
+	var zero [sha256.Size]byte
+	if s.lastPersistedHash != zero && s.lastPersistedHash == hash {
+		slog.Debug("state.persist_skipped_unchanged",
+			"key", etcdStateKey,
+			"size_bytes", len(data),
+			"hash", hex.EncodeToString(hash[:8]),
+		)
+		return nil
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
-	_, err = cli.Put(ctx, etcdStateKey, string(data))
-	return err
+	if err := saveToEtcdPutFunc(ctx, cli, etcdStateKey, string(data)); err != nil {
+		// Do NOT update lastPersistedHash on failure — the next attempt
+		// must still try, regardless of whether state changed.
+		return err
+	}
+	s.lastPersistedHash = hash
+	slog.Debug("state.persist_written",
+		"key", etcdStateKey,
+		"size_bytes", len(data),
+		"hash", hex.EncodeToString(hash[:8]),
+	)
+	return nil
 }
 
 // loadFromEtcd loads the controller state from etcd.
