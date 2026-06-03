@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.dns_reload_health
+// @awareness file_role=doctor_rule_classifying_dns_zone_reload_failures_per_node
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness enforces=globular.platform:invariant.dns.records_must_be_installed_and_runtime_healthy
+// @awareness risk=high
 package rules
+
+// dns_reload_health.go — DIAGNOSTIC ONLY. Fires when a node's
+// DNS service reports a recent zone reload failure — DNS
+// records were pushed to etcd (desired state) but the per-node
+// DNS daemon failed to load them into its serving view.
+//
+// MUST NOT restart the DNS service or rewrite zone records. The
+// rule surfaces "this node is serving stale DNS" so an operator
+// can investigate (typically a malformed zone or a permission
+// issue on the daemon); auto-restart from a doctor rule would
+// mask the root cause and risk a reload storm.
 
 import (
 	"fmt"

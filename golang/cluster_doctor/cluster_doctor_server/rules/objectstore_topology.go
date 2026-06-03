@@ -1,4 +1,26 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.objectstore_topology
+// @awareness file_role=doctor_rules_classifying_minio_topology_workflow_in_flight_vs_never_ran_and_fingerprint_divergence
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness risk=critical
 package rules
+
+// objectstore_topology.go — DIAGNOSTIC ONLY. Two-tier
+// classification of MinIO topology drift:
+//
+//   WARN     — applied_generation < desired.Generation: the
+//              topology workflow is in-flight, acceptable for
+//              minutes after a topology change
+//   CRITICAL — distributed desired but applied is still
+//              standalone level: workflow never ran or was
+//              never triggered
+//
+// MUST NOT trigger the topology workflow itself. A doctor rule
+// that auto-applies a topology change defeats the
+// admission-record audit on the controller side. Surface the
+// finding; the operator runs the typed RPC if action is
+// warranted.
 
 import (
 	"fmt"

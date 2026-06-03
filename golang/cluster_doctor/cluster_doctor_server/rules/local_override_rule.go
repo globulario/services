@@ -1,4 +1,27 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.local_override_rule
+// @awareness file_role=doctor_rules_classifying_local_dev_package_overrides_and_stale_workbench_builds
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness enforces=globular.platform:invariant.repository.desired_build_id_must_resolve
+// @awareness risk=high
 package rules
+
+// local_override_rule.go — DIAGNOSTIC ONLY. Three invariants
+// catch local/dev/hotfix workbench builds that escape the
+// official release pipeline:
+//
+//   package.local_override_active   — WARN: any local artifact
+//                                     in repository
+//   package.local_override_stale    — WARN: local artifact older
+//                                     than the official stable
+//   package.local_override_promoted — INFO: local override
+//                                     promoted through official
+//                                     pipeline (expected lifecycle)
+//
+// MUST NOT remove local artifacts. The repository's GC owns
+// removal; this rule surfaces "you have an override; remember
+// it's not official" so the operator can promote or delete via
+// the typed pipeline.
 
 // local_override_rule.go — Doctor invariants for local/dev package identity lanes.
 //

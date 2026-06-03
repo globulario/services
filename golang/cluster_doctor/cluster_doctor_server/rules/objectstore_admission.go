@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.objectstore_admission
+// @awareness file_role=doctor_rules_classifying_minio_disk_admission_split_brain_and_unapproved_path_findings
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness enforces=globular.platform:invariant.objectstore.minio.existing_data_guard
+// @awareness risk=critical
 package rules
+
+// objectstore_admission.go — DIAGNOSTIC ONLY. Five
+// objectstore.minio.* invariants that catch admission failures
+// before they corrupt the pool: split-brain (multi-node, all
+// standalone), active-on-non-member, unapproved-path,
+// quorum-shape, existing-data guard.
+//
+// MUST NOT rewrite topology or wipe drives. The controller
+// (golang/cluster_controller/.../objectstore_admission.go) is
+// the sole authority for MinIO topology; this file surfaces
+// findings so an operator can run the typed RPCs that DO
+// mutate. Auto-rewriting from a doctor rule would blow past the
+// admission record audit and re-introduce silent corruption.
 
 // objectstore_admission.go — doctor invariants for disk admission and topology safety.
 //

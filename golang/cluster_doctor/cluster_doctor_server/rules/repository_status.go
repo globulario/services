@@ -1,4 +1,25 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.repository_status
+// @awareness file_role=doctor_rule_classifying_repository_service_mode_degraded_readonly_localonly
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness implements=globular.platform:intent.repository.identity_doctor_reports_collisions
+// @awareness risk=critical
 package rules
+
+// repository_status.go — DIAGNOSTIC ONLY. Replaces the
+// "cluster.repo.reachable" pending stub now that
+// GetRepositoryStatus is live. Five-tier severity ladder
+// (REACHABLE → DEGRADED → READ_ONLY → LOCAL_ONLY → unreachable)
+// matches the actual mode the repository service reports.
+//
+// The dependency-mode coherence check catches a watchdog bug
+// where the mode flag drifts from the underlying backend
+// state — operators need to see this as a separate finding so
+// they don't dismiss a degraded mode as "just MinIO blip" when
+// the watchdog is actually wrong.
+//
+// MUST NOT toggle the repository service's mode. The repository
+// owns its own mode FSM; this rule reports what was reported.
 
 // repository_status.go — doctor invariants driven by GetRepositoryStatus.
 //

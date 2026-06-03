@@ -1,4 +1,17 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.cluster_network_drift
+// @awareness file_role=doctor_rule_classifying_cluster_network_spec_vs_applied_drift
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness enforces=globular.platform:invariant.doctor.layout_drift_must_reflect_real_risk
+// @awareness risk=high
 package rules
+
+// cluster_network_drift.go — DIAGNOSTIC ONLY. Compares the
+// cluster network spec (operator-set in ClusterNetwork/default)
+// against the applied network state on each node. Drift here
+// usually means the ingress reconciler is stuck or a VIP
+// transition is in-flight — important to surface, but the rule
+// MUST NOT mutate the spec or restart the reconciler.
 
 import (
 	"fmt"

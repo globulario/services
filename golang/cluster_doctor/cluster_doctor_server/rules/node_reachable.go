@@ -1,4 +1,22 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.node_reachable
+// @awareness file_role=doctor_rule_classifying_per_node_agent_reachability_via_heartbeat_freshness
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness implements=globular.platform:intent.runtime_health.requires_live_observation
+// @awareness risk=high
 package rules
+
+// node_reachable.go — DIAGNOSTIC ONLY. Per-node availability
+// rule based on heartbeat freshness (NodeState.LastSeen).
+// Stale heartbeat surfaces a finding; the operator decides
+// whether to investigate or initiate removal.
+//
+// MUST NOT trigger removal. The asymmetry — "unreachable"
+// surfaces a finding but never auto-evicts — is exactly what
+// prevents network partitions and slow disks from cascading
+// into destructive cluster shrink (see
+// node_removal_requests.go on the controller side: removal
+// requires an explicit, audited request record).
 
 import (
 	"fmt"

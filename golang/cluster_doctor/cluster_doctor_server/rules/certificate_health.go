@@ -1,4 +1,22 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.certificate_health
+// @awareness file_role=doctor_rule_classifying_tls_certificate_expiry_and_san_coverage
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness implements=globular.platform:intent.runtime_health.requires_live_observation
+// @awareness risk=high
 package rules
+
+// certificate_health.go — DIAGNOSTIC ONLY. Classifies TLS
+// certificate expiry windows (warn at 30d, critical inside
+// 7d) and surfaces SAN coverage gaps. The 2025-12 incident
+// where the VIP was missing from TLS SANs took out the nuc
+// node for 16 hours silently — these rules exist so a
+// similar gap fires LONG before it becomes a runtime outage.
+//
+// MUST NOT renew or reissue certificates. The ACME
+// reconciler in the domain service owns issuance; this rule
+// surfaces the gap so an operator can confirm the reconciler
+// is healthy or trigger renewal via the typed RPC.
 
 import (
 	"fmt"

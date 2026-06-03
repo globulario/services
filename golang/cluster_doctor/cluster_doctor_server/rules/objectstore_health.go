@@ -1,4 +1,22 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.objectstore_health
+// @awareness file_role=doctor_rules_classifying_minio_endpoint_dns_wildcard_and_endpoint_reachability
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness enforces=globular.platform:invariant.dns.wildcard_must_not_include_unhealthy_nodes
+// @awareness risk=high
 package rules
+
+// objectstore_health.go — DIAGNOSTIC ONLY. Detects DNS-based
+// endpoint configurations that cause silent 1/N
+// object-not-found errors: a DNS wildcard endpoint
+// (minio.<domain>) resolves round-robin across nodes; most
+// nodes have empty per-node MinIO instances, so a fraction of
+// every request hits a node that doesn't hold the object and
+// silently fails.
+//
+// MUST NOT rewrite the endpoint. Surfaces a finding telling the
+// operator to set a bare-IP endpoint or to ensure every node
+// behind the wildcard actually serves the requested data.
 
 import (
 	"fmt"

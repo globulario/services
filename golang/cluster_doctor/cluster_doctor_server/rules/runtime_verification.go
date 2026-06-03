@@ -1,4 +1,22 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.runtime_verification
+// @awareness file_role=doctor_rule_translating_verifier_claim_vs_proof_results_into_doctor_findings
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness enforces=globular.platform:invariant.doctor.must_compare_claims_to_proofs
+// @awareness risk=critical
 package rules
+
+// runtime_verification.go — DIAGNOSTIC ONLY. The wire-up that
+// makes the Diagnostic Honesty refactor visible to operators.
+// The collector runs verifier.VerifyTarget for every desired
+// (service, node); THIS rule translates each verifier finding
+// into a doctor Finding so they surface alongside other
+// invariants on the next EvaluateAll pass.
+//
+// MUST NOT re-run claim-vs-proof decision logic. The verifier
+// package is the single source of truth — duplicating logic
+// here would drift and silently disagree with the verifier's
+// own audit log. Surface the verifier's verdict verbatim.
 
 // runtime_verification.go — Phase 9 wire-up of the Diagnostic Honesty
 // Refactor. The collector runs verifier.VerifyTarget for every desired

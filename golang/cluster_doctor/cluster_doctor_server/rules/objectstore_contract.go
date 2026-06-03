@@ -1,4 +1,22 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.objectstore_contract
+// @awareness file_role=doctor_rule_classifying_minio_running_without_authoritative_topology_contract
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness risk=critical
 package rules
+
+// objectstore_contract.go — DIAGNOSTIC ONLY. The
+// objectstore.minio.contract_missing rule fires CRITICAL when
+// MinIO is running on a pool node but ObjectStoreDesiredState
+// is nil — the node-agent has no authoritative topology to
+// enforce, so any on-disk config is unverifiable and
+// coordinated restarts cannot proceed safely.
+//
+// MUST NOT synthesise a contract. The controller is the sole
+// writer of ObjectStoreDesiredState; this rule surfaces the
+// gap so an operator can write a real, audited topology
+// proposal via the controller's typed RPC.
 
 import (
 	"fmt"

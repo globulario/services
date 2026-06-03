@@ -1,4 +1,28 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.etcd_health
+// @awareness file_role=doctor_rules_classifying_etcd_quorum_endpoint_reachability_and_config_authority
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness implements=globular.platform:intent.runtime_health.requires_live_observation
+// @awareness enforces=globular.platform:invariant.etcd.endpoint_reachability
+// @awareness risk=critical
 package rules
+
+// etcd_health.go — DIAGNOSTIC ONLY. Classifies etcd cluster
+// health across quorum (etcd.quorum), endpoint reachability, and
+// configuration authority. Each rule emits findings; operators
+// decide what to do.
+//
+// MUST NOT trigger member eviction. The companion rule
+// etcd_stale_member.go surfaces "this member is unreachable"
+// findings — even an obviously dead member must wait for an
+// explicit, audited removal request (see
+// node_removal_requests.go on the controller side). The VIP
+// eviction cascade (StableIP vs PrimaryIP confusion) is exactly
+// the class of bug auto-eviction here would re-introduce.
+//
+// Quorum classification is a CLUSTER-scope finding — false-PASS
+// here (saying quorum is healthy when it isn't) would mask a
+// silent path to total cluster loss.
 
 import (
 	"fmt"

@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.cluster_services_drift
+// @awareness file_role=doctor_rule_classifying_desired_service_version_vs_installed_drift_cluster_scope
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness enforces=globular.platform:invariant.doctor.layout_drift_must_reflect_real_risk
+// @awareness risk=high
 package rules
+
+// cluster_services_drift.go — DIAGNOSTIC ONLY. Cluster-scope
+// view of "which services have any node where installed !=
+// desired." Complements the per-node
+// installed_state_runtime_mismatch rule by giving operators a
+// single roll-up.
+//
+// MUST NOT trigger installs/upgrades. The release reconciler in
+// the controller owns version progression; auto-dispatching
+// from a doctor rule bypasses the wave-blocked retry contract
+// that release_reconciler.go enforces.
 
 import (
 	"fmt"

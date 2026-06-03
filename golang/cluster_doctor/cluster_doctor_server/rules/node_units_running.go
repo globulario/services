@@ -1,4 +1,23 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_doctor.rules.node_units_running
+// @awareness file_role=doctor_rule_classifying_per_node_systemd_unit_running_state_vs_desired
+// @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
+// @awareness implements=globular.platform:intent.runtime_health.requires_live_observation
+// @awareness risk=high
 package rules
+
+// node_units_running.go — DIAGNOSTIC ONLY. Per-node Layer-4
+// runtime observation: which systemd units are active vs the
+// installed-state record. Findings here drive the
+// installed_state_runtime_mismatch correlation in the
+// companion rule.
+//
+// MUST NOT restart units. Restart authority belongs to the
+// node-agent action handlers (under the systemd unit
+// allowlist); a doctor rule that restarts units bypasses the
+// allowlist and the audit trail. Surface the gap; the operator
+// (or the auto-heal pipeline through its approval gates)
+// decides whether to restart.
 
 import (
 	"fmt"
