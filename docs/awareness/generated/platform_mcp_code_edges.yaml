@@ -11,6 +11,18 @@ code_edges:
   - from: globular.platform:code.go.platform_mcp.aggregator
     relation: implements
     to: globular.platform:intent.mcp.aggregator_routes_via_etcd_discovery
+  - from: globular.platform:code.go.platform_mcp.aggregator_policy
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.aggregator_policy
+    relation: implements
+    to: globular.platform:intent.mcp.aggregator_routes_via_etcd_discovery
+  - from: globular.platform:code.go.platform_mcp.aggregator_registry
+    relation: implements
+    to: globular.platform:intent.mcp.aggregator_routes_via_etcd_discovery
+  - from: globular.platform:code.go.platform_mcp.audit
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
   - from: globular.platform:code.go.platform_mcp.awareness_bridge
     relation: implements
     to: globular.platform:intent.awareness.graph_is_compiled_context_not_authority
@@ -26,3 +38,66 @@ code_edges:
   - from: globular.platform:code.go.platform_mcp.awareness_diagnose
     relation: implements
     to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_mcp.clients
+    relation: enforces
+    to: globular.platform:invariant.mcp.tools.use_gateway_client_pool
+  - from: globular.platform:code.go.platform_mcp.clients
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+  - from: globular.platform:code.go.platform_mcp.main
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.register
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.server
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_browser
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_cli
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_cluster
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_cluster
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+  - from: globular.platform:code.go.platform_mcp.tools_cluster_config
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_etcd
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_file
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_file
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+  - from: globular.platform:code.go.platform_mcp.tools_governor
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_grpc_call
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+  - from: globular.platform:code.go.platform_mcp.tools_package
+    relation: enforces
+    to: globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
+  - from: globular.platform:code.go.platform_mcp.tools_package
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_rbac
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_rbac
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+  - from: globular.platform:code.go.platform_mcp.tools_rbac_explain
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.transport_http
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only

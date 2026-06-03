@@ -27,6 +27,34 @@ code_symbols:
       implements:
         - globular.platform:intent.mcp.aggregator_routes_via_etcd_discovery
         - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - id: globular.platform:code.go.platform_mcp.aggregator_policy
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/aggregator_policy.go
+    component: platform_mcp.aggregator_policy
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.mcp.aggregator_routes_via_etcd_discovery
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - id: globular.platform:code.go.platform_mcp.aggregator_registry
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/aggregator_registry.go
+    component: platform_mcp.aggregator_registry
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.mcp.aggregator_routes_via_etcd_discovery
+  - id: globular.platform:code.go.platform_mcp.audit
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/audit.go
+    component: platform_mcp.audit
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
   - id: globular.platform:code.go.platform_mcp.awareness_bridge
     namespace: globular.platform
     language: go
@@ -48,3 +76,154 @@ code_symbols:
         - globular.platform:intent.awareness.graph_is_compiled_context_not_authority
         - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
         - globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - id: globular.platform:code.go.platform_mcp.clients
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/clients.go
+    component: platform_mcp.clients
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.mcp.tools.use_gateway_client_pool
+      implements:
+        - globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+  - id: globular.platform:code.go.platform_mcp.main
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/main.go
+    component: platform_mcp.main
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - id: globular.platform:code.go.platform_mcp.register
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/register.go
+    component: platform_mcp.register
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - id: globular.platform:code.go.platform_mcp.server
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/server.go
+    component: platform_mcp.server
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - id: globular.platform:code.go.platform_mcp.tools_browser
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/tools_browser.go
+    component: platform_mcp.tools_browser
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - id: globular.platform:code.go.platform_mcp.tools_cli
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/tools_cli.go
+    component: platform_mcp.tools_cli
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - id: globular.platform:code.go.platform_mcp.tools_cluster
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/tools_cluster.go
+    component: platform_mcp.tools_cluster
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+        - globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+  - id: globular.platform:code.go.platform_mcp.tools_cluster_config
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/tools_cluster_config.go
+    component: platform_mcp.tools_cluster_config
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - id: globular.platform:code.go.platform_mcp.tools_etcd
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/tools_etcd.go
+    component: platform_mcp.tools_etcd
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - id: globular.platform:code.go.platform_mcp.tools_file
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/tools_file.go
+    component: platform_mcp.tools_file
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+        - globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+  - id: globular.platform:code.go.platform_mcp.tools_governor
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/tools_governor.go
+    component: platform_mcp.tools_governor
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - id: globular.platform:code.go.platform_mcp.tools_grpc_call
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/tools_grpc_call.go
+    component: platform_mcp.tools_grpc_call
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+  - id: globular.platform:code.go.platform_mcp.tools_package
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/tools_package.go
+    component: platform_mcp.tools_package
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - id: globular.platform:code.go.platform_mcp.tools_rbac
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/tools_rbac.go
+    component: platform_mcp.tools_rbac
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+        - globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+  - id: globular.platform:code.go.platform_mcp.tools_rbac_explain
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/tools_rbac_explain.go
+    component: platform_mcp.tools_rbac_explain
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - id: globular.platform:code.go.platform_mcp.transport_http
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/transport_http.go
+    component: platform_mcp.transport_http
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
