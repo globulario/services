@@ -5,16 +5,16 @@ Deterministic per-run output. To diff cleanly between runs, skip the first 3 lin
 ## Summary
 
 - **Source files scanned (Go, non-test, non-generated):** 963
-- **Files with at least one direct anchor:** 351 (36%)
-- **Files with zero direct anchors:** 612 (64%)
+- **Files with at least one direct anchor:** 352 (36%)
+- **Files with zero direct anchors:** 611 (64%)
 - **Candidate entries (NOT counted in canonical coverage):** 2
 
 ## Canonical anchors by class
 
 | Class | Entries in canonical YAML |
 |---|---|
-| invariant | 206 |
-| failure_mode | 100 |
+| invariant | 209 |
+| failure_mode | 103 |
 | intent | 208 |
 | incident_pattern | 4 |
 | code_symbol | 261 |
@@ -30,7 +30,7 @@ Files under these paths are listed in CLAUDE.md R2 as high-risk. Uncovered files
 | `golang/cluster_controller/cluster_controller_server` | 72/123 | 51 |
 | `golang/mcp` | 26/58 | 32 |
 | `golang/cluster_doctor/cluster_doctor_server/rules` | 31/60 | 29 |
-| `golang/node_agent/node_agent_server` | 30/56 | 26 |
+| `golang/node_agent/node_agent_server` | 31/56 | 25 |
 | `golang/repository/repository_server` | 35/50 | 15 |
 | `golang/node_agent/node_agent_server/internal/actions` | 10/22 | 12 |
 | `golang/rbac/rbac_server` | 5/14 | 9 |
@@ -127,7 +127,7 @@ These are uncovered Go files under CLAUDE.md R2 high-risk dirs. Sorted by path. 
 - `golang/cluster_controller/cluster_controller_server/resign_leadership.go`
 - `golang/cluster_controller/cluster_controller_server/resources_wiring.go`
 - `golang/cluster_controller/cluster_controller_server/rolling/rolling.go`
-- _… and 173 more (truncated to top 50 for readability)_
+- _… and 172 more (truncated to top 50 for readability)_
 
 ## Candidates pending review
 

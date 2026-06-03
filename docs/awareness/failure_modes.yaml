@@ -3653,3 +3653,148 @@ failure_modes:
         any etcd_* would have succeeded — should be a hard policy reject.
       related_invariants:
         - mcp.etcd.tools_must_not_join_remote_allowlist
+    - id: release.publish_race_stuck_failed_with_succeeded_children
+      title: ServiceRelease stays FAILED after publish race while drift-reconciler reports child workflows SUCCEEDED with no actual install
+      severity: critical
+      status: active
+      summary: |
+        When `globular services desired set <svc> <ver>` is invoked
+        immediately after `pkg publish`, the controller's first
+        reconcile cycle may race the repository's indexing of the
+        new artifact. The release-resolver returns "no published
+        artifact found" → ensureServiceRelease moves
+        ServiceRelease to phase=FAILED.
+
+        On subsequent cycles the release-resolver does find the
+        artifact (resolved build=1). The drift-reconciler then
+        reports `child_status=SUCCEEDED` on every reconcile pass —
+        but no actual install workflow is dispatched to the
+        node-agent. The release stays in FAILED while the
+        apparent success metrics tick. Operators see "everything
+        succeeded" in workflow runs while convergence is stalled.
+
+        Observed live during Phase 23 release (v0.0.19) on
+        2026-06-03 03:32:02 (FAILED) → 03:32:33+ (succeeded
+        children with no install). Worked around by
+        `sudo globular services apply-desired` against the local
+        controller bypassing the mesh, then a manual systemd
+        restart of the target service.
+
+        The root cause is the FAILED phase: once a ServiceRelease
+        is FAILED, subsequent reconcile cycles need an explicit
+        recovery path (re-PENDING) to re-drive the install. The
+        drift-reconciler's child workflow returns SUCCEEDED
+        trivially because it sees the release as terminal.
+      affects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/release_reconciler.go
+          - golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
+        symbols:
+          - ensureServiceRelease
+          - reconcileServiceRelease
+      detection: |
+        Direct: grep controller logs for "ServiceRelease ... reconciling phase=FAILED"
+        followed by repeated "drift-reconciler ... dispatching" + "item terminal:
+        ... child_status=SUCCEEDED" — if the installed version on the target node
+        does not match desired, this is the class.
+        Runtime: a release whose Status.Phase=FAILED but whose drift-reconciler
+        keeps reporting child SUCCEEDED is the diagnostic signature.
+      related_invariants:
+        - release.failed_state_requires_explicit_recovery_or_requeue
+    - id: envoy.lds_update_attempt_zero_despite_cds_progress
+      title: Envoy consumes CDS updates but never attempts LDS — listener_manager.lds.update_attempt stays 0 while cds progresses
+      severity: critical
+      status: active
+      summary: |
+        Envoy accepts CDS responses from xDS (admin /clusters
+        shows 26 clusters loaded, cds.update_success increments
+        every 5s). But listener_manager.lds.update_attempt
+        remains 0 — Envoy never even attempts to fetch listeners
+        from the same ADS stream that delivers clusters.
+
+        Result: Envoy stays in server state PRE_INITIALIZING,
+        port 443 returns connection refused, all mesh-routed
+        traffic (MCP HTTP, controller RPCs via mesh, browser
+        diagnostics) fails. Direct gRPC to per-service ports
+        (e.g. 10120 for awareness-graph) still works because
+        those bypass Envoy entirely.
+
+        xDS-side: the snapshot in
+        Globular/internal/xds/builder/builder.go correctly
+        builds 2 listeners per snapshot and the xDS service log
+        confirms "xDS snapshot pushed" with listener resources
+        present. The gap is on the Envoy consumer side — likely
+        a node-id mismatch, a silent LDS rejection, or a
+        bootstrap config that disables LDS even though it claims
+        ads-based lds_config.
+
+        Cluster-doctor's grpc_backbone_contract rule does NOT
+        currently detect this — it checks gRPC reachability,
+        not LDS update attempts. A future doctor rule should
+        compare Envoy admin /stats listener_manager.lds.*
+        against expected values.
+
+        Observed live during Phase 23 (2026-06-03 03:44+) after
+        a service install storm caused Envoy to be SIGTERM'd
+        and the systemd start-limit-hit prevented further
+        restarts.
+      affects:
+        files:
+          - golang/node_agent/node_agent_server/xds_config_reconcile.go
+        symbols:
+          - reconcileXDSConfig
+      detection: |
+        Direct: `curl http://127.0.0.1:9901/stats?filter=listener_manager.lds`
+        on the Envoy host. If lds.update_attempt=0 while cds.update_attempt > 0,
+        this is the class.
+        Runtime: `curl http://127.0.0.1:9901/server_info` shows state
+        PRE_INITIALIZING. Mesh ports 443/8443 return connection refused
+        but per-service ports are reachable.
+      related_invariants:
+        - envoy.lds_progress_required_for_http_mesh_readiness
+    - id: node_agent.install_skip_without_service_config_update
+      title: Node-agent install-skip path returns success without refreshing the service-config etcd record
+      severity: critical
+      status: active
+      summary: |
+        grpc_workflow_skip.go's canSkipInstallPackage may return
+        installSkipResultAlreadyInstalled when the binary on
+        disk matches the desired entrypoint_checksum AND the
+        systemd unit is active. The caller treats this as
+        success and does NOT push an updated service-config
+        record to etcd.
+
+        Consequence: the binary on disk is correctly at the new
+        version (e.g. v0.0.19) but
+        /globular/services/<svc>/config.Version still records
+        the previous version (e.g. v0.0.18). The 4-layer truth
+        model now disagrees: Layer 3 (installed) says new,
+        Layer 4 (runtime) says new, but Layer 2 (desired)
+        records the old version because etcd is wrong.
+
+        Surfaces as: `globular services desired set <svc> <new>`
+        + `apply-desired` reports "already installed" + the
+        service config_get returns the OLD version while
+        running the NEW binary. Sibling of
+        service.old_pid_after_upgrade — same family of "install
+        completed but state record didn't update."
+
+        Observed live during Phase 23 (2026-06-03 03:38) with
+        awareness-graph v0.0.19.
+      affects:
+        files:
+          - golang/node_agent/node_agent_server/grpc_workflow_skip.go
+        symbols:
+          - canSkipInstallPackage
+          - installSkipResultAlreadyInstalled
+      detection: |
+        Direct: compare `mcp__globular__service_config_get <svc>` Version
+        field against the binary's `--version` output on the host. A
+        mismatch where the binary is newer than the etcd record after a
+        recent `apply-desired` indicates the skip path didn't refresh
+        the service config.
+        Runtime: workflow runs report status SUCCEEDED with version
+        equal to the OLD version while the binary on disk is the NEW
+        version.
+      related_invariants:
+        - node_agent.install_skip_must_refresh_runtime_proof

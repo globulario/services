@@ -2,6 +2,7 @@
 // @awareness component=platform_node_agent.grpc_workflow_skip
 // @awareness file_role=privileged_install_skip_decision_with_evidence_based_short_circuit
 // @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness enforces=globular.platform:invariant.node_agent.install_skip_must_refresh_runtime_proof
 // @awareness risk=critical
 package main
 

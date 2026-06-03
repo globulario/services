@@ -3,6 +3,7 @@
 // @awareness file_role=service_release_phase_progression_and_install_dispatch_with_wave_blocked_retry_contract
 // @awareness implements=globular.platform:intent.desired_state.is_authority
 // @awareness implements=globular.platform:intent.desired_hash.is_convergence_identity
+// @awareness enforces=globular.platform:invariant.release.failed_state_requires_explicit_recovery_or_requeue
 // @awareness risk=critical
 package main
 

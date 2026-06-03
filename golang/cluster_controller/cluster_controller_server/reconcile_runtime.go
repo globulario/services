@@ -3,6 +3,7 @@
 // @awareness file_role=leader_only_desired_vs_runtime_reconciler_with_no_follower_mutation
 // @awareness implements=globular.platform:intent.controller.leader_election_gates_all_writes
 // @awareness implements=globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+// @awareness enforces=globular.platform:invariant.release.failed_state_requires_explicit_recovery_or_requeue
 // @awareness risk=critical
 package main
 

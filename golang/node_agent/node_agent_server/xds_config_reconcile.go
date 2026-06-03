@@ -1,4 +1,27 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.xds_config_reconcile
+// @awareness file_role=lkg_guard_for_xds_config_json_with_last_known_good_restore_on_corruption
+// @awareness enforces=globular.platform:invariant.envoy.lds_progress_required_for_http_mesh_readiness
+// @awareness risk=critical
 package main
+
+// xds_config_reconcile.go — protects the on-disk xDS config
+// that drives the mesh. The xDS binary reads
+// /var/lib/globular/xds/config.json every 5 s; if it's
+// missing or corrupted, the snapshot it builds for Envoy is
+// incomplete and LDS pushes either stop or contain nothing
+// Envoy will consume.
+//
+// The LKG (last-known-good) restore here is the node-agent's
+// answer to the "Envoy never consumes LDS" class:
+// envoy.lds_update_attempt_zero_despite_cds_progress.
+// A broken xds/config.json upstream of this reconciler is one
+// path into that failure mode; another is xDS server-side bugs
+// (in Globular/internal/xds/builder/) that this file cannot
+// fix. The LKG must NOT mask an upstream issue by silently
+// using stale config indefinitely — if the controller-rendered
+// file has been bad for more than a few cycles, that's an
+// operator-visible issue.
 
 // xds_config_reconcile.go — LKG guard for /var/lib/globular/xds/config.json.
 //

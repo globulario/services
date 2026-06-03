@@ -5503,3 +5503,142 @@ invariants:
         - bypass_file_service_for_files_under_a_safelist_of_paths
       related_failure_modes:
         - mcp.file_tool_host_fs_escape
+    - id: release.failed_state_requires_explicit_recovery_or_requeue
+      title: A ServiceRelease in FAILED phase MUST NOT be silently treated as complete because child workflows later report success
+      severity: critical
+      status: active
+      summary: |
+        ServiceRelease.Status.Phase is the controller's
+        authoritative claim about whether a release is in
+        progress, succeeded, or failed. A release that has
+        entered FAILED (e.g. because the release-resolver could
+        not find the artifact on the first attempt — a publish
+        race) does NOT auto-recover when the resolver later
+        succeeds. The drift-reconciler may still dispatch child
+        workflows and observe SUCCEEDED status, but the release
+        itself remains FAILED and no install is actually
+        dispatched.
+
+        The controller MUST provide an explicit recovery path:
+
+          1. Detect the FAILED-with-resolvable-artifact
+             condition and re-PENDING the release, OR
+          2. Have the drift-reconciler re-create the release
+             when it sees drift against a FAILED release with
+             a resolvable target, OR
+          3. Treat the user re-issuing
+             `globular services desired set` as an explicit
+             recovery signal that clears FAILED.
+
+        Today none of these happen automatically; operators
+        recover via `sudo globular services apply-desired
+        --controller <addr>:12000 --insecure` which bypasses
+        the broken ServiceRelease state entirely. That works
+        but leaves the ServiceRelease record stuck in FAILED
+        and obscures the original failure for incident review.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/release_reconciler.go
+          - golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
+        symbols:
+          - ensureServiceRelease
+          - reconcileServiceRelease
+      forbidden_fixes:
+        - silently_advance_failed_release_to_available_when_child_workflows_succeed
+        - skip_failed_releases_in_drift_reconciler_so_apparent_metrics_look_clean
+        - delete_failed_serviceRelease_records_so_a_fresh_one_gets_recreated_blindly
+        - treat_drift_reconciler_child_succeeded_as_proof_of_install_without_node_agent_confirmation
+      related_failure_modes:
+        - release.publish_race_stuck_failed_with_succeeded_children
+      required_tests: []
+    - id: envoy.lds_progress_required_for_http_mesh_readiness
+      title: Envoy HTTP mesh readiness MUST consider LDS update progress, not just CDS — listener_manager.lds.update_attempt > 0 is part of the readiness contract
+      severity: critical
+      status: active
+      summary: |
+        The Globular mesh (controller, MCP, gateway-routed
+        traffic) is served by Envoy on 443/8443. Envoy is
+        configured with ADS-based CDS + LDS sources. A
+        readiness check that only verifies CDS progress (count
+        of clusters, cds.update_success ticks) is insufficient:
+        without LDS update attempts succeeding, Envoy stays in
+        PRE_INITIALIZING, NO listener binds, and every mesh
+        port returns connection refused — even though the
+        Envoy process is "active" per systemd.
+
+        Cluster doctor's grpc_backbone_contract rule currently
+        checks gRPC reachability at the destination service
+        port, not Envoy's own LDS state. That misses the class
+        where direct per-service ports (e.g. 10120) work but
+        mesh ingress (443) doesn't — incident-triage thinks the
+        cluster is healthy while every external client is
+        broken.
+
+        A future doctor rule MUST query Envoy admin
+        /stats?filter=listener_manager.lds and surface
+        update_attempt=0 + cds.update_attempt > 0 as a CRITICAL
+        finding distinct from "envoy down."
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/xds_config_reconcile.go
+        symbols:
+          - reconcileXDSConfig
+      forbidden_fixes:
+        - call_envoy_healthy_when_systemd_says_active_without_checking_lds
+        - mask_envoy_lds_zero_by_falling_back_to_direct_service_ports_for_health_classification
+        - assume_cds_progress_implies_lds_progress_because_they_share_an_ads_stream
+        - restart_envoy_in_an_infinite_loop_to_hide_lds_zero_state
+      related_failure_modes:
+        - envoy.lds_update_attempt_zero_despite_cds_progress
+      required_tests: []
+    - id: node_agent.install_skip_must_refresh_runtime_proof
+      title: When node-agent skips install because the desired version is already physically present, it MUST refresh service-config and runtime proof in etcd
+      severity: critical
+      status: active
+      summary: |
+        The install-skip path in grpc_workflow_skip.go's
+        canSkipInstallPackage exists because re-installing an
+        already-correct binary is wasteful. The optimization
+        is sound. The bug is that the skip path skips MORE
+        than just the install:
+
+          - it does NOT push an updated service-config record
+            to etcd
+          - it does NOT refresh InstalledUnix / UpdatedUnix
+            anchors to the PID start time (the
+            service.old_pid_after_upgrade contract)
+          - it does NOT re-emit the installed_revision record
+            to the repository
+
+        Result: the binary is correctly at the new version,
+        but every consumer of etcd's service-config thinks the
+        OLD version is installed. The 4-layer truth model
+        disagrees with itself: Layer 1 (repository) says
+        N+1, Layer 2 (desired) says N+1, Layer 3 (installed
+        as reported in etcd) says N, Layer 4 (running PID
+        binary) says N+1.
+
+        The fix MUST refresh state without re-running the
+        install — read the new manifest, stamp the etcd
+        service-config record, refresh proof timestamps, and
+        emit the installed_revision record. Treating skip as
+        "no-op" is the bug.
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/grpc_workflow_skip.go
+        symbols:
+          - canSkipInstallPackage
+          - installSkipResultAlreadyInstalled
+      forbidden_fixes:
+        - downgrade_skip_path_to_always_reinstall_to_avoid_the_state_drift
+          # reinstalling defeats the optimization; the right fix is to refresh
+          # state in the skip path, not abandon the optimization.
+        - treat_etcd_service_config_mismatch_as_self_healing_via_next_install
+          # etcd will stay stale until the NEXT real install; that may be
+          # never if desired never changes again.
+        - patch_apply_desired_to_force_an_install_dispatch_regardless_of_skip_result
+          # masks the skip-path bug by removing the skip-path entry point.
+      related_failure_modes:
+        - node_agent.install_skip_without_service_config_update
+        - service.old_pid_after_upgrade
+      required_tests: []
