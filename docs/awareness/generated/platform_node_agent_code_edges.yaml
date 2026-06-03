@@ -1,16 +1,70 @@
 code_edges:
+  - from: globular.platform:code.go.platform_node_agent.actions.application_actions
+    relation: enforces
+    to: globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
+  - from: globular.platform:code.go.platform_node_agent.actions.application_actions
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.actions.infrastructure_actions
+    relation: enforces
+    to: globular.platform:invariant.infra.desired_hash_consistency
+  - from: globular.platform:code.go.platform_node_agent.actions.infrastructure_actions
+    relation: implements
+    to: globular.platform:intent.infrastructure.installed_artifacts.runtime_layout_and_authority_boundaries
+  - from: globular.platform:code.go.platform_node_agent.actions.objectstore
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_node_agent.actions.objectstore
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.actions.package_actions
+    relation: enforces
+    to: globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
+  - from: globular.platform:code.go.platform_node_agent.actions.package_actions
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.actions.package_state
+    relation: implements
+    to: globular.platform:intent.installed_state.owned_by_node_agent
+  - from: globular.platform:code.go.platform_node_agent.actions.registry
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.actions.service
+    relation: implements
+    to: globular.platform:intent.node_agent.systemd_unit_control_is_allowlisted
+  - from: globular.platform:code.go.platform_node_agent.actions.verify_integrity
+    relation: enforces
+    to: globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
+  - from: globular.platform:code.go.platform_node_agent.actions.verify_integrity
+    relation: implements
+    to: globular.platform:intent.node_agent.install_claim_requires_binary_proof
   - from: globular.platform:code.go.platform_node_agent.control_service
     relation: implements
     to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
   - from: globular.platform:code.go.platform_node_agent.control_service
     relation: implements
     to: globular.platform:intent.node_agent.systemd_unit_control_is_allowlisted
+  - from: globular.platform:code.go.platform_node_agent.delete_cache_artifact
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
   - from: globular.platform:code.go.platform_node_agent.etcd_rejoin
     relation: implements
     to: globular.platform:intent.node_agent.destructive_member_wipes_require_controller_prep
   - from: globular.platform:code.go.platform_node_agent.etcd_rejoin
     relation: implements
     to: globular.platform:intent.node_recovery.fence_before_destructive_reseed
+  - from: globular.platform:code.go.platform_node_agent.grpc_scylla_remove_node
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_node_agent.grpc_scylla_remove_node
+    relation: implements
+    to: globular.platform:intent.node_agent.destructive_member_wipes_require_controller_prep
+  - from: globular.platform:code.go.platform_node_agent.grpc_workflow
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.grpc_workflow_skip
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
   - from: globular.platform:code.go.platform_node_agent.heartbeat
     relation: enforces
     to: globular.platform:invariant.infra.heartbeat_observer_only_not_authority
@@ -53,9 +107,54 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.install_verify
     relation: implements
     to: globular.platform:intent.runtime.identity.requires_proof
+  - from: globular.platform:code.go.platform_node_agent.installed_packages_handlers
+    relation: implements
+    to: globular.platform:intent.installed_state.owned_by_node_agent
+  - from: globular.platform:code.go.platform_node_agent.installer_api
+    relation: enforces
+    to: globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
+  - from: globular.platform:code.go.platform_node_agent.installer_api
+    relation: implements
+    to: globular.platform:intent.controller.apply_package_release_must_carry_expected_sha256
+  - from: globular.platform:code.go.platform_node_agent.installer_api
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.join_plan_gate
+    relation: implements
+    to: globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+  - from: globular.platform:code.go.platform_node_agent.join_plan_gate
+    relation: implements
+    to: globular.platform:intent.join.token.validation
+  - from: globular.platform:code.go.platform_node_agent.minio_format_backup
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_node_agent.minio_format_backup
+    relation: implements
+    to: globular.platform:intent.node_agent.destructive_member_wipes_require_controller_prep
+  - from: globular.platform:code.go.platform_node_agent.minio_systemd_reconcile
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_node_agent.minio_systemd_reconcile
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.minio_topology_gate
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_node_agent.minio_topology_gate
+    relation: implements
+    to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
   - from: globular.platform:code.go.platform_node_agent.package_apply
     relation: enforces
     to: globular.platform:invariant.state.installed_not_catalog
+  - from: globular.platform:code.go.platform_node_agent.package_revision_post
+    relation: implements
+    to: globular.platform:intent.installed_state.owned_by_node_agent
+  - from: globular.platform:code.go.platform_node_agent.package_revision_post
+    relation: implements
+    to: globular.platform:intent.node_agent.install_claim_requires_binary_proof
+  - from: globular.platform:code.go.platform_node_agent.process_fingerprint
+    relation: implements
+    to: globular.platform:intent.node_agent.install_claim_requires_binary_proof
   - from: globular.platform:code.go.platform_node_agent.repair
     relation: implements
     to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
