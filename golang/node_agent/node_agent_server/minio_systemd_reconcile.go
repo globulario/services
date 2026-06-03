@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.minio_systemd_reconcile
+// @awareness file_role=node_local_minio_systemd_unit_reconciler_against_controller_published_desired_state
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
+// @awareness risk=critical
 package main
+
+// minio_systemd_reconcile.go — reconciles the local minio systemd
+// unit to match the controller-published ObjectStoreDesiredState.
+// The reconciler only acts when:
+//
+//   - the node is an admitted pool member (checked via the
+//     topology gate in minio_topology_gate.go), AND
+//   - the controller has published a TopologyTransition record
+//     authorizing any destructive change (clearMinioSysForModeChange)
+//
+// Skipping either check is how the transition_wipe_loop failure
+// mode shipped: a node-agent wiped .minio.sys on every
+// reconcile cycle because it inferred membership locally and
+// re-applied a destructive transition each pass.
 
 import (
 	"context"

@@ -1,4 +1,20 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.delete_cache_artifact
+// @awareness file_role=production_safe_cache_artifact_delete_primitive_for_auto_heal_delete_stale_cache
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=high
 package main
+
+// delete_cache_artifact.go — the ONLY supported path for removing
+// a cached package .tgz from /var/lib/globular/staging. The path
+// resolution is intentionally deterministic (publisher / name /
+// version / platform) so an auto-heal action that targets one
+// specific stale entry cannot collateral-delete an unrelated
+// artifact through path traversal or wildcard mistakes.
+//
+// Adding bulk-delete or wildcard helpers here would re-introduce
+// the "auto-heal accidentally wipes the staging dir" failure
+// class; the explicit per-artifact contract is the guard.
 
 import (
 	"context"

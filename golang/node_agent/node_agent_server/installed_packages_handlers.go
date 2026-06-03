@@ -1,4 +1,20 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.installed_packages_handlers
+// @awareness file_role=grpc_read_handlers_for_node_local_installed_state_proof
+// @awareness implements=globular.platform:intent.installed_state.owned_by_node_agent
+// @awareness risk=high
 package main
+
+// installed_packages_handlers.go — read-only handlers that surface
+// the node-agent's installed-state to the controller and CLI.
+// Installed-state is Layer 3 in the 4-layer truth model: it
+// describes what's ACTUALLY installed on this node, NEVER what
+// should be installed (that's desired, owned by the controller).
+//
+// These handlers MUST NOT create, modify, or upgrade packages.
+// They only report. Adding any "auto-repair if missing" branch
+// here would collapse the read/write boundary that
+// installed_state.owned_by_node_agent enforces.
 
 import (
 	"context"

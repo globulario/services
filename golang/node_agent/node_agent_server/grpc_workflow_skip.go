@@ -1,4 +1,26 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.grpc_workflow_skip
+// @awareness file_role=privileged_install_skip_decision_with_evidence_based_short_circuit
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=critical
 package main
+
+// grpc_workflow_skip.go — decides whether an install workflow
+// step can be skipped because the desired state is already
+// present on disk. The decision MUST be evidence-based:
+//
+//   - the installed binary's sha256 matches manifest
+//     entrypoint_checksum, OR
+//   - the systemd unit is active AND the recorded
+//     installed_revision matches the dispatch's target version
+//
+// Skipping on any weaker signal (timestamp, version string only,
+// "looks installed") re-introduces the
+// service.old_pid_after_upgrade class of bug where an old PID
+// keeps serving while the controller thinks the upgrade
+// completed. The skip path is privileged — operators rely on
+// the workflow status reflecting reality, not optimistic
+// inference.
 
 import (
 	"context"

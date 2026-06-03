@@ -1,4 +1,22 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.actions.objectstore
+// @awareness file_role=node_local_minio_admin_actions_invoked_by_workflow_steps_for_pool_lifecycle
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
+// @awareness risk=critical
 package actions
+
+// objectstore.go — node-agent's MinIO admin action handlers
+// (pool start/stop/health/format). These run under controller-
+// dispatched workflow steps; they MUST NOT decide pool
+// membership or rewrite format.json autonomously. That authority
+// belongs to the controller side (objectstore_admission.go); the
+// node-agent only executes admin operations whose decision has
+// already been made and audited.
+//
+// Reading topology hints from the local MinIO admin API to
+// "self-correct" is the local_membership_inference failure mode
+// — explicitly forbidden.
 
 import (
 	"bytes"

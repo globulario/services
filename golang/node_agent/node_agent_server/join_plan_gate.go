@@ -1,4 +1,26 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.join_plan_gate
+// @awareness file_role=node_local_signature_validation_gate_for_controller_issued_joinplan
+// @awareness implements=globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+// @awareness implements=globular.platform:intent.join.token.validation
+// @awareness risk=critical
 package main
+
+// join_plan_gate.go — every cluster-affecting action on a joining
+// node MUST be preceded by JoinPlan signature validation here.
+// The plan is signed by the controller's join key; any of:
+//   - missing plan
+//   - missing signature
+//   - bad signature
+//   - expired plan
+// is a HARD STOP. Proceeding past any of those errors would let
+// an attacker (or a misconfigured installer) join a node without
+// controller approval and corrupt the cluster's admission FSM.
+//
+// The sentinel errors here are the operator vocabulary —
+// surfacing a generic "join failed" instead of
+// ErrNodePlanInvalidSig forces operators to guess what went
+// wrong; keep them specific.
 
 import (
 	"crypto/ed25519"

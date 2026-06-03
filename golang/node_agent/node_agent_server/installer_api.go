@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.installer_api
+// @awareness file_role=controller_intent_to_node_local_install_apply_bridge_with_artifact_extraction
+// @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
+// @awareness implements=globular.platform:intent.controller.apply_package_release_must_carry_expected_sha256
+// @awareness enforces=globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
+// @awareness risk=critical
 package main
+
+// installer_api.go — the leaf-work executor for controller-issued
+// install/apply intent. Receives ApplyPackageRelease dispatches
+// carrying expected_sha256 from manifest.entrypoint_checksum;
+// the install MUST verify the downloaded artifact's sha256 matches
+// before any file is moved into place.
+//
+// Aliasing desired_hash (convergence identity) into ExpectedSha256
+// (binary integrity) was incident
+// node_agent.install_package_aliases_convergence_hash_into_expected_sha256
+// — every dispatched install failed verify because the convergence
+// hash never matches a binary sha256. Keep the two fields distinct;
+// they describe different invariants.
 
 import (
 	"archive/tar"

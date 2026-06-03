@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.minio_format_backup
+// @awareness file_role=per_drive_format_json_snapshot_to_etcd_so_unintentional_wipes_are_recoverable
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness implements=globular.platform:intent.node_agent.destructive_member_wipes_require_controller_prep
+// @awareness risk=critical
 package main
+
+// minio_format_backup.go — protects against accidental
+// format.json loss. Approved destructive transitions (the
+// clearMinioSysForModeChange path) are intentional and the
+// controller signals them via TopologyTransition records;
+// anything else wiping format.json (operator error, filesystem
+// corruption, container ephemeral storage, volume re-mount with
+// wrong path) is catastrophic and unrecoverable without backups.
+//
+// The backup is keyed by (node_id, topology_fingerprint,
+// drive_path) so a legitimate topology change produces a new
+// snapshot rather than restoring the old one. Restoring across
+// topology generations would mismatch the pool's erasure
+// signature and make the data unreadable.
 
 // MinIO per-drive format.json backup + restore via etcd.
 //

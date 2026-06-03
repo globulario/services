@@ -1,4 +1,23 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.grpc_workflow
+// @awareness file_role=node_local_workflow_dispatch_running_action_handlers_per_step
+// @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
+// @awareness risk=critical
 package main
+
+// grpc_workflow.go — the node-agent's workflow execution surface.
+// The controller decides the steps; this code runs each step's
+// registered action handler in order and reports per-step status
+// back to the workflow service.
+//
+// MUST NOT skip, reorder, or invent steps. A node-agent that
+// "optimised" a workflow by collapsing steps would silently
+// break the controller's ability to replay or audit the run.
+// Step failures MUST surface as such — translating a real
+// failure to a benign status to "unstick" the workflow is the
+// fastest way to ship a broken upgrade. The workflow service is
+// the only authority on whether a stuck run should be skipped;
+// see grpc_workflow_skip.go for the explicit operator path.
 
 import (
 	"context"

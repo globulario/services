@@ -1,4 +1,26 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.grpc_scylla_remove_node
+// @awareness file_role=destructive_scylla_member_removal_via_nodetool_only_under_controller_prep
+// @awareness implements=globular.platform:intent.node_agent.destructive_member_wipes_require_controller_prep
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=critical
 package main
+
+// grpc_scylla_remove_node.go — last-mile executor for ScyllaDB
+// member removal. The controller decides WHEN and WHICH host to
+// remove; this RPC executes `nodetool removenode <host-id>` on
+// the local agent and reports the outcome.
+//
+// The host UUID is sourced from etcd (controller-side
+// nodeState), NEVER from local `nodetool status` parsing. Letting
+// the node-agent pick its own removal target would let a
+// misclassified or partitioned node remove a healthy peer and
+// collapse the ScyllaDB ring.
+//
+// Scylla joins are sequential (Raft); a destructive remove
+// during another node's join produces a stalled cluster that
+// only recovers with operator intervention. See
+// session_scylla_join_race_fix.md.
 
 import (
 	"context"

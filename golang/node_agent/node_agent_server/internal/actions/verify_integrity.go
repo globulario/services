@@ -1,4 +1,25 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.actions.verify_integrity
+// @awareness file_role=binary_sha256_verification_action_blocking_install_when_manifest_checksum_mismatches
+// @awareness enforces=globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
+// @awareness implements=globular.platform:intent.node_agent.install_claim_requires_binary_proof
+// @awareness risk=critical
 package actions
+
+// verify_integrity.go — the bottom of the install chain's safety
+// net. Computes the on-disk binary sha256 and compares it to the
+// manifest's entrypoint_checksum carried as ExpectedSha256 in
+// the dispatch. A mismatch MUST fail the action — proceeding
+// with an unverified binary makes the rest of the 4-layer model
+// (installed-state, proof, heartbeat) describe a binary the
+// controller never approved.
+//
+// Wrapper packages (keepalived, scylladb, etc — those whose
+// "entrypoint" is bin/noop or a thin wrapper) cannot produce a
+// meaningful binary checksum. The verifier MUST detect these
+// (installed_path outside /usr/lib/globular/bin/) and skip the
+// binary-hash check rather than fail it; see existing wrapper-
+// package handling.
 
 import (
 	"context"

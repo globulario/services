@@ -1,4 +1,28 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.actions.package_actions
+// @awareness file_role=node_local_package_install_upgrade_apply_actions_invoked_by_workflow_steps
+// @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
+// @awareness enforces=globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
+// @awareness risk=critical
 package actions
+
+// package_actions.go — registered handlers for package.install /
+// package.upgrade workflow steps. Each handler:
+//
+//   - validates args via Validate(args) BEFORE any side effect
+//     (the registry contract — see actions.go)
+//   - verifies the downloaded artifact's sha256 matches the
+//     ExpectedSha256 carried in the dispatch BEFORE moving any
+//     bytes into the install path
+//   - is idempotent: re-running the same args MUST produce the
+//     same result without escalating (or silently downgrading)
+//     the installed version
+//
+// Skipping sha256 verification "because the artifact is already
+// local" was the install-package fallback path that aliased
+// desired_hash into ExpectedSha256 — every dispatched install
+// failed verify silently. Verify against the manifest checksum
+// every time; the cost is one hash.
 
 import (
 	"context"

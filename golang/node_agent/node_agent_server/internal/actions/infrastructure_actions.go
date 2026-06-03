@@ -1,4 +1,28 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.actions.infrastructure_actions
+// @awareness file_role=infrastructure_class_install_apply_actions_using_external_installer_package
+// @awareness implements=globular.platform:intent.infrastructure.installed_artifacts.runtime_layout_and_authority_boundaries
+// @awareness enforces=globular.platform:invariant.infra.desired_hash_consistency
+// @awareness risk=critical
 package actions
+
+// infrastructure_actions.go — handlers for INFRASTRUCTURE-class
+// packages (etcd, scylladb, minio, envoy, keepalived, xds, etc).
+// These differ from SERVICE/APPLICATION installs in two ways:
+//
+//   1. The convergence hash schema is
+//      `infra:<publisher>/<component>=<version>+b:<buildNumber>;`
+//      — NOT the artifact blob sha256. The node-agent stamps
+//      this hash on install; using the artifact digest produces
+//      the permanent mismatch loop that caused the Envoy restart
+//      storm of 2026-05-06.
+//
+//   2. The runtime layout and capability boundary differ per
+//      infrastructure package (see the runtime_layout intent).
+//      Conflating them — e.g. starting etcd via the SERVICE
+//      pathway — bypasses unit-file safety checks like the
+//      WorkingDirectory normalization
+//      (INC-2026-0018 / c529310e).
 
 import (
 	"context"

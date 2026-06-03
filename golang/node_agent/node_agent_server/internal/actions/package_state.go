@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.actions.package_state
+// @awareness file_role=canonical_installed_state_writer_for_all_package_kinds_via_etcd
+// @awareness implements=globular.platform:intent.installed_state.owned_by_node_agent
+// @awareness risk=critical
 package actions
+
+// package_state.go — single point of installed-state writes for
+// every package kind (SERVICE / APPLICATION / INFRASTRUCTURE).
+// Splitting writes across multiple files would let one path
+// stamp Installed/Updated unix timestamps inconsistently with
+// another and re-introduce the "wall clock vs PID start" drift
+// that produced INC-2026-0016.
+//
+// This file MUST NOT make decisions about whether a package
+// SHOULD be installed — that is the controller's job (desired
+// state). It records what HAS been installed, with provenance,
+// after the action handler returned success.
 
 import (
 	"context"

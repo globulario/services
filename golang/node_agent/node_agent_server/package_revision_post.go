@@ -1,4 +1,23 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.package_revision_post
+// @awareness file_role=post_install_revision_record_and_config_receipt_writer_to_repository
+// @awareness implements=globular.platform:intent.installed_state.owned_by_node_agent
+// @awareness implements=globular.platform:intent.node_agent.install_claim_requires_binary_proof
+// @awareness risk=high
 package main
+
+// package_revision_post.go — emits installed-revision records and
+// config receipts to the repository AFTER ApplyPackageRelease has
+// successfully installed + restarted + verified a package. The
+// records are what ListRollbackCandidates and the rollback
+// workflow read; classifying receipts incorrectly
+// (PRESERVED/REPLACED/GENERATED/SKIPPED_SECRET) misleads operators
+// during recovery.
+//
+// SKIPPED_SECRET is load-bearing: SECRET-kind configs MUST NOT be
+// read or rewritten by the node-agent. Reclassifying them as
+// REPLACED would leak ciphertext into the audit trail and break
+// the secret-handling contract.
 
 // package_revision_post.go — Phase F node-agent post-install hook.
 //

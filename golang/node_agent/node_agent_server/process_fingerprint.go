@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.process_fingerprint
+// @awareness file_role=binary_sha256_proof_writer_anchored_to_pid_start_time_not_wall_clock
+// @awareness implements=globular.platform:intent.node_agent.install_claim_requires_binary_proof
+// @awareness risk=critical
 package main
+
+// process_fingerprint.go — proves "this PID is running THIS
+// binary." InstalledUnix/UpdatedUnix anchor to the PID's
+// /proc/<pid> mtime (process start), NEVER wall clock. Anchoring
+// to wall clock would let a heartbeat overwrite InstalledUnix on
+// every poll cycle and surface as permanent
+// service.old_pid_after_upgrade findings — that was INC-2026-0016
+// (commit ecdca55c). The PID-start anchor is the only way the
+// 4-layer model can tell "this binary is the one the controller
+// dispatched" from "this binary was on disk yesterday."
+//
+// Binary sha256 is the binary-integrity proof; convergence hash
+// is the desired-identity hash. The two are NEVER the same value
+// and MUST NOT be aliased (see installer_api.go for the
+// expected_sha256 side of that boundary).
 
 import (
 	"context"

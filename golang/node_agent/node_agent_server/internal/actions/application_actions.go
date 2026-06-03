@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.actions.application_actions
+// @awareness file_role=application_class_install_apply_actions_serving_browser_assets_via_files_service
+// @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
+// @awareness enforces=globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
+// @awareness risk=high
 package actions
+
+// application_actions.go — handlers for APPLICATION-class
+// packages (browser assets installed under the files service
+// root). Differs from SERVICE/INFRASTRUCTURE in:
+//
+//   - no systemd unit (the asset is served by an existing
+//     service, typically the file service or envoy)
+//   - install path is the files-service mount, NOT
+//     /usr/lib/globular/bin/
+//
+// The convergence-hash + ExpectedSha256 contract is identical
+// to package_actions.go; conflating the two install paths in a
+// future refactor would let an application package overwrite a
+// service binary or vice versa.
 
 import (
 	"archive/tar"

@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_node_agent.actions.service
+// @awareness file_role=systemd_service_start_stop_restart_action_handlers_against_allowlisted_units
+// @awareness implements=globular.platform:intent.node_agent.systemd_unit_control_is_allowlisted
+// @awareness risk=critical
 package actions
+
+// service.go — systemd unit lifecycle action handlers. systemctl
+// is invoked via the supervisor package which enforces the unit
+// allowlist (intent: systemd_unit_control_is_allowlisted) —
+// arbitrary unit names from a workflow step cannot reach
+// `systemctl restart <attacker_input>` because supervisor.* will
+// reject anything not in the allowlist.
+//
+// Adding a unit to the allowlist is the controlled way to expose
+// it; bypassing supervisor.* by calling `exec.Command("systemctl",
+// ...)` directly here would defeat the boundary the allowlist
+// exists to enforce.
 
 import (
 	"context"
