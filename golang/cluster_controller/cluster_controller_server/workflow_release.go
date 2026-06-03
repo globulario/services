@@ -214,6 +214,48 @@ func maxParallelNodesForKind(kind string) int {
 	return 2
 }
 
+// mergeSyncInstalledPackage is the pure read-modify-write step of the
+// install workflow's sync_installed_state callback. It exists so the
+// callback's "do not clobber the install receipt" contract is testable
+// without an etcd dependency.
+//
+// Contract:
+//
+//   - The convergence committer is allowed to overwrite the cross-
+//     validated identity fields (Version, Checksum, BuildId, Kind),
+//     because those are exactly what `sync_installed_state` proves
+//     across actors.
+//
+//   - Everything else MUST flow through from `existing` — most
+//     critically Metadata, where the canonical install receipt lives
+//     (installed_by, unit_file_sha256, binary_sha256, proof_*, …).
+//     Pre-fix this callback built a fresh InstalledPackage{} with no
+//     Metadata; CommitInstalledPackage marshalled that as-is, which
+//     wiped the canonical receipt every install and caused
+//     checkUnitHashDrift to fall back to the 4-key legacy_sidecar
+//     migration shape. Live regression 2026-06-03, see
+//     project_receipt_wipe_in_heartbeat.md.
+//
+//   - When existing is nil (truly first commit for this row), a
+//     fresh package is constructed; metadata is then nil and the
+//     install path's later writes will fill it.
+func mergeSyncInstalledPackage(existing *node_agentpb.InstalledPackage, nodeID, name, version, hash, kind, buildID string) *node_agentpb.InstalledPackage {
+	if existing == nil {
+		existing = &node_agentpb.InstalledPackage{
+			NodeId: nodeID,
+			Name:   name,
+			Kind:   kind,
+		}
+	}
+	existing.Version = version
+	existing.Checksum = hash
+	existing.BuildId = buildID
+	if kind != "" {
+		existing.Kind = kind
+	}
+	return existing
+}
+
 // releaseResourceType returns the resource type for the release based on pkgKind.
 // SERVICE/WORKLOAD/APPLICATION/COMMAND → ServiceRelease
 // INFRASTRUCTURE → InfrastructureRelease
@@ -665,6 +707,11 @@ type releaseTargetCandidate struct {
 
 // selectReleaseTargets filters candidate nodes: only include nodes that are
 // bootstrap-ready and have the package's required profiles.
+// selectReleaseTargets's resolvedEntrypointChecksum (the Phase 38 binary
+// proof) is looked up server-side from the release-status record at the
+// classifyPackageConvergence call site, rather than threaded through every
+// caller. This keeps the existing closure signatures stable while still
+// catching the false-converged pattern at the workflow level.
 func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, pkgName, pkgKind, desiredHash string, resolvedBuildID ...string) ([]any, error) {
 	isInfra := strings.EqualFold(pkgKind, "INFRASTRUCTURE")
 	catalogEntry := CatalogByName(pkgName)
@@ -744,6 +791,11 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 		if len(resolvedBuildID) > 0 {
 			wantBuildID = resolvedBuildID[0]
 		}
+		// Phase 38: look up the resolved entrypoint checksum so the
+		// convergence check can detect "buildId matches but the binary
+		// on disk is wrong" — the lying-installed_state pattern caught
+		// live on globule-ryzen 2026-06-03.
+		wantEntrypoint := srv.lookupResolvedEntrypointChecksum(ctx, "core@globular.io", pkgName, ec.installedKind)
 		convergence := classifyPackageConvergence(
 			&ec.nodeSnapshot,
 			pkgName,
@@ -751,6 +803,7 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 			"",
 			desiredHash,
 			wantBuildID,
+			wantEntrypoint,
 			pkg,
 			time.Now(),
 		)
@@ -965,14 +1018,9 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			if nodeID == "" {
 				return fmt.Errorf("no node ID in context for sync installed state %s", name)
 			}
-			return installed_state.CommitInstalledPackage(ctx, &node_agentpb.InstalledPackage{
-				NodeId:   nodeID,
-				Name:     name,
-				Version:  version,
-				Checksum: hash,
-				Kind:     kind,
-				BuildId:  buildID,
-			})
+			existing, _ := installed_state.GetInstalledPackage(ctx, nodeID, kind, name)
+			pkg := mergeSyncInstalledPackage(existing, nodeID, name, version, hash, kind, buildID)
+			return installed_state.CommitInstalledPackage(ctx, pkg)
 		},
 
 		// Removal actions
