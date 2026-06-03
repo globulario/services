@@ -720,18 +720,15 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 			os.Remove(tmp)
 			return "", fmt.Errorf("rename %s: %w", dest, err)
 		}
-		// Write a SHA-256 sidecar for systemd unit files so the heartbeat can
-		// detect unit definition drift after installation.
-		if strings.HasSuffix(dest, ".service") {
-			if data, err := os.ReadFile(dest); err == nil {
-				sum := sha256.Sum256(data)
-				sidecar := dest + ".sha256"
-				tmp2 := sidecar + ".tmp"
-				if err := os.WriteFile(tmp2, []byte(hex.EncodeToString(sum[:])), 0o644); err == nil {
-					_ = os.Rename(tmp2, sidecar)
-				}
-			}
-		}
+		// Note: .sha256 sidecars for systemd unit files were previously
+		// written here as the heartbeat's drift authority. They have
+		// been retired (see docs/architecture/retire-systemd-sidecars.md).
+		// The canonical install path no longer writes sidecars; the
+		// caller (apply_package_release.go, installer_api.go,
+		// minio_systemd_reconcile.go) is responsible for stamping the
+		// installed_state.metadata receipt via stampReceiptForInstalled
+		// Package. The receipt is the sole authority for expected unit
+		// content.
 	}
 
 	// Ensure the service working directory exists.  Even though we normalize

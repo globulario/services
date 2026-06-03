@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/installed_state"
 )
 
 const (
@@ -106,11 +107,22 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 		}
 	}
 
-	// 6b. Refresh the SHA-256 sidecar for the main unit file whenever it is
-	// missing or stale. The sidecar is written at install time, but older
-	// versions of the reconciler wrote directly to the main unit file without
-	// updating the sidecar — leaving it permanently mismatched. This step is
-	// idempotent: it only writes when the sidecar is absent or wrong.
+	// 6b. Refresh the installed_state receipt for MinIO. Authority for
+	// expected unit-file content is installed_state.metadata (see
+	// docs/architecture/retire-systemd-sidecars.md). The MinIO reconcile
+	// path is one of the few writers that rewrites a unit OUTSIDE the
+	// main install action; without this re-stamp, the heartbeat would
+	// either falsely detect drift (post-rewrite) or fall through to
+	// installed_state_missing_or_unproven on a fresh node.
+	//
+	// Idempotent: stampReceiptForInstalledPackage reads disk and writes
+	// installed_state; if the values are unchanged, the write is a
+	// no-op modulo updated_at timestamps.
+	srv.refreshMinioInstalledStateReceipt(ctx)
+	// Legacy: also refresh the .sha256 sidecar so older node-agent
+	// readers (pre-sidecar-retirement) on this or peer nodes can still
+	// classify drift correctly. Becomes vestigial once all nodes run
+	// receipt-aware code; safe to remove in a follow-up cleanup pass.
 	refreshMinioUnitSidecar()
 
 	// 7. Report rendered generation + fingerprint to etcd.
@@ -495,6 +507,32 @@ func (srv *NodeAgentServer) clearMinioSysForModeChange(state *config.ObjectStore
 		} else {
 			log.Printf("minio-systemd: cleared %s — MinIO will reinitialise on next start", minioSys)
 		}
+	}
+}
+
+// refreshMinioInstalledStateReceipt re-stamps the canonical install receipt
+// for the minio installed_state record after this reconciler has rewritten
+// the unit file. installed_state.metadata is the sole authority for
+// expected unit content (see docs/architecture/retire-systemd-sidecars.md);
+// any writer that mutates /etc/systemd/system/globular-*.service outside
+// the canonical install action MUST call this — otherwise the heartbeat's
+// installed_state-first drift check would report a false unit_file_drift.
+//
+// Idempotent: reads disk + writes installed_state; no-op when the recorded
+// receipt already matches.
+func (srv *NodeAgentServer) refreshMinioInstalledStateReceipt(ctx context.Context) {
+	if srv.nodeID == "" {
+		return
+	}
+	pkg, err := installed_state.GetInstalledPackage(ctx, srv.nodeID, "INFRASTRUCTURE", "minio")
+	if err != nil || pkg == nil {
+		// MinIO not yet recorded in installed_state on this node — install
+		// path will stamp the receipt when it lands. No-op.
+		return
+	}
+	stampReceiptForInstalledPackage(pkg, "node-agent.minio_systemd_reconcile", installedBinaryPath("minio", "INFRASTRUCTURE"))
+	if werr := installed_state.WriteInstalledPackage(ctx, pkg); werr != nil {
+		log.Printf("minio-systemd: receipt write failed: %v (will retry next reconcile)", werr)
 	}
 }
 

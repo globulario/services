@@ -33,6 +33,8 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -203,6 +205,50 @@ func receiptUnitFilePath(pkg *node_agentpb.InstalledPackage) string {
 		return ""
 	}
 	return strings.TrimSpace(pkg.Metadata[receiptKeyUnitFilePath])
+}
+
+// stampReceiptForInstalledPackage is the helper every install-complete
+// site in node-agent must call before installed_state.WriteInstalledPackage.
+// It derives the unit/binary paths from package conventions and delegates
+// to StampInstallReceipt.
+//
+// Conventions:
+//
+//	unit file path : /etc/systemd/system/globular-<pkg.Name>.service
+//	binary path    : installedBinaryPath(pkg.Name, pkg.Kind)
+//	package digest : pkg.Checksum (when non-empty)
+//
+// Missing files at conventional paths are silently skipped (a COMMAND
+// package may have no systemd unit; an INFRASTRUCTURE wrapper may have
+// no binary in /usr/lib/globular/bin). The chokepoint's atomicity rule
+// only fires on declared-but-unreadable paths.
+//
+// Errors are logged but never block the caller's WriteInstalledPackage.
+// A missing receipt surfaces at heartbeat time as
+// installed_state_missing_or_unproven, which is the correct fail-closed
+// behaviour — better than the caller hiding install failure as a
+// committed installed-state record.
+func stampReceiptForInstalledPackage(pkg *node_agentpb.InstalledPackage, installedBy string, binPath string) {
+	if pkg == nil || pkg.GetName() == "" {
+		return
+	}
+	opts := ReceiptOpts{
+		InstalledBy:    installedBy,
+		PackageSha256:  pkg.GetChecksum(),
+		ArtifactDigest: pkg.GetChecksum(),
+	}
+	unitPath := "/etc/systemd/system/globular-" + pkg.GetName() + ".service"
+	if fi, err := os.Stat(unitPath); err == nil && !fi.IsDir() {
+		opts.UnitFilePath = unitPath
+	}
+	if binPath != "" {
+		if fi, err := os.Stat(binPath); err == nil && !fi.IsDir() {
+			opts.BinaryPath = binPath
+		}
+	}
+	if err := StampInstallReceipt(pkg, opts); err != nil {
+		log.Printf("install_receipt: receipt skipped for %s/%s: %v", pkg.GetKind(), pkg.GetName(), err)
+	}
 }
 
 // stampMigrationFromLegacySidecar records that the unit_file_sha256 was

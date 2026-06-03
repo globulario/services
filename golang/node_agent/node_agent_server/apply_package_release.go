@@ -458,6 +458,12 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			}
 			pkg.Metadata["entrypoint_checksum"] = actualHash
 		}
+		// Stamp the canonical install receipt (see docs/architecture/
+		// retire-systemd-sidecars.md). installed_state.metadata is the
+		// sole authority for expected unit/binary content; sidecars are
+		// legacy. Best-effort: missing receipt surfaces as fail-closed
+		// at heartbeat, which is correct.
+		stampReceiptForInstalledPackage(pkg, "node-agent.apply_package_release.command", installedBinaryPath(name, kind))
 		_ = installed_state.WriteInstalledPackage(ctx, pkg)
 		// Record the installed revision in the repository's history and emit
 		// config receipts — same hook the service-restart path uses. The
@@ -621,6 +627,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			}
 			binaryOnlyPkg.Metadata["entrypoint_checksum"] = actualHash
 		}
+		stampReceiptForInstalledPackage(binaryOnlyPkg, "node-agent.apply_package_release.binary_only", installedBinaryPath(name, kind))
 		_ = installed_state.WriteInstalledPackage(ctx, binaryOnlyPkg)
 		srv.recordRevisionAndReceipts(ctx, repoAddr, req, binaryOnlyPkg, previousInstalled, configSnap)
 		return &node_agentpb.ApplyPackageReleaseResponse{
@@ -731,6 +738,9 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		pkg.Metadata["entrypoint_checksum"] = actualHash
 		log.Printf("apply-package: stored entrypoint_checksum for %s: %s", name, actualHash[:16])
 	}
+	// Canonical install path: stamp the receipt before committing the
+	// installed_state record. See docs/architecture/retire-systemd-sidecars.md.
+	stampReceiptForInstalledPackage(pkg, "node-agent.apply_package_release.service", installedBinaryPath(name, kind))
 	_ = installed_state.WriteInstalledPackage(ctx, pkg)
 
 	// Phase F post-success hook: record the installed revision in the
