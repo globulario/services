@@ -1,4 +1,27 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.server
+// @awareness file_role=jsonrpc_dispatch_with_tool_registry_concurrency_limiter_and_bounded_responses
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=critical
 package main
+
+// server.go — the JSON-RPC 2.0 dispatch core. Every MCP request
+// flows through callTool / hasTool here. Three load-bearing
+// properties:
+//
+//  1. ConcurrencyLimit (default 10) bounds in-flight tool calls
+//     via the semaphore. Removing the bound would let an agent
+//     starve the gateway by issuing parallel slow calls.
+//
+//  2. The tools map is closed at registerAllTools time — there is
+//     no runtime-add path. An agent cannot inject a new tool by
+//     crafting an RPC.
+//
+//  3. callTool returns the typed handler's response verbatim, so
+//     the FailureClass taxonomy in tools_awareness.go and the
+//     degradedResult shape everywhere else are visible to the
+//     caller unchanged. Wrapping responses in "helpful" envelopes
+//     here would break the contract those callers depend on.
 
 import (
 	"bufio"

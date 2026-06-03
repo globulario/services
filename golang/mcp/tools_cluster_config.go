@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.tools_cluster_config
+// @awareness file_role=mcp_bridge_for_cluster_config_minio_bucket_get_put_with_no_local_disk_fallback
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=critical
 package main
+
+// tools_cluster_config.go — get/put cluster configuration via
+// the MinIO cluster config bucket (cluster-wide shared
+// configuration). cluster_config_put is the most
+// cluster-affecting tool in this group: an arbitrary file
+// pushed here changes runtime behavior across nodes.
+//
+// MUST route through the existing config service / MinIO API —
+// NO local-disk fallback to `/var/lib/globular/config/` (or any
+// other host path) on the MCP node. A local-disk write here
+// would shadow the cluster-shared truth and produce silent
+// drift between nodes.
 
 import (
 	"context"

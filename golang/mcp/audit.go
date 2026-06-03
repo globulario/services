@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.audit
+// @awareness file_role=mcp_tool_call_audit_log_writer_with_secret_field_redaction
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=high
 package main
+
+// audit.go — writes one audit line per tool call. Operators rely
+// on the audit log to retroactively explain what an agent did.
+// Two properties to keep intact:
+//
+//  1. Secret-shaped argument fields (token, password, secret,
+//     api_key, credential) MUST be redacted before serialization.
+//     A new tool that takes a "token" argument inherits redaction
+//     automatically; using a non-conventional field name to "hide"
+//     a credential breaks the contract — keep field names standard.
+//
+//  2. Output destination defaults to stderr; configurable to a
+//     file via MCPConfig.AuditLogPath. Failing to open the file
+//     falls back to stderr with a log line — the audit pipeline
+//     must NEVER silently disable itself.
 
 import (
 	"context"

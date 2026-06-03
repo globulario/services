@@ -1,4 +1,20 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.tools_cluster
+// @awareness file_role=read_oriented_cluster_controller_bridge_tools_for_nodes_health_drift_doctor_reports
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness implements=globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+// @awareness risk=high
 package main
+
+// tools_cluster.go — bridges cluster_controller RPCs to MCP for
+// agent observation. The mutation surface is intentionally
+// narrow (RemoveNode is the most destructive call here and it
+// already requires controller-side admission proof via the
+// explicit-removal record — see node_removal_requests.go).
+//
+// Reading remains the easy path; writing remains gated. Adding
+// a new "convenience" mutation here MUST come with a matching
+// controller-side guard, not by trusting the MCP layer alone.
 
 import (
 	"context"

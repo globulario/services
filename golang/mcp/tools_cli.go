@@ -1,4 +1,17 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.tools_cli
+// @awareness file_role=read_only_cli_knowledge_helpers_no_command_execution_path
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=medium
 package main
+
+// tools_cli.go — surfaces read-only knowledge about the globular
+// CLI (help, examples, rules, state, validate, plan). NONE of
+// these tools execute commands. The actual execution path lives
+// in tools_governor.go behind plan + approval gates so an agent
+// cannot run `globular X` as a side effect of asking "what does
+// X do." Adding an execute branch here would defeat the entire
+// plan/approve/execute discipline.
 
 import (
 	"context"

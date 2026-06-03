@@ -1,4 +1,17 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.aggregator_registry
+// @awareness file_role=cross_node_mcp_peer_discovery_via_etcd_with_no_static_endpoint_fallback
+// @awareness implements=globular.platform:intent.mcp.aggregator_routes_via_etcd_discovery
+// @awareness risk=high
 package main
+
+// aggregator_registry.go — resolves peer MCP endpoints via etcd
+// service discovery for mcp.remote_call. No hardcoded peers; no
+// localhost fallback. If etcd has no record for a peer, the
+// remote_call returns an explicit error — never a default
+// fabricated endpoint. Hardcoding "10.0.0.x" for any peer here
+// would break cross-cluster portability and the etcd-as-source-of-
+// truth invariant.
 
 import (
 	"context"

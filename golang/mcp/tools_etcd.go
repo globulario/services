@@ -1,4 +1,22 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.tools_etcd
+// @awareness file_role=mcp_etcd_direct_get_put_delete_tool_bypassing_typed_service_layers
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=critical
 package main
+
+// tools_etcd.go — direct etcd get/put/delete from MCP. These
+// are sharp tools: they reach past every typed service into the
+// cluster's source of truth, and an arbitrary put or delete
+// here can corrupt cluster state in ways that surface as
+// cascading failures across subsystems hours later.
+//
+// MUST stay out of aggregator_policy's allowlist (verified by
+// inspection — only awareness/CLI/cluster-read tools are in
+// allowedRemoteTools). Cross-node etcd mutation via mcp.remote_call
+// would let any peer MCP server change cluster state without
+// audit trail, breaking the
+// critical_state.deletion_requires_audited_intent invariant.
 
 import (
 	"context"

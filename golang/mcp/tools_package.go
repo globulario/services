@@ -1,4 +1,25 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.tools_package
+// @awareness file_role=mcp_package_build_publish_helpers_shelling_out_to_globular_pkg_only
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness enforces=globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
+// @awareness risk=critical
 package main
+
+// tools_package.go — wraps `globular pkg build` and
+// `globular pkg publish` for agent use. Two safety contracts
+// these tools depend on:
+//
+//  1. They shell out to the canonical CLI — they do NOT
+//     reimplement build/publish logic. Diverging the MCP path
+//     from the CLI path would let an agent produce a package
+//     the rest of the cluster cannot install.
+//
+//  2. They do NOT manually copy artifacts (see existing
+//     feedback memory: "Deploy = package_build + package_publish,
+//     NEVER cp"). Manual copy bypasses the 4-layer truth
+//     model. Adding a fast-path that skips publish here would
+//     re-introduce the hash_drift class of bug.
 
 import (
 	"bytes"

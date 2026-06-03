@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.tools_rbac
+// @awareness file_role=mcp_bridge_to_rbac_service_for_permission_inspection_and_role_binding_reads
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness implements=globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+// @awareness risk=high
 package main
+
+// tools_rbac.go — surfaces RBAC RPCs (get permissions, list role
+// bindings, validate access/action) to agents. Authorization
+// decisions are made by the RBAC service; the MCP bridge
+// presents them verbatim.
+//
+// MUST NOT cache RBAC answers across calls — a permission
+// revocation between two queries would surface as a stale
+// allow. Every call goes through the gateway client pool with
+// the caller's identity attached. There is no MCP-side
+// "fast path" for repeated checks.
 
 import (
 	"context"

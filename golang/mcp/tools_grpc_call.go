@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.tools_grpc_call
+// @awareness file_role=generic_grpc_invocation_tool_with_reflection_and_caller_supplied_method_paths
+// @awareness implements=globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+// @awareness risk=critical
 package main
+
+// tools_grpc_call.go — generic gRPC invocation tool. Resolves
+// methods via reflection and forwards caller-supplied arguments.
+//
+// RBAC is enforced on the SERVER SIDE — the called service
+// authorizes the request based on the caller's identity carried
+// in the gateway client pool's credentials. The MCP bridge does
+// NOT (and MUST NOT) try to mimic RBAC locally because that
+// duplication will drift; the only correct enforcement point is
+// the service's own interceptor chain.
+//
+// The connection comes from the gateway client pool (clients.go)
+// so insecure-fallback discipline and mTLS apply uniformly. Do
+// NOT dial peer endpoints directly here — it would bypass the
+// pool's auth and connection-reuse contracts.
 
 import (
 	"context"

@@ -1,4 +1,20 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.register
+// @awareness file_role=tool_group_registration_dispatcher_gated_by_mcpconfig_toolgroups
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=high
 package main
+
+// register.go — single dispatch point that registers every tool
+// group. Each group is gated by an MCPConfig.ToolGroups flag so
+// operators can ship a minimal MCP surface in restricted
+// environments. Adding a new tool group means adding a flag here
+// AND in MCPConfig — silently enabling a group bypasses operator
+// intent.
+//
+// Tool registration is finalized at server startup; there is no
+// runtime add path (see server.go). An agent cannot enable a
+// tool group that the operator disabled.
 
 func registerAllTools(s *server) {
 	g := s.cfg.ToolGroups

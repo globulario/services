@@ -1,4 +1,27 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.tools_rbac_explain
+// @awareness file_role=rbac_explainer_composer_correlating_subject_action_resource_decisions_for_operators
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=high
 package main
+
+// tools_rbac_explain.go — composes "why was this allowed/denied"
+// explanations by joining RBAC decisions with role bindings and
+// resource ownership. Read-only by design.
+//
+// Two properties to keep intact:
+//
+//  1. The explainer surfaces what the RBAC service actually
+//     decided, NOT what the explainer thinks it should have
+//     decided. If the two diverge, the explainer has drifted
+//     from the authoritative source and operators will get
+//     misleading reports — surface the RBAC answer verbatim
+//     and report drift, never paper over it.
+//
+//  2. Explanations include subject identity (account/group/org)
+//     and the resolved chain of bindings. Trimming the chain
+//     "for readability" hides exactly the evidence operators
+//     need during incident triage.
 
 import (
 	"context"

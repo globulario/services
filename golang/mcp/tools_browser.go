@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.tools_browser
+// @awareness file_role=chrome_devtools_protocol_bridge_for_agent_browser_diagnostics_via_localhost_ws
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=high
 package main
+
+// tools_browser.go — bridges agent requests to a locally-running
+// Chrome instance via CDP (WebSocket on port 9222). Sandbox
+// boundary: the browser endpoint is localhost-only by
+// configuration; exposing it to remote CDP attackers would let
+// any caller run arbitrary JS in the browsing context.
+//
+// browser_evaluate runs untrusted JS against the live page —
+// operators rely on it being limited to the developer Chrome
+// instance (not the production user session). Adding a path
+// that targets a remote browser address re-opens the same
+// blast radius.
 
 // tools_browser.go — Chrome DevTools Protocol (CDP) bridge.
 //

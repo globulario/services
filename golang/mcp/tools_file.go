@@ -1,4 +1,23 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.tools_file
+// @awareness file_role=mcp_file_service_bridge_with_rbac_enforced_remote_paths_not_local_host_fs
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness implements=globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+// @awareness risk=critical
 package main
+
+// tools_file.go — bridges to the Globular file service over
+// gRPC. These tools operate on the cluster's user-data
+// filesystem (RBAC-enforced by the file service), NOT the host
+// filesystem of the MCP process. A future regression that
+// substituted os.* calls for file-service RPCs would let agents
+// read/write the underlying host (including
+// /var/lib/globular/pki/) and bypass RBAC entirely.
+//
+// All paths are validated by the file service; the MCP bridge
+// passes them through verbatim. Do not add MCP-side path
+// rewriting or "shortcuts" that could let an agent reference a
+// path the file service would have rejected.
 
 import (
 	"bytes"

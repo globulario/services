@@ -1,4 +1,25 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.tools_governor
+// @awareness file_role=plan_validate_approve_execute_gates_for_cli_command_execution
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=critical
 package main
+
+// tools_governor.go — the ONLY MCP path that executes globular
+// CLI commands. The discipline is plan → validate → check-approval
+// → execute(-plan) where each step is a separate tool:
+//
+//   - plan / validate are read-only and produce a structured
+//     description an agent can show the operator
+//   - check_approval verifies the plan id has been approved
+//   - execute / execute_plan run the command under the approved
+//     scope
+//
+// Skipping any of these steps to "let the agent be more
+// autonomous" defeats the operator-in-the-loop safety contract.
+// The os/exec calls in this file are governed; adding a new
+// exec call outside the plan/approve gate would inherit none of
+// the safety.
 
 import (
 	"bytes"

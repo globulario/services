@@ -1,3 +1,8 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.main
+// @awareness file_role=mcp_server_entrypoint_dispatching_stdio_or_http_transport_per_mcpconfig
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=high
 // Package main implements a Globular MCP server that exposes read-only
 // operator tools over stdio for AI assistants (Claude Code).
 //
@@ -5,8 +10,11 @@
 //
 //	globular-mcp-server
 //
-// The server communicates via JSON-RPC 2.0 over stdin/stdout.
-// All tools are strictly read-only / diagnostic / preview.
+// The server communicates via JSON-RPC 2.0 over stdin/stdout (or HTTP
+// per cfg.Transport). All tools are strictly read-only / diagnostic /
+// preview by default; mutating tool groups (etcd put/delete, package
+// build/publish, governor execute) are enabled by explicit
+// MCPConfig.ToolGroups flags only.
 package main
 
 import (

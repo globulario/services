@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.aggregator_policy
+// @awareness file_role=phase1_allowlist_of_read_only_tools_callable_via_mcp_remote_call
+// @awareness implements=globular.platform:intent.mcp.aggregator_routes_via_etcd_discovery
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=critical
 package main
+
+// aggregator_policy.go — the explicit allowlist of tools that
+// other nodes' MCP servers may invoke on this one via
+// mcp.remote_call. Every entry MUST be read-only and pure —
+// adding a mutating tool here (etcd.put/delete,
+// workflow.execute, nodeagent.apply) opens cross-node mutation
+// without controller workflow oversight.
+//
+// New entries require explicit operator review. There is no
+// "auto-allow if not destructive" branch — destructiveness is
+// not always knowable from the tool name alone.
 
 // allowedRemoteTools is the phase-1 allowlist for tools callable via mcp.remote_call.
 // All entries are read-only local tools that do not mutate state.

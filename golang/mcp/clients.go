@@ -1,4 +1,29 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.clients
+// @awareness file_role=gateway_client_pool_with_mtls_and_no_silent_insecure_fallback
+// @awareness implements=globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+// @awareness enforces=globular.platform:invariant.mcp.tools.use_gateway_client_pool
+// @awareness risk=critical
 package main
+
+// clients.go — the ONLY supported source of gRPC client
+// connections for MCP tools. Two non-negotiable properties:
+//
+//  1. insecureFallback MUST default to false; setting it true
+//     requires an explicit operator decision via MCPConfig. A
+//     silent fallback to insecure transport would let an MCP
+//     tool reach a service without mTLS — defeating the cluster's
+//     entire auth boundary.
+//
+//  2. The pool caches one connection per endpoint and invalidates
+//     on transport-class errors (isConnError). Bypassing the pool
+//     by calling grpc.NewClient directly inside a tool re-opens
+//     the connection-leak class of bug AND escapes the failure-
+//     classification path in tools_awareness.go (Phase 6).
+//
+// awarenessEndpoint resolves the awareness-graph service from
+// etcd; there is NO localhost fallback by design — see the
+// regression test TestAwarenessEndpoint_NoLocalhostFallback.
 
 import (
 	"context"

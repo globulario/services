@@ -1,4 +1,28 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_mcp.transport_http
+// @awareness file_role=mcp_http_transport_with_in_process_session_map_and_session_drop_on_restart
+// @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness risk=high
 package main
+
+// transport_http.go — HTTP transport for MCP. The session map is
+// in-process (sessionStore var); on restart it is empty and any
+// client carrying a previous Mcp-Session-Id gets HTTP 404
+// "invalid or expired session" until it re-initializes.
+//
+// This is documented as a known limitation in
+// docs/awareness/mcp_transport_reliability.md and in
+// awareness-graph docs/release-runbook.md. The fix is session
+// persistence (Scylla or etcd); do NOT silently regenerate
+// sessions or auto-accept unknown session IDs to "smooth over"
+// the restart — that would allow stale clients to bypass any
+// per-session permission state.
+//
+// Also: HTTP transport sets no per-request deadline. The
+// awareness-tool bridge wraps every upstream gRPC call with
+// awarenessCallTimeout (10s) in tools_awareness.go for this
+// reason — if you add a new tool group that makes blocking
+// gRPC calls, wrap each call with context.WithTimeout there too.
 
 import (
 	"bufio"
