@@ -95,6 +95,24 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.remediation_history
     relation: implements
     to: globular.platform:intent.remediation.failure_rate_policy
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.certificate_health
+    relation: implements
+    to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.certificate_health
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.cluster_network_drift
+    relation: enforces
+    to: globular.platform:invariant.doctor.layout_drift_must_reflect_real_risk
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.cluster_network_drift
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.cluster_services_drift
+    relation: enforces
+    to: globular.platform:invariant.doctor.layout_drift_must_reflect_real_risk
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.cluster_services_drift
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
   - from: globular.platform:code.go.platform_cluster_doctor.rules.controller_leader
     relation: implements
     to: globular.platform:intent.runtime_observation_must_not_mutate_desired
@@ -104,6 +122,21 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.rules.destructive_action_audit
     relation: enforces
     to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.dns_reload_health
+    relation: enforces
+    to: globular.platform:invariant.dns.records_must_be_installed_and_runtime_healthy
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.dns_reload_health
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.etcd_health
+    relation: enforces
+    to: globular.platform:invariant.etcd.endpoint_reachability
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.etcd_health
+    relation: implements
+    to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.etcd_health
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
   - from: globular.platform:code.go.platform_cluster_doctor.rules.etcd_stale_member
     relation: implements
     to: globular.platform:intent.runtime_observation_must_not_mutate_desired
@@ -113,12 +146,75 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.rules.kind_mismatch
     relation: enforces
     to: globular.platform:invariant.repository.metadata_is_authority
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.local_override_rule
+    relation: enforces
+    to: globular.platform:invariant.repository.desired_build_id_must_resolve
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.local_override_rule
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.node_inventory_complete
+    relation: implements
+    to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.node_inventory_complete
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.node_reachable
+    relation: implements
+    to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.node_reachable
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.node_units_running
+    relation: implements
+    to: globular.platform:intent.runtime_health.requires_live_observation
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.node_units_running
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_admission
+    relation: enforces
+    to: globular.platform:invariant.objectstore.minio.existing_data_guard
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_admission
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_admission
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_contract
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_contract
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_health
+    relation: enforces
+    to: globular.platform:invariant.dns.wildcard_must_not_include_unhealthy_nodes
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_health
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
   - from: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_physical_overlap
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_topology
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_topology
     relation: implements
     to: globular.platform:intent.runtime_observation_must_not_mutate_desired
   - from: globular.platform:code.go.platform_cluster_doctor.rules.package_version_authority
     relation: enforces
     to: globular.platform:invariant.repository.metadata_is_authority
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.repository_status
+    relation: implements
+    to: globular.platform:intent.repository.identity_doctor_reports_collisions
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.repository_status
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.runtime_verification
+    relation: enforces
+    to: globular.platform:invariant.doctor.must_compare_claims_to_proofs
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.runtime_verification
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
   - from: globular.platform:code.go.platform_cluster_doctor.snapshot
     relation: implements
     to: globular.platform:intent.doctor.findings_are_operator_language

@@ -159,6 +159,38 @@ code_symbols:
       implements:
         - globular.platform:intent.audit.every_authority_change_is_explainable
         - globular.platform:intent.remediation.failure_rate_policy
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.certificate_health
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/certificate_health.go
+    component: platform_cluster_doctor.rules.certificate_health
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+        - globular.platform:intent.runtime_health.requires_live_observation
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.cluster_network_drift
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/cluster_network_drift.go
+    component: platform_cluster_doctor.rules.cluster_network_drift
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.doctor.layout_drift_must_reflect_real_risk
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.cluster_services_drift
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/cluster_services_drift.go
+    component: platform_cluster_doctor.rules.cluster_services_drift
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.doctor.layout_drift_must_reflect_real_risk
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
   - id: globular.platform:code.go.platform_cluster_doctor.rules.controller_leader
     namespace: globular.platform
     language: go
@@ -186,6 +218,29 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.destructive_actions.require_explicit_guard
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.dns_reload_health
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/dns_reload_health.go
+    component: platform_cluster_doctor.rules.dns_reload_health
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.dns.records_must_be_installed_and_runtime_healthy
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.etcd_health
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/etcd_health.go
+    component: platform_cluster_doctor.rules.etcd_health
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.etcd.endpoint_reachability
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+        - globular.platform:intent.runtime_health.requires_live_observation
   - id: globular.platform:code.go.platform_cluster_doctor.rules.etcd_stale_member
     namespace: globular.platform
     language: go
@@ -213,6 +268,81 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.repository.metadata_is_authority
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.local_override_rule
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/local_override_rule.go
+    component: platform_cluster_doctor.rules.local_override_rule
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.desired_build_id_must_resolve
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.node_inventory_complete
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/node_inventory_complete.go
+    component: platform_cluster_doctor.rules.node_inventory_complete
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+        - globular.platform:intent.runtime_health.requires_live_observation
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.node_reachable
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/node_reachable.go
+    component: platform_cluster_doctor.rules.node_reachable
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+        - globular.platform:intent.runtime_health.requires_live_observation
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.node_units_running
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/node_units_running.go
+    component: platform_cluster_doctor.rules.node_units_running
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+        - globular.platform:intent.runtime_health.requires_live_observation
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_admission
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_admission.go
+    component: platform_cluster_doctor.rules.objectstore_admission
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.topology_contract
+        - globular.platform:invariant.objectstore.minio.existing_data_guard
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_contract
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_contract.go
+    component: platform_cluster_doctor.rules.objectstore_contract
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.topology_contract
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_health
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_health.go
+    component: platform_cluster_doctor.rules.objectstore_health
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.dns.wildcard_must_not_include_unhealthy_nodes
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
   - id: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_physical_overlap
     namespace: globular.platform
     language: go
@@ -220,6 +350,17 @@ code_symbols:
     component: platform_cluster_doctor.rules.objectstore_physical_overlap
     risk: critical
     annotations:
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.objectstore_topology
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_topology.go
+    component: platform_cluster_doctor.rules.objectstore_topology
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.objectstore.topology_contract
       implements:
         - globular.platform:intent.runtime_observation_must_not_mutate_desired
   - id: globular.platform:code.go.platform_cluster_doctor.rules.package_version_authority
@@ -231,6 +372,27 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.repository.metadata_is_authority
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.repository_status
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/repository_status.go
+    component: platform_cluster_doctor.rules.repository_status
+    risk: critical
+    annotations:
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+        - globular.platform:intent.repository.identity_doctor_reports_collisions
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.runtime_verification
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/runtime_verification.go
+    component: platform_cluster_doctor.rules.runtime_verification
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.doctor.must_compare_claims_to_proofs
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
   - id: globular.platform:code.go.platform_cluster_doctor.snapshot
     namespace: globular.platform
     language: go

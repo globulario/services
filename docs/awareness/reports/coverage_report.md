@@ -5,8 +5,8 @@ Deterministic per-run output. To diff cleanly between runs, skip the first 3 lin
 ## Summary
 
 - **Source files scanned (Go, non-test, non-generated):** 963
-- **Files with at least one direct anchor:** 323 (33%)
-- **Files with zero direct anchors:** 640 (67%)
+- **Files with at least one direct anchor:** 335 (34%)
+- **Files with zero direct anchors:** 628 (66%)
 - **Candidate entries (NOT counted in canonical coverage):** 2
 
 ## Canonical anchors by class
@@ -17,7 +17,7 @@ Deterministic per-run output. To diff cleanly between runs, skip the first 3 lin
 | failure_mode | 100 |
 | intent | 208 |
 | incident_pattern | 4 |
-| code_symbol | 216 |
+| code_symbol | 231 |
 
 _`code_symbol` entries come from `docs/awareness/generated/*_code_symbols.yaml` (the source-side `@awareness` annotation scan)._
 
@@ -28,8 +28,8 @@ Files under these paths are listed in CLAUDE.md R2 as high-risk. Uncovered files
 | Directory | Anchored / Total | Uncovered |
 |---|---|---|
 | `golang/cluster_controller/cluster_controller_server` | 61/123 | 62 |
-| `golang/cluster_doctor/cluster_doctor_server/rules` | 19/60 | 41 |
 | `golang/mcp` | 26/58 | 32 |
+| `golang/cluster_doctor/cluster_doctor_server/rules` | 31/60 | 29 |
 | `golang/node_agent/node_agent_server` | 30/56 | 26 |
 | `golang/repository/repository_server` | 30/50 | 20 |
 | `golang/node_agent/node_agent_server/internal/actions` | 10/22 | 12 |
@@ -127,7 +127,7 @@ These are uncovered Go files under CLAUDE.md R2 high-risk dirs. Sorted by path. 
 - `golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints.go`
 - `golang/cluster_controller/cluster_controller_server/reconcile_lane_status.go`
 - `golang/cluster_controller/cluster_controller_server/reconcile_metrics.go`
-- _… and 201 more (truncated to top 50 for readability)_
+- _… and 189 more (truncated to top 50 for readability)_
 
 ## Candidates pending review
 
