@@ -274,6 +274,24 @@ type server struct {
 	// new callers wait for it to complete rather than piling on.
 	inflightRestarts sync.Map // key: "nodeID::unit" → chan struct{} (closed on completion)
 
+	// recentRestarts records the timestamp of the last SUCCESSFUL restart for
+	// each (node, unit) key. dedupRestart suppresses re-dispatch within
+	// restartCooldown to defuse restart-storms (e.g. workflow verify_effect
+	// re-dispatching node.maybe_restart_package faster than Envoy can finish
+	// CDS+LDS init — see docs/awareness/reports/envoy_lds_cds_wedge.md, Phase 29).
+	// Entries are only written on success: a failed restart does NOT block
+	// the next attempt, preserving legitimate retry-after-error semantics.
+	recentRestarts sync.Map // key: "nodeID::unit" → time.Time (last successful restart)
+
+	// restartCooldown overrides the default restart-cooldown window (10s).
+	// Production code leaves this at zero (use the default); tests inject a
+	// shorter or longer window for deterministic behaviour.
+	restartCooldown time.Duration
+
+	// testNow is a test seam for the wall clock used by dedupRestart cooldown
+	// bookkeeping. Production code leaves this nil and reads time.Now().
+	testNow func() time.Time
+
 	// posture is the current ClusterPosture (Normal/Degraded/RecoveryOnly).
 	// Written by postureLoop, read by enforcement gates (phase 2) and observability.
 	// atomic.Int32 stores a ClusterPosture value; use getPosture() to read.

@@ -1144,17 +1144,71 @@ func skipRuntimeCheck(name string) bool {
 	return comp != nil && comp.Kind == KindCommand
 }
 
-// dedupRestart ensures only one restart is in progress for a given (node, unit)
-// pair. If another goroutine is already restarting the same unit on the same
-// node, this call waits for it to complete and returns nil (the restart already
-// happened). This prevents systemd start-limit-hit from concurrent workflow
-// restart storms.
+// defaultRestartCooldown is the minimum time between two successful restarts
+// of the same (node, unit). Chosen to cover the worst-case Envoy CDS+LDS init
+// window (~3-5s for 26 dynamic clusters with SDS-wrapped mTLS) with margin,
+// while still allowing legitimate retries — a real binary change ships through
+// install_package which itself takes longer than this cooldown, so the
+// post-install maybe_restart is never blocked.
+const defaultRestartCooldown = 10 * time.Second
+
+// restartCooldownWindow returns the per-server cooldown, falling back to the
+// default. Test code can shorten this via srv.restartCooldown.
+func (srv *server) restartCooldownWindow() time.Duration {
+	if srv.restartCooldown > 0 {
+		return srv.restartCooldown
+	}
+	return defaultRestartCooldown
+}
+
+// restartNow returns the current wall clock, routed through the test seam.
+func (srv *server) restartNow() time.Time {
+	if srv.testNow != nil {
+		return srv.testNow()
+	}
+	return time.Now()
+}
+
+// dedupRestart guarantees idempotent restart dispatch per (node, unit) by:
+//  1. coalescing concurrent in-flight callers (existing semantics — one
+//     restart, all callers return when it completes), AND
+//  2. suppressing rapid re-dispatch within restartCooldownWindow after a
+//     successful restart (Phase 29 — defuses workflow restart-storms that
+//     SIGTERM Envoy faster than it can finish CDS+LDS init; see
+//     docs/awareness/reports/envoy_lds_cds_wedge.md).
+//
+// Failure path: a failed restart does NOT write to recentRestarts, so the
+// next call is allowed immediately. The caller's own retry/backoff policy
+// stays authoritative; this gate only defangs the post-success storm.
+//
+// Identity gate: a new desired version arrives through the workflow's
+// install_package step (which takes >> cooldown), so the post-install
+// maybe_restart is never blocked by the prior version's cooldown entry.
 func (srv *server) dedupRestart(ctx context.Context, nodeID, endpoint, unit string) error {
 	key := nodeID + "::" + unit
-	done := make(chan struct{})
 
+	// Step (2) — post-success cooldown. Checked BEFORE the in-flight
+	// coalesce so a flurry of arrivals after a recent success returns nil
+	// without queueing on an in-flight channel that doesn't exist.
+	if v, ok := srv.recentRestarts.Load(key); ok {
+		if last, isTime := v.(time.Time); isTime {
+			elapsed := srv.restartNow().Sub(last)
+			if elapsed < srv.restartCooldownWindow() {
+				log.Printf(
+					"workflow.restart_suppressed_duplicate node=%s unit=%s elapsed_ms=%d cooldown_ms=%d reason=recent_success",
+					nodeID, unit, elapsed.Milliseconds(), srv.restartCooldownWindow().Milliseconds(),
+				)
+				return nil
+			}
+			// Beyond cooldown — drop the stale marker so the map doesn't
+			// accumulate entries for long-idle units.
+			srv.recentRestarts.Delete(key)
+		}
+	}
+
+	// Step (1) — in-flight coalesce.
+	done := make(chan struct{})
 	if existing, loaded := srv.inflightRestarts.LoadOrStore(key, done); loaded {
-		// Another restart is already in progress — wait for it.
 		log.Printf("dedup: skip restart for %s on node %s (already in progress)", unit, nodeID)
 		select {
 		case <-existing.(chan struct{}):
@@ -1164,7 +1218,9 @@ func (srv *server) dedupRestart(ctx context.Context, nodeID, endpoint, unit stri
 		}
 	}
 
-	// We own this restart. Execute and clean up.
+	// We own this restart. Always clean up the in-flight marker. The
+	// recentRestarts marker is written only on success (below) so a failed
+	// restart can be retried immediately by the caller's backoff.
 	defer func() {
 		close(done)
 		srv.inflightRestarts.Delete(key)
@@ -1181,5 +1237,13 @@ func (srv *server) dedupRestart(ctx context.Context, nodeID, endpoint, unit stri
 		Unit:   unit,
 		Action: "restart",
 	})
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Record the successful restart for the cooldown gate. Stored under
+	// the same key as the in-flight marker so the next caller's cooldown
+	// check finds it on the very first lookup.
+	srv.recentRestarts.Store(key, srv.restartNow())
+	return nil
 }
