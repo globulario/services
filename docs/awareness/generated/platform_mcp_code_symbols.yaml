@@ -34,6 +34,8 @@ code_symbols:
     component: platform_mcp.aggregator_policy
     risk: critical
     annotations:
+      enforces:
+        - globular.platform:invariant.mcp.etcd.tools_must_not_join_remote_allowlist
       implements:
         - globular.platform:intent.mcp.aggregator_routes_via_etcd_discovery
         - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
@@ -132,6 +134,7 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+        - globular.platform:intent.mcp.governor.plan_validate_approve_execute_is_only_execute_path
   - id: globular.platform:code.go.platform_mcp.tools_cluster
     namespace: globular.platform
     language: go
@@ -158,6 +161,8 @@ code_symbols:
     component: platform_mcp.tools_etcd
     risk: critical
     annotations:
+      enforces:
+        - globular.platform:invariant.mcp.etcd.tools_must_not_join_remote_allowlist
       implements:
         - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
   - id: globular.platform:code.go.platform_mcp.tools_file
@@ -167,6 +172,8 @@ code_symbols:
     component: platform_mcp.tools_file
     risk: critical
     annotations:
+      enforces:
+        - globular.platform:invariant.mcp.file_tool_uses_file_service_not_host_fs
       implements:
         - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
         - globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
@@ -179,6 +186,7 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+        - globular.platform:intent.mcp.governor.plan_validate_approve_execute_is_only_execute_path
   - id: globular.platform:code.go.platform_mcp.tools_grpc_call
     namespace: globular.platform
     language: go

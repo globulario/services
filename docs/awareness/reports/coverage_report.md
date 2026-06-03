@@ -13,9 +13,9 @@ Deterministic per-run output. To diff cleanly between runs, skip the first 3 lin
 
 | Class | Entries in canonical YAML |
 |---|---|
-| invariant | 204 |
-| failure_mode | 97 |
-| intent | 207 |
+| invariant | 206 |
+| failure_mode | 100 |
+| intent | 208 |
 | incident_pattern | 4 |
 | code_symbol | 216 |
 

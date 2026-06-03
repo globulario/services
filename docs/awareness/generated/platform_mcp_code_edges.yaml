@@ -12,6 +12,9 @@ code_edges:
     relation: implements
     to: globular.platform:intent.mcp.aggregator_routes_via_etcd_discovery
   - from: globular.platform:code.go.platform_mcp.aggregator_policy
+    relation: enforces
+    to: globular.platform:invariant.mcp.etcd.tools_must_not_join_remote_allowlist
+  - from: globular.platform:code.go.platform_mcp.aggregator_policy
     relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
   - from: globular.platform:code.go.platform_mcp.aggregator_policy
@@ -59,6 +62,9 @@ code_edges:
   - from: globular.platform:code.go.platform_mcp.tools_cli
     relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_cli
+    relation: implements
+    to: globular.platform:intent.mcp.governor.plan_validate_approve_execute_is_only_execute_path
   - from: globular.platform:code.go.platform_mcp.tools_cluster
     relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
@@ -69,8 +75,14 @@ code_edges:
     relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
   - from: globular.platform:code.go.platform_mcp.tools_etcd
+    relation: enforces
+    to: globular.platform:invariant.mcp.etcd.tools_must_not_join_remote_allowlist
+  - from: globular.platform:code.go.platform_mcp.tools_etcd
     relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_file
+    relation: enforces
+    to: globular.platform:invariant.mcp.file_tool_uses_file_service_not_host_fs
   - from: globular.platform:code.go.platform_mcp.tools_file
     relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
@@ -80,6 +92,9 @@ code_edges:
   - from: globular.platform:code.go.platform_mcp.tools_governor
     relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_governor
+    relation: implements
+    to: globular.platform:intent.mcp.governor.plan_validate_approve_execute_is_only_execute_path
   - from: globular.platform:code.go.platform_mcp.tools_grpc_call
     relation: implements
     to: globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
