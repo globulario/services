@@ -25,6 +25,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/installreceipt"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -101,31 +102,7 @@ func (packageReportStateAction) Apply(ctx context.Context, args *structpb.Struct
 		installedUnix = existing.InstalledUnix
 	}
 
-	// Build metadata: seed from existing record so fields like
-	// entrypoint_checksum (written by writeInstalledStateChecksum) survive
-	// a report_state overwrite. Args from the workflow step take precedence.
-	metadata := make(map[string]string)
-	if existing != nil {
-		for k, v := range existing.GetMetadata() {
-			if v != "" {
-				metadata[k] = v
-			}
-		}
-	}
-	for k, v := range fields {
-		switch k {
-		case "node_id", "name", "version", "kind", "publisher_id", "platform",
-			"checksum", "operation_id", "status", "build_number":
-			continue
-		default:
-			if s := v.GetStringValue(); s != "" {
-				metadata[k] = s
-			}
-		}
-	}
-	if len(metadata) == 0 {
-		metadata = nil
-	}
+	metadata := mergeReportStateMetadata(existing, fields)
 
 	pkg := &node_agentpb.InstalledPackage{
 		NodeId:        nodeID,
@@ -142,6 +119,12 @@ func (packageReportStateAction) Apply(ctx context.Context, args *structpb.Struct
 		BuildNumber:   buildNumber,
 		Metadata:      metadata,
 	}
+
+	// Carry receipt fields from existing through the canonical chokepoint.
+	// Preserve enforces NEXT-wins on conflict and suppresses
+	// migration_source carry-over when pkg.Metadata signals canonical
+	// install presence — see installreceipt.Preserve doc.
+	installreceipt.Preserve(existing, pkg)
 
 	if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
 		return "", fmt.Errorf("package.report_state: %w", err)
@@ -197,6 +180,59 @@ func (packageClearStateAction) Apply(ctx context.Context, args *structpb.Struct)
 	}
 
 	return fmt.Sprintf("installed-state cleared: %s/%s on %s", kind, name, nodeID), nil
+}
+
+// mergeReportStateMetadata is the pure metadata-merge half of
+// packageReportStateAction.Apply, extracted so it is testable without
+// an etcd backend.
+//
+// Contract:
+//
+//  1. Non-receipt fields from existing are copied verbatim (entrypoint_
+//     checksum, proof_on_disk_sha256, anything else a sibling writer has
+//     stamped that the install-receipt chokepoint does not own).
+//  2. Receipt fields from existing are SKIPPED here; they are added by
+//     installreceipt.Preserve at the call site so the canonical-install
+//     detection rule (migration_source suppression when installed_by is
+//     present on next) applies.
+//  3. Workflow-arg fields are overlaid last and win over existing on the
+//     same key. Fields that are part of the typed action contract
+//     (node_id, name, version, kind, publisher_id, platform, checksum,
+//     operation_id, status, build_number) are not carried into metadata —
+//     they belong on the typed InstalledPackage fields, not the open map.
+//
+// Returns nil when the resulting map is empty (so the caller can leave
+// pkg.Metadata nil rather than writing an empty map that downstream
+// readers must special-case).
+func mergeReportStateMetadata(existing *node_agentpb.InstalledPackage, fields map[string]*structpb.Value) map[string]string {
+	receiptKeys := make(map[string]bool, len(installreceipt.Keys()))
+	for _, k := range installreceipt.Keys() {
+		receiptKeys[k] = true
+	}
+	metadata := make(map[string]string)
+	if existing != nil {
+		for k, v := range existing.GetMetadata() {
+			if v == "" || receiptKeys[k] {
+				continue
+			}
+			metadata[k] = v
+		}
+	}
+	for k, v := range fields {
+		switch k {
+		case "node_id", "name", "version", "kind", "publisher_id", "platform",
+			"checksum", "operation_id", "status", "build_number":
+			continue
+		default:
+			if s := v.GetStringValue(); s != "" {
+				metadata[k] = s
+			}
+		}
+	}
+	if len(metadata) == 0 {
+		return nil
+	}
+	return metadata
 }
 
 func init() {
