@@ -17,7 +17,7 @@ Deterministic per-run output. To diff cleanly between runs, skip the first 3 lin
 | failure_mode | 103 |
 | intent | 208 |
 | incident_pattern | 4 |
-| code_symbol | 261 |
+| code_symbol | 262 |
 
 _`code_symbol` entries come from `docs/awareness/generated/*_code_symbols.yaml` (the source-side `@awareness` annotation scan)._
 

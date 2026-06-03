@@ -139,6 +139,7 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.destructive_actions.require_explicit_guard
+        - globular.platform:invariant.node_agent.install_skip_must_refresh_runtime_proof
   - id: globular.platform:code.go.platform_node_agent.heartbeat
     namespace: globular.platform
     language: go
@@ -353,3 +354,12 @@ code_symbols:
       implements:
         - globular.platform:intent.node_agent.is_executor_not_cluster_brain
         - globular.platform:intent.workflow.source_of_operational_truth
+  - id: globular.platform:code.go.platform_node_agent.xds_config_reconcile
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/xds_config_reconcile.go
+    component: platform_node_agent.xds_config_reconcile
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.envoy.lds_progress_required_for_http_mesh_readiness

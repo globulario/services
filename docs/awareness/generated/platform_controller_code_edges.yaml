@@ -222,6 +222,9 @@ code_edges:
     relation: implements
     to: globular.platform:intent.etcd.is_source_of_truth
   - from: globular.platform:code.go.platform_cluster_controller.reconcile_runtime
+    relation: enforces
+    to: globular.platform:invariant.release.failed_state_requires_explicit_recovery_or_requeue
+  - from: globular.platform:code.go.platform_cluster_controller.reconcile_runtime
     relation: implements
     to: globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
   - from: globular.platform:code.go.platform_cluster_controller.reconcile_runtime
@@ -254,6 +257,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.recovery_workflow
     relation: implements
     to: globular.platform:intent.node_recovery.fence_before_destructive_reseed
+  - from: globular.platform:code.go.platform_cluster_controller.release_reconciler
+    relation: enforces
+    to: globular.platform:invariant.release.failed_state_requires_explicit_recovery_or_requeue
   - from: globular.platform:code.go.platform_cluster_controller.release_reconciler
     relation: implements
     to: globular.platform:intent.desired_hash.is_convergence_identity

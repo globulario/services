@@ -373,6 +373,8 @@ code_symbols:
     component: platform_cluster_controller.reconcile_runtime
     risk: critical
     annotations:
+      enforces:
+        - globular.platform:invariant.release.failed_state_requires_explicit_recovery_or_requeue
       implements:
         - globular.platform:intent.controller.leader_election_gates_all_writes
         - globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
@@ -435,6 +437,8 @@ code_symbols:
     component: platform_cluster_controller.release_reconciler
     risk: critical
     annotations:
+      enforces:
+        - globular.platform:invariant.release.failed_state_requires_explicit_recovery_or_requeue
       implements:
         - globular.platform:intent.desired_state.is_authority
         - globular.platform:intent.desired_hash.is_convergence_identity

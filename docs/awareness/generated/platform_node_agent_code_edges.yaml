@@ -65,6 +65,9 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.grpc_workflow_skip
     relation: enforces
     to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_node_agent.grpc_workflow_skip
+    relation: enforces
+    to: globular.platform:invariant.node_agent.install_skip_must_refresh_runtime_proof
   - from: globular.platform:code.go.platform_node_agent.heartbeat
     relation: enforces
     to: globular.platform:invariant.infra.heartbeat_observer_only_not_authority
@@ -203,3 +206,6 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.workflow_runner
     relation: implements
     to: globular.platform:intent.workflow.source_of_operational_truth
+  - from: globular.platform:code.go.platform_node_agent.xds_config_reconcile
+    relation: enforces
+    to: globular.platform:invariant.envoy.lds_progress_required_for_http_mesh_readiness
