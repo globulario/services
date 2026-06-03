@@ -261,7 +261,13 @@ func (srv *NodeAgentServer) peerChecksumLookup(ctx context.Context, versions, bu
 
 		// Also write the installed_state record so future heartbeats
 		// don't need to repeat the lookup.
-		_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
+		//
+		// Non-install writer: preserve install-receipt fields. Without
+		// this, every peer-checksum resolution clobbers the canonical
+		// install receipt (unit_file_sha256, binary_sha256, installed_by)
+		// and the heartbeat's installed_state-first drift authority
+		// falls back to legacy_sidecar migration.
+		next := &node_agentpb.InstalledPackage{
 			NodeId:      srv.nodeID,
 			Name:        svc,
 			Version:     peer.version,
@@ -270,7 +276,10 @@ func (srv *NodeAgentServer) peerChecksumLookup(ctx context.Context, versions, bu
 			UpdatedUnix: time.Now().Unix(),
 			BuildId:     peer.buildID,
 			Metadata:    map[string]string{"entrypoint_checksum": cksum},
-		})
+		}
+		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, "SERVICE", svc)
+		PreserveInstallReceiptMetadata(existing, next)
+		_ = installed_state.WriteInstalledPackage(ctx, next)
 
 		log.Printf("nodeagent: peer-checksum resolved %s → version=%s from node=%s (checksum=%s)",
 			svc, peer.version, peer.nodeID, cksum[:16])
