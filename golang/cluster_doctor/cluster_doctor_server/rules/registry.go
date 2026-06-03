@@ -240,6 +240,16 @@ func NewRegistry(cfg Config) *Registry {
 		// only fires on a fresh store at startup — a runtime wipe requires
 		// a service restart. HealPropose only.
 		awarenessGraphSeedEmpty{},
+		// Install-receipt authority drift (post sidecar retirement). Surfaces
+		// the two states produced by node-agent's checkUnitHashDrift after the
+		// 4-layer authority fix:
+		//   unit_file_drift                      WARN (service still running,
+		//                                             release pipeline heals)
+		//   installed_state_missing_or_unproven  CRITICAL (no authority anywhere,
+		//                                             fail-closed per
+		//                                             state.unknown_must_not_default_to_healthy)
+		// Legacy "hash_drift" is treated as an alias for unit_file_drift.
+		unitReceiptDrift{},
 		// Envoy data-plane LDS-wedge detection (Phase 28). Diagnostic only:
 		// classifies the (cds.update_success > 0, lds.update_attempt == 0)
 		// state as CRITICAL. Pins the invariant

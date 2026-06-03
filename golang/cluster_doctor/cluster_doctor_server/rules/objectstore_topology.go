@@ -270,9 +270,14 @@ func (objectstoreMinioPostApplyHealth) Evaluate(snap *collector.Snapshot, _ Conf
 			}
 			continue
 		}
-		// hash_drift = service is running, unit file content changed since install.
-		// systemd still reports active; release pipeline handles re-install separately.
-		if state != "active" && state != "hash_drift" {
+		// Service-is-running-but-drifted states: the unit file content drifted
+		// from the installed_state receipt, but systemd still reports active.
+		// The release pipeline's re-install path handles convergence — these
+		// are NOT a quorum-loss signal here. "hash_drift" is the legacy name
+		// (pre-refactor); "unit_file_drift" is the new name (post sidecar
+		// retirement, see unit_receipt_drift.go). Accepting both keeps
+		// behaviour stable across the upgrade window.
+		if state != "active" && !IsRunningButDrifted(state) {
 			notActive = append(notActive, fmt.Sprintf("%s(%s):state=%s", nodeID, poolIP, state))
 		}
 	}

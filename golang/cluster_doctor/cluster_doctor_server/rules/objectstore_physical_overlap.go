@@ -539,10 +539,13 @@ func (objectstoreWriteQuorumLost) Evaluate(snap *collector.Snapshot, cfg Config)
 		minioStateEvid = append(minioStateEvid, ip+"="+state)
 
 		switch state {
-		case "active", "hash_drift":
-			// hash_drift = service is running but unit file content changed since
-			// install. systemd still reports active; this is handled by the release
-			// pipeline's detectInfraDrift (triggers re-install), not a quorum loss.
+		case "active", "hash_drift", UnitStateUnitFileDrift:
+			// Service-is-running-but-drifted states. systemd still reports
+			// active; the release pipeline's re-install path handles the
+			// drift — NOT a quorum-loss signal here. "hash_drift" is the
+			// legacy name (pre-refactor); UnitStateUnitFileDrift is the new
+			// name (see unit_receipt_drift.go). Accept both across the
+			// upgrade window so stale inventories do not go dark.
 			activeNodes = append(activeNodes, ip)
 		case "no_inventory":
 			noInventoryNodes = append(noInventoryNodes, ip)
