@@ -3,6 +3,7 @@
 // @awareness file_role=phase1_allowlist_of_read_only_tools_callable_via_mcp_remote_call
 // @awareness implements=globular.platform:intent.mcp.aggregator_routes_via_etcd_discovery
 // @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness enforces=globular.platform:invariant.mcp.etcd.tools_must_not_join_remote_allowlist
 // @awareness risk=critical
 package main
 

@@ -3,6 +3,7 @@
 // @awareness file_role=mcp_file_service_bridge_with_rbac_enforced_remote_paths_not_local_host_fs
 // @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
 // @awareness implements=globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+// @awareness enforces=globular.platform:invariant.mcp.file_tool_uses_file_service_not_host_fs
 // @awareness risk=critical
 package main
 

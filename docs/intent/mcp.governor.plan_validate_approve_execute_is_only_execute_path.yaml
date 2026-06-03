@@ -1,0 +1,39 @@
+id: mcp.governor.plan_validate_approve_execute_is_only_execute_path
+level: safety_rule
+title: The MCP governor is the only execution surface; agent actions follow plan → validate → check-approval → execute
+intent: >
+  Every agent-initiated execution of a globular CLI command MUST flow through
+  the governor discipline implemented in golang/mcp/tools_governor.go:
+  plan → validate → check_approval → execute (or execute_plan). Each step is a
+  separate MCP tool; an operator approves a specific planned action between
+  validate and execute. No other MCP tool may grow an ad-hoc execute branch
+  because that would defeat the operator-in-the-loop contract the governor
+  exists to enforce.
+agent_guidance: >
+  When asked to run a CLI command on the cluster, do NOT shell out from an
+  unrelated tool. Use globular_cli.plan + globular_cli.validate +
+  globular_cli.check_approval + globular_cli.execute_plan. If an MCP tool
+  appears to execute commands directly without a plan id, treat that as a
+  contract violation and surface it rather than calling it.
+activation_triggers:
+  - mcp governor
+  - tools_governor
+  - plan validate execute
+  - check_approval
+  - execute_plan
+bad_smells:
+  - exec.Command added to a non-governor MCP tool
+  - new "shortcut" tool that runs commands without a plan id
+  - execute tool added that does not consult check_approval
+  - knowledge tool (help/examples) grows an execute branch
+expressed_by:
+  - golang/mcp/tools_governor.go
+  - golang/mcp/tools_cli.go
+related_to:
+  - awareness.mcp_bridge_exposes_safe_tools_only
+required_tests:
+  # No existing test pins this discipline as a closed set; the safety property
+  # is structural (only tools_governor.go contains os/exec for governed
+  # commands). A future regression test would scan the mcp/ tree for exec
+  # calls outside tools_governor.go and fail on additions.
+status: seed

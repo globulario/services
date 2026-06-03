@@ -5429,3 +5429,77 @@ invariants:
         - move_private_ip_filtering_into_the_caller_instead_of_the_provider
       related_failure_modes:
         - dnsprovider.internal_topology_leak_via_public_dns_publish
+    - id: mcp.etcd.tools_must_not_join_remote_allowlist
+      title: Direct etcd MCP tools MUST NOT appear in the cross-node aggregator remote_call allowlist
+      severity: critical
+      status: active
+      summary: |
+        golang/mcp/tools_etcd.go exposes etcd_get / etcd_put / etcd_delete as
+        local diagnostic tools. They reach past every typed service into the
+        cluster's source of truth, and an arbitrary put or delete can corrupt
+        cluster state in ways that surface as cascading failures across
+        subsystems hours later.
+
+        The cross-node remote_call surface (golang/mcp/aggregator_policy.go's
+        allowedRemoteTools) is a strict allowlist of READ-ONLY tools that one
+        node's MCP server may invoke on another's. Adding any etcd_* tool
+        there would let a compromised or misbehaving peer MCP mutate
+        cluster-wide etcd state without an audit trail or controller-side
+        guard — directly violating the
+        critical_state.deletion_requires_audited_intent invariant.
+
+        Etcd tools must stay local-only. The allowlist is intentionally not
+        configurable at runtime; adding etcd_* requires an explicit code
+        change here AND in aggregator_policy.go, both of which are reviewable.
+      protects:
+        files:
+          - golang/mcp/tools_etcd.go
+          - golang/mcp/aggregator_policy.go
+        symbols:
+          - allowedRemoteTools
+          - registerEtcdTools
+      forbidden_fixes:
+        - add_etcd_get_to_allowedremotetools_for_debugging
+        - add_etcd_put_or_etcd_delete_to_allowedremotetools_under_any_condition
+        - introduce_a_separate_remote_allowlist_for_privileged_tools
+        - make_allowedremotetools_configurable_at_runtime
+        - route_etcd_calls_through_a_proxy_tool_that_is_itself_in_the_allowlist
+      related_failure_modes:
+        - mcp.etcd_remote_allowlist_expansion
+    - id: mcp.file_tool_uses_file_service_not_host_fs
+      title: MCP file tools MUST go through the Globular file service gRPC API; direct host-fs access is forbidden
+      severity: critical
+      status: active
+      summary: |
+        golang/mcp/tools_file.go is the agent-facing bridge for file
+        operations on cluster-user data. The cluster's file service enforces
+        RBAC (per-user mount roots, per-resource permissions, audit log).
+        The MCP bridge forwards path strings verbatim to the file service —
+        validation, authorization, and audit all happen server-side.
+
+        Substituting os.* / ioutil.* / filepath.Walk against the host
+        filesystem inside an MCP file tool would:
+
+          - bypass RBAC entirely (the host fs has no per-user mount root)
+          - expose host paths to agents, including /var/lib/globular/pki/,
+            other tenants' MinIO data dirs, etc.
+          - silently produce results the file service would have rejected
+          - leave no audit trail on the file service
+
+        The bridge's job is to translate args + propagate the caller's
+        identity to the file service, NOT to fulfill the operation locally.
+        Adding "a fast path that just reads the file directly" is the
+        canonical way to ship this bug.
+      protects:
+        files:
+          - golang/mcp/tools_file.go
+        symbols:
+          - registerFileTools
+      forbidden_fixes:
+        - substitute_os_readfile_for_fileservice_readfile_in_mcp_bridge
+        - add_a_local_disk_fallback_when_file_service_is_unreachable
+        - cache_file_service_responses_on_local_disk
+        - implement_a_host_fs_helper_inside_tools_file_and_call_it_from_a_handler
+        - bypass_file_service_for_files_under_a_safelist_of_paths
+      related_failure_modes:
+        - mcp.file_tool_host_fs_escape

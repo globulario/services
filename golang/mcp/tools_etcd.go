@@ -2,6 +2,7 @@
 // @awareness component=platform_mcp.tools_etcd
 // @awareness file_role=mcp_etcd_direct_get_put_delete_tool_bypassing_typed_service_layers
 // @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness enforces=globular.platform:invariant.mcp.etcd.tools_must_not_join_remote_allowlist
 // @awareness risk=critical
 package main
 

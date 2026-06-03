@@ -2,6 +2,7 @@
 // @awareness component=platform_mcp.tools_cli
 // @awareness file_role=read_only_cli_knowledge_helpers_no_command_execution_path
 // @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness implements=globular.platform:intent.mcp.governor.plan_validate_approve_execute_is_only_execute_path
 // @awareness risk=medium
 package main
 

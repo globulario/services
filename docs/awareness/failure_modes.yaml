@@ -3547,3 +3547,109 @@ failure_modes:
         in 10/8, 172.16/12, 192.168/16, fc00::/7, or fe80::/10.
       related_invariants:
         - dnsprovider.private_ips_must_not_publish_to_public_dns
+    - id: mcp.governor_bypass_via_ad_hoc_execute_tool
+      title: A non-governor MCP tool grows an ad-hoc execute branch and bypasses plan/validate/approve
+      severity: critical
+      status: active
+      summary: |
+        The MCP governor (golang/mcp/tools_governor.go) implements the only
+        sanctioned execution path: plan → validate → check_approval → execute.
+        Each step is a separate MCP tool with the operator approving a
+        specific plan id between validate and execute.
+
+        A new MCP tool that calls exec.Command (or any other side-effecting
+        runner) outside the governor — e.g. a "convenience" execute branch
+        added to a knowledge tool like tools_cli.go, or a per-domain
+        execute helper added to tools_workflow.go — defeats the
+        operator-in-the-loop contract. Agents would be able to perform
+        cluster-affecting actions without an approved plan id, which is
+        exactly what the governor exists to prevent.
+
+        Mitigated today by the structural property that os/exec inside the
+        mcp/ package appears only in tools_governor.go. A future regression
+        test should grep the mcp/ tree for `os/exec` imports outside
+        tools_governor.go and fail on additions.
+      affects:
+        files:
+          - golang/mcp/tools_governor.go
+          - golang/mcp/tools_cli.go
+        symbols:
+          - registerGovernorTools
+      detection: |
+        Direct: grep for `"os/exec"` import or `exec.Command` call in
+        any golang/mcp/*.go file other than tools_governor.go.
+        Runtime: an audit log line shows a tool other than
+        globular_cli.execute/execute_plan invoking a CLI command.
+      related_invariants:
+        - mcp.governor.plan_validate_approve_execute_is_only_execute_path
+    - id: mcp.file_tool_host_fs_escape
+      title: MCP file tool reads or writes the host filesystem directly, bypassing the file service RBAC + audit
+      severity: critical
+      status: active
+      summary: |
+        tools_file.go is supposed to forward every file operation to the
+        Globular file service over gRPC. The file service enforces
+        per-user mount roots, per-resource RBAC, and writes an audit log
+        entry for every access.
+
+        A regression that calls os.ReadFile / os.WriteFile / filepath.Walk
+        inside an MCP file tool — typically as a "fallback when the file
+        service is unreachable" or a "fast path for files under safe
+        paths" — gives an agent direct access to the host filesystem
+        of the MCP process. Depending on which user the MCP process runs
+        as, that can include /var/lib/globular/pki/, other tenants' data,
+        and arbitrary host config.
+
+        Mitigated by routing every handler through the file service
+        client. The bridge MUST NOT import os or io/ioutil for path
+        access; the only acceptable I/O in tools_file.go is gRPC bytes
+        in/out of the file service.
+      affects:
+        files:
+          - golang/mcp/tools_file.go
+        symbols:
+          - registerFileTools
+      detection: |
+        Direct: grep for `os.ReadFile`, `os.WriteFile`, `os.Open`,
+        `os.Create`, `filepath.Walk`, `ioutil.ReadFile`, `ioutil.WriteFile`
+        inside tools_file.go. Any match is a violation.
+        Runtime: agent successfully reads/writes a path that the file
+        service would have rejected for the same caller identity.
+      related_invariants:
+        - mcp.file_tool_uses_file_service_not_host_fs
+    - id: mcp.etcd_remote_allowlist_expansion
+      title: Direct etcd MCP tool added to the cross-node aggregator remote_call allowlist
+      severity: critical
+      status: active
+      summary: |
+        golang/mcp/aggregator_policy.go's allowedRemoteTools is the closed
+        allowlist of tools that one node's MCP server may invoke on another
+        via mcp.remote_call. Every entry is READ-ONLY by current policy.
+
+        Adding etcd_get / etcd_put / etcd_delete to the allowlist —
+        whether "just temporarily for debugging" or "to support a new
+        cross-node introspection use case" — would let any peer MCP
+        server mutate this node's view of cluster state without an
+        audit trail or controller-side guard. The blast radius is
+        cluster-wide (etcd is the source of truth for every
+        subsystem) and silent (mutations propagate without a workflow
+        record).
+
+        Mitigated structurally: the allowlist is a Go map literal in
+        source, reviewed at code-review time. A regression test that
+        scans allowedRemoteTools at startup and rejects any prefix
+        match against `etcd_` or `etcdctl` would harden this further.
+      affects:
+        files:
+          - golang/mcp/aggregator_policy.go
+          - golang/mcp/tools_etcd.go
+        symbols:
+          - allowedRemoteTools
+      detection: |
+        Direct: grep allowedRemoteTools in aggregator_policy.go for any
+        key starting with `etcd_` or matching the tool names registered
+        by tools_etcd.go.
+        Runtime: an mcp.remote_call audit entry where the tool name is
+        any etcd_* would have succeeded — should be a hard policy reject.
+      related_invariants:
+        - mcp.etcd.tools_must_not_join_remote_allowlist
