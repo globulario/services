@@ -5,8 +5,8 @@ Deterministic per-run output. To diff cleanly between runs, skip the first 3 lin
 ## Summary
 
 - **Source files scanned (Go, non-test, non-generated):** 963
-- **Files with at least one direct anchor:** 288 (29%)
-- **Files with zero direct anchors:** 675 (71%)
+- **Files with at least one direct anchor:** 296 (30%)
+- **Files with zero direct anchors:** 667 (70%)
 - **Candidate entries (NOT counted in canonical coverage):** 2
 
 ## Canonical anchors by class
@@ -17,7 +17,7 @@ Deterministic per-run output. To diff cleanly between runs, skip the first 3 lin
 | failure_mode | 97 |
 | intent | 207 |
 | incident_pattern | 4 |
-| code_symbol | 156 |
+| code_symbol | 177 |
 
 _`code_symbol` entries come from `docs/awareness/generated/*_code_symbols.yaml` (the source-side `@awareness` annotation scan)._
 
@@ -27,7 +27,7 @@ Files under these paths are listed in CLAUDE.md R2 as high-risk. Uncovered files
 
 | Directory | Anchored / Total | Uncovered |
 |---|---|---|
-| `golang/cluster_controller/cluster_controller_server` | 53/123 | 70 |
+| `golang/cluster_controller/cluster_controller_server` | 61/123 | 62 |
 | `golang/mcp` | 10/58 | 48 |
 | `golang/cluster_doctor/cluster_doctor_server/rules` | 19/60 | 41 |
 | `golang/node_agent/node_agent_server` | 26/56 | 30 |
@@ -93,11 +93,7 @@ These are uncovered Go files under CLAUDE.md R2 high-risk dirs. Sorted by path. 
 - `golang/cluster_controller/cluster_controller_server/component_catalog.go`
 - `golang/cluster_controller/cluster_controller_server/component_resolve.go`
 - `golang/cluster_controller/cluster_controller_server/config.go`
-- `golang/cluster_controller/cluster_controller_server/delete_approval.go`
-- `golang/cluster_controller/cluster_controller_server/desired_state_publisher.go`
-- `golang/cluster_controller/cluster_controller_server/etcd_rejoin.go`
 - `golang/cluster_controller/cluster_controller_server/handlers_cluster.go`
-- `golang/cluster_controller/cluster_controller_server/handlers_join_authorization.go`
 - `golang/cluster_controller/cluster_controller_server/handlers_resolve.go`
 - `golang/cluster_controller/cluster_controller_server/handlers_status.go`
 - `golang/cluster_controller/cluster_controller_server/handlers_upgrade.go`
@@ -113,8 +109,6 @@ These are uncovered Go files under CLAUDE.md R2 high-risk dirs. Sorted by path. 
 - `golang/cluster_controller/cluster_controller_server/native_dependency_block.go`
 - `golang/cluster_controller/cluster_controller_server/node_agent_endpoint_fallback.go`
 - `golang/cluster_controller/cluster_controller_server/node_infra_intents.go`
-- `golang/cluster_controller/cluster_controller_server/node_removal_requests.go`
-- `golang/cluster_controller/cluster_controller_server/objectstore_admission.go`
 - `golang/cluster_controller/cluster_controller_server/objectstore_reconciler.go`
 - `golang/cluster_controller/cluster_controller_server/objectstore_topology_status.go`
 - `golang/cluster_controller/cluster_controller_server/objectstore_transition.go`
@@ -127,7 +121,13 @@ These are uncovered Go files under CLAUDE.md R2 high-risk dirs. Sorted by path. 
 - `golang/cluster_controller/cluster_controller_server/posture_metrics.go`
 - `golang/cluster_controller/cluster_controller_server/profiles_deduce.go`
 - `golang/cluster_controller/cluster_controller_server/projections/node_identity.go`
-- _… and 236 more (truncated to top 50 for readability)_
+- `golang/cluster_controller/cluster_controller_server/projections/schema.go`
+- `golang/cluster_controller/cluster_controller_server/projections_init.go`
+- `golang/cluster_controller/cluster_controller_server/promotion_reconciler.go`
+- `golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints.go`
+- `golang/cluster_controller/cluster_controller_server/reconcile_lane_status.go`
+- `golang/cluster_controller/cluster_controller_server/reconcile_metrics.go`
+- _… and 228 more (truncated to top 50 for readability)_
 
 ## Candidates pending review
 

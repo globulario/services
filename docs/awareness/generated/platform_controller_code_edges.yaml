@@ -50,6 +50,30 @@ code_edges:
   - from: globular.platform:code.go.cluster_controller.release_pipeline
     relation: implements
     to: globular.platform:intent.workflow.source_of_operational_truth
+  - from: globular.platform:code.go.platform_cluster_controller.critical_state_registry
+    relation: enforces
+    to: globular.platform:invariant.critical_state.deletion_requires_audited_intent
+  - from: globular.platform:code.go.platform_cluster_controller.delete_approval
+    relation: enforces
+    to: globular.platform:invariant.critical_state.deletion_requires_audited_intent
+  - from: globular.platform:code.go.platform_cluster_controller.delete_approval
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_controller.desired_from_resources
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_cluster_controller.desired_state_handlers
+    relation: implements
+    to: globular.platform:intent.controller.leader_election_gates_all_writes
+  - from: globular.platform:code.go.platform_cluster_controller.desired_state_handlers
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_cluster_controller.desired_state_publisher
+    relation: enforces
+    to: globular.platform:invariant.desired.bootstrap_state_requires_promotion
+  - from: globular.platform:code.go.platform_cluster_controller.desired_state_publisher
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
   - from: globular.platform:code.go.platform_cluster_controller.dnsprovider.cloudflare
     relation: enforces
     to: globular.platform:invariant.dnsprovider.private_ips_must_not_publish_to_public_dns
@@ -59,6 +83,93 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.dnsprovider.rfc2136
     relation: enforces
     to: globular.platform:invariant.dnsprovider.private_ips_must_not_publish_to_public_dns
+  - from: globular.platform:code.go.platform_cluster_controller.etcd_members
+    relation: enforces
+    to: globular.platform:invariant.founding.quorum.three_nodes_required
+  - from: globular.platform:code.go.platform_cluster_controller.etcd_members
+    relation: implements
+    to: globular.platform:intent.etcd.is_source_of_truth
+  - from: globular.platform:code.go.platform_cluster_controller.etcd_members
+    relation: implements
+    to: globular.platform:intent.infrastructure.etcd.quorum_backed_config_authority
+  - from: globular.platform:code.go.platform_cluster_controller.etcd_rejoin
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_controller.handlers_join
+    relation: implements
+    to: globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+  - from: globular.platform:code.go.platform_cluster_controller.handlers_join
+    relation: implements
+    to: globular.platform:intent.controller.leader_election_gates_all_writes
+  - from: globular.platform:code.go.platform_cluster_controller.handlers_join_authorization
+    relation: enforces
+    to: globular.platform:invariant.founding.quorum.three_nodes_required
+  - from: globular.platform:code.go.platform_cluster_controller.handlers_join_authorization
+    relation: implements
+    to: globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+  - from: globular.platform:code.go.platform_cluster_controller.handlers_node
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_controller.handlers_node
+    relation: implements
+    to: globular.platform:intent.controller.leader_election_gates_all_writes
+  - from: globular.platform:code.go.platform_cluster_controller.infrastructure_reconciler
+    relation: enforces
+    to: globular.platform:invariant.infra.desired_hash_consistency
+  - from: globular.platform:code.go.platform_cluster_controller.infrastructure_reconciler
+    relation: implements
+    to: globular.platform:intent.desired_hash.is_convergence_identity
+  - from: globular.platform:code.go.platform_cluster_controller.ingress_spec_guard
+    relation: enforces
+    to: globular.platform:invariant.critical_state.deletion_requires_audited_intent
+  - from: globular.platform:code.go.platform_cluster_controller.ingress_spec_guard
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_controller.invariant_enforcement
+    relation: enforces
+    to: globular.platform:invariant.founding.quorum.three_nodes_required
+  - from: globular.platform:code.go.platform_cluster_controller.node_admission_status
+    relation: enforces
+    to: globular.platform:invariant.node.admission.proof_must_match_issued_join_id
+  - from: globular.platform:code.go.platform_cluster_controller.node_admission_status
+    relation: implements
+    to: globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+  - from: globular.platform:code.go.platform_cluster_controller.node_removal_requests
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_admission
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_admission
+    relation: enforces
+    to: globular.platform:invariant.objectstore.topology_contract
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_admission
+    relation: implements
+    to: globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions
+  - from: globular.platform:code.go.platform_cluster_controller.reconcile_runtime
+    relation: implements
+    to: globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+  - from: globular.platform:code.go.platform_cluster_controller.reconcile_runtime
+    relation: implements
+    to: globular.platform:intent.controller.leader_election_gates_all_writes
+  - from: globular.platform:code.go.platform_cluster_controller.reconcile_version_gate
+    relation: enforces
+    to: globular.platform:invariant.desired.bootstrap_state_requires_promotion
+  - from: globular.platform:code.go.platform_cluster_controller.recovery_planner
+    relation: implements
+    to: globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+  - from: globular.platform:code.go.platform_cluster_controller.release_reconciler
+    relation: implements
+    to: globular.platform:intent.desired_hash.is_convergence_identity
+  - from: globular.platform:code.go.platform_cluster_controller.release_reconciler
+    relation: implements
+    to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_cluster_controller.repair_node_workflow
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_controller.repair_node_workflow
+    relation: implements
+    to: globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
   - from: globular.platform:code.go.platform_controller.drift_action_planner
     relation: implements
     to: globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions
