@@ -1,4 +1,23 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.node_removal_requests
+// @awareness file_role=processes_explicit_removal_requests_from_clean_node_flows_with_audit_trail
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=critical
 package main
+
+// node_removal_requests.go — drains explicit removal requests
+// written under /globular/controller/node_removals/requests/.
+// These requests are the SAFE channel for a node that wants to
+// leave the cluster when its local CLI/gateway auth is unavailable
+// (e.g. mid-clean-node).
+//
+// Every removal MUST be backed by an explicit request record — the
+// controller MUST NOT infer "remove this node" from absence,
+// heartbeat staleness, or a failed health probe. That asymmetry is
+// what prevents a network partition or a slow disk from cascading
+// into a destructive cluster-shrink. See also etcd_stale_member.go
+// in cluster_doctor/rules, which surfaces stale-membership as a
+// finding but never auto-evicts.
 
 import (
 	"context"

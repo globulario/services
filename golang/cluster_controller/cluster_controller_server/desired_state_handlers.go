@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.desired_state_handlers
+// @awareness file_role=typed_grpc_mutation_gate_for_desired_state_resources
+// @awareness implements=globular.platform:intent.desired_state.is_authority
+// @awareness implements=globular.platform:intent.controller.leader_election_gates_all_writes
+// @awareness risk=critical
 package main
 
 // desired_state_handlers.go — typed gRPC handlers for GetDesiredState,

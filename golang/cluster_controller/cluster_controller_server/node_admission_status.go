@@ -1,4 +1,19 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.node_admission_status
+// @awareness file_role=admission_proof_evaluator_classifying_why_a_node_is_pending_admitted_or_blocked
+// @awareness enforces=globular.platform:invariant.node.admission.proof_must_match_issued_join_id
+// @awareness implements=globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+// @awareness risk=high
 package main
+
+// node_admission_status.go — turns raw join evidence into a typed
+// AdmissionProofStatus the controller, doctor, and operators all
+// read identically. The finding constants here are the operator
+// vocabulary for "why isn't this node admitted yet" — keep in sync
+// with docs/awareness/failure_modes.yaml or the doctor and CLI
+// will surface different IDs for the same condition. Adding a new
+// admission stall reason means adding both a constant here AND a
+// failure_mode entry.
 
 import (
 	"fmt"

@@ -1,4 +1,23 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.reconcile_version_gate
+// @awareness file_role=structural_safety_gate_blocking_unsafe_controller_versions_from_mutating_desired
+// @awareness enforces=globular.platform:invariant.desired.bootstrap_state_requires_promotion
+// @awareness risk=critical
 package main
+
+// reconcile_version_gate.go — DESIRED-STATE PROTECTION. Bumping
+// minSafeReconcileVersion is the explicit way to fence off old
+// controllers that contained unsafe auto-import paths. It is NOT
+// a feature gate — controllers below the threshold MUST refuse to
+// mutate desired or run reconciliation, because we have observed
+// them (≤ 0.0.8) silently importing fallback 0.1.0 runtime
+// observations into desired state and producing 22 phantom
+// services in the process.
+//
+// When adding a new desired-state safety invariant, bump this
+// constant so older controllers cannot violate it. Do NOT add
+// per-invariant flags here — the binary version is the audit
+// trail operators read in incident reports.
 
 import (
 	"log"

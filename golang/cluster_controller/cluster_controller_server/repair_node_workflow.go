@@ -1,4 +1,29 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.repair_node_workflow
+// @awareness file_role=node_repair_dispatcher_with_three_modes_from_repository_from_reference_full_reseed
+// @awareness implements=globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=critical
 package main
+
+// repair_node_workflow.go — selects one of three repair modes:
+//
+//   from_repository  — reinstall from repository's current artifact
+//                      (no captured ledger; preserves identity)
+//   from_reference   — use a known-good captured build_id/checksum
+//                      (operator-supplied reference)
+//   full_reseed      — wipe + reinstall in the deterministic order
+//                      from recovery_planner.go (identity-corrupting)
+//
+// IdentityIntegrityStatus (clean/suspect/corrupt) gates which
+// modes are allowed: a Corrupt identity REQUIRES full_reseed and
+// MUST NOT accept from_repository/from_reference, because those
+// would propagate the corrupted identity material into the
+// rebuilt node. Loosening that gate is how "we re-installed and
+// nothing changed" reports come back.
+//
+// Every dispatch MUST be operator-initiated (explicit force or
+// approval). No background "auto-repair" path exists — by design.
 
 import (
 	"context"

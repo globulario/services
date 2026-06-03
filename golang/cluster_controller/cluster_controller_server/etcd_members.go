@@ -1,4 +1,29 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.etcd_members
+// @awareness file_role=etcd_member_add_remove_with_quorum_safe_rollback_and_bounded_join_timeout
+// @awareness implements=globular.platform:intent.etcd.is_source_of_truth
+// @awareness implements=globular.platform:intent.infrastructure.etcd.quorum_backed_config_authority
+// @awareness enforces=globular.platform:invariant.founding.quorum.three_nodes_required
+// @awareness risk=critical
 package main
+
+// etcd_members.go — the quorum-critical path. Two non-negotiable
+// properties:
+//
+//  1. 1→2 expansion: etcd immediately requires 2/2 for quorum
+//     after MemberAdd. If the new member fails to come online
+//     within etcdJoinTimeout (2 min), MemberRemove must roll back
+//     so the cluster does not deadlock on a quorum it cannot
+//     reach. Lengthening that timeout to "fix" slow nodes
+//     re-introduces the deadlock window — fix the slow node, not
+//     the timeout.
+//
+//  2. Removal: only ever in response to an explicit operator
+//     removal request (see node_removal_requests.go) — NEVER from
+//     heartbeat staleness or doctor findings. Even an obviously
+//     dead member must wait for the audited removal record. The
+//     keepalived/VIP eviction cascade (StableIP vs PrimaryIP) is
+//     exactly the class of bug auto-eviction would re-introduce.
 
 import (
 	"context"

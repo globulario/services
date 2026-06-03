@@ -1,4 +1,32 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.objectstore_admission
+// @awareness file_role=minio_disk_admission_and_topology_contract_enforcer_with_server_side_destructiveness_recompute
+// @awareness enforces=globular.platform:invariant.objectstore.topology_contract
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness implements=globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions
+// @awareness risk=critical
 package main
+
+// objectstore_admission.go — controller is the SOLE authority for
+// MinIO topology. Three contract properties that MUST hold across
+// every refactor:
+//
+//  1. proposal.IsDestructive is IGNORED — the server recomputes
+//     destructiveness from the admitted disk set. A misbehaving or
+//     stale client cannot claim "not destructive" to bypass the
+//     guard.
+//
+//  2. Destructive apply WITHOUT ForceDestructive is rejected. The
+//     MinIO format.json rewrite blast radius is pool-wide data
+//     loss; the force flag is the explicit-guard contract for it.
+//
+//  3. MinioPoolNodes is REPLACED (not appended). Appending would
+//     let stale node entries survive in topology state and surface
+//     as ghost members in subsequent reconciliation.
+//
+// Adding any "auto-promote pending disks" or "skip admission for
+// trusted nodes" branch here re-introduces the silent corruption
+// class the admission record was built to prevent.
 
 // objectstore_admission.go — MinIO disk admission and topology contract enforcement.
 //

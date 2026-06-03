@@ -1,4 +1,22 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.recovery_planner
+// @awareness file_role=deterministic_reseed_order_for_full_reseed_repair_mode
+// @awareness implements=globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+// @awareness risk=high
 package main
+
+// recovery_planner.go — full_reseed install order MUST be
+// deterministic and infrastructure-first. The class-then-kind-
+// then-priority-then-lexical-tiebreaker is the only way two
+// replays of the same recovery produce the same install sequence,
+// which is the only way operators can predict the failure point
+// when something doesn't come back.
+//
+// Foundation (etcd/scylladb/minio) before core-control before
+// supporting before workload. Reordering "for performance" — e.g.
+// parallelising foundation and core-control — re-creates a class
+// of races where a service tries to read config from etcd before
+// etcd has reformed quorum.
 
 // recovery_planner.go — deterministic reseed ordering for node.recover.full_reseed.
 //

@@ -1,4 +1,27 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.release_reconciler
+// @awareness file_role=service_release_phase_progression_and_install_dispatch_with_wave_blocked_retry_contract
+// @awareness implements=globular.platform:intent.desired_state.is_authority
+// @awareness implements=globular.platform:intent.desired_hash.is_convergence_identity
+// @awareness risk=critical
 package main
+
+// release_reconciler.go — drives ServiceRelease and
+// ApplicationRelease through phase transitions and dispatches
+// install workflows to node agents.
+//
+// Critical contract: workflow.Run returning RUN_STATUS_FAILED with
+// err=nil because the run was wave-blocked MUST dispatch a retry —
+// not be silently discarded by `_, err := workflow.Run(...)`. The
+// retry is the only way the release ever reaches AVAILABLE if it
+// raced a peer wave. See incident a03b1937 / session
+// session_infra_release_retry_bug.md.
+//
+// Phase routing is split across applyPatchToSvcStatus /
+// applyPatchToAppStatus / applyPatchToInfraStatus; misroute is a
+// silent no-op that surfaces as "release stuck in CANARY forever".
+// The canary symptom `unknown SetFields=<label>` log line is the
+// only signal — make sure new fields land in the right apply.
 
 import (
 	"context"

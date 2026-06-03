@@ -1,4 +1,17 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.handlers_join
+// @awareness file_role=cluster_join_rpc_handlers_token_create_and_legacy_v1_join
+// @awareness implements=globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+// @awareness implements=globular.platform:intent.controller.leader_election_gates_all_writes
+// @awareness risk=high
 package main
+
+// handlers_join.go — gRPC handlers for the v1 join surface.
+// CreateJoinToken forwards to the leader if called on a follower;
+// follower-issued tokens would race against the leader's admission
+// decisions. The v2 join (handlers_join_authorization.go) supersedes
+// the imperative path here for newly-joined nodes; both must remain
+// leader-gated.
 
 import (
 	"context"

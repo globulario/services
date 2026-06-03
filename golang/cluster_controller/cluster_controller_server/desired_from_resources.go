@@ -1,13 +1,23 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.desired_from_resources
+// @awareness file_role=resource_store_reader_for_desired_state_with_legacy_read_path_removed
+// @awareness implements=globular.platform:intent.desired_state.is_authority
+// @awareness risk=high
 package main
+
+// desired_from_resources.go — desired state lives in ONE place: the
+// resource store (ClusterNetwork/default, ServiceDesiredVersion/*).
+// The legacy DesiredState etcd key is deliberately not read here —
+// reading both would let stale legacy data shadow the authoritative
+// resource store and re-introduce the phantom-services class of
+// bug (see reconcile_version_gate.go). Adding a "fallback to legacy"
+// branch here is the canonical way to bring that bug back; do not.
 
 import (
 	"context"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 )
-
-// Desired state is stored only in the ResourceStore (ClusterNetwork/default, ServiceDesiredVersion/*).
-// Legacy DesiredState persistence is removed; reconcile/health must not read legacy state.
 
 // loadDesiredNetwork loads the ClusterNetwork/default object from the resource store.
 func (srv *server) loadDesiredNetwork(ctx context.Context) (*cluster_controllerpb.ClusterNetwork, error) {

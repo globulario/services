@@ -1,4 +1,24 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.invariant_enforcement
+// @awareness file_role=last_line_invariant_enforcement_running_without_minio_or_workflow_service
+// @awareness enforces=globular.platform:invariant.founding.quorum.three_nodes_required
+// @awareness risk=critical
 package main
+
+// invariant_enforcement.go — last-line defense for the
+// platform-wide invariants. These checks run in the reconcile loop
+// without depending on MinIO or the workflow service so they
+// continue to enforce the cluster contract even when the rest of
+// the system is degraded.
+//
+// Workflow-wrapped versions of the same checks exist for
+// auditability when workflow is healthy
+// (cluster.invariant.enforcement.yaml). The two paths MUST agree:
+// drift between them means the audit trail will silently miss a
+// violation. When changing one, change the other.
+//
+// Bypassing a check here because "the workflow service catches it
+// anyway" is exactly the failure mode this file exists to prevent.
 
 // invariant_enforcement.go — Cluster-wide invariant enforcement.
 //

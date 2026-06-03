@@ -1,4 +1,25 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.infrastructure_reconciler
+// @awareness file_role=infrastructure_release_buildid_and_desired_hash_resolver_with_no_artifact_digest_substitution
+// @awareness enforces=globular.platform:invariant.infra.desired_hash_consistency
+// @awareness implements=globular.platform:intent.desired_hash.is_convergence_identity
+// @awareness risk=critical
 package main
+
+// infrastructure_reconciler.go — DesiredHash MUST come from
+// ComputeInfrastructureDesiredHash, NEVER from
+// ResolvedArtifactDigest. Substituting the artifact blob SHA256
+// produced the Envoy restart storm of 2026-05-06: every reconcile
+// loop saw a mismatch because the node agent stamps the
+// convergence hash on install, not the artifact digest, so the
+// controller-side comparison perpetually re-dispatched the install
+// workflow.
+//
+// If a future change "simplifies" this by always using the
+// artifact digest, the convergence loop comes back. The schema
+// `infra:<publisher>/<component>=<version>+b:<buildNumber>;` is
+// the contract — keep both sides of the comparison generating it
+// the same way.
 
 // infrastructure_reconciler.go — convergence hash contract enforcement for
 // INFRASTRUCTURE packages.

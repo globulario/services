@@ -1,4 +1,28 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.reconcile_runtime
+// @awareness file_role=leader_only_desired_vs_runtime_reconciler_with_no_follower_mutation
+// @awareness implements=globular.platform:intent.controller.leader_election_gates_all_writes
+// @awareness implements=globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+// @awareness risk=critical
 package main
+
+// reconcile_runtime.go — Leader-only mutation rule. Followers may
+// watch, serve reads, and cache. They MUST NOT resolve releases,
+// dispatch workflows, mutate release phase/generation, or perform
+// repository-backed reconcile decisions.
+//
+// Two entry-point guards:
+//   - gRPC handlers call srv.requireLeader(ctx) which returns
+//     FailedPrecondition with leader_addr metadata so clients can
+//     redirect.
+//   - Internal reconcile paths call mustBeLeader() for a fast
+//     boolean — they cannot afford the gRPC error machinery.
+//
+// Skipping either guard is how follower controllers start emitting
+// conflicting mutations and the cluster develops split-brain
+// release state. The fix is always to add the guard, never to
+// "make the follower path safe" — leader election is the
+// boundary, not a hint.
 
 import (
 	"context"

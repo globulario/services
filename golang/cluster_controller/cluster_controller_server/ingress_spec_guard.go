@@ -1,4 +1,26 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.ingress_spec_guard
+// @awareness file_role=ingress_spec_guardian_with_lkg_restore_and_delete_approval
+// @awareness enforces=globular.platform:invariant.critical_state.deletion_requires_audited_intent
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=critical
 package main
+
+// ingress_spec_guard.go — guards the ingress desired spec
+// (/globular/ingress/v1/spec). Two load-bearing properties:
+//
+//  1. A missing spec key is treated as MISSING_STATE_WITHOUT_INTENT
+//     unless an explicit ingressDeleteApproval tombstone exists
+//     under the approval prefix. Without the approval, the guard
+//     republishes from spec_backup — restoring a key the operator
+//     never asked to delete.
+//
+//  2. A spec with mode=disabled must carry the full guard
+//     (explicit_disabled=true + non-empty reason + generation>0)
+//     before any node will act on it. The pre-execution doctor rule
+//     in cluster_doctor/.../rules/destructive_action_audit.go
+//     reads the same etcd key and surfaces the gap before any node
+//     processes it.
 
 import (
 	"context"

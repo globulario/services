@@ -1,4 +1,23 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.handlers_node
+// @awareness file_role=node_lifecycle_rpc_handlers_list_get_remove_update_profiles
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness implements=globular.platform:intent.controller.leader_election_gates_all_writes
+// @awareness risk=critical
 package main
+
+// handlers_node.go — gRPC handlers for node lifecycle (list/get/
+// remove/update profiles). RemoveNode is destructive — it deletes
+// the node's state from etcd and triggers downstream cleanup. The
+// handler MUST be leader-only and the request MUST carry the
+// explicit-removal contract (matching node_removal_requests.go).
+//
+// UpdateNodeProfiles also bears the founding-quorum guard: removing
+// the storage profile from a node that would drop the cluster
+// below 3 storage-capable nodes is rejected here, not by the
+// reconciler. The check belongs at the entry point so a misclick
+// in admin tooling cannot start an operation that becomes
+// impossible to complete safely.
 
 import (
 	"context"

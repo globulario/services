@@ -1,4 +1,21 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.etcd_rejoin
+// @awareness file_role=preflight_validator_for_destructive_etcd_data_dir_wipe_and_rejoin
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=critical
 package main
+
+// etcd_rejoin.go — pure preflight validator. Returns
+// EtcdRejoinPrechecks{Valid: true} only when ALL four conditions
+// hold: node exists in cluster state, EtcdJoinPhase is
+// rejoin_required, other healthy members exist (quorum safe), and
+// the node-agent heartbeat is recent.
+//
+// MUST NOT mutate any state. The caller (the rejoin RPC handler)
+// only proceeds with the destructive data-dir wipe when Valid()
+// returns true. Loosening any precondition here — especially
+// "other healthy members exist" — risks wiping the last working
+// etcd data directory and losing the cluster.
 
 import (
 	"fmt"

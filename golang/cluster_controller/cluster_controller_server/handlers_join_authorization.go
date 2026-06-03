@@ -1,4 +1,26 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.handlers_join_authorization
+// @awareness file_role=v2_join_signed_joinplan_issuer_with_founding_quorum_and_profile_policy
+// @awareness implements=globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+// @awareness enforces=globular.platform:invariant.founding.quorum.three_nodes_required
+// @awareness risk=critical
 package main
+
+// handlers_join_authorization.go — RequestJoinAuthorization is the
+// v2 join entry point. The installer arrives with a join token + its
+// stable identity; this handler:
+//
+//   - verifies the token
+//   - enforces cluster policy (founding quorum: first 3 nodes MUST
+//     carry core+control-plane+storage; profile assignment per
+//     enforceFoundingProfiles())
+//   - issues a signed JoinPlan (TTL 2 h)
+//
+// The installer MUST validate the plan signature before any
+// cluster-affecting step. Bypassing signature validation collapses
+// the join trust model into "whoever can reach the controller can
+// join" — anchoring this handler to controller.join_lifecycle_fsm
+// and the founding.quorum invariant makes that boundary explicit.
 
 import (
 	"context"

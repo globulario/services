@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.desired_state_publisher
+// @awareness file_role=bootstrap_label_stamping_so_observed_state_is_not_treated_as_authoritative_desired
+// @awareness implements=globular.platform:intent.desired_state.is_authority
+// @awareness enforces=globular.platform:invariant.desired.bootstrap_state_requires_promotion
+// @awareness risk=high
 package main
 
 // desired_state_publisher.go — bootstrap label management for InfrastructureRelease records.

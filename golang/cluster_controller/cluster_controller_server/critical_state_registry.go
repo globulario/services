@@ -1,8 +1,27 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.critical_state_registry
+// @awareness file_role=single_source_of_truth_for_critical_etcd_key_owner_schema_restore_policy
+// @awareness enforces=globular.platform:invariant.critical_state.deletion_requires_audited_intent
+// @awareness risk=high
 package main
+
+// critical_state_registry.go — the registry every critical-key
+// guardian and the cluster doctor consult. Each entry pins:
+//
+//   - exactly one authoritative writer (no shared mutation)
+//   - schema version (so a guardian can reject malformed data)
+//   - restore strategy when the key is absent (default vs reject)
+//   - LKG consumer behaviour when the writer is unhealthy
+//   - delete policy (DeleteNeverAutomatic by default)
+//
+// Adding a new critical key MUST come with all five fields. Leaving
+// the delete policy blank defaults to "automatic delete allowed",
+// which silently violates the
+// critical_state.deletion_requires_audited_intent invariant for
+// that key.
 
 import "fmt"
 
-// critical_state_registry.go — Case 05: CRITICAL_STATE_REGISTRY_AND_OWNERSHIP
 //
 // Every critical etcd key must have exactly one authoritative owner, a known
 // schema version, a restore strategy, LKG consumer behavior, and a delete

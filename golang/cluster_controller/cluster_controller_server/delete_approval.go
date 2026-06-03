@@ -1,3 +1,9 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.delete_approval
+// @awareness file_role=shared_tombstone_helpers_for_audited_critical_key_deletion
+// @awareness enforces=globular.platform:invariant.critical_state.deletion_requires_audited_intent
+// @awareness enforces=globular.platform:invariant.destructive_actions.require_explicit_guard
+// @awareness risk=critical
 package main
 
 // delete_approval.go — shared delete-approval tombstone helpers.
