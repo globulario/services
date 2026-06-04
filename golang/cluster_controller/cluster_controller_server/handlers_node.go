@@ -21,7 +21,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"sort"
@@ -581,83 +580,130 @@ func (srv *server) cleanNodeEtcdPrefix(ctx context.Context, nodeID, prefix strin
 	return resp.Deleted
 }
 
-// cleanNodeFromReleases removes a node's status entries from all
-// ServiceRelease and InfrastructureRelease objects in etcd. Without this,
-// a re-added node is seen as "already installed" for packages that were
-// never actually installed on the new disk.
+// cleanNodeFromReleases removes a node's status entries from every
+// ServiceRelease, ApplicationRelease, and InfrastructureRelease in the
+// controller's resource store. Without this, a re-added node is seen as
+// "already installed" for packages that were never actually installed
+// on the new disk.
+//
+// Authority boundary: the cluster_controller OWNS these release prefixes
+// (Status field is controller-written). The function routes through
+// srv.resources — the controller's own typed abstraction — instead of
+// raw etcd Get/Put. This preserves the type, version, and audit
+// contracts that the resource store applies on Apply, and keeps the
+// function aligned with invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+// (the controller reads its own owned data through its own typed API,
+// not through generic etcd primitives — even when "I am the owner"
+// might tempt a shortcut).
+//
+// Returns the number of release objects mutated.
 func (srv *server) cleanNodeFromReleases(ctx context.Context, nodeID string) int {
-	if srv.etcdClient == nil {
+	if srv == nil || srv.resources == nil {
 		return 0
 	}
-	getCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	// Scan all release objects under /globular/resources/
-	resp, err := srv.etcdClient.Get(getCtx, "/globular/resources/", clientv3.WithPrefix())
-	if err != nil {
-		log.Printf("remove-node: failed to list releases: %v", err)
-		return 0
-	}
-
 	cleaned := 0
-	for _, kv := range resp.Kvs {
-		// Quick check: skip keys that don't mention this node.
-		if !strings.Contains(string(kv.Value), nodeID) {
+	cleaned += srv.cleanNodeFromServiceReleases(ctx, nodeID)
+	cleaned += srv.cleanNodeFromApplicationReleases(ctx, nodeID)
+	cleaned += srv.cleanNodeFromInfrastructureReleases(ctx, nodeID)
+	return cleaned
+}
+
+// filterNodeStatuses returns a new slice with any entry matching nodeID
+// removed. The second return is true iff the input contained nodeID.
+func filterNodeStatuses(nodes []*cluster_controllerpb.NodeReleaseStatus, nodeID string) ([]*cluster_controllerpb.NodeReleaseStatus, bool) {
+	out := make([]*cluster_controllerpb.NodeReleaseStatus, 0, len(nodes))
+	dropped := false
+	for _, n := range nodes {
+		if n != nil && n.NodeID == nodeID {
+			dropped = true
 			continue
 		}
-
-		var release map[string]interface{}
-		if err := json.Unmarshal(kv.Value, &release); err != nil {
-			continue
-		}
-
-		statusObj, ok := release["status"].(map[string]interface{})
-		if !ok {
-			continue
-		}
-		nodes, ok := statusObj["nodes"].([]interface{})
-		if !ok {
-			continue
-		}
-
-		// Filter out the removed node.
-		filtered := make([]interface{}, 0, len(nodes))
-		for _, n := range nodes {
-			nMap, ok := n.(map[string]interface{})
-			if !ok {
-				filtered = append(filtered, n)
-				continue
-			}
-			if nMap["node_id"] == nodeID {
-				continue // drop this node's entry
-			}
-			filtered = append(filtered, n)
-		}
-
-		if len(filtered) == len(nodes) {
-			continue // nothing changed
-		}
-
-		// Reset phase to PENDING so controller re-evaluates.
-		statusObj["nodes"] = filtered
-		statusObj["phase"] = "PENDING"
-		release["status"] = statusObj
-
-		newVal, err := json.Marshal(release)
-		if err != nil {
-			continue
-		}
-
-		putCtx, putCancel := context.WithTimeout(ctx, 5*time.Second)
-		if _, err := srv.etcdClient.Put(putCtx, string(kv.Key), string(newVal)); err != nil {
-			log.Printf("remove-node: failed to update release %s: %v", string(kv.Key), err)
-		} else {
-			cleaned++
-			log.Printf("remove-node: purged node %s from release %s", nodeID, string(kv.Key))
-		}
-		putCancel()
+		out = append(out, n)
 	}
+	return out, dropped
+}
 
+func (srv *server) cleanNodeFromServiceReleases(ctx context.Context, nodeID string) int {
+	items, _, err := srv.resources.List(ctx, "ServiceRelease", "")
+	if err != nil {
+		log.Printf("remove-node: list ServiceRelease via resources: %v", err)
+		return 0
+	}
+	cleaned := 0
+	for _, obj := range items {
+		rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
+		if !ok || rel == nil || rel.Meta == nil || rel.Status == nil {
+			continue
+		}
+		filtered, dropped := filterNodeStatuses(rel.Status.Nodes, nodeID)
+		if !dropped {
+			continue
+		}
+		rel.Status.Nodes = filtered
+		rel.Status.Phase = cluster_controllerpb.ReleasePhasePending
+		if _, err := srv.resources.Apply(ctx, "ServiceRelease", rel); err != nil {
+			log.Printf("remove-node: apply ServiceRelease %s after purge: %v", rel.Meta.Name, err)
+			continue
+		}
+		cleaned++
+		log.Printf("remove-node: purged node %s from ServiceRelease %s", nodeID, rel.Meta.Name)
+	}
+	return cleaned
+}
+
+func (srv *server) cleanNodeFromApplicationReleases(ctx context.Context, nodeID string) int {
+	items, _, err := srv.resources.List(ctx, "ApplicationRelease", "")
+	if err != nil {
+		log.Printf("remove-node: list ApplicationRelease via resources: %v", err)
+		return 0
+	}
+	cleaned := 0
+	for _, obj := range items {
+		rel, ok := obj.(*cluster_controllerpb.ApplicationRelease)
+		if !ok || rel == nil || rel.Meta == nil || rel.Status == nil {
+			continue
+		}
+		filtered, dropped := filterNodeStatuses(rel.Status.Nodes, nodeID)
+		if !dropped {
+			continue
+		}
+		rel.Status.Nodes = filtered
+		rel.Status.Phase = cluster_controllerpb.ReleasePhasePending
+		if _, err := srv.resources.Apply(ctx, "ApplicationRelease", rel); err != nil {
+			log.Printf("remove-node: apply ApplicationRelease %s after purge: %v", rel.Meta.Name, err)
+			continue
+		}
+		cleaned++
+		log.Printf("remove-node: purged node %s from ApplicationRelease %s", nodeID, rel.Meta.Name)
+	}
+	return cleaned
+}
+
+func (srv *server) cleanNodeFromInfrastructureReleases(ctx context.Context, nodeID string) int {
+	items, _, err := srv.resources.List(ctx, "InfrastructureRelease", "")
+	if err != nil {
+		log.Printf("remove-node: list InfrastructureRelease via resources: %v", err)
+		return 0
+	}
+	cleaned := 0
+	for _, obj := range items {
+		rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
+		if !ok || rel == nil || rel.Meta == nil || rel.Status == nil {
+			continue
+		}
+		filtered, dropped := filterNodeStatuses(rel.Status.Nodes, nodeID)
+		if !dropped {
+			continue
+		}
+		rel.Status.Nodes = filtered
+		rel.Status.Phase = cluster_controllerpb.ReleasePhasePending
+		if _, err := srv.resources.Apply(ctx, "InfrastructureRelease", rel); err != nil {
+			log.Printf("remove-node: apply InfrastructureRelease %s after purge: %v", rel.Meta.Name, err)
+			continue
+		}
+		cleaned++
+		log.Printf("remove-node: purged node %s from InfrastructureRelease %s", nodeID, rel.Meta.Name)
+	}
 	return cleaned
 }
 
