@@ -619,6 +619,20 @@ jobs:
               shutil.copy2(bin_path, f"{tmpdir}/bin/{entrypoint}")
               os.chmod(f"{tmpdir}/bin/{entrypoint}", 0o755)
 
+              # Normalize lifecycle script modes to 0o755 — the pkgpack
+              # validator rejects publish when any file under scripts/ lacks
+              # an execute bit. shutil.copytree preserves source modes
+              # verbatim, so a single 0o664 in a metadata source dir
+              # (observed for mcp on 2026-06-04) propagates into the tarball
+              # and breaks Day-0 publish. Force the mode here so the build
+              # pipeline is the authoritative source of script perms.
+              scripts_dir = f"{tmpdir}/scripts"
+              if os.path.isdir(scripts_dir):
+                  for entry in os.listdir(scripts_dir):
+                      fp = os.path.join(scripts_dir, entry)
+                      if os.path.isfile(fp):
+                          os.chmod(fp, 0o755)
+
               # Compute SHA256 from the file inside the package, not the source.
               h = hashlib.sha256()
               with open(f"{tmpdir}/bin/{entrypoint}", "rb") as f:

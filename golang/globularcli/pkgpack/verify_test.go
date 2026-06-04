@@ -334,3 +334,107 @@ ExecStart=/usr/lib/globular/bin/dns_server
 		t.Fatalf("expected duplicate systemd directive error, got %v", err)
 	}
 }
+
+// writeTGZWithModes is like writeTGZ but lets callers override the tar header
+// mode for specific entries. Used to exercise the scripts/-must-be-executable
+// publish guard in verify.go without relying on the default writer's 0o644.
+func writeTGZWithModes(t *testing.T, path string, entries map[string][]byte, modes map[string]int64) {
+	t.Helper()
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+
+	for name, content := range entries {
+		mode := int64(0o644)
+		if m, ok := modes[name]; ok {
+			mode = m
+		}
+		_ = tw.WriteHeader(&tar.Header{
+			Name: name,
+			Size: int64(len(content)),
+			Mode: mode,
+		})
+		_, _ = tw.Write(content)
+	}
+
+	_ = tw.Close()
+	_ = gw.Close()
+	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Regression guard for the mcp Day-0 publish failure observed 2026-06-04:
+// packages/metadata/mcp/scripts/post-install.sh shipped at mode 0o664, CI's
+// shutil.copytree preserved the source mode, and the tarball reached the
+// publish-time validator which rejected it with "script ... is not executable".
+// VerifyTGZ must reject any file under scripts/ that lacks an execute bit.
+func TestVerifyTGZ_ScriptsNonExecutable_Rejected(t *testing.T) {
+	dir := t.TempDir()
+	tgzPath := filepath.Join(dir, "svc.tgz")
+
+	manifest := Manifest{
+		Type:                "service",
+		Name:                "demo",
+		Version:             "1.0.0",
+		Platform:            "linux_amd64",
+		Publisher:           "core@globular.io",
+		EntrypointChecksum: "sha256:" + sha256Hex([]byte("entry")),
+	}
+	mdata, _ := json.Marshal(manifest)
+
+	writeTGZ(t, tgzPath, map[string][]byte{
+		"package.json":            mdata,
+		"bin/demo":                []byte("entry"),
+		"scripts/post-install.sh": []byte("#!/bin/sh\necho hi\n"),
+	})
+
+	_, err := VerifyTGZ(tgzPath)
+	if err == nil {
+		t.Fatal("expected VerifyTGZ to reject non-executable script, got nil")
+	}
+	if !strings.Contains(err.Error(), "is not executable") {
+		t.Fatalf("expected error containing 'is not executable', got %v", err)
+	}
+	if !strings.Contains(err.Error(), "scripts/post-install.sh") {
+		t.Fatalf("expected error to name the offending script, got %v", err)
+	}
+}
+
+// Pinned counterpart: a script entry at any executable mode (e.g. 0o755)
+// must pass the validator. The pkgpack builder normalizes to 0o755 via
+// entryMode; this test confirms the validator side accepts that mode.
+// Uses an infrastructure-typed package to keep the test scoped to the
+// scripts/-mode rule (spec/ presence has its own test surface).
+func TestVerifyTGZ_ScriptsExecutable_Accepted(t *testing.T) {
+	dir := t.TempDir()
+	tgzPath := filepath.Join(dir, "infra.tgz")
+
+	manifest := Manifest{
+		Type:      "infrastructure",
+		Name:      "demo",
+		Version:   "1.0.0",
+		Platform:  "linux_amd64",
+		Publisher: "core@globular.io",
+	}
+	mdata, _ := json.Marshal(manifest)
+
+	writeTGZWithModes(t, tgzPath, map[string][]byte{
+		"package.json":            mdata,
+		"bin/demo":                []byte("binary"),
+		"scripts/post-install.sh": []byte("#!/bin/sh\necho hi\n"),
+	}, map[string]int64{
+		"scripts/post-install.sh": 0o755,
+	})
+
+	summary, err := VerifyTGZ(tgzPath)
+	if err != nil {
+		t.Fatalf("VerifyTGZ rejected an executable script: %v", err)
+	}
+	if summary.Name != "demo" {
+		t.Errorf("Name = %q, want demo", summary.Name)
+	}
+	if summary.ScriptsCount != 1 {
+		t.Errorf("ScriptsCount = %d, want 1", summary.ScriptsCount)
+	}
+}
