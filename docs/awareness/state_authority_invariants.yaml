@@ -700,6 +700,50 @@ invariants:
       - forbidden.fire_and_forget_goroutine_on_error_path
       - forbidden.simultaneous_reenqueue_after_restart
 
+  - id: meta.diagnostic_output_must_be_bounded
+    title: "Diagnostic output must be bounded — one error must not become N records, or the diagnosis becomes a harder failure than the disease"
+    category: lifecycle
+    antipattern: "Log everything for debugging"
+    wrong_instinct: Observability feels always good — but unbounded logging under sustained failure fills the disk, and disk full kills services that were perfectly healthy
+    severity: critical
+    status: active
+    summary: |
+      When an error repeats, the system's diagnostic output (logs, events,
+      convergence records, audit entries) grows proportionally. If the output
+      is unbounded, a sustained error fills a shared resource — disk, etcd
+      quota, memory, event bus. The resource exhaustion is a HARDER failure
+      than the original error: a login bug is fixable, but a full disk kills
+      everything including the tools you'd use to fix the login bug.
+
+      This is distinct from meta.failure_response_must_contract_not_amplify:
+      that principle bounds the system's ACTIVE response (retry, re-enqueue).
+      This principle bounds the system's PASSIVE output (log, emit, record).
+      Both are needed — a circuit breaker on retries doesn't help if each
+      retry also writes 10 log lines.
+
+      Before adding logging or event emission to an error path, ask:
+        1. If this error repeats 1000 times, how many records are written?
+        2. Is there a rate limit on output under sustained failure?
+        3. Can this output exhaust a shared resource (disk, etcd, memory)?
+        4. Does the first occurrence carry enough context, or does repetition add info?
+        5. Is there a "same error, count++" pattern instead of "same error, log++"?
+
+      Incidents:
+        - Doctor amplification: 100+ events/min for stable per-node findings (INC-2026-0004)
+        - etcd NOSPACE: convergence records piling up from repeated failed dispatches
+        - Crash-loop services filling systemd journal → disk full → cascade to healthy services
+        - Login error loop → log line per attempt → disk exhaustion
+    enforcement: |
+      Error-path logging must use rate-limiting (log first occurrence + count,
+      not every occurrence). Event emission must be deduplicated against a delta
+      cache. Convergence records must overwrite (deterministic action ID), not
+      accumulate. Shared resources (disk, etcd) must have usage alerts that fire
+      before exhaustion.
+    forbidden_fixes:
+      - forbidden.unbounded_logging_in_error_loop
+      - forbidden.event_emit_without_dedup_cache
+      - forbidden.convergence_record_accumulation_without_overwrite
+
   # ── Generalization principles (second pass) ───────────────────────────────────
   # These invariants encode the abstract reasoning layer. They generalize from
   # specific Globular incidents to classes of distributed-system mistakes, so

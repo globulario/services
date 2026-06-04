@@ -382,6 +382,7 @@ When documenting an error (incident, failure mode, finding), don't just record W
 | `meta.half_done_must_not_look_done` | Intermediate state satisfies completeness check |
 | `meta.silence_is_not_valid_for_unexpected` | Unhandled case is silent no-op |
 | `meta.failure_response_must_contract_not_amplify` | Unbounded retry/re-enqueue turns one failure into a cascade |
+| `meta.diagnostic_output_must_be_bounded` | One error → N log lines fills disk → cascade to healthy services |
 
 **Dependency** — "what breaks if a non-critical thing fails? what if A needs B needs A?"
 | Principle | What it catches |
