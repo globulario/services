@@ -52,7 +52,7 @@ Common spec locations:
 			Properties: map[string]propSchema{
 				"spec":         {Type: "string", Description: "Path to the spec YAML file"},
 				"root":         {Type: "string", Description: "Payload root directory containing bin/"},
-				"out":          {Type: "string", Description: "Output directory for the .tgz (default: /var/lib/globular/build-output/)"},
+				"out":          {Type: "string", Description: "Output directory for the .tgz (default: /var/lib/globular/staging/build/)"},
 				"version":      {Type: "string", Description: "Package version (default: 0.0.1)"},
 				"build_number": {Type: "number", Description: "Build iteration within version (default: 0). Bump when republishing same version."},
 				"publisher":    {Type: "string", Description: "Publisher identifier (default: core@globular.io)"},
@@ -69,7 +69,11 @@ Common spec locations:
 
 		out := getStr(args, "out")
 		if out == "" {
-			out = "/var/lib/globular/build-output/"
+			// staging/ is in the cluster-doctor layout allowlist (see
+			// platformBaseAllowlist in artifact_layout_drift_local.go).
+			// build-output/ was not, and every package_build call would
+			// recreate a layout-drift WARN.
+			out = "/var/lib/globular/staging/build/"
 		}
 		version := getStr(args, "version")
 		if version == "" {
