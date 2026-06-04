@@ -2,6 +2,7 @@ package installed_state
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
@@ -64,6 +65,106 @@ func TestUnmarshalPackage_Invalid(t *testing.T) {
 	_, err := unmarshalPackage([]byte("not json"))
 	if err == nil {
 		t.Error("expected error for invalid JSON")
+	}
+}
+
+// Constants for the disk-truth cleanup tests below.
+const (
+	diskShaCurrent = "2662722de60816248feb9896d9543b58aed4f8b36214e9e6bfb41eb5fe18c67c" // what's on disk now
+	stalePrevSha   = "fb672006af1e104527bf406b1913e60e89ca8135fb8b98b24d5bf9ef286fb26c" // an older version's binary
+)
+
+func TestStaleSiblingKinds_DeletesStaleByDiskTruth(t *testing.T) {
+	// Regression for "stale_kind_manifest_poisons_installed_state":
+	// cluster-controller has a SERVICE ghost stamped with the OLD binary
+	// (fb672006...) AND an INFRA record stamped with the CURRENT binary
+	// (2662722d...). After writing the INFRA record again, cleanup must
+	// flag the SERVICE record as stale because its proof does not match
+	// disk, and leave any record matching disk alone.
+	pkgs := []*node_agentpb.InstalledPackage{
+		{Name: "cluster-controller", Kind: "SERVICE", Version: "1.2.131",
+			Metadata: map[string]string{"entrypoint_checksum": stalePrevSha}},
+		{Name: "cluster-controller", Kind: "INFRASTRUCTURE", Version: "1.2.148",
+			Metadata: map[string]string{"entrypoint_checksum": diskShaCurrent}},
+	}
+	got := staleSiblingKinds(pkgs, "INFRASTRUCTURE", "cluster-controller", diskShaCurrent)
+	if len(got) != 1 || got[0] != "SERVICE" {
+		t.Fatalf("expected [SERVICE], got %v", got)
+	}
+}
+
+func TestStaleSiblingKinds_RefusesToDeleteWithoutProof(t *testing.T) {
+	// The dangerous case: a SERVICE record with NO proof gets written
+	// (bare heartbeat). Pre-fix this deleted the INFRA record that had
+	// full proof. The new rule: a sibling without a stored
+	// entrypoint_checksum cannot be classified as stale and must NOT be
+	// returned for deletion.
+	pkgs := []*node_agentpb.InstalledPackage{
+		{Name: "cluster-controller", Kind: "INFRASTRUCTURE", Version: "1.2.148",
+			Metadata: map[string]string{"entrypoint_checksum": diskShaCurrent}},
+		{Name: "cluster-controller", Kind: "SERVICE", Version: "1.2.148"}, // no proof
+	}
+	// Pretend the caller just wrote the SERVICE record.
+	got := staleSiblingKinds(pkgs, "SERVICE", "cluster-controller", diskShaCurrent)
+	if len(got) != 0 {
+		t.Fatalf("must not delete an authoritative INFRA record on behalf of a proofless SERVICE write; got %v", got)
+	}
+}
+
+func TestStaleSiblingKinds_NeverTouchesKeepKind(t *testing.T) {
+	// The kind we just wrote must not be returned even if its proof
+	// disagrees with disk — that disagreement is a separate problem
+	// surfaced by the verifier.
+	pkgs := []*node_agentpb.InstalledPackage{
+		{Name: "x", Kind: "INFRASTRUCTURE",
+			Metadata: map[string]string{"entrypoint_checksum": stalePrevSha}},
+	}
+	if got := staleSiblingKinds(pkgs, "INFRASTRUCTURE", "x", diskShaCurrent); len(got) != 0 {
+		t.Fatalf("must not delete keepKind, got %v", got)
+	}
+}
+
+func TestStaleSiblingKinds_KeepsMatchingProofUnderOtherKind(t *testing.T) {
+	// If a sibling record under another kind happens to have proof
+	// matching disk, it is NOT stale — the duplication is real but
+	// consistent. Leave it for a higher-level consolidator.
+	pkgs := []*node_agentpb.InstalledPackage{
+		{Name: "x", Kind: "SERVICE",
+			Metadata: map[string]string{"entrypoint_checksum": diskShaCurrent}},
+		{Name: "x", Kind: "INFRASTRUCTURE",
+			Metadata: map[string]string{"entrypoint_checksum": diskShaCurrent}},
+	}
+	if got := staleSiblingKinds(pkgs, "INFRASTRUCTURE", "x", diskShaCurrent); len(got) != 0 {
+		t.Fatalf("must not delete sibling whose proof matches disk; got %v", got)
+	}
+}
+
+func TestStaleSiblingKinds_NormalizesCasingAndPrefix(t *testing.T) {
+	// The doctor-side comparison must be tolerant of "sha256:" prefix
+	// and case variance, since values flow through multiple writers.
+	pkgs := []*node_agentpb.InstalledPackage{
+		{Name: "x", Kind: "SERVICE",
+			Metadata: map[string]string{"entrypoint_checksum": "sha256:" + strings.ToUpper(stalePrevSha)}},
+	}
+	got := staleSiblingKinds(pkgs, "INFRASTRUCTURE", "x", "SHA256:"+diskShaCurrent)
+	if len(got) != 1 || got[0] != "SERVICE" {
+		t.Fatalf("normalized comparison expected [SERVICE], got %v", got)
+	}
+}
+
+func TestStaleSiblingKinds_GuardsAgainstEmptyArgs(t *testing.T) {
+	pkgs := []*node_agentpb.InstalledPackage{
+		{Name: "x", Kind: "SERVICE",
+			Metadata: map[string]string{"entrypoint_checksum": stalePrevSha}},
+	}
+	if got := staleSiblingKinds(pkgs, "", "x", diskShaCurrent); got != nil {
+		t.Errorf("empty keepKind should return nil, got %v", got)
+	}
+	if got := staleSiblingKinds(pkgs, "INFRASTRUCTURE", "", diskShaCurrent); got != nil {
+		t.Errorf("empty name should return nil, got %v", got)
+	}
+	if got := staleSiblingKinds(pkgs, "INFRASTRUCTURE", "x", ""); got != nil {
+		t.Errorf("empty diskSha256 should return nil, got %v", got)
 	}
 }
 

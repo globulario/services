@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/binhash"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_service"
@@ -914,21 +915,46 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 				pkg.BuildId = existing.GetBuildId()
 			}
 		}
-		// Store the runtime identity in metadata as well so partial-apply and
-		// peer-checksum reconciliation can reason over a stable field.
-		if ep := normalizeSHA256Digest(m.GetEntrypointChecksum()); ep != "" {
+		// Phase 39 — canonical binary identity comes from DISK, not from
+		// the manifest. The manifest's GetEntrypointChecksum() is what
+		// the artifact claims; the file at /usr/lib/globular/bin/<entry>
+		// is what's actually installed. If they differ, write the disk
+		// truth — the controller's convergence checks (post-Phase-38)
+		// will detect the drift and dispatch a real reinstall.
+		//
+		// Falls back to manifest value when the on-disk hash cannot be
+		// read (missing file, permission denied) — preserves prior
+		// behaviour for legacy artifacts without entrypoint files.
+		var entryHash string
+		// ArtifactManifest carries a list; the first is the primary
+		// service binary. Hash the file actually on disk at the canonical
+		// install location.
+		if entrypoints := m.GetEntrypoints(); len(entrypoints) > 0 {
+			if entryPath := binhash.EntrypointPath(entrypoints[0]); entryPath != "" {
+				entryHash = binhash.HashOrEmpty(entryPath)
+			}
+		}
+		// Fall back to manifest value only when no on-disk hash is
+		// computable (no entrypoint declared / file missing / unreadable).
+		// Legacy artifacts without entrypoints continue to work.
+		if entryHash == "" {
+			entryHash = normalizeSHA256Digest(m.GetEntrypointChecksum())
+		}
+		if entryHash == "" {
+			entryHash = normalizeSHA256Digest(m.GetEntrypointChecksum())
+		}
+		if entryHash != "" {
 			if pkg.Metadata == nil {
 				pkg.Metadata = make(map[string]string)
 			}
-			pkg.Metadata["entrypoint_checksum"] = ep
+			pkg.Metadata["entrypoint_checksum"] = entryHash
 		}
 		// Non-install writer: preserve canonical install-receipt fields
-		// from the existing record. This refresh path rebuilds pkg from
-		// the repository manifest; without preservation, the install-time
-		// receipt is erased on every repo-sync cycle and the heartbeat's
-		// installed_state-first drift authority falls back to
-		// legacy_sidecar migration. See docs/architecture/
-		// retire-systemd-sidecars.md.
+		// from the existing record (unit_file_sha256, binary_sha256, etc).
+		// This refresh path rebuilds pkg from the repository manifest;
+		// without this, the install-time receipt is erased on every
+		// repo-sync cycle and the heartbeat's installed_state-first
+		// drift authority falls back to legacy_sidecar migration.
 		PreserveInstallReceiptMetadata(existing, pkg)
 		if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
 			log.Printf("nodeagent: sync installed-state %s/%s: %v", kind, name, err)
@@ -1097,15 +1123,18 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 		statusReq.InstalledVersions[key.String()] = info.Version
 	}
 
-	// Phase 2: etcd installed_state (from repository) overrides local versions.
-	// The repository is the source of truth for version numbers.
+	// Phase 2: etcd installed_state (from repository) overrides local versions
+	// ONLY when the on-disk binary hash matches the installed_state's recorded
+	// entrypoint_checksum. Phase 39 root-cause fix: pre-39 this blanket-
+	// overrode Phase 1's disk-discovered version with whatever etcd cached.
+	// If installed_state had a stale build (the "lying installed_state"
+	// pattern caught live on globule-ryzen 2026-06-03), Phase 1's correct
+	// observation was masked and the controller's cluster.services.drift
+	// finding got stuck forever. Now: etcd's version wins only when its
+	// stored entry_chk hash matches the actual binary on disk via binhash —
+	// otherwise Phase 1's local observation stays.
 	etcdReachable := isAnyEtcdEndpointReachable(300 * time.Millisecond)
 	if srv.nodeID != "" && etcdReachable {
-		// Process INFRASTRUCTURE first so that SERVICE records (written by the
-		// release workflow) always take precedence for services that appear in both
-		// (e.g. gateway, mcp upgraded via ServiceRelease but still having a stale
-		// INFRASTRUCTURE record from Day-0). COMMAND last — pure CLI tools, no
-		// unit to check, but version must be confirmed back to the controller.
 		for _, kind := range []string{"INFRASTRUCTURE", "APPLICATION", "SERVICE", "COMMAND"} {
 			pkgs, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, kind)
 			if err != nil {
@@ -1115,6 +1144,25 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 				canon := canonicalServiceName(pkg.GetName())
 				if canon == "" || pkg.GetVersion() == "" {
 					continue
+				}
+				// Phase 39 disk-truth gate: installed_state can override
+				// Phase 1's local version ONLY when its recorded
+				// entry_chk matches the actual binary on disk. The binary
+				// is the source of truth. Uses ResolveServiceBinaryPath
+				// to handle the "name -> <name>_server" convention so it
+				// works for both new records (which set proof_binary_path)
+				// and older records that don't.
+				if storedEntry := pkg.GetMetadata()["entrypoint_checksum"]; storedEntry != "" {
+					entryPath := binhash.ResolveServiceBinaryPath(canon, pkg.GetMetadata()["proof_binary_path"])
+					if entryPath != "" {
+						if onDisk := binhash.HashOrEmpty(entryPath); onDisk != "" {
+							if !binhash.Equal(storedEntry, onDisk) {
+								log.Printf("nodeagent: skipping etcd Phase 2 override for %s/%s — installed_state entry_chk=%s but disk=%s at %s (Phase 39 disk-truth gate)",
+									kind, canon, binhash.Short(storedEntry), binhash.Short(onDisk), entryPath)
+								continue
+							}
+						}
+					}
 				}
 				statusReq.InstalledVersions[canon] = pkg.GetVersion()
 				if bid := pkg.GetBuildId(); bid != "" {

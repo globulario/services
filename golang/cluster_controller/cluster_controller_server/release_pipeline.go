@@ -155,7 +155,7 @@ func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredV
 		if !installedNodes[id] {
 			return false
 		}
-		if conv := classifyPackageConvergence(node, canon, "SERVICE", desiredVersion, "", buildID, &node_agentpb.InstalledPackage{
+		if conv := classifyPackageConvergence(node, canon, "SERVICE", desiredVersion, "", buildID, "", &node_agentpb.InstalledPackage{
 			Version: desiredVersion,
 			BuildId: buildID,
 		}, time.Now()); !conv.RuntimeOK {
@@ -824,7 +824,13 @@ func (srv *server) hasUnservedNodes(h *releaseHandle, blockedNodes map[string]st
 		// This covers the "already installed, workflow short-circuited" case.
 		if h.InstalledStateName != "" && h.ResolvedVersion != "" && node.InstalledVersions != nil {
 			if node.InstalledVersions[h.InstalledStateName] == h.ResolvedVersion {
-				conv := classifyPackageConvergence(node, h.InstalledStateName, h.InstalledStateKind, h.ResolvedVersion, h.DesiredHash, h.ResolvedBuildID, &node_agentpb.InstalledPackage{
+				// Phase 38: this synthetic InstalledPackage carries no
+				// entrypoint_checksum, so passing the desired entrypoint
+				// would force RepairRequired here. Pass "" to fall back
+				// to the prior behaviour for this synthetic check; the
+				// real entrypoint comparison happens at the workflow-
+				// release skip-node site that reads the live etcd record.
+				conv := classifyPackageConvergence(node, h.InstalledStateName, h.InstalledStateKind, h.ResolvedVersion, h.DesiredHash, h.ResolvedBuildID, "", &node_agentpb.InstalledPackage{
 					Version:  h.ResolvedVersion,
 					Checksum: h.DesiredHash,
 					BuildId:  h.ResolvedBuildID,

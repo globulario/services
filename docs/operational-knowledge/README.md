@@ -52,7 +52,9 @@ docs/operational-knowledge/
 │   ├── recover-failed-platform-upgrade.yaml     (TODO)
 │   └── restore-from-backup.yaml                 (TODO)
 └── service-roles/           # canonical "what is this service for" entries
-    ├── awareness-graph.yaml         ✓ shipped (routing trap, direct-dial, 4 RPCs, activation rules)
+    ├── awareness-graph.yaml         ✓ shipped (routing trap, direct-dial, 6 RPCs + diagnose composite,
+    │                                            tool decision tree, preflight/metadata/diagnose semantics,
+    │                                            coverage philosophy, activation rules R1–R6)
     ├── cluster-controller.yaml      ✓ shipped
     ├── cluster-doctor.yaml          ✓ shipped (role, invariants catalog, event-amplification bug)
     ├── node-agent.yaml              ✓ shipped

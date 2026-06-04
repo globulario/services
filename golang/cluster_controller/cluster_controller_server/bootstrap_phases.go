@@ -454,6 +454,7 @@ func bootstrapRequiredInfraRuntimeConverged(node *nodeState, now time.Time, pool
 			"",
 			"",
 			"",
+			"", // Phase 38: bootstrap runtime check has no entrypoint binding
 			&node_agentpb.InstalledPackage{Version: "bootstrap-runtime-check"},
 			now,
 		)

@@ -42,12 +42,65 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/binhash"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 )
+
+// lookupSelfHostedExistingByDiskTruth scans every installed_state record
+// for the given (nodeID, name) across all kinds and returns the one whose
+// stored `metadata.entrypoint_checksum` matches the proof's on-disk sha256.
+// That record's kind is the canonical kind for this package on this node;
+// reusing it (rather than hardcoding "SERVICE") ensures the proof writer
+// preserves whatever classification the release pipeline assigned and
+// avoids creating a perpetual SERVICE-vs-INFRASTRUCTURE duplicate.
+//
+// Resolution order:
+//  1. Any kind whose entry_chk == proof.OnDiskSHA256 → return it.
+//  2. SERVICE record (legacy, regardless of proof) → return it for
+//     backwards compatibility with pre-proof records.
+//  3. Any other kind that has SOME proof → return it (lets the writer
+//     refresh under the existing kind, then disk-truth cleanup in
+//     installed_state will eventually retire stale duplicates).
+//  4. nil — no record found anywhere; caller will create a SERVICE
+//     record (legacy default) and rely on the release pipeline / cleanup
+//     to converge to the canonical kind.
+//
+// Returns (record, kind). Both are empty/nil when nothing is found.
+func lookupSelfHostedExistingByDiskTruth(ctx context.Context, nodeID, name, expectedDiskSha256 string) (*node_agentpb.InstalledPackage, string) {
+	pkgs, err := installed_state.ListInstalledPackages(ctx, nodeID, "")
+	if err != nil {
+		return nil, ""
+	}
+	disk := binhash.Normalize(expectedDiskSha256)
+	var legacyService *node_agentpb.InstalledPackage
+	var anyWithProof *node_agentpb.InstalledPackage
+	for _, pkg := range pkgs {
+		if pkg.GetName() != name {
+			continue
+		}
+		stored := binhash.Normalize(pkg.GetMetadata()["entrypoint_checksum"])
+		if disk != "" && stored == disk {
+			return pkg, pkg.GetKind()
+		}
+		if strings.EqualFold(pkg.GetKind(), "SERVICE") {
+			legacyService = pkg
+		}
+		if stored != "" && anyWithProof == nil {
+			anyWithProof = pkg
+		}
+	}
+	if legacyService != nil {
+		return legacyService, legacyService.GetKind()
+	}
+	if anyWithProof != nil {
+		return anyWithProof, anyWithProof.GetKind()
+	}
+	return nil, ""
+}
 
 // selfHostedServiceNames is the narrow allowlist of self-hosted control-plane
 // components whose installed_state may be refreshed by the post-restart
@@ -422,24 +475,32 @@ func (srv *NodeAgentServer) refreshSelfHostedInstalledState(ctx context.Context)
 			log.Printf("nodeagent: self-hosted runtime proof skipped %s: %s", canonicalName, reason)
 			continue
 		}
-		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, "SERVICE", canonicalName)
+		// Discover the canonical kind from existing records rather than
+		// hardcoding "SERVICE". Pre-fix this writer forced every refresh
+		// under SERVICE even when the release pipeline had reclassified
+		// the package to INFRASTRUCTURE (e.g. cluster-controller in
+		// v1.2.148) — the result was a perpetual SERVICE/INFRASTRUCTURE
+		// duplicate that poisoned heartbeat reporting and produced a
+		// permanent cluster.services.drift WARN. Discovery uses the
+		// proof's OnDiskSHA256 as the arbiter: whichever kind's
+		// installed_state record has entry_chk matching disk wins.
+		existing, _ := lookupSelfHostedExistingByDiskTruth(ctx, srv.nodeID, canonicalName, proof.OnDiskSHA256)
 		canRefresh, refreshReason := proofCanRefreshInstalledState(existing, proof)
 		if !canRefresh {
 			_ = refreshReason
 			continue
 		}
 		pkg := applySelfHostedInstalledStateRefresh(existing, proof, srv.nodeID)
-		// Non-install writer: preserve install-receipt metadata across
-		// the proof refresh. applySelfHostedInstalledStateRefresh already
+		// Non-install writer: preserve install-receipt metadata across the
+		// proof refresh. applySelfHostedInstalledStateRefresh already
 		// deep-copies existing.Metadata when existing != nil, so this is
 		// belt-and-suspenders defence — pkg may now carry refreshed proof_*
 		// keys + the entrypoint_checksum, but receipt-namespace keys
 		// (unit_file_sha256, binary_sha256, installed_by, etc) must survive
 		// any future restructuring of applySelfHostedInstalledStateRefresh.
-		// See docs/architecture/retire-systemd-sidecars.md.
 		PreserveInstallReceiptMetadata(existing, pkg)
 		if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
-			log.Printf("nodeagent: self-hosted runtime proof write %s/%s: %v", "SERVICE", canonicalName, err)
+			log.Printf("nodeagent: self-hosted runtime proof write %s/%s: %v", pkg.GetKind(), canonicalName, err)
 			continue
 		}
 		preview := proof.OnDiskSHA256

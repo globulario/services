@@ -21,9 +21,11 @@ package installed_state
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/binhash"
 	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -83,7 +85,11 @@ func CommitInstalledPackage(ctx context.Context, pkg *node_agentpb.InstalledPack
 		return fmt.Errorf("installed_state: marshal: %w", err)
 	}
 	key := packageKey(pkg.GetNodeId(), pkg.GetKind(), pkg.GetName())
-	return config.PutRuntimeWithClass(ctx, key, data, config.StateCommitWrite)
+	if err := config.PutRuntimeWithClass(ctx, key, data, config.StateCommitWrite); err != nil {
+		return err
+	}
+	cleanupStaleKindsByDiskTruth(ctx, pkg, "commit")
+	return nil
 }
 
 // WriteInstalledPackage writes an installed-package record from the node-agent
@@ -118,7 +124,112 @@ func WriteInstalledPackage(ctx context.Context, pkg *node_agentpb.InstalledPacka
 		return fmt.Errorf("installed_state: marshal: %w", err)
 	}
 	key := packageKey(pkg.GetNodeId(), pkg.GetKind(), pkg.GetName())
-	return config.PutRuntimeWithClass(ctx, key, data, config.NormalRuntimeWrite)
+	if err := config.PutRuntimeWithClass(ctx, key, data, config.NormalRuntimeWrite); err != nil {
+		return err
+	}
+	cleanupStaleKindsByDiskTruth(ctx, pkg, "write")
+	return nil
+}
+
+// cleanupStaleKindsByDiskTruth uses the actual on-disk binary as the
+// arbiter for which installed_state records are real and which are
+// ghosts. After a successful write, scan every record for the same
+// (nodeID, name) under any kind and delete those whose stored
+// `metadata.entrypoint_checksum` does not match the live sha256 of
+// the binary on disk.
+//
+// Why disk-truth and not kind-trust:
+//
+// Naive "delete every record under a different kind" obeys the writer's
+// kind claim blindly. If a less-authoritative writer (e.g. a bare
+// heartbeat with no proof) writes the SAME name under a different kind
+// it would obediently delete the authoritative record that has full
+// cryptographic proof under the older kind — exactly the kind of
+// barer-record-kills-better-record failure caught live 2026-06-03.
+// Disk truth is the only neutral arbiter that does not require us to
+// trust the writer.
+//
+// Records with no proof (`entrypoint_checksum` empty) are not deleted —
+// they may be legacy records that pre-date the proof writer. They are
+// also not authoritative enough to delete records that have proof. The
+// new write itself is held to the same rule: if WE have no proof, we do
+// not initiate cleanup at all.
+//
+// Errors are logged but never fail the parent write.
+func cleanupStaleKindsByDiskTruth(ctx context.Context, pkg *node_agentpb.InstalledPackage, source string) {
+	nodeID := pkg.GetNodeId()
+	name := pkg.GetName()
+	keepKind := strings.ToUpper(pkg.GetKind())
+	if nodeID == "" || name == "" || keepKind == "" {
+		return
+	}
+	newProof := strings.TrimSpace(pkg.GetMetadata()["entrypoint_checksum"])
+	if newProof == "" {
+		return
+	}
+	entryPath := binhash.ResolveServiceBinaryPath(name, pkg.GetMetadata()["proof_binary_path"])
+	if entryPath == "" {
+		return
+	}
+	onDisk := binhash.HashOrEmpty(entryPath)
+	if onDisk == "" {
+		return
+	}
+	pkgs, err := ListInstalledPackages(ctx, nodeID, "")
+	if err != nil {
+		log.Printf("installed_state: cleanup-stale(%s) list failed for %s/%s: %v", source, nodeID, name, err)
+		return
+	}
+	for _, victim := range staleSiblingKinds(pkgs, keepKind, name, onDisk) {
+		if delErr := DeleteInstalledPackage(ctx, nodeID, victim, name); delErr != nil {
+			log.Printf("installed_state: cleanup-stale(%s) delete %s/%s/%s failed: %v",
+				source, nodeID, victim, name, delErr)
+			continue
+		}
+		log.Printf("installed_state: cleanup-stale(%s) deleted ghost %s/%s/%s — its entry_chk did not match disk %s at %s (kept %s/%s)",
+			source, nodeID, victim, name, binhash.Short(onDisk), entryPath, keepKind, name)
+	}
+}
+
+// staleSiblingKinds is the pure decision half of cleanupStaleKindsByDiskTruth:
+// given (a) the full list of records on a node, (b) the kind we just wrote,
+// (c) the package name, and (d) the current binary's sha256 on disk,
+// return the kinds (other than keepKind) under which a record exists for
+// the same name AND its stored `metadata.entrypoint_checksum` is non-empty
+// AND it does NOT match the disk sha256.
+//
+// Records with no proof are NOT returned — they cannot be safely classified
+// as stale. Records under the keep kind are NEVER returned — the parent
+// write is for that kind. Same-disk records under other kinds are kept
+// (legitimate duplicates with matching proof are preserved, leaving the
+// human/operator to consolidate).
+func staleSiblingKinds(pkgs []*node_agentpb.InstalledPackage, keepKind, name, diskSha256 string) []string {
+	if name == "" || keepKind == "" || diskSha256 == "" {
+		return nil
+	}
+	keep := strings.ToUpper(keepKind)
+	disk := binhash.Normalize(diskSha256)
+	var out []string
+	seen := map[string]bool{}
+	for _, pkg := range pkgs {
+		if pkg.GetName() != name {
+			continue
+		}
+		k := strings.ToUpper(pkg.GetKind())
+		if k == "" || k == keep || seen[k] {
+			continue
+		}
+		stored := binhash.Normalize(pkg.GetMetadata()["entrypoint_checksum"])
+		if stored == "" {
+			continue
+		}
+		if stored == disk {
+			continue
+		}
+		seen[k] = true
+		out = append(out, k)
+	}
+	return out
 }
 
 // GetInstalledPackage reads a single installed package record from etcd.

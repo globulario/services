@@ -65,6 +65,7 @@ func TestRuntimeStaleIsNotConverged(t *testing.T) {
 		"1.0.0",
 		"",
 		"",
+		"", // Phase 38: no entrypoint binding for this stale-runtime test
 		&node_agentpb.InstalledPackage{Version: "1.0.0"},
 		time.Now(),
 	)
@@ -87,6 +88,7 @@ func TestCommandPackageDoesNotRequireRuntime(t *testing.T) {
 		"1.2.3",
 		"",
 		"",
+		"", // Phase 38: no entrypoint binding for COMMAND-kind test
 		&node_agentpb.InstalledPackage{Version: "1.2.3"},
 		time.Now(),
 	)
