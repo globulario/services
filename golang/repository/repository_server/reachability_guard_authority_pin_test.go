@@ -64,3 +64,44 @@ func TestReachabilityGuard_NoDirectEtcdAgainstResourcesPrefix(t *testing.T) {
 			string(match[1]), loc[0])
 	}
 }
+
+// TestDescribePackage_NoDirectEtcdAgainstNodes pins the v1.2.176
+// refactor of describe_package.go::scanInstalledState. Before v1.2.176
+// the repository scanned /globular/nodes/*/packages/* directly to
+// build per-node installation rows; that prefix is owned by node_agent
+// (L3 installed state). The refactor walks
+// cluster_controller.ListNodes → node_agent.ListInstalledPackages per
+// node, with explicit degraded-read warnings on per-node failures.
+//
+// This test fails if describe_package.go reintroduces a direct etcd
+// Get / Put / Delete against /globular/nodes/*. The file may retain
+// clientv3 only if other functions need it (none do as of v1.2.176;
+// the import was removed entirely). If a future contributor needs a
+// narrow primitive, they must scope it to a non-owned prefix.
+func TestDescribePackage_NoDirectEtcdAgainstNodes(t *testing.T) {
+	body, err := os.ReadFile("describe_package.go")
+	if err != nil {
+		t.Fatalf("read describe_package.go: %v", err)
+	}
+
+	if strings.Contains(string(body), `clientv3 "go.etcd.io/etcd/client/v3"`) ||
+		strings.Contains(string(body), `"go.etcd.io/etcd/client/v3"`) {
+		t.Errorf("CRITICAL describe_package.go imports go.etcd.io/etcd/client/v3 — " +
+			"the v1.2.176 refactor of scanInstalledState removed the only consumer of " +
+			"that import. Reintroducing it without a typed-RPC replacement re-opens the " +
+			"bypass vector against /globular/nodes/* owned by node_agent. Anchored by " +
+			"invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.")
+	}
+
+	re := regexp.MustCompile(`\.(Get|Put|Delete)\(\s*[^,)]+,\s*"/globular/nodes/`)
+	if loc := re.FindIndex(body); loc != nil {
+		match := re.FindSubmatch(body)
+		t.Errorf("CRITICAL describe_package.go contains a direct etcd %s against /globular/nodes/* "+
+			"(near byte offset %d) — violates invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage. "+
+			"L3 installed state is owned by node_agent; enumerate nodes via "+
+			"cluster_controller.ListNodes then call node_agent.ListInstalledPackages per node "+
+			"(the v1.2.176 scanInstalledState pattern, which also emits structured warnings on "+
+			"per-node failures so partial observations are not mistaken for canonical truth).",
+			string(match[1]), loc[0])
+	}
+}

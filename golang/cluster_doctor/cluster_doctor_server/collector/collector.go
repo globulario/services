@@ -248,57 +248,11 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 	// (consumed by repository.package_version_authority).
 	c.fetchDesiredFromController(ctx, snap)
 
-	// ── 2b. NodePackageKinds — package kind per node from etcd ───────────────
-	// Key format: /globular/nodes/{nodeID}/packages/{KIND}/{name}
-	// We do a single prefix scan per known node and parse the kind from the path.
-	// This is the authoritative source for package classification; rules must
-	// use this instead of hardcoded name lists so new packages work automatically.
-	if len(snap.Nodes) > 0 {
-		if etcdCli, err := config.GetEtcdClient(); err == nil {
-			pkgCtx, pkgCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
-			defer pkgCancel()
-			for _, node := range snap.Nodes {
-				nid := node.GetNodeId()
-				if nid == "" {
-					continue
-				}
-				prefix := "/globular/nodes/" + nid + "/packages/"
-				resp, err := etcdCli.Get(pkgCtx, prefix, clientv3.WithPrefix(), clientv3.WithKeysOnly())
-				if err != nil {
-					continue
-				}
-				kinds := make(map[string]string, len(resp.Kvs))
-				for _, kv := range resp.Kvs {
-					// key = /globular/nodes/{nid}/packages/{KIND}/{name}
-					tail := strings.TrimPrefix(string(kv.Key), prefix)
-					slash := strings.Index(tail, "/")
-					if slash <= 0 || slash == len(tail)-1 {
-						continue
-					}
-					kind := tail[:slash]
-					name := tail[slash+1:]
-					if kind != "" && name != "" {
-						upperKind := strings.ToUpper(kind)
-						// COMMAND wins over any other kind. A package may have
-						// both a stale INFRASTRUCTURE entry (from a prior
-						// install before the kind sidecar was introduced) and a
-						// current COMMAND entry. Etcd returns keys in
-						// lexicographic order so COMMAND is seen first; once
-						// set, do not let a later non-COMMAND entry overwrite.
-						if kinds[name] != "COMMAND" {
-							kinds[name] = upperKind
-						}
-					}
-				}
-				if len(kinds) > 0 {
-					snap.mu.Lock()
-					snap.NodePackageKinds[nid] = kinds
-					snap.mu.Unlock()
-				}
-			}
-			snap.addSource("etcd.node_package_kinds")
-		}
-	}
+	// ── 2b. NodePackageKinds — package kind per node ─────────────────────────
+	// Populated by the per-node sweep below via node_agent.ListInstalledPackages
+	// (see fetchPerNode). The prior raw scan of /globular/nodes/{nid}/packages/
+	// (owned by node_agent) was removed in v1.2.176 — see
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
 
 	// ── 3. ObjectStoreDesiredState — objectstore topology from etcd ──────────
 	osCtx, osCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
@@ -795,6 +749,44 @@ func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {
 				snap.Inventories[nid] = invResp.GetInventory()
 				snap.mu.Unlock()
 				snap.addSource("node_agent.GetInventory@" + nid)
+			}
+
+			// ListInstalledPackages — the authoritative source for
+			// per-package kind classification. Replaces the prior raw
+			// scan of /globular/nodes/<nid>/packages/<KIND>/<name>
+			// (owned by node_agent —
+			// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage).
+			// COMMAND-wins precedence is preserved as a defensive
+			// measure: if the inventory ever returns both a stale
+			// INFRASTRUCTURE and a current COMMAND entry for the same
+			// name, COMMAND takes precedence (the contract the prior
+			// etcd-scan rule established).
+			pkgCtx, pkgCancel := context.WithTimeout(ctx, c.cfg.NodeTimeout)
+			pkgResp, pkgErr := agentClient.ListInstalledPackages(pkgCtx, &node_agentpb.ListInstalledPackagesRequest{})
+			pkgCancel()
+			if pkgErr != nil {
+				if !strings.Contains(pkgErr.Error(), "Unimplemented") {
+					snap.addError("node_agent@"+nid, "ListInstalledPackages", pkgErr)
+				}
+			} else {
+				kinds := make(map[string]string)
+				for _, pkg := range pkgResp.GetPackages() {
+					name := pkg.GetName()
+					kind := strings.ToUpper(strings.TrimSpace(pkg.GetKind()))
+					if name == "" || kind == "" {
+						continue
+					}
+					if existing, ok := kinds[name]; ok && existing == "COMMAND" {
+						continue
+					}
+					kinds[name] = kind
+				}
+				if len(kinds) > 0 {
+					snap.mu.Lock()
+					snap.NodePackageKinds[nid] = kinds
+					snap.mu.Unlock()
+				}
+				snap.addSource("node_agent.ListInstalledPackages@" + nid)
 			}
 
 			// GetSubsystemHealth — read background goroutine health.

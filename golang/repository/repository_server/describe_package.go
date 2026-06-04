@@ -4,15 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/storage_backend"
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -279,58 +280,108 @@ func nameMatchesAny(have string, candidates []string) bool {
 	return false
 }
 
-// scanInstalledState reads /globular/nodes/*/packages/*/<name> and returns
-// the per-node installation rows grouped by node_id. Tries every candidate
-// name under every kind (SERVICE, COMMAND, INFRASTRUCTURE).
+// scanInstalledState gathers per-node installation rows for every
+// candidate name by walking the cluster's nodes via two typed RPCs:
+// cluster_controller.ListNodes (to enumerate nodes + their agent
+// endpoints) and node_agent.ListInstalledPackages on each node (the
+// owner of L3 installed state).
+//
+// Replaces the prior raw /globular/nodes/*/packages/*/<name> etcd
+// scan — owned by node_agent, never by the repository server — per
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+//
+// Degraded-read semantics: if any node is unreachable (no agent
+// endpoint, dial failure, or RPC failure), this function logs a
+// structured warning naming the node and the reason, then proceeds
+// without rows for that node. It MUST NOT fabricate canonical
+// installed truth from partial observations — the returned map is the
+// best-effort view of the nodes the repository could actually reach.
+// The caller's PackageInfo simply shows fewer NodeInstallation entries
+// when nodes are unreachable; operators see the warning in repository
+// logs.
 func scanInstalledState(ctx context.Context, candidates []string) map[string][]installedRow {
 	out := make(map[string][]installedRow)
-	cli, err := config.GetEtcdClient()
+
+	// Resolve controller endpoint via the service registry. An empty
+	// address means we degrade to "no cluster context observable" —
+	// the existing behaviour of the prior etcd-error path.
+	addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", "")
+	if addr == "" {
+		slog.Warn("repository.scanInstalledState: cluster_controller endpoint unresolved — installed-state view is empty")
+		return out
+	}
+	ccTarget := config.ResolveDialTarget(addr)
+	ccConn, err := grpc.NewClient(ccTarget.Address, grpc.WithTransportCredentials(repositoryClientTLSCreds(ccTarget.ServerName)))
 	if err != nil {
+		slog.Warn("repository.scanInstalledState: dial cluster_controller failed — installed-state view is empty",
+			"addr", ccTarget.Address, "err", err)
+		return out
+	}
+	defer func() { _ = ccConn.Close() }()
+
+	listCtx, listCancel := context.WithTimeout(ctx, 5*time.Second)
+	ctrl := cluster_controllerpb.NewClusterControllerServiceClient(ccConn)
+	nodesResp, err := ctrl.ListNodes(listCtx, &cluster_controllerpb.ListNodesRequest{})
+	listCancel()
+	if err != nil {
+		slog.Warn("repository.scanInstalledState: ListNodes failed — installed-state view is empty",
+			"err", err)
 		return out
 	}
 
-	scanCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
+	for _, node := range nodesResp.GetNodes() {
+		nid := node.GetNodeId()
+		if nid == "" {
+			continue
+		}
+		endpoint := strings.TrimSpace(node.GetAgentEndpoint())
+		if endpoint == "" {
+			slog.Warn("repository.scanInstalledState: node has no agent_endpoint — installed state not observed",
+				"node", nid)
+			continue
+		}
 
-	// Prefix scan: /globular/nodes/ → all nodes, all kinds, all packages.
-	resp, err := cli.Get(scanCtx, "/globular/nodes/", clientv3.WithPrefix(), clientv3.WithKeysOnly())
-	if err != nil {
-		return out
-	}
-	// Re-fetch matching values only.
-	var matching []string
-	for _, kv := range resp.Kvs {
-		key := string(kv.Key)
-		// Key shape: /globular/nodes/<id>/packages/<KIND>/<name>
-		if !strings.Contains(key, "/packages/") {
+		naTarget := config.ResolveDialTarget(endpoint)
+		naConn, dErr := grpc.NewClient(naTarget.Address, grpc.WithTransportCredentials(repositoryClientTLSCreds(naTarget.ServerName)))
+		if dErr != nil {
+			slog.Warn("repository.scanInstalledState: dial node_agent failed — installed state not observed",
+				"node", nid, "endpoint", endpoint, "err", dErr)
 			continue
 		}
-		last := key[strings.LastIndex(key, "/")+1:]
-		if !nameMatchesAny(last, candidates) {
+
+		pkgCtx, pkgCancel := context.WithTimeout(ctx, 3*time.Second)
+		agent := node_agentpb.NewNodeAgentServiceClient(naConn)
+		pkgResp, lpErr := agent.ListInstalledPackages(pkgCtx, &node_agentpb.ListInstalledPackagesRequest{})
+		pkgCancel()
+		_ = naConn.Close()
+		if lpErr != nil {
+			slog.Warn("repository.scanInstalledState: ListInstalledPackages failed — installed state not observed",
+				"node", nid, "endpoint", endpoint, "err", lpErr)
 			continue
 		}
-		matching = append(matching, key)
-	}
-	for _, key := range matching {
-		gr, err := cli.Get(scanCtx, key)
-		if err != nil || len(gr.Kvs) == 0 {
-			continue
+
+		for _, pkg := range pkgResp.GetPackages() {
+			name := pkg.GetName()
+			if name == "" || !nameMatchesAny(name, candidates) {
+				continue
+			}
+			row := installedRow{
+				NodeID:      nid,
+				Name:        name,
+				Version:     pkg.GetVersion(),
+				Status:      pkg.GetStatus(),
+				Checksum:    pkg.GetChecksum(),
+				Kind:        pkg.GetKind(),
+				InstalledAt: pkg.GetInstalledUnix(),
+			}
+			out[nid] = append(out[nid], row)
 		}
-		var row installedRow
-		if err := json.Unmarshal(gr.Kvs[0].Value, &row); err != nil {
-			continue
-		}
-		nodeID := extractNodeIDFromKey(key)
-		if row.NodeID == "" {
-			row.NodeID = nodeID
-		}
-		out[nodeID] = append(out[nodeID], row)
 	}
 	return out
 }
 
-// extractNodeIDFromKey parses /globular/nodes/<id>/packages/... and returns
-// the node_id segment. Returns "" on malformed keys.
+// extractNodeIDFromKey is retained for unit-test backwards
+// compatibility; the runtime path no longer parses etcd keys.
 func extractNodeIDFromKey(key string) string {
 	const prefix = "/globular/nodes/"
 	if !strings.HasPrefix(key, prefix) {

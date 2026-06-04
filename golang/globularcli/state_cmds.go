@@ -344,92 +344,132 @@ func scanDesiredState(ctx context.Context, report *canonReport) error {
 
 // ── Installed-state scan ─────────────────────────────────────────────────
 
+// scanInstalledState consumes typed RPCs: ListNodes on the
+// cluster_controller (to enumerate nodes + their agent endpoints) and
+// node_agent.ListInstalledPackages per node (the owner's typed view of
+// L3 installed state). Replaces the prior raw /globular/nodes/ etcd
+// prefix scan — owned by node_agent, never by globularcli — per
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+//
+// Degraded-read semantics: if any node-agent is unreachable or its
+// agent endpoint is missing from the controller's NodeRecord, an
+// explicit A8 anomaly is recorded ("node unreachable — installed state
+// not observed"). The canonical-percent denominator excludes those
+// nodes so a partial observation is never mistaken for canonical
+// truth. Operators see a clearly degraded report rather than a falsely
+// healthy one.
 func scanInstalledState(ctx context.Context, report *canonReport) error {
-	cli, err := config.GetEtcdClient()
+	cc, err := controllerClient()
 	if err != nil {
-		return fmt.Errorf("etcd: %w", err)
+		return fmt.Errorf("dial cluster_controller: %w", err)
 	}
+	defer cc.Close()
+	ctrlClient := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
-	resp, err := cli.Get(ctx, "/globular/nodes/",
-		clientv3.WithPrefix(), clientv3.WithLimit(5000))
+	lnCtx, lnCancel := context.WithTimeout(ctx, 10*time.Second)
+	nodesResp, err := ctrlClient.ListNodes(lnCtx, &cluster_controllerpb.ListNodesRequest{})
+	lnCancel()
 	if err != nil {
-		return fmt.Errorf("etcd get: %w", err)
+		return fmt.Errorf("ListNodes: %w", err)
 	}
 
 	nodes := make(map[string]bool)
-	type record struct {
-		NodeID   string            `json:"nodeId"`
-		Name     string            `json:"name"`
-		Version  string            `json:"version"`
-		Kind     string            `json:"kind"`
-		Status   string            `json:"status"`
-		BuildNum string            `json:"buildNumber"`
-		BuildID  string            `json:"buildId"`
-		Metadata map[string]string `json:"metadata"`
-	}
-
 	total := 0
 	withBuildID := 0
 	staleCount := 0
-	// Track build_id coverage per service
+	unreachableNodes := 0
+	// Track build_id coverage per service.
 	svcNodes := make(map[string]map[string]bool) // service → {nodeID: hasBuildID}
 
-	for _, kv := range resp.Kvs {
-		key := string(kv.Key)
-		if !strings.Contains(key, "/packages/") {
+	for _, node := range nodesResp.GetNodes() {
+		nid := node.GetNodeId()
+		if nid == "" {
+			continue
+		}
+		nodes[nid] = true
+		endpoint := strings.TrimSpace(node.GetAgentEndpoint())
+		if endpoint == "" {
+			unreachableNodes++
+			report.addAnomaly("A8", nid, "",
+				"node has no agent_endpoint in cluster controller — installed state not observed",
+				"verify node agent registered correctly; rejoin if necessary")
 			continue
 		}
 
-		var rec record
-		if err := json.Unmarshal(kv.Value, &rec); err != nil {
+		nc, dErr := nodeClientWith(endpoint)
+		if dErr != nil {
+			unreachableNodes++
+			report.addAnomaly("A8", nid, "",
+				fmt.Sprintf("node-agent unreachable at %s: %v — installed state not observed", endpoint, dErr),
+				"check node connectivity; re-run after agent is reachable")
 			continue
 		}
-		if rec.Name == "" {
+
+		agent := node_agentpb.NewNodeAgentServiceClient(nc)
+		listCtx, listCancel := context.WithTimeout(ctx, 10*time.Second)
+		pkgResp, lpErr := agent.ListInstalledPackages(listCtx, &node_agentpb.ListInstalledPackagesRequest{})
+		listCancel()
+		nc.Close()
+		if lpErr != nil {
+			unreachableNodes++
+			report.addAnomaly("A8", nid, "",
+				fmt.Sprintf("node-agent ListInstalledPackages failed at %s: %v — installed state not observed", endpoint, lpErr),
+				"check node-agent health; re-run after agent recovers")
 			continue
 		}
-		total++
-		nodes[rec.NodeID] = true
 
-		// Track per-service node coverage
-		if svcNodes[rec.Name] == nil {
-			svcNodes[rec.Name] = make(map[string]bool)
-		}
-
-		// A1: Stale failed record from unreachable repository
-		if rec.Status == "failed" && rec.Metadata != nil {
-			errMsg := rec.Metadata["error"]
-			if strings.Contains(errMsg, "repository unreachable") ||
-				strings.Contains(errMsg, "no local package found") {
-				staleCount++
-				report.addAnomaly("A1", rec.NodeID, rec.Name,
-					fmt.Sprintf("stale failed record (version=%s build=%s, error=%q)",
-						rec.Version, rec.BuildNum, errMsg),
-					"delete stale record; convergence loop will re-apply correctly")
+		for _, pkg := range pkgResp.GetPackages() {
+			name := pkg.GetName()
+			if name == "" {
 				continue
 			}
-		}
+			total++
 
-		// A3: Missing build_id on installed record.
-		// Skip metadata-only packages (no desired-state) — they were installed
-		// before the identity model and have no repository artifact to link to.
-		if rec.Status == "installed" {
-			if rec.BuildID != "" {
-				withBuildID++
-				svcNodes[rec.Name][rec.NodeID] = true
-			} else if report.DesiredServices != nil && !report.DesiredServices[rec.Name] {
-				// Metadata-only: no desired-state, skip anomaly.
-				withBuildID++ // count as non-anomalous
-			} else {
-				svcNodes[rec.Name][rec.NodeID] = false
-				report.addAnomaly("A3", rec.NodeID, rec.Name,
-					fmt.Sprintf("installed-state missing buildId (version=%s build=%s)",
-						rec.Version, rec.BuildNum),
-					"re-apply service with build_id to gain exact identity")
+			if svcNodes[name] == nil {
+				svcNodes[name] = make(map[string]bool)
+			}
+
+			status := pkg.GetStatus()
+			meta := pkg.GetMetadata()
+			version := pkg.GetVersion()
+			buildID := pkg.GetBuildId()
+			buildNumber := pkg.GetBuildNumber()
+
+			// A1: Stale failed record from unreachable repository.
+			if status == "failed" && meta != nil {
+				errMsg := meta["error"]
+				if strings.Contains(errMsg, "repository unreachable") ||
+					strings.Contains(errMsg, "no local package found") {
+					staleCount++
+					report.addAnomaly("A1", nid, name,
+						fmt.Sprintf("stale failed record (version=%s build=%d, error=%q)",
+							version, buildNumber, errMsg),
+						"delete stale record; convergence loop will re-apply correctly")
+					continue
+				}
+			}
+
+			// A3: Missing build_id on installed record. Metadata-only
+			// packages (no desired-state) had no repository artifact at
+			// install time — skip the anomaly for those.
+			if status == "installed" {
+				if buildID != "" {
+					withBuildID++
+					svcNodes[name][nid] = true
+				} else if report.DesiredServices != nil && !report.DesiredServices[name] {
+					withBuildID++ // metadata-only: count as non-anomalous
+				} else {
+					svcNodes[name][nid] = false
+					report.addAnomaly("A3", nid, name,
+						fmt.Sprintf("installed-state missing buildId (version=%s build=%d)",
+							version, buildNumber),
+						"re-apply service with build_id to gain exact identity")
+				}
 			}
 		}
 	}
 
-	// A7: Inconsistent node coverage
+	// A7: Inconsistent node coverage.
 	for svc, nodeMap := range svcNodes {
 		hasBID := 0
 		noBID := 0
@@ -449,15 +489,19 @@ func scanInstalledState(ctx context.Context, report *canonReport) error {
 
 	report.TotalNodes = len(nodes)
 
-	// Compute canonical percentage
-	totalCanonical := withBuildID
-	totalRecords := total - staleCount // exclude stale from denominator
+	// Compute canonical percentage. Exclude stale records from the
+	// denominator, AND exclude unreachable-node observations: we have
+	// no installed-state truth for those nodes and must not let their
+	// absence inflate or deflate the canonical percentage. If every
+	// node was unreachable, leave CanonicalPercent at zero so the
+	// caller sees the degraded signal.
+	totalRecords := total - staleCount
 	if totalRecords > 0 {
-		report.CanonicalPercent = float64(totalCanonical) / float64(totalRecords) * 100
+		report.CanonicalPercent = float64(withBuildID) / float64(totalRecords) * 100
 	}
 
-	fmt.Printf("  %d installed-state records, %d with buildId, %d stale/failed\n",
-		total, withBuildID, staleCount)
+	fmt.Printf("  %d installed-state records, %d with buildId, %d stale/failed, %d unreachable nodes\n",
+		total, withBuildID, staleCount, unreachableNodes)
 
 	return nil
 }
