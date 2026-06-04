@@ -798,6 +798,37 @@ service ClusterControllerService {
       default_role_hint: "viewer"
     };
   };
+  // ListServiceReleases returns every ServiceRelease object the
+  // controller manages, encoded as JSON strings. cluster_doctor's
+  // verification step consumes the full typed structs (resolved
+  // build_id, status.nodes, required_nodes, …) that the narrow
+  // GetDesiredState projection drops. Wire format is JSON per
+  // release because the Go types are not yet proto-generated;
+  // consumers json.Unmarshal each string into
+  // cluster_controllerpb.ServiceRelease as before.
+  //
+  // The cluster_controller owns /globular/resources/ServiceRelease/* —
+  // consumers MUST call this RPC instead of scanning etcd directly
+  // per invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+  rpc ListServiceReleasesJson(ListServiceReleasesJsonRequest) returns (ListServiceReleasesJsonResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.releases.read"
+      permission: "read"
+      resource_template: "/cluster_controller/releases"
+      default_role_hint: "viewer"
+    };
+  };
+  // ListInfrastructureReleasesJson is the parallel RPC for
+  // /globular/resources/InfrastructureRelease/*. Same wire format
+  // and rationale as ListServiceReleasesJson.
+  rpc ListInfrastructureReleasesJson(ListInfrastructureReleasesJsonRequest) returns (ListInfrastructureReleasesJsonResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.releases.read"
+      permission: "read"
+      resource_template: "/cluster_controller/releases"
+      default_role_hint: "viewer"
+    };
+  };
   rpc UpsertDesiredService(UpsertDesiredServiceRequest) returns (DesiredState) {
     option (globular.auth.authz) = {
       action: "cluster_controller.desired_service.upsert"
@@ -1133,6 +1164,26 @@ message DNSProviderEntry {
 
 message ListDNSProvidersResponse {
   repeated DNSProviderEntry providers = 1;
+}
+
+// Names suffixed with "Json" to avoid colliding with the existing
+// hand-written ListServiceReleasesRequest / -Response Go types in
+// cluster_controllerpb/resources_service.go.
+
+message ListServiceReleasesJsonRequest {}
+
+// ListServiceReleasesJsonResponse carries every ServiceRelease
+// object as a JSON string. Consumers (cluster_doctor verification,
+// future audit tools) json.Unmarshal each entry into
+// cluster_controllerpb.ServiceRelease.
+message ListServiceReleasesJsonResponse {
+  repeated string releases_json = 1;
+}
+
+message ListInfrastructureReleasesJsonRequest {}
+
+message ListInfrastructureReleasesJsonResponse {
+  repeated string releases_json = 1;
 }
 
 // ListServicesResponse carries the merged service-registry view as a

@@ -30,21 +30,32 @@ import (
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/verifier"
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc/metadata"
 )
 
-// fetchDesiredServiceTargets reads ServiceRelease and InfrastructureRelease
-// records from etcd and folds them into snap.DesiredServiceTargets, keyed
-// by canonical service name. Best-effort: a transient etcd error degrades
-// the verification step rather than failing the whole sweep.
+// fetchDesiredServiceTargets reads ServiceRelease and
+// InfrastructureRelease objects via the cluster_controller's typed
+// ListServiceReleasesJson + ListInfrastructureReleasesJson RPCs and
+// folds them into snap.DesiredServiceTargets keyed by canonical
+// service name.
 //
-// ServiceRelease keys:           /globular/resources/ServiceRelease/<name>
-// InfrastructureRelease keys:    /globular/resources/InfrastructureRelease/<name>
+// History: prior to v1.2.188 this function scanned
+// /globular/resources/{ServiceRelease,InfrastructureRelease}/* in
+// etcd directly. The cluster_controller owns those prefixes, so
+// cluster_doctor reading raw etcd violated
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+// The controller's handler reads via the same srv.resources typed
+// store; xDS-equivalent narrow projections (GetDesiredState) drop
+// fields verification needs (Status.Nodes, ResolvedBuildID,
+// RequiredNodes), so the JSON-on-wire pattern from ListServices
+// is reused.
+//
+// Best-effort: per-call errors degrade the verification step
+// without failing the whole sweep — matches the prior etcd-error
+// contract.
 func (c *Collector) fetchDesiredServiceTargets(ctx context.Context, snap *Snapshot) {
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		snap.addError("etcd", "GetEtcdClient(verification.targets)", err)
+	if c.controllerClient == nil {
+		snap.addError("cluster_controller", "controller client unavailable for verification targets", nil)
 		return
 	}
 
@@ -52,13 +63,12 @@ func (c *Collector) fetchDesiredServiceTargets(ctx context.Context, snap *Snapsh
 	defer cancel()
 
 	// ── ServiceRelease ──
-	srResp, err := cli.Get(loadCtx, "/globular/resources/ServiceRelease/", clientv3.WithPrefix())
-	if err != nil {
-		snap.addError("etcd", "Get(ServiceRelease/*)", err)
+	if srResp, err := c.controllerClient.ListServiceReleasesJson(loadCtx, &cluster_controllerpb.ListServiceReleasesJsonRequest{}); err != nil {
+		snap.addError("cluster_controller", "ListServiceReleasesJson", err)
 	} else {
-		for _, kv := range srResp.Kvs {
+		for _, raw := range srResp.GetReleasesJson() {
 			var rel cluster_controllerpb.ServiceRelease
-			if jerr := json.Unmarshal(kv.Value, &rel); jerr != nil {
+			if jerr := json.Unmarshal([]byte(raw), &rel); jerr != nil {
 				continue
 			}
 			tgt := serviceReleaseToTarget(&rel, snap.Nodes)
@@ -66,17 +76,16 @@ func (c *Collector) fetchDesiredServiceTargets(ctx context.Context, snap *Snapsh
 				snap.DesiredServiceTargets[tgt.Service] = tgt
 			}
 		}
-		snap.addSource("etcd.ServiceRelease/*")
+		snap.addSource("cluster_controller.ListServiceReleasesJson")
 	}
 
 	// ── InfrastructureRelease ──
-	irResp, err := cli.Get(loadCtx, "/globular/resources/InfrastructureRelease/", clientv3.WithPrefix())
-	if err != nil {
-		snap.addError("etcd", "Get(InfrastructureRelease/*)", err)
+	if irResp, err := c.controllerClient.ListInfrastructureReleasesJson(loadCtx, &cluster_controllerpb.ListInfrastructureReleasesJsonRequest{}); err != nil {
+		snap.addError("cluster_controller", "ListInfrastructureReleasesJson", err)
 	} else {
-		for _, kv := range irResp.Kvs {
+		for _, raw := range irResp.GetReleasesJson() {
 			var rel cluster_controllerpb.InfrastructureRelease
-			if jerr := json.Unmarshal(kv.Value, &rel); jerr != nil {
+			if jerr := json.Unmarshal([]byte(raw), &rel); jerr != nil {
 				continue
 			}
 			tgt := infraReleaseToTarget(&rel, snap.Nodes)
@@ -84,7 +93,7 @@ func (c *Collector) fetchDesiredServiceTargets(ctx context.Context, snap *Snapsh
 				snap.DesiredServiceTargets[tgt.Service] = tgt
 			}
 		}
-		snap.addSource("etcd.InfrastructureRelease/*")
+		snap.addSource("cluster_controller.ListInfrastructureReleasesJson")
 	}
 
 	// ── Enrich every target with entrypoint_checksum from the repo ──

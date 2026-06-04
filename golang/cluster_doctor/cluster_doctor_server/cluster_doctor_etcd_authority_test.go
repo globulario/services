@@ -140,19 +140,15 @@ func TestClusterDoctor_NoNewEtcdReads(t *testing.T) {
 	// test. The allowlist must shrink over time, never grow.
 	// Allowlist keyed by rel path under cluster_doctor/ (which is what
 	// `filepath.Rel(root, path)` returns inside the walk).
-	allowed := map[string]map[string]bool{
-		// readDesiredBuildIDs (repository_dns_invariants.go) and
-		// readDesiredVersions (package_version_authority.go) were the
-		// last two grandfathered rule readers — both REMOVED in
-		// v1.2.171. The rules now read Snapshot.{DesiredBuildIDIndex,
-		// DesiredVersionIndex}, populated by the collector via typed
-		// cluster_controller RPCs. The only remaining allow-listed
-		// direct read is fetchDesiredServiceTargets in collector/
-		// verification.go.
-		"cluster_doctor_server/collector/verification.go": {
-			"fetchDesiredServiceTargets": true,
-		},
-	}
+	// As of v1.2.188 the cluster_doctor read-side allowlist is
+	// empty. The last entry — fetchDesiredServiceTargets in
+	// collector/verification.go — was migrated to
+	// cluster_controller.{ListServiceReleasesJson,
+	// ListInfrastructureReleasesJson}. Any new direct read of
+	// /globular/{resources,nodes/*/packages}/* under
+	// cluster_doctor/ now requires explicit operator decision
+	// before this allowlist may grow.
+	allowed := map[string]map[string]bool{}
 
 	walkClusterDoctorGoFiles(t, root, func(path string, body []byte) {
 		matches := getRE.FindAllIndex(body, -1)

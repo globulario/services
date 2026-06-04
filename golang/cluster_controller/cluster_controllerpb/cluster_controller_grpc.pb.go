@@ -21,48 +21,50 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ClusterControllerService_GetClusterInfo_FullMethodName            = "/cluster_controller.ClusterControllerService/GetClusterInfo"
-	ClusterControllerService_CreateJoinToken_FullMethodName           = "/cluster_controller.ClusterControllerService/CreateJoinToken"
-	ClusterControllerService_RequestJoin_FullMethodName               = "/cluster_controller.ClusterControllerService/RequestJoin"
-	ClusterControllerService_ListJoinRequests_FullMethodName          = "/cluster_controller.ClusterControllerService/ListJoinRequests"
-	ClusterControllerService_ApproveJoin_FullMethodName               = "/cluster_controller.ClusterControllerService/ApproveJoin"
-	ClusterControllerService_RejectJoin_FullMethodName                = "/cluster_controller.ClusterControllerService/RejectJoin"
-	ClusterControllerService_ListNodes_FullMethodName                 = "/cluster_controller.ClusterControllerService/ListNodes"
-	ClusterControllerService_ResolveNode_FullMethodName               = "/cluster_controller.ClusterControllerService/ResolveNode"
-	ClusterControllerService_SetNodeProfiles_FullMethodName           = "/cluster_controller.ClusterControllerService/SetNodeProfiles"
-	ClusterControllerService_SetNodeBootstrapPhase_FullMethodName     = "/cluster_controller.ClusterControllerService/SetNodeBootstrapPhase"
-	ClusterControllerService_EmitWorkflowEvent_FullMethodName         = "/cluster_controller.ClusterControllerService/EmitWorkflowEvent"
-	ClusterControllerService_RemoveNode_FullMethodName                = "/cluster_controller.ClusterControllerService/RemoveNode"
-	ClusterControllerService_GetClusterHealth_FullMethodName          = "/cluster_controller.ClusterControllerService/GetClusterHealth"
-	ClusterControllerService_UpdateClusterNetwork_FullMethodName      = "/cluster_controller.ClusterControllerService/UpdateClusterNetwork"
-	ClusterControllerService_ReportNodeStatus_FullMethodName          = "/cluster_controller.ClusterControllerService/ReportNodeStatus"
-	ClusterControllerService_GetJoinRequestStatus_FullMethodName      = "/cluster_controller.ClusterControllerService/GetJoinRequestStatus"
-	ClusterControllerService_UpgradeGlobular_FullMethodName           = "/cluster_controller.ClusterControllerService/UpgradeGlobular"
-	ClusterControllerService_CompleteOperation_FullMethodName         = "/cluster_controller.ClusterControllerService/CompleteOperation"
-	ClusterControllerService_WatchOperations_FullMethodName           = "/cluster_controller.ClusterControllerService/WatchOperations"
-	ClusterControllerService_GetClusterHealthV1_FullMethodName        = "/cluster_controller.ClusterControllerService/GetClusterHealthV1"
-	ClusterControllerService_GetSubsystemHealth_FullMethodName        = "/cluster_controller.ClusterControllerService/GetSubsystemHealth"
-	ClusterControllerService_GetNodeHealthDetailV1_FullMethodName     = "/cluster_controller.ClusterControllerService/GetNodeHealthDetailV1"
-	ClusterControllerService_PreviewNodeProfiles_FullMethodName       = "/cluster_controller.ClusterControllerService/PreviewNodeProfiles"
-	ClusterControllerService_GetDesiredState_FullMethodName           = "/cluster_controller.ClusterControllerService/GetDesiredState"
-	ClusterControllerService_ListDesiredBuildIDs_FullMethodName       = "/cluster_controller.ClusterControllerService/ListDesiredBuildIDs"
-	ClusterControllerService_GetRoutingRefresh_FullMethodName         = "/cluster_controller.ClusterControllerService/GetRoutingRefresh"
-	ClusterControllerService_ListExternalDomains_FullMethodName       = "/cluster_controller.ClusterControllerService/ListExternalDomains"
-	ClusterControllerService_ListServices_FullMethodName              = "/cluster_controller.ClusterControllerService/ListServices"
-	ClusterControllerService_GetIngressStatus_FullMethodName          = "/cluster_controller.ClusterControllerService/GetIngressStatus"
-	ClusterControllerService_RequestIngressRepublish_FullMethodName   = "/cluster_controller.ClusterControllerService/RequestIngressRepublish"
-	ClusterControllerService_CreateExternalDomain_FullMethodName      = "/cluster_controller.ClusterControllerService/CreateExternalDomain"
-	ClusterControllerService_DeleteExternalDomain_FullMethodName      = "/cluster_controller.ClusterControllerService/DeleteExternalDomain"
-	ClusterControllerService_CreateDNSProvider_FullMethodName         = "/cluster_controller.ClusterControllerService/CreateDNSProvider"
-	ClusterControllerService_ListDNSProviders_FullMethodName          = "/cluster_controller.ClusterControllerService/ListDNSProviders"
-	ClusterControllerService_UpsertDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/UpsertDesiredService"
-	ClusterControllerService_RemoveDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/RemoveDesiredService"
-	ClusterControllerService_SeedDesiredState_FullMethodName          = "/cluster_controller.ClusterControllerService/SeedDesiredState"
-	ClusterControllerService_ValidateArtifact_FullMethodName          = "/cluster_controller.ClusterControllerService/ValidateArtifact"
-	ClusterControllerService_PreviewDesiredServices_FullMethodName    = "/cluster_controller.ClusterControllerService/PreviewDesiredServices"
-	ClusterControllerService_ResignLeadership_FullMethodName          = "/cluster_controller.ClusterControllerService/ResignLeadership"
-	ClusterControllerService_DeployControlPlanePackage_FullMethodName = "/cluster_controller.ClusterControllerService/DeployControlPlanePackage"
-	ClusterControllerService_RequestJoinAuthorization_FullMethodName  = "/cluster_controller.ClusterControllerService/RequestJoinAuthorization"
+	ClusterControllerService_GetClusterInfo_FullMethodName                 = "/cluster_controller.ClusterControllerService/GetClusterInfo"
+	ClusterControllerService_CreateJoinToken_FullMethodName                = "/cluster_controller.ClusterControllerService/CreateJoinToken"
+	ClusterControllerService_RequestJoin_FullMethodName                    = "/cluster_controller.ClusterControllerService/RequestJoin"
+	ClusterControllerService_ListJoinRequests_FullMethodName               = "/cluster_controller.ClusterControllerService/ListJoinRequests"
+	ClusterControllerService_ApproveJoin_FullMethodName                    = "/cluster_controller.ClusterControllerService/ApproveJoin"
+	ClusterControllerService_RejectJoin_FullMethodName                     = "/cluster_controller.ClusterControllerService/RejectJoin"
+	ClusterControllerService_ListNodes_FullMethodName                      = "/cluster_controller.ClusterControllerService/ListNodes"
+	ClusterControllerService_ResolveNode_FullMethodName                    = "/cluster_controller.ClusterControllerService/ResolveNode"
+	ClusterControllerService_SetNodeProfiles_FullMethodName                = "/cluster_controller.ClusterControllerService/SetNodeProfiles"
+	ClusterControllerService_SetNodeBootstrapPhase_FullMethodName          = "/cluster_controller.ClusterControllerService/SetNodeBootstrapPhase"
+	ClusterControllerService_EmitWorkflowEvent_FullMethodName              = "/cluster_controller.ClusterControllerService/EmitWorkflowEvent"
+	ClusterControllerService_RemoveNode_FullMethodName                     = "/cluster_controller.ClusterControllerService/RemoveNode"
+	ClusterControllerService_GetClusterHealth_FullMethodName               = "/cluster_controller.ClusterControllerService/GetClusterHealth"
+	ClusterControllerService_UpdateClusterNetwork_FullMethodName           = "/cluster_controller.ClusterControllerService/UpdateClusterNetwork"
+	ClusterControllerService_ReportNodeStatus_FullMethodName               = "/cluster_controller.ClusterControllerService/ReportNodeStatus"
+	ClusterControllerService_GetJoinRequestStatus_FullMethodName           = "/cluster_controller.ClusterControllerService/GetJoinRequestStatus"
+	ClusterControllerService_UpgradeGlobular_FullMethodName                = "/cluster_controller.ClusterControllerService/UpgradeGlobular"
+	ClusterControllerService_CompleteOperation_FullMethodName              = "/cluster_controller.ClusterControllerService/CompleteOperation"
+	ClusterControllerService_WatchOperations_FullMethodName                = "/cluster_controller.ClusterControllerService/WatchOperations"
+	ClusterControllerService_GetClusterHealthV1_FullMethodName             = "/cluster_controller.ClusterControllerService/GetClusterHealthV1"
+	ClusterControllerService_GetSubsystemHealth_FullMethodName             = "/cluster_controller.ClusterControllerService/GetSubsystemHealth"
+	ClusterControllerService_GetNodeHealthDetailV1_FullMethodName          = "/cluster_controller.ClusterControllerService/GetNodeHealthDetailV1"
+	ClusterControllerService_PreviewNodeProfiles_FullMethodName            = "/cluster_controller.ClusterControllerService/PreviewNodeProfiles"
+	ClusterControllerService_GetDesiredState_FullMethodName                = "/cluster_controller.ClusterControllerService/GetDesiredState"
+	ClusterControllerService_ListDesiredBuildIDs_FullMethodName            = "/cluster_controller.ClusterControllerService/ListDesiredBuildIDs"
+	ClusterControllerService_GetRoutingRefresh_FullMethodName              = "/cluster_controller.ClusterControllerService/GetRoutingRefresh"
+	ClusterControllerService_ListExternalDomains_FullMethodName            = "/cluster_controller.ClusterControllerService/ListExternalDomains"
+	ClusterControllerService_ListServices_FullMethodName                   = "/cluster_controller.ClusterControllerService/ListServices"
+	ClusterControllerService_GetIngressStatus_FullMethodName               = "/cluster_controller.ClusterControllerService/GetIngressStatus"
+	ClusterControllerService_RequestIngressRepublish_FullMethodName        = "/cluster_controller.ClusterControllerService/RequestIngressRepublish"
+	ClusterControllerService_CreateExternalDomain_FullMethodName           = "/cluster_controller.ClusterControllerService/CreateExternalDomain"
+	ClusterControllerService_DeleteExternalDomain_FullMethodName           = "/cluster_controller.ClusterControllerService/DeleteExternalDomain"
+	ClusterControllerService_CreateDNSProvider_FullMethodName              = "/cluster_controller.ClusterControllerService/CreateDNSProvider"
+	ClusterControllerService_ListDNSProviders_FullMethodName               = "/cluster_controller.ClusterControllerService/ListDNSProviders"
+	ClusterControllerService_ListServiceReleasesJson_FullMethodName        = "/cluster_controller.ClusterControllerService/ListServiceReleasesJson"
+	ClusterControllerService_ListInfrastructureReleasesJson_FullMethodName = "/cluster_controller.ClusterControllerService/ListInfrastructureReleasesJson"
+	ClusterControllerService_UpsertDesiredService_FullMethodName           = "/cluster_controller.ClusterControllerService/UpsertDesiredService"
+	ClusterControllerService_RemoveDesiredService_FullMethodName           = "/cluster_controller.ClusterControllerService/RemoveDesiredService"
+	ClusterControllerService_SeedDesiredState_FullMethodName               = "/cluster_controller.ClusterControllerService/SeedDesiredState"
+	ClusterControllerService_ValidateArtifact_FullMethodName               = "/cluster_controller.ClusterControllerService/ValidateArtifact"
+	ClusterControllerService_PreviewDesiredServices_FullMethodName         = "/cluster_controller.ClusterControllerService/PreviewDesiredServices"
+	ClusterControllerService_ResignLeadership_FullMethodName               = "/cluster_controller.ClusterControllerService/ResignLeadership"
+	ClusterControllerService_DeployControlPlanePackage_FullMethodName      = "/cluster_controller.ClusterControllerService/DeployControlPlanePackage"
+	ClusterControllerService_RequestJoinAuthorization_FullMethodName       = "/cluster_controller.ClusterControllerService/RequestJoinAuthorization"
 )
 
 // ClusterControllerServiceClient is the client API for ClusterControllerService service.
@@ -196,6 +198,23 @@ type ClusterControllerServiceClient interface {
 	// type, zone, default TTL, and the count (not values) of credential
 	// keys held server-side. Replaces the prior CLI etcd prefix scan.
 	ListDNSProviders(ctx context.Context, in *ListDNSProvidersRequest, opts ...grpc.CallOption) (*ListDNSProvidersResponse, error)
+	// ListServiceReleases returns every ServiceRelease object the
+	// controller manages, encoded as JSON strings. cluster_doctor's
+	// verification step consumes the full typed structs (resolved
+	// build_id, status.nodes, required_nodes, …) that the narrow
+	// GetDesiredState projection drops. Wire format is JSON per
+	// release because the Go types are not yet proto-generated;
+	// consumers json.Unmarshal each string into
+	// cluster_controllerpb.ServiceRelease as before.
+	//
+	// The cluster_controller owns /globular/resources/ServiceRelease/* —
+	// consumers MUST call this RPC instead of scanning etcd directly
+	// per invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	ListServiceReleasesJson(ctx context.Context, in *ListServiceReleasesJsonRequest, opts ...grpc.CallOption) (*ListServiceReleasesJsonResponse, error)
+	// ListInfrastructureReleasesJson is the parallel RPC for
+	// /globular/resources/InfrastructureRelease/*. Same wire format
+	// and rationale as ListServiceReleasesJson.
+	ListInfrastructureReleasesJson(ctx context.Context, in *ListInfrastructureReleasesJsonRequest, opts ...grpc.CallOption) (*ListInfrastructureReleasesJsonResponse, error)
 	UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	RemoveDesiredService(ctx context.Context, in *RemoveDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	SeedDesiredState(ctx context.Context, in *SeedDesiredStateRequest, opts ...grpc.CallOption) (*DesiredState, error)
@@ -573,6 +592,26 @@ func (c *clusterControllerServiceClient) ListDNSProviders(ctx context.Context, i
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) ListServiceReleasesJson(ctx context.Context, in *ListServiceReleasesJsonRequest, opts ...grpc.CallOption) (*ListServiceReleasesJsonResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListServiceReleasesJsonResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ListServiceReleasesJson_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) ListInfrastructureReleasesJson(ctx context.Context, in *ListInfrastructureReleasesJsonRequest, opts ...grpc.CallOption) (*ListInfrastructureReleasesJsonResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListInfrastructureReleasesJsonResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ListInfrastructureReleasesJson_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DesiredState)
@@ -784,6 +823,23 @@ type ClusterControllerServiceServer interface {
 	// type, zone, default TTL, and the count (not values) of credential
 	// keys held server-side. Replaces the prior CLI etcd prefix scan.
 	ListDNSProviders(context.Context, *ListDNSProvidersRequest) (*ListDNSProvidersResponse, error)
+	// ListServiceReleases returns every ServiceRelease object the
+	// controller manages, encoded as JSON strings. cluster_doctor's
+	// verification step consumes the full typed structs (resolved
+	// build_id, status.nodes, required_nodes, …) that the narrow
+	// GetDesiredState projection drops. Wire format is JSON per
+	// release because the Go types are not yet proto-generated;
+	// consumers json.Unmarshal each string into
+	// cluster_controllerpb.ServiceRelease as before.
+	//
+	// The cluster_controller owns /globular/resources/ServiceRelease/* —
+	// consumers MUST call this RPC instead of scanning etcd directly
+	// per invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	ListServiceReleasesJson(context.Context, *ListServiceReleasesJsonRequest) (*ListServiceReleasesJsonResponse, error)
+	// ListInfrastructureReleasesJson is the parallel RPC for
+	// /globular/resources/InfrastructureRelease/*. Same wire format
+	// and rationale as ListServiceReleasesJson.
+	ListInfrastructureReleasesJson(context.Context, *ListInfrastructureReleasesJsonRequest) (*ListInfrastructureReleasesJsonResponse, error)
 	UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error)
 	RemoveDesiredService(context.Context, *RemoveDesiredServiceRequest) (*DesiredState, error)
 	SeedDesiredState(context.Context, *SeedDesiredStateRequest) (*DesiredState, error)
@@ -912,6 +968,12 @@ func (UnimplementedClusterControllerServiceServer) CreateDNSProvider(context.Con
 }
 func (UnimplementedClusterControllerServiceServer) ListDNSProviders(context.Context, *ListDNSProvidersRequest) (*ListDNSProvidersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListDNSProviders not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ListServiceReleasesJson(context.Context, *ListServiceReleasesJsonRequest) (*ListServiceReleasesJsonResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListServiceReleasesJson not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ListInfrastructureReleasesJson(context.Context, *ListInfrastructureReleasesJsonRequest) (*ListInfrastructureReleasesJsonResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListInfrastructureReleasesJson not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpsertDesiredService not implemented")
@@ -1562,6 +1624,42 @@ func _ClusterControllerService_ListDNSProviders_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_ListServiceReleasesJson_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListServiceReleasesJsonRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ListServiceReleasesJson(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ListServiceReleasesJson_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ListServiceReleasesJson(ctx, req.(*ListServiceReleasesJsonRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_ListInfrastructureReleasesJson_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListInfrastructureReleasesJsonRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ListInfrastructureReleasesJson(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ListInfrastructureReleasesJson_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ListInfrastructureReleasesJson(ctx, req.(*ListInfrastructureReleasesJsonRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_UpsertDesiredService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertDesiredServiceRequest)
 	if err := dec(in); err != nil {
@@ -1844,6 +1942,14 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListDNSProviders",
 			Handler:    _ClusterControllerService_ListDNSProviders_Handler,
+		},
+		{
+			MethodName: "ListServiceReleasesJson",
+			Handler:    _ClusterControllerService_ListServiceReleasesJson_Handler,
+		},
+		{
+			MethodName: "ListInfrastructureReleasesJson",
+			Handler:    _ClusterControllerService_ListInfrastructureReleasesJson_Handler,
 		},
 		{
 			MethodName: "UpsertDesiredService",
