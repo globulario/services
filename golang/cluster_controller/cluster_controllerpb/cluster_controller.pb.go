@@ -4779,7 +4779,14 @@ type DesiredService struct {
 	BuildNumber int64  `protobuf:"varint,4,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"` // build iteration within version (0 = legacy)
 	// Release workflow phase: PENDING, RESOLVED, APPLYING, AVAILABLE, DEGRADED,
 	// FAILED, ROLLED_BACK, REMOVING, REMOVED. Empty if no release exists yet.
-	Status        string `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`
+	Status string `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`
+	// Exact artifact identity (UUIDv7, repository-allocated). Carried so
+	// consumers like globularcli's desired-state canon/repair commands
+	// can read build_id via this typed RPC instead of scanning
+	// /globular/resources/* etcd directly — anchored by
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	// Empty for legacy records that never had a build_id pin (pre-Phase 2).
+	BuildId       string `protobuf:"bytes,6,opt,name=build_id,json=buildId,proto3" json:"build_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4845,6 +4852,13 @@ func (x *DesiredService) GetBuildNumber() int64 {
 func (x *DesiredService) GetStatus() string {
 	if x != nil {
 		return x.Status
+	}
+	return ""
+}
+
+func (x *DesiredService) GetBuildId() string {
+	if x != nil {
+		return x.BuildId
 	}
 	return ""
 }
@@ -6473,14 +6487,15 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\vconfig_diff\x18\x03 \x03(\v2\".cluster_controller.ConfigFileDiffR\n" +
 	"configDiff\x12#\n" +
 	"\rrestart_units\x18\x04 \x03(\tR\frestartUnits\x12K\n" +
-	"\x0eaffected_nodes\x18\x05 \x03(\v2$.cluster_controller.AffectedNodeDiffR\raffectedNodes\"\xa0\x01\n" +
+	"\x0eaffected_nodes\x18\x05 \x03(\v2$.cluster_controller.AffectedNodeDiffR\raffectedNodes\"\xbb\x01\n" +
 	"\x0eDesiredService\x12\x1d\n" +
 	"\n" +
 	"service_id\x18\x01 \x01(\tR\tserviceId\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1a\n" +
 	"\bplatform\x18\x03 \x01(\tR\bplatform\x12!\n" +
 	"\fbuild_number\x18\x04 \x01(\x03R\vbuildNumber\x12\x16\n" +
-	"\x06status\x18\x05 \x01(\tR\x06status\"j\n" +
+	"\x06status\x18\x05 \x01(\tR\x06status\x12\x19\n" +
+	"\bbuild_id\x18\x06 \x01(\tR\abuildId\"j\n" +
 	"\fDesiredState\x12>\n" +
 	"\bservices\x18\x01 \x03(\v2\".cluster_controller.DesiredServiceR\bservices\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\tR\brevision\"\x1c\n" +

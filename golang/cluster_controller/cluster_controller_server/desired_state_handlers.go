@@ -115,6 +115,7 @@ func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_control
 			ServiceId:   canon,
 			Version:     sdv.Spec.Version,
 			BuildNumber: sdv.Spec.BuildNumber,
+			BuildId:     sdv.Spec.BuildID,
 			Status:      releasePhases[canon],
 		})
 	}
@@ -139,6 +140,7 @@ func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_control
 				ServiceId:   canon,
 				Version:     rel.Spec.Version,
 				BuildNumber: rel.Spec.BuildNumber,
+				BuildId:     rel.Spec.BuildID,
 				Status:      releasePhases[canon],
 			})
 		}
@@ -162,6 +164,7 @@ func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_control
 				ServiceId:   name,
 				Version:     rel.Spec.Version,
 				BuildNumber: rel.Spec.BuildNumber,
+				BuildId:     rel.Spec.BuildID,
 				Status:      releasePhases[name],
 			})
 		}

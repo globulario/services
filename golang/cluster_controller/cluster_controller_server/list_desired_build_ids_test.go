@@ -136,3 +136,63 @@ func TestListDesiredBuildIDs_NilResourceStore(t *testing.T) {
 		t.Fatalf("expected error when resources is nil, got nil")
 	}
 }
+
+// TestGetDesiredState_PopulatesBuildId asserts the v1.2.172 proto
+// extension: DesiredService.build_id MUST flow through GetDesiredState
+// so globularcli (and other consumers) can read it via the typed RPC
+// instead of scanning /globular/resources/ServiceDesiredVersion/* in
+// etcd directly. Anchored by
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+func TestGetDesiredState_PopulatesBuildId(t *testing.T) {
+	ctx := context.Background()
+	store := resourcestore.NewMemStore()
+	srv := &server{resources: store}
+
+	mustApply := func(typ string, obj interface{}) {
+		t.Helper()
+		if _, err := store.Apply(ctx, typ, obj); err != nil {
+			t.Fatalf("apply %s: %v", typ, err)
+		}
+	}
+
+	mustApply("ServiceDesiredVersion", &cluster_controllerpb.ServiceDesiredVersion{
+		Meta: &cluster_controllerpb.ObjectMeta{Name: "echo"},
+		Spec: &cluster_controllerpb.ServiceDesiredVersionSpec{
+			ServiceName: "echo",
+			Version:     "1.2.3",
+			BuildNumber: 7,
+			BuildID:     "sdv-build-id-7",
+		},
+	})
+
+	mustApply("InfrastructureRelease", &cluster_controllerpb.InfrastructureRelease{
+		Meta: &cluster_controllerpb.ObjectMeta{Name: "core@globular.io/etcd"},
+		Spec: &cluster_controllerpb.InfrastructureReleaseSpec{
+			Component:   "etcd",
+			Version:     "3.5.0",
+			BuildNumber: 1,
+			BuildID:     "infra-build-id-1",
+		},
+	})
+
+	resp, err := srv.GetDesiredState(ctx, nil)
+	if err != nil {
+		t.Fatalf("GetDesiredState: %v", err)
+	}
+
+	byID := make(map[string]*cluster_controllerpb.DesiredService)
+	for _, svc := range resp.GetServices() {
+		byID[svc.GetServiceId()] = svc
+	}
+
+	if echo := byID["echo"]; echo == nil {
+		t.Fatalf("echo missing from response: %+v", byID)
+	} else if echo.GetBuildId() != "sdv-build-id-7" {
+		t.Errorf("echo build_id = %q want %q", echo.GetBuildId(), "sdv-build-id-7")
+	}
+	if etcd := byID["etcd"]; etcd == nil {
+		t.Fatalf("etcd missing from response: %+v", byID)
+	} else if etcd.GetBuildId() != "infra-build-id-1" {
+		t.Errorf("etcd build_id = %q want %q", etcd.GetBuildId(), "infra-build-id-1")
+	}
+}

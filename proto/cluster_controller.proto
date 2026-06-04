@@ -872,6 +872,13 @@ message DesiredService {
   // Release workflow phase: PENDING, RESOLVED, APPLYING, AVAILABLE, DEGRADED,
   // FAILED, ROLLED_BACK, REMOVING, REMOVED. Empty if no release exists yet.
   string status = 5;
+  // Exact artifact identity (UUIDv7, repository-allocated). Carried so
+  // consumers like globularcli's desired-state canon/repair commands
+  // can read build_id via this typed RPC instead of scanning
+  // /globular/resources/* etcd directly — anchored by
+  // invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+  // Empty for legacy records that never had a build_id pin (pre-Phase 2).
+  string build_id = 6;
 }
 
 // DesiredState is the full desired-service plan returned by every write RPC.
