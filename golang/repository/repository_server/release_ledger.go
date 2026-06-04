@@ -170,6 +170,32 @@ func (srv *server) writeLedgerToScylla(ctx context.Context, ledger *releaseLedge
 // ledgerMu serializes ledger writes to prevent concurrent modification.
 var ledgerMu sync.Mutex
 
+// AppendToLedgerOpts carries optional behaviour switches for appendToLedger.
+//
+// RecoveryArtifactKey, when non-empty, asserts that the caller is completing
+// a previously-partial import currently sitting at artifact_state =
+// MANIFEST_WRITTEN. When the assertion is verified (state lookup confirms
+// MANIFEST_WRITTEN), the monotonicity check is BYPASSED so that an older
+// version that's already partially imported can finish its promotion to
+// PUBLISHED even after a newer version was published in the meantime.
+//
+// All other ledger gates remain in force:
+//   - version+platform immutability (no duplicate PUBLISHED identity)
+//   - idempotent re-promote (same build_id already in ledger → no-op)
+//   - LatestVersion/LatestBuildID anchor only advances on cmp > 0
+//     (an older recovery never bumps "latest")
+//
+// If the state lookup returns anything other than MANIFEST_WRITTEN
+// (PUBLISHED, REVOKED, QUARANTINED, BROKEN_*, UNSPECIFIED), the recovery
+// claim is rejected silently and the normal monotonicity check applies —
+// fail-closed by construction. This is what prevents the recovery path
+// from being abused to publish a brand-new older version below latest:
+// such a publish has no MANIFEST_WRITTEN row at the asserted key, so the
+// bypass simply doesn't engage.
+type AppendToLedgerOpts struct {
+	RecoveryArtifactKey string
+}
+
 // appendToLedger adds a new release entry to the package's ledger.
 // Called after successful promote-to-PUBLISHED.
 // Returns an error if the version is not monotonically increasing.
@@ -182,9 +208,18 @@ var ledgerMu sync.Mutex
 // this is the THIRD immutability gate after the seal (Phase 31) and the
 // version resolver (Phase 32) that must be repair-aware for the repair lane
 // to be resolver-visible end-to-end. See repair_authorization.go.
-func (srv *server) appendToLedger(ctx context.Context, publisher, name, version, buildID, digest, platform string, sizeBytes int64, repair *RepairAuthorization) error {
+//
+// `opts` (variadic, at most one element honoured) lets the sync retry path
+// signal that this is a recovery of a stuck partial import. See
+// AppendToLedgerOpts for the verification + bypass scope.
+func (srv *server) appendToLedger(ctx context.Context, publisher, name, version, buildID, digest, platform string, sizeBytes int64, repair *RepairAuthorization, opts ...AppendToLedgerOpts) error {
 	ledgerMu.Lock()
 	defer ledgerMu.Unlock()
+
+	var recoveryKey string
+	if len(opts) > 0 {
+		recoveryKey = strings.TrimSpace(opts[0].RecoveryArtifactKey)
+	}
 
 	ledger := srv.readLedger(ctx, publisher, name)
 	if ledger == nil {
@@ -194,8 +229,27 @@ func (srv *server) appendToLedger(ctx context.Context, publisher, name, version,
 		}
 	}
 
+	// Verified-recovery detection: the caller asserted this is a completion
+	// of a partial import. Trust the assertion ONLY when artifact_state for
+	// the asserted key is exactly MANIFEST_WRITTEN. Any other state (or
+	// missing row) falls through to the normal monotonicity check below.
+	verifiedRecovery := false
+	if recoveryKey != "" {
+		if srv.readArtifactState(ctx, recoveryKey) == PipelineManifestWritten {
+			verifiedRecovery = true
+			slog.Info("release ledger: verified recovery of stuck partial import — bypassing monotonicity check",
+				"publisher", publisher, "name", name, "version", version,
+				"build_id", buildID, "artifact_key", recoveryKey,
+				"latest_published_version", ledger.LatestVersion,
+			)
+		}
+	}
+
 	// Monotonic version enforcement: new version must be > latest.
-	if ledger.LatestVersion != "" && version != ledger.LatestVersion {
+	// Skipped for verified recoveries (see verifiedRecovery above). The
+	// version+platform immutability check below still applies, so we cannot
+	// create a duplicate PUBLISHED identity even on the recovery path.
+	if !verifiedRecovery && ledger.LatestVersion != "" && version != ledger.LatestVersion {
 		cmp, err := versionutil.Compare(version, ledger.LatestVersion)
 		if err == nil && cmp < 0 {
 			return fmt.Errorf("non-monotonic version: %s < latest %s for %s/%s",
@@ -321,21 +375,35 @@ func (srv *server) getExactRelease(ctx context.Context, publisher, name, version
 
 // getLatestRelease returns the latest PUBLISHED build_id for a package on a
 // specific platform. Returns ("", "") if no release exists.
+//
+// Selects by maximum SemVer version (via versionutil.Compare), NOT by
+// insertion order. Pre-recovery-bypass the two were the same because the
+// monotonicity check guaranteed insertion-order == version-order. The
+// MANIFEST_WRITTEN recovery path (see AppendToLedgerOpts) can append an
+// older version AFTER a newer one, so insertion-order-reverse would be
+// wrong. The explicit ledger.LatestVersion anchor remains authoritative;
+// this function uses Compare to honour it across platform-filtered queries
+// (where the anchor's platform may differ from the caller's).
 func (srv *server) getLatestRelease(ctx context.Context, publisher, name, platform string) (version, buildID string) {
 	ledger := srv.readLedger(ctx, publisher, name)
 	if ledger == nil {
 		return "", ""
 	}
 
-	// Walk releases in reverse (newest first) to find the latest for this platform.
-	for i := len(ledger.Releases) - 1; i >= 0; i-- {
-		r := ledger.Releases[i]
-		if r.Platform == platform || platform == "" {
-			return r.Version, r.BuildID
+	for _, r := range ledger.Releases {
+		if r.Platform != platform && platform != "" {
+			continue
+		}
+		if version == "" {
+			version, buildID = r.Version, r.BuildID
+			continue
+		}
+		cmp, err := versionutil.Compare(r.Version, version)
+		if err == nil && cmp > 0 {
+			version, buildID = r.Version, r.BuildID
 		}
 	}
-
-	return "", ""
+	return version, buildID
 }
 
 // ── Ledger migration ────────────────────────────────────────────────────

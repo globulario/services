@@ -888,8 +888,13 @@ func (srv *server) importUpstreamArtifact(
 					case PipelineManifestWritten:
 						// Ledger append was interrupted on a prior sync; retry to complete
 						// the pipeline. appendToLedger is idempotent for the same build_id.
+						// Pass RecoveryArtifactKey so the ledger relaxes the monotonicity
+						// check when this is a verified recovery of an older version
+						// (e.g. cluster-controller@1.2.153 finishing its import after a
+						// newer 1.2.155 was force-rebuilt mid-flight).
 						if ledgerErr := srv.appendToLedger(ctx, n.Publisher, n.Name, n.Version,
-							n.BuildID, existingByID.GetChecksum(), n.Platform, existingByID.GetSizeBytes(), nil); ledgerErr != nil {
+							n.BuildID, existingByID.GetChecksum(), n.Platform, existingByID.GetSizeBytes(), nil,
+							AppendToLedgerOpts{RecoveryArtifactKey: existingBuildKey}); ledgerErr != nil {
 							slog.Error("upstream: idempotent ledger retry failed — artifact stays at MANIFEST_WRITTEN",
 								"key", existingBuildKey, "err", ledgerErr)
 							return fmt.Errorf("append to ledger (retry): %w", ledgerErr)
@@ -953,7 +958,8 @@ func (srv *server) importUpstreamArtifact(
 					switch curr {
 					case PipelineManifestWritten:
 						if ledgerErr := srv.appendToLedger(ctx, n.Publisher, n.Name, n.Version,
-							existing.GetBuildId(), digest, n.Platform, existing.GetSizeBytes(), nil); ledgerErr != nil {
+							existing.GetBuildId(), digest, n.Platform, existing.GetSizeBytes(), nil,
+							AppendToLedgerOpts{RecoveryArtifactKey: existingKey}); ledgerErr != nil {
 							slog.Error("upstream: idempotent ledger retry (digest path) failed — artifact stays at MANIFEST_WRITTEN",
 								"key", existingKey, "err", ledgerErr)
 							return fmt.Errorf("append to ledger (retry): %w", ledgerErr)
