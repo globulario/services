@@ -87,6 +87,15 @@ code_symbols:
         - globular.platform:invariant.controller.apply_package_release_requires_manifest_checksum
       implements:
         - globular.platform:intent.node_agent.install_claim_requires_binary_proof
+  - id: globular.platform:code.go.platform_node_agent.actions.verify_integrity_authority_pin
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/internal/actions/verify_integrity_authority_pin_test.go
+    component: platform_node_agent.actions.verify_integrity_authority_pin
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - id: globular.platform:code.go.platform_node_agent.control_service
     namespace: globular.platform
     language: go

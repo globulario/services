@@ -90,6 +90,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	// Sweep stale runtime dependency blocks (e.g. scylla-manager blocked on
 	// scylladb join race) once node health/join phases are updated.
 	srv.sweepRuntimeDepBlocks(ctx, nodes)
+	srv.sweepCriticalKeyBlocks(ctx, nodes)
 
 	for _, node := range nodes {
 		if node == nil || node.NodeID == "" {

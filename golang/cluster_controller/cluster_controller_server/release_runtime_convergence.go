@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -241,6 +242,8 @@ func classifyPackageConvergence(
 			pc.RuntimeState = RuntimeUnknown
 		default:
 			pc.RuntimeState = RuntimeUnknown
+			log.Printf("classifyPackageConvergence: unexpected systemd state=%q for unit=%s on node=%s",
+				state, unit, node.NodeID)
 		}
 		pc.RepairRequired = true
 		pc.Reason = fmt.Sprintf("%s state=%s", unit, state)
@@ -340,6 +343,8 @@ func (srv *server) lookupResolvedEntrypointChecksum(ctx context.Context, publish
 	case "APPLICATION":
 		candidates = []string{"ApplicationRelease", "ServiceRelease", "InfrastructureRelease"}
 	default:
+		log.Printf("lookupResolvedEntrypointChecksum: unexpected kind=%q for package=%s — falling back to all release types",
+			kind, pkgName)
 		candidates = []string{"ServiceRelease", "InfrastructureRelease", "ApplicationRelease"}
 	}
 	for _, rt := range candidates {

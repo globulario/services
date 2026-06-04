@@ -158,6 +158,17 @@ code_symbols:
       implements:
         - globular.platform:intent.repository.publish_pipeline_is_ordered
         - globular.platform:intent.repository.lifecycle_state_machine
+  - id: globular.platform:code.go.platform_repository.reachability_guard_authority_pin
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/reachability_guard_authority_pin_test.go
+    component: platform_repository.reachability_guard_authority_pin
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+        - globular.platform:invariant.repository.desired_build_id_is_hard_reachability_root
+        - globular.platform:invariant.repository.purge_must_not_delete_active_desired_builds
   - id: globular.platform:code.go.platform_repository.release_index
     namespace: globular.platform
     language: go

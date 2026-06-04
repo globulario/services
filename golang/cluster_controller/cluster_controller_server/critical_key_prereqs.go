@@ -107,6 +107,85 @@ func criticalKeyBlockActionID(nodeID, kind, pkgName string) string {
 	return fmt.Sprintf("controller/%s/%s/%s/critical_key_block", nodeID, kind, pkgName)
 }
 
+// clearCriticalKeyBlock deletes stale critical-key-block records for nodes
+// whose required etcd keys now exist. Both the action key and the
+// latest-outcome key are deleted so the reconciler re-dispatches the install.
+// Best-effort: errors are logged but do not abort the caller.
+func clearCriticalKeyBlock(ctx context.Context, nodeIDs []string, pkgName, kind string) {
+	for _, nodeID := range nodeIDs {
+		actionID := criticalKeyBlockActionID(nodeID, kind, pkgName)
+		bctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		if err := installed_state.DeleteConvergenceResult(bctx, actionID); err != nil {
+			log.Printf("critical-key-block: clear action for %s/%s on %s: %v", kind, pkgName, nodeID, err)
+		}
+		cancel()
+		cli, cerr := criticalKeyGetEtcdClient()
+		if cerr != nil {
+			log.Printf("critical-key-block: etcd client for latest clear %s/%s on %s: %v", kind, pkgName, nodeID, cerr)
+			continue
+		}
+		lctx, lcancel := context.WithTimeout(ctx, 5*time.Second)
+		latestKey := installed_state.ConvergenceLatestKey(nodeID, pkgName)
+		if _, err := cli.Delete(lctx, latestKey); err != nil {
+			log.Printf("critical-key-block: clear latest for %s/%s on %s: %v", kind, pkgName, nodeID, err)
+		}
+		lcancel()
+	}
+}
+
+// sweepCriticalKeyBlocks clears stale critical-key-block records where the
+// missing key now exists in etcd. Level-triggered safety net — without this,
+// a block written before the key appeared persists forever.
+func (srv *server) sweepCriticalKeyBlocks(ctx context.Context, nodes []*nodeState) {
+	for _, node := range nodes {
+		if node == nil || node.NodeID == "" {
+			continue
+		}
+		results, err := criticalKeyListResults(ctx, node.NodeID)
+		if err != nil {
+			log.Printf("critical-key-block: list results for %s: %v", node.NodeID, err)
+			continue
+		}
+		for _, r := range results {
+			if r == nil || r.Outcome != installed_state.OutcomeBlockedCriticalKeyMissing {
+				continue
+			}
+			pkgName := strings.TrimSpace(r.Package)
+			if pkgName == "" {
+				continue
+			}
+			// Extract the kind from the action ID.
+			kind := criticalKeyBlockKindFromActionID(r.ActionID)
+			if kind == "" {
+				kind = "SERVICE"
+			}
+			// Re-check: is the key still missing?
+			missingKey, checkErr := criticalKeyPrereqStatus(ctx, pkgName, kind)
+			if checkErr != nil || missingKey != "" {
+				continue // still blocked
+			}
+			clearCriticalKeyBlock(ctx, []string{node.NodeID}, pkgName, kind)
+			log.Printf("critical-key-block: auto-cleared stale block for %s/%s on %s",
+				kind, pkgName, node.NodeID)
+		}
+	}
+}
+
+func criticalKeyBlockKindFromActionID(actionID string) string {
+	// Format: controller/<node_id>/<kind>/<pkg>/critical_key_block
+	parts := strings.Split(actionID, "/")
+	if len(parts) < 5 || parts[0] != "controller" {
+		return ""
+	}
+	kind := strings.TrimSpace(parts[2])
+	switch kind {
+	case "SERVICE", "INFRASTRUCTURE", "WORKLOAD", "COMMAND":
+		return kind
+	default:
+		return ""
+	}
+}
+
 // clearRuntimeDepBlock deletes stale dep-block records for nodes whose
 // RuntimeLocalDependencies are now satisfied. Both the action key and the
 // latest-outcome key are deleted so the reconciler re-dispatches the install.

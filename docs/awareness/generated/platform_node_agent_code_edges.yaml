@@ -38,6 +38,9 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.actions.verify_integrity
     relation: implements
     to: globular.platform:intent.node_agent.install_claim_requires_binary_proof
+  - from: globular.platform:code.go.platform_node_agent.actions.verify_integrity_authority_pin
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - from: globular.platform:code.go.platform_node_agent.control_service
     relation: implements
     to: globular.platform:intent.node_agent.is_executor_not_cluster_brain

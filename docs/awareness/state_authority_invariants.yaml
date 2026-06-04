@@ -218,6 +218,379 @@ invariants:
       - fm.industry.partial_failure_hidden_by_global_green
       - fm.industry.missing_inventory_misclassified_as_down
 
+  # ── Generative meta-principles ────────────────────────────────────────────────
+  # These are not individual rules — they are the generating functions from which
+  # all specific authority invariants below (and in authority_rules.yaml) can be
+  # derived. An AI agent that internalizes these can reject violations even when
+  # no specific invariant has been written for the exact case yet.
+  #
+  # Origin: Dave + Claude, 2026-06-04. Derived from first principles, production
+  # incidents, and codebase audit.
+  #
+  # Categories (each is a different kind of thinking):
+  #   authority  — "who owns this truth, and is this code that owner?"
+  #   signal     — "is the truth arriving intact, or degraded/silent/absorbed?"
+  #   lifecycle  — "will this operation complete, and will I know if it doesn't?"
+  #   dependency — "what breaks if a non-critical thing fails?"
+
+  - id: meta.storage_is_not_semantic_authority
+    title: "Storage is not semantic authority — truth belongs to the owning actor, not the backing store"
+    category: authority
+    severity: critical
+    status: active
+    summary: |
+      A shared datasource (etcd, ScyllaDB, MinIO, local files) is only a source
+      of durable record. It is not automatically the source of truth. Truth belongs
+      to the actor that owns the semantic meaning of the state.
+
+      Before reading or writing state, classify:
+        1. What layer does this state belong to?
+        2. Which actor owns this truth?
+        3. Which typed RPC/API is the allowed read path?
+        4. Which typed RPC/API is the allowed write path?
+        5. What is the canonical source of identity?
+        6. Is the value mutable, immutable, observed, derived, or canonical?
+
+      If the code is not the owning actor, the access is architecturally wrong —
+      regardless of whether a specific invariant exists for that case yet.
+
+      Non-owner actors must not read another actor's backing store and call the
+      result truth. They must ask the owning actor through its typed API.
+      Non-owner actors must not write another actor's backing store, even for repair.
+      Admin/CLI/MCP/tests/migrations obey the same boundaries — "admin" means
+      authorized to call the owner, not authorized to bypass ownership.
+
+      If the correct owner/API does not exist yet, stop and design the smallest
+      owner-mediated API. Do not patch around with direct storage access.
+    enforcement: |
+      Every code path that reads or writes shared state must be traceable to the
+      owning actor's typed API. Direct storage access by non-owners is an
+      architectural violation. Temporary exceptions require an explicit allowlist
+      entry with a named migration target. The allowlist must shrink over time.
+    forbidden_fixes:
+      - forbidden.direct_store_read_as_truth
+      - forbidden.direct_store_write_for_repair
+      - forbidden.admin_bypass_ownership
+    related_failure_modes:
+      - fm.globular.objectstore_partial_snapshot
+      - fm.globular.vip_transition_cascade
+
+  - id: meta.fallback_must_degrade_semantics
+    title: "Fallback must degrade semantics — a fallback that returns the same shape as truth will be mistaken for truth"
+    category: signal
+    severity: critical
+    status: active
+    summary: |
+      Fallbacks may preserve availability, but they must not preserve the illusion
+      of certainty. A fallback value must not return through the same field/type/shape
+      as canonical truth unless explicitly marked as degraded, observed, approximate,
+      stale, or uncertified.
+
+      Every fallback result must expose: source of the value, whether it is canonical,
+      confidence/status, and what canonical source was unavailable.
+
+      A fallback must never silently upgrade itself into identity, intent, proof,
+      or authority. When a function returns "" for a missing cluster_id, or 0 for a
+      missing build_number, the caller cannot distinguish "canonical answer is empty"
+      from "couldn't reach the owner." The type is the same, so the lie propagates.
+    enforcement: |
+      Fallback return paths must use a distinct type, wrapper, or status field that
+      the caller can inspect. Returning zero-values or empty strings through the
+      same type as canonical truth is forbidden when the source is a fallback.
+    forbidden_fixes:
+      - forbidden.unknown_as_healthy
+      - forbidden.missing_inventory_as_down
+
+  - id: meta.authority_must_express_uncertainty
+    title: "Authority must express uncertainty — if the owner cannot say 'unknown', callers will turn silence into lies"
+    category: signal
+    severity: high
+    status: active
+    summary: |
+      If an owning actor cannot express "unknown," "stale," "degraded," "conflict,"
+      "not canonical," or "source unavailable," callers will manufacture certainty
+      from silence.
+
+      Owner APIs must distinguish: not found (canonical absence), not observed,
+      unknown, stale, degraded, conflict, canonical source missing, permission
+      denied, in progress, and corrupt/unverifiable. Never collapse these into
+      empty results, zero values, or success with partial data.
+    enforcement: |
+      Owner RPCs must return explicit status codes or status fields that distinguish
+      absence from uncertainty. Callers must propagate uncertainty — never silently
+      resolve it to a concrete value.
+    related_failure_modes:
+      - fm.industry.partial_failure_hidden_by_global_green
+      - fm.industry.missing_inventory_misclassified_as_down
+
+  - id: meta.absence_scope_must_be_explicit
+    title: "Absence scope must be explicit — 'not found where' is not the same as 'does not exist'"
+    category: signal
+    severity: high
+    status: active
+    summary: |
+      "Not found" is not a fact until the system says where it looked and who owns
+      existence. A cache miss, local file miss, replica miss, index miss, or stale
+      view miss does not prove global absence.
+
+      Any absence result must declare: scope searched, source queried, owner of
+      existence, freshness of the view, whether the result is canonical, and whether
+      other replicas/sources may still contain the object.
+    enforcement: |
+      Code that acts on "not found" must verify the scope of the lookup before
+      concluding non-existence. A single-replica miss must not trigger deletion,
+      re-creation, or failure escalation that assumes global absence.
+    forbidden_fixes:
+      - forbidden.partial_snapshot_false_quorum_loss
+      - forbidden.missing_inventory_as_down
+    related_failure_modes:
+      - fm.globular.objectstore_partial_snapshot
+      - fm.industry.missing_inventory_misclassified_as_down
+
+  - id: meta.identity_computation_must_be_invariant
+    title: "Identity computation must be invariant — one field, one meaning, one canonical computation, everywhere"
+    category: authority
+    severity: critical
+    status: active
+    summary: |
+      Identity-bearing fields (checksum, build_id, version, installed_hash,
+      desired_hash, timestamp anchor) must have exactly one semantic meaning
+      and one canonical computation. The computation must be the same at every
+      point where the field is produced, compared, or verified.
+
+      This is a different class of bug than ownership violation. Here the
+      authority is correct — the right actor wrote the field. The store is
+      correct. The type checks. But the field stopped meaning one thing because
+      different contexts compute it differently.
+
+      Example: entrypoint_checksum at publish time = sha256(artifact bytes).
+      At verify time on the node = sha256(installed binary path). If anything
+      transforms the bytes between publish and install, the same field name
+      now means two different computations. The verifier says "mismatch" for
+      a correctly installed binary, or worse, says "match" for a corrupted one.
+
+      A missing canonical identity is a finding, not permission to fabricate
+      a replacement from a secondary observation. A field with a stable type
+      and unstable meaning is a loaded trap.
+
+      For every identity value, define:
+        1. The subject it identifies
+        2. The field that stores it
+        3. The actor allowed to produce it
+        4. The canonical computation/source
+        5. Its lifetime and immutability rule
+        6. The verification path (must use the same computation as production)
+    enforcement: |
+      Identity fields must be produced by exactly one computation. Any code
+      that compares, verifies, or acts on an identity field must use the same
+      canonical computation that produced it. If a transformation occurs between
+      production and verification (packaging, relocation, wrapping), the
+      identity must be recomputed after transformation by the owning actor —
+      never by the verifier independently.
+    forbidden_fixes:
+      - forbidden.recompute_identity_at_verification
+      - forbidden.fabricate_identity_from_secondary_observation
+    related_failure_modes:
+      - fm.globular.vip_transition_cascade
+      - fm.industry.floating_address_used_as_durable_identity
+
+  - id: meta.write_creates_completion_obligation
+    title: "Every write is a promise — an unfinished promise is a blockage"
+    category: lifecycle
+    severity: critical
+    status: active
+    summary: |
+      When code writes a state record (etcd key, Scylla row, convergence record,
+      lock, status entry), it creates an obligation. Either the same actor completes
+      the lifecycle, or there is an explicit sweep that clears stale records, or
+      the record has a TTL. Half-written state that nobody owns the cleanup for
+      becomes a permanent stall.
+
+      Before writing a blocking record, verify:
+        1. Who completes or clears this record?
+        2. Is the cleanup edge-triggered (on next event) or level-triggered (periodic sweep)?
+        3. What happens if the completing event never arrives?
+        4. Is there a circuit-breaker or TTL?
+
+      Known violations in this codebase:
+        - writeCriticalKeyBlock: NO cleanup function exists at all
+        - writeRuntimeDepBlock: sweep exists but was edge-triggered only (INC-2026-0005)
+        - DownloadArtifact refill: state transitions silently ignored (_ = transition)
+
+      Known good examples:
+        - ConvergenceCommitter: atomic txn — write + cleanup in same etcd op
+        - Workflow defer B3: durable counter + Abandoned flag + ClearOnSuccess
+    enforcement: |
+      Every function that writes a blocking record must have a corresponding
+      cleanup path (explicit delete, sweep, or TTL). Code review must verify
+      the cleanup path exists before approving the write.
+    forbidden_fixes:
+      - forbidden.write_blocking_record_without_cleanup
+      - forbidden.edge_triggered_cleanup_only_for_blocking_records
+    related_failure_modes:
+      - fm.globular.objectstore_partial_snapshot
+
+  - id: meta.half_done_must_not_look_done
+    title: "Half-done must never look done — intermediate state must not satisfy completeness predicates"
+    category: lifecycle
+    severity: critical
+    status: active
+    summary: |
+      When a multi-step operation is interrupted, the intermediate state must be
+      distinguishable from the terminal state. If a skip/completeness predicate
+      cannot tell the difference between "done" and "half-done," every interruption
+      becomes permanent.
+
+      Before writing a completeness check, verify:
+        1. Does this check ALL required fields, not just one?
+        2. Can a partial write (step 1 done, step 2 not) satisfy this predicate?
+        3. Is there an explicit intermediate state that the predicate rejects?
+        4. On retry, does the code resume from the intermediate state?
+
+      Known violations in this codebase:
+        - canSkipDueToExistingState checked artifact_state but not manifest_json (INC-2026-0012)
+        - CLI installServiceTgz writes unit files but not .sha256 sidecar
+
+      Known good examples:
+        - canSkipInstallPackage: checks version + build_id + checksum + active unit
+        - needsSelfHostedInstalledStateRefresh: 7 independent checks, ALL must be true
+        - promoteToPublished: 4-step state machine with explicit intermediates
+    enforcement: |
+      Completeness predicates must check ALL fields that a complete operation
+      would have written. A single-field check on a multi-field write is a
+      violation. State machines must have explicit intermediate states that
+      skip predicates reject.
+    forbidden_fixes:
+      - forbidden.single_field_completeness_check_on_multi_field_write
+
+  - id: meta.silence_is_not_valid_for_unexpected
+    title: "Silence is not a valid response to the unexpected — unhandled cases must fail closed"
+    category: lifecycle
+    severity: high
+    status: active
+    summary: |
+      When a switch/dispatch does not match, the default must be an explicit
+      error or escalation — not a no-op. Silent discard of an unrecognized case
+      is how a system stops making progress without anyone noticing.
+
+      Before writing a dispatch, verify:
+        1. Does the switch have a default case?
+        2. Does the default log the unexpected value?
+        3. Does the default return an error or escalate?
+        4. If the default falls back to a "safe" behavior, is that behavior documented?
+
+      Known violations in this codebase:
+        - applyPatchToAppStatus: no default case, silent no-op on unknown SetFields
+        - applyPatchToInfraStatus: no default case (caused INC infra retry bug)
+        - lookupResolvedEntrypointChecksum kind switch: unknown kind silently defaults to SERVICE
+        - lookupResolvedEntrypointChecksum type switch: no default for new release types
+        - classifyPackageConvergence: unknown systemd state silently becomes RuntimeUnknown
+
+      Known good examples:
+        - applyPatchToSvcStatus: default logs canary phrase + returns false
+        - resolveResumeAction: logs unknown policy before fallback
+    enforcement: |
+      Switch statements on state/status enums in dispatch or state-machine code
+      must have a default case that logs the unexpected value. Silent no-op
+      defaults in release pipeline routing are forbidden.
+    forbidden_fixes:
+      - forbidden.silent_default_in_state_dispatch
+    related_failure_modes:
+      - fm.globular.objectstore_partial_snapshot
+
+  - id: meta.critical_path_no_non_critical_dependency
+    title: "The critical path must not depend on non-critical services — a dependency you don't need will kill you on the recovery path"
+    category: dependency
+    severity: critical
+    status: active
+    summary: |
+      A critical function (heartbeat, leader liveness, connection establishment)
+      must not pick up a dependency on a non-critical service (repository, event
+      bus, analytics, monitoring). When the non-critical thing fails, it takes
+      down the critical path — not by crashing, but by blocking, flooding, or
+      silencing.
+
+      Before adding a call to a critical path, ask:
+        1. Can this function complete its job if the callee is down?
+        2. Does this call have a bounded timeout that won't stall the caller?
+        3. Can a failure in this call cascade into the critical path?
+        4. Is this call necessary for the critical function, or just convenient?
+
+      Incidents:
+        - Power outage: heartbeat Phase 3 called repository → hung when ScyllaDB down → nodes unreachable 45 min
+        - Zombie leader: event service disconnect → emitClusterEvent floods → CPU starvation → heartbeats freeze
+        - VIP cert: grpc.WithBlock() swallowed x509 errors into timeout → 16h silent outage
+    enforcement: |
+      Heartbeat, leader liveness, and connection establishment paths must have
+      zero dependencies on non-infrastructure services. Any RPC in a critical
+      path must have a bounded timeout and must not block the caller on failure.
+    forbidden_fixes:
+      - forbidden.add_rpc_to_heartbeat_critical_path
+      - forbidden.unbounded_dial_in_critical_path
+
+  - id: meta.competing_writers_must_converge_or_be_fenced
+    title: "Distributed actors doing the same job must converge, not compete — two writers with different state will fight until one wins by accident"
+    category: authority
+    severity: critical
+    status: active
+    summary: |
+      When multiple actors can write the same state, and they have different
+      views of truth, the last writer wins — and the last writer is determined
+      by timing, not correctness. This is different from "who owns the truth"
+      (meta.storage_is_not_semantic_authority) — here both actors believe they
+      are the owner.
+
+      Before allowing multiple writers, ask:
+        1. Can two instances of this actor run simultaneously?
+        2. If they disagree, who wins? Is the winner the most correct, or the most recent?
+        3. Is there a leader gate, priority ordering, or consensus mechanism?
+        4. What happens during a leadership transition?
+
+      Incidents:
+        - Let's Encrypt cert: 3 controllers ran domain reconciler independently → dell overwrote ryzen's success with error
+        - DNS flickering: 3 DNS reconcilers with different in-memory state → records appeared/disappeared
+        - INFRASTRUCTURE overwrites SERVICE: two installed-state records for same package, wrong iteration order → stale won
+        - Dell's 0.0.1 controller grabbed leader → downgraded entire cluster
+    enforcement: |
+      Reconcilers that write shared state must be leader-gated. When multiple
+      records can exist for the same entity (e.g. INFRASTRUCTURE and SERVICE kind
+      for the same package), there must be a deterministic priority order.
+      Non-leader instances must return early without touching state.
+    forbidden_fixes:
+      - forbidden.reconciler_without_leader_gate
+      - forbidden.multiple_kind_records_without_priority_order
+
+  - id: meta.connection_errors_must_not_be_absorbed
+    title: "Errors must not be silent on connection paths — a connection error absorbed into a timeout is an invisible outage"
+    category: signal
+    severity: high
+    status: active
+    summary: |
+      Connection-establishment code absorbs specific errors (TLS mismatch,
+      wrong key, unreachable host) into generic timeouts or nil values. The
+      caller sees "timeout" or "nil" — the same shape as "slow network" or
+      "not initialized yet." The specific error is lost, and the outage
+      becomes invisible.
+
+      Before using a connection wrapper, ask:
+        1. Does this wrapper (grpc.WithBlock, context.WithTimeout) preserve the specific error?
+        2. Can the caller distinguish "TLS failed" from "host slow"?
+        3. If the connection fails silently, how long until someone notices?
+        4. Is there a pre-flight check that surfaces the real error?
+
+      Incidents:
+        - VIP cert: grpc.WithBlock() swallowed x509 errors → "context deadline exceeded" for 16 hours
+        - Auth token: GenerateServiceToken errors silently swallowed → all auth failed with no visible error
+        - ScyllaDB late-connect: nil scylla handle stayed nil forever — no retry, no error, no recovery
+    enforcement: |
+      Connection paths must surface specific errors before falling back to
+      timeouts. Pre-flight checks (TLS validation, auth probe) should run
+      before the generic dial wrapper. Nil handles from failed initialization
+      must be retried, not cached permanently.
+    forbidden_fixes:
+      - forbidden.absorb_tls_error_into_timeout
+      - forbidden.cache_nil_handle_permanently
+
   # ── Generalization principles (second pass) ───────────────────────────────────
   # These invariants encode the abstract reasoning layer. They generalize from
   # specific Globular incidents to classes of distributed-system mistakes, so

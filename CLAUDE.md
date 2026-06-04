@@ -354,6 +354,50 @@ If awareness was empty: `Awareness status: EMPTY for the target — code/docs ch
 
 Awareness explains *why* code exists, *what* it protects, *which fixes are forbidden*. Awareness cannot prove current etcd state, cluster membership, runtime health, or installed-package state — verify those with live tools.
 
+### PRINCIPLE EXTRACTION PROTOCOL — when processing errors
+
+When documenting an error (incident, failure mode, finding), don't just record WHAT broke — classify WHY against the generative meta-principles. This turns error documentation into architectural learning.
+
+**Step 1 — CLASSIFY** the error against `invariant:meta.*` (4 categories, 11 principles):
+
+**Authority** — "who owns this truth?"
+| Principle | What it catches |
+|-----------|----------------|
+| `meta.storage_is_not_semantic_authority` | Wrong actor writes/reads truth |
+| `meta.identity_computation_must_be_invariant` | Right actor, wrong meaning across contexts |
+| `meta.competing_writers_must_converge_or_be_fenced` | Two writers with different state fight by timing |
+
+**Signal** — "is the truth arriving intact?"
+| Principle | What it catches |
+|-----------|----------------|
+| `meta.fallback_must_degrade_semantics` | Fallback returns same shape as truth |
+| `meta.authority_must_express_uncertainty` | Owner can't say "unknown" → callers fabricate certainty |
+| `meta.absence_scope_must_be_explicit` | Not-found-where treated as does-not-exist |
+| `meta.connection_errors_must_not_be_absorbed` | TLS/auth error absorbed into generic timeout |
+
+**Lifecycle** — "will this operation complete?"
+| Principle | What it catches |
+|-----------|----------------|
+| `meta.write_creates_completion_obligation` | Write without cleanup path → permanent stall |
+| `meta.half_done_must_not_look_done` | Intermediate state satisfies completeness check |
+| `meta.silence_is_not_valid_for_unexpected` | Unhandled case is silent no-op |
+
+**Dependency** — "what breaks if a non-critical thing fails?"
+| Principle | What it catches |
+|-----------|----------------|
+| `meta.critical_path_no_non_critical_dependency` | Critical path blocked/flooded by non-critical service |
+
+If one fits → add `related_invariants: [meta.<id>]` to the error entry.
+If none fits → flag as **UNCLASSIFIABLE** (potential new principle — zoom out with human).
+
+**Step 2 — CHECK COVERAGE**: does the principle's enforcement already cover this case? If not, propose a forbidden_fix, required_test, or enforcement update.
+
+**Step 3 — SEARCH FOR SIBLINGS**: use the principle as a lens to find similar violations in code that hasn't broken yet. The principle predicts where the same bug class is hiding.
+
+**Step 4 — REPORT**: end error analysis with classification, coverage gap, sibling count, principle instance count.
+
+**Rules**: Do NOT force-fit errors into principles. Bad classification is worse than none. Unclassifiable errors are where the next principle is hiding.
+
 ---
 
 ## AWARENESS ACTIVATION RULES

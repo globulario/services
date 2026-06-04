@@ -1032,6 +1032,9 @@ func applyPatchToAppStatus(s *cluster_controllerpb.ApplicationReleaseStatus, p s
 			s.ObservedGeneration = p.ObservedGeneration
 		}
 		applyWorkflowFields()
+	default:
+		log.Printf("applyPatchToAppStatus: unknown SetFields=%q (release phase=%s) — patch skipped",
+			p.SetFields, s.Phase)
 	}
 }
 
@@ -1091,6 +1094,9 @@ func applyPatchToInfraStatus(s *cluster_controllerpb.InfrastructureReleaseStatus
 			s.Message = p.Message
 		}
 		applyWorkflowFields()
+	default:
+		log.Printf("applyPatchToInfraStatus: unknown SetFields=%q (release phase=%s) — patch skipped",
+			p.SetFields, s.Phase)
 	}
 }
 

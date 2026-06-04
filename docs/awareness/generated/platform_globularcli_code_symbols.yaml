@@ -1,1 +1,11 @@
 code_symbols:
+  - id: globular.platform:code.go.platform_globularcli.state_cmds_authority_pin
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/state_cmds_authority_pin_test.go
+    component: platform_globularcli.state_cmds_authority_pin
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+        - globular.platform:invariant.etcd.path_has_single_owner

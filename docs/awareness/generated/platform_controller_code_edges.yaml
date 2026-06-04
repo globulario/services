@@ -116,6 +116,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.etcd_rejoin
     relation: enforces
     to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_controller.get_routing_refresh_test
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - from: globular.platform:code.go.platform_cluster_controller.handlers_join
     relation: implements
     to: globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
@@ -134,6 +137,12 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.handlers_node
     relation: implements
     to: globular.platform:intent.controller.leader_election_gates_all_writes
+  - from: globular.platform:code.go.platform_cluster_controller.handlers_node_authority_pin
+    relation: enforces
+    to: globular.platform:invariant.etcd.path_has_single_owner
+  - from: globular.platform:code.go.platform_cluster_controller.handlers_node_authority_pin
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - from: globular.platform:code.go.platform_cluster_controller.infrastructure_reconciler
     relation: enforces
     to: globular.platform:invariant.infra.desired_hash_consistency
@@ -158,6 +167,24 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.joinplan_validate
     relation: implements
     to: globular.platform:intent.join.token.validation
+  - from: globular.platform:code.go.platform_cluster_controller.list_desired_build_ids_test
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+  - from: globular.platform:code.go.platform_cluster_controller.list_desired_build_ids_test
+    relation: enforces
+    to: globular.platform:invariant.repository.desired_build_id_is_hard_reachability_root
+  - from: globular.platform:code.go.platform_cluster_controller.list_external_domains
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+  - from: globular.platform:code.go.platform_cluster_controller.list_external_domains_test
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+  - from: globular.platform:code.go.platform_cluster_controller.list_services
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+  - from: globular.platform:code.go.platform_cluster_controller.list_services_test
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - from: globular.platform:code.go.platform_cluster_controller.node_admission_status
     relation: enforces
     to: globular.platform:invariant.node.admission.proof_must_match_issued_join_id

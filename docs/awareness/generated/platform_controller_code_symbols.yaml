@@ -191,6 +191,15 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.destructive_actions.require_explicit_guard
+  - id: globular.platform:code.go.platform_cluster_controller.get_routing_refresh_test
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/get_routing_refresh_test.go
+    component: platform_cluster_controller.get_routing_refresh_test
+    risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - id: globular.platform:code.go.platform_cluster_controller.handlers_join
     namespace: globular.platform
     language: go
@@ -223,6 +232,16 @@ code_symbols:
         - globular.platform:invariant.destructive_actions.require_explicit_guard
       implements:
         - globular.platform:intent.controller.leader_election_gates_all_writes
+  - id: globular.platform:code.go.platform_cluster_controller.handlers_node_authority_pin
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/handlers_node_authority_pin_test.go
+    component: platform_cluster_controller.handlers_node_authority_pin
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+        - globular.platform:invariant.etcd.path_has_single_owner
   - id: globular.platform:code.go.platform_cluster_controller.infrastructure_reconciler
     namespace: globular.platform
     language: go
@@ -265,6 +284,52 @@ code_symbols:
       implements:
         - globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
         - globular.platform:intent.join.token.validation
+  - id: globular.platform:code.go.platform_cluster_controller.list_desired_build_ids_test
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/list_desired_build_ids_test.go
+    component: platform_cluster_controller.list_desired_build_ids_test
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+        - globular.platform:invariant.repository.desired_build_id_is_hard_reachability_root
+  - id: globular.platform:code.go.platform_cluster_controller.list_external_domains
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/list_external_domains.go
+    component: platform_cluster_controller.list_external_domains
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+  - id: globular.platform:code.go.platform_cluster_controller.list_external_domains_test
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/list_external_domains_test.go
+    component: platform_cluster_controller.list_external_domains_test
+    risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+  - id: globular.platform:code.go.platform_cluster_controller.list_services
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/list_services.go
+    component: platform_cluster_controller.list_services
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+  - id: globular.platform:code.go.platform_cluster_controller.list_services_test
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/list_services_test.go
+    component: platform_cluster_controller.list_services_test
+    risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - id: globular.platform:code.go.platform_cluster_controller.node_admission_status
     namespace: globular.platform
     language: go

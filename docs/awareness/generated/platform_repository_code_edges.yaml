@@ -95,6 +95,15 @@ code_edges:
   - from: globular.platform:code.go.platform_repository.publish_workflow
     relation: implements
     to: globular.platform:intent.repository.publish_pipeline_is_ordered
+  - from: globular.platform:code.go.platform_repository.reachability_guard_authority_pin
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+  - from: globular.platform:code.go.platform_repository.reachability_guard_authority_pin
+    relation: enforces
+    to: globular.platform:invariant.repository.desired_build_id_is_hard_reachability_root
+  - from: globular.platform:code.go.platform_repository.reachability_guard_authority_pin
+    relation: enforces
+    to: globular.platform:invariant.repository.purge_must_not_delete_active_desired_builds
   - from: globular.platform:code.go.platform_repository.release_index
     relation: implements
     to: globular.platform:intent.repository.metadata_is_authority
