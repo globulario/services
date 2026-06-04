@@ -270,6 +270,20 @@ func (srv *server) eventLoop() {
 	// Wait for the service to be fully started before connecting to events.
 	time.Sleep(5 * time.Second)
 
+	// Dedup state for repeated error messages — enforces
+	// meta.diagnostic_output_must_be_bounded. Identical errors within
+	// errLogDedupWindow are suppressed; an entry's first reoccurrence
+	// after the window is logged with a "(repeated N times)" suffix.
+	const errLogDedupWindow = 5 * time.Minute
+	var (
+		lastConnErr     string
+		lastConnErrAt   time.Time
+		connErrSuppress int
+
+		// Edge-triggered paused log: log once on transition, not every poll.
+		wasPaused bool
+	)
+
 	for {
 		srv.configMu.RLock()
 		cfg := srv.config
@@ -285,9 +299,29 @@ func (srv *server) eventLoop() {
 		Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 		c, err := globular_client.GetClient(eventAddr, "event.EventService", "NewEventService_Client")
 		if err != nil {
-			logger.Error("event service connection failed, retrying in 10s", "err", err)
+			msg := err.Error()
+			if msg == lastConnErr && time.Since(lastConnErrAt) < errLogDedupWindow {
+				connErrSuppress++
+			} else {
+				if connErrSuppress > 0 {
+					logger.Error("event service connection failed, retrying in 10s",
+						"err", lastConnErr, "repeated", connErrSuppress)
+				} else {
+					logger.Error("event service connection failed, retrying in 10s", "err", err)
+				}
+				lastConnErr = msg
+				lastConnErrAt = time.Now()
+				connErrSuppress = 0
+			}
 			time.Sleep(10 * time.Second)
 			continue
+		}
+		// Clear dedup state on success.
+		if lastConnErr != "" {
+			logger.Info("event service connection recovered",
+				"prior_err", lastConnErr, "suppressed", connErrSuppress)
+			lastConnErr = ""
+			connErrSuppress = 0
 		}
 		client := c.(*event_client.Event_Client)
 		srv.eventClient = client
@@ -325,9 +359,13 @@ func (srv *server) eventLoop() {
 			paused := cfg.GetPaused()
 			srv.configMu.RUnlock()
 
-			if paused {
-				logger.Info("watcher paused, waiting...")
+			// Edge-triggered: log once on each pause/resume transition.
+			if paused && !wasPaused {
+				logger.Info("watcher paused")
+			} else if !paused && wasPaused {
+				logger.Info("watcher resumed")
 			}
+			wasPaused = paused
 		}
 	}
 }

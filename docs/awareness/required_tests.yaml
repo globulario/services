@@ -364,3 +364,20 @@ required_tests:
     run:
       commands:
         - go test ./golang/cluster_doctor/... -run "TestCacheScopeNotPoisonedByNodeFindings"
+
+  - id: test.heal_audit_jsonl_bounded_by_rotation
+    title: HealAuditStore must rotate the JSONL file at maxBytes to enforce diagnostic_output_must_be_bounded
+    protects:
+      invariants:
+        - meta.diagnostic_output_must_be_bounded
+    required_for_changes:
+      paths:
+        - golang/cluster_doctor/cluster_doctor_server/rules/heal_audit.go
+      task_terms:
+        - heal audit
+        - audit jsonl
+        - rotation
+        - diagnostic bound
+    run:
+      commands:
+        - go test ./golang/cluster_doctor/cluster_doctor_server/rules/ -run "TestHealAuditStore"
