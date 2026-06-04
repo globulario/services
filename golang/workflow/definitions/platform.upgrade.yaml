@@ -1,0 +1,88 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: platform.upgrade
+  displayName: Platform upgrade
+  description: >-
+    Apply a platform release BOM as upgrade decisions, per-(node, package).
+
+    For each package in the BOM, for each node in the cluster, evaluate:
+
+      1. Profile match? If node.profiles ∩ package.profiles is empty,
+         skip — this node was never meant to run this package.
+
+      2. Currently installed on this node? Use the controller's per-node
+         installed_state (Layer 3 / heartbeat truth). If empty, skip —
+         the package was either never installed or operator-removed; do
+         not silently re-install it.
+
+      3. Version comparison. If BOM version > installed version
+         (semver compare), dispatch the existing release.apply.package
+         workflow to upgrade. If BOM <= installed, skip. Never downgrade.
+
+    This replaces the old direct-etcd-write `platform-upgrade` CLI path
+    (golang/globularcli/upgrade_cmds.go) which bypassed the controller
+    and re-introduced removed packages plus orphaned build_ids on every
+    invocation (cf. v1.2.159 incident: 28 fresh DesiredBuildIdOrphaned
+    findings created by the bulk apply).
+
+    Upgrade dispatch uses the LOCAL REPOSITORY's build_id for the BOM
+    version, not the BOM's. The repository is authoritative for what's
+    actually installable; the BOM may reference build_ids the local repo
+    never received.
+spec:
+  inputSchema:
+    type: object
+    required:
+      - cluster_id
+      - release_tag
+    properties:
+      cluster_id: { type: string }
+      release_tag: { type: string }
+      dry_run:
+        type: boolean
+        default: false
+        description: >-
+          When true, evaluate decisions but do not dispatch any
+          release.apply.package workflows. Returns the full audit so
+          operators can inspect what would change before committing.
+  defaults:
+    dry_run: false
+  strategy:
+    mode: single
+  steps:
+    - id: evaluate
+      title: Evaluate per-(node, package) upgrade decisions
+      actor: cluster-controller
+      action: controller.platform_upgrade.evaluate
+      with:
+        release_tag: $.release_tag
+        dry_run: $.dry_run
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: dispatch_upgrades
+      title: Dispatch release.apply.package for each upgrade decision
+      dependsOn: [evaluate]
+      when:
+        expr: dry_run == false && len(upgrade_targets) > 0
+      actor: cluster-controller
+      action: controller.platform_upgrade.dispatch_upgrades
+      with:
+        upgrade_targets: $.upgrade_targets
+        release_tag: $.release_tag
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: audit
+      title: Record per-(node, package) decision audit
+      dependsOn: [evaluate]
+      actor: cluster-controller
+      action: controller.platform_upgrade.audit
+      with:
+        release_tag: $.release_tag
+        decisions: $.decisions
+      execution:
+        idempotency: safe_retry
