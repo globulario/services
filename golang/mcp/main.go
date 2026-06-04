@@ -3,6 +3,17 @@
 // @awareness file_role=mcp_server_entrypoint_dispatching_stdio_or_http_transport_per_mcpconfig
 // @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
 // @awareness risk=high
+//
+// rebuild-marker: v1.2.156 — force CI change-detection to re-pack the mcp
+// package so the corrected scripts/post-install.sh (mode 0o755, packages
+// repo commit 54b0195) ships in the release tarball. CI's detect-changes.py
+// hashes golang/<go_target>/*.go + packages/metadata/<name>/{package.json,
+// specs/, systemd/} but NOT packages/metadata/<name>/scripts/, so the
+// mode-only fix in mcp's post-install.sh was invisible to change detection
+// and v1.2.154 shipped the old broken tarball unchanged. Once CI's
+// change detector is taught to consider scripts/ content this comment can
+// be removed.
+//
 // Package main implements a Globular MCP server that exposes read-only
 // operator tools over stdio for AI assistants (Claude Code).
 //
