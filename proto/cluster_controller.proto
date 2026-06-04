@@ -663,6 +663,29 @@ service ClusterControllerService {
       default_role_hint: "viewer"
     };
   };
+  // GetRoutingRefresh returns the current routing-refresh generation
+  // (the controller's leader epoch). xDS, gateway, and other
+  // routing-aware components poll this RPC to detect leader changes
+  // and rebuild their routing tables. Replaces the prior
+  // /globular/routing/refresh-generation etcd watch in xDS —
+  // anchored by invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+  //
+  // The handler is leader-forwarded so the returned epoch is the
+  // authoritative leader's epoch (followers retain their last-known
+  // value, which may be stale after a resign — only the leader
+  // increments).
+  //
+  // Polled at ~2s cadence by xDS; the cost is negligible (one int
+  // read per poll). Sub-second latency is not a hard requirement
+  // (routing refresh is a rare cluster event).
+  rpc GetRoutingRefresh(GetRoutingRefreshRequest) returns (GetRoutingRefreshResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.routing.read"
+      permission: "read"
+      resource_template: "/cluster_controller/routing"
+      default_role_hint: "viewer"
+    };
+  };
   rpc UpsertDesiredService(UpsertDesiredServiceRequest) returns (DesiredState) {
     option (globular.auth.authz) = {
       action: "cluster_controller.desired_service.upsert"
@@ -891,6 +914,22 @@ message DesiredState {
 message ListDesiredBuildIDsRequest {
   // Reserved for future filtering (by kind, publisher). Empty request
   // is the canonical "give me everything desired" call.
+}
+
+message GetRoutingRefreshRequest {}
+
+// GetRoutingRefreshResponse carries the controller's current
+// leader-epoch. Routing-aware components compare epoch to their
+// last-known value and rebuild routing on change.
+message GetRoutingRefreshResponse {
+  // Monotonically increasing on every leadership acquisition.
+  uint64 epoch = 1;
+  // Optional: current leader's advertise address (host:port). May be
+  // empty if the responding instance has not yet learned the leader
+  // address; consumers must not rely on this for correctness.
+  string leader_addr = 2;
+  // Wall-clock timestamp of the most recent leader-acquisition.
+  google.protobuf.Timestamp timestamp = 3;
 }
 
 // ListDesiredBuildIDsResponse carries the canonical reachability set of

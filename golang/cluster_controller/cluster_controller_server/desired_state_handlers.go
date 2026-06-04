@@ -32,6 +32,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -444,6 +445,52 @@ func (srv *server) validateArtifactInRepo(ctx context.Context, serviceName, vers
 // GetDesiredState returns the current desired-service plan.
 func (srv *server) GetDesiredState(ctx context.Context, _ *emptypb.Empty) (*cluster_controllerpb.DesiredState, error) {
 	return srv.listAllDesiredServices(ctx)
+}
+
+// GetRoutingRefresh returns the controller's current leader-epoch so
+// xDS, gateway, and other routing-aware components can detect leader
+// changes without watching /globular/routing/refresh-generation
+// directly. Anchored by
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage —
+// the cluster_controller OWNS the routing-refresh signal; consumers
+// read it through this typed RPC rather than from etcd.
+//
+// Leader-forwarded so the returned epoch is the authoritative
+// leader's value. Followers retain their last-known leaderEpoch,
+// which becomes stale after a resign — calling against a follower
+// without forwarding would surface that staleness as a missed
+// routing change.
+//
+// The leader_addr field is best-effort: the leader knows its own
+// address, but a follower's view may lag the actual leader. Consumers
+// must compare epoch (not addr) to decide whether routing changed.
+func (srv *server) GetRoutingRefresh(ctx context.Context, req *cluster_controllerpb.GetRoutingRefreshRequest) (*cluster_controllerpb.GetRoutingRefreshResponse, error) {
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.GetRoutingRefreshResponse{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/GetRoutingRefresh", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
+	}
+	epoch := srv.leaderEpoch.Load()
+	var leaderAddr string
+	if srv.cfg != nil {
+		if ip := config.GetRoutableIPv4(); ip != "" {
+			leaderAddr = fmt.Sprintf("%s:%d", ip, srv.cfg.Port)
+		}
+	}
+	// leaderEpoch is stored as an atomic.Int64 (controller-side
+	// invariant: monotonically increasing, never negative); cast to
+	// the proto's uint64 carrier.
+	var epochU64 uint64
+	if epoch > 0 {
+		epochU64 = uint64(epoch)
+	}
+	return &cluster_controllerpb.GetRoutingRefreshResponse{
+		Epoch:      epochU64,
+		LeaderAddr: leaderAddr,
+		Timestamp:  timestamppb.Now(),
+	}, nil
 }
 
 // ListDesiredBuildIDs returns the canonical reachability set of

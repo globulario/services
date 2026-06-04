@@ -46,6 +46,7 @@ const (
 	ClusterControllerService_PreviewNodeProfiles_FullMethodName       = "/cluster_controller.ClusterControllerService/PreviewNodeProfiles"
 	ClusterControllerService_GetDesiredState_FullMethodName           = "/cluster_controller.ClusterControllerService/GetDesiredState"
 	ClusterControllerService_ListDesiredBuildIDs_FullMethodName       = "/cluster_controller.ClusterControllerService/ListDesiredBuildIDs"
+	ClusterControllerService_GetRoutingRefresh_FullMethodName         = "/cluster_controller.ClusterControllerService/GetRoutingRefresh"
 	ClusterControllerService_UpsertDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/UpsertDesiredService"
 	ClusterControllerService_RemoveDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/RemoveDesiredService"
 	ClusterControllerService_SeedDesiredState_FullMethodName          = "/cluster_controller.ClusterControllerService/SeedDesiredState"
@@ -115,6 +116,22 @@ type ClusterControllerServiceClient interface {
 	// intact; a raw etcd scan that mirrors the logic in a consumer is a
 	// forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc.
 	ListDesiredBuildIDs(ctx context.Context, in *ListDesiredBuildIDsRequest, opts ...grpc.CallOption) (*ListDesiredBuildIDsResponse, error)
+	// GetRoutingRefresh returns the current routing-refresh generation
+	// (the controller's leader epoch). xDS, gateway, and other
+	// routing-aware components poll this RPC to detect leader changes
+	// and rebuild their routing tables. Replaces the prior
+	// /globular/routing/refresh-generation etcd watch in xDS —
+	// anchored by invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	//
+	// The handler is leader-forwarded so the returned epoch is the
+	// authoritative leader's epoch (followers retain their last-known
+	// value, which may be stale after a resign — only the leader
+	// increments).
+	//
+	// Polled at ~2s cadence by xDS; the cost is negligible (one int
+	// read per poll). Sub-second latency is not a hard requirement
+	// (routing refresh is a rare cluster event).
+	GetRoutingRefresh(ctx context.Context, in *GetRoutingRefreshRequest, opts ...grpc.CallOption) (*GetRoutingRefreshResponse, error)
 	UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	RemoveDesiredService(ctx context.Context, in *RemoveDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	SeedDesiredState(ctx context.Context, in *SeedDesiredStateRequest, opts ...grpc.CallOption) (*DesiredState, error)
@@ -402,6 +419,16 @@ func (c *clusterControllerServiceClient) ListDesiredBuildIDs(ctx context.Context
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) GetRoutingRefresh(ctx context.Context, in *GetRoutingRefreshRequest, opts ...grpc.CallOption) (*GetRoutingRefreshResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRoutingRefreshResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_GetRoutingRefresh_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DesiredState)
@@ -541,6 +568,22 @@ type ClusterControllerServiceServer interface {
 	// intact; a raw etcd scan that mirrors the logic in a consumer is a
 	// forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc.
 	ListDesiredBuildIDs(context.Context, *ListDesiredBuildIDsRequest) (*ListDesiredBuildIDsResponse, error)
+	// GetRoutingRefresh returns the current routing-refresh generation
+	// (the controller's leader epoch). xDS, gateway, and other
+	// routing-aware components poll this RPC to detect leader changes
+	// and rebuild their routing tables. Replaces the prior
+	// /globular/routing/refresh-generation etcd watch in xDS —
+	// anchored by invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	//
+	// The handler is leader-forwarded so the returned epoch is the
+	// authoritative leader's epoch (followers retain their last-known
+	// value, which may be stale after a resign — only the leader
+	// increments).
+	//
+	// Polled at ~2s cadence by xDS; the cost is negligible (one int
+	// read per poll). Sub-second latency is not a hard requirement
+	// (routing refresh is a rare cluster event).
+	GetRoutingRefresh(context.Context, *GetRoutingRefreshRequest) (*GetRoutingRefreshResponse, error)
 	UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error)
 	RemoveDesiredService(context.Context, *RemoveDesiredServiceRequest) (*DesiredState, error)
 	SeedDesiredState(context.Context, *SeedDesiredStateRequest) (*DesiredState, error)
@@ -642,6 +685,9 @@ func (UnimplementedClusterControllerServiceServer) GetDesiredState(context.Conte
 }
 func (UnimplementedClusterControllerServiceServer) ListDesiredBuildIDs(context.Context, *ListDesiredBuildIDsRequest) (*ListDesiredBuildIDsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListDesiredBuildIDs not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) GetRoutingRefresh(context.Context, *GetRoutingRefreshRequest) (*GetRoutingRefreshResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRoutingRefresh not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpsertDesiredService not implemented")
@@ -1130,6 +1176,24 @@ func _ClusterControllerService_ListDesiredBuildIDs_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_GetRoutingRefresh_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRoutingRefreshRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).GetRoutingRefresh(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_GetRoutingRefresh_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).GetRoutingRefresh(ctx, req.(*GetRoutingRefreshRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_UpsertDesiredService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertDesiredServiceRequest)
 	if err := dec(in); err != nil {
@@ -1376,6 +1440,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListDesiredBuildIDs",
 			Handler:    _ClusterControllerService_ListDesiredBuildIDs_Handler,
+		},
+		{
+			MethodName: "GetRoutingRefresh",
+			Handler:    _ClusterControllerService_GetRoutingRefresh_Handler,
 		},
 		{
 			MethodName: "UpsertDesiredService",
