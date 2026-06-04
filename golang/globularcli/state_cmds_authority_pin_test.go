@@ -76,6 +76,50 @@ func TestStateCmds_ScanInstalledState_NoDirectEtcdAgainstNodes(t *testing.T) {
 	}
 }
 
+// TestStateCmds_ResolveAgentEndpoint_NoDirectEtcd pins the refactor
+// that moved resolveAgentEndpoint off the direct
+// /globular/nodes/{nodeID}/status etcd read onto
+// cluster_controller.ListNodes (NodeRecord.AgentEndpoint).
+//
+// Fails if the function body reintroduces a direct etcd primitive
+// against /globular/nodes/*. The clientv3.Client argument is
+// preserved on the signature for caller-site stability; this pin
+// only catches it being USED inside the body.
+func TestStateCmds_ResolveAgentEndpoint_NoDirectEtcd(t *testing.T) {
+	body, err := os.ReadFile("state_cmds.go")
+	if err != nil {
+		t.Fatalf("read state_cmds.go: %v", err)
+	}
+
+	const fnHeader = "func resolveAgentEndpoint(ctx context.Context, _ *clientv3.Client, nodeID string) string {"
+	startIdx := strings.Index(string(body), fnHeader)
+	if startIdx < 0 {
+		// Allow either the underscored arg or the older named-arg
+		// signature. If neither is present, the function may have
+		// been deleted entirely — that is also acceptable.
+		if !strings.Contains(string(body), "func resolveAgentEndpoint(") {
+			return // function removed; nothing to pin
+		}
+		t.Fatalf("resolveAgentEndpoint signature changed in an unexpected way — update this pin.")
+	}
+	endIdx := findMatchingBrace(string(body), startIdx+len(fnHeader)-1)
+	if endIdx <= startIdx {
+		t.Fatalf("could not locate end of resolveAgentEndpoint — pin cannot scope to body")
+	}
+	fnBody := body[startIdx:endIdx]
+
+	re := regexp.MustCompile(`\.(Get|Put|Delete|Watch)\(\s*[^,)]+,\s*"/globular/`)
+	if loc := re.FindIndex(fnBody); loc != nil {
+		match := re.FindSubmatch(fnBody)
+		t.Errorf("CRITICAL state_cmds.go::resolveAgentEndpoint contains a direct etcd %s "+
+			"against /globular/* (near byte offset %d inside the function) — violates "+
+			"invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage. "+
+			"Route through cluster_controller.ListNodes; NodeRecord.AgentEndpoint carries the "+
+			"same value the prior code extracted from the JSON status blob.",
+			string(match[1]), loc[0])
+	}
+}
+
 // findMatchingBrace returns the index of the closing '}' that
 // balances the '{' at openIdx within src. Returns -1 if not found.
 // Simple brace-counter; does not handle braces inside string literals

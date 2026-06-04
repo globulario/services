@@ -129,34 +129,69 @@ func (srv *server) consumeIngressRepublishRequest(ctx context.Context) bool {
 	return true
 }
 
-func (srv *server) ensureIngressDesiredState(ctx context.Context) {
+// loadIngressSpec is the canonical typed reader for
+// /globular/ingress/v1/spec. Controller-internal code MUST use this
+// helper rather than calling srv.kv.Get against the raw key — the
+// principle is the same one
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+// enforces across services: even inside the owner, truth flows
+// through a typed boundary so a future ownership move (out of the
+// guard, into a dedicated service) is a single-call-site change.
+//
+// Return contract:
+//
+//	(nil, false, nil)  — spec absent, no error (caller may restore)
+//	(nil, true,  err)  — read or unmarshal failed (caller logs)
+//	(spec, true, nil)  — spec present and parsed
+func (srv *server) loadIngressSpec(ctx context.Context) (*ingressDesiredSpec, bool, error) {
 	kv := srv.kv
-	if kv == nil {
+	if kv == nil && srv.etcdClient != nil {
+		// Boot-order fallback: srv.kv may not be wired before
+		// srv.etcdClient. Use the etcd client directly only when
+		// it is a real non-nil pointer (assigning a nil
+		// *clientv3.Client into the interface produces a non-nil
+		// interface containing a nil pointer — a typed-nil that
+		// fails open at runtime).
 		kv = srv.etcdClient
 	}
 	if kv == nil {
-		return
+		return nil, false, nil
 	}
 	resp, err := kv.Get(ctx, ingressSpecKey)
 	if err != nil {
+		return nil, true, err
+	}
+	if len(resp.Kvs) == 0 || len(resp.Kvs[0].Value) == 0 {
+		return nil, false, nil
+	}
+	var spec ingressDesiredSpec
+	if err := json.Unmarshal(resp.Kvs[0].Value, &spec); err != nil {
+		return nil, true, fmt.Errorf("invalid spec json: %w", err)
+	}
+	return &spec, true, nil
+}
+
+func (srv *server) ensureIngressDesiredState(ctx context.Context) {
+	spec, present, err := srv.loadIngressSpec(ctx)
+	if err != nil {
 		log.Printf("ingress-spec-guard: read spec failed: %v", err)
+		if present {
+			// Present-but-invalid JSON — preserve the prior
+			// "restore from backup" behaviour.
+			srv.restoreIngressSpecFromBackup(ctx)
+		}
 		return
 	}
-	if len(resp.Kvs) > 0 && len(resp.Kvs[0].Value) > 0 {
-		var spec ingressDesiredSpec
-		if err := json.Unmarshal(resp.Kvs[0].Value, &spec); err != nil {
-			log.Printf("ingress-spec-guard: invalid spec json, restoring backup: %v", err)
-			srv.restoreIngressSpecFromBackup(ctx)
-			return
-		}
-		srv.checkIngressParticipantDrift(spec)
-		normalized := srv.normalizeIngressSpec(spec)
+	if spec != nil {
+		srv.checkIngressParticipantDrift(*spec)
+		normalized := srv.normalizeIngressSpec(*spec)
 		if err := srv.publishIngressSpec(ctx, normalized); err != nil {
 			log.Printf("ingress-spec-guard: publish normalized spec failed: %v", err)
 		}
 		return
 	}
-	// Spec is absent. Check for explicit delete approval before restoring (Case 06).
+	// Spec is absent. Check for explicit delete approval before
+	// restoring (Case 06).
 	if srv.hasIngressDeleteApproval(ctx) {
 		log.Printf("ingress-spec-guard: spec absent with valid delete approval — honoring operator intent, not restoring")
 		return

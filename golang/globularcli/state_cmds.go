@@ -1095,20 +1095,35 @@ func cleanupGhostNodes(ctx context.Context, report *canonReport) int {
 	return cleaned
 }
 
-// resolveAgentEndpoint finds the node-agent gRPC endpoint for a node ID
-// by reading the node status from etcd.
-func resolveAgentEndpoint(ctx context.Context, cli *clientv3.Client, nodeID string) string {
-	// Try the node status key.
-	key := fmt.Sprintf("/globular/nodes/%s/status", nodeID)
-	resp, err := cli.Get(ctx, key)
-	if err != nil || len(resp.Kvs) == 0 {
+// resolveAgentEndpoint finds the node-agent gRPC endpoint for a
+// node ID via the cluster_controller's typed ListNodes RPC.
+//
+// History: previously read /globular/nodes/{nodeID}/status directly
+// from etcd. That prefix is owned by node_agent and the controller's
+// node registry, so a CLI consumer reading raw etcd violated
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+// NodeRecord.AgentEndpoint carries the same value the prior code
+// extracted from the JSON status blob.
+//
+// The cli *clientv3.Client argument is preserved for caller-site
+// stability but is no longer consulted.
+func resolveAgentEndpoint(ctx context.Context, _ *clientv3.Client, nodeID string) string {
+	cc, err := controllerClient()
+	if err != nil {
 		return ""
 	}
-	var status struct {
-		AgentEndpoint string `json:"agent_endpoint"`
+	defer cc.Close()
+	ctrl := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	resp, err := ctrl.ListNodes(callCtx, &cluster_controllerpb.ListNodesRequest{})
+	if err != nil || resp == nil {
+		return ""
 	}
-	if json.Unmarshal(resp.Kvs[0].Value, &status) == nil && status.AgentEndpoint != "" {
-		return status.AgentEndpoint
+	for _, n := range resp.GetNodes() {
+		if n.GetNodeId() == nodeID {
+			return strings.TrimSpace(n.GetAgentEndpoint())
+		}
 	}
 	return ""
 }

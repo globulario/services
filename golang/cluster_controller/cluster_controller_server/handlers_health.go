@@ -584,28 +584,25 @@ func (srv *server) loadInstalledUnixForNode(ctx context.Context, nodeID string) 
 	return out
 }
 
-// ingressIsDisabled returns true when /globular/ingress/v1/spec carries
-// mode="disabled" or explicit_disabled=true. Conservative on failure: if
-// etcd is unavailable, the spec is missing, or the JSON is malformed,
-// returns false so the existing fail-open behaviour is preserved (the
-// caller MUST NOT gate ERROR-severity rules on a "disabled" determination
-// derived from a read failure). Mirrors the cluster_doctor helper.
+// ingressIsDisabled returns true when /globular/ingress/v1/spec
+// carries mode="disabled" or explicit_disabled=true. Conservative on
+// failure: if the spec cannot be read, is missing, or is malformed,
+// returns false so the existing fail-open behaviour is preserved
+// (the caller MUST NOT gate ERROR-severity rules on a "disabled"
+// determination derived from a read failure). Mirrors the
+// cluster_doctor helper.
+//
+// Routes through the typed srv.loadIngressSpec helper in
+// ingress_spec_guard.go rather than reading the etcd key directly.
+// Same principle the four-layer authority invariant enforces
+// across services: even inside the owner, truth flows through a
+// typed boundary.
 func (srv *server) ingressIsDisabled(ctx context.Context) bool {
-	if srv.kv == nil {
+	spec, _, err := srv.loadIngressSpec(ctx)
+	if err != nil || spec == nil {
 		return false
 	}
-	resp, err := srv.kv.Get(ctx, "/globular/ingress/v1/spec")
-	if err != nil || resp == nil || len(resp.Kvs) == 0 {
-		return false
-	}
-	var spec struct {
-		Mode             string `json:"mode"`
-		ExplicitDisabled bool   `json:"explicit_disabled"`
-	}
-	if err := json.Unmarshal(resp.Kvs[0].Value, &spec); err != nil {
-		return false
-	}
-	return strings.EqualFold(strings.TrimSpace(spec.Mode), "disabled") || spec.ExplicitDisabled
+	return strings.EqualFold(strings.TrimSpace(string(spec.Mode)), "disabled") || spec.ExplicitDisabled
 }
 
 // loadVerifierVerdicts reads all verifier verdicts for a given node from etcd
