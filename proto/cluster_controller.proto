@@ -728,6 +728,33 @@ service ClusterControllerService {
       default_role_hint: "viewer"
     };
   };
+  // GetIngressStatus returns the current ingress spec summary and
+  // the per-node ingress status (VRRP state, has_vip, last_error,
+  // …). The cluster_controller owns /globular/ingress/v1/spec
+  // (ingress_spec_guard) and aggregates the per-node status reports;
+  // consumers MUST call this RPC instead of reading the keys
+  // directly per
+  // invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+  rpc GetIngressStatus(GetIngressStatusRequest) returns (GetIngressStatusResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.ingress.read"
+      permission: "read"
+      resource_template: "/cluster_controller/ingress"
+      default_role_hint: "viewer"
+    };
+  };
+  // RequestIngressRepublish writes the republish-request signal so
+  // the ingress spec guard re-emits the current spec. Replaces the
+  // CLI's prior direct write to
+  // /globular/ingress/v1/republish_request.
+  rpc RequestIngressRepublish(RequestIngressRepublishRequest) returns (RequestIngressRepublishResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.ingress.republish"
+      permission: "write"
+      resource_template: "/cluster_controller/ingress"
+      default_role_hint: "admin"
+    };
+  };
   rpc UpsertDesiredService(UpsertDesiredServiceRequest) returns (DesiredState) {
     option (globular.auth.authz) = {
       action: "cluster_controller.desired_service.upsert"
@@ -963,6 +990,40 @@ message GetRoutingRefreshRequest {}
 message ListExternalDomainsRequest {}
 
 message ListServicesRequest {}
+
+message GetIngressStatusRequest {}
+
+// IngressNodeStatus mirrors the per-node entry the keepalived
+// controller writes to /globular/ingress/v1/status/{node_id}.
+message IngressNodeStatus {
+  string node_id = 1;
+  string phase = 2;
+  string vrrp_state = 3;
+  bool has_vip = 4;
+  string last_error = 5;
+}
+
+message GetIngressStatusResponse {
+  // Spec summary — only the fields the CLI surfaces today. Extend
+  // when a new consumer needs more.
+  bool spec_present = 1;
+  int64 generation = 2;
+  string mode = 3;
+  bool explicit_disabled = 4;
+  string writer_leader_id = 5;
+  int64 written_at_unix = 6;
+  // Per-node ingress status reports.
+  repeated IngressNodeStatus nodes = 7;
+}
+
+message RequestIngressRepublishRequest {}
+
+message RequestIngressRepublishResponse {
+  // Unix-seconds timestamp the controller stamped on the request.
+  // Consumers may poll GetIngressStatus and wait for
+  // written_at_unix >= request_unix to confirm the republish.
+  int64 request_unix = 1;
+}
 
 // ListServicesResponse carries the merged service-registry view as a
 // list of JSON strings. Each string is the (config + instance) map

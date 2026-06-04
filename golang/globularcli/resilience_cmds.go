@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/spf13/cobra"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -151,74 +152,78 @@ func runScyllaSchemaEnforce(cmd *cobra.Command, args []string) error {
 	return fmt.Errorf("timed out waiting for schema guard status update")
 }
 
+// runIngressStatus consumes cluster_controller.GetIngressStatus. The
+// prior implementation scanned /globular/ingress/v1/spec +
+// /globular/ingress/v1/status/* directly from etcd — that prefix is
+// owned by the cluster_controller's ingress spec guard, so a CLI
+// reading raw etcd violated
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
 func runIngressStatus(cmd *cobra.Command, args []string) error {
-	cli, err := config.GetEtcdClient()
+	cc, err := controllerClient()
 	if err != nil {
-		return fmt.Errorf("etcd unavailable: %w", err)
+		return fmt.Errorf("dial cluster_controller: %w", err)
 	}
+	defer cc.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-
-	specResp, err := cli.Get(ctx, ingressSpecKeyCLI)
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+	resp, err := client.GetIngressStatus(ctx, &cluster_controllerpb.GetIngressStatusRequest{})
 	if err != nil {
-		return fmt.Errorf("read ingress spec: %w", err)
+		return fmt.Errorf("GetIngressStatus: %w", err)
 	}
-	if len(specResp.Kvs) == 0 {
+
+	if !resp.GetSpecPresent() {
 		fmt.Println("Ingress spec: MISSING")
 	} else {
-		var spec map[string]any
-		_ = json.Unmarshal(specResp.Kvs[0].Value, &spec)
-		fmt.Printf("Ingress spec generation=%v mode=%v explicit_disabled=%v writer=%v updated=%v\n",
-			spec["generation"], spec["mode"], spec["explicit_disabled"], spec["writer_leader_id"], spec["written_at_unix"])
+		fmt.Printf("Ingress spec generation=%d mode=%s explicit_disabled=%v writer=%s updated=%d\n",
+			resp.GetGeneration(),
+			resp.GetMode(),
+			resp.GetExplicitDisabled(),
+			resp.GetWriterLeaderId(),
+			resp.GetWrittenAtUnix())
 	}
 
-	statusResp, err := cli.Get(ctx, ingressStatusPrefixCLI, clientv3.WithPrefix())
-	if err != nil {
-		return fmt.Errorf("read ingress node statuses: %w", err)
-	}
 	w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
 	fmt.Fprintln(w, "NODE_ID\tPHASE\tVRRP\tHAS_VIP\tLAST_ERROR")
-	for _, kv := range statusResp.Kvs {
-		nodeID := strings.TrimPrefix(string(kv.Key), ingressStatusPrefixCLI)
-		if nodeID == "" {
-			continue
-		}
-		var st map[string]any
-		if json.Unmarshal(kv.Value, &st) != nil {
-			continue
-		}
-		fmt.Fprintf(w, "%s\t%v\t%v\t%v\t%v\n", nodeID, st["phase"], st["vrrp_state"], st["has_vip"], st["last_error"])
+	for _, n := range resp.GetNodes() {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%v\t%s\n",
+			n.GetNodeId(), n.GetPhase(), n.GetVrrpState(), n.GetHasVip(), n.GetLastError())
 	}
 	_ = w.Flush()
 	return nil
 }
 
+// runIngressRepublish consumes cluster_controller.RequestIngressRepublish
+// and polls GetIngressStatus to confirm the republish landed.
+// Replaces the prior direct etcd writes/reads of
+// /globular/ingress/v1/{republish_request,spec}.
 func runIngressRepublish(cmd *cobra.Command, args []string) error {
-	cli, err := config.GetEtcdClient()
+	cc, err := controllerClient()
 	if err != nil {
-		return fmt.Errorf("etcd unavailable: %w", err)
+		return fmt.Errorf("dial cluster_controller: %w", err)
 	}
-	reqTS := time.Now().Unix()
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-	defer cancel()
-	if _, err := cli.Put(ctx, ingressRepublishRequestKeyCLI, fmt.Sprintf("%d", reqTS)); err != nil {
-		return fmt.Errorf("write republish request: %w", err)
+	defer cc.Close()
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+
+	reqCtx, reqCancel := context.WithTimeout(context.Background(), 8*time.Second)
+	reqResp, err := client.RequestIngressRepublish(reqCtx, &cluster_controllerpb.RequestIngressRepublishRequest{})
+	reqCancel()
+	if err != nil {
+		return fmt.Errorf("RequestIngressRepublish: %w", err)
 	}
+	reqTS := reqResp.GetRequestUnix()
+
 	fmt.Println("Requested ingress republish. Waiting for spec update...")
 	deadline := time.Now().Add(70 * time.Second)
 	for time.Now().Before(deadline) {
 		time.Sleep(3 * time.Second)
 		pctx, pcancel := context.WithTimeout(context.Background(), 5*time.Second)
-		resp, err := cli.Get(pctx, ingressSpecKeyCLI)
+		status, sErr := client.GetIngressStatus(pctx, &cluster_controllerpb.GetIngressStatusRequest{})
 		pcancel()
-		if err != nil || len(resp.Kvs) == 0 {
+		if sErr != nil || !status.GetSpecPresent() {
 			continue
 		}
-		var spec map[string]any
-		if json.Unmarshal(resp.Kvs[0].Value, &spec) != nil {
-			continue
-		}
-		if updated, ok := spec["written_at_unix"].(float64); ok && int64(updated) >= reqTS {
+		if status.GetWrittenAtUnix() >= reqTS {
 			fmt.Println("Ingress spec republished.")
 			return nil
 		}

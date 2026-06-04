@@ -49,6 +49,8 @@ const (
 	ClusterControllerService_GetRoutingRefresh_FullMethodName         = "/cluster_controller.ClusterControllerService/GetRoutingRefresh"
 	ClusterControllerService_ListExternalDomains_FullMethodName       = "/cluster_controller.ClusterControllerService/ListExternalDomains"
 	ClusterControllerService_ListServices_FullMethodName              = "/cluster_controller.ClusterControllerService/ListServices"
+	ClusterControllerService_GetIngressStatus_FullMethodName          = "/cluster_controller.ClusterControllerService/GetIngressStatus"
+	ClusterControllerService_RequestIngressRepublish_FullMethodName   = "/cluster_controller.ClusterControllerService/RequestIngressRepublish"
 	ClusterControllerService_UpsertDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/UpsertDesiredService"
 	ClusterControllerService_RemoveDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/RemoveDesiredService"
 	ClusterControllerService_SeedDesiredState_FullMethodName          = "/cluster_controller.ClusterControllerService/SeedDesiredState"
@@ -162,6 +164,19 @@ type ClusterControllerServiceClient interface {
 	// registry — anchored by
 	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
 	ListServices(ctx context.Context, in *ListServicesRequest, opts ...grpc.CallOption) (*ListServicesResponse, error)
+	// GetIngressStatus returns the current ingress spec summary and
+	// the per-node ingress status (VRRP state, has_vip, last_error,
+	// …). The cluster_controller owns /globular/ingress/v1/spec
+	// (ingress_spec_guard) and aggregates the per-node status reports;
+	// consumers MUST call this RPC instead of reading the keys
+	// directly per
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	GetIngressStatus(ctx context.Context, in *GetIngressStatusRequest, opts ...grpc.CallOption) (*GetIngressStatusResponse, error)
+	// RequestIngressRepublish writes the republish-request signal so
+	// the ingress spec guard re-emits the current spec. Replaces the
+	// CLI's prior direct write to
+	// /globular/ingress/v1/republish_request.
+	RequestIngressRepublish(ctx context.Context, in *RequestIngressRepublishRequest, opts ...grpc.CallOption) (*RequestIngressRepublishResponse, error)
 	UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	RemoveDesiredService(ctx context.Context, in *RemoveDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	SeedDesiredState(ctx context.Context, in *SeedDesiredStateRequest, opts ...grpc.CallOption) (*DesiredState, error)
@@ -479,6 +494,26 @@ func (c *clusterControllerServiceClient) ListServices(ctx context.Context, in *L
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) GetIngressStatus(ctx context.Context, in *GetIngressStatusRequest, opts ...grpc.CallOption) (*GetIngressStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetIngressStatusResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_GetIngressStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) RequestIngressRepublish(ctx context.Context, in *RequestIngressRepublishRequest, opts ...grpc.CallOption) (*RequestIngressRepublishResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequestIngressRepublishResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_RequestIngressRepublish_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DesiredState)
@@ -662,6 +697,19 @@ type ClusterControllerServiceServer interface {
 	// registry — anchored by
 	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
 	ListServices(context.Context, *ListServicesRequest) (*ListServicesResponse, error)
+	// GetIngressStatus returns the current ingress spec summary and
+	// the per-node ingress status (VRRP state, has_vip, last_error,
+	// …). The cluster_controller owns /globular/ingress/v1/spec
+	// (ingress_spec_guard) and aggregates the per-node status reports;
+	// consumers MUST call this RPC instead of reading the keys
+	// directly per
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	GetIngressStatus(context.Context, *GetIngressStatusRequest) (*GetIngressStatusResponse, error)
+	// RequestIngressRepublish writes the republish-request signal so
+	// the ingress spec guard re-emits the current spec. Replaces the
+	// CLI's prior direct write to
+	// /globular/ingress/v1/republish_request.
+	RequestIngressRepublish(context.Context, *RequestIngressRepublishRequest) (*RequestIngressRepublishResponse, error)
 	UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error)
 	RemoveDesiredService(context.Context, *RemoveDesiredServiceRequest) (*DesiredState, error)
 	SeedDesiredState(context.Context, *SeedDesiredStateRequest) (*DesiredState, error)
@@ -772,6 +820,12 @@ func (UnimplementedClusterControllerServiceServer) ListExternalDomains(context.C
 }
 func (UnimplementedClusterControllerServiceServer) ListServices(context.Context, *ListServicesRequest) (*ListServicesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListServices not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) GetIngressStatus(context.Context, *GetIngressStatusRequest) (*GetIngressStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetIngressStatus not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) RequestIngressRepublish(context.Context, *RequestIngressRepublishRequest) (*RequestIngressRepublishResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequestIngressRepublish not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpsertDesiredService not implemented")
@@ -1314,6 +1368,42 @@ func _ClusterControllerService_ListServices_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_GetIngressStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetIngressStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).GetIngressStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_GetIngressStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).GetIngressStatus(ctx, req.(*GetIngressStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_RequestIngressRepublish_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestIngressRepublishRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).RequestIngressRepublish(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_RequestIngressRepublish_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).RequestIngressRepublish(ctx, req.(*RequestIngressRepublishRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_UpsertDesiredService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertDesiredServiceRequest)
 	if err := dec(in); err != nil {
@@ -1572,6 +1662,14 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListServices",
 			Handler:    _ClusterControllerService_ListServices_Handler,
+		},
+		{
+			MethodName: "GetIngressStatus",
+			Handler:    _ClusterControllerService_GetIngressStatus_Handler,
+		},
+		{
+			MethodName: "RequestIngressRepublish",
+			Handler:    _ClusterControllerService_RequestIngressRepublish_Handler,
 		},
 		{
 			MethodName: "UpsertDesiredService",
