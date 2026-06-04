@@ -230,6 +230,35 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		switch skipResult {
 		case installSkipAllowed:
 			log.Printf("grpc-workflow: %s", reason)
+			// Re-stamp the canonical install receipt FIRST, before the
+			// runtime-proof refresh below. canSkipInstallPackage proved
+			// version + build_id + checksum + active unit + entrypoint_
+			// checksum present — i.e. the on-disk unit content matches
+			// the desired version, which is a property of disk state and
+			// NOT of the running PID. The receipt must therefore carry
+			// canonical provenance (installed_by, unit_file_sha256,
+			// binary_sha256), not a stale legacy_sidecar marker left over
+			// from a pre-refactor migration.
+			//
+			// Placed BEFORE the runtime-proof block on purpose: wrapper
+			// packages (envoy, keepalived, etc.) whose binary does not
+			// match the *_server naming convention fail discoverRunning
+			// Binaries lookup and the runtime-proof check returns
+			// runtimeProofNoRunningPID — which terminates this branch
+			// with FAILED. The receipt should still reflect the canonical
+			// state of the disk; otherwise the doctor surfaces
+			// unit_receipt_drift.unit_file_drift forever even though
+			// disk matches the renderer output. Live regression observed
+			// 2026-06-03 on globular-envoy.service.
+			//
+			// INFRASTRUCTURE wrapper packages hit this case repeatedly
+			// because their install short-circuits when the unit content
+			// survives sweeps.
+			//
+			// Best-effort: failures are logged but never affect any
+			// subsequent return value.
+			srv.restampReceiptOnInstallSkip(ctx, pkgName, pkgKind, desiredVersion, buildID)
+
 			// Phase 27: runtime-proof refresh before claiming SUCCEEDED.
 			// canSkipInstallPackage proved on-disk binary + active unit,
 			// but the running PID may still be the OLD binary (the binary
@@ -292,22 +321,6 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 					log.Printf("grpc-workflow: %s", rtReason)
 				}
 			}
-			// Re-stamp the canonical install receipt on the skip path.
-			// canSkipInstallPackage proved version + build_id + checksum +
-			// active unit + entrypoint_checksum present — i.e. the on-disk
-			// content matches the desired version. The receipt therefore
-			// should carry canonical provenance (installed_by, unit_file_
-			// sha256, binary_sha256), not a stale legacy_sidecar marker
-			// left over from a pre-refactor migration. INFRASTRUCTURE
-			// wrapper packages (envoy, keepalived) repeatedly hit this
-			// case because their install short-circuits when the unit
-			// content survives sweeps. Live regression observed
-			// 2026-06-03 on globular-envoy.service.
-			//
-			// Best-effort: failures are logged but never affect the
-			// SUCCEEDED verdict the skip already earned.
-			srv.restampReceiptOnInstallSkip(ctx, pkgName, pkgKind, desiredVersion, buildID)
-
 			srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
 				ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
 				WorkflowID:      wfID,
