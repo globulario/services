@@ -28,6 +28,7 @@ import (
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/healthchecks"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/identity"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/certs"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/installreceipt"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/units"
@@ -35,6 +36,7 @@ import (
 	"github.com/globulario/services/golang/pki"
 	"github.com/globulario/services/golang/workflow"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var defaultPort = "11000"
@@ -311,7 +313,7 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState, cfg NodeAgentCo
 	}
 	state.AdvertiseIP = strings.Split(advertised, ":")[0]
 
-	return &NodeAgentServer{
+	srv := &NodeAgentServer{
 		operations:               make(map[string]*operation),
 		joinToken:                strings.TrimSpace(cfg.JoinToken),
 		bootstrapToken:           strings.TrimSpace(cfg.BootstrapToken),
@@ -333,6 +335,61 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState, cfg NodeAgentCo
 		controllerClientFactory:  cluster_controllerpb.NewClusterControllerServiceClient,
 		cfg:                      cfg,
 	}
+
+	// Install the L2 desired-state resolver used by the
+	// package.verify_integrity action. This closure is the
+	// node-agent-side implementation of
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage:
+	// L2 (desired state) is owned by the cluster_controller, so the
+	// action reads it via the controller's GetDesiredState typed RPC
+	// — never via direct etcd Get.
+	actions.SetDesiredVersionResolver(srv.resolveDesiredVersions)
+
+	return srv
+}
+
+// resolveDesiredVersions fetches the cluster-wide desired-state map
+// from the cluster_controller's typed GetDesiredState RPC and returns
+// it keyed by lowercase short service name (e.g. "echo", not
+// "core@globular.io/echo"). Best-effort: returns an empty map if the
+// controller is unreachable or returns nothing, so the I2 invariant in
+// package.verify_integrity is skipped rather than fabricated.
+func (srv *NodeAgentServer) resolveDesiredVersions(ctx context.Context) map[string]actions.DesiredRef {
+	out := map[string]actions.DesiredRef{}
+	if srv == nil || srv.controllerEndpoint == "" {
+		return out
+	}
+	if err := srv.ensureControllerClient(ctx); err != nil {
+		return out
+	}
+	srv.controllerConnMu.Lock()
+	client := srv.controllerClient
+	srv.controllerConnMu.Unlock()
+	if client == nil {
+		return out
+	}
+	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	resp, err := client.GetDesiredState(callCtx, &emptypb.Empty{})
+	if err != nil || resp == nil {
+		return out
+	}
+	for _, svc := range resp.GetServices() {
+		id := svc.GetServiceId()
+		if id == "" {
+			continue
+		}
+		// service_id is "<publisher>/<name>" or just "<name>"; the
+		// I2 invariant uses the short name keyed lowercase.
+		if idx := strings.LastIndex(id, "/"); idx >= 0 {
+			id = id[idx+1:]
+		}
+		out[strings.ToLower(id)] = actions.DesiredRef{
+			Version: svc.GetVersion(),
+			Build:   svc.GetBuildNumber(),
+		}
+	}
+	return out
 }
 
 func (srv *NodeAgentServer) SetEtcdMode(mode string) {

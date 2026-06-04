@@ -33,7 +33,6 @@ import (
 	"strings"
 	"sync"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/globulario/services/golang/config"
@@ -264,29 +263,29 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 	}
 
 	// Collect desired versions once.
-	desiredMap := readDesiredVersionsFromEtcd(ctx)
+	desiredMap := readDesiredVersions(ctx)
 
 	// ── Evaluate invariants ──
 	for key, inst := range installedMap {
 		// I2: desired vs installed build mismatch
 		if d, ok := desiredMap[strings.ToLower(inst.ref.GetName())]; ok {
-			if d.version != "" && d.version != inst.ref.GetVersion() {
+			if d.Version != "" && d.Version != inst.ref.GetVersion() {
 				report.Findings = append(report.Findings, integrityFinding{
 					Invariant: "artifact.desired_version_mismatch",
 					Severity:  "WARN",
 					Package:   inst.ref.GetName(),
 					Kind:      inst.kind,
 					Summary: fmt.Sprintf("installed %s+%d but desired %s+%d",
-						inst.ref.GetVersion(), inst.build, d.version, d.build),
+						inst.ref.GetVersion(), inst.build, d.Version, d.Build),
 					Evidence: map[string]string{
 						"installed_version": inst.ref.GetVersion(),
 						"installed_build":   fmt.Sprintf("%d", inst.build),
-						"desired_version":   d.version,
-						"desired_build":     fmt.Sprintf("%d", d.build),
+						"desired_version":   d.Version,
+						"desired_build":     fmt.Sprintf("%d", d.Build),
 					},
 				})
 				report.Invariants["artifact.desired_version_mismatch"]++
-			} else if d.build > 0 && inst.build > 0 && d.build != inst.build {
+			} else if d.Build > 0 && inst.build > 0 && d.Build != inst.build {
 				// inst.build == 0 means installed_state was written before
 				// build_number tracking was rigorous (or by a code path
 				// that left it unset). The convergence-committer stamps
@@ -301,10 +300,10 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 					Package:   inst.ref.GetName(),
 					Kind:      inst.kind,
 					Summary: fmt.Sprintf("installed build %d but desired build %d",
-						inst.build, d.build),
+						inst.build, d.Build),
 					Evidence: map[string]string{
 						"installed_build": fmt.Sprintf("%d", inst.build),
-						"desired_build":   fmt.Sprintf("%d", d.build),
+						"desired_build":   fmt.Sprintf("%d", d.Build),
 					},
 				})
 				report.Invariants["artifact.desired_build_mismatch"]++
@@ -394,44 +393,53 @@ type installedRef struct {
 	installedAt int64
 }
 
-// desiredRef is the per-service desired-state tuple consumed by I2.
-type desiredRef struct {
-	version string
-	build   int64
+// DesiredRef is the per-service desired-state tuple consumed by the I2
+// invariant. Exported because the resolver injection point (see
+// SetDesiredVersionResolver) has to be callable from the node-agent
+// server package — which lives outside this internal/actions package
+// and so cannot reference an unexported type.
+type DesiredRef struct {
+	Version string
+	Build   int64 // build_number
 }
 
-// readDesiredVersionsFromEtcd fetches /globular/resources/ServiceDesiredVersion/*
-// and indexes by lowercase service name.
-func readDesiredVersionsFromEtcd(ctx context.Context) map[string]desiredRef {
-	out := make(map[string]desiredRef)
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		return out
+// desiredVersionResolver returns L2 desired-state versions indexed by
+// lowercase short service name. The actions package owns the function
+// signature; the implementation is INSTALLED by the node-agent server
+// at boot via SetDesiredVersionResolver — that implementation dials
+// the cluster_controller's GetDesiredState typed RPC.
+//
+// Why injection (rather than dialling here): the cluster_controller
+// OWNS the /globular/resources/ServiceDesiredVersion/ prefix. Reading
+// it directly from this package violates
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+// (the owner applies type, version, and audit contracts a raw etcd
+// read bypasses). The injection keeps this package free of the
+// cluster_controllerpb import while still letting the server wire the
+// typed call.
+//
+// Default returns an empty map — if the server never installed a
+// resolver (test scaffolds, early-boot), verify_integrity simply
+// skips the I2 invariant rather than fabricating desired state.
+var desiredVersionResolver func(ctx context.Context) map[string]DesiredRef = func(_ context.Context) map[string]DesiredRef {
+	return map[string]DesiredRef{}
+}
+
+// SetDesiredVersionResolver installs the desired-state resolver. The
+// node-agent server calls this at boot with a closure that issues
+// cluster_controller.GetDesiredState. Passing nil is a no-op so a
+// post-boot reset cannot leave the package without a resolver.
+func SetDesiredVersionResolver(fn func(ctx context.Context) map[string]DesiredRef) {
+	if fn != nil {
+		desiredVersionResolver = fn
 	}
-	resp, err := cli.Get(ctx, "/globular/resources/ServiceDesiredVersion/", clientv3.WithPrefix())
-	if err != nil {
-		return out
-	}
-	for _, kv := range resp.Kvs {
-		var rec struct {
-			Spec struct {
-				ServiceName string `json:"service_name"`
-				Version     string `json:"version"`
-				BuildNumber int64  `json:"build_number"`
-			} `json:"spec"`
-		}
-		if err := json.Unmarshal(kv.Value, &rec); err != nil {
-			continue
-		}
-		if rec.Spec.ServiceName == "" {
-			continue
-		}
-		out[strings.ToLower(rec.Spec.ServiceName)] = desiredRef{
-			version: rec.Spec.Version,
-			build:   rec.Spec.BuildNumber,
-		}
-	}
-	return out
+}
+
+// readDesiredVersions returns the L2 desired-version map via the
+// injected resolver. The map is keyed by lowercase short service name
+// (e.g. "echo", not "core@globular.io/echo").
+func readDesiredVersions(ctx context.Context) map[string]DesiredRef {
+	return desiredVersionResolver(ctx)
 }
 
 // kindToProto maps the string kind to the proto enum.
