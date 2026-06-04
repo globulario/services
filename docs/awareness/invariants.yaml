@@ -5850,3 +5850,337 @@ invariants:
       forbidden_fixes:
         - extend_existing_buggy_pattern_without_querying_architecture
         - infer_architecture_from_code_when_awareness_anchor_exists
+
+    # ───────────────────────────────────────────────────────────────────────
+    # Four-layer model — actor authority + etcd path ownership (Commit A).
+    # The principle is documented in docs/operators/convergence-model.md and
+    # in docs/intent/state.repository_desired_installed_runtime.yaml (now at
+    # status: accepted). These invariants make the principle binding so that
+    # briefing surfaces it on any file that touches an etcd-writing path or
+    # a cross-layer decision.
+    # ───────────────────────────────────────────────────────────────────────
+
+    - id: four_layer.layer_has_single_writing_actor
+      title: Each of the four truth layers (Artifact, Desired, Installed, Runtime) has exactly one writing actor; cross-layer writes by non-owners are forbidden
+      severity: critical
+      status: active
+      summary: |
+        Globular tracks every service across four independent truth layers,
+        each with exactly one writing actor:
+
+          L1 Artifact   — written by repository service (via globular pkg
+                          publish / CI). Read by everyone else.
+          L2 Desired    — written by cluster-controller (via operator
+                          commands, seed, platform-upgrade). Read by
+                          node-agents and the workflow service.
+          L3 Installed  — written by the node-agent on each node (and only
+                          for its own node). Read by cluster-controller,
+                          workflow service, cluster-doctor.
+          L4 Runtime    — observed by systemd / Envoy. Never written to
+                          etcd as a separate authoritative record; the
+                          per-node node-agent reads it from /proc, systemd,
+                          and health probes and forwards observations.
+
+        The workflow-service orchestrates between actors but writes only
+        its own run state (not L1/L2/L3). cluster-doctor is a read-side
+        authority only — see invariant:cluster_doctor.observer_only_never_writes_etcd.
+
+        A write by an actor outside its assigned layer is an architectural
+        violation, not just a bug. Examples observed 2026-06-04:
+          - controller's release_pipeline put a release-identity hash
+            (L2 convergence concern) into InstalledPackage.Checksum
+            (L3 binary-SHA field) → 5804f523 vs 2eb07b67 split
+          - heartbeat (L3 observer sub-actor) stomped UpdatedUnix written
+            by the proof writer (L3 authority sub-actor) →
+            service.old_pid_after_upgrade
+          - repository's UploadArtifact wrote bytes to MinIO mirror
+            instead of POSIX CAS (L1 violation: MinIO is not an L1 store)
+      protects:
+        state:
+            - /globular/resources/DesiredService/{name}
+            - /globular/resources/ServiceRelease/{name}
+            - /globular/resources/InfrastructureRelease/{name}
+            - /globular/resources/ServiceDesiredVersion/{name}
+            - /globular/nodes/{node_id}/packages/{kind}/{name}
+            - /globular/services/{service_id}/config
+            - /globular/services/{service_id}/instances/{node}
+        files:
+            - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+            - golang/cluster_controller/cluster_controller_server/workflow_release.go
+            - golang/node_agent/node_agent_server/heartbeat.go
+            - golang/node_agent/node_agent_server/apply_package_release.go
+            - golang/node_agent/node_agent_server/installer_api.go
+            - golang/node_agent/node_agent_server/self_hosted_runtime_proof_writer.go
+            - golang/repository/repository_server/artifact_handlers.go
+            - golang/repository/repository_server/publish_workflow.go
+        symbols:
+            - WriteInstalledPackage
+            - completePublish
+            - promoteToPublished
+            - applySelfHostedInstalledStateRefresh
+      enforcement: |
+        Every etcd write site (Put / installed_state.Write* / typed RPC into
+        a path-owning service) must be performed only by the actor that owns
+        the prefix per the actor_layer_mapping invariant and the
+        etcd_path_ownership registry. Tests, CLIs, and admin tools that need
+        to mutate state call the owner's typed RPC; they must not Put
+        directly. The cluster-doctor rule four_layer_alignment (planned in
+        Commit C) catches violations at runtime; the static checker in
+        cmd/four_layer_audit (planned in Commit C) catches them at build
+        time. Until those land, briefing on any file in the protects.files
+        list surfaces this invariant.
+      forbidden_fixes:
+        - cross_layer_write_by_non_owner
+        - cluster_doctor_direct_write_to_etcd
+      related_failure_modes:
+        - four_layer.cross_layer_write_creates_drift
+
+    - id: four_layer.actor_layer_mapping
+      title: The actor → layer mapping is exact and exhaustive — five named actors with explicit write/read/authority columns
+      severity: critical
+      status: active
+      summary: |
+        The five actors that participate in the four-layer model:
+
+          repository         — writes L1, reads L1.
+                               Authority on "does this artifact exist + verified".
+          cluster-controller — writes L2, reads L1 (manifest) and L2.
+                               Authority on "what should be running cluster-wide".
+          node-agent         — writes L3 (only for its own node), reads L1
+                               via RPC and L2, observes L4 locally.
+                               Authority on "what is installed here + running here".
+          workflow-service   — writes only its own run state, reads L1/L2/L3.
+                               Authority on "what action was orchestrated, with
+                               what receipts and audit trail".
+          cluster-doctor     — writes NOTHING in etcd. Reads L1/L2/L3 and forwards
+                               L4 observations from node-agents.
+                               Authority on "what is the current health state" —
+                               the only canonical answerer for cross-layer health
+                               findings. See cluster_doctor.observer_only_never_writes_etcd
+                               and cluster_doctor.is_the_authority_for_health_state_queries.
+
+        systemd and Envoy are not actors in this mapping — they are
+        underlying primitives that produce L4 observations consumed by
+        node-agent and cluster-doctor.
+      protects:
+        files:
+            - docs/operators/convergence-model.md
+            - docs/intent/state.repository_desired_installed_runtime.yaml
+        symbols:
+            - repository_server.UploadArtifact
+            - cluster_controller_server.ApplyServiceRelease
+            - node_agent_server.ApplyPackageRelease
+            - workflow_server.ExecuteWorkflow
+            - cluster_doctor_server.ListFindings
+      enforcement: |
+        The actor_layer_mapping is the binding table. Any code that writes
+        to etcd outside the actor named in this table for its target prefix
+        is an authority violation. The etcd_path_ownership registry (Commit
+        B) enumerates each known prefix with its owning actor; the static
+        checker (Commit C) enforces it.
+      related_failure_modes:
+        - four_layer.cross_layer_write_creates_drift
+
+    - id: cluster_doctor.observer_only_never_writes_etcd
+      title: cluster-doctor must never write to etcd; it observes all four layers and produces findings, but produces no state
+      severity: critical
+      status: active
+      summary: |
+        cluster-doctor is the read-side authority for health. It walks L1
+        (repository), L2 (controller), L3 (node-agent installed records),
+        and L4 (forwarded runtime observations) on every sweep, produces
+        Findings, and answers operator queries with those findings. It
+        must NEVER write to etcd. Reasons:
+
+          1. Single-writer per layer (invariant:four_layer.layer_has_single_writing_actor).
+             If cluster-doctor wrote L1/L2/L3 it would be a second writer
+             and the cross-layer drift class would expand.
+
+          2. Audit trail. Every L1/L2/L3 mutation today is attributable to
+             a workflow run with correlation_id, retry_count, trigger_reason.
+             cluster-doctor writes bypass that — there is no parent workflow,
+             no acknowledged_by, no rollback target.
+
+          3. Security boundary. cluster_controller_server is forbidden from
+             os/exec / systemctl (CLAUDE.md hard rule #6) for the same
+             reason cluster-doctor must be forbidden from etcd writes:
+             analytical services must not have side-effect capabilities.
+
+        cluster-doctor MAY (and does) maintain in-memory caches of its own
+        findings (lastFindings, lastEmittedFindings) and persist them to
+        ai-memory for history. Neither of those is etcd. The invariant is
+        specifically "no writes to etcd".
+
+        When cluster-doctor needs to drive a state change it dispatches a
+        typed RemediationAction via its ActionExecutor. The action flows
+        controller → workflow → node-agent (or directly node-agent on
+        scope-limited cases). The node-agent is the L3 writer; cluster-doctor
+        records the action's outcome in its own audit ring, not in the L3
+        record itself.
+      protects:
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/server.go
+            - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+            - golang/cluster_doctor/cluster_doctor_server/actor_service.go
+            - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+            - golang/cluster_doctor/cluster_doctor_server/healer_loop.go
+            - golang/cluster_doctor/cluster_doctor_server/collector/collector.go
+        symbols:
+            - ClusterDoctorServer
+            - ActionExecutor
+            - Collector
+      enforcement: |
+        No code under golang/cluster_doctor/ may call etcd.Put / kv.Put or
+        any installed_state.Write* / desired-state.Write* helper. All state
+        changes are dispatched through typed RemediationAction → node-agent
+        or through the controller's typed RPCs. The static checker in
+        Commit C will fail a build that introduces such a call.
+      forbidden_fixes:
+        - cluster_doctor_direct_write_to_etcd
+        - bypass_doctor_for_cross_layer_health_finding
+
+    - id: cluster_doctor.is_the_authority_for_health_state_queries
+      title: cluster-doctor is the only canonical answerer for "what is the current cross-layer health state" — other services compute local readiness but never cross-layer findings
+      severity: critical
+      status: active
+      summary: |
+        The complement of cluster_doctor.observer_only_never_writes_etcd.
+        cluster-doctor IS an authority — for read-side health queries that
+        cross layers or nodes. When a caller wants to know "is this service
+        healthy, is the cluster converged, what is drifted", the canonical
+        answerer is cluster-doctor.
+
+        This rules out a class of duplication: controller, watcher, ai-router,
+        admin UI, and CLI tools must not compute their own cross-layer
+        health verdicts. They consume cluster-doctor's Findings or query
+        cluster-doctor RPCs (ListFindings, ExplainFinding, GetHealthReport).
+
+        Excluded from this rule (these are NOT bypasses):
+
+          - Local readiness signals owned by a single service for its own
+            lifecycle (e.g. systemd Type=notify, gRPC health endpoint of
+            a single service answering "am I up").
+          - Single-layer queries: "does this artifact exist in the repository"
+            is answered by the repository; "is this installed on node X" is
+            answered by node-agent. cluster-doctor enters when the question
+            crosses layers or nodes.
+          - Operator dashboards reading cluster-doctor's RPCs to render
+            UI — they are consumers, not parallel computers of findings.
+      protects:
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/actor_service.go
+            - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+            - golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+        symbols:
+            - ListFindings
+            - ExplainFinding
+            - GetHealthReport
+            - ListRepositoryFindings
+      enforcement: |
+        Cross-layer health verdicts (e.g. "this service is degraded because
+        L3 says installed but L4 says inactive") originate in cluster-doctor's
+        rules package. Other services must subscribe / query, not compute.
+        Code review must reject parallel implementations.
+      forbidden_fixes:
+        - bypass_doctor_for_cross_layer_health_finding
+
+    - id: four_layer.workflow_actor_attribution_required
+      title: Every workflow step's writes are attributed to the actor named in the step; the workflow service routes but never substitutes its own identity
+      severity: critical
+      status: active
+      summary: |
+        The convergence model assigns an actor to each workflow phase
+        (docs/operators/convergence-model.md):
+
+          Phase 1 DECISION   — cluster_controller
+          Phase 2 FETCH      — node_agent (per target node)
+          Phase 3 INSTALL    — node_agent
+          Phase 4 CONFIGURE  — node_agent
+          Phase 5 START      — node_agent (calls systemctl)
+          Phase 6 VERIFY     — node_agent
+          Phase 7 COMPLETE   — workflow_service (own run state only)
+
+        Writes performed during a phase MUST be attributable to the named
+        actor in the actor_layer_mapping. The workflow service routes calls
+        and records receipts; it does not substitute its own identity for
+        the actor that owns the layer being written.
+
+        Doc-side correction noted while authoring this invariant: the
+        convergence-model.md file says Phase 2 FETCH is "Download the .tgz
+        package from MinIO" — that is stale. The correct fetch source is
+        the repository's local POSIX CAS via the repository gRPC; MinIO is
+        not in the install path (see invariant:repository.minio_is_not_valid_package_source).
+        Doc fix tracked separately.
+      protects:
+        files:
+            - docs/operators/convergence-model.md
+            - golang/workflow/engine/actors.go
+            - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+            - golang/cluster_controller/cluster_controller_server/workflow_release.go
+            - generated/payload/workflow/definitions/release.apply.package.yaml
+            - generated/payload/workflow/definitions/release.apply.infrastructure.yaml
+            - generated/payload/workflow/definitions/release.apply.controller.yaml
+        symbols:
+            - ReleaseControllerConfig
+            - MarkNodeSucceeded
+            - completePublish
+      enforcement: |
+        Every workflow step definition names an actor in its `actor:` field.
+        The actor's writes during that step must be to a path that actor
+        owns per etcd_path_ownership (Commit B). Reviews of new workflow
+        definitions must confirm the actor matches the path owner.
+
+    - id: etcd.path_has_single_owner
+      title: Every etcd key prefix has exactly one owning service; all other writers must go through the owner's typed RPC
+      severity: critical
+      status: active
+      summary: |
+        etcd is the source of truth for cluster state. Every key prefix is
+        owned by exactly one writing service. Other services that need to
+        mutate that prefix call the owner's typed RPC — they do not Put
+        directly. The catalog of (prefix → owner → writer RPC) lives in
+        docs/awareness/etcd_path_ownership.yaml (created in Commit B).
+
+        First-pass coverage (full enumeration in Commit B):
+
+          /globular/resources/DesiredService/             → cluster-controller
+          /globular/resources/ServiceRelease/             → cluster-controller
+          /globular/resources/InfrastructureRelease/      → cluster-controller
+          /globular/resources/ServiceDesiredVersion/      → cluster-controller
+          /globular/nodes/{node_id}/packages/             → per-node node-agent
+          /globular/services/{service_id}/config          → that service
+          /globular/services/{service_id}/instances/{n}   → the node-agent on n
+          /globular/workflow/runs/                        → workflow-service
+          /globular/repository/...                        → repository
+          /globular/ai/jobs/                              → ai-executor
+
+        The most common violation observed is admin tools / CLIs Putting
+        directly to paths they don't own:
+          - cmd/installed_state_checksum_backfill writes to
+            /globular/nodes/.../packages/ but is not a node-agent
+          - mcp/tools_etcd.go exposes a generic Put — callers can stamp
+            any path
+          - globularcli/state_cmds.go has direct etcd mutations
+
+        Each violation must be replaced by a call to the owner's typed RPC.
+      protects:
+        files:
+            - golang/cmd/installed_state_checksum_backfill/main.go
+            - golang/cmd/globular-upgrader/main.go
+            - golang/mcp/tools_etcd.go
+            - golang/globularcli/state_cmds.go
+            - docs/awareness/etcd_path_ownership.yaml
+        symbols:
+            - WriteInstalledPackage
+            - etcd.Put
+            - kv.Put
+      enforcement: |
+        Commit B publishes the etcd_path_ownership registry. Commit C
+        publishes the static checker that walks every .Put / installed_state.Write*
+        call site, classifies the prefix, and fails the build when the
+        calling package ≠ the registered owner. Until those land, briefing
+        on any file in protects.files surfaces this invariant.
+      forbidden_fixes:
+        - cross_layer_write_by_non_owner
+      related_failure_modes:
+        - four_layer.cross_layer_write_creates_drift

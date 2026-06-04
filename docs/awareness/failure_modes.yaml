@@ -4122,3 +4122,94 @@ failure_modes:
         high-risk dirs (already in place per CLAUDE.md hard rule #7).
         The combination of the unit test and the hook is the regression
         surface.
+
+    # ───────────────────────────────────────────────────────────────────
+    # Four-layer model — cross-layer drift class (Commit A).
+    # ───────────────────────────────────────────────────────────────────
+
+    - id: four_layer.cross_layer_write_creates_drift
+      title: A write by an actor outside its assigned layer creates persistent cross-layer drift that surfaces as a different symptom in every observer until the layer authority is restored
+      severity: critical
+      symptoms:
+        - InstalledPackage.Checksum field contains a release-identity hash instead of the binary SHA the proto declares (5804f523 vs 2eb07b67 shape)
+        - NodeReleaseStatus.InstalledHash and the convergence proof disagree on what kind of hash they represent
+        - InstalledUnix or UpdatedUnix in installed_state advances past the running PID's start mtime, producing service.old_pid_after_upgrade for a service that is actually running the correct binary
+        - PUBLISHED artifact has no blob in the authoritative POSIX CAS but the publish RPC returned SUCCESS
+        - cluster-doctor and another service emit disagreeing health verdicts for the same (service, node) pair because both compute it independently
+      root_cause: |
+        An etcd write was performed by a service that is not the registered
+        owner for that key prefix, OR was performed by a sub-actor inside
+        the owning service that does not hold the per-field authority
+        within that service. The path's owner has its own contract for the
+        field's semantics; the non-owner writes a value with a different
+        semantic, and downstream readers cannot tell whether the value
+        they read is from the owner or the impostor. The bug looks
+        different to each reader (depending on what semantic they expect)
+        but the structural shape is one: layer or actor authority was
+        not enforced at the write site.
+
+        Live regressions in this class observed 2026-06-04:
+          1. cluster-controller's release_pipeline wrote
+             ServiceRelease.Status.DesiredHash (a release-identity hash,
+             L2 concern) into a field consumed as a binary SHA on the L3
+             side, producing the 5804f523 vs 2eb07b67 split.
+          2. node-agent's heartbeat (L3 observer sub-actor) overwrote
+             UpdatedUnix that the self-hosted proof writer (L3 authority
+             sub-actor) had anchored to PID start, producing permanent
+             service.old_pid_after_upgrade for cluster-controller.
+          3. repository's UploadArtifact wrote bytes to MinIO mirror as
+             part of completePublish, and the publish-reconciler's
+             attempted "heal from mirror" sweep (reverted in v1.2.163)
+             treated the mirror as a valid L1 source even though MinIO
+             is not an L1 authority.
+      architecture_fix: |
+        Enforce the four-layer model as binding, not just documented:
+
+          1. Anchor the actor → layer mapping and the etcd path → owner
+             registry as critical invariants (Commit A — this commit).
+          2. Publish the structured etcd_path_ownership.yaml registry
+             that enumerates each prefix with its owning service and the
+             typed RPC outside callers must use (Commit B).
+          3. Add a cluster-doctor rule that walks all four layers per
+             (service, node) and emits four_layer.cross_layer_drift
+             findings when layers disagree (Commit C). Add a static
+             checker in cmd/four_layer_audit/ that walks every etcd
+             .Put / installed_state.Write* call site, classifies the
+             prefix, and fails the build when the calling package is
+             not the registered owner.
+
+        The doctor rule and the static checker turn the principle from
+        documentation into a runtime contract.
+      forbidden_fixes:
+        - cross_layer_write_by_non_owner
+        - cluster_doctor_direct_write_to_etcd
+        - bypass_doctor_for_cross_layer_health_finding
+      related_invariants:
+        - four_layer.layer_has_single_writing_actor
+        - four_layer.actor_layer_mapping
+        - etcd.path_has_single_owner
+        - cluster_doctor.observer_only_never_writes_etcd
+        - cluster_doctor.is_the_authority_for_health_state_queries
+        - four_layer.workflow_actor_attribution_required
+      related_services:
+        - cluster-controller
+        - node-agent
+        - repository
+        - cluster-doctor
+        - workflow
+      required_tests:
+        - TestDecideNodeRolloutProof_ClusterControllerStaleHashRegression
+        - TestMarkNodeSucceeded_StoresBinarySHA_NotReleaseIdentity
+        - TestHeartbeatPhase2_SelfHosted_PreservesUpdatedUnix
+        - TestUploadArtifact_FinalGate_RejectsPostPublishLocalBlobMissing
+        - TestPublishReconciler_DoesNotHealFromMirror
+      no_test_yet_reason: |
+        The cross-layer class is exercised by the existing per-incident
+        regression tests above. A meta-test that enforces the full
+        four-layer alignment at runtime is the cluster-doctor rule
+        planned in Commit C; a build-time meta-test is the static
+        checker also planned in Commit C. Until those land, the
+        per-incident tests cover the known shapes and the briefing on
+        any file in the protects.files lists of the related invariants
+        surfaces the class so a future contributor sees it before
+        introducing a new shape.

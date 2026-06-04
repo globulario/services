@@ -2729,3 +2729,130 @@ forbidden_fixes:
     files:
       - CLAUDE.md
       - docs/awareness/invariants.yaml
+
+# ─────────────────────────────────────────────────────────────────────────
+# Four-layer model enforcement (Commit A).
+# ─────────────────────────────────────────────────────────────────────────
+
+- id: cross_layer_write_by_non_owner
+  summary: >
+    Write to an etcd path whose owner (per etcd_path_ownership and the
+    actor_layer_mapping) is a different service. Typical shapes:
+    cluster-controller writing into /globular/nodes/{id}/packages/ (L3,
+    owned by per-node node-agent); a CLI tool calling etcd.Put directly
+    against a controller-owned prefix instead of calling the controller's
+    typed RPC; a heartbeat sub-actor stomping a field set by another
+    sub-actor inside the same service.
+  reason: >
+    Each truth layer has exactly one writing actor. Cross-layer writes
+    produce the exact bug class observed 2026-06-04: release-identity
+    hashes leaking into binary-SHA fields (5804f523 vs 2eb07b67), heartbeat
+    stomping the proof writer's PID anchor, and MinIO mirror writes
+    legitimizing themselves as a recovery source. These bugs all look
+    different at the surface but share one shape — module M wrote to a
+    path M doesn't own. The fix is structural, not local.
+  safe_alternative: >
+    Call the owner's typed RPC. The owner is named in
+    docs/awareness/etcd_path_ownership.yaml (Commit B). When a CLI or admin
+    tool needs to mutate state, route the change through the same RPC the
+    workflow service would call. When a service has an internal split
+    between sub-actors (e.g. node-agent's heartbeat observer vs proof
+    writer authority), the authority sub-actor is the only writer; the
+    observer reads and reports.
+  related_invariants:
+    - four_layer.layer_has_single_writing_actor
+    - four_layer.actor_layer_mapping
+    - etcd.path_has_single_owner
+  protects:
+    files:
+      - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+      - golang/cluster_controller/cluster_controller_server/workflow_release.go
+      - golang/node_agent/node_agent_server/heartbeat.go
+      - golang/repository/repository_server/artifact_handlers.go
+      - golang/cmd/installed_state_checksum_backfill/main.go
+      - golang/cmd/globular-upgrader/main.go
+      - golang/mcp/tools_etcd.go
+      - golang/globularcli/state_cmds.go
+
+- id: cluster_doctor_direct_write_to_etcd
+  summary: >
+    Add an etcd write (etcd.Put / kv.Put / installed_state.Write* /
+    desired-state.Write*) anywhere under golang/cluster_doctor/. Includes
+    "convenience" writes such as caching a Finding to etcd for
+    inter-doctor sharing, or stamping a remediation outcome directly into
+    an L3 InstalledPackage record.
+  reason: >
+    cluster-doctor is observer-only on the four truth layers
+    (invariant:cluster_doctor.observer_only_never_writes_etcd). Adding an
+    etcd writer to cluster-doctor:
+      1. Makes L3 multi-writer (cluster-doctor + node-agent), reintroducing
+         the cross-layer drift class.
+      2. Bypasses the workflow service's audit chain — the mutation has no
+         correlation_id, no trigger_reason, no acknowledged_by, and no
+         rollback target.
+      3. Erodes the security boundary that keeps analytical services from
+         needing node-side privileges.
+  safe_alternative: >
+    Build a typed RemediationAction (SYSTEMCTL_*, FILE_DELETE,
+    REINSTALL_PACKAGE, etc.) and dispatch it via the existing
+    ActionExecutor. The action flows controller → workflow → node-agent;
+    node-agent is the L3 writer. cluster-doctor records the action's
+    outcome in its own audit ring (in-memory + ai-memory for history) —
+    never in the L3 record itself.
+
+    In-memory caches of findings (lastFindings, lastEmittedFindings) and
+    ai-memory writes of finding history are NOT etcd writes and are
+    explicitly allowed.
+  related_invariants:
+    - cluster_doctor.observer_only_never_writes_etcd
+    - four_layer.layer_has_single_writing_actor
+  protects:
+    files:
+      - golang/cluster_doctor/cluster_doctor_server/server.go
+      - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+      - golang/cluster_doctor/cluster_doctor_server/actor_service.go
+      - golang/cluster_doctor/cluster_doctor_server/healer_loop.go
+      - golang/cluster_doctor/cluster_doctor_server/collector/collector.go
+
+- id: bypass_doctor_for_cross_layer_health_finding
+  summary: >
+    Compute a cross-layer health verdict outside cluster-doctor. Examples:
+    a controller routine that classifies "this release is degraded because
+    L3 says installed but L4 says inactive" inline instead of consuming a
+    doctor Finding; a CLI command that pulls L1+L2+L3 data and renders a
+    verdict locally; an ai-watcher rule that decides cluster-wide health
+    state from raw layer reads.
+  reason: >
+    cluster-doctor is the canonical answerer for cross-layer health
+    (invariant:cluster_doctor.is_the_authority_for_health_state_queries).
+    Parallel implementations drift over time as the underlying rules
+    evolve (the doctor gets the rule update; the parallel implementation
+    does not); disagree under partial-data conditions (different
+    fallbacks); and hide bugs (when two answers diverge, operators
+    don't know which is right). A single authority for the cross-layer
+    verdict is the only way to keep findings consistent across the
+    cluster's surfaces.
+  safe_alternative: >
+    Query cluster-doctor via ListFindings, ExplainFinding, or
+    GetHealthReport, and render or react to the response. If the doctor
+    lacks a rule for the case at hand, add the rule to
+    cluster_doctor_server/rules/ — do not implement the rule elsewhere.
+
+    Single-layer queries are NOT bypasses and remain in their owner:
+    "does this artifact exist?" answered by repository; "is X installed
+    on node N?" answered by node-agent; "am I up?" (local readiness)
+    answered by the service itself (systemd Type=notify, gRPC health
+    endpoint). The doctor enters when the question crosses layers or
+    nodes.
+  related_invariants:
+    - cluster_doctor.is_the_authority_for_health_state_queries
+    - cluster_doctor.observer_only_never_writes_etcd
+  protects:
+    files:
+      - golang/cluster_doctor/cluster_doctor_server/rules/
+      - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+      - golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+      - golang/ai_executor/
+      - golang/ai_watcher/
+      - golang/globularcli/
+      - golang/mcp/
