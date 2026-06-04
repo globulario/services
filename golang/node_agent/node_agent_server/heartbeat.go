@@ -914,6 +914,22 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 			if existing.GetBuildId() != "" {
 				pkg.BuildId = existing.GetBuildId()
 			}
+			// forbidden_fix:use_wall_clock_for_installed_unix_timestamp.
+			// For self-hosted services on the allowlist (node-agent,
+			// cluster-controller, cluster-doctor, repository),
+			// self_hosted_runtime_proof_writer.go anchors UpdatedUnix to
+			// the running PID's start time (so the verifier's
+			// max(InstalledUnix, UpdatedUnix) <= PID_start invariant
+			// holds). Heartbeat Phase 2 must NOT overwrite that anchor
+			// with time.Now() — wall-clock is always > PID start, which
+			// produces a permanent service.old_pid_after_upgrade finding
+			// (failure_mode:heartbeat.stale_kind_manifest_poisons_installed_state
+			// is the sibling pattern; this is the proof-anchor-stomp
+			// variant). Preserve the existing UpdatedUnix for these
+			// services; the proof writer is the authority on this field.
+			if selfHostedServiceNames[name] {
+				pkg.UpdatedUnix = existing.GetUpdatedUnix()
+			}
 		}
 		// Phase 39 — canonical binary identity comes from DISK, not from
 		// the manifest. The manifest's GetEntrypointChecksum() is what

@@ -89,6 +89,9 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.heartbeat
     relation: relates_to
     to: globular.platform:incident_pattern.heartbeat_stale_kind_manifest_old_pid_loop
+  - from: globular.platform:code.go.platform_node_agent.heartbeat.proof_anchor_preserve
+    relation: protects
+    to: globular.platform:forbidden_fix.use_wall_clock_for_installed_unix_timestamp
   - from: globular.platform:code.go.platform_node_agent.infra_health_probe
     relation: implements
     to: globular.platform:intent.health.requires_fresh_evidence

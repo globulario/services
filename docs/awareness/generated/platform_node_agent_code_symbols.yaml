@@ -164,6 +164,15 @@ code_symbols:
       relates_to:
         - globular.platform:failure_mode.heartbeat_stale_kind_manifest_poisons_installed_state
         - globular.platform:incident_pattern.heartbeat_stale_kind_manifest_old_pid_loop
+  - id: globular.platform:code.go.platform_node_agent.heartbeat.proof_anchor_preserve
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/heartbeat_proof_anchor_preserve_test.go
+    component: platform_node_agent.heartbeat.proof_anchor_preserve
+    risk: high
+    annotations:
+      protects:
+        - globular.platform:forbidden_fix.use_wall_clock_for_installed_unix_timestamp
   - id: globular.platform:code.go.platform_node_agent.infra_health_probe
     namespace: globular.platform
     language: go

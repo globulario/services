@@ -1940,9 +1940,22 @@ failure_modes:
         - Bumping the version and hoping the next deploy will catch it (silent for an entire release window)
       related_invariants:
         - rollout.convergence_requires_runtime_proof
+        - infra.heartbeat_observer_only_not_authority
       required_tests:
         - TestVerifyTarget_ProcessOlderThanApply_OldPidAfterUpgrade
         - TestVerifyTarget_UpgradeProcessOlderThanApply_StillCritical
+        - TestHeartbeatPhase2_SelfHosted_PreservesUpdatedUnix
+        - TestHeartbeatPhase2_AllSelfHostedServices_PreserveUpdatedUnix
+      additional_root_causes: |
+        Observed 2026-06-04 on cluster-controller: the proof writer's PID-anchored
+        UpdatedUnix was overwritten on every heartbeat tick by heartbeat.go Phase 2
+        (the artifact-sync writer). The verifier read max(InstalledUnix, UpdatedUnix)
+        = wall-clock now > PID start and flagged the running binary as stale even
+        though it was the correctly-installed one. This is a proof-anchor-stomp
+        variant of the broader forbidden_fix use_wall_clock_for_installed_unix_timestamp.
+        Fix: heartbeat Phase 2 preserves existing.UpdatedUnix for services on the
+        selfHostedServiceNames allowlist (node-agent, cluster-controller,
+        cluster-doctor, repository). See TestHeartbeatPhase2_SelfHosted_PreservesUpdatedUnix.
 
     - id: service.bootstrap_ordering_skew
       title: Service process started before the controller recorded its apply — expected during fresh install only

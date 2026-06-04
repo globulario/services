@@ -2350,14 +2350,32 @@ forbidden_fixes:
     The verifier compares the installed timestamp against the running PID's mtime.
     If InstalledUnix > process start time, the verifier concludes the running binary
     is older than the installed record — which looks like an upgrade that didn't restart.
-    This was INC-2026-0016.
+    This was INC-2026-0016. The proof-anchor-stomp variant (heartbeat Phase 2
+    overwriting the proof writer's PID-anchored UpdatedUnix with time.Now()) was
+    observed 2026-06-04 on cluster-controller after the v1.2.151 deploy and is
+    the same forbidden fix — different write site.
   safe_alternative: >
-    Use /proc/<pid>/exe mtime (os.Stat) as the InstalledUnix anchor. This ties
-    the proof to when the process actually started, not when we wrote the record.
+    Two acceptable implementations:
+    (a) Use /proc/<pid>/exe mtime (os.Stat) as the anchor when constructing the
+        record — this is what self_hosted_runtime_proof_writer.go does for the
+        services on the selfHostedServiceNames allowlist (node-agent,
+        cluster-controller, cluster-doctor, repository).
+    (b) When a downstream writer (e.g. heartbeat.go Phase 2) merges into an
+        existing record for a self-hosted service, PRESERVE existing.UpdatedUnix
+        — do not overwrite the proof writer's anchor with time.Now(). The proof
+        writer is the authority for these fields; the heartbeat must be observer-
+        only with respect to the timestamp anchors.
   related_invariants:
+    - infra.heartbeat_observer_only_not_authority
+  required_tests:
+    - TestHeartbeatPhase2_SelfHosted_PreservesUpdatedUnix
+    - TestHeartbeatPhase2_AllSelfHostedServices_PreserveUpdatedUnix
+    - TestHeartbeatPhase2_NonSelfHosted_StillUpdatesUpdatedUnix
+    - TestHeartbeatPhase2_NoExisting_NoMergeChange
   protects:
     files:
       - golang/node_agent/node_agent_server/heartbeat.go
+      - golang/node_agent/node_agent_server/self_hosted_runtime_proof_writer.go
 
 - id: dispatch_workflow_without_checking_wave_blocked_result
   summary: >
