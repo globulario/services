@@ -686,6 +686,27 @@ service ClusterControllerService {
       default_role_hint: "viewer"
     };
   };
+  // ListExternalDomains returns every external-domain spec the
+  // controller's embedded domain reconciler manages, paired with the
+  // current status. Replaces the prior xDS etcd scan of
+  // /globular/domains/v1/* (spec) and per-domain /status reads —
+  // those prefixes are owned by the controller-side domain reconciler,
+  // so consumers MUST read them via this typed RPC per
+  // invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+  //
+  // Only the fields xDS actually consumes are surfaced. Conditions,
+  // CertExpiry, LastReconcile, NodeID, Zone, ProviderRef, TargetIP,
+  // PublishExternal, UseWildcardCert, TTL are deliberately omitted to
+  // keep the response narrow; extend the proto when a new consumer
+  // arrives that needs them.
+  rpc ListExternalDomains(ListExternalDomainsRequest) returns (ListExternalDomainsResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.domains.read"
+      permission: "read"
+      resource_template: "/cluster_controller/domains"
+      default_role_hint: "viewer"
+    };
+  };
   rpc UpsertDesiredService(UpsertDesiredServiceRequest) returns (DesiredState) {
     option (globular.auth.authz) = {
       action: "cluster_controller.desired_service.upsert"
@@ -917,6 +938,28 @@ message ListDesiredBuildIDsRequest {
 }
 
 message GetRoutingRefreshRequest {}
+
+message ListExternalDomainsRequest {}
+
+// ExternalDomainEntry is the narrow projection of (spec, status) that
+// xDS consumes when building Envoy snapshots. See the RPC docstring
+// for the omitted-field list and the v1.2.181 inflation policy.
+message ExternalDomainEntry {
+  string fqdn = 1;
+  // Ingress configuration mirrored from spec.Ingress.
+  bool ingress_enabled = 2;
+  string ingress_service = 3;
+  int32 ingress_port = 4;
+  // ACME enable flag mirrored from spec.ACME.Enabled.
+  bool acme_enabled = 5;
+  // Reconciler status phase: "Pending", "Ready", "Error". Empty when
+  // the reconciler has not yet written a status record for this FQDN.
+  string status_phase = 6;
+}
+
+message ListExternalDomainsResponse {
+  repeated ExternalDomainEntry domains = 1;
+}
 
 // GetRoutingRefreshResponse carries the controller's current
 // leader-epoch. Routing-aware components compare epoch to their

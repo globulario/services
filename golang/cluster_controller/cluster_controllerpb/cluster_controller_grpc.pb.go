@@ -47,6 +47,7 @@ const (
 	ClusterControllerService_GetDesiredState_FullMethodName           = "/cluster_controller.ClusterControllerService/GetDesiredState"
 	ClusterControllerService_ListDesiredBuildIDs_FullMethodName       = "/cluster_controller.ClusterControllerService/ListDesiredBuildIDs"
 	ClusterControllerService_GetRoutingRefresh_FullMethodName         = "/cluster_controller.ClusterControllerService/GetRoutingRefresh"
+	ClusterControllerService_ListExternalDomains_FullMethodName       = "/cluster_controller.ClusterControllerService/ListExternalDomains"
 	ClusterControllerService_UpsertDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/UpsertDesiredService"
 	ClusterControllerService_RemoveDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/RemoveDesiredService"
 	ClusterControllerService_SeedDesiredState_FullMethodName          = "/cluster_controller.ClusterControllerService/SeedDesiredState"
@@ -132,6 +133,20 @@ type ClusterControllerServiceClient interface {
 	// read per poll). Sub-second latency is not a hard requirement
 	// (routing refresh is a rare cluster event).
 	GetRoutingRefresh(ctx context.Context, in *GetRoutingRefreshRequest, opts ...grpc.CallOption) (*GetRoutingRefreshResponse, error)
+	// ListExternalDomains returns every external-domain spec the
+	// controller's embedded domain reconciler manages, paired with the
+	// current status. Replaces the prior xDS etcd scan of
+	// /globular/domains/v1/* (spec) and per-domain /status reads —
+	// those prefixes are owned by the controller-side domain reconciler,
+	// so consumers MUST read them via this typed RPC per
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	//
+	// Only the fields xDS actually consumes are surfaced. Conditions,
+	// CertExpiry, LastReconcile, NodeID, Zone, ProviderRef, TargetIP,
+	// PublishExternal, UseWildcardCert, TTL are deliberately omitted to
+	// keep the response narrow; extend the proto when a new consumer
+	// arrives that needs them.
+	ListExternalDomains(ctx context.Context, in *ListExternalDomainsRequest, opts ...grpc.CallOption) (*ListExternalDomainsResponse, error)
 	UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	RemoveDesiredService(ctx context.Context, in *RemoveDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	SeedDesiredState(ctx context.Context, in *SeedDesiredStateRequest, opts ...grpc.CallOption) (*DesiredState, error)
@@ -429,6 +444,16 @@ func (c *clusterControllerServiceClient) GetRoutingRefresh(ctx context.Context, 
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) ListExternalDomains(ctx context.Context, in *ListExternalDomainsRequest, opts ...grpc.CallOption) (*ListExternalDomainsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListExternalDomainsResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ListExternalDomains_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DesiredState)
@@ -584,6 +609,20 @@ type ClusterControllerServiceServer interface {
 	// read per poll). Sub-second latency is not a hard requirement
 	// (routing refresh is a rare cluster event).
 	GetRoutingRefresh(context.Context, *GetRoutingRefreshRequest) (*GetRoutingRefreshResponse, error)
+	// ListExternalDomains returns every external-domain spec the
+	// controller's embedded domain reconciler manages, paired with the
+	// current status. Replaces the prior xDS etcd scan of
+	// /globular/domains/v1/* (spec) and per-domain /status reads —
+	// those prefixes are owned by the controller-side domain reconciler,
+	// so consumers MUST read them via this typed RPC per
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	//
+	// Only the fields xDS actually consumes are surfaced. Conditions,
+	// CertExpiry, LastReconcile, NodeID, Zone, ProviderRef, TargetIP,
+	// PublishExternal, UseWildcardCert, TTL are deliberately omitted to
+	// keep the response narrow; extend the proto when a new consumer
+	// arrives that needs them.
+	ListExternalDomains(context.Context, *ListExternalDomainsRequest) (*ListExternalDomainsResponse, error)
 	UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error)
 	RemoveDesiredService(context.Context, *RemoveDesiredServiceRequest) (*DesiredState, error)
 	SeedDesiredState(context.Context, *SeedDesiredStateRequest) (*DesiredState, error)
@@ -688,6 +727,9 @@ func (UnimplementedClusterControllerServiceServer) ListDesiredBuildIDs(context.C
 }
 func (UnimplementedClusterControllerServiceServer) GetRoutingRefresh(context.Context, *GetRoutingRefreshRequest) (*GetRoutingRefreshResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRoutingRefresh not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ListExternalDomains(context.Context, *ListExternalDomainsRequest) (*ListExternalDomainsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListExternalDomains not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpsertDesiredService not implemented")
@@ -1194,6 +1236,24 @@ func _ClusterControllerService_GetRoutingRefresh_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_ListExternalDomains_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListExternalDomainsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ListExternalDomains(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ListExternalDomains_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ListExternalDomains(ctx, req.(*ListExternalDomainsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_UpsertDesiredService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertDesiredServiceRequest)
 	if err := dec(in); err != nil {
@@ -1444,6 +1504,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRoutingRefresh",
 			Handler:    _ClusterControllerService_GetRoutingRefresh_Handler,
+		},
+		{
+			MethodName: "ListExternalDomains",
+			Handler:    _ClusterControllerService_ListExternalDomains_Handler,
 		},
 		{
 			MethodName: "UpsertDesiredService",
