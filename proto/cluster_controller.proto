@@ -755,6 +755,27 @@ service ClusterControllerService {
       default_role_hint: "admin"
     };
   };
+  // CreateExternalDomain writes a new external-domain spec.
+  // Owner-typed: the controller's domain reconciler is the writer of
+  // /globular/domains/v1/{fqdn}. Consumers MUST call this RPC
+  // instead of putting the JSON spec directly into etcd.
+  rpc CreateExternalDomain(CreateExternalDomainRequest) returns (CreateExternalDomainResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.domains.create"
+      permission: "write"
+      resource_template: "/cluster_controller/domains/{fqdn}"
+      default_role_hint: "admin"
+    };
+  };
+  // DeleteExternalDomain removes an external-domain spec.
+  rpc DeleteExternalDomain(DeleteExternalDomainRequest) returns (DeleteExternalDomainResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.domains.delete"
+      permission: "write"
+      resource_template: "/cluster_controller/domains/{fqdn}"
+      default_role_hint: "admin"
+    };
+  };
   rpc UpsertDesiredService(UpsertDesiredServiceRequest) returns (DesiredState) {
     option (globular.auth.authz) = {
       action: "cluster_controller.desired_service.upsert"
@@ -1024,6 +1045,42 @@ message RequestIngressRepublishResponse {
   // written_at_unix >= request_unix to confirm the republish.
   int64 request_unix = 1;
 }
+
+// ExternalDomainACMEConfig mirrors domain.ACMEConfig.
+message ExternalDomainACMEConfig {
+  bool enabled = 1;
+  string challenge_type = 2;
+  string email = 3;
+  string directory = 4;
+}
+
+// ExternalDomainIngressConfig mirrors domain.IngressConfig.
+message ExternalDomainIngressConfig {
+  bool enabled = 1;
+  string service = 2;
+  int32 port = 3;
+}
+
+message CreateExternalDomainRequest {
+  string fqdn = 1;
+  string zone = 2;
+  string node_id = 3;
+  string target_ip = 4;
+  string provider_ref = 5;
+  int32 ttl = 6;
+  bool publish_external = 7;
+  bool use_wildcard_cert = 8;
+  ExternalDomainACMEConfig acme = 9;
+  ExternalDomainIngressConfig ingress = 10;
+}
+
+message CreateExternalDomainResponse {}
+
+message DeleteExternalDomainRequest {
+  string fqdn = 1;
+}
+
+message DeleteExternalDomainResponse {}
 
 // ListServicesResponse carries the merged service-registry view as a
 // list of JSON strings. Each string is the (config + instance) map

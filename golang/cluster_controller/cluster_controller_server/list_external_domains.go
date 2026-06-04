@@ -65,3 +65,78 @@ func (srv *server) ListExternalDomains(ctx context.Context, _ *cluster_controlle
 	}
 	return resp, nil
 }
+
+// CreateExternalDomain writes a new external-domain spec via the
+// controller's embedded domain.EtcdDomainStore — the owner's typed
+// path. Replaces the prior CLI putting raw JSON into
+// /globular/domains/v1/{fqdn} via etcdClient.Put.
+//
+// Validation: the request fields are mapped into a
+// domain.ExternalDomainSpec and validated with spec.Validate()
+// before persistence. The status field is seeded with a "Pending"
+// phase; the reconciler will overwrite it on the next pass.
+func (srv *server) CreateExternalDomain(ctx context.Context, req *cluster_controllerpb.CreateExternalDomainRequest) (*cluster_controllerpb.CreateExternalDomainResponse, error) {
+	if srv.etcdClient == nil {
+		return nil, status.Error(codes.FailedPrecondition, "etcd client unavailable")
+	}
+	if req.GetFqdn() == "" {
+		return nil, status.Error(codes.InvalidArgument, "fqdn is required")
+	}
+
+	spec := &domain.ExternalDomainSpec{
+		FQDN:            req.GetFqdn(),
+		Zone:            req.GetZone(),
+		NodeID:          req.GetNodeId(),
+		TargetIP:        req.GetTargetIp(),
+		ProviderRef:     req.GetProviderRef(),
+		TTL:             int(req.GetTtl()),
+		PublishExternal: req.GetPublishExternal(),
+		UseWildcardCert: req.GetUseWildcardCert(),
+	}
+	if a := req.GetAcme(); a != nil {
+		spec.ACME = domain.ACMEConfig{
+			Enabled:       a.GetEnabled(),
+			ChallengeType: a.GetChallengeType(),
+			Email:         a.GetEmail(),
+			Directory:     a.GetDirectory(),
+		}
+	}
+	if i := req.GetIngress(); i != nil {
+		spec.Ingress = domain.IngressConfig{
+			Enabled: i.GetEnabled(),
+			Service: i.GetService(),
+			Port:    int(i.GetPort()),
+		}
+	}
+	spec.Status = domain.ExternalDomainStatus{
+		Phase:   "Pending",
+		Message: "Awaiting reconciliation",
+	}
+
+	if err := spec.Validate(); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid domain spec: %v", err)
+	}
+
+	store := domain.NewEtcdDomainStore(srv.etcdClient)
+	if err := store.PutSpec(ctx, spec); err != nil {
+		return nil, status.Errorf(codes.Internal, "save spec: %v", err)
+	}
+	return &cluster_controllerpb.CreateExternalDomainResponse{}, nil
+}
+
+// DeleteExternalDomain removes an external-domain spec via the
+// owner's typed store. Replaces the prior CLI etcdClient.Delete.
+func (srv *server) DeleteExternalDomain(ctx context.Context, req *cluster_controllerpb.DeleteExternalDomainRequest) (*cluster_controllerpb.DeleteExternalDomainResponse, error) {
+	if srv.etcdClient == nil {
+		return nil, status.Error(codes.FailedPrecondition, "etcd client unavailable")
+	}
+	fqdn := req.GetFqdn()
+	if fqdn == "" {
+		return nil, status.Error(codes.InvalidArgument, "fqdn is required")
+	}
+	store := domain.NewEtcdDomainStore(srv.etcdClient)
+	if err := store.DeleteSpec(ctx, fqdn); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete spec: %v", err)
+	}
+	return &cluster_controllerpb.DeleteExternalDomainResponse{}, nil
+}

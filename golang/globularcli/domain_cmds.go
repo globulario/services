@@ -193,11 +193,15 @@ func init() {
 	rootCmd.AddCommand(domainCmd)
 }
 
+// runDomainAdd consumes cluster_controller.CreateExternalDomain.
+// Replaces the prior direct etcdClient.Put + Get verification —
+// that approach wrote raw JSON into /globular/domains/v1/{fqdn}
+// from a non-owner. Anchored by
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
 func runDomainAdd(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()
 
-	// Auto-detect node ID if not provided
 	if domainNodeID == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
@@ -205,71 +209,38 @@ func runDomainAdd(cmd *cobra.Command, args []string) error {
 		}
 		domainNodeID = hostname
 	}
-
-	// Validate ACME requirements
 	if domainEnableACME && domainACMEEmail == "" {
 		return fmt.Errorf("--acme-email is required when --enable-acme is set")
 	}
 
-	// Build spec
-	spec := &domain.ExternalDomainSpec{
-		FQDN:            domainFQDN,
+	cc, err := controllerClient()
+	if err != nil {
+		return fmt.Errorf("dial cluster_controller: %w", err)
+	}
+	defer cc.Close()
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+	if _, err := client.CreateExternalDomain(ctx, &cluster_controllerpb.CreateExternalDomainRequest{
+		Fqdn:            domainFQDN,
 		Zone:            domainZone,
-		NodeID:          domainNodeID,
-		TargetIP:        domainTargetIP,
+		NodeId:          domainNodeID,
+		TargetIp:        domainTargetIP,
 		ProviderRef:     domainProvider,
-		TTL:             domainTTL,
-		PublishExternal: domainPublishExternal, // INV-DNS-EXT-1
-		UseWildcardCert: domainUseWildcardCert, // INV-DNS-EXT-1
-		ACME: domain.ACMEConfig{
+		Ttl:             int32(domainTTL),
+		PublishExternal: domainPublishExternal,
+		UseWildcardCert: domainUseWildcardCert,
+		Acme: &cluster_controllerpb.ExternalDomainACMEConfig{
 			Enabled:       domainEnableACME,
 			ChallengeType: "dns-01",
 			Email:         domainACMEEmail,
 			Directory:     domainACMEDir,
 		},
-		Ingress: domain.IngressConfig{
+		Ingress: &cluster_controllerpb.ExternalDomainIngressConfig{
 			Enabled: domainEnableIngress,
 			Service: domainIngressSvc,
-			Port:    domainIngressPort,
+			Port:    int32(domainIngressPort),
 		},
-		Status: domain.ExternalDomainStatus{
-			Phase:   "Pending",
-			Message: "Awaiting reconciliation",
-		},
-	}
-
-	// Validate spec
-	if err := spec.Validate(); err != nil {
-		return fmt.Errorf("invalid domain spec: %w", err)
-	}
-
-	// Serialize to JSON
-	data, err := spec.ToJSON()
-	if err != nil {
-		return fmt.Errorf("failed to serialize spec: %w", err)
-	}
-
-	// Connect to etcd
-	etcdClient, err := config.GetEtcdClient()
-	if err != nil {
-		return fmt.Errorf("failed to connect to etcd: %w", err)
-	}
-	defer etcdClient.Close()
-
-	// Write to etcd
-	key := domain.DomainKey(domainFQDN)
-	_, err = etcdClient.Put(ctx, key, string(data))
-	if err != nil {
-		return fmt.Errorf("failed to save domain spec to etcd: %w", err)
-	}
-
-	// Verify persistence by reading back
-	verifyResp, err := etcdClient.Get(ctx, key)
-	if err != nil {
-		return fmt.Errorf("domain saved but verification failed: %w\nPossible causes: etcd connectivity issues, TLS misconfiguration", err)
-	}
-	if verifyResp.Count == 0 {
-		return fmt.Errorf("domain spec not found after write - etcd may be misconfigured\nPossible causes:\n  - etcd endpoint mismatch\n  - service discovery failure\n  - TLS certificate issues\nDebug with: globular domain status --fqdn %s", domainFQDN)
+	}); err != nil {
+		return fmt.Errorf("CreateExternalDomain: %w", err)
 	}
 
 	fmt.Printf("✓ External domain registered: %s\n", domainFQDN)
@@ -544,58 +515,58 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dd ago", int(d.Hours()/24))
 }
 
+// runDomainRemove consumes cluster_controller.DeleteExternalDomain.
+// To preserve the prior "warn-if-ACME-was-enabled" advisory, we
+// query the spec via the typed ListExternalDomains projection
+// before the delete RPC. Anchored by
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
 func runDomainRemove(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()
 
-	// Connect to etcd
-	etcdClient, err := config.GetEtcdClient()
+	cc, err := controllerClient()
 	if err != nil {
-		return fmt.Errorf("failed to connect to etcd: %w", err)
+		return fmt.Errorf("dial cluster_controller: %w", err)
 	}
-	defer etcdClient.Close()
+	defer cc.Close()
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
-	// Read current spec (for cleanup operations)
-	key := domain.DomainKey(domainFQDN)
-	getResp, err := etcdClient.Get(ctx, key)
+	// Lookup-then-delete: read the entry first so we can preserve
+	// the prior "Certificates were NOT deleted" advisory when the
+	// domain had ACME enabled.
+	listResp, err := client.ListExternalDomains(ctx, &cluster_controllerpb.ListExternalDomainsRequest{})
 	if err != nil {
-		return fmt.Errorf("failed to read domain spec: %w", err)
+		return fmt.Errorf("ListExternalDomains: %w", err)
 	}
-	if getResp.Count == 0 {
+	var found *cluster_controllerpb.ExternalDomainEntry
+	for _, e := range listResp.GetDomains() {
+		if e.GetFqdn() == domainFQDN {
+			found = e
+			break
+		}
+	}
+	if found == nil {
 		return fmt.Errorf("domain %q not found", domainFQDN)
 	}
 
-	spec, err := domain.FromJSON(getResp.Kvs[0].Value)
-	if err != nil {
-		return fmt.Errorf("failed to parse domain spec: %w", err)
-	}
-
-	// TODO: Implement DNS cleanup if requested
 	if domainCleanupDNS {
 		fmt.Println("⚠️  DNS cleanup not implemented yet (--cleanup-dns ignored)")
-		// Would need to:
-		// 1. Load provider config
-		// 2. Initialize provider
-		// 3. Delete DNS records
 	}
-
-	// TODO: Implement cert cleanup if requested
 	if domainCleanupCerts {
 		fmt.Println("⚠️  Certificate cleanup not implemented yet (--cleanup-certs ignored)")
-		// Would need to delete cert files from disk
 	}
 
-	// Delete from etcd
-	_, err = etcdClient.Delete(ctx, key)
-	if err != nil {
-		return fmt.Errorf("failed to delete domain from etcd: %w", err)
+	if _, err := client.DeleteExternalDomain(ctx, &cluster_controllerpb.DeleteExternalDomainRequest{
+		Fqdn: domainFQDN,
+	}); err != nil {
+		return fmt.Errorf("DeleteExternalDomain: %w", err)
 	}
 
 	fmt.Printf("✓ Domain removed: %s\n", domainFQDN)
 	if !domainCleanupDNS {
 		fmt.Println("  Note: DNS records were NOT deleted. Use --cleanup-dns to remove them.")
 	}
-	if !domainCleanupCerts && spec.ACME.Enabled {
+	if !domainCleanupCerts && found.GetAcmeEnabled() {
 		fmt.Println("  Note: Certificates were NOT deleted. Use --cleanup-certs to remove them.")
 	}
 

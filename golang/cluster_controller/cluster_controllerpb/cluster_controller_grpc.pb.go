@@ -51,6 +51,8 @@ const (
 	ClusterControllerService_ListServices_FullMethodName              = "/cluster_controller.ClusterControllerService/ListServices"
 	ClusterControllerService_GetIngressStatus_FullMethodName          = "/cluster_controller.ClusterControllerService/GetIngressStatus"
 	ClusterControllerService_RequestIngressRepublish_FullMethodName   = "/cluster_controller.ClusterControllerService/RequestIngressRepublish"
+	ClusterControllerService_CreateExternalDomain_FullMethodName      = "/cluster_controller.ClusterControllerService/CreateExternalDomain"
+	ClusterControllerService_DeleteExternalDomain_FullMethodName      = "/cluster_controller.ClusterControllerService/DeleteExternalDomain"
 	ClusterControllerService_UpsertDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/UpsertDesiredService"
 	ClusterControllerService_RemoveDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/RemoveDesiredService"
 	ClusterControllerService_SeedDesiredState_FullMethodName          = "/cluster_controller.ClusterControllerService/SeedDesiredState"
@@ -177,6 +179,13 @@ type ClusterControllerServiceClient interface {
 	// CLI's prior direct write to
 	// /globular/ingress/v1/republish_request.
 	RequestIngressRepublish(ctx context.Context, in *RequestIngressRepublishRequest, opts ...grpc.CallOption) (*RequestIngressRepublishResponse, error)
+	// CreateExternalDomain writes a new external-domain spec.
+	// Owner-typed: the controller's domain reconciler is the writer of
+	// /globular/domains/v1/{fqdn}. Consumers MUST call this RPC
+	// instead of putting the JSON spec directly into etcd.
+	CreateExternalDomain(ctx context.Context, in *CreateExternalDomainRequest, opts ...grpc.CallOption) (*CreateExternalDomainResponse, error)
+	// DeleteExternalDomain removes an external-domain spec.
+	DeleteExternalDomain(ctx context.Context, in *DeleteExternalDomainRequest, opts ...grpc.CallOption) (*DeleteExternalDomainResponse, error)
 	UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	RemoveDesiredService(ctx context.Context, in *RemoveDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	SeedDesiredState(ctx context.Context, in *SeedDesiredStateRequest, opts ...grpc.CallOption) (*DesiredState, error)
@@ -514,6 +523,26 @@ func (c *clusterControllerServiceClient) RequestIngressRepublish(ctx context.Con
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) CreateExternalDomain(ctx context.Context, in *CreateExternalDomainRequest, opts ...grpc.CallOption) (*CreateExternalDomainResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateExternalDomainResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_CreateExternalDomain_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) DeleteExternalDomain(ctx context.Context, in *DeleteExternalDomainRequest, opts ...grpc.CallOption) (*DeleteExternalDomainResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteExternalDomainResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_DeleteExternalDomain_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DesiredState)
@@ -710,6 +739,13 @@ type ClusterControllerServiceServer interface {
 	// CLI's prior direct write to
 	// /globular/ingress/v1/republish_request.
 	RequestIngressRepublish(context.Context, *RequestIngressRepublishRequest) (*RequestIngressRepublishResponse, error)
+	// CreateExternalDomain writes a new external-domain spec.
+	// Owner-typed: the controller's domain reconciler is the writer of
+	// /globular/domains/v1/{fqdn}. Consumers MUST call this RPC
+	// instead of putting the JSON spec directly into etcd.
+	CreateExternalDomain(context.Context, *CreateExternalDomainRequest) (*CreateExternalDomainResponse, error)
+	// DeleteExternalDomain removes an external-domain spec.
+	DeleteExternalDomain(context.Context, *DeleteExternalDomainRequest) (*DeleteExternalDomainResponse, error)
 	UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error)
 	RemoveDesiredService(context.Context, *RemoveDesiredServiceRequest) (*DesiredState, error)
 	SeedDesiredState(context.Context, *SeedDesiredStateRequest) (*DesiredState, error)
@@ -826,6 +862,12 @@ func (UnimplementedClusterControllerServiceServer) GetIngressStatus(context.Cont
 }
 func (UnimplementedClusterControllerServiceServer) RequestIngressRepublish(context.Context, *RequestIngressRepublishRequest) (*RequestIngressRepublishResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequestIngressRepublish not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) CreateExternalDomain(context.Context, *CreateExternalDomainRequest) (*CreateExternalDomainResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateExternalDomain not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) DeleteExternalDomain(context.Context, *DeleteExternalDomainRequest) (*DeleteExternalDomainResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteExternalDomain not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpsertDesiredService not implemented")
@@ -1404,6 +1446,42 @@ func _ClusterControllerService_RequestIngressRepublish_Handler(srv interface{}, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_CreateExternalDomain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateExternalDomainRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).CreateExternalDomain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_CreateExternalDomain_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).CreateExternalDomain(ctx, req.(*CreateExternalDomainRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_DeleteExternalDomain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteExternalDomainRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).DeleteExternalDomain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_DeleteExternalDomain_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).DeleteExternalDomain(ctx, req.(*DeleteExternalDomainRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_UpsertDesiredService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertDesiredServiceRequest)
 	if err := dec(in); err != nil {
@@ -1670,6 +1748,14 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RequestIngressRepublish",
 			Handler:    _ClusterControllerService_RequestIngressRepublish_Handler,
+		},
+		{
+			MethodName: "CreateExternalDomain",
+			Handler:    _ClusterControllerService_CreateExternalDomain_Handler,
+		},
+		{
+			MethodName: "DeleteExternalDomain",
+			Handler:    _ClusterControllerService_DeleteExternalDomain_Handler,
 		},
 		{
 			MethodName: "UpsertDesiredService",
