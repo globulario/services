@@ -776,6 +776,28 @@ service ClusterControllerService {
       default_role_hint: "admin"
     };
   };
+  // CreateDNSProvider writes a DNS-provider config (Cloudflare,
+  // Route53, manual, …). Replaces the prior CLI putting raw JSON
+  // into /globular/providers/v1/{name}.
+  rpc CreateDNSProvider(CreateDNSProviderRequest) returns (CreateDNSProviderResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.providers.create"
+      permission: "write"
+      resource_template: "/cluster_controller/providers/{name}"
+      default_role_hint: "admin"
+    };
+  };
+  // ListDNSProviders returns every configured DNS provider with its
+  // type, zone, default TTL, and the count (not values) of credential
+  // keys held server-side. Replaces the prior CLI etcd prefix scan.
+  rpc ListDNSProviders(ListDNSProvidersRequest) returns (ListDNSProvidersResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.providers.read"
+      permission: "read"
+      resource_template: "/cluster_controller/providers"
+      default_role_hint: "viewer"
+    };
+  };
   rpc UpsertDesiredService(UpsertDesiredServiceRequest) returns (DesiredState) {
     option (globular.auth.authz) = {
       action: "cluster_controller.desired_service.upsert"
@@ -1081,6 +1103,37 @@ message DeleteExternalDomainRequest {
 }
 
 message DeleteExternalDomainResponse {}
+
+message CreateDNSProviderRequest {
+  string name = 1;
+  string type = 2; // "cloudflare", "route53", "manual", …
+  string zone = 3;
+  int32 default_ttl = 4;
+  // Provider-specific credential key/value pairs (api_token,
+  // api_key, api_email, region, …). The handler stores them
+  // opaquely; consumers MUST treat the map as secret material.
+  map<string, string> credentials = 5;
+}
+
+message CreateDNSProviderResponse {}
+
+message ListDNSProvidersRequest {}
+
+// DNSProviderEntry is the read-side projection of a stored provider
+// config. Credentials are intentionally NOT surfaced — the entry
+// carries only the count of credential keys so callers can display
+// "n keys stored" without ever transporting the values.
+message DNSProviderEntry {
+  string name = 1;
+  string type = 2;
+  string zone = 3;
+  int32 default_ttl = 4;
+  int32 credential_key_count = 5;
+}
+
+message ListDNSProvidersResponse {
+  repeated DNSProviderEntry providers = 1;
+}
 
 // ListServicesResponse carries the merged service-registry view as a
 // list of JSON strings. Each string is the (config + instance) map

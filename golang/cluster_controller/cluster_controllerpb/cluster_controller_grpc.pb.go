@@ -53,6 +53,8 @@ const (
 	ClusterControllerService_RequestIngressRepublish_FullMethodName   = "/cluster_controller.ClusterControllerService/RequestIngressRepublish"
 	ClusterControllerService_CreateExternalDomain_FullMethodName      = "/cluster_controller.ClusterControllerService/CreateExternalDomain"
 	ClusterControllerService_DeleteExternalDomain_FullMethodName      = "/cluster_controller.ClusterControllerService/DeleteExternalDomain"
+	ClusterControllerService_CreateDNSProvider_FullMethodName         = "/cluster_controller.ClusterControllerService/CreateDNSProvider"
+	ClusterControllerService_ListDNSProviders_FullMethodName          = "/cluster_controller.ClusterControllerService/ListDNSProviders"
 	ClusterControllerService_UpsertDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/UpsertDesiredService"
 	ClusterControllerService_RemoveDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/RemoveDesiredService"
 	ClusterControllerService_SeedDesiredState_FullMethodName          = "/cluster_controller.ClusterControllerService/SeedDesiredState"
@@ -186,6 +188,14 @@ type ClusterControllerServiceClient interface {
 	CreateExternalDomain(ctx context.Context, in *CreateExternalDomainRequest, opts ...grpc.CallOption) (*CreateExternalDomainResponse, error)
 	// DeleteExternalDomain removes an external-domain spec.
 	DeleteExternalDomain(ctx context.Context, in *DeleteExternalDomainRequest, opts ...grpc.CallOption) (*DeleteExternalDomainResponse, error)
+	// CreateDNSProvider writes a DNS-provider config (Cloudflare,
+	// Route53, manual, …). Replaces the prior CLI putting raw JSON
+	// into /globular/providers/v1/{name}.
+	CreateDNSProvider(ctx context.Context, in *CreateDNSProviderRequest, opts ...grpc.CallOption) (*CreateDNSProviderResponse, error)
+	// ListDNSProviders returns every configured DNS provider with its
+	// type, zone, default TTL, and the count (not values) of credential
+	// keys held server-side. Replaces the prior CLI etcd prefix scan.
+	ListDNSProviders(ctx context.Context, in *ListDNSProvidersRequest, opts ...grpc.CallOption) (*ListDNSProvidersResponse, error)
 	UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	RemoveDesiredService(ctx context.Context, in *RemoveDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	SeedDesiredState(ctx context.Context, in *SeedDesiredStateRequest, opts ...grpc.CallOption) (*DesiredState, error)
@@ -543,6 +553,26 @@ func (c *clusterControllerServiceClient) DeleteExternalDomain(ctx context.Contex
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) CreateDNSProvider(ctx context.Context, in *CreateDNSProviderRequest, opts ...grpc.CallOption) (*CreateDNSProviderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateDNSProviderResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_CreateDNSProvider_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) ListDNSProviders(ctx context.Context, in *ListDNSProvidersRequest, opts ...grpc.CallOption) (*ListDNSProvidersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDNSProvidersResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ListDNSProviders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DesiredState)
@@ -746,6 +776,14 @@ type ClusterControllerServiceServer interface {
 	CreateExternalDomain(context.Context, *CreateExternalDomainRequest) (*CreateExternalDomainResponse, error)
 	// DeleteExternalDomain removes an external-domain spec.
 	DeleteExternalDomain(context.Context, *DeleteExternalDomainRequest) (*DeleteExternalDomainResponse, error)
+	// CreateDNSProvider writes a DNS-provider config (Cloudflare,
+	// Route53, manual, …). Replaces the prior CLI putting raw JSON
+	// into /globular/providers/v1/{name}.
+	CreateDNSProvider(context.Context, *CreateDNSProviderRequest) (*CreateDNSProviderResponse, error)
+	// ListDNSProviders returns every configured DNS provider with its
+	// type, zone, default TTL, and the count (not values) of credential
+	// keys held server-side. Replaces the prior CLI etcd prefix scan.
+	ListDNSProviders(context.Context, *ListDNSProvidersRequest) (*ListDNSProvidersResponse, error)
 	UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error)
 	RemoveDesiredService(context.Context, *RemoveDesiredServiceRequest) (*DesiredState, error)
 	SeedDesiredState(context.Context, *SeedDesiredStateRequest) (*DesiredState, error)
@@ -868,6 +906,12 @@ func (UnimplementedClusterControllerServiceServer) CreateExternalDomain(context.
 }
 func (UnimplementedClusterControllerServiceServer) DeleteExternalDomain(context.Context, *DeleteExternalDomainRequest) (*DeleteExternalDomainResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteExternalDomain not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) CreateDNSProvider(context.Context, *CreateDNSProviderRequest) (*CreateDNSProviderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateDNSProvider not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ListDNSProviders(context.Context, *ListDNSProvidersRequest) (*ListDNSProvidersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListDNSProviders not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpsertDesiredService not implemented")
@@ -1482,6 +1526,42 @@ func _ClusterControllerService_DeleteExternalDomain_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_CreateDNSProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateDNSProviderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).CreateDNSProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_CreateDNSProvider_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).CreateDNSProvider(ctx, req.(*CreateDNSProviderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_ListDNSProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDNSProvidersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ListDNSProviders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ListDNSProviders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ListDNSProviders(ctx, req.(*ListDNSProvidersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_UpsertDesiredService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertDesiredServiceRequest)
 	if err := dec(in); err != nil {
@@ -1756,6 +1836,14 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteExternalDomain",
 			Handler:    _ClusterControllerService_DeleteExternalDomain_Handler,
+		},
+		{
+			MethodName: "CreateDNSProvider",
+			Handler:    _ClusterControllerService_CreateDNSProvider_Handler,
+		},
+		{
+			MethodName: "ListDNSProviders",
+			Handler:    _ClusterControllerService_ListDNSProviders_Handler,
 		},
 		{
 			MethodName: "UpsertDesiredService",

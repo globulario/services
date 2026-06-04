@@ -10,7 +10,6 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/domain"
 	"github.com/globulario/services/golang/dnsprovider"
 	_ "github.com/globulario/services/golang/dnsprovider/cloudflare" // Register cloudflare provider
@@ -624,32 +623,24 @@ func runDNSProviderAdd(cmd *cobra.Command, args []string) error {
 		fmt.Printf("⚠️  Provider type %q credentials not auto-loaded, using empty credentials.\n", providerType)
 	}
 
-	// Build provider config
-	cfg := dnsprovider.Config{
+	// Submit via the controller's typed CreateDNSProvider RPC.
+	// Replaces the prior CLI raw JSON Put against
+	// /globular/providers/v1/{name} — anchored by
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	cc, err := controllerClient()
+	if err != nil {
+		return fmt.Errorf("dial cluster_controller: %w", err)
+	}
+	defer cc.Close()
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+	if _, err := client.CreateDNSProvider(ctx, &cluster_controllerpb.CreateDNSProviderRequest{
+		Name:        providerName,
 		Type:        providerType,
 		Zone:        providerZone,
+		DefaultTtl:  int32(providerTTL),
 		Credentials: credentials,
-		DefaultTTL:  providerTTL,
-	}
-
-	// Serialize to JSON
-	data, err := json.Marshal(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to serialize provider config: %w", err)
-	}
-
-	// Connect to etcd
-	etcdClient, err := config.GetEtcdClient()
-	if err != nil {
-		return fmt.Errorf("failed to connect to etcd: %w", err)
-	}
-	defer etcdClient.Close()
-
-	// Write to etcd
-	key := domain.ProviderKey(providerName)
-	_, err = etcdClient.Put(ctx, key, string(data))
-	if err != nil {
-		return fmt.Errorf("failed to save provider config to etcd: %w", err)
+	}); err != nil {
+		return fmt.Errorf("CreateDNSProvider: %w", err)
 	}
 
 	fmt.Printf("✓ DNS provider configured: %s\n", providerName)
@@ -664,48 +655,39 @@ func runDNSProviderAdd(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// runDNSProviderList consumes cluster_controller.ListDNSProviders.
+// Credentials are not returned by the RPC; only the key count is
+// surfaced (the controller never transports credential values to
+// CLI consumers).
 func runDNSProviderList(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()
 
-	// Connect to etcd
-	etcdClient, err := config.GetEtcdClient()
+	cc, err := controllerClient()
 	if err != nil {
-		return fmt.Errorf("failed to connect to etcd: %w", err)
+		return fmt.Errorf("dial cluster_controller: %w", err)
 	}
-	defer etcdClient.Close()
-
-	// Query providers
-	resp, err := etcdClient.Get(ctx, domain.EtcdProviderPrefix, clientv3.WithPrefix())
+	defer cc.Close()
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+	resp, err := client.ListDNSProviders(ctx, &cluster_controllerpb.ListDNSProvidersRequest{})
 	if err != nil {
-		return fmt.Errorf("failed to query providers: %w", err)
+		return fmt.Errorf("ListDNSProviders: %w", err)
 	}
 
-	if resp.Count == 0 {
+	if len(resp.GetProviders()) == 0 {
 		fmt.Println("No DNS providers configured.")
 		fmt.Println("Add one with: globular dns provider add")
 		return nil
 	}
 
-	// Display table
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "NAME\tTYPE\tZONE\tCREDENTIALS")
-
-	for _, kv := range resp.Kvs {
-		var cfg dnsprovider.Config
-		if err := json.Unmarshal(kv.Value, &cfg); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to parse provider config: %v\n", err)
-			continue
-		}
-
-		name := strings.TrimPrefix(string(kv.Key), domain.EtcdProviderPrefix)
-		credsInfo := fmt.Sprintf("%d keys", len(cfg.Credentials))
-		if len(cfg.Credentials) == 0 {
+	for _, p := range resp.GetProviders() {
+		credsInfo := fmt.Sprintf("%d keys", p.GetCredentialKeyCount())
+		if p.GetCredentialKeyCount() == 0 {
 			credsInfo = "none"
 		}
-
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", name, cfg.Type, cfg.Zone, credsInfo)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", p.GetName(), p.GetType(), p.GetZone(), credsInfo)
 	}
-
 	return w.Flush()
 }

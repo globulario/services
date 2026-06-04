@@ -9,6 +9,7 @@ import (
 	"context"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/dnsprovider"
 	"github.com/globulario/services/golang/domain"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -139,4 +140,60 @@ func (srv *server) DeleteExternalDomain(ctx context.Context, req *cluster_contro
 		return nil, status.Errorf(codes.Internal, "delete spec: %v", err)
 	}
 	return &cluster_controllerpb.DeleteExternalDomainResponse{}, nil
+}
+
+// CreateDNSProvider writes a DNS-provider config via the controller's
+// embedded domain store — the owner's typed surface. Replaces the
+// prior CLI raw JSON Put into /globular/providers/v1/{name}.
+func (srv *server) CreateDNSProvider(ctx context.Context, req *cluster_controllerpb.CreateDNSProviderRequest) (*cluster_controllerpb.CreateDNSProviderResponse, error) {
+	if srv.etcdClient == nil {
+		return nil, status.Error(codes.FailedPrecondition, "etcd client unavailable")
+	}
+	if req.GetName() == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	if req.GetType() == "" {
+		return nil, status.Error(codes.InvalidArgument, "type is required")
+	}
+	cfg := &dnsprovider.Config{
+		Type:        req.GetType(),
+		Zone:        req.GetZone(),
+		DefaultTTL:  int(req.GetDefaultTtl()),
+		Credentials: req.GetCredentials(),
+	}
+	store := domain.NewEtcdDomainStore(srv.etcdClient)
+	if err := store.PutProviderConfig(ctx, req.GetName(), cfg); err != nil {
+		return nil, status.Errorf(codes.Internal, "save provider config: %v", err)
+	}
+	return &cluster_controllerpb.CreateDNSProviderResponse{}, nil
+}
+
+// ListDNSProviders returns the projected provider entries with
+// credential VALUES intentionally redacted — only the key count is
+// surfaced. Replaces the prior CLI etcd prefix scan.
+func (srv *server) ListDNSProviders(ctx context.Context, _ *cluster_controllerpb.ListDNSProvidersRequest) (*cluster_controllerpb.ListDNSProvidersResponse, error) {
+	if srv.etcdClient == nil {
+		return nil, status.Error(codes.FailedPrecondition, "etcd client unavailable")
+	}
+	store := domain.NewEtcdDomainStore(srv.etcdClient)
+	named, err := store.ListNamedProviderConfigs(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list provider configs: %v", err)
+	}
+	resp := &cluster_controllerpb.ListDNSProvidersResponse{
+		Providers: make([]*cluster_controllerpb.DNSProviderEntry, 0, len(named)),
+	}
+	for _, n := range named {
+		if n.Config == nil {
+			continue
+		}
+		resp.Providers = append(resp.Providers, &cluster_controllerpb.DNSProviderEntry{
+			Name:               n.Name,
+			Type:               n.Config.Type,
+			Zone:               n.Config.Zone,
+			DefaultTtl:         int32(n.Config.DefaultTTL),
+			CredentialKeyCount: int32(len(n.Config.Credentials)),
+		})
+	}
+	return resp, nil
 }
