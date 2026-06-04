@@ -17,6 +17,12 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.config
     relation: implements
     to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.platform_cluster_doctor.envoy_lds_wedge_detector
+    relation: enforces
+    to: globular.platform:invariant.envoy.lds_progress_required_for_http_mesh_readiness
+  - from: globular.platform:code.go.platform_cluster_doctor.envoy_lds_wedge_detector
+    relation: relates_to
+    to: globular.platform:failure_mode.envoy.lds_update_attempt_zero_despite_cds_progress
   - from: globular.platform:code.go.platform_cluster_doctor.evidence_provenance
     relation: implements
     to: globular.platform:intent.health.requires_fresh_evidence
@@ -213,6 +219,12 @@ code_edges:
     relation: enforces
     to: globular.platform:invariant.doctor.must_compare_claims_to_proofs
   - from: globular.platform:code.go.platform_cluster_doctor.rules.runtime_verification
+    relation: implements
+    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.unit_receipt_drift
+    relation: enforces
+    to: globular.platform:invariant.state.unknown_must_not_default_to_healthy
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.unit_receipt_drift
     relation: implements
     to: globular.platform:intent.runtime_observation_must_not_mutate_desired
   - from: globular.platform:code.go.platform_cluster_doctor.snapshot

@@ -193,11 +193,17 @@ half* of the loop.
 
 ## What is NOT in scope here
 
-- **Workflow-engine debounce on `node.maybe_restart_package`.** The action is
-  re-dispatched on every workflow tick. There is no "we just restarted this
-  unit X seconds ago, skip" guard. Adding one needs its own awareness pass
-  (touches the workflow engine, has its own incident-pattern surface area)
-  and is tracked as a follow-up.
+- **Workflow-engine debounce on `node.maybe_restart_package`.** ~~Tracked as
+  follow-up~~ — **closed by Phase 29** (`fbfe1a30`, 2026-06-03). The
+  controller-side actor config now applies a 10s per-(node, unit) post-
+  success cooldown in `dedupRestart`
+  (`golang/cluster_controller/cluster_controller_server/workflow_release.go`).
+  Suppressed re-dispatches log `workflow.restart_suppressed_duplicate`.
+  Pinned by `TestDedupCooldown_EnvoyStormScenario_OneDispatchPerWindow` and
+  the six other gates in `dedup_restart_cooldown_test.go`. A future move of
+  the debounce into the workflow engine proper (so every actor inherits it
+  rather than implementing per-action) remains a clean-up; the storm itself
+  is no longer reachable.
 - **Readiness classifier change** ("don't mark envoy healthy unless
   `lds.update_success > 0`"). That belongs in node-agent's
   envoy-readiness path; doctor classifying the data-plane is sufficient

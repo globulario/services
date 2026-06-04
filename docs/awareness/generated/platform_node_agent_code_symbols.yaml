@@ -52,6 +52,12 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.installed_state.owned_by_node_agent
+  - id: globular.platform:code.go.platform_node_agent.actions.package_state_tests
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/internal/actions/package_state_test.go
+    component: platform_node_agent.actions.package_state_tests
+    risk: high
   - id: globular.platform:code.go.platform_node_agent.actions.registry
     namespace: globular.platform
     language: go
@@ -179,6 +185,24 @@ code_symbols:
         - globular.platform:intent.installed_state.owned_by_node_agent
         - globular.platform:intent.node_agent.is_executor_not_cluster_brain
         - globular.platform:intent.install.result_requires_durable_commit
+  - id: globular.platform:code.go.platform_node_agent.install_receipt
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/install_receipt.go
+    component: platform_node_agent.install_receipt
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
+  - id: globular.platform:code.go.platform_node_agent.install_receipt
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/internal/installreceipt/installreceipt.go
+    component: platform_node_agent.install_receipt
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.installed_not_catalog
   - id: globular.platform:code.go.platform_node_agent.install_verify
     namespace: globular.platform
     language: go
@@ -210,6 +234,12 @@ code_symbols:
       implements:
         - globular.platform:intent.node_agent.is_executor_not_cluster_brain
         - globular.platform:intent.controller.apply_package_release_must_carry_expected_sha256
+  - id: globular.platform:code.go.platform_node_agent.installer_api.skip_restamp_tests
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/installer_api_skip_restamp_test.go
+    component: platform_node_agent.installer_api.skip_restamp_tests
+    risk: high
   - id: globular.platform:code.go.platform_node_agent.join_plan_gate
     namespace: globular.platform
     language: go
@@ -220,6 +250,12 @@ code_symbols:
       implements:
         - globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
         - globular.platform:intent.join.token.validation
+  - id: globular.platform:code.go.platform_node_agent.migration_decision_tests
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/migration_decision_test.go
+    component: platform_node_agent.migration_decision_tests
+    risk: critical
   - id: globular.platform:code.go.platform_node_agent.minio_format_backup
     namespace: globular.platform
     language: go

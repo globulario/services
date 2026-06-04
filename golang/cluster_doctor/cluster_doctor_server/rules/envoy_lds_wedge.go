@@ -2,7 +2,7 @@
 // @awareness component=platform_cluster_doctor.envoy_lds_wedge_detector
 // @awareness file_role=diagnostic_only_detector_for_envoy_lds_handshake_wedge
 // @awareness enforces=globular.platform:invariant.envoy.lds_progress_required_for_http_mesh_readiness
-// @awareness detects=globular.platform:failure_mode.envoy.lds_update_attempt_zero_despite_cds_progress
+// @awareness relates_to=globular.platform:failure_mode.envoy.lds_update_attempt_zero_despite_cds_progress
 // @awareness risk=medium
 package rules
 

@@ -1,6 +1,6 @@
 # Etcd bloat investigation — globule-ryzen — 2026-06-03
 
-**Status: read-only investigation complete. No compact / defrag / disarm performed yet — awaiting operator approval.**
+**Status: code fixes landed (Phase 36 + publishWaveState dedup, 2026-06-04). Operational items (compact/defrag/disarm, auto-compaction config) still awaiting operator approval. See "Closure log" at the end.**
 
 ## TL;DR
 
@@ -123,3 +123,23 @@ $ETCDCTL defrag --command-timeout=600s
 $ETCDCTL alarm disarm
 ```
 Expected: DB 2.1 GB → ~1.4-2.0 GB; alarm cleared; writes accepted again.
+
+## Closure log
+
+- 2026-06-03 (commit `4b721e0f`) — **Phase 36 landed**: content-hash dedup on
+  `/globular/clustercontroller/state` writes. Closes the rank-#1 contributor
+  (95.8 % of cumulative write-load). Pinned by
+  `state_persist_dedup_test.go`.
+- 2026-06-04 (this session) — **publishWaveState dedup landed**: equality
+  guard before `srv.resources.Apply` in
+  `golang/cluster_controller/cluster_controller_server/workflow_release.go`.
+  Closes the rank-#2/#3 contributors (`InfrastructureRelease/envoy` at 99K
+  versions and `.../cluster-controller` at 88K versions). Pinned by
+  `publish_wave_state_dedup_test.go`. New failure_mode anchor:
+  `controller.release_status_writer_bypasses_equality_guard`.
+- **Still open** (operational, not code):
+  1. Operator-driven `etcdctl compact && defrag && alarm disarm` to reclaim
+     space accumulated before the code fixes landed.
+  2. Phase 37 etcd config: `--auto-compaction-mode=periodic
+     --auto-compaction-retention=1h` and raise `--quota-backend-bytes` to
+     8 GB in `/var/lib/globular/config/etcd.yaml`.

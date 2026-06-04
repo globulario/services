@@ -736,6 +736,37 @@ failure_modes:
         - TestOfflineDiagnose_EtcdNOSPACE_MapsToEtcdFailureMode
         - TestOfflineDiagnose_EtcdNOSPACE_DoesNotMapToObjectstore
         - TestCausalChain_EtcdNOSPACE_ProducesControlPlaneCascade
+    - id: controller.release_status_writer_bypasses_equality_guard
+      title: 'release status writer bypasses the equality guard and rewrites InfrastructureRelease/ServiceRelease records on every call, causing etcd MVCC bloat'
+      severity: high
+      symptoms:
+        - a single InfrastructureRelease or ServiceRelease key shows extreme MVCC version count (tens of thousands) in etcdctl get --write-out=fields
+        - etcd database grows quickly between compactions even though only a handful of releases exist
+        - re-dispatch loops (e.g. envoy restart-storm) amplify the bloat because every workflow invocation rewrites the same record N times
+        - cumulative write-load (version × value_size) is dominated by a small number of release records
+      root_cause: |
+        Status writers in cluster_controller that go through the patch helpers (patchInfraReleaseStatus,
+        patchReleaseStatus) inherit an equality guard that compares Phase/Message/TransitionReason
+        before calling resources.Apply. Writers that bypass those wrappers and call resources.Apply
+        directly (publishWaveState, status announcers, periodic re-stampers) have no such guard:
+        every invocation produces a new MVCC revision even when the resulting status is byte-identical
+        to the previous one. Repeated workflow dispatches against the same release multiply the bloat.
+      architecture_fix: |
+        Every direct resources.Apply on a release record must compare the fields the writer is
+        about to mutate against their current values and return nil when nothing meaningful
+        changed. LastTransitionUnixMs is anchored to actual transitions, not to redundant writes,
+        so a no-op write must NOT bump it. See patchInfraReleaseStatus in release_reconciler.go
+        for the canonical equality-guard pattern.
+      forbidden_fixes:
+        - workflow.unconditional_release_status_apply
+      related_invariants:
+        - etcd.must_have_free_backend_space_for_reconciliation
+      related_services:
+        - cluster_controller
+        - etcd
+      required_tests:
+        - TestPublishWaveStateInfraSkipsApplyWhenMessageUnchanged
+        - TestPublishWaveStateServiceSkipsApplyWhenMessageAndReasonUnchanged
     - id: etcd.leader_instability
       title: 'etcd leader instability: repeated leader loss caused by NOSPACE or disk I/O pressure'
       severity: critical
@@ -3750,8 +3781,33 @@ failure_modes:
         Runtime: `curl http://127.0.0.1:9901/server_info` shows state
         PRE_INITIALIZING. Mesh ports 443/8443 return connection refused
         but per-service ports are reachable.
+
+        The cluster-doctor rule envoy.lds_wedge (golang/cluster_doctor/
+        cluster_doctor_server/rules/envoy_lds_wedge.go, Phase 28) now
+        surfaces this class as CRITICAL by comparing cds.update_success
+        and lds.update_attempt directly.
+      mitigation: |
+        The upstream restart-storm that drove this wedge (workflow
+        re-dispatching node.maybe_restart_package against envoy faster
+        than CDS+LDS init can complete) is defused at the actor layer
+        by a per-(node, unit) post-success cooldown in dedupRestart
+        (golang/cluster_controller/cluster_controller_server/
+        workflow_release.go, Phase 29 — defaultRestartCooldown=10s).
+        Suppressed re-dispatches are logged as
+        workflow.restart_suppressed_duplicate.
+      forbidden_fixes:
+        - workflow.bypass_dedup_restart_cooldown_for_envoy
+        - workflow.infinite_restart_as_remediation
+        - envoy.classify_systemd_active_as_healthy_without_lds_success
       related_invariants:
         - envoy.lds_progress_required_for_http_mesh_readiness
+      required_tests:
+        - TestEnvoyLDSWedge_CDSProgress_LDSZero_FiresCritical
+        - TestEnvoyLDSWedge_LDSHealthy_FiresInfoPass
+        - TestEnvoyLDSWedge_ColdInit_NoFinding
+        - TestDedupCooldown_EnvoyStormScenario_OneDispatchPerWindow
+        - TestDedupCooldown_RapidRedispatchSuppressed
+        - TestDedupCooldown_FailedRestart_DoesNotBlockRetry
     - id: node_agent.install_skip_without_service_config_update
       title: Node-agent install-skip path returns success without refreshing the service-config etcd record
       severity: critical

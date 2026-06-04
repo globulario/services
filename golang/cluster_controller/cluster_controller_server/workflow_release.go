@@ -107,6 +107,14 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	return resp, nil
 }
 
+// publishWaveState announces wave-level progress on the release record. The
+// equality guard skips the etcd Apply when neither Message nor TransitionReason
+// changed since the last announce: without it, repeated workflow runs with
+// identical wave shapes (e.g. envoy restart-storm re-dispatching the same
+// release) rewrite InfrastructureRelease/ServiceRelease records every call.
+// On the bloated cluster captured in
+// docs/awareness/reports/etcd_bloat_investigation_2026-06-03.md the envoy
+// release accumulated ~99K MVCC versions from this writer alone.
 func (srv *server) publishWaveState(ctx context.Context, releaseName, pkgKind, state string, maxParallelNodes, totalNodes, totalWaves int, note string) error {
 	if isSyntheticReleaseName(releaseName) {
 		return nil
@@ -116,7 +124,6 @@ func (srv *server) publishWaveState(ctx context.Context, releaseName, pkgKind, s
 	if err != nil || obj == nil {
 		return err
 	}
-	nowMs := time.Now().UnixMilli()
 	baseMsg := fmt.Sprintf("%s max_parallel_nodes=%d total_nodes=%d total_waves=%d", state, maxParallelNodes, totalNodes, totalWaves)
 	if note != "" {
 		baseMsg += " note=" + note
@@ -126,17 +133,23 @@ func (srv *server) publishWaveState(ctx context.Context, releaseName, pkgKind, s
 		if rel.Status == nil {
 			rel.Status = &cluster_controllerpb.ServiceReleaseStatus{}
 		}
+		if rel.Status.Message == baseMsg && rel.Status.TransitionReason == state {
+			return nil
+		}
 		rel.Status.Message = baseMsg
 		rel.Status.TransitionReason = state
-		rel.Status.LastTransitionUnixMs = nowMs
+		rel.Status.LastTransitionUnixMs = time.Now().UnixMilli()
 		_, err = srv.resources.Apply(ctx, resourceType, rel)
 		return err
 	case *cluster_controllerpb.InfrastructureRelease:
 		if rel.Status == nil {
 			rel.Status = &cluster_controllerpb.InfrastructureReleaseStatus{}
 		}
+		if rel.Status.Message == baseMsg {
+			return nil
+		}
 		rel.Status.Message = baseMsg
-		rel.Status.LastTransitionUnixMs = nowMs
+		rel.Status.LastTransitionUnixMs = time.Now().UnixMilli()
 		_, err = srv.resources.Apply(ctx, resourceType, rel)
 		return err
 	default:

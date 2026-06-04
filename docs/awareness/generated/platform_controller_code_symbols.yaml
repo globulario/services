@@ -490,6 +490,12 @@ code_symbols:
         - globular.platform:invariant.destructive_actions.require_explicit_guard
       implements:
         - globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+  - id: globular.platform:code.go.platform_cluster_controller.sync_installed_package_tests
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/sync_installed_package_test.go
+    component: platform_cluster_controller.sync_installed_package_tests
+    risk: critical
   - id: globular.platform:code.go.platform_controller.drift_action_planner
     namespace: globular.platform
     language: go

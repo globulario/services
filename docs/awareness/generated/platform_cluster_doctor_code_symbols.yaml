@@ -37,6 +37,17 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - id: globular.platform:code.go.platform_cluster_doctor.envoy_lds_wedge_detector
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge.go
+    component: platform_cluster_doctor.envoy_lds_wedge_detector
+    risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.envoy.lds_progress_required_for_http_mesh_readiness
+      relates_to:
+        - globular.platform:failure_mode.envoy.lds_update_attempt_zero_despite_cds_progress
   - id: globular.platform:code.go.platform_cluster_doctor.evidence_provenance
     namespace: globular.platform
     language: go
@@ -393,6 +404,23 @@ code_symbols:
         - globular.platform:invariant.doctor.must_compare_claims_to_proofs
       implements:
         - globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.unit_receipt_drift
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/unit_receipt_drift.go
+    component: platform_cluster_doctor.rules.unit_receipt_drift
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.state.unknown_must_not_default_to_healthy
+      implements:
+        - globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - id: globular.platform:code.go.platform_cluster_doctor.rules.unit_receipt_drift_tests
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/unit_receipt_drift_test.go
+    component: platform_cluster_doctor.rules.unit_receipt_drift_tests
+    risk: high
   - id: globular.platform:code.go.platform_cluster_doctor.snapshot
     namespace: globular.platform
     language: go

@@ -172,6 +172,12 @@ code_symbols:
         - globular.platform:intent.repository.metadata_is_authority
         - globular.platform:intent.repository.version_allocation_is_exclusive
         - globular.platform:intent.repository.resolver_is_deterministic_or_errors
+  - id: globular.platform:code.go.platform_repository.repair_authorization
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/repair_authorization.go
+    component: platform_repository.repair_authorization
+    risk: high
   - id: globular.platform:code.go.platform_repository.resolver
     namespace: globular.platform
     language: go
