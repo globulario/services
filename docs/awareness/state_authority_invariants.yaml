@@ -236,6 +236,8 @@ invariants:
   - id: meta.storage_is_not_semantic_authority
     title: "Storage is not semantic authority — truth belongs to the owning actor, not the backing store"
     category: authority
+    antipattern: "I can see the data so I own it"
+    wrong_instinct: Having etcd access feels like having authority — but access is not ownership
     severity: critical
     status: active
     summary: |
@@ -278,6 +280,8 @@ invariants:
   - id: meta.fallback_must_degrade_semantics
     title: "Fallback must degrade semantics — a fallback that returns the same shape as truth will be mistaken for truth"
     category: signal
+    antipattern: "Return something rather than nothing"
+    wrong_instinct: Helpfulness over honesty — returning a value feels better than returning an error, but a fake value propagates silently
     severity: critical
     status: active
     summary: |
@@ -304,6 +308,8 @@ invariants:
   - id: meta.authority_must_express_uncertainty
     title: "Authority must express uncertainty — if the owner cannot say 'unknown', callers will turn silence into lies"
     category: signal
+    antipattern: "Empty is a valid response"
+    wrong_instinct: Simplicity over precision — returning an empty proto feels clean, but callers can't tell absence from error
     severity: high
     status: active
     summary: |
@@ -326,6 +332,8 @@ invariants:
   - id: meta.absence_scope_must_be_explicit
     title: "Absence scope must be explicit — 'not found where' is not the same as 'does not exist'"
     category: signal
+    antipattern: "Not found means doesn't exist"
+    wrong_instinct: Confusing one view with all views — a cache miss or replica miss is not proof of global absence
     severity: high
     status: active
     summary: |
@@ -350,6 +358,8 @@ invariants:
   - id: meta.identity_computation_must_be_invariant
     title: "Identity computation must be invariant — one field, one meaning, one canonical computation, everywhere"
     category: authority
+    antipattern: "Same field name means same thing"
+    wrong_instinct: Trusting the type without checking the computation — checksum at publish and checksum at verify can be different computations behind the same name
     severity: critical
     status: active
     summary: |
@@ -397,6 +407,8 @@ invariants:
   - id: meta.write_creates_completion_obligation
     title: "Every write is a promise — an unfinished promise is a blockage"
     category: lifecycle
+    antipattern: "Write and move on"
+    wrong_instinct: Fire and forget feels efficient — but a blocking record without a cleanup path becomes a permanent stall
     severity: critical
     status: active
     summary: |
@@ -433,6 +445,8 @@ invariants:
   - id: meta.half_done_must_not_look_done
     title: "Half-done must never look done — intermediate state must not satisfy completeness predicates"
     category: lifecycle
+    antipattern: "One field is enough to check"
+    wrong_instinct: Premature optimization of predicates — checking artifact_state without manifest_json feels sufficient, but a partial write satisfies the single-field check
     severity: critical
     status: active
     summary: |
@@ -466,6 +480,8 @@ invariants:
   - id: meta.silence_is_not_valid_for_unexpected
     title: "Silence is not a valid response to the unexpected — unhandled cases must fail closed"
     category: lifecycle
+    antipattern: "Default is safe"
+    wrong_instinct: A no-op default feels harmless — but a silently skipped switch case means the system stops making progress without anyone noticing
     severity: high
     status: active
     summary: |
@@ -501,6 +517,8 @@ invariants:
   - id: meta.critical_path_no_non_critical_dependency
     title: "The critical path must not depend on non-critical services — a dependency you don't need will kill you on the recovery path"
     category: dependency
+    antipattern: "One more RPC won't hurt"
+    wrong_instinct: Convenience over resilience — adding a repository call to heartbeat feels useful, but when the repository is down the heartbeat dies too
     severity: critical
     status: active
     summary: |
@@ -531,6 +549,8 @@ invariants:
   - id: meta.competing_writers_must_converge_or_be_fenced
     title: "Distributed actors doing the same job must converge, not compete — two writers with different state will fight until one wins by accident"
     category: authority
+    antipattern: "Everyone should reconcile independently"
+    wrong_instinct: Redundancy feels safe — but uncoordinated redundancy is a fight where timing decides the winner, not correctness
     severity: critical
     status: active
     summary: |
@@ -563,6 +583,8 @@ invariants:
   - id: meta.connection_errors_must_not_be_absorbed
     title: "Errors must not be silent on connection paths — a connection error absorbed into a timeout is an invisible outage"
     category: signal
+    antipattern: "Timeouts are normal"
+    wrong_instinct: Generic wrappers feel robust — but grpc.WithBlock() turning a TLS mismatch into "context deadline exceeded" hides the real error for hours
     severity: high
     status: active
     summary: |
@@ -594,6 +616,8 @@ invariants:
   - id: meta.circular_dependency_must_have_break_glass
     title: "Every circular dependency must have a break-glass path that doesn't go through the cycle — a system that deploys itself must have a path that doesn't go through itself"
     category: dependency
+    antipattern: "The pipeline will fix itself"
+    wrong_instinct: Trust in the normal path — when repository is broken, deploying a fix through the repository feels like the right path, but the cycle is stuck
     severity: critical
     status: active
     summary: |
