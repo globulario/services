@@ -2535,3 +2535,56 @@ forbidden_fixes:
     files:
       - golang/cluster_doctor/cluster_doctor_server/leader_election.go
       - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+
+- id: bypass_shared_client_for_internal_dials
+  summary: >
+    Construct an internal-service gRPC client with raw grpc.NewClient / grpc.Dial and
+    only WithTransportCredentials, without attaching a UnaryClientInterceptor that
+    injects cluster_id metadata.
+  reason: >
+    Server-side interceptors enforce a cluster_id outgoing-metadata header after Day-0
+    initialization. A dial that lacks the injecting interceptor produces calls that the
+    server rejects with rpc error: code = Unauthenticated desc = "cluster_id required
+    after cluster initialization". The failure is silent until something downstream of
+    the call surfaces it — e.g. the doctor's collector starves of repository evidence
+    and the resulting drift goes unsurfaced, or the controller's circuit breaker opens
+    on the cascading failures. The bug was the cluster_doctor dialing repository,
+    ai-memory, and awareness-graph this way; collector had a `if c.clusterID != ""`
+    guard that silently skipped when the propagation path didn't populate the field.
+  safe_alternative: >
+    Dial through globular_client wrappers (which attach clientInterceptor automatically),
+    or attach a UnaryClientInterceptor + StreamClientInterceptor at dial time that read
+    cluster_id from security.GetLocalClusterID() and inject it via
+    metadata.AppendToOutgoingContext when missing. cluster_doctor's
+    dialOptionsForInternalService is the canonical local pattern for the second form.
+  related_invariants:
+    - grpc.backbone.contract
+  protects:
+    files:
+      - golang/cluster_doctor/cluster_doctor_server/server.go
+      - golang/globular_client/ClientInterceptors.go
+
+- id: guard_cluster_id_injection_on_optionally_propagated_field
+  summary: >
+    Make cluster_id metadata injection conditional on a struct field (e.g. collector.clusterID)
+    that is populated through an optional setup path, so when that path doesn't run the
+    guard silently skips and every RPC fails Unauthenticated.
+  reason: >
+    cluster_id is a connection-level invariant, not a call-site concern. Tying it to a
+    field that may or may not be populated (cluster_doctor's c.clusterID was only set
+    via WithWorkflowClient — if the workflow dial failed or wfEndpoint was empty, all
+    later repository/ai-memory/awareness-graph calls silently skipped injection). The
+    failure mode is invisible at the call site and surfaces only as Unauthenticated
+    errors on the wire.
+  safe_alternative: >
+    Inject cluster_id at the connection (interceptor) level using
+    security.GetLocalClusterID() as the canonical source, with
+    metadata.AppendToOutgoingContext so any upstream metadata is preserved. Keep
+    optional propagation of the cluster_id field for cases where the caller has a
+    more authoritative source — but never make it the sole mechanism.
+  related_invariants:
+    - grpc.backbone.contract
+  protects:
+    files:
+      - golang/cluster_doctor/cluster_doctor_server/collector/collector.go
+      - golang/cluster_doctor/cluster_doctor_server/server.go

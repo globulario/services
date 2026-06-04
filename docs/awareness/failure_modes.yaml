@@ -3996,3 +3996,52 @@ failure_modes:
         - TestEvaluate_MultiNodeMultiPackage_DeterministicOrder
         - TestEvaluate_PerNodeDecision_RespectsRemovalOnSpecificNode
         - TestEvaluate_v1_2_159_OperatorRemovalRegression
+
+    - id: collector.cluster_id_metadata_missing_starves_evidence
+      title: Doctor evidence collector silently starves when its repository / ai-memory / awareness-graph dials bypass the cluster_id interceptor, leaving Layer-3 drift unsurfaced and tripping the controller circuit breaker
+      severity: high
+      symptoms:
+        - doctor findings with category=control_plane and invariant=grpc.backbone.contract
+        - repeating "rpc error: code = Unauthenticated desc = cluster_id required after cluster initialization" against repository RPCs (ListRepositoryFindings, GetRepositoryStatus, ListArtifacts)
+        - doctor freshness header reports data_incomplete=true
+        - the controller's workflow dispatch circuit breaker opens on cascading failures triggered by missing repository evidence
+        - downstream Layer-3-vs-Layer-4 drift (e.g. installed_state_runtime_mismatch on awareness-graph) does not auto-resolve because the repair loop is starved of evidence
+      root_cause: |
+        cluster_doctor's server.go constructed five gRPC clients (controller, workflow,
+        repository, ai-memory, awareness-graph) with raw grpc.NewClient and only
+        WithTransportCredentials — no UnaryClientInterceptor that injects cluster_id
+        metadata. The collector tried to compensate by manually injecting cluster_id at
+        the call sites, but the injection was guarded by `if c.clusterID != ""` and
+        c.clusterID was populated only via col.WithWorkflowClient(client, clusterID).
+        If the workflow dial failed or wfEndpoint was empty, c.clusterID stayed empty,
+        every subsequent guard skipped, and every repository/ai-memory/awareness-graph
+        call hit the server-side membership check with no cluster_id header.
+      architecture_fix: |
+        1. Add a clusterIDInjectingUnaryInterceptor + clusterIDInjectingStreamInterceptor
+           in cluster_doctor_server/server.go that read cluster_id from
+           security.GetLocalClusterID() and inject it via
+           metadata.AppendToOutgoingContext when missing.
+        2. Add a dialOptionsForInternalService(serverName) helper that bundles the TLS
+           creds with both interceptors, and use it for every grpc.NewClient call in
+           the doctor (controller, workflow, repository, ai-memory, awareness-graph).
+        3. Treat cluster_id as a connection-level concern, not a call-site one. Keep
+           the per-call-site manual injection as defence-in-depth, but never as the
+           sole mechanism.
+      forbidden_fixes:
+        - bypass_shared_client_for_internal_dials
+        - guard_cluster_id_injection_on_optionally_propagated_field
+      related_invariants:
+        - grpc.backbone.contract
+      related_services:
+        - cluster-doctor
+        - repository
+        - ai-memory
+        - awareness-graph
+      required_tests: []
+      no_test_yet_reason: |
+        Detection of this failure mode in production is already wired through the doctor's
+        own grpc.backbone.contract findings — any regression of the bug emits a finding
+        with the exact same evidence shape that surfaced the original incident. A unit
+        test exercising the dial-time interceptor chain end-to-end is tracked as a
+        follow-up; until then the runtime detector + this awareness anchor are the
+        regression surface.

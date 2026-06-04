@@ -5713,3 +5713,48 @@ invariants:
       related_failure_modes:
         - controller.platform_upgrade_bypassed_workflow_authority
         - service.desired_state.pipeline_gap
+
+    - id: grpc.backbone.contract
+      title: Every internal gRPC client must inject cluster_id metadata so server-side cluster-membership enforcement does not reject calls after Day-0 initialization
+      severity: high
+      status: active
+      summary: |
+        After Day-0 initialization, every server-side interceptor in the Globular mesh
+        enforces a cluster-membership check via the cluster_id outgoing-metadata header.
+        Any client dial that goes through the shared globular_client wrappers gets this
+        header injected automatically by clientInterceptor — which reads the local
+        cluster ID from security.GetLocalClusterID() and AppendsToOutgoingContext
+        without clobbering existing entries. Any client dial constructed with raw
+        grpc.NewClient / grpc.Dial and only WithTransportCredentials bypasses that
+        injection. Per-call-site manual injection guarded by "if c.someField != ''" is
+        fragile: when the field is empty (typically because the propagation path that
+        was supposed to populate it didn't run), the guard silently skips and every
+        subsequent RPC fails with Unauthenticated "cluster_id required after cluster
+        initialization". The contract is therefore: cluster_id metadata must be a
+        property of the connection, not of the call site.
+      protects:
+        files:
+          - golang/globular_client/ClientInterceptors.go
+          - golang/cluster_doctor/cluster_doctor_server/server.go
+          - golang/security/cluster.go
+        symbols:
+          - clientInterceptor
+          - clientStreamInterceptor
+          - clusterIDInjectingUnaryInterceptor
+          - clusterIDInjectingStreamInterceptor
+          - dialOptionsForInternalService
+          - GetLocalClusterID
+      enforcement: |
+        Every dial to an internal Globular service must attach a UnaryClientInterceptor
+        (and StreamClientInterceptor for streaming RPCs) that injects cluster_id from
+        security.GetLocalClusterID() into the outgoing metadata when the header is not
+        already present. The injection uses metadata.AppendToOutgoingContext, not
+        NewOutgoingContext, so any upstream cluster_id is preserved. Services that build
+        their own dial helpers (e.g. cluster_doctor's dialOptionsForInternalService)
+        must mirror this behaviour. Call-site-only injection guarded by an optional
+        field is forbidden as the sole mechanism.
+      forbidden_fixes:
+        - bypass_shared_client_for_internal_dials
+        - guard_cluster_id_injection_on_optionally_propagated_field
+      related_failure_modes:
+        - collector.cluster_id_metadata_missing_starves_evidence

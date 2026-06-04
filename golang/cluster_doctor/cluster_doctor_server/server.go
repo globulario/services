@@ -21,10 +21,12 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -125,6 +127,49 @@ func buildClientTLSCreds(serverName string) credentials.TransportCredentials {
 	return credentials.NewTLS(tlsCfg)
 }
 
+// clusterIDInjectingUnaryInterceptor injects the local cluster_id into
+// outgoing gRPC metadata when not already present. Mirrors the behaviour
+// of globular_client.clientInterceptor so that doctor's raw grpc.NewClient
+// dials pass the server-side cluster-membership check enforced after Day-0
+// initialization (rpc error: "cluster_id required after cluster initialization").
+func clusterIDInjectingUnaryInterceptor() grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_id")) == 0 {
+			if clusterID, err := security.GetLocalClusterID(); err == nil && clusterID != "" {
+				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", clusterID)
+			}
+		}
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
+}
+
+// clusterIDInjectingStreamInterceptor is the streaming counterpart of
+// clusterIDInjectingUnaryInterceptor. Applied alongside the unary one so
+// future streaming RPCs from the doctor also carry cluster_id metadata.
+func clusterIDInjectingStreamInterceptor() grpc.StreamClientInterceptor {
+	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+		if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_id")) == 0 {
+			if clusterID, err := security.GetLocalClusterID(); err == nil && clusterID != "" {
+				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", clusterID)
+			}
+		}
+		return streamer(ctx, desc, cc, method, opts...)
+	}
+}
+
+// dialOptionsForInternalService bundles the dial options used by all of
+// the doctor's outgoing clients (controller, workflow, repository,
+// ai-memory, awareness-graph). Each dial gets the standard TLS creds and
+// the cluster_id-injecting interceptors so server-side membership checks
+// don't reject the call.
+func dialOptionsForInternalService(serverName string) []grpc.DialOption {
+	return []grpc.DialOption{
+		grpc.WithTransportCredentials(buildClientTLSCreds(serverName)),
+		grpc.WithUnaryInterceptor(clusterIDInjectingUnaryInterceptor()),
+		grpc.WithStreamInterceptor(clusterIDInjectingStreamInterceptor()),
+	}
+}
+
 func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, error) {
 	// Resolve controller endpoint from etcd (source of truth), falling
 	// back to config file value only if etcd is unreachable.
@@ -139,7 +184,7 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	ccTarget := config.ResolveDialTarget(ccEndpoint)
 	ccConn, err := grpc.NewClient(
 		ccTarget.Address,
-		grpc.WithTransportCredentials(buildClientTLSCreds(ccTarget.ServerName)),
+		dialOptionsForInternalService(ccTarget.ServerName)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("dial clustercontroller %s: %w", ccTarget.Address, err)
@@ -169,7 +214,7 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	}
 	if wfEndpoint != "" {
 		wfTarget := config.ResolveDialTarget(wfEndpoint)
-		wfConn, wfErr := grpc.NewClient(wfTarget.Address, grpc.WithTransportCredentials(buildClientTLSCreds(wfTarget.ServerName)))
+		wfConn, wfErr := grpc.NewClient(wfTarget.Address, dialOptionsForInternalService(wfTarget.ServerName)...)
 		if wfErr == nil {
 			if clusterID == "" {
 				// Auto-discover cluster_id from the controller so operators
@@ -191,7 +236,7 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	if repoEndpoint != "" {
 		repoTarget := config.ResolveDialTarget(repoEndpoint)
 		if repoConn, repoErr := grpc.NewClient(repoTarget.Address,
-			grpc.WithTransportCredentials(buildClientTLSCreds(repoTarget.ServerName))); repoErr == nil {
+			dialOptionsForInternalService(repoTarget.ServerName)...); repoErr == nil {
 			col.WithRepositoryClient(repopb.NewPackageRepositoryClient(repoConn))
 		} else {
 			logger.Warn("repository client init failed — repository invariants disabled", "err", repoErr)
@@ -210,7 +255,7 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	if memEndpoint != "" {
 		memTarget := config.ResolveDialTarget(memEndpoint)
 		if memConn, memErr := grpc.NewClient(memTarget.Address,
-			grpc.WithTransportCredentials(buildClientTLSCreds(memTarget.ServerName))); memErr == nil {
+			dialOptionsForInternalService(memTarget.ServerName)...); memErr == nil {
 			aiMemClient = ai_memorypb.NewAiMemoryServiceClient(memConn)
 			col.WithAiMemoryClient(aiMemClient)
 		} else {
@@ -227,7 +272,7 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	if awEndpoint != "" {
 		awTarget := config.ResolveDialTarget(awEndpoint)
 		if awConn, awErr := grpc.NewClient(awTarget.Address,
-			grpc.WithTransportCredentials(buildClientTLSCreds(awTarget.ServerName))); awErr == nil {
+			dialOptionsForInternalService(awTarget.ServerName)...); awErr == nil {
 			col.WithAwarenessGraphClient(awarenesspb.NewAwarenessGraphClient(awConn))
 		} else {
 			logger.Warn("awareness-graph client init failed — seed_empty detection disabled", "err", awErr)
