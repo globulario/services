@@ -56,6 +56,12 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.bootstrap_phases
     relation: implements
     to: globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
+  - from: globular.platform:code.go.platform_cluster_controller.cleanup_ghost_node_packages
+    relation: enforces
+    to: globular.platform:invariant.destructive_actions.require_explicit_guard
+  - from: globular.platform:code.go.platform_cluster_controller.cleanup_ghost_node_packages
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - from: globular.platform:code.go.platform_cluster_controller.critical_state_registry
     relation: enforces
     to: globular.platform:invariant.critical_state.deletion_requires_audited_intent
@@ -149,6 +155,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.infrastructure_reconciler
     relation: implements
     to: globular.platform:intent.desired_hash.is_convergence_identity
+  - from: globular.platform:code.go.platform_cluster_controller.ingress_handlers
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - from: globular.platform:code.go.platform_cluster_controller.ingress_spec_guard
     relation: enforces
     to: globular.platform:invariant.critical_state.deletion_requires_audited_intent
@@ -177,6 +186,9 @@ code_edges:
     relation: enforces
     to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - from: globular.platform:code.go.platform_cluster_controller.list_external_domains_test
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+  - from: globular.platform:code.go.platform_cluster_controller.list_releases
     relation: enforces
     to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - from: globular.platform:code.go.platform_cluster_controller.list_services

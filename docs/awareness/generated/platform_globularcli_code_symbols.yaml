@@ -1,4 +1,13 @@
 code_symbols:
+  - id: globular.platform:code.go.platform_globularcli.resilience_cmds_authority_pin
+    namespace: globular.platform
+    language: go
+    file: golang/globularcli/resilience_cmds_authority_pin_test.go
+    component: platform_globularcli.resilience_cmds_authority_pin
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - id: globular.platform:code.go.platform_globularcli.state_cmds_authority_pin
     namespace: globular.platform
     language: go

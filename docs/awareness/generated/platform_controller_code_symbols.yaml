@@ -74,6 +74,16 @@ code_symbols:
       implements:
         - globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
         - globular.platform:intent.bootstrap.window_is_not_steady_state_auth
+  - id: globular.platform:code.go.platform_cluster_controller.cleanup_ghost_node_packages
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/cleanup_ghost_node_packages.go
+    component: platform_cluster_controller.cleanup_ghost_node_packages
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+        - globular.platform:invariant.destructive_actions.require_explicit_guard
   - id: globular.platform:code.go.platform_cluster_controller.critical_state_registry
     namespace: globular.platform
     language: go
@@ -253,6 +263,15 @@ code_symbols:
         - globular.platform:invariant.infra.desired_hash_consistency
       implements:
         - globular.platform:intent.desired_hash.is_convergence_identity
+  - id: globular.platform:code.go.platform_cluster_controller.ingress_handlers
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/ingress_handlers.go
+    component: platform_cluster_controller.ingress_handlers
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - id: globular.platform:code.go.platform_cluster_controller.ingress_spec_guard
     namespace: globular.platform
     language: go
@@ -309,6 +328,15 @@ code_symbols:
     file: golang/cluster_controller/cluster_controller_server/list_external_domains_test.go
     component: platform_cluster_controller.list_external_domains_test
     risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+  - id: globular.platform:code.go.platform_cluster_controller.list_releases
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/list_releases.go
+    component: platform_cluster_controller.list_releases
+    risk: high
     annotations:
       enforces:
         - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage

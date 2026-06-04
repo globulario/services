@@ -1,4 +1,7 @@
 code_edges:
+  - from: globular.platform:code.go.platform_globularcli.resilience_cmds_authority_pin
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - from: globular.platform:code.go.platform_globularcli.state_cmds_authority_pin
     relation: enforces
     to: globular.platform:invariant.etcd.path_has_single_owner
