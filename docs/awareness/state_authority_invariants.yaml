@@ -660,6 +660,46 @@ invariants:
     related_failure_modes:
       - fm.globular.vip_transition_cascade
 
+  - id: meta.failure_response_must_contract_not_amplify
+    title: "Failure response must contract, not amplify — retry, re-enqueue, and re-emit must be bounded, or the response becomes the outage"
+    category: lifecycle
+    antipattern: "Retry harder"
+    wrong_instinct: Persistence feels like resilience — but unbounded retry under failure consumes the resources that recovery needs
+    severity: critical
+    status: active
+    summary: |
+      When something fails, the system's natural response is to retry, re-enqueue,
+      re-emit, or respawn. If that response is unbounded, it amplifies the original
+      failure into a cascade. The system doesn't die from the error — it dies from
+      its own reaction to the error.
+
+      The correct response to sustained failure is contraction: do LESS, not more.
+      Circuit breakers, backoff, semaphores, rate limits, staggered re-enqueue.
+      The system must preserve resources for recovery, not burn them on retries
+      that can't succeed.
+
+      Before adding a retry or re-enqueue, ask:
+        1. If this call fails, how many retries will fire?
+        2. Is there an upper bound on concurrent retries?
+        3. Does the retry rate increase or decrease under sustained failure?
+        4. Can the retry mechanism itself consume the resources needed for recovery?
+        5. Is there a circuit breaker that stops retrying and waits?
+
+      Incidents:
+        - Zombie leader: event disconnect → fire-and-forget goroutines → 1000 concurrent retries → CPU starvation → heartbeats freeze
+        - Reconcile storm: controller restart → 30 releases re-enqueued simultaneously → workflow overwhelmed → cascade timeouts
+        - Doctor amplification: INC-2026-0004 — per-node findings emitted as cluster events → 100+ events/min for stable findings
+        - Dep-block cycling: FAILED→PENDING→FAILED with no backoff → infinite dispatch loop
+    enforcement: |
+      Every retry path must have a circuit breaker or bounded backoff. Fire-and-forget
+      goroutines on error paths are forbidden — each one must be tracked and bounded.
+      Re-enqueue after failure must be staggered, not simultaneous. Event emission
+      must be deduplicated against a delta cache.
+    forbidden_fixes:
+      - forbidden.unbounded_retry_on_transient_failure
+      - forbidden.fire_and_forget_goroutine_on_error_path
+      - forbidden.simultaneous_reenqueue_after_restart
+
   # ── Generalization principles (second pass) ───────────────────────────────────
   # These invariants encode the abstract reasoning layer. They generalize from
   # specific Globular incidents to classes of distributed-system mistakes, so

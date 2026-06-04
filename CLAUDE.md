@@ -375,12 +375,13 @@ When documenting an error (incident, failure mode, finding), don't just record W
 | `meta.absence_scope_must_be_explicit` | Not-found-where treated as does-not-exist |
 | `meta.connection_errors_must_not_be_absorbed` | TLS/auth error absorbed into generic timeout |
 
-**Lifecycle** — "will this operation complete?"
+**Lifecycle** — "will this operation complete, and what happens if it fails?"
 | Principle | What it catches |
 |-----------|----------------|
 | `meta.write_creates_completion_obligation` | Write without cleanup path → permanent stall |
 | `meta.half_done_must_not_look_done` | Intermediate state satisfies completeness check |
 | `meta.silence_is_not_valid_for_unexpected` | Unhandled case is silent no-op |
+| `meta.failure_response_must_contract_not_amplify` | Unbounded retry/re-enqueue turns one failure into a cascade |
 
 **Dependency** — "what breaks if a non-critical thing fails? what if A needs B needs A?"
 | Principle | What it catches |
