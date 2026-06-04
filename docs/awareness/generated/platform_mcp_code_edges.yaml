@@ -47,6 +47,15 @@ code_edges:
   - from: globular.platform:code.go.platform_mcp.clients
     relation: implements
     to: globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+  - from: globular.platform:code.go.platform_mcp.etcd_authority_pin
+    relation: enforces
+    to: globular.platform:invariant.etcd.path_has_single_owner
+  - from: globular.platform:code.go.platform_mcp.etcd_authority_pin
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
+  - from: globular.platform:code.go.platform_mcp.etcd_authority_pin
+    relation: enforces
+    to: globular.platform:invariant.mcp.etcd.tools_must_not_join_remote_allowlist
   - from: globular.platform:code.go.platform_mcp.main
     relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
@@ -74,6 +83,12 @@ code_edges:
   - from: globular.platform:code.go.platform_mcp.tools_cluster_config
     relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_etcd
+    relation: enforces
+    to: globular.platform:invariant.etcd.path_has_single_owner
+  - from: globular.platform:code.go.platform_mcp.tools_etcd
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - from: globular.platform:code.go.platform_mcp.tools_etcd
     relation: enforces
     to: globular.platform:invariant.mcp.etcd.tools_must_not_join_remote_allowlist

@@ -89,6 +89,17 @@ code_symbols:
         - globular.platform:invariant.mcp.tools.use_gateway_client_pool
       implements:
         - globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
+  - id: globular.platform:code.go.platform_mcp.etcd_authority_pin
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/mcp_etcd_authority_pin_test.go
+    component: platform_mcp.etcd_authority_pin
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.mcp.etcd.tools_must_not_join_remote_allowlist
+        - globular.platform:invariant.etcd.path_has_single_owner
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - id: globular.platform:code.go.platform_mcp.main
     namespace: globular.platform
     language: go
@@ -163,6 +174,8 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.mcp.etcd.tools_must_not_join_remote_allowlist
+        - globular.platform:invariant.etcd.path_has_single_owner
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
       implements:
         - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
   - id: globular.platform:code.go.platform_mcp.tools_file

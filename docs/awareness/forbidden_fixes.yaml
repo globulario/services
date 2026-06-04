@@ -2922,9 +2922,9 @@ forbidden_fixes:
     Even allowlist-blocked tools represent a structural vector: a single
     policy change or allowlist edit exposes the entire cluster state to
     callers that have no contract with the owners. The principle is the
-    same as the write-side generic_etcd_or_storage_write_tool: the safe
-    state is not "blocked at the policy", it is "the tool does not
-    exist".
+    same as the write-side generic_etcd_write_tool_exposed_to_callers:
+    the safe state is not "blocked at the policy", it is "the tool does
+    not exist".
   safe_alternative: >
     Replace generic read tools with owner-specific typed RPCs. If a
     diagnostic surface is needed, expose ListFindings (via cluster-doctor)
@@ -2934,9 +2934,65 @@ forbidden_fixes:
     HARD-CODED in the tool, not configured externally.
   related_invariants:
     - four_layer.truth_read_via_owner_rpc_not_direct_storage
+    - mcp.etcd.tools_must_not_join_remote_allowlist
   protects:
     files:
       - golang/mcp/tools_etcd.go
+      - golang/mcp/aggregator_policy.go
+
+- id: generic_etcd_write_tool_exposed_to_callers
+  summary: >
+    Expose a generic etcd_put / etcd_delete / storage_write tool to MCP /
+    admin / external callers, even when an allowlist currently blocks
+    remote use AND even when the tool guards itself with a "/globular/"
+    prefix check or a read_only flag. Examples: mcp/tools_etcd.go's
+    etcd_put + etcd_delete (removed v1.2.167), an admin command that
+    accepts an arbitrary key+value to Put, a debugging endpoint with a
+    "set" verb.
+  reason: >
+    A generic write tool authorises around every layer-owner's contract.
+    The "/globular/" prefix guard does not narrow the blast radius — it
+    still permits writes to L1/L2/L3 paths owned by the repository,
+    cluster_controller, and per-node node_agent. The read_only flag is
+    operator-configurable and represents a single switch between safe
+    and catastrophic. forbidden_fix:cross_layer_write_by_non_owner is
+    violated by any caller of such a tool that writes a path it does
+    not own — and the tool itself does not constrain who its callers
+    are.
+
+    The remote-allowlist is also not protection: invariant
+    mcp.etcd.tools_must_not_join_remote_allowlist (anchored) names the
+    rule, and failure_mode:mcp.etcd_remote_allowlist_expansion names the
+    regression class where a tool was once safely local and then quietly
+    added to remote_call. The safe state is "the tool does not exist",
+    not "the tool exists but is blocked at the door".
+
+    Removed v1.2.167: tools_etcd.go's registerEtcdTools no longer
+    registers etcd_get / etcd_put / etcd_delete. The architectural pin
+    test in mcp_etcd_authority_pin_test.go fails the build if any of
+    them is re-introduced.
+  safe_alternative: >
+    Use the owner's typed RPC. Mutations to L1 go through repository
+    (UploadArtifact, UpdateArtifactBinary). Mutations to L2 go through
+    cluster_controller (ApplyServiceRelease, UpsertDesiredService).
+    Mutations to L3 go through the per-node node_agent's typed handlers
+    (ApplyPackageRelease, etc.). For operator workflows that span
+    multiple owners, dispatch through the workflow service.
+
+    If a bootstrap-only generic write primitive is genuinely needed
+    (e.g., Day-0 day0_seed paths), scope it to a fixed prefix allowlist
+    HARD-CODED in the tool, narrowly named (day0_seed_set, never
+    etcd_put), and gate it on a Day-0 boot phase that auto-disables
+    after first apply.
+  related_invariants:
+    - etcd.path_has_single_owner
+    - four_layer.layer_has_single_writing_actor
+    - mcp.etcd.tools_must_not_join_remote_allowlist
+  protects:
+    files:
+      - golang/mcp/tools_etcd.go
+      - golang/mcp/aggregator_policy.go
+      - golang/mcp/server.go
 
 - id: conditional_field_semantic_by_writer
   summary: >
