@@ -48,6 +48,7 @@ const (
 	ClusterControllerService_ListDesiredBuildIDs_FullMethodName       = "/cluster_controller.ClusterControllerService/ListDesiredBuildIDs"
 	ClusterControllerService_GetRoutingRefresh_FullMethodName         = "/cluster_controller.ClusterControllerService/GetRoutingRefresh"
 	ClusterControllerService_ListExternalDomains_FullMethodName       = "/cluster_controller.ClusterControllerService/ListExternalDomains"
+	ClusterControllerService_ListServices_FullMethodName              = "/cluster_controller.ClusterControllerService/ListServices"
 	ClusterControllerService_UpsertDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/UpsertDesiredService"
 	ClusterControllerService_RemoveDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/RemoveDesiredService"
 	ClusterControllerService_SeedDesiredState_FullMethodName          = "/cluster_controller.ClusterControllerService/SeedDesiredState"
@@ -147,6 +148,20 @@ type ClusterControllerServiceClient interface {
 	// keep the response narrow; extend the proto when a new consumer
 	// arrives that needs them.
 	ListExternalDomains(ctx context.Context, in *ListExternalDomainsRequest, opts ...grpc.CallOption) (*ListExternalDomainsResponse, error)
+	// ListServices returns the merged service-registry view used by xDS
+	// to build Envoy clusters. Each entry is the per-(service, instance)
+	// map produced by config.GetServicesConfigurations() — config fields
+	// merged with per-node instance fields (Address, Port, State, ...).
+	//
+	// Encoded as a list of JSON strings because Globular service configs
+	// have dynamic schemas (different services contribute different
+	// keys); a typed proto message would either bloat or constrain that.
+	// The cluster_controller owns /globular/services/* (writers
+	// PutInstance / PutConfig in config/etcd_service_config.go), so this
+	// RPC is the canonical typed boundary for consumers reading the
+	// registry — anchored by
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	ListServices(ctx context.Context, in *ListServicesRequest, opts ...grpc.CallOption) (*ListServicesResponse, error)
 	UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	RemoveDesiredService(ctx context.Context, in *RemoveDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	SeedDesiredState(ctx context.Context, in *SeedDesiredStateRequest, opts ...grpc.CallOption) (*DesiredState, error)
@@ -454,6 +469,16 @@ func (c *clusterControllerServiceClient) ListExternalDomains(ctx context.Context
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) ListServices(ctx context.Context, in *ListServicesRequest, opts ...grpc.CallOption) (*ListServicesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListServicesResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ListServices_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DesiredState)
@@ -623,6 +648,20 @@ type ClusterControllerServiceServer interface {
 	// keep the response narrow; extend the proto when a new consumer
 	// arrives that needs them.
 	ListExternalDomains(context.Context, *ListExternalDomainsRequest) (*ListExternalDomainsResponse, error)
+	// ListServices returns the merged service-registry view used by xDS
+	// to build Envoy clusters. Each entry is the per-(service, instance)
+	// map produced by config.GetServicesConfigurations() — config fields
+	// merged with per-node instance fields (Address, Port, State, ...).
+	//
+	// Encoded as a list of JSON strings because Globular service configs
+	// have dynamic schemas (different services contribute different
+	// keys); a typed proto message would either bloat or constrain that.
+	// The cluster_controller owns /globular/services/* (writers
+	// PutInstance / PutConfig in config/etcd_service_config.go), so this
+	// RPC is the canonical typed boundary for consumers reading the
+	// registry — anchored by
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	ListServices(context.Context, *ListServicesRequest) (*ListServicesResponse, error)
 	UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error)
 	RemoveDesiredService(context.Context, *RemoveDesiredServiceRequest) (*DesiredState, error)
 	SeedDesiredState(context.Context, *SeedDesiredStateRequest) (*DesiredState, error)
@@ -730,6 +769,9 @@ func (UnimplementedClusterControllerServiceServer) GetRoutingRefresh(context.Con
 }
 func (UnimplementedClusterControllerServiceServer) ListExternalDomains(context.Context, *ListExternalDomainsRequest) (*ListExternalDomainsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListExternalDomains not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ListServices(context.Context, *ListServicesRequest) (*ListServicesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListServices not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpsertDesiredService not implemented")
@@ -1254,6 +1296,24 @@ func _ClusterControllerService_ListExternalDomains_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_ListServices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListServicesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ListServices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ListServices_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ListServices(ctx, req.(*ListServicesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_UpsertDesiredService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertDesiredServiceRequest)
 	if err := dec(in); err != nil {
@@ -1508,6 +1568,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListExternalDomains",
 			Handler:    _ClusterControllerService_ListExternalDomains_Handler,
+		},
+		{
+			MethodName: "ListServices",
+			Handler:    _ClusterControllerService_ListServices_Handler,
 		},
 		{
 			MethodName: "UpsertDesiredService",

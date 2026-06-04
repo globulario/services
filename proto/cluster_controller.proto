@@ -707,6 +707,27 @@ service ClusterControllerService {
       default_role_hint: "viewer"
     };
   };
+  // ListServices returns the merged service-registry view used by xDS
+  // to build Envoy clusters. Each entry is the per-(service, instance)
+  // map produced by config.GetServicesConfigurations() — config fields
+  // merged with per-node instance fields (Address, Port, State, ...).
+  //
+  // Encoded as a list of JSON strings because Globular service configs
+  // have dynamic schemas (different services contribute different
+  // keys); a typed proto message would either bloat or constrain that.
+  // The cluster_controller owns /globular/services/* (writers
+  // PutInstance / PutConfig in config/etcd_service_config.go), so this
+  // RPC is the canonical typed boundary for consumers reading the
+  // registry — anchored by
+  // invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+  rpc ListServices(ListServicesRequest) returns (ListServicesResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.services.read"
+      permission: "read"
+      resource_template: "/cluster_controller/services"
+      default_role_hint: "viewer"
+    };
+  };
   rpc UpsertDesiredService(UpsertDesiredServiceRequest) returns (DesiredState) {
     option (globular.auth.authz) = {
       action: "cluster_controller.desired_service.upsert"
@@ -940,6 +961,20 @@ message ListDesiredBuildIDsRequest {
 message GetRoutingRefreshRequest {}
 
 message ListExternalDomainsRequest {}
+
+message ListServicesRequest {}
+
+// ListServicesResponse carries the merged service-registry view as a
+// list of JSON strings. Each string is the (config + instance) map
+// produced by config.GetServicesConfigurations(); the dynamic schema
+// is intentional — Globular service configs vary by service kind.
+//
+// Consumers (xDS) json.Unmarshal each string into map[string]any and
+// proceed as before. The wire-format is JSON only because no static
+// proto can capture the dynamic field set without locking it in.
+message ListServicesResponse {
+  repeated string services_json = 1;
+}
 
 // ExternalDomainEntry is the narrow projection of (spec, status) that
 // xDS consumes when building Envoy snapshots. See the RPC docstring
