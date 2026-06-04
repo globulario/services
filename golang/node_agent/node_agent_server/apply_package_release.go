@@ -65,8 +65,10 @@ func (srv *NodeAgentServer) writeBinaryUnverifiedInstalledState(
 		OperationId: req.GetOperationId(),
 		BuildNumber: req.GetBuildNumber(),
 		BuildId:     strings.TrimSpace(req.GetBuildId()),
-		Checksum:    actualHash,
-		Metadata:    meta,
+		// InstalledPackage.Checksum is the installed entrypoint/artifact binary
+		// SHA, not the release identity hash.
+		Checksum: actualHash,
+		Metadata: meta,
 	})
 	log.Printf("apply-package: UNVERIFIED %s/%s@%s — %s (binary hash present but no expected checksum to compare)",
 		kind, name, version, reason)
@@ -240,6 +242,33 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 							normalizedHash(req.GetExpectedSha256()))
 						// fall through to reinstall
 					} else {
+						// InstalledPackage.Checksum is the installed entrypoint/artifact
+						// binary SHA, NOT the release identity hash. A Day-0 install path
+						// can leave Checksum stamped with the release-identity hash
+						// (ServiceRelease.Status.DesiredHash), producing a permanent
+						// rollout.installed_hash_mismatch downstream. When skipping a
+						// matching build_id, repair the field from the disk's actual
+						// SHA256 so the per-node record carries the binary identity the
+						// proto declares ("Phase 4: artifact sha256 verified at apply
+						// time"). Best-effort: if the binary can't be hashed, leave the
+						// existing value as-is.
+						if diskHash, hashErr := cachedSha256(installedBinaryPath(name, kind)); hashErr == nil && diskHash != "" && !strings.EqualFold(strings.TrimSpace(existing.GetChecksum()), diskHash) {
+							log.Printf("apply-package: %s/%s@%s build_id matches, repairing top-level Checksum %s → %s (binary SHA from disk)",
+								kind, name, version,
+								normalizedHash(existing.GetChecksum()),
+								normalizedHash(diskHash))
+							repaired := *existing
+							repaired.Checksum = diskHash
+							repaired.UpdatedUnix = time.Now().Unix()
+							if repaired.Metadata == nil {
+								repaired.Metadata = make(map[string]string)
+							}
+							repaired.Metadata["entrypoint_checksum"] = diskHash
+							stampReceiptForInstalledPackage(&repaired, "node-agent.apply_package_release.service", installedBinaryPath(name, kind))
+							if werr := installed_state.WriteInstalledPackage(ctx, &repaired); werr != nil {
+								log.Printf("apply-package: %s/%s@%s Checksum repair write failed: %v (non-fatal)", kind, name, version, werr)
+							}
+						}
 						log.Printf("apply-package: %s/%s@%s (build %d, build_id=%s) already installed, skipping",
 							kind, name, version, req.GetBuildNumber(), buildID)
 						return &node_agentpb.ApplyPackageReleaseResponse{
@@ -450,7 +479,10 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			BuildNumber: req.GetBuildNumber(),
 			BuildId:     buildID,
 			Platform:    platform,
-			Checksum:    actualHash, // proven hash, not the request claim
+			// InstalledPackage.Checksum is the installed entrypoint/artifact binary
+		// SHA, not the release identity hash. actualHash comes from
+		// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
+		Checksum: actualHash,
 		}
 		if actualHash != "" {
 			if pkg.Metadata == nil {
@@ -619,7 +651,10 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			BuildNumber: req.GetBuildNumber(),
 			BuildId:     buildID,
 			Platform:    platform,
-			Checksum:    actualHash, // proven hash, not the request claim
+			// InstalledPackage.Checksum is the installed entrypoint/artifact binary
+		// SHA, not the release identity hash. actualHash comes from
+		// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
+		Checksum: actualHash,
 		}
 		if actualHash != "" {
 			if binaryOnlyPkg.Metadata == nil {
@@ -729,7 +764,10 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		BuildNumber: req.GetBuildNumber(),
 		BuildId:     buildID,
 		Platform:    platform,
-		Checksum:    actualHash, // proven hash, not the request claim
+		// InstalledPackage.Checksum is the installed entrypoint/artifact binary
+		// SHA, not the release identity hash. actualHash comes from
+		// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
+		Checksum: actualHash,
 	}
 	if actualHash != "" {
 		if pkg.Metadata == nil {

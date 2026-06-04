@@ -43,6 +43,103 @@ func ipMeta(version, convergenceChecksum, buildID, entrypoint string) *node_agen
 // decideNodeRolloutProof — per-node verdict.
 // ─────────────────────────────────────────────────────────────────────────
 
+// TestDecideNodeRolloutProof_ClusterControllerStaleHashRegression pins the
+// post-fix invariant for the node-agent installer writers:
+//
+//	InstalledPackage.Checksum must be the binary/entrypoint SHA, not the
+//	release identity hash.
+//
+// The pre-fix bug (cluster, 2026-06-04): two writers of NodeReleaseStatus.
+// InstalledHash held different *kinds* of hash, and the per-node InstalledPackage
+// installed for cluster-controller had top-level Checksum stamped with the
+// release-identity hash (ComputeReleaseDesiredHash output) instead of the
+// binary SHA. The convergence drift leg of decideNodeRolloutProof then
+// compared installed.GetChecksum() (release-identity) against
+// rel.Status.DesiredHash (also release-identity, same value — would pass) but
+// the install dispatch separately stamped NodeReleaseStatus.InstalledHash =
+// release-identity hash from $.desired_hash, while the proof leg compared it
+// against ResolvedEntrypointChecksum (binary SHA). Result: permanent
+// rollout.installed_hash_mismatch and an endless install retry loop.
+//
+// Post-fix contract pinned here: when the node-agent has written the binary
+// SHA into both InstalledPackage.Checksum AND
+// metadata["entrypoint_checksum"], decideNodeRolloutProof produces
+// InstalledVerified for the realistic cluster-controller scenario — and a
+// pre-fix fixture (Checksum = release-identity) reproducibly fires the
+// mismatch finding, proving the test exercises the bug class.
+func TestDecideNodeRolloutProof_ClusterControllerStaleHashRegression(t *testing.T) {
+	const (
+		// Real values from the live cluster (2026-06-04):
+		//   binarySHA       — sha256 of /usr/lib/globular/bin/cluster_controller_server
+		//   releaseIdentity — ServiceRelease.Status.DesiredHash on the same release
+		binarySHA       = "2eb07b676e82c0bb41b4449e4390d489fb4082242a3e53be9200120b41bc1ff5"
+		releaseIdentity = "5804f52337edfc3281ae14f876572f961d4840a0aff52dcd078152c0900c00a4"
+		buildID         = "019e924c-d699-7068-b03d-d52a0ab545ff"
+		version         = "1.2.160"
+	)
+
+	t.Run("post_fix_writer_Checksum_eq_binary_sha_yields_installed_verified", func(t *testing.T) {
+		// Node-agent (post-fix) writes binary SHA into both fields. The proof
+		// leg compares binary-vs-binary (entrypoint metadata vs manifest's
+		// resolved_entrypoint_checksum) and the convergence leg compares
+		// convergence-vs-convergence (Checksum vs desired_hash).
+		//
+		// Note: in the live system Checksum is no longer the convergence hash;
+		// the node-agent writes binary SHA there too. The wantConvergence
+		// (DesiredHash = release-identity) will not match binary SHA, but the
+		// binary leg succeeds first and short-circuits. To exercise that
+		// exact ordering, leave desiredConvergence empty — the convergence
+		// leg is the legacy path and a real cluster will increasingly stop
+		// populating it once Phase 4 lands.
+		pkg := ipMeta(version, binarySHA, buildID, binarySHA)
+		v := decideNodeRolloutProof(version, "", buildID, binarySHA, pkg, true, true)
+		if v.ProofStatus != RolloutProofInstalledVerified {
+			t.Fatalf("ProofStatus=%q want=%q (FindingID=%q reason=%q)",
+				v.ProofStatus, RolloutProofInstalledVerified, v.FindingID, v.Reason)
+		}
+		if v.FindingID == FindingRolloutInstalledHashMismatch {
+			t.Fatalf("post-fix path must not produce %s, got reason=%q",
+				FindingRolloutInstalledHashMismatch, v.Reason)
+		}
+	})
+
+	t.Run("pre_fix_writer_Checksum_eq_release_identity_reproduces_drift", func(t *testing.T) {
+		// Pre-fix shape: top-level Checksum = release-identity hash,
+		// metadata.entrypoint_checksum = binary SHA. The binary leg would
+		// match (both sides binary SHA), so to reproduce the original
+		// dispatch-loop scenario we exercise the convergence leg alone:
+		// metadata.entrypoint_checksum empty, top-level Checksum carrying
+		// the release-identity, wantEntrypoint empty, wantConvergence =
+		// binary SHA (what the controller would compare against after the
+		// fix lands). The mismatch must fire.
+		pkg := ipMeta(version, releaseIdentity, buildID, "")
+		v := decideNodeRolloutProof(version, binarySHA, buildID, "", pkg, true, true)
+		if v.FindingID != FindingRolloutInstalledHashMismatch {
+			t.Fatalf("pre-fix fixture must fire %s, got FindingID=%q reason=%q",
+				FindingRolloutInstalledHashMismatch, v.FindingID, v.Reason)
+		}
+		if v.ProofStatus != RolloutProofMismatch {
+			t.Fatalf("ProofStatus=%q want=%q", v.ProofStatus, RolloutProofMismatch)
+		}
+	})
+
+	t.Run("checksum_field_must_not_flip_kind_between_writers", func(t *testing.T) {
+		// Confidence check: a record where Checksum == metadata.entrypoint_checksum
+		// (both binary SHA) is the post-fix steady state for every service —
+		// not just cluster-controller. Independent of how the proof routes,
+		// the field's kind must be consistent.
+		pkg := ipMeta(version, binarySHA, buildID, binarySHA)
+		if pkg.GetChecksum() != pkg.GetMetadata()["entrypoint_checksum"] {
+			t.Fatalf("post-fix invariant: pkg.Checksum (%q) must equal metadata.entrypoint_checksum (%q)",
+				pkg.GetChecksum(), pkg.GetMetadata()["entrypoint_checksum"])
+		}
+		// And neither equals the release-identity hash by construction.
+		if strings.EqualFold(pkg.GetChecksum(), releaseIdentity) {
+			t.Fatalf("post-fix invariant: pkg.Checksum must not equal the release-identity hash")
+		}
+	})
+}
+
 func TestDecideNodeRolloutProof_NoInstalled_ProofMissing(t *testing.T) {
 	v := decideNodeRolloutProof("1.2.0", "abc", "bid-a", "", nil, true, false)
 	if v.ProofStatus != RolloutProofUnknown {

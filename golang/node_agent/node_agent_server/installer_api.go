@@ -188,8 +188,8 @@ func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, nam
 	}
 
 	// Read-modify-write: preserve all fields written by package.report_state
-	// (Checksum/artifact hash, Platform, BuildNumber, etc.) and only add
-	// entrypoint_checksum. A full replace would silently clear those fields.
+	// (Platform, BuildNumber, etc.) and stamp the binary SHA + entrypoint_checksum.
+	// A full replace would silently clear those fields.
 	pkg, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
 	now := time.Now().Unix()
 	if pkg == nil {
@@ -208,6 +208,15 @@ func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, nam
 		pkg.Metadata = make(map[string]string)
 	}
 	pkg.Metadata["entrypoint_checksum"] = hash
+	// InstalledPackage.Checksum is the installed entrypoint/artifact binary SHA,
+	// NOT the release identity hash (ServiceRelease.Status.DesiredHash, which is
+	// ComputeReleaseDesiredHash(publisher, name, version, build_number, config)).
+	// This field is read by the controller's drift detection and by
+	// decideNodeRolloutProof as the artifact SHA the node-agent verified at apply
+	// time. A stale or release-identity value here yields a permanent
+	// rollout.installed_hash_mismatch — see failure_mode:
+	// node_agent.install_package_aliases_convergence_hash_into_expected_sha256.
+	pkg.Checksum = hash
 
 	// Stamp the canonical install receipt. installed_state.metadata is the
 	// sole authority for expected unit-file/binary/config content (see

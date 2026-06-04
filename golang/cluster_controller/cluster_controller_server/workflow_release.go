@@ -569,24 +569,37 @@ func (srv *server) buildReleaseControllerConfigWithGen(releaseName, pkgKind stri
 			})
 		},
 		MarkNodeSucceeded: func(ctx context.Context, releaseID, nodeID, version, hash string) error {
-			log.Printf("release-workflow: node %s succeeded for %s (v=%s h=%s)", nodeID, releaseName, version, hash)
+			// CRITICAL — invariant install_package.hash_schemas_must_not_alias:
+			// the `hash` parameter is the workflow input $.desired_hash, which
+			// is the release-identity hash produced by ComputeReleaseDesiredHash
+			// (publisher, name, version, build_number, config) — NOT a binary
+			// SHA. NodeReleaseStatus.InstalledHash is declared on the proto as
+			// "Phase 4: artifact sha256 verified at apply time" (binary SHA);
+			// storing the release-identity here aliases two distinct hash
+			// schemas into the same field and produces a permanent
+			// rollout.installed_hash_mismatch when decideNodeRolloutProof later
+			// compares it against ResolvedEntrypointChecksum.
+			//
+			// Authoritative source of the binary SHA at success-callback time:
+			// rel.Status.ResolvedEntrypointChecksum (the manifest's
+			// entrypoint_checksum that flowed through ApplyPackageRelease's
+			// ExpectedSha256 — the same value the node-agent's verify gate
+			// confirmed against the on-disk binary before marking installed).
+			binarySHA := srv.lookupReleaseResolvedEntrypointChecksum(ctx, resourceType, releaseName)
+			log.Printf("release-workflow: node %s succeeded for %s (v=%s binary_sha=%s workflow_release_identity=%s)",
+				nodeID, releaseName, version, binarySHA, hash)
 			return srv.patchReleaseNodeStatusGuarded(ctx, resourceType, releaseName, nodeID, dispatchGeneration, func(n *cluster_controllerpb.NodeReleaseStatus) {
 				n.Phase = cluster_controllerpb.ReleasePhaseAvailable
 				n.InstalledVersion = version
 				n.UpdatedUnixMs = time.Now().UnixMilli()
 				n.ErrorMessage = ""
-				// Phase 4: persist the hash the workflow reported. Phase 1
-				// guarantees this hash was verified against the artifact
-				// manifest before apply marked the package installed, so
-				// the proof level we can claim from a workflow success
-				// callback is at most installed_verified. The convergence
-				// scan in detectServiceDrift / detectInfraDrift confirms
-				// this by re-checking the etcd InstalledPackage record
-				// against the resolved digest; we do NOT promote past
-				// installed_verified here because the workflow has no
-				// independent runtime measurement of its own.
-				if strings.TrimSpace(hash) != "" {
-					n.InstalledHash = hash
+				// Phase 4 hash: write the binary SHA the manifest declared and
+				// the node-agent verified. Never the workflow's release-identity
+				// `hash` — see comment block above. When the manifest has no
+				// entrypoint_checksum (legacy artifacts), demote to inventory
+				// claim rather than aliasing in a different-schema value.
+				if binarySHA != "" {
+					n.InstalledHash = binarySHA
 					n.ProofStatus = RolloutProofInstalledVerified
 					n.ProofFinding = ""
 				} else {
@@ -661,13 +674,21 @@ func (srv *server) buildGenericReleaseControllerConfig() engine.ReleaseControlle
 		},
 		MarkNodeSucceeded: func(ctx context.Context, relID, nodeID, version, hash string) error {
 			rt := srv.inferReleaseResourceType(ctx, relID)
+			// install_package.hash_schemas_must_not_alias — the workflow `hash`
+			// parameter is the release-identity hash from $.desired_hash. Do not
+			// store it in NodeReleaseStatus.InstalledHash, which the proto
+			// declares as "artifact sha256 verified at apply time" (binary SHA).
+			// Pull the binary SHA from rel.Status.ResolvedEntrypointChecksum,
+			// the same manifest-entrypoint value the node-agent's verify gate
+			// matched against on-disk bytes at apply time.
+			binarySHA := srv.lookupReleaseResolvedEntrypointChecksum(ctx, rt, relID)
 			return srv.patchReleaseNodeStatusGuarded(ctx, rt, relID, nodeID, 0, func(n *cluster_controllerpb.NodeReleaseStatus) {
 				n.Phase = cluster_controllerpb.ReleasePhaseAvailable
 				n.InstalledVersion = version
 				n.UpdatedUnixMs = time.Now().UnixMilli()
 				n.ErrorMessage = ""
-				if strings.TrimSpace(hash) != "" {
-					n.InstalledHash = hash
+				if binarySHA != "" {
+					n.InstalledHash = binarySHA
 					n.ProofStatus = RolloutProofInstalledVerified
 					n.ProofFinding = ""
 				} else {
@@ -706,6 +727,44 @@ func (srv *server) inferReleaseResourceType(ctx context.Context, relID string) s
 		return "InfrastructureRelease"
 	}
 	return "ServiceRelease"
+}
+
+// lookupReleaseResolvedEntrypointChecksum returns the binary entrypoint SHA
+// the controller resolved from the artifact manifest for a release. This is
+// the value ApplyPackageRelease's ExpectedSha256 carried into the node-agent
+// verify gate, so at MarkNodeSucceeded callback time it equals the on-disk
+// binary SHA the node-agent matched before declaring installed.
+//
+// Returns "" when the release record cannot be loaded or carries no resolved
+// value (legacy artifact, pre-bootstrap, etc). The caller MUST treat empty as
+// "cannot prove binary identity" and write proof_status = inventory_claim —
+// NEVER fall back to the workflow's release-identity hash, which lives in a
+// different schema (publisher+name+version+build_number+config) and would
+// alias incompatible values into NodeReleaseStatus.InstalledHash. See
+// invariant: install_package.hash_schemas_must_not_alias.
+func (srv *server) lookupReleaseResolvedEntrypointChecksum(ctx context.Context, resourceType, releaseName string) string {
+	if srv == nil || srv.resources == nil {
+		return ""
+	}
+	obj, _, err := srv.resources.Get(ctx, resourceType, releaseName)
+	if err != nil || obj == nil {
+		return ""
+	}
+	switch rel := obj.(type) {
+	case *cluster_controllerpb.ServiceRelease:
+		if rel.Status != nil {
+			return strings.TrimSpace(rel.Status.ResolvedEntrypointChecksum)
+		}
+	case *cluster_controllerpb.InfrastructureRelease:
+		if rel.Status != nil {
+			return strings.TrimSpace(rel.Status.ResolvedEntrypointChecksum)
+		}
+	case *cluster_controllerpb.ApplicationRelease:
+		if rel.Status != nil {
+			return strings.TrimSpace(rel.Status.ResolvedEntrypointChecksum)
+		}
+	}
+	return ""
 }
 
 // releaseTargetCandidate holds the subset of node state needed for target
