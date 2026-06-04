@@ -18,17 +18,11 @@ package rules
 // healthy steady-state — they emit a Finding only when the join is wrong.
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
-	clientv3 "go.etcd.io/etcd/client/v3"
-
-	"github.com/globulario/services/golang/config"
 )
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -47,45 +41,41 @@ func (repositoryDesiredBuildIDsResolve) ID() string       { return "repository.d
 func (repositoryDesiredBuildIDsResolve) Category() string { return "repository" }
 func (repositoryDesiredBuildIDsResolve) Scope() string    { return "cluster" }
 
-// desiredBuildIDsReader is the indirection that lets tests inject desired-state
-// without going through etcd. Production code uses readDesiredBuildIDs.
-var desiredBuildIDsReader = readDesiredBuildIDs
-
 func (r repositoryDesiredBuildIDsResolve) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 	// Two inputs:
-	//  (a) the set of build_ids the cluster currently desires (etcd
-	//      /globular/resources/*)
-	//  (b) the set of build_ids the REPOSITORY can resolve (i.e. installable
-	//      manifests in the catalog).
+	//  (a) the set of build_ids the cluster currently desires
+	//      (Snapshot.DesiredBuildIDIndex, populated by the collector via
+	//      cluster_controller.ListDesiredBuildIDs).
+	//  (b) the set of build_ids the REPOSITORY can resolve
+	//      (Snapshot.RepositoryBuildIDIndex, populated by the collector
+	//      via repository.ListArtifacts).
 	//
-	// (a) is collected via desiredBuildIDsReader, overrideable in tests.
-	// (b) is the authoritative set from the snapshot's RepositoryBuildIDIndex,
-	//     populated by the collector when it has a repository client.
+	// Both inputs are pure Snapshot reads — no RPCs at evaluation time.
+	// The four-layer authority contract requires that "what's desired?"
+	// flow out of the controller's typed RPC, never via direct etcd
+	// scan from a consumer (invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage).
 	//
-	// Why we no longer use "installed on any node" as a proxy for (b):
-	// during legitimate Day-1 / first-publish bootstrap, desired state pins
-	// the v1.2.47 build_ids minutes before any node has installed them. The
-	// installed-state proxy fired CRITICAL on every desired build_id during
-	// that window — a false-positive storm. The repository ALREADY knows
-	// what it has; the doctor must ask it, not infer.
+	// Degraded-mode behaviour for both inputs is uniform:
+	//   nil   ⇒ no signal — return no findings (silence beats a false alarm).
+	//   empty ⇒ legitimate empty state — every desired pin (if any) is an alarm.
 	//
-	// Degraded-mode: when the collector has no repository client (or the
-	// list failed), RepositoryBuildIDIndex is nil. In that case this rule
-	// returns no findings rather than guessing — silence beats false alarm.
-	// The rule will re-engage once the collector regains repository access.
+	// During legitimate Day-1 / first-publish bootstrap, desired state may
+	// pin v1.2.47 build_ids minutes before any node has installed them.
+	// We DELIBERATELY do not use installed-state as a proxy for "the
+	// repository has it" — the repository's ListArtifacts index is the
+	// authoritative source.
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	desired := desiredBuildIDsReader(ctx)
+	desired := snap.DesiredBuildIDIndex
+	if desired == nil {
+		// Controller call failed — no signal, don't fabricate findings.
+		return nil
+	}
 	if len(desired) == 0 {
 		// Pre-bootstrap or pre-roll-forward — nothing to check.
 		return nil
 	}
 
-	// Authoritative resolvable set from the repository. Nil ⇒ no signal,
-	// fail safely silent. Empty (non-nil) ⇒ repository genuinely has no
-	// installable artifacts, every desired pin is orphaned (correct alarm).
+	// Authoritative resolvable set from the repository.
 	resolvable := snap.RepositoryBuildIDIndex
 	if resolvable == nil {
 		return nil
@@ -120,74 +110,6 @@ func (r repositoryDesiredBuildIDsResolve) Evaluate(snap *collector.Snapshot, _ C
 		})
 	}
 	return findings
-}
-
-// TODO(four-layer-read-authority, v1.2.166): this function reads
-// /globular/resources/* directly, violating
-// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage and
-// forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc.
-//
-// The collector already has controllerClient dialled; the proper path is:
-//   1. Add cluster_controller.GetDesiredBuildIDIndex typed RPC.
-//   2. Collector calls it once per sweep, populates
-//      collector.Snapshot.DesiredBuildIDIndex.
-//   3. This rule reads from the Snapshot, not from etcd.
-//
-// Until that lands, the existing implementation is left in place but
-// flagged here so the next contributor extending this file sees the
-// principle. The architectural pin test in
-// cluster_doctor_etcd_authority_test.go allow-lists this one read by
-// file:function name; new readers must not be added.
-//
-// readDesiredBuildIDs scans all desired-state etcd prefixes and returns a map
-// build_id → human-readable ref (for evidence). Best-effort: returns empty
-// map on any etcd error.
-func readDesiredBuildIDs(ctx context.Context) map[string]string {
-	out := map[string]string{}
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		return out
-	}
-	prefixes := []string{
-		"/globular/resources/ServiceDesiredVersion/",
-		"/globular/resources/InfrastructureRelease/",
-		"/globular/resources/DesiredService/",
-		"/globular/resources/ServiceRelease/",
-	}
-	type genericRec struct {
-		Spec *struct {
-			BuildID string `json:"build_id"`
-		} `json:"spec"`
-		Status *struct {
-			ResolvedBuildID string `json:"resolved_build_id"`
-			BuildID         string `json:"build_id"`
-		} `json:"status"`
-	}
-	for _, prefix := range prefixes {
-		resp, getErr := cli.Get(ctx, prefix, clientv3.WithPrefix(), clientv3.WithLimit(500))
-		if getErr != nil {
-			continue
-		}
-		for _, kv := range resp.Kvs {
-			var rec genericRec
-			if json.Unmarshal(kv.Value, &rec) != nil {
-				continue
-			}
-			ref := string(kv.Key)
-			if rec.Status != nil {
-				if rec.Status.ResolvedBuildID != "" {
-					out[rec.Status.ResolvedBuildID] = ref
-				}
-				if rec.Status.BuildID != "" {
-					out[rec.Status.BuildID] = ref
-				}
-			}
-			if rec.Spec != nil && rec.Spec.BuildID != "" {
-				out[rec.Spec.BuildID] = ref
-			}
-		}
-	}
-	return out
 }
 
 // ─────────────────────────────────────────────────────────────────────────

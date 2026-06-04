@@ -80,14 +80,19 @@ func TestClusterDoctor_NoNewEtcdDataWrites(t *testing.T) {
 		"cluster_doctor_server/approval_replay_etcd.go": "Approval-token replay table. Anchored by failure_mode:doctor.approval_token_replay_across_failover — the table MUST survive leader change or a replayed token re-authorises an old action. Migration target: ai-memory typed RPC. Tracked follow-up.",
 		"cluster_doctor_server/remediation_history.go":  "Remediation history. Anchored by invariant:remediation.must_not_retry_without_changed_evidence_or_policy_budget — the budget check needs durable history. Migration target: ai-memory typed RPC. Tracked follow-up.",
 
-		// CATEGORY 3 — grandfathered direct L2/L3 reads from the rules
-		// package. Each file has a TODO comment pointing at the migration
-		// (new typed cluster_controller RPC + collector.Snapshot field).
-		// The read pin test (TestClusterDoctor_NoNewEtcdReads) names the
-		// specific allowed function inside each file.
-		"cluster_doctor_server/rules/etcd_helpers.go":              "Generic accessors used by the two grandfathered rule readers below.",
-		"cluster_doctor_server/rules/package_version_authority.go": "readDesiredVersions — grandfathered direct read (see TODO in file).",
-		"cluster_doctor_server/rules/repository_dns_invariants.go": "readDesiredBuildIDs — grandfathered direct read (see TODO in file).",
+		// CATEGORY 3 — formerly grandfathered direct L2 reads from the
+		// rules package (readDesiredVersions, readDesiredBuildIDs).
+		// REMOVED in v1.2.171: the rules now read
+		// Snapshot.DesiredVersionIndex and Snapshot.DesiredBuildIDIndex,
+		// populated by the collector via
+		// cluster_controller.GetDesiredState +
+		// cluster_controller.ListDesiredBuildIDs. The etcd_helpers.go
+		// generic accessor file remains because other rules still use
+		// some etcd primitives (e.g. for ID lookups not yet typed) — it
+		// stays allow-listed only for those uses. Any NEW data-read
+		// against /globular/resources/* via this helper fires the read-
+		// side pin test (TestClusterDoctor_NoNewEtcdReads).
+		"cluster_doctor_server/rules/etcd_helpers.go": "Generic accessor file. Data reads of /globular/resources/* via this file fire the read-side pin (allowlist is per-file:function).",
 
 		// CATEGORY 4 — collector machinery with no awareness anchors yet.
 		// Inspect-and-anchor needed before refactor. Tracked follow-up.
@@ -136,12 +141,14 @@ func TestClusterDoctor_NoNewEtcdReads(t *testing.T) {
 	// Allowlist keyed by rel path under cluster_doctor/ (which is what
 	// `filepath.Rel(root, path)` returns inside the walk).
 	allowed := map[string]map[string]bool{
-		"cluster_doctor_server/rules/repository_dns_invariants.go": {
-			"readDesiredBuildIDs": true,
-		},
-		"cluster_doctor_server/rules/package_version_authority.go": {
-			"readDesiredVersions": true,
-		},
+		// readDesiredBuildIDs (repository_dns_invariants.go) and
+		// readDesiredVersions (package_version_authority.go) were the
+		// last two grandfathered rule readers — both REMOVED in
+		// v1.2.171. The rules now read Snapshot.{DesiredBuildIDIndex,
+		// DesiredVersionIndex}, populated by the collector via typed
+		// cluster_controller RPCs. The only remaining allow-listed
+		// direct read is fetchDesiredServiceTargets in collector/
+		// verification.go.
 		"cluster_doctor_server/collector/verification.go": {
 			"fetchDesiredServiceTargets": true,
 		},

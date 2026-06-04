@@ -1,19 +1,15 @@
 package rules
 
-// repository_dns_invariants_test.go — Targeted tests for the doctor rules
-// that surface the 2026-05-14 composed-path failure.
+// repository_dns_invariants_test.go — Targeted tests for the doctor
+// rules that surface the 2026-05-14 composed-path failure.
 //
-// These tests exercise rule logic against constructed Snapshots; they do
-// not touch live etcd. The repository.desired_build_ids_resolve rule does
-// call readDesiredBuildIDs(), which reads etcd; in this unit-test context
-// the etcd client is unconfigured so readDesiredBuildIDs returns an empty
-// map and the rule emits no findings. We test the data-driven half: when
-// a snapshot carries an installed build_id, no orphan is reported for it.
-// The "active orphan emits finding" case is covered by integration tests
-// that wire a real etcd; documented here for traceability.
+// As of v1.2.171 these tests are pure-snapshot. The rule reads
+// Snapshot.DesiredBuildIDIndex (populated by the collector via
+// cluster_controller.ListDesiredBuildIDs) and
+// Snapshot.RepositoryBuildIDIndex; no etcd or RPC plumbing is required
+// here.
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -139,22 +135,13 @@ func TestDoctorRule_DNSRecordsMatchRuntimeHealth_HealthyNode_NoFinding(t *testin
 // ─────────────────────────────────────────────────────────────────────────
 // repository.desired_build_ids_resolve
 //
-// These tests inject the desired-state reader so behavior is deterministic
-// regardless of whether the host has live etcd. Each test restores the
-// original reader on cleanup.
+// As of v1.2.171 the rule reads Snapshot.DesiredBuildIDIndex directly,
+// so tests just set the field. No reader injection point needed.
 // ─────────────────────────────────────────────────────────────────────────
 
-func withDesiredBuildIDs(t *testing.T, fn func(context.Context) map[string]string) {
-	t.Helper()
-	prev := desiredBuildIDsReader
-	desiredBuildIDsReader = fn
-	t.Cleanup(func() { desiredBuildIDsReader = prev })
-}
-
 func TestDoctorRule_RepositoryDesiredBuildIDsResolve_EmptyDesired_NoFinding(t *testing.T) {
-	withDesiredBuildIDs(t, func(context.Context) map[string]string { return nil })
-
 	snap := &collector.Snapshot{
+		DesiredBuildIDIndex:    map[string]string{}, // controller said: nothing desired
 		RepositoryBuildIDIndex: map[string]bool{"bid-A": true},
 	}
 	findings := (repositoryDesiredBuildIDsResolve{}).Evaluate(snap, testConfig())
@@ -163,16 +150,25 @@ func TestDoctorRule_RepositoryDesiredBuildIDsResolve_EmptyDesired_NoFinding(t *t
 	}
 }
 
+func TestDoctorRule_RepositoryDesiredBuildIDsResolve_NilDesired_NoFinding(t *testing.T) {
+	// Controller call failed (DesiredBuildIDIndex nil) — degrade silent.
+	snap := &collector.Snapshot{
+		// DesiredBuildIDIndex is nil — collector had no signal.
+		RepositoryBuildIDIndex: map[string]bool{"bid-A": true},
+	}
+	findings := (repositoryDesiredBuildIDsResolve{}).Evaluate(snap, testConfig())
+	if len(findings) != 0 {
+		t.Errorf("nil DesiredBuildIDIndex must produce no findings; got %+v", findings)
+	}
+}
+
 func TestDoctorRule_RepositoryDesiredBuildIDsResolve_NoRepoIndex_NoFinding(t *testing.T) {
 	// When the collector couldn't get a repository build_id index (nil), the
 	// rule degrades to silent — false positives are worse than false silence
 	// for a CRITICAL-severity rule. This guards against the v1.2.47 false-
 	// positive storm where the rule fired on legitimate Day-1 pins.
-	withDesiredBuildIDs(t, func(context.Context) map[string]string {
-		return map[string]string{"bid-X": "/globular/resources/ServiceRelease/core/echo"}
-	})
-
 	snap := &collector.Snapshot{
+		DesiredBuildIDIndex: map[string]string{"bid-X": "controller://desired/bid-X"},
 		// RepositoryBuildIDIndex is intentionally nil — collector had no signal.
 	}
 	findings := (repositoryDesiredBuildIDsResolve{}).Evaluate(snap, testConfig())
@@ -184,11 +180,8 @@ func TestDoctorRule_RepositoryDesiredBuildIDsResolve_NoRepoIndex_NoFinding(t *te
 func TestDoctorRule_RepositoryDesiredBuildIDsResolve_OrphanFires(t *testing.T) {
 	// Desired pins bid-X. Repository's authoritative index does NOT contain it.
 	// → orphan → CRITICAL finding.
-	withDesiredBuildIDs(t, func(context.Context) map[string]string {
-		return map[string]string{"bid-X": "/globular/resources/ServiceRelease/core/echo"}
-	})
-
 	snap := &collector.Snapshot{
+		DesiredBuildIDIndex: map[string]string{"bid-X": "controller://desired/bid-X"},
 		// Repository has artifacts, but bid-X is NOT among them.
 		RepositoryBuildIDIndex: map[string]bool{"bid-OTHER": true},
 	}
@@ -211,11 +204,8 @@ func TestDoctorRule_RepositoryDesiredBuildIDsResolve_OrphanFires(t *testing.T) {
 func TestDoctorRule_RepositoryDesiredBuildIDsResolve_RepositoryHasIt_NoFinding(t *testing.T) {
 	// Desired pins bid-X. Repository CAN resolve bid-X. → no finding even if
 	// no node has installed it yet (legitimate Day-1 / first-publish window).
-	withDesiredBuildIDs(t, func(context.Context) map[string]string {
-		return map[string]string{"bid-X": "/globular/resources/ServiceRelease/core/echo"}
-	})
-
 	snap := &collector.Snapshot{
+		DesiredBuildIDIndex:    map[string]string{"bid-X": "controller://desired/bid-X"},
 		RepositoryBuildIDIndex: map[string]bool{"bid-X": true},
 		// Critically: NodeHealths has no installs yet. This used to false-
 		// positive on every Day-1 bootstrap.

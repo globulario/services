@@ -37,6 +37,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // CollectorConfig carries per-fetch settings.
@@ -237,6 +238,15 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 	// Track how long each node has been in a services-hash drift state.
 	// First observation records the start time; cleared when drift resolves.
 	snap.NodeDriftAge = c.updateDriftSince(snap.NodeHealths)
+
+	// ── 2a. Desired state from controller (typed RPCs) ───────────────────────
+	// Routes the prior raw-etcd scans of /globular/resources/* through the
+	// controller's typed surface, satisfying
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	// Populates snap.DesiredBuildIDIndex (consumed by
+	// repository.desired_build_ids_resolve) and snap.DesiredVersionIndex
+	// (consumed by repository.package_version_authority).
+	c.fetchDesiredFromController(ctx, snap)
 
 	// ── 2b. NodePackageKinds — package kind per node from etcd ───────────────
 	// Key format: /globular/nodes/{nodeID}/packages/{KIND}/{name}
@@ -1038,6 +1048,82 @@ func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot) {
 	snap.RepositoryVersionIndex = vindex
 	snap.mu.Unlock()
 	snap.addSource("repository.ListArtifacts")
+}
+
+// fetchDesiredFromController populates snap.DesiredBuildIDIndex and
+// snap.DesiredVersionIndex via two typed RPCs on the cluster_controller.
+// Replaces the prior raw etcd scans of /globular/resources/* that
+// previously lived in cluster_doctor/rules/{repository_dns_invariants,
+// package_version_authority}.go.
+//
+// Best-effort: any error leaves the relevant index nil so the consumer
+// rule degrades to silent (no signal → no finding) — matches the prior
+// raw-etcd reader contract.
+//
+// Anchored by:
+//
+//	invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+//	forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc
+func (c *Collector) fetchDesiredFromController(ctx context.Context, snap *Snapshot) {
+	if c.controllerClient == nil {
+		return
+	}
+
+	// Inject cluster_id metadata (matches the pattern used by the
+	// other controller calls in this file) so server-side
+	// membership checks don't reject the call.
+	callCtx, cancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+	defer cancel()
+	if c.clusterID != "" {
+		md := metadata.Pairs("cluster_id", c.clusterID)
+		callCtx = metadata.NewOutgoingContext(callCtx, md)
+	}
+
+	// ListDesiredBuildIDs → DesiredBuildIDIndex.
+	bidResp, bidErr := c.controllerClient.ListDesiredBuildIDs(callCtx, &cluster_controllerpb.ListDesiredBuildIDsRequest{})
+	if bidErr != nil {
+		snap.addError("cluster_controller", "ListDesiredBuildIDs", bidErr)
+	} else {
+		bidIdx := make(map[string]string, len(bidResp.GetBuildIds()))
+		for _, id := range bidResp.GetBuildIds() {
+			if id == "" {
+				continue
+			}
+			bidIdx[id] = "controller://desired/" + id
+		}
+		snap.mu.Lock()
+		snap.DesiredBuildIDIndex = bidIdx
+		snap.mu.Unlock()
+		snap.addSource("cluster_controller.ListDesiredBuildIDs")
+	}
+
+	// GetDesiredState → DesiredVersionIndex.
+	dsResp, dsErr := c.controllerClient.GetDesiredState(callCtx, &emptypb.Empty{})
+	if dsErr != nil {
+		snap.addError("cluster_controller", "GetDesiredState", dsErr)
+		return
+	}
+	vIdx := make(map[string]DesiredVersionEntry, len(dsResp.GetServices()))
+	for _, svc := range dsResp.GetServices() {
+		name := svc.GetServiceId()
+		if name == "" {
+			continue
+		}
+		// canonical short name — strip any "<publisher>/<name>" prefix.
+		short := name
+		if idx := strings.LastIndex(short, "/"); idx >= 0 {
+			short = short[idx+1:]
+		}
+		ref := "controller://desired/" + name
+		vIdx[ref] = DesiredVersionEntry{
+			Name:    short,
+			Version: svc.GetVersion(),
+		}
+	}
+	snap.mu.Lock()
+	snap.DesiredVersionIndex = vIdx
+	snap.mu.Unlock()
+	snap.addSource("cluster_controller.GetDesiredState")
 }
 
 // buildIDIndexFromManifests filters a ListArtifacts result down to the set of

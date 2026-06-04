@@ -72,6 +72,16 @@ type DataError struct {
 	Err     error
 }
 
+// DesiredVersionEntry is the per-record name+version tuple the
+// package_version_authority rule consumes from
+// Snapshot.DesiredVersionIndex. Populated by the collector from
+// cluster_controller.GetDesiredState; each entry corresponds to one
+// canonical desired-state record.
+type DesiredVersionEntry struct {
+	Name    string
+	Version string
+}
+
 // Snapshot holds a point-in-time view of cluster state gathered from upstream services.
 type Snapshot struct {
 	SnapshotID     string
@@ -150,6 +160,35 @@ type Snapshot struct {
 	// pre-bootstrap the flag is never set. Consumed by the
 	// "repository.endpoint_missing" invariant in repository_status.go.
 	RepositoryEndpointMissing bool
+
+	// DesiredBuildIDIndex maps build_id → ref (a human-readable
+	// identifier of the desired-state record that pins this build_id,
+	// like "controller://desired/<build_id>"). Populated by the
+	// collector via cluster_controller.ListDesiredBuildIDs — the
+	// single canonical answer to "which build_ids are actively
+	// desired?" per
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	//
+	// Nil means the collector had no controller client or the call
+	// failed. Rules MUST treat nil as "no signal" and emit no
+	// findings (matches the long-standing best-effort contract of
+	// the prior raw-etcd reader).
+	//
+	// Consumed by the "repository.desired_build_ids_resolve" rule.
+	DesiredBuildIDIndex map[string]string
+
+	// DesiredVersionIndex maps a stable ref → {name, version} for
+	// every desired-state record the controller surfaces in
+	// GetDesiredState. The ref shape is
+	// "controller://desired/<canonical-name>" — preserving the
+	// per-record identity the package_version_authority rule uses
+	// for FindingID uniqueness.
+	//
+	// Nil means the controller call failed; rules treat nil as no
+	// signal.
+	//
+	// Consumed by the "repository.package_version_authority" rule.
+	DesiredVersionIndex map[string]DesiredVersionEntry
 
 	// RepositoryBuildIDIndex is the set of build_ids the repository can
 	// resolve as installable artifacts, populated by the collector from a

@@ -3,11 +3,12 @@ package rules
 // package_version_authority_test.go — Unit tests for the
 // repository.package_version_authority doctor rule.
 //
-// All tests inject desiredVersionsReader so no live etcd is required.
-// Each test restores the original reader on cleanup.
+// The rule reads Snapshot.DesiredVersionIndex (populated by the
+// collector from cluster_controller.GetDesiredState) and
+// Snapshot.RepositoryVersionIndex. Tests construct snapshots
+// directly; no etcd or RPC plumbing is required.
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -15,28 +16,16 @@ import (
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
-// withDesiredVersions injects a fake desired-state reader for the duration
-// of the test, restoring the original on cleanup.
-func withDesiredVersions(t *testing.T, fn func(context.Context) map[string]desiredVersionEntry) {
-	t.Helper()
-	prev := desiredVersionsReader
-	desiredVersionsReader = fn
-	t.Cleanup(func() { desiredVersionsReader = prev })
-}
-
 // ─────────────────────────────────────────────────────────────────────────
 // Degraded-mode: nil RepositoryVersionIndex → no findings (false positive
 // suppression when the collector lost its repository client).
 // ─────────────────────────────────────────────────────────────────────────
 
 func TestPVA_NilVersionIndex_NoFinding(t *testing.T) {
-	withDesiredVersions(t, func(context.Context) map[string]desiredVersionEntry {
-		return map[string]desiredVersionEntry{
-			"/globular/resources/DesiredService/dns": {Name: "dns", Version: "1.2.44"},
-		}
-	})
-
 	snap := &collector.Snapshot{
+		DesiredVersionIndex: map[string]collector.DesiredVersionEntry{
+			"controller://desired/dns": {Name: "dns", Version: "1.2.44"},
+		},
 		// RepositoryVersionIndex nil → collector had no signal
 	}
 	findings := (packageVersionAuthority{}).Evaluate(snap, testConfig())
@@ -50,9 +39,8 @@ func TestPVA_NilVersionIndex_NoFinding(t *testing.T) {
 // ─────────────────────────────────────────────────────────────────────────
 
 func TestPVA_EmptyDesired_NoFinding(t *testing.T) {
-	withDesiredVersions(t, func(context.Context) map[string]desiredVersionEntry { return nil })
-
 	snap := &collector.Snapshot{
+		DesiredVersionIndex: nil,
 		RepositoryVersionIndex: map[string]map[string]bool{
 			"dns": {"1.2.44": true},
 		},
@@ -68,13 +56,10 @@ func TestPVA_EmptyDesired_NoFinding(t *testing.T) {
 // ─────────────────────────────────────────────────────────────────────────
 
 func TestPVA_DesiredVersionPresent_NoFinding(t *testing.T) {
-	withDesiredVersions(t, func(context.Context) map[string]desiredVersionEntry {
-		return map[string]desiredVersionEntry{
-			"/globular/resources/DesiredService/dns": {Name: "dns", Version: "1.2.44"},
-		}
-	})
-
 	snap := &collector.Snapshot{
+		DesiredVersionIndex: map[string]collector.DesiredVersionEntry{
+			"controller://desired/dns": {Name: "dns", Version: "1.2.44"},
+		},
 		RepositoryVersionIndex: map[string]map[string]bool{
 			"dns": {"1.2.44": true, "1.2.43": true},
 		},
@@ -92,13 +77,10 @@ func TestPVA_DesiredVersionPresent_NoFinding(t *testing.T) {
 // ─────────────────────────────────────────────────────────────────────────
 
 func TestPVA_DesiredVersionMissing_FindingFires(t *testing.T) {
-	withDesiredVersions(t, func(context.Context) map[string]desiredVersionEntry {
-		return map[string]desiredVersionEntry{
-			"/globular/resources/DesiredService/storage": {Name: "storage", Version: "1.2.52"},
-		}
-	})
-
 	snap := &collector.Snapshot{
+		DesiredVersionIndex: map[string]collector.DesiredVersionEntry{
+			"controller://desired/storage": {Name: "storage", Version: "1.2.52"},
+		},
 		RepositoryVersionIndex: map[string]map[string]bool{
 			// Repository has storage, but only 1.2.43 — never built 1.2.52.
 			"storage": {"1.2.43": true},
@@ -136,13 +118,10 @@ func TestPVA_DesiredVersionMissing_FindingFires(t *testing.T) {
 // ─────────────────────────────────────────────────────────────────────────
 
 func TestPVA_PackageNeverPublished_NoFinding(t *testing.T) {
-	withDesiredVersions(t, func(context.Context) map[string]desiredVersionEntry {
-		return map[string]desiredVersionEntry{
-			"/globular/resources/DesiredService/newservice": {Name: "newservice", Version: "1.0.0"},
-		}
-	})
-
 	snap := &collector.Snapshot{
+		DesiredVersionIndex: map[string]collector.DesiredVersionEntry{
+			"controller://desired/newservice": {Name: "newservice", Version: "1.0.0"},
+		},
 		RepositoryVersionIndex: map[string]map[string]bool{
 			// "newservice" is completely absent — never published any version.
 			"dns": {"1.2.44": true},
@@ -159,17 +138,14 @@ func TestPVA_PackageNeverPublished_NoFinding(t *testing.T) {
 // ─────────────────────────────────────────────────────────────────────────
 
 func TestPVA_MultiplePackages_OnlyViolatingFires(t *testing.T) {
-	withDesiredVersions(t, func(context.Context) map[string]desiredVersionEntry {
-		return map[string]desiredVersionEntry{
-			"/globular/resources/DesiredService/dns":     {Name: "dns", Version: "1.2.44"},
-			"/globular/resources/DesiredService/storage": {Name: "storage", Version: "1.2.52"},
-		}
-	})
-
 	snap := &collector.Snapshot{
+		DesiredVersionIndex: map[string]collector.DesiredVersionEntry{
+			"controller://desired/dns":     {Name: "dns", Version: "1.2.44"},
+			"controller://desired/storage": {Name: "storage", Version: "1.2.52"},
+		},
 		RepositoryVersionIndex: map[string]map[string]bool{
-			"dns":     {"1.2.44": true},    // dns OK
-			"storage": {"1.2.43": true},    // storage missing 1.2.52
+			"dns":     {"1.2.44": true}, // dns OK
+			"storage": {"1.2.43": true}, // storage missing 1.2.52
 		},
 	}
 	findings := (packageVersionAuthority{}).Evaluate(snap, testConfig())
@@ -186,13 +162,10 @@ func TestPVA_MultiplePackages_OnlyViolatingFires(t *testing.T) {
 // ─────────────────────────────────────────────────────────────────────────
 
 func TestPVA_Finding_HasRemediationSteps(t *testing.T) {
-	withDesiredVersions(t, func(context.Context) map[string]desiredVersionEntry {
-		return map[string]desiredVersionEntry{
-			"/globular/resources/DesiredService/dns": {Name: "dns", Version: "9.9.9"},
-		}
-	})
-
 	snap := &collector.Snapshot{
+		DesiredVersionIndex: map[string]collector.DesiredVersionEntry{
+			"controller://desired/dns": {Name: "dns", Version: "9.9.9"},
+		},
 		RepositoryVersionIndex: map[string]map[string]bool{
 			"dns": {"1.2.44": true},
 		},

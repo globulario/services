@@ -40,15 +40,10 @@ package rules
 // orphan, so the build_id rule stays silent while convergence fails.
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
-	"github.com/globulario/services/golang/config"
-	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 type packageVersionAuthority struct{}
@@ -57,29 +52,27 @@ func (packageVersionAuthority) ID() string       { return "repository.package_ve
 func (packageVersionAuthority) Category() string { return "repository" }
 func (packageVersionAuthority) Scope() string    { return "cluster" }
 
-// desiredVersionsReader is the indirection that lets tests inject desired-state
-// without going through etcd. Production code uses readDesiredVersions.
-var desiredVersionsReader = readDesiredVersions
-
 func (packageVersionAuthority) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
-	// Two inputs:
-	//  (a) the set of (name, version) pairs the cluster currently desires
-	//  (b) the set of (name, version) pairs the repository can serve
+	// Two inputs, both read straight from the Snapshot:
+	//  (a) Snapshot.DesiredVersionIndex (populated by the collector via
+	//      cluster_controller.GetDesiredState).
+	//  (b) Snapshot.RepositoryVersionIndex (populated from
+	//      repository.ListArtifacts).
 	//
-	// (a) is collected via desiredVersionsReader (etcd, overrideable in tests).
-	// (b) is snap.RepositoryVersionIndex, built from ListArtifacts PUBLISHED.
+	// No RPCs at evaluation time. The four-layer authority contract
+	// requires that "what's desired?" flow out of the controller's
+	// typed RPC, never via direct etcd scan
+	// (invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage).
 	//
-	// Degraded-mode: nil RepositoryVersionIndex → no signal → no findings.
-	// This prevents false alarms when the collector lost its repository client.
+	// Degraded-mode: nil RepositoryVersionIndex or nil
+	// DesiredVersionIndex → no signal → no findings. This prevents
+	// false alarms when either upstream client lost connectivity.
 	if snap.RepositoryVersionIndex == nil {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	desired := desiredVersionsReader(ctx)
-	if len(desired) == 0 {
+	desired := snap.DesiredVersionIndex
+	if desired == nil || len(desired) == 0 {
 		return nil
 	}
 
@@ -145,76 +138,3 @@ func (packageVersionAuthority) Evaluate(snap *collector.Snapshot, _ Config) []Fi
 	return findings
 }
 
-// desiredVersionEntry holds (name, version) extracted from a desired-state record.
-type desiredVersionEntry struct {
-	Name    string
-	Version string
-}
-
-// TODO(four-layer-read-authority, v1.2.166): same shape as
-// readDesiredBuildIDs in repository_dns_invariants.go. Violates
-// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage. The
-// proper path is a typed cluster_controller.ListDesiredServices /
-// GetDesiredState call plumbed through collector.Snapshot. The
-// architectural pin test allow-lists this one read by file:function;
-// new readers must not be added. See the TODO block on
-// readDesiredBuildIDs for the migration sketch.
-//
-// readDesiredVersions scans all desired-state etcd prefixes and returns a map
-// etcd-ref → (name, version). Best-effort: returns empty map on etcd error.
-func readDesiredVersions(ctx context.Context) map[string]desiredVersionEntry {
-	out := map[string]desiredVersionEntry{}
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		return out
-	}
-	prefixes := []string{
-		"/globular/resources/ServiceDesiredVersion/",
-		"/globular/resources/InfrastructureRelease/",
-		"/globular/resources/DesiredService/",
-		"/globular/resources/ServiceRelease/",
-	}
-	type genericRec struct {
-		Metadata *struct {
-			Name string `json:"name"`
-		} `json:"metadata"`
-		Spec *struct {
-			Name    string `json:"name"`
-			Version string `json:"version"`
-		} `json:"spec"`
-		Status *struct {
-			InstalledVersion string `json:"installed_version"`
-		} `json:"status"`
-	}
-	for _, prefix := range prefixes {
-		resp, getErr := cli.Get(ctx, prefix, clientv3.WithPrefix(), clientv3.WithLimit(500))
-		if getErr != nil {
-			continue
-		}
-		for _, kv := range resp.Kvs {
-			var rec genericRec
-			if json.Unmarshal(kv.Value, &rec) != nil {
-				continue
-			}
-			ref := string(kv.Key)
-			name := ""
-			ver := ""
-			if rec.Metadata != nil && rec.Metadata.Name != "" {
-				name = rec.Metadata.Name
-			}
-			if rec.Spec != nil {
-				if rec.Spec.Name != "" {
-					name = rec.Spec.Name
-				}
-				if rec.Spec.Version != "" {
-					ver = rec.Spec.Version
-				}
-			}
-			if name == "" || ver == "" {
-				continue
-			}
-			out[ref] = desiredVersionEntry{Name: name, Version: ver}
-		}
-	}
-	return out
-}
