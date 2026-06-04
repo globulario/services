@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/domain"
 	"github.com/globulario/services/golang/dnsprovider"
@@ -289,25 +290,43 @@ func runDomainAdd(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// runDomainStatus consumes cluster_controller.ListExternalDomains.
+// Replaces the prior direct domain.NewEtcdDomainStore usage — that
+// approach dialled etcd from the CLI and used the OWNER's typed
+// store from a non-owner, which still violated
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+// (the typed boundary is the RPC, not the in-process store
+// abstraction).
+//
+// The narrow ExternalDomainEntry projection surfaced by the RPC
+// covers the table-display fields. The JSON/YAML output paths are
+// also routed through the projected entry; if a future consumer
+// needs richer fields (Conditions, CertExpiry, LastReconcile), the
+// proto can be extended.
 func runDomainStatus(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()
 
-	// Connect to etcd using domain store
-	etcdClient, err := config.GetEtcdClient()
+	cc, err := controllerClient()
 	if err != nil {
-		return fmt.Errorf("failed to connect to etcd: %w", err)
+		return fmt.Errorf("dial cluster_controller: %w", err)
 	}
-	defer etcdClient.Close()
+	defer cc.Close()
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+	resp, err := client.ListExternalDomains(ctx, &cluster_controllerpb.ListExternalDomainsRequest{})
+	if err != nil {
+		return fmt.Errorf("ListExternalDomains: %w", err)
+	}
 
-	store := domain.NewEtcdDomainStore(etcdClient)
-
-	// Query domain specs
-	var specs []*domain.ExternalDomainSpec
+	var entries []*cluster_controllerpb.ExternalDomainEntry
 	if domainFQDN != "" {
-		// Specific domain
-		spec, _, err := store.GetSpec(ctx, domainFQDN)
-		if err != nil {
+		for _, e := range resp.GetDomains() {
+			if e.GetFqdn() == domainFQDN {
+				entries = append(entries, e)
+				break
+			}
+		}
+		if len(entries) == 0 {
 			if rootCfg.output == "json" {
 				fmt.Fprintf(os.Stderr, `{"error": "domain not found", "fqdn": %q}`+"\n", domainFQDN)
 			} else {
@@ -315,14 +334,9 @@ func runDomainStatus(cmd *cobra.Command, args []string) error {
 			}
 			return fmt.Errorf("domain %s not found", domainFQDN)
 		}
-		specs = append(specs, spec)
 	} else {
-		// All domains
-		specs, err = store.ListSpecs(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to list domains: %w", err)
-		}
-		if len(specs) == 0 {
+		entries = resp.GetDomains()
+		if len(entries) == 0 {
 			if rootCfg.output == "json" {
 				fmt.Println("[]")
 			} else {
@@ -332,23 +346,75 @@ func runDomainStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Fetch status for each spec and merge
-	for _, spec := range specs {
-		status, _, err := store.GetStatus(ctx, spec.FQDN)
-		if err == nil && status != nil {
-			// Merge current status into spec for display
-			spec.Status = *status
-		}
-		// If status not found, keep the embedded status from spec (shows "Pending")
-	}
-
-	// Parse and display
 	if rootCfg.output == "json" {
-		return displayDomainsJSONFromSpecs(specs)
+		return displayDomainsJSONFromEntries(entries)
 	} else if rootCfg.output == "yaml" {
-		return displayDomainsYAMLFromSpecs(specs)
+		return displayDomainsYAMLFromEntries(entries)
 	}
-	return displayDomainsTableFromSpecs(specs)
+	return displayDomainsTableFromEntries(entries)
+}
+
+// displayDomainsTableFromEntries renders the typed-RPC projection.
+// Fields not carried in the projection (Conditions, CertExpiry,
+// LastReconcile, etc.) are displayed as empty/"–".
+func displayDomainsTableFromEntries(entries []*cluster_controllerpb.ExternalDomainEntry) error {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "FQDN\tPHASE\tINGRESS\tACME")
+	for _, e := range entries {
+		phase := e.GetStatusPhase()
+		if phase == "" {
+			phase = "Pending"
+		}
+		ingress := "no"
+		if e.GetIngressEnabled() {
+			ingress = fmt.Sprintf("%s:%d", e.GetIngressService(), e.GetIngressPort())
+		}
+		acme := "no"
+		if e.GetAcmeEnabled() {
+			acme = "yes"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", e.GetFqdn(), phase, ingress, acme)
+	}
+	return w.Flush()
+}
+
+func displayDomainsJSONFromEntries(entries []*cluster_controllerpb.ExternalDomainEntry) error {
+	type row struct {
+		FQDN          string `json:"fqdn"`
+		StatusPhase   string `json:"status_phase"`
+		IngressEnabled bool  `json:"ingress_enabled"`
+		IngressService string `json:"ingress_service,omitempty"`
+		IngressPort    int32  `json:"ingress_port,omitempty"`
+		ACMEEnabled    bool   `json:"acme_enabled"`
+	}
+	out := make([]row, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, row{
+			FQDN:           e.GetFqdn(),
+			StatusPhase:    e.GetStatusPhase(),
+			IngressEnabled: e.GetIngressEnabled(),
+			IngressService: e.GetIngressService(),
+			IngressPort:    e.GetIngressPort(),
+			ACMEEnabled:    e.GetAcmeEnabled(),
+		})
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
+}
+
+func displayDomainsYAMLFromEntries(entries []*cluster_controllerpb.ExternalDomainEntry) error {
+	for _, e := range entries {
+		fmt.Printf("- fqdn: %s\n", e.GetFqdn())
+		fmt.Printf("  status_phase: %s\n", e.GetStatusPhase())
+		fmt.Printf("  ingress_enabled: %v\n", e.GetIngressEnabled())
+		if e.GetIngressEnabled() {
+			fmt.Printf("  ingress_service: %s\n", e.GetIngressService())
+			fmt.Printf("  ingress_port: %d\n", e.GetIngressPort())
+		}
+		fmt.Printf("  acme_enabled: %v\n", e.GetAcmeEnabled())
+	}
+	return nil
 }
 
 func displayDomainsTable(resp *clientv3.GetResponse) error {

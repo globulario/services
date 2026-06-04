@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/domain"
 	"github.com/spf13/cobra"
@@ -481,6 +482,27 @@ func isEtcdAvailable(t *testing.T) bool {
 	_, err = etcdClient.Get(ctx, "/test-connectivity")
 	if err != nil {
 		t.Logf("etcd connectivity test failed: %v", err)
+		return false
+	}
+
+	// v1.2.185: runDomainStatus now consumes
+	// cluster_controller.ListExternalDomains via the typed-RPC
+	// boundary, so domain CLI tests need a reachable controller
+	// running a version that exposes the RPC (Unimplemented
+	// surfaces on older controllers until v1.2.181+ has rolled
+	// out across the cluster).
+	cc, err := controllerClient()
+	if err != nil {
+		t.Logf("cluster_controller not dialable: %v", err)
+		return false
+	}
+	defer cc.Close()
+	probeCtx, probeCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer probeCancel()
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+	if _, err := client.ListExternalDomains(probeCtx, &cluster_controllerpb.ListExternalDomainsRequest{}); err != nil {
+		// Unimplemented or other transport error — skip gracefully.
+		t.Logf("ListExternalDomains probe failed: %v", err)
 		return false
 	}
 
