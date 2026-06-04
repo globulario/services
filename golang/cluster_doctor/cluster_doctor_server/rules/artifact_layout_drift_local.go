@@ -1,9 +1,11 @@
 package rules
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -14,6 +16,16 @@ import (
 // artifactStateRootPath is the directory whose top-level entries this rule
 // inspects. Exposed as a var so tests can redirect to a temp dir.
 var artifactStateRootPath = "/var/lib/globular"
+
+// systemdUnitDirsForLayoutDrift is the search path for active systemd unit
+// files. Exposed as a var so tests can redirect to a temp dir. Order matters:
+// /run takes precedence over /etc in systemd's resolution, but for the
+// "is this path referenced anywhere" check we union them.
+var systemdUnitDirsForLayoutDrift = []string{
+	"/etc/systemd/system",
+	"/run/systemd/system",
+	"/usr/lib/systemd/system",
+}
 
 // platformBaseAllowlist names the small set of platform-level directories
 // that always belong directly under /var/lib/globular, regardless of which
@@ -89,7 +101,19 @@ const (
 
 // classifyEntry returns the verdict for a single top-level entry name + path.
 // The classifier never mutates state; it only inspects.
-func classifyEntry(name, path string, installedDirSet map[string]bool) dirClassification {
+//
+// pinnedPaths is the set of absolute paths actively pinned by some systemd
+// unit (WorkingDirectory= or ExecStartPre mkdir). When a legacy-alias dir
+// is pinned by a unit, it is NOT a cleanup candidate — deleting it would
+// be undone by systemd on next service start AND would silently keep the
+// dir under its non-canonical name. The right fix in that case is to
+// update the unit templates, not to flag this dir for cleanup. The rule
+// silently classifies pinned aliases as OK so it doesn't issue actionable-
+// looking findings against state that is actively allocated.
+//
+// See invariant doctor.layout_drift_must_reflect_real_risk and
+// failure_mode filesystem.service_runtime_dir_naming_drift.
+func classifyEntry(name, path string, installedDirSet, pinnedPaths map[string]bool) dirClassification {
 	// 1. Platform base — always OK.
 	if platformBaseAllowlist[name] {
 		return classOK
@@ -110,16 +134,29 @@ func classifyEntry(name, path string, installedDirSet map[string]bool) dirClassi
 		if name == canonical {
 			return classOK
 		}
-		// It's a legacy alias of an installed service — cleanup candidate.
-		// Distinguish empty (cheap cleanup) vs non-empty (needs operator review).
+		// Legacy alias of an installed service. Reference-safety guard:
+		// if a systemd unit actively pins this exact path (WorkingDirectory=
+		// or ExecStartPre mkdir), we must NOT flag for cleanup — deletion
+		// would be undone by systemd, and the alias is operationally
+		// canonical for the running service. Operator should fix the unit
+		// template (separate concern, not this rule's scope).
+		if pinnedPaths[path] {
+			return classOK
+		}
+		// Not pinned by any unit — genuinely safe to surface as cleanup.
+		// Empty = silent cleanup (INFO); non-empty = operator review (WARN).
 		if dirIsEmpty(path) {
 			return classCleanupEmpty
 		}
 		return classWarnDuplicate
 	}
 	// 5. Known legacy alias for a service NOT installed on this node — still
-	//    cleanup candidate. Empty = silent cleanup; non-empty = operator review.
+	//    cleanup candidate. Same reference-safety guard applies: if some
+	//    unit still pins this dir, we cannot safely flag it.
 	if canon, ok := IsKnownRuntimeDirAlias(name); ok && canon != "" {
+		if pinnedPaths[path] {
+			return classOK
+		}
 		if dirIsEmpty(path) {
 			return classCleanupEmpty
 		}
@@ -127,6 +164,75 @@ func classifyEntry(name, path string, installedDirSet map[string]bool) dirClassi
 	}
 	// 6. Truly unknown — WARN.
 	return classWarnUnknown
+}
+
+// systemdWorkingDirRE matches `WorkingDirectory=` settings in unit files.
+// The optional `-` prefix means "directory may be missing at start"
+// (systemd.exec(5)). Captures the absolute path. We do not interpret
+// systemd specifiers (%t, %h, etc.) — paths that depend on them won't
+// match here, which is fail-closed for our purpose.
+var systemdWorkingDirRE = regexp.MustCompile(`^\s*WorkingDirectory\s*=\s*-?\s*(\S+)\s*$`)
+
+// systemdMkdirInExecStartPreRE matches the common Globular pattern in
+// ExecStartPre lines: `mkdir -p <abs-path>`. Captures the first absolute
+// path argument after `mkdir`. Multi-arg mkdir (`mkdir -p a b c`) only
+// captures the first; that's acceptable for the "is this path pinned?"
+// question — additional dirs are independently considered in their own
+// rule passes.
+var systemdMkdirInExecStartPreRE = regexp.MustCompile(`mkdir\s+(?:-[a-zA-Z]+\s+)*([/][^\s'";|&)]+)`)
+
+// pathsPinnedBySystemdUnits scans the configured systemd unit directories
+// for any unit file that references an absolute path under stateRoot via
+// WorkingDirectory= or an ExecStartPre `mkdir`. Returns the set of
+// referenced absolute paths.
+//
+// Fail-safe semantics: if a directory cannot be read or a file cannot be
+// parsed, the function skips it and continues. The returned set is a
+// LOWER BOUND on what is pinned (we may miss exotic syntaxes); the
+// classifier treats absence as "no opinion → may flag as cleanup", so
+// the rule errs on the side of NOT recommending cleanup when in doubt
+// only because the systemd scan IS reliable for the common Globular
+// pattern (WorkingDirectory + mkdir in ExecStartPre).
+func pathsPinnedBySystemdUnits(stateRoot string) map[string]bool {
+	pinned := make(map[string]bool)
+	stateRoot = strings.TrimRight(stateRoot, "/")
+	if stateRoot == "" {
+		return pinned
+	}
+	prefix := stateRoot + "/"
+	for _, dir := range systemdUnitDirsForLayoutDrift {
+		ents, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range ents {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".service") {
+				continue
+			}
+			f, err := os.Open(filepath.Join(dir, e.Name()))
+			if err != nil {
+				continue
+			}
+			scanner := bufio.NewScanner(f)
+			for scanner.Scan() {
+				line := scanner.Text()
+				if m := systemdWorkingDirRE.FindStringSubmatch(line); m != nil {
+					if p := strings.TrimSpace(m[1]); strings.HasPrefix(p, prefix) || p == stateRoot {
+						pinned[p] = true
+					}
+				}
+				if matches := systemdMkdirInExecStartPreRE.FindAllStringSubmatch(line, -1); matches != nil {
+					for _, m := range matches {
+						if p := strings.TrimSpace(m[1]); strings.HasPrefix(p, prefix) || p == stateRoot {
+							pinned[p] = true
+						}
+					}
+				}
+			}
+			_ = f.Close()
+		}
+	}
+	return pinned
 }
 
 // isTransientFileName recognizes patterns that are by-convention backup or
@@ -188,6 +294,16 @@ func (r artifactLayoutDriftLocal) Evaluate(snap *collector.Snapshot, _ Config) [
 	// dir explainable by some installed service").
 	installedDirs := discoverInstalledRuntimeDirs(snap)
 
+	// Reference-safety guard: scan loaded systemd unit files for paths
+	// under stateRoot that they actively pin via WorkingDirectory= or
+	// ExecStartPre `mkdir`. Legacy-alias dirs pinned by a unit MUST NOT
+	// be reported as cleanup candidates — deleting them would be undone
+	// by systemd on next service start, AND the misleading finding
+	// distracts operators from the real fix (update the unit template
+	// to use the canonical dash-form path). See
+	// invariant doctor.layout_drift_must_reflect_real_risk.
+	pinnedPaths := pathsPinnedBySystemdUnits(artifactStateRootPath)
+
 	var warnUnknown []string
 	var warnDuplicate []string
 	var cleanupCandidates []string
@@ -198,7 +314,7 @@ func (r artifactLayoutDriftLocal) Evaluate(snap *collector.Snapshot, _ Config) [
 			continue
 		}
 		path := filepath.Join(artifactStateRootPath, name)
-		switch classifyEntry(name, path, installedDirs) {
+		switch classifyEntry(name, path, installedDirs, pinnedPaths) {
 		case classOK:
 			continue
 		case classCleanupEmpty, classCleanupTransient:

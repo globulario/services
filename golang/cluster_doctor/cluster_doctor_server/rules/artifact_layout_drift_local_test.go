@@ -307,3 +307,304 @@ func TestCanonicalRuntimeDir_NoMutationForUnknownNames(t *testing.T) {
 		}
 	}
 }
+
+// ── Reference-safety guard regression tests ──────────────────────────────────
+//
+// Background (2026-06-03): the rule flagged 6 empty underscore directories as
+// cleanup candidates even though active systemd units pinned them via
+// WorkingDirectory= and ExecStartPre `mkdir`. Deleting them would have been
+// undone on the next service start, and the misleading finding distracted
+// operators from the real fix (unit templates emit legacy underscore form).
+//
+// These tests pin the new pinned-paths guard: when a path under stateRoot is
+// referenced by an active systemd unit, the rule must NOT classify it as a
+// cleanup candidate even if it is empty and matches a known legacy alias.
+
+// stubUnitDir creates a temp dir containing a fake systemd unit file with the
+// given content, and points systemdUnitDirsForLayoutDrift at it for the
+// duration of the test.
+func stubUnitDir(t *testing.T, unitContent string) {
+	t.Helper()
+	td := t.TempDir()
+	unitPath := filepath.Join(td, "globular-stub.service")
+	if err := os.WriteFile(unitPath, []byte(unitContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := systemdUnitDirsForLayoutDrift
+	systemdUnitDirsForLayoutDrift = []string{td}
+	t.Cleanup(func() { systemdUnitDirsForLayoutDrift = old })
+}
+
+// TestArtifactLayoutDriftLocal_EmptyLegacyAlias_NotCleanupWhenWorkingDirectoryPins
+// is the direct regression for the live 2026-06-03 false-positive: empty
+// underscore dirs that the systemd unit declares as WorkingDirectory MUST NOT
+// be flagged as cleanup candidates.
+func TestArtifactLayoutDriftLocal_EmptyLegacyAlias_NotCleanupWhenWorkingDirectoryPins(t *testing.T) {
+	td := t.TempDir()
+	// Canonical dash dir (installed) + empty underscore alias.
+	for _, d := range []string{"pki", "etcd", "ai-executor", "ai_executor"} {
+		if err := os.MkdirAll(filepath.Join(td, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := artifactStateRootPath
+	artifactStateRootPath = td
+	t.Cleanup(func() { artifactStateRootPath = old })
+
+	// Fake systemd unit pins the underscore form as WorkingDirectory.
+	stubUnitDir(t, "[Service]\nWorkingDirectory=-"+filepath.Join(td, "ai_executor")+"\nExecStart=/bin/true\n")
+
+	snap := &collector.Snapshot{
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-1": {Components: []*node_agentpb.InstalledComponent{{Name: "ai-executor"}}},
+		},
+	}
+	findings := (artifactLayoutDriftLocal{}).Evaluate(snap, testConfig())
+	for _, f := range findings {
+		if strings.Contains(f.Summary, "ai_executor") {
+			t.Fatalf("ai_executor is systemd-pinned; must NOT appear in any finding. got: %q", f.Summary)
+		}
+	}
+}
+
+// TestArtifactLayoutDriftLocal_EmptyLegacyAlias_NotCleanupWhenExecStartPreMkdirPins
+// covers the second Globular pattern: ExecStartPre runs `mkdir -p <path>`
+// at every start to ensure the dir exists. If we deleted the dir, the next
+// start would re-create it. Treat it as pinned.
+func TestArtifactLayoutDriftLocal_EmptyLegacyAlias_NotCleanupWhenExecStartPreMkdirPins(t *testing.T) {
+	td := t.TempDir()
+	for _, d := range []string{"pki", "etcd", "ai-memory", "ai_memory"} {
+		if err := os.MkdirAll(filepath.Join(td, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := artifactStateRootPath
+	artifactStateRootPath = td
+	t.Cleanup(func() { artifactStateRootPath = old })
+
+	stubUnitDir(t, "[Service]\n"+
+		"ExecStartPre=+/bin/sh -c 'mkdir -p "+filepath.Join(td, "ai_memory")+" && chown globular:globular "+filepath.Join(td, "ai_memory")+"'\n"+
+		"ExecStart=/bin/true\n")
+
+	snap := &collector.Snapshot{
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-1": {Components: []*node_agentpb.InstalledComponent{{Name: "ai-memory"}}},
+		},
+	}
+	findings := (artifactLayoutDriftLocal{}).Evaluate(snap, testConfig())
+	for _, f := range findings {
+		if strings.Contains(f.Summary, "ai_memory") {
+			t.Fatalf("ai_memory is mkdir-pinned by ExecStartPre; must NOT appear in any finding. got: %q", f.Summary)
+		}
+	}
+}
+
+// TestArtifactLayoutDriftLocal_EmptyLegacyAlias_StillCleanupWhenUnreferenced
+// is the inverse: a truly orphan empty underscore alias with no systemd
+// reference MUST still be flagged as a cleanup candidate. The fix is a
+// guard, not a wholesale silencing.
+func TestArtifactLayoutDriftLocal_EmptyLegacyAlias_StillCleanupWhenUnreferenced(t *testing.T) {
+	td := t.TempDir()
+	for _, d := range []string{"pki", "etcd", "node-agent", "node_agent"} {
+		if err := os.MkdirAll(filepath.Join(td, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := artifactStateRootPath
+	artifactStateRootPath = td
+	t.Cleanup(func() { artifactStateRootPath = old })
+
+	// Stub unit dir contains no reference to node_agent.
+	stubUnitDir(t, "[Service]\nWorkingDirectory=-"+filepath.Join(td, "node-agent")+"\nExecStart=/bin/true\n")
+
+	snap := &collector.Snapshot{
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-1": {Components: []*node_agentpb.InstalledComponent{{Name: "node-agent"}}},
+		},
+	}
+	findings := (artifactLayoutDriftLocal{}).Evaluate(snap, testConfig())
+	found := false
+	for _, f := range findings {
+		if strings.Contains(f.Summary, "node_agent") {
+			found = true
+			if f.Severity != cluster_doctorpb.Severity_SEVERITY_INFO {
+				t.Errorf("unreferenced empty legacy alias should be INFO cleanup; got severity=%v", f.Severity)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("unreferenced empty legacy alias 'node_agent' must still surface as cleanup candidate")
+	}
+}
+
+// TestArtifactLayoutDriftLocal_NonEmptyLegacyAlias_NotDuplicateWhenPinned
+// proves the guard ALSO applies to non-empty legacy aliases. If systemd
+// pins the dir, its content is the service's real state (not a duplicate)
+// regardless of the canonical-vs-alias name distinction.
+func TestArtifactLayoutDriftLocal_NonEmptyLegacyAlias_NotDuplicateWhenPinned(t *testing.T) {
+	td := t.TempDir()
+	for _, d := range []string{"pki", "etcd", "backup-manager", "backup_manager"} {
+		if err := os.MkdirAll(filepath.Join(td, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Put a file in the underscore dir so it is non-empty.
+	if err := os.WriteFile(filepath.Join(td, "backup_manager", "jobs.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := artifactStateRootPath
+	artifactStateRootPath = td
+	t.Cleanup(func() { artifactStateRootPath = old })
+
+	stubUnitDir(t, "[Service]\nWorkingDirectory=-"+filepath.Join(td, "backup_manager")+"\nExecStart=/bin/true\n")
+
+	snap := &collector.Snapshot{
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-1": {Components: []*node_agentpb.InstalledComponent{{Name: "backup-manager"}}},
+		},
+	}
+	findings := (artifactLayoutDriftLocal{}).Evaluate(snap, testConfig())
+	for _, f := range findings {
+		if strings.Contains(f.Summary, "backup_manager") {
+			t.Fatalf("non-empty pinned legacy alias must NOT be flagged as duplicate; got %q", f.Summary)
+		}
+	}
+}
+
+// TestArtifactLayoutDriftLocal_NonEmptyLegacyAlias_StillDuplicateWhenUnreferenced
+// inverse: non-empty legacy alias with NO systemd reference still surfaces
+// as WARN duplicate (operator review). The fix preserves this real-risk
+// signal — it only silences false positives.
+func TestArtifactLayoutDriftLocal_NonEmptyLegacyAlias_StillDuplicateWhenUnreferenced(t *testing.T) {
+	td := t.TempDir()
+	for _, d := range []string{"pki", "etcd", "ai-router", "ai_router"} {
+		if err := os.MkdirAll(filepath.Join(td, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(td, "ai_router", "stale.db"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := artifactStateRootPath
+	artifactStateRootPath = td
+	t.Cleanup(func() { artifactStateRootPath = old })
+
+	stubUnitDir(t, "[Service]\nExecStart=/bin/true\n") // no references
+
+	snap := &collector.Snapshot{
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-1": {Components: []*node_agentpb.InstalledComponent{{Name: "ai-router"}}},
+		},
+	}
+	findings := (artifactLayoutDriftLocal{}).Evaluate(snap, testConfig())
+	found := false
+	for _, f := range findings {
+		if strings.Contains(f.Summary, "ai_router") {
+			found = true
+			if f.Severity != cluster_doctorpb.Severity_SEVERITY_WARN {
+				t.Errorf("unreferenced non-empty legacy alias should be WARN duplicate; got severity=%v", f.Severity)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("unreferenced non-empty legacy alias 'ai_router' must still surface as duplicate")
+	}
+}
+
+// TestArtifactLayoutDriftLocal_TransientFile_StillCleanupRegardlessOfUnits
+// pins the policy for day0-install.jsonl: classified as cleanup-transient
+// regardless of unit files. Systemd never references it, but we want a
+// dedicated test so future refactors don't accidentally couple this rule
+// to runtime references.
+func TestArtifactLayoutDriftLocal_TransientFile_StillCleanupRegardlessOfUnits(t *testing.T) {
+	td := t.TempDir()
+	for _, d := range []string{"pki", "etcd"} {
+		if err := os.MkdirAll(filepath.Join(td, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(td, "day0-install.jsonl"), []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := artifactStateRootPath
+	artifactStateRootPath = td
+	t.Cleanup(func() { artifactStateRootPath = old })
+
+	stubUnitDir(t, "[Service]\nExecStart=/bin/true\n")
+
+	findings := (artifactLayoutDriftLocal{}).Evaluate(nil, testConfig())
+	found := false
+	for _, f := range findings {
+		if strings.Contains(f.Summary, "day0-install.jsonl") {
+			found = true
+			if f.Severity != cluster_doctorpb.Severity_SEVERITY_INFO {
+				t.Errorf("day0-install.jsonl should be INFO cleanup; got severity=%v", f.Severity)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("day0-install.jsonl must always be classified as cleanup-transient")
+	}
+}
+
+// TestPathsPinnedBySystemdUnits_ParsesWorkingDirectoryAndMkdir is a unit
+// test on the scanner helper itself. Covers: optional `-` prefix on
+// WorkingDirectory, mkdir flag variants, ExecStartPre with quoted shell
+// invocations, and paths outside stateRoot which must NOT appear.
+func TestPathsPinnedBySystemdUnits_ParsesWorkingDirectoryAndMkdir(t *testing.T) {
+	stateRoot := "/var/lib/globular"
+	td := t.TempDir()
+	unit := `[Unit]
+Description=Stub
+
+[Service]
+WorkingDirectory=-/var/lib/globular/foo
+ExecStartPre=+/bin/sh -c 'mkdir -p /var/lib/globular/bar && chown globular:globular /var/lib/globular/bar'
+ExecStartPre=+/bin/mkdir -p /var/lib/globular/baz
+ExecStart=/usr/lib/globular/bin/foo
+# Paths outside stateRoot must NOT appear in the pinned set.
+WorkingDirectory=/etc/somewhere/else
+ExecStartPre=mkdir -p /tmp/elsewhere
+`
+	if err := os.WriteFile(filepath.Join(td, "globular-foo.service"), []byte(unit), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := systemdUnitDirsForLayoutDrift
+	systemdUnitDirsForLayoutDrift = []string{td}
+	t.Cleanup(func() { systemdUnitDirsForLayoutDrift = old })
+
+	pinned := pathsPinnedBySystemdUnits(stateRoot)
+	for _, want := range []string{
+		"/var/lib/globular/foo",
+		"/var/lib/globular/bar",
+		"/var/lib/globular/baz",
+	} {
+		if !pinned[want] {
+			t.Errorf("expected %q in pinned set; got %v", want, pinned)
+		}
+	}
+	for _, bad := range []string{
+		"/etc/somewhere/else",
+		"/tmp/elsewhere",
+	} {
+		if pinned[bad] {
+			t.Errorf("path %q outside stateRoot must NOT be in pinned set; got %v", bad, pinned)
+		}
+	}
+}
+
+// TestPathsPinnedBySystemdUnits_MissingUnitDirIsSafe proves the scanner
+// fails open (returns empty set) when the configured unit dirs do not
+// exist. Caller treats absence as "no opinion → may flag as cleanup,"
+// which is correct: in a test or container without systemd, the rule
+// should still emit its normal verdicts.
+func TestPathsPinnedBySystemdUnits_MissingUnitDirIsSafe(t *testing.T) {
+	old := systemdUnitDirsForLayoutDrift
+	systemdUnitDirsForLayoutDrift = []string{"/nonexistent/path/should/not/exist/anywhere"}
+	t.Cleanup(func() { systemdUnitDirsForLayoutDrift = old })
+
+	pinned := pathsPinnedBySystemdUnits("/var/lib/globular")
+	if len(pinned) != 0 {
+		t.Errorf("expected empty pinned set for missing unit dir; got %v", pinned)
+	}
+}
