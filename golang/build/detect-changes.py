@@ -192,6 +192,43 @@ def load_prev_index(path):
     return {p["name"]: p for p in idx.get("packages", []) if p.get("name")}
 
 
+# ── Origin-release authoritative lookup ───────────────────────────────────
+#
+# entrypoint_checksum is the sha256 of the entrypoint BINARY inside the
+# referenced tarball. NOT a source-tree contract digest. NOT a package
+# tarball digest. The carry-forward path historically (before this fix)
+# wrote the freshly-computed source-tree hash into entrypoint_checksum,
+# producing BOMs whose claimed binary hash did not match the actual
+# tarball — repository sync rejected the import. v1.2.156 polluted
+# downstream releases through prev_index propagation.
+#
+# Correct rule: carry-forward entries must take their entrypoint_checksum
+# (and other provenance fields tied to the actual tarball: package_digest,
+# build_id, build_number, version, filename, asset_url) from the
+# **origin release's** release-index, NOT from the immediately previous
+# release-index. The origin release is the one that actually packaged the
+# tarball; its release-index entry was written by the packager step which
+# hashes the real binary. Walking back to origin self-heals any pollution
+# that snuck into intermediate releases.
+
+def load_origin_index(origin_indices_dir, origin_release):
+    """Load a specific origin release-index.json from a pre-fetched cache
+    directory. Returns {name: entry} or None if the file is missing/invalid.
+
+    Callers MUST fail closed on None — silently falling back to prev_index
+    re-introduces the v1.2.156 carry-forward pollution.
+    """
+    if not origin_indices_dir or not origin_release:
+        return None
+    path = os.path.join(origin_indices_dir, f"{origin_release}.json")
+    try:
+        with open(path) as f:
+            idx = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+    return {p["name"]: p for p in idx.get("packages", []) if p.get("name")}
+
+
 # ── Main ───────────────────────────────────────────────────────────────────
 
 def main():
@@ -207,9 +244,18 @@ def main():
     ap.add_argument("--output-manifest",   required=True, help="Output: change-manifest.json")
     ap.add_argument("--force-full-rebuild", action="store_true", help="Treat all packages as changed")
     ap.add_argument("--force-reason",      default="",    help="Reason for force rebuild")
+    ap.add_argument("--origin-indices-dir", default="",
+        help="Directory of pre-fetched origin-release release-index.json files "
+             "(<dir>/<origin_release_tag>.json). Required when prev_index has "
+             "carry-forward entries whose origin_release differs from --tag. "
+             "Source of truth for entrypoint_checksum + provenance fields on "
+             "unchanged carry-forwards — prev_index is NOT trusted for those "
+             "fields (see load_origin_index docstring).")
     args = ap.parse_args()
 
     prev = load_prev_index(args.prev_index)
+    # Cache of {origin_release_tag: {name: entry}} loaded lazily.
+    origin_index_cache = {}
 
     try:
         with open(args.pkg_map_json) as f:
@@ -300,36 +346,65 @@ def main():
         prev_cd = p.get("package_contract_digest", "")
 
         if prev_cd and prev_cd == cd and not args.force_full_rebuild:
-            # ── Unchanged: carry forward from previous release ──
-            # Provenance fields (entrypoint_checksum, package_digest, build_id,
-            # build_number, filename, asset_url, version, origin_release) MUST
-            # be preserved verbatim from prev_index — they describe the actual
-            # tarball/binary that was published by the prior release and is
-            # still the artifact this BOM entry points at.
+            # ── Unchanged: carry forward, but with ORIGIN as authority ──
             #
-            # entrypoint_checksum in particular is the sha256 of the entrypoint
-            # BINARY inside the tarball, NOT the freshly-computed source-tree
-            # contract digest in `cksum`. Both happen to be sha256 strings, so
-            # the bug (writing `cksum` here) silently produces a BOM whose
-            # claimed entrypoint_checksum mismatches the actual binary on disk
-            # → repository sync rejects the import. The mismatch only surfaces
-            # when a subsequent release tries to import this carried-forward
-            # entry; force_full_rebuild masks it by repacking the package.
+            # Provenance fields (entrypoint_checksum, package_digest, build_id,
+            # build_number, version, filename, asset_url) describe the tarball
+            # this BOM entry points at. The authoritative source is the
+            # **origin release's** release-index — written by the packager
+            # step that actually hashed the binary. prev_index entries can be
+            # polluted by past detect-changes bugs and must NOT be trusted for
+            # these fields.
+            origin_release = p.get("origin_release") or p.get("release_tag") or ""
+            if not origin_release:
+                print(f"ERROR: {name}: prev_index carry-forward entry has no origin_release; "
+                      f"cannot establish authoritative provenance",
+                      file=sys.stderr)
+                sys.exit(1)
+            if origin_release == args.tag:
+                # Self-referential carry-forward — shouldn't happen for an
+                # unchanged entry (origin should be earlier). Indicates a
+                # malformed prev_index.
+                print(f"ERROR: {name}: carry-forward entry's origin_release equals current "
+                      f"--tag {args.tag}; impossible (changed=true would have been set). "
+                      f"prev_index appears corrupt.",
+                      file=sys.stderr)
+                sys.exit(1)
+            if origin_release not in origin_index_cache:
+                origin_index_cache[origin_release] = load_origin_index(
+                    args.origin_indices_dir, origin_release,
+                )
+            origin_idx = origin_index_cache[origin_release]
+            if origin_idx is None:
+                print(f"ERROR: {name}: origin release-index for {origin_release} not found "
+                      f"in --origin-indices-dir={args.origin_indices_dir!r}. "
+                      f"Required for authoritative entrypoint_checksum recovery; "
+                      f"refusing to trust prev_index for provenance fields.",
+                      file=sys.stderr)
+                sys.exit(1)
+            origin_entry = origin_idx.get(name)
+            if origin_entry is None:
+                print(f"ERROR: {name}: package not found in origin release-index for "
+                      f"{origin_release}. prev_index claims origin published it; "
+                      f"origin index disagrees. Cannot establish authoritative provenance.",
+                      file=sys.stderr)
+                sys.exit(1)
+            # Now take entrypoint_checksum + provenance fields from origin.
             results.append({
                 "name":                    name,
-                "kind":                    p.get("kind", kind),
+                "kind":                    origin_entry.get("kind", p.get("kind", kind)),
                 "go_target":               go_target,
                 "platform_version":        plat_ver,
                 "changed":                 False,
-                "version":                 p.get("version", ""),
-                "origin_release":          p.get("origin_release", p.get("release_tag", "")),
+                "version":                 origin_entry.get("version", ""),
+                "origin_release":          origin_release,
                 "package_contract_digest": cd,
-                "entrypoint_checksum":     p.get("entrypoint_checksum", ""),
-                "asset_url":               p.get("asset_url", ""),
-                "package_digest":          p.get("package_digest", ""),
-                "build_number":            p.get("build_number", 0),
-                "build_id":                str(p.get("build_id", "")),
-                "filename":                p.get("filename", ""),
+                "entrypoint_checksum":     origin_entry.get("entrypoint_checksum", ""),
+                "asset_url":               origin_entry.get("asset_url", ""),
+                "package_digest":          origin_entry.get("package_digest", ""),
+                "build_number":            origin_entry.get("build_number", 0),
+                "build_id":                str(origin_entry.get("build_id", "")),
+                "filename":                origin_entry.get("filename", ""),
                 "profiles":                manifest.get("profiles", []),
                 "publisher":               manifest.get("publisher", ""),
             })

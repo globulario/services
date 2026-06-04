@@ -370,6 +370,55 @@ jobs:
       # against the previous release index. Unchanged packages keep their
       # original version and are referenced from their origin release.
       # ═══════════════════════════════════════════════════════════════════════
+      # Pre-fetch origin release-indices for every unique origin_release
+      # mentioned by the previous release-index. detect-changes.py uses
+      # these as the authoritative source for entrypoint_checksum + other
+      # provenance fields on carry-forward entries — preventing the
+      # v1.2.156 carry-forward pollution from propagating downstream
+      # through prev_index inheritance.
+      - name: Fetch origin release-indices for carry-forward authority
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/origin-indices
+
+          if [[ ! -f dist/prev-release-index.json ]]; then
+            echo "no prev-release-index.json — first release in lineage; nothing to fetch"
+            exit 0
+          fi
+
+          # Collect distinct origin_release tags from the previous BOM.
+          ORIGIN_TAGS=$(python3 -c "
+          import json
+          d = json.load(open('dist/prev-release-index.json'))
+          tags = set()
+          for p in d.get('packages', []):
+              t = p.get('origin_release') or p.get('release_tag')
+              if t:
+                  tags.add(t)
+          for t in sorted(tags):
+              print(t)
+          ")
+          for tag in ${ORIGIN_TAGS}; do
+            out="dist/origin-indices/${tag}.json"
+            if [[ -f "${out}" ]]; then
+              continue
+            fi
+            echo "  fetching ${tag}/release-index.json"
+            gh release download "${tag}" --repo "${{ github.repository }}" \
+              --pattern "release-index.json" --dir "dist/origin-indices/" || {
+                echo "ERROR: failed to download release-index.json from ${tag}"
+                exit 1
+              }
+            # The download lands as dist/origin-indices/release-index.json;
+            # rename to <tag>.json so detect-changes.py can find it.
+            mv "dist/origin-indices/release-index.json" "${out}"
+          done
+
+          echo "Fetched origin indices:"
+          ls -la dist/origin-indices/ || true
+
       - name: Run BOM change detection
         id: changes
         env:
@@ -396,6 +445,7 @@ jobs:
             --tag "${TAG}" \
             --output-overrides dist/version-overrides.txt \
             --output-manifest dist/change-manifest.json \
+            --origin-indices-dir dist/origin-indices \
             "${EXTRA_ARGS[@]}"
 
           echo ""
@@ -735,6 +785,123 @@ jobs:
             rm -rf "$tmpd"
           done
           if [ "$FIXED" -gt 0 ]; then echo "Normalized build_number in ${FIXED} unchanged package(s)"; fi
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # Verify carry-forward entrypoint_checksum against actual tarball binary.
+      #
+      # detect-changes.py pulls entrypoint_checksum from each origin release's
+      # release-index, which is the recorded value at origin packaging time.
+      # This step downloads the actually-referenced tarball and hashes the
+      # binary inside, comparing against the change-manifest. Catches:
+      #
+      #   - origin release-index lying (e.g. older bug poisoned ITS own write)
+      #   - tarball/index drift (replaced GitHub asset, edited release)
+      #   - any case where the BOM's claimed binary hash does not match reality
+      #
+      # Hard fail on mismatch — releasing a BOM with a wrong entrypoint_checksum
+      # makes repository sync reject the import, breaking deploys downstream
+      # (cf. v1.2.156 / v1.2.157 incidents).
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Validate carry-forward entrypoint_checksum against tarball binaries
+        run: |
+          set -euo pipefail
+          python3 <<'PYEOF'
+          import hashlib, json, os, sys, tarfile
+
+          m = json.load(open("dist/change-manifest.json"))
+          mismatches = []
+          checked = 0
+          skipped = 0
+
+          for pkg in m["packages"]:
+              # Only validate carry-forwards. Changed packages are re-hashed
+              # later in the "Generate release index" step from the actual
+              # tarball the packager just wrote — same source-of-truth path.
+              if pkg.get("changed"):
+                  skipped += 1
+                  continue
+
+              name     = pkg["name"]
+              filename = pkg.get("filename") or ""
+              claimed  = pkg.get("entrypoint_checksum") or ""
+
+              if not filename or not claimed:
+                  # Nothing to validate against — let the BOM-generation step
+                  # surface it if it's actually required.
+                  skipped += 1
+                  continue
+
+              tarball = os.path.join("dist/unchanged", filename)
+              if not os.path.isfile(tarball):
+                  mismatches.append((name, f"tarball not downloaded: {tarball}"))
+                  continue
+
+              # Read the manifest entrypoint name from package.json inside the
+              # tarball. Defaults match the convention `bin/<binary>`.
+              entrypoint_name = None
+              with tarfile.open(tarball, "r:gz") as tf:
+                  for member in tf.getmembers():
+                      base = member.name.lstrip("./")
+                      if base == "package.json":
+                          f = tf.extractfile(member)
+                          if f is None:
+                              continue
+                          try:
+                              pj = json.loads(f.read().decode())
+                              entrypoint_name = pj.get("entrypoint", "")
+                          except Exception:
+                              pass
+                          break
+
+                  if not entrypoint_name:
+                      mismatches.append((name, "package.json missing entrypoint field"))
+                      continue
+
+                  # Find the entrypoint binary entry; tar paths may be prefixed
+                  # by ./ depending on how the tarball was produced.
+                  candidates = {entrypoint_name, "./" + entrypoint_name}
+                  target = None
+                  for member in tf.getmembers():
+                      base = member.name.lstrip("./")
+                      if base == entrypoint_name.lstrip("./"):
+                          target = member
+                          break
+
+                  if target is None:
+                      mismatches.append((name, f"entrypoint {entrypoint_name} not in tarball"))
+                      continue
+
+                  h = hashlib.sha256()
+                  f = tf.extractfile(target)
+                  if f is None:
+                      mismatches.append((name, f"could not open entrypoint {entrypoint_name}"))
+                      continue
+                  for chunk in iter(lambda: f.read(65536), b""):
+                      h.update(chunk)
+                  actual = f"sha256:{h.hexdigest()}"
+
+              if actual != claimed:
+                  mismatches.append((
+                      name,
+                      f"claimed entrypoint_checksum={claimed} "
+                      f"but tarball binary hashes to {actual} (filename={filename})",
+                  ))
+              checked += 1
+
+          print(f"validated {checked} carry-forward entry/entries against tarball binaries")
+          print(f"skipped   {skipped} (changed or missing data)")
+
+          if mismatches:
+              print("", file=sys.stderr)
+              print("FAIL: entrypoint_checksum mismatch on carry-forward entries:", file=sys.stderr)
+              for n, why in mismatches:
+                  print(f"  - {n}: {why}", file=sys.stderr)
+              print("", file=sys.stderr)
+              print("Either the origin release-index lied, the tarball asset was replaced, "
+                    "or the BOM is corrupted. Refusing to publish a release whose entries "
+                    "do not match their referenced artifacts.", file=sys.stderr)
+              sys.exit(1)
+          PYEOF
 
       # ── Clean intermediate build artifacts to reclaim disk space ─────────
       - name: Clean build artifacts
