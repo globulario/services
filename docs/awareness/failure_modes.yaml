@@ -767,6 +767,49 @@ failure_modes:
       required_tests:
         - TestPublishWaveStateInfraSkipsApplyWhenMessageUnchanged
         - TestPublishWaveStateServiceSkipsApplyWhenMessageAndReasonUnchanged
+    - id: release.stale_service_release_after_desired_removed_blocks_verifier
+      title: 'ServiceRelease stays at RESOLVED with Spec.Removing=true after desired-state was removed, because the only path to REMOVED requires dispatching a no-op uninstall workflow that ops policy forbids'
+      severity: high
+      symptoms:
+        - operator removed an optional/test service from desired-state via globular services desired remove
+        - ServiceRelease for that service still exists with spec.removing=true and status.phase=RESOLVED
+        - cluster-doctor reports service.runtime_identity_unproven (severity=warn) once per stale release
+        - no install workflow runs are dispatched, but the verifier never clears its findings
+        - desired_hash and applied_hash match (drift=0) yet overall_status stays degraded
+      root_cause: |
+        RemoveDesiredService correctly deletes ServiceDesiredVersion and sets
+        ServiceRelease.Spec.Removing=true. The next reconcileRelease tick is
+        supposed to walk Removing → REMOVED → garbage-collect the record. But
+        reconcileRemoving unconditionally dispatches a release.remove.package
+        workflow across all nodes — even when zero nodes report installed_state
+        for the package — and operators who refuse to dispatch a uninstall
+        workflow against a never-installed service get stuck at RESOLVED.
+        The verifier keeps reading ServiceRelease and emits
+        service.runtime_identity_unproven for each stale record.
+      architecture_fix: |
+        reconcileRemoving must distinguish three cases before dispatching the
+        remove workflow:
+          1. release with installed_state on at least one node       → dispatch normal remove workflow
+          2. release with zero installed_state across all nodes      → fast-path PatchStatus Phase=REMOVED reason=no_installed_state (no workflow dispatch); existing GC sweep then deletes the record
+          3. release whose installed_state lookup failed              → fail closed, fall back to normal workflow dispatch so a transient etcd glitch never silently GCs a release that might still have installed bits somewhere
+        See anyNodeHasInstalled in release_pipeline.go for the per-node
+        lookup. The fast-path also runs behind the existing in-flight
+        workflow guard so an active remove workflow is never short-circuited.
+      forbidden_fixes:
+        - dispatch_noop_uninstall_workflow_to_force_phase_advance
+        - hand_edit_etcd_to_mark_release_removed
+        - skip_inflight_workflow_guard_for_removing_release
+        - fast_path_remove_on_partial_or_failed_installed_state_lookup
+      related_invariants:
+        - release_pipeline.set_fields_routing_must_match_release_kind
+      related_services:
+        - cluster_controller
+      required_tests:
+        - TestReconcileRemoving_FastPath_NoInstalledStateAnywhere_MarksRemoved
+        - TestReconcileRemoving_FastPath_InstalledStateOnOneNode_DoesNotShortCircuit
+        - TestReconcileRemoving_FastPath_LookupError_DoesNotMarkRemoved
+        - TestReconcileRemoving_FastPath_ActiveWorkflowDeferredNoFastPath
+        - TestReconcileRemoving_FastPath_NoNodes_StillTakesNoNodesPath
     - id: etcd.leader_instability
       title: 'etcd leader instability: repeated leader loss caused by NOSPACE or disk I/O pressure'
       severity: critical

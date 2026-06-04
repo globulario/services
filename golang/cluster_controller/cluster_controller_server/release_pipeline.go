@@ -1526,7 +1526,9 @@ func (srv *server) reconcileRemoving(ctx context.Context, h *releaseHandle) {
 
 	// Wait for the inflight slot to clear (the goroutine's defer cleans it up
 	// after context cancellation). If it doesn't clear quickly, skip this
-	// cycle — the next reconcile will retry.
+	// cycle — the next reconcile will retry. The fast-path below also runs
+	// behind this gate so a release with an active remove workflow is never
+	// short-circuited to REMOVED.
 	srv.inflightMu.Lock()
 	if _, running := srv.inflightWorkflows[releaseID]; running {
 		srv.inflightMu.Unlock()
@@ -1534,6 +1536,27 @@ func (srv *server) reconcileRemoving(ctx context.Context, h *releaseHandle) {
 		return
 	}
 	srv.inflightMu.Unlock()
+
+	// Fast-path: skip the no-op uninstall workflow when zero nodes report
+	// installed_state for this package. Mirrors the existing
+	// len(nodeIDs)==0 fast-path, narrowed to "nodes exist but none have the
+	// package installed". Fail-closed — any per-node lookup error falls
+	// back to the normal remove workflow so a transient etcd glitch cannot
+	// silently garbage-collect a release that might still have installed
+	// bits somewhere.
+	installed, lookupErr := srv.anyNodeHasInstalled(ctx, nodeIDs, pkgKind, h.InstalledStateName)
+	if lookupErr != nil {
+		log.Printf("%s %s: installed_state lookup failed (%v) — falling back to remove workflow", h.ResourceType, h.Name, lookupErr)
+	} else if !installed {
+		log.Printf("%s %s: no node reports installed_state for %q — fast-path REMOVED, no workflow dispatched", h.ResourceType, h.Name, h.InstalledStateName)
+		h.PatchStatus(ctx, statusPatch{
+			Phase:                ReleasePhaseRemoved,
+			LastTransitionUnixMs: time.Now().UnixMilli(),
+			TransitionReason:     "no_installed_state",
+			SetFields:            "phase",
+		})
+		return
+	}
 
 	log.Printf("%s %s: executing removal workflow across %d nodes", h.ResourceType, h.Name, len(nodeIDs))
 
@@ -1810,4 +1833,35 @@ func (srv *server) fetchAndLogUnitTail(ctx context.Context, agent *agentClient, 
 	for _, line := range lines {
 		log.Printf("  | %s", line)
 	}
+}
+
+// anyNodeHasInstalled returns true when at least one node reports an
+// installed_state entry whose package name matches pkgName (case-insensitive,
+// whitespace-trimmed). Returns an error on the first per-node etcd lookup
+// failure so callers can fail-closed and avoid skipping the remove workflow on
+// partial evidence. The optional srv.testListInstalledPackages seam is used
+// when set; production code reads etcd via installed_state.ListInstalledPackages.
+func (srv *server) anyNodeHasInstalled(ctx context.Context, nodeIDs []string, kind, pkgName string) (bool, error) {
+	name := strings.TrimSpace(pkgName)
+	if name == "" {
+		return false, fmt.Errorf("empty package name")
+	}
+	lister := func(c context.Context, n, k string) ([]*node_agentpb.InstalledPackage, error) {
+		return installed_state.ListInstalledPackages(c, n, k)
+	}
+	if srv.testListInstalledPackages != nil {
+		lister = srv.testListInstalledPackages
+	}
+	for _, nodeID := range nodeIDs {
+		pkgs, err := lister(ctx, nodeID, kind)
+		if err != nil {
+			return false, fmt.Errorf("list installed packages for node %s: %w", nodeID, err)
+		}
+		for _, pkg := range pkgs {
+			if strings.EqualFold(strings.TrimSpace(pkg.GetName()), name) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }

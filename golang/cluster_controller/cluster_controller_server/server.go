@@ -26,6 +26,7 @@ import (
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/netutil"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/workflow"
 	"github.com/globulario/services/golang/workflow/workflowpb"
@@ -305,6 +306,13 @@ type server struct {
 	// test seams
 	testHasActivePlanWithLock func(context.Context, string, string) bool
 	testDialNodeAgent         func(endpoint string) (*grpc.ClientConn, error)
+	// testListInstalledPackages overrides the per-node installed-state lookup
+	// used by the no-installed-state removal fast-path in reconcileRemoving.
+	// Production code leaves this nil and reads etcd via
+	// installed_state.ListInstalledPackages. Tests inject it to exercise the
+	// fast-path's three outcomes (no install / installed / lookup error)
+	// without standing up etcd.
+	testListInstalledPackages func(ctx context.Context, nodeID, kind string) ([]*node_agentpb.InstalledPackage, error)
 	// Plan test seams removed.
 }
 
