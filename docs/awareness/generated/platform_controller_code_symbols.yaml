@@ -583,6 +583,15 @@ code_symbols:
         - globular.platform:invariant.destructive_actions.require_explicit_guard
       implements:
         - globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+  - id: globular.platform:code.go.platform_cluster_controller.scylla_schema_guard_handlers
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/scylla_schema_guard_handlers.go
+    component: platform_cluster_controller.scylla_schema_guard_handlers
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - id: globular.platform:code.go.platform_cluster_controller.sync_installed_package_tests
     namespace: globular.platform
     language: go

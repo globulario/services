@@ -341,6 +341,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.repair_node_workflow
     relation: implements
     to: globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+  - from: globular.platform:code.go.platform_cluster_controller.scylla_schema_guard_handlers
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - from: globular.platform:code.go.platform_cluster_controller.workflow_platform_upgrade
     relation: implements
     to: globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
