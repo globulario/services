@@ -21,12 +21,14 @@ import (
 	"strings"
 	"time"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/repository/repository_client"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/versionutil"
 	"github.com/spf13/cobra"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var repoCmd = &cobra.Command{
@@ -797,30 +799,35 @@ func runRepoAliases(cmd *cobra.Command, args []string) error {
 }
 
 // loadDesiredRefs returns a set of service names that have desired-state entries.
+//
+// Routes through cluster_controller.GetDesiredState; the controller's
+// listAllDesiredServices already merges SDV + InfrastructureRelease +
+// ApplicationRelease into a flat list keyed by canonical service_id.
+// One typed RPC replaces the prior pair of raw etcd scans.
+//
+// Best-effort: dial or RPC errors return an empty map so the caller
+// degrades to "no desired-state visible" — matches the prior
+// etcd-error contract.
+//
+// Anchored by:
+//
+//	invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+//	forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc
 func loadDesiredRefs(ctx context.Context) map[string]bool {
 	refs := make(map[string]bool)
-	cli, err := config.GetEtcdClient()
+	cc, err := controllerClient()
 	if err != nil {
 		return refs
 	}
-	resp, err := cli.Get(ctx, "/globular/resources/ServiceDesiredVersion/",
-		clientv3.WithPrefix(), clientv3.WithKeysOnly(), clientv3.WithLimit(500))
+	defer cc.Close()
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+	resp, err := client.GetDesiredState(ctx, &emptypb.Empty{})
 	if err != nil {
 		return refs
 	}
-	for _, kv := range resp.Kvs {
-		parts := strings.Split(string(kv.Key), "/")
-		if len(parts) > 0 {
-			refs[parts[len(parts)-1]] = true
-		}
-	}
-	// Also load infrastructure releases.
-	resp2, _ := cli.Get(ctx, "/globular/resources/InfrastructureRelease/",
-		clientv3.WithPrefix(), clientv3.WithKeysOnly(), clientv3.WithLimit(500))
-	for _, kv := range resp2.Kvs {
-		parts := strings.Split(string(kv.Key), "/")
-		if len(parts) > 0 {
-			refs[parts[len(parts)-1]] = true
+	for _, svc := range resp.GetServices() {
+		if name := svc.GetServiceId(); name != "" {
+			refs[name] = true
 		}
 	}
 	return refs

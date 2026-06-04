@@ -23,6 +23,7 @@ import (
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/spf13/cobra"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var stateCmd = &cobra.Command{
@@ -284,82 +285,53 @@ func scanRepository(ctx context.Context, report *canonReport) error {
 
 // ── Desired-state scan ───────────────────────────────────────────────────
 
+// scanDesiredState consumes the typed GetDesiredState RPC on
+// cluster_controller. The controller's listAllDesiredServices already
+// merges SDV + InfrastructureRelease + ApplicationRelease into a flat
+// DesiredService list keyed by canonical service_id, so a single RPC
+// replaces the prior pair of /globular/resources/{ServiceDesiredVersion,
+// InfrastructureRelease}/ etcd scans.
+//
+// Anchored by:
+//
+//	invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+//	forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc
 func scanDesiredState(ctx context.Context, report *canonReport) error {
-	cli, err := config.GetEtcdClient()
+	cc, err := controllerClient()
 	if err != nil {
-		return fmt.Errorf("etcd: %w", err)
+		return fmt.Errorf("dial cluster_controller: %w", err)
 	}
+	defer cc.Close()
 
-	resp, err := cli.Get(ctx, "/globular/resources/ServiceDesiredVersion/",
-		clientv3.WithPrefix(), clientv3.WithLimit(500))
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+	resp, err := client.GetDesiredState(ctx, &emptypb.Empty{})
 	if err != nil {
-		return fmt.Errorf("etcd get: %w", err)
-	}
-
-	type desiredSpec struct {
-		ServiceName string `json:"service_name"`
-		Version     string `json:"version"`
-		BuildNumber int64  `json:"build_number"`
-		BuildID     string `json:"build_id"`
-	}
-	type desiredRecord struct {
-		Spec *desiredSpec `json:"spec"`
+		return fmt.Errorf("GetDesiredState: %w", err)
 	}
 
 	total := 0
 	withBuildID := 0
 	services := make(map[string]bool)
 
-	for _, kv := range resp.Kvs {
-		var rec desiredRecord
-		if err := json.Unmarshal(kv.Value, &rec); err != nil || rec.Spec == nil {
+	for _, svc := range resp.GetServices() {
+		total++
+		name := svc.GetServiceId()
+		if name == "" {
 			continue
 		}
-		total++
-		svc := rec.Spec.ServiceName
-		if svc == "" {
-			parts := strings.Split(string(kv.Key), "/")
-			svc = parts[len(parts)-1]
-		}
-		services[svc] = true
+		// service_id is the canonical short name (controller strips
+		// any publisher prefix in canonicalServiceName before
+		// populating).
+		services[name] = true
 
-		if rec.Spec.BuildID != "" {
+		if svc.GetBuildId() != "" {
 			withBuildID++
-		} else {
-			report.addAnomaly("A2", "", svc,
-				fmt.Sprintf("desired-state missing build_id (version=%s build=%d)",
-					rec.Spec.Version, rec.Spec.BuildNumber),
-				"re-upsert via controller API to resolve build_id")
+			continue
 		}
-	}
-
-	// Also scan InfrastructureRelease records.
-	type infraDesiredSpec struct {
-		Component string `json:"component"`
-		Version   string `json:"version"`
-		BuildID   string `json:"build_id"`
-	}
-	type infraDesiredRec struct {
-		Spec *infraDesiredSpec `json:"spec"`
-	}
-	iResp, iErr := cli.Get(ctx, "/globular/resources/InfrastructureRelease/",
-		clientv3.WithPrefix(), clientv3.WithLimit(500))
-	if iErr == nil {
-		for _, kv := range iResp.Kvs {
-			var rec infraDesiredRec
-			if json.Unmarshal(kv.Value, &rec) != nil || rec.Spec == nil {
-				continue
-			}
-			name := rec.Spec.Component
-			if name == "" {
-				parts := strings.Split(string(kv.Key), "/")
-				name = parts[len(parts)-1]
-			}
-			if !services[name] {
-				total++
-				services[name] = true
-			}
-		}
+		report.addAnomaly("A2", "", name,
+			fmt.Sprintf("desired-state missing build_id (version=%s build=%d)",
+				svc.GetVersion(), svc.GetBuildNumber()),
+			"re-upsert via controller API to resolve build_id")
 	}
 
 	report.TotalServices = len(services)
