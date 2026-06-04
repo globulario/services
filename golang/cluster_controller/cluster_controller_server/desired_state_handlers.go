@@ -443,6 +443,132 @@ func (srv *server) GetDesiredState(ctx context.Context, _ *emptypb.Empty) (*clus
 	return srv.listAllDesiredServices(ctx)
 }
 
+// ListDesiredBuildIDs returns the canonical reachability set of
+// artifact build_ids the controller currently considers actively
+// desired. The set is the union of build_ids referenced by every
+// active desired-state record:
+//
+//   - ServiceDesiredVersion.Spec.BuildID
+//   - ServiceRelease.Spec.BuildID + Status.ResolvedBuildID
+//   - InfrastructureRelease.Spec.BuildID + Status.ResolvedBuildID
+//   - ApplicationRelease.Spec.BuildID + Status.ResolvedBuildID
+//
+// Empty build_ids are skipped; duplicates are deduplicated; order is
+// unspecified.
+//
+// This RPC is the single canonical answer to "which build_ids must I
+// keep around?" — repository (purge / GC / revoke guards) and
+// cluster_doctor (build-id reachability invariants) MUST call it
+// instead of scanning /globular/resources/* etcd prefixes directly.
+//
+// Anchored by:
+//
+//	invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+//	invariant:repository.desired_build_id_is_hard_reachability_root
+//	invariant:repository.purge_must_not_delete_active_desired_builds
+//	failure_mode:repository.desired_build_id_orphaned
+func (srv *server) ListDesiredBuildIDs(ctx context.Context, _ *cluster_controllerpb.ListDesiredBuildIDsRequest) (*cluster_controllerpb.ListDesiredBuildIDsResponse, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+
+	// Fetch all four kinds via the typed store in parallel — the same
+	// pattern listAllDesiredServices uses. Each List call applies the
+	// owner's canonicalization and version contracts; a raw etcd Get
+	// would skip them and is the very vector this RPC closes.
+	type listResult struct {
+		items []interface{}
+		rv    string
+	}
+	var (
+		sdvRes, svcRelRes, infraRelRes, appRelRes listResult
+		wg                                        sync.WaitGroup
+	)
+	wg.Add(4)
+	go func() {
+		defer wg.Done()
+		items, rv, _ := srv.resources.List(ctx, "ServiceDesiredVersion", "")
+		sdvRes = listResult{items, rv}
+	}()
+	go func() {
+		defer wg.Done()
+		items, _, _ := srv.resources.List(ctx, "ServiceRelease", "")
+		svcRelRes = listResult{items: items}
+	}()
+	go func() {
+		defer wg.Done()
+		items, _, _ := srv.resources.List(ctx, "InfrastructureRelease", "")
+		infraRelRes = listResult{items: items}
+	}()
+	go func() {
+		defer wg.Done()
+		items, _, _ := srv.resources.List(ctx, "ApplicationRelease", "")
+		appRelRes = listResult{items: items}
+	}()
+	wg.Wait()
+
+	seen := make(map[string]struct{})
+	add := func(id string) {
+		if id == "" {
+			return
+		}
+		seen[id] = struct{}{}
+	}
+
+	for _, obj := range sdvRes.items {
+		sdv, ok := obj.(*cluster_controllerpb.ServiceDesiredVersion)
+		if !ok || sdv.Spec == nil {
+			continue
+		}
+		add(sdv.Spec.BuildID)
+	}
+	for _, obj := range svcRelRes.items {
+		rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
+		if !ok {
+			continue
+		}
+		if rel.Spec != nil {
+			add(rel.Spec.BuildID)
+		}
+		if rel.Status != nil {
+			add(rel.Status.ResolvedBuildID)
+		}
+	}
+	for _, obj := range infraRelRes.items {
+		rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
+		if !ok {
+			continue
+		}
+		if rel.Spec != nil {
+			add(rel.Spec.BuildID)
+		}
+		if rel.Status != nil {
+			add(rel.Status.ResolvedBuildID)
+		}
+	}
+	for _, obj := range appRelRes.items {
+		rel, ok := obj.(*cluster_controllerpb.ApplicationRelease)
+		if !ok {
+			continue
+		}
+		if rel.Spec != nil {
+			add(rel.Spec.BuildID)
+		}
+		if rel.Status != nil {
+			add(rel.Status.ResolvedBuildID)
+		}
+	}
+
+	resp := &cluster_controllerpb.ListDesiredBuildIDsResponse{
+		BuildIds: make([]string, 0, len(seen)),
+		Revision: sdvRes.rv,
+	}
+	for id := range seen {
+		resp.BuildIds = append(resp.BuildIds, id)
+	}
+	return resp, nil
+}
+
 // UpsertDesiredService creates or updates a single desired-service entry.
 func (srv *server) UpsertDesiredService(ctx context.Context, req *cluster_controllerpb.UpsertDesiredServiceRequest) (*cluster_controllerpb.DesiredState, error) {
 	if !srv.isLeader() {

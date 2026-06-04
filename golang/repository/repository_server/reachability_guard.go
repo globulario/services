@@ -32,14 +32,20 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"log/slog"
+	"os"
 	"strings"
+	"time"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
-	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // ── etcd helpers ──────────────────────────────────────────────────────────
@@ -67,69 +73,91 @@ func collectInstalledBuildIDs(ctx context.Context) map[string]bool {
 // repository operations never archive/delete/revoke a build that the controller
 // still intends to roll out.
 //
-// All four desired-state etcd prefixes are scanned:
+// Authority boundary: the cluster_controller OWNS the
+// /globular/resources/* prefix family. This function calls the
+// controller's typed ListDesiredBuildIDs RPC (the single canonical
+// answer to "which build_ids must I keep around?") instead of scanning
+// etcd directly. Anchored by:
 //
-//   - /globular/resources/ServiceDesiredVersion/   (workload services)
-//   - /globular/resources/InfrastructureRelease/   (infrastructure releases)
-//   - /globular/resources/DesiredService/          (legacy / per-service intent)
-//   - /globular/resources/ServiceRelease/          (release tracking — resolved build_id)
+//	invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+//	invariant:repository.desired_build_id_is_hard_reachability_root
+//	invariant:repository.purge_must_not_delete_active_desired_builds
+//	forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc
 //
-// Missing any of these prefixes was the original bug: a build_id pinned by
-// ServiceRelease.Status.ResolvedBuildID could be archived even though the
-// controller still attempts to install it, producing the
-// "build_id not found for name=…" cascade observed in production.
+// Best-effort: returns an empty (non-nil) map on any error so the
+// reachability guard degrades to "retention window + installed-state
+// only" rather than failing destructive RPCs that may be safe. This
+// matches the prior etcd-scan behaviour and the deletion-safety
+// contract documented in checkDeletionSafety.
 func collectDesiredBuildIDs(ctx context.Context) map[string]bool {
 	ids := map[string]bool{}
-	cli, err := config.GetEtcdClient()
+
+	// Resolve controller endpoint from the service registry. An empty
+	// address means we degrade — same as the prior etcd-Get failure
+	// path.
+	addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", "")
+	if addr == "" {
+		slog.Debug("reachability_guard: controller endpoint unresolved — desired-state set empty")
+		return ids
+	}
+	target := config.ResolveDialTarget(addr)
+
+	conn, err := grpc.NewClient(target.Address, grpc.WithTransportCredentials(repositoryClientTLSCreds(target.ServerName)))
 	if err != nil {
+		slog.Warn("reachability_guard: dial controller failed — desired-state set empty",
+			"addr", target.Address, "err", err)
+		return ids
+	}
+	defer func() { _ = conn.Close() }()
+
+	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	client := cluster_controllerpb.NewClusterControllerServiceClient(conn)
+	resp, err := client.ListDesiredBuildIDs(callCtx, &cluster_controllerpb.ListDesiredBuildIDsRequest{})
+	if err != nil {
+		slog.Warn("reachability_guard: ListDesiredBuildIDs failed — desired-state set empty",
+			"addr", target.Address, "err", err)
 		return ids
 	}
 
-	// Common shape: every desired-state record may pin a build_id in either
-	// Spec.BuildID or Status.ResolvedBuildID. We parse both and accept either.
-	type genericSpec struct {
-		BuildID string `json:"build_id"`
-	}
-	type genericStatus struct {
-		ResolvedBuildID string `json:"resolved_build_id"`
-		BuildID         string `json:"build_id"`
-	}
-	type genericRec struct {
-		Spec   *genericSpec   `json:"spec"`
-		Status *genericStatus `json:"status"`
-	}
-
-	collect := func(prefix string) {
-		resp, getErr := cli.Get(ctx, prefix,
-			clientv3.WithPrefix(), clientv3.WithLimit(500))
-		if getErr != nil {
-			return
-		}
-		for _, kv := range resp.Kvs {
-			var rec genericRec
-			if json.Unmarshal(kv.Value, &rec) != nil {
-				continue
-			}
-			if rec.Status != nil {
-				if rec.Status.ResolvedBuildID != "" {
-					ids[rec.Status.ResolvedBuildID] = true
-				}
-				if rec.Status.BuildID != "" {
-					ids[rec.Status.BuildID] = true
-				}
-			}
-			if rec.Spec != nil && rec.Spec.BuildID != "" {
-				ids[rec.Spec.BuildID] = true
-			}
+	for _, id := range resp.GetBuildIds() {
+		if id != "" {
+			ids[id] = true
 		}
 	}
-
-	collect("/globular/resources/ServiceDesiredVersion/")
-	collect("/globular/resources/InfrastructureRelease/")
-	collect("/globular/resources/DesiredService/")
-	collect("/globular/resources/ServiceRelease/")
-
 	return ids
+}
+
+// repositoryClientTLSCreds returns mTLS credentials for a repository →
+// cluster_controller dial. Mirrors the pattern used by cluster_doctor's
+// dialOptionsForInternalService: load the cluster CA, present the
+// repository's own issued service certificate, and pin ServerName so
+// SAN verification matches.
+func repositoryClientTLSCreds(serverName string) credentials.TransportCredentials {
+	if serverName == "" || serverName == "localhost" || serverName == "::1" {
+		if h, err := os.Hostname(); err == nil && h != "" {
+			serverName = h
+		}
+	}
+	tlsCfg := &tls.Config{ServerName: serverName}
+	if caFile := config.GetTLSFile("", "", "ca.crt"); caFile != "" {
+		if caData, err := os.ReadFile(caFile); err == nil {
+			pool := x509.NewCertPool()
+			if pool.AppendCertsFromPEM(caData) {
+				tlsCfg.RootCAs = pool
+			}
+		}
+	}
+	// Best-effort mTLS — the controller requires the caller to present
+	// a cluster-issued certificate for the desired-state read action.
+	const (
+		clientCert = "/var/lib/globular/pki/issued/services/service.crt"
+		clientKey  = "/var/lib/globular/pki/issued/services/service.key"
+	)
+	if cert, err := tls.LoadX509KeyPair(clientCert, clientKey); err == nil {
+		tlsCfg.Certificates = []tls.Certificate{cert}
+	}
+	return credentials.NewTLS(tlsCfg)
 }
 
 func mergeBuildIDRoots(sets ...map[string]bool) map[string]bool {

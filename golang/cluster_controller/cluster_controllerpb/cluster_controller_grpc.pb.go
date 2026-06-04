@@ -45,6 +45,7 @@ const (
 	ClusterControllerService_GetNodeHealthDetailV1_FullMethodName     = "/cluster_controller.ClusterControllerService/GetNodeHealthDetailV1"
 	ClusterControllerService_PreviewNodeProfiles_FullMethodName       = "/cluster_controller.ClusterControllerService/PreviewNodeProfiles"
 	ClusterControllerService_GetDesiredState_FullMethodName           = "/cluster_controller.ClusterControllerService/GetDesiredState"
+	ClusterControllerService_ListDesiredBuildIDs_FullMethodName       = "/cluster_controller.ClusterControllerService/ListDesiredBuildIDs"
 	ClusterControllerService_UpsertDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/UpsertDesiredService"
 	ClusterControllerService_RemoveDesiredService_FullMethodName      = "/cluster_controller.ClusterControllerService/RemoveDesiredService"
 	ClusterControllerService_SeedDesiredState_FullMethodName          = "/cluster_controller.ClusterControllerService/SeedDesiredState"
@@ -96,6 +97,24 @@ type ClusterControllerServiceClient interface {
 	PreviewNodeProfiles(ctx context.Context, in *PreviewNodeProfilesRequest, opts ...grpc.CallOption) (*PreviewNodeProfilesResponse, error)
 	// ── Desired-state management (typed, replaces ResourcesService JSON hack) ──
 	GetDesiredState(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*DesiredState, error)
+	// ListDesiredBuildIDs returns the canonical set of artifact build_ids
+	// the controller currently considers actively desired. The set is the
+	// union of:
+	//   - ServiceDesiredVersion.Spec.BuildID
+	//   - ServiceRelease.Spec.BuildID + Status.ResolvedBuildID
+	//   - InfrastructureRelease.Spec.BuildID + Status.ResolvedBuildID
+	//   - ApplicationRelease.Spec.BuildID + Status.ResolvedBuildID
+	//
+	// (empty build_ids are skipped).
+	//
+	// Repository, cluster_doctor, and any other consumer that needs the
+	// "which build_ids must I keep around?" answer MUST call this RPC
+	// instead of scanning /globular/resources/* etcd prefixes directly.
+	// Anchored by invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage:
+	// the owner computes the reachability set with its in-memory contracts
+	// intact; a raw etcd scan that mirrors the logic in a consumer is a
+	// forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc.
+	ListDesiredBuildIDs(ctx context.Context, in *ListDesiredBuildIDsRequest, opts ...grpc.CallOption) (*ListDesiredBuildIDsResponse, error)
 	UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	RemoveDesiredService(ctx context.Context, in *RemoveDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	SeedDesiredState(ctx context.Context, in *SeedDesiredStateRequest, opts ...grpc.CallOption) (*DesiredState, error)
@@ -373,6 +392,16 @@ func (c *clusterControllerServiceClient) GetDesiredState(ctx context.Context, in
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) ListDesiredBuildIDs(ctx context.Context, in *ListDesiredBuildIDsRequest, opts ...grpc.CallOption) (*ListDesiredBuildIDsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDesiredBuildIDsResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ListDesiredBuildIDs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DesiredState)
@@ -494,6 +523,24 @@ type ClusterControllerServiceServer interface {
 	PreviewNodeProfiles(context.Context, *PreviewNodeProfilesRequest) (*PreviewNodeProfilesResponse, error)
 	// ── Desired-state management (typed, replaces ResourcesService JSON hack) ──
 	GetDesiredState(context.Context, *emptypb.Empty) (*DesiredState, error)
+	// ListDesiredBuildIDs returns the canonical set of artifact build_ids
+	// the controller currently considers actively desired. The set is the
+	// union of:
+	//   - ServiceDesiredVersion.Spec.BuildID
+	//   - ServiceRelease.Spec.BuildID + Status.ResolvedBuildID
+	//   - InfrastructureRelease.Spec.BuildID + Status.ResolvedBuildID
+	//   - ApplicationRelease.Spec.BuildID + Status.ResolvedBuildID
+	//
+	// (empty build_ids are skipped).
+	//
+	// Repository, cluster_doctor, and any other consumer that needs the
+	// "which build_ids must I keep around?" answer MUST call this RPC
+	// instead of scanning /globular/resources/* etcd prefixes directly.
+	// Anchored by invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage:
+	// the owner computes the reachability set with its in-memory contracts
+	// intact; a raw etcd scan that mirrors the logic in a consumer is a
+	// forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc.
+	ListDesiredBuildIDs(context.Context, *ListDesiredBuildIDsRequest) (*ListDesiredBuildIDsResponse, error)
 	UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error)
 	RemoveDesiredService(context.Context, *RemoveDesiredServiceRequest) (*DesiredState, error)
 	SeedDesiredState(context.Context, *SeedDesiredStateRequest) (*DesiredState, error)
@@ -592,6 +639,9 @@ func (UnimplementedClusterControllerServiceServer) PreviewNodeProfiles(context.C
 }
 func (UnimplementedClusterControllerServiceServer) GetDesiredState(context.Context, *emptypb.Empty) (*DesiredState, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetDesiredState not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ListDesiredBuildIDs(context.Context, *ListDesiredBuildIDsRequest) (*ListDesiredBuildIDsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListDesiredBuildIDs not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpsertDesiredService not implemented")
@@ -1062,6 +1112,24 @@ func _ClusterControllerService_GetDesiredState_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_ListDesiredBuildIDs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDesiredBuildIDsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ListDesiredBuildIDs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ListDesiredBuildIDs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ListDesiredBuildIDs(ctx, req.(*ListDesiredBuildIDsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_UpsertDesiredService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertDesiredServiceRequest)
 	if err := dec(in); err != nil {
@@ -1304,6 +1372,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDesiredState",
 			Handler:    _ClusterControllerService_GetDesiredState_Handler,
+		},
+		{
+			MethodName: "ListDesiredBuildIDs",
+			Handler:    _ClusterControllerService_ListDesiredBuildIDs_Handler,
 		},
 		{
 			MethodName: "UpsertDesiredService",

@@ -639,6 +639,30 @@ service ClusterControllerService {
       default_role_hint: "viewer"
     };
   };
+  // ListDesiredBuildIDs returns the canonical set of artifact build_ids
+  // the controller currently considers actively desired. The set is the
+  // union of:
+  //   - ServiceDesiredVersion.Spec.BuildID
+  //   - ServiceRelease.Spec.BuildID + Status.ResolvedBuildID
+  //   - InfrastructureRelease.Spec.BuildID + Status.ResolvedBuildID
+  //   - ApplicationRelease.Spec.BuildID + Status.ResolvedBuildID
+  // (empty build_ids are skipped).
+  //
+  // Repository, cluster_doctor, and any other consumer that needs the
+  // "which build_ids must I keep around?" answer MUST call this RPC
+  // instead of scanning /globular/resources/* etcd prefixes directly.
+  // Anchored by invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage:
+  // the owner computes the reachability set with its in-memory contracts
+  // intact; a raw etcd scan that mirrors the logic in a consumer is a
+  // forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc.
+  rpc ListDesiredBuildIDs(ListDesiredBuildIDsRequest) returns (ListDesiredBuildIDsResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.desired_state.read"
+      permission: "read"
+      resource_template: "/cluster_controller/desired-state"
+      default_role_hint: "viewer"
+    };
+  };
   rpc UpsertDesiredService(UpsertDesiredServiceRequest) returns (DesiredState) {
     option (globular.auth.authz) = {
       action: "cluster_controller.desired_service.upsert"
@@ -854,6 +878,22 @@ message DesiredService {
 message DesiredState {
   repeated DesiredService services = 1;
   // Monotonically increasing revision set by the controller on each write.
+  string revision = 2;
+}
+
+message ListDesiredBuildIDsRequest {
+  // Reserved for future filtering (by kind, publisher). Empty request
+  // is the canonical "give me everything desired" call.
+}
+
+// ListDesiredBuildIDsResponse carries the canonical reachability set of
+// build_ids the controller considers actively desired. Order is
+// unspecified; duplicates are not emitted; empty strings are skipped.
+message ListDesiredBuildIDsResponse {
+  repeated string build_ids = 1;
+  // Monotonically increasing revision matching the SDV resource version
+  // at the moment the set was computed. Consumers may use this to
+  // detect staleness in caches.
   string revision = 2;
 }
 
